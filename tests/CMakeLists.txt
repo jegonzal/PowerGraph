@@ -1,0 +1,53 @@
+project(tests)
+
+link_libraries(${GraphLab_LIBRARIES})
+
+include_directories( . )
+
+ADD_CXXTEST(graphtest.cxx)
+
+ADD_CXXTEST(serializetests.cxx)
+ADD_CXXTEST(foreachtest.cxx)
+ADD_CXXTEST(logtest.cxx)
+ADD_CXXTEST(circqueuetest.cxx)
+# ADD_CXXTEST(basictasktests.cxx)
+# ADD_CXXTEST(basicgraphlabintegrationtest.cxx)
+ADD_CXXTEST(sampletreetest.cxx)
+# ADD_CXXTEST(set_scheduler_test.cxx)
+ADD_CXXTEST(shared_data_test.cxx)
+ADD_CXXTEST(tlstest.cxx)
+ADD_CXXTEST(factor_tests.cxx)
+# ADD_CXXTEST(fastmultinomialtest.cxx)
+# ADD_CXXTEST(edge_selector_test.cxx)
+# ADD_CXXTEST(randomtest.cxx)
+# ADD_CXXTEST(vertex_set_test.cxx)
+ADD_CXXTEST(dense_bitset_test.cxx)
+ADD_CXXTEST(timertest.cxx)
+# ADD_CXXTEST(executionplantest.cxx)
+add_executable(programoptions programoptions.cpp)
+# add_executable(test_optimize test_optimize.cpp)
+add_dist_executable(distinittest distinittest.cpp)
+add_dist_executable(distmsgtest distmsgtest.cpp)
+add_executable(anytests anytests.cpp)
+add_executable(anytests_loader anytests_loader.cpp)
+add_executable(coretest coretest.cpp)
+add_dist_executable(clonedgraphtest clonedgraphtest.cpp)
+add_dist_executable(dist_lm_test dist_lm_test.cpp)
+add_dist_executable(dist_lm_test2 dist_lm_test2.cpp)
+add_dist_executable(distdht distdht.cpp)
+add_dist_executable(dist_lm_test_block dist_lm_test_block.cpp)
+add_dist_executable(dist_engine_test dist_engine_test.cpp)
+add_dist_executable(dist_engine_test2 dist_engine_test2.cpp)
+add_dist_executable(dist_engine_test3 dist_engine_test3.cpp)
+add_dist_executable(dist_term_test dist_term_test.cpp)
+add_dist_executable(distributed_shared_data_test distributed_shared_data_test.cpp)
+
+# cuda_add_executable(cuda_test cuda_test.cpp)
+
+# add_executable(itppserialize itppserialize.cpp)
+#target_link_libraries(itppserialize  itpp)
+
+
+add_executable(partransform partransform.cpp)
+
+add_executable(clopts command_line_options.cpp)

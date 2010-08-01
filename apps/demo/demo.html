@@ -1,0 +1,640 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>GraphLab 1.0 Demo Tutorial</title>
+<!-- To generate your own colored code visit http://www.bedaux.net/cpp2html/ -->
+<style type="text/css">
+.comment { color: #000000; font-style:italic;}
+th {font-weight:bold; text-align:center;}
+td {padding:1px; border:1px solid black;vertical-align:top;}
+table {padding:1px; background:#EFEFFF; border: 1px solid black;vertical-align:top;border-collapse:collapse;}
+.pre { color: #000099; }
+.string { color: #009900; }
+.char { color: #009900; }
+.float { color: #996600; }
+.int { color: #999900; }
+.bool { color: #000000; font-weight: bold; }
+.type { color: #FF6633; }
+.flow { color: #FF0000; }
+.keyword { color: #990000; }
+.codebox {padding:2px 6px 4px 6px; background-color: #efefff; border: 1px solid black; font-family:monospace,courier;white-space:pre }
+keyword {color:#990000;}
+graphlabword {color:#009900;}
+.operator { color: #663300; font-weight: bold; }
+.operator { color: #663300; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1> GraphLab 1.0 Demo Tutorial </h1>
+<p>
+This demo provides a synthetic application which makes use a good
+number of GraphLab concepts. Note that this demo app is intentionally
+built to use as many of graphlab concepts as possible. This may not be
+typical for most GraphLab applications.
+</p>  
+<table>
+<tr> <th>  Grid Model  </th> </tr>
+<tr><td>
+<pre>
+x----x----x
+|    |    |
+x----o----o
+|    |    |
+o----x----x
+</pre>
+</td></tr><table>
+<p>
+Given a DIMxDIM undirected grid graph where each vertex is assigned a
+random color, either black or red (represented as a boolean value)
+Each vertex then makes a local random decision: 
+</p>
+<ul>
+<li>  become red with probabilty proportionate to the number of red neighbors </li>
+<li> become black with probabilty proportionate to the number of black neighbors </li>
+</ul>
+<p>
+Clearly, the two stable outcomes are where all vertices are
+black, or where all vertices are red. We are interested in knowing
+how many flips each vertex took on average. 
+
+</p><p>
+Also, since GraphLab only has directed edges, we will build the graph
+by duplicating every edge in both directions.
+</p>
+
+<h2> Includes </h2>
+<p>
+We first need to include some headers: 
+<graphlabword> graphlab.hpp </graphlabword> includes everything you will ever need from GraphLab.
+</p>
+
+<p class="codebox"><span class="comment">// standard C++ headers
+</span><span class="pre">#include &lt;iostream&gt;
+</span><span class="comment">
+// includes the entire graphlab framework
+</span><span class="pre">#include &lt;graphlab.hpp&gt; </span>
+</p>
+
+<h2> Graph Data </h2>
+
+<p>
+First we will design the graph data. For each vertex, we will need to
+know its current color, and a counter to count the number of flips it
+took. We will use a boolean to represent color, using <keyword> false </keyword> to represent Black and using <keyword> true</keyword> to represent Red.
+</p>
+<p class="codebox"><span class="keyword">struct</span> vertex_data<span class="operator">:</span><span class="keyword"> public</span> graphlab<span class="operator">::</span>unsupported_serialize<span class="operator"> {</span>
+  size_t numflips<span class="operator">;</span><span class="type">
+  bool</span> color<span class="operator">;
+};</span></p>
+<p>
+
+GraphLab provides facilities to directly save/load graphs from
+disk. However, to do so, GraphLab must be able to understand your
+datastructures.  If you are not interested in saving/loading graphs,
+you can simply inherit from <graphlabword>unsupported_serialize </graphlabword>. Otherwise, you will
+need write a save/load function pair for your struct.
+</p><p>
+To write a save/load function see the next code box.
+The serialization mechanism is simple to use and it understands all
+basic datatypes as well as standard STL containers. If the STL
+container contains non-basic datatypes (such as a struct), save/load
+functions must be written for the datatype.
+If we wanted to be able to save the graph to a file we would
+include the following functions and remove
+graphlab::unsupported_serialize
+</p>
+
+<p class="codebox"> <span class="type">void</span> save<span class="operator">(</span>oarchive<span class="operator">&amp;</span> archive<span class="operator">)</span><span class="keyword"> const</span><span class="operator"> {</span> 
+  archive<span class="operator"> &lt;&lt;</span> numflips<span class="operator"> &lt;&lt;</span> color<span class="operator">; 
+}</span><span class="type"> 
+
+
+void</span> load<span class="operator">(</span>iarchive<span class="operator">&amp;</span> archive<span class="operator">) {</span> 
+  archive<span class="operator"> &gt;&gt;</span> numflips<span class="operator"> &gt;&gt;</span> color<span class="operator">; 
+}</span>
+</p>
+
+
+<p>
+In this example, we do not need edge data. However GraphLab
+currently does not have a mechanism to completely disable the use of
+edge data.  Therefore, we will just put an arbitrary small
+placeholder type on the edges.
+
+<p class="codebox"></span><span class="keyword">typedef</span><span class="type"> char</span> edge_data<span class="operator">;</span><span class="comment">
+</p>
+<p>
+Note that we do not need to write a save/load function here since
+GraphLab's serializer already understands basic datatypes. 
+</p>
+
+<h2> Creating the Graph </h2>
+
+<p>
+The GraphLab graph is templatized over the vertex data as well as the
+edge data.  Here we define the type of the graph using a <span class="keyword"> typedef </span> for convenience.  </p> 
+
+<p class=codebox><span class="keyword">typedef</span> graphlab<span class="operator">::</span>graph<span class="operator">&lt;</span>vertex_data<span class="operator">,</span> edge_data<span class="operator">&gt;</span> graph_type<span class="operator">;</span></p>
+
+<p>
+Since graphlab is heavily templatized and can be inconvenient to use
+in its standard form, the <graphlabword>graphlab::types</graphlabword> structure provides
+convenient typedefed "shortcuts" to figure out the other graphlab
+types easily. </p>
+
+<p class=codebox><span class="keyword">typedef</span> graphlab<span class="operator">::</span>types<span class="operator">&lt;</span>graph_type<span class="operator">&gt;</span> gl<span class="operator">;</span></p>
+
+
+
+Lets define a function to create the graph:
+<p class="codebox"><span class="type">void</span> create_graph<span class="operator">(</span>graph_type<span class="operator">&amp;</span> g<span class="operator">,</span>
+                  size_t dim<span class="operator">) {</span></p>
+
+<p>
+We first create create dim * dim vertices.the graph's <graphlabword>add_vertex(vertexdata)</graphlabword> function takes the vertex data as input
+and returns the vertex id of the new vertex. The ids are guaranteed to be sequentially numbered. </p>
+
+<p class="codebox"><span class="flow">  for</span><span class="operator"> (</span>size_t i<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span>i<span class="operator"> &lt;</span> dim<span class="operator"> *</span> dim<span class="operator">; ++</span>i<span class="operator">) {</span><span class="comment">
+
+    // create the vertex data, randomizing the color
+</span>    vertex_data vdata<span class="operator">;</span>
+    vdata<span class="operator">.</span>numflips<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span><span class="flow">
+    if</span><span class="operator"> (</span>gl<span class="operator">::</span>random<span class="operator">::</span>rand_int<span class="operator">(</span><span class="int">1</span><span class="operator">) ==</span><span class="int"> 1</span><span class="operator">)</span>  vdata<span class="operator">.</span>color<span class="operator"> =</span><span class="bool"> true</span><span class="operator">;</span><span class="flow">
+
+    else</span> vdata<span class="operator">.</span>color<span class="operator"> =</span><span class="bool"> false</span><span class="operator">;</span><span class="comment">
+    // create the vertex
+</span>    g<span class="operator">.</span>add_vertex<span class="operator">(</span>vdata<span class="operator">);
+  }</span></p>
+
+
+
+<p>
+Now we can create the edges. The <graphlabword>add_edge(i,j,edgedata)</graphlabword> function creates
+an edge from i-&gt;j. with the edgedata attached. It then returns the id
+of the new edge. The ids are guaranteed to be sequentially numbered.
+GraphLab does NOT support duplicated edges, and currently has no facilities
+for checking for accidental duplicated edge insertions at the
+graph construction stage. (It is quite costly to do so)
+
+Any duplicated edges will result in an assertion failure at the later
+'finalize' stage. </p>
+
+<p class="codebox">  edge_data edata<span class="operator">;</span><span class="flow">
+  for</span><span class="operator"> (</span>size_t i<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span>i<span class="operator"> &lt;</span> dim<span class="operator">; ++</span>i<span class="operator">) {</span><span class="flow">
+
+    for</span><span class="operator"> (</span>size_t j<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span>j<span class="operator"> &lt;</span> dim<span class="operator"> -</span><span class="int"> 1</span><span class="operator">; ++</span>j<span class="operator">) {</span><span class="comment">
+
+      // add the horizontal edges in both directions
+</span>      g<span class="operator">.</span>add_edge<span class="operator">(</span>dim<span class="operator"> *</span> i<span class="operator"> +</span> j<span class="operator">,</span> dim<span class="operator"> *</span> i<span class="operator"> +</span> j<span class="operator"> +</span><span class="int"> 1</span><span class="operator">,</span> edata<span class="operator">);</span>
+      g<span class="operator">.</span>add_edge<span class="operator">(</span>dim<span class="operator"> *</span> i<span class="operator"> +</span> j<span class="operator"> +</span><span class="int"> 1</span><span class="operator">,</span> dim<span class="operator"> *</span> i<span class="operator"> +</span> j<span class="operator">,</span> edata<span class="operator">);</span><span class="comment">
+
+      // add the vertical edges in both directions
+</span>      g<span class="operator">.</span>add_edge<span class="operator">(</span>dim<span class="operator"> *</span> j<span class="operator"> +</span> i<span class="operator">,</span> dim<span class="operator"> * (</span>j<span class="operator"> +</span><span class="int"> 1</span><span class="operator">) +</span> i<span class="operator">,</span> edata<span class="operator">);</span>
+      g<span class="operator">.</span>add_edge<span class="operator">(</span>dim<span class="operator"> * (</span>j<span class="operator"> +</span><span class="int"> 1</span><span class="operator">) +</span> i<span class="operator">,</span> dim<span class="operator"> *</span> j<span class="operator"> +</span> i<span class="operator">,</span> edata<span class="operator">);
+    }
+  }</span></p>
+
+<p>
+Now that the graph is fully constructed, we need to call <graphlabword>finalize()</graphlabword>.
+</p>
+
+<p class="codebox">  g<span class="operator">.</span>finalize<span class="operator">();
+}</span></p>
+
+<h2> Update Function </h2>
+
+<p>
+Now we can begin to write the update function. The update function is a function that is applied to a vertex of the graph. The function will have read/write access to the data on the vertex, as well as all adjacent edges and vertices. You may specify more than one update
+function, but we only need one for this application. 
+This is the standard
+form of an update function. </p>
+
+<p class="codebox"><span class="type">void</span> update_function<span class="operator">(</span>gl<span class="operator">::</span>iscope<span class="operator"> &amp;</span>scope<span class="operator">,</span>
+                     gl<span class="operator">::</span>icallback<span class="operator"> &amp;</span>scheduler<span class="operator">,</span>
+                     gl<span class="operator">::</span>ishared_data<span class="operator">*</span> shared_data<span class="operator">) {</span></p>
+
+
+<table>
+<p>The parameters are described here:</p>
+<tr><td>scope</td><td>
+The scope provides access to a local neighborhood of a graph.
+The scope is centered on a particular vertex, ( <graphlabword>scope.vertex()</graphlabword> ), and includes
+all adjacent edges and vertices. 
+<br>
+All vertices are identified by an unsigned integer type <graphlabword>vertex_id_t</graphlabword>,
+and all edges are similarly identified by an unsigned integer type <graphlabword>edge_id_t</graphlabword>.
+GraphLab guarantees that all vertices are sequentially numbered from 0
+(so the largest vertex id is |num_vertices| - 1), and similarly for edges.
+All edges are directed. </td></tr>
+
+<tr><td> scheduler </td><td>
+There are two basic types of schedulers.
+The synchronous / round_robin scheduler takes a single fixed set of tasks
+and repeatedly executes them until some termination condition is achieved.
+Using these schedulers generally means that the update function will not need use
+this parameter. 
+<br>
+The task schedulers, which include <graphlabword>fifo, multiqueue_fifo, priority,
+clustered_priority</graphlabword>, all operate on the idea that executing an
+update_function on a vertex can be thought of as a task. Update functions
+can therefore inject new jobs into the task scheduler through this parameter.
+</td></tr>
+
+<tr><td> shared_data </td><td>
+This provides access to the shared_data object. If no shared_data object
+is provided, this could be NULL. We will describe the shared data object in greater detail later</td></tr>
+</table>
+
+<p>
+Since the task scheduler is slightly more complex to use, in this example, we will demonstrate task schedulers. 
+</p>
+<p>
+Each update call on a vertex has the option of inserting new tasks into the scheduler: in this case, its neighbors. The algorithm terminates when there are no tasks remaining. There are other methods for terminating execution, such as registering a termination evaluator with the engine, but we are not going to describe that here.</p>
+
+<p>First lets get the the id the vertex I am operating on, and get a reference to the vertex data on this vertex.</p>
+<p class="codebox">  gl<span class="operator">::</span>vertex_id_t curv<span class="operator"> =</span> scope<span class="operator">.</span>vertex<span class="operator">();</span>
+  vertex_data<span class="operator"> &amp;</span>curvdata<span class="operator"> =</span> scope<span class="operator">.</span>vertex_data<span class="operator">();</span></p>
+<p>
+Note that the function <graphlabword>scope.vertex_data()</graphlabword> returns a reference to the vertex data. Modifications to this reference will directly modify the data on the graph.</p>
+<p>
+Recall that the task is to set the color of this vertex to the color of the majority of the neighbors, so lets declare a variable which counts the number of red neighbors</p>
+
+<p class = "codebox">  size_t numredneighbors<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span></p>
+
+<p>
+Now I need to loop through all my neighboring vertices and count the number of red vertices. To do this I have to look at my edges. Recall that our graph construction is "bi-directed", therefore looking at just the in-edges of the vertex will provide me all my neighbors. This is done through the <graphlabword>in_edge_ids()</graphlabword> function </p>
+  
+<p class="codebox"></span><span class="flow">  for</span><span class="operator"> (</span>size_t i<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span>i<span class="operator"> &lt;</span> scope<span class="operator">.</span>in_edge_ids<span class="operator">().</span>size<span class="operator">(); ++</span>i<span class="operator">) {</span><span class="comment">
+
+</span>    size_t eid<span class="operator"> =</span> scope<span class="operator">.</span>in_edge_ids<span class="operator">()[</span>i<span class="operator">];</span></p>
+
+<p>
+    Now the variable 'eid' contains the edge id of a particular incoming edge. The function <graphlabword>target(eid)</graphlabword> function allows to get the vertex at the destination of the edge 'eid'. The <graphlabword>source(eid)</graphlabword> function provides me with the source vertex. Since I am looking at in edges, the source vertex will be my adjacent vertices.</p>
+
+<p class="codebox">    size_t sourcev <span class="operator">=</span> scope<span class="operator">.</span>source<span class="operator">(</span>eid<span class="operator">);</span></p>
+
+<p>The <graphlabword>neighbor_vertex_data(vid)</graphlabword> function allow me to read the vertex data
+of a vertex adjacent to the current vertex. If we have edge data, the function <graphlabword>edge_data(eid)</graphlabword> will return a reference to the edge data on the edge eid.
+Since I am not going to need to change this data, I can just grab a const reference. You should always try to use const references whenever
+you know that you will definitely not be changing the data, since
+GraphLab could make additional optimizations for "read-only" operations. Similarly, you should never cast a constant reference to a regular reference. Modifications to constant references have undefined behavior. </p>
+
+<p class="codebox"><span class="keyword">    const</span> vertex_data<span class="operator">&amp;</span> nbrvertex<span class="operator"> =</span> scope<span class="operator">.</span>neighbor_vertex_data<span class="operator">(</span>sourcev<span class="operator">);</span><span class="comment">
+
+    // if red, add to our counter</span>
+</span><span class="flow">    if</span><span class="operator"> (</span>nbrvertex<span class="operator">.</span>color<span class="operator">) ++</span>numredneighbors<span class="operator">;
+  }</span></p>
+<p> Now we can decide on the new color of the vertex.
+We either match the majority color, or in the case of no majority color, we flip a coin. 
+Basic random number support is provided through <graphlabword>gl::random</graphlabword>
+there are 2 functions. <graphlabword>gl::random::rand01()</graphlabword> provides a random floating point
+number between 0 and 1. <graphlabword>gl::random::rand_int(max)</graphlabword> provides a random integer
+between 0 and max inclusive. 
+ </p>
+
+<p class="codebox"><span class="comment">  // get the total number of neighbors we have
+</span>  size_t numneighbors<span class="operator"> =</span> scope<span class="operator">.</span>in_edge_ids<span class="operator">().</span>size<span class="operator">();</span>
+
+<span class="type">  bool</span> newcolor<span class="operator">;</span><span class="comment">  // my newcolor
+</span><span class="type">  bool</span> isdeterministic<span class="operator"> =</span><span class="bool"> false</span><span class="operator">;</span><span class="comment">  // whether we flipped a coin to decide. We will
+                            // see later why this is useful
+ 
+</span><span class="flow">  if</span><span class="operator"> (</span>gl<span class="operator">::</span>random<span class="operator">::</span>rand01<span class="operator">() &lt;</span><span class="type"> double</span><span class="operator">(</span>numredneighbors<span class="operator">) /</span> numneighbors<span class="operator">) {</span>
+    newcolor<span class="operator"> =</span><span class="bool"> true</span><span class="operator">;
+  }</span><span class="flow">
+  else</span><span class="operator"> {</span>
+    newcolor<span class="operator"> =</span><span class="bool"> false</span><span class="operator">;
+  }</span><span class="comment">
+
+  // if all my neighbors are black or all red, then this was
+  // a deterministic decision
+</span><span class="flow">  if</span><span class="operator"> (</span>numneighbors<span class="operator"> ==</span> numredneighbors<span class="operator"> ||</span> numredneighbors<span class="operator"> ==</span><span class="int"> 0</span><span class="operator">) {</span>
+    isdeterministic<span class="operator"> =</span><span class="bool"> true</span><span class="operator">;
+  }</span><span class="flow">
+  else</span><span class="operator"> {</span>
+    isdeterministic<span class="operator"> =</span><span class="bool"> false</span><span class="operator">;
+  }</span>
+</p>
+
+
+<p> Now we have decided on the new color of the vertex, we can go ahead and update the value of the vertex. Once again recall that curvdata is a reference to the actual graph data. Therefore we can just modify it directly. </p>
+<p class="codebox"><span class="type">  bool</span> flipped<span class="operator"> = (</span>newcolor<span class="operator"> !=</span> curvdata<span class="operator">.</span>color<span class="operator">);</span><span class="flow">
+
+  if</span><span class="operator"> (</span>flipped<span class="operator">) ++</span>curvdata<span class="operator">.</span>numflips<span class="operator">;</span>
+  curvdata<span class="operator">.</span>color<span class="operator"> =</span> newcolor<span class="operator">;</span></p>
+
+<p> Now for the task creation algorithm. There are 2 basic cases. </p>
+<p> <b>Case 1</b>: If I did not flip, then my neighbors will not be affected, it will be as if this vertex was never updated at all.
+We therefore do not need to update my neighbors. </p>
+
+<p> <b>Case 2</b>: If I flipped, all my neighbors could be affected, therefore loop through all my neighboring vertices and add them as tasks. 
+To add a task, I call <graphlabword>scheduler.add_task(gl::update_task, priority)</graphlabword>. The <graphlabword>gl::update_task</graphlabword> object takes a vertex id, and the update function to execute on. The priority argument is the priority of the task. This is only used by the priority schedulers.
+This value should be strictly &gt; 0. In this demo app, we don't really care about the priority, so we will just set it to 1.0. </p>
+
+<p class="codebox"><span class="flow">  if</span><span class="operator"> (</span>flipped<span class="operator">) {</span><span class="flow">
+    for</span><span class="operator"> (</span>size_t i<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span>i<span class="operator"> &lt;</span> scope<span class="operator">.</span>in_edge_ids<span class="operator">().</span>size<span class="operator">(); ++</span>i<span class="operator">) {</span><span class="comment">
+
+      // get the neighboring vertex
+</span>      size_t eid<span class="operator"> =</span> scope<span class="operator">.</span>in_edge_ids<span class="operator">()[</span>i<span class="operator">];</span>
+      size_t sourcev<span class="operator"> =</span> scope<span class="operator">.</span>source<span class="operator">(</span>eid<span class="operator">);</span>
+
+</span>      scheduler<span class="operator">.</span>add_task<span class="operator">(</span>gl<span class="operator">::</span>update_task<span class="operator">(</span>sourcev<span class="operator">,</span> update_function<span class="operator">),</span><span class="float">
+                        1.0</span><span class="operator">);
+    }
+  }</span></p>
+
+<p> Now, there is another special case. If flipped myself on a random number, then I could switch colors when updating myself again. Therefore I should try again and update myself again in the future </p>
+<p class="codebox"><span class="flow">  if</span><span class="operator"> (</span>isdeterministic<span class="operator"> == </span><span class="bool">false</span><span class="operator">) {</span>
+    scheduler<span class="operator">.</span>add_task<span class="operator">(</span>gl<span class="operator">::</span>update_task<span class="operator">(</span>curv<span class="operator">,</span> update_function<span class="operator">),</span><span class="float">
+                        1.0</span><span class="operator">);
+  }
+}</span></p>
+
+
+<h2> Shared Data Manager </h2>
+<p>
+ The shared data manager serves two roles. Firstly, it provides access to data which is globally accessible through all update functions, and secondly, it provides the capability to compute aggregations of all graph data. The first capability may not appear to be useful in the shared memory setting since one could simply define global variables. However, using the shared data manager, allows GraphLab to manage these "global variables" in a platform independent fashion; such as in the distributed setting.
+</p><p>
+ For this application, say if we are interested in having an incremental counter which provides
+ the total number of flips executed so far, as well as computing the proportion of red vertices in the graph.
+ we can do this via the shared data manager's Sync mechanism. </p>
+ 
+ <p>The Sync mechanism allows you to build a 'Fold / Reduce' operation
+ across all the vertices in the graph, and store the results in the
+ Shared Data object. The Shared Data table is essentially a big table
+ mapping integer ids -&gt; arbitrary data types</p>
+
+<p>First we need to define the entries of the table. The data we need are:
+<ul>
+<li> the total number of vertices (constant) </li>
+<li> red vertex proportion      (synced) </li>
+<li> the total number of flips    (synced) </li>
+</ul>
+  
+We will therefore define the following 3 entries in the Shared Data table. </p>
+<p class="codebox"><span class="keyword">const</span> size_t NUM_VERTICES<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span><span class="keyword">
+const</span> size_t RED_PROPORTION<span class="operator"> =</span><span class="int"> 1</span><span class="operator">;</span><span class="keyword">
+const</span> size_t NUM_FLIPS<span class="operator"> =</span><span class="int"> 2</span><span class="operator">;</span><span class="comment"></p>
+
+<h3> NUM_VERTICES </h3>
+<p>
+The number of vertices in the graph is a constant, and will not be changed through out execution of the GraphLab program. 
+We can set this value as a constant in the Shared Data Manager by calling the <graphlabword>shared_data.set_constant(entryid, value)</graphlabword> function. Every value in the shared_data table is a special data type called
+<graphlabword>graphlab::any</graphlabword> (which is derived and modified from boost::any).
+This allows you to store arbitrary datatypes into the shared data table,
+with the minor caveat that the user must know <b> exactly </b> what is the data
+type stored at each entry. It is therefore good
+practice to explicitly state the data type of the value you are storing
+size_t here). You will see this theme alot in all uses of the shared
+data table.
+</p>
+
+<p class="codebox">  shared_data<span class="operator">.</span>set_constant<span class="operator">(</span>NUM_VERTICES<span class="operator">, (</span>size_t<span class="operator">)(</span>DIM<span class="operator"> *</span> DIM<span class="operator">));</span></p>
+
+<p> To read the value of a constant from the shared_data table, we use the <graphlabword>shared_data.get_constant(entryid)</graphlabword> function. 
+This function returns an <graphlabword>any</graphlabword>, and the type must be known to read the value.
+</p>
+
+<p class="codebox">size_t numvertices<span class="operator"> =</span> shared_data<span class="operator">.</span>get_constant<span class="operator">(</span>NUM_VERTICES<span class="operator">).</span>as<span class="operator">&lt;</span>size_t<span class="operator">&gt;();</span></p>
+
+
+<h3> RED_PROPORTION </h3>
+<p>
+A sync is defined by a pair of functions, a <graphlabword>reducer</graphlabword>, and an <graphlabword>apply</graphlabword>
+The reducer is exactly a fold over all the vertices, and the apply
+takes the final value at the end of the reduce, and performs whatever
+transformation it needs, before writing it into the Shared Data table.
+For instance, an L2 sum can be computed by having the reducer add the
+squares of the values at each vertex, then the apply function performs
+the square root.
+</p>
+
+<p>
+ We will use this to implement the RED_PROPORTION sync. The way we will
+ implement this is to use the reducer to count the number of Red
+ vertices. The apply function will then divide the result by the value in
+ the NUM_VERTICES table entry<p>
+
+The  reducer is a function  which takes 4 parameters:
+<p class="codebox"><span class="type">void</span> reduce_red_proportion<span class="operator">(</span>size_t index<span class="operator">,</span><span class="keyword">
+               const</span> gl<span class="operator">::</span>ishared_data<span class="operator">&amp;</span> shared_data<span class="operator">,</span>
+               gl<span class="operator">::</span>iscope<span class="operator">&amp;</span> scope<span class="operator">,</span>
+               graphlab<span class="operator">::</span>any<span class="operator">&amp;</span> accumulator<span class="operator">) {</span>
+</span></p>
+<table>
+<tr><td>index </td><td>
+This is the entry of the shared data table
+             corresponding to this reduce. In this case, we can gaurantee that index will always be equal to RED_PROPORTION </td></tr>
+<tr><td>shared_data</td><td> A reference to the shared data object </td></tr>
+
+<tr><td>scope </td><td> The scope on the vertex we are currently accessing </td></tr>
+
+<tr><td>accumulator </td><td> The input and output of the fold/reduce operation.</td></tr>
+</table>
+
+</span>
+<p>
+In this reducer, we will simply increment the accumulator if the color of the vertex is red.
+</p>
+<p class="codebox"><span class="flow">  if</span><span class="operator"> (</span>scope<span class="operator">.</span>vertex_data<span class="operator">().</span>color<span class="operator">)</span> accumulator<span class="operator">.</span>as<span class="operator">&lt;</span><span class="type">double</span><span class="operator">&gt;() +=</span><span class="float"> 1.0</span><span class="operator">;
+}</span></p>
+
+<p>The apply function takes the followng 4 parameters </p>
+
+<p class="codebox"><span class="type"> void</span> apply_red_proportion<span class="operator">(</span>size_t index<span class="operator">,</span><span class="keyword">
+                                  const</span> gl<span class="operator">::</span>ishared_data<span class="operator">&amp;</span> shared_data<span class="operator">,</span>
+                                  graphlab<span class="operator">::</span>any<span class="operator">&amp;</span> current_data<span class="operator">,</span><span class="keyword">
+                                  const</span> graphlab<span class="operator">::</span>any<span class="operator">&amp;</span> new_data<span class="operator">) {</span></p>
+
+<table>
+<tr><td>index</td><td> This is the entry of the shared data table
+             corresponding to this reduce. In this case, we can gaurantee that index will always be equal to RED_PROPORTION</td></tr>
+
+<tr><td> shared_data</td><td> A reference to the shared data object</td></tr>
+
+<tr><td> current_data</td><td> The current (old) value in the shared data table entry.
+                    Overwriting this will update the shared data table entry</td></tr>
+
+<tr><td> new_data</td><td> The result of the reduce operation.</td></tr>
+</table>
+
+<p>The reduced result in new_data, will be the count of the number of red vertices. We can get the total number of vertices from the NUM_VERTICES entry of the shared data table, and compute the proportion of red vertices by dividing the number of red vertices by the total number of vertices. </p>
+
+<p class="codebox"><span class="comment">  // get the number of vertices from the constant section of the shared data
+</span>  size_t numvertices<span class="operator"> =</span> shared_data<span class="operator">.</span>get_constant<span class="operator">(</span>NUM_VERTICES<span class="operator">).</span>as<span class="operator">&lt;</span>size_t<span class="operator">&gt;();</span><span class="comment">
+
+  // new_data is the reduced result, which is the number of red vertices
+</span><span class="type">  double</span> numred<span class="operator"> =</span> new_data<span class="operator">.</span>as<span class="operator">&lt;</span><span class="type">double</span><span class="operator">&gt;();</span><span class="comment">
+  // compute the proportion
+
+</span><span class="type">  double</span> proportion<span class="operator"> =</span> numred<span class="operator"> /</span> numvertices<span class="operator">;</span><span class="comment">
+  // here we can output something as a progress monitor
+</span>  std<span class="operator">::</span>cout<span class="operator"> &lt;&lt;</span><span class="string"> "Red Proportion: "</span><span class="operator"> &lt;&lt;</span> proportion<span class="operator"> &lt;&lt;</span> std<span class="operator">::</span>endl<span class="operator">;</span><span class="comment">
+
+  // write the final result into the shared data table
+</span>  current_data<span class="operator"> = (</span><span class="type">double</span><span class="operator">)</span>proportion<span class="operator">;
+}</span></p>
+ 
+
+<p> Now that both reduce and apply functions have been defined, we can create the entry in the shared data table by calling
+
+<p class="codebox">  shared_data<span class="operator">.</span>set_sync<span class="operator">(</span>RED_PROPORTION<span class="operator">,</span><span class="comment">        // the entry we are creating
+</span>               reduce_red_proportion<span class="operator">,</span><span class="comment"> // the reduce function
+</span>               apply_red_proportion<span class="operator">,</span><span class="comment">  // the apply function
+</span><span class="type">               double</span><span class="operator">(</span><span class="int">0</span><span class="operator">),</span><span class="comment">               // the initial value for the fold/reduce
+</span><span class="float">               100</span><span class="operator">);</span><span class="comment">                    // syncing frequency in milliseconds. 
+                              // The highest effective syncing frequency is 0.1 sec (100ms)</span></p>
+
+<h3> NUM_FLIPS </h3>
+<p>
+  GraphLab provides a number of predefined syncing operations which allow
+  simple reductions / applies to be implemented very quickly. For instance, computing sums, sums of squares, etc.
+  We will implement the NUM_FLIPS entry using one of these predefined
+  operations. Since the vertex data could be any arbitrary type, the predefined operations typically require the user to
+  provide a simple function which extracts the information of interest from the vertex data. 
+  In this case, we are interested the numflips field.
+</p>
+<p class="codebox">size_t get_flip<span class="operator">(</span><span class="keyword">const</span> vertex_data<span class="operator"> &amp;</span>v<span class="operator">) {</span><span class="flow">
+  return</span> v<span class="operator">.</span>numflips<span class="operator">;
+}</span></p>
+
+<p>To create the sync, we use the <graphlabword>set_sync</graphlabword> function as well, but using functions from <graphlabword>sync_ops</graphlabword> and <graphlabword>apply_ops</graphlabword>. In this case, our reduction function is a simply "sum", while our apply function should do nothing more than copy the result of the reduction into the shared data table. </p>
+<p class="codebox">  shared_data<span class="operator">.</span>set_sync<span class="operator">(</span>NUM_FLIPS<span class="operator">,</span>
+               gl<span class="operator">::</span>ishared_data<span class="operator">::</span>sync_ops<span class="operator">::</span>sum<span class="operator">&lt;</span>size_t<span class="operator">,</span> get_flip<span class="operator">&gt;,</span>
+               gl<span class="operator">::</span>ishared_data<span class="operator">::</span>apply_ops<span class="operator">::</span>identity<span class="operator">&lt;</span>size_t<span class="operator">&gt;,</span>
+               size_t<span class="operator">(</span><span class="int">0</span><span class="operator">),</span><span class="float">
+               100</span><span class="operator">);</span></p>
+
+
+
+
+<h2> Main </h2>
+The Main function where everything begins. Here, we will demonstrate the minimal code needed to start a GraphLab job using all the parts we defined above.
+We will create a multithreaded engine running on 2 CPUs using the FIFO task scheduler.
+The demo.cpp file has a more complete version which include command line parameter parsing.
+<p class="codebox"><span class="type">int</span><span class="keyword"> main</span><span class="operator">(</span><span class="type">int</span> argc<span class="operator">,</span><span class="type">  char</span><span class="operator"> *</span>argv<span class="operator">[]) {</span><span class="comment">
+
+  // create the graph and shared data objects
+</span>  graph_type graph<span class="operator">;</span>
+  gl<span class="operator">::</span>thread_shared_data shared_data<span class="operator">;</span><span class="comment">
+
+  // creating a DIM * DIM graph
+</span><span class="keyword">  const</span> size_t DIM<span class="operator"> =</span><span class="int"> 10</span><span class="operator">;</span><span class="comment">
+  // call create_graph to create the graph
+</span>  create_graph<span class="operator">(</span>graph<span class="operator">,</span> DIM<span class="operator">);</span><span class="comment">
+
+  // call create shared_data to create the shared data
+</span>  create_shared_data<span class="operator">(</span>shared_data<span class="operator">,</span> DIM<span class="operator">);</span><span class="comment">
+
+  // create the engine
+</span>  gl<span class="operator">::</span>iengine<span class="operator"> *</span>engine<span class="operator"> =</span>
+         new_engine<span class="operator">(</span><span class="string">"multithreaded"</span><span class="operator">,</span><span class="comment"> // engine type. multithreaded/sequential
+</span><span class="string">                    "fifo"</span><span class="comment">           // scheduler type
+</span><span class="string">                    "edge"</span><span class="operator">,</span><span class="comment">          // scope consistency type (vertex/edge/full)
+</span>                    graph<span class="operator">,</span><span class="comment">           // the graph it operates on
+</span><span class="int">                    2</span><span class="operator">);</span><span class="comment">              // number of processors
+
+  // set the shared data object
+</span>  engine<span class="operator">-&gt;</span>set_shared_data<span class="operator">(&amp;</span>shared_data<span class="operator">);</span><span class="comment">
+
+  // since we are using a task scheduler, we need to
+  // to create tasks. otherwise the engine will just terminate immediately
+  // there are DIM * DIM vertices
+</span><span class="flow">  for</span><span class="operator"> (</span>size_t i<span class="operator"> =</span><span class="int"> 0</span><span class="operator">;</span>i<span class="operator"> &lt;</span> DIM<span class="operator"> *</span> DIM<span class="operator">; ++</span>i<span class="operator">) {</span>
+    engine<span class="operator">-&gt;</span>get_scheduler<span class="operator">().</span>add_task<span class="operator">(</span>
+             gl<span class="operator">::</span>update_task<span class="operator">(</span>i<span class="operator">,</span> update_function<span class="operator">),</span><span class="float">
+             1.0</span><span class="operator">);
+  }</span><span class="comment">
+
+  // begin executing the engine
+  // this function will only return when all tasks are done
+</span>  engine<span class="operator">-&gt;</span>start<span class="operator">();</span><span class="comment">
+
+  // since it is possible for the engine to terminate in between syncs
+  // if we want to get correct values for the syncs we should run them again
+  // we can do his with
+</span>  shared_data<span class="operator">.</span>sync<span class="operator">(</span>NUM_FLIPS<span class="operator">);</span>
+  shared_data<span class="operator">.</span>sync<span class="operator">(</span>RED_PROPORTION<span class="operator">);</span><span class="comment">
+
+  // Do whatever you want with the graph data / shared data</span>
+<span class="operator">}</span>
+</p>
+
+
+<h2> Comments on Engine Options </h2>
+<h3> Scope Model </h3>
+<p>
+When an update function is executed on a vertex, it can access all graph data
+on adjacent edges and adjacent vertices. The different scoping consistency
+models provide different data consistency guarantees when accessing 
+graph data. There are three scoping models, vertex, edge, and full.</p>
+
+<h4> Vertex Consistency </h4>
+<p>
+Vertex consistency is the weakest consistency model, and also the fastest
+(lowest contention). The vertex consistency model
+only guarantees that the Update Function can read and write to the current
+vertex without experiencing data races. Reading or writing to adjacent edges or
+adjacent vertices could result in inconsistent data. Data on adjacent edges
+and vertices may also change between consecutive reads within a single Update
+Function call.
+</p>
+
+<h4> Edge Consistency </h4>
+<p>
+The edge consistency model guarantees that the Update Function can read and
+write to the current vertex as all as all adjacent edges without experiencing
+data races. In addition, the Update Function can also made consistent reads
+from adjacent vertices.
+</p>
+<h4> Full Consistency </h4>
+<p>
+The full consistency model guarantees that the Update Function can read and
+write to the current vertex, as well as all adjacent edges and vertices in a
+consistent fashion. This model experiences the highest amount of
+contention and provides the lowest level of parallelism</p>
+
+<h4> Choosing a consistency model </h4>
+<p>
+The user should try to pick the lowest consistency model which satisfies the
+needs of the algorithm. For instance, in this demo application,
+since the update function only requires reading of
+neighboring vertex data, the edge_consistency model is guaranteed to have
+sequential consistency, and the algorithm is therefore guaranteed to be
+correct (assuming GraphLab is bug-free) if executed with the edge consistency
+model or the full consistency model. 
+</p>
+
+
+<h3> Scheduler Type </h3>
+GraphLabe provides eight schedulers. The Synchronous scheduler, the Round-robin
+scheduler, five task schedulers, and the Splash scheduler.
+
+<h4> Task Schedulers</h4>
+All four task schedulers behave similarly as in the demo application, but each
+have different set of scheduling guarantees.
+<ul>
+<li> <b>FIFO scheduler (fifo)</b>: Implements a strict single FIFO queue of tasks </li>
+<li> <b>Multiqueue FIFO scheduler (multiqueue_fifo)</b>: Uses multiple load balanced
+FIFO queues to decrease contention. This tends to have better performance over
+FIFO, but loses the "First-in-first-out" guarantees. </li>
+<li> <b>Sweep scheduler (sweep)</b>: partitions the vertices among the processors.
+Each processor than loops through all the vertices in its partition, executing all
+tasks encountered. </li>
+<li> <b>Priority scheduler (priority)</b>: Implements a priority queue over tasks.
+Executes tasks in priority order. </li>
+<li> <b>Clustered Priority scheduler (clustered_priority)</b>: partitions the graph
+into a collection of subgraphs, and builds a priority queue over subgraphs.
+tasks within a subgraph are executed in arbitrary order. The partitioning
+methods are "metis","bfs" and "random". Metis provides the best partitioning,
+but could be extremely costly for large graphs.</li>
+</ul>
+</body>
+
+<h4>Synchronous Scheduler</h4>
+<h4>Round Robin Scheduler</h4>
+<h4>Splash Scheduler</h4>
+</html>
+
+

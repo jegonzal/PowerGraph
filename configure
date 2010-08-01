@@ -1,0 +1,40 @@
+#!/bin/bash
+
+
+install_directory="/usr/local"
+
+reldir="./release"
+debugdir="./debug"
+profiledir="./profile"
+# matlabdir="./matlabmex"
+
+if [ ! -d $reldir ]; then
+    mkdir $reldir
+fi
+
+if [ ! -d $debugdir ]; then
+    mkdir $debugdir
+fi
+
+if [ ! -d $profiledir ]; then
+    mkdir $profiledir
+fi
+# if [ ! -d $matlabdir ]; then
+#    mkdir $matlabdir
+# fi
+
+cd $reldir
+cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$install_directory ../.
+cd ..
+
+cd $debugdir
+cmake -D CMAKE_BUILD_TYPE=Debug  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
+cd ..
+
+cd $profiledir
+cmake -D CMAKE_BUILD_TYPE=Release -D COMPILE_PROFILING=1  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
+cd ..
+
+# cd $matlabdir
+# cmake -D CMAKE_BUILD_TYPE=Mex  ../.
+# cd ..
