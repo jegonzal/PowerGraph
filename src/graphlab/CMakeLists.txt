@@ -1,19 +1,19 @@
 project(GraphLab)
 
 subdirs(
- engine
- graph
  distributed
+ engine
+ extern
+ graph
  logger
  monitoring
  parallel
  schedulers
- serialization
  scope
+ serialization
  shared_data
  tasks
- util
- extern)
+ util)
   
 
 add_library(graphlab STATIC
