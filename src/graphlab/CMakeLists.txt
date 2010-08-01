@@ -5,6 +5,7 @@ subdirs(
  engine
  extern
  graph
+ gpu
  logger
  monitoring
  parallel
