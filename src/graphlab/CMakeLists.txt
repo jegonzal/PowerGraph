@@ -3,6 +3,7 @@ project(GraphLab)
 subdirs(
  engine
  graph
+ gpu
  distributed
  logger
  monitoring
