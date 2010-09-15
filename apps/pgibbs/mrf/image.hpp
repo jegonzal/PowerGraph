@@ -49,7 +49,11 @@ public:
   double pixel(size_t i) const { return data.at(i); }
 
   /** Get the vertex id of a pixel */
-  size_t vertid(size_t i, size_t j) const;
+  size_t vertid(size_t i, size_t j) const { 
+    return vertid(_rows, _cols, i, j); 
+  }
+
+  /** get the vertex id from the pixel location */
   static size_t vertid(size_t rows, size_t cols, size_t i, size_t j) {
     assert(i < rows);
     assert(j < cols);    
@@ -125,12 +129,6 @@ void image::resize(size_t rows, size_t cols) {
   
 
 
-/** Get the vertex id of a pixel */
-size_t image::vertid(size_t i, size_t j) const {
-  assert(i < _rows);
-  assert(j < _cols);    
-  return i * _cols + j; 
-}
 
 // static size_t image::vertid(size_t rows, size_t cols, size_t i, size_t j)  {
 //   assert(i < rows);
