@@ -42,9 +42,11 @@
 #include "data_structures.hpp"
 #include "image_denoise.hpp"
 #include "drawing.hpp"
-#include "sequential_gibbs.hpp"
-#include "sequential_tree_gibbs.hpp"
-#include "parallel_tree_gibbs.hpp"
+
+// #include "sequential_gibbs.hpp"
+// #include "sequential_tree_gibbs.hpp"
+
+#include "update_functions.hpp"
 
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
@@ -55,21 +57,6 @@
 
 
 // Command Line Parsing =======================================================>
-
-
-namespace boost {
-  template<>
-  std::string  lexical_cast< std::string >(const std::vector<size_t>& vec) {
-    std::stringstream strm;
-    strm << "{" ;
-    for(size_t i = 0; i < vec.size(); ++i) {
-      strm << vec[i];
-      if(i < vec.size() - 1) strm << ", ";
-    }
-    strm << "}";
-    return strm.str();
-  }
-};
 
 
 
@@ -111,6 +98,7 @@ size_t get_next_experiment_id(const std::string& experiment_file) {
   size_t lines = 0;
   std::string line;
   while(getline(fin, line)) lines++;
+  fin.close();
   return lines;
 }
 
@@ -201,7 +189,7 @@ void run_colored_samples(denoise_problem& problem,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
     
     
@@ -304,7 +292,7 @@ void run_colored_times(denoise_problem& problem,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
 
@@ -425,7 +413,7 @@ void run_async_samples(denoise_problem& problem,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
 
@@ -550,7 +538,7 @@ void run_async_times(denoise_problem& problem,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
     
 
@@ -700,7 +688,7 @@ void run_tree_samples(denoise_problem& problem,
     
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
     
@@ -842,7 +830,7 @@ void run_tree_times(denoise_problem& problem,
               problem.rows, problem.cols);
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
     

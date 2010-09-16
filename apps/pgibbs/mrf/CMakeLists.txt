@@ -13,3 +13,6 @@ TARGET_LINK_LIBRARIES(pgibbs_protein tcmalloc)
 
 
 add_executable(priority_queue_test priority_queue_test.cpp)
+
+
+add_executable(pgibbs_ising pgibbs_ising.cpp)

@@ -12,6 +12,11 @@
 
 // Including Standard Libraries
 
+#include <iostream>
+#include <iomanip>
+
+
+
 #include <graphlab.hpp>
 
 
@@ -200,6 +205,37 @@ void save_color(const graph_type& graph,
     fout << graph.color(v) << '\n';
   fout.close();
 } // End of save beliefs
+
+
+//! Compute the unormalized likelihood of the current assignment
+double unnormalized_likelihood(const graph_type& graph,
+                               const gl::ishared_data& shared_data,
+                               const size_t EDGE_FACTOR_OFFSET) {
+  double sum = 0;
+
+  // Compute all the vertex likelihoods
+  for(vertex_id_t i = 0; i < graph.num_vertices(); ++i) {
+    const vertex_data& vdata = graph.vertex_data(i);
+    sum += vdata.potential.logP(vdata.asg);
+  }
+
+  // Compute all edge likelihoods
+  for(edge_id_t i = 0; i < graph.num_edges(); ++i) {
+    vertex_id_t source = graph.source(i);
+    vertex_id_t target = graph.target(i);
+    if(source < target) {
+      const vertex_data& source_vdata = graph.vertex_data(source);
+      const vertex_data& target_vdata = graph.vertex_data(target);
+      const edge_data& edata = graph.edge_data(i);
+      const binary_factor& edge_factor =
+        shared_data.get_constant(EDGE_FACTOR_OFFSET + 
+                                  edata.factor_id).as<binary_factor>();
+      sum += edge_factor.logP(source, source_vdata.asg,
+                              target, target_vdata.asg);
+    }   
+  }
+  return sum;
+}
 
 
 

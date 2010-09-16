@@ -1,7 +1,9 @@
-#ifndef PARALLEL_TREE_GIBBS
-#define PARALLEL_TREE_GIBBS
+#ifndef UPDATE_FUNCTIONS_HPP
+#define UPDATE_FUNCTIONS_HPP
 
 #include "data_structures.hpp"
+
+
 
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
@@ -43,33 +45,6 @@ void down_tree_update(gl::iscope& scope,
 
 
 
-//! Compute the unormalized likelihood of the current assignment
-double unnormalized_likelihood(const graph_type& graph,
-                               const gl::ishared_data& shared_data) {
-  double sum = 0;
-  // Compute all the vertex likelihoods
-  for(vertex_id_t i = 0; i < graph.num_vertices(); ++i) {
-    const vertex_data& vdata = graph.vertex_data(i);
-    sum += vdata.potential.logP(vdata.asg);
-  }
-
-  // Compute all edge likelihoods
-  for(edge_id_t i = 0; i < graph.num_edges(); ++i) {
-    vertex_id_t source = graph.source(i);
-    vertex_id_t target = graph.target(i);
-    if(source < target) {
-      const vertex_data& source_vdata = graph.vertex_data(source);
-      const vertex_data& target_vdata = graph.vertex_data(target);
-      const edge_data& edata = graph.edge_data(i);
-      const binary_factor& edge_factor =
-        shared_data.get_constant(EDGE_FACTOR_ID + 
-                                  edata.factor_id).as<binary_factor>();
-      sum += edge_factor.logP(source, source_vdata.asg,
-                              target, target_vdata.asg);
-    }   
-  }
-  return sum;
-}
 
 
 
@@ -1027,17 +1002,17 @@ bool nsamples_terminator(const gl::ishared_data* shared_data) {
 
 
 
-struct pgibbs_results{
-  size_t actual_samples;
-  size_t update_counts;
-  size_t partition;
-  double runtime;
-  pgibbs_results() :
-    actual_samples(0),
-    update_counts(0),
-    partition(0),
-    runtime(0) { } 
-};                   
+// struct pgibbs_results{
+//   size_t actual_samples;
+//   size_t update_counts;
+//   size_t partition;
+//   double runtime;
+//   pgibbs_results() :
+//     actual_samples(0),
+//     update_counts(0),
+//     partition(0),
+//     runtime(0) { } 
+// };                   
 
 
 
@@ -1048,91 +1023,89 @@ struct pgibbs_results{
 
 
 
-pgibbs_results 
-parallel_tree_sample(gl::graph& graph,
-                     const std::vector<binary_factor>& edge_factors,
-                     size_t nsamples, 
-                     size_t ncpus,
-                     const std::string& scheduler_type,
-                     size_t nroots,
-                     size_t tree_height,
-                     bool use_weights, 
-                     double pruning) {
+// pgibbs_results 
+// parallel_tree_sample(gl::graph& graph,
+//                      const std::vector<binary_factor>& edge_factors,
+//                      size_t nsamples, 
+//                      size_t ncpus,
+//                      const std::string& scheduler_type,
+//                      size_t nroots,
+//                      size_t tree_height,
+//                      bool use_weights, 
+//                      double pruning) {
 
-  // Create a shared data manager to pass the edge_factor
-  gl::thread_shared_data sdm;
-  set_tree_sampler_constants(sdm,
-                             nroots,
-                             tree_height,
-                             use_weights,
-                             pruning);
-  gl::iengine* engine = make_engine(graph,
-                                    sdm,
-                                    edge_factors,
-                                    ncpus,
-                                    scheduler_type);
-  assert(engine != NULL);
+//   // Create a shared data manager to pass the edge_factor
+//   gl::thread_shared_data sdm;
+//   set_tree_sampler_constants(sdm,
+//                              nroots,
+//                              tree_height,
+//                              use_weights,
+//                              pruning);
+//   gl::iengine* engine = make_engine(graph,
+//                                     sdm,
+//                                     edge_factors,
+//                                     ncpus,
+//                                     scheduler_type);
+//   assert(engine != NULL);
 
 
   
-  // Set the terminator
-  sdm.set_constant(MAX_NSAMPLES_ID,  graphlab::any(nsamples) );
-  sdm.set_sync(NSAMPLES_ID,
-               gl::sync_ops::sum< size_t, get_nsamples >,
-               gl::apply_ops::identity_print< size_t >,
-               size_t(0),
-               1000);
-  engine->add_terminator(nsamples_terminator);
+//   // Set the terminator
+//   sdm.set_constant(MAX_NSAMPLES_ID,  graphlab::any(nsamples) );
+//   sdm.set_sync(NSAMPLES_ID,
+//                gl::sync_ops::sum< size_t, get_nsamples >,
+//                gl::apply_ops::identity_print< size_t >,
+//                size_t(0),
+//                1000);
+//   engine->add_terminator(nsamples_terminator);
   
 
-  pgibbs_results result;
-  result.actual_samples = 0;
+//   pgibbs_results result;
+//   result.actual_samples = 0;
 
   
-  // Create 
-  for(size_t j = 0; j < nroots; ++j) {
-    // Add the root
-    vertex_id_t root = get_next_root(j, nroots, graph.num_vertices());
-    // Create a task to grow a tree from the root
-    double residual = 1.0;
-    gl::update_task task(root, grow_root_update);
-    engine->get_scheduler().add_task(task, residual);
-  }
+//   // Create 
+//   for(size_t j = 0; j < nroots; ++j) {
+//     // Add the root
+//     vertex_id_t root = get_next_root(j, nroots, graph.num_vertices());
+//     // Create a task to grow a tree from the root
+//     double residual = 1.0;
+//     gl::update_task task(root, grow_root_update);
+//     engine->get_scheduler().add_task(task, residual);
+//   }
 
-  // Run the engine
-  graphlab::timer time; time.start();  
-  engine->start();
-  result.runtime = time.current_time();
+//   // Run the engine
+//   graphlab::timer time; time.start();  
+//   engine->start();
+//   result.runtime = time.current_time();
 
        
-  // Get the actual number of samples
-  sdm.sync(graph, NSAMPLES_ID);
-  result.actual_samples = sdm.get(NSAMPLES_ID).as<size_t>();
-  result.update_counts = engine->last_update_count();
+//   // Get the actual number of samples
+//   sdm.sync(graph, NSAMPLES_ID);
+//   result.actual_samples = sdm.get(NSAMPLES_ID).as<size_t>();
+//   result.update_counts = engine->last_update_count();
 
-  std::cout << "Update Count:    " << result.update_counts << std::endl
-            << "Runtime:         " << result.runtime << std::endl
-            << "Efficiency:      "
-            << (double(result.update_counts) / result.runtime)<< std::endl;
+//   std::cout << "Update Count:    " << result.update_counts << std::endl
+//             << "Runtime:         " << result.runtime << std::endl
+//             << "Efficiency:      "
+//             << (double(result.update_counts) / result.runtime)<< std::endl;
 
-  std::cout << "Samples collected: " 
-            << result.actual_samples
-            << std::endl;
+//   std::cout << "Samples collected: " 
+//             << result.actual_samples
+//             << std::endl;
 
-  // Ensure that enough samples are made
-  //  assert(result.actual_samples >= nsamples);
-  if(result.actual_samples < nsamples) {
-    std::cout << "Failed to generate sufficient samples"
-              << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-              << std::endl;
+//   // Ensure that enough samples are made
+//   //  assert(result.actual_samples >= nsamples);
+//   if(result.actual_samples < nsamples) {
+//     std::cout << "Failed to generate sufficient samples"
+//               << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+//               << std::endl;
 
-  }
-  // Delete the engine
-  delete engine;  
-  return result;
-}
-
-
+//   }
+//   // Delete the engine
+//   delete engine;  
+//   return result;
+// }
 
 
 
@@ -1143,67 +1116,69 @@ parallel_tree_sample(gl::graph& graph,
 
 
 
-pgibbs_results 
-parallel_async_sample(gl::graph& graph,
-                      const std::vector<binary_factor>& edge_factors, 
-                      size_t nsamples, 
-                      size_t ncpus,
-                      const std::string& scheduler_type) {                    
-  // Create an engine
-  pgibbs_results result;
 
 
-  gl::thread_shared_data sdm;
-  gl::iengine* engine = make_engine(graph,
-                                    sdm,
-                                    edge_factors,
-                                    ncpus,
-                                    scheduler_type);
-  assert(engine != NULL); 
-  sdm.set_constant(MAX_NSAMPLES_ID,  graphlab::any(nsamples) );
-  sdm.set_sync(NSAMPLES_ID,
-               gl::sync_ops::sum< size_t, get_nsamples >,
-               gl::apply_ops::identity_print< size_t >,
-               size_t(0),
-               1000);
-  engine->add_terminator(nsamples_terminator);
+// pgibbs_results 
+// parallel_async_sample(gl::graph& graph,
+//                       const std::vector<binary_factor>& edge_factors, 
+//                       size_t nsamples, 
+//                       size_t ncpus,
+//                       const std::string& scheduler_type) {                    
+//   // Create an engine
+//   pgibbs_results result;
+
+
+//   gl::thread_shared_data sdm;
+//   gl::iengine* engine = make_engine(graph,
+//                                     sdm,
+//                                     edge_factors,
+//                                     ncpus,
+//                                     scheduler_type);
+//   assert(engine != NULL); 
+//   sdm.set_constant(MAX_NSAMPLES_ID,  graphlab::any(nsamples) );
+//   sdm.set_sync(NSAMPLES_ID,
+//                gl::sync_ops::sum< size_t, get_nsamples >,
+//                gl::apply_ops::identity_print< size_t >,
+//                size_t(0),
+//                1000);
+//   engine->add_terminator(nsamples_terminator);
   
-  // Set the shared data manager
-  engine->set_shared_data_manager(&sdm);
+//   // Set the shared data manager
+//   engine->set_shared_data_manager(&sdm);
 
-  // Add the update function to all vertices
-  std::vector<vertex_id_t> vertices(graph.num_vertices(), 0);
-  for(vertex_id_t i = 0; i < vertices.size(); ++i) vertices[i] = i;
-  std::random_shuffle(vertices.begin(), vertices.end());
-  const double residual = 1.0;
-  const bool UseCallback = true;
-  for(size_t i = 0; i < vertices.size(); ++i) {
-    gl::update_task task(vertices[i], single_sample_update<UseCallback>);
-    engine->get_scheduler().add_task(task, residual);
-  }
+//   // Add the update function to all vertices
+//   std::vector<vertex_id_t> vertices(graph.num_vertices(), 0);
+//   for(vertex_id_t i = 0; i < vertices.size(); ++i) vertices[i] = i;
+//   std::random_shuffle(vertices.begin(), vertices.end());
+//   const double residual = 1.0;
+//   const bool UseCallback = true;
+//   for(size_t i = 0; i < vertices.size(); ++i) {
+//     gl::update_task task(vertices[i], single_sample_update<UseCallback>);
+//     engine->get_scheduler().add_task(task, residual);
+//   }
 
-  // Run the engine
-  graphlab::timer time; time.start();
-  engine->start();
-  result.runtime = time.current_time();
+//   // Run the engine
+//   graphlab::timer time; time.start();
+//   engine->start();
+//   result.runtime = time.current_time();
 
-  // Track the number of samples that were actually taken
-  sdm.sync(graph, NSAMPLES_ID);
-  result.actual_samples = sdm.get(NSAMPLES_ID).as<size_t>();    
+//   // Track the number of samples that were actually taken
+//   sdm.sync(graph, NSAMPLES_ID);
+//   result.actual_samples = sdm.get(NSAMPLES_ID).as<size_t>();    
 
-  assert(result.actual_samples >= nsamples);
+//   assert(result.actual_samples >= nsamples);
   
 
 
 
-  std::cout << "Samples collected: " 
-            << result.actual_samples
-            << std::endl;
+//   std::cout << "Samples collected: " 
+//             << result.actual_samples
+//             << std::endl;
 
-  delete engine;  
-  return result;
+//   delete engine;  
+//   return result;
 
-}
+// }
 
 
 

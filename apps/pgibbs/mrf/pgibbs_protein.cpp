@@ -31,7 +31,8 @@
 
 #include "data_structures.hpp"
 #include "protein_side_chain.hpp"
-#include "parallel_tree_gibbs.hpp"
+
+#include "update_functions.hpp"
 
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
@@ -150,7 +151,7 @@ void run_colored_samples(protein_data& protein,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
     
     
@@ -239,7 +240,7 @@ void run_colored_times(protein_data& protein,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
 
@@ -343,7 +344,7 @@ void run_async_samples(protein_data& protein,
 
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
 
@@ -450,7 +451,7 @@ void run_async_times(protein_data& protein,
              make_filename("async_asg_", ".asg", experiment_id));
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
         
     std::ofstream fout(async_results_fn.c_str(), std::ios::app);
@@ -562,7 +563,7 @@ void run_tree_samples(protein_data& protein,
              make_filename("tree_asg_", ".asg", experiment_id));    
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
     
@@ -680,7 +681,7 @@ void run_tree_times(protein_data& protein,
              make_filename("tree_asg_", ".asg", experiment_id));
 
     std::cout << "Computing loglikelihood of final assignment." << std::endl;
-    double loglik = unnormalized_likelihood(graph, sdm);
+    double loglik = unnormalized_likelihood(graph, sdm, EDGE_FACTOR_ID);
     std::cout << "Loglikelihood:    " << loglik << std::endl;
 
     
