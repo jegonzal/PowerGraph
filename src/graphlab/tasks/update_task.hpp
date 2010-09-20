@@ -36,8 +36,8 @@ namespace graphlab {
     update_function_type func;
 
   public:
-    update_task(vertex_id_t vertexid = -1, 
-                update_function_type func = NULL) :
+    explicit update_task(vertex_id_t vertexid = -1, 
+                         update_function_type func = NULL) :
       vertexid(vertexid), func(func) { }
 
     ~update_task() {}
