@@ -22,7 +22,7 @@
 // Random number generation
 #include <graphlab/parallel/pthread_tools.hpp>
 
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <serialization/serialization_includes.hpp>
 
 // Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>

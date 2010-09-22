@@ -20,7 +20,7 @@
 
 // Random number generation
 #include <graphlab/util/random.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <serialization/serialization_includes.hpp>
 
 
 #include <graphlab/factors/binary_factor.hpp>

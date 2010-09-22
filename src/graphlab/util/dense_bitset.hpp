@@ -5,8 +5,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdint.h>
-#include <graphlab/logger/logger.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <logger/logger.hpp>
+#include <serialization/serialization_includes.hpp>
 
 namespace graphlab {
   

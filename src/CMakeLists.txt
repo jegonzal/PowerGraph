@@ -1,4 +1,6 @@
 project(GraphLab)
 
-subdirs(graphlab)
+subdirs(graphlab
+        serialization
+        logger)
 

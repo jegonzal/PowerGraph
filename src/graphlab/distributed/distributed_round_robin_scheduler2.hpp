@@ -12,7 +12,7 @@
 #include <climits>
 
 
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/tasks/update_task.hpp>

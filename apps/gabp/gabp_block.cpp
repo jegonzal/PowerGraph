@@ -10,7 +10,7 @@
 //#include <cmath>
 #include <cstdio>
 #include <graphlab.hpp>
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 #include <graphlab/app_support/iapp.hpp>
 #include <graphlab/graph/graph.hpp>
 

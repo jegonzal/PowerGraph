@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include <graphlab.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <serialization/serialization_includes.hpp>
 #include <boost/program_options.hpp>
 #define cimg_display 0
 #define cimg_use_jpeg 1

@@ -16,6 +16,7 @@
 #include <typeinfo>
 #include <map>
 #include <iostream>
+#include <stdint.h>
 
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/type_traits/is_reference.hpp>
@@ -24,8 +25,8 @@
 #include <boost/utility.hpp>
 #include <boost/exception/detail/is_output_streamable.hpp>
 
-#include <graphlab/logger/assertions.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <logger/assertions.hpp>
+#include <serialization/serialization_includes.hpp>
 
 namespace graphlab {
   

@@ -6,32 +6,27 @@ subdirs(
  extern
  graph
  gpu
- logger
  monitoring
  parallel
  schedulers
  scope
- serialization
  shared_data
  tasks
  util)
   
 
 add_library(graphlab STATIC
-  logger/logger.cpp
   factors/table_factor.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   parallel/pthread_tools.cpp
-  serialization/iarchive.cpp
-  serialization/oarchive.cpp
   util/timer.cpp
   util/generics/any.cpp
   util/command_line_options.cpp)
 
 
 
-target_link_libraries(graphlab graphlab_metis)
+target_link_libraries(graphlab graphlab_metis logger)
 
 
 INSTALL(TARGETS graphlab ARCHIVE DESTINATION lib)

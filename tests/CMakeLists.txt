@@ -51,3 +51,33 @@ add_dist_executable(distributed_shared_data_test distributed_shared_data_test.cp
 add_executable(partransform partransform.cpp)
 
 add_executable(clopts command_line_options.cpp)
+
+
+# serialization tests 
+add_executable(integercompress integercompress.cpp)
+add_executable(integercompress_bench integercompress_bench.cpp)
+add_executable(anytests anytests.cpp)
+add_executable(anytests_loader anytests_loader.cpp)
+add_executable(podtest podtest.cpp)
+add_executable(podtest_loader podtest_loader.cpp)
+
+#add_executable(circular_test circular_test.cpp)
+#add_executable(simple_function_launch simple_function_launch.cpp)
+#add_executable(dctest dctest.cpp)
+#add_executable(dcobjtest dcobjtest.cpp)
+#add_executable(is_rpc_call_test is_rpc_call_test.cpp)
+#add_executable(dc_barrier_test dc_barrier_test.cpp)
+#add_executable(dhttest dhttest.cpp)
+#add_executable(dht_performance_test dht_performance_test.cpp)
+
+#add_executable(example1 example1.cpp)
+#add_executable(example2 example2.cpp)
+#add_executable(example3 example3.cpp)
+#add_executable(example4 example4.cpp)
+#add_executable(example5 example5.cpp)
+#add_executable(example6 example6.cpp)
+#add_executable(example7 example7.cpp)
+#add_executable(example8 example8.cpp)
+
+
+

@@ -1,9 +1,9 @@
 #ifndef GRAPHLAB_UNSUPPORTED_SERIALIZE_HPP
 #define GRAPHLAB_UNSUPPORTED_SERIALIZE_HPP
 
-#include <graphlab/serialization/iarchive.hpp>
-#include <graphlab/serialization/oarchive.hpp>
-#include <graphlab/logger/logger.hpp>
+#include <serialization/iarchive.hpp>
+#include <serialization/oarchive.hpp>
+#include <logger/logger.hpp>
 
 namespace graphlab {
 

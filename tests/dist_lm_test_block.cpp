@@ -1,8 +1,8 @@
 #include <graphlab/distributed/lock_manager.hpp>
 #include <graphlab/distributed/graph_lock_manager.hpp>
 #include <graphlab/distributed/graph/cloned_graph.hpp>
-#include <graphlab/logger/logger.hpp>
-#include <graphlab/logger/assertions.hpp>
+#include <logger/logger.hpp>
+#include <logger/assertions.hpp>
 #include <graphlab/util/timer.hpp>
 #include <vector>
 #include <algorithm>

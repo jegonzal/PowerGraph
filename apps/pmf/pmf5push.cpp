@@ -6,8 +6,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cfloat>
-#include <graphlab/serialization/iarchive.hpp>
-#include <graphlab/serialization/oarchive.hpp>
+#include <serialization/iarchive.hpp>
+#include <serialization/oarchive.hpp>
 
 #include <graphlab.hpp>
 #include <graphlab/distributed/graph/distributed_graph.hpp>

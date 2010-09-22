@@ -1,4 +1,4 @@
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>

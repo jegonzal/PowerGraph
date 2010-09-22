@@ -4,10 +4,10 @@
 #include <cmath>
 #include <vector>
 
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/util/generics/blob.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <serialization/serialization_includes.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
 
 #include <graphlab/macros_def.hpp>

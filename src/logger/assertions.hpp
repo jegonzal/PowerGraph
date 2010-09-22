@@ -46,7 +46,7 @@
 #include <errno.h>     // for errno
 #include <sstream>
 #include <cassert>
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 
 #include <boost/typeof/typeof.hpp>
 // On some systems (like freebsd), we can't call write() at all in a

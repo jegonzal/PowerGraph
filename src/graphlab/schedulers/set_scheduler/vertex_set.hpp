@@ -9,7 +9,7 @@
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/schedulers/set_scheduler/ivertex_set.hpp>
 #include <graphlab/schedulers/set_scheduler/set_generic_typedefs.hpp>
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 
 namespace graphlab {
 

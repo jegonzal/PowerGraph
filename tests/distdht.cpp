@@ -1,8 +1,8 @@
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
 #include <graphlab/distributed/distributed_hash_table.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <serialization/serialization_includes.hpp>
 using namespace graphlab;
 
 struct data{

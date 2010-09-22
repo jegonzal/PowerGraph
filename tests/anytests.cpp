@@ -4,13 +4,13 @@
 #include <string>
 #include <cstring>
 
-#include <graphlab/logger/assertions.hpp>
+#include <logger/assertions.hpp>
 
-#include <graphlab/serialization/serialize.hpp>
-#include <graphlab/serialization/vector.hpp>
-#include <graphlab/serialization/map.hpp>
-#include <graphlab/serialization/list.hpp>
-#include <graphlab/serialization/set.hpp>
+#include <serialization/serialize.hpp>
+#include <serialization/vector.hpp>
+#include <serialization/map.hpp>
+#include <serialization/list.hpp>
+#include <serialization/set.hpp>
 #include <graphlab/util/generics/any.hpp>
 
 using namespace graphlab;
@@ -22,7 +22,7 @@ struct TestClass1{
   void save(oarchive &a) const {
     a << z;
   }
-  void load(iarchive a) {
+  void load(iarchive &a) {
     a >> z;
   }
 };
@@ -85,6 +85,3 @@ int main(int argc, char** argv) {
   oarc << variant;
   f.close();
 }
-
-
-

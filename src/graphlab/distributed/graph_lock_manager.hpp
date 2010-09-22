@@ -3,10 +3,10 @@
 #include <vector>
 #include <queue>
 #include <boost/unordered_map.hpp>
-#include <graphlab/logger/assertions.hpp>
+#include <logger/assertions.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope_factory.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
+#include <serialization/serialization_includes.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
 #include <graphlab/distributed/lock_manager.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>

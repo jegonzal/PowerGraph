@@ -14,7 +14,7 @@
 #include <graphlab/schedulers/set_scheduler/set_generic_typedefs.hpp>
 #include <graphlab/schedulers/set_scheduler/set_scheduler.hpp>
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 
 namespace graphlab {
 

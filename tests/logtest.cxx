@@ -3,7 +3,7 @@
 #include <cxxtest/TestSuite.h>
 
 
-#include <graphlab/logger/logger.hpp>
+#include <logger/logger.hpp>
 
 void test_basic_assertions() {
   int i = 1;
