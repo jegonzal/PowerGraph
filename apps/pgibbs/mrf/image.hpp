@@ -83,6 +83,9 @@ public:
   void paint_sunset(size_t states);
   
   void paint_checkerboard(size_t states, size_t blocks);
+
+  void paint_uniform(double value);
+
   
   /** Add random noise to the image */
   void gaussian_corrupt(double sigma);
@@ -215,6 +218,13 @@ void image::paint_checkerboard(size_t states, size_t blocks = 10) {
     }
   }
 } // end of paint_beatiful_sunset
+
+
+void image::paint_uniform(double value) {
+  for(size_t i = 0; i < rows()*cols(); ++i) {
+    pixel(i) = value;    
+  }
+} // end of paint_uniform
 
 
 

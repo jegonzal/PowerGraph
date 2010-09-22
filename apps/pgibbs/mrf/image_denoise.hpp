@@ -48,25 +48,22 @@ void construct_denoise_graph(image& img,
         for(size_t pred = 0; pred < num_asgs; ++pred) {
           vdata.potential.logP(pred) = obs == pred? 0 : -sigma;
         }
+      } if(corruption == "ising") {
+        // Do nothing since we want a uniform node potential
+        vdata.potential.uniform();
       } else {
         std::cout << "Invalid corruption!" << std::endl;
         exit(1);
       }
       vdata.potential.normalize();
-
       // Set the initial assignment
-      vdata.asg = vdata.potential.sample();
-      
+      vdata.asg = vdata.potential.sample();     
       // Store the actual data in the graph
       size_t vert_id = graph.add_vertex(vdata);
-
-      // Color the graph with a checkerboard pattern
-      graph.color(vert_id) = ((i % 2) == 0) ^ ((j % 2) == 0) ? 1 : 0;
-
-      
       // Ensure that we are using a consistent numbering
       assert(vert_id == pixel_id);
-
+      // Color the graph with a checkerboard pattern
+      graph.color(vert_id) = ((i % 2) == 0) ^ ((j % 2) == 0) ? 1 : 0;
       
     } // end of for j in cols
   } // end of for i in rows
@@ -114,74 +111,74 @@ void construct_denoise_graph(image& img,
 
 
 
-/** Construct ising model with no node potentials */
-void construct_ising_graph(size_t rows, 
-                           size_t cols,
-                           size_t num_asgs,
-                           gl::graph& graph) {
-  // Initialize the vertex data to somethine sensible
-  vertex_data vdata;
-  vdata.belief.resize(num_asgs);
-  vdata.belief.uniform(-std::numeric_limits<double>::max());
-  vdata.potential.resize(num_asgs);
-  vdata.potential.uniform();
-  vdata.potential.normalize();        
-  for(size_t i = 0; i < rows; ++i) {
-    for(size_t j = 0; j < cols; ++j) {
-      // initialize the potential and belief
-      uint32_t pixel_id = image::vertid(rows, cols, i, j);
-      vdata.potential.var() = vdata.belief.var() = pixel_id;
-      // Set the initial assignment
-      vdata.asg = vdata.potential.sample();      
-      // Store the actual data in the graph
-      size_t vert_id = graph.add_vertex(vdata);
-      // Ensure that we are using a consistent numbering
-      assert(vert_id == pixel_id);
-      // Color the graph with a checkerboard pattern
-      graph.color(vert_id) = ((i % 2) == 0) ^ ((j % 2) == 0) ? 1 : 0;           
-    } // end of for j in cols
-  } // end of for i in rows
+// /** Construct ising model with no node potentials */
+// void construct_ising_graph(size_t rows, 
+//                            size_t cols,
+//                            size_t num_asgs,
+//                            gl::graph& graph) {
+//   // Initialize the vertex data to somethine sensible
+//   vertex_data vdata;
+//   vdata.belief.resize(num_asgs);
+//   vdata.belief.uniform(-std::numeric_limits<double>::max());
+//   vdata.potential.resize(num_asgs);
+//   vdata.potential.uniform();
+//   vdata.potential.normalize();        
+//   for(size_t i = 0; i < rows; ++i) {
+//     for(size_t j = 0; j < cols; ++j) {
+//       // initialize the potential and belief
+//       uint32_t pixel_id = image::vertid(rows, cols, i, j);
+//       vdata.potential.var() = vdata.belief.var() = pixel_id;
+//       // Set the initial assignment
+//       vdata.asg = vdata.potential.sample();      
+//       // Store the actual data in the graph
+//       size_t vert_id = graph.add_vertex(vdata);
+//       // Ensure that we are using a consistent numbering
+//       assert(vert_id == pixel_id);
+//       // Color the graph with a checkerboard pattern
+//       graph.color(vert_id) = ((i % 2) == 0) ^ ((j % 2) == 0) ? 1 : 0;           
+//     } // end of for j in cols
+//   } // end of for i in rows
 
-  // Construct the edges
-  edge_data edata;
-  edata.factor_id = 0;
-  edata.message.resize(num_asgs);
-  edata.weight = 0;
+//   // Construct the edges
+//   edge_data edata;
+//   edata.factor_id = 0;
+//   edata.message.resize(num_asgs);
+//   edata.weight = 0;
   
-  // Add all the edges
-  for(size_t i = 0; i < rows; ++i) {
-    for(size_t j = 0; j < cols; ++j) {
-      size_t vertid = image::vertid(rows, cols, i, j);
-      if(i-1 < rows) {
-        vertex_id_t target = image::vertid(rows, cols, i-1, j);
-        edata.message.var() = target;
-        graph.add_edge(vertid, target, edata);
-      }
+//   // Add all the edges
+//   for(size_t i = 0; i < rows; ++i) {
+//     for(size_t j = 0; j < cols; ++j) {
+//       size_t vertid = image::vertid(rows, cols, i, j);
+//       if(i-1 < rows) {
+//         vertex_id_t target = image::vertid(rows, cols, i-1, j);
+//         edata.message.var() = target;
+//         graph.add_edge(vertid, target, edata);
+//       }
 
-      if(i+1 < rows) {
-        vertex_id_t target = image::vertid(rows, cols, i+1, j);
-        edata.message.var() = target;
-        graph.add_edge(vertid, target, edata);
-      }
+//       if(i+1 < rows) {
+//         vertex_id_t target = image::vertid(rows, cols, i+1, j);
+//         edata.message.var() = target;
+//         graph.add_edge(vertid, target, edata);
+//       }
 
-      if(j-1 < cols) {
-        vertex_id_t target = image::vertid(rows, cols, i, j-1); 
-        edata.message.var() = target;
-        graph.add_edge(vertid, target, edata);
-      }
+//       if(j-1 < cols) {
+//         vertex_id_t target = image::vertid(rows, cols, i, j-1); 
+//         edata.message.var() = target;
+//         graph.add_edge(vertid, target, edata);
+//       }
 
-      if(j+1 < cols) {
-        vertex_id_t target = image::vertid(rows, cols, i, j+1);
-        edata.message.var() = target;
-        graph.add_edge(vertid, target, edata);
-      }
-    } // end of for j in cols
-  } // end of for i in rows
+//       if(j+1 < cols) {
+//         vertex_id_t target = image::vertid(rows, cols, i, j+1);
+//         edata.message.var() = target;
+//         graph.add_edge(vertid, target, edata);
+//       }
+//     } // end of for j in cols
+//   } // end of for i in rows
 
-  // Finalize the graph
-  graph.finalize();
+//   // Finalize the graph
+//   graph.finalize();
 
-} // End of construct graph
+// } // End of construct graph
 
 
 
@@ -210,7 +207,7 @@ struct denoise_problem {
                   double sigma, double lambda, 
                   const std::string& smoothing,
                   const std::string& drawing,
-                  const std::string& corruption) :
+                  std::string corruption) :
     num_asgs(num_asgs), rows(rows), cols(cols),
     sigma(sigma), lambda(lambda),
     smoothing(smoothing),
@@ -225,7 +222,12 @@ struct denoise_problem {
       original.paint_sunset(num_asgs);
     else if(drawing == "checkerboard")
       original.paint_checkerboard(num_asgs);
-    else {
+    else if(drawing == "ising") {
+      std::cout << "Not painting image since ising model is being used"
+                << std::endl;
+      corruption = "ising";
+      original.paint_uniform(double(num_asgs) / 2.0);
+    } else {
       std::cout << "Invalid drawing type!" << std::endl;
       exit(1);
     }
@@ -236,7 +238,10 @@ struct denoise_problem {
       noisy.gaussian_corrupt(sigma);
     else if(corruption == "flip")
       noisy.flip_corrupt(num_asgs, 0.5);
-    else {
+    else if(corruption == "ising") {
+      std::cout << "Not corrupting image since ising model is being used"
+                << std::endl;
+    } else {
       std::cout << "Invalid corruption type!" << std::endl;
       exit(1);
     }
