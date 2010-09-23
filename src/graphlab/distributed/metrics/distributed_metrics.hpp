@@ -12,7 +12,7 @@
 #include <climits>
 
 
-#include <logger/logger.hpp> 
+#include <graphlab/logger/logger.hpp> 
 #include <graphlab/parallel/pthread_tools.hpp> 
 #include <graphlab/distributed/distributed_control.hpp> 
 

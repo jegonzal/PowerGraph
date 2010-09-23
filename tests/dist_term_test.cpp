@@ -1,7 +1,7 @@
 #include <graphlab/distributed/distributed_control.hpp>
 #include <graphlab/distributed/distributed_terminator.hpp>
-#include <logger/assertions.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/assertions.hpp>
+#include <graphlab/logger/logger.hpp>
 #include <graphlab/util/timer.hpp>
 using namespace graphlab;
 

@@ -4,15 +4,15 @@
 #include <string>
 #include <cstring>
 
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
-#include <serialization/serialize.hpp>
-#include <serialization/vector.hpp>
-#include <serialization/map.hpp>
-#include <serialization/list.hpp>
-#include <serialization/set.hpp>
-#include <serialization/serializable_pod.hpp>
-#include <serialization/podify.hpp>
+#include <graphlab/serialization/serialize.hpp>
+#include <graphlab/serialization/vector.hpp>
+#include <graphlab/serialization/map.hpp>
+#include <graphlab/serialization/list.hpp>
+#include <graphlab/serialization/set.hpp>
+#include <graphlab/serialization/serializable_pod.hpp>
+#include <graphlab/serialization/podify.hpp>
 
 #include <graphlab/util/generics/any.hpp>
 

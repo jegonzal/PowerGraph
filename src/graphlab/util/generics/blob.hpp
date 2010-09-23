@@ -5,10 +5,10 @@
 #include <cstdlib>
 #include <cassert>
 
-#include <serialization/iarchive.hpp>
-#include <serialization/oarchive.hpp>
-#include <serialization/vector.hpp>
-#include <serialization/map.hpp>
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/vector.hpp>
+#include <graphlab/serialization/map.hpp>
 
 namespace graphlab {
   /**

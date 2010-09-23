@@ -12,7 +12,7 @@
 #include <graphlab/schedulers/support/binary_scheduler_callback.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/tasks/update_task.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>

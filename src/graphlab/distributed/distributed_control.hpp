@@ -3,7 +3,7 @@
 #include <vector>
 #include <mpi.h>
 #include <boost/typeof/typeof.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/static_assert.hpp>
 
@@ -12,8 +12,8 @@
 #include <graphlab/distributed/distributed_terminator.hpp>
 #include <graphlab/distributed/distributed_control_types.hpp>
 
-#include <serialization/oarchive.hpp>
-#include <serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 

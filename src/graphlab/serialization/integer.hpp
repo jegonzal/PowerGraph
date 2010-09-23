@@ -1,7 +1,7 @@
 #ifndef INTEGER_HPP
 #define INTEGER_HPP
 #include <stdint.h>
-#include <logger/assertions.hpp>
+#include <graphlab/logger/assertions.hpp>
 namespace graphlab {
 inline unsigned char compress_int(uint64_t u, char output[10]) {
   // if 1st bit of u is set. could be negative,

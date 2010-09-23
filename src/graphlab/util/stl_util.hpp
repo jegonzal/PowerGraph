@@ -26,9 +26,9 @@
 #include <iterator>
 #include <sstream>
 
-#include <serialization/serialize.hpp>
-#include <serialization/set.hpp>
-#include <serialization/map.hpp>
+#include <graphlab/serialization/serialize.hpp>
+#include <graphlab/serialization/set.hpp>
+#include <graphlab/serialization/map.hpp>
 
 #include <graphlab/macros_def.hpp>
 

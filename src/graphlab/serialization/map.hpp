@@ -2,9 +2,9 @@
 #define GRAPHLAB_SERIALIZE_MAP_HPP
 
 #include <map>
-#include <serialization/iarchive.hpp>
-#include <serialization/oarchive.hpp>
-#include <serialization/iterator.hpp>
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/iterator.hpp>
 
 namespace graphlab {
 

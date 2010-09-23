@@ -4,8 +4,8 @@
 #include <iostream>
 #include <string>
 #include <boost/mpl/assert.hpp>
-#include <logger/assertions.hpp>
-#include <serialization/has_save.hpp>
+#include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/has_save.hpp>
 namespace graphlab {
 /**
 The output archive object.
@@ -74,5 +74,5 @@ inline oarchive& serialize(oarchive& a, const void* i,const size_t length) {
 }
 
 
-#include <serialization/basic_types.hpp>
+#include <graphlab/serialization/basic_types.hpp>
 #endif  

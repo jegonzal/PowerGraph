@@ -21,7 +21,7 @@
 #include <graphlab/util/shared_termination.hpp>
 #include <graphlab/schedulers/set_scheduler/execution_plan.hpp>
 
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 namespace graphlab {
 

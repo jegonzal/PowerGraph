@@ -1,6 +1,6 @@
 #ifndef SERIALIZABLE_POD_HPP
 #define SERIALIZABLE_POD_HPP
-#include <serialization/vector.hpp>
+#include <graphlab/serialization/vector.hpp>
 
 // if serializable POD is set on a struct / class, we generate a fast serializer / deserializer
 // that will lose some cross platform support

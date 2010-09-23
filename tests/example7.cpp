@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cstdio>
-#include <serialization/podify.hpp>
+#include <graphlab/serialization/podify.hpp>
 #include <distributed/dc.hpp>
 #include <distributed/dc_services.hpp>
 #include <distributed/dc_dist_object.hpp>

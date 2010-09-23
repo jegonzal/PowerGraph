@@ -4,7 +4,7 @@
 #include <boost/type_traits/decay.hpp>
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/type_traits/function_traits.hpp>
-#include <serialization/serialization_includes.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 namespace graphlab {
 class distributed_control;
 

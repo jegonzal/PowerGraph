@@ -6,9 +6,9 @@
 #define ARCHIVE_BASIC_TYPES_HPP
 
 #include <string>
-#include <serialization/integer.hpp>
-#include <serialization/serializable_pod.hpp>
-#include <logger/assertions.hpp>
+#include <graphlab/serialization/integer.hpp>
+#include <graphlab/serialization/serializable_pod.hpp>
+#include <graphlab/logger/assertions.hpp>
 
 /***************************************************************************
  *                        Basic Serializers                                * 

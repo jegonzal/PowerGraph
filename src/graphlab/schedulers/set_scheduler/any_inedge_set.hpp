@@ -12,7 +12,7 @@
 #include <graphlab/schedulers/set_scheduler/set_scheduler.hpp>
 #include <graphlab/graph/iscope.hpp>
 #include <graphlab/boost/function.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 
 namespace graphlab {

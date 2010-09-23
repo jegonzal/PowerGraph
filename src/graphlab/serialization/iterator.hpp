@@ -2,8 +2,8 @@
 #define GRAPHLAB_SERIALIZE_ITERATOR_HPP
 
 #include <iterator>
-#include <serialization/oarchive.hpp>
-#include <serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
 
 namespace graphlab {
 

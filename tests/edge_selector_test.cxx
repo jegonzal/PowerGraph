@@ -16,7 +16,7 @@
 #include <engine/multi_thread_engine.hpp>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 #include <macros_def.hpp>
 

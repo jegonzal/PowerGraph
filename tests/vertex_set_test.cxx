@@ -5,7 +5,7 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/schedulers/set_scheduler/vertex_set.hpp>
 #include <graphlab/schedulers/set_scheduler/restricted_vertex_set.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 using namespace graphlab;
 

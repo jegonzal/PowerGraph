@@ -16,7 +16,7 @@
 // #include <graphlab/schedulers/support/unused_scheduler_callback.hpp>
 // #include <graphlab/schedulers/support/vertex_task_set.hpp>
 // #include <graphlab/schedulers/set_scheduler/set_generic_typedefs.hpp>
-// #include <logger/logger.hpp>
+// #include <graphlab/logger/logger.hpp>
 
 
 // namespace graphlab {

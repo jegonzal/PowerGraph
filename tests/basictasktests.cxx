@@ -10,7 +10,7 @@
 #include <parallel/pthread_tools.hpp>
 #include <schedulers/support/buffered_scheduler_callback.hpp>
 #include <schedulers/support/vertex_task_set.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 #include <util/mutable_queue.hpp>
 

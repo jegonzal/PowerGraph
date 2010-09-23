@@ -28,10 +28,10 @@
 
 
 
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
-#include <serialization/iarchive.hpp>
-#include <serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
 
 #include <graphlab/extern/metis/metis.hpp>
 

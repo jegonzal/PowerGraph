@@ -4,8 +4,8 @@
 #include <distributed/dc.hpp>
 #include <distributed/dc_services.hpp>
 #include <distributed/portable.hpp>
-#include <serialization/podify.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/serialization/podify.hpp>
+#include <graphlab/logger/logger.hpp>
 using namespace graphlab;
 
 

@@ -3,8 +3,8 @@
 #include <graphlab/distributed/graph/cloned_graph.hpp>
 #include <graphlab/distributed/distributed_engine.hpp>
 #include <graphlab/schedulers/fifo_scheduler.hpp>
-#include <logger/logger.hpp>
-#include <logger/assertions.hpp>
+#include <graphlab/logger/logger.hpp>
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/timer.hpp>
 #include <vector>
 #include <algorithm>

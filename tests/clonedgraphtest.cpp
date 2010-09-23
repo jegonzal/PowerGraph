@@ -7,10 +7,10 @@
 #include <iostream>
 
 
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 #include <graphlab/distributed/graph/cloned_graph.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
-#include <serialization/serialization_includes.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 
 #include <graphlab/macros_def.hpp>
 

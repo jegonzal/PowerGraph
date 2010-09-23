@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <string>
 
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 #include "distmulticoemapp.hpp"
 

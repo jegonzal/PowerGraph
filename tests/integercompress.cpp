@@ -2,8 +2,8 @@
 #include <cstdlib>
 #include <cassert>
 #include <iostream>
-#include <serialization/integer.hpp>
-#include <logger/assertions.hpp>
+#include <graphlab/serialization/integer.hpp>
+#include <graphlab/logger/assertions.hpp>
 
 using namespace graphlab;
 int main(int argc, char** argv) {

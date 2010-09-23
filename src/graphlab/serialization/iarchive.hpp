@@ -2,8 +2,8 @@
 #define GRAPHLAB_IARCHIVE_HPP
 
 #include <iostream>
-#include <logger/assertions.hpp>
-#include <serialization/has_load.hpp>
+#include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/has_load.hpp>
 namespace graphlab {
 /**
 The input archive object.
@@ -59,5 +59,5 @@ inline iarchive& deserialize(iarchive& a, void* const i,const size_t length) {
 
 } // namespace graphlab
 
-#include <serialization/basic_types.hpp>
+#include <graphlab/serialization/basic_types.hpp>
 #endif 

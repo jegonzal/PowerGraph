@@ -1,5 +1,5 @@
 // Modified from boost 1.37 boost::any
-// Extended to handle graphlab serialization/deserialization functions
+// Extended to handle graphlab graphlab/serialization/deserialization functions
 // See http://www.boost.org/libs/any for Documentation.
 
 #ifndef GRAPHLAB_ANY_INCLUDED
@@ -25,8 +25,8 @@
 #include <boost/utility.hpp>
 #include <boost/exception/detail/is_output_streamable.hpp>
 
-#include <logger/assertions.hpp>
-#include <serialization/serialization_includes.hpp>
+#include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {
   

@@ -7,8 +7,8 @@
 
 #include <distributed/dht.hpp>
 #include <distributed/portable.hpp>
-#include <serialization/podify.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/serialization/podify.hpp>
+#include <graphlab/logger/logger.hpp>
 using namespace graphlab;
 
 std::string randstring(size_t len) {

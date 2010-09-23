@@ -2,7 +2,7 @@
 #include <iostream>
 #include <string>
 #include <distributed/circular_char_buffer.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 using namespace graphlab;
 
 int main(int argc, char** argv) {

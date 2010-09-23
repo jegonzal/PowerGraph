@@ -4,7 +4,7 @@
  */
 
 #include <cstdio>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 #include "coemapp.hpp"
 

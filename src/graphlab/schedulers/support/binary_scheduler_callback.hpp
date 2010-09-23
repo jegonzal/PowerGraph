@@ -3,7 +3,7 @@
 
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/schedulers/icallback.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 
 namespace graphlab {
   /**

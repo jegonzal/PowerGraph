@@ -3,9 +3,9 @@
 #include <vector>
 #include <queue>
 #include <map>
-#include <logger/assertions.hpp>
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/graph/graph.hpp>
-#include <serialization/serialization_includes.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>

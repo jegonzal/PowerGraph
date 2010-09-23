@@ -12,7 +12,9 @@ subdirs(
  scope
  shared_data
  tasks
- util)
+ util
+ serialization
+ logger)
   
 
 add_library(graphlab STATIC
@@ -22,11 +24,12 @@ add_library(graphlab STATIC
   parallel/pthread_tools.cpp
   util/timer.cpp
   util/generics/any.cpp
-  util/command_line_options.cpp)
+  util/command_line_options.cpp
+  logger/logger.cpp)
 
 
 
-target_link_libraries(graphlab graphlab_metis logger)
+target_link_libraries(graphlab graphlab_metis)
 
 
 INSTALL(TARGETS graphlab ARCHIVE DESTINATION lib)

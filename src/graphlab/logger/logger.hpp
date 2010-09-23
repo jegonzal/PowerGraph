@@ -196,6 +196,6 @@ class file_logger{
 
 file_logger& global_logger();
 
-#include <logger/assertions.hpp>
+#include <graphlab/logger/assertions.hpp>
 
 #endif

@@ -14,7 +14,7 @@
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/tasks/update_task.hpp>
-#include <logger/logger.hpp>
+#include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 
 #include <graphlab/macros_def.hpp>

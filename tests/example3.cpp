@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include <map>
-#include <serialization/podify.hpp>
+#include <graphlab/serialization/podify.hpp>
 #include <distributed/dc.hpp>
 using namespace graphlab;
 

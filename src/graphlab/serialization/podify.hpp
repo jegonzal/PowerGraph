@@ -1,7 +1,7 @@
 #ifndef PODIFY_HPP
 #define PODIFY_HPP
-#include <serialization/iarchive.hpp>
-#include <serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
 namespace graphlab {
 
  /**
