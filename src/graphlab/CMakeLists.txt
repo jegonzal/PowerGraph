@@ -15,21 +15,45 @@ subdirs(
  util
  serialization
  logger)
+
+
+add_library(graphlab_util STATIC
+  util/timer.cpp
+  util/generics/any.cpp
+  util/command_line_options.cpp
+  logger/logger.cpp
+  parallel/pthread_tools.cpp
+)
+
+if(Sctp-FOUND)
+  set(sctp_source rpc/dc_sctp_comm.cpp)
+endif()
   
+add_library(graphlab_rpc STATIC
+  rpc/dc_tcp_comm.cpp
+  ${sctp_source}
+  rpc/circular_char_buffer.cpp
+  rpc/dc_stream_send.cpp
+  rpc/dc_stream_receive.cpp
+  rpc/dc.cpp
+  rpc/reply_increment_counter.cpp
+  rpc/dc_services.cpp
+  rpc/dc_comm_services.cpp)
+
+if(Sctp-FOUND)
+  set_property(TARGET graphlab_rpc APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
+endif()
 
 add_library(graphlab STATIC
   factors/table_factor.cpp
   factors/binary_factor.cpp
-  factors/unary_factor.cpp
-  parallel/pthread_tools.cpp
-  util/timer.cpp
-  util/generics/any.cpp
-  util/command_line_options.cpp
-  logger/logger.cpp)
+  factors/unary_factor.cpp)
 
+if(Sctp-FOUND)
+  target_link_libraries(graphlab_rpc sctp)
+endif()
 
-
-target_link_libraries(graphlab graphlab_metis)
+target_link_libraries(graphlab graphlab_metis graphlab_rpc graphlab_util)
 
 
 INSTALL(TARGETS graphlab ARCHIVE DESTINATION lib)

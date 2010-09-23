@@ -34,6 +34,7 @@ FIND_PACKAGE(PythonInterp)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
   program_options REQUIRED)
 
+FIND_LIBRARY(Sctp sctp1)
 
 ## Not used currently
 # find_package(Java)
@@ -77,6 +78,13 @@ endif(CMAKE_SIZEOF_VOID_P MATCHES 4)
 if(CROSS_COMPILE_32_BIT MATCHES 1)
 set(HAVE_64_BIT 0)
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
+
+if(Sctp-FOUND)
+  message(STATUS "libsctp found")
+else()
+  message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
+endif()
+
 
 # Specify the subdirectories for this root directory This will be
 # used for the class branch, not the lab branch: subdirs(src examples
@@ -176,8 +184,6 @@ elseif(CMAKE_BUILD_TYPE MATCHES "Mex")
   add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_MEX})
 endif()
 
-
-add_definitions(-DJU_64BIT)
 
 endif(CMAKE_COMPILER_IS_GNUCXX)
 
