@@ -1,8 +1,8 @@
 #include <iostream>
-#include <util/generics/any.hpp>
-#include <distributed/dc_tcp_comm.hpp>
-#include <distributed/dc.hpp>
-#include <distributed/portable.hpp>
+#include <graphlab/util/generics/any.hpp>
+#include <graphlab/rpc/dc_tcp_comm.hpp>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/portable.hpp>
 #include <graphlab/serialization/podify.hpp>
 #include <graphlab/logger/logger.hpp>
 using namespace graphlab;

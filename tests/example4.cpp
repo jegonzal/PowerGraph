@@ -2,7 +2,7 @@
 #include <string>
 #include <map>
 #include <graphlab/serialization/podify.hpp>
-#include <distributed/dc.hpp>
+#include <graphlab/rpc/dc.hpp>
 using namespace graphlab;
 
 struct teststruct{

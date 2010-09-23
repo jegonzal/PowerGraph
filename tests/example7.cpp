@@ -1,9 +1,9 @@
 #include <iostream>
 #include <cstdio>
 #include <graphlab/serialization/podify.hpp>
-#include <distributed/dc.hpp>
-#include <distributed/dc_services.hpp>
-#include <distributed/dc_dist_object.hpp>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_services.hpp>
+#include <graphlab/rpc/dc_dist_object.hpp>
 using namespace graphlab;
 
 template <typename T>

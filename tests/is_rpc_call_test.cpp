@@ -1,7 +1,7 @@
 #include <string>
-#include <distributed/is_rpc_call.hpp>
-#include <distributed/dc.hpp>
-#include <distributed/dc_types.hpp>
+#include <graphlab/rpc/is_rpc_call.hpp>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_types.hpp>
 
 using namespace graphlab;
 

@@ -1,75 +1,37 @@
 #ifndef _ITPP_VEC_UTILS_H
 #define _ITPP_VEC_UTILS_H
 
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
 #include <itpp/itbase.h>
 
 using namespace itpp;
 
-namespace graphlab {
 
-template<>
-oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
+BEGIN_OUT_OF_PLACE_SAVE(arc, itpp::Vec<double>, vec) 
   arc << vec.length();
   serialize(arc, vec._data(), sizeof(double)*vec.length());
-  return arc;
-}
-template<>
-oarchive& operator<< <itpp::Mat<double> > (oarchive& arc, const itpp::Mat<double> &mat) {
+END_OUT_OF_PLACE_SAVE()
+
+BEGIN_OUT_OF_PLACE_SAVE(arc, itpp::Mat<double>, mat) 
   arc << mat.rows() << mat.cols();
   serialize(arc, mat._data(), sizeof(double)*mat._datasize());  
-  return arc;
-}
+END_OUT_OF_PLACE_SAVE()
 
-template<>
-iarchive& operator>> <itpp::Vec<double> > (iarchive& arc, itpp::Vec<double> &vec) {
+BEGIN_OUT_OF_PLACE_LOAD(arc, itpp::Vec<double>, vec) 
   size_t vlength;
   arc >> vlength;
   vec.set_size(vlength);
   deserialize(arc, vec._data(), sizeof(double)*vec.length());
-  return arc;
-}
+END_OUT_OF_PLACE_LOAD()
 
-template<>
-iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat) {
+BEGIN_OUT_OF_PLACE_LOAD(arc, itpp::Mat<double>, mat) 
   size_t rows, cols;
   arc >> rows >> cols;
   mat.set_size(rows,cols);
   deserialize(arc, mat._data(), sizeof(double)*mat._datasize());   
-  return arc;
-}
-/*
-template<>
-graphlab::oarchive& operator<< <QQR> (graphlab::oarchive&, const QQR &data) {
-  // TODO
-}
+END_OUT_OF_PLACE_LOAD()
 
-template<>
-graphlab::iarchive& operator>> <QQR> (graphlab::iarchive&, QQR &data) {
-  // TODO
-}
-template<>
-graphlab::oarchive& operator<< <mult_QQR> (graphlab::oarchive&, const mult_QQR &data) {
-  // TODO
-}
-
-template<>
-graphlab::iarchive& operator>> <mult_QQR> (graphlab::iarchive&, mult_QQR &data) {
-  // TODO
-}
-template<>
-graphlab::oarchive& operator<< <mult_vec> (graphlab::oarchive&, const mult_vec &data) {
-  // TODO
-}
-
-template<>
-graphlab::iarchive& operator>> <mult_vec> (graphlab::iarchive&, mult_vec &data) {
-  // TODO
-}
-*/
-
-
-
-};
 
 
  double * vec2vec(const vec * _vec){

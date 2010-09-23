@@ -1,5 +1,5 @@
 #include <iostream>
-#include <distributed/dc.hpp>
+#include <graphlab/rpc/dc.hpp>
 using namespace graphlab;
 
 

@@ -2,6 +2,7 @@
 #define GRAPHLAB_IARCHIVE_HPP
 
 #include <iostream>
+#include <boost/mpl/identity.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/has_load.hpp>
 namespace graphlab {
@@ -55,6 +56,26 @@ inline iarchive& deserialize(iarchive& a, void* const i,const size_t length) {
   assert(!a.i->fail());
   return a;
 }
+
+
+/**
+Macro to make it easy to define out-of-place saves (and loads)
+to define an "out of place" load
+OUT_OF_PLACE_LOAD(arc, typename, tval) 
+  arc >> tval;    // do whatever deserialization stuff you need here
+END_OUT_OF_PLACE_LOAD()
+
+\note important! this must be defined in the global namespace!
+See unsupported_serialize for an example
+*/
+#define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval) \
+  namespace graphlab{ namespace archive_detail {  \
+  template <typename ArcType> struct deserialize_impl<ArcType, tname>{     \
+    static void exec(ArcType& arc, tname & tval) {             
+
+#define END_OUT_OF_PLACE_LOAD() } }; } }
+
+
 
 
 } // namespace graphlab

@@ -1,12 +1,12 @@
 #include <iostream>
-#include <util/timer.hpp>
-#include <util/generics/any.hpp>
-#include <distributed/dc_tcp_comm.hpp>
-#include <distributed/dc.hpp>
-#include <distributed/dc_services.hpp>
+#include <graphlab/util/timer.hpp>
+#include <graphlab/util/generics/any.hpp>
+#include <graphlab/rpc/dc_tcp_comm.hpp>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_services.hpp>
 
-#include <distributed/dht.hpp>
-#include <distributed/portable.hpp>
+#include <graphlab/rpc/dht.hpp>
+#include <graphlab/rpc/portable.hpp>
 #include <graphlab/serialization/podify.hpp>
 #include <graphlab/logger/logger.hpp>
 using namespace graphlab;

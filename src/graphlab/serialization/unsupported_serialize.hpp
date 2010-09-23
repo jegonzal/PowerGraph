@@ -17,12 +17,19 @@ namespace graphlab {
   }; // end of struct
 };
 
-#define GRAPHLAB_UNSERIALIZABLE(TNAME)  \
-  graphlab::oarchive& operator<<(graphlab::oarchive&,   \
-                                const TNAME &mat) {ASSERT_MSG(false,"trying to serialize an unserializable object");} \
-  graphlab::iarchive& operator>>(graphlab::iarchive&,  \
-                                 TNAME &vec) {ASSERT_MSG(false,"trying to deserialize an unserializable object");}
 
+/**
+Disables serialization of a class so that it will fault at runtime.
+Must be declared in the global namespace.
+*/
+#define GRAPHLAB_UNSERIALIZABLE(tname) \
+  BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval) \
+    ASSERT_MSG(false,"trying to deserialize an unserializable object"); \
+  END_OUT_OF_PLACE_LOAD()                                           \
+  \
+  BEGIN_OUT_OF_PLACE_SAVE(arc, tname, tval) \
+    ASSERT_MSG(false,"trying to serialize an unserializable object"); \
+  END_OUT_OF_PLACE_SAVE()                                           \
 
 
 #endif

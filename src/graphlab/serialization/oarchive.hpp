@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <boost/mpl/identity.hpp>
 #include <boost/mpl/assert.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/has_save.hpp>
@@ -73,6 +74,22 @@ inline oarchive& serialize(oarchive& a, const void* i,const size_t length) {
 
 }
 
+/**
+Macro to make it easy to define out-of-place saves (and loads)
+to define an "out of place" save
+OUT_OF_PLACE_SAVE(arc, typename, tval) 
+  arc << tval;    // do whatever serialization stuff you need here
+END_OUT_OF_PLACE_SAVE()
+
+\note important! this must be defined in the global namespace!
+See unsupported_serialize for an example
+*/
+#define BEGIN_OUT_OF_PLACE_SAVE(arc, tname, tval) \
+  namespace graphlab{ namespace archive_detail {  \
+  template <typename ArcType> struct serialize_impl<ArcType, tname> {     \
+    static void exec(ArcType& arc, const tname & tval) {
+
+#define END_OUT_OF_PLACE_SAVE() } }; } }
 
 #include <graphlab/serialization/basic_types.hpp>
 #endif  

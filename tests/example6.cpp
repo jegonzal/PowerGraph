@@ -1,8 +1,8 @@
 #include <iostream>
 #include <cstdio>
 #include <graphlab/serialization/podify.hpp>
-#include <distributed/dc.hpp>
-#include <distributed/dc_services.hpp>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_services.hpp>
 
 using namespace graphlab;
 

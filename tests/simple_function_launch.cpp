@@ -1,5 +1,7 @@
-#include <parallel/pthread_tools.hpp>
+#include <iostream>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/bind.hpp>
+
 using namespace graphlab;
 void test() {
   std::cout << "test" << std::endl;

@@ -1,8 +1,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <distributed/dc.hpp>
-#include <util/generics/any.hpp>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/util/generics/any.hpp>
 using namespace graphlab;
 
 

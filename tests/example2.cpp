@@ -1,7 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <distributed/dc.hpp>
+#include <graphlab/rpc/dc.hpp>
 using namespace graphlab;
 
 
