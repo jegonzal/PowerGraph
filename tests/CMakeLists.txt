@@ -56,8 +56,6 @@ add_executable(clopts command_line_options.cpp)
 # serialization tests 
 add_executable(integercompress integercompress.cpp)
 add_executable(integercompress_bench integercompress_bench.cpp)
-add_executable(anytests anytests.cpp)
-add_executable(anytests_loader anytests_loader.cpp)
 add_executable(podtest podtest.cpp)
 add_executable(podtest_loader podtest_loader.cpp)
 
