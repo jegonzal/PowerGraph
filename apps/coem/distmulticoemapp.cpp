@@ -1,9 +1,10 @@
 /*
  *  \author akyrola
- *  Multi ctageory CoEM implementation, based on material by Justin Betteridge
+ *  Multi category CoEM implementation, based on material by Justin Betteridge
  *
  */
  
+
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -13,18 +14,14 @@
 
 #include <boost/random.hpp>
 
-
 #include <graphlab.hpp>
-
- 
-#include "distmulticoemapp.hpp"
-
+#include <graphlab/schedulers/multiqueue_priority_scheduler.hpp>
+#include <graphlab/distributed/graph/distributed_graph.hpp>
 #include <graphlab/distributed/pushy_distributed_engine.hpp>
-#include <graphlab/distributed/distributed_scheduler_wrapper.hpp>
+#include <graphlab/distributed/distributed_control.hpp>
 #include <graphlab/distributed/distributed_shared_data.hpp>
+#include <graphlab/distributed/distributed_scheduler_wrapper.hpp>
 #include <graphlab/distributed/distributed_round_robin_scheduler.hpp>
- 
-
 #include <graphlab/macros_def.hpp>
 
 using namespace std;
@@ -50,16 +47,7 @@ const size_t NUM_NPS  = 3;
 const size_t NUM_CTX  = 4;
 
 bool ROUNDROBIN = false;
-
-// Hack for speeding up
-std::vector<vertex_id_t> ** vertex_lookups;
-
-std::vector<blob> * XSTAR;
-
-double subsamplingRatio = 0.25;
-
-int myprocid, numofprocs;
-
+ 
 // lfidc is a modified weight formula for Co-EM (see Justin
 // Betteridge's "CoEM results" page)
 #define TFIDF(coocc, num_neighbors, vtype_total) (log(1+coocc)*log(vtype_total*1.0/num_neighbors))   
@@ -69,29 +57,101 @@ struct vertex_data {
   int nbcount;
   char text[TEXT_LENGTH];
   float normalizer;
-  float p[0];
+  float p[200];
+ 
+  vertex_data() {
+  	memset(p, 0, sizeof(float)*200);
+  	normalizer = 0.0f;
+  	nbcount = 0;
+  	flags = 0;
+  }
+  
+   // TODO: save p!
+  void save(graphlab::oarchive& archive) const { 
+    archive << flags << nbcount  << normalizer;
+    serialize(archive, text, sizeof(char)*TEXT_LENGTH);
+   	serialize(archive, p, sizeof(float)*200);
+  } 
+  
+  void load(graphlab::iarchive& archive) { 
+    archive >> flags >> nbcount  >> normalizer; 
+    deserialize(archive, text, sizeof(char)*TEXT_LENGTH);
+    deserialize(archive, p, sizeof(float)*200);
+  }
 };
 
+struct edge_data {
+  unsigned short cooccurence_count;
+  
+  void save(graphlab::oarchive& archive) const { 
+    archive << cooccurence_count; 
+  } 
+  
+  void load(graphlab::iarchive& archive) { 
+    archive >> cooccurence_count; 
+  }
+};
 
+// Graph type defintiions
+typedef graphlab::distributed_graph<vertex_data, edge_data> coem_distributed_graph;
+typedef graphlab::types<coem_distributed_graph> gl_types;
+
+// Distributed control reference
+graphlab::distributed_control * dc;
+int myprocid;
+int numofprocs;
+
+// Accuracy 
 float TARGET_PRECISION = 1e-5;
 
-  
-/* Used with analyzer_listener */
-void writeDump(blob_graph *g, 
-               bool is_xstar, long int budget, 
-               double * l1res, double * linf);
-  
-// Temporary hack 
-//distmulticoemapp * coapp;
+// Files
+std::string npsfile;
+std::string contextfile; 
+std::string matrixfile; 
+std::string seedsdir;
+std::string negseedsdir;
 
+// Category names (entity categories)
+std::vector<std::string> categories;	
+
+
+// Subsampling (to get smaller problems)
+double subsamplingRatio = 1.0;
+bool prune_edges;
+  
+// Hack for speeding up
+std::vector<vertex_id_t> ** vertex_lookups;
+
+// For convergence analysis
+std::vector<vertex_data> * XSTAR;
+
+
+// Temporary hack 
+//multicoemapp * coapp;
+
+// Forward declarations
+void loadCategories();
+std::map<std::string, vertex_id_t>  loadVertices(coem_distributed_graph& distgraph, short typemask, FILE * f);
+void prepare(coem_distributed_graph& distgraph, graphlab::distributed_shared_data<gl_types::graph>& sdm);
+void load(coem_distributed_graph& distgraph);
+void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps, 
+                             std::map<std::string, vertex_id_t>& nps_map,
+                             std::map<std::string, vertex_id_t>& ctx_map);
+void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id_t>& nps_map);
+void loadAndCreateDistGraph(coem_distributed_graph& distgraph);
+void output_results(coem_distributed_graph& distgraph);
+void writeDump(coem_distributed_graph& g, 
+               bool is_xstar, long int budget, 
+               double *l1res, double * linf);
+std::vector<std::string> dump_headers();
+std::vector<double> l1_residual(coem_distributed_graph &g);
 
 /// ====== UPDATE FUNCTION ======= ///
 void coem_update_function(gl_types::iscope& scope, 
                           gl_types::icallback& scheduler,
                           gl_types::ishared_data* shared_data) {
   // scheduler.disable_buffering();
- 
- 
+   
   /* Hacky optimization */
   std::vector<vertex_id_t> vlookup = *vertex_lookups[thread::thread_id()];
   vlookup.clear();
@@ -100,334 +160,304 @@ void coem_update_function(gl_types::iscope& scope,
   float param_m = shared_data->get_constant(PARAM_M).as<float>();
   size_t num_nps = shared_data->get_constant(NUM_NPS).as<size_t>();
   size_t num_ctxs = shared_data->get_constant(NUM_CTX).as<size_t>();
-  unsigned int num_cats = shared_data->get_constant(NUM_CATS).as<int>();
+  size_t num_cats = shared_data->get_constant(NUM_CATS).as<size_t>();
    
   /* Get vertex data */
-  vertex_data * vdata =
-    scope.vertex_data().as_ptr<vertex_data>();
+  vertex_data& vdata =   scope.vertex_data();
    
   /* We use directed edges as indirected, so either this vertex has only incoming  
      or outgoing vertices */
   bool use_outgoing = (scope.in_edge_ids().size()==0);
-  std::vector<edge_id_t> edge_ids = 
+  edge_list  edge_ids = 
     (use_outgoing ? scope.out_edge_ids() : scope.in_edge_ids());
    
   if (edge_ids.size() == 0) {
-    //printf("Warning : dangling node %d %s\n", scope.vertex(), vdata->text);
+    //printf("Warning : dangling node %d %s\n", scope.vertex(), vdata.text);
     return;
   }	
    
-  bool is_np = (vdata->flags & TYPEMASK) == NP_MASK;
+  bool is_np = (vdata.flags & TYPEMASK) == NP_MASK;
   bool was_first_run = false;
    
   unsigned int vtype_total = (is_np ? num_nps : num_ctxs);
   unsigned int vtype_other_total = (is_np ? num_ctxs : num_nps); 
     
   /* First check is my normalizer precomputed. If not, do it. */
-  if (vdata->normalizer == 0.0) {
-     float norm = param_m * vtype_other_total;
-     foreach(edge_id_t eid, edge_ids) {
-	  unsigned short cooccurence_count = scope.edge_data(eid);
-      const vertex_data * nb_vdata = 
+  if (vdata.normalizer == 0.0) {
+    float norm = param_m * vtype_other_total;
+    foreach(edge_id_t eid, edge_ids) {
+      const edge_data& edata = scope.const_edge_data(eid);
+      const vertex_data& nb_vdata = 
         scope.const_neighbor_vertex_data(use_outgoing ? 
                                    scope.target(eid) :
-                                   scope.source(eid)).as_ptr<vertex_data>();
-      ASSERT_GT(nb_vdata->nbcount, 0);
-      norm += TFIDF(cooccurence_count, nb_vdata->nbcount, vtype_total);
-      
-      if (scope.vertex() == 100000) {
-      	 printf("100000:  edge %d  coo %d nbc %d total %d param_m %lf other_type %d \n", eid, cooccurence_count, nb_vdata->nbcount, vtype_total,
-      	 				param_m, vtype_other_total);
-      }
+                                   scope.source(eid));
+       norm += TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
     }
-    vdata->normalizer = norm;
+    vdata.normalizer = norm;
     was_first_run = true; // Used to cause update to all neighbors
                           // regardless of residual
     if (scope.vertex()%20000 == 0)	
       printf("%d Computed normalizer: %lf \n", scope.vertex(), norm);
-   }
+  }
 	
   /***** COMPUTE NEW VALUE *****/
-  float tmp[256];  // assume max 256 cats
-  assert(num_cats<256);
-  for(int i=0; i<256; i++) tmp[i] = param_m;
+  float tmp[200];  // assume max 200 cats
+  assert(num_cats<200);
+  for(int i=0; i<200; i++) tmp[i] = param_m;
 	
 	
   foreach(edge_id_t eid, edge_ids) {
-    unsigned short cooccurence_count = scope.edge_data(eid);
-    vertex_id_t nbvid =use_outgoing ? scope.target(eid) : scope.source(eid);
-    const vertex_data * nb_vdata = 
-      scope.const_neighbor_vertex_data(nbvid).as_ptr<vertex_data>();
+    const edge_data& edata = scope.const_edge_data(eid);
+    vertex_id_t nbvid = use_outgoing ? scope.target(eid) : scope.source(eid);
+    const vertex_data& nb_vdata = scope.const_neighbor_vertex_data(nbvid);
     for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
-      tmp[cat_id] += nb_vdata->p[cat_id] * 
-        TFIDF(cooccurence_count, nb_vdata->nbcount, vtype_total);
+      tmp[cat_id] += nb_vdata.p[cat_id] * 
+        TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
     }
-    // Ensure data is pushed properly
-   
-   
     vlookup.push_back(nbvid); 
   }
   // Normalize and write data
   float residual = 0.0;
   for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
-    tmp[cat_id] /= vdata->normalizer;
+    tmp[cat_id] /= vdata.normalizer;
 		 
     /* I am seed for this category? */
-    if (!((vdata->p[cat_id] == POSSEEDPROB) || 
-          vdata->p[cat_id] == NEGSEEDPROB)) {
-      residual += std::fabs(tmp[cat_id] - vdata->p[cat_id]);
-      vdata->p[cat_id] = tmp[cat_id];
-			 
-			 
-    }  else {
+    if (!((vdata.p[cat_id] == POSSEEDPROB) || 
+          vdata.p[cat_id] == NEGSEEDPROB)) {
+      residual += std::fabs(tmp[cat_id] - vdata.p[cat_id]);
+      vdata.p[cat_id] = tmp[cat_id];
+   }  else {
       // I am seed - do not change
-      if (vdata->p[cat_id] == POSSEEDPROB) {
-        assert((vdata->flags & SEEDMASK) != 0); 
+      if (vdata.p[cat_id] == POSSEEDPROB) {
+        assert((vdata.flags & SEEDMASK) != 0); 
       }
     }
   }
 	
+  // Write data to edges and schedule if threshold reached
+  double randomNum = graphlab::random::rand01();
+  assert(randomNum >= 0.0);
+  assert(randomNum <= 1.0);
   if (scope.vertex()%20000 == 0) 
-    printf("%d %d Entering foreach: %lf \n", myprocid, scope.vertex(), residual);
+    printf("%d Entering foreach: %lf \n", scope.vertex(), residual);
     
-  if (!ROUNDROBIN) {
-   // Write data to edges and schedule if threshold reached
-   double randomNum = graphlab::random::rand01();
-   assert(randomNum >= 0.0);
-   assert(randomNum <= 1.0);
- 
+ if (!ROUNDROBIN) {
     int sz = edge_ids.size();
     for(int l = 0; l<sz; l++) {
-      vertex_id_t nbvid = vlookup[l];
-      gl_types::update_task task(nbvid, coem_update_function);
-   
-         edge_id_t eid = edge_ids[l];
-         unsigned short co_occurencecount = scope.edge_data(eid);
-         const vertex_data * nb_vdata = (vertex_data *) 
-           scope.neighbor_vertex_data(nbvid).as_ptr<vertex_data>();
-         float neighbor_residual = 
-           (nb_vdata->normalizer == 0.0f ? 1.0 : 
+        vertex_id_t nbvid = vlookup[l];
+        gl_types::update_task task(nbvid, coem_update_function);
+   		edge_id_t eid = edge_ids[l];
+        const edge_data& edata = scope.const_edge_data(eid);
+           
+        const vertex_data nb_vdata = scope.const_neighbor_vertex_data(nbvid);
+        float neighbor_residual = 
+           (nb_vdata.normalizer == 0.0f ? 1.0 : 
             residual * 
-            TFIDF(co_occurencecount, 
-                  vdata->nbcount, vtype_other_total) / 
-            nb_vdata->normalizer);	
+            TFIDF(edata.cooccurence_count, 
+                  vdata.nbcount, vtype_other_total) / 
+            nb_vdata.normalizer);	
          if ((neighbor_residual/TARGET_PRECISION >= randomNum) || 
              was_first_run) {
            scheduler.add_task(task, neighbor_residual);
-           // if (scope.vertex()%20000 == 0) printf("Added task %d =>
-           // %d %f\n", scope.vertex(), nbvid, neighbor_residual);
          }
-      
     }
   }
 }
 
-distmulticoemapp::distmulticoemapp(distributed_control * _dc, std::string npsfile, std::string contextfile, 
-                           std::string matrixfile, std::string seedsdir, 
-                           std::string negseedsdir) : distgraph(*_dc){
-  dc = _dc;
-  this->npsfile = npsfile;
-  this->contextfile = contextfile;
-  this->matrixfile = matrixfile;
-  this->seedsdir = seedsdir;
-  this->negseedsdir = negseedsdir;
-  prune_edges = false;
-  on_the_fly_partition = false;
-  
-  myprocid = dc->procid();
-  numofprocs = dc->numprocs();
-  
-  std::cout << "Distributed multicoem starting. Procid = " << myprocid << "/" << numofprocs << std::endl;
-}
-
-distmulticoemapp::~distmulticoemapp() {
-  delete(g);
-}
-
-
-int ncats = 0;
-int dumpcount = 0;
-
-
-void distmulticoemapp::start() { 
-  //ncats = 100;
-  //dumpcount=3;
-  // retrospective_dump();
-  // return;
-
-  /* Load XSTAR */
+/**
+  * Used for analysis. Ignore.
+  */
+void analysis_load_ground_truth() {
+	/* Load XSTAR - i.e the "ground truth". Used for convergence anlaysis. */
   if (fopen("MC_XSTAR.dat", "r") != NULL) {
-    XSTAR = new vector<blob>();
+    XSTAR = new vector<vertex_data>();
     std::cout << "Loading x_star..." << std::endl;
     std::ifstream fin("MC_XSTAR.dat");
     iarchive iarc(fin);
     iarc >> *XSTAR;
     fin.close();
-   }
- /* subsampling ratio */
-  if (opts.extra.length() > 0) {
-      printf("SUBSAMPLING RATIO: %lf\n", subsamplingRatio);
-     sscanf(opts.extra.c_str(), "%lf", &subsamplingRatio);
-     printf("SUBSAMPLING RATIO: %lf\n", subsamplingRatio);
-  }	
-
-  /**** GRAPH LOADING ****/
-
-
-  // Load categories
-  loadCategories();
-  
-  dc->barrier();
-  
-  char ss[8]; 
-  sprintf(ss, "%1.2f", subsamplingRatio);
-  std::string basefile = npsfile + std::string(ss);
-  
-  char ss2[10];
-  sprintf(ss2, "%d", myprocid);
-  std::string procidstr = std::string(ss2);
-  
-  distgraph.set_constant_edges(true);
-  distgraph.set_local_edges(true);
-
-  
-  if (opts.engine == "prepartition") {
-  	   // Create partitions
-	   load();
-
-  	   ASSERT_EQ(dc->numprocs(), 1);
-  	   printf("Number of edges: %ld\n", g->num_edges());
-  	   printf("Partition method: %s\n", opts.scheduler.c_str());
-  	   
-  	   if (opts.scheduler == "metis") {
-      	   coem_distributed_graph::partition_graph_tofile(*g, opts.ncpus, partition_method::PARTITION_METIS, basefile);
-  	   } else if (opts.scheduler == "bfs") {
-  	       coem_distributed_graph::partition_graph_tofile(*g, opts.ncpus, partition_method::PARTITION_BFS, basefile);
-  	   } else if (opts.scheduler == "random") {
-  	       coem_distributed_graph::partition_graph_tofile(*g, opts.ncpus, partition_method::PARTITION_RANDOM, basefile);
-  	   } else ASSERT_MSG(false, "You need to set partition method as --scheduler option.");
-  	   
-  	    exit(0);
-  } else if (opts.engine == "onthefly") {
-     std::cout << "========== ON THE FLY PARTITION ========== " << std::endl;
-     on_the_fly_partition = true;
-     load();
-  } else {
-  	   // Load partitions
-  	   distgraph.load(basefile, *dc);
   }
+}
+
+int ncats = 0;
+int dumpcount = 0;
+int task_budget;
+ 
+
+/**
+  *  MAIN FUNCTION 
+  */
+int main(int argc,  char ** argv) {
   
-  dc->barrier();
+  // Initialize distributed control
+  graphlab::distributed_control _dc(&argc, &argv);
+  _dc.init_message_processing(4);
+  _dc.barrier();
+  dc = &_dc;
+  myprocid = dc->procid();
+  numofprocs = dc->numprocs();
   
   /**** GRAPHLAB INITIALIZATION *****/
-
-  // Create engine
+  std::string root = "/mnt/bigbrofs/usr5/graphlab/testdata/coem/justin/";
   
+  // Setup the parser
+  graphlab::command_line_options   clopts("Run the CoEM algorithm.");
   
+  clopts.attach_option("data_root", &root, root,
+                       "Root for data.");
+  clopts.attach_option("subsampling_ratio", &subsamplingRatio, subsamplingRatio,
+  				"Subsampling ratio.");
+  clopts.attach_option("task_budget", &task_budget, 0,
+  										"Task budget (needed for round robin).");
+  clopts.attach_option("target_precision", &TARGET_PRECISION, 0.0f,
+  										"Termination threshold.");
+  										
+  // TODO: do not hard-code
+  npsfile     = root + "/cat_nps.txt";
+  contextfile = root + "/cat_contexts.txt";
+  matrixfile  = root + "/cat_pairs_cont-idx.txt";
+  seedsdir    = root + "/seeds/";
+  negseedsdir = root + "/seeds-neg/";
+ 
+  // Create a graphlab 
+  if(!clopts.parse(argc, argv)) {
+     std::cout << "Error in parsing input." << std::endl;
+     return EXIT_FAILURE;
+  }
+   
+  /**** GRAPH LOADING ****/
+  timer t;
+  t.start();
+  
+  coem_distributed_graph distgraph(*dc);
+    
+  distgraph.set_constant_edges(true);
+  distgraph.set_local_edges(true);
+  
+  load(distgraph);
+  printf("Loading data took %lf secs\n", t.current_time());
+  
+   // Create engine
   pushy_distributed_engine<coem_distributed_graph,
-      distributed_scheduler_wrapper<coem_distributed_graph, SCHEDULER<coem_distributed_graph> >,
+      distributed_scheduler_wrapper<coem_distributed_graph, distributed_round_robin_scheduler<coem_distributed_graph> >,
       		  general_scope_factory<coem_distributed_graph> >
-      		graphlab(*dc, distgraph, opts.ncpus);
-  graphlab.set_default_scope(scope_range::VERTEX_CONSISTENCY);
-  
-  printf(" =================== \n ");
+      		graphlab(*dc, distgraph, clopts.ncpus);
+  graphlab.set_default_scope(graphlab::scope_range::VERTEX_CONSISTENCY);
   
   dc->barrier();
-  
   ROUNDROBIN = true;
-  // Run 5 iterations
-  
 
+  
+  //analysis_load_ground_truth();
+
+  
   /** Hack **/
   vertex_lookups = (std::vector<vertex_id_t> **) 
-    malloc(sizeof(std::vector<vertex_id_t> *) * opts.ncpus);
-  for(unsigned int i=0; i<opts.ncpus; i++) {
+    malloc(sizeof(std::vector<vertex_id_t> *) * clopts.ncpus);
+  for(unsigned int i=0; i<clopts.ncpus; i++) {
     vertex_lookups[i] = new std::vector<vertex_id_t>();
-    vertex_lookups[i]->reserve(1e4);
+    vertex_lookups[i]->reserve(1e6);
   }
   
-
-// Set register shared data
-  distributed_shared_data<coem_distributed_graph> sdm(*dc);
+  // Set register shared data
+  graphlab::distributed_shared_data<gl_types::graph> sdm(*dc);  
   dc->barrier();
   if (myprocid == 0) {
 	  float m = 0.01;
   	  sdm.set_constant(PARAM_M, any(m));
   }
-  
   dc->barrier();
   std::cout << "going to prepare()" << std::endl;
-  prepare(sdm, &graphlab);
+  prepare(distgraph, sdm);
+  std::cout << "Prepared..." << std::endl;
   graphlab.set_shared_data_manager(&sdm);
+  dc->barrier();
+
+  std::cout << "Set shared data manager..." << std::endl;
+
+  /* Special handling for round_robin */
+  vertex_id_t zero = 0;
+  graphlab.get_scheduler().add_task_to_all(coem_update_function, 1.0);
+  graphlab.get_scheduler().set_option(scheduler_options::MAX_ITERATIONS, (void*)3);
+  graphlab.get_scheduler().set_option(scheduler_options::DISTRIBUTED_CONTROL, (void*)dc);
+  graphlab.get_scheduler().set_option(scheduler_options::BARRIER, &zero);  
+  size_t lastNP =  sdm.get_constant(NUM_NPS).as<size_t>();
+  graphlab.get_scheduler().set_option(scheduler_options::BARRIER, &lastNP);  
+  
+  if (task_budget > 0) {
+ 	 //graphlab.get_scheduler().set_task_budget(task_budget);
+    std::cout << "Task budget not allowed" << std::endl;
+    assert(false);
+  } 
+  
   dc->barrier();
   timer t2;
   t2.start();
   
-  /* Round robin barriers etc */
-  if (ROUNDROBIN) {
-      vertex_id_t zero = 0;
-      graphlab.get_scheduler().add_task_to_all(coem_update_function, 1.0);
-      graphlab.get_scheduler().set_option(scheduler_options::MAX_ITERATIONS, (void*)3);
-      graphlab.get_scheduler().set_option(scheduler_options::DISTRIBUTED_CONTROL, (void*)dc);
-      graphlab.get_scheduler().set_option(scheduler_options::BARRIER, &zero);  
-      size_t lastNP =  sdm.get_constant(NUM_NPS).as<size_t>();
-      graphlab.get_scheduler().set_option(scheduler_options::BARRIER, &lastNP);  
-  }
-  
-  
-  
-  TARGET_PRECISION = opts.threshold; 
+  std::cout << "Going to start " << std::endl;
   graphlab.start();
+   
+  /*** TODO:
+  if (clopts.monitor == "analyzer") {
+    ncats = categories.size();
+    l1_residual(distgraph);
+  }
+  */
   
-  distgraph.send_vertices_to_proczero();
-  dc->barrier();
+   
   
-  g = &distgraph.mgraph;
-
   std::cout << "Finished in " << t2.current_time() << " seconds." << std::endl;
 
-  if (opts.visualizer == "analyzer") retrospective_dump();
+  //if (opts.visualizer == "analyzer") retrospective_dump();
 
   std::cout << "Going to output results... " << std::endl;
   
-  if (myprocid == 0) output_results();
+  output_results(distgraph);
+  
+  if (clopts.scheduler_type == "round_robin" && task_budget >= 20000000) {
+    writeDump(distgraph, true, task_budget, NULL, NULL);
+  }  
+
+//  if (clopts.extra == "dump") {
+//    writeDump(distgraph, true, 0, NULL, NULL);
+//  }
+  
+  /*** Write output ***/
   /*
-  // Write analysis data
-  char analyzer_filename[255];
-  sprintf(analyzer_filename, "coem_%d_%d.tsv", myprocid, numofprocs);
-  FILE * af = fopen(analyzer_filename, "w");
-  
-  fprintf(af, "vertex,updates,neighbors,remote_neighbors\n");
-  
-  foreach(vertex_id_t vid, distgraph.my_vertices()) {
-     int num_neighbors = 0;
-     int num_remote = 0;
-     foreach(edge_id_t ev, distgraph.in_edge_ids(vid)) {
-        num_neighbors++;
-        num_remote += (distgraph.owner(distgraph.source(ev)) != myprocid);
-     }
-     
-     foreach(edge_id_t ev, distgraph.out_edge_ids(vid)) {
-        num_neighbors++;
-        num_remote += (distgraph.owner(distgraph.target(ev)) != myprocid);
-     }
+  std::cout << "==== DUMPING FOR JUSTIN ===\n" << std::endl;
+  FILE * fnp = fopen("justin_np.txt", "w");
+  FILE * fct = fopen("justin_ct.txt", "w");
     
-     fprintf(af, "%ld,%ld,%ld,%ld\n", (long int) vid, (long int) updatecounts[vid],(long int) num_neighbors, (long int) num_remote);
+  int n = distgraph.num_vertices();
+  loadCategories();
+  int ncats = categories.size();
+  cout << "Categories: " << ncats << std::endl;
+  for(int i=0; i<n; i++) {
+    vertex_data& v1 = distgraph.vertex_data(i);
+    FILE * f = (((v1.flags & TYPEMASK) == NP_MASK) ? fnp : fct);
+    fprintf(f, "%s", v1.text);
+    for(int c=0; c<ncats; c++) {
+      fprintf(f, "\t%s^^%f", categories[c].c_str(), v1.p[c]);
+    }
+    fprintf(f, "\n");
+    if (i%1000 == 0) fflush(f);
+    if (i%500 == 0) printf("%d\n", i);
   }
-  
-  fclose(af);*/
- }
+    
+  fclose(fnp);
+  fclose(fct);*/
+}
 
 
 // Bit dirty... who cares (maybe Joey :) ). Should use bind()...
 int sort_cat_id = 0;
-bool cmp( vertex_data * a, vertex_data * b ) {
+bool cmp(vertex_data * a, vertex_data * b) {
   return a->p[sort_cat_id] > b->p[sort_cat_id]; // Descending order
 }
 
-void distmulticoemapp::output_results() {
+void output_results(coem_distributed_graph& distgraph) {
   int cat_id = 0;
-  int n = g->num_vertices();
+  int n = distgraph.num_vertices();
 
   foreach(std::string catname, categories) {
     std::string filename = catname + "_results.txt";
@@ -436,10 +466,10 @@ void distmulticoemapp::output_results() {
     std::vector<vertex_data *> v = std::vector<vertex_data *>(n);
     int k = 0;
     for(int vid=0; vid<n; vid++) {
-      vertex_data * vdata = g->vertex_data(vid).as_ptr<vertex_data>();
-      if ((vdata->flags & TYPEMASK) == NP_MASK &&
-          (vdata->p[cat_id] != POSSEEDPROB)) {
-        v[k++] = g->vertex_data(vid).as_ptr<vertex_data>();
+      vertex_data& vdata = distgraph.vertex_data(vid);
+      if ((vdata.flags & TYPEMASK) == NP_MASK &&
+          (vdata.p[cat_id] != POSSEEDPROB)) {
+        v[k++] = &distgraph.vertex_data(vid);
       }
     }
     v.resize(k);
@@ -448,107 +478,77 @@ void distmulticoemapp::output_results() {
     sort(v.begin(), v.end(), cmp);
     // Output top
     for(int i=0; i<50; i++) {
-      vertex_data * vdata = v[i];
-      fprintf(f, "%d: %s  %1.5f\n", i+1, vdata->text, (float) vdata->p[cat_id]); 
+      vertex_data vdata = *v[i];
+      fprintf(f, "%d: %s  %1.5f\n", i+1, vdata.text, (float) vdata.p[cat_id]); 
     }
 		
     fclose(f);
-		 
     cat_id++;
   }
 }
 
-void distmulticoemapp::load() {
-  
-	
-  // Check if already converted to binary
-  std::string binfile = npsfile + "_graphlabbin.dat";
-	
-  if (subsamplingRatio != 1.0) {
-    char s[255];
-    sprintf(s, "%s_%1.2f", binfile.c_str(), subsamplingRatio);
-    binfile = std::string(s);
-  }
-  std::cout << "Binfile: " << binfile << std::endl;
-	
-  FILE * f = fopen(binfile.c_str(), "r");
-  if (f == NULL || on_the_fly_partition) {
-    std::cout << "Going to convert to => " << binfile << std::endl;
-    loadAndConvertToBin(binfile);
-  } else {
-    std::cout << "Loading from binary " << binfile << std::endl;
-    g = new coem_graph();
-    g->load(binfile);
-  }       
+void load(coem_distributed_graph& distgraph) {
+  // Load categories
+  loadCategories();
+  loadAndCreateDistGraph(distgraph);
 }
 
-void distmulticoemapp::prepare(distributed_shared_data<coem_distributed_graph>& sdm, 
-                            pushy_distributed_engine<coem_distributed_graph,
-      distributed_scheduler_wrapper<coem_distributed_graph, SCHEDULER<coem_distributed_graph> >,
-      		  general_scope_factory<coem_distributed_graph> >   *  graphlab) {
+void prepare(coem_distributed_graph& distgraph, graphlab::distributed_shared_data<gl_types::graph>& sdm) {
   // Set register shared data
+  
   /* M is used for "smoothing" */
+  float m = 0.01;
+  sdm.set_constant(PARAM_M, float(m));
   
   /*** Count NPs and CONTEXTs, add SEEDS as initial tasks */
   size_t n = distgraph.num_vertices();
   
   std::cout << "Seed mask " << SEEDMASK << std::endl;
-  
+  std::cout << "n = " << n << std::endl;
   size_t num_contexts = 0;
   size_t num_nps = 0;
   size_t negseeds = 0, posseeds = 0;
   int ntasks = 0;
   for(size_t i = 0; i<n; i++) {
-    vertex_data * vdata = distgraph.vertex_data(i).as_ptr<vertex_data>();
-    if ((vdata->flags & TYPEMASK) == NP_MASK) {
+    vertex_data& vdata = distgraph.vertex_data(i);
+  	if ((vdata.flags & TYPEMASK) == NP_MASK) {
           num_nps++;
     } else {
           num_contexts++;
     }
   
-    if (!(distgraph.owner(i) == myprocid)) continue;
-
-    /* Is seed? */
-    if ((vdata->flags & SEEDMASK) != 0) {
-      for(unsigned int cat_id=0; cat_id<categories.size(); cat_id++) {
-        if (vdata->p[cat_id] == POSSEEDPROB) {
-          // 	graphlab->get_scheduler().add_task(update_task(i, coem_update_function), 1.0); 
-          //	ntasks++;
-          posseeds++;
-        }
-      }
-  		 
-    }
-  	  
+    if (!(distgraph.owner(i) == myprocid)) continue; 
+    
     /* Count classes */
-    if ((vdata->flags & TYPEMASK) == NP_MASK) {
-      if (i%10000 == 0) std::cout << "NP: " << std::string(vdata->text) << std::endl;
+    if ((vdata.flags & TYPEMASK) == NP_MASK) {
+    if (i%10000 == 0) std::cout << "NP: " << std::string(vdata.text) << std::endl;
   	  	
       /* Set initial values */
       for(unsigned int cat_id=0; cat_id<categories.size(); cat_id++) {
-        if (vdata->p[cat_id] == 0.0f) {
-          vdata->p[cat_id] = INITIAL_NP_VALUE;
+        if (vdata.p[cat_id] == 0.0f) {
+          vdata.p[cat_id] = INITIAL_NP_VALUE;
         } 
-        else if (vdata->p[cat_id] == NEGSEEDPROB) {
-          //	graphlab->get_scheduler().add_task(update_task(i, coem_update_function), 1.0); 
-          //	ntasks++;
+        else if (vdata.p[cat_id] == NEGSEEDPROB) {
           negseeds++;
         }
       }
   	  	
-    } else  if (((vdata->flags & TYPEMASK) == CTX_MASK)) {
-      if (i%10000 == 0) std::cout << "CTX: " << std::string(vdata->text) << std::endl;
-      // Start with contexts
-      if (!ROUNDROBIN)  graphlab->get_scheduler().
-        add_task(update_task<coem_distributed_graph>(i, coem_update_function), 1.0); 
+    } else  if ((vdata.flags & TYPEMASK) == CTX_MASK) {
+      if (i%10000 == 0) std::cout << "CTX: " << std::string(vdata.text) << std::endl;
+        
+
+      if (!ROUNDROBIN) {
+      	//core.add_task(gl_types::update_task(i, coem_update_function), 1.0); 
+         assert(false);
+      }
       ntasks++;
     } else assert(false);
   	  
     /* Count neighbors */
-    vdata->nbcount = std::max(distgraph.in_edge_ids(i).size(), distgraph.out_edge_ids(i).size());
-    if (i%10000 == 0 || i == 141400) std::cout << "Num neighbors: " << i << " : " << vdata->nbcount << std::endl;
-	
-	// Broadcast update to others
+    vdata.nbcount = std::max(distgraph.in_edge_ids(i).size(), distgraph.out_edge_ids(i).size());
+    if (i%10000 == 0) std::cout << "Num neighbors: " << vdata.nbcount << std::endl;
+    
+   	// Broadcast update to others
 	distgraph.update_vertex(i);
   }
   std::cout << "Positive seeds: " << posseeds << std::endl;
@@ -557,15 +557,11 @@ void distmulticoemapp::prepare(distributed_shared_data<coem_distributed_graph>& 
   std::cout << "Contexts: " << num_contexts << " nps: " << num_nps << std::endl;
   
   if (myprocid == 0) {
- 	 sdm.set_constant(NUM_CTX, any(num_contexts));
-  	sdm.set_constant(NUM_NPS, any(num_nps));
-  	int numcats = categories.size();
- 	 sdm.set_constant(NUM_CATS, any(numcats));
+      sdm.set_constant(NUM_CTX, size_t(num_contexts));
+    sdm.set_constant(NUM_NPS, size_t(num_nps));
+    int numcats = categories.size();
+    sdm.set_constant(NUM_CATS, size_t(numcats));
    }
-  // if (opts.scheduler == "round_robin") {
-  //   ((round_robin_scheduler&) (graphlab->get_scheduler())).set_start_vertex(num_nps);
-  // }
-  
 }
 
 
@@ -576,7 +572,7 @@ void FIXLINE(char * s) {
 }
 
 
-std::map<std::string, vertex_id_t> distmulticoemapp::loadVertices(short typemask, FILE * f) {
+std::map<std::string, vertex_id_t>  loadVertices(coem_distributed_graph& distgraph, short typemask, FILE * f) {
   /* Allocation size depends on number of categories */
   int vsize = sizeof(vertex_data) + categories.size()*sizeof(float);
   map<std::string, vertex_id_t> map;
@@ -586,37 +582,33 @@ std::map<std::string, vertex_id_t> distmulticoemapp::loadVertices(short typemask
      
   std::cout << "Vsize: " << vsize << " typemask:" << typemask <<  std::endl;
      
-  // Set same seed
-  graphlab::random::seed(999);
-  
   while(fgets(s, 255, f) != NULL) {
     // Remove new line
     FIXLINE(s);
     t = strtok(s,delims);
 
     // Create vertex
-    vertex_data * vdata = (vertex_data*) calloc(1, vsize);
-    vdata->flags = typemask;
+    vertex_data vdata = vertex_data();
+    vdata.flags = typemask;
     int len = strlen(t);
     // rather ugly.....
-    memcpy(vdata->text, t, (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
+    memcpy(vdata.text, t, (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
         
     // Read count (Not used for anything?)
     //     t = strtok(NULL,delims);
-    //  sscanf(t, "%d", &vdata->count);
+    //  sscanf(t, "%d", &vdata.count);
     double randomNum = graphlab::random::rand01();
 		
     if (randomNum <= subsamplingRatio) {
-      vertex_id_t vid = (on_the_fly_partition ? distgraph.add_vertex(graphlab::random::rand_int(numofprocs-1), blob(vsize,vdata)) :
-                                                    g->add_vertex(blob(vsize, vdata)));
-      if (vid%50000 == 0) printf("Vertex: %d  %s\n", vid, vdata->text); 
-      map.insert(make_pair(std::string(vdata->text), vid));
+      vertex_id_t vid = distgraph.add_vertex(graphlab::random::rand_int(numofprocs-1), vdata);
+      if (vid%50000 == 0) printf("Vertex: %d  %s\n", vid, vdata.text); 
+      map.insert(make_pair(std::string(vdata.text), vid));
     } 
   }
   return map;
 }
 
-void distmulticoemapp::loadCategories() {
+void loadCategories() {
   /* Iterate files in seeds dir */
   DIR *dp;
   struct dirent *ep;   
@@ -631,7 +623,7 @@ void distmulticoemapp::loadCategories() {
   closedir(dp);
 }
 
-void distmulticoemapp::setseeds(std::map<std::string, vertex_id_t>& nps_map) {
+void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id_t>& nps_map) {
   short catid = 0;
   size_t num_of_seeds=0;
   foreach(std::string cat, categories) {
@@ -645,17 +637,11 @@ void distmulticoemapp::setseeds(std::map<std::string, vertex_id_t>& nps_map) {
       std::string s(cs);
       map<string,vertex_id_t>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
-        //	std::cout << "Seed not found: [" << s << "]" << std::endl;
         continue;
       }
-      vertex_data * vdata = (on_the_fly_partition ? distgraph.vertex_data(iter->second).as_ptr<vertex_data>() :
-        g->vertex_data(iter->second).as_ptr<vertex_data>());
-      //if ((vdata->flags & SEEDMASK)) {
-      // 	std::cout << "Warning : Multiple seed: " << s << " was:" << vdata->flags << std::endl;
-      //}
-      vdata->flags = vdata->flags | SEEDMASK;
-      vdata->p[catid] = POSSEEDPROB;
-      //	 std::cout << "Pos seed: [" << s << "]" << std::endl;
+      vertex_data& vdata = distgraph.vertex_data(iter->second);
+      vdata.flags = vdata.flags | SEEDMASK;
+      vdata.p[catid] = POSSEEDPROB;
       num_of_seeds++;
     }	 
     fclose(seedf);
@@ -671,11 +657,8 @@ void distmulticoemapp::setseeds(std::map<std::string, vertex_id_t>& nps_map) {
         //std::cout << "Seed not found: [" << s << "]" << std::endl;
         continue;
       }			
-      vertex_data * vdata =(on_the_fly_partition ? distgraph.vertex_data(iter->second).as_ptr<vertex_data>() :
-        g->vertex_data(iter->second).as_ptr<vertex_data>());
-      vdata->p[catid] = NEGSEEDPROB;
-      // std::cout << "Neg seed: [" << s << "]" << std::endl;
-      //num_of_seeds++;
+      vertex_data& vdata = distgraph.vertex_data(iter->second);
+      vdata.p[catid] = NEGSEEDPROB;
     }	 
     fclose(negseedf);
     catid++;
@@ -683,14 +666,13 @@ void distmulticoemapp::setseeds(std::map<std::string, vertex_id_t>& nps_map) {
   std::cout << "Num of seeds (pos): " << num_of_seeds << std::endl;
 }
 
-void distmulticoemapp::loadEdges(FILE * fcont_to_nps, 
+void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps, 
                              std::map<std::string, vertex_id_t>& nps_map,
                              std::map<std::string, vertex_id_t>& ctx_map) {
   size_t MAXBUF = 5*1000000;
-  char  * s = (char*) malloc(MAXBUF); 
+  char  * s = (char*) malloc(MAXBUF); 	// 10 meg buffer :)
   char delims[] = "\t";	
   char *t = NULL, *t2;
-  int vsize = sizeof(vertex_data) + categories.size()*sizeof(float);
 
   std::cout << "Start to load edges... "<< std::endl;
 
@@ -733,14 +715,14 @@ void distmulticoemapp::loadEdges(FILE * fcont_to_nps,
         continue;
       } else {
         // Create vertex
-        vertex_data * vdata = (vertex_data*) calloc(1, vsize);
-        vdata->flags = CTX_MASK;
+        vertex_data vdata = vertex_data();
+        vdata.flags = CTX_MASK;
         int len = strlen(ctxname.c_str());
         // rather ugly.....
-        memcpy(vdata->text, ctxname.c_str(), 
+        memcpy(vdata.text, ctxname.c_str(), 
                (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
-        vertex_id_t vid = (on_the_fly_partition ?  distgraph.add_vertex(len%numofprocs, blob(vsize, vdata))  : g->add_vertex(blob(vsize, vdata)));
-        if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata->text); 
+        vertex_id_t vid = distgraph.add_vertex(len%numofprocs, vdata);
+        if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata.text); 
         ctx_map.insert(make_pair(ctxname, vid));
         iter = ctx_map.find(ctxname);
       }	
@@ -762,21 +744,19 @@ void distmulticoemapp::loadEdges(FILE * fcont_to_nps,
         break;
       }
       std::string npname(t2);
-      unsigned short cooccurence_count;
+      unsigned int cooccurence_count;
       while(true) {
         t2 = strtok(NULL, " ");
         std::string word(t2);
         if (word == "-#-") {
           t2 = strtok(NULL, " ");
           // This is coocc count
-          sscanf(t2, "%hu", &cooccurence_count);
+          sscanf(t2, "%u", &cooccurence_count);
           break;
         } else {
           npname += " " + word; 
         }
       }
- 		
- 	  ASSERT_GT(cooccurence_count, 0);	
  		
       if (prune_edges && cooccurence_count == 1) {
         // HACK
@@ -786,54 +766,52 @@ void distmulticoemapp::loadEdges(FILE * fcont_to_nps,
         }
       }
 	
-       map<string,vertex_id_t>::iterator iter = nps_map.find(npname);
+ 		
+      map<string,vertex_id_t>::iterator iter = nps_map.find(npname);
 		    
       if (iter == nps_map.end()) {
         if (subsamplingRatio < 1.0) {
           continue;
         } else {
           // Create vertex
-          vertex_data * vdata = (vertex_data*) calloc(1, vsize);
-          vdata->flags = NP_MASK;
+          vertex_data vdata = vertex_data();
+          vdata.flags = NP_MASK;
           int len = strlen(npname.c_str());
           // rather ugly.....
-          memcpy(vdata->text, npname.c_str(), 
+          memcpy(vdata.text, npname.c_str(), 
                  (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
-          vertex_id_t vid = (on_the_fly_partition ? distgraph.add_vertex(len%numofprocs,blob(vsize,vdata)) 
-                        : g->add_vertex(blob(vsize,vdata)));
-          if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata->text); 
+          vertex_id_t vid = distgraph.add_vertex(len%numofprocs, vdata);
+          if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata.text); 
           nps_map.insert(make_pair(npname, vid));
           iter = nps_map.find(npname);
         }
       }
       vertex_id_t np_vid = iter->second;
-	
-	   if (!on_the_fly_partition || (distgraph.owner(np_vid) == myprocid || distgraph.owner(ctx_vid) == myprocid)) {				
-		  // Create edge data
-		  
-				
-		  if (i++ % 100000 == 0) {
-			std::cout << "For ctx [" << ctxname 
-					  << "<" << ctx_vid << ">] linked to np: [" << npname << 
-			  "<" << np_vid << ">] with weight " << cooccurence_count << std::endl;
-			long filepos = ftell(fcont_to_nps);
-			printf("Edge #%d (%2.1f perc) pruned:%u\n", i, 
-				   filepos*1.0/sz*100, prunecount);
-		  }
-				
-		   if (on_the_fly_partition) {
-			  distgraph.add_edge(ctx_vid, np_vid, cooccurence_count);
-		   } else {
-			  g->add_edge(ctx_vid, np_vid, cooccurence_count);
-		   }
-       }
+
+      if ((distgraph.owner(np_vid) == myprocid || 
+            distgraph.owner(ctx_vid) == myprocid)) {				
+	    // Create edge data
+        edge_data edata;
+        edata.cooccurence_count = cooccurence_count;
+			
+         if (i++ % 100000 == 0) {
+            std::cout << "For ctx [" << ctxname 
+                  << "<" << ctx_vid << ">] linked to np: [" << npname << 
+          "<" << np_vid << ">] with weight " << cooccurence_count << std::endl;
+            long filepos = ftell(fcont_to_nps);
+            printf("Edge #%d (%2.1f perc) pruned:%u\n", i, 
+                filepos*1.0/sz*100, prunecount);
+         }
+         distgraph.add_edge(ctx_vid, np_vid, edata);
+       }     
+		 
     }
   }
   delete(nplist);
   free(s);
 }
 
-void distmulticoemapp::loadAndConvertToBin(std::string binfile) {
+void loadAndCreateDistGraph(coem_distributed_graph& distgraph) {
   /* Open files */
   FILE * fnps = fopen(npsfile.c_str(), "r");
   assert(fnps != NULL);
@@ -841,67 +819,48 @@ void distmulticoemapp::loadAndConvertToBin(std::string binfile) {
   assert(fctx != NULL);
   FILE * fmatrix = fopen(matrixfile.c_str(), "r");
   assert(fmatrix != NULL);
-	
-	
-  g = new coem_graph(0); // Todo: read from data num of vertices
     	
   /* Load NPS */
-  std::map<std::string, vertex_id_t> nps_map = loadVertices(NP_MASK, fnps);
+  std::map<std::string, vertex_id_t> nps_map = loadVertices(distgraph, NP_MASK, fnps);
   /* Load CONTEXTS */
-  std::map<std::string, vertex_id_t> ctx_map = loadVertices(CTX_MASK, fctx);
+  std::map<std::string, vertex_id_t> ctx_map = loadVertices(distgraph, CTX_MASK, fctx);
 
   std::cout << "NPS map " << nps_map.size() << " entries" << std::endl;
   std::cout << "CTX map " << ctx_map.size() << " entries" << std::endl;
+  dc->barrier();
 
-  if (on_the_fly_partition)   dc->barrier();
-	
   /* Set seeds */
-  setseeds(nps_map);
-	
-  if (on_the_fly_partition)   dc->barrier();
-   
-	
+  setseeds(distgraph, nps_map);
+  dc->barrier();
+
   /* Load edges */
-  loadEdges(fmatrix, nps_map, ctx_map);
-  if (on_the_fly_partition)   dc->barrier();
+  loadEdges(distgraph, fmatrix, nps_map, ctx_map);
+  dc->barrier();
 
   std::cout << "(After) NPS map " << nps_map.size() << " entries" << std::endl;
   std::cout << "(AFter) CTX map " << ctx_map.size() << " entries" << std::endl;
-
 	
-	
-  /* Save */
-  if (!on_the_fly_partition) {
-      std::cout << "Saving graph to disk.... file:"<< binfile << std::endl;
-      g->finalize();
-      g->save(binfile);
-  } else {
-     distgraph.finalize();
-  }
   fclose(fnps);
   fclose(fctx);
   fclose(fmatrix);
-  
 }
 
 
 
 /**** ANALYZER FUNCTIONS ****/
-void calcdiff(std::vector<blob>& x, 
-              std::vector<blob>& x_star, 
+ void calcdiff(std::vector<vertex_data>& x, 
+              std::vector<vertex_data>& x_star, 
               double * l1, double * linf) {
   double l1res = 0, l1inf = 0;
   for(unsigned int i=0; i<x.size(); i++) {
-    vertex_data *v1 = x_star[i].as_ptr<vertex_data>();
-    vertex_data *v2 = x[i].as_ptr<vertex_data>();
+    vertex_data& v1 = x_star[i];
+    vertex_data& v2 = x[i];
 		
     for(int catid=0; catid<ncats; catid++) {
-      l1res += std::fabs(v1->p[catid] - v2->p[catid]);
-      l1inf = std::max((double)std::fabs(v1->p[catid] - v2->p[catid]), l1inf);
+      l1res += std::fabs(v1.p[catid] - v2.p[catid]);
+      l1inf = std::max((double)std::fabs(v1.p[catid] - v2.p[catid]), l1inf);
 
     }
-    // Blob destructor does not destroy data
-    x[i].clear();
   }  
 	
   *l1 = l1res;
@@ -910,14 +869,14 @@ void calcdiff(std::vector<blob>& x,
   std::cout << "Diff: "<< l1res << " " << l1inf << std::endl;
 }
 
-void writeDump(blob_graph * g, 
+void writeDump(coem_distributed_graph& g, 
                bool is_xstar, long int budget=0, 
                double *l1res=NULL, double * linf=NULL) {
-  std::vector<blob> dump(0);
-  dump.reserve(g->num_vertices());
+  std::vector<vertex_data> dump(0);
+  dump.reserve(g.num_vertices());
     
-  for(unsigned int i=0; i<g->num_vertices(); i++) {
-    dump.push_back(g->vertex_data(i).copy());
+  for(unsigned int i=0; i<g.num_vertices(); i++) {
+    dump.push_back(g.vertex_data(i));
   }   
     
   char fname[255];
@@ -934,12 +893,92 @@ void writeDump(blob_graph * g,
   if (l1res != NULL && linf != NULL && XSTAR != NULL) {
     calcdiff(dump, *XSTAR, l1res, linf);
   }
-    
-  foreach(blob b, dump) {
-    b.clear();
-  }
 }
 
 
 
-]
+std::vector<double> l1_residual(coem_distributed_graph &g) {
+  double l1res=0, linf=0;
+
+  // Dumps a snapshot to disk
+  writeDump(g, false, 0, &l1res, &linf);
+   
+  // Just fake numbers - actual residuals computed after convergence
+  std::vector<double> v;
+  v.push_back(log(l1res/g.num_vertices()));
+  v.push_back(log(linf));
+  return v;
+}
+
+/* Used with analyzer_listener */
+//global_dumper dump_function() {
+//  return multicoemdumper;
+//}
+
+std::vector<std::string> dump_headers() {
+  std::vector<std::string> h;
+  h.push_back("l1_residual");
+  h.push_back("inf_residual");
+  return h;
+}
+
+int dump_frequency() {
+  return 50000; 
+} 
+
+void retrospective_dump() {
+  std::string filename = "multicoem_dump2.dat";
+  FILE * dumpfile = fopen(filename.c_str(), "w");
+  /* Write headers */
+  fprintf(dumpfile, "updates\t");
+  for(unsigned int i=0; i<dump_headers().size(); i++) {
+    fprintf(dumpfile, "\t");
+    fprintf(dumpfile, "%s", dump_headers()[i].c_str());
+  }
+  fprintf(dumpfile,"\n");
+  std::vector<vertex_data> x_star;
+    
+  char fname[255];
+
+  std::cout << "Reading x*" << std::endl;
+  int lastdumpid = dumpcount-1;
+  {
+    sprintf(fname, "mc_dump.%d", lastdumpid);
+    std::ifstream fin(fname);
+    iarchive iarc(fin);
+    iarc >> x_star;
+    fin.close();
+  }
+    
+    
+  for(int dumpid=0; dumpid<lastdumpid; dumpid++) {
+    std::vector<vertex_data> x;
+    sprintf(fname, "mc_dump.%d", dumpid);
+    std::cout << "Reading " << fname << std::endl;
+    std::ifstream fin(fname);
+    iarchive iarc(fin);
+    iarc >> x;
+    fin.close();
+        
+    std::cout << "x size " << x.size() << std::endl;
+        
+    /* Calculate l1 and linf */
+    double l1res = 0, l1inf = 0;
+   		
+    calcdiff(x, x_star, &l1res, &l1inf);
+   		
+    printf("l1res=%lf\n", l1res);
+    l1res = l1res/x_star.size();
+    fprintf(dumpfile, "%d\t%lf\t%lf\n", dumpid*dump_frequency(), log(l1res), log(l1inf));
+        
+  }
+  fclose(dumpfile);
+}
+
+
+/* Writes current graph L1 norm and max value */
+std::vector<double> multicoemdumper(coem_distributed_graph &g) {
+  return l1_residual(g);
+}
+
+

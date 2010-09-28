@@ -56,12 +56,12 @@ FIND_LIBRARY(Sctp sctp1)
 
 
 
-# find_package(MPICH2)
-# IF(MPI_FOUND)
-#   message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-# ELSE(MPI_FOUND)
-#   message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-# ENDIF(MPI_FOUND)
+ find_package(MPICH2)
+ IF(MPI_FOUND)
+   message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+ ELSE(MPI_FOUND)
+   message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+ ENDIF(MPI_FOUND)
 
 
 
