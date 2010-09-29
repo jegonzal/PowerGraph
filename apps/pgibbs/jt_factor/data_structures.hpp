@@ -503,17 +503,8 @@ namespace jt {
 
 struct jt_sampler {
 
+
   typedef std::set<variable_t> var_set;
-
-  struct edge {
-    variable_t var;
-    size_t fill_clique;
-    edge(const variable_t& var, size_t fill_clique = -1) : var(var) { }
-    bool is_fill_edge() const {  return fill_clique == -1;  }
-    bool operator<(const edge& other) const { var < other.var }
-  };
-
-
 
   struct clique {
     var_set elim_vars;
