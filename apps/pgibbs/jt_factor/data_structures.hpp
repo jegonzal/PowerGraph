@@ -392,6 +392,8 @@ public:
       }
       fout << '\n';
     }
+    fout.flush();
+    fout.close();
   }
 
 

@@ -14,11 +14,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-
-
-
-
-int main(int argc, char** argv) {
+void test_jt_building(int argc, char** argv) {
   std::cout << "This is simple test code" << std::endl;
 
 
@@ -77,6 +73,21 @@ int main(int argc, char** argv) {
   //   }
   //   std::cout << std::endl;
   // }
+
+}
+
+
+void test_alchemy(int argc, char** argv) {
+  factorized_model model;
+  model.load_alchemy(argv[1]);
+  model.save_alchemy(argv[2]);
+}
+
+
+
+int main(int argc, char** argv) {
+  // test_jt_building(argc, argv);
+  test_alchemy(argc, argv);
 
   return EXIT_SUCCESS;
 } // end of main

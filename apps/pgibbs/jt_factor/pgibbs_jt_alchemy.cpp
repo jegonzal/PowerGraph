@@ -38,8 +38,13 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  std::cout << "Load alchemy file." << std::endl;
   factorized_model factor_graph;
   factor_graph.load_alchemy(model_filename);
+
+  std::cout << "Building graphlab MRF." << std::endl;
+  mrf::graph_type& mrf_graph;
+  construct_mrf(factor_graph, mrf_graph);
 
 
 
