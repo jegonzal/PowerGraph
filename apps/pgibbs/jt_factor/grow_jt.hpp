@@ -73,44 +73,32 @@ namespace mrf {
     // If it is still a root candidate then we have succeeded and can
     // grow a tree here
     if(root_candidate) {     
-
       assert(!vdata.in_tree);
-      assert(vdata.parent == NULL_VID);
-      assert(vdata.height == 0);
-      // Make this the root
-      vdata.parent = scope.vertex();
-      vdata.state  = vertex_data::TREE_NODE;
-      // Set the height to max tree height
-      const size_t& max_height =
-        shared_data->get_constant(MAX_HEIGHT_ID).as<size_t>();
-      vdata.height = max_height;
+      
+      // Set the MRF data
+      vdata.in_tree = true;
+      vdata.tree_id = scope.vertex() % nroots;
 
-      if(vdata.height == 0) {
-        // Actually start the upward pass
-        up_tree_update(scope, scheduler, shared_data);
-      } else {
-        size_t available_neighbors = 0;
-        // Add all the children
-        foreach(edge_id_t eid, out_edges) {
-          vertex_id_t neighbor = scope.target(eid);
-          vertex_data& neighbor_vdata =
-            scope.neighbor_vertex_data(neighbor);
-          if(neighbor_vdata.state == vertex_data::AVAILABLE) {
-            edge_data& edata = scope.edge_data(eid);
-            available_neighbors++;
-            gl::update_task task(neighbor, grow_tree_update);
-            double residual = grow_root_residual;
-          
-            //vdata.child_candidates++;
-            vdata.child_candidates.inc();
-            edata.exploring = true;
-            scheduler.add_task(task, residual);
+      // Initialize the local tree
+      jt_sampler& local_tree = global_junction_trees[vdata.tree_id];
+      local_tree.clear();
+      bool success = local_tree.add_vertex(vdata.variable);
+      assert(success);
+      
+      // Add all available neighbors
+      size_t available_neighbors = 0;
+      // Add all the children
+      foreach(edge_id_t eid, out_edges) {
+        vertex_id_t neighbor = scope.target(eid);
+        vertex_data& neighbor_vdata =
+          scope.neighbor_vertex_data(neighbor);
+        // If the neighbor is available 
+        if(!neighbor_vdata.in_tree) {
+          available_neighbors++;
+          local_tree.explore(neighbor_vdata.variable);
+        } 
+        
 
-          
-          } else {
-            // The neighbor must be a boundary neighbor
-            assert(neighbor_vdata.state == vertex_data::BOUNDARY);
-          }        
         } // end of loop over out edges
         // If no neighbors were available schedule the upward pass
         if(available_neighbors == 0)

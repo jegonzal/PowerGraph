@@ -9,6 +9,7 @@
 #include <graphlab.hpp>
 
 
+#include "data_structures.hpp"
 
 
 #include <graphlab/macros_def.hpp>
@@ -36,6 +37,11 @@ int main(int argc, char** argv) {
               << std::endl;
     return EXIT_FAILURE;
   }
+
+  factorized_model factor_graph;
+  factor_graph.load_alchemy(model_filename);
+
+
 
 
 

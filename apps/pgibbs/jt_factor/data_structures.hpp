@@ -31,8 +31,6 @@
 // The maximum number of dimensions in a factor table
 const size_t MAX_DIM = 10;
 
-
-
 // Basic graphical model typedefs
 typedef graphlab::vertex_id_t     vertex_id_t;
 typedef graphlab::edge_id_t       edge_id_t;
@@ -48,6 +46,8 @@ const vertex_id_t NULL_VID = -1;
 
 
 namespace mrf {
+
+
 
   // STRUCTS (Edge and Vertex data) =============================================>
   struct vertex_data {
@@ -78,6 +78,7 @@ namespace mrf {
       belief.uniform(-std::numeric_limits<double>::max());
       assert(!factor_ids.empty());
     }
+
     void save(graphlab::oarchive &arc) const {
       arc << variable;
       arc << asg;
@@ -86,6 +87,7 @@ namespace mrf {
       arc << updates;
       arc << in_tree;
     }
+
     void load(graphlab::iarchive &arc) {
       arc >> variable;
       arc >> asg;
@@ -102,6 +104,8 @@ namespace mrf {
    */
   struct edge_data { 
     // Currently empty
+    void save(graphlab::oarchive &arc) const {  }
+    void load(graphlab::iarchive &arc) { }
   };
 
   // define the graph type:
@@ -159,8 +163,8 @@ namespace mrf {
     for(size_t v = 0; v < graph.num_vertices(); ++v) {
       const vertex_data& vdata = graph.vertex_data(v);
       fout << v << '\t'
-           << vdata.state << '\t'
-           << vdata.parent << '\n';
+           << vdata.in_tree << '\t'
+           << vdata.tree_id << '\n';
     } 
     fout.close();
   } // End of save beliefs
@@ -364,6 +368,33 @@ public:
         >> _var_to_factor
         >> _var_name;
   }  
+
+
+  //! save the alchemy file
+  void save_alchemy(const std::string& filename) const {
+    std::ofstream fout(filename.c_str());
+    assert(fout.good());
+    fout << "variables:" << std::endl;
+    foreach(variable_t var, _variables) {
+      fout << var.id << '\t' << var.arity << "\n";
+    }
+    fout << "factors:" << std::endl;
+    foreach(const factor_t& factor, _factors) {
+      domain_t domain = factor.args();
+      for(size_t i = 0; i < domain.num_vars(); ++i) {
+        fout << domain.var(i).id;
+        if(i + 1 < domain.num_vars()) fout << " / ";
+      }
+      fout << " // ";
+      for(size_t i = 0; i < factor.size(); ++i) {
+        fout << factor.logP(i);
+        if(i + 1 < factor.size()) fout << ' ';
+      }
+      fout << '\n';
+    }
+  }
+
+
 private:
   std::set<variable_t> _variables;
   std::vector<factor_t> _factors;
@@ -401,7 +432,7 @@ void construct_mrf(const factorized_model& model,
                    mrf::graph_type& graph) {
   // Add all the variables
   foreach(variable_t variable, model.variables()) {
-    vertex_data vdata(variable, model.factor_ids(variable));
+    mrf::vertex_data vdata(variable, model.factor_ids(variable));
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).
@@ -427,10 +458,11 @@ void construct_mrf(const factorized_model& model,
     // that variable
     foreach(variable_t neighbor_variable, neighbors) {
       vertex_id_t neighbor_vid = neighbor_variable.id;
-      mrf::edge_data edata(vdata.variable, neighbor_variable);
+      mrf::edge_data edata;
       graph.add_edge(vid, neighbor_vid, edata);      
     }
   } // loop over factors
+  graph.finalize();
 } // End of construct_mrf
 
 
@@ -462,6 +494,135 @@ namespace jt {
   typedef graphlab::types<graph_type> gl;
 
 }; // The namespace for junction trees
+
+
+
+/** this is the data structure stored in shared data throughout
+    execution */
+
+
+struct jt_sampler {
+
+  typedef std::set<variable_t> var_set;
+
+  struct edge {
+    variable_t var;
+    size_t fill_clique;
+    edge(const variable_t& var, size_t fill_clique = -1) : var(var) { }
+    bool is_fill_edge() const {  return fill_clique == -1;  }
+    bool operator<(const edge& other) const { var < other.var }
+  };
+
+
+
+  struct clique {
+    var_set elim_vars;
+    std::set< size_t > children;
+    var_set vars;
+  }; // 
+
+
+  std::vector<variable_t> bfs_queue;
+  std::set<variable_t> visited;
+
+  std::set<variable_t> in_tree;
+  std::map<variable_t, var_set> all_neighbors;
+
+  std::vector<clique> cliques;
+
+
+
+  void rebuild_cliques() {
+    cliques.clear();
+    std::map<variable_t, var_set> neighbors;
+
+
+    // build active neighbors (induced graph of in_tree)
+    foreach(variable_t var, in_tree) {
+      neighbors[var] = 
+        graphlab::set_intersect(all_neighbors[var], in_tree);
+      neighbors[var].insert(var);
+    }
+
+    // Construct an elimination ordering:
+    graphlab::mutable_queue<variable_t, size_t> elim_order;
+    typedef std::pair<variable_t, var_set> neighborhood_type;
+    foreach(const neighborhood_type& hood, neighbors) {
+      elim_order.push(hood.first, in_tree.size() - hood.second.size());
+    }
+
+    // Track the neighbor cliques that created 
+    std::map<variable_t, std::set<size_t> > neighbor_cliques;
+    
+    // Run the elimination;
+    while(!elim_order.empty()) {
+      const std::pair<variable_t, size_t> top = elim_order.pop();
+      const variable_t elim_var = top.first;
+      const var_set& vars = neighbors[elim_var];
+
+      // Start building up the clique data structure
+      size_t clique_id = cliques.size();
+      cliques.resize(clique_id + 1);
+      clique& clique = cliques[clique_id];
+      clique.vars = vars;
+      clique.elim_vars.insert(elim_var); 
+      clique.children = neighbor_cliques[elim_var];              
+
+      // If this clique contains all the remaining variables then we
+      // are done
+      if(clique.vars.size() > elim_order.size() ) {
+        elim_order.clear();
+        clique.elim_vars = vars;
+        foreach(const variable_t n_var, clique.vars) {
+          clique.children.insert(neighbor_cliques[n_var].begin(),
+                                 neighbor_cliques[n_var].end());
+        }
+      } else {     
+        // Disconnect variable and connect neighbors and mark their
+        // children cliques
+        foreach(const variable_t n_var, clique.vars) {
+          if(n_var != elim_var) {
+            // connect neighbors
+            neighbors[n_var].insert(clique.vars.begin(), 
+                                    clique.vars.end());
+            // disconnect the variable
+            neighbors[n_var].erase(elim_var);
+            // Update the fill count
+            elim_order.update(n_var, in_tree.size() - neighbors[n_var].size());
+            // Update the clique neighbors
+            neighbor_cliques[n_var].insert(clique_id);
+            neighbor_cliques[n_var] = 
+              graphlab::set_difference(neighbor_cliques[n_var], clique.children);
+          }
+        }
+      }
+
+
+      // Print the state
+      std::cout << clique_id << ": ";
+      foreach(size_t child, clique.children) {
+        std::cout << child << " ";
+      }
+      std::cout << "---[[ ";
+      foreach(variable_t var, clique.elim_vars) {
+        std::cout << var << " ";
+      }
+      std::cout << ":  ";
+      foreach(variable_t var, clique.vars) {
+        std::cout << var << " ";
+      }
+      std::cout << "]]";
+      std::cout << std::endl;
+
+    }
+  }
+}; // end of jt struct
+
+
+
+
+std::vector<jt_sampler> global_junction_trees;
+
 
 
 
