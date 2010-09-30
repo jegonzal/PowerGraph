@@ -58,7 +58,12 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
     // if all the vars in the domain exceed the max factor graph
     // repesentation then we fail.
-    if(clique_verts.size() >= MAX_DIM) return -1;
+    if(clique_verts.size() >= MAX_DIM) {
+      std::cout << "Clique too large!! ";
+      foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
+      std::cout << std::endl;
+      return -1;
+    }
     tree_width = std::max(tree_width, clique_verts.size());
 
 
@@ -104,7 +109,9 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
     // Clean up factors
     clique.factor_ids = graphlab::set_intersect(clique.factor_ids,
                                                 all_factors);
-    all_factors = graphlab::set_difference(all_factors, clique.factor_ids);
+    
+    foreach(size_t fid, clique.factor_ids) all_factors.erase(fid);
+
  
     // Connect the clique to all of its children cliques
     foreach(vertex_id_t child_id,  union_child_cliques) {
