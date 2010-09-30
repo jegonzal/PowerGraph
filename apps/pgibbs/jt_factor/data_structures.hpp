@@ -54,7 +54,7 @@ namespace mrf {
     // Problem specific variables
     variable_t     variable;
     assignment_t   asg;
-    std::vector<size_t> factor_ids;
+    std::set<size_t> factor_ids;
     factor_t       belief;
     size_t         updates; 
 
@@ -67,7 +67,7 @@ namespace mrf {
                     tree_id(-1) { }
 
     vertex_data(const variable_t& variable,
-                const std::vector<size_t>& factor_ids) :
+                const std::set<size_t>& factor_ids) :
       variable(variable),
       asg(variable, std::rand() % variable.arity),
       factor_ids(factor_ids),
@@ -205,7 +205,7 @@ public:
       variable_t var = factor.args().var(i); 
       _variables.insert(var);
       // add factor to reverse map
-      _var_to_factor[var].push_back(factor_id);
+      _var_to_factor[var].insert(factor_id);
     }
   }
 
@@ -213,8 +213,8 @@ public:
   const std::vector<factor_t>& factors() const { return _factors; }
   const std::set<variable_t>& variables() const { return _variables; }
 
-  const std::vector<size_t>& factor_ids(const variable_t& var) const {
-    typedef std::map<variable_t, std::vector<size_t> >::const_iterator iterator;
+  const std::set<size_t>& factor_ids(const variable_t& var) const {
+    typedef std::map<variable_t, std::set<size_t> >::const_iterator iterator;
     iterator iter = _var_to_factor.find(var);
     assert(iter != _var_to_factor.end());
     return iter->second;
@@ -400,7 +400,7 @@ public:
 private:
   std::set<variable_t> _variables;
   std::vector<factor_t> _factors;
-  std::map< variable_t, std::vector<size_t> > _var_to_factor;
+  std::map< variable_t, std::set<size_t> > _var_to_factor;
   std::vector<std::string> _var_name;
   /**
    * same as the stl string get line but this also increments a line
@@ -475,10 +475,10 @@ void construct_mrf(const factorized_model& model,
 
 
 
-namespace jt {
+namespace junction_tree {
   struct vertex_data {
     domain_t variables;
-    std::vector<size_t> factor_ids;
+    std::set<size_t> factor_ids;
     factor_t factor;
     bool calibrated;
     vertex_data() : calibrated(false) { }
@@ -487,7 +487,7 @@ namespace jt {
 
   struct edge_data {
     domain_t variables;
-    factor_t seperator;
+    factor_t message;
   }; // End of edge data
 
 
@@ -505,9 +505,9 @@ namespace jt {
 
 struct jt_sampler {
 
-
+  
   typedef std::set<variable_t> var_set;
-
+  
   struct clique {
     var_set elim_vars;
     std::set< size_t > children;
@@ -515,21 +515,17 @@ struct jt_sampler {
   }; // 
 
 
-  std::vector<variable_t> bfs_queue;
-  std::set<variable_t> visited;
+  std::vector<clique> cliques;
+  size_t tree_width;  
 
+  
   std::set<variable_t> in_tree;
   std::map<variable_t, var_set> all_neighbors;
 
-  std::vector<clique> cliques;
-
-
-
+  
   void rebuild_cliques() {
     cliques.clear();
     std::map<variable_t, var_set> neighbors;
-
-
     // build active neighbors (induced graph of in_tree)
     foreach(variable_t var, in_tree) {
       neighbors[var] = 

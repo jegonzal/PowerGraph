@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <limits>
 #include <vector>
+#include <set>
 
 
 // Random number generation
@@ -162,6 +163,16 @@ namespace graphlab {
       std::sort(_vars, _vars + _num_vars);
       recompute_size();
     }
+
+    //! Make a domain from a set of variables
+    domain(const std::set<variable>& variables) :
+      _num_vars(variables.size()), _size(0) {
+      assert(_num_vars <= MAX_DIM); 
+      size_t i = 0; 
+      foreach(const variable& var, variables) _vars[i++] = var;
+      recompute_size();
+    }
+
 
     //! add the domain to this domain
     domain& operator+=(const domain& other) {

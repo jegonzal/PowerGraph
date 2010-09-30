@@ -10,10 +10,14 @@
 
 
 #include "data_structures.hpp"
+#include "sequential_jt_gibbs.hpp"
+
+
+
+
 
 
 #include <graphlab/macros_def.hpp>
-
 
 
 
@@ -46,6 +50,7 @@ int main(int argc, char** argv) {
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
 
+  
   
 
 
