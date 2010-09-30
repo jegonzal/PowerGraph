@@ -1,0 +1,157 @@
+#ifndef CIRCULAR_ChAR_BUFFER_HPP
+#define CIRCULAR_ChAR_BUFFER_HPP
+#include <string>
+#include <iostream>  
+#include <graphlab/logger/assertions.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <boost/iostreams/categories.hpp>
+namespace graphlab {
+  
+/**
+A self-resizing circular buffer of characters
+*/
+class circular_char_buffer {
+ public:
+   
+  /// Creates a circular buffer with some initial capacity
+  circular_char_buffer(std::streamsize initialsize = 1024);
+  /// copy constructor
+  circular_char_buffer(const circular_char_buffer &src);
+  /// assignment operator
+  circular_char_buffer& operator=(const circular_char_buffer& src);
+  
+  /// destructors
+  ~circular_char_buffer();
+  
+  /// writes len bytes into the buffer
+  std::streamsize write(const char* c, std::streamsize clen);
+  
+  /** tries to peek up to 'len' bytes from the buffer.
+      the actual number of bytes read will be returned.
+      This is a non-destructive operation */
+  std::streamsize peek(char* c, std::streamsize clen) const;
+  
+  /** reads up to 'len' bytes from the buffer.
+      the actual number of bytes read will be returned.
+      This is a destructive operation */
+  std::streamsize read(char* c, std::streamsize clen);
+
+  
+  /** tries to peek up to 'len' bytes from the buffer.
+      the actual number of bytes read will be returned.
+      This is a non-destructive operation. string overload of peek() */
+  std::streamsize peek(std::string &s, std::streamsize clen) const;
+  
+  /** reads up to 'len' bytes from the buffer.
+      the actual number of bytes read will be returned.
+      This is a destructive operation. string overload of read() */
+  std::streamsize read(std::string &s, std::streamsize clen);  
+  
+  /** skip some number of input bytes. Returns the number of bytes
+      actually skipped*/
+  std::streamsize skip(std::streamsize clen);
+  
+  /** reserves at least s bytes of capacity. Tries to perform
+      as few memory copies as possible. No change is made if s is smaller
+      than the current capacity. */
+  void reserve(std::streamsize s);
+  
+  /** Squeezes out all empty capacity in the buffer so that
+      the capacity is the same as the length of the buffer */
+  void squeeze();
+
+
+  inline void consistency_check() const {
+/*    ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
+    ASSERT_LT(head, bufsize); ASSERT_LE(tail, bufsize);
+    if (tail > head) ASSERT_EQ(tail - head, len);
+    else if (head < tail) ASSERT_EQ(head + bufsize - tail, len);
+    else if (head == tail) ASSERT_EQ(len, 0);*/
+  }
+  
+  /** clears the stream */
+  void clear();
+  inline std::streamsize size() const {
+    return len;
+  }
+ private:
+   
+  inline bool buffer_full() const {
+    return len == bufsize;
+  }
+  
+  char* buffer;
+  std::streamsize head;  // points to the head of the queue. Reader reads from here
+  std::streamsize tail;  // points to one past the end of the queue. writer writes to here
+  std::streamsize bufsize; // current size of the buffer
+  std::streamsize len;  // number of bytes stored in the buffer
+};
+
+/**
+A boost source device which can attach to a circular buffer
+*/
+struct circular_char_buffer_source {
+  circular_char_buffer_source(circular_char_buffer &buf, 
+                              size_t maxlen = size_t(-1)):buf(buf), maxlen(maxlen) { }
+  
+  circular_char_buffer &buf;
+  size_t maxlen;
+  typedef char        char_type;
+  struct category : public boost::iostreams::source_tag { };
+
+ /** to satisfy the optimally buffered tag. Since this is an
+      in-memory buffer. the optimal buffer size (for any wrapping 
+      stream) is 0. */
+  inline std::streamsize optimal_buffer_size() const { return 0; }
+
+  inline std::streamsize read(char* s, std::streamsize n) {
+    if ((size_t)(n) > maxlen) n = maxlen;
+    maxlen -= n;
+    if (n == 0) return -1;
+    else return buf.read(s, n);
+  }
+};
+
+/**
+A boost sink device which can attach to a circular buffer
+*/
+struct circular_char_buffer_sink {
+  circular_char_buffer_sink(circular_char_buffer &buf):buf(buf) { }
+  
+  circular_char_buffer &buf;
+  typedef char        char_type;
+  struct category: public boost::iostreams::sink_tag,
+                   public boost::iostreams::multichar_tag { };
+
+ /** to satisfy the optimally buffered tag. Since this is an
+      in-memory buffer. the optimal buffer size is 0. */
+  inline std::streamsize optimal_buffer_size() const { return 0; }
+
+  inline std::streamsize write(const char* s, std::streamsize n) {
+    return buf.write(s, n);
+  }
+};
+
+struct circular_char_buffer_device {
+  circular_char_buffer_device(circular_char_buffer &buf):buf(buf) { }
+  
+  circular_char_buffer &buf;
+  typedef char      char_type;
+  struct category : public boost::iostreams::bidirectional_device_tag,
+                    public boost::iostreams::optimally_buffered_tag{ };
+
+ /** to satisfy the optimally buffered tag. Since this is an
+      in-memory buffer. the optimal buffer size is 0. */
+  inline std::streamsize optimal_buffer_size() const { return 0; }
+
+  inline std::streamsize write(const char* s, std::streamsize n) {
+    return buf.write(s, n);
+  }
+  
+  inline std::streamsize read(char* s, std::streamsize n) {
+    return buf.read(s, n);
+  }
+};
+
+}
+#endif

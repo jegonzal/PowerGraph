@@ -13,7 +13,7 @@
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
-#include <graphlab/logger/assertions.hpp>
+#include <graphlab/graphlab/logger/assertions.hpp>
 
 using namespace graphlab;
 typedef graphlab::blob_types gl_types;

@@ -2,12 +2,11 @@
 #define GRAPHLAB_SERIALIZE_ITERATOR_HPP
 
 #include <iterator>
-
-#include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
-
+#include <graphlab/serialization/iarchive.hpp>
 
 namespace graphlab {
+
   /**
     Serializes the contents between the iterators begin and end.
     This version prefers the availability of RandomAccessIterator since it needs
@@ -71,5 +70,7 @@ namespace graphlab {
       result++;
     }
   }
+  
+ 
 } // namespace prl
 #endif //PRL_SERIALIZE_ITERATOR_HPP

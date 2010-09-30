@@ -2,123 +2,94 @@
 #define GRAPHLAB_OARCHIVE_HPP
 
 #include <iostream>
-#include <cassert>
 #include <string>
-#include <utility>
-#include <stdint.h>
-#include <typeinfo>
-#include <boost/static_assert.hpp>
-#include <boost/utility.hpp>
-#include <graphlab/logger/logger.hpp>
-
-#ifdef _MSC_VER
-#include <itpp/base/ittypes.h> // for int32_t etc.
-#endif
-
+#include <boost/mpl/identity.hpp>
+#include <boost/mpl/assert.hpp>
+#include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/has_save.hpp>
 namespace graphlab {
-  
-  class oarchive{
-   public:
-    std::ostream* o;
+/**
+The output archive object.
+It is just a simple wrapper around a ostream
+*/
+class oarchive{
+ public:
+  std::ostream* o;
 
-    oarchive(std::ostream& os)
-      : o(&os) {}
+  oarchive(std::ostream& os)
+    : o(&os) {}
 
-    ~oarchive() {
-      if (o)
-        o->flush();
-    }
-  };
-
-  /** Serializes a single character. 
-      Assertion fault on failure. */
-  oarchive& operator<<(oarchive& a, const char i);
-
-  /** Serializes a floating point number. 
-      Assertion fault on failure. */
-  oarchive& operator<<(oarchive& a, const float i);
-
-  /** Serializes a double precisition floating point number. 
-      Assertion fault on failure. */
-  oarchive& operator<<(oarchive& a, const double i);
-
-  oarchive& operator<<(oarchive& a, const bool i);
-  oarchive& operator<<(oarchive& a, const unsigned char i);
-  
-  
-  /** Serializes a integer. 
-      Assertion fault on failure. */
-  oarchive& operator<<(oarchive& a, const short i);
-  oarchive& operator<<(oarchive& a, const unsigned short i);
-  oarchive& operator<<(oarchive& a, const int i);
-  oarchive& operator<<(oarchive& a, const long i);
-  oarchive& operator<<(oarchive& a, const long long i);
-  oarchive& operator<<(oarchive& a, const unsigned long i);
-  oarchive& operator<<(oarchive& a, const unsigned int i);
-  oarchive& operator<<(oarchive& a, const unsigned long long  i);
-  oarchive& serialize_64bit_integer(oarchive& a, const int64_t i);
-
-
-  /** Serializes a generic pointer object. bytes from (i) to (i + length - 1) 
-      inclusive will be written to the file stream. The length will also be
-      Assertion fault on failure.  */
-  oarchive& serialize(oarchive& a, const void* i,const size_t length);
-
-  /** Serializes a C string 
-      Assertion fault on failure. */
-  oarchive& operator<<(oarchive& a, const char* s);
-
-  /** Serializes a string. 
-      Assertion fault on failure.  */
-  oarchive& operator<<(oarchive  &a, const std::string& s);
-
-  oarchive& operator<<(oarchive& a, void* const t);
-  
-  /** Serializes a pair
-      Assertion fault on failure.   */
-  template <typename T,typename U>
-  oarchive& operator<<(oarchive& a, const std::pair<T,U>& p) {
-    a << p.first;
-    a << p.second;
-    return a;
+  ~oarchive() {
+    if (o) o->flush();
   }
-  
- 
-namespace oarchive_detail {
-
- // SFINAE method derived from
- // http://stackoverflow.com/questions/87372/is-there-a-technique-in-c-to-know-if-a-class-has-a-member-function-of-a-given-s/87846#87846
-  template<typename T>
-  struct has_save_method
-  {
-	  template<typename U, void (U::*)(oarchive&) const> struct SFINAE {};
-	  template<typename U> static char Test(SFINAE<U, &U::save>*);
-	  template<typename U> static int Test(...);
-	  static const bool value = sizeof(Test<T>(0)) == sizeof(char);
-  };
+};
 
 
-  template <typename ValueType>
-  typename boost::enable_if_c<has_save_method<ValueType>::value, void>::type 
-  save_or_fail(oarchive& o, const ValueType &t) { 
-    t.save(o);
+namespace archive_detail {
+
+/**
+Implementation of the serializer for different types.
+This is the catch-all and is used to call the .save function
+if T is a class. Fails at runtime otherwise.
+*/
+template <typename ArcType, typename T>
+struct serialize_impl {
+  static void exec(ArcType &o, const T& t) {
+    save_or_fail(o, t);
   }
-  
-  template <typename ValueType>
-  typename boost::disable_if_c<has_save_method<ValueType>::value, void>::type 
-  save_or_fail(oarchive& o, const ValueType &t) { 
-    ASSERT_MSG(false,"Trying to serializable type %s without valid save method.", typeid(ValueType).name()); 
+};
+
+/**
+Re-dispatch if for some reasons T already has a const
+*/
+template <typename ArcType, typename T>
+struct serialize_impl<ArcType, const T> {
+  static void exec(ArcType &o, const T& t) {
+    serialize_impl<ArcType, T>::exec(o, t);
   }
+};
+}// archive_detail
+
+
+/**
+Allows Use of the "stream" syntax for serialization 
+*/
+template <typename T>
+oarchive& operator<<(oarchive& a, const T i) {
+  archive_detail::serialize_impl<oarchive, T>::exec(a, i);
+  return a;
 }
- 
- 
 
-  /** catch all operator<< as member of iarchive */
-  template <typename T>
-  inline oarchive& operator<<(oarchive& a, const T& t) {
-    oarchive_detail::save_or_fail(a, t);
-    return a;
-  }
-} // namespace prl
+/**
+Serializes an arbitrary pointer + length to an archive 
+*/
+inline oarchive& serialize(oarchive& a, const void* i,const size_t length) {
+  // save the length
+  operator<<(a,length);
+  a.o->write(reinterpret_cast<const char*>(i), length);
+  assert(!a.o->fail());
+  return a;
+}
 
-#endif  //PRL_OARCHIVE_HPP
+
+}
+
+/**
+Macro to make it easy to define out-of-place saves (and loads)
+to define an "out of place" save
+OUT_OF_PLACE_SAVE(arc, typename, tval) 
+  arc << tval;    // do whatever serialization stuff you need here
+END_OUT_OF_PLACE_SAVE()
+
+\note important! this must be defined in the global namespace!
+See unsupported_serialize for an example
+*/
+#define BEGIN_OUT_OF_PLACE_SAVE(arc, tname, tval) \
+  namespace graphlab{ namespace archive_detail {  \
+  template <typename ArcType> struct serialize_impl<ArcType, tname> {     \
+    static void exec(ArcType& arc, const tname & tval) {
+
+#define END_OUT_OF_PLACE_SAVE() } }; } }
+
+#include <graphlab/serialization/basic_types.hpp>
+#endif  

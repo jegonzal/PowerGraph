@@ -1,5 +1,5 @@
 // Modified from boost 1.37 boost::any
-// Extended to handle graphlab serialization/deserialization functions
+// Extended to handle graphlab graphlab/serialization/deserialization functions
 // See http://www.boost.org/libs/any for Documentation.
 
 #ifndef GRAPHLAB_ANY_INCLUDED
@@ -16,6 +16,7 @@
 #include <typeinfo>
 #include <map>
 #include <iostream>
+#include <stdint.h>
 
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/type_traits/is_reference.hpp>

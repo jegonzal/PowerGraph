@@ -1,0 +1,26 @@
+#undef F0
+#undef F1
+#undef F2
+#undef F3
+#undef F4
+#undef F5
+#undef NIF0
+#undef NIF1
+#undef NIF2
+#undef NIF3
+#undef NIF4
+#undef NIF5
+#undef NIF6
+#undef NIF7
+#undef R0
+#undef R1
+#undef R2
+#undef R3
+#undef R4
+#undef R5
+#undef R6
+#undef R7
+
+#undef FRESULT
+#undef REMOVE_CONST_REF
+#undef FARITY

@@ -22,7 +22,7 @@ struct TestClass1{
   void save(oarchive &a) const {
     a << z;
   }
-  void load(iarchive a) {
+  void load(iarchive &a) {
     a >> z;
   }
 };
@@ -85,6 +85,3 @@ int main(int argc, char** argv) {
   oarc << variant;
   f.close();
 }
-
-
-

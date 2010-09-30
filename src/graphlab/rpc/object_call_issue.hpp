@@ -1,0 +1,65 @@
+#ifndef OBJECT_CALL_ISSUE_HPP
+#define OBJECT_CALL_ISSUE_HPP
+#include <iostream>
+#include <graphlab/serialization/serialization_includes.hpp>
+#include <graphlab/rpc/dc_types.hpp>
+#include <graphlab/rpc/dc_internal_types.hpp>
+#include <graphlab/rpc/dc_send.hpp>
+#include <graphlab/rpc/object_call_dispatch.hpp>
+#include <graphlab/rpc/is_rpc_call.hpp>
+#include <boost/preprocessor.hpp>
+#include <graphlab/rpc/mem_function_arg_types_def.hpp>
+
+namespace graphlab{
+namespace dc_impl {
+
+
+
+#define GENARGS(Z,N,_)  BOOST_PP_CAT(const T, N) BOOST_PP_CAT(&i, N)
+#define GENI(Z,N,_) BOOST_PP_CAT(i, N)
+#define GENT(Z,N,_) BOOST_PP_CAT(T, N)
+#define GENARC(Z,N,_) arc << BOOST_PP_CAT(i, N);
+
+
+/**
+The dispatch_selectorN structs are used to pick between the standard dispatcher and the nonintrusive dispatch
+by checking if the function is a RPC style call or not.
+*/
+#define REMOTE_CALL_ISSUE_GENERATOR(Z,N,FNAME_AND_CALL) \
+template<typename T, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
+  public: \
+  static void exec(dc_send* sender, size_t flags, procid_t target, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    boost::iostreams::stream<resizing_array_sink> strm(128);    \
+    oarchive arc(strm);                         \
+    dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
+    arc << reinterpret_cast<size_t>(d);       \
+    serialize(arc, (char*)(&remote_function), sizeof(F)); \
+    arc << objid;       \
+    BOOST_PP_REPEAT(N, GENARC, _)                \
+    strm.flush();           \
+    sender->send_data(target,flags , strm->str, strm->len);    \
+  }\
+}; 
+
+
+
+/**
+Generates a function call issue. 3rd argument is a tuple (issue name, dispacther name)
+*/
+BOOST_PP_REPEAT(6, REMOTE_CALL_ISSUE_GENERATOR,  (object_call_issue, _) )
+
+
+
+#undef GENARC
+#undef GENT
+#undef GENI
+#undef GENARGS
+#undef REMOTE_CALL_ISSUE_GENERATOR
+
+} // namespace dc_impl
+} // namespace graphlab
+
+#include <graphlab/rpc/mem_function_arg_types_undef.hpp>
+
+#endif

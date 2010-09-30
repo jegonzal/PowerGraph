@@ -14,7 +14,7 @@
 #include <iostream>
 
 #include <boost/random.hpp>
-
+#include <boost/function.hpp>
 #include <graphlab/macros_def.hpp>
 
  #undef _POSIX_SPIN_LOCKS
@@ -316,7 +316,7 @@ namespace graphlab {
     
   }; // End of class thread
 
-
+  
 
 
 
@@ -382,6 +382,42 @@ namespace graphlab {
   }; // End of thread group
 
 
+  /**
+  This provides runnable for a simple function.
+  This should not be used directly, due to its self-deleting nature.
+  Use the launch_in_new_thread() functions
+  */
+  class simple_function_thread : public runnable {
+   public:
+    simple_function_thread(boost::function<void (void)> f):f(f) { };
+
+    inline void run() {
+      f();
+      delete this;
+    }
+    
+   private:
+    boost::function<void (void)> f;  
+  };
+  
+
+  inline thread launch_in_new_thread(boost::function<void (void)> f, 
+                               size_t cpuid = size_t(-1)) {
+    runnable* r = new simple_function_thread(f);
+    thread thr(r);
+    if (cpuid != size_t(-1)) thr.start(cpuid);
+    else thr.start();
+    
+    return thr;
+  }
+
+ 
+  inline void launch_in_new_thread(thread_group &thrgroup,
+                            boost::function<void (void)> f, 
+                            size_t cpuid = size_t(-1)) {
+    runnable* r = new simple_function_thread(f);
+    thrgroup.launch(r);
+  }
   /**
    * \class mutex 
    * 
@@ -487,6 +523,16 @@ namespace graphlab {
       timeout.tv_sec = tv.tv_sec + sec;
       return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
     }
+    inline int timedwait_ns(const mutex& mut, int ns) const {
+      struct timespec timeout;
+      struct timeval tv;
+      struct timezone tz;
+      gettimeofday(&tv, &tz);
+      timeout.tv_nsec = (tv.tv_usec * 1000 + ns) % 1000000000;
+      timeout.tv_sec = tv.tv_sec + (tv.tv_usec * 1000 + ns >= 1000000000);
+      return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
+    }
+
     inline void signal() const {
       int error = pthread_cond_signal(&m_cond);
       assert(!error);

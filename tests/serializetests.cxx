@@ -22,7 +22,7 @@ struct A{
   void save(oarchive &a) const {
     a << z;
   }
-  void load(iarchive a) {
+  void load(iarchive &a) {
     a >> z;
   }
 };
