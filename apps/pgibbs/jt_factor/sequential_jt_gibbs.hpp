@@ -25,14 +25,18 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
   // build the neighbor sets for the variables considered in the blocks
   std::map<vertex_id_t, vertex_set> neighbors;
+  std::set<size_t> all_factors;
   // build active neighbors (induced graph of in_tree)
   foreach(vertex_id_t v, in_tree) {
     foreach(edge_id_t eid, mrf.out_edge_ids(v)) {
-      vertex_id_t neighbor_v = mrf.target(eid);
+      vertex_id_t neighbor_v = mrf.target(eid);      
       if(in_tree.count(neighbor_v))  neighbors[v].insert(neighbor_v);
     }
     // Add self edge for simplicity
     neighbors[v].insert(v);
+    const mrf::vertex_data& vdata = mrf.vertex_data(v);
+    all_factors.insert(vdata.factor_ids.begin(),
+                       vdata.factor_ids.end());
   }
 
 
@@ -77,8 +81,33 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
     clique.factor_ids = mrf.vertex_data(elim_vertex).factor_ids;
     
 
+    // construct the union of all possible child cliques
+    vertex_set union_child_cliques = child_cliques[elim_vertex];
+
+
+    // If this clique contains all the remaining variables then we can
+    // do all the remaining elimination
+    bool finished_elimination = 
+      clique_verts.size() > elim_order.size();
+    if(finished_elimination ) {
+      elim_order.clear();
+      // add all the factors
+      foreach(vertex_id_t vid, clique_verts) { 
+        const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+        clique.factor_ids.insert(vdata.factor_ids.begin(), 
+                                 vdata.factor_ids.end());
+        union_child_cliques.insert(child_cliques[vid].begin(), 
+                                   child_cliques[vid].end());
+      }
+    }
+
+    // Clean up factors
+    clique.factor_ids = graphlab::set_intersect(clique.factor_ids,
+                                                all_factors);
+    all_factors = graphlab::set_difference(all_factors, clique.factor_ids);
+ 
     // Connect the clique to all of its children cliques
-    foreach(vertex_id_t child_id,  child_cliques[elim_vertex]) {
+    foreach(vertex_id_t child_id,  union_child_cliques) {
       std::cout << child_id << " ";              
       const junction_tree::vertex_data& child_clique = jt.vertex_data(child_id);
       junction_tree::edge_data edata;
@@ -87,35 +116,13 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
       jt.add_edge(clique_id, child_id, edata);
     }
 
+    std::cout << "( ";
+    foreach(size_t fid, clique.factor_ids) std::cout << fid << " ";
+    std::cout << ")" << std::endl;
 
-    // If this clique contains all the remaining variables then we
-    // are done
-    if(clique_verts.size() > elim_order.size() ) {
-      elim_order.clear();
-      // add all the factors
-      vertex_set union_child_cliques;
-      foreach(vertex_id_t vid, clique_verts) { 
-        const mrf::vertex_data& vdata = mrf.vertex_data(vid);
-        if(vid != elim_vertex) {
-          clique.factor_ids.insert(vdata.factor_ids.begin(), vdata.factor_ids.end());
-          union_child_cliques.insert(child_cliques[vid].begin(), child_cliques[vid].end());
-        }      
-      }
-     
-      // Connect the clique to all of its children cliques
-      foreach(vertex_id_t child_id, union_child_cliques) { 
-        std::cout << child_id << " ";                           
-        const junction_tree::vertex_data& child_clique = jt.vertex_data(child_id);
-        junction_tree::edge_data edata;
-        edata.variables = child_clique.variables.intersect(clique.variables);
-        jt.add_edge(child_id, clique_id, edata);
-        jt.add_edge(clique_id, child_id, edata);
-      }
-      
-      std::cout << std::endl;
+    // If we still have variables to eliminate
+    if(!elim_order.empty()) {
 
-    } else {     
-      std::cout << std::endl;
       // Disconnect variable and connect neighbors and mark their
       // children cliques
       foreach(const vertex_id_t n_vertex, clique_verts) {
@@ -129,11 +136,14 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
           // Update the clique neighbors
           child_cliques[n_vertex].insert(clique_id);
           child_cliques[n_vertex] = 
-            graphlab::set_difference(child_cliques[n_vertex], child_cliques[elim_vertex]);
+            graphlab::set_difference(child_cliques[n_vertex], 
+                                     child_cliques[elim_vertex]);
         }
       }
     }
   }
+  // We must have assigned all the factors
+  assert(all_factors.empty());
 
   return tree_width;
 

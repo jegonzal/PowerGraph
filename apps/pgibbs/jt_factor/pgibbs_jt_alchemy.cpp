@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
             << "inference on large factorized models."
             << std::endl;
 
-  std::string model_filename;
+  std::string model_filename = "";
 
   // Command line parsing
   graphlab::command_line_options clopts("Parallel Junction Tree MCMC");
@@ -50,6 +50,15 @@ int main(int argc, char** argv) {
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
 
+  vertex_set vset;
+  for(vertex_id_t i = 0; i < mrf_graph.num_vertices(); ++i) 
+    vset.insert(i);
+
+
+  std::cout << "Building Junction Tree" << std::endl;
+  junction_tree::graph_type jt;
+  size_t tree_width = build_junction_tree(mrf_graph, vset, jt);
+  std::cout << "Tree Width: " << tree_width << std::endl;
   
   
 
