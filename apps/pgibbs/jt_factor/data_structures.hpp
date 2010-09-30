@@ -40,6 +40,10 @@ typedef factor_t::domain_type           domain_t;
 typedef factor_t::assignment_type       assignment_t;
 
 
+typedef std::set<vertex_id_t> vertex_set;
+typedef std::set<variable_t> variable_set;
+
+
 // Represents a null VID in the tree
 const vertex_id_t NULL_VID = -1;
 
@@ -477,7 +481,8 @@ void construct_mrf(const factorized_model& model,
 
 namespace junction_tree {
   struct vertex_data {
-    domain_t variables;
+    variable_set variables;
+    //    domain_t variables;
     std::set<size_t> factor_ids;
     factor_t factor;
     bool calibrated;
@@ -486,7 +491,8 @@ namespace junction_tree {
 
 
   struct edge_data {
-    domain_t variables;
+    variable_set variables;
+    //    domain_t variables;
     factor_t message;
   }; // End of edge data
 

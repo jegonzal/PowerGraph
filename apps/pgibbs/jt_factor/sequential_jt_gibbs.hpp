@@ -13,8 +13,6 @@
 
 #include <graphlab/macros_def.hpp>
   
-typedef std::set<vertex_id_t> vertex_set;
-typedef std::set<variable_t> variable_set;
 
 
 size_t build_junction_tree(const mrf::graph_type& mrf, 
@@ -58,12 +56,12 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
     // if all the vars in the domain exceed the max factor graph
     // repesentation then we fail.
-    if(clique_verts.size() >= MAX_DIM) {
-      std::cout << "Clique too large!! ";
-      foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
-      std::cout << std::endl;
-      return -1;
-    }
+    // if(clique_verts.size() >= MAX_DIM) {
+    //   std::cout << "Clique too large!! ";
+    //   foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
+    //   std::cout << std::endl;
+    //   return -1;
+    // }
     tree_width = std::max(tree_width, clique_verts.size());
 
 
@@ -76,13 +74,11 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
     
     // Add all the variables to the domain
-    variable_set vars;
     foreach(vertex_id_t vid, clique_verts) { 
-      vars.insert(mrf.vertex_data(vid).variable);
+      clique.variables.insert(mrf.vertex_data(vid).variable);
       std::cout << vid << " ";
     }
     std::cout << "]] : ";
-    clique.variables = domain_t(vars);
     clique.factor_ids = mrf.vertex_data(elim_vertex).factor_ids;
     
 
@@ -118,7 +114,9 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
       std::cout << child_id << " ";              
       const junction_tree::vertex_data& child_clique = jt.vertex_data(child_id);
       junction_tree::edge_data edata;
-      edata.variables = child_clique.variables.intersect(clique.variables);
+      edata.variables = 
+        graphlab::set_intersect(child_clique.variables,
+                                clique.variables);
       jt.add_edge(child_id, clique_id, edata);
       jt.add_edge(clique_id, child_id, edata);
     }
