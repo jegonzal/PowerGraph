@@ -161,25 +161,28 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
 
 
-void sample_once(const factorized_model& factor_graph,
-                 mrf::graph_type& mrf,
-                 vertex_id_t root) {
+
+size_t build_junction_tree(const mrf::graph_type& mrf,
+                           vertex_id_t root,
+                           junction_tree::graph_type& jt) {
 
   vertex_set block;
   std::queue<vertex_id_t> bfs_queue;
   vertex_set visited;
-  junction_tree::graph_type jt;
+  jt.clear();
+
+  size_t tree_width = 0;
 
   // add the root
   bfs_queue.push(root);
   visited.insert(root);
   while(!bfs_queue.empty()) {
     vertex_id_t next_vertex = bfs_queue.front();
-    bfs_queue.pop();   
+    bfs_queue.pop();
+    block.insert(next_vertex);
     // build a junction tree
-    size_t tree_width = build_junction_tree(mrf, block, jt);
+    tree_width = build_junction_tree(mrf, block, jt);
     if(tree_width <= MAX_DIM) {
-      block.insert(next_vertex);
       if(tree_width == MAX_DIM) break;
       // add the neighbors to the search queue
       foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
@@ -189,15 +192,29 @@ void sample_once(const factorized_model& factor_graph,
           visited.insert(neighbor_vid);
         }
       }
+    } else {
+      // remove variable since tree is too large
+      block.erase(next_vertex);
     }
   }
-
-  // Rebuild the junction tree
-  build_junction_tree(mrf, block, jt);
+  // Rebuild the junction tree 
+  tree_width = build_junction_tree(mrf, block, jt);
+  return tree_width;
 }
 
 
 
+
+
+
+
+
+void sample_once(const factorized_model& factor_graph,
+                 mrf::graph_type& mrf,
+                 vertex_id_t root) {
+  
+
+}
 
 
 
