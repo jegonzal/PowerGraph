@@ -54,15 +54,15 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
     const vertex_id_t elim_vertex = top.first;
     const vertex_set& clique_verts = neighbors[elim_vertex];
 
+    tree_width = std::max(tree_width, clique_verts.size());
     // if all the vars in the domain exceed the max factor graph
     // repesentation then we fail.
-    // if(clique_verts.size() >= MAX_DIM) {
-    //   std::cout << "Clique too large!! ";
-    //   foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
-    //   std::cout << std::endl;
-    //   return -1;
-    // }
-    tree_width = std::max(tree_width, clique_verts.size());
+    if(tree_width > MAX_DIM) {
+      std::cout << "Clique too large!! ";
+      foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
+      std::cout << std::endl;
+      return -1;
+    }
 
 
     // Start building up the clique data structure
@@ -74,11 +74,14 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
     
     // Add all the variables to the domain
+    variable_set vars;
     foreach(vertex_id_t vid, clique_verts) { 
-      clique.variables.insert(mrf.vertex_data(vid).variable);
+      vars.insert(mrf.vertex_data(vid).variable);
+      // clique.variables.insert(mrf.vertex_data(vid).variable);
       std::cout << vid << " ";
     }
     std::cout << "]] : ";
+    clique.variables = domain_t(vars);
     clique.factor_ids = mrf.vertex_data(elim_vertex).factor_ids;
     
 
@@ -115,8 +118,10 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
       const junction_tree::vertex_data& child_clique = jt.vertex_data(child_id);
       junction_tree::edge_data edata;
       edata.variables = 
-        graphlab::set_intersect(child_clique.variables,
-                                clique.variables);
+        child_clique.variables.intersect(clique.variables);
+      // edata.variables = 
+      //   graphlab::set_intersect(child_clique.variables,
+      //                           clique.variables);
       jt.add_edge(child_id, clique_id, edata);
       jt.add_edge(clique_id, child_id, edata);
     }
@@ -158,14 +163,37 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
 void sample_once(const factorized_model& factor_graph,
                  mrf::graph_type& mrf,
-                 size_t root) {
+                 vertex_id_t root) {
 
+  vertex_set block;
+  std::queue<vertex_id_t> bfs_queue;
+  vertex_set visited;
+  junction_tree::graph_type jt;
 
-  
+  // add the root
+  bfs_queue.push(root);
+  visited.insert(root);
+  while(!bfs_queue.empty()) {
+    vertex_id_t next_vertex = bfs_queue.front();
+    bfs_queue.pop();   
+    // build a junction tree
+    size_t tree_width = build_junction_tree(mrf, block, jt);
+    if(tree_width <= MAX_DIM) {
+      block.insert(next_vertex);
+      if(tree_width == MAX_DIM) break;
+      // add the neighbors to the search queue
+      foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+        vertex_id_t neighbor_vid = mrf.target(eid);
+        if(visited.count(neighbor_vid) == 0) {
+          bfs_queue.push(neighbor_vid);
+          visited.insert(neighbor_vid);
+        }
+      }
+    }
+  }
 
-  
-
-
+  // Rebuild the junction tree
+  build_junction_tree(mrf, block, jt);
 }
 
 

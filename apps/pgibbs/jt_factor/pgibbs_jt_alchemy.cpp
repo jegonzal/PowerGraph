@@ -55,10 +55,8 @@ int main(int argc, char** argv) {
     vset.insert(i);
 
 
-  std::cout << "Building Junction Tree" << std::endl;
-  junction_tree::graph_type jt;
-  size_t tree_width = build_junction_tree(mrf_graph, vset, jt);
-  std::cout << "Tree Width: " << tree_width << std::endl;
+  std::cout << "Sample one block" << std::endl;
+  sample_once(factor_graph, mrf_graph, 0);
   
   
 

@@ -481,8 +481,8 @@ void construct_mrf(const factorized_model& model,
 
 namespace junction_tree {
   struct vertex_data {
-    variable_set variables;
-    //    domain_t variables;
+    // variable_set variables;
+    domain_t variables;
     std::set<size_t> factor_ids;
     factor_t factor;
     bool calibrated;
@@ -491,8 +491,8 @@ namespace junction_tree {
 
 
   struct edge_data {
-    variable_set variables;
-    //    domain_t variables;
+    // variable_set variables;
+    domain_t variables;
     factor_t message;
   }; // End of edge data
 
