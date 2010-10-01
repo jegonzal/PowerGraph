@@ -1,7 +1,5 @@
 #!/bin/bash
 
-setterm -background red;
-
 echo "This script completely erases the release, debug, and profile folders.";
 echo "Are you sure you want to continue? (yes or no)"
 
