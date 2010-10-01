@@ -288,7 +288,7 @@ namespace graphlab {
     }
     
     //!  test whether two domains are not equal
-    bool operator!=(const domain& other) {
+    bool operator!=(const domain& other) const {
       return !(*this == other);
     }
 
