@@ -9,6 +9,8 @@
 
 
 #include "data_structures.hpp"
+#include "update_function.hpp"
+
 
 
 #include <graphlab/macros_def.hpp>
@@ -212,6 +214,32 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 void sample_once(const factorized_model& factor_graph,
                  mrf::graph_type& mrf,
                  vertex_id_t root) {
+ 
+  junction_tree::gl::core jt_core;
+  size_t tree_width = build_junction_tree(mrf, root, jt_core.graph());
+  std::cout << "Tree width: " << tree_width << std::endl;
+
+  // Setup the core
+  jt_core.set_scheduler_type("fifo");
+  jt_core.set_scope_type("edge");
+  jt_core.set_ncpus(1);
+  jt_core.set_engine_type("sim");
+ 
+
+  // Setup the shared data
+  jt_core.shared_data().set_constant(junction_tree::FACTOR_KEY, 
+                                     &factor_graph.factors());
+  jt_core.shared_data().set_constant(junction_tree::MRF_KEY, 
+                                     &mrf);
+
+  // Calibrate the tree
+  jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
+  jt_core.start();
+
+
+ 
+
+  
   
 
 }

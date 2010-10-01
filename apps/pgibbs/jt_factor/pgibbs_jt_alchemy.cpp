@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 
   std::cout << "Sample one block" << std::endl;
   junction_tree::graph_type jt;
-  build_junction_tree(mrf_graph, 0, jt);
+  sample_once(factor_graph, mrf_graph, 0);
   
   
 

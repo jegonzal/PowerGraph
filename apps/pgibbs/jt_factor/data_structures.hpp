@@ -202,6 +202,9 @@ namespace mrf {
 // of factors.
 class factorized_model {
 public:
+
+  typedef std::vector<factor_t> factor_map_t;
+
   void add_factor(const factor_t& factor) {
     _factors.push_back(factor);
     size_t factor_id = _factors.size() - 1;
@@ -214,7 +217,7 @@ public:
   }
 
   
-  const std::vector<factor_t>& factors() const { return _factors; }
+  const factor_map_t& factors() const { return _factors; }
   const std::set<variable_t>& variables() const { return _variables; }
 
   const std::set<size_t>& factor_ids(const variable_t& var) const {
@@ -505,118 +508,6 @@ namespace junction_tree {
 
 
 
-/** this is the data structure stored in shared data throughout
-    execution */
-
-
-struct jt_sampler {
-
-  
-  typedef std::set<variable_t> var_set;
-  
-  struct clique {
-    var_set elim_vars;
-    std::set< size_t > children;
-    var_set vars;
-  }; // 
-
-
-  std::vector<clique> cliques;
-  size_t tree_width;  
-
-  
-  std::set<variable_t> in_tree;
-  std::map<variable_t, var_set> all_neighbors;
-
-  
-  void rebuild_cliques() {
-    cliques.clear();
-    std::map<variable_t, var_set> neighbors;
-    // build active neighbors (induced graph of in_tree)
-    foreach(variable_t var, in_tree) {
-      neighbors[var] = 
-        graphlab::set_intersect(all_neighbors[var], in_tree);
-      neighbors[var].insert(var);
-    }
-
-    // Construct an elimination ordering:
-    graphlab::mutable_queue<variable_t, size_t> elim_order;
-    typedef std::pair<variable_t, var_set> neighborhood_type;
-    foreach(const neighborhood_type& hood, neighbors) {
-      elim_order.push(hood.first, in_tree.size() - hood.second.size());
-    }
-
-    // Track the neighbor cliques that created 
-    std::map<variable_t, std::set<size_t> > neighbor_cliques;
-    
-    // Run the elimination;
-    while(!elim_order.empty()) {
-      const std::pair<variable_t, size_t> top = elim_order.pop();
-      const variable_t elim_var = top.first;
-      const var_set& vars = neighbors[elim_var];
-
-      // Start building up the clique data structure
-      size_t clique_id = cliques.size();
-      cliques.resize(clique_id + 1);
-      clique& clique = cliques[clique_id];
-      clique.vars = vars;
-      clique.elim_vars.insert(elim_var); 
-      clique.children = neighbor_cliques[elim_var];              
-
-      // If this clique contains all the remaining variables then we
-      // are done
-      if(clique.vars.size() > elim_order.size() ) {
-        elim_order.clear();
-        clique.elim_vars = vars;
-        foreach(const variable_t n_var, clique.vars) {
-          clique.children.insert(neighbor_cliques[n_var].begin(),
-                                 neighbor_cliques[n_var].end());
-        }
-      } else {     
-        // Disconnect variable and connect neighbors and mark their
-        // children cliques
-        foreach(const variable_t n_var, clique.vars) {
-          if(n_var != elim_var) {
-            // connect neighbors
-            neighbors[n_var].insert(clique.vars.begin(), 
-                                    clique.vars.end());
-            // disconnect the variable
-            neighbors[n_var].erase(elim_var);
-            // Update the fill count
-            elim_order.update(n_var, in_tree.size() - neighbors[n_var].size());
-            // Update the clique neighbors
-            neighbor_cliques[n_var].insert(clique_id);
-            neighbor_cliques[n_var] = 
-              graphlab::set_difference(neighbor_cliques[n_var], clique.children);
-          }
-        }
-      }
-
-
-      // Print the state
-      std::cout << clique_id << ": ";
-      foreach(size_t child, clique.children) {
-        std::cout << child << " ";
-      }
-      std::cout << "---[[ ";
-      foreach(variable_t var, clique.elim_vars) {
-        std::cout << var << " ";
-      }
-      std::cout << ":  ";
-      foreach(variable_t var, clique.vars) {
-        std::cout << var << " ";
-      }
-      std::cout << "]]";
-      std::cout << std::endl;
-
-    }
-  }
-}; // end of jt struct
-
-
-
-
-std::vector<jt_sampler> global_junction_trees;
 
 
 
