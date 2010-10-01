@@ -223,12 +223,14 @@ void sample_once(const factorized_model& factor_graph,
   jt_core.set_scheduler_type("fifo");
   jt_core.set_scope_type("edge");
   jt_core.set_ncpus(1);
-  jt_core.set_engine_type("sim");
+  jt_core.set_engine_type("async_sim");
  
 
   // Setup the shared data
+  typedef factorized_model::factor_map_t factor_map_t;
+  const factor_map_t* ptr = & factor_graph.factors();
   jt_core.shared_data().set_constant(junction_tree::FACTOR_KEY, 
-                                     &factor_graph.factors());
+                                     ptr);
   jt_core.shared_data().set_constant(junction_tree::MRF_KEY, 
                                      &mrf);
 
@@ -237,6 +239,9 @@ void sample_once(const factorized_model& factor_graph,
   jt_core.start();
 
 
+  //   // Schedule sampling starting at the lass vetex
+  //   jt_core.add_task(jt_core.graph().num_vertices()-1, 
+  //                    junction_tree::sample_update, 1.0);
  
 
   
