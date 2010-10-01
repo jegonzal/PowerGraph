@@ -30,19 +30,19 @@
 
 namespace graphlab {
   
-namespace any_detail {
-template <typename ValueType>
-typename boost::disable_if_c<boost::is_output_streamable<ValueType>::value, void>::type 
-print_type_or_content(std::ostream& out, const ValueType &h) { 
-  out << "Type " << typeid(ValueType).name() ; 
-}
+  namespace any_detail {
+    template <typename ValueType>
+    typename boost::disable_if_c<boost::is_output_streamable<ValueType>::value, void>::type 
+    print_type_or_content(std::ostream& out, const ValueType &h) { 
+      out << "Type " << typeid(ValueType).name() ; 
+    }
 
-template <typename ValueType>
-typename boost::enable_if_c<boost::is_output_streamable<ValueType>::value, void>::type 
-print_type_or_content(std::ostream& out, const ValueType &h) { 
-  out << h; 
-}
-}
+    template <typename ValueType>
+    typename boost::enable_if_c<boost::is_output_streamable<ValueType>::value, void>::type 
+    print_type_or_content(std::ostream& out, const ValueType &h) { 
+      out << h; 
+    }
+  }
 
   class __any_placeholder {
   public: // structors
@@ -71,7 +71,7 @@ print_type_or_content(std::ostream& out, const ValueType &h) {
 
   typedef __any_placeholder* (*__any_registration_deserializer_type)(iarchive &arc);
   typedef std::map<uint64_t, __any_registration_deserializer_type>
-      __any_registration_map_type;
+  __any_registration_map_type;
 
   __any_registration_map_type& __get_registration_map();
 
@@ -127,7 +127,7 @@ print_type_or_content(std::ostream& out, const ValueType &h) {
       any_registration() {
         __get_registration_map()[get_deserializer_id()] =
           any_registration<T>::deserialize;
-         //std::cout << "registered " << typeid(T).name() << " to " << get_deserializer_id() << std::endl;
+        //std::cout << "registered " << typeid(T).name() << " to " << get_deserializer_id() << std::endl;
       }
       
       static bool inited; // whether localid has been created
