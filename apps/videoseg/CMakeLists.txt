@@ -11,6 +11,9 @@ target_link_libraries(makesuperpix2 jpeg tcmalloc)
 add_executable(makesuperpix3 makesuperpix3.cpp)
 target_link_libraries(makesuperpix3 jpeg tcmalloc)
 
+add_executable(makesuperpix4 makesuperpix4.cpp)
+target_link_libraries(makesuperpix4 jpeg tcmalloc)
+
 add_executable(cosegment cosegment.cpp)
 target_link_libraries(cosegment jpeg)
 
