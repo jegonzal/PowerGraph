@@ -155,7 +155,7 @@ void dc_tcp_comm::send2(size_t target,
     // restructure the msghdr depending on how much was sent
     struct iovec* newiovecptr = data.msg_iov;
     size_t newiovlen = data.msg_iovlen;
-    for (size_t i = 0;i < data.msg_iovlen; ++i) {
+    for (int i = 0;i < data.msg_iovlen; ++i) {
       // amount sent was less than this entry.
       // shift the entry and retry
       if (ret < data.msg_iov[i].iov_len) {
