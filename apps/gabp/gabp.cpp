@@ -315,8 +315,8 @@ void gabp_update_function(gl_types::iscope &scope,
    
   /* GET current vertex data */
   vertex_data& vdata = scope.vertex_data();
-  const std::vector<gl_types::edge_id_t>& inedgeid = scope.in_edge_ids();
-  const std::vector<gl_types::edge_id_t>& outedgeid = scope.out_edge_ids();
+  const gl_types::edge_list inedgeid = scope.in_edge_ids();
+  const gl_types::edge_list  outedgeid = scope.out_edge_ids();
 
 
   // Get entries from shared data
@@ -521,6 +521,7 @@ int main(int argc,  char *argv[]) {
   bool debug = false;
   bool square = true;
   size_t iter = 0;
+  size_t periodic = 1000;
 
   clopts.attach_option("data", &datafile, "Binary input file (as created by the save_c_gl.m script)");
   clopts.add_positional("data");
@@ -530,6 +531,7 @@ int main(int argc,  char *argv[]) {
                        &support_null_variance, support_null_variance,
                        "(optional) support invalid covariance matrices - with null variance.");
   //clopts.attach_option("finish", &finish, finish, "?finish?.");
+  clopts.attach_option("periodic", &periodic, periodic, "Convergece detection every XX millisecs");
   clopts.attach_option("square",
                        &square, square,
                        "is the matrix square? ");
@@ -573,7 +575,7 @@ int main(int argc,  char *argv[]) {
   core.shared_data().set_sync(REAL_NORM_KEY,
                               gl_types::sync_ops::sum<double, get_real_norm>,
                               apply_func_real,
-                              double(0),  3500);
+                              double(0),  periodic);
   core.shared_data().atomic_set(REAL_NORM_KEY, 
                                 graphlab::any(double(100)));
 
@@ -581,7 +583,7 @@ int main(int argc,  char *argv[]) {
   core.shared_data().set_sync(RELATIVE_NORM_KEY,
                               gl_types::sync_ops::sum<double, get_relative_norm>,
                               apply_func_relative,
-                              double(0),  4500);
+                              double(0),  periodic);
   core.shared_data().atomic_set(RELATIVE_NORM_KEY, 
                                 graphlab::any(double(100)));
 
