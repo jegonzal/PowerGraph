@@ -1,8 +1,8 @@
 #!/bin/bash
 
 
-version=`hg summary | grep parent | sed 's/.*:[^0-9]\([0-9][0-9]*\).*/\1/g'`
-
+version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
+echo "Version: $version"
 tar --exclude=debug --exclude=release --exclude=profile --exclude=.hg \
     --exclude=distribute \
     -C ../ \
