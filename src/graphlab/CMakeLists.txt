@@ -44,6 +44,9 @@ if(Sctp-FOUND)
   set_property(TARGET graphlab_rpc APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
 endif()
 
+target_link_libraries(graphlab_rpc graphlab_util)
+
+
 add_library(graphlab STATIC
   factors/table_factor.cpp
   factors/binary_factor.cpp

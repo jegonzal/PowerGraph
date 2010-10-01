@@ -328,7 +328,7 @@ void dc_tcp_comm::socket_handler::run() {
 void dc_tcp_comm::accept_handler::run() {
   pollfd pf;
   pf.fd = listensock;
-  pf.events = POLLIN | POLLRDHUP;
+  pf.events = POLLIN;
   pf.revents = 0;
 
   while(1) {
@@ -354,8 +354,9 @@ void dc_tcp_comm::accept_handler::run() {
       }
       owner.new_socket(newsock, &their_addr, remotemachineid);
     }
-    else if (pf.revents && POLLRDHUP) {
-      break;
+    if (listensock == -1) {
+        // the owner has closed
+        break;
     }
   }
   logstream(LOG_INFO) << "Listening thread quitting" << std::endl;
