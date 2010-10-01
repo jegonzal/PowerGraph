@@ -1198,15 +1198,20 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
                            const graph<VertexData, EdgeData>& graph) {
-
-    out << "Printing vertex data:\n";
-    for(size_t i = 0; i < graph.num_vertices(); ++i) {
-      out << "V_" << i << ": D[" << graph.vertex_data(i) << "]\n";      
-    }
-    out << "Printing edge data:\n";
-    for(size_t i = 0; i < graph.num_edges(); ++i) {
-      out << "(V_" << graph.source(i) << "-> V_" << graph.target(i) << "): "
-          << "D[" << graph.edge_data(i) << "]\n";      
+    // out << "Printing vertex data:\n";
+    // for(size_t i = 0; i < graph.num_vertices(); ++i) {
+    //   out << "V_" << i << ": D[" << graph.vertex_data(i) << "]\n";      
+    // }
+    // out << "Printing edge data:\n";
+    // for(size_t i = 0; i < graph.num_edges(); ++i) {
+    //   out << "(V_" << graph.source(i) << "-> V_" << graph.target(i) << "): "
+    //       << "D[" << graph.edge_data(i) << "]\n";      
+    // }
+    // return out;
+    // Print adjacency List
+    for(vertex_id_t vid = 0; vid < graph.num_vertices(); ++vid) {
+      foreach(edge_id_t eid, graph.out_edge_ids(vid))
+        out << vid << ", " << graph.target(eid) << '\n';      
     }
     return out;
   }
