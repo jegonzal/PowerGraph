@@ -49,11 +49,7 @@ public:
   double pixel(size_t i) const { return data.at(i); }
 
   /** Get the vertex id of a pixel */
-  size_t vertid(size_t i, size_t j) const { 
-    return vertid(_rows, _cols, i, j); 
-  }
-
-  /** get the vertex id from the pixel location */
+  size_t vertid(size_t i, size_t j) const;
   static size_t vertid(size_t rows, size_t cols, size_t i, size_t j) {
     assert(i < rows);
     assert(j < cols);    
@@ -83,9 +79,6 @@ public:
   void paint_sunset(size_t states);
   
   void paint_checkerboard(size_t states, size_t blocks);
-
-  void paint_uniform(double value);
-
   
   /** Add random noise to the image */
   void gaussian_corrupt(double sigma);
@@ -132,6 +125,12 @@ void image::resize(size_t rows, size_t cols) {
   
 
 
+/** Get the vertex id of a pixel */
+size_t image::vertid(size_t i, size_t j) const {
+  assert(i < _rows);
+  assert(j < _cols);    
+  return i * _cols + j; 
+}
 
 // static size_t image::vertid(size_t rows, size_t cols, size_t i, size_t j)  {
 //   assert(i < rows);
@@ -218,13 +217,6 @@ void image::paint_checkerboard(size_t states, size_t blocks = 10) {
     }
   }
 } // end of paint_beatiful_sunset
-
-
-void image::paint_uniform(double value) {
-  for(size_t i = 0; i < rows()*cols(); ++i) {
-    pixel(i) = value;    
-  }
-} // end of paint_uniform
 
 
 

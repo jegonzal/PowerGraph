@@ -1,5 +1,5 @@
 project(GraphLab)
 
-subdirs(factor mrf)
+subdirs(jt_factor factor mrf)
 
 

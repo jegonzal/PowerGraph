@@ -136,7 +136,7 @@ bool parse_command_line(int argc, char** argv, options& opts) {
      "{gaussian, flip}")
     ("drawing",
      boost_po::value<std::string>(&(opts.drawing))->default_value("sunset"),
-     "Options are {sunset, checkerboard}");
+     "Options are {sunset, checkerboard, ising}");
 
   // Parse the arguments
   boost_po::variables_map vm;

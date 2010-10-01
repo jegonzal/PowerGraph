@@ -24,7 +24,8 @@ namespace graphlab {
 
     general_scope_factory(Graph& graph,
                           size_t ncpus,
-                          scope_range::scope_range_enum default_scope_range = scope_range::NULL_CONSISTENCY) :
+                          scope_range::scope_range_enum default_scope_range 
+                          = scope_range::NULL_CONSISTENCY) :
       base(graph,ncpus), graph(graph),
       default_scope(default_scope_range) {
       if (default_scope == scope_range::USE_DEFAULT)
@@ -35,13 +36,15 @@ namespace graphlab {
       scopes.resize(ncpus);
       // create them to be some arbitrary scope type
       for (size_t i = 0; i < ncpus;++i) {
-        scopes[i] = new general_scope_type(&graph, 0, this, scope_range::FULL_CONSISTENCY);
+        scopes[i] = new general_scope_type(&graph, 0, this, 
+                                           scope_range::FULL_CONSISTENCY);
       }
     }
 
     void set_default_scope(scope_range::scope_range_enum default_scope_range) {
       default_scope = default_scope_range;
-      if (default_scope == scope_range::USE_DEFAULT) default_scope = scope_range::VERTEX_CONSISTENCY;
+      if (default_scope == scope_range::USE_DEFAULT) 
+        default_scope = scope_range::VERTEX_CONSISTENCY;
     }
 
     ~general_scope_factory() { 
