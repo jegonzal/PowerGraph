@@ -23,7 +23,7 @@
 
 
 //define sdouble as either float or double as needed
-typedef float sdouble;
+typedef double sdouble;
 
 
 enum constant_offsets {GABP_PRIOR_MEAN_OFFSET = 0, //prior mean (b_i / A_ii)
@@ -60,7 +60,11 @@ struct vertex_data {
   sdouble prev_mean; //  mean value from previous round (for convergence detection) 
   sdouble prev_prec; //precision value from previous round (for convergence detection)
 
-  vertex_data():prev_mean(-1){ };
+  vertex_data(){ 
+     prev_mean = -1;
+     cur_mean = -2;
+     prior_prec = prior_mean = real = cur_prec = prev_prec = 0;
+  };
 
 }; 
  
@@ -103,9 +107,12 @@ void read_nodes(FILE * f, int len, int offset, int nodes,
     remain -= rc;
     sdouble ndata[len];
     for (int i=0; i< rc; i++){
-      memset(ndata,0,len*sizeof(sdouble));
+      //memset(ndata,0,len*sizeof(sdouble));
       ndata[offset] = temp[i];
-      g->add_vertex(*(vtype*)&ndata);
+      vtype vdata = *(vtype*)&ndata;
+      vdata.prev_mean = -1;
+      vdata.cur_mean = -2;      
+      g->add_vertex(vdata);
     }
     delete [] temp;
   }  
@@ -243,7 +250,7 @@ double get_real_norm(const vertex_data& v){
 
 //helper function to compute the norm between last round iteration and this round of the current mean
 double get_relative_norm(const vertex_data& v){
-  return pow(v.cur_mean - v.prev_mean, 2);
+  return (v.cur_mean - v.prev_mean)*(v.cur_mean-v.prev_mean);
 }
 
 
@@ -253,8 +260,8 @@ double get_relative_norm(const vertex_data& v){
 bool termination_condition(const gl_types::ishared_data* shared_data) {
   assert(shared_data != NULL);
   double ret = shared_data->atomic_get(RELATIVE_NORM_KEY).as<double>();
-
-  std::cout<<"I was in term"<<std::endl;
+  //std::cout << "Relative norm check: " << ret << std::endl;  
+  //std::cout<<"I was in term"<<std::endl;
   if (ret < shared_data->get_constant(THRESHOLD_KEY).as<double>()){
     std::cout << "Aborting since relative norm is: " << ret << std::endl;
     return true;    
@@ -308,8 +315,9 @@ void gabp_update_function(gl_types::iscope &scope,
    
   /* GET current vertex data */
   vertex_data& vdata = scope.vertex_data();
-  graphlab::edge_list inedgeid = scope.in_edge_ids();
-  graphlab::edge_list outedgeid = scope.out_edge_ids();
+  const std::vector<gl_types::edge_id_t>& inedgeid = scope.in_edge_ids();
+  const std::vector<gl_types::edge_id_t>& outedgeid = scope.out_edge_ids();
+
 
   // Get entries from shared data
   assert(shared_data != NULL);
@@ -565,11 +573,26 @@ int main(int argc,  char *argv[]) {
   core.shared_data().set_sync(REAL_NORM_KEY,
                               gl_types::sync_ops::sum<double, get_real_norm>,
                               apply_func_real,
-                              double(0),  100); 
+                              double(0),  3500);
+  core.shared_data().atomic_set(REAL_NORM_KEY, 
+                                graphlab::any(double(100)));
+
+ 
   core.shared_data().set_sync(RELATIVE_NORM_KEY,
                               gl_types::sync_ops::sum<double, get_relative_norm>,
                               apply_func_relative,
-                              double(0),  100);
+                              double(0),  4500);
+  core.shared_data().atomic_set(RELATIVE_NORM_KEY, 
+                                graphlab::any(double(100)));
+
+
+  core.shared_data().sync_all(core.graph());
+  double ret = core.shared_data().atomic_get(RELATIVE_NORM_KEY).as<double>();
+  std::cout << "Initial relative norm: " << ret << std::endl;  
+
+
+
+
   // Create an atomic entry to track iterations (as necessary)
   core.shared_data().create_atomic(ITERATION_KEY,
                                    graphlab::any(size_t(0)));
@@ -597,6 +620,7 @@ int main(int argc,  char *argv[]) {
     ((gl_types::round_robin_scheduler*)
      &(core.scheduler()))->set_start_vertex(size_t(0));
   }
+  clopts.scope_type = "null";
 
   // Add the termination condition to the engine
   core.engine().add_terminator(termination_condition);
