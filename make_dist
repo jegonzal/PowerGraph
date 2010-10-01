@@ -4,10 +4,10 @@
 version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
 echo "Version: $version"
 tar --exclude=debug --exclude=release --exclude=profile --exclude=.hg \
-    --exclude=distribute \
+    --exclude=dist \
     -C ../ \
     -vz \
-    -cf distribute/graphlab_v${version}.tar.gz \
+    -cf dist/graphlab_v${version}.tar.gz \
     graphlabapi
 
 
