@@ -5,5 +5,5 @@ syntax: glob
 debug/*
 release/*
 profile/*
-
+dist/*
 
