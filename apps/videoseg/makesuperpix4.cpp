@@ -134,7 +134,11 @@ CImg<unsigned char> RGBtoGrayScale2(const CImg<unsigned char> &im) {
   return grayImage;
 }
 
-
+void proj(float f){ 
+  if (f >= threshold) f = 100.0;
+  if (f < threshold) f = 100 * (f / threshold);
+  f = 100.0 - f;
+}
 
 void construct_graph(gl_types::graph& g) {
   CImg<float> everything(width,height,numimgs, 1);
@@ -161,14 +165,26 @@ void construct_graph(gl_types::graph& g) {
   std::cout << g.num_vertices() << " vertices added " << std::endl;
   std::cout << "Convolving" << std::endl;
   everything.blur_bilateral(5,5,5,5,8,8,8,8);
-  CImgList<float> xyz = everything.get_gradient("xyz", 2);
+    CImgList<float> xyz = everything.get_gradient("xyz", 2);
   
   CImg<float>& vert = xyz(0);
   CImg<float>& horz = xyz(1);
   CImg<float>& frame = xyz(2);
+  vert.sharpen(10);
+  horz.sharpen(10);
+  frame.sharpen(10);
   vert.abs().normalize(0,100);
   horz.abs().normalize(0,100);
   frame.abs().normalize(0,100);
+  for (size_t i = 0;i < numimgs; ++i) {
+    for (size_t j = 0;j < width; ++j) {
+      for (size_t k = 0;k < height; ++k) {
+        proj(vert(j,k,i));
+        proj(horz(j,k,i));
+        proj(frame(j,k,i));
+      }
+    }
+  }
   vert.save("vert.jpg");
   horz.save("horz.jpg");
   frame.save("frame.jpg");
@@ -182,16 +198,16 @@ void construct_graph(gl_types::graph& g) {
       for (size_t j = 0;j < width; ++j) {
         for (size_t k = 0;k < height; ++k) {
           
-          for (size_t ii = (i>0?i-1:0) ; ii < (i<numimgs-1?i+1:0); ++ii) {
-            for (size_t jj = (j>0?j-1:0) ; jj < (j<width-1?j+1:0); ++jj) {
-              for (size_t kk = (k>0?k-1:0) ; kk < (k<height-1?k+1:0); ++kk) {
+          for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
+            for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
+              for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
                 if (i==ii && j==jj && k==kk) continue;
                 else {
-                  double d = 0;
-                  if (i != ii) d += frame(j,k,i) * frame(j,k,i);
-                  if (j != jj) d += vert(j,k,i) * vert(j,k,i);
-                  if (k != kk) d += horz(j,k,i) * horz(j,k,i);
-                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                  float d = 0;
+                  if (i != ii) d = std::max(d, frame(j,k,i));
+                  if (j != jj) d = std::max(d, vert(j,k,i));
+                  if (k != kk) d = std::max(d, horz(j,k,i));
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), d);
                 }
               }
             }
@@ -263,13 +279,13 @@ void cluster_update(gl_types::iscope& scope,
   }
   // if oldid now has mass
   // also consider picking a totally new color
-  uint64_t newid;
-  if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
+//  uint64_t newid;
+ /* if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
     newid = oldid;
   }else {
     newid = gl_types::random::rand_int(UINT64_MAX - 1);
-  }
-  assignmentpreferences[newid] = 0;
+  }*/
+  //assignmentpreferences[newid] = 0;
   
   //totalmass = totalmass;
   // invert so that we have the sum over edge weights of a different color
@@ -506,34 +522,25 @@ void cluster_update3(gl_types::iscope& scope,
   foreach(graphlab::edge_id_t eid, out_edges) {   
     nbrvertices.push_back(std::make_pair(scope.source(eid), scope.const_edge_data(eid)));
   }
+  
   //std::random_shuffle(nbrvertices.begin(), nbrvertices.end());
   // find a neighbor to merge with.
   foreach(vertexwpair_type nbrv, nbrvertices) {   
     const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv.first);
     
-    if (nbrv.second < threshold) {
-      if (nbrdat.id != curvertexdata.id) {
-      // check for merge condition
-        if (nbrdat.depth >= curvertexdata.depth ||
-            (nbrdat.depth == curvertexdata.depth && nbrdat.id < curvertexdata.id) ) {
-          // merge if better
-          if (nbrdat.depth >= curvertexdata.depth) {
-            curvertexdata.id = nbrdat.id;
-            curvertexdata.depth = nbrdat.depth + 1;
-            changed = true;
-          }
-        }
-      }
-      else {
-        if (nbrdat.depth > curvertexdata.depth) {
-          curvertexdata.id = nbrdat.id;
-          curvertexdata.depth = nbrdat.depth;
-          changed = true;
-        }
+    if (nbrdat.id != curvertexdata.id) {
+    // check for merge condition
+    // depth is better and 
+      if ((nbrdat.depth >= curvertexdata.depth && nbrdat.depth + 1 < 30) ||
+          ((nbrdat.depth == curvertexdata.depth - 1) && nbrdat.id < curvertexdata.id) ) {
+        curvertexdata.id = nbrdat.id;
+        curvertexdata.depth = nbrdat.depth + 1;
+        changed = true;
       }
     }
-    
   }
+  
+  
 
   
   curvertexdata.counter++;
@@ -674,7 +681,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0;i < perm.size(); ++i) {
       graph.vertex_data(perm[i]).counter = 0;
       numparts.insert(graph.vertex_data(perm[i]).id);
-      engine->get_scheduler().add_task(gl_types::update_task(perm[i], cluster_update3), 10.0);
+      engine->get_scheduler().add_task(gl_types::update_task(perm[i], cluster_update), 10.0);
     }
     std::cout << "Starting to Anneal at temperature: " << temp << "\n";
     std::cout << "Currently has " << numparts.size() << " partitions" << std::endl;
