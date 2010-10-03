@@ -36,7 +36,7 @@ namespace junction_tree{
       assert(shared_data != NULL);
       // get all the factors
       const factor_map_t& factors = 
-        *shared_data->get_constant(FACTOR_KEY).as<factor_map_t*>();
+        *shared_data->get_constant(FACTOR_KEY).as<const factor_map_t*>();
       // Get the mrf (needed to get the assignment to variables not in
       // the clique)
       const mrf::graph_type& mrf = 
@@ -52,13 +52,13 @@ namespace junction_tree{
       foreach(size_t factor_id, vdata.factor_ids) {
         const factor_t& factor = factors[factor_id];
         // Build up an assignment for the conditional
-        domain_t condition_args = factor.args() - vdata.variables;
+        domain_t conditional_args = factor.args() - vdata.variables;
         assignment_t conditional_asg;
-        for(size_t i = 0; i < condition_args.num_vars(); ++i)
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i)
           conditional_asg &= 
-            mrf.vertex_data(condition_args.var(i).id).asg;
+            mrf.vertex_data(conditional_args.var(i).id).asg;
         // set the factor arguments
-        conditional_factor.set_args(factor.args() - condition_args);
+        conditional_factor.set_args(factor.args() - conditional_args);
         conditional_factor.condition(factor, conditional_asg);        
         // Multiply the conditional factor in
         vdata.factor *= conditional_factor;
@@ -87,9 +87,11 @@ namespace junction_tree{
       // Compute message if its still ready
       if(ready) {
         factor_t belief_factor = vdata.factor;
-        foreach(edge_id_t in_eid, scope.in_edge_ids()) {       
-          const edge_data& in_edata = scope.const_edge_data(in_eid);
-          belief_factor *= in_edata.message;    
+        foreach(edge_id_t in_eid, scope.in_edge_ids()) {
+          if(scope.source(in_eid) != target) {
+            const edge_data& in_edata = scope.const_edge_data(in_eid);
+            belief_factor *= in_edata.message;    
+          }
         }
         // Marginalize all variables not in outbound message
         out_edata.message.set_args(out_edata.variables);

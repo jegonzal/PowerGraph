@@ -131,6 +131,9 @@ namespace graphlab {
       foreach(edge_id_t eid, *this) lvalue.push_back(eid);    
     }
 
+    /** test if the edge list is empty */
+    bool empty() const { return size() == 0; }
+
   }; // End of edge list
 
 

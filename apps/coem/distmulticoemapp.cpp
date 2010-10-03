@@ -312,18 +312,20 @@ int main(int argc,  char ** argv) {
   clopts.attach_option("target_precision", &TARGET_PRECISION, 0.0f,
   										"Termination threshold.");
   										
-  // TODO: do not hard-code
-  npsfile     = root + "/cat_nps.txt";
-  contextfile = root + "/cat_contexts.txt";
-  matrixfile  = root + "/cat_pairs_cont-idx.txt";
-  seedsdir    = root + "/seeds/";
-  negseedsdir = root + "/seeds-neg/";
+  
  
   // Create a graphlab 
   if(!clopts.parse(argc, argv)) {
      std::cout << "Error in parsing input." << std::endl;
      return EXIT_FAILURE;
   }
+  
+  // TODO: do not hard-code
+  npsfile     = root + "/cat_nps.txt";
+  contextfile = root + "/cat_contexts.txt";
+  matrixfile  = root + "/cat_pairs_cont-idx.txt";
+  seedsdir    = root + "/seeds/";
+  negseedsdir = root + "/seeds-neg/";
    
   /**** GRAPH LOADING ****/
   timer t;
