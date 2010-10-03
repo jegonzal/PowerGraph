@@ -24,10 +24,9 @@ const size_t TEMPERATURE = 1;
 
 struct vertexdata{ 
   vertexdata() { }
-  vertexdata(double vweight, uint64_t id) :id(id), counter(0),depth(0) {}
+  vertexdata(double vweight, uint64_t id) :id(id), counter(0) {}
   uint64_t id;
   uint16_t counter;
-  uint16_t depth;
 };
 SERIALIZABLE_POD(vertexdata);
 
@@ -196,6 +195,7 @@ void construct_graph(gl_types::graph& g) {
   std::cout << frame.width() << " " << frame.height() << " " << frame.depth()<< std::endl;
   if (diagonals) {
     for (size_t i = 0;i < numimgs; ++i) {
+      if (i % 10) std::cout << i << std::endl;
       for (size_t j = 0;j < width; ++j) {
         for (size_t k = 0;k < height; ++k) {
           
@@ -404,9 +404,7 @@ int main(int argc, char** argv) {
   if (parse_command_line(opts, argc,argv) == false) return 0;
   gl_types::graph graph(dc);
   dc.barrier();
-  if (dc.procid() == 0) {
-    construct_graph(graph);
-  }
+  construct_graph(graph);
   graph.finalize();
   std::cout << "starting partitioning..." << std::endl;
 
@@ -434,6 +432,7 @@ int main(int argc, char** argv) {
     graphlab::multiqueue_fifo_scheduler<gl_types::graph> > >(dc, graph, opts.ncpus);
     tengine->set_caching(true);
     engine=tengine;
+    engine->set_default_scope(graphlab::scope_range::EDGE_CONSISTENCY);
   }
 
   
@@ -442,6 +441,7 @@ int main(int argc, char** argv) {
   // set the shared data object
   engine->set_shared_data_manager(&shared_data);
   dc.barrier();
+  graphlab::distributed_metrics::instance(&dc);
   graphlab::timer ti;
   ti.start();
   for (size_t i  =0;i < iterations; ++i) {
