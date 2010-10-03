@@ -462,7 +462,9 @@ int main(int argc, char** argv) {
     }
     dc.barrier();
     engine->start();
+    dc.barrier();
     graph.send_vertices_to_proczero();
+    dc.barrier();
   }
   
   if (dc.procid() == 0) {
