@@ -195,13 +195,13 @@ void construct_graph(gl_types::graph& g) {
             for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
               for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
                 if (i==ii && j==jj && k==kk) continue;
-                else {
+                else if (tovertexid(i,j,k) > tovertexid(ii,jj,kk)){
                   float d = 0;
                   //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
                   if (i != ii) d += 3;
                   if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
                   if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
-                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), 2 * sqrt(d));
                 }
               }
             }
@@ -218,7 +218,8 @@ void construct_graph(gl_types::graph& g) {
           for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
             for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
               for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
-                if ((i==ii) + (j==jj) + (k==kk) == 2) {
+                if ((i==ii) + (j==jj) + (k==kk) == 2 
+                  && (tovertexid(i,j,k) > tovertexid(ii,jj,kk))){
                   float d = 0;
                   //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
                   if (i != ii) d += 3;
