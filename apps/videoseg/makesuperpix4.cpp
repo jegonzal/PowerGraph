@@ -140,6 +140,12 @@ void proj(float f){
   f = 100.0 - f;
 }
 
+
+void tf(float &f) {
+  f = -log(1 + 200 * exp(-f/10.0));
+  //return std::max(100 - f, 1.0);
+}
+
 void construct_graph(gl_types::graph& g) {
   CImg<float> everything(width,height,numimgs, 1);
 
@@ -179,9 +185,10 @@ void construct_graph(gl_types::graph& g) {
   for (size_t i = 0;i < numimgs; ++i) {
     for (size_t j = 0;j < width; ++j) {
       for (size_t k = 0;k < height; ++k) {
-        proj(vert(j,k,i));
-        proj(horz(j,k,i));
-        proj(frame(j,k,i));
+        tf(vert(j,k,i));
+        tf(horz(j,k,i));
+        tf(frame(j,k,i));
+        //frame(j,k,i) = frame(j,k,i) / 2;
       }
     }
   }
@@ -204,10 +211,11 @@ void construct_graph(gl_types::graph& g) {
                 if (i==ii && j==jj && k==kk) continue;
                 else {
                   float d = 0;
-                  if (i != ii) d = std::max(d, frame(j,k,i));
-                  if (j != jj) d = std::max(d, vert(j,k,i));
-                  if (k != kk) d = std::max(d, horz(j,k,i));
-                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), d);
+                  //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
+                  if (i != ii) d += 3;
+                  if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
+                  if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
                 }
               }
             }
@@ -220,19 +228,24 @@ void construct_graph(gl_types::graph& g) {
     for (size_t i = 0;i < numimgs; ++i) {
       for (size_t j = 0;j < width; ++j) {
         for (size_t k = 0;k < height; ++k) {
-          // add the edges in increasing directions only
-          if (i < numimgs - 1) {
-            g.add_edge(tovertexid(i,j,k),tovertexid(i+1,j,k), fabs(frame(j,k,i)));
-          }
-          if (j < width - 1) {
-            g.add_edge(tovertexid(i,j,k),tovertexid(i,j+1,k), fabs(vert(j,k,i)));
-          }
-          if (k < height - 1) {
-            g.add_edge(tovertexid(i,j,k),tovertexid(i,j,k+1), fabs(horz(j,k,i)));
+          
+          for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
+            for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
+              for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
+                if ((i==ii) + (j==jj) + (k==kk) == 2) {
+                  float d = 0;
+                  //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
+                  if (i != ii) d += 3;
+                  if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
+                  if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                }
+              }
+            }
           }
         }
-      } 
-    }
+      }
+    } 
   }
 } // End of construct graph
 
