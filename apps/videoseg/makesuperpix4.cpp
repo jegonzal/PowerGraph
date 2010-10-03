@@ -19,15 +19,11 @@ using namespace cimg_library;
 const size_t TEMPERATURE = 1;
 
 struct vertexdata{ 
-  vertexdata(unsigned char r, unsigned char g, unsigned char b, double vweight, uint64_t id)
-      :r(r),g(g),b(b), id(id), counter(0),depth(0) {}
+  vertexdata(double vweight, uint64_t id)
+      :id(id), counter(0),depth(0) {}
   uint64_t id;
   uint16_t counter;
   uint16_t depth;
-  unsigned char r;
-  unsigned char g;
-  unsigned char b;
-
 };
 typedef graphlab::graph<vertexdata, float> graph_type;
 typedef graphlab::types<graph_type> gl_types;
@@ -101,16 +97,6 @@ void fromvertexid(size_t vid, size_t &img, size_t &x, size_t &y) {
   y = vid;
 }
 
-size_t rgb2idx_hist(unsigned char r, unsigned char g, unsigned char b) {
-  return size_t(double(r) / 32.0) * 8 * 8 +
-        size_t(double(g) / 32.0) * 8 +
-        size_t(double(b) / 32.0);
-}
-
-size_t rgb2idx_hist(const vertexdata &pix) {
-  return rgb2idx_hist(pix.r, pix.g, pix.b);
-}
-
 
 CImg<unsigned char> RGBtoGrayScale(const CImg<unsigned char> &im) {
   CImg<unsigned char> grayImage(im.width(),im.height(),im.depth(),1,0);
@@ -163,7 +149,7 @@ void construct_graph(gl_types::graph& g) {
       for (size_t k = 0;k < height; ++k) {
         uint64_t uint64id = gl_types::random::rand_int(UINT64_MAX - 1);;
         //uint64_t uint64id = 0;
-        g.add_vertex(vertexdata(temp(j,k,0,0),temp(j,k,0,1),temp(j,k,0,2), 0.0, uint64id));
+        g.add_vertex(vertexdata(0.0, uint64id));
       }
     }
   }
@@ -247,6 +233,7 @@ void construct_graph(gl_types::graph& g) {
       }
     } 
   }
+  g.finalize();
 } // End of construct graph
 
 
@@ -768,7 +755,6 @@ int main(int argc, char** argv) {
     temp2.save(fname);
   }
 
-  return 0;
 
   // renumber partitions
   std::map<size_t, size_t> newpartid2oldpartid;
@@ -843,14 +829,14 @@ int main(int argc, char** argv) {
     }*/
     std::copy(nbrs.begin(), nbrs.end(), std::back_inserter(adjlist[i]));
   }
-
+/*
   for (size_t i = 0;i < numparts; ++i) {
     std::cout << i << ": ";
     for (size_t j = 0; j < adjlist[i].size(); ++j) {
       std::cout << adjlist[i][j] << " ";
     }
     std::cout << std::endl;
-  }
+  }*/
   // generate the superpixel features
     // histogram is compacted to 8*8*8 bins
   std::vector<std::vector<float> > features;

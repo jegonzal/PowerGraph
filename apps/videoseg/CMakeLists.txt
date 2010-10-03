@@ -34,3 +34,6 @@ add_executable(combinebins combinebins.cpp)
 add_executable(cosegment3 cosegment3.cpp)
 target_link_libraries(cosegment3 jpeg tcmalloc)
 
+
+add_dist_executable(makesuperpix4_dist makesuperpix4_dist.cpp)
+dist_target_link_libraries(makesuperpix4_dist jpeg tcmalloc)

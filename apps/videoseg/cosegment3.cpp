@@ -783,7 +783,7 @@ int main(int argc,  char *argv[]) {
   opts2.ncpus = opts.ncpus;
   opts2.scheduler_type = "multiqueue_fifo";
   opts2.scope_type = "edge";
-  opts2.engine_type = "threaded";
+  opts2.engine_type = "async";
   gl_types::iengine* engine = opts2.create_engine(g);
   assert(engine != NULL);
   
@@ -812,7 +812,14 @@ int main(int argc,  char *argv[]) {
   double runtime = ti.current_time();
     // output the time
     std::cout << "Completed in " << runtime << " seconds" << std::endl;
+    
+    std::ifstream fin(inputfile.c_str());
+    graphlab::iarchive iarc(fin);
+    std::cout << "deserializing pix2part ... " << std::endl;
+    iarc >> pix2part;
 
+    // make pictures
+    if (outputimages) makepictures(g,pix2part, opts.arity);
     
 }
 
