@@ -19,15 +19,11 @@ using namespace cimg_library;
 const size_t TEMPERATURE = 1;
 
 struct vertexdata{ 
-  vertexdata(unsigned char r, unsigned char g, unsigned char b, double vweight, uint64_t id)
-      :r(r),g(g),b(b), id(id), counter(0),depth(0) {}
+  vertexdata(double vweight, uint64_t id)
+      :id(id), counter(0),depth(0) {}
   uint64_t id;
   uint16_t counter;
   uint16_t depth;
-  unsigned char r;
-  unsigned char g;
-  unsigned char b;
-
 };
 typedef graphlab::graph<vertexdata, float> graph_type;
 typedef graphlab::types<graph_type> gl_types;
@@ -101,16 +97,6 @@ void fromvertexid(size_t vid, size_t &img, size_t &x, size_t &y) {
   y = vid;
 }
 
-size_t rgb2idx_hist(unsigned char r, unsigned char g, unsigned char b) {
-  return size_t(double(r) / 32.0) * 8 * 8 +
-        size_t(double(g) / 32.0) * 8 +
-        size_t(double(b) / 32.0);
-}
-
-size_t rgb2idx_hist(const vertexdata &pix) {
-  return rgb2idx_hist(pix.r, pix.g, pix.b);
-}
-
 
 CImg<unsigned char> RGBtoGrayScale(const CImg<unsigned char> &im) {
   CImg<unsigned char> grayImage(im.width(),im.height(),im.depth(),1,0);
@@ -134,7 +120,17 @@ CImg<unsigned char> RGBtoGrayScale2(const CImg<unsigned char> &im) {
   return grayImage;
 }
 
+void proj(float f){ 
+  if (f >= threshold) f = 100.0;
+  if (f < threshold) f = 100 * (f / threshold);
+  f = 100.0 - f;
+}
 
+
+void tf(float &f) {
+  f = -log(1 + 200 * exp(-f/10.0));
+  //return std::max(100 - f, 1.0);
+}
 
 void construct_graph(gl_types::graph& g) {
   CImg<float> everything(width,height,numimgs, 1);
@@ -153,7 +149,7 @@ void construct_graph(gl_types::graph& g) {
       for (size_t k = 0;k < height; ++k) {
         uint64_t uint64id = gl_types::random::rand_int(UINT64_MAX - 1);;
         //uint64_t uint64id = 0;
-        g.add_vertex(vertexdata(temp(j,k,0,0),temp(j,k,0,1),temp(j,k,0,2), 0.0, uint64id));
+        g.add_vertex(vertexdata(0.0, uint64id));
       }
     }
   }
@@ -161,14 +157,27 @@ void construct_graph(gl_types::graph& g) {
   std::cout << g.num_vertices() << " vertices added " << std::endl;
   std::cout << "Convolving" << std::endl;
   everything.blur_bilateral(5,5,5,5,8,8,8,8);
-  CImgList<float> xyz = everything.get_gradient("xyz", 2);
+    CImgList<float> xyz = everything.get_gradient("xyz", 2);
   
   CImg<float>& vert = xyz(0);
   CImg<float>& horz = xyz(1);
   CImg<float>& frame = xyz(2);
+  vert.sharpen(10);
+  horz.sharpen(10);
+  frame.sharpen(10);
   vert.abs().normalize(0,100);
   horz.abs().normalize(0,100);
   frame.abs().normalize(0,100);
+  for (size_t i = 0;i < numimgs; ++i) {
+    for (size_t j = 0;j < width; ++j) {
+      for (size_t k = 0;k < height; ++k) {
+        tf(vert(j,k,i));
+        tf(horz(j,k,i));
+        tf(frame(j,k,i));
+        //frame(j,k,i) = frame(j,k,i) / 2;
+      }
+    }
+  }
   vert.save("vert.jpg");
   horz.save("horz.jpg");
   frame.save("frame.jpg");
@@ -182,15 +191,16 @@ void construct_graph(gl_types::graph& g) {
       for (size_t j = 0;j < width; ++j) {
         for (size_t k = 0;k < height; ++k) {
           
-          for (size_t ii = (i>0?i-1:0) ; ii < (i<numimgs-1?i+1:0); ++ii) {
-            for (size_t jj = (j>0?j-1:0) ; jj < (j<width-1?j+1:0); ++jj) {
-              for (size_t kk = (k>0?k-1:0) ; kk < (k<height-1?k+1:0); ++kk) {
+          for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
+            for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
+              for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
                 if (i==ii && j==jj && k==kk) continue;
                 else {
-                  double d = 0;
-                  if (i != ii) d += frame(j,k,i) * frame(j,k,i);
-                  if (j != jj) d += vert(j,k,i) * vert(j,k,i);
-                  if (k != kk) d += horz(j,k,i) * horz(j,k,i);
+                  float d = 0;
+                  //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
+                  if (i != ii) d += 3;
+                  if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
+                  if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
                   g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
                 }
               }
@@ -204,20 +214,26 @@ void construct_graph(gl_types::graph& g) {
     for (size_t i = 0;i < numimgs; ++i) {
       for (size_t j = 0;j < width; ++j) {
         for (size_t k = 0;k < height; ++k) {
-          // add the edges in increasing directions only
-          if (i < numimgs - 1) {
-            g.add_edge(tovertexid(i,j,k),tovertexid(i+1,j,k), fabs(frame(j,k,i)));
-          }
-          if (j < width - 1) {
-            g.add_edge(tovertexid(i,j,k),tovertexid(i,j+1,k), fabs(vert(j,k,i)));
-          }
-          if (k < height - 1) {
-            g.add_edge(tovertexid(i,j,k),tovertexid(i,j,k+1), fabs(horz(j,k,i)));
+          
+          for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
+            for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
+              for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
+                if ((i==ii) + (j==jj) + (k==kk) == 2) {
+                  float d = 0;
+                  //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
+                  if (i != ii) d += 3;
+                  if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
+                  if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                }
+              }
+            }
           }
         }
-      } 
-    }
+      }
+    } 
   }
+  g.finalize();
 } // End of construct graph
 
 
@@ -263,13 +279,13 @@ void cluster_update(gl_types::iscope& scope,
   }
   // if oldid now has mass
   // also consider picking a totally new color
-  uint64_t newid;
-  if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
+//  uint64_t newid;
+ /* if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
     newid = oldid;
   }else {
     newid = gl_types::random::rand_int(UINT64_MAX - 1);
-  }
-  assignmentpreferences[newid] = 0;
+  }*/
+  //assignmentpreferences[newid] = 0;
   
   //totalmass = totalmass;
   // invert so that we have the sum over edge weights of a different color
@@ -506,34 +522,25 @@ void cluster_update3(gl_types::iscope& scope,
   foreach(graphlab::edge_id_t eid, out_edges) {   
     nbrvertices.push_back(std::make_pair(scope.source(eid), scope.const_edge_data(eid)));
   }
+  
   //std::random_shuffle(nbrvertices.begin(), nbrvertices.end());
   // find a neighbor to merge with.
   foreach(vertexwpair_type nbrv, nbrvertices) {   
     const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv.first);
     
-    if (nbrv.second < threshold) {
-      if (nbrdat.id != curvertexdata.id) {
-      // check for merge condition
-        if (nbrdat.depth >= curvertexdata.depth ||
-            (nbrdat.depth == curvertexdata.depth && nbrdat.id < curvertexdata.id) ) {
-          // merge if better
-          if (nbrdat.depth >= curvertexdata.depth) {
-            curvertexdata.id = nbrdat.id;
-            curvertexdata.depth = nbrdat.depth + 1;
-            changed = true;
-          }
-        }
-      }
-      else {
-        if (nbrdat.depth > curvertexdata.depth) {
-          curvertexdata.id = nbrdat.id;
-          curvertexdata.depth = nbrdat.depth;
-          changed = true;
-        }
+    if (nbrdat.id != curvertexdata.id) {
+    // check for merge condition
+    // depth is better and 
+      if ((nbrdat.depth >= curvertexdata.depth && nbrdat.depth + 1 < 30) ||
+          ((nbrdat.depth == curvertexdata.depth - 1) && nbrdat.id < curvertexdata.id) ) {
+        curvertexdata.id = nbrdat.id;
+        curvertexdata.depth = nbrdat.depth + 1;
+        changed = true;
       }
     }
-    
   }
+  
+  
 
   
   curvertexdata.counter++;
@@ -674,7 +681,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0;i < perm.size(); ++i) {
       graph.vertex_data(perm[i]).counter = 0;
       numparts.insert(graph.vertex_data(perm[i]).id);
-      engine->get_scheduler().add_task(gl_types::update_task(perm[i], cluster_update3), 10.0);
+      engine->get_scheduler().add_task(gl_types::update_task(perm[i], cluster_update), 10.0);
     }
     std::cout << "Starting to Anneal at temperature: " << temp << "\n";
     std::cout << "Currently has " << numparts.size() << " partitions" << std::endl;
@@ -748,7 +755,6 @@ int main(int argc, char** argv) {
     temp2.save(fname);
   }
 
-  return 0;
 
   // renumber partitions
   std::map<size_t, size_t> newpartid2oldpartid;
@@ -823,14 +829,14 @@ int main(int argc, char** argv) {
     }*/
     std::copy(nbrs.begin(), nbrs.end(), std::back_inserter(adjlist[i]));
   }
-
+/*
   for (size_t i = 0;i < numparts; ++i) {
     std::cout << i << ": ";
     for (size_t j = 0; j < adjlist[i].size(); ++j) {
       std::cout << adjlist[i][j] << " ";
     }
     std::cout << std::endl;
-  }
+  }*/
   // generate the superpixel features
     // histogram is compacted to 8*8*8 bins
   std::vector<std::vector<float> > features;

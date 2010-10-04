@@ -783,9 +783,7 @@ int main(int argc,  char *argv[]) {
     std::vector<uint32_t> pix2part;
     size_t featurearity;
     create_graph(inputfile, g, shared_data, pix2part, opts.arity, &featurearity, INTRAFRAME_POTENTIAL);
-    for (size_t i = 1;i <= 10; ++i) {
-      graph_type::partition_graph_tofile(g, i, partition_method::PARTITION_METIS, opts.basefile);
-    }
+    graph_type::partition_graph_tofile(g, opts.ncpus, partition_method::PARTITION_METIS, opts.basefile);
     return 0;
   }
 

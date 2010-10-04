@@ -133,7 +133,6 @@ void distributed_control::report_stats() {
      barrier();
      
     if (id == 0) distributed_metrics::instance(this)->report();
-    delete(distributed_metrics::instance(this));
 }
 
 size_t distributed_control::read_tcp_buflen(int fd) {
