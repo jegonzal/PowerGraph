@@ -1511,7 +1511,6 @@ int start(int argc, char ** argv, distributed_control & dc) {
 
   }
 
-  assert(false);  // NO return statement 
 
 }
 
