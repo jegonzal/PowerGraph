@@ -82,6 +82,9 @@ for src = [10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250]
         tmp_ftest_pL_fobs2 = ftest' * pL * fobs2; 
         lfeat_m = zeros(length(I5),4); 
         fimgbasis = fimg1(:,I5); 
+        
+        tmp_prod_msg = fimg1(:,I5)' * pL;
+        tmp_ftest_pL = ftest' * pL; 
 
         itsave('denoising_data2.it', pU, pL, fimgbasis, ftest, fobs2, isize, m0, fmu, tmp_prod_msg, tmp_ftest_pL);  
 

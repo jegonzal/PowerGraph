@@ -28,8 +28,9 @@ const size_t TEMPERATURE = 1;
 
 struct vertexdata{ 
   vertexdata() { }
-  vertexdata(double vweight, uint64_t id) :id(id){}
+  vertexdata(double vweight, uint64_t id) :id(id), counter(0){}
   uint64_t id;
+  uint16_t counter;
 };
 SERIALIZABLE_POD(vertexdata);
 
@@ -255,6 +256,7 @@ void cluster_update(gl_types::iscope& scope,
                     gl_types::ishared_data* shared_data) {
   
   vertexdata &curvertexdata = scope.vertex_data();
+  if (curvertexdata.counter >= countermax) return;
   uint64_t oldid = curvertexdata.id;
     // Get the in and out edges by reference
   graphlab::edge_list in_edges = scope.in_edge_ids();
@@ -341,6 +343,16 @@ void cluster_update(gl_types::iscope& scope,
     ++i;
   }
 
+  curvertexdata.counter++;
+  if (curvertexdata.id != oldid) {
+    foreach(graphlab::edge_id_t eid, out_edges) {
+      scheduler.add_task(gl_types::update_task(scope.target(eid), cluster_update), 10.0); 
+    }
+    foreach(graphlab::edge_id_t eid, in_edges) {
+      scheduler.add_task(gl_types::update_task(scope.source(eid), cluster_update), 10.0); 
+    }
+  }
+
 }
 
 
@@ -402,10 +414,9 @@ size_t renumber_graph(gl_types::graph &graph) {
   }
   std::set<graphlab::vertex_id_t> partids;
   for (size_t v = 0; v < graph.num_vertices(); ++v) {
-    if (graph.vertex_data(v).id != uf_find(unionfind, v)) {
-      graph.vertex_data(v).id = uf_find(unionfind, v);
-      graph.broadcast_vertex_data(v);
-    }
+    graph.vertex_data(v).id = uf_find(unionfind, v);
+    graph.vertex_data(v).counter = 0;
+    graph.broadcast_vertex_data(v);
     partids.insert(graph.vertex_data(v).id);
   }
   return partids.size();
@@ -440,28 +451,26 @@ int main(int argc, char** argv) {
   {
     graphlab::distributed_engine<gl_types::graph,
     graphlab::distributed_scheduler_wrapper<gl_types::graph, 
-    graphlab::distributed_round_robin_scheduler<gl_types::graph> > > *tengine = new graphlab::distributed_engine<gl_types::graph,
+    graphlab::multiqueue_fifo_scheduler<gl_types::graph> > > *tengine = new graphlab::distributed_engine<gl_types::graph,
     graphlab::distributed_scheduler_wrapper<gl_types::graph, 
-    graphlab::distributed_round_robin_scheduler<gl_types::graph> > >(dc, graph, opts.ncpus);
+    graphlab::multiqueue_fifo_scheduler<gl_types::graph> > >(dc, graph, opts.ncpus);
     tengine->set_caching(true);
     tengine->set_constant_edges(true);
+    tengine->set_use_adjacent_vertices(true);
     tengine->set_vertex_scope_pushed_updates(true);
     engine=tengine;
-    engine->set_default_scope(graphlab::scope_range::NULL_CONSISTENCY);
-    
+    engine->set_default_scope(graphlab::scope_range::VERTEX_CONSISTENCY);
   }
 
-  std::cout << graph.num_local_edges() << " Edges local" << std::endl;
+  
   dc.barrier();
   assert(engine != NULL);
   // set the shared data object
-  graphlab::vertex_id_t nv = 0;
+  graphlab::vertex_id_t nv = graph.num_vertices() - 1;
   engine->set_shared_data_manager(&shared_data);
-  engine->get_scheduler().add_task_to_all(cluster_update, 1.0);
-  engine->get_scheduler().set_option(graphlab::scheduler_options::MAX_ITERATIONS, (void*)countermax);
-  engine->get_scheduler().set_option(graphlab::scheduler_options::DISTRIBUTED_CONTROL, (void*)&dc);
-  engine->get_scheduler().set_option(graphlab::scheduler_options::BARRIER, &nv);  
+  
 
+  
   if (dc.procid() == 0) {
     shared_data.atomic_set(TEMPERATURE, double(1.0));
   }
@@ -480,7 +489,7 @@ int main(int argc, char** argv) {
       double temp = double(tempnum / std::pow(tempbase,i));
       //newidprior = newidprior * 2;
       shared_data.atomic_set(TEMPERATURE, temp);
-            
+      engine->get_scheduler().add_task_to_all(cluster_update, 1.0);
       std::cout << "Starting to Anneal at temperature: " << temp << "\n";
       std::cout << "Currently has " << numparts << " partitions" << std::endl;
     }
