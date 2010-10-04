@@ -38,5 +38,5 @@ target_link_libraries(cosegment3 jpeg tcmalloc)
 add_dist_executable(makesuperpix4_dist makesuperpix4_dist.cpp)
 dist_target_link_libraries(makesuperpix4_dist jpeg tcmalloc)
 
-add_dist_executable(makesuperpix4_dist_pull makesuperpix4_dist_push.cpp)
+add_dist_executable(makesuperpix4_dist_pull makesuperpix4_dist_pull.cpp)
 dist_target_link_libraries(makesuperpix4_dist_pull jpeg tcmalloc)
