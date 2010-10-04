@@ -1266,7 +1266,7 @@ void barrier_fn(){
 /** 
  * ==== SETUP AND START
  */
-int start(int argc, char ** argv, distributed_control & dc) {
+void start(int argc, char ** argv, distributed_control & dc) {
   ::command_line_options o;
   parse_command_line(argc, argv, o);
   __dc = &dc;
