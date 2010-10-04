@@ -1,7 +1,7 @@
 clear; 
 
 % addpath('/media/d/workspace/common/matlab');
-addpath('itpp-4.0.7/extras/');
+%addpath('itpp-4.0.7/extras/');
 
 prefix = 'images/';
 
