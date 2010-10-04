@@ -1,4 +1,5 @@
-// written by Danny Bickson, CMU #include <cstdio>
+// written by Danny Bickson, Aapo Kyrola CMU 
+#include <cstdio>
 #include <itpp/itbase.h>
 #include <itpp/stat/misc_stat.h>
 
@@ -254,7 +255,7 @@ typedef graphlab::distributed_graph<vertex_data, multiple_edges> graph_dtype;
 typedef graphlab::types<graph_type> gl_types;
 typedef graphlab::types<graph_dtype> gl_dtypes;
 graph_type g;
-graph_dtype dg;
+graph_dtype * dg = NULL;
 graph_type g1;
 //gl_types::thread_shared_data sdm;
 
@@ -723,7 +724,8 @@ void init_pmf() {
   vones = itpp::ones(D);
 }
     
-void load_pmf_graph(const char* filename, graph_type * g, bool flag);    
+void load_pmf_graph(const char* filename, graph_type * g, bool flag);  
+void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distributed_control& dc);
 //void calc_T(int id,  gl_types::iscope &scope, gl_types::icallback &scheduler, gl_types::ishared_data* shared_data);    
 double calc_obj(gl_dtypes::ishared_data &sdm);
 void last_iter(gl_dtypes::ishared_data &sdm);
@@ -896,11 +898,11 @@ double calc_rmse(graph_type * _g, bool test, double & res, gl_dtypes::ishared_da
     tvec = sdm.get(TIME_OFFSET).as<mult_vec>();
 
   for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
-    vertex_data * data = &dg.vertex_data(i);
+    vertex_data * data = &dg->vertex_data(i);
     foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
          
       multiple_edges & edges = _g->edge_data(iedgeid);
-      vertex_data * pdata = &dg.vertex_data(_g->source(iedgeid)); 
+      vertex_data * pdata = &dg->vertex_data(_g->source(iedgeid)); 
       for (int j=0; j< (int)edges.medges.size(); j++){       
  
         edge_data & edge = edges.medges[j];
@@ -1269,6 +1271,9 @@ int start(int argc, char ** argv, distributed_control & dc) {
   parse_command_line(argc, argv, o);
   __dc = &dc;
   myprocid = dc.procid();
+  
+ // IMPORTANT: all nodes need to seed random number generator similarly
+  graphlab::random::seed(1);
  
   if (o.prepart) { 
     ASSERT_EQ(dc.numprocs(), 1);
@@ -1289,22 +1294,29 @@ int start(int argc, char ** argv, distributed_control & dc) {
   }
 
 
-  if (infile == "netflix"){
+  
+  if (infile.find("netflix-r") != string::npos){
+    M=480189; N=17770; K=27; L=99072112; Le=1408395;
+  } else if (infile.find("netflix") != string::npos) {
     M=95526; N=3561; K=27; L=3298163; Le = 545177;
   }
-  else if (infile == "netflix-r"){
-    M=480189; N=17770; K=27; L=99072112; Le=1408395;
-  }
+  
+  
+  dg = new graph_dtype(dc);
+  dg->set_constant_edges(true);
 
-  dg.load(infile, dc);
-  assert(dg.num_vertices() == (unsigned int) M+N);
+  load_pmf_distgraph(infile.c_str(), dg, false, dc);
 
-  std::cout << M + N << " " << dg.num_vertices() << std::endl;
+  //dg.load(infile, dc);
+  
+  assert(dg->num_vertices() == (unsigned int) M+N);
+
+  std::cout << M + N << " " << dg->num_vertices() << std::endl;
 
   dc.barrier();
   //g.distribute(dc);
 
-  graphlab::distributed_fullsweep_sdm<gl_dtypes::graph> sdm(dc, o.ncpus, dg);
+  graphlab::distributed_fullsweep_sdm<gl_dtypes::graph> sdm(dc, o.ncpus, *dg);
 
   
   if (o.scheduler == "round_robin") {
@@ -1315,10 +1327,9 @@ int start(int argc, char ** argv, distributed_control & dc) {
       graphlab::pushy_distributed_engine<gl_dtypes::graph,
     graphlab::distributed_scheduler_wrapper<gl_dtypes::graph, 
     graphlab::distributed_round_robin_scheduler<gl_dtypes::graph> >,
-    general_scope_factory<gl_dtypes::graph> >(dc, dg, o.ncpus);
+    general_scope_factory<gl_dtypes::graph> >(dc, *dg, o.ncpus);
     // d_engine->set_caching(true);
     //d_engine->set_vertex_scope_pushed_updates(true);
-    dg.set_constant_edges(true);
     d_engine->set_default_scope(scope_range::EDGE_CONSISTENCY);
     // d_engine->set_max_backlog(1000);
     
@@ -1382,12 +1393,12 @@ int start(int argc, char ** argv, distributed_control & dc) {
     um.push_back(i);*/
   
   printf(" === %d: num of vertices: %d ====\n", 
-         myprocid, int(dg.my_vertices().size()));
+         myprocid, int(dg->my_vertices().size()));
   
   // Check max and sum of edges
   size_t sumedges = 0, maxedges = 0;
-  foreach(vertex_id_t v, dg.my_vertices()) {
-    size_t n = dg.in_edge_ids(v).size() + dg.out_edge_ids(v).size();
+  foreach(vertex_id_t v, dg->my_vertices()) {
+    size_t n = dg->in_edge_ids(v).size() + dg->out_edge_ids(v).size();
     sumedges += n;
     maxedges = std::max(n, maxedges);
   }
@@ -1679,6 +1690,188 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
   }
   fclose(f);
 }
+
+//
+// DISTRIBUTED GRAPH LOAD
+//
+
+template<typename edgedata>
+int read_mult_edges_dist(FILE * f, int nodes, graph_dtype * g, bool symmetry = false){
+     
+
+  //typedef typename graph::edge_data_type edge_data;
+  bool * flags = NULL;
+  if (options == BPTF_TENSOR_MULT || options == ALS_TENSOR_MULT){
+    flags = new bool[nodes];
+    memset(flags, 0, sizeof(bool)*nodes);
+  }
+ 
+  unsigned int e;
+  int rc = fread(&e,1,4,f);
+  assert(rc == 4);
+  printf("Creating %d edges...\n", e);
+  assert(e>0);
+  int total = 0;
+  edgedata* ed = new edgedata[200000];
+  int edgecount_in_file = e;
+  while(true){
+    //memset(ed, 0, 200000*sizeof(edata3));
+    rc = (int)fread(ed, sizeof(edgedata), _min(200000, edgecount_in_file - total), f);
+    total += rc;
+
+    for (int i=0; i<rc; i++){
+      multiple_edges edges;
+      edge_data edge;
+      
+      if (g->owner(ed[i].from-1) == myprocid ||g->owner(ed[i].to-1) == myprocid ) {
+          
+          assert(ed[i].weight != 0); // && ed[i].weight <= 5);
+          assert((int)ed[i].from >= 1 && (int)ed[i].from <= nodes);
+          assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
+          assert((int)ed[i].to != (int)ed[i].from);
+          edge.weight = (double)ed[i].weight;
+          edge.time = (double)ed[i].time - 1;
+     
+          std::pair<bool, edge_id_t> ret;
+          if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT){//no support for specific edge returning on different times
+            ret.first = false;
+          }
+          else if (flags[(int)ed[i].from-1] == true && flags[(int)ed[i].to-1] == true){
+            ret = g->find((int)ed[i].from-1, (int)ed[i].to-1);
+          }
+          else ret.first = false;
+    
+          if (ret.first == false){
+            edges.medges.push_back(edge); 
+            g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
+            if (options == BPTF_TENSOR_MULT || options == ALS_TENSOR_MULT){
+              flags[(int)ed[i].from-1] = true;
+              flags[(int)ed[i].to-1] = true;
+            }
+          }
+          else {
+            g->edge_data(ret.second).medges.push_back(edge);
+          }
+      }
+    } 
+    printf(".");
+    fflush(0);
+    if (rc == 0 || total >= edgecount_in_file)
+      break;
+  }
+  assert(total == (int)e);
+  delete [] ed; ed = NULL;
+  if (flags != NULL)
+    delete[] flags;
+  return e;
+}
+
+
+
+
+void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distributed_control& dc) {
+  int myprocid = dc.procid();
+  int numprocs = dc.numprocs();
+  
+  printf("DISTRIBUTED (%d/%d) Loading %s %s\n", myprocid, numprocs, filename, test?"test":"train");
+  FILE * f = fopen(filename, "r");
+  if (test && f == NULL){
+    printf("skipping test data\n");
+    return;
+  }
+
+  assert(f!= NULL);
+
+  fread(&M,1,4,f);//movies
+  fread(&N,1,4,f);//users/
+  fread(&K,1,4,f);//time
+  assert(K>=1);
+  assert(M>=1 && N>=1); 
+
+  vertex_data vdata;
+  gl::ones(vdata.pvec, D, 0.1);
+
+  for (int i=0; i<M; i++){
+    //gl::rand(vdata.pvec, D);%TODO
+    // g->add_vertex(vdata);
+    g->add_vertex(i%numprocs, vdata);
+    if (debug && (i<= 5 || i == M-1))
+      debug_print_vec("U: ", vdata.pvec, D);
+  }
+   
+  for (int i=0; i<N; i++){
+    //gl::rand(vdata.pvec, D);
+    g->add_vertex(i%numprocs, vdata);
+    if (debug && (i<=5 || i==N-1))
+      debug_print_vec("V: ", vdata.pvec, D);
+  }
+  
+  int val = read_mult_edges_dist<edata2>(f, M+N, g);
+  if (!test)
+    L = val;
+  else Le = val;
+
+  if (!test && tensor && K>1) 
+    edges = new std::vector<edge_id_t>[K]();
+
+  // finalize
+  g->finalize();
+
+  bool normalize = false;
+  double normconst = 1;
+  if (!strcmp(filename, "netflow") || !strcmp(filename, "netflowe")){
+    normconst = 138088872;
+    normalize = true;
+  }
+        
+
+  //verify edges
+  for (int i=M; i < M+N; i++){
+    if (g->owner(i) == myprocid) {
+        foreach(graphlab::edge_id_t eid, g->in_edge_ids(i)){          
+          multiple_edges * tedges= &g->edge_data(eid);
+          int from = g->source(eid);
+          int to = g->target(eid);
+          assert(from < M);
+          assert(to >= M && to < M+N);
+    
+          for (int j=0; j< (int)tedges->medges.size(); j++){
+            edge_data * data= &tedges->medges[j];
+            assert(data->weight != 0);  
+            if (normalize)
+              data->weight /= normconst;    
+            //assert(data->weight == 1 || data->weight == 2 || data->weight == 3 || data->weight ==4 || data->weight == 5);
+            assert(data->time < K);
+      
+            if (K > 1 && !test && tensor)
+              edges[(int)data->time].push_back(eid);
+          }
+         }
+    }
+  }
+     
+  if (!test){
+    for (int i=0; i<M+N; i++){
+      if (g->owner(i) == myprocid) {
+      vertex_data &vdata = g->vertex_data(i);
+      if (i < M)
+        vdata.num_edges = count_edges(g->out_edge_ids(i));
+      else
+        vdata.num_edges = count_edges(g->in_edge_ids(i));
+    }
+    }
+  }
+   
+  if (!test && tensor && K>1){
+    int cnt = 0;
+    for (int i=0; i<K; i++){
+      cnt+= edges[i].size();
+    }
+    assert(cnt == L);
+  }
+  fclose(f);
+}
+
 
 
  
