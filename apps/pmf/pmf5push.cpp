@@ -1343,7 +1343,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
   //engine=tengine;
   if(tengine == NULL) {
     std::cout << "Unable to construct engine!" << std::endl;
-    return EXIT_FAILURE;   
+    assert(false);
   }
 
 
