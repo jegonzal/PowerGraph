@@ -990,7 +990,7 @@ void agg_MM(const vertex_data & pdata, mat & QQ, vec & QR){
 int count_edges(graphlab::edge_list es){
   int cnt = 0; 
   for (int j=0; j< (int)es.size(); j++){
-    cnt += g.edge_data(es[j]).medges.size();
+    cnt += dg->edge_data(es[j]).medges.size();
   }
   return cnt;
 }
@@ -1723,7 +1723,6 @@ int read_mult_edges_dist(FILE * f, int nodes, graph_dtype * g, bool symmetry = f
       multiple_edges edges;
       edge_data edge;
       
-      if (g->owner(ed[i].from-1) == myprocid ||g->owner(ed[i].to-1) == myprocid ) {
           
           assert(ed[i].weight != 0); // && ed[i].weight <= 5);
           assert((int)ed[i].from >= 1 && (int)ed[i].from <= nodes);
@@ -1750,9 +1749,11 @@ int read_mult_edges_dist(FILE * f, int nodes, graph_dtype * g, bool symmetry = f
             }
           }
           else {
-            g->edge_data(ret.second).medges.push_back(edge);
+             if (g->owner(ed[i].from-1) == myprocid ||g->owner(ed[i].to-1) == myprocid ) {
+                g->edge_data(ret.second).medges.push_back(edge);
+            }
           }
-      }
+      
     } 
     printf(".");
     fflush(0);
@@ -1794,14 +1795,14 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
   for (int i=0; i<M; i++){
     //gl::rand(vdata.pvec, D);%TODO
     // g->add_vertex(vdata);
-    g->add_vertex(i%numprocs, vdata);
+    g->add_vertex(graphlab::random::rand_int(numprocs-1), vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
   }
    
   for (int i=0; i<N; i++){
     //gl::rand(vdata.pvec, D);
-    g->add_vertex(i%numprocs, vdata);
+    g->add_vertex(graphlab::random::rand_int(numprocs-1), vdata);
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);
   }
@@ -1815,7 +1816,7 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
     edges = new std::vector<edge_id_t>[K]();
 
   // finalize
-  g->finalize();
+  g->finalize_dist(true);
 
   bool normalize = false;
   double normconst = 1;
@@ -1853,22 +1854,25 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
   if (!test){
     for (int i=0; i<M+N; i++){
       if (g->owner(i) == myprocid) {
-      vertex_data &vdata = g->vertex_data(i);
-      if (i < M)
-        vdata.num_edges = count_edges(g->out_edge_ids(i));
-      else
-        vdata.num_edges = count_edges(g->in_edge_ids(i));
-    }
+          vertex_data &vdata = g->vertex_data(i);
+          if (i < M)
+            vdata.num_edges = count_edges(g->out_edge_ids(i));
+          else
+            vdata.num_edges = count_edges(g->in_edge_ids(i));
+           
+           g->update_vertex(i);
+     
+     }
     }
   }
-   
+  /*
   if (!test && tensor && K>1){
     int cnt = 0;
     for (int i=0; i<K; i++){
       cnt+= edges[i].size();
     }
     assert(cnt == L);
-  }
+  } */
   fclose(f);
 }
 

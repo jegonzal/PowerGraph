@@ -169,7 +169,7 @@ namespace graphlab {
 
 
     
-    void finalize_dist() {
+    void finalize_dist(bool donotsort=false) {
       ASSERT_EQ(receive_target, this);
       ASSERT_EQ(dcontrol->procid(), myprocid);
       
@@ -211,9 +211,11 @@ namespace graphlab {
         }
     
       	edge_id_less_functor less_functor(this);
-      	for(size_t i=0; i<mgraph.num_vertices(); i++) {
-          std::sort(g_inedges[i].begin(), g_inedges[i].end(), less_functor);
-          std::sort(g_outedges[i].begin(), g_outedges[i].end(), less_functor);
+      	if (donotsort == false) {
+          	for(size_t i=0; i<mgraph.num_vertices(); i++) {
+              std::sort(g_inedges[i].begin(), g_inedges[i].end(), less_functor);
+              std::sort(g_outedges[i].begin(), g_outedges[i].end(), less_functor);
+      	    }
       	}
       }
       
