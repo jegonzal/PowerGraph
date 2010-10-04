@@ -331,6 +331,9 @@ int main(int argc,  char ** argv) {
   timer t;
   t.start();
   
+  // IMPORTANT: all nodes need to seed random number generator similarly
+  graphlab::random::seed(1);
+  
   coem_distributed_graph distgraph(*dc);
     
   distgraph.set_constant_edges(true);

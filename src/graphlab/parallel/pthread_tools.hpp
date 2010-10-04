@@ -193,7 +193,7 @@ namespace graphlab {
                              static_cast<void*>(args) );
       m_active = true;
       if(error) {
-        std::cout << "Major error in thread_group.launch" << std::endl;
+        std::cout << "Major error in thread_group.launch (pthread_create). Error: " << error << std::endl;
         exit(EXIT_FAILURE);
       }
       // destroy the attribute object
