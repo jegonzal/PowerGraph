@@ -1455,6 +1455,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
 
   // Have to declare this from all procs
   distributed_metrics::instance(&dc)->set_value("residual", 0.0);
+  distributed_metrics::instance(&dc)->set_value("custom_output_1", 0.0);
 
   if (dc.procid() == 0) {
     if (BPTF){
