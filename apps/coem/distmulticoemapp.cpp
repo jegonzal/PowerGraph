@@ -417,7 +417,7 @@ int main(int argc,  char ** argv) {
 
   std::cout << "Going to output results... " << std::endl;
   
-  output_results(distgraph);
+  if (myprocid == 0) output_results(distgraph);
   
   if (clopts.scheduler_type == "round_robin" && task_budget >= 20000000) {
     writeDump(distgraph, true, task_budget, NULL, NULL);
@@ -688,7 +688,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
 
   unsigned int i = 0, randj=0;
   unsigned int prunecount = 0;
-  std::vector<std::string> * nplist = new std::vector<std::string>();
+  std::vector<std::string> nplist;
 
   while(fgets(s, MAXBUF, fcont_to_nps) != NULL) {
     if (strlen(s) >= MAXBUF-2) {
@@ -722,7 +722,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
         // Create vertex
         vertex_data vdata = vertex_data();
         vdata.flags = CTX_MASK;
-        int len = strlen(ctxname.c_str());
+        int len = ctxname.size();
         // rather ugly.....
         memcpy(vdata.text, ctxname.c_str(), 
                (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
@@ -736,13 +736,13 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
 		
     //  Each line contains the NP pairs for one pattern, with
     //  format <pattern>[\t<NP> || <NP> -#- <count>[...]]\n
-    nplist->clear();
+    nplist.clear();
     while ((t = strtok(NULL, delims)) != NULL) {
-      nplist->push_back(std::string(t));
+      nplist.push_back(std::string(t));
     }
  		
     // Parse each np entry on the line
-    foreach(std::string npentry, *nplist) {
+    foreach(std::string npentry, nplist) {
       t2 = strtok((char*) npentry.c_str(), " ");
       if (t2 == NULL) {
         std::cout << "ERROR t2 was null!!! " << std::endl;
@@ -781,7 +781,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
           // Create vertex
           vertex_data vdata = vertex_data();
           vdata.flags = NP_MASK;
-          int len = strlen(npname.c_str());
+          int len = npname.size();
           // rather ugly.....
           memcpy(vdata.text, npname.c_str(), 
                  (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
@@ -812,7 +812,6 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
 		 
     }
   }
-  delete(nplist);
   free(s);
 }
 
