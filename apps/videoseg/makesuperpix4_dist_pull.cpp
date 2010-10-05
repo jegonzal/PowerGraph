@@ -24,12 +24,13 @@
 
 using namespace cimg_library;
 
-const size_t TEMPERATURE = 1;
+double TEMPERATURE = 1;
 
 struct vertexdata{ 
   vertexdata() { }
-  vertexdata(double vweight, uint64_t id) :id(id){}
+  vertexdata(double vweight, uint64_t id) :id(id), counter(0){}
   uint64_t id;
+  uint16_t counter;
 };
 SERIALIZABLE_POD(vertexdata);
 
@@ -165,7 +166,8 @@ void construct_graph(gl_types::graph& g) {
       }
     }
   }
-  
+  std::cout << "I have " << g.my_vertices().size() << " vertices." << std::endl;
+
   std::cout << g.num_vertices() << " vertices added " << std::endl;
   std::cout << "Convolving" << std::endl;
   everything.blur_bilateral(5,5,5,5,8,8,8,8);
@@ -208,13 +210,13 @@ void construct_graph(gl_types::graph& g) {
             for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
               for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
                 if (i==ii && j==jj && k==kk) continue;
-                else {
+                else if (tovertexid(i,j,k) > tovertexid(ii,jj,kk)){
                   float d = 0;
                   //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
                   if (i != ii) d += 3;
                   if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
                   if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
-                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), 2 * sqrt(d));
                 }
               }
             }
@@ -231,13 +233,14 @@ void construct_graph(gl_types::graph& g) {
           for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
             for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
               for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
-                if ((i==ii) + (j==jj) + (k==kk) == 2) {
+                if ((i==ii) + (j==jj) + (k==kk) == 2 &&
+                     tovertexid(i,j,k) > tovertexid(ii,jj,kk)) {
                   float d = 0;
                   //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
                   if (i != ii) d += 3;
                   if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
                   if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
-                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), 2 * sqrt(d));
                 }
               }
             }
@@ -255,11 +258,12 @@ void cluster_update(gl_types::iscope& scope,
                     gl_types::ishared_data* shared_data) {
   
   vertexdata &curvertexdata = scope.vertex_data();
+  if (curvertexdata.counter >= countermax) return;
   uint64_t oldid = curvertexdata.id;
     // Get the in and out edges by reference
   graphlab::edge_list in_edges = scope.in_edge_ids();
   graphlab::edge_list out_edges = scope.out_edge_ids();
-  double temperature = shared_data->get(TEMPERATURE).as<double>();
+  double temperature = TEMPERATURE;
   // grab 
   std::map<uint64_t, double> assignmentpreferences;
   
@@ -341,6 +345,19 @@ void cluster_update(gl_types::iscope& scope,
     ++i;
   }
 
+  curvertexdata.counter++;
+  if (curvertexdata.id != oldid) {
+    foreach(graphlab::edge_id_t eid, out_edges) {
+      if (scope.const_neighbor_vertex_data(scope.target(eid)).counter < countermax) {
+         scheduler.add_task(gl_types::update_task(scope.target(eid), cluster_update), 10.0); 
+      }
+    }
+    foreach(graphlab::edge_id_t eid, in_edges) {
+      if (scope.const_neighbor_vertex_data(scope.source(eid)).counter < countermax) {
+         scheduler.add_task(gl_types::update_task(scope.source(eid), cluster_update), 10.0); 
+      }
+    }
+  }
 }
 
 
@@ -402,10 +419,9 @@ size_t renumber_graph(gl_types::graph &graph) {
   }
   std::set<graphlab::vertex_id_t> partids;
   for (size_t v = 0; v < graph.num_vertices(); ++v) {
-    if (graph.vertex_data(v).id != uf_find(unionfind, v)) {
-      graph.vertex_data(v).id = uf_find(unionfind, v);
-      graph.broadcast_vertex_data(v);
-    }
+    graph.vertex_data(v).id = uf_find(unionfind, v);
+    graph.vertex_data(v).counter = 0;
+    graph.broadcast_vertex_data(v);
     partids.insert(graph.vertex_data(v).id);
   }
   return partids.size();
@@ -413,7 +429,8 @@ size_t renumber_graph(gl_types::graph &graph) {
 
 int main(int argc, char** argv) {
   // create graph
-
+  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_to_console(true);
   graphlab::distributed_control dc(&argc, &argv);
   dc.init_message_processing(4);
   dc.barrier();
@@ -440,31 +457,27 @@ int main(int argc, char** argv) {
   {
     graphlab::distributed_engine<gl_types::graph,
     graphlab::distributed_scheduler_wrapper<gl_types::graph, 
-    graphlab::distributed_round_robin_scheduler<gl_types::graph> > > *tengine = new graphlab::distributed_engine<gl_types::graph,
+    graphlab::multiqueue_fifo_scheduler<gl_types::graph> > > *tengine = new graphlab::distributed_engine<gl_types::graph,
     graphlab::distributed_scheduler_wrapper<gl_types::graph, 
-    graphlab::distributed_round_robin_scheduler<gl_types::graph> > >(dc, graph, opts.ncpus);
+    graphlab::multiqueue_fifo_scheduler<gl_types::graph> > >(dc, graph, opts.ncpus);
     tengine->set_caching(true);
     tengine->set_constant_edges(true);
-    tengine->set_vertex_scope_pushed_updates(true);
+    //tengine->set_use_adjacent_vertices(true);
+    tengine->set_max_backlog(1000); 
     engine=tengine;
-    engine->set_default_scope(graphlab::scope_range::NULL_CONSISTENCY);
-    
+    engine->set_default_scope(graphlab::scope_range::EDGE_CONSISTENCY);
   }
 
-  std::cout << graph.num_local_edges() << " Edges local" << std::endl;
+  
   dc.barrier();
   assert(engine != NULL);
   // set the shared data object
-  graphlab::vertex_id_t nv = 0;
+  graphlab::vertex_id_t nv = graph.num_vertices() - 1;
   engine->set_shared_data_manager(&shared_data);
-  engine->get_scheduler().add_task_to_all(cluster_update, 1.0);
-  engine->get_scheduler().set_option(graphlab::scheduler_options::MAX_ITERATIONS, (void*)countermax);
-  engine->get_scheduler().set_option(graphlab::scheduler_options::DISTRIBUTED_CONTROL, (void*)&dc);
-  engine->get_scheduler().set_option(graphlab::scheduler_options::BARRIER, &nv);  
+  
 
-  if (dc.procid() == 0) {
-    shared_data.atomic_set(TEMPERATURE, double(1.0));
-  }
+  
+  TEMPERATURE = 1.0;
   
   
   dc.barrier();
@@ -473,17 +486,25 @@ int main(int argc, char** argv) {
   ti.start();
   size_t numparts = graph.num_vertices();
   dc.barrier();
+
+  std::vector<graphlab::vertex_id_t> taskpermute;
+
+  if (dc.procid() == 0) {
+    for (graphlab::vertex_id_t i = 0; i < graph.num_vertices(); ++i) {
+      taskpermute.push_back(i);
+    }
+    std::random_shuffle(taskpermute.begin(), taskpermute.end());
+  } 
   for (size_t i  =0;i < iterations; ++i) {
     if (dc.procid() == 0) {
       std::cout << "Renumbering..." << std::endl;
       if (i > 0) numparts = renumber_graph(graph);
-      double temp = double(tempnum / std::pow(tempbase,i));
-      //newidprior = newidprior * 2;
-      shared_data.atomic_set(TEMPERATURE, temp);
-            
-      std::cout << "Starting to Anneal at temperature: " << temp << "\n";
+      engine->get_scheduler().add_tasks(taskpermute,cluster_update, 1.0);
       std::cout << "Currently has " << numparts << " partitions" << std::endl;
     }
+    TEMPERATURE = double(tempnum / std::pow(tempbase,i));
+
+    std::cout << "Starting to Anneal at temperature: " << TEMPERATURE << "\n";
     dc.barrier();
     engine->start();
     dc.barrier();
