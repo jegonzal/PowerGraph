@@ -67,6 +67,7 @@ class distributed_metrics {
  int received_payloads;
  
  void execute_bandwith_test() {
+    if (dc->numprocs() < 2) return;
     int * payload = (int *) malloc(sizeof(char) * BANDWIDTH_TEST_SIZE);
     // Fill with random data to avoid any compression (I think there isnt, but just in case)
     for(unsigned int i=0; i<BANDWIDTH_TEST_SIZE/sizeof(int); i++) {
@@ -82,6 +83,7 @@ class distributed_metrics {
         }
     }
     free(payload);
+    
     // Wait for the test to finish
     condlock.lock();
     cond.wait(condlock);
