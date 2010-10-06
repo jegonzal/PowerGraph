@@ -97,67 +97,81 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
   return iter->second;
 }
 
-size_t compute_tree_width(const std::map<vertex_id_t, vertex_set>& var2factors,
-                          const std::map<vertex_id_t, vertex_set>& factor2var,
-                          const vertex_set& in_tree) {
-  size_t tree_width = 0;
+typedef std::map<vertex_id_t, vertex_set> vset_map;
 
+
+size_t compute_tree_width(const vset_map& var2factors_const,
+                          const vset_map& factor2vars_const) {
+
+  // Make local copies of the maps
+  vset_map var2factors(var2factors_const);
+  vset_map factor2vars(factor2vars_const);
+
+  // track the treewidth
+  size_t tree_width = 0;
 
   // Construct an elimination ordering:
   graphlab::mutable_queue<vertex_id_t, float> elim_order;
-  typedef std::pair<vertex_id_t, vertex_set> pair_type
-  foreach(const pair_type& pair, var2factors) {
+  typedef vset_map::value_type vset_map_pair;
+  foreach(const vset_map_pair& pair, var2factors) {
     vertex_id_t var = pair.first;
     const vertex_set& factors = pair.second;
     size_t fill_edges = 1;
     foreach(vertex_id_t vid, factors) 
-      fill_edges *= safe_finde(factor2var, vid).size();
+      fill_edges *= factor2vars[vid].size();
     elim_order.push(var, -fill_edges);
   }
   
+  // keep track of the next unique factor id value (used to created
+  // temporary factors along the way).
+  size_t next_new_factor_id = factor2vars.rbegin()->first + 1;
+
+
   // Run the elimination;
   while(!elim_order.empty()) {
-    const std::pair<vertex_id_t, size_t> top = elim_order.pop();
+    const std::pair<vertex_id_t, float> top = elim_order.pop();
     const vertex_id_t elim_vertex = top.first;
-    const vertex_set& clique_verts = neighbors[elim_vertex];
+    const vertex_set& factorset = safe_find(var2factors, elim_vertex);
+    
 
-    tree_width = std::max(tree_width, clique_verts.size());
-    // if all the vars in the domain exceed the max factor graph
-    // repesentation then we fail.
-    if(tree_width > MAX_DIM) {
-      //      std::cout << "Clique too large!! ";
-      // foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
-      // std::cout << std::endl;
-      return -1;
-    }
+    const vertex_set* affected_vertices = NULL;
 
-    // If this clique contains all the remaining variables then we can
-    // do all the remaining elimination
-    bool finished_elimination = clique_verts.size() > elim_order.size();
-    if(finished_elimination ) {  elim_order.clear();  }
+    // If the variable is only involved in one factor then we just
+    // eliminate it from the factor
+    if(factorset.size() == 1) {
+      vertex_id_t fid = *factorset.begin();
+      factor2vars[fid].erase(elim_vertex);
+      affected_vertices = &factor2vars[fid];
+    } else {
+      size_t new_factor_id = next_new_factor_id++;
+      vertex_set& new_factor_vset = factor2vars[new_factor_id];
+      // Merge all the factors and create a new factor
+      foreach(vertex_id_t fid, factorset) {
+        // Add all the variables to the new factor
+        const vertex_set& other_factor_vset = factor2vars[fid];
+        new_factor_vset.insert(other_factor_vset.begin(),
+                               other_factor_vset.end());
+        // Check that the treewidth hasn't gotten too large
+        tree_width = std::max(tree_width, new_factor_vset.size());
+        if(tree_width > MAX_DIM) return tree_width;
 
-
-    // std::cout << "( ";
-    // foreach(size_t fid, clique.factor_ids) std::cout << fid << " ";
-    // std::cout << ")";
-    //    std::cout << std::endl;
-
-    // If we still have variables to eliminate
-    if(!elim_order.empty()) {
-      foreach(const vertex_id_t n_vertex, clique_verts) {
-        if(n_vertex != elim_vertex) {
-          vertex_set& neighbor_set = neighbors[n_vertex];
-          // connect neighbors
-          neighbor_set.insert(clique_verts.begin(), clique_verts.end());
-          // disconnect the variable
-          neighbor_set.erase(elim_vertex);
-          size_t clique_size = neighbor_set.size();
-          // if(clique_size > MAX_DIM) return -1;
-          // Update the fill count
-          elim_order.update(n_vertex, in_tree.size() - clique_size);
+        // Disconnect the old factor and reconnect the new factor
+        foreach(vertex_id_t vid, other_factor_vset) {
+          var2factors[vid].erase(fid);
+          var2factors[vid].insert(new_factor_id);
         }
       }
-    } // if the elim order is not empty
+      affected_vertices = &new_factor_vset;
+    }
+
+    // Update the fill order
+    foreach(vertex_id_t v, *affected_vertices) {
+      size_t fill_edges = 1;
+      const vertex_set& factors = var2factors[v];
+      foreach(vertex_id_t fid, factors)
+        fill_edges *= factor2vars[fid].size();
+    }
+
   }
   return tree_width;
 
