@@ -314,6 +314,7 @@ namespace gl{
 		return ret;
 	}
 
+      
 
 	 void reset(sdouble* x, int start, int end) {
 		for (int i=start; i< end; i++)
