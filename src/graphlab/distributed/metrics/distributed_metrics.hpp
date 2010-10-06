@@ -55,7 +55,7 @@ class distributed_metrics {
     
  std::string bandwidth_key(int from, int to) {
     std::ostringstream os;
-    os << "bandwidth_" << from << "_" << to;
+    os << "bandwidth_" << from;
     std::string buffer(os.str());
     return buffer;
  }
