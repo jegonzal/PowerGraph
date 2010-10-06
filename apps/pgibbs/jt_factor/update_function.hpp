@@ -23,7 +23,7 @@ namespace junction_tree{
     typedef factorized_model::factor_map_t factor_map_t;
     
     // get the vertex data
-    vertex_data vdata = scope.vertex_data();
+    vertex_data& vdata = scope.vertex_data();
         
 
     // If the factor args have not been set then we need to initialize
@@ -96,6 +96,7 @@ namespace junction_tree{
         // Marginalize all variables not in outbound message
         out_edata.message.set_args(out_edata.variables);
         out_edata.message.marginalize(belief_factor);
+        out_edata.message.normalize();
         out_edata.calibrated = true;
         callback.add_task(target, calibrate_update, 1.0);
       } // if still ready
