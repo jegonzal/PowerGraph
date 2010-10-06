@@ -86,7 +86,82 @@ size_t compute_tree_width(const mrf::graph_type& mrf,
   }
   return tree_width;
 
-} // end of build junction tree
+} // end of compute_tree_width
+
+
+template<typename A, typename B>
+const B& safe_find(const std::map<A, B>& const_map, const A& key) {
+  typedef typename std::map<A, B>::const_iterator const_iterator;
+  const_iterator iter = const_map.find(key);
+  assert(iter != const_map.end());
+  return iter->second;
+}
+
+size_t compute_tree_width(const std::map<vertex_id_t, vertex_set>& var2factors,
+                          const std::map<vertex_id_t, vertex_set>& factor2var,
+                          const vertex_set& in_tree) {
+  size_t tree_width = 0;
+
+
+  // Construct an elimination ordering:
+  graphlab::mutable_queue<vertex_id_t, float> elim_order;
+  typedef std::pair<vertex_id_t, vertex_set> pair_type
+  foreach(const pair_type& pair, var2factors) {
+    vertex_id_t var = pair.first;
+    const vertex_set& factors = pair.second;
+    size_t fill_edges = 1;
+    foreach(vertex_id_t vid, factors) 
+      fill_edges *= safe_finde(factor2var, vid).size();
+    elim_order.push(var, -fill_edges);
+  }
+  
+  // Run the elimination;
+  while(!elim_order.empty()) {
+    const std::pair<vertex_id_t, size_t> top = elim_order.pop();
+    const vertex_id_t elim_vertex = top.first;
+    const vertex_set& clique_verts = neighbors[elim_vertex];
+
+    tree_width = std::max(tree_width, clique_verts.size());
+    // if all the vars in the domain exceed the max factor graph
+    // repesentation then we fail.
+    if(tree_width > MAX_DIM) {
+      //      std::cout << "Clique too large!! ";
+      // foreach(vertex_id_t vid, clique_verts) std::cout << vid << " ";
+      // std::cout << std::endl;
+      return -1;
+    }
+
+    // If this clique contains all the remaining variables then we can
+    // do all the remaining elimination
+    bool finished_elimination = clique_verts.size() > elim_order.size();
+    if(finished_elimination ) {  elim_order.clear();  }
+
+
+    // std::cout << "( ";
+    // foreach(size_t fid, clique.factor_ids) std::cout << fid << " ";
+    // std::cout << ")";
+    //    std::cout << std::endl;
+
+    // If we still have variables to eliminate
+    if(!elim_order.empty()) {
+      foreach(const vertex_id_t n_vertex, clique_verts) {
+        if(n_vertex != elim_vertex) {
+          vertex_set& neighbor_set = neighbors[n_vertex];
+          // connect neighbors
+          neighbor_set.insert(clique_verts.begin(), clique_verts.end());
+          // disconnect the variable
+          neighbor_set.erase(elim_vertex);
+          size_t clique_size = neighbor_set.size();
+          // if(clique_size > MAX_DIM) return -1;
+          // Update the fill count
+          elim_order.update(n_vertex, in_tree.size() - clique_size);
+        }
+      }
+    } // if the elim order is not empty
+  }
+  return tree_width;
+
+} // end of compute treewidth2
 
 
 
