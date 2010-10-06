@@ -330,6 +330,10 @@ namespace graphlab {
       //! Finalize the graph (this could take a while so you should do
       //! it before calling start for timing purposes)
       _distgraph.finalize();
+      
+      
+      // First do a bandwith test. TODO: remove
+      distributed_metrics::instance(&dc)->execute_bandwith_test();
 
       // Ensure that the data manager has the correct scope_factory
       /*TODO when sync is ready:

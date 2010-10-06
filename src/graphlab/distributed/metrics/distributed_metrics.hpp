@@ -10,11 +10,13 @@
 #include <cassert>
 #include <vector>
 #include <climits>
+#include <map>
 
 
 #include <graphlab/logger/logger.hpp> 
 #include <graphlab/parallel/pthread_tools.hpp> 
 #include <graphlab/distributed/distributed_control.hpp> 
+#include <graphlab/util/timer.hpp> 
 
 
 #include <graphlab/macros_def.hpp>
@@ -34,14 +36,82 @@ class distributed_metrics {
  
  public:
   
-
- 
  static distributed_metrics * instance(distributed_control * dc);
  
- // Remote call
+ // Remote calls
  static void remote_set_value(distributed_control& _dc, size_t source, void *ptr, size_t len,
         std::string key, double value);
         
+ static void remote_start_bandwidth_test(distributed_control& _dc, size_t source, void *ptr, size_t len);
+ 
+ static void receive_bandwidth_test_payload(distributed_control& _dc, size_t source, void *ptr, size_t len);
+ 
+ //// BANDWITH TEST
+ 
+ /**
+    * Starts a bandwidth test which sends 10 megabyte chunk to all
+    * other nodes. Each node computes the time it took to send the data.
+    */
+    
+ std::string bandwidth_key(int from, int to) {
+    std::ostringstream os;
+    os << "bandwidth_" << from << "_" << to;
+    std::string buffer(os.str());
+    return buffer;
+ }
+    
+ #define BANDWIDTH_TEST_SIZE (1024*1024*10)
+ 
+ mutex condlock;
+ conditional cond;
+ int received_payloads;
+ 
+ void execute_bandwith_test() {
+    int * payload = (int *) malloc(sizeof(char) * BANDWIDTH_TEST_SIZE);
+    // Fill with random data to avoid any compression (I think there isnt, but just in case)
+    for(unsigned int i=0; i<BANDWIDTH_TEST_SIZE/sizeof(int); i++) {
+        payload[i] = (i*17 + i); // Silly
+    }
+    received_payloads=0;
+    for(int i=0; i<dc->numprocs(); i++) {
+        if (i != dc->procid()) {
+            dc->remote_callxs(i, distributed_metrics::remote_start_bandwidth_test, NULL, 0);
+            dc->remote_callxs(i, distributed_metrics::receive_bandwidth_test_payload, payload, BANDWIDTH_TEST_SIZE);
+        } else {
+            set_value(bandwidth_key(dc->procid(), dc->procid()), 0.0);
+        }
+    }
+    free(payload);
+    // Wait for the test to finish
+    condlock.lock();
+    cond.wait(condlock);
+    condlock.unlock();
+ }
+ 
+ std::map<size_t, timer> start_times;
+ 
+ void start_bandwidth_test(size_t from_proc) {
+    start_times[from_proc] = timer();
+    start_times[from_proc].start();
+    std::cout << "Start bandwidth test from " << from_proc << " to " << dc->procid() << std::endl;
+ }
+ 
+ void end_bandwith_test(size_t from_proc, size_t len) {
+    double time = start_times[from_proc].current_time();
+    double bandwidth = (double(len)/1024.0/1024.0)/time;
+    set_value(bandwidth_key(from_proc, dc->procid()), bandwidth);
+    condlock.lock();
+    received_payloads++;
+    std::cout << "Finished " << received_payloads << ". bandwidth test from " << from_proc << " to " << dc->procid() << ": " << bandwidth << " MB/sec" << std::endl; 
+    if (received_payloads == dc->numprocs()-1) {
+        cond.broadcast();
+    }
+    condlock.unlock();
+ }
+ 
+ ///  METRICS
+
+ 
  void set_value(std::string key, double value) {
     set_value(dc->procid(), key, value);
  }
