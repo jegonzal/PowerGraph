@@ -49,7 +49,7 @@ class distributed_metrics {
  //// BANDWITH TEST
  
  /**
-    * Starts a bandwidth test which sends 10 megabyte chunk to all
+    * Starts a bandwidth test which sends 30 megabyte chunk to all
     * other nodes. Each node computes the time it took to send the data.
     */
     
@@ -60,7 +60,7 @@ class distributed_metrics {
     return buffer;
  }
     
- #define BANDWIDTH_TEST_SIZE (1024*1024*10)
+ #define BANDWIDTH_TEST_SIZE (1024*1024*30)
  
  mutex condlock;
  conditional cond;
