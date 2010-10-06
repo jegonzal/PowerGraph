@@ -59,7 +59,9 @@ int main(int argc,  char ** argv) {
   timer t;
   t.start();
   
-  FILE * f = fopen("stats_bandwidth_test.csv", "w");
+  char fname[255];
+  sprintf(fname, "stats_bandwidth_test_%d.csv", numofprocs);
+  FILE * f = fopen(fname, "w");
   
   
   while(t.current_time() < duration_mins*60) {
