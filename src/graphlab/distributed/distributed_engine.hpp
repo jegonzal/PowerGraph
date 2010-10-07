@@ -404,6 +404,10 @@ namespace graphlab {
 
     /** Execute the preloaded tasks on the graph */
     void start() {
+    
+      // First do a bandwith test. TODO: remove
+      distributed_metrics::instance(&dc)->execute_bandwith_test();
+    
       //! Finalize the graph (this could take a while so you should do
       //! it before calling start for timing purposes)
       termination_cause = EXEC_TASK_DEPLETION;

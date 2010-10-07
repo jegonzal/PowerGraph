@@ -131,13 +131,13 @@ std::vector<vertex_data> * XSTAR;
 
 // Forward declarations
 void loadCategories();
-std::map<std::string, vertex_id_t>  loadVertices(coem_distributed_graph& distgraph, short typemask, FILE * f);
+boost::unordered_map<std::string, vertex_id_t>  loadVertices(coem_distributed_graph& distgraph, short typemask, FILE * f);
 void prepare(coem_distributed_graph& distgraph, graphlab::distributed_shared_data<gl_types::graph>& sdm);
 void load(coem_distributed_graph& distgraph);
 void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps, 
-                             std::map<std::string, vertex_id_t>& nps_map,
-                             std::map<std::string, vertex_id_t>& ctx_map);
-void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id_t>& nps_map);
+                             boost::unordered_map<std::string, vertex_id_t>& nps_map,
+                             boost::unordered_map<std::string, vertex_id_t>& ctx_map);
+void setseeds(coem_distributed_graph& distgraph, boost::unordered_map<std::string, vertex_id_t>& nps_map);
 void loadAndCreateDistGraph(coem_distributed_graph& distgraph);
 void output_results(coem_distributed_graph& distgraph);
 void writeDump(coem_distributed_graph& g, 
@@ -417,7 +417,7 @@ int main(int argc,  char ** argv) {
 
   std::cout << "Going to output results... " << std::endl;
   
-  output_results(distgraph);
+  if (myprocid == 0) output_results(distgraph);
   
   if (clopts.scheduler_type == "round_robin" && task_budget >= 20000000) {
     writeDump(distgraph, true, task_budget, NULL, NULL);
@@ -577,10 +577,10 @@ void FIXLINE(char * s) {
 }
 
 
-std::map<std::string, vertex_id_t>  loadVertices(coem_distributed_graph& distgraph, short typemask, FILE * f) {
+boost::unordered_map<std::string, vertex_id_t>  loadVertices(coem_distributed_graph& distgraph, short typemask, FILE * f) {
   /* Allocation size depends on number of categories */
   int vsize = sizeof(vertex_data) + categories.size()*sizeof(float);
-  map<std::string, vertex_id_t> map;
+  boost::unordered_map<std::string, vertex_id_t> map;
   char s[255];
   char delims[] = "\t";	
   char *t = NULL;
@@ -628,7 +628,7 @@ void loadCategories() {
   closedir(dp);
 }
 
-void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id_t>& nps_map) {
+void setseeds(coem_distributed_graph& distgraph, boost::unordered_map<std::string, vertex_id_t>& nps_map) {
   short catid = 0;
   size_t num_of_seeds=0;
   foreach(std::string cat, categories) {
@@ -640,7 +640,7 @@ void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id
     while(fgets(cs, 255, seedf) != NULL) {
       FIXLINE(cs);
       std::string s(cs);
-      map<string,vertex_id_t>::iterator iter = nps_map.find(s);
+      boost::unordered_map<string,vertex_id_t>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
         continue;
       }
@@ -657,7 +657,7 @@ void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id
     while(fgets(cs, 255, negseedf) != NULL) {
       FIXLINE(cs);
       std::string s(cs);
-      map<string,vertex_id_t>::iterator iter = nps_map.find(s);
+      boost::unordered_map<string,vertex_id_t>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
         //std::cout << "Seed not found: [" << s << "]" << std::endl;
         continue;
@@ -672,8 +672,8 @@ void setseeds(coem_distributed_graph& distgraph, std::map<std::string, vertex_id
 }
 
 void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps, 
-                             std::map<std::string, vertex_id_t>& nps_map,
-                             std::map<std::string, vertex_id_t>& ctx_map) {
+                             boost::unordered_map<std::string, vertex_id_t>& nps_map,
+                             boost::unordered_map<std::string, vertex_id_t>& ctx_map) {
   size_t MAXBUF = 5*1000000;
   char  * s = (char*) malloc(MAXBUF); 	// 10 meg buffer :)
   char delims[] = "\t";	
@@ -688,7 +688,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
 
   unsigned int i = 0, randj=0;
   unsigned int prunecount = 0;
-  std::vector<std::string> * nplist = new std::vector<std::string>();
+  std::vector<std::string> nplist;
 
   while(fgets(s, MAXBUF, fcont_to_nps) != NULL) {
     if (strlen(s) >= MAXBUF-2) {
@@ -713,7 +713,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
       continue;
     }
     std::string ctxname(t);
-    map<string,vertex_id_t>::iterator iter = ctx_map.find(ctxname);
+    boost::unordered_map<string,vertex_id_t>::iterator iter = ctx_map.find(ctxname);
     if (iter == ctx_map.end()) {
       if (subsamplingRatio < 1.0) {
         // Not found (subsampling in effect)
@@ -722,7 +722,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
         // Create vertex
         vertex_data vdata = vertex_data();
         vdata.flags = CTX_MASK;
-        int len = strlen(ctxname.c_str());
+        int len = ctxname.size();
         // rather ugly.....
         memcpy(vdata.text, ctxname.c_str(), 
                (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
@@ -736,13 +736,13 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
 		
     //  Each line contains the NP pairs for one pattern, with
     //  format <pattern>[\t<NP> || <NP> -#- <count>[...]]\n
-    nplist->clear();
+    nplist.clear();
     while ((t = strtok(NULL, delims)) != NULL) {
-      nplist->push_back(std::string(t));
+      nplist.push_back(std::string(t));
     }
  		
     // Parse each np entry on the line
-    foreach(std::string npentry, *nplist) {
+    foreach(std::string npentry, nplist) {
       t2 = strtok((char*) npentry.c_str(), " ");
       if (t2 == NULL) {
         std::cout << "ERROR t2 was null!!! " << std::endl;
@@ -772,7 +772,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
       }
 	
  		
-      map<string,vertex_id_t>::iterator iter = nps_map.find(npname);
+      boost::unordered_map<string,vertex_id_t>::iterator iter = nps_map.find(npname);
 		    
       if (iter == nps_map.end()) {
         if (subsamplingRatio < 1.0) {
@@ -781,7 +781,7 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
           // Create vertex
           vertex_data vdata = vertex_data();
           vdata.flags = NP_MASK;
-          int len = strlen(npname.c_str());
+          int len = npname.size();
           // rather ugly.....
           memcpy(vdata.text, npname.c_str(), 
                  (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
@@ -812,7 +812,6 @@ void loadEdges(coem_distributed_graph& distgraph, FILE * fcont_to_nps,
 		 
     }
   }
-  delete(nplist);
   free(s);
 }
 
@@ -826,9 +825,9 @@ void loadAndCreateDistGraph(coem_distributed_graph& distgraph) {
   assert(fmatrix != NULL);
     	
   /* Load NPS */
-  std::map<std::string, vertex_id_t> nps_map = loadVertices(distgraph, NP_MASK, fnps);
+  boost::unordered_map<std::string, vertex_id_t> nps_map = loadVertices(distgraph, NP_MASK, fnps);
   /* Load CONTEXTS */
-  std::map<std::string, vertex_id_t> ctx_map = loadVertices(distgraph, CTX_MASK, fctx);
+  boost::unordered_map<std::string, vertex_id_t> ctx_map = loadVertices(distgraph, CTX_MASK, fctx);
 
   std::cout << "NPS map " << nps_map.size() << " entries" << std::endl;
   std::cout << "CTX map " << ctx_map.size() << " entries" << std::endl;

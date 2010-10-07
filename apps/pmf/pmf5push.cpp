@@ -1455,6 +1455,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
 
   // Have to declare this from all procs
   distributed_metrics::instance(&dc)->set_value("residual", 0.0);
+  distributed_metrics::instance(&dc)->set_value("custom_output_1", 0.0);
 
   if (dc.procid() == 0) {
     if (BPTF){
@@ -1486,7 +1487,10 @@ void start(int argc, char ** argv, distributed_control & dc) {
   if (dc.procid() == 0){
     double runtime = gt.current_time();
     double res2;
-    printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  calc_rmse(&g1, true, res2, sdm));
+    double test_rmse = calc_rmse(&g1, true, res2, sdm);
+    printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  test_rmse);
+    distributed_metrics::instance(&dc)->set_value("custom_output_1", test_rmse);
+
     /*
       printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  calc_rmse(&g1, true, res2, sdm));
       sdm.sync(RMSE);
