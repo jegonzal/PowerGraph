@@ -1,0 +1,6 @@
+The GraphLab build scripts automatically include all folders in this
+directory that do not begin with '.' or '_'.  If you would like to add
+your own app simply create a sub-directory and add your own
+CMakeLists.txt.
+
+
