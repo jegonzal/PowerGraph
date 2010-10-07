@@ -11,6 +11,7 @@
 #include <vector>
 #include <climits>
 #include <map>
+#include <algorithm>
 
 
 #include <graphlab/logger/logger.hpp> 
@@ -74,7 +75,14 @@ class distributed_metrics {
         payload[i] = (i*17 + i); // Silly
     }
     received_payloads=0;
+    
+    std::vector<size_t> receiverlist;
     for(int i=0; i<dc->numprocs(); i++) {
+        receiverlist.push_back(i);
+    }
+    std::random_shuffle(receiverlist.begin(), receiverlist.end());
+    for(int j=0; j<dc->numprocs(); j++) {
+        size_t i = receiverlist[j];
         if (i != dc->procid()) {
             dc->remote_callxs(i, distributed_metrics::remote_start_bandwidth_test, NULL, 0);
             dc->remote_callxs(i, distributed_metrics::receive_bandwidth_test_payload, payload, BANDWIDTH_TEST_SIZE);
