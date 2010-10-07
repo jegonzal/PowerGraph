@@ -488,8 +488,9 @@ namespace junction_tree {
     domain_t variables;
     std::set<size_t> factor_ids;
     factor_t factor;
-    bool calibrated;
-    vertex_data() : calibrated(false) { }
+    assignment_t asg;
+    bool sampled;
+    vertex_data() : sampled(false) { }
   }; // End of vertex data
 
 
@@ -497,6 +498,8 @@ namespace junction_tree {
     // variable_set variables;
     domain_t variables;
     factor_t message;
+    bool calibrated;
+    edge_data() : calibrated(false) { }
   }; // End of edge data
 
 

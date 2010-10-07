@@ -9,6 +9,7 @@
 #include <graphlab.hpp>
 
 
+#include "image.hpp"
 #include "data_structures.hpp"
 #include "sequential_jt_gibbs.hpp"
 
@@ -57,8 +58,27 @@ int main(int argc, char** argv) {
 
   std::cout << "Sample one block" << std::endl;
   junction_tree::graph_type jt;
-  sample_once(factor_graph, mrf_graph, 0);
+
+
+  //build_junction_tree(mrf_graph, 0, jt);
   
+  for(size_t i = 0; i < 10; ++i) {
+    size_t j = rand() % mrf_graph.num_vertices();
+    sample_once(factor_graph, mrf_graph, j);
+
+  size_t rows = sqrt(mrf_graph.num_vertices());
+  image img(rows,rows);
+
+  for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
+    img.pixel(i) = mrf_graph.vertex_data(i).asg.asg_at(0);
+  }
+
+  img.save("result.pgm");
+  }
+
+  
+  
+
   
 
 

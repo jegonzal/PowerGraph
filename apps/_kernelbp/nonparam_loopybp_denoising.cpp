@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
                 
   // Create the engine -------------------------------------------------------->
   gl_types::iengine* engine =
-    graphlab::engine_factory::new_engine("threaded",
+    graphlab::engine_factory::new_engine("async",
                                          "fifo",
                                          "edge",
                                          graph,
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
   engine->start();
 
   double runtime = timer.current_time();
-  size_t update_count = engine->get_profiling_info("update_count");
+  size_t update_count = engine->last_update_count();
   std::cout << "Finished Running engine in " << runtime 
             << " seconds." << std::endl
             << "Total updates: " << update_count << std::endl
@@ -170,9 +170,9 @@ void bp_update(gl_types::iscope& scope,
   v_data.belief = tmp_ftest_pL * fobs2.get_col(vid); 
   
   // Get the in and out edges by reference
-  const std::vector<graphlab::edge_id_t>& in_edges = 
+  const gl_types::edge_list in_edges = 
     scope.in_edge_ids();
-  const std::vector<graphlab::edge_id_t>& out_edges = 
+  const gl_types::edge_list out_edges = 
     scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
