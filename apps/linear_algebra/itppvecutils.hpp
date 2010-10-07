@@ -34,46 +34,52 @@ END_OUT_OF_PLACE_LOAD()
 
 
 
- double * vec2vec(const vec * _vec){
-	double * ret = new double[_vec->size()];
+ sdouble * vec2vec(const vec * _vec){
+	sdouble * ret = new sdouble[_vec->size()];
         for (int i=0; i< _vec->size(); i++)
             ret[i] = _vec->get(i);
         return ret;
 }
-itpp::vec * vec2vec(const double * _vec, int len){
-	itpp::vec * ret = new vec(len);
+vec * vec2vec(const sdouble * _vec, int len){
+	vec * ret = new vec(len);
         //for (int i=0; i< len; i++)
         //    ret->set(i, _vec[i]);
-        memcpy(ret->_data(), _vec, len*sizeof(double));
+        memcpy(ret->_data(), _vec, len*sizeof(sdouble));
         return ret;
 }
-void vec2vec(double * _vec, const itpp::vec & _vec2, int len){
+void vec2vec(sdouble * _vec, const vec & _vec2, int len){
         //for (int i=0; i< len; i++)
         //    _vec[i] = _vec2[i];
-        memcpy(_vec, _vec2._data(), len*sizeof(double));
+        memcpy(_vec, _vec2._data(), len*sizeof(sdouble));
 }
-void vec2vec2(const double * _vec, itpp::vec & _vec2, int len){
+void vec2vec2(const sdouble * _vec, vec & _vec2, int len){
       _vec2 = vec(len);  
       //for (int i=0; i< len; i++)
       //      _vec2[i] = _vec[i];
-      memcpy(_vec2._data(), _vec, len*sizeof(double));
+      memcpy(_vec2._data(), _vec, len*sizeof(sdouble));
 }
 
 
- vec dot(const double * x1, const double * x2, int len){
+ vec dot(const sdouble * x1, const sdouble * x2, int len){
      vec ret(len);
      for (int i=0; i< len; i++)
         ret(i) = x1[i]*x2[i];
     return ret;
  }
+
+ vec sdzeros(int d){
+     vec ret(d);
+     memset(ret._data(), 0, d*sizeof(sdouble));
+     return ret;
+ }
  
- inline void dot2(double * x1, const vec & x3, double * ret, int len){
+ inline void dot2(sdouble * x1, const vec & x3, sdouble * ret, int len){
              for (int i=0; i< len; i++){
                 ret[i] = (x1[i] * x3[i]);
              }
         }
 
- inline void dot2(double * x1, const double * x3, mat & Q, int j, int len){
+ inline void dot2(sdouble * x1, const sdouble * x3, mat & Q, int j, int len){
              for (int i=0; i< len; i++){
                 Q.set(i,j,(x1[i] * x3[i]));
              }

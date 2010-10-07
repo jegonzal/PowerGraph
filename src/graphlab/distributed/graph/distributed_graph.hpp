@@ -122,7 +122,18 @@ namespace graphlab {
         }
       }
     }
-
+    
+    void broadcast_vertex_data(vertex_id_t v) const {
+      DCHECK_LT(v, num_vertices());    
+      // Vertex data is broadcasted to everyone. TODO: send only to owner?
+      for (procid_t i = 0;i < dcontrol->numprocs(); ++i) {
+        if (i != myprocid) {
+          if (v == 141400) printf("%d Sending 141400 to %d\n", (int) myprocid, (int) i);
+          dcontrol->remote_callxs(i, distributed_graph<VertexData, EdgeData>::dist_update_vertex_handler,
+                                  NULL, 0, v, vertex_data(v));
+        }
+      }
+    }
     void send_vertices_to_proczero() {
       if (myprocid != 0) {
         foreach(vertex_id_t v, myvertices) {

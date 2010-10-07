@@ -20,10 +20,9 @@ const size_t TEMPERATURE = 1;
 
 struct vertexdata{ 
   vertexdata(double vweight, uint64_t id)
-      :id(id), counter(0),depth(0) {}
+      :id(id), counter(0) {}
   uint64_t id;
   uint16_t counter;
-  uint16_t depth;
 };
 typedef graphlab::graph<vertexdata, float> graph_type;
 typedef graphlab::types<graph_type> gl_types;
@@ -188,6 +187,7 @@ void construct_graph(gl_types::graph& g) {
   std::cout << frame.width() << " " << frame.height() << " " << frame.depth()<< std::endl;
   if (diagonals) {
     for (size_t i = 0;i < numimgs; ++i) {
+      if (i % 10 == 0) std::cout << i << std::endl;
       for (size_t j = 0;j < width; ++j) {
         for (size_t k = 0;k < height; ++k) {
           
@@ -195,13 +195,13 @@ void construct_graph(gl_types::graph& g) {
             for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
               for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
                 if (i==ii && j==jj && k==kk) continue;
-                else {
+                else if (tovertexid(i,j,k) > tovertexid(ii,jj,kk)){
                   float d = 0;
                   //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
                   if (i != ii) d += 3;
                   if (j != jj) d += vert(j,k,i) * vert(j,k,i) ;
                   if (k != kk) d += horz(j,k,i) * horz(j,k,i) ;
-                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), sqrt(d));
+                  g.add_edge(tovertexid(i,j,k),tovertexid(ii,jj,kk), 2 * sqrt(d));
                 }
               }
             }
@@ -218,7 +218,8 @@ void construct_graph(gl_types::graph& g) {
           for (size_t ii = (i>0?i-1:0) ; ii <= (i<numimgs-1?i+1:i); ++ii) {
             for (size_t jj = (j>0?j-1:0) ; jj <= (j<width-1?j+1:j); ++jj) {
               for (size_t kk = (k>0?k-1:0) ; kk <= (k<height-1?k+1:k); ++kk) {
-                if ((i==ii) + (j==jj) + (k==kk) == 2) {
+                if ((i==ii) + (j==jj) + (k==kk) == 2 
+                  && (tovertexid(i,j,k) > tovertexid(ii,jj,kk))){
                   float d = 0;
                   //if (i != ii) d += frame(j,k,i) * frame(j,k,i) ;
                   if (i != ii) d += 3;
@@ -346,267 +347,6 @@ void cluster_update(gl_types::iscope& scope,
 
 
 
-// ising method
-void cluster_update2(gl_types::iscope& scope, 
-                    gl_types::icallback& scheduler,
-                    gl_types::ishared_data* shared_data) {
-  
-  vertexdata &curvertexdata = scope.vertex_data();
-  if (curvertexdata.counter >= countermax) return;
-  
-  uint64_t oldid = curvertexdata.id;
-    // Get the in and out edges by reference
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
-  double temperature = shared_data->get_constant(TEMPERATURE).as<double>();
-  // grab 
-  std::map<uint64_t, double> assignmentpreferences;
-  
- 
-  // the cost of assigning to a particular color
-  // is the sum over all the edge weights which are of a different color.
-  // To compute that, we first sum over all the edge weights which are of the
-  // same color, and subtract
-
-  double totalmass = 0;
-  foreach(graphlab::edge_id_t eid, in_edges) {   
-    graphlab::vertex_id_t nbrv = scope.source(eid);
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
-    
-    bool agreeedge = scope.const_edge_data(eid) < threshold ;
-    double val = -double(agreeedge != (nbrdat.id == oldid)) / temperature;
-    assignmentpreferences[nbrdat.id] += val ;
-    totalmass += val;
-  }
-  
-  foreach(graphlab::edge_id_t eid, out_edges) {
-    graphlab::vertex_id_t nbrv = scope.target(eid);
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
-    
-    bool agreeedge = scope.const_edge_data(eid) < threshold ;
-    double val = -double(agreeedge != (nbrdat.id == oldid)) / temperature;
-    assignmentpreferences[nbrdat.id] += val;
-    totalmass += val;
-  }
-  // if oldid now has mass
-  // also consider picking a totally new color
-  uint64_t newid;
-  if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
-    newid = oldid;
-  }else {
-    newid = gl_types::random::rand_int(UINT64_MAX - 1);
-  }
-  assignmentpreferences[newid] = 0;
-  
-  //totalmass = totalmass;
-  // invert so that we have the sum over edge weights of a different color
-  std::map<uint64_t, double>::iterator i = assignmentpreferences.begin();
-  while(i != assignmentpreferences.end()) {
-    i->second = totalmass - i->second;
-    ++i;
-  }
-  //assignmentpreferences[newid] += std::log(numparts - assignmentpreferences.size() + 1);
-  
-  // normalize by subtract the maximum element
-  {
-    double m = -1E100;
-    i = assignmentpreferences.begin();
-    while(i != assignmentpreferences.end()) {
-      if (i->second > m) m = i->second;
-      ++i;
-    }
-    // reset the normalizer and sum again
-    totalmass = 0;
-    i = assignmentpreferences.begin();
-    while(i != assignmentpreferences.end()) {
-      i->second -= m;
-      i->second = std::exp(i->second);
-      //std::cout << i->second << " ";
-      totalmass += i->second;
-      ++i;
-    }
-    //std::cout << std::endl;
-  }
-  
-  // select the new value
-  double r = gl_types::random::rand01() * totalmass;
-  
-  i = assignmentpreferences.begin();
-  double c = 0;
-  while(i != assignmentpreferences.end()) {
-    c += i->second;
-    if (c >= r) {
-      curvertexdata.id = i->first;
-      break;
-    }
-    ++i;
-  }
-
-  curvertexdata.counter++;
-  if (curvertexdata.id != oldid) {
-    foreach(graphlab::edge_id_t eid, out_edges) {
-      scheduler.add_task(gl_types::update_task(scope.target(eid), cluster_update2), 10.0); 
-    }
-    foreach(graphlab::edge_id_t eid, in_edges) {
-      scheduler.add_task(gl_types::update_task(scope.source(eid), cluster_update2), 10.0); 
-    }
-  }
-
-}
-
-
-
-// joey's method
-void cluster_update3(gl_types::iscope& scope, 
-                    gl_types::icallback& scheduler,
-                    gl_types::ishared_data* shared_data) {
-  
-  vertexdata &curvertexdata = scope.vertex_data();
-  if (curvertexdata.counter >= countermax) return;
-  
-  uint64_t oldid = curvertexdata.id;
-    // Get the in and out edges by reference
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
-  double temperature = shared_data->get_constant(TEMPERATURE).as<double>();
-  // grab 
-  std::map<uint64_t, double> assignmentpreferences;
-  
- /*
-  // find a neighbor to merge with.
-  // as long as it is below threshold, and depth is greater I can merge
-  // 
-  bool done = false;
-  foreach(graphlab::edge_id_t eid, in_edges) {   
-    graphlab::vertex_id_t nbrv = scope.source(eid);
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
-    
-    if (scope.const_edge_data(eid) < threshold && nbrdat.id != curvertexdata.id) {
-      // check for merge condition
-      if (nbrdat.depth > curvertexdata.depth ||
-          (nbrdat.depth == curvertexdata.depth && nbrdat.id < curvertexdata.id) ) {
-        // merge!
-        curvertexdata.id = nbrdat.id;
-        curvertexdata.depth = nbrdat.depth + 1;
-        done = true;
-        break;
-      }
-    }    
-  }
-  if (!done) {
-    foreach(graphlab::edge_id_t eid, out_edges) {
-      graphlab::vertex_id_t nbrv = scope.source(eid);
-      const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
-      
-      if (scope.const_edge_data(eid) < threshold && nbrdat.id != curvertexdata.id) {
-        // check for merge condition
-        if (nbrdat.depth > curvertexdata.depth ||
-            (nbrdat.depth == curvertexdata.depth && nbrdat.id < curvertexdata.id) ) {
-          // merge!
-          curvertexdata.id = nbrdat.id;
-          curvertexdata.depth = nbrdat.depth + 1;
-          done = true;
-          break;
-        }
-      }
-    }
-  }*/
- 
- 
-  bool changed =false;
-  typedef std::pair<graphlab::vertex_id_t, double> vertexwpair_type;
-  std::vector<vertexwpair_type> nbrvertices;
-  foreach(graphlab::edge_id_t eid, in_edges) {   
-    nbrvertices.push_back(std::make_pair(scope.source(eid), scope.const_edge_data(eid)));
-  }
-  foreach(graphlab::edge_id_t eid, out_edges) {   
-    nbrvertices.push_back(std::make_pair(scope.source(eid), scope.const_edge_data(eid)));
-  }
-  
-  //std::random_shuffle(nbrvertices.begin(), nbrvertices.end());
-  // find a neighbor to merge with.
-  foreach(vertexwpair_type nbrv, nbrvertices) {   
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv.first);
-    
-    if (nbrdat.id != curvertexdata.id) {
-    // check for merge condition
-    // depth is better and 
-      if ((nbrdat.depth >= curvertexdata.depth && nbrdat.depth + 1 < 30) ||
-          ((nbrdat.depth == curvertexdata.depth - 1) && nbrdat.id < curvertexdata.id) ) {
-        curvertexdata.id = nbrdat.id;
-        curvertexdata.depth = nbrdat.depth + 1;
-        changed = true;
-      }
-    }
-  }
-  
-  
-
-  
-  curvertexdata.counter++;
-  if (changed) {
-    foreach(graphlab::edge_id_t eid, out_edges) {
-      scheduler.add_task(gl_types::update_task(scope.target(eid), cluster_update3), 10.0); 
-    }
-    foreach(graphlab::edge_id_t eid, in_edges) {
-      scheduler.add_task(gl_types::update_task(scope.source(eid), cluster_update3), 10.0); 
-    }
-  }
-  //scheduler.add_task(gl_types::update_task(scope.vertex(), cluster_update3), 10.0); 
-}
-
-
-
-// greedy method
-void cluster_update4(gl_types::iscope& scope, 
-                    gl_types::icallback& scheduler,
-                    gl_types::ishared_data* shared_data) {
-  
-  vertexdata &curvertexdata = scope.vertex_data();
-  if (curvertexdata.counter >= countermax) return;
-  
-  uint64_t oldid = curvertexdata.id;
-    // Get the in and out edges by reference
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
-  double temperature = shared_data->get_constant(TEMPERATURE).as<double>();
-  // grab 
-  std::map<uint64_t, double> assignmentpreferences;
-  
-  typedef std::pair<graphlab::vertex_id_t, double> vertexwpair_type;
-  std::vector<vertexwpair_type> nbrvertices;
-  foreach(graphlab::edge_id_t eid, in_edges) {   
-    nbrvertices.push_back(std::make_pair(scope.source(eid), scope.const_edge_data(eid)));
-  }
-  foreach(graphlab::edge_id_t eid, out_edges) {   
-    nbrvertices.push_back(std::make_pair(scope.source(eid), scope.const_edge_data(eid)));
-  }
-  //std::random_shuffle(nbrvertices.begin(), nbrvertices.end());
-  // find a neighbor to merge with.
-  // as long as it is below threshold, and depth is greater I can merge
-  // 
-  
-  foreach(vertexwpair_type nbrv, nbrvertices) {   
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv.first);
-    
-    if (nbrv.second < threshold) {
-      curvertexdata.id = nbrdat.id;
-      break;
-    }    
-  }
-
-  
-  curvertexdata.counter++;
-  if (curvertexdata.id != oldid) {
-    foreach(graphlab::edge_id_t eid, out_edges) {
-      scheduler.add_task(gl_types::update_task(scope.target(eid), cluster_update4), 10.0); 
-    }
-    foreach(graphlab::edge_id_t eid, in_edges) {
-      scheduler.add_task(gl_types::update_task(scope.source(eid), cluster_update4), 10.0); 
-    }
-  }
-
-}
 
 size_t uf_find(std::vector<size_t> &unionfind, size_t a) {
   if (unionfind[a] == a) return a;

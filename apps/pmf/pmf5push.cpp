@@ -1635,7 +1635,12 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
      }
      }
   */
-  int val = read_mult_edges<edata2>(f, M+N, g);
+  int val;
+  if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
+  	val = read_mult_edges<edata2>(f, M+N, g);
+  else
+  	val = read_mult_edges<edata3>(f, M+N, g);
+ 
   if (!test)
     L = val;
   else Le = val;

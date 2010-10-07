@@ -95,8 +95,12 @@ namespace graphlab {
     void abort(){ terminator.abort(); }
 
     void restart() { terminator.restart(); }
-	
 
+    void start() {
+      cur_task.value = size_t(0);
+      checkpoint_on = false;
+      iterations.value = 0;
+    }
     void set_max_iterations(size_t maxi) {
       maxiterations = maxi;
     }
