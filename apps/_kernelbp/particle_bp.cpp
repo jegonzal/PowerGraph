@@ -36,7 +36,7 @@ struct particle {
 
 float SIGMA;
 float LAMBDA;
-const size_t MCMCSTEPS = 1;
+const size_t MCMCSTEPS = 10;
 const size_t RESAMPLE_FREQUENCY = 1;
 size_t MAX_ITERATIONS;
 graphlab::atomic<size_t> proposal_count;
@@ -182,8 +182,11 @@ double second_order_belief_ll(gl_types::iscope& scope, float v) {
 /**
   Resamples all the partciles at the current scope 
 */
-void resample_particles(gl_types::iscope& scope,
+float resample_particles(gl_types::iscope& scope,
                         double gaussian_proposal_stdev) {
+  int acceptcount = 0;
+  int proposecount = 0;
+
   // lets move all the particles around using MCMC
   vertex_data &srcvdata = scope.vertex_data();
   
@@ -204,7 +207,6 @@ void resample_particles(gl_types::iscope& scope,
       }
     }
     double curll = second_order_belief_ll(scope, cursample);
-    
     for (size_t i = 0; i < MCMCSTEPS; ++i) {
       float gauss;
       // generate a spherical gaussian
@@ -215,6 +217,7 @@ void resample_particles(gl_types::iscope& scope,
       double proposell = second_order_belief_ll(scope, proposal);
       // since the gaussian is symmetric...
       double acceptll = proposell - curll;
+      proposecount++;
       bool accept = false;
       if (acceptll >= 0)  {
         accept = true;
@@ -225,20 +228,27 @@ void resample_particles(gl_types::iscope& scope,
         if (graphlab::random::rand01() <= acceptll)  accept = true;
       }
       if (accept) {
+        acceptcount++;
         accept_count.inc();
         curll = proposell;
         cursample = proposal;
       }
     }
-
+    
     newparticles.push_back(cursample);
   }
 
   // fill the new belief
   for (size_t i = 0;i < srcvdata.belief.size(); ++i) {
      srcvdata.belief[i].x = newparticles[i];
-     srcvdata.belief[i].weight = srcvdata.vertexpot(srcvdata.belief[i].x);
+     srcvdata.belief[i].weight = 1.0 / srcvdata.belief.size();
   }
+  graphlab::edge_list in_edges = scope.in_edge_ids();
+  foreach(graphlab::edge_id_t ineid, in_edges) {
+    sample_message(scope, ineid);
+  }
+  return float(acceptcount) / proposecount;
+  /*
   normalize_particles(srcvdata.belief);
   // compute the new incoming messages
   graphlab::edge_list in_edges = scope.in_edge_ids();
@@ -249,7 +259,7 @@ void resample_particles(gl_types::iscope& scope,
       srcvdata.belief[i].weight *= inedgedata.message[i].weight;
     }
     normalize_particles(srcvdata.belief);
-  }
+  }*/
 }
 
 
@@ -263,10 +273,11 @@ void bp_update(gl_types::iscope& scope,
                gl_types::icallback& scheduler,
                gl_types::ishared_data* shared_data) {
   // resample the particles here.
+  
   vertex_data &v = scope.vertex_data();
-  if (v.rounds % RESAMPLE_FREQUENCY == 0) {
-    resample_particles(scope, PROPOSAL_STDEV);
-  }
+  if (v.rounds >= MAX_ITERATIONS) return;
+  float accprop = resample_particles(scope, PROPOSAL_STDEV);
+
   if (scope.vertex() % 1000 == 0){
     std::cout << accept_count.value << " / " << proposal_count.value << " = " << double(accept_count.value) / proposal_count.value << std::endl;
   }
@@ -278,9 +289,11 @@ void bp_update(gl_types::iscope& scope,
   }
 
   v.rounds++;
-  if (v.rounds < MAX_ITERATIONS) {
-    gl_types::update_task task(scope.vertex(), bp_update);
-    scheduler.add_task(task, 1.0);
+  if (v.rounds < MAX_ITERATIONS && accprop <= 0.3) {
+    foreach(graphlab::edge_id_t outeid, out_edges) {
+      gl_types::update_task task(scope.target(outeid), bp_update);
+      scheduler.add_task(task, 1.0);
+    }
   }
   
 } // end of BP_update
@@ -515,25 +528,24 @@ int main(int argc, char** argv) {
 
   // Saving the output -------------------------------------------------------->
   std::cout << "Rendering the cleaned image. " << std::endl;
-  if(pred_type == "map") {
-    for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-      const vertex_data& vdata = core.graph().vertex_data(v);
-      float a = vdata.max_asg();
-      if (a < 0) a = 0;
-      img.pixel(v) = size_t(a);
-    }
-  } else if(pred_type == "exp") {
-    for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-      const vertex_data& vdata = core.graph().vertex_data(v);
-      float a = vdata.average();
-      if (a < 0) a = 0;
-      img.pixel(v) = size_t(a);
-    }
-  } else {
-    std::cout << "Invalid prediction type! : " << pred_type
-              << std::endl;
-    return EXIT_FAILURE;
+   
+  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+    const vertex_data& vdata = core.graph().vertex_data(v);
+    float a = vdata.max_asg();
+    if (a < 0) a = 0;
+    img.pixel(v) = size_t(a);
   }
+  img.save("pred_map.pgm");
+
+
+  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+    const vertex_data& vdata = core.graph().vertex_data(v);
+    float a = vdata.average();
+    if (a < 0) a = 0;
+    img.pixel(v) = (a);
+  }
+  img.save("pred_exp.pgm");
+
   std::cout << "Saving cleaned image. " << std::endl;
   img.save(pred_fn.c_str());
 
