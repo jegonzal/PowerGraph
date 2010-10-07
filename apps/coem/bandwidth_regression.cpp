@@ -67,10 +67,7 @@ int main(int argc,  char ** argv) {
   while(t.current_time() < duration_mins*60) {
     dc.barrier();
     double t1 = t.current_time();
-    for (size_t i = 0;i < dc.numprocs(); ++i) {
-      if (dc.procid() == i)  distributed_metrics::instance(&dc)->execute_bandwith_test();
-      dc.barrier();
-    }
+    distributed_metrics::instance(&dc)->execute_bandwith_test();
     std::cout << myprocid << ": test took " << (t.current_time()-t1) << " secs." << std::endl;
     dc.barrier();
     
