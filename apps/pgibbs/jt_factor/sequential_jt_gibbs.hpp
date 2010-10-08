@@ -43,9 +43,6 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
 
 
 
-
-
-
 size_t min_fill_tree_width(const vset_map& var2factors_const,
                            const vset_map& factor2vars_const,
                            const vertex_id_t max_factor_id,
@@ -80,6 +77,7 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
       if(!verts.empty()) {
         fill_clique.insert(verts.begin(), verts.end());
       }
+      assert(fid != next_new_factor_id);
     }
     int clique_edges = fill_clique.size() * (fill_clique.size() - 1) / 2;
       //  existing_edges;
@@ -92,18 +90,13 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
   
   // vertex_set used_factors;
   // std::map<vertex_id_t, clique_type> cliques;
-
+  
   // Run the elimination;
   while(!elim_priority_queue.empty()) {
-    const std::pair<vertex_id_t, float> top = elim_priority_queue.pop();
+    const std::pair<vertex_id_t, int> top = elim_priority_queue.pop();
     const vertex_id_t elim_vertex = top.first;
     const vertex_set& factorset = var2factors[elim_vertex];
     
-    //    std::cout << "Eliminating: " << elim_vertex << " in ";
-    //     foreach(vertex_id_t fid, factorset)
-    //       std::cout << fid << " ";
-    //     std::cout << std::endl;
-
     // Track the affected vertices
     vertex_set affected_vertices;
 
@@ -117,6 +110,7 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
       if(tree_width > MAX_DIM) {
         return tree_width;
       }
+      assert(fid != next_new_factor_id);
     }
 
     // if necessary store the elimination ordering and the clique set
@@ -126,13 +120,12 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
 
 
     // Merge any factors
-    if(factorset.size() > 1) {
-      //      std::cout << "Merging: ---------------------------------" << std::endl;
-      
+    if(factorset.size() > 1) {    
       // Build the new factor
       size_t new_factor_id = next_new_factor_id++;
       factor2vars[new_factor_id] = affected_vertices;
-
+      // Remove all the factors from the affected vertices and add the
+      // new factor
       foreach(vertex_id_t vid, affected_vertices) {
         var2factors[vid] -= factorset;
         var2factors[vid] += new_factor_id;
@@ -201,7 +194,10 @@ size_t evaluate_elim_order(const vset_map& var2factors_const,
       affected_vertices.insert(vset.begin(), vset.end()); 
       // First make sure that the treewidth hasn't gotten too large
       tree_width = std::max(tree_width, affected_vertices.size() + 1);
-      if(tree_width > MAX_DIM) { return tree_width; }
+      if(tree_width > MAX_DIM) { 
+        return tree_width; 
+      }
+      assert(fid != next_new_factor_id);
     }
 
     // if necessary store the elimination ordering and the clique set
@@ -302,14 +298,17 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
   }
 
 
-
+  
   tree_width = min_fill_tree_width(var2factors, factor2vars, 
                                    max_factor_id, &elim_order);
 
   std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
 
+  std::reverse(elim_order.begin(), elim_order.end());
+
   tree_width = evaluate_elim_order(var2factors, factor2vars, 
                                    max_factor_id, elim_order);
+
   std::cout << "Elim Tree Width: " << tree_width << std::endl;
 
 
