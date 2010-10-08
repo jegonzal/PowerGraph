@@ -3,11 +3,14 @@
 
 
 #include <iostream>
+#include <set>
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 
 
+
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
 
 
@@ -26,6 +29,12 @@ namespace graphlab {
     // empty set
     fast_set() : nelems(0) { }
     fast_set(const T& elem) : nelems(1) { values[0] = elem; }
+    fast_set(const std::set<T>& other) : nelems(other.size) { 
+      assert(nelems <= MAX_DIM);
+      size_t index = 0;
+      foreach(const T& elem, other) values[index++] = elem;
+     
+    }
 
     T* begin() { return values; }
     T* end() { return values + nelems; }
@@ -42,11 +51,53 @@ namespace graphlab {
       return false;
     }
 
+  
+    void insert(const T& elem) {
+      // size_t index = 0;
+      // for(; index < nelems && values[index] < elem; ++index);      
+      // if(index == nelems) {
+      //   // add to end
+      //   assert(nelems + 1 <= MAX_DIM);
+      //   values[nelems++] = elem;
+      //   return true;
+      // } else if(values[index] == elem) return false; else {
+      //   assert(nelems + 1 <= MAX_DIM);        
+      //   // slide everything up
+      //   for(size_t i = nelems; i >= index; --i) 
+      //     std::swap(values[i-1], values[i]);
+      //   // Insert the element
+      //   values[index] = elem;
+      //   nelems++;    
+      //   return true;
+      // }
+      *this += elem;
+    }
+
+
+    void insert(const T* begin, const T* end) {
+      size_t other_size = end - begin;  
+      assert(other_size <= MAX_DIM);
+      fast_set other;
+      other.nelems = other_size;
+      for(size_t i = 0; i < other_size; ++i) {
+        other.values[i] = begin[i];
+        if(i > 0) assert(other.values[i] > other.values[i-1]);
+      }
+      *this += other;
+    }
+
+
+    void erase(const T& elem) {
+      *this -= elem;
+    }
+    
+
 
     const T& operator[](size_t index) const {
       assert(index < nelems);
       return values[index];
     }
+
 
     fast_set operator+(const fast_set& other) const {
       fast_set result;
@@ -153,5 +204,5 @@ operator<<(std::ostream& out, const graphlab::fast_set<MAX_DIM, T>& set) {
 
 
 
-
+#include <graphlab/macros_undef.hpp>
 #endif
