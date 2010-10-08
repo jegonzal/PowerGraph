@@ -224,11 +224,10 @@ size_t evaluate_elim_order(const vset_map& var2factors_const,
 
 
 
-size_t build_junction_tree(const mrf::graph_type& mrf,
-                           vertex_id_t root,
-                           junction_tree::graph_type& jt) {
+size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
+                               vertex_id_t root,
+                               junction_tree::graph_type& jt) {
   jt.clear();
-
   vset_map var2factors;
   vset_map factor2vars;
 
@@ -237,7 +236,6 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
   std::set<vertex_id_t> visited;
 
   std::vector<vertex_id_t> elim_order;
-
   size_t tree_width = 0;
 
   // add the root
@@ -252,26 +250,18 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
     // Update data structures 
     const mrf::vertex_data& vdata = mrf.vertex_data(next_vertex);
     var2factors[next_vertex] = vdata.factor_ids;
-    vertex_id_t tmp_max_factor_id = max_factor_id + 1;
+    vertex_id_t tmp_max_factor_id = max_factor_id;
     foreach(vertex_id_t fid, vdata.factor_ids) {
       factor2vars[fid].insert(next_vertex); 
       tmp_max_factor_id = std::max(tmp_max_factor_id, fid);
     }
 
     // build a junction tree using min fill
-    tree_width = min_fill_tree_width(var2factors, factor2vars, 
-                                     tmp_max_factor_id+1);
-
-
-    // elim_order.push_back(next_vertex);
-    // tree_width = evaluate_elim_order(var2factors, factor2vars,
-    //                                  tmp_max_factor_id, elim_order);
+    elim_order.push_back(next_vertex);
+    tree_width = evaluate_elim_order(var2factors, factor2vars,
+                                     tmp_max_factor_id, elim_order);
     
-
-
-    // std::cout << "Tree_width: " << tree_width;
-    if(tree_width <= MAX_DIM) {
-      // std::cout << std::endl;
+    if(tree_width <= MAX_DIM) {   
       // add the neighbors to the search queue
       foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
         vertex_id_t neighbor_vid = mrf.target(eid);
@@ -283,17 +273,102 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
       // keep the current max factor id
       max_factor_id = tmp_max_factor_id;
     } else {
-      // std::cout << "-----------FAILED-----------------" << std::endl;
       // remove the variable if we decide not to use it
       const mrf::vertex_data& vdata = mrf.vertex_data(next_vertex);
       var2factors.erase(next_vertex);
       foreach(vertex_id_t fid, vdata.factor_ids) {
         factor2vars[fid].erase(next_vertex); 
       } 
-      // elim_order.pop_back();
+      elim_order.pop_back();
+    }
+    if(var2factors.size() == 1000) break;
+  }
+  
+  tree_width = evaluate_elim_order(var2factors, factor2vars, 
+                                   max_factor_id + 1, elim_order);
+  std::cout << "Elim Tree Width: " << tree_width << std::endl;
+
+  image img(200, 200);
+  size_t index = 10;
+  foreach(vertex_id_t vid, elim_order) {
+    img.pixel(vid) = index++;
+  }
+  img.save("tree.pgm");
+
+  
+  std::cout << "Varcount: " << var2factors.size() << std::endl;
+  return tree_width;
+}
+
+
+
+
+
+
+
+
+
+
+
+size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
+                                    vertex_id_t root,
+                                    junction_tree::graph_type& jt) {
+  jt.clear();
+
+  vset_map var2factors;
+  vset_map factor2vars;
+
+
+  std::queue<vertex_id_t> bfs_queue;
+  std::set<vertex_id_t> visited;
+
+  std::vector<vertex_id_t> elim_order;
+  size_t tree_width = 0;
+
+  // add the root
+  bfs_queue.push(root);
+  visited.insert(root);
+  vertex_id_t max_factor_id = 0;
+  while(!bfs_queue.empty()) {
+    // Take the top element
+    const vertex_id_t next_vertex = bfs_queue.front();
+    bfs_queue.pop(); 
+
+    // Update data structures 
+    const mrf::vertex_data& vdata = mrf.vertex_data(next_vertex);
+    var2factors[next_vertex] = vdata.factor_ids;
+    vertex_id_t tmp_max_factor_id = max_factor_id;
+    foreach(vertex_id_t fid, vdata.factor_ids) {
+      factor2vars[fid].insert(next_vertex); 
+      tmp_max_factor_id = std::max(tmp_max_factor_id, fid);
     }
 
-    if(var2factors.size() == 2000) break;
+    // build a junction tree using min fill
+    tree_width = min_fill_tree_width(var2factors, factor2vars, 
+                                     tmp_max_factor_id);
+
+    // if the treewidth is below the max 
+    if(tree_width <= MAX_DIM) {
+      // add the neighbors to the search queue
+      foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+        vertex_id_t neighbor_vid = mrf.target(eid);
+        if(visited.count(neighbor_vid) == 0) {
+          bfs_queue.push(neighbor_vid);
+          visited.insert(neighbor_vid);
+        }
+      }
+      // keep the current max factor id
+      max_factor_id = tmp_max_factor_id;
+    } else {
+      // remove the variable if we decide not to use it
+      const mrf::vertex_data& vdata = mrf.vertex_data(next_vertex);
+      var2factors.erase(next_vertex);
+      foreach(vertex_id_t fid, vdata.factor_ids) {
+        factor2vars[fid].erase(next_vertex); 
+      } 
+    }
+
+    if(var2factors.size() == 1000) break;
 
   }
 
@@ -304,17 +379,8 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
   std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
 
-  std::reverse(elim_order.begin(), elim_order.end());
 
-  tree_width = evaluate_elim_order(var2factors, factor2vars, 
-                                   max_factor_id, elim_order);
-
-  std::cout << "Elim Tree Width: " << tree_width << std::endl;
-
-
-  std::cout << "Root: " << root << std::endl;
   image img(200, 200);
-
   size_t index = 10;
   foreach(vertex_id_t vid, elim_order) {
     img.pixel(vid) = index++;
@@ -322,9 +388,8 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
   img.save("tree.pgm");
 
   
-  std::cout << "\nVarcount: " << var2factors.size() << std::endl;
-  //   // Rebuild the junction tree 
-  //   tree_width = build_junction_tree(mrf, block, jt);
+  std::cout << "Varcount: " << var2factors.size() << std::endl;
+
   return tree_width;
 }
 
@@ -341,7 +406,7 @@ void sample_once(const factorized_model& factor_graph,
 
   junction_tree::gl::core jt_core;
   std::cout << "Building Tree" << std::endl;
-  size_t tree_width = build_junction_tree(mrf, root, jt_core.graph());
+  size_t tree_width = bfs_build_junction_tree(mrf, root, jt_core.graph());
   std::cout << "Root:  " << root << " ----------------" << std::endl;
   std::cout << "Tree width: " << tree_width << std::endl;
 
