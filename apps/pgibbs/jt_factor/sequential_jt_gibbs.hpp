@@ -20,16 +20,19 @@
 typedef graphlab::fast_set<16, vertex_id_t> vertex_set;
 // typedef std::set<vertex_id_t> vertex_set;
 
- typedef std::map<vertex_id_t, vertex_set> vset_map;
+typedef std::map<vertex_id_t, vertex_set> vset_map;
 //typedef boost::unordered_map<vertex_id_t, vertex_set> vset_map;
 
 
-struct clique_type {
-  vertex_set factors;
-  vertex_set vars;
-  vertex_set children;
+struct elim_clique {
+  size_t parent;
+  vertex_id_t elim_vertex;
+  vertex_set vertices; 
+  elim_clique() : parent(-1) { }
 };
 
+
+typedef std::vector<elim_clique> clique_vector;
 
 
 template<typename A, typename B>
@@ -43,15 +46,15 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
 
 
 
-size_t min_fill_tree_width(const vset_map& var2factors_const,
-                           const vset_map& factor2vars_const,
-                           const vertex_id_t max_factor_id,
-                           std::vector<vertex_id_t>* elim_order = NULL,
-                           std::vector<vertex_set>* clique_sets = NULL) {
+size_t build_minfill_elim_order(const vset_map& var2factors_const,
+                                const vset_map& factor2vars_const,
+                                const vertex_id_t max_factor_id,
+                                std::vector<vertex_id_t>* elim_order = NULL,
+                                clique_vector* cliques = NULL) {
 
   // Reset elim order and clique set (if they are available)
   if(elim_order != NULL) elim_order->clear();
-  if(clique_sets != NULL) clique_sets->clear();
+  if(cliques != NULL) cliques->clear();
 
   // Make local copies of the maps
   vset_map var2factors(var2factors_const);
@@ -63,7 +66,6 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
   // keep track of the next unique factor id value (used to created
   // temporary factors along the way).
   size_t next_new_factor_id = max_factor_id + 1;
- 
   
   // Construct an elimination ordering:
   graphlab::mutable_queue<vertex_id_t, int> elim_priority_queue;
@@ -115,7 +117,12 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
 
     // if necessary store the elimination ordering and the clique set
     if(elim_order != NULL) elim_order->push_back(elim_vertex);
-    if(clique_sets != NULL) clique_sets->push_back(affected_vertices);
+    if(cliques != NULL) {
+      elim_clique elim_clique;
+      elim_clique.elim_vertex = elim_vertex;
+      elim_clique.vertices = affected_vertices;
+      cliques->push_back(elim_clique);
+    }
 
 
 
@@ -150,7 +157,7 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
 
   }
   return tree_width;
-} // end of compute treewidth
+} // end of build_minfill_elim_order
 
 
 
@@ -160,14 +167,14 @@ size_t min_fill_tree_width(const vset_map& var2factors_const,
 
 
 
-size_t evaluate_elim_order(const vset_map& var2factors_const,
-                           const vset_map& factor2vars_const,
-                           const vertex_id_t max_factor_id,
-                           const std::vector<vertex_id_t>& elim_order,
-                           std::vector<vertex_set>* clique_sets = NULL) {
+size_t eval_elim_order(const vset_map& var2factors_const,
+                       const vset_map& factor2vars_const,
+                       const vertex_id_t max_factor_id,
+                       const std::vector<vertex_id_t>& elim_order,
+                       clique_vector* cliques = NULL) {
 
   // Reset elim order and clique set (if they are available)
-  if(clique_sets != NULL) clique_sets->clear();
+  if(cliques != NULL) cliques->clear();
 
   // Make local copies of the maps
   vset_map var2factors(var2factors_const);
@@ -201,7 +208,13 @@ size_t evaluate_elim_order(const vset_map& var2factors_const,
     }
 
     // if necessary store the elimination ordering and the clique set
-    if(clique_sets != NULL) clique_sets->push_back(affected_vertices);
+    if(cliques != NULL) {
+      elim_clique elim_clique;
+      elim_clique.elim_vertex = elim_vertex;
+      elim_clique.vertices = affected_vertices;
+      cliques->push_back(elim_clique);
+    }
+
 
     // Merge any factors
     if(factorset.size() > 1) {
@@ -217,7 +230,93 @@ size_t evaluate_elim_order(const vset_map& var2factors_const,
     } // end of merge
   }
   return tree_width;
-} // end of compute treewidth
+} // end of eval elim order
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void build_clique_tree(const mrf::graph_type& mrf, 
+                      clique_vector& cliques)  {
+
+  std::map<vertex_id_t, size_t> elim_time_map;
+
+  { // Scoping
+    size_t elim_time = 0;
+    foreach(const elim_clique& clique, cliques) {
+      elim_time_map[clique.elim_vertex] = elim_time++;
+    }
+  }
+  
+  foreach(elim_clique& clique, cliques) {
+    size_t earliest_elim_time = cliques.size();
+    if(clique.vertices.size() > 1) {
+      foreach(vertex_id_t vid, clique.vertices) {
+        if(vid != clique.elim_vertex) 
+          earliest_elim_time = 
+            std::min(earliest_elim_time, elim_time_map[vid]);
+      }
+      if(earliest_elim_time < cliques.size())
+        clique.parent = earliest_elim_time;        
+    }  
+  }
+  
+  { // Print out the clique list
+    size_t i = 0;
+    foreach(const elim_clique& clique, cliques) {
+      std::cout << i << ": " << clique.elim_vertex 
+                << " --> " << clique.parent << " : " 
+                << clique.vertices << std::endl;
+    }
+  }
+} // end of build junction tree
+
+
+
+
+
+
+///// Old code ----------------------------------------------
+/////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -258,8 +357,8 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
 
     // build a junction tree using min fill
     elim_order.push_back(next_vertex);
-    tree_width = evaluate_elim_order(var2factors, factor2vars,
-                                     tmp_max_factor_id, elim_order);
+    tree_width = eval_elim_order(var2factors, factor2vars,
+                                 tmp_max_factor_id, elim_order);
     
     if(tree_width <= MAX_DIM) {   
       // add the neighbors to the search queue
@@ -284,25 +383,28 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
     if(var2factors.size() == 1000) break;
   }
   
-  tree_width = evaluate_elim_order(var2factors, factor2vars, 
-                                   max_factor_id + 1, elim_order);
+  clique_vector cliques;
+  tree_width = eval_elim_order(var2factors, factor2vars, 
+                                   max_factor_id + 1, 
+                                   elim_order,
+                                   &cliques);
+
+  build_clique_tree(mrf, cliques);
+  
+
   std::cout << "Elim Tree Width: " << tree_width << std::endl;
 
-  image img(200, 200);
-  size_t index = 10;
-  foreach(vertex_id_t vid, elim_order) {
-    img.pixel(vid) = index++;
-  }
-  img.save("tree.pgm");
+  // image img(200, 200);
+  // size_t index = 10;
+  // foreach(vertex_id_t vid, elim_order) {
+  //   img.pixel(vid) = index++;
+  // }
+  // img.save("tree.pgm");
 
   
   std::cout << "Varcount: " << var2factors.size() << std::endl;
   return tree_width;
 }
-
-
-
-
 
 
 
@@ -344,8 +446,8 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
     }
 
     // build a junction tree using min fill
-    tree_width = min_fill_tree_width(var2factors, factor2vars, 
-                                     tmp_max_factor_id);
+    tree_width = build_minfill_elim_order(var2factors, factor2vars, 
+                                          tmp_max_factor_id);
 
     // if the treewidth is below the max 
     if(tree_width <= MAX_DIM) {
@@ -374,24 +476,30 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
 
 
   
-  tree_width = min_fill_tree_width(var2factors, factor2vars, 
-                                   max_factor_id, &elim_order);
+  clique_vector cliques;
+  tree_width = 
+    build_minfill_elim_order(var2factors, factor2vars, 
+                             max_factor_id, &elim_order,
+                             &cliques);
+
+  build_clique_tree(mrf, cliques);
 
   std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
 
 
-  image img(200, 200);
-  size_t index = 10;
-  foreach(vertex_id_t vid, elim_order) {
-    img.pixel(vid) = index++;
-  }
-  img.save("tree.pgm");
+  // image img(200, 200);
+  // size_t index = 10;
+  // foreach(vertex_id_t vid, elim_order) {
+  //   img.pixel(vid) = index++;
+  // }
+  // img.save("tree.pgm");
 
   
   std::cout << "Varcount: " << var2factors.size() << std::endl;
 
   return tree_width;
 }
+
 
 
 
