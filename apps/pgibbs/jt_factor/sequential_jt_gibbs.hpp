@@ -6,7 +6,7 @@
 #include <map>
 #include <set>
 #include <vector>
-
+#include <boost/unordered_map.hpp>
 
 #include "data_structures.hpp"
 #include "update_function.hpp"
@@ -17,8 +17,11 @@
   
 
 
-typedef graphlab::fast_set<24, vertex_id_t> vertex_set;
+typedef graphlab::fast_set<16, vertex_id_t> vertex_set;
 // typedef std::set<vertex_id_t> vertex_set;
+
+ typedef std::map<vertex_id_t, vertex_set> vset_map;
+//typedef boost::unordered_map<vertex_id_t, vertex_set> vset_map;
 
 
 struct clique_type {
@@ -37,17 +40,17 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
   return iter->second;
 }
 
-typedef std::map<vertex_id_t, vertex_set> vset_map;
 
 
 
 
 
 
-size_t compute_tree_width(const vset_map& var2factors_const,
-                          const vset_map& factor2vars_const,
-                          std::vector<vertex_id_t>* elim_order = NULL,
-                          std::vector<vertex_set>* clique_sets = NULL) {
+size_t min_fill_tree_width(const vset_map& var2factors_const,
+                           const vset_map& factor2vars_const,
+                           const vertex_id_t max_factor_id,
+                           std::vector<vertex_id_t>* elim_order = NULL,
+                           std::vector<vertex_set>* clique_sets = NULL) {
 
   // Reset elim order and clique set (if they are available)
   if(elim_order != NULL) elim_order->clear();
@@ -60,6 +63,11 @@ size_t compute_tree_width(const vset_map& var2factors_const,
   // track the treewidth
   size_t tree_width = 0;
 
+  // keep track of the next unique factor id value (used to created
+  // temporary factors along the way).
+  size_t next_new_factor_id = max_factor_id + 1;
+ 
+  
   // Construct an elimination ordering:
   graphlab::mutable_queue<vertex_id_t, int> elim_priority_queue;
   typedef vset_map::value_type vset_map_pair;
@@ -81,10 +89,7 @@ size_t compute_tree_width(const vset_map& var2factors_const,
 
 
 
-  // keep track of the next unique factor id value (used to created
-  // temporary factors along the way).
-  size_t next_new_factor_id = factor2vars.rbegin()->first + 1;
-
+  
   // vertex_set used_factors;
   // std::map<vertex_id_t, clique_type> cliques;
 
@@ -128,27 +133,10 @@ size_t compute_tree_width(const vset_map& var2factors_const,
       size_t new_factor_id = next_new_factor_id++;
       factor2vars[new_factor_id] = affected_vertices;
 
-      // Merge all the nonconstant factors and create a new factor
-      foreach(vertex_id_t fid, factorset) {
-        const vertex_set& other_factor_vset = factor2vars[fid];
-        // Disconnect the old factor and reconnect the new factor
-        foreach(vertex_id_t vid, other_factor_vset) {
-          var2factors[vid].erase(fid);
-          var2factors[vid].insert(new_factor_id);
-        }
+      foreach(vertex_id_t vid, affected_vertices) {
+        var2factors[vid] -= factorset;
+        var2factors[vid] += new_factor_id;
       }
-
-      //       // Display the new factor
-      //       std::cout << std::endl;
-      //       std::cout << "Factor: (" << new_factor_id << ") " << elim_vertex << " ";
-      //       foreach(vertex_id_t vid, affected_vertices) 
-      //         std::cout << vid << " ";      
-      //       std::cout << "[ ";
-      //       foreach(vertex_id_t fid, factorset) 
-      //         std::cout << fid << " ";
-      //       std::cout << "]" << std::endl;
-      //       std::cout << std::endl;
-
     } // end of merge
 
     // Update the fill order
@@ -181,6 +169,7 @@ size_t compute_tree_width(const vset_map& var2factors_const,
 
 size_t evaluate_elim_order(const vset_map& var2factors_const,
                            const vset_map& factor2vars_const,
+                           const vertex_id_t max_factor_id,
                            const std::vector<vertex_id_t>& elim_order,
                            std::vector<vertex_set>* clique_sets = NULL) {
 
@@ -194,25 +183,14 @@ size_t evaluate_elim_order(const vset_map& var2factors_const,
   // track the treewidth
   size_t tree_width = 0;
 
-  
-
-
   // keep track of the next unique factor id value (used to created
   // temporary factors along the way).
-  size_t next_new_factor_id = factor2vars.rbegin()->first + 1;
-
-  // vertex_set used_factors;
-  // std::map<vertex_id_t, clique_type> cliques;
+  size_t next_new_factor_id = max_factor_id + 1;
 
   // Run the elimination;
   rev_foreach(vertex_id_t elim_vertex, elim_order) {
     const vertex_set& factorset = var2factors[elim_vertex];
     
-    //    std::cout << "Eliminating: " << elim_vertex << " in ";
-    //     foreach(vertex_id_t fid, factorset)
-    //       std::cout << fid << " ";
-    //     std::cout << std::endl;
-
     // Track the affected vertices
     vertex_set affected_vertices;
 
@@ -223,45 +201,23 @@ size_t evaluate_elim_order(const vset_map& var2factors_const,
       affected_vertices.insert(vset.begin(), vset.end()); 
       // First make sure that the treewidth hasn't gotten too large
       tree_width = std::max(tree_width, affected_vertices.size() + 1);
-      if(tree_width > MAX_DIM) {
-        return tree_width;
-      }
+      if(tree_width > MAX_DIM) { return tree_width; }
     }
 
     // if necessary store the elimination ordering and the clique set
     if(clique_sets != NULL) clique_sets->push_back(affected_vertices);
 
-
-
     // Merge any factors
     if(factorset.size() > 1) {
-      //      std::cout << "Merging: ---------------------------------" << std::endl;
-      
       // Build the new factor
-      size_t new_factor_id = next_new_factor_id++;
+      vertex_id_t new_factor_id = next_new_factor_id++;
       factor2vars[new_factor_id] = affected_vertices;
-
-      // Merge all the nonconstant factors and create a new factor
-      foreach(vertex_id_t fid, factorset) {
-        const vertex_set& other_factor_vset = factor2vars[fid];
-        // Disconnect the old factor and reconnect the new factor
-        foreach(vertex_id_t vid, other_factor_vset) {
-          var2factors[vid].erase(fid);
-          var2factors[vid].insert(new_factor_id);
-        }
+      // Remove all the factors from the affected vertices and 
+      // add the new factor
+      foreach(vertex_id_t vid, affected_vertices) {
+        var2factors[vid] -= factorset;
+        var2factors[vid] += new_factor_id;
       }
-
-      //       // Display the new factor
-      //       std::cout << std::endl;
-      //       std::cout << "Factor: (" << new_factor_id << ") " << elim_vertex << " ";
-      //       foreach(vertex_id_t vid, affected_vertices) 
-      //         std::cout << vid << " ";      
-      //       std::cout << "[ ";
-      //       foreach(vertex_id_t fid, factorset) 
-      //         std::cout << fid << " ";
-      //       std::cout << "]" << std::endl;
-      //       std::cout << std::endl;
-
     } // end of merge
   }
   return tree_width;
@@ -287,32 +243,33 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
   std::vector<vertex_id_t> elim_order;
 
   size_t tree_width = 0;
-  //  size_t looplimit = 1000;
+
   // add the root
   bfs_queue.push(root);
   visited.insert(root);
-
+  vertex_id_t max_factor_id = 0;
   while(!bfs_queue.empty()) {
-    
-    //    looplimit--;
-    //    if (looplimit == 0) break;
+    // Take the top element
     const vertex_id_t next_vertex = bfs_queue.front();
-    bfs_queue.pop();
-   
+    bfs_queue.pop(); 
 
     // Update data structures 
     const mrf::vertex_data& vdata = mrf.vertex_data(next_vertex);
     var2factors[next_vertex] = vdata.factor_ids;
+    vertex_id_t tmp_max_factor_id = max_factor_id + 1;
     foreach(vertex_id_t fid, vdata.factor_ids) {
       factor2vars[fid].insert(next_vertex); 
+      tmp_max_factor_id = std::max(tmp_max_factor_id, fid);
     }
 
-//     // build a junction tree
-//     tree_width = compute_tree_width(var2factors, factor2vars, &elim_order);
+    // build a junction tree using min fill
+    tree_width = min_fill_tree_width(var2factors, factor2vars, 
+                                     tmp_max_factor_id+1);
 
 
-    elim_order.push_back(next_vertex);
-    tree_width = evaluate_elim_order(var2factors, factor2vars, elim_order);
+    // elim_order.push_back(next_vertex);
+    // tree_width = evaluate_elim_order(var2factors, factor2vars,
+    //                                  tmp_max_factor_id, elim_order);
     
 
 
@@ -327,6 +284,8 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
           visited.insert(neighbor_vid);
         }
       }
+      // keep the current max factor id
+      max_factor_id = tmp_max_factor_id;
     } else {
       // std::cout << "-----------FAILED-----------------" << std::endl;
       // remove the variable if we decide not to use it
@@ -335,28 +294,36 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
       foreach(vertex_id_t fid, vdata.factor_ids) {
         factor2vars[fid].erase(next_vertex); 
       } 
-
-      elim_order.pop_back();
-
+      // elim_order.pop_back();
     }
 
     if(var2factors.size() == 2000) break;
 
   }
 
-  tree_width = compute_tree_width(var2factors, factor2vars, &elim_order);
 
+
+  tree_width = min_fill_tree_width(var2factors, factor2vars, 
+                                   max_factor_id, &elim_order);
+
+  std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
+
+  tree_width = evaluate_elim_order(var2factors, factor2vars, 
+                                   max_factor_id, elim_order);
+  std::cout << "Elim Tree Width: " << tree_width << std::endl;
+
+
+  std::cout << "Root: " << root << std::endl;
   image img(200, 200);
-//   typedef vset_map::value_type pair_type;
-//   foreach(const pair_type& pair, var2factors) {
+
   size_t index = 10;
   foreach(vertex_id_t vid, elim_order) {
     img.pixel(vid) = index++;
   }
   img.save("tree.pgm");
 
-
-  std::cout << "Varcount: " << var2factors.size() << std::endl;
+  
+  std::cout << "\nVarcount: " << var2factors.size() << std::endl;
   //   // Rebuild the junction tree 
   //   tree_width = build_junction_tree(mrf, block, jt);
   return tree_width;

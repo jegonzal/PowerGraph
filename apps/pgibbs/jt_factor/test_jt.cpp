@@ -105,7 +105,7 @@ void test_compute_tree_width(int argc, char** argv) {
     fid++;
   }
 
-  size_t tree_width = compute_tree_width(var2factors, factor2vars);
+  size_t tree_width = min_fill_tree_width(var2factors, factor2vars, fid);
   std::cout << "Tree Width: " << tree_width << std::endl;
 }
 
@@ -136,7 +136,7 @@ void test_compute_tree_width2(int argc, char** argv) {
     std::cout << std::endl;   
   }
 
-  size_t tree_width = compute_tree_width(var2factors, factor2vars);
+  size_t tree_width = min_fill_tree_width(var2factors, factor2vars, 2);
   std::cout << "Tree Width: " << tree_width << std::endl;
 }
 
