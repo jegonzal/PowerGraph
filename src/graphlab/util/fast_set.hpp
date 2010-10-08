@@ -46,6 +46,8 @@ namespace graphlab {
 
     size_t size() const { return nelems; }
 
+    bool empty() const { return size() == 0; }
+
 
     bool contains(const T& elem) {
       for(size_t i = 0; i < nelems; ++i) 

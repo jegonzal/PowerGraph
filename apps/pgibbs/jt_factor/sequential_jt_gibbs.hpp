@@ -17,8 +17,8 @@
   
 
 
-// typedef graphlab::fast_set<10, vertex_id_t> vertex_set;
-typedef std::set<vertex_id_t> vertex_set;
+typedef graphlab::fast_set<24, vertex_id_t> vertex_set;
+// typedef std::set<vertex_id_t> vertex_set;
 
 
 struct clique_type {
@@ -64,14 +64,22 @@ size_t compute_tree_width(const vset_map& var2factors_const,
   graphlab::mutable_queue<vertex_id_t, int> elim_priority_queue;
   typedef vset_map::value_type vset_map_pair;
   foreach(const vset_map_pair& pair, var2factors) {
-    vertex_id_t var = pair.first;
+    vertex_id_t vid = pair.first;
     const vertex_set& factors = pair.second;
-    int fill_edges = 0;
-    foreach(vertex_id_t fid, factors) 
-      fill_edges += ( factor2vars[fid].size() - 1);
-    elim_priority_queue.push(var, -fill_edges);
-    //std::cout << "Fill: " << var << ":  " << fill_edges << std::endl;
+    vertex_set fill_clique;
+    foreach(vertex_id_t fid, factors) {
+      const vertex_set& verts = factor2vars[fid];
+      if(!verts.empty()) {
+        fill_clique.insert(verts.begin(), verts.end());
+      }
+    }
+    int clique_edges = fill_clique.size() * (fill_clique.size() - 1) / 2;
+      //  existing_edges;
+    assert(clique_edges >= 0);
+    elim_priority_queue.push(vid, -clique_edges);
   }
+
+
 
   // keep track of the next unique factor id value (used to created
   // temporary factors along the way).
@@ -144,12 +152,19 @@ size_t compute_tree_width(const vset_map& var2factors_const,
     } // end of merge
 
     // Update the fill order
-    foreach(vertex_id_t v, affected_vertices) {
-      int fill_edges = 0;
-      const vertex_set& factors = var2factors[v];
-      foreach(vertex_id_t fid, factors)
-        fill_edges += (factor2vars[fid].size() - 1);
-      elim_priority_queue.update(v, -fill_edges);
+    foreach(vertex_id_t vid, affected_vertices) {
+      const vertex_set& factors = var2factors[vid];
+      vertex_set fill_clique;
+      foreach(vertex_id_t fid, factors) {
+        const vertex_set& verts = factor2vars[fid];
+        if(!verts.empty()) {
+          fill_clique.insert(verts.begin(), verts.end());
+        }
+      }
+      int clique_edges = fill_clique.size() * (fill_clique.size() - 1) / 2;
+        //   existing_edges;
+      assert(clique_edges >= 0);
+      elim_priority_queue.update(vid, -clique_edges);
     }
 
   }
@@ -197,9 +212,9 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
 
     // build a junction tree
     tree_width = compute_tree_width(var2factors, factor2vars, &elim_order);
-    std::cout << "Tree_width: " << tree_width;
+    // std::cout << "Tree_width: " << tree_width;
     if(tree_width <= MAX_DIM) {
-      std::cout << std::endl;
+      // std::cout << std::endl;
       // add the neighbors to the search queue
       foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
         vertex_id_t neighbor_vid = mrf.target(eid);
@@ -209,7 +224,7 @@ size_t build_junction_tree(const mrf::graph_type& mrf,
         }
       }
     } else {
-      std::cout << "-----------FAILED-----------------" << std::endl;
+      // std::cout << "-----------FAILED-----------------" << std::endl;
       // remove the variable if we decide not to use it
       const mrf::vertex_data& vdata = mrf.vertex_data(next_vertex);
       var2factors.erase(next_vertex);
