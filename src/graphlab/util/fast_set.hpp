@@ -29,12 +29,14 @@ namespace graphlab {
     // empty set
     fast_set() : nelems(0) { }
     fast_set(const T& elem) : nelems(1) { values[0] = elem; }
-    fast_set(const std::set<T>& other) : nelems(other.size) { 
+    
+    template<typename OtherT>
+    fast_set(const std::set<OtherT>& other) : nelems(other.size()) { 
       assert(nelems <= MAX_DIM);
       size_t index = 0;
-      foreach(const T& elem, other) values[index++] = elem;
-     
+      foreach(const OtherT& elem, other) values[index++] = elem;
     }
+
 
     T* begin() { return values; }
     T* end() { return values + nelems; }
@@ -103,6 +105,7 @@ namespace graphlab {
       fast_set result;
       size_t i = 0, j = 0;
       while(i < size() && j < other.size()) {
+        assert(result.nelems <= MAX_DIM);
         if(values[i] < other.values[j])  // This comes first
           result.values[result.nelems++] = values[i++];
         else if (values[i] > other.values[j])  // other comes first
@@ -112,9 +115,15 @@ namespace graphlab {
         }
       }
       // finish writing this
-      while(i < size()) result.values[result.nelems++] = values[i++];
+      while(i < size()) {
+        assert(result.nelems <= MAX_DIM);
+        result.values[result.nelems++] = values[i++];
+      }
       // finish writing other
-      while(j < other.size()) result.values[result.nelems++] = other.values[j++];
+      while(j < other.size()) {
+        assert(result.nelems <= MAX_DIM);
+        result.values[result.nelems++] = other.values[j++];
+      }
       // We could have segfaulted but check now anyways
       assert(result.nelems <= MAX_DIM);    
       return result;
