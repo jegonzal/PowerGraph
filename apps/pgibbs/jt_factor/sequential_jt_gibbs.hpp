@@ -28,6 +28,7 @@ struct elim_clique {
   size_t parent;
   vertex_id_t elim_vertex;
   vertex_set vertices; 
+  vertex_set factors;
   elim_clique() : parent(-1) { }
 };
 
@@ -262,7 +263,7 @@ void build_clique_tree(const mrf::graph_type& mrf,
   
   foreach(elim_clique& clique, cliques) {
     size_t earliest_elim_time = cliques.size();
-    if(clique.vertices.size() > 1) {
+    if(!clique.vertices.empty()) {
       foreach(vertex_id_t vid, clique.vertices) {
         if(vid != clique.elim_vertex) 
           earliest_elim_time = 
@@ -276,9 +277,10 @@ void build_clique_tree(const mrf::graph_type& mrf,
   { // Print out the clique list
     size_t i = 0;
     foreach(const elim_clique& clique, cliques) {
-      std::cout << i << ": " << clique.elim_vertex 
-                << " --> " << clique.parent << " : " 
-                << clique.vertices << std::endl;
+      std::cout << i << " --> " << clique.parent << "   \t" 
+                << clique.elim_vertex << " : "
+                << (clique.vertices + clique.elim_vertex) << std::endl;
+      i++;
     }
   }
 } // end of build junction tree
@@ -385,9 +387,9 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
   
   clique_vector cliques;
   tree_width = eval_elim_order(var2factors, factor2vars, 
-                                   max_factor_id + 1, 
-                                   elim_order,
-                                   &cliques);
+                               max_factor_id + 1, 
+                               elim_order,
+                               &cliques);
 
   build_clique_tree(mrf, cliques);
   
