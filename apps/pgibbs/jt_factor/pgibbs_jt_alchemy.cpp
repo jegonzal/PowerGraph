@@ -51,31 +51,33 @@ int main(int argc, char** argv) {
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
 
-  vertex_set vset;
-  for(vertex_id_t i = 0; i < mrf_graph.num_vertices(); ++i) 
-    vset.insert(i);
-
 
   std::cout << "Sample one block" << std::endl;
   junction_tree::graph_type jt;
 
 
   //build_junction_tree(mrf_graph, 0, jt);
+  size_t id = image::vertid(200,200, 100,100);
   
-  for(size_t i = 0; i < 10; ++i) {
-    size_t j = rand() % mrf_graph.num_vertices();
-    sample_once(factor_graph, mrf_graph, j);
+  sample_once(factor_graph, mrf_graph, id);
 
-  size_t rows = sqrt(mrf_graph.num_vertices());
-  image img(rows,rows);
+  std::cout << "Finished!" << std::endl;
 
-  for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
-    img.pixel(i) = mrf_graph.vertex_data(i).asg.asg_at(0);
-  }
+  
+//   for(size_t i = 0; i < 10; ++i) {
+//     size_t j = rand() % mrf_graph.num_vertices();
+//     sample_once(factor_graph, mrf_graph, j);
 
-  img.save("result.pgm");
-  }
-
+//     size_t rows = sqrt(mrf_graph.num_vertices());
+//     image img(rows,rows);
+    
+//     for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
+//       img.pixel(i) = mrf_graph.vertex_data(i).asg.asg_at(0);
+//     }
+    
+//     img.save("result.pgm");
+//   }
+  
   
   
 

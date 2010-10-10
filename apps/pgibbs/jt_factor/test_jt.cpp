@@ -1,14 +1,16 @@
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <vector>
 #include <map>
 #include <set>
 #include <algorithm>
 
+
 #include <graphlab.hpp>
 
 #include "data_structures.hpp"
-
+#include "sequential_jt_gibbs.hpp"
 
 
 #include <graphlab/macros_def.hpp>
@@ -84,10 +86,124 @@ void test_alchemy(int argc, char** argv) {
 }
 
 
+// void test_compute_tree_width_old(int argc, char** argv) {
+//   factorized_model model;
+//   model.load_alchemy(argv[1]);
+  
+//   // Build the maps
+//   vset_map var2factors;
+//   vset_map factor2vars;
+//   vertex_id_t fid = 0;
+//   foreach(const factor_t& factor, model.factors()){
+//     domain_t dom = factor.args();    
+//     std::cout << "Factor: " << fid << ": ";
+//     for(size_t i = 0; i < dom.num_vars(); ++i) {
+//       vertex_id_t varid = dom.var(i).id;
+//       var2factors[varid].insert(fid);
+//       factor2vars[fid].insert(varid);
+//       std::cout << varid << " ";
+//     }
+//     std::cout << std::endl;
+//     fid++;
+//   }
+
+//   size_t tree_width = min_fill_tree_width(var2factors, factor2vars, fid);
+//   std::cout << "Tree Width: " << tree_width << std::endl;
+// }
+
+
+// void test_compute_tree_width2(int argc, char** argv) {
+//   // Build the maps
+//   vset_map var2factors;
+//   vset_map factor2vars;
+
+
+//   factor2vars[0].insert(0);
+//   factor2vars[0].insert(1);
+//   factor2vars[0].insert(2);
+//   factor2vars[0].insert(3);
+
+//   factor2vars[1].insert(1);
+//   factor2vars[1].insert(3);
+//   factor2vars[1].insert(4);
+//   factor2vars[1].insert(5);
+
+//   foreach(vset_map::value_type pair, factor2vars){
+//     vertex_id_t fid = pair.first;
+//     std::cout << "Factor: " << fid << ": ";
+//     foreach(vertex_id_t varid, pair.second) {
+//       std::cout << varid << " ";
+//       var2factors[varid].insert(fid);
+//     }
+//     std::cout << std::endl;   
+//   }
+
+//   size_t tree_width = min_fill_tree_width(var2factors, factor2vars, 2);
+//   std::cout << "Tree Width: " << tree_width << std::endl;
+// }
+
+// void test_fast_set(int argc, char** argv) {
+//   const size_t SET_SIZE(10);
+//   typedef graphlab::fast_set<SET_SIZE, size_t> set_t;
+
+
+//   set_t set;
+//   set += 1;
+//   set += 7;
+//   set += 5;
+//   set += 2;
+//   set -= 4;
+//   set -= 2;
+//   set += 3;
+//   std::cout << set << std::endl;
+
+//   set_t set2 = set_t(3) +  9 + 4 + 5;
+//   std::cout << set2 << std::endl;
+
+//   std::cout << set - set2 << std::endl;
+//   std::cout << set * set2 << std::endl;
+
+//   foreach(size_t elem, (set + set2)) {
+//     std::cout << elem << ", ";
+//   }
+//   std::cout << std::endl;
+
+// }
+
+
+void test_compute_tree_width(int argc, char** argv) {
+  factorized_model model;
+  model.load_alchemy(argv[1]);
+  std::cout << "Building graphlab MRF." << std::endl;
+  mrf::graph_type mrf_graph;
+
+  construct_mrf(model, mrf_graph);
+
+
+  vertex_id_t root = atoi(argv[3]);
+  std::cout << "Root: " << root << std::endl;
+  junction_tree::graph_type jt;
+
+  size_t tree_width = 0;
+  if(strcmp(argv[2], "bfs") == 0) {
+    std::cout << "bfs Method" << std::endl;
+    tree_width = bfs_build_junction_tree(mrf_graph, root, jt);
+  } else {
+    std::cout << "minfill Method" << std::endl;
+    tree_width = min_fill_build_junction_tree(mrf_graph, root, jt);
+  }  
+  std::cout << "Tree Width: " << tree_width << std::endl;
+}
+
+
 
 int main(int argc, char** argv) {
   // test_jt_building(argc, argv);
-  test_alchemy(argc, argv);
+  //  test_alchemy(argc, argv);
+  // test_fast_set(argc, argv);
+  //  test_compute_tree_width2(argc, argv);
+  test_compute_tree_width(argc, argv);
+
 
   return EXIT_SUCCESS;
 } // end of main
