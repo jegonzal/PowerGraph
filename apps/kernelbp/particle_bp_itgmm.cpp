@@ -22,6 +22,7 @@
 #include <itpp/itbase.h>
 
 #include "gaussian_mixture.hpp"
+#include "image_compare.hpp"
 // Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>
 
@@ -595,10 +596,10 @@ int main(int argc, char** argv) {
   for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
     const vertex_data& vdata = core.graph().vertex_data(v);
     float a = vdata.max_asg();
-    if (a < 0) a = 0;
-    if (a > 255) a = 255;
-    img.pixel(v) = size_t(a);
+    img.pixel(v) = a;
   }
+  std::cout << "RMSE: " << image_compare(trueimg, img) << std::endl;
+
   img.save("pred_map.pgm");
 
 
@@ -613,6 +614,7 @@ int main(int argc, char** argv) {
 
 
   std::cout << "Done!" << std::endl;
+
   return EXIT_SUCCESS;
 } // End of main
 

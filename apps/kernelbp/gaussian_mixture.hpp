@@ -29,11 +29,11 @@ struct SphericalGaussian<1>{
 };
 
 inline float gaussian_log_likelihood(float u, float sigma, float x) {
-  return std::log(1.0/sigma) - square(x - u) / (2 * sigma * sigma);
+  return log(1.0/sigma) - square(x - u) / (2 * sigma * sigma);
 }
 
 inline float gaussian_likelihood(float u, float sigma, float x) {
-  return std::exp(-square(x - u) / (2 * sigma * sigma)) / sigma;
+  return exp(-square(x - u) / (2 * sigma * sigma)) / sigma;
 }
 
 /**
@@ -80,7 +80,7 @@ struct GaussianMixture{
         curll += gaussian_log_likelihood(gaussians[i].center[j],
                                          gaussians[i].sigma, d[j]);
       }
-      ret += gaussians[i].weight * std::exp(curll);
+      ret += gaussians[i].weight * exp(curll);
     }
     return ret;
   }

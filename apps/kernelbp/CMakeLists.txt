@@ -8,6 +8,6 @@ add_executable(particle_bp particle_bp.cpp)
 target_link_libraries(particle_bp tcmalloc)
 
 
-add_executable(particle_bp_itgmm particle_bp_itgmm.cpp)
+add_executable(particle_bp_itgmm particle_bp_itgmm.cpp image_compare.cpp)
 target_link_libraries(particle_bp_itgmm tcmalloc itpp)
 #set_target_properties(particle_bp_itgmm PROPERTIES COMPILE_FLAGS "-ffast-math")
