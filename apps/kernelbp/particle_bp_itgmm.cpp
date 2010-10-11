@@ -160,10 +160,12 @@ void sample_message(gl_types::iscope& scope,
     double oldweight = outedgedata.message[i].weight;
     outedgedata.message[i].weight = 0;
     for (size_t j = 0;j < inedgedata.message.size(); ++j) {
-      // outgoing potential * src belief / by incoming message
-      outedgedata.message[i].weight  +=
-                outedgedata.edgepot(srcvdata.belief[j].x, outedgedata.message[i].x) *
-                srcvdata.belief[j].weight / inedgedata.message[j].weight;
+      double scaleweight = srcvdata.belief[j].weight / inedgedata.message[j].weight;
+      if (scaleweight > 1E-7) {
+        // outgoing potential * src belief / by incoming message
+        outedgedata.message[i].weight  +=
+                  outedgedata.edgepot(srcvdata.belief[j].x, outedgedata.message[i].x) * scaleweight;
+      }
     }
     outedgedata.message[i].weight = outedgedata.message[i].weight * damping
                                     + oldweight * (1.0 - damping);
@@ -472,7 +474,7 @@ int main(int argc, char** argv) {
 
   std::string gmmfile= "";
   std::string inputfile = "";
-
+  std::string logfile = "";
 
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
@@ -497,6 +499,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("mcmc",
                        &MCMCSTEPS, MCMCSTEPS,
                        "mcmc steps per resample");
+  clopts.attach_option("logfile",
+                       &logfile, std::string(""),
+                       "log file");
 
   // set default scheduler type
   clopts.scheduler_type = "splash(100)";
@@ -540,6 +545,8 @@ int main(int argc, char** argv) {
   GaussianMixture<2> nodepot(nodecenter, nodesigma, nodeweight);
   edgepot.simplify();
   edgepot.print();
+  std::cout << "node pot: " << std::endl;
+  nodepot.print();
   // convert the true image to an image
   image trueimg(rows, cols);
   for (size_t i = 0;i < truedata.size(); ++i) {
@@ -598,8 +605,15 @@ int main(int argc, char** argv) {
     float a = vdata.max_asg();
     img.pixel(v) = a;
   }
-  std::cout << "RMSE: " << image_compare(trueimg, img) << std::endl;
-
+  
+  double rmse = image_compare(trueimg, img);
+  std::cout << "RMSE: " << rmse << std::endl;
+  if (logfile.length() != 0) {
+    ofstream fout;
+    fout.open(logfile.c_str());
+    fout << gmmfile << "\t" << inputfile << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << rmse  << std::endl;
+    fout.close();
+  }
   img.save("pred_map.pgm");
 
 

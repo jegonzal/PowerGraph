@@ -33,7 +33,9 @@ inline float gaussian_log_likelihood(float u, float sigma, float x) {
 }
 
 inline float gaussian_likelihood(float u, float sigma, float x) {
-  return exp(-square(x - u) / (2 * sigma * sigma)) / sigma;
+  float inner = -square(x - u) / (2 * sigma * sigma);
+  if (inner < -20) return 1E-10 / sigma;
+  else return exp(-square(x - u) / (2 * sigma * sigma)) / sigma;
 }
 
 /**
