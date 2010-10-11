@@ -548,20 +548,23 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
 //       }
   } // end of while loop
   
+
+
+
+  std::cout << "Varcount: " << elim_order.size() << std::endl;  
   
   junction_tree_from_cliques(mrf, 
                              cliques.begin(), cliques.end(), 
                              jt);
 
  
-  image img(200, 200);
-  size_t index = elim_order.size();
-  foreach(vertex_id_t vid, elim_order) {
-    img.pixel(vid) = index++;
-  }
-  img.save("tree.pgm");
+//   image img(200, 200);
+//   size_t index = elim_order.size();
+//   foreach(vertex_id_t vid, elim_order) {
+//     img.pixel(vid) = index++;
+//   }
+//   img.save("tree.pgm");
   
-  std::cout << "Varcount: " << elim_order.size() << std::endl;
   return 1;
 }
 
@@ -652,22 +655,20 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
                                elim_order,
                                &cliques);
 
+
+  std::cout << "Varcount: " << var2factors.size() << std::endl;
   junction_tree_from_cliques(mrf, 
                              cliques.rbegin(), cliques.rend(),
                              jt);
   
+//   std::cout << "Elim Tree Width: " << tree_width << std::endl;
+//   image img(200, 200);
+//   size_t index = elim_order.size();
+//   foreach(vertex_id_t vid, elim_order) {
+//     img.pixel(vid) = index++;
+//   }
+//   img.save("tree.pgm");
 
-  std::cout << "Elim Tree Width: " << tree_width << std::endl;
-
-  image img(200, 200);
-  size_t index = elim_order.size();
-  foreach(vertex_id_t vid, elim_order) {
-    img.pixel(vid) = index++;
-  }
-  img.save("tree.pgm");
-
-  
-  std::cout << "Varcount: " << var2factors.size() << std::endl;
   return tree_width;
 }
 
@@ -747,22 +748,23 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
                              max_factor_id, &elim_order,
                              &cliques);
 
+
+  std::cout << "Varcount: " << var2factors.size() << std::endl;
   junction_tree_from_cliques(mrf, 
                              cliques.rbegin(), cliques.rend(),
                              jt);
 
-  std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
+//   std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
 
 
-  image img(200, 200);
-  size_t index = elim_order.size();
-  foreach(vertex_id_t vid, elim_order) {
-    img.pixel(vid) = index++;
-  }
-  img.save("tree.pgm");
+//   image img(200, 200);
+//   size_t index = elim_order.size();
+//   foreach(vertex_id_t vid, elim_order) {
+//     img.pixel(vid) = index++;
+//   }
+//   img.save("tree.pgm");
 
   
-  std::cout << "Varcount: " << var2factors.size() << std::endl;
 
   return tree_width;
 }
@@ -781,17 +783,17 @@ void sample_once(const factorized_model& factor_graph,
 
   junction_tree::gl::core jt_core;
   std::cout << "Building Tree" << std::endl;
-  size_t tree_width = bfs_build_junction_tree(mrf, root, jt_core.graph());
+  size_t tree_width = incremental_build_junction_tree(mrf, root, jt_core.graph());
   std::cout << "Root:  " << root << " ----------------" << std::endl;
   std::cout << "Tree width: " << tree_width << std::endl;
 
   std::cout << "Done!!!" << std::endl;
-  return;
+
 
   // Setup the core
   jt_core.set_scheduler_type("fifo");
   jt_core.set_scope_type("edge");
-  jt_core.set_ncpus(8);
+  jt_core.set_ncpus(2);
   jt_core.set_engine_type("async");
  
 
@@ -817,8 +819,6 @@ void sample_once(const factorized_model& factor_graph,
   //   }
   //   std::cout << std::endl;
   // }
-
-
 
 
   // Ensure entire tree is sampled
