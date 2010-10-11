@@ -25,6 +25,7 @@
 using namespace itpp;
 using namespace std;
 
+
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
   vec message; 
