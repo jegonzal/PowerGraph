@@ -49,10 +49,16 @@ namespace graphlab {
     bool empty() const { return size() == 0; }
 
 
-    bool contains(const T& elem) {
+    bool contains(const T& elem) const {
       for(size_t i = 0; i < nelems; ++i) 
         if(values[i] == elem) return true;
       return false;
+    }
+
+
+
+    bool operator<=(const fast_set& other) const {
+      return (*this - other).empty();
     }
 
   
