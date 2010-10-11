@@ -319,6 +319,8 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
     foreach(elim_clique& clique, cliques_range) {      
       // Create the vertex data
       junction_tree::vertex_data vdata;
+      // add the eliminated vertex
+      vdata.variables = mrf.vertex_data(clique.elim_vertex).variable;
       foreach(vertex_id_t vid, clique.vertices) 
         vdata.variables += mrf.vertex_data(vid).variable;      
       foreach(vertex_id_t fid, clique.factor_ids) 
@@ -341,20 +343,18 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
       }
     } // end of for each
   } // End of construct cliques
-    
 
-
-  { // Print out the clique list
-    size_t i = 0;
-    foreach(const elim_clique& clique, cliques_range) {
-      std::cout << i << " --> " << clique.parent << "   \t" 
-                << clique.elim_vertex << " : "
-                << (clique.vertices + clique.elim_vertex) 
-                << "    Factors"  << clique.factor_ids
-                <<std::endl;
-      i++;
-    }
-  }
+  //   { // Print out the clique list
+  //     size_t i = 0;
+  //     foreach(const elim_clique& clique, cliques_range) {
+  //       std::cout << i << " --> " << clique.parent << "   \t" 
+  //                 << clique.elim_vertex << " : "
+  //                 << (clique.vertices + clique.elim_vertex) 
+  //                 << "    Factors"  << clique.factor_ids
+  //                 <<std::endl;
+  //       i++;
+  //     }
+  //   }
 } // end of build junction tree
 
 
@@ -369,7 +369,7 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
  *  Extend the clique tree with the next vertex
  *
  **/
-bool extend_clique_tree(const mrf::graph_type& mrf,
+bool extend_clique_list(const mrf::graph_type& mrf,
                         vertex_id_t elim_vertex,
                         std::map<vertex_id_t, vertex_id_t>& elim_time_map,
                         clique_vector& cliques) {
@@ -516,7 +516,7 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
 
     // test the 
     bool safe_extension = 
-      extend_clique_tree(mrf, next_vertex,
+      extend_clique_list(mrf, next_vertex,
                          elim_time_map,
                          cliques);
     if(safe_extension) {   
@@ -532,44 +532,34 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
       }
     }
 
-
-    std::cout << "========================================="
-              << std::endl
-              << next_vertex << ":  " << safe_extension
-              << std::endl;
-    
-    { // Print out the clique list
-      size_t i = 0;
-      foreach(const elim_clique& clique, cliques) {
-        std::cout << i << " --> " << clique.parent << "   \t" 
-                  << clique.elim_vertex << " : "
-                  << (clique.vertices + clique.elim_vertex) 
-                  << "    Factors"  << clique.factor_ids
-                  << std::endl;
-        i++;
-      }
-    }
-
-
+//     std::cout << "========================================="
+//               << std::endl
+//               << next_vertex << ":  " << safe_extension
+//               << std::endl;    
+//     { // Print out the clique list
+//       size_t i = 0;
+//       foreach(const elim_clique& clique, cliques) {
+//         std::cout << i << " --> " << clique.parent << "   \t" 
+//                   << clique.elim_vertex << " : "
+//                   << (clique.vertices + clique.elim_vertex) 
+//                   << "    Factors"  << clique.factor_ids
+//                   << std::endl;
+//         i++;
+//       }
   } // end of while loop
   
-
+  
   junction_tree_from_cliques(mrf, 
                              cliques.begin(), cliques.end(), 
                              jt);
 
  
-  // image img(200, 200);
-  // size_t index = 10;
-  // foreach(vertex_id_t vid, elim_order) {
-  //   img.pixel(vid) = index++;
-  // }
-  // img.save("tree.pgm");
-
-
-
-
-
+  image img(200, 200);
+  size_t index = elim_order.size();
+  foreach(vertex_id_t vid, elim_order) {
+    img.pixel(vid) = index++;
+  }
+  img.save("tree.pgm");
   
   std::cout << "Varcount: " << elim_order.size() << std::endl;
   return 1;
@@ -653,7 +643,7 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
       } 
       elim_order.pop_back();
     }
-    if(var2factors.size() == 1000) break;
+    if(var2factors.size() == 2000) break;
   }
   
   clique_vector cliques;
@@ -669,12 +659,12 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
 
   std::cout << "Elim Tree Width: " << tree_width << std::endl;
 
-  // image img(200, 200);
-  // size_t index = 10;
-  // foreach(vertex_id_t vid, elim_order) {
-  //   img.pixel(vid) = index++;
-  // }
-  // img.save("tree.pgm");
+  image img(200, 200);
+  size_t index = elim_order.size();
+  foreach(vertex_id_t vid, elim_order) {
+    img.pixel(vid) = index++;
+  }
+  img.save("tree.pgm");
 
   
   std::cout << "Varcount: " << var2factors.size() << std::endl;
@@ -745,7 +735,7 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
       } 
     }
 
-    if(var2factors.size() == 1000) break;
+    if(var2factors.size() == 2000) break;
 
   }
 
@@ -764,12 +754,12 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
   std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
 
 
-  // image img(200, 200);
-  // size_t index = 10;
-  // foreach(vertex_id_t vid, elim_order) {
-  //   img.pixel(vid) = index++;
-  // }
-  // img.save("tree.pgm");
+  image img(200, 200);
+  size_t index = elim_order.size();
+  foreach(vertex_id_t vid, elim_order) {
+    img.pixel(vid) = index++;
+  }
+  img.save("tree.pgm");
 
   
   std::cout << "Varcount: " << var2factors.size() << std::endl;
