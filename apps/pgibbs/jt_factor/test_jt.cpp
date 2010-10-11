@@ -188,10 +188,13 @@ void test_compute_tree_width(int argc, char** argv) {
   if(strcmp(argv[2], "bfs") == 0) {
     std::cout << "bfs Method" << std::endl;
     tree_width = bfs_build_junction_tree(mrf_graph, root, jt);
-  } else {
+  } else if(strcmp(argv[2], "minfill") == 0) {
     std::cout << "minfill Method" << std::endl;
     tree_width = min_fill_build_junction_tree(mrf_graph, root, jt);
-  }  
+  } else {
+    std::cout << "Incremental Build" << std::endl;
+    tree_width = incremental_build_junction_tree(mrf_graph, root, jt);
+  } 
   std::cout << "Tree Width: " << tree_width << std::endl;
 }
 
