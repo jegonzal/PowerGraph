@@ -142,33 +142,33 @@ void test_alchemy(int argc, char** argv) {
 //   std::cout << "Tree Width: " << tree_width << std::endl;
 // }
 
-// void test_fast_set(int argc, char** argv) {
-//   const size_t SET_SIZE(10);
-//   typedef graphlab::fast_set<SET_SIZE, size_t> set_t;
+void test_fast_set(int argc, char** argv) {
+  const size_t SET_SIZE(10);
+  typedef graphlab::fast_set<SET_SIZE, size_t> set_t;
 
 
-//   set_t set;
-//   set += 1;
-//   set += 7;
-//   set += 5;
-//   set += 2;
-//   set -= 4;
-//   set -= 2;
-//   set += 3;
-//   std::cout << set << std::endl;
+  set_t set;
+  set += 1;
+  set += 7;
+  set += 5;
+  set += 2;
+  set -= 4;
+  set -= 2;
+  set += 3;
+  std::cout << set << std::endl;
 
-//   set_t set2 = set_t(3) +  9 + 4 + 5;
-//   std::cout << set2 << std::endl;
+  set_t set2 = set_t(3) +  9 + 4 + 5;
+  std::cout << set2 << std::endl;
 
-//   std::cout << set - set2 << std::endl;
-//   std::cout << set * set2 << std::endl;
+  std::cout << set - set2 << std::endl;
+  std::cout << set * set2 << std::endl;
 
-//   foreach(size_t elem, (set + set2)) {
-//     std::cout << elem << ", ";
-//   }
-//   std::cout << std::endl;
+  foreach(size_t elem, (set + set2)) {
+    std::cout << elem << ", ";
+  }
+  std::cout << std::endl;
 
-// }
+}
 
 
 void test_compute_tree_width(int argc, char** argv) {
@@ -193,7 +193,11 @@ void test_compute_tree_width(int argc, char** argv) {
     tree_width = min_fill_build_junction_tree(mrf_graph, root, jt);
   } else {
     std::cout << "Incremental Build" << std::endl;
-    tree_width = incremental_build_junction_tree(mrf_graph, root, jt);
+    std::cout << "Building 10 times" << std::endl;
+    for(size_t i = 0; i < 10; ++i) {
+      std::cout << i << std::endl;
+      tree_width = incremental_build_junction_tree(mrf_graph, root, jt);
+    }
   } 
   std::cout << "Tree Width: " << tree_width << std::endl;
 }
@@ -204,7 +208,7 @@ void test_compute_tree_width(int argc, char** argv) {
 int main(int argc, char** argv) {
   // test_jt_building(argc, argv);
   //  test_alchemy(argc, argv);
-  // test_fast_set(argc, argv);
+  //   test_fast_set(argc, argv);
   //  test_compute_tree_width2(argc, argv);
   test_compute_tree_width(argc, argv);
 

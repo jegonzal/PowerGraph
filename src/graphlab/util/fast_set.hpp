@@ -63,23 +63,6 @@ namespace graphlab {
 
   
     void insert(const T& elem) {
-      // size_t index = 0;
-      // for(; index < nelems && values[index] < elem; ++index);      
-      // if(index == nelems) {
-      //   // add to end
-      //   assert(nelems + 1 <= MAX_DIM);
-      //   values[nelems++] = elem;
-      //   return true;
-      // } else if(values[index] == elem) return false; else {
-      //   assert(nelems + 1 <= MAX_DIM);        
-      //   // slide everything up
-      //   for(size_t i = nelems; i >= index; --i) 
-      //     std::swap(values[i-1], values[i]);
-      //   // Insert the element
-      //   values[index] = elem;
-      //   nelems++;    
-      //   return true;
-      // }
       *this += elem;
     }
 
@@ -109,7 +92,10 @@ namespace graphlab {
     }
 
 
-    fast_set operator+(const fast_set& other) const {
+    
+
+
+    inline fast_set operator+(const fast_set& other) const {
       fast_set result;
       size_t i = 0, j = 0;
       while(i < size() && j < other.size()) {
@@ -137,11 +123,33 @@ namespace graphlab {
       return result;
     }
 
-    fast_set& operator+=(const fast_set& other) {
+    inline fast_set& operator+=(const fast_set& other) {
       *this = *this + other;
       return *this;
     }
 
+    inline fast_set& operator+=(const T& elem) {
+      // Find where elem should be inserted
+      size_t index = 0;
+      for(; index < nelems && values[index] < elem; ++index);      
+      assert(index < MAX_DIM);
+
+      // if the element already exists return
+      if(index < nelems && values[index] == elem) return *this;
+
+      // otherwise the element does not exist so add it at the current
+      // location and increment the number of elements
+      T tmp = elem;
+      nelems++;
+      assert(nelems <= MAX_DIM);
+      // Insert the element at index swapping out the rest of the
+      // array
+      for(size_t i = index; i < nelems; ++i) 
+        std::swap(values[i], tmp);
+      
+      // Finished return
+      return *this;
+    }
 
     fast_set& operator-=(const fast_set& other) {
       if(other.size() == 0) return *this;    

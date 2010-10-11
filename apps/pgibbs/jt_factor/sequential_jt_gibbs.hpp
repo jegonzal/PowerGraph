@@ -403,19 +403,18 @@ bool extend_clique_list(const mrf::graph_type& mrf,
   for(vertex_id_t parent_vid = clique.parent; 
       !rip_verts.empty() && parent_vid < cliques.size(); ) {
     const elim_clique& parent_clique = cliques[parent_vid];    
-    // Check that the expanded clique is still within tree width
-    vertex_set tmp_vset = rip_verts + 
-      parent_clique.vertices + parent_clique.elim_vertex;
-    if(tmp_vset.size() > MAX_DIM) return false;
 
     // otherwise update that the rip_verts
     rip_verts += parent_clique.vertices;
     rip_verts -= parent_clique.elim_vertex;
 
-    // Determine the new parent (if not root)
-    tmp_vset -= parent_clique.elim_vertex;
+    // Check that the expanded clique is still within tree width
+    vertex_set tmp_vset = rip_verts + parent_clique.elim_vertex;
+    if(tmp_vset.size() > MAX_DIM) return false;
+
+    // Find the new parent
     vertex_id_t new_parent_vid = 0;
-    foreach(vertex_id_t vid, tmp_vset) {
+    foreach(vertex_id_t vid, rip_verts) {
       new_parent_vid = 
         std::max(new_parent_vid, elim_time_map[vid]);
     }
@@ -440,7 +439,7 @@ bool extend_clique_list(const mrf::graph_type& mrf,
     rip_verts -= parent_clique.elim_vertex;
 
     // Update the clique
-    parent_clique.vertices += rip_verts;
+    parent_clique.vertices = rip_verts;
 
     // Determine the new parent (except first vertex)
     vertex_id_t new_parent_vid = 0;
@@ -449,7 +448,8 @@ bool extend_clique_list(const mrf::graph_type& mrf,
         std::max(new_parent_vid, elim_time_map[vid]);
     }
     parent_vid = new_parent_vid;
-      // Update the parent for this clique
+
+    // Update the parent for this clique
     parent_clique.parent = new_parent_vid;
   }
   // Add successfully
@@ -547,7 +547,7 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
 //         i++;
 //       }
 
-       if(elim_order.size() == 2000) break;
+//       if(elim_order.size() == 2000) break;
   } // end of while loop
   
 
@@ -560,13 +560,14 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
                              jt);
 
  
-//   image img(200, 200);
-//   size_t index = elim_order.size();
-//   foreach(vertex_id_t vid, elim_order) {
-//     img.pixel(vid) = index++;
-//   }
-//   img.save("tree.pgm");
-  
+  // image img(200, 200);
+  // size_t index = elim_order.size();
+  // foreach(vertex_id_t vid, elim_order) {
+  //   img.pixel(vid) = index++;
+  // }
+  // img.save("tree.pgm");
+
+  std::cout << "Finished build junction tree" << std::endl;
   return 1;
 }
 
