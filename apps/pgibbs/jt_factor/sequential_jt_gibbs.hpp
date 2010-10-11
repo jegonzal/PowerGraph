@@ -253,10 +253,9 @@ void build_clique_tree(const mrf::graph_type& mrf,
   // Convert the iterators to a range and size
   const std::pair<T,T> cliques_range = 
     std::make_pair(begin_iter, end_iter);
-  size_t cliques_size = end_iter - begin_iter;
 
 
-  std::map<vertex_id_t, size_t> elim_time_map;
+  std::map<vertex_id_t, vertex_id_t> elim_time_map;
   std::set<vertex_id_t> assigned_factors;
 
   { // Compute the elimination time for each vertex that is eliminated
@@ -265,6 +264,7 @@ void build_clique_tree(const mrf::graph_type& mrf,
       elim_time_map[clique.elim_vertex] = elim_time++;
     }
   }
+
 
   { // Assign factors  
     foreach(elim_clique& clique, cliques_range) {
@@ -281,15 +281,11 @@ void build_clique_tree(const mrf::graph_type& mrf,
  
   // Compute the parent of each clique
   foreach(elim_clique& clique, cliques_range) {
-    size_t earliest_elim_time = cliques_size;
-    if(!clique.vertices.empty()) {
-      foreach(vertex_id_t vid, clique.vertices) {
-        earliest_elim_time = 
-          std::min(earliest_elim_time, elim_time_map[vid]);
-      }
-      if(earliest_elim_time < cliques_size)
-        clique.parent = earliest_elim_time;        
-    }  
+    vertex_id_t parent = 0;
+    foreach(vertex_id_t vid, clique.vertices) {
+      parent =  std::max(parent, elim_time_map[vid]);
+    }
+    clique.parent = parent;
   }
 
 
@@ -309,11 +305,17 @@ void build_clique_tree(const mrf::graph_type& mrf,
 
 
 
+
+
+
+
+
 // Build the clique tree from the mrf
 void build_clique_tree(const mrf::graph_type& mrf, 
                        clique_vector& cliques)  {
-  build_clique_tree(mrf, cliques.begin(), cliques.end());
+  build_clique_tree(mrf, cliques.rbegin(), cliques.rend());
 }
+
 
 
 
@@ -324,17 +326,13 @@ void build_clique_tree(const mrf::graph_type& mrf,
  *  Extend the clique tree with the next vertex
  *
  **/
-
 bool extend_clique_tree(const mrf::graph_type& mrf,
                         vertex_id_t elim_vertex,
-                        std::map<vertex_id_t, vertex_id_t>& rev_elim_time_map,
-                        clique_vector& rev_cliques) {
-
-
-
+                        std::map<vertex_id_t, vertex_id_t>& elim_time_map,
+                        clique_vector& cliques) {
   // sanity check: The vertex to eliminate should not have already
   // been eliminated
-  assert(rev_elim_time_map.find(elim_vertex) == rev_elim_time_map.end());
+  assert(elim_time_map.find(elim_vertex) == elim_time_map.end());
 
   // Construct the elimination clique for the new vertex
   elim_clique clique;
@@ -342,7 +340,7 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
   foreach(edge_id_t ineid, mrf.in_edge_ids(elim_vertex)) {
     vertex_id_t vid = mrf.source(ineid);
     // if the neighbor is in the set of vertices being eliminated
-    if(rev_elim_time_map.find(vid) != rev_elim_time_map.end()) {
+    if(elim_time_map.find(vid) != elim_time_map.end()) {
       clique.vertices += mrf.source(ineid);
     }
     // if the clique ever gets too large than teminate
@@ -350,10 +348,10 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
   }
 
   // Determine the parent of this clique
-  if(!rev_cliques.empty()) {
+  if(!cliques.empty()) {
     vertex_id_t parent_id = 0;
     foreach(vertex_id_t vid, clique.vertices)
-      parent_id = std::max(parent_id, rev_elim_time_map[vid]);
+      parent_id = std::max(parent_id, elim_time_map[vid]);
     clique.parent = parent_id;
   }
 
@@ -361,15 +359,15 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
   // satisfied
   vertex_set rip_verts = clique.vertices;
   for(vertex_id_t parent_vid = clique.parent; 
-      !rip_verts.empty() && parent_vid < rev_cliques.size(); ) {
-    const elim_clique& parent_clique = rev_cliques[parent_vid];    
+      !rip_verts.empty() && parent_vid < cliques.size(); ) {
+    const elim_clique& parent_clique = cliques[parent_vid];    
     // Check that the expanded clique is still within tree width
     vertex_set tmp_vset = rip_verts + 
       parent_clique.vertices + parent_clique.elim_vertex;
     if(tmp_vset.size() > MAX_DIM) return false;
 
     // otherwise update that the rip_verts
-    rip_verts -= parent_clique.vertices;
+    rip_verts += parent_clique.vertices;
     rip_verts -= parent_clique.elim_vertex;
 
     // Determine the new parent (if not root)
@@ -378,7 +376,7 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
       vertex_id_t new_parent_vid = 0;
       foreach(vertex_id_t vid, tmp_vset) {
         new_parent_vid = 
-          std::max(new_parent_vid, rev_elim_time_map[vid]);
+          std::max(new_parent_vid, elim_time_map[vid]);
       }
       parent_vid = new_parent_vid;
     } else { 
@@ -388,19 +386,19 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
 
   // Assert that if we reached this point RIP can be satisfied safely
   // so proceed to update local data structures
-  size_t elim_time = rev_cliques.size();
-  rev_cliques.push_back(clique);
-  rev_elim_time_map[clique.elim_vertex] = elim_time;
+  size_t elim_time = cliques.size();
+  cliques.push_back(clique);
+  elim_time_map[clique.elim_vertex] = elim_time;
 
   // Satisfy RIP
   rip_verts = clique.vertices;
   for(vertex_id_t parent_vid = clique.parent; 
-      !rip_verts.empty() && parent_vid < rev_cliques.size(); ) {
+      !rip_verts.empty() && parent_vid < cliques.size(); ) {
     // get the parent clique
-    elim_clique& parent_clique = rev_cliques[parent_vid];       
+    elim_clique& parent_clique = cliques[parent_vid];       
 
     // otherwise update that the rip_verts
-    rip_verts -= parent_clique.vertices;
+    rip_verts += parent_clique.vertices;
     rip_verts -= parent_clique.elim_vertex;
 
     // Update the clique
@@ -411,7 +409,7 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
       vertex_id_t new_parent_vid = 0;
       foreach(vertex_id_t vid, parent_clique.vertices) {
         new_parent_vid = 
-          std::max(new_parent_vid, rev_elim_time_map[vid]);
+          std::max(new_parent_vid, elim_time_map[vid]);
       }
       parent_vid = new_parent_vid;
       // Update the parent for this clique
@@ -421,10 +419,8 @@ bool extend_clique_tree(const mrf::graph_type& mrf,
     }
 
   }
-
   // Add successfully
   return true;
-
 }
 
 
