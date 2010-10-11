@@ -44,7 +44,7 @@ namespace graphlab {
     const T* begin() const { return values; }
     const T* end() const { return values + nelems; }
 
-    size_t size() const { return nelems; }
+    inline size_t size() const { return nelems; }
 
     bool empty() const { return size() == 0; }
 
@@ -99,7 +99,7 @@ namespace graphlab {
       fast_set result;
       size_t i = 0, j = 0;
       while(i < size() && j < other.size()) {
-        assert(result.nelems <= MAX_DIM);
+        assert(result.nelems < MAX_DIM);
         if(values[i] < other.values[j])  // This comes first
           result.values[result.nelems++] = values[i++];
         else if (values[i] > other.values[j])  // other comes first
@@ -110,23 +110,23 @@ namespace graphlab {
       }
       // finish writing this
       while(i < size()) {
-        assert(result.nelems <= MAX_DIM);
+        assert(result.nelems < MAX_DIM);
         result.values[result.nelems++] = values[i++];
       }
       // finish writing other
       while(j < other.size()) {
-        assert(result.nelems <= MAX_DIM);
+        assert(result.nelems < MAX_DIM);
         result.values[result.nelems++] = other.values[j++];
       }
-      // We could have segfaulted but check now anyways
-      assert(result.nelems <= MAX_DIM);    
       return result;
     }
+
 
     inline fast_set& operator+=(const fast_set& other) {
       *this = *this + other;
       return *this;
     }
+
 
     inline fast_set& operator+=(const T& elem) {
       // Find where elem should be inserted
@@ -145,11 +145,12 @@ namespace graphlab {
       // Insert the element at index swapping out the rest of the
       // array
       for(size_t i = index; i < nelems; ++i) 
-        std::swap(values[i], tmp);
-      
+        std::swap(values[i], tmp);      
       // Finished return
       return *this;
     }
+
+
 
     fast_set& operator-=(const fast_set& other) {
       if(other.size() == 0) return *this;    

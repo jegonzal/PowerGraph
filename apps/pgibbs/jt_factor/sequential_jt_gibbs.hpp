@@ -25,7 +25,7 @@ typedef std::map<vertex_id_t, vertex_set> vset_map;
 
 
 struct elim_clique {
-  size_t parent;
+  vertex_id_t parent;
   vertex_id_t elim_vertex;
   vertex_set vertices; 
   vertex_set factor_ids;
