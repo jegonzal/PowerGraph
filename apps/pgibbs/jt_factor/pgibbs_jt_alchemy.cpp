@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
 
 
   
-  for(size_t i = 0; i < 10; ++i) {
+  for(size_t i = 0; i < 100; ++i) {
     std::cout << "Sample: " << i << std::endl;
     size_t j = rand() % mrf_graph.num_vertices();
     sample_once(factor_graph, mrf_graph, j);

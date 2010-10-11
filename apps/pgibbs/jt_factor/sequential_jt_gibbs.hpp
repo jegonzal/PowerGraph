@@ -546,6 +546,8 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
 //                   << std::endl;
 //         i++;
 //       }
+
+       if(elim_order.size() == 2000) break;
   } // end of while loop
   
 
