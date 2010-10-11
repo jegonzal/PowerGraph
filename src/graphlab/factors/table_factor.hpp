@@ -693,16 +693,31 @@ namespace graphlab {
     }
 
     const double& logP(const assignment_type& asg) const {
-      // Restrict the assignment to this domain
-      assignment_type sub_asg = asg.restrict(_args);
-      return _data[sub_asg.linear_index()];
+      if(asg.args() == args()) {
+        // if the assignment index matches
+        size_t index = asg.linear_index();
+        assert(index < _data.size());
+        return _data[index];
+      } else {
+        // Restrict the assignment to this domain
+        assignment_type sub_asg = asg.restrict(_args);
+        return _data[sub_asg.linear_index()];
+      }
     }
     
+
     double& logP(const assignment_type& asg) {
-      // Restrict the assignment to this domain
-      assignment_type sub_asg = asg.restrict(_args);
-      return _data[sub_asg.linear_index()];
-    }
+      if(asg.args() == args()) {
+        // if the assignment index matches
+        size_t index = asg.linear_index();
+        assert(index < _data.size());
+        return _data[index];
+      } else {
+        // Restrict the assignment to this domain
+        assignment_type sub_asg = asg.restrict(_args);
+        return _data[sub_asg.linear_index()];
+      }
+    } // end of logP
 
     size_t size() const { return _args.size(); }
 
@@ -866,15 +881,15 @@ namespace graphlab {
     //! this(x) = this(x) other(x, y = asg) 
     inline void times_condition(const table_factor& other,
                                 const assignment_type& asg) {
-      assert(args() == other.args() - asg.args());
+      //      assert(args() == other.args() - asg.args());
       if(asg.num_vars() == 0) {
         *this *= other;
       } else {
         for(assignment_type xasg = args().begin(); 
             xasg < args().end(); ++xasg) {
           assignment_type joint = xasg & asg;
-          assert(joint.args() == other.args());
-          logP(xasg.linear_index()) += other.logP(joint.linear_index());        
+          //          assert(joint.args() == other.args());
+          logP(xasg.linear_index()) += other.logP(joint);        
         }
       }
     }

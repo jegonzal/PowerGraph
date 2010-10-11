@@ -9,6 +9,7 @@
 #include <graphlab.hpp>
 
 
+#include "image.hpp"
 #include "data_structures.hpp"
 #include "sequential_jt_gibbs.hpp"
 
@@ -50,15 +51,49 @@ int main(int argc, char** argv) {
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
 
-  vertex_set vset;
-  for(vertex_id_t i = 0; i < mrf_graph.num_vertices(); ++i) 
-    vset.insert(i);
-
 
   std::cout << "Sample one block" << std::endl;
   junction_tree::graph_type jt;
-  sample_once(factor_graph, mrf_graph, 0);
+
+
+  //build_junction_tree(mrf_graph, 0, jt);
+//   size_t id = image::vertid(200,200, 100,100);
   
+//   sample_once(factor_graph, mrf_graph, id);
+
+//   std::cout << "Finished!" << std::endl;
+
+//   size_t rows = sqrt(mrf_graph.num_vertices());
+//   image img(rows,rows);
+  
+//   for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
+//     img.pixel(i) = mrf_graph.vertex_data(i).asg.asg_at(0);
+//   }  
+//   img.save("result.pgm");
+
+
+
+
+  
+  for(size_t i = 0; i < 100; ++i) {
+    std::cout << "Sample: " << i << std::endl;
+    size_t j = rand() % mrf_graph.num_vertices();
+    sample_once(factor_graph, mrf_graph, j);
+    
+    size_t rows = sqrt(mrf_graph.num_vertices());
+    image img(rows,rows);
+    
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+      img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
+    }
+    std::stringstream strm;
+    strm << "result_" << i << ".pgm";
+    img.save(strm.str().c_str());
+  }
+  
+  
+  
+
   
 
 

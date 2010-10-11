@@ -40,10 +40,6 @@ typedef factor_t::domain_type           domain_t;
 typedef factor_t::assignment_type       assignment_t;
 
 
-typedef std::set<vertex_id_t> vertex_set;
-typedef std::set<variable_t> variable_set;
-
-
 // Represents a null VID in the tree
 const vertex_id_t NULL_VID = -1;
 
@@ -58,7 +54,7 @@ namespace mrf {
     // Problem specific variables
     variable_t     variable;
     assignment_t   asg;
-    std::set<size_t> factor_ids;
+    std::set<vertex_id_t> factor_ids;
     factor_t       belief;
     size_t         updates; 
 
@@ -71,7 +67,7 @@ namespace mrf {
                     tree_id(-1) { }
 
     vertex_data(const variable_t& variable,
-                const std::set<size_t>& factor_ids) :
+                const std::set<vertex_id_t>& factor_ids) :
       variable(variable),
       asg(variable, std::rand() % variable.arity),
       factor_ids(factor_ids),
@@ -220,8 +216,8 @@ public:
   const factor_map_t& factors() const { return _factors; }
   const std::set<variable_t>& variables() const { return _variables; }
 
-  const std::set<size_t>& factor_ids(const variable_t& var) const {
-    typedef std::map<variable_t, std::set<size_t> >::const_iterator iterator;
+  const std::set<vertex_id_t>& factor_ids(const variable_t& var) const {
+    typedef std::map<variable_t, std::set<vertex_id_t> >::const_iterator iterator;
     iterator iter = _var_to_factor.find(var);
     assert(iter != _var_to_factor.end());
     return iter->second;
@@ -407,7 +403,7 @@ public:
 private:
   std::set<variable_t> _variables;
   std::vector<factor_t> _factors;
-  std::map< variable_t, std::set<size_t> > _var_to_factor;
+  std::map< variable_t, std::set<vertex_id_t> > _var_to_factor;
   std::vector<std::string> _var_name;
   /**
    * same as the stl string get line but this also increments a line
@@ -484,19 +480,20 @@ void construct_mrf(const factorized_model& model,
 
 namespace junction_tree {
   struct vertex_data {
-    // variable_set variables;
     domain_t variables;
-    std::set<size_t> factor_ids;
+    std::set<vertex_id_t> factor_ids;
     factor_t factor;
-    bool calibrated;
-    vertex_data() : calibrated(false) { }
+    assignment_t asg;
+    bool sampled;
+    vertex_data() : sampled(false) { }
   }; // End of vertex data
 
 
   struct edge_data {
-    // variable_set variables;
     domain_t variables;
     factor_t message;
+    bool calibrated;
+    edge_data() : calibrated(false) { }
   }; // End of edge data
 
 
