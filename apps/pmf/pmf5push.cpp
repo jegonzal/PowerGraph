@@ -1455,7 +1455,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
 
   // Have to declare this from all procs
   distributed_metrics::instance(&dc)->set_value("residual", 0.0);
-  distributed_metrics::instance(&dc)->set_value("custom_output_1", 0.0);
+  //distributed_metrics::instance(&dc)->set_value("custom_output_1", 0.0);
 
   if (dc.procid() == 0) {
     if (BPTF){
@@ -1489,8 +1489,10 @@ void start(int argc, char ** argv, distributed_control & dc) {
     double res2;
     double test_rmse = calc_rmse(&g1, true, res2, sdm);
     printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  test_rmse);
-    distributed_metrics::instance(&dc)->set_value("custom_output_1", test_rmse);
-
+    //distributed_metrics::instance(&dc)->set_value("custom_output_1", test_rmse);
+    FILE * statsfile = fopen(".runstats.R", "a");
+    fprintf(statfile,"custom_output_1=%lf\n", test_rmse);
+    
     /*
       printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  calc_rmse(&g1, true, res2, sdm));
       sdm.sync(RMSE);
@@ -1635,12 +1637,7 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
      }
      }
   */
-  int val;
-  if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
-  	val = read_mult_edges<edata2>(f, M+N, g);
-  else
-  	val = read_mult_edges<edata3>(f, M+N, g);
- 
+  int val = read_mult_edges<edata2>(f, M+N, g);
   if (!test)
     L = val;
   else Le = val;
