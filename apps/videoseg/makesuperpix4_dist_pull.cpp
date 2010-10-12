@@ -502,7 +502,7 @@ int main(int argc, char** argv) {
       engine->get_scheduler().add_tasks(taskpermute,cluster_update, 1.0);
       std::cout << "Currently has " << numparts << " partitions" << std::endl;
     }
-    TEMPERATURE = double(tempnum / std::pow(tempbase,i));
+    TEMPERATURE = double(tempnum / std::pow(tempbase,double(i)));
 
     std::cout << "Starting to Anneal at temperature: " << TEMPERATURE << "\n";
     dc.barrier();

@@ -477,7 +477,7 @@ int main(int argc, char** argv) {
     if (dc.procid() == 0) {
       std::cout << "Renumbering..." << std::endl;
       if (i > 0) numparts = renumber_graph(graph);
-      double temp = double(tempnum / std::pow(tempbase,i));
+      double temp = double(tempnum / std::pow(tempbase,double(i)));
       //newidprior = newidprior * 2;
       shared_data.atomic_set(TEMPERATURE, temp);
             
