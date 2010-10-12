@@ -642,7 +642,7 @@ void create_shared_data(Gtype &g,
 
   sdm.atomic_set(GAUSSIAN_CLUSTERS,vg);
   sdm.create_atomic(GAUSSIAN_CLUSTER_VERSION, size_t(1));
-  sdm.set_constant(BOUND_ID, graphlab::any(1E-3));
+  sdm.set_constant(BOUND_ID, graphlab::any(1E-5));
   sdm.set_constant(DAMPING_ID, graphlab::any(0.3));
 }
 
