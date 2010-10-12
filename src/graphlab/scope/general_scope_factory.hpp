@@ -322,6 +322,8 @@ namespace graphlab {
     }
 
     size_t num_vertices() const { return graph.num_vertices(); }
+
+    Graph& get_graph() { return graph; }
     
   private:
     Graph& graph;
