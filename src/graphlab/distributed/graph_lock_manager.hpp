@@ -12,6 +12,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/util/synchronized_unordered_map.hpp>
+#include <graphlab/util/synchronized_unordered_map2.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/macros_def.hpp>
 
@@ -148,7 +149,7 @@ class graph_lock_manager{
     lock_send_request_thread *locking_thread;
     background_unlock_thread *unlocking_thread;
     std::vector<mutex> referencecounter_locks;
-    std::vector<std::pair<mutex, std::set<size_t> > > vertex2reqids;  // only hold parent requests
+    synchronized_unordered_map2<std::set<size_t> > vertex2reqids;  // only hold parent requests
     
     bool caching;
     bool const_edges;
@@ -167,7 +168,8 @@ class graph_lock_manager{
   graph_lock_manager(distributed_control &dc,
                      distributed_lock_manager<Graph> &dlm,
                      Graph &graph) :
-           dc(dc), dlm(dlm), graph(graph), lastreqid(0), activerequests(11), remote_vdata(11), remote_edata(17){
+           dc(dc), dlm(dlm), graph(graph), lastreqid(0), activerequests(11), remote_vdata(11), remote_edata(17),
+           vertex2reqids(131071){
     referencecounter_locks.resize(131071);  //2^17 - 1
     graph_lock_manager_target = this;
     locking_thread = new lock_send_request_thread(*this);
@@ -188,7 +190,6 @@ class graph_lock_manager{
     vertexunpacks.value = 0;
     edgeunpacks.value = 0;
     reusedscopes.value = 0;
-    vertex2reqids.resize(graph.num_vertices());
   }
   
   void set_caching(bool _caching) {
@@ -654,14 +655,20 @@ class graph_lock_manager{
     }
     
     // try to remove myself from the vertex2reqids vector
-    vertex2reqids[desc.vertex].first.lock();
+    vertex2reqids.write_critical_section(desc.vertex);
+    std::pair<bool, std::set<size_t>* > vt = vertex2reqids.find(desc.vertex);
+    assert(vt.first);
+    std::set<size_t>& curvt = *(vt.second);
     desc.lock.lock();
     desc.referencecounter--;
     if (desc.referencecounter == 0) {
         // we are clear for deletion!
-      vertex2reqids[desc.vertex].second.erase(reqid);     
+      curvt.erase(reqid);
       desc.lock.unlock();
-      vertex2reqids[desc.vertex].first.unlock();
+      if (curvt.size() == 0) {
+        vertex2reqids.erase(desc.vertex);
+      }
+      vertex2reqids.release_critical_section(desc.vertex);
     }
     else {
       // we can't delete yet. someone still has a reference to me
@@ -670,7 +677,7 @@ class graph_lock_manager{
       size_t child = desc.associatedids.front();
       desc.associatedids.pop();
       desc.lock.unlock();
-      vertex2reqids[desc.vertex].first.unlock();
+      vertex2reqids.release_critical_section(desc.vertex);
       progress_lock(child); //progress lock on a child will always immediately succeed
       return;
     }
@@ -833,8 +840,10 @@ class graph_lock_manager{
     
     // search for a request which will suit our needs
     // bool newready = false;
-    vertex2reqids[vertex].first.lock();
-    foreach(size_t other, vertex2reqids[vertex].second) {
+    vertex2reqids.write_critical_section(desc.vertex);
+    std::pair<bool, std::set<size_t>*> vt = vertex2reqids.insert_with_failure_detect(desc.vertex, std::set<size_t>());
+    std::set<size_t>& curvt = *(vt.second);
+    foreach(size_t other, curvt) {
       typename reqdesc_container::datapointer it = activerequests.find(other);
       DASSERT_TRUE(it.first);
       request_descriptor &otherdesc = *(it.second);
@@ -861,13 +870,13 @@ class graph_lock_manager{
     }
     // if I got hooked up
     if (desc.childof != size_t(-1)) {
-      vertex2reqids[vertex].first.unlock();
+      vertex2reqids.release_critical_section(desc.vertex);
       reusedscopes.inc();
       return newreqid;
     }
     else {
-      vertex2reqids[desc.vertex].second.insert(desc.requestid);
-      vertex2reqids[vertex].first.unlock();
+      curvt.insert(desc.requestid);
+      vertex2reqids.release_critical_section(desc.vertex);
     }
     // fill the lock requests
     // loop over all the in and out neighbors
