@@ -606,12 +606,20 @@ int main(int argc, char** argv) {
     img.pixel(v) = a;
   }
   
-  double rmse = image_compare(trueimg, img);
-  std::cout << "RMSE: " << rmse << std::endl;
+  double err = image_compare(trueimg, img);
+  std::cout << "RMSE: " << err << std::endl;
   if (logfile.length() != 0) {
     ofstream fout;
-    fout.open(logfile.c_str());
-    fout << gmmfile << "\t" << inputfile << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << rmse  << std::endl;
+    fout.open(logfile.c_str(), ios::app);
+    gmmfile = gmmfile.rfind("/") == std::string::npos ?
+                                       gmmfile:
+                                       gmmfile.substr(gmmfile.rfind("/")+1);
+    inputfile= inputfile.rfind("/") == std::string::npos ?
+                                       inputfile:
+                                       inputfile.substr(inputfile.rfind("/")+1);
+
+    fout << "pbp\t" << gmmfile << "\t" << inputfile << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << err << "\t"
+    << runtime << std::endl;
     fout.close();
   }
   img.save("pred_map.pgm");

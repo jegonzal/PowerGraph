@@ -43,15 +43,13 @@ double image_compare(image &trueimg, image &infered) {
       }
     }
     
-    // compute difference
-    double rmse = 0;
+    // compute absolute difference
+    double err = 0;
     for (size_t i = 0; i < infered.rows(); ++i) {
       for (size_t j = 0; j < infered.cols(); ++j) {
-        rmse += (infered.pixel(i,j) - trueimg.pixel(i,j))*
-                      (infered.pixel(i,j) - trueimg.pixel(i,j));
+        err  += fabs(infered.pixel(i,j) - trueimg.pixel(i,j));
       }
     }
-    rmse /= (infered.rows() * infered.cols());
-    rmse = sqrt(rmse);
-    return rmse;
+    err  /= (infered.rows() * infered.cols());
+    return err;
 }
