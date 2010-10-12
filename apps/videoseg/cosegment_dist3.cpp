@@ -869,7 +869,7 @@ int main(int argc,  char *argv[]) {
 
   // actually do stuff
 
-  gl_types::graph graph; dc.barrier();
+  gl_types::graph graph(dc); dc.barrier();
   graphlab::distributed_shared_data<gl_types::graph> shared_data(dc); dc.barrier();
   if (dc.numprocs() == 1) graph.set_local_edges(true);
   if (opts.basefile != "") {
