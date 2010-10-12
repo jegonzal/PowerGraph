@@ -12,6 +12,9 @@
 #include "image.hpp"
 #include "data_structures.hpp"
 #include "sequential_jt_gibbs.hpp"
+
+
+
 #include "jt_worker.hpp"
 
 
@@ -50,16 +53,19 @@ int main(int argc, char** argv) {
   std::cout << "Building graphlab MRF." << std::endl;
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
-
-
-  std::cout << "Sample one block" << std::endl;
-  junction_tree::graph_type jt;
-
+  
+  
+  
   // run the fully parallel sampler
-  parallel_sample(factor_graph, mrf, 2);
+  parallel_sample(factor_graph, mrf_graph, 1);
 
   //build_junction_tree(mrf_graph, 0, jt);
 //   size_t id = image::vertid(200,200, 100,100);
+
+
+//   std::cout << "Sample one block" << std::endl;
+//   junction_tree::graph_type jt;
+
   
 //   sample_once(factor_graph, mrf_graph, id);
 
