@@ -44,36 +44,25 @@ namespace graphlab {
     const T* begin() const { return values; }
     const T* end() const { return values + nelems; }
 
-    size_t size() const { return nelems; }
+    inline size_t size() const { return nelems; }
 
     bool empty() const { return size() == 0; }
 
 
-    bool contains(const T& elem) {
+    bool contains(const T& elem) const {
       for(size_t i = 0; i < nelems; ++i) 
         if(values[i] == elem) return true;
       return false;
     }
 
+
+
+    bool operator<=(const fast_set& other) const {
+      return (*this - other).empty();
+    }
+
   
     void insert(const T& elem) {
-      // size_t index = 0;
-      // for(; index < nelems && values[index] < elem; ++index);      
-      // if(index == nelems) {
-      //   // add to end
-      //   assert(nelems + 1 <= MAX_DIM);
-      //   values[nelems++] = elem;
-      //   return true;
-      // } else if(values[index] == elem) return false; else {
-      //   assert(nelems + 1 <= MAX_DIM);        
-      //   // slide everything up
-      //   for(size_t i = nelems; i >= index; --i) 
-      //     std::swap(values[i-1], values[i]);
-      //   // Insert the element
-      //   values[index] = elem;
-      //   nelems++;    
-      //   return true;
-      // }
       *this += elem;
     }
 
@@ -103,11 +92,14 @@ namespace graphlab {
     }
 
 
-    fast_set operator+(const fast_set& other) const {
+    
+
+
+    inline fast_set operator+(const fast_set& other) const {
       fast_set result;
       size_t i = 0, j = 0;
       while(i < size() && j < other.size()) {
-        assert(result.nelems <= MAX_DIM);
+        assert(result.nelems < MAX_DIM);
         if(values[i] < other.values[j])  // This comes first
           result.values[result.nelems++] = values[i++];
         else if (values[i] > other.values[j])  // other comes first
@@ -118,23 +110,46 @@ namespace graphlab {
       }
       // finish writing this
       while(i < size()) {
-        assert(result.nelems <= MAX_DIM);
+        assert(result.nelems < MAX_DIM);
         result.values[result.nelems++] = values[i++];
       }
       // finish writing other
       while(j < other.size()) {
-        assert(result.nelems <= MAX_DIM);
+        assert(result.nelems < MAX_DIM);
         result.values[result.nelems++] = other.values[j++];
       }
-      // We could have segfaulted but check now anyways
-      assert(result.nelems <= MAX_DIM);    
       return result;
     }
 
-    fast_set& operator+=(const fast_set& other) {
+
+    inline fast_set& operator+=(const fast_set& other) {
       *this = *this + other;
       return *this;
     }
+
+
+    inline fast_set& operator+=(const T& elem) {
+      // Find where elem should be inserted
+      size_t index = 0;
+      for(; index < nelems && values[index] < elem; ++index);      
+      assert(index < MAX_DIM);
+
+      // if the element already exists return
+      if(index < nelems && values[index] == elem) return *this;
+
+      // otherwise the element does not exist so add it at the current
+      // location and increment the number of elements
+      T tmp = elem;
+      nelems++;
+      assert(nelems <= MAX_DIM);
+      // Insert the element at index swapping out the rest of the
+      // array
+      for(size_t i = index; i < nelems; ++i) 
+        std::swap(values[i], tmp);      
+      // Finished return
+      return *this;
+    }
+
 
 
     fast_set& operator-=(const fast_set& other) {

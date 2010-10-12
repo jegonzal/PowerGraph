@@ -143,7 +143,7 @@ namespace junction_tree{
 
       // If this is either the "root" or has one sampled neighbor then
       // we are ready to sample
-      bool is_root = (scope.vertex()+1) == scope.num_vertices();
+      bool is_root = scope.vertex() == 0;
       if(is_calibrated && (is_root || parent_count == 1) ) {       
         // We are ready to sample!!!
         factor_t belief;
@@ -205,11 +205,6 @@ namespace junction_tree{
 
       } // end of if(is_calibrated and ready to sample
     } // End of if(!sampled) sampling procedure
-
-      
-
-    
-
   } // End of update function
 
 
