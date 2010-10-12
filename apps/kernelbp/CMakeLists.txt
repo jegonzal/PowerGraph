@@ -11,3 +11,10 @@ target_link_libraries(particle_bp tcmalloc)
 add_executable(particle_bp_itgmm particle_bp_itgmm.cpp image_compare.cpp)
 target_link_libraries(particle_bp_itgmm tcmalloc itpp)
 #set_target_properties(particle_bp_itgmm PROPERTIES COMPILE_FLAGS "-ffast-math")
+
+
+add_executable(discrete_bp_itgmm discrete_bp_itgmm.cpp image_compare.cpp)
+target_link_libraries(discrete_bp_itgmm tcmalloc itpp)
+
+add_executable(kbp kbp.cpp image_compare.cpp)
+target_link_libraries(kbp tcmalloc itpp)
