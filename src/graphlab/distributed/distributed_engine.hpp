@@ -13,6 +13,8 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
+#include <graphlab/util/synchronized_unordered_map.hpp>
+#include <graphlab/util/synchronized_unordered_map2.hpp>
 #include <graphlab/distributed/graph_lock_manager.hpp>
 #include <graphlab/distributed/distributed_scope.hpp>
 #include <graphlab/distributed/distributed_scheduler_wrapper.hpp>
@@ -41,7 +43,7 @@ namespace graphlab {
     typedef typename base::ishared_data_manager_type ishared_data_manager_type;
     typedef distributed_scope<Graph, graph_lock_manager<Graph> > scope_type;
     typedef std::pair<mutex, std::queue<update_task_type> > locked_pending_queue_type;
-    typedef synchronized_unordered_map<locked_pending_queue_type> pending_tasks_map_type;
+    typedef synchronized_unordered_map2<locked_pending_queue_type> pending_tasks_map_type;
   private:
     
     /** The internal worker thread class */
@@ -121,7 +123,7 @@ namespace graphlab {
             worker_works(local_num_cpus,0),
             max_back_log(0),
             backlog(0),
-            pending_tasks(23),
+            pending_tasks(131071),
             graph(g), dlm(dc, g), lock_manager(dc, dlm, g), data_manager(NULL),
             scoperange(scope_range::USE_DEFAULT){
 
@@ -138,9 +140,9 @@ namespace graphlab {
         scopes[i] = new scope_type(lock_manager);
       }
       
-      for (size_t i = 0 ;i < g.my_vertices().size(); ++i) {
+      /*for (size_t i = 0 ;i < g.my_vertices().size(); ++i) {
         pending_tasks.insert(i, locked_pending_queue_type());
-      }
+      }*/
       // create the lockblock
     }
     
@@ -282,6 +284,7 @@ namespace graphlab {
           
           DCHECK_NE(scope, NULL);
           // get the task we are supposed to run
+          pending_tasks.write_critical_section(scopereqdone.vertex);
           std::pair<bool, locked_pending_queue_type*> pt = pending_tasks.find(scopereqdone.vertex);
           if (pt.first == false) {
             ASSERT_MSG(false, "Successful scope lock without a pending task");
@@ -289,6 +292,10 @@ namespace graphlab {
           locked_pending_queue_type & pendingqueue = *(pt.second);
           update_task_type task = pendingqueue.second.front();
           pendingqueue.second.pop();
+          if (pendingqueue.second.size() == 0) {
+            pending_tasks.erase(scopereqdone.vertex);
+          }
+          pending_tasks.release_critical_section(scopereqdone.vertex);
           // Update task counts and "work". Work is indegree+outdegree          
           task_counts[cpuid] = task_counts[cpuid]++;
           worker_works[cpuid] += scope->in_edge_ids().size() +
@@ -341,7 +348,7 @@ namespace graphlab {
           // Ensure that a valid task function was passed
           assert(newtask.function() != NULL);
           // put into the queue
-          
+          pending_tasks.write_critical_section(vertex);
           std::pair<bool, locked_pending_queue_type*> pt = pending_tasks.find(vertex);
           if (pt.first == false) {
 //            logger(LOG_WARNING, "Adding remote task. Performance could be adversely affected");
@@ -350,6 +357,7 @@ namespace graphlab {
           }
           locked_pending_queue_type & pendingqueue = *(pt.second);
           pendingqueue.second.push(newtask);
+          pending_tasks.release_critical_section(vertex);
           // issue a deferred lock for this task
           lock_manager.block_add_deferred_lock(lock_block_id,
                                               dist_scope_request(vertex, scoperange));
