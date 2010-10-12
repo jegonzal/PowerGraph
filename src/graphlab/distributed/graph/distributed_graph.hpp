@@ -62,7 +62,7 @@ namespace graphlab {
       myprocid = dc.procid();
       receive_target = this; 
       constant_edges = false;
-      only_local_edges = (dc.numprocs() > 1);
+      only_local_edges = (dc.numprocs() == 1);
       checksum = 0;
       for(int i=0; i<dc.numprocs(); i++) {
         receiverlist.push_back(i);

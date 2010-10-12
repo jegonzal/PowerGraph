@@ -1491,7 +1491,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
     printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  test_rmse);
     //distributed_metrics::instance(&dc)->set_value("custom_output_1", test_rmse);
     FILE * statsfile = fopen(".runstats.R", "a");
-    fprintf(statfile,"custom_output_1=%lf\n", test_rmse);
+    fprintf(statsfile,"custom_output_1=%lf\n", test_rmse);
     
     /*
       printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(sdm),  calc_rmse(&g1, true, res2, sdm));
