@@ -27,6 +27,7 @@ const size_t DAMPING_ID = 4;
 const double FEATURESCALE = 1;
 const size_t INTERFRAME_POTENTIAL = 6;
 const size_t INTRAFRAME_POTENTIAL = 4;
+double termination_bound = 1E-5;
 /*
 std::string imagepath = "/mnt/bigbrofs/usr3/ylow/data/soccer/";
 std::string inputfile = "partsoccer2.bin";
@@ -719,7 +720,7 @@ void create_shared_data(Gtype &g,
 
   sdm.atomic_set(GAUSSIAN_CLUSTERS,vg);
   sdm.create_atomic(GAUSSIAN_CLUSTER_VERSION, size_t(1));
-  sdm.set_constant(BOUND_ID, graphlab::any(1E-5));
+  sdm.set_constant(BOUND_ID, graphlab::any(termination_bound));
   sdm.set_constant(DAMPING_ID, graphlab::any(0.3));
 }
 
@@ -819,7 +820,9 @@ bool parse_command_line(int argc, char** argv, options& opts) {
      "imagepath")
      ("outputimages",  boost_po::value<bool>(&(outputimages))->default_value(false),
      "outputimages")
-     ("basefile",
+ ("bound",  boost_po::value<double>(&(termination_bound))->default_value(1E-5),
+     "termination bound")
+("basefile",
      boost_po::value<std::string>(&(opts.basefile))->default_value(""),
      "Base input/output graphname");
   // Parse the arguments
