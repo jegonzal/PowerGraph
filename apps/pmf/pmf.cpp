@@ -943,7 +943,7 @@ void start(int argc, char ** argv) {
   load_pmf_graph((infile+"e").c_str(),&g1, true);
 
   command_line_options clopts;
-  clopts.parse(argc, argv);
+  assert(clopts.parse(argc-3, argv+3));
   engine = clopts.create_engine(g);
   engine->set_shared_data_manager(&sdm);
   //sdm.sync(PRIMAL_LOSS);   
