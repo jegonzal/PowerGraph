@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <deque>
 #include <string>
 #include <cassert>
 
@@ -49,7 +50,7 @@ private:
   vertex_id_t current_root;
   std::map<vertex_id_t, vertex_id_t> elim_time_map;
   clique_vector cliques;
-  std::queue<vertex_id_t> bfs_queue;
+  std::deque<vertex_id_t> bfs_queue;
   std::set<vertex_id_t> visited;
 
   // Local junction tree graphlab core
@@ -115,14 +116,23 @@ public:
    * Grab this vertex into the tree owned by worker id
    */
   bool try_grab_vertex(iscope_type& scope) {
-    // check that the neighbors are not in any other trees than this one
+    // Check that this vertex is not already in a tree
+    bool in_tree = scope.vertex_data().tree_id != vertex_id_t(-1);
+    if(in_tree) return false;
+
+    // check that the neighbors are not in any other trees than this
+    // one
     foreach(edge_id_t in_eid, scope.in_edge_ids()) {
       vertex_id_t neighbor_vid = scope.source(in_eid);
       const mrf::vertex_data& vdata = 
         scope.const_neighbor_vertex_data(neighbor_vid);
       bool in_tree = vdata.tree_id != vertex_id_t(-1);
+      // if the neighbor is in a tree other than this one quit
       if(in_tree && worker_id != vdata.tree_id) return false;
     }
+    // Assert that this vertex is not in a tree and that none of the
+    // neighbors are in other trees
+
     // This vertex does not neighbor any other trees than this one
     scope.vertex_data().tree_id = worker_id;
     return true;
@@ -135,7 +145,7 @@ public:
    */
   void release_vertex(iscope_type& scope) {
     // This vertex does not neighbor any other trees than this one
-    scope.vertex_data().tree_id = -1;  
+    scope.vertex_data().tree_id = vertex_id_t(-1);  
   }
 
 
@@ -143,26 +153,24 @@ public:
   
 
   size_t sample_once() {
-    std::cout << "Sample once: " << worker_id << std::endl;
     assert(scope_factory != NULL);
-
     // Get the scope factory
     mrf::graph_type& mrf = scope_factory->get_graph();
 
     // Clear local data structures
     elim_time_map.clear();
     cliques.clear();
-    assert(bfs_queue.empty());
+    bfs_queue.clear();
     visited.clear();
      
     // add the root
-    bfs_queue.push(current_root);
+    bfs_queue.push_back(current_root);
     visited.insert(current_root);
 
     while(!bfs_queue.empty()) {
       // Take the top element
       const vertex_id_t next_vertex = bfs_queue.front();
-      bfs_queue.pop(); 
+      bfs_queue.pop_front(); 
 
       // Get the scope
       iscope_type* scope_ptr = 
@@ -187,7 +195,7 @@ public:
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
             vertex_id_t neighbor_vid = mrf.target(eid);
             if(visited.count(neighbor_vid) == 0) {
-              bfs_queue.push(neighbor_vid);
+              bfs_queue.push_back(neighbor_vid);
               visited.insert(neighbor_vid);
             }
           }
@@ -199,6 +207,9 @@ public:
       
       // release the scope
       scope_factory->release_scope(&scope);        
+
+      // Limit the number of variables
+      if(cliques.size() > 1000) break;
     } // end of while loop
   
     std::cout << "Varcount: " << cliques.size() << std::endl;  
@@ -210,18 +221,19 @@ public:
     junction_tree_from_cliques(mrf, 
                                cliques.begin(), cliques.end(), 
                                jt_core.graph());
+    jt_core.rebuild_engine();
     // add tasks to all vertices
     jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
     // Run the core
+    std::cout << "Starting engine" << std::endl;
     jt_core.start();
     std::cout << "Last Update count: " << jt_core.last_update_count() << std::endl;
 
-    // Check that the entire tree is cleared
-    foreach(elim_clique clique, cliques) {
-      const mrf::vertex_data& vdata = 
-        mrf.vertex_data(clique.elim_vertex);
-      assert(vdata.tree_id == vertex_id_t(-1));
-    } // end of foreach
+    // Check that the junctio tree is sampled
+    for(vertex_id_t vid = 0; 
+        vid < jt_core.graph().num_vertices(); ++vid) {
+      assert(jt_core.graph().vertex_data(vid).sampled);
+    }
       
     // Sampled root successfully
     return cliques.size();
@@ -262,6 +274,17 @@ void parallel_sample(const factorized_model& fmodel,
   
   // Wait for all threads to finish
   threads.join();
+
+  size_t rows = std::sqrt(mrf.num_vertices());
+
+  image img(rows, rows);
+  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+    vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+    img.pixel(vid) = 
+      tree_id == vertex_id_t(-1)? 0 : tree_id + ncpus;
+  }
+  img.save("end_tree.pgm");
+
 }
 
 

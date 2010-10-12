@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
   
   
   // run the fully parallel sampler
-  parallel_sample(factor_graph, mrf_graph, 1);
+  parallel_sample(factor_graph, mrf_graph, clopts.ncpus);
 
   //build_junction_tree(mrf_graph, 0, jt);
 //   size_t id = image::vertid(200,200, 100,100);
