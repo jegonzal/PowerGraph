@@ -321,6 +321,8 @@ namespace graphlab {
         // Execute the update as that cpu
         active = run_once(cpuid);
       }
+      // Do any remaining syncs if any
+      if(shared_data != NULL) shared_data->signal_all();
     } // end of run simulated
 
     

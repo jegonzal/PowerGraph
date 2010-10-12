@@ -98,6 +98,7 @@ namespace junction_tree{
         out_edata.message.marginalize(belief_factor);
         out_edata.message.normalize();
         out_edata.calibrated = true;
+        assert(target < scope.num_vertices());
         callback.add_task(target, calibrate_update, 1.0);
       } // if still ready
     }
@@ -191,7 +192,6 @@ namespace junction_tree{
         
         factor_t tmp_vertex_belief;
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
-          std::cout << "Sampling: " << i << std::endl;
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           mrf_vdata.asg = sample_asg.restrict(var);
@@ -200,8 +200,10 @@ namespace junction_tree{
           tmp_vertex_belief.marginalize(belief);
           tmp_vertex_belief.normalize();
 
-
           mrf_vdata.belief += tmp_vertex_belief;
+          // std::cout << graphlab::thread::thread_id()
+          //           << ": sampling " << mrf_vdata.variable << std::endl;
+
           // remove the vertex from any trees
           mrf_vdata.tree_id = -1;
         } 
@@ -209,8 +211,11 @@ namespace junction_tree{
         // Reschedule unssampled neighbors
         foreach(edge_id_t in_eid, scope.in_edge_ids()) {
           if(in_eid != parent_eid) {
-            callback.add_task(scope.source(in_eid), 
-                              calibrate_update, 1.0);
+            const vertex_id_t neighbor_vid = scope.source(in_eid);
+            assert(neighbor_vid < scope.num_vertices());
+            callback.add_task(neighbor_vid, 
+                              calibrate_update, 
+                              1.0);
           }
         }
 

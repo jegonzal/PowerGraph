@@ -76,9 +76,9 @@ public:
 
     // Initialize local jtcore
     jt_core.set_scheduler_type("fifo");
-    jt_core.set_scope_type("edge");
-    jt_core.set_ncpus(2);
-    jt_core.set_engine_type("async");
+    jt_core.set_scope_type("none");
+    jt_core.set_ncpus(1);
+    jt_core.set_engine_type("async_sim");
 
     // Initialize the shared data in the factorized model
     const  factorized_model::factor_map_t* factors_ptr = &factors;
@@ -94,6 +94,15 @@ public:
     size_t total_samples = 0;
     for(size_t i = 0; i < 10; ++i) {
       size_t sampled_variables = sample_once();
+
+      // Update root
+      // current_root += worker_count;
+      // if(current_root >= scope_factory->num_vertices()) {
+      //   current_root = worker_id;
+      // }
+      current_root = 
+        graphlab::random::rand_int(scope_factory->num_vertices() - 1);
+
       std::cout << "Worker " << worker_id 
                 << " sampled " << current_root
                 << " a tree of size " << sampled_variables
@@ -139,13 +148,6 @@ public:
 
     // Get the scope factory
     mrf::graph_type& mrf = scope_factory->get_graph();
-
-    // Update root
-    current_root += worker_count;
-    if(current_root >= scope_factory->num_vertices()) {
-      current_root = worker_id;
-    }
-
 
     // Clear local data structures
     elim_time_map.clear();
@@ -208,7 +210,11 @@ public:
     junction_tree_from_cliques(mrf, 
                                cliques.begin(), cliques.end(), 
                                jt_core.graph());
+    // add tasks to all vertices
+    jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
+    // Run the core
     jt_core.start();
+    std::cout << "Last Update count: " << jt_core.last_update_count() << std::endl;
 
     // Check that the entire tree is cleared
     foreach(elim_clique clique, cliques) {

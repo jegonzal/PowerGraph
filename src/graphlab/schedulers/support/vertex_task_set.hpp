@@ -92,6 +92,14 @@ namespace graphlab {
       task_set(numvertices),
       locks(numvertices) { }
 
+    /**
+     * Resize the internal locks for a different graph
+     */
+    void resize(size_t num_vertices) {
+      task_set.resize(num_vertices);
+      locks.resize(num_vertices);
+    }
+
     
     /** Find and remove the task from the set */
     bool remove(const update_task_type &task) {
