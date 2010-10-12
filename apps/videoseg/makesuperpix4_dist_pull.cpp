@@ -442,6 +442,10 @@ int main(int argc, char** argv) {
   
   if (parse_command_line(opts, argc,argv) == false) return 0;
   gl_types::graph graph(dc);
+  if (nmachines == 1) {
+    graph.set_local_edges(true);
+  }
+
   dc.barrier();
   construct_graph(graph);
   graph.finalize();
