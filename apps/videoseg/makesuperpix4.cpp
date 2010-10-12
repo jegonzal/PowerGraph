@@ -413,7 +413,7 @@ int main(int argc, char** argv) {
   ti.start();
   for (size_t i  =0;i < iterations; ++i) {
     if (i > 0) renumber_graph(graph);
-    double temp = double(tempnum / std::pow(tempbase,i));
+    double temp = double(tempnum / std::pow(tempbase,double(i)));
     //newidprior = newidprior * 2;
     shared_data.set_constant(TEMPERATURE, temp);
     std::set<uint64_t> numparts;

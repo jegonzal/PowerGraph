@@ -18,6 +18,10 @@ namespace graphlab {
       return thread::get_thread_specific_data().rand01();
     }
 
+    static double gaussian_rand() {
+      return thread::get_thread_specific_data().gaussian_rand();
+    }
+
     /**
      * Generate a thread specific random integer between 0 and max inclusive
      */

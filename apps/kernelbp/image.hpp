@@ -29,28 +29,28 @@ public:
   image(size_t rows, size_t cols) : 
     _rows(rows), _cols(cols), data(rows * cols, 0) { }
 
-  void resize(size_t rows, size_t cols);
+  inline void resize(size_t rows, size_t cols);
 
   /** Get the number of rows */
-  size_t rows() const { return _rows; }
+  inline size_t rows() const { return _rows; }
 
   /** Get the number of columns */
-  size_t cols() const { return _cols; }
+  inline size_t cols() const { return _cols; }
 
   /** get the number of pixels */
-  size_t pixels() const { return _rows * _cols; }
+  inline size_t pixels() const { return _rows * _cols; }
 
   /** A function to read a pixel */
-  double& pixel(size_t i, size_t j) { return data[vertid(i,j)]; }
-  double pixel(size_t i, size_t j) const { return data[vertid(i,j)]; }
+  inline double& pixel(size_t i, size_t j) { return data[vertid(i,j)]; }
+  inline double pixel(size_t i, size_t j) const { return data[vertid(i,j)]; }
   
   /** Linear indexing */
-  double& pixel(size_t i) { return data.at(i); }
-  double pixel(size_t i) const { return data.at(i); }
+  inline double& pixel(size_t i) { return data.at(i); }
+  inline double pixel(size_t i) const { return data.at(i); }
 
   /** Get the vertex id of a pixel */
-  size_t vertid(size_t i, size_t j) const;
-  static size_t vertid(size_t rows, size_t cols, size_t i, size_t j) {
+  inline size_t vertid(size_t i, size_t j) const;
+  inline static size_t vertid(size_t rows, size_t cols, size_t i, size_t j) {
     assert(i < rows);
     assert(j < cols);    
     return i * cols + j; 
@@ -62,9 +62,9 @@ public:
 
   
   /** A function to save the image to a file in pgm format */
-  void save(const char* filename) const;
+  inline void save(const char* filename) const;
 
-  void save_vec(const char* filename) const {
+  inline void save_vec(const char* filename) const {
     std::ofstream os(filename);
     assert(os.good());
     for(size_t i = 0; i < pixels(); ++i) {
@@ -81,21 +81,21 @@ public:
   /** Add random noise to the image */
   void corrupt(double sigma);
 
-  double min() {
+  inline double min() {
     return *std::min_element(data.begin(), data.end());
   }
 
-  double max() {
+  inline double max() {
     return *std::max_element(data.begin(), data.end());
   }
 
-  void save(graphlab::oarchive &oarc) const {
+  inline void save(graphlab::oarchive &oarc) const {
     oarc << _rows;
     oarc << _cols;
     oarc << data;
   }
   
-  void load(graphlab::iarchive &iarc) {
+  inline void load(graphlab::iarchive &iarc) {
     iarc >> _rows;
     iarc >> _cols;
     iarc >> data;
@@ -113,7 +113,7 @@ public:
 // IMPLEMENTATION =============================================================>
 
 
-void image::resize(size_t rows, size_t cols) {
+inline void image::resize(size_t rows, size_t cols) {
   _rows = rows;
   _cols = cols;
   data.resize(rows * cols, 0);
@@ -122,7 +122,7 @@ void image::resize(size_t rows, size_t cols) {
 
 
 /** Get the vertex id of a pixel */
-size_t image::vertid(size_t i, size_t j) const {
+inline size_t image::vertid(size_t i, size_t j) const {
   assert(i < _rows);
   assert(j < _cols);    
   return i * _cols + j; 
@@ -136,13 +136,13 @@ size_t image::vertid(size_t i, size_t j) const {
 
 
 /** Get the vertex id of a pixel */
-std::pair<size_t, size_t> image::loc(size_t vertexid) const {
+inline std::pair<size_t, size_t> image::loc(size_t vertexid) const {
   assert(vertexid < _rows * _cols);
   return std::make_pair( vertexid / _cols, vertexid % _cols);
 }
 
 
-void image::save(const char* filename) const {
+inline void image::save(const char* filename) const {
   assert(_rows > 0 && _cols > 0);
   std::ofstream os(filename);
   os << "P2" << std::endl
@@ -173,7 +173,7 @@ void image::save(const char* filename) const {
 
 
 
-void image::paint_sunset(size_t num_rings) {
+inline void image::paint_sunset(size_t num_rings) {
   const double center_r = rows() / 2.0;
   const double center_c = cols() / 2.0;
   const double max_radius = std::min(rows(), cols()) / 2.0;
@@ -198,7 +198,7 @@ void image::paint_sunset(size_t num_rings) {
 
 
 /** corrupt the image with gaussian noise */
-void image::corrupt(double sigma) {
+inline void image::corrupt(double sigma) {
   //  boost::mt19937 rng;
   boost::lagged_fibonacci607 rng;
   boost::normal_distribution<double> noise_model(0, sigma);

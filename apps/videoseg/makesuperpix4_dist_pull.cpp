@@ -442,6 +442,10 @@ int main(int argc, char** argv) {
   
   if (parse_command_line(opts, argc,argv) == false) return 0;
   gl_types::graph graph(dc);
+  if (nmachines == 1) {
+    graph.set_local_edges(true);
+  }
+
   dc.barrier();
   construct_graph(graph);
   graph.finalize();
@@ -502,7 +506,7 @@ int main(int argc, char** argv) {
       engine->get_scheduler().add_tasks(taskpermute,cluster_update, 1.0);
       std::cout << "Currently has " << numparts << " partitions" << std::endl;
     }
-    TEMPERATURE = double(tempnum / std::pow(tempbase,i));
+    TEMPERATURE = double(tempnum / std::pow(tempbase,double(i)));
 
     std::cout << "Starting to Anneal at temperature: " << TEMPERATURE << "\n";
     dc.barrier();

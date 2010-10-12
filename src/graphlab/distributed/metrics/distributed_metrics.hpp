@@ -60,7 +60,7 @@ class distributed_metrics {
     return buffer;
  }
     
- #define BANDWIDTH_TEST_SIZE (1024*1024*30)
+ #define BANDWIDTH_TEST_SIZE (30*1024*256)
  
  mutex condlock;
  conditional cond;
@@ -74,20 +74,64 @@ class distributed_metrics {
         payload[i] = (i*17 + i); // Silly
     }
     received_payloads=0;
-    for(int i=0; i<dc->numprocs(); i++) {
-        if (i != dc->procid()) {
-            dc->remote_callxs(i, distributed_metrics::remote_start_bandwidth_test, NULL, 0);
-            dc->remote_callxs(i, distributed_metrics::receive_bandwidth_test_payload, payload, BANDWIDTH_TEST_SIZE);
-        } else {
-            set_value(bandwidth_key(dc->procid(), dc->procid()), 0.0);
-        }
+    // set self
+    set_value(bandwidth_key(dc->procid(), dc->procid()), 0.0);
+
+    for(int i=1; i<dc->numprocs(); i++) {
+      size_t targetthisround = (dc->procid() + i) % dc->numprocs();
+      // the cycle I am in is (dc->procid() + k * i) % dc->numprocs();
+      // what is the smallest id in this cycle?
+      // (probably related to the gcd of dc->numprocs() and i), but being lazy...
+      size_t lowestid = dc->numprocs();
+      size_t cyclelength = 0;
+
+      
+      for (size_t k = 0;k <= dc->numprocs(); ++k) {
+        size_t id_at_pos_k = (dc->procid() + k * i) % dc->numprocs();
+        lowestid = std::min(lowestid, id_at_pos_k);
+        // if this is not k = 0, and cycle length has not been set
+        // and I see my current id again, the cycle length must be k
+        // note that the <= is important in the for loop
+        if (k > 0 && id_at_pos_k == dc->procid() && cyclelength == 0) cyclelength = k;
+      }
+      
+      // ok then, now what is my position in the cycle?
+      size_t cyclepos = 0;
+      for (;cyclepos < dc->numprocs(); ++cyclepos) {
+        if ((lowestid + cyclepos * i) % dc->numprocs() == dc->procid()) break;
+      }
+      //std::cout << "stepsize: " << i << std::endl;
+      //std::cout << "cycle pos: " << cyclepos << " / " << cyclelength << std::endl;
+      // 3 phases are sufficient for any cycle length.
+      // if even length cycle, we first go even->odd and odd -> even
+      // if odd length cycle, we first go even->odd(excluding the last element in the cycle which will be odd->odd)
+      //                      then even->even
+      //                      then odd->even
+      
+      // I am send first if I my cycle position is odd and I am not the last element in the cycle
+      if (cyclepos % 2 == 0 && cyclepos != cyclelength - 1) {
+          dc->remote_callxs(targetthisround, distributed_metrics::remote_start_bandwidth_test, NULL, 0);
+          dc->remote_callxs(targetthisround, distributed_metrics::receive_bandwidth_test_payload, payload, BANDWIDTH_TEST_SIZE);
+          sleep(2);
+      }
+      dc->barrier();
+      // send if I my cycle position is odd and I am the last element in the cycle
+      if (cyclepos % 2 == 0 && cyclepos == cyclelength - 1) {
+          dc->remote_callxs(targetthisround, distributed_metrics::remote_start_bandwidth_test, NULL, 0);
+          dc->remote_callxs(targetthisround, distributed_metrics::receive_bandwidth_test_payload, payload, BANDWIDTH_TEST_SIZE);
+          sleep(2);
+      }
+      dc->barrier();
+      if (cyclepos % 2 == 1) {
+          dc->remote_callxs(targetthisround, distributed_metrics::remote_start_bandwidth_test, NULL, 0);
+          dc->remote_callxs(targetthisround, distributed_metrics::receive_bandwidth_test_payload, payload, BANDWIDTH_TEST_SIZE);
+          sleep(2);
+      }
+      dc->barrier();
     }
     free(payload);
     
-    // Wait for the test to finish
-    condlock.lock();
-    cond.wait(condlock);
-    condlock.unlock();
+
  }
  
  std::map<size_t, timer> start_times;
@@ -102,13 +146,8 @@ class distributed_metrics {
     double time = start_times[from_proc].current_time();
     double bandwidth = (double(len)/1024.0/1024.0)/time;
     set_value(bandwidth_key(from_proc, dc->procid()), bandwidth);
-    condlock.lock();
     received_payloads++;
     std::cout << "Finished " << received_payloads << ". bandwidth test from " << from_proc << " to " << dc->procid() << ": " << bandwidth << " MB/sec" << std::endl; 
-    if (received_payloads == dc->numprocs()-1) {
-        cond.broadcast();
-    }
-    condlock.unlock();
  }
  
  ///  METRICS

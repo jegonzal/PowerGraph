@@ -38,19 +38,26 @@ namespace graphlab {
     // typedef boost::lagged_fibonacci607 rand_real_src_type;
     typedef boost::mt11213b rand_src_type;
     typedef boost::uniform_real<double> dist_real_type;
+    typedef boost::normal_distribution<double> dist_gaussian_type;
     typedef boost::uniform_int<size_t> dist_int_type;
     
   public:
  
     thread_specific_data(size_t thread_id) :
       thread_id_(thread_id),
-      rng_(thread_id + rand() ) { }
+      rng_(thread_id + rand() ),
+      rnggaussian_(rng_, gaussian_dist_),
+      rng_real_(rng_, real_dist_) {}
 
     /** Get the id of the thread */
     size_t thread_id() const { return thread_id_; }
     
     /** Return a random number between 0 and 1 */
     double rand01() { return dist_real_type(0,1)(rng_); }
+
+    double gaussian_rand() {
+      return rnggaussian_();
+    }
 
     /** Seed the random number generator */
     void seed(rand_src_type::result_type value) { rng_.seed(value); }
@@ -67,6 +74,13 @@ namespace graphlab {
   private:
     size_t thread_id_;
     rand_src_type rng_;
+    // gaussians
+    dist_gaussian_type gaussian_dist_;
+    boost::variate_generator<rand_src_type, dist_gaussian_type> rnggaussian_;
+
+    // gaussians
+    dist_real_type real_dist_;
+    boost::variate_generator<rand_src_type, dist_real_type> rng_real_;
   }; // end of thread specific data
 
   
