@@ -34,7 +34,7 @@ typedef double  sdouble;
 #define ALS_TENSOR_MULT 4
 
 bool BPTF = true;
-#define D 30 //diemnsion for U,V
+#define D 120 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -723,7 +723,7 @@ void last_iter(){
     printf("Finished burn-in period. starting to aggregate samples\n");
   }
          
-  if (iiter == 20){
+  if (iiter == 30){
     engine->stop();
   }
   if (BPTF){
