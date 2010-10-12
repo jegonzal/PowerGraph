@@ -316,6 +316,9 @@ void bp_update(gl_types::iscope& scope,
   }
   return output;
 }*/
+
+
+
                    
 /**
   In this function, we construct the grid graph
@@ -398,6 +401,80 @@ void create_graph(std::string archivefile,
 
 
 
+// copy of create_graph with different add_vertex call
+template <typename Gtype, typename SDMType>
+void create_local_dist_graph(std::string archivefile,
+             Gtype& g,
+             SDMType & sdm,
+             std::vector<uint32_t> &pix2part,
+             size_t arity, size_t* featurearity,
+              double agg_scale_factor) {
+  std::ifstream fin(archivefile.c_str());
+  graphlab::iarchive iarc(fin);
+  
+  std::vector<std::vector<size_t> > adjlist;
+  std::vector<size_t> part2frame;
+  std::vector<std::vector<float> > features;
+  std::cout << "deserializing pix2part ... " << std::endl;
+  iarc >> pix2part;
+  std::cout << "deserializing adjacency list ... " << std::endl;
+  iarc >> adjlist;
+
+  std::cout << "deserializing features... " << std::endl;
+  iarc >> features;
+  part2frame = std::vector<size_t>(features.size(), -1);
+  std::vector<size_t> numpixperpart;
+  numpixperpart.resize(features.size());
+  for (size_t i = 0;i < pix2part.size(); ++i) {
+    size_t img,x,y;
+    numpixperpart[pix2part[i]]++;
+    if (part2frame[pix2part[i]] == size_t(-1)) {
+      fromvertexid(i, img, x,y); 
+      part2frame[pix2part[i]] = img;
+    }
+    else {
+      fromvertexid(i, img, x,y); 
+      //assert(img == part2frame[pix2part[i]]);
+    }
+  }
+  
+    // create vertices
+  vertex_data vtx;
+  vtx.potential.resize(arity);
+  vtx.belief.resize(arity);
+  vtx.potential_lastversion = 0;
+  for (size_t i = 0; i < features.size(); ++i){
+    for (size_t j = 0;j < arity; ++j) vtx.potential.logP(j) = gl_types::random::rand01() + 1E-10;
+    vtx.belief = vtx.potential;
+    vtx.belief.normalize();
+    vtx.features = features[i];
+    vtx.numpixels = numpixperpart[i];
+    g.add_vertex(0, vtx);
+  }
+  //create edges
+  
+  edge_data edata;
+  //size_t next_edge_id = 10;
+  edata.message.resize(arity);
+  edata.message.uniform(0);
+  edata.message.normalize();
+  for (size_t i = 0; i < adjlist.size(); ++i){
+    for (size_t j = 0; j < adjlist[i].size(); ++j){
+      double effscalefactor = agg_scale_factor;
+      if (part2frame[i] != part2frame[adjlist[i][j]]) {
+        effscalefactor = INTERFRAME_POTENTIAL;
+      }
+      edata.edgepot = compute_agreementstrength(g.vertex_data(i).features, 
+                                                        g.vertex_data(adjlist[i][j]).features,
+                                                        arity,
+                                                        effscalefactor);
+      g.add_edge(i, adjlist[i][j], edata);
+    }
+  }
+
+  g.finalize();
+  (*featurearity) = features[0].size();
+}
 
 
 void reduce_gaussian_clusters(size_t index,
@@ -771,10 +848,10 @@ int main(int argc,  char *argv[]) {
   options opts; 
   bool success = parse_command_line(argc, argv, opts);
   ASSERT_TRUE(success);
-  ASSERT_GT(opts.basefile.length(), 0);  
   
 
   if (opts.prepart) {
+    ASSERT_GT(opts.basefile.length(), 0);  
     ASSERT_EQ(dc.numprocs(), 1);
     // prepartition
     // create graph   
@@ -791,8 +868,16 @@ int main(int argc,  char *argv[]) {
 
   gl_types::graph graph; dc.barrier();
   graphlab::distributed_shared_data<gl_types::graph> shared_data(dc); dc.barrier();
-
-  graph.load(opts.basefile, dc);
+  if (dc.numprocs() == 1) graph.set_local_edges(true);
+  if (opts.basefile != "") {
+    graph.load(opts.basefile, dc);
+  } 
+  else {
+    assert(inputfile != "");
+    std::vector<uint32_t> pix2part;
+    size_t featurearity;
+    create_local_dist_graph(inputfile, graph, shared_data, pix2part, opts.arity, &featurearity, INTRAFRAME_POTENTIAL);
+  }
   dc.barrier();
   gl_types::iengine* engine = NULL;
   
