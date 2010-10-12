@@ -12,7 +12,7 @@
 #include "image.hpp"
 #include "data_structures.hpp"
 #include "sequential_jt_gibbs.hpp"
-
+#include "jt_worker.hpp"
 
 
 
@@ -55,6 +55,8 @@ int main(int argc, char** argv) {
   std::cout << "Sample one block" << std::endl;
   junction_tree::graph_type jt;
 
+  // run the fully parallel sampler
+  parallel_sample(factor_graph, mrf, 2);
 
   //build_junction_tree(mrf_graph, 0, jt);
 //   size_t id = image::vertid(200,200, 100,100);
@@ -75,21 +77,21 @@ int main(int argc, char** argv) {
 
 
   
-  for(size_t i = 0; i < 100; ++i) {
-    std::cout << "Sample: " << i << std::endl;
-    size_t j = rand() % mrf_graph.num_vertices();
-    sample_once(factor_graph, mrf_graph, j);
+  // for(size_t i = 0; i < 100; ++i) {
+  //   std::cout << "Sample: " << i << std::endl;
+  //   size_t j = rand() % mrf_graph.num_vertices();
+  //   sample_once(factor_graph, mrf_graph, j);
     
-    size_t rows = sqrt(mrf_graph.num_vertices());
-    image img(rows,rows);
+  //   size_t rows = sqrt(mrf_graph.num_vertices());
+  //   image img(rows,rows);
     
-    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-      img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
-    }
-    std::stringstream strm;
-    strm << "result_" << i << ".pgm";
-    img.save(strm.str().c_str());
-  }
+  //   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+  //     img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
+  //   }
+  //   std::stringstream strm;
+  //   strm << "result_" << i << ".pgm";
+  //   img.save(strm.str().c_str());
+  // }
   
   
   

@@ -490,10 +490,6 @@ bool extend_clique_list(const mrf::graph_type& mrf,
 size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
                                        vertex_id_t root,
                                        junction_tree::graph_type& jt) {
-  jt.clear();
-
-
-
   // Local data structures
   std::map<vertex_id_t, vertex_id_t> elim_time_map;
   clique_vector cliques;
@@ -554,7 +550,7 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
 
 
   std::cout << "Varcount: " << elim_order.size() << std::endl;  
-  
+  jt.clear();
   junction_tree_from_cliques(mrf, 
                              cliques.begin(), cliques.end(), 
                              jt);

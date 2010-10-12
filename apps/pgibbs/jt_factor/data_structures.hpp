@@ -59,7 +59,7 @@ namespace mrf {
     size_t         updates; 
 
     bool           in_tree;
-    size_t         tree_id;
+    vertex_id_t    tree_id;
 
 
     vertex_data() : updates(0), 

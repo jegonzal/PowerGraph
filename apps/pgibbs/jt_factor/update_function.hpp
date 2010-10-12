@@ -188,11 +188,19 @@ namespace junction_tree{
         // Fill out the variables in the mrf
         mrf::graph_type& mrf_graph = 
           *shared_data->get_constant(MRF_KEY).as<mrf::graph_type*>();
+        
+        factor_t tmp_vertex_belief;
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           mrf_vdata.asg = sample_asg.restrict(var);
-          mrf_vdata.belief.marginalize(belief);
+          // sample the vertex
+          tmp_vertex_belief.set_args(mrf_vdata.belief.args());
+          tmp_vertex_belief.marginalize(belief);
+          tmp_vertex_belief.normalize();
+          mrf_vdata.belief += tmp_vertex_belief;
+          // remove the vertex from any trees
+          mrf_vdata.tree_id = -1;
         } 
 
         // Reschedule unssampled neighbors
