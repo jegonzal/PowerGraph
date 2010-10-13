@@ -100,10 +100,17 @@ public:
     current_root = worker_id;
 
     // Initialize local jtcore
+    // jt_core.set_scheduler_type("fifo");
+    // jt_core.set_scope_type("edge");
+    // jt_core.set_ncpus(2);
+    // jt_core.set_engine_type("async");
+
+
     jt_core.set_scheduler_type("fifo");
-    jt_core.set_scope_type("edge");
-    jt_core.set_ncpus(2);
-    jt_core.set_engine_type("async");
+    jt_core.set_scope_type("none");
+    jt_core.set_ncpus(1);
+    jt_core.set_engine_type("async_sim");
+
 
     // Initialize the shared data in the factorized model
     jt_core.shared_data().set_constant(junction_tree::FACTOR_KEY, 
@@ -434,7 +441,7 @@ public:
      
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
 
     // Build the junction tree and sample
     jt_core.graph().clear();
