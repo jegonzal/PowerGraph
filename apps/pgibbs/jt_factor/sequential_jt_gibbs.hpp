@@ -28,7 +28,6 @@ struct elim_clique {
   vertex_id_t parent;
   vertex_id_t elim_vertex;
   vertex_set vertices; 
-  vertex_set factor_ids;
   elim_clique() : parent(-1) { }
 };
 
@@ -324,21 +323,6 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
   const std::pair<T,T> cliques_range = 
     std::make_pair(begin_iter, end_iter);
 
-  std::set<vertex_id_t> assigned_factors;
-
-  // Assign factors  
-  rev_foreach(elim_clique& clique, cliques_range) {
-    const mrf::vertex_data& vdata = mrf.vertex_data(clique.elim_vertex);
-    foreach(vertex_id_t fid, vdata.factor_ids) {
-      if(assigned_factors.count(fid) == 0) {
-          clique.factor_ids += fid;
-          assigned_factors.insert(fid);
-      }
-    }
-  }
-  
-
- 
   // Compute the parent of each clique
   foreach(elim_clique& clique, cliques_range) {
     vertex_id_t parent = 0;
@@ -348,41 +332,33 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
     clique.parent = parent;
   }
 
-  // { // compute Subsumption
-  //   begin_iter->parent = -1;
-  //   rev_foreach(elim_clique& clique, cliques_range) {      
-  //     for(vertex_id_t parent_id = clique.parent; 
-  //         parent_id < (end_iter - begin_iter); 
-  //         parent_id = clique.parent ) {         
-  //       elim_clique& parent = *(begin_iter + parent_id);          
-  //       if((parent.vertices + parent.elim_vertex) <= 
-  //          (clique.vertices + clique.elim_vertex)) {
-  //         clique.parent = parent.parent;
-  //         parent.parent = parent_id;
-  //         std::swap(parent, clique);
-  //       } else break;
-  //     }
-  //   }
-  // }
 
 
 
 
   {  // Construct the junction tree
+    std::set<vertex_id_t> assigned_factors;
     // Ensure that the parent of the root is identifiably undefined
     begin_iter->parent = -1; 
     foreach(elim_clique& clique, cliques_range) {      
+      const mrf::vertex_data& elim_vertex_vdata = 
+        mrf.vertex_data(clique.elim_vertex);
       // Create the vertex data
       junction_tree::vertex_data vdata;
       // add the eliminated vertex
-      vdata.variables = mrf.vertex_data(clique.elim_vertex).variable;
+      vdata.variables = elim_vertex_vdata.variable;
       // add all the other variables in the clique
       foreach(vertex_id_t vid, clique.vertices) 
         vdata.variables += mrf.vertex_data(vid).variable;      
       // add all the clique factors to the vertex
-      foreach(vertex_id_t fid, clique.factor_ids) 
-        vdata.factor_ids.insert(fid);
-      // Add the vertex
+      foreach(vertex_id_t fid, elim_vertex_vdata.factor_ids) {
+        if(assigned_factors.count(fid) == 0) {
+          vdata.factor_ids.insert(fid);
+          assigned_factors.insert(fid);
+        }
+      }
+
+      // Add the vertex to the junction tree
       vertex_id_t child_id = jt.add_vertex(vdata);
 
       vertex_id_t parent_id = clique.parent;

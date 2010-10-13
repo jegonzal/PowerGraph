@@ -46,6 +46,7 @@ private:
   size_t worker_count;
   size_t max_tree_size;
   size_t total_samples;
+  size_t collisions;
 
   float finish_time_seconds;
 
@@ -77,6 +78,7 @@ public:
     worker_count(0),
     max_tree_size(0),
     total_samples(0),
+    collisions(0),
     finish_time_seconds(0),
     use_priorities(false) { }
 
@@ -121,12 +123,14 @@ public:
   }
 
   size_t num_samples() const { return total_samples; }
+  size_t num_collisions() const { return collisions; }
 
   // get a root
   void run() {
     
     // Track the number of samples
     total_samples = 0;
+    collisions = 0;
     // End of for loop
     //size_t round = 0;
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
@@ -137,6 +141,7 @@ public:
         current_root = 
           graphlab::random::rand_int(scope_factory->num_vertices() - 1);
         sampled_variables = sample_once();
+        if(sampled_variables == 0) collisions++;
       }
 
 
@@ -438,10 +443,12 @@ public:
     // Get the scope factory
     mrf::graph_type& mrf = scope_factory->get_graph();
 
-     
+
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
-    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    
 
     // Build the junction tree and sample
     jt_core.graph().clear();
@@ -454,9 +461,10 @@ public:
     // add tasks to all vertices
     jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
     // Run the core
-    // std::cout << "Starting engine" << std::endl;
+    std::cout << "Starting engine: " << worker_id << std::endl;
     jt_core.start();
-    // std::cout << "Last Update count: " << jt_core.last_update_count() << std::endl;
+    std::cout << "Finished engine: " << worker_id << std::endl;
+    //    std::cout << "Last Update count: " << jt_core.last_update_count() << std::endl;
 
     // Check that the junction tree is sampled
     for(vertex_id_t vid = 0; 
@@ -518,10 +526,13 @@ void parallel_sample(const factorized_model& fmodel,
 
   // Record the total number of samples
   size_t total_samples = 0;
+  size_t total_collisions = 0;
   foreach(const jt_worker& worker, workers) {
     total_samples += worker.num_samples();
+    total_collisions += worker.num_collisions();
   }
   std::cout << "Total samples: " << total_samples << std::endl;
+  std::cout << "Total collisions: " << total_collisions << std::endl;
 
 }
 
