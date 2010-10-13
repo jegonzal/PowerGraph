@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
 
   size_t treesize = 1000;
   bool priorities = false;
+  float runtime = 10;
 
   // Command line parsing
   graphlab::command_line_options clopts("Parallel Junction Tree MCMC");
@@ -43,12 +44,17 @@ int main(int argc, char** argv) {
                        "Alchemy formatted model file");
   clopts.add_positional("model");
 
+  clopts.attach_option("runtime", 
+                       &runtime, runtime,
+                       "total runtime in seconds");
+
   clopts.attach_option("treesize", 
                        &treesize, treesize,
                        "The number of variables in a junction tree");
   clopts.attach_option("priorities",
                        &priorities, priorities,
                        "Use priorities?");
+
 
 
   clopts.scheduler_type = "fifo";
@@ -70,11 +76,15 @@ int main(int argc, char** argv) {
   
   
   // run the fully parallel sampler
+  graphlab::timer timer;
+  timer.start();
   parallel_sample(factor_graph, mrf_graph, 
                   clopts.ncpus,
+                  runtime,
                   treesize,
                   priorities);
-
+  double actual_runtime = timer.current_time();
+  std::cout << "Runtime: " << actual_runtime << std::endl;
 
   // Plot the final answer
   size_t rows = std::sqrt(mrf_graph.num_vertices());

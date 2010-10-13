@@ -18,7 +18,7 @@
 #include <graphlab.hpp>
 
 #include <graphlab/parallel/pthread_tools.hpp>
-
+#include <graphlab/util/timer.hpp>
 
 #include "data_structures.hpp"
 
@@ -45,11 +45,11 @@ private:
   size_t worker_id;
   size_t worker_count;
   size_t max_tree_size;
+  size_t total_samples;
+
+  float finish_time_seconds;
 
   bool use_priorities;
-
-  bool active;
-
 
 
   const factorized_model::factor_map_t* factors_ptr;
@@ -71,12 +71,20 @@ private:
 
 public:
 
-  jt_worker() : scope_factory(NULL) { }
+  jt_worker() : 
+    scope_factory(NULL), 
+    worker_id(0),
+    worker_count(0),
+    max_tree_size(0),
+    total_samples(0),
+    finish_time_seconds(0),
+    use_priorities(false) { }
 
   void init(size_t wid,
             scope_factory_type& sf, 
             const factorized_model::factor_map_t& factors,
             size_t ncpus,
+            float finish_time_secs,
             size_t treesize,
             bool priorities) {
     // Initialize parameters
@@ -86,8 +94,8 @@ public:
     max_tree_size = treesize;
     factors_ptr = &factors;
     use_priorities = priorities;
+    finish_time_seconds = finish_time_secs;
 
-    active = true;
 
     current_root = worker_id;
 
@@ -105,14 +113,16 @@ public:
                                        mrf_graph_ptr); 
   }
 
+  size_t num_samples() const { return total_samples; }
+
   // get a root
   void run() {
-    // Get a local copy of the graph
-    mrf::graph_type& mrf(scope_factory->get_graph());
+    
     // Track the number of samples
-    size_t total_samples = 0;
+    total_samples = 0;
     // End of for loop
-    for(size_t i = 0; i < 20; ++i) {
+    //size_t round = 0;
+    while(graphlab::lowres_time_seconds() < finish_time_seconds) {
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
@@ -123,41 +133,26 @@ public:
       }
 
 
-
-      if(worker_id == 0) {
-        std::cout << "Saving Image: " << std::endl;
-        size_t rows = std::sqrt(mrf.num_vertices());
-        image img(rows, rows);
-        for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-          vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-          img.pixel(vid) = 
-            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-        }
-        img.save(make_filename("tree", ".pgm", i).c_str());
-      }
-
-
-
-
-
-
-      /////////////////////////////////////////////////////////
-      // Determine the next room
-      // Update root
-      // current_root += worker_count;
-      // if(current_root >= scope_factory->num_vertices()) {
-      //   current_root = worker_id;
+      // // Get a local copy of the graph
+      // mrf::graph_type& mrf(scope_factory->get_graph());
+      // if(worker_id == 0) {
+      //   std::cout << "Saving Image: " << std::endl;
+      //   size_t rows = std::sqrt(mrf.num_vertices());
+      //   image img(rows, rows);
+      //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+      //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+      //     img.pixel(vid) = 
+      //       tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+      //   }
+      //   img.save(make_filename("tree", ".pgm", round++).c_str());
       // }
 
-
-
-
-      std::cout << "Worker " << worker_id 
-                << " sampled " << current_root
-                << " a tree of size " << sampled_variables
-                << std::endl;        
+      // std::cout << "Worker " << worker_id 
+      //           << " sampled " << current_root
+      //           << " a tree of size " << sampled_variables
+      //           << std::endl;        
       total_samples += sampled_variables;
-    }      
+    } 
   }
 
   /**
@@ -381,6 +376,9 @@ public:
                              next_vertex,
                              elim_time_map,
                              cliques);
+        // If the extension was safe than the elim_time_map and
+        // cliques data structure are automatically extended
+
         if(safe_extension) {                 
           // add the neighbors to the search queue or update their priority
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
@@ -440,18 +438,20 @@ public:
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    junction_tree_from_cliques(mrf, 
-                               cliques.begin(), cliques.end(), 
-                               jt_core.graph());
+    jtree_from_cliques(mrf, 
+                       elim_time_map,
+                       cliques.begin(), cliques.end(), 
+                       jt_core.graph());
+    // Rebuild the engine (clear the old scheduler)
     jt_core.rebuild_engine();
     // add tasks to all vertices
     jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
     // Run the core
-    std::cout << "Starting engine" << std::endl;
+    // std::cout << "Starting engine" << std::endl;
     jt_core.start();
-    std::cout << "Last Update count: " << jt_core.last_update_count() << std::endl;
+    // std::cout << "Last Update count: " << jt_core.last_update_count() << std::endl;
 
-    // Check that the junctio tree is sampled
+    // Check that the junction tree is sampled
     for(vertex_id_t vid = 0; 
         vid < jt_core.graph().num_vertices(); ++vid) {
       assert(jt_core.graph().vertex_data(vid).sampled);
@@ -476,6 +476,7 @@ public:
 void parallel_sample(const factorized_model& fmodel,
                      mrf::graph_type& mrf,
                      size_t ncpus,
+                     float runtime_secs,
                      size_t max_tree_size = 1000,
                      bool use_priorities = false) {
   // create workers
@@ -487,12 +488,16 @@ void parallel_sample(const factorized_model& fmodel,
     scope_factory(mrf, ncpus,
                   graphlab::scope_range::EDGE_CONSISTENCY);
   
+  float finish_time_secs = 
+    graphlab::lowres_time_seconds() + runtime_secs;
+
   for(size_t i = 0; i < ncpus; ++i) {
     // Initialize the worker
     workers[i].init(i, 
                     scope_factory, 
                     fmodel.factors(),
                     ncpus,
+                    finish_time_secs,
                     max_tree_size,
                     use_priorities);    
     // Launch the threads
@@ -504,14 +509,19 @@ void parallel_sample(const factorized_model& fmodel,
   // Wait for all threads to finish
   threads.join();
 
+  // Record the total number of samples
+  size_t total_samples = 0;
+  foreach(const jt_worker& worker, workers) {
+    total_samples += worker.num_samples();
+  }
+  std::cout << "Total samples: " << total_samples << std::endl;
+
   size_t rows = std::sqrt(mrf.num_vertices());
   image img(rows, rows);
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-    vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-    img.pixel(vid) = 
-      tree_id == vertex_id_t(-1)? 0 : tree_id + ncpus;
+  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+    img.pixel(vid) = mrf.vertex_data(vid).updates;
   }
-  img.save("end_tree.pgm");
+  img.save("sample_count.pgm");
 
 }
 

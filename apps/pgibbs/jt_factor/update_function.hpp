@@ -186,6 +186,8 @@ namespace junction_tree{
 
         // Set the local assignment
         vdata.asg = sample_asg & parent_asg;
+        // the assignment should exacty cover the variables
+        assert(vdata.asg.args() == vdata.variables);
         
         // Fill out the variables in the mrf
         mrf::graph_type& mrf_graph = 
@@ -196,12 +198,15 @@ namespace junction_tree{
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           mrf_vdata.asg = sample_asg.restrict(var);
+          // make sure assignment is set correctly
+          assert(mrf_vdata.asg.asg(var.id) == sample_asg.asg(var.id));
           // sample the vertex
           tmp_vertex_belief.set_args(mrf_vdata.belief.args());
           tmp_vertex_belief.marginalize(belief);
           tmp_vertex_belief.normalize();
 
           mrf_vdata.belief += tmp_vertex_belief;
+          mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
 
