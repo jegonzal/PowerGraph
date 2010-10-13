@@ -44,6 +44,7 @@ private:
   scope_factory_type* scope_factory;
   size_t worker_id;
   size_t worker_count;
+  size_t max_tree_size;
   bool active;
 
   // Tree building data structures 
@@ -65,21 +66,24 @@ public:
 
   void init(size_t wid,
             size_t wcount,
+            size_t treesize,
             scope_factory_type& sf, 
             const factorized_model::factor_map_t& factors) {
     // Initialize parameters
     scope_factory = &sf;
     worker_id = wid;
     worker_count = wcount;
+    max_tree_size = treesize;
+
     active = true;
 
     current_root = worker_id;
 
     // Initialize local jtcore
     jt_core.set_scheduler_type("fifo");
-    jt_core.set_scope_type("none");
-    jt_core.set_ncpus(1);
-    jt_core.set_engine_type("async_sim");
+    jt_core.set_scope_type("edge");
+    jt_core.set_ncpus(4);
+    jt_core.set_engine_type("async");
 
     // Initialize the shared data in the factorized model
     const  factorized_model::factor_map_t* factors_ptr = &factors;
@@ -92,17 +96,50 @@ public:
 
   // get a root
   void run() {
+    // Get a local copy of the graph
+    mrf::graph_type& mrf(scope_factory->get_graph());
+    // Track the number of samples
     size_t total_samples = 0;
+    // End of for loop
     for(size_t i = 0; i < 10; ++i) {
-      size_t sampled_variables = sample_once();
+      /////////////////////////////////////////////////////////
+      // Construct one tree (we must succeed in order to count a tree
+      size_t sampled_variables = 0;
+      while(sampled_variables == 0) {
+        current_root = 
+          graphlab::random::rand_int(scope_factory->num_vertices() - 1);
+        sampled_variables = sample_once();
+      }
 
+
+
+      if(worker_id == 0) {
+        std::cout << "Saving Image: " << std::endl;
+        size_t rows = std::sqrt(mrf.num_vertices());
+        image img(rows, rows);
+        for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+          vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+          img.pixel(vid) = 
+            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+        }
+        img.save(make_filename("tree", ".pgm", i).c_str());
+      }
+
+
+
+
+
+
+      /////////////////////////////////////////////////////////
+      // Determine the next room
       // Update root
       // current_root += worker_count;
       // if(current_root >= scope_factory->num_vertices()) {
       //   current_root = worker_id;
       // }
-      current_root = 
-        graphlab::random::rand_int(scope_factory->num_vertices() - 1);
+
+
+
 
       std::cout << "Worker " << worker_id 
                 << " sampled " << current_root
@@ -209,12 +246,13 @@ public:
       scope_factory->release_scope(&scope);        
 
       // Limit the number of variables
-      if(cliques.size() > 1000) break;
+      if(cliques.size() > max_tree_size) break;
     } // end of while loop
   
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+   
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
 
     // Build the junction tree and sample
     jt_core.graph().clear();
@@ -253,7 +291,8 @@ public:
 
 void parallel_sample(const factorized_model& fmodel,
                      mrf::graph_type& mrf,
-                     size_t ncpus) {
+                     size_t ncpus,
+                     size_t max_tree_size = 1000) {
   // create workers
   graphlab::thread_group threads;
   std::vector<jt_worker> workers(ncpus);
@@ -265,7 +304,9 @@ void parallel_sample(const factorized_model& fmodel,
   
   for(size_t i = 0; i < ncpus; ++i) {
     // Initialize the worker
-    workers[i].init(i, ncpus, scope_factory, fmodel.factors());    
+    workers[i].init(i, ncpus, 
+                    max_tree_size,
+                    scope_factory, fmodel.factors());    
     // Launch the threads
     bool use_cpu_affinity = false;
     if(use_cpu_affinity) threads.launch(&(workers[i]), i);
@@ -276,7 +317,6 @@ void parallel_sample(const factorized_model& fmodel,
   threads.join();
 
   size_t rows = std::sqrt(mrf.num_vertices());
-
   image img(rows, rows);
   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
