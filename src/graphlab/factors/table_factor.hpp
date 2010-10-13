@@ -662,7 +662,9 @@ namespace graphlab {
     table_factor() { }
     
     table_factor(const domain_type& dom) :
-      _args(dom), _data(dom.size()) { }
+      _args(dom), _data(dom.size()) { 
+      uniform();
+    }
 
     table_factor(const table_factor& other) :
       _args(other._args), _data(other._data) { }
@@ -676,6 +678,7 @@ namespace graphlab {
     void set_args(const domain_type& args) {
       _args = args;
       _data.resize(args.size());
+      uniform();
     }
     
     const domain_type& args() const {
@@ -952,6 +955,15 @@ namespace graphlab {
       double sum = 0;
       for(size_t i = 0; i < args().size(); ++i) {
         sum += std::abs(std::exp(other.logP(i)) - std::exp(logP(i)));
+      }
+      return sum / args().size();
+    }
+
+    inline double log_residual(const table_factor& other) const {
+      assert(args() == other.args());
+      double sum = 0; 
+      for(size_t i = 0; i < args().size(); ++i) {
+        sum += std::abs(other.logP(i) - logP(i));
       }
       return sum / args().size();
     }

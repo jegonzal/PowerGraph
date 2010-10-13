@@ -43,6 +43,7 @@ namespace junction_tree{
         *shared_data->get_constant(MRF_KEY).as<mrf::graph_type*>();
       // Resize the factor for the variables in the clique
       vdata.factor.set_args(vdata.variables);
+      vdata.factor.uniform();
 
       // We now build up the factor by iteratoring over the dependent
       // factors conditioning if necessary into the conditional_factor

@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
   std::string model_filename = "";
 
   size_t treesize = 1000;
+  bool priorities = false;
 
   // Command line parsing
   graphlab::command_line_options clopts("Parallel Junction Tree MCMC");
@@ -45,6 +46,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("treesize", 
                        &treesize, treesize,
                        "The number of variables in a junction tree");
+  clopts.attach_option("priorities",
+                       &priorities, priorities,
+                       "Use priorities?");
 
 
   clopts.scheduler_type = "fifo";
@@ -68,7 +72,8 @@ int main(int argc, char** argv) {
   // run the fully parallel sampler
   parallel_sample(factor_graph, mrf_graph, 
                   clopts.ncpus,
-                  treesize);
+                  treesize,
+                  priorities);
 
 
   // Plot the final answer
