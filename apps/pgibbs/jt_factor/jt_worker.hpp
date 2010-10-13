@@ -523,13 +523,6 @@ void parallel_sample(const factorized_model& fmodel,
   }
   std::cout << "Total samples: " << total_samples << std::endl;
 
-  size_t rows = std::sqrt(mrf.num_vertices());
-  image img(rows, rows);
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
-    img.pixel(vid) = mrf.vertex_data(vid).updates;
-  }
-  img.save("sample_count.pgm");
-
 }
 
 

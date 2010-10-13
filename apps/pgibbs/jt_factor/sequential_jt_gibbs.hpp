@@ -46,6 +46,32 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
 
 
 
+//! Compute the unormalized likelihood of the current assignment
+double unnormalized_loglikelihood(const mrf::graph_type& graph,
+                                  const std::vector<factor_t>& factors) {
+  double sum = 0;
+  // Sum the logprob of each factor
+  foreach(const factor_t& factor, factors) {
+    // Accumulate the assignments 
+    domain_t dom = factor.args();
+    assignment_t asg;
+    for(size_t i = 0; i < dom.num_vars(); ++i) {
+      const vertex_id_t vid = dom.var(i).id;
+      const mrf::vertex_data& vdata = graph.vertex_data(vid);
+      assert(vdata.variable == dom.var(i));
+      asg &= vdata.asg;
+    }
+    sum += factor.logP(asg);
+  }
+  return sum;
+}
+
+
+
+
+
+
+
 
 size_t build_minfill_elim_order(const vset_map& var2factors_const,
                                 const vset_map& factor2vars_const,

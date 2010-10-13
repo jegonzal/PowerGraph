@@ -86,6 +86,12 @@ int main(int argc, char** argv) {
   double actual_runtime = timer.current_time();
   std::cout << "Runtime: " << actual_runtime << std::endl;
 
+  std::cout << "Computing unnormalized log-likelihood" << std::endl;
+  double loglik = unnormalized_loglikelihood(mrf_graph,
+                                             factor_graph.factors());
+
+  std::cout << "LogLikelihood: " << loglik << std::endl;
+  std::cout << "Saving final prediction" << std::endl;
   // Plot the final answer
   size_t rows = std::sqrt(mrf_graph.num_vertices());
   image img(rows, rows);
@@ -97,6 +103,16 @@ int main(int argc, char** argv) {
     img.pixel(vid) = values[0];
   }
   img.save("final_pred.pgm");
+
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+    img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
+  }
+  img.save("sample_count.pgm");
+
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+    img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+  }
+  img.save("unsampled.pgm");
 
 
 
