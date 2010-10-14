@@ -56,10 +56,10 @@ typedef double  sdouble;
 #define IS_ROUND_ROBIN_CONSTANT 6
 #define MAX_ITERATIONS_CONSTANT 7
 
-const int NUM_ITERATIONS_TO_RUN = 20;
+const int NUM_ITERATIONS_TO_RUN = 150;
 
 bool BPTF = true;
-#define D 6 //diemnsion for U,V
+#define D 120 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -105,7 +105,7 @@ mat iW0T;
 //vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =10;
+int BURN_IN = 20;
 bool tensor = true;
 double counter[20];
 
@@ -552,7 +552,7 @@ static void apply_func(size_t index,
 
   double rmse = new_data.as<double>();
   rmse = sqrt(rmse/L);
-  std::cout << myprocid << ":  TRAIN RMSE is : " << rmse << std::endl;
+  std::cout << myprocid << ":  Training RMSE is : " << rmse << std::endl;
   
   ASSERT_GT(rmse,0);
   
@@ -732,18 +732,14 @@ void last_iter(gl_dtypes::ishared_data &sdm);
 
 
 void sample_alpha(double res2, gl_dtypes::ishared_data &sdm){
-
-  //double res;
-  //if (!tensor)
-  //  res = powf(sdm.get(RMSE).as<double>(),2) * L;
-
-  bool debug = false;
-  double res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
+  double res;
+  if (!tensor)
+    res = powf(sdm.get(RMSE).as<double>(),2) * L;
+  else res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
   //assert(res > 0.1);
 
   printf("res vs. res2 %g %g\n", res, res2); 
-
-  if (res < 0.2)
+  if (res < 1000)
     res = L * 3;
 
   // res = res2;
@@ -837,7 +833,7 @@ mat calc_DT(gl_dtypes::ishared_data &sdm){
   return diff;
 
 }
- 
+
 void sample_T(gl_dtypes::ishared_data& sdm){
   assert(BPTF);
   assert(tensor);
@@ -1169,9 +1165,8 @@ void pmf_update_function(gl_dtypes::iscope &scope,
     //   vertex_data->agg[i] = 0.8*vertex_data->agg[i] + 0.2*result[i];
   }
 
-  if (scope.vertex() == M+N-1)
+  if (scope.vertex() == 1)
     last_iter(*sdm);
-
   vdata.rounds++;
     
   if (sdm->get_constant(IS_ROUND_ROBIN_CONSTANT).as<bool>() == false) {
@@ -1193,31 +1188,24 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     sdm.trigger_sync(A_V_OFFSET);
   }
 
+  double res;
+  double rmse = NAN;
   //double rmse = calc_rmse(&g, false, res, false);
   //rmse=0;
   //printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm),  rmse, calc_rmse(&g1, true, res2, true, sdm));
-  printf("%g) Iter %s %d  Obj=%g.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm));
+  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm),  rmse);
   iiter++;
   if (iiter == BURN_IN && BPTF){
     printf("Finished burn-in period. starting to aggregate samples\n");
   }
          
   if (BPTF){
-    sample_alpha(0, sdm);
+    sample_alpha(res, sdm);
     //sample_U();
     //sample_V();
     if (tensor) 
       sample_T(sdm);
   }
-  
- //  if (myprocid == 0){
-   // double res2;
-    //ASSERT_EQ(g1.num_vertices() , M+N);
-   //  double test_rmse = calc_rmse(&g1, true, res2, sdm);
-  //  printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
-//  }
-
-  printf("Finished last_iter %d\n", myprocid);
 }
 
 
@@ -1301,9 +1289,8 @@ void start(int argc, char ** argv, distributed_control & dc) {
   }
 
   if (dc.procid() == 0){
-    printf("loading test data file by node %d: %s\n", (infile+"e").c_str(), dc.procid());
+    printf("loading test data file by node 0: %s\n", (infile+"e").c_str());
     load_pmf_graph((infile+"e").c_str(),&g1, true);
-    ASSERT_EQ(g1.num_vertices(), N+M);
   }
 
 
@@ -1313,7 +1300,6 @@ void start(int argc, char ** argv, distributed_control & dc) {
   } else if (infile.find("netflix") != string::npos) {
     M=95526; N=3561; K=27; L=3298163; Le = 545177;
   }
-  
   
   
   dg = new graph_dtype(dc);
@@ -1476,31 +1462,19 @@ void start(int argc, char ** argv, distributed_control & dc) {
       sample_alpha(1*L, sdm);
       //sdm.sync( dg,A_U_OFFSET);
       //sdm.sync( dg,A_V_OFFSET);
-      //if (tensor) 
-      //  sample_T(sdm);
+      if (tensor) 
+        sample_T(sdm);
     }
-  //}
+  }
   
-  //dc.barrier();
+  dc.barrier();
  
 
   if (BPTF){
     sdm.sync_from_local(A_U_OFFSET);
     sdm.sync_from_local(A_V_OFFSET);
   }
-  
-     if (BPTF && tensor)
-	sample_T(sdm);
-
-     double res2;
-    ASSERT_EQ(g1.num_vertices() , M+N);
-    double test_rmse = calc_rmse(&g1, true, res2, sdm);
-    printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
- 
-
-
-  } // procid == 0
-
+  if (!tensor) sdm.sync_from_local(RMSE);
   dc.barrier();
   /// Timing
   gt.start();
@@ -1819,8 +1793,6 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
   fread(&K,1,4,f);//time
   assert(K>=1);
   assert(M>=1 && N>=1); 
-
-  tensor = (K>1);
 
   vertex_data vdata;
   gl::ones(vdata.pvec, D, 0.1);
