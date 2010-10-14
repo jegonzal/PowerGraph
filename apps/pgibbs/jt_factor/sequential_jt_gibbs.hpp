@@ -28,7 +28,6 @@ struct elim_clique {
   vertex_id_t parent;
   vertex_id_t elim_vertex;
   vertex_set vertices; 
-  vertex_set factor_ids;
   elim_clique() : parent(-1) { }
 };
 
@@ -43,6 +42,32 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
   assert(iter != const_map.end());
   return iter->second;
 }
+
+
+
+//! Compute the unormalized likelihood of the current assignment
+double unnormalized_loglikelihood(const mrf::graph_type& graph,
+                                  const std::vector<factor_t>& factors) {
+  double sum = 0;
+  // Sum the logprob of each factor
+  foreach(const factor_t& factor, factors) {
+    // Accumulate the assignments 
+    domain_t dom = factor.args();
+    assignment_t asg;
+    for(size_t i = 0; i < dom.num_vars(); ++i) {
+      const vertex_id_t vid = dom.var(i).id;
+      const mrf::vertex_data& vdata = graph.vertex_data(vid);
+      assert(vdata.variable == dom.var(i));
+      asg &= vdata.asg;
+    }
+    sum += factor.logP(asg);
+  }
+  return sum;
+}
+
+
+
+
 
 
 
@@ -246,10 +271,10 @@ size_t eval_elim_order(const vset_map& var2factors_const,
 
 
 template<typename T>
-void junction_tree_from_cliques(const mrf::graph_type& mrf, 
-                                const T& begin_iter,
-                                const T& end_iter,
-                                junction_tree::graph_type& jt)  {
+void jtree_from_cliques(const mrf::graph_type& mrf, 
+                        const T& begin_iter,
+                        const T& end_iter,
+                        junction_tree::graph_type& jt)  {
 
   // Convert the iterators to a range and size
   const std::pair<T,T> cliques_range = 
@@ -257,7 +282,6 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
 
 
   std::map<vertex_id_t, vertex_id_t> elim_time_map;
-  std::set<vertex_id_t> assigned_factors;
 
   { // Compute the elimination time for each vertex that is eliminated
     size_t elim_time = 0;
@@ -266,25 +290,44 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
     }
   }
 
+  jtree_from_cliques(mrf, 
+                     elim_time_map,
+                     begin_iter,
+                     end_iter,
+                     jt);
 
-  { // Assign factors  
-    rev_foreach(elim_clique& clique, cliques_range) {
-      const mrf::vertex_data& vdata = mrf.vertex_data(clique.elim_vertex);
-      foreach(vertex_id_t fid, vdata.factor_ids) {
-        if(assigned_factors.count(fid) == 0) {
-          clique.factor_ids += fid;
-          assigned_factors.insert(fid);
-        }
-      }
-    }
-  }
+} // end of build junction tree
 
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<typename T>
+void jtree_from_cliques(const mrf::graph_type& mrf, 
+                        const std::map<vertex_id_t, vertex_id_t>& elim_time_map,
+                        const T& begin_iter,
+                        const T& end_iter,
+                        junction_tree::graph_type& jt)  {
+
+  // Convert the iterators to a range and size
+  const std::pair<T,T> cliques_range = 
+    std::make_pair(begin_iter, end_iter);
+
   // Compute the parent of each clique
   foreach(elim_clique& clique, cliques_range) {
     vertex_id_t parent = 0;
     foreach(vertex_id_t vid, clique.vertices) {
-      parent =  std::max(parent, elim_time_map[vid]);
+      parent =  std::max(parent, safe_find(elim_time_map, vid));
     }
     clique.parent = parent;
   }
@@ -293,39 +336,29 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
 
 
 
-  // { // compute Subsumption
-  //   begin_iter->parent = -1;
-  //   rev_foreach(elim_clique& clique, cliques_range) {      
-  //     for(vertex_id_t parent_id = clique.parent; 
-  //         parent_id < (end_iter - begin_iter); 
-  //         parent_id = clique.parent ) {         
-  //       elim_clique& parent = *(begin_iter + parent_id);          
-  //       if((parent.vertices + parent.elim_vertex) <= 
-  //          (clique.vertices + clique.elim_vertex)) {
-  //         clique.parent = parent.parent;
-  //         parent.parent = parent_id;
-  //         std::swap(parent, clique);
-  //       } else break;
-  //     }
-  //   }
-  // }
-
-
-
-
   {  // Construct the junction tree
+    std::set<vertex_id_t> assigned_factors;
     // Ensure that the parent of the root is identifiably undefined
     begin_iter->parent = -1; 
     foreach(elim_clique& clique, cliques_range) {      
+      const mrf::vertex_data& elim_vertex_vdata = 
+        mrf.vertex_data(clique.elim_vertex);
       // Create the vertex data
       junction_tree::vertex_data vdata;
       // add the eliminated vertex
-      vdata.variables = mrf.vertex_data(clique.elim_vertex).variable;
+      vdata.variables = elim_vertex_vdata.variable;
+      // add all the other variables in the clique
       foreach(vertex_id_t vid, clique.vertices) 
         vdata.variables += mrf.vertex_data(vid).variable;      
-      foreach(vertex_id_t fid, clique.factor_ids) 
-        vdata.factor_ids.insert(fid);
-      // Add the vertex
+      // add all the clique factors to the vertex
+      foreach(vertex_id_t fid, elim_vertex_vdata.factor_ids) {
+        if(assigned_factors.count(fid) == 0) {
+          vdata.factor_ids.insert(fid);
+          assigned_factors.insert(fid);
+        }
+      }
+
+      // Add the vertex to the junction tree
       vertex_id_t child_id = jt.add_vertex(vdata);
 
       vertex_id_t parent_id = clique.parent;
@@ -356,6 +389,10 @@ void junction_tree_from_cliques(const mrf::graph_type& mrf,
   //     }
   //   }
 } // end of build junction tree
+
+
+
+
 
 
 
@@ -551,9 +588,10 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
 
   std::cout << "Varcount: " << elim_order.size() << std::endl;  
   jt.clear();
-  junction_tree_from_cliques(mrf, 
-                             cliques.begin(), cliques.end(), 
-                             jt);
+  jtree_from_cliques(mrf, 
+                    elim_time_map,
+                    cliques.begin(), cliques.end(), 
+                    jt);
 
  
   // image img(200, 200);
@@ -656,9 +694,9 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
 
 
   std::cout << "Varcount: " << var2factors.size() << std::endl;
-  junction_tree_from_cliques(mrf, 
-                             cliques.rbegin(), cliques.rend(),
-                             jt);
+  jtree_from_cliques(mrf, 
+                     cliques.rbegin(), cliques.rend(),
+                     jt);
   
 //   std::cout << "Elim Tree Width: " << tree_width << std::endl;
 //   image img(200, 200);
@@ -749,9 +787,9 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
 
 
   std::cout << "Varcount: " << var2factors.size() << std::endl;
-  junction_tree_from_cliques(mrf, 
-                             cliques.rbegin(), cliques.rend(),
-                             jt);
+  jtree_from_cliques(mrf, 
+                     cliques.rbegin(), cliques.rend(),
+                     jt);
 
 //   std::cout << "Min Fill Tree Width: " << tree_width << std::endl;
 

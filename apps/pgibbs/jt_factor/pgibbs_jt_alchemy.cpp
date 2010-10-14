@@ -33,11 +33,30 @@ int main(int argc, char** argv) {
 
   std::string model_filename = "";
 
+  size_t treesize = 1000;
+  bool priorities = false;
+  float runtime = 10;
+
   // Command line parsing
   graphlab::command_line_options clopts("Parallel Junction Tree MCMC");
   clopts.attach_option("model", 
                        &model_filename, model_filename,
                        "Alchemy formatted model file");
+  clopts.add_positional("model");
+
+  clopts.attach_option("runtime", 
+                       &runtime, runtime,
+                       "total runtime in seconds");
+
+  clopts.attach_option("treesize", 
+                       &treesize, treesize,
+                       "The number of variables in a junction tree");
+  clopts.attach_option("priorities",
+                       &priorities, priorities,
+                       "Use priorities?");
+
+
+
   clopts.scheduler_type = "fifo";
   clopts.scope_type = "edge";
   if( !clopts.parse(argc, argv) ) { 
@@ -57,49 +76,48 @@ int main(int argc, char** argv) {
   
   
   // run the fully parallel sampler
-  parallel_sample(factor_graph, mrf_graph, 1);
+  graphlab::timer timer;
+  timer.start();
+  parallel_sample(factor_graph, mrf_graph, 
+                  clopts.ncpus,
+                  runtime,
+                  treesize,
+                  priorities);
+  double actual_runtime = timer.current_time();
+  std::cout << "Runtime: " << actual_runtime << std::endl;
 
-  //build_junction_tree(mrf_graph, 0, jt);
-//   size_t id = image::vertid(200,200, 100,100);
+  std::cout << "Computing unnormalized log-likelihood" << std::endl;
+  double loglik = unnormalized_loglikelihood(mrf_graph,
+                                             factor_graph.factors());
 
-
-//   std::cout << "Sample one block" << std::endl;
-//   junction_tree::graph_type jt;
-
-  
-//   sample_once(factor_graph, mrf_graph, id);
-
-//   std::cout << "Finished!" << std::endl;
-
-//   size_t rows = sqrt(mrf_graph.num_vertices());
-//   image img(rows,rows);
-  
-//   for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
-//     img.pixel(i) = mrf_graph.vertex_data(i).asg.asg_at(0);
-//   }  
-//   img.save("result.pgm");
+  std::cout << "LogLikelihood: " << loglik << std::endl;
+  std::cout << "Saving final prediction" << std::endl;
 
 
 
-
-  
-  // for(size_t i = 0; i < 100; ++i) {
-  //   std::cout << "Sample: " << i << std::endl;
-  //   size_t j = rand() % mrf_graph.num_vertices();
-  //   sample_once(factor_graph, mrf_graph, j);
-    
-  //   size_t rows = sqrt(mrf_graph.num_vertices());
-  //   image img(rows,rows);
-    
-  //   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-  //     img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
-  //   }
-  //   std::stringstream strm;
-  //   strm << "result_" << i << ".pgm";
-  //   img.save(strm.str().c_str());
+  //  // Plot the final answer
+  // size_t rows = std::sqrt(mrf_graph.num_vertices());
+  // image img(rows, rows);
+  // std::vector<double> values(1);
+  // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+  //   mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+  //   vdata.belief.normalize();
+  //   vdata.belief.expectation(values);
+  //   img.pixel(vid) = values[0];
   // }
-  
-  
+  // img.save("final_pred.pgm");
+
+  // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+  //   img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
+  // }
+  // img.save("sample_count.pgm");
+
+  // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+  //   img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+  // }
+  // img.save("unsampled.pgm");
+
+
   
 
   
