@@ -56,10 +56,10 @@ typedef double  sdouble;
 #define IS_ROUND_ROBIN_CONSTANT 6
 #define MAX_ITERATIONS_CONSTANT 7
 
-const int NUM_ITERATIONS_TO_RUN = 20;
+const int NUM_ITERATIONS_TO_RUN = 30;
 
 bool BPTF = true;
-#define D 6 //diemnsion for U,V
+#define D 120 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -1209,7 +1209,8 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     if (tensor) 
       sample_T(sdm);
   }
-  
+
+
  //  if (myprocid == 0){
    // double res2;
     //ASSERT_EQ(g1.num_vertices() , M+N);
@@ -1303,7 +1304,8 @@ void start(int argc, char ** argv, distributed_control & dc) {
   if (dc.procid() == 0){
     printf("loading test data file by node %d: %s\n", (infile+"e").c_str(), dc.procid());
     load_pmf_graph((infile+"e").c_str(),&g1, true);
-    ASSERT_EQ(g1.num_vertices(), N+M);
+    if (g1.num_vertices() > 0)
+       ASSERT_EQ(g1.num_vertices(), N+M);
   }
 
 
@@ -1479,24 +1481,24 @@ void start(int argc, char ** argv, distributed_control & dc) {
       //if (tensor) 
       //  sample_T(sdm);
     }
-  //}
-  
-  //dc.barrier();
- 
+   } 
 
   if (BPTF){
     sdm.sync_from_local(A_U_OFFSET);
     sdm.sync_from_local(A_V_OFFSET);
   }
-  
+
+ 
+  if (dc.procid() == 0){ 
      if (BPTF && tensor)
 	sample_T(sdm);
 
      double res2;
+    if (g1.num_vertices() > 0){
     ASSERT_EQ(g1.num_vertices() , M+N);
     double test_rmse = calc_rmse(&g1, true, res2, sdm);
     printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
- 
+    }
 
 
   } // procid == 0

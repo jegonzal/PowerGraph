@@ -17,7 +17,7 @@
   
 
 
-typedef graphlab::fast_set<16, vertex_id_t> vertex_set;
+typedef graphlab::fast_set<2*MAX_DIM, vertex_id_t> vertex_set;
 // typedef std::set<vertex_id_t> vertex_set;
 
 typedef std::map<vertex_id_t, vertex_set> vset_map;
@@ -409,7 +409,9 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
 bool extend_clique_list(const mrf::graph_type& mrf,
                         vertex_id_t elim_vertex,
                         std::map<vertex_id_t, vertex_id_t>& elim_time_map,
-                        clique_vector& cliques) {
+                        clique_vector& cliques,
+                        size_t max_tree_width,
+                        size_t max_factor_size) {
   // sanity check: The vertex to eliminate should not have already
   // been eliminated
   assert(elim_time_map.find(elim_vertex) == elim_time_map.end());
@@ -417,14 +419,22 @@ bool extend_clique_list(const mrf::graph_type& mrf,
   // Construct the elimination clique for the new vertex
   elim_clique clique;
   clique.elim_vertex = elim_vertex;
+  // the factor must at least have the eliminated vertex
+  size_t factor_size = 
+    std::max(mrf.vertex_data(elim_vertex).variable.arity,
+             uint32_t(1));
   foreach(edge_id_t ineid, mrf.in_edge_ids(elim_vertex)) {
     vertex_id_t vid = mrf.source(ineid);
     // if the neighbor is in the set of vertices being eliminated
-    if(elim_time_map.find(vid) != elim_time_map.end()) {
-      clique.vertices += mrf.source(ineid);
+    if(elim_time_map.find(vid) != elim_time_map.end()) {      
+      clique.vertices += vid;
+      factor_size *= 
+        std::max(mrf.vertex_data(vid).variable.arity, uint32_t(1) );
     }
-    // if the clique ever gets too large than teminate
-    if(clique.vertices.size() + 1 > MAX_DIM) return false;
+    // if the clique ever gets too large then teminate
+    // the + 1 is because we need to include the elim vertex
+    if(clique.vertices.size() + 1 > max_tree_width) return false;
+    if(factor_size > max_factor_size) return false;
   }
 
   // Determine the parent of this clique
@@ -446,8 +456,18 @@ bool extend_clique_list(const mrf::graph_type& mrf,
     rip_verts -= parent_clique.elim_vertex;
 
     // Check that the expanded clique is still within tree width
-    vertex_set tmp_vset = rip_verts + parent_clique.elim_vertex;
-    if(tmp_vset.size() > MAX_DIM) return false;
+    if(rip_verts.size() + 1 > max_tree_width) return false;
+
+    // Compute the factor size
+    size_t factor_size = 
+      std::max(mrf.vertex_data(parent_clique.elim_vertex).variable.arity,
+               uint32_t(1));
+    foreach(vertex_id_t vid, rip_verts) {
+      factor_size *= 
+        std::max(mrf.vertex_data(vid).variable.arity, uint32_t(1));
+    }
+    if(factor_size > max_factor_size) return false;
+
 
     // Find the new parent
     vertex_id_t new_parent_vid = 0;
@@ -551,7 +571,9 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
     bool safe_extension = 
       extend_clique_list(mrf, next_vertex,
                          elim_time_map,
-                         cliques);
+                         cliques,
+                         5,
+                         1 << 5);
     if(safe_extension) {   
       // Save the elimited vertex
       elim_order.push_back(next_vertex);
@@ -880,7 +902,58 @@ void sample_once(const factorized_model& factor_graph,
 
 
 
+#include <graphlab/macros_undef.hpp>
+#endif
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////
+/// Very old code
 
 // size_t compute_tree_width(const mrf::graph_type& mrf, 
 //                           const vertex_set& in_tree) {
@@ -1117,7 +1190,3 @@ void sample_once(const factorized_model& factor_graph,
 // } // end of build junction tree
 
 
-
-
-#include <graphlab/macros_undef.hpp>
-#endif

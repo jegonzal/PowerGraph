@@ -34,15 +34,12 @@ typedef double  sdouble;
 #define ALS_TENSOR_MULT 4
 
 bool BPTF = true;
-<<<<<<< local
-#define D 120 //diemnsion for U,V
-=======
-#ifndef D
-#define D 6 //diemnsion for U,V
-#endif
-#define MAX_ITER 20
 
->>>>>>> other
+
+#define D 120 //diemnsion for U,V
+
+#define MAX_ITER 30
+
 int options;
 timer gt;
 using namespace itpp;
