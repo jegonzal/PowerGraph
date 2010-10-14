@@ -43,7 +43,7 @@ int options;
 timer gt;
 using namespace itpp;
 using namespace std;
-bool debug = true;
+bool debug = false;
 
 std::vector<edge_id_t> * edges;
 std::string infile;
@@ -556,7 +556,7 @@ void pmf_update_function(gl_types::iscope &scope,
                          gl_types::ishared_data* shared_data) {
     
 
-  bool debug = true;
+  bool debug = false;
   /* GET current vertex data */
 
   vertex_data& vdata = scope.vertex_data();
@@ -744,7 +744,7 @@ void last_iter(){
 void calc_T(int i){
 
   assert(tensor);
-  bool debug = true;
+  bool debug = false;
 
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);

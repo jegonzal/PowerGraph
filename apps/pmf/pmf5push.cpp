@@ -59,12 +59,12 @@ typedef double  sdouble;
 const int NUM_ITERATIONS_TO_RUN = 30;
 
 bool BPTF = true;
-#define D 6 //diemnsion for U,V
+#define D 30 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
 using namespace std;
-bool debug = true;
+bool debug = false;
 
 distributed_control * __dc;
 
@@ -271,7 +271,7 @@ void sync_MMT(size_t index, const gl_dtypes::ishared_data& shared_data,
   if (scope.vertex()%10000 == 0)   printf("begin: sync_MMT %d %ld\n", myprocid, scope.vertex());
   timer t;
   t.start();
-  bool debug = true;
+  bool debug = false;
   /* GET current vertex data */
 
   
@@ -309,7 +309,7 @@ void sync_QQR(size_t index, const gl_dtypes::ishared_data& shared_data,
 
   timer t2;
   t2.start();
-  bool debug = true;
+  bool debug = false;
   /* GET current vertex data */
 
   //assert((int)index>=0 && (int)index<K);
@@ -751,12 +751,14 @@ void sample_alpha(double res2, gl_dtypes::ishared_data &sdm){
   //double res;
   //if (!tensor)
   //  res = powf(sdm.get(RMSE).as<double>(),2) * L;
+
+  bool debug = true;
   double res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
   //assert(res > 0.1);
 
   printf("res vs. res2 %g %g\n", res, res2); 
-  //if (res < 0.2)
-  //  res = L * 3;
+  if (res < 0.2)
+    res = L * 3;
 
   // res = res2;
   assert(BPTF);
@@ -1021,7 +1023,7 @@ void pmf_update_function(gl_dtypes::iscope &scope,
                          gl_dtypes::ishared_data* sdm) {
     
 
-  bool debug = true;
+  bool debug = false;
   /* GET current vertex data */
 
   vertex_data& vdata = scope.vertex_data();
@@ -1812,6 +1814,8 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
   fread(&K,1,4,f);//time
   assert(K>=1);
   assert(M>=1 && N>=1); 
+
+  tensor = (K>1);
 
   vertex_data vdata;
   gl::ones(vdata.pvec, D, 0.1);
