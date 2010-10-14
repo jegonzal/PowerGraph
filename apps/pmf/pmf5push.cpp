@@ -56,10 +56,10 @@ typedef double  sdouble;
 #define IS_ROUND_ROBIN_CONSTANT 6
 #define MAX_ITERATIONS_CONSTANT 7
 
-const int NUM_ITERATIONS_TO_RUN = 30;
+const int NUM_ITERATIONS_TO_RUN = 20;
 
 bool BPTF = true;
-#define D 30 //diemnsion for U,V
+#define D 6 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -559,7 +559,7 @@ static void apply_func(size_t index,
 
   double rmse = new_data.as<double>();
   rmse = sqrt(rmse/L);
-  std::cout << myprocid << ":  Training RMSE is : " << rmse << std::endl;
+  std::cout << myprocid << ":  TRAIN RMSE is : " << rmse << std::endl;
   
   ASSERT_GT(rmse,0);
   
@@ -752,7 +752,7 @@ void sample_alpha(double res2, gl_dtypes::ishared_data &sdm){
   //if (!tensor)
   //  res = powf(sdm.get(RMSE).as<double>(),2) * L;
 
-  bool debug = true;
+  bool debug = false;
   double res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
   //assert(res > 0.1);
 
@@ -1185,8 +1185,9 @@ void pmf_update_function(gl_dtypes::iscope &scope,
     //   vertex_data->agg[i] = 0.8*vertex_data->agg[i] + 0.2*result[i];
   }
 
-  if (scope.vertex() == 1)
+  if (scope.vertex() == M+N-1)
     last_iter(*sdm);
+
   vdata.rounds++;
     
   if (sdm->get_constant(IS_ROUND_ROBIN_CONSTANT).as<bool>() == false) {
@@ -1208,24 +1209,28 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     sdm.trigger_sync(A_V_OFFSET);
   }
 
-  double res;
-  double rmse = NAN;
   //double rmse = calc_rmse(&g, false, res, false);
   //rmse=0;
   //printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm),  rmse, calc_rmse(&g1, true, res2, true, sdm));
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm),  rmse);
+  printf("%g) Iter %s %d  Obj=%g.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm));
   iiter++;
   if (iiter == BURN_IN && BPTF){
     printf("Finished burn-in period. starting to aggregate samples\n");
   }
          
   if (BPTF){
-    sample_alpha(res, sdm);
+    sample_alpha(0, sdm);
     //sample_U();
     //sample_V();
     if (tensor) 
       sample_T(sdm);
   }
+    double res2;
+    ASSERT_EQ(g1.num_vertices() , M+N);
+    double test_rmse = calc_rmse(&g1, true, res2, sdm);
+    printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
+ 
+
   printf("Finished last_iter %d\n", myprocid);
 }
 
@@ -1306,10 +1311,10 @@ void start(int argc, char ** argv, distributed_control & dc) {
     exit(0);
   }
 
-  if (dc.procid() == 0){
-    printf("loading test data file by node 0: %s\n", (infile+"e").c_str());
+  //if (dc.procid() == 0){
+    printf("loading test data file by node %d: %s\n", (infile+"e").c_str(), dc.procid());
     load_pmf_graph((infile+"e").c_str(),&g1, true);
-  }
+  //}
 
 
   
@@ -1319,6 +1324,8 @@ void start(int argc, char ** argv, distributed_control & dc) {
     M=95526; N=3561; K=27; L=3298163; Le = 545177;
   }
   
+  
+  ASSERT_EQ(g1.num_vertices(), N+M);
   
   dg = new graph_dtype(dc);
   dg->set_constant_edges(true);
@@ -1478,19 +1485,31 @@ void start(int argc, char ** argv, distributed_control & dc) {
       sample_alpha(1*L, sdm);
       //sdm.sync( dg,A_U_OFFSET);
       //sdm.sync( dg,A_V_OFFSET);
-      if (tensor) 
-        sample_T(sdm);
+      //if (tensor) 
+      //  sample_T(sdm);
     }
-  }
+  //}
   
-  dc.barrier();
+  //dc.barrier();
  
 
   if (BPTF){
     sdm.sync_from_local(A_U_OFFSET);
     sdm.sync_from_local(A_V_OFFSET);
   }
-  if (!tensor) sdm.sync_from_local(RMSE);
+  
+     if (BPTF && tensor)
+	sample_T(sdm);
+
+     double res2;
+    ASSERT_EQ(g1.num_vertices() , M+N);
+    double test_rmse = calc_rmse(&g1, true, res2, sdm);
+    printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
+ 
+
+
+  } // procid == 0
+
   dc.barrier();
   /// Timing
   gt.start();

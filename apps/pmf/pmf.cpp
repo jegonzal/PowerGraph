@@ -37,7 +37,7 @@ bool BPTF = true;
 #ifndef D
 #define D 6 //diemnsion for U,V
 #endif
-#define MAX_ITER 30
+#define MAX_ITER 20
 
 int options;
 timer gt;
@@ -456,7 +456,7 @@ double calc_rmse(graph_type * _g, bool test, double & res, bool fast){
   res = 0;
   double RMSE = 0;
   int e = 0;
-  for (int i=0; i< M+N; i++){ //TODO: optimize to start from N?
+  for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
     vertex_data * data = &g.vertex_data(i);
     foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
          
@@ -466,6 +466,7 @@ double calc_rmse(graph_type * _g, bool test, double & res, bool fast){
  
         edge_data & edge = edges.medges[j];
         assert(edge.weight != 0);
+        assert(edge.time < K);
         double sum = 0; 
         double add = gl::rmse(data->pvec, pdata->pvec, tensor? times[(int)edge.time].pvec:NULL, D, edge.weight, sum);
         assert(sum != 0);         
@@ -995,7 +996,7 @@ void start(int argc, char ** argv) {
 
 
   if (BPTF){
-    sample_alpha(1*L);
+    sample_alpha(3*L);
     sample_U();
     sample_V();
     if (tensor) 
