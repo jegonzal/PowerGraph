@@ -34,12 +34,16 @@ typedef double  sdouble;
 #define ALS_TENSOR_MULT 4
 
 bool BPTF = true;
-#define D 120 //diemnsion for U,V
+#ifndef D
+#define D 6 //diemnsion for U,V
+#endif
+#define MAX_ITER 30
+
 int options;
 timer gt;
 using namespace itpp;
 using namespace std;
-bool debug = false;
+bool debug = true;
 
 std::vector<edge_id_t> * edges;
 std::string infile;
@@ -78,7 +82,7 @@ mat A_U, A_V, A_T;
 vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =10;
+int BURN_IN =20;
 bool tensor = true;
 double counter[20];
 
@@ -195,10 +199,10 @@ void last_iter();
 void sample_alpha(double res2){
   //double res = powf(sdm.get(RMSE).as<double>(),2) * L;
   //assert(res > 0.1);
-
-  //printf("res vs. res2 %g %g\n", res, res2); 
-  //if (res < 0.2)
-  //    res = L * 3;
+  if (debug)
+  printf("res is %g\n", res2); 
+  if (res2 < 0.2)
+      res2 = L * 3;
 
   double res = res2;
   assert(BPTF);
@@ -212,7 +216,7 @@ void sample_alpha(double res2){
     assert(alpha != 0);
 
     if (debug)
-      cout<<"Sampling from alpha" <<nuAlpha_<<" "<<iiWalpha_<<" "<<alpha<<endl;
+      cout<<"Sampling from alpha" <<nuAlpha_<<" "<<iWalpha<<" "<< iiWalpha_<<" "<<alpha<<endl;
     printf("sampled alpha is %g\n", alpha); 
   }
 }
@@ -397,6 +401,7 @@ void T_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler, 
   } 
   if (K > 1)
     calc_T(id); 
+  else last_iter();
 }
 
 /*
@@ -551,7 +556,7 @@ void pmf_update_function(gl_types::iscope &scope,
                          gl_types::ishared_data* shared_data) {
     
 
-  bool debug = false;
+  bool debug = true;
   /* GET current vertex data */
 
   vertex_data& vdata = scope.vertex_data();
@@ -723,7 +728,7 @@ void last_iter(){
     printf("Finished burn-in period. starting to aggregate samples\n");
   }
          
-  if (iiter == 30){
+  if (iiter == MAX_ITER){
     engine->stop();
   }
   if (BPTF){
@@ -739,7 +744,7 @@ void last_iter(){
 void calc_T(int i){
 
   assert(tensor);
-  bool debug = false;
+  bool debug = true;
 
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
@@ -943,6 +948,7 @@ void start(int argc, char ** argv) {
   load_pmf_graph((infile+"e").c_str(),&g1, true);
 
   command_line_options clopts;
+  clopts.scheduler_type = "round_robin";
   assert(clopts.parse(argc-3, argv+3));
   engine = clopts.create_engine(g);
   engine->set_shared_data_manager(&sdm);
