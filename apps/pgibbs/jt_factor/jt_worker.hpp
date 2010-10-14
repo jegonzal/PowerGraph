@@ -95,6 +95,7 @@ public:
             size_t treesize,
             size_t treewidth,
             size_t factorsize,
+            size_t internal_threads,
             bool priorities) {
     // Initialize parameters
     scope_factory = &sf;
@@ -111,16 +112,17 @@ public:
     current_root = worker_id;
 
     // Initialize local jtcore
-    // jt_core.set_scheduler_type("fifo");
-    // jt_core.set_scope_type("edge");
-    // jt_core.set_ncpus(2);
-    // jt_core.set_engine_type("async");
-
-
-    jt_core.set_scheduler_type("fifo");
-    jt_core.set_scope_type("none");
-    jt_core.set_ncpus(1);
-    jt_core.set_engine_type("async_sim");
+    if(internal_threads > 1) {
+      jt_core.set_scheduler_type("fifo");
+      jt_core.set_scope_type("edge");
+      jt_core.set_ncpus(internal_threads);
+      jt_core.set_engine_type("async");
+    } else {
+      jt_core.set_scheduler_type("fifo");
+      jt_core.set_scope_type("none");
+      jt_core.set_ncpus(1);
+      jt_core.set_engine_type("async_sim");
+    }
 
 
     // Initialize the shared data in the factorized model
@@ -141,7 +143,7 @@ public:
     total_samples = 0;
     collisions = 0;
     // End of for loop
-    //size_t round = 0;
+    size_t round = 0;
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
@@ -226,9 +228,6 @@ public:
     const mrf::graph_type& mrf = scope_factory->get_graph();
     const mrf::vertex_data& vdata = mrf.vertex_data(vid);
 
-
-
-
     // Construct the domain of neighbors that are already in the tree
     domain_t in_tree_vars = vdata.variable;
     foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
@@ -237,11 +236,12 @@ public:
       // test to see if the neighbor is in the tree by checking the
       // elimination time map
       if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
-        // If this vertex has too many tree neighbor than the priority
-        // is set to 0;
-        if(in_tree_vars.num_vars() == MAX_DIM) return 0;
         // otherwise add the tree variable
         in_tree_vars += neighbor.variable;
+        // If this vertex has too many tree neighbor than the priority
+        // is set to 0;
+        if(in_tree_vars.num_vars() > max_tree_width) return 0;
+        if(in_tree_vars.size() > max_factor_size) return 0;
       } 
     }
 
@@ -326,12 +326,12 @@ public:
                              cliques,
                              max_tree_width,
                              max_factor_size);
-        // Limit the number of variables
-        if(cliques.size() > max_tree_size) {
-          // release the scope
-          scope_factory->release_scope(&scope);                 
-          break;
-        }
+        // // Limit the number of variables
+        // if(cliques.size() > max_tree_size) {
+        //   // release the scope
+        //   scope_factory->release_scope(&scope);                 
+        //   break;
+        // }
 
         if(safe_extension) {   
           // add the neighbors to the search queue
@@ -396,12 +396,14 @@ public:
                              max_tree_width,
                              max_factor_size);
 
-        // Limit the number of variables
-        if(cliques.size() > max_tree_size) {
-          // release the scope
-          scope_factory->release_scope(&scope);                 
-          break;
-        }
+        // // Limit the number of variables
+        // if(cliques.size() > max_tree_size) {
+        //   // release the scope
+        //   scope_factory->release_scope(&scope);                 
+        //   break;
+        // }
+
+        bool favor_zero_updates = false;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
@@ -412,11 +414,11 @@ public:
             const mrf::vertex_data& vdata = mrf.vertex_data(neighbor_vid);
             if(visited.count(neighbor_vid) == 0) {
               // Vertex has not yet been visited
-              double score = 0;
+              double score = score_vertex(neighbor_vid);
               // if the vertex has not been updated then give it a
               // high priority.
-              if(vdata.updates == 0) score = std::numeric_limits<double>::max();
-              else score = score_vertex(neighbor_vid);
+              if(favor_zero_updates && vdata.updates == 0 && score > 0) 
+                score += 10;
 
               // if the score is greater than zero then add the
               // neighbor to the priority queue.  The score is zero if
@@ -428,9 +430,9 @@ public:
             } else if(priority_queue.contains(neighbor_vid)) {
               // vertex is still in queue we may need to recompute
               // score
-              double score = 0;
-              if(vdata.updates == 0) score = std::numeric_limits<double>::max();
-              else score = score_vertex(neighbor_vid);
+              double score = score_vertex(neighbor_vid);
+              if(favor_zero_updates && vdata.updates == 0 && score > 0) 
+                score += 10;
 
               if(score > 0) {
                 // update the priority queue with the new score
@@ -471,12 +473,11 @@ public:
     assert(scope_factory != NULL);
     // Get the scope factory
     mrf::graph_type& mrf = scope_factory->get_graph();
-
-
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
+
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
 
     // Build the junction tree and sample
@@ -490,9 +491,7 @@ public:
     // add tasks to all vertices
     jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
     // Run the core
-    std::cout << "Starting engine: " << worker_id << std::endl;
     jt_core.start();
-    std::cout << "Finished engine: " << worker_id << std::endl;
 
     // Check that the junction tree is sampled
     size_t actual_tree_width = 0;
@@ -530,6 +529,7 @@ void parallel_sample(const factorized_model& fmodel,
                      size_t max_tree_size = 1000,
                      size_t max_tree_width = MAX_DIM,
                      size_t max_factor_size = (1 << MAX_DIM),
+                     size_t internal_threads = 1,
                      bool use_priorities = false) {
   // create workers
   graphlab::thread_group threads;
@@ -553,6 +553,7 @@ void parallel_sample(const factorized_model& fmodel,
                     max_tree_size,
                     max_tree_width,
                     max_factor_size,
+                    internal_threads,
                     use_priorities);    
     // Launch the threads
     bool use_cpu_affinity = false;

@@ -663,7 +663,7 @@ namespace graphlab {
     
     table_factor(const domain_type& dom) :
       _args(dom), _data(dom.size()) { 
-      //      uniform();
+      //   uniform();
     }
 
     table_factor(const table_factor& other) :
