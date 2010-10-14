@@ -201,8 +201,8 @@ void sample_alpha(double res2){
   //assert(res > 0.1);
   if (debug)
   printf("res is %g\n", res2); 
-  if (res2 < 0.2)
-      res2 = L * 3;
+  //if (res2 < 0.2)
+  //    res2 = L * 3;
 
   double res = res2;
   assert(BPTF);

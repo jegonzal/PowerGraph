@@ -439,7 +439,7 @@ static void merge_mult(size_t index, const gl_dtypes::ishared_data& shared_data,
 }
 
 
-void reduce_RMSE(size_t index, const gl_dtypes::ishared_data& shared_data,
+/*void reduce_RMSE(size_t index, const gl_dtypes::ishared_data& shared_data,
                  gl_dtypes::iscope& scope, graphlab::any& new_data) {
 
   double curval = new_data.as<double>();
@@ -456,7 +456,7 @@ static void merge_RMSE(size_t index, const gl_dtypes::ishared_data& shared_data,
   current_data = double(newval + current_data.as<double>());
   std::cout << "*** merge RMSE index:" << index << " current = " << x<< std::endl;
 
-} 
+} */
 
 static void apply_MMT_U(size_t index, const gl_dtypes::ishared_data& shared_data,
                         graphlab::any& current_data, const graphlab::any& new_data) {
@@ -748,15 +748,15 @@ void last_iter(gl_dtypes::ishared_data &sdm);
 
 
 void sample_alpha(double res2, gl_dtypes::ishared_data &sdm){
-  double res;
-  if (!tensor)
-    res = powf(sdm.get(RMSE).as<double>(),2) * L;
-  else res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
+  //double res;
+  //if (!tensor)
+  //  res = powf(sdm.get(RMSE).as<double>(),2) * L;
+  double res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
   //assert(res > 0.1);
 
   printf("res vs. res2 %g %g\n", res, res2); 
-  if (res < 0.2)
-    res = L * 3;
+  //if (res < 0.2)
+  //  res = L * 3;
 
   // res = res2;
   assert(BPTF);
@@ -774,7 +774,7 @@ void sample_alpha(double res2, gl_dtypes::ishared_data &sdm){
     assert(alpha != 0);
 
     if (debug)
-      cout<<"Sampling from alpha" <<nuAlpha_<<" "<<iiWalpha_<<" "<<alpha<<endl;
+      cout<<"Sampling from alpha" <<nuAlpha_<<" "<<iWalpha<<" " <<iiWalpha_<<" "<<alpha<<endl;
     printf("sampled alpha is %g\n", alpha); 
     sdm.atomic_set(ALPHA_OFFSET, alpha);
   }
@@ -1197,10 +1197,10 @@ void pmf_update_function(gl_dtypes::iscope &scope,
 
 void last_iter(gl_dtypes::ishared_data &sdm){
 
-  if (!tensor)
-    sdm.trigger_sync(RMSE);
-  if (tensor)
-    sdm.trigger_sync(TIME_OFFSET);
+  //if (!tensor)
+  //  sdm.trigger_sync(RMSE);
+  //if (tensor)
+  sdm.trigger_sync(TIME_OFFSET);
   if (BPTF){
     sdm.trigger_sync(A_U_OFFSET);
     sdm.trigger_sync(A_V_OFFSET);
