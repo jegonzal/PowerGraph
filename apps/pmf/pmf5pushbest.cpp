@@ -56,10 +56,10 @@ typedef double  sdouble;
 #define IS_ROUND_ROBIN_CONSTANT 6
 #define MAX_ITERATIONS_CONSTANT 7
 
-const int NUM_ITERATIONS_TO_RUN = 20;
+const int NUM_ITERATIONS_TO_RUN = 150;
 
 bool BPTF = true;
-#define D 30 //diemnsion for U,V
+#define D 120 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -105,7 +105,7 @@ mat iW0T;
 //vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =10;
+int BURN_IN = 20;
 bool tensor = true;
 double counter[20];
 
@@ -732,18 +732,14 @@ void last_iter(gl_dtypes::ishared_data &sdm);
 
 
 void sample_alpha(double res2, gl_dtypes::ishared_data &sdm){
-
-  //double res;
-  //if (!tensor)
-  //  res = powf(sdm.get(RMSE).as<double>(),2) * L;
-
-  bool debug = true;
-  double res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
+  double res;
+  if (!tensor)
+    res = powf(sdm.get(RMSE).as<double>(),2) * L;
+  else res = powf(sdm.get(TIME_OFFSET).as<mult_vec>().rmse,2)*L;
   //assert(res > 0.1);
 
   printf("res vs. res2 %g %g\n", res, res2); 
-
-  if (res < 0.2)
+  if (res < 1000)
     res = L * 3;
 
   // res = res2;
@@ -837,7 +833,7 @@ mat calc_DT(gl_dtypes::ishared_data &sdm){
   return diff;
 
 }
- 
+
 void sample_T(gl_dtypes::ishared_data& sdm){
   assert(BPTF);
   assert(tensor);
@@ -1797,8 +1793,6 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
   fread(&K,1,4,f);//time
   assert(K>=1);
   assert(M>=1 && N>=1); 
-
-  tensor = (K>1);
 
   vertex_data vdata;
   gl::ones(vdata.pvec, D, 0.1);

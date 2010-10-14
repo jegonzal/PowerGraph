@@ -263,13 +263,15 @@ bool build_graph(graph_type& graph,
     while (fin.good()) {
       double yval;
       fin >> yval;
-      assert(!fin.fail());
+     // std::cout << yval << std::endl;
+      if (fin.fail()) break;    
       vertex_data& vdata = graph.vertex_data(datid);
       assert(vdata.type == DATA_VERTEX);
       vdata.yvalue = yval;
       vdata.yresidual = yval;
       ++datid;
     }
+    std::cout << "Read " << datid << " y-values" << std::endl; 
   }
   graph.finalize();
   std::cout << graph.num_vertices() << " vertices" << std::endl
@@ -380,7 +382,7 @@ int main(int argc, char** argv) {
 
   std::cout << "Running the engine" << std::endl;
   double runtime = core.start();
-  std::cout << "Finished!" << std::endl;
+  std::cout << "Finished! Runtime:" << runtime << std::endl;
 
 
   std::cout << "Saving results:" << std::endl;

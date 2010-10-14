@@ -44,8 +44,7 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-     
-       
+    // TODO: remove code duplication
     distributed_graph() : 
       mgraph(0),global_id_counter(0)  { 
       receive_target = this;
@@ -63,9 +62,12 @@ namespace graphlab {
       myprocid = dc.procid();
       receive_target = this; 
       constant_edges = false;
-      only_local_edges = false;
+      only_local_edges = (dc.numprocs() == 1);
       checksum = 0;
-
+      for(int i=0; i<dc.numprocs(); i++) {
+        receiverlist.push_back(i);
+      }
+      std::random_shuffle(receiverlist.begin(), receiverlist.end());
       logger(LOG_INFO, "%d: initialized distributed graph", myprocid);
     }
 
@@ -113,10 +115,9 @@ namespace graphlab {
         send_to_proc[vertex2owner[source(e)]] = true;
       }
      
-      // Vertex data is broadcasted to everyone. TODO: send only to owner?
-      for (procid_t i = 0;i < dcontrol->numprocs(); ++i) {
+      for(int j=0; j<dcontrol->numprocs(); ++j) {
+        size_t i = receiverlist[j];
         if (i != myprocid && send_to_proc[i]) {
-          if (v == 141400) printf("%d Sending 141400 to %d\n", (int) myprocid, (int) i);
           dcontrol->remote_callxs(i, distributed_graph<VertexData, EdgeData>::dist_update_vertex_handler,
                                   NULL, 0, v, vertex_data(v));
         }
@@ -126,9 +127,9 @@ namespace graphlab {
     void broadcast_vertex_data(vertex_id_t v) const {
       DCHECK_LT(v, num_vertices());    
       // Vertex data is broadcasted to everyone. TODO: send only to owner?
-      for (procid_t i = 0;i < dcontrol->numprocs(); ++i) {
+      for(int j=0; j<dcontrol->numprocs(); ++j) {
+        size_t i = receiverlist[j];
         if (i != myprocid) {
-          if (v == 141400) printf("%d Sending 141400 to %d\n", (int) myprocid, (int) i);
           dcontrol->remote_callxs(i, distributed_graph<VertexData, EdgeData>::dist_update_vertex_handler,
                                   NULL, 0, v, vertex_data(v));
         }
@@ -184,13 +185,20 @@ namespace graphlab {
       ASSERT_EQ(receive_target, this);
       ASSERT_EQ(dcontrol->procid(), myprocid);
       
+      // We want every node to send updates in different order
+      receiverlist.clear();
+      for(int i=0; i<dcontrol->numprocs(); i++) {
+        receiverlist.push_back((i+dcontrol->procid())%dcontrol->numprocs());
+      }
+      std::random_shuffle(receiverlist.begin(), receiverlist.end());
+
+      
       // Compute checksum of vertex ownerships
       size_t cs = 0;
       for(size_t i=0; i<mgraph.num_vertices(); i++) {
         cs += (i % 31) * vertex2owner[i];
       }
       checksum = cs;
-      
       dcontrol->mpi_barrier();
       printf("%d My checksum :%ld %ld\n", dcontrol->procid(), checksum, receive_target->checksum);
       if (dcontrol->procid() != 0)
@@ -564,6 +572,7 @@ namespace graphlab {
     
     edge_id_t global_id_counter;
 
+    std::vector<size_t> receiverlist;
 
   }; // End of graph
 

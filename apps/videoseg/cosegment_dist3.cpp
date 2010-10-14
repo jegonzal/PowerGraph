@@ -856,6 +856,12 @@ int main(int argc,  char *argv[]) {
   if (opts.prepart) {
     ASSERT_GT(opts.basefile.length(), 0);  
     ASSERT_EQ(dc.numprocs(), 1);
+    
+    if (fopen(graph_type::filename_for_part(opts.basefile, opts.ncpus-1, opts.ncpus), "r") != NULL) {
+        std::cout << "Partition already exists, abort! N of partitions=" << opts.ncpus << std::endl;
+        return 0;
+    }
+    
     // prepartition
     // create graph   
     graph<vertex_data, edge_data> g;
