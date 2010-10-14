@@ -137,7 +137,7 @@ namespace graphlab {
       foreach(vertex_id_t vid, graph->my_vertices()) {
         if (vid>=rangelow && vid < rangehigh)  sync.params.nmyverts_in_range++;
       }
-      std::cout << "Vertices in range: " <<  sync.params.nmyverts_in_range << std::endl;
+      std::cout << "### " <<  "Vertices in range: " <<  sync.params.nmyverts_in_range << std::endl;
         
       if (dc.procid() == 0) {
         create_atomic(index, zero);
@@ -161,7 +161,7 @@ namespace graphlab {
 
     // Execute sync on local vertices
     void sync_from_local(size_t index) {
-      std::cout << "Doing local sync " << index << std::endl;
+      std::cout << "### " <<  "Doing local sync " << index << std::endl;
       sync_task& stask = sync_map[index];
 
       foreach(vertex_id_t v, graph->my_vertices()) {
@@ -172,7 +172,7 @@ namespace graphlab {
           scope_factory->release_scope(scope); 
         }     
       }
-      std::cout << "Waiting for local sync " << index << std::endl;
+      std::cout << "### " <<  "Waiting for local sync " << index << std::endl;
       dc.barrier();
     }
    
@@ -250,11 +250,11 @@ namespace graphlab {
       stask.params.merge_fun(index, *this, sstate.mergeacc, acc);
       sstate.global_merge_counter++;
         
-      //std::cout << "Merge counter for " << index << " now " <<  sstate.global_merge_counter << std::endl;
+      std::cout << "### " <<  "Merge counter for " << index << " now " <<  sstate.global_merge_counter << std::endl;
         
       // Was this last merge?
       if ( sstate.global_merge_counter == dc.numprocs()) {
-        //    std::cout << "Received last merge for " << index << " ..." << std::endl;
+        std::cout << "### " <<  "Received last merge for " << index << " ..." << std::endl;
         atomic_apply(index, stask.params.apply_fun, sstate.mergeacc);
         sstate.global_merge_counter = 0;
         sstate.mergeacc = stask.zero;
@@ -270,7 +270,7 @@ namespace graphlab {
 
       // Merge over cpus
       if (stask.params.merge_fun != NULL) {
-        //   std::cout << "Merging " << index << " over cpus. " << std::endl;
+        //   std::cout << "### " <<  "Merging " << index << " over cpus. " << std::endl;
         for(size_t icpu = 0; icpu < numcpus; icpu++) {
           stask.params.merge_fun(index, *this, mergeacc, sstate.acc[icpu]);
           sstate.acc[icpu] = stask.zero;
@@ -286,7 +286,7 @@ namespace graphlab {
                             
         // Barrier
         ASSERT_EQ(sstate.counter.dec((size_t) stask.params.nmyverts_in_range), 0);
-        // std::cout << "Sync iteration ok : " << index << std::endl;
+        // std::cout << "### " <<  "Sync iteration ok : " << index << std::endl;
       }
     }
    
@@ -300,6 +300,7 @@ namespace graphlab {
     void exec_sync_on_vertex(size_t cpuid, iscope_type * scope, size_t index) {
       sync_state& sstate = sync_progression[index];
       sync_task& stask = sync_map[index];
+      
         
       unsigned int nvert = stask.params.nmyverts_in_range;
       timer t;
@@ -315,16 +316,18 @@ namespace graphlab {
         // If was last, then we release lock much later!
         sstate.lock.unlock();
       }	
+      
 
       sstate.justsyncing.inc();
       stask.params.sync_fun(index, *this, *scope, sstate.acc[cpuid]);
       sstate.justsyncing.dec();
 
       if (waslast) {            
-        while(sstate.justsyncing.value > 0) {
+         while(sstate.justsyncing.value > 0) {
           usleep(50);
         }
             
+
         merge_and_apply(index);
         ASSERT_EQ(sstate.counter.value, 0);
             
@@ -469,13 +472,16 @@ namespace graphlab {
                                           size_t index) {
       distributed_fullsweep_sdm<Graph> &dsdm = *(distributed_fullsweep_sdm<Graph>::receive_target);
       
+      
+  //    std::cout << "### " <<  "global_sync_ready:" << dc.procid() << ": index: " << std::endl;
+      
       // Invalidate from cache
       if (dsdm.dht.key_node_hash(index) != dc.procid()) {
       	dsdm.dht.invalidate(index);
       	dsdm.fast_data_vector[index].valid = false;	
       }
       dsdm.sync_progression[index].wait_for_update = false;
-      //     std::cout << "Ready :: " << index << std::endl;
+      //     std::cout << "### " <<  "Ready :: " << index << std::endl;
     }
 
     static void global_merge_handler(distributed_control &dc,

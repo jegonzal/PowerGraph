@@ -80,6 +80,7 @@ namespace graphlab {
       // Sort vertices
       myvertices = std::vector<vertex_id_t>(g.my_vertices());
       std::sort(myvertices.begin(), myvertices.end());
+  
     }
 
  
@@ -156,7 +157,7 @@ namespace graphlab {
           ASSERT_TRUE(vid > checkpoints[checkpoints.size()-1]);
     	}
     	checkpoints.push_back(vid);
-    	checkpoint_iter.push_back(vid);
+    //	checkpoint_iter.push_back(vid);
       } else if (opt == scheduler_options::DISTRIBUTED_CONTROL) { 
         dc = (distributed_control *) value;
       } else {
@@ -180,7 +181,7 @@ namespace graphlab {
   
       size_t i = cur_task.inc() - 1; //DB: we want the increment to happen later
       i = i % myvertices.size();
-    
+            
       if (i == 0) {
         // Restore check points for next round.
         foreach(vertex_id_t w, checkpoints) checkpoint_iter.push_back(w);
@@ -208,9 +209,10 @@ namespace graphlab {
           timer t;
           t.start();
             
-          printf("===== %d Activated checkpoint: %ld (%ld) %ld\n", (int) dc->procid(), (long int) vid,  (long int) i,  (long int) next_checkpoint);
+          printf("===== %d/%d Activated checkpoint: v:%ld i:%ld next:%ld\n", (int) cpuid, (int) dc->procid(), (long int) vid,  (long int) i,  (long int) next_checkpoint);
           dc->barrier();
-          printf("===== %d Passed checkpoint: %ld (%lf secs)\n", (int) dc->procid(), (long int) next_checkpoint, t.current_time());
+
+          printf("===== %d/%d Passed checkpoint: v:%d, next: %ld (%lf secs)\n", (int) cpuid, (int) dc->procid(), vid, (long int) next_checkpoint, t.current_time());
   
           
           // Release locals. 

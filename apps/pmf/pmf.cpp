@@ -35,7 +35,7 @@ typedef double  sdouble;
 
 bool BPTF = true;
 #ifndef D
-#define D 6 //diemnsion for U,V
+#define D 30 //diemnsion for U,V
 #endif
 #define MAX_ITER 20
 

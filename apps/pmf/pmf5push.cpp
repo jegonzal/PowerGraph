@@ -56,10 +56,10 @@ typedef double  sdouble;
 #define IS_ROUND_ROBIN_CONSTANT 6
 #define MAX_ITERATIONS_CONSTANT 7
 
-const int NUM_ITERATIONS_TO_RUN = 20;
+const int NUM_ITERATIONS_TO_RUN = 30;
 
 bool BPTF = true;
-#define D 6 //diemnsion for U,V
+#define D 30 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -1493,13 +1493,15 @@ void start(int argc, char ** argv, distributed_control & dc) {
   //}
   
   //dc.barrier();
- 
+ }
 
   if (BPTF){
     sdm.sync_from_local(A_U_OFFSET);
     sdm.sync_from_local(A_V_OFFSET);
   }
   
+  if (dc.procid() == 0) {
+
      if (BPTF && tensor)
 	sample_T(sdm);
 
