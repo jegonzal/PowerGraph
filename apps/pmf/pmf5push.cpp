@@ -1225,11 +1225,13 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     if (tensor) 
       sample_T(sdm);
   }
+
+   if (myprocid == 0){
     double res2;
     ASSERT_EQ(g1.num_vertices() , M+N);
     double test_rmse = calc_rmse(&g1, true, res2, sdm);
     printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
- 
+  }
 
   printf("Finished last_iter %d\n", myprocid);
 }
@@ -1311,10 +1313,11 @@ void start(int argc, char ** argv, distributed_control & dc) {
     exit(0);
   }
 
-  //if (dc.procid() == 0){
+  if (dc.procid() == 0){
     printf("loading test data file by node %d: %s\n", (infile+"e").c_str(), dc.procid());
     load_pmf_graph((infile+"e").c_str(),&g1, true);
-  //}
+    ASSERT_EQ(g1.num_vertices(), N+M);
+  }
 
 
   
@@ -1325,7 +1328,6 @@ void start(int argc, char ** argv, distributed_control & dc) {
   }
   
   
-  ASSERT_EQ(g1.num_vertices(), N+M);
   
   dg = new graph_dtype(dc);
   dg->set_constant_edges(true);
