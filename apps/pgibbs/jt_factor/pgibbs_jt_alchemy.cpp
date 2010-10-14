@@ -37,6 +37,8 @@ int main(int argc, char** argv) {
   float runtime = 10;
   size_t treewidth = 3;
   size_t factorsize = 1 << treewidth;
+  size_t subthreads = 1; 
+
 
   // Command line parsing
   graphlab::command_line_options clopts("Parallel Junction Tree MCMC");
@@ -62,6 +64,10 @@ int main(int argc, char** argv) {
                        &factorsize, factorsize,
                        "The maximum factorsize");
 
+  clopts.attach_option("subthreads", 
+                       &subthreads, subthreads,
+                       "The number of threads to use inside each tree");
+
 
   clopts.attach_option("priorities",
                        &priorities, priorities,
@@ -76,6 +82,17 @@ int main(int argc, char** argv) {
               << std::endl;
     return EXIT_FAILURE;
   }
+
+
+  std::cout << "Settings: ======================" << std::endl
+            << "Model:         " << model_filename << std::endl
+            << "runtime:       " << runtime << std::endl
+            << "treesize:      " << treesize << std::endl
+            << "treewidth:     " << treewidth << std::endl
+            << "factorsize:    " << factorsize << std::endl
+            << "subthreads:    " << subthreads << std::endl
+            << "priorities:    " << priorities << std::endl;
+ 
 
   std::cout << "Load alchemy file." << std::endl;
   factorized_model factor_graph;
@@ -96,7 +113,9 @@ int main(int argc, char** argv) {
                   treesize,
                   treewidth,
                   factorsize,
+                  subthreads,
                   priorities);
+
   double actual_runtime = timer.current_time();
   std::cout << "Runtime: " << actual_runtime << std::endl;
 
@@ -112,27 +131,33 @@ int main(int argc, char** argv) {
   mrf::save_beliefs(mrf_graph, "beliefs.tsv");
 
 
-  //  // Plot the final answer
-  // size_t rows = std::sqrt(mrf_graph.num_vertices());
-  // image img(rows, rows);
-  // std::vector<double> values(1);
-  // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-  //   mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-  //   vdata.belief.normalize();
-  //   vdata.belief.expectation(values);
-  //   img.pixel(vid) = values[0];
-  // }
-  // img.save("final_pred.pgm");
+   // Plot the final answer
+  size_t rows = std::sqrt(mrf_graph.num_vertices());
+  image img(rows, rows);
+  std::vector<double> values(1);
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+    mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+    vdata.belief.normalize();
+    vdata.belief.expectation(values);
+    img.pixel(vid) = values[0];
+  }
+  img.save("final_pred.pgm");
 
-  // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-  //   img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
-  // }
-  // img.save("sample_count.pgm");
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+    img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
+  }
+  img.save("sample_count.pgm");
 
-  // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-  //   img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
-  // }
-  // img.save("unsampled.pgm");
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+    img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+  }
+  img.save("unsampled.pgm");
+
+  
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+    img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
+  }
+  img.save("last_sample.pgm");
 
 
   
