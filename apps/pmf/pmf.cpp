@@ -78,9 +78,11 @@ mat A_U, A_V, A_T;
 vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =10;
+int BURN_IN =20;
 bool tensor = true;
 double counter[20];
+
+int NUM_OF_ITERATIONS = 150;
 
 
 /** Vertex and edge data types **/
@@ -723,7 +725,7 @@ void last_iter(){
     printf("Finished burn-in period. starting to aggregate samples\n");
   }
          
-  if (iiter == 30){
+  if (iiter == NUM_OF_ITERATIONS){
     engine->stop();
   }
   if (BPTF){

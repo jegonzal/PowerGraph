@@ -75,12 +75,13 @@ class distributed_metrics {
         payload[i] = (i*17 + i); // Silly
     }
     received_payloads=0;
+
  
     std::vector<size_t> receiverlist;
     for(int i=0; i<dc->numprocs(); i++) {
         receiverlist.push_back(i);
     }
-    std::random_shuffle(receiverlist.begin(), receiverlist.end());
+     std::random_shuffle(receiverlist.begin(), receiverlist.end());
     for(int j=0; j<dc->numprocs(); j++) {
         size_t i = receiverlist[j];
         if (i != dc->procid()) {
@@ -90,10 +91,12 @@ class distributed_metrics {
             set_value(bandwidth_key(dc->procid(), dc->procid()), 0.0);
         }
      }
+
     free(payload);
     
 
  }
+
  
  std::map<size_t, timer> start_times;
  
@@ -110,6 +113,7 @@ class distributed_metrics {
     received_payloads++;
     std::cout << "Finished " << received_payloads << ". bandwidth test from " << from_proc << " to " << dc->procid() << ": " << bandwidth << " MB/sec" << std::endl; 
  }
+
  
  ///  METRICS
 

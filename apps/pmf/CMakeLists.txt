@@ -22,6 +22,10 @@ dist_target_link_libraries(PMF5push tcmalloc)
 dist_target_link_libraries(PMF5push itpp)
 #target_link_libraries(PMF5push tcmalloc)
 
+add_dist_executable(PMF5pushbest pmf5pushbest.cpp)
+dist_target_link_libraries(PMF5pushbest tcmalloc)
+dist_target_link_libraries(PMF5pushbest itpp)
+
 
 
 #

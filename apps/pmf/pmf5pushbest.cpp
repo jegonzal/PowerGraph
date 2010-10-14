@@ -56,10 +56,10 @@ typedef double  sdouble;
 #define IS_ROUND_ROBIN_CONSTANT 6
 #define MAX_ITERATIONS_CONSTANT 7
 
-const int NUM_ITERATIONS_TO_RUN = 20;
+const int NUM_ITERATIONS_TO_RUN = 150;
 
 bool BPTF = true;
-#define D 30 //diemnsion for U,V
+#define D 120 //diemnsion for U,V
 int options;
 timer gt;
 using namespace itpp;
@@ -105,7 +105,7 @@ mat iW0T;
 //vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =10;
+int BURN_IN = 20;
 bool tensor = true;
 double counter[20];
 
