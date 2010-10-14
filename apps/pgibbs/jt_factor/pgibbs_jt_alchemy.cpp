@@ -25,7 +25,6 @@
 
 
 
-
 int main(int argc, char** argv) {
   std::cout << "This program runs junction tree blocked MCMC "
             << "inference on large factorized models."
@@ -36,6 +35,8 @@ int main(int argc, char** argv) {
   size_t treesize = 1000;
   bool priorities = false;
   float runtime = 10;
+  size_t treewidth = 3;
+  size_t factorsize = 1 << treewidth;
 
   // Command line parsing
   graphlab::command_line_options clopts("Parallel Junction Tree MCMC");
@@ -51,6 +52,17 @@ int main(int argc, char** argv) {
   clopts.attach_option("treesize", 
                        &treesize, treesize,
                        "The number of variables in a junction tree");
+
+
+  clopts.attach_option("treewidth", 
+                       &treewidth, treewidth,
+                       "The maximum treewidth");
+
+  clopts.attach_option("factorsize", 
+                       &factorsize, factorsize,
+                       "The maximum factorsize");
+
+
   clopts.attach_option("priorities",
                        &priorities, priorities,
                        "Use priorities?");
@@ -82,6 +94,8 @@ int main(int argc, char** argv) {
                   clopts.ncpus,
                   runtime,
                   treesize,
+                  treewidth,
+                  factorsize,
                   priorities);
   double actual_runtime = timer.current_time();
   std::cout << "Runtime: " << actual_runtime << std::endl;
@@ -93,6 +107,9 @@ int main(int argc, char** argv) {
   std::cout << "LogLikelihood: " << loglik << std::endl;
   std::cout << "Saving final prediction" << std::endl;
 
+
+  std::cout << "Computing update distribution:" << std::endl;
+  mrf::save_beliefs(mrf_graph, "beliefs.tsv");
 
 
   //  // Plot the final answer
