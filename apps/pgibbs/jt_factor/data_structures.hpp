@@ -31,7 +31,7 @@
 
 
 // The maximum number of dimensions in a factor table
-const size_t MAX_DIM = 5;
+const size_t MAX_DIM = 16;
 
 // Basic graphical model typedefs
 typedef graphlab::vertex_id_t     vertex_id_t;
@@ -276,6 +276,7 @@ public:
       }
       // Get the variable name
       std::string var_name = trim(line.substr(0, namelen));
+      assert(varsize > 0);
       // Create a new finite variable in the universe
       variable_t variable(unique_var_id++, varsize);
       // Store the variable in the local variable map
