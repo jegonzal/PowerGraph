@@ -270,19 +270,31 @@ public:
       }
     } // end of loop over factors
 
+    // std::cout << "////////////////////////////////////////////////" << std::endl;
+    // std::cout << clique_factor << std::endl;
+
 
     // Compute the conditional factor and marginal factors
     conditional_factor.set_args(in_tree_vars - vdata.variable);
     conditional_factor.condition(clique_factor, vdata.asg);
+    
+    
     marginal_factor.set_args(in_tree_vars - vdata.variable);
     marginal_factor.marginalize(clique_factor);
-
+    
     // Compute metric
     conditional_factor.normalize();
     marginal_factor.normalize();
+
+    // std::cout << conditional_factor << "\n"
+    //           << marginal_factor << "\n";
+
     double residual = conditional_factor.log_residual(marginal_factor);
     assert( residual >= 0);
+    assert( !std::isnan(residual) );
+    assert( std::isfinite(residual) );
 
+    // std::cout << residual << "  ";
     return residual;
   }
 
@@ -477,7 +489,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
 
     // Build the junction tree and sample
@@ -508,8 +520,8 @@ public:
       actual_tree_width = 
         std::max(vdata.variables.num_vars(), actual_tree_width);
     }
-    // std::cout << "Actual Tree Width: " << actual_tree_width 
-    //           << std::endl;
+    std::cout << "Actual Tree Width: " << actual_tree_width 
+              << std::endl;
       
     // Sampled root successfully
     return cliques.size();
