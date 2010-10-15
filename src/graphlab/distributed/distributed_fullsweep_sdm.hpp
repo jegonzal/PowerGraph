@@ -137,7 +137,7 @@ namespace graphlab {
       foreach(vertex_id_t vid, graph->my_vertices()) {
         if (vid>=rangelow && vid < rangehigh)  sync.params.nmyverts_in_range++;
       }
-      std::cout << "### " <<  "Vertices in range: " <<  sync.params.nmyverts_in_range << std::endl;
+      std::cout << "### " << index <<  "  : set fullsweep sync. Vertices in range: " <<  sync.params.nmyverts_in_range << std::endl;
         
       if (dc.procid() == 0) {
         create_atomic(index, zero);
@@ -377,6 +377,7 @@ namespace graphlab {
     }
 
     void atomic_set(size_t index, const any& data) {
+      std::cout << "Atomic set : "<< index << std::endl;
       dht.set(index, data);
     }
 
