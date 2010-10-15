@@ -403,7 +403,7 @@ public:
         //   break;
         // }
 
-        bool favor_zero_updates = false;
+        bool favor_zero_updates = true;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
@@ -477,15 +477,20 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    jtree_from_cliques(mrf, 
-                       elim_time_map,
+    // jtree_from_cliques(mrf, 
+    //                    elim_time_map,
+    //                    cliques.begin(), cliques.end(), 
+    //                    jt_core.graph());
+
+    jtree_from_cliques(mrf,  
                        cliques.begin(), cliques.end(), 
                        jt_core.graph());
+
     // Rebuild the engine (clear the old scheduler)
     jt_core.rebuild_engine();
     // add tasks to all vertices
@@ -503,12 +508,12 @@ public:
       actual_tree_width = 
         std::max(vdata.variables.num_vars(), actual_tree_width);
     }
-    std::cout << "Actual Tree Width: " << actual_tree_width 
-              << std::endl;
+    // std::cout << "Actual Tree Width: " << actual_tree_width 
+    //           << std::endl;
       
     // Sampled root successfully
     return cliques.size();
-  }
+  } // end of sample once
 
 
 

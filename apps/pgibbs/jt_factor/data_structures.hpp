@@ -31,7 +31,7 @@
 
 
 // The maximum number of dimensions in a factor table
-const size_t MAX_DIM = 16;
+const size_t MAX_DIM = 5;
 
 // Basic graphical model typedefs
 typedef graphlab::vertex_id_t     vertex_id_t;
