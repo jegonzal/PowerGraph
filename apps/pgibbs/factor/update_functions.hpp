@@ -947,7 +947,7 @@ gl::iengine* make_engine(gl::graph& graph,
 
   // Create an engine
   gl::iengine* engine =
-    graphlab::engine_factory::new_engine("threaded",
+    graphlab::engine_factory::new_engine("async",
                                          scheduler_type,
                                          "edge",
                                          graph,

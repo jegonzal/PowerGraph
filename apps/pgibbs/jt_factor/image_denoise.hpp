@@ -48,6 +48,9 @@ void construct_denoise_graph(image& img,
         for(size_t pred = 0; pred < num_rings; ++pred) {
           factor.logP(pred) = obs == pred? 0 : -sigma;
         }
+      } else if(corruption == "ising") {
+        // Do nothing since we want a uniform node potential
+        factor.uniform();
       } else {
         std::cout << "Invalid corruption!" << std::endl;
         exit(1);
@@ -142,6 +145,8 @@ struct denoise_problem {
       noisy.gaussian_corrupt(sigma);
     else if(corruption == "flip")
       noisy.flip_corrupt(num_rings, 0.5);
+    else if(corruption == "ising") 
+      noisy = image(rows, cols);
     else {
       std::cout << "Invalid corruption type!" << std::endl;
       exit(1);

@@ -133,6 +133,8 @@ int main(int argc, char** argv) {
 
    // Plot the final answer
   size_t rows = std::sqrt(mrf_graph.num_vertices());
+  std::cout << "Rows: " << rows << std::endl;
+
   image img(rows, rows);
   std::vector<double> values(1);
   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {

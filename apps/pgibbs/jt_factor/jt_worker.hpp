@@ -270,19 +270,31 @@ public:
       }
     } // end of loop over factors
 
+    // std::cout << "////////////////////////////////////////////////" << std::endl;
+    // std::cout << clique_factor << std::endl;
+
 
     // Compute the conditional factor and marginal factors
     conditional_factor.set_args(in_tree_vars - vdata.variable);
     conditional_factor.condition(clique_factor, vdata.asg);
+    
+    
     marginal_factor.set_args(in_tree_vars - vdata.variable);
     marginal_factor.marginalize(clique_factor);
-
+    
     // Compute metric
     conditional_factor.normalize();
     marginal_factor.normalize();
+
+    // std::cout << conditional_factor << "\n"
+    //           << marginal_factor << "\n";
+
     double residual = conditional_factor.log_residual(marginal_factor);
     assert( residual >= 0);
+    assert( !std::isnan(residual) );
+    assert( std::isfinite(residual) );
 
+    // std::cout << residual << "  ";
     return residual;
   }
 
@@ -403,7 +415,7 @@ public:
         //   break;
         // }
 
-        bool favor_zero_updates = false;
+        bool favor_zero_updates = true;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
@@ -482,10 +494,15 @@ public:
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    jtree_from_cliques(mrf, 
-                       elim_time_map,
+    // jtree_from_cliques(mrf, 
+    //                    elim_time_map,
+    //                    cliques.begin(), cliques.end(), 
+    //                    jt_core.graph());
+
+    jtree_from_cliques(mrf,  
                        cliques.begin(), cliques.end(), 
                        jt_core.graph());
+
     // Rebuild the engine (clear the old scheduler)
     jt_core.rebuild_engine();
     // add tasks to all vertices
@@ -508,7 +525,7 @@ public:
       
     // Sampled root successfully
     return cliques.size();
-  }
+  } // end of sample once
 
 
 
