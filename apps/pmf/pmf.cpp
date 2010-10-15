@@ -404,6 +404,8 @@ void T_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler, 
   } 
   if (K > 1)
     calc_T(id); 
+  else 
+      last_iter();
 }
 
 /*
@@ -951,6 +953,7 @@ void start(int argc, char ** argv) {
   load_pmf_graph((infile+"e").c_str(),&g1, true);
 
   command_line_options clopts;
+  clopts.scheduler_type = "round_robin";
   assert(clopts.parse(argc-3, argv+3));
   engine = clopts.create_engine(g);
   engine->set_shared_data_manager(&sdm);
