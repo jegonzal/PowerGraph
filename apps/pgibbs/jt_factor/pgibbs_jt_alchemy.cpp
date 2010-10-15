@@ -143,6 +143,8 @@ int main(int argc, char** argv) {
     vdata.belief.expectation(values);
     img.pixel(vid) = values[0];
   }
+  img.pixel(0) = 0;
+  img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
   img.save("final_pred.pgm");
 
   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   

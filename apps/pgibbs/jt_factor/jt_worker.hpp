@@ -48,6 +48,8 @@ private:
   size_t max_tree_width;
   size_t max_factor_size;
 
+  size_t tree_count;
+
   size_t total_samples;
   size_t collisions;
 
@@ -82,6 +84,7 @@ public:
     max_tree_size(0),
     max_tree_width(0),
     max_factor_size(0),
+    tree_count(0),
     total_samples(0),
     collisions(0),
     finish_time_seconds(0),
@@ -142,33 +145,33 @@ public:
     // Track the number of samples
     total_samples = 0;
     collisions = 0;
-    // End of for loop
-    size_t round = 0;
+    tree_count = 0;
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
-      while(sampled_variables == 0) {
+      while(sampled_variables == 0 && 
+            graphlab::lowres_time_seconds() < finish_time_seconds) {
         current_root = 
           graphlab::random::rand_int(scope_factory->num_vertices() - 1);
         sampled_variables = sample_once();
         if(sampled_variables == 0) collisions++;
       }
+      tree_count++;
 
-
-      // // Get a local copy of the graph
-      // mrf::graph_type& mrf(scope_factory->get_graph());
-      // if(worker_id == 0) {
-      //   std::cout << "Saving Image: " << std::endl;
-      //   size_t rows = std::sqrt(mrf.num_vertices());
-      //   image img(rows, rows);
-      //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-      //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-      //     img.pixel(vid) = 
-      //       tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-      //   }
-      //   img.save(make_filename("tree", ".pgm", round++).c_str());
-      // }
+      // Get a local copy of the graph
+      mrf::graph_type& mrf(scope_factory->get_graph());
+      if(worker_id == 0) {
+        std::cout << "Saving sample: " << std::endl;
+        size_t rows = std::sqrt(mrf.num_vertices());
+        image img(rows, rows);
+        for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+          img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
+        }
+        img.pixel(0) = 0;
+        img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
+        img.save(make_filename("sample", ".pgm", tree_count).c_str());
+      }
 
       // std::cout << "Worker " << worker_id 
       //           << " sampled " << current_root
@@ -491,6 +494,23 @@ public:
 
     std::cout << "Varcount: " << cliques.size() << std::endl;  
     
+
+
+    ///////////////////////////////////
+    // plot the graph
+    if(worker_id == 0) {
+      std::cout << "Saving treeImage:" << std::endl;
+      size_t rows = std::sqrt(mrf.num_vertices());
+      image img(rows, rows);
+      for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+        vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+        img.pixel(vid) = 
+            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+      }
+      img.save(make_filename("tree", ".pgm", tree_count).c_str());
+    }
+
+
 
     // Build the junction tree and sample
     jt_core.graph().clear();

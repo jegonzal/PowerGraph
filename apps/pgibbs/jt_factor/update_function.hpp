@@ -147,74 +147,102 @@ namespace junction_tree{
       // we are ready to sample
       bool is_root = scope.vertex() == 0;
       if(is_calibrated && (is_root || parent_count == 1) ) {       
-        // We are ready to sample!!!
-        factor_t belief;
+        // We are ready to sample!!!  
+
+        // First we determine which variables are going to be sampled
+        // in this instance.  This is done by finding the parent
+        // assignment if there is one
         assignment_t parent_asg;
-        //  Build up the belief factor and conditional assignment
-        if(is_root) {
-          // if this is the root we can build the belief factor
-          // directly from the factor.
-          belief = vdata.factor;          
-        } else {
-          // Otherwise we need to condition out the sampled neighbors
-          // assignments.
-          const edge_data& parent_edata = scope.const_edge_data(parent_eid);
-          belief.set_args(vdata.variables - parent_edata.variables);
+        if(!is_root) {
+          const edge_data& parent_edata = 
+            scope.const_edge_data(parent_eid);
           const vertex_data& parent_vdata = 
             scope.const_neighbor_vertex_data(parent_vid);
           // Restricted the parents assignment to an assignment over
           // the edge variables
           parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
-          // Condition on this assignment
-          belief.condition(vdata.factor, parent_asg);
         }
 
-        // Multiply in all the messages
-        foreach(edge_id_t in_eid, scope.in_edge_ids()) {
-          // don't need the message from the parent
-          if(in_eid != parent_eid) {
-            const edge_data& edata = scope.const_edge_data(in_eid);
-            belief.times_condition(edata.message, parent_asg);            
+        // Determine the remaining variables for which we will need to
+        // sample and construct RB estimates
+        domain_t unsampled_variables = vdata.variables - parent_asg.args();
+
+        // If there is nothing to sample just skip along
+        if(unsampled_variables.num_vars() == 0) {
+          // if there was nothing to sample just mark this clique as
+          // sampled and pass along to child
+          vdata.sampled = true;
+          // Reschedule unsampled neighbors
+          foreach(edge_id_t in_eid, scope.in_edge_ids()) {
+            if(in_eid != parent_eid) {
+              const vertex_id_t neighbor_vid = scope.source(in_eid);
+              assert(neighbor_vid < scope.num_vertices());
+              callback.add_task(neighbor_vid, 
+                                calibrate_update, 
+                                1.0);
+            }
           }
-        }
-        // Finally normalize the belief factor w
+          return;
+        } // end of if variables empty
+
+        // Now construct the full belief  
+        // We start by taking the full factor
+        factor_t belief = vdata.factor;
+       
+        // Multiply in all the messages to compute the full belief
+        foreach(edge_id_t in_eid, scope.in_edge_ids()) {
+          const edge_data& edata = scope.const_edge_data(in_eid);
+          assert(edata.calibrated);
+          belief *= edata.message;
+        } // end of foreach
         belief.normalize();
-
-        // Sample the remaining variables from the belief
-        assignment_t sample_asg = belief.sample();
-        vdata.sampled = true;
-
-        // Set the local assignment
-        vdata.asg = sample_asg & parent_asg;
-        // the assignment should exacty cover the variables
-        assert(vdata.asg.args() == vdata.variables);
         
         // Fill out the variables in the mrf
         mrf::graph_type& mrf_graph = 
           *shared_data->get_constant(MRF_KEY).as<mrf::graph_type*>();
-        
-        factor_t tmp_vertex_belief;
+
+        // First update all the RB estimates for the unsampled
+        // variables in the mrf graph
+        factor_t tmp_belief;
+        for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
+          variable_t var = unsampled_variables.var(i);
+          // Construct the RB belief estimate
+          tmp_belief.set_args(var);
+          tmp_belief.marginalize(belief);
+          tmp_belief.normalize();
+          // Update the MRF
+          mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
+          mrf_vdata.belief += tmp_belief;
+        } 
+
+        // Condition the belief on the parent assignmnet
+        tmp_belief.set_args(unsampled_variables);
+        tmp_belief.condition(belief, parent_asg);
+        tmp_belief.normalize();
+
+
+        // Sample the remaining variables from the belief
+        assignment_t sample_asg = tmp_belief.sample();
+        // Set the local assignment
+        vdata.asg = sample_asg & parent_asg;
+        // the assignment should exacty cover the variables
+        assert(vdata.asg.args() == vdata.variables);
+        vdata.sampled = true;
+
+
+        //// Fill out the MRF with the sampled variables
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           mrf_vdata.asg = sample_asg.restrict(var);
-          // make sure assignment is set correctly
-          assert(mrf_vdata.asg.asg(var.id) == sample_asg.asg(var.id));
-          // sample the vertex
-          tmp_vertex_belief.set_args(mrf_vdata.belief.args());
-          tmp_vertex_belief.marginalize(belief);
-          tmp_vertex_belief.normalize();
-
-          mrf_vdata.belief += tmp_vertex_belief;
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
-
           // remove the vertex from any trees
           mrf_vdata.tree_id = -1;
         } 
 
-        // Reschedule unssampled neighbors
+        // Reschedule unsampled neighbors
         foreach(edge_id_t in_eid, scope.in_edge_ids()) {
           if(in_eid != parent_eid) {
             const vertex_id_t neighbor_vid = scope.source(in_eid);
