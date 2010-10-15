@@ -31,9 +31,9 @@ namespace junction_tree{
                         gl::icallback& callback,
                         gl::ishared_data* shared_data) {
     
-    // slow_update(scope, callback, shared_data);
+    slow_update(scope, callback, shared_data);
 
-    fast_update(scope, callback, shared_data);
+    // fast_update(scope, callback, shared_data);
 
   } // End of update function
 
