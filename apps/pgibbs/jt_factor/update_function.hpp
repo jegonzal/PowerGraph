@@ -24,8 +24,8 @@ namespace junction_tree{
     
     // get the vertex data
     vertex_data& vdata = scope.vertex_data();
-        
-
+    
+    
     // If the factor args have not been set then we need to initialize
     // the local factor by setting the args and taking the product of
     // all factors associated with the clique.  Some of these factors
@@ -55,20 +55,26 @@ namespace junction_tree{
         // Build up an assignment for the conditional
         domain_t conditional_args = factor.args() - vdata.variables;
         assignment_t conditional_asg;
-        for(size_t i = 0; i < conditional_args.num_vars(); ++i)
-          conditional_asg &= 
-            mrf.vertex_data(conditional_args.var(i).id).asg;
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+          const mrf::vertex_data& mrf_vdata = 
+            mrf.vertex_data(conditional_args.var(i).id);
+          assert(mrf_vdata.tree_id == vertex_id_t(-1));
+          conditional_asg &= mrf_vdata.asg;         
+        }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
         conditional_factor.condition(factor, conditional_asg);        
         // Multiply the conditional factor in
         vdata.factor *= conditional_factor;
       }
+      // Extra normalization for stability on the table factors
+      vdata.factor.normalize();
     }
 
 
     // Determine if their are any edges for which messages can be
     // computed
+    factor_t cavity; // preallocate cavity factor
     foreach(edge_id_t out_eid, scope.out_edge_ids()) {
       vertex_id_t target = scope.target(out_eid);
       edge_data& out_edata = scope.edge_data(out_eid);
@@ -87,18 +93,19 @@ namespace junction_tree{
       
       // Compute message if its still ready
       if(ready) {
-        factor_t belief_factor = vdata.factor;
+        cavity = vdata.factor;
         foreach(edge_id_t in_eid, scope.in_edge_ids()) {
           if(scope.source(in_eid) != target) {
             const edge_data& in_edata = scope.const_edge_data(in_eid);
-            belief_factor *= in_edata.message;    
+            cavity *= in_edata.message;    
           }
         }
         // Marginalize all variables not in outbound message
         out_edata.message.set_args(out_edata.variables);
-        out_edata.message.marginalize(belief_factor);
+        out_edata.message.marginalize(cavity);
         out_edata.message.normalize();
         out_edata.calibrated = true;
+        // Schedule neighbor to receive message
         assert(target < scope.num_vertices());
         callback.add_task(target, calibrate_update, 1.0);
       } // if still ready
