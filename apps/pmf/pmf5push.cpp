@@ -57,10 +57,11 @@ typedef double  sdouble;
 #define MAX_ITERATIONS_CONSTANT 7
 
 const int NUM_ITERATIONS_TO_RUN = 30;
+int BURN_IN = 20;
 
 bool BPTF = true;
 
-#define D 120 //diemnsion for U,V
+#define D 30 //diemnsion for U,V
 
 int options;
 timer gt;
@@ -107,7 +108,6 @@ mat iW0T;
 //vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN = 20;
 bool tensor = true;
 double counter[20];
 
@@ -917,7 +917,7 @@ double calc_rmse(graph_type * _g, bool test, double & res, gl_dtypes::ishared_da
   if (tensor) 
     tvec = sdm.get(TIME_OFFSET).as<mult_vec>();
 
-  for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
+  for (int i=0; i< M+N; i++){ //TODO: optimize to start from N?
     vertex_data * data = &dg->vertex_data(i);
     foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
          
@@ -940,16 +940,16 @@ double calc_rmse(graph_type * _g, bool test, double & res, gl_dtypes::ishared_da
         }
            
         assert(sum != 0);         
-        //if (BPTF && iiter > BURN_IN)
-        //   edge.avgprd += sum;
+        if (BPTF && iiter > BURN_IN)
+          edge.avgprd += sum;
 
         if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
           cout<<"RMSE:"<<i <<"u1"<< *vec2vec(data->pvec, D) << " v1 "<< *vec2vec(pdata->pvec, D)<<endl; 
         //assert(add<25 && add>= 0);
        
-        //if (BPTF && iiter > BURN_IN){
-        //  add = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
-        //}
+        if (BPTF && iiter > BURN_IN){
+          add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+        }
          
         RMSE+= add;
         e++;
@@ -1127,7 +1127,7 @@ void pmf_update_function(gl_dtypes::iscope &scope,
         assert(sum != 0);
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += sum;       
-          trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+          trmse = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
         }
         vdata.rmse += trmse; 
  
@@ -1187,7 +1187,7 @@ void pmf_update_function(gl_dtypes::iscope &scope,
     //   vertex_data->agg[i] = 0.8*vertex_data->agg[i] + 0.2*result[i];
   }
 
-  if (scope.vertex() == M+N-1)
+  if ((int)scope.vertex() == M+N-1)
     last_iter(*sdm);
 
   vdata.rounds++;
@@ -1211,7 +1211,15 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     sdm.trigger_sync(A_V_OFFSET);
   }
 
-  //double rmse = calc_rmse(&g, false, res, false);
+   if (myprocid == 0){
+      double res2;
+      ASSERT_EQ(g1.num_vertices() , M+N);
+      double test_rmse = calc_rmse(&g1, true, res2, sdm);
+      printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
+
+  }
+
+
   //rmse=0;
   //printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm),  rmse, calc_rmse(&g1, true, res2, true, sdm));
   printf("%g) Iter %s %d  Obj=%g.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm));
@@ -1226,14 +1234,6 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     //sample_V();
     if (tensor) 
       sample_T(sdm);
-  }
-
-   if (myprocid == 0){
-   // double res2;
-   // ASSERT_EQ(g1.num_vertices() , M+N);
-  //  double test_rmse = calc_rmse(&g1, true, res2, sdm);
-   // printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
-
   }
 
   printf("Finished last_iter %d\n", myprocid);

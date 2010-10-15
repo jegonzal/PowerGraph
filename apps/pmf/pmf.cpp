@@ -35,9 +35,10 @@ typedef double  sdouble;
 
 bool BPTF = true;
 #ifndef D
-#define D 6 //diemnsion for U,V
+#define D 30 //diemnsion for U,V
 #endif
 #define MAX_ITER 30
+int BURN_IN =20;
 
 int options;
 timer gt;
@@ -82,7 +83,6 @@ mat A_U, A_V, A_T;
 vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =20;
 bool tensor = true;
 double counter[20];
 
@@ -199,10 +199,12 @@ void last_iter();
 void sample_alpha(double res2){
   //double res = powf(sdm.get(RMSE).as<double>(),2) * L;
   //assert(res > 0.1);
+
   if (debug)
   printf("res is %g\n", res2); 
   //if (res2 < 0.2)
   //    res2 = L * 3;
+
 
   double res = res2;
   assert(BPTF);
