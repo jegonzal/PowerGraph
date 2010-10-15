@@ -159,19 +159,20 @@ public:
       }
       tree_count++;
 
-      // Get a local copy of the graph
-      mrf::graph_type& mrf(scope_factory->get_graph());
-      if(worker_id == 0) {
-        std::cout << "Saving sample: " << std::endl;
-        size_t rows = std::sqrt(mrf.num_vertices());
-        image img(rows, rows);
-        for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
-          img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
-        }
-        img.pixel(0) = 0;
-        img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
-        img.save(make_filename("sample", ".pgm", tree_count).c_str());
-      }
+      // // Get a local copy of the graph
+      // mrf::graph_type& mrf(scope_factory->get_graph());
+      // if(worker_id == 0) {
+      //   std::cout << "Saving sample: " << std::endl;
+      //   size_t rows = std::sqrt(mrf.num_vertices());
+      //   image img(rows, rows);
+      //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+      //     img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
+      //   }
+      //   img.pixel(0) = 0;
+      //   img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
+      //   img.save(make_filename("sample", ".pgm", tree_count).c_str());
+      // }
+
 
       // std::cout << "Worker " << worker_id 
       //           << " sampled " << current_root
@@ -496,19 +497,19 @@ public:
     
 
 
-    ///////////////////////////////////
-    // plot the graph
-    if(worker_id == 0) {
-      std::cout << "Saving treeImage:" << std::endl;
-      size_t rows = std::sqrt(mrf.num_vertices());
-      image img(rows, rows);
-      for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-        vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-        img.pixel(vid) = 
-            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-      }
-      img.save(make_filename("tree", ".pgm", tree_count).c_str());
-    }
+    // ///////////////////////////////////
+    // // plot the graph
+    // if(worker_id == 0) {
+    //   std::cout << "Saving treeImage:" << std::endl;
+    //   size_t rows = std::sqrt(mrf.num_vertices());
+    //   image img(rows, rows);
+    //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+    //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+    //     img.pixel(vid) = 
+    //         tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+    //   }
+    //   img.save(make_filename("tree", ".pgm", tree_count).c_str());
+    // }
 
 
 

@@ -31,7 +31,7 @@ namespace junction_tree{
                         gl::icallback& callback,
                         gl::ishared_data* shared_data) {
     
-    //    slow_update(scope, callback, shared_data);
+    // slow_update(scope, callback, shared_data);
 
     fast_update(scope, callback, shared_data);
 
@@ -421,6 +421,7 @@ namespace junction_tree{
             vdata.factor *= in_edata.message;
           }
         }
+        vdata.factor.normalize();
       }
       
       // vdata.factor has received all inbound messages construct
@@ -463,6 +464,7 @@ namespace junction_tree{
           // Get the edge data from the parent
           const edge_data& parent_edata = 
             scope.const_edge_data(from_parent_eid);
+          assert(parent_edata.calibrated);
           vdata.factor *= parent_edata.message;
           vdata.factor.normalize();
         }
@@ -482,6 +484,7 @@ namespace junction_tree{
             assert(in_edata.calibrated);
             cavity = vdata.factor;
             cavity /= in_edata.message;
+            cavity.normalize();
             out_edata.message.set_args(out_edata.variables);
             out_edata.message.marginalize(cavity);
             out_edata.message.normalize();
@@ -513,32 +516,34 @@ namespace junction_tree{
           scope.const_edge_data(to_parent_eid);
         const vertex_data& parent_vdata = 
             scope.const_neighbor_vertex_data(vdata.parent);
-          // Restricted the parents assignment to an assignment over
-          // the edge variables
-          parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
+        assert(parent_vdata.calibrated);
+        // Restricted the parents assignment to an assignment over
+        // the edge variables
+        parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
       }
 
       // Determine the remaining variables for which we will need to
       // sample and construct RB estimates
-      domain_t unsampled_variables = vdata.variables - parent_asg.args();
+      domain_t unsampled_variables = 
+        vdata.variables - parent_asg.args();
 
-      // If there is nothing to sample just skip along
-      if(unsampled_variables.num_vars() == 0) {
-        // if there was nothing to sample just mark this clique as
-        // sampled and pass along to child
-        vdata.sampled = true;
-        // Reschedule unsampled neighbors
-        foreach(edge_id_t out_eid, scope.out_edge_ids()) {
-          if(out_eid != to_parent_eid) {
-              const vertex_id_t neighbor_vid = scope.target(out_eid);
-              assert(neighbor_vid < scope.num_vertices());
-              callback.add_task(neighbor_vid, 
-                                calibrate_update, 
-                                1.0);
-          }
-        }
-        return;
-      } // end of if variables empty
+      // // If there is nothing to sample just skip along
+      // if(unsampled_variables.num_vars() == 0) {
+      //   // if there was nothing to sample just mark this clique as
+      //   // sampled and pass along to child
+      //   vdata.sampled = true;
+      //   // Reschedule unsampled neighbors
+      //   foreach(edge_id_t out_eid, scope.out_edge_ids()) {
+      //     if(out_eid != to_parent_eid) {
+      //         const vertex_id_t neighbor_vid = scope.target(out_eid);
+      //         assert(neighbor_vid < scope.num_vertices());
+      //         callback.add_task(neighbor_vid, 
+      //                           calibrate_update, 
+      //                           1.0);
+      //     }
+      //   }
+      //   return;
+      // } // end of if variables empty
             
       // Fill out the variables in the mrf
       mrf::graph_type& mrf_graph = 
