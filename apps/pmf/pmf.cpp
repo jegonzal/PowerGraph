@@ -35,9 +35,10 @@ typedef double  sdouble;
 
 bool BPTF = true;
 #ifndef D
-#define D 6 //diemnsion for U,V
+#define D 10 //diemnsion for U,V
 #endif
 #define MAX_ITER 30
+int BURN_IN =20;
 
 int options;
 timer gt;
@@ -82,7 +83,6 @@ mat A_U, A_V, A_T;
 vec mu_U, mu_V, mu_T;
 
 bool record_history = false;
-int BURN_IN =20;
 bool tensor = true;
 double counter[20];
 
