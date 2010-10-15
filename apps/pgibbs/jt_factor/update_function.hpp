@@ -31,9 +31,9 @@ namespace junction_tree{
                         gl::icallback& callback,
                         gl::ishared_data* shared_data) {
     
-    slow_update(scope, callback, shared_data);
+    // slow_update(scope, callback, shared_data);
 
-    // fast_update(scope, callback, shared_data);
+    fast_update(scope, callback, shared_data);
 
   } // End of update function
 
@@ -194,6 +194,10 @@ namespace junction_tree{
       bool is_root = scope.vertex() == 0;
       if(is_calibrated && (is_root || parent_count == 1) ) {       
         // We are ready to sample!!!  
+
+        if(parent_count == 1) {
+          assert(vdata.parent == parent_vid);
+        }
 
         // First we determine which variables are going to be sampled
         // in this instance.  This is done by finding the parent
@@ -380,6 +384,7 @@ namespace junction_tree{
       }
       // Extra normalization for stability on the table factors
       vdata.factor.normalize();
+
     }
 
     //////////////////////////////////////////////////////////////////
@@ -422,22 +427,24 @@ namespace junction_tree{
           }
         }
         vdata.factor.normalize();
+
+        
+        // vdata.factor has received all inbound messages construct
+        // message to parent
+        assert(to_parent_eid != NULL_EID);
+        edge_data& parent_edata = scope.edge_data(to_parent_eid);
+        assert(!parent_edata.calibrated);
+        
+        // Marginalize all variables not in outbound message
+        parent_edata.message.set_args(parent_edata.variables);
+        parent_edata.message.marginalize(vdata.factor);
+        parent_edata.message.normalize();
+        parent_edata.calibrated = true;
+       
+        // Schedule the parent to receive the message
+        assert(vdata.parent < scope.num_vertices());
+        callback.add_task(vdata.parent, calibrate_update, 1.0);
       }
-      
-      // vdata.factor has received all inbound messages construct
-      // message to parent
-      assert(to_parent_eid != NULL_EID);
-      edge_data& parent_edata = scope.edge_data(to_parent_eid);
-      assert(!parent_edata.calibrated);
-      
-      // Marginalize all variables not in outbound message
-      parent_edata.message.set_args(parent_edata.variables);
-      parent_edata.message.marginalize(vdata.factor);
-      parent_edata.message.normalize();
-      parent_edata.calibrated = true;
-      // Schedule the parent to receive the message
-      assert(vdata.parent < scope.num_vertices());
-      callback.add_task(vdata.parent, calibrate_update, 1.0);
     } // end of send message up
 
 

@@ -147,6 +147,7 @@ public:
     collisions = 0;
     tree_count = 0;
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
+    //    { current_root = 0;
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
@@ -516,14 +517,14 @@ public:
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    // jtree_from_cliques(mrf, 
-    //                    elim_time_map,
-    //                    cliques.begin(), cliques.end(), 
-    //                    jt_core.graph());
-
-    jtree_from_cliques(mrf,  
+    jtree_from_cliques(mrf, 
+                       elim_time_map,
                        cliques.begin(), cliques.end(), 
                        jt_core.graph());
+
+    // jtree_from_cliques(mrf,  
+    //                    cliques.begin(), cliques.end(), 
+    //                    jt_core.graph());
 
     // Rebuild the engine (clear the old scheduler)
     jt_core.rebuild_engine();
