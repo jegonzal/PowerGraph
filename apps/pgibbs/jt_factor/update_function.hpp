@@ -593,6 +593,10 @@ namespace junction_tree{
         //           << ": sampling " << mrf_vdata.variable << std::endl;
         // remove the vertex from any trees
         mrf_vdata.tree_id = NULL_VID;
+        // mrf_vdata.belief.logP(mrf_vdata.asg.at(0)) =
+        //   std:exp(mrf_vdata.belief.logP(mrf_vdata.asg.at(0))) + 1;
+
+
       } 
 
       // Reschedule unsampled neighbors
