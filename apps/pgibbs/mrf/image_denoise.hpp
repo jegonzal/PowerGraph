@@ -48,7 +48,7 @@ void construct_denoise_graph(image& img,
         for(size_t pred = 0; pred < num_asgs; ++pred) {
           vdata.potential.logP(pred) = obs == pred? 0 : -sigma;
         }
-      } if(corruption == "ising") {
+      } else if(corruption == "ising") {
         // Do nothing since we want a uniform node potential
         vdata.potential.uniform();
       } else {
