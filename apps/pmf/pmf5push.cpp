@@ -1481,7 +1481,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
 
   printf("BPTF: %d procid %d \n", (int) BPTF, (int) dc.procid());
 
-
+dc.barrier();
   // Have to declare this from all procs
   distributed_metrics::instance(&dc)->set_value("residual", 0.0);
   //distributed_metrics::instance(&dc)->set_value("custom_output_1", 0.0);
@@ -1501,7 +1501,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
     sdm.sync_from_local(A_V_OFFSET);
   }
 
- 
+ dc.barrier();
   if (dc.procid() == 0){ 
      if (BPTF && tensor)
 	sample_T(sdm);
