@@ -44,6 +44,7 @@ typedef factor_t::assignment_type       assignment_t;
 
 // Represents a null VID in the tree
 const vertex_id_t NULL_VID = -1;
+const edge_id_t NULL_EID = -1;
 
 
 std::string make_filename(const std::string& base,
@@ -80,7 +81,7 @@ namespace mrf {
 
     vertex_data() : updates(0), 
                     in_tree(false), 
-                    tree_id(-1) { }
+                    tree_id(NULL_VID) { }
 
     vertex_data(const variable_t& variable,
                 const std::set<vertex_id_t>& factor_ids) :
@@ -90,7 +91,7 @@ namespace mrf {
       belief(domain_t(variable)),
       updates(0),
       in_tree(false),
-      tree_id(-1) {    // Set the belief to uniform 0
+      tree_id(NULL_VID) {    // Set the belief to uniform 0
       belief.uniform(-std::numeric_limits<double>::max());
       assert(!factor_ids.empty());
     }
@@ -497,12 +498,18 @@ void construct_mrf(const factorized_model& model,
 
 namespace junction_tree {
   struct vertex_data {
+    vertex_id_t parent;
     domain_t variables;
+    bool calibrated;
+    bool sampled;
     std::set<vertex_id_t> factor_ids;
     factor_t factor;
     assignment_t asg;
-    bool sampled;
-    vertex_data() : sampled(false) { }
+
+    vertex_data() : 
+      parent(NULL_VID),
+      calibrated(false), 
+      sampled(false)  { }
   }; // End of vertex data
 
 

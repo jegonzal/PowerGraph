@@ -458,6 +458,8 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
         mrf.vertex_data(clique.elim_vertex);
       // Create the vertex data
       junction_tree::vertex_data vdata;
+      // set the vertex parent
+      vdata.parent = clique.parent;
       // add the eliminated vertex
       vdata.variables = elim_vertex_vdata.variable;
       // add all the other variables in the clique
