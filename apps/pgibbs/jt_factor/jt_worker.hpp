@@ -136,6 +136,7 @@ public:
                                        mrf_graph_ptr); 
   }
 
+
   size_t num_samples() const { return total_samples; }
   size_t num_collisions() const { return collisions; }
 
@@ -422,6 +423,7 @@ public:
         // }
 
         bool favor_zero_updates = true;
+        double zero_updates_bonus = 100;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
@@ -436,7 +438,7 @@ public:
               // if the vertex has not been updated then give it a
               // high priority.
               if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += 10;
+                score += zero_updates_bonus;
 
               // if the score is greater than zero then add the
               // neighbor to the priority queue.  The score is zero if
@@ -450,7 +452,7 @@ public:
               // score
               double score = score_vertex(neighbor_vid);
               if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += 10;
+                score += zero_updates_bonus;
 
               if(score > 0) {
                 // update the priority queue with the new score
@@ -499,19 +501,19 @@ public:
     
 
 
-    // ///////////////////////////////////
-    // // plot the graph
-    // if(worker_id == 0) {
-    //   std::cout << "Saving treeImage:" << std::endl;
-    //   size_t rows = std::sqrt(mrf.num_vertices());
-    //   image img(rows, rows);
-    //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-    //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-    //     img.pixel(vid) = 
-    //         tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-    //   }
-    //   img.save(make_filename("tree", ".pgm", tree_count).c_str());
-    // }
+    ///////////////////////////////////
+    // plot the graph
+    if(worker_id == 0) {
+      std::cout << "Saving treeImage:" << std::endl;
+      size_t rows = std::sqrt(mrf.num_vertices());
+      image img(rows, rows);
+      for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+        vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+        img.pixel(vid) = 
+            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+      }
+      img.save(make_filename("tree", ".pgm", tree_count).c_str());
+    }
 
 
 
