@@ -1396,7 +1396,7 @@ void start(int argc, char ** argv, distributed_control & dc) {
     //for (int i=0; i<K; i++){
 
     sdm.set_fullsweep_sync(TIME_OFFSET, sync_QQR, apply_QQR,merge_mult, mult, 100000000, 
-                           scope_range::READ_CONSISTENCY,0, M+N);
+                           scope_range::READ_CONSISTENCY,M, M+N);
     sdm.atomic_set(TIME_OFFSET, multret);
   
    if (BPTF){
