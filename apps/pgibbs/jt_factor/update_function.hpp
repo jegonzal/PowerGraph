@@ -31,7 +31,7 @@ namespace junction_tree{
                         gl::icallback& callback,
                         gl::ishared_data* shared_data) {
     
-    //    slow_update(scope, callback, shared_data);
+    // slow_update(scope, callback, shared_data);
 
     fast_update(scope, callback, shared_data);
 
@@ -194,6 +194,10 @@ namespace junction_tree{
       bool is_root = scope.vertex() == 0;
       if(is_calibrated && (is_root || parent_count == 1) ) {       
         // We are ready to sample!!!  
+
+        if(parent_count == 1) {
+          assert(vdata.parent == parent_vid);
+        }
 
         // First we determine which variables are going to be sampled
         // in this instance.  This is done by finding the parent
@@ -380,6 +384,7 @@ namespace junction_tree{
       }
       // Extra normalization for stability on the table factors
       vdata.factor.normalize();
+
     }
 
     //////////////////////////////////////////////////////////////////
@@ -421,22 +426,25 @@ namespace junction_tree{
             vdata.factor *= in_edata.message;
           }
         }
+        vdata.factor.normalize();
+
+        
+        // vdata.factor has received all inbound messages construct
+        // message to parent
+        assert(to_parent_eid != NULL_EID);
+        edge_data& parent_edata = scope.edge_data(to_parent_eid);
+        assert(!parent_edata.calibrated);
+        
+        // Marginalize all variables not in outbound message
+        parent_edata.message.set_args(parent_edata.variables);
+        parent_edata.message.marginalize(vdata.factor);
+        parent_edata.message.normalize();
+        parent_edata.calibrated = true;
+       
+        // Schedule the parent to receive the message
+        assert(vdata.parent < scope.num_vertices());
+        callback.add_task(vdata.parent, calibrate_update, 1.0);
       }
-      
-      // vdata.factor has received all inbound messages construct
-      // message to parent
-      assert(to_parent_eid != NULL_EID);
-      edge_data& parent_edata = scope.edge_data(to_parent_eid);
-      assert(!parent_edata.calibrated);
-      
-      // Marginalize all variables not in outbound message
-      parent_edata.message.set_args(parent_edata.variables);
-      parent_edata.message.marginalize(vdata.factor);
-      parent_edata.message.normalize();
-      parent_edata.calibrated = true;
-      // Schedule the parent to receive the message
-      assert(vdata.parent < scope.num_vertices());
-      callback.add_task(vdata.parent, calibrate_update, 1.0);
     } // end of send message up
 
 
@@ -463,6 +471,7 @@ namespace junction_tree{
           // Get the edge data from the parent
           const edge_data& parent_edata = 
             scope.const_edge_data(from_parent_eid);
+          assert(parent_edata.calibrated);
           vdata.factor *= parent_edata.message;
           vdata.factor.normalize();
         }
@@ -482,6 +491,7 @@ namespace junction_tree{
             assert(in_edata.calibrated);
             cavity = vdata.factor;
             cavity /= in_edata.message;
+            cavity.normalize();
             out_edata.message.set_args(out_edata.variables);
             out_edata.message.marginalize(cavity);
             out_edata.message.normalize();
@@ -513,32 +523,34 @@ namespace junction_tree{
           scope.const_edge_data(to_parent_eid);
         const vertex_data& parent_vdata = 
             scope.const_neighbor_vertex_data(vdata.parent);
-          // Restricted the parents assignment to an assignment over
-          // the edge variables
-          parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
+        assert(parent_vdata.calibrated);
+        // Restricted the parents assignment to an assignment over
+        // the edge variables
+        parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
       }
 
       // Determine the remaining variables for which we will need to
       // sample and construct RB estimates
-      domain_t unsampled_variables = vdata.variables - parent_asg.args();
+      domain_t unsampled_variables = 
+        vdata.variables - parent_asg.args();
 
-      // If there is nothing to sample just skip along
-      if(unsampled_variables.num_vars() == 0) {
-        // if there was nothing to sample just mark this clique as
-        // sampled and pass along to child
-        vdata.sampled = true;
-        // Reschedule unsampled neighbors
-        foreach(edge_id_t out_eid, scope.out_edge_ids()) {
-          if(out_eid != to_parent_eid) {
-              const vertex_id_t neighbor_vid = scope.target(out_eid);
-              assert(neighbor_vid < scope.num_vertices());
-              callback.add_task(neighbor_vid, 
-                                calibrate_update, 
-                                1.0);
-          }
-        }
-        return;
-      } // end of if variables empty
+      // // If there is nothing to sample just skip along
+      // if(unsampled_variables.num_vars() == 0) {
+      //   // if there was nothing to sample just mark this clique as
+      //   // sampled and pass along to child
+      //   vdata.sampled = true;
+      //   // Reschedule unsampled neighbors
+      //   foreach(edge_id_t out_eid, scope.out_edge_ids()) {
+      //     if(out_eid != to_parent_eid) {
+      //         const vertex_id_t neighbor_vid = scope.target(out_eid);
+      //         assert(neighbor_vid < scope.num_vertices());
+      //         callback.add_task(neighbor_vid, 
+      //                           calibrate_update, 
+      //                           1.0);
+      //     }
+      //   }
+      //   return;
+      // } // end of if variables empty
             
       // Fill out the variables in the mrf
       mrf::graph_type& mrf_graph = 
@@ -581,6 +593,10 @@ namespace junction_tree{
         //           << ": sampling " << mrf_vdata.variable << std::endl;
         // remove the vertex from any trees
         mrf_vdata.tree_id = NULL_VID;
+        // mrf_vdata.belief.logP(mrf_vdata.asg.at(0)) =
+        //   std:exp(mrf_vdata.belief.logP(mrf_vdata.asg.at(0))) + 1;
+
+
       } 
 
       // Reschedule unsampled neighbors

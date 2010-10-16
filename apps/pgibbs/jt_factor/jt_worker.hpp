@@ -106,7 +106,11 @@ public:
     worker_count = ncpus;
     max_tree_size = treesize;
     max_tree_width = treewidth;
-    max_factor_size = factorsize;
+    if(factorsize <= 0) {
+      max_factor_size = std::numeric_limits<size_t>::max();
+    } else {
+      max_factor_size = factorsize;
+    }
     factors_ptr = &factors;
     use_priorities = priorities;
     finish_time_seconds = finish_time_secs;
@@ -136,6 +140,7 @@ public:
                                        mrf_graph_ptr); 
   }
 
+
   size_t num_samples() const { return total_samples; }
   size_t num_collisions() const { return collisions; }
 
@@ -147,6 +152,7 @@ public:
     collisions = 0;
     tree_count = 0;
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
+    //    { current_root = 0;
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
@@ -157,21 +163,23 @@ public:
         sampled_variables = sample_once();
         if(sampled_variables == 0) collisions++;
       }
-      tree_count++;
 
-      // Get a local copy of the graph
-      mrf::graph_type& mrf(scope_factory->get_graph());
-      if(worker_id == 0) {
-        std::cout << "Saving sample: " << std::endl;
-        size_t rows = std::sqrt(mrf.num_vertices());
-        image img(rows, rows);
-        for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
-          img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
-        }
-        img.pixel(0) = 0;
-        img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
-        img.save(make_filename("sample", ".pgm", tree_count).c_str());
-      }
+
+//       // Get a local copy of the graph
+//       mrf::graph_type& mrf(scope_factory->get_graph());
+//       if(worker_id == 0) {
+//         std::cout << "Saving sample: " << std::endl;
+//         size_t rows = std::sqrt(mrf.num_vertices());
+//         image img(rows, rows);
+//         for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+//           img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
+//         }
+//         img.pixel(0) = 0;
+//         img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
+//         img.save(make_filename("sample", ".pgm", tree_count).c_str());
+//       }
+
+      tree_count++;
 
       // std::cout << "Worker " << worker_id 
       //           << " sampled " << current_root
@@ -419,6 +427,7 @@ public:
         // }
 
         bool favor_zero_updates = true;
+        double zero_updates_bonus = 100;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
@@ -433,7 +442,7 @@ public:
               // if the vertex has not been updated then give it a
               // high priority.
               if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += 10;
+                score += zero_updates_bonus;
 
               // if the score is greater than zero then add the
               // neighbor to the priority queue.  The score is zero if
@@ -447,7 +456,7 @@ public:
               // score
               double score = score_vertex(neighbor_vid);
               if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += 10;
+                score += zero_updates_bonus;
 
               if(score > 0) {
                 // update the priority queue with the new score
@@ -492,36 +501,36 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
 
 
-    ///////////////////////////////////
-    // plot the graph
-    if(worker_id == 0) {
-      std::cout << "Saving treeImage:" << std::endl;
-      size_t rows = std::sqrt(mrf.num_vertices());
-      image img(rows, rows);
-      for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-        vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-        img.pixel(vid) = 
-            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-      }
-      img.save(make_filename("tree", ".pgm", tree_count).c_str());
-    }
+    //     ///////////////////////////////////
+    //     // plot the graph
+    //     if(worker_id == 0) {
+    //       std::cout << "Saving treeImage:" << std::endl;
+    //       size_t rows = std::sqrt(mrf.num_vertices());
+    //       image img(rows, rows);
+    //       for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+    //         vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+    //         img.pixel(vid) = 
+    //             tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+    //       }
+    //       img.save(make_filename("tree", ".pgm", tree_count).c_str());
+    //     }
 
 
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    // jtree_from_cliques(mrf, 
-    //                    elim_time_map,
-    //                    cliques.begin(), cliques.end(), 
-    //                    jt_core.graph());
-
-    jtree_from_cliques(mrf,  
+    jtree_from_cliques(mrf, 
+                       elim_time_map,
                        cliques.begin(), cliques.end(), 
                        jt_core.graph());
+
+    // jtree_from_cliques(mrf,  
+    //                    cliques.begin(), cliques.end(), 
+    //                    jt_core.graph());
 
     // Rebuild the engine (clear the old scheduler)
     jt_core.rebuild_engine();
@@ -540,8 +549,8 @@ public:
       actual_tree_width = 
         std::max(vdata.variables.num_vars(), actual_tree_width);
     }
-    std::cout << "Actual Tree Width: " << actual_tree_width 
-              << std::endl;
+//     std::cout << "Actual Tree Width: " << actual_tree_width 
+//               << std::endl;
       
     // Sampled root successfully
     return cliques.size();
@@ -608,8 +617,8 @@ void parallel_sample(const factorized_model& fmodel,
     total_samples += worker.num_samples();
     total_collisions += worker.num_collisions();
   }
-  std::cout << "Total samples: " << total_samples << std::endl;
-  std::cout << "Total collisions: " << total_collisions << std::endl;
+  std::cout << "Total samples: " << total_samples << "\n";
+  std::cout << "Total collisions: " << total_collisions << "\n";
 
 }
 
