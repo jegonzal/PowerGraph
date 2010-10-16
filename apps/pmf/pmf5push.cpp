@@ -917,7 +917,7 @@ double calc_rmse(graph_type * _g, bool test, double & res, gl_dtypes::ishared_da
   if (tensor) 
     tvec = sdm.get(TIME_OFFSET).as<mult_vec>();
 
-  for (int i=0; i< M+N; i++){ //TODO: optimize to start from N?
+  for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
     vertex_data * data = &dg->vertex_data(i);
     foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
          
