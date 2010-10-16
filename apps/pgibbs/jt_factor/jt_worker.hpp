@@ -501,7 +501,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
 
 
@@ -549,8 +549,8 @@ public:
       actual_tree_width = 
         std::max(vdata.variables.num_vars(), actual_tree_width);
     }
-    std::cout << "Actual Tree Width: " << actual_tree_width 
-              << std::endl;
+//     std::cout << "Actual Tree Width: " << actual_tree_width 
+//               << std::endl;
       
     // Sampled root successfully
     return cliques.size();
