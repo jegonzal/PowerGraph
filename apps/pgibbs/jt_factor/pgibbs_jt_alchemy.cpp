@@ -4,6 +4,8 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <string>
+#include <vector>
 
 
 #include <graphlab.hpp>
@@ -25,6 +27,23 @@
 
 
 
+
+std::string results_fn = "experiment_results.tsv";
+
+
+size_t get_next_experiment_id(const std::string& experiment_file) {
+  std::ifstream fin(experiment_file.c_str());
+  size_t lines = 0;
+  std::string line;
+  while(getline(fin, line)) lines++;
+  fin.close();
+  return lines;
+}
+
+
+
+
+
 int main(int argc, char** argv) {
   std::cout << "This program runs junction tree blocked MCMC "
             << "inference on large factorized models."
@@ -36,7 +55,7 @@ int main(int argc, char** argv) {
   bool priorities = false;
   float runtime = 10;
   size_t treewidth = 3;
-  size_t factorsize = 1 << treewidth;
+  size_t factorsize = 0;
   size_t subthreads = 1; 
 
 
@@ -83,8 +102,10 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  size_t experiment_id = get_next_experiment_id(results_fn);
 
   std::cout << "Settings: ======================" << std::endl
+            << "Experiment:    " << experiment_id << std::endl
             << "Model:         " << model_filename << std::endl
             << "runtime:       " << runtime << std::endl
             << "treesize:      " << treesize << std::endl
@@ -128,13 +149,46 @@ int main(int argc, char** argv) {
 
 
   std::cout << "Computing update distribution:" << std::endl;
-  mrf::save_beliefs(mrf_graph, "beliefs.tsv");
+  mrf::save_beliefs(mrf_graph,  
+                    make_filename("beliefs",".tsv", experiment_id).c_str());
+
+  
+  std::cout << "Computing update counts:" << std::endl;
+  size_t total_updates = 0;
+  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+    mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+    total_updates += vdata.updates;
+  }
 
 
-   // Plot the final answer
+
+
+
+  std::ofstream fout(results_fn.c_str(),  std::ios::app);
+  fout << experiment_id << '\t'
+       << clopts.ncpus << '\t'
+       << runtime << '\t'
+       << treesize << '\t'
+       << treewidth << '\t'
+       << factorsize << '\t'
+       << subthreads << '\t'
+       << priorities << '\t'
+       << actual_runtime << '\t'
+       << total_updates << '\t'
+       << loglik << std::endl;
+  fout.close();
+
+
+
+
+
+
+
+
+
+  // Plot the final answer
   size_t rows = std::sqrt(mrf_graph.num_vertices());
   std::cout << "Rows: " << rows << std::endl;
-
   image img(rows, rows);
   std::vector<double> values(1);
   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
@@ -145,23 +199,23 @@ int main(int argc, char** argv) {
   }
   img.pixel(0) = 0;
   img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
-  img.save("final_pred.pgm");
+  img.save(make_filename("pred", ".pgm", experiment_id).c_str());
 
   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
     img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
   }
-  img.save("sample_count.pgm");
+  img.save(make_filename("updates", ".pgm", experiment_id).c_str());
 
-  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
-  }
-  img.save("unsampled.pgm");
+  //   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+  //     img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+  //   }
+  //   img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
 
   
   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
     img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
   }
-  img.save("last_sample.pgm");
+  img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 
 
   

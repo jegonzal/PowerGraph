@@ -106,7 +106,11 @@ public:
     worker_count = ncpus;
     max_tree_size = treesize;
     max_tree_width = treewidth;
-    max_factor_size = factorsize;
+    if(factorsize <= 0) {
+      max_factor_size = std::numeric_limits<size_t>::max();
+    } else {
+      max_factor_size = factorsize;
+    }
     factors_ptr = &factors;
     use_priorities = priorities;
     finish_time_seconds = finish_time_secs;
@@ -161,19 +165,19 @@ public:
       }
 
 
-      // Get a local copy of the graph
-      mrf::graph_type& mrf(scope_factory->get_graph());
-      if(worker_id == 0) {
-        std::cout << "Saving sample: " << std::endl;
-        size_t rows = std::sqrt(mrf.num_vertices());
-        image img(rows, rows);
-        for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
-          img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
-        }
-        img.pixel(0) = 0;
-        img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
-        img.save(make_filename("sample", ".pgm", tree_count).c_str());
-      }
+//       // Get a local copy of the graph
+//       mrf::graph_type& mrf(scope_factory->get_graph());
+//       if(worker_id == 0) {
+//         std::cout << "Saving sample: " << std::endl;
+//         size_t rows = std::sqrt(mrf.num_vertices());
+//         image img(rows, rows);
+//         for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+//           img.pixel(vid) = mrf.vertex_data(vid).asg.asg_at(0);
+//         }
+//         img.pixel(0) = 0;
+//         img.pixel(1) = mrf.vertex_data(0).variable.arity -1;
+//         img.save(make_filename("sample", ".pgm", tree_count).c_str());
+//       }
 
       tree_count++;
 
@@ -501,19 +505,19 @@ public:
     
 
 
-    ///////////////////////////////////
-    // plot the graph
-    if(worker_id == 0) {
-      std::cout << "Saving treeImage:" << std::endl;
-      size_t rows = std::sqrt(mrf.num_vertices());
-      image img(rows, rows);
-      for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-        vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-        img.pixel(vid) = 
-            tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-      }
-      img.save(make_filename("tree", ".pgm", tree_count).c_str());
-    }
+    //     ///////////////////////////////////
+    //     // plot the graph
+    //     if(worker_id == 0) {
+    //       std::cout << "Saving treeImage:" << std::endl;
+    //       size_t rows = std::sqrt(mrf.num_vertices());
+    //       image img(rows, rows);
+    //       for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+    //         vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+    //         img.pixel(vid) = 
+    //             tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+    //       }
+    //       img.save(make_filename("tree", ".pgm", tree_count).c_str());
+    //     }
 
 
 
@@ -613,8 +617,8 @@ void parallel_sample(const factorized_model& fmodel,
     total_samples += worker.num_samples();
     total_collisions += worker.num_collisions();
   }
-  std::cout << "Total samples: " << total_samples << std::endl;
-  std::cout << "Total collisions: " << total_collisions << std::endl;
+  std::cout << "Total samples: " << total_samples << "\n";
+  std::cout << "Total collisions: " << total_collisions << "\n";
 
 }
 
