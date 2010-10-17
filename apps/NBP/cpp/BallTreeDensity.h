@@ -30,8 +30,8 @@ class BallTreeDensity : public BallTree {
 
   //BallTreeDensity( unsigned int d, index N, double* points_,
   //     double* weights_, double* bandwidths_);
-#ifdef MEX             // for loading ball trees from matlab
   BallTreeDensity() : BallTree() { bandwidth = bandwidthMax = bandwidthMin = NULL; }
+#ifdef MEX             // for loading ball trees from matlab
   BallTreeDensity(const mxArray* structure);
   static mxArray* createInMatlab(const mxArray* pts, const mxArray* wts, const mxArray* bw, BallTreeDensity::KernelType _type=Gaussian);
 #endif

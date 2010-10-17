@@ -110,6 +110,83 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
   mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
   mxDestroyArray(rNorm); mxDestroyArray(rsize);
 }
+#else
+//////////////////////////////////////////////////////////////////////
+// MEX WRAPPER
+//////////////////////////////////////////////////////////////////////
+void prodSampleEpsilon(unsigned int Ndens, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
+{
+  mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
+  unsigned int i,j;
+  
+ 
+
+  /*********************************************************************
+  ** Verify arguments and initialize variables
+  *********************************************************************/
+
+  /*if (nrhs != 3)
+    mexErrMsgTxt("Takes 3 input arguments");
+  if (nlhs >  2)
+    mexErrMsgTxt("Outputs 2 results");
+
+  Ndens = mxGetN(prhs[0]); */
+
+  assert(Ndens >= 1);
+                              // get # of densities
+//  trees = new BallTreeDensity[Ndens];
+  trees = (BallTreeDensity*) mxMalloc(Ndens*sizeof(BallTreeDensity));
+  bwUniform = true;
+  bool allGaussians = true;
+  for (i=0;i<Ndens;i++) {                               // load densities
+    trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  
+    if (trees[i].getType() != BallTreeDensity::Gaussian) allGaussians = false;
+    bwUniform = bwUniform && trees[i].bwUniform();
+  }
+  if (!allGaussians)
+    mexErrMsgTxt("Sorry -- only Gaussian kernels supported");
+
+  Ndim  = trees[0].Ndim();                      // more accessible dimension variable
+  Nsamp = (unsigned long) mxGetScalar(prhs[1]); // # of requested samples
+  maxErr= 2*mxGetScalar(prhs[2]);               // epsilon (we always use 2*epsilon)
+
+  // Obtain enough random numbers for the sampling algorithm
+  //
+  rsize = mxCreateDoubleMatrix(1,2,mxREAL);
+  double* rsizeP= mxGetPr(rsize); rsizeP[0] = 1; rsizeP[1] = Nsamp+1;
+  rUnif1 = mxCreateDoubleMatrix(1,Nsamp+1,mxREAL);
+  mexCallMATLAB(1, &rNorm, 1, &rsize, "rand");   randunif1 = mxGetPr(rNorm);
+  randunif1[Nsamp] = 100;
+  mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);
+  mxDestroyArray(rNorm);
+  rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
+  mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
+  rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
+  mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
+
+  plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
+  samples = (double*) mxGetData(plhs[0]);
+  plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
+  indices = (BallTree::index*) mxGetData(plhs[1]);
+
+  SigValsMax = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
+  SigValsMin = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
+  C       = (double*) mxMalloc(Ndim*sizeof(double));
+  sC      = (double*) mxMalloc(Ndim*sizeof(double));
+  M       = (double*) mxMalloc(Ndim*sizeof(double));
+  
+  total =    -1; soFar = soFarMin = 0;   multiEval();  // calculate total weight
+  total = soFar; soFar = soFarMin = 0;   multiEval();  //   then sample
+
+//  delete[] trees;
+  mxFree(trees);
+
+  mxFree(C); mxFree(sC); mxFree(M); mxFree(SigValsMin); mxFree(SigValsMax);
+
+  mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
+  mxDestroyArray(rNorm); mxDestroyArray(rsize);
+}
+
 #endif
 
 
