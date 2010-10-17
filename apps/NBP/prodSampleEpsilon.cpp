@@ -9,8 +9,9 @@
 //
 
 
-#define MEX
-#include "mex.h"
+//DB: #define MEX
+//DB: #include "mex.h"
+#include "fakemex.h"
 #include "cpp/BallTreeDensity.h"
 
 void multiEval(void);
