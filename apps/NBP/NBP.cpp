@@ -219,10 +219,9 @@ void bp_update(gl_types::iscope& scope,
   vec prod_message = prod_msg0.get_col(vid);
   v_data.belief = belief0.get_col(vid);
 
-/*
   // Get the in and out edges by reference
-  edge_list in_edges = scope.in_edge_ids();
-  edge_list out_edges = scope.out_edge_ids();
+  graphlab::edge_list in_edges = scope.in_edge_ids();
+  graphlab::edge_list out_edges = scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
   // Flip the old and new messages to improve safety when using the
@@ -343,7 +342,6 @@ void bp_update(gl_types::iscope& scope,
     }
   }
 
-*/
 } // end of BP_update
 
 void construct_graph(gl_types::graph& graph) {
