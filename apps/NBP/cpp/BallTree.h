@@ -42,8 +42,8 @@ class BallTree {
   
   //BallTree( unsigned int d, index N, double* centers_,
   //     double* ranges_, double* weights_ );
-#ifdef MEX
   BallTree();
+#ifdef MEX
   BallTree(const mxArray* structure);     // for loading ball trees from matlab
   
   // For creating BallTree structures in matlab:

@@ -17,6 +17,10 @@
 #include <assert.h>
 #include <float.h>
 
+#ifndef NULL
+#define NULL 0
+#endif
+
 class BallTreeDensity : public BallTree {
  public:
   enum KernelType { Gaussian, Epanetchnikov, Laplacian };

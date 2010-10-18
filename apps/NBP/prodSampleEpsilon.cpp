@@ -120,10 +120,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //////////////////////////////////////////////////////////////////////
 // MEX WRAPPER
 //////////////////////////////////////////////////////////////////////
-void prodSampleEpsilon(unsigned int Ndens, //dimension of density
+void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 		       unsigned int Nsamp,  //number of samples
                        double maxErr  //epsilon
-                       )
+                       kde * kdes)
 {
   //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
   unsigned int i;//,j;
@@ -150,6 +150,7 @@ void prodSampleEpsilon(unsigned int Ndens, //dimension of density
   bool allGaussians = true;
   for (i=0;i<Ndens;i++) {                               // load densities
     //trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  //DB: TODO
+    trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  //DB: TODO
     if (trees[i].getType() != BallTreeDensity::Gaussian) allGaussians = false;
     bwUniform = bwUniform && trees[i].bwUniform();
   }
