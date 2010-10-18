@@ -244,9 +244,10 @@ namespace junction_tree{
           const edge_data& edata = scope.const_edge_data(in_eid);
           assert(edata.calibrated);
           belief *= edata.message;
+          belief.normalize();
         } // end of foreach
-        belief.normalize();
-        
+        // belief.normalize();        
+
         // Fill out the variables in the mrf
         mrf::graph_type& mrf_graph = 
           *shared_data->get_constant(MRF_KEY).as<mrf::graph_type*>();
@@ -473,8 +474,9 @@ namespace junction_tree{
             scope.const_edge_data(from_parent_eid);
           assert(parent_edata.calibrated);
           vdata.factor *= parent_edata.message;
-          vdata.factor.normalize();
         }
+        vdata.factor.normalize();
+
         
         // Calibrated!
         vdata.calibrated = true;
