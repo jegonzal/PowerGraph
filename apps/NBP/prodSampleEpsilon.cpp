@@ -15,6 +15,7 @@
 // include itpp
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
+#include <itpp/base/sort.h>
 #include "kde.h"
 
 #include "cpp/BallTreeDensity.h"
@@ -124,7 +125,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 		       unsigned int Nsamp,  //number of samples
                        double maxErr,  //epsilon
-                       kde * kdes)
+                       const kde * kdes)
 {
   //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
   unsigned int i;//,j;
@@ -175,17 +176,24 @@ void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
  
   itpp::vec rUnif1 = itpp::randu(Nsamp+1);
   rUnif1.set(Nsamp,100);
-  
-  //mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);//TODO
+  itpp::Sort<double> mysort;
+  mysort.sort(0,Nsamp+1,rUnif1);
+  randunif1 = vec2vec(&rUnif1); 
+ //mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);//TODO
   //mxDestroyArray(rNorm);
   //rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
 
   //mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
   itpp::mat rUnif2; 
-  itpp::randn(Ndim, Nsamp, rUnif2);
+  itpp::randu(Ndim, Nsamp, rUnif2);
+  randunif2 = vec2vec(&rUnif2);
   //rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
   //mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
   
+  itpp::mat rNorm;
+  itpp::randn(Ndim, Nsamp, rNorm);
+  randnorm = vec2vec(&rNorm);
+
   //plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
   itpp::mat ret = itpp::mat(Ndim, Nsamp);
   //samples = (double*) mxGetData(plhs[0]); TODO

@@ -32,13 +32,17 @@ double pow(double , double);
 double fabs(double);
 #define PI 3.141592653589
 
- inline double * vec2vec(const itpp::vec * _vec){
+inline double * vec2vec(const itpp::vec * _vec){
 	double * ret = new double[_vec->size()];
-        //for (int i=0; i< _vec->size(); i++)
-        //    ret[i] = _vec->get(i);
         memcpy(ret, _vec->_data(), _vec->size() * sizeof(double)); 
        return ret;
 }
+inline double * vec2vec(const itpp::mat * _mat){
+	double * ret = new double[_mat->size()];
+        memcpy(ret, _mat->_data(), _mat->size() * sizeof(double)); 
+       return ret;
+}
+
 
 
 class BallTree {
