@@ -616,8 +616,6 @@ void parallel_sample(const factorized_model& fmodel,
   std::random_shuffle(roots.begin(), roots.end());
   
 
-
-
   for(size_t i = 0; i < ncpus; ++i) {
     // Initialize the worker
     workers[i].init(i, 
