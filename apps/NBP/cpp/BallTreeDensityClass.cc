@@ -6,11 +6,14 @@
 // Copyright (C) 2003 Alexander Ihler; distributable under GPL -- see README.txt
 //
 //////////////////////////////////////////////////////////////////////////////////////
-#define MEX
+//#define MEX
 //#define NEWVERSION
 #include <math.h>
 #include <assert.h>
+
+#ifdef MEX
 #include "mex.h"
+#endif
 #include "BallTreeDensity.h"
 
 double *pMin, *pMax;                // need to declare these here, for kernel 
