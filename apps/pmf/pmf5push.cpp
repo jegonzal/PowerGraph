@@ -1202,6 +1202,8 @@ void pmf_update_function(gl_dtypes::iscope &scope,
 
 void last_iter(gl_dtypes::ishared_data &sdm){
 
+  assert(myprocid == 0); //only first mpi node has to compute this, since only it has the test rmse graph
+
   //if (!tensor)
   //  sdm.trigger_sync(RMSE);
   //if (tensor)
@@ -1211,14 +1213,10 @@ void last_iter(gl_dtypes::ishared_data &sdm){
     sdm.trigger_sync(A_V_OFFSET);
   }
 
-   if (myprocid == 0){
-      double res2;
-      ASSERT_EQ(g1.num_vertices() , M+N);
-      double test_rmse = calc_rmse(&g1, true, res2, sdm);
-      printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
-
-  }
-
+  double res2;
+  ASSERT_EQ(g1.num_vertices() , M+N);
+  double test_rmse = calc_rmse(&g1, true, res2, sdm);
+  printf("Current result. TEST RMSE= %0.4f.\n", test_rmse);
 
   //rmse=0;
   //printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(sdm),  rmse, calc_rmse(&g1, true, res2, true, sdm));
@@ -1846,16 +1844,19 @@ void load_pmf_distgraph(const char* filename, graph_dtype * g, bool test, distri
   gl::ones(vdata.pvec, D, 0.1);
 
   for (int i=0; i<M; i++){
-    //gl::rand(vdata.pvec, D);%TODO
-    // g->add_vertex(vdata);
     g->add_vertex(graphlab::random::rand_int(numprocs-1), vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
   }
    
   for (int i=0; i<N; i++){
-    //gl::rand(vdata.pvec, D);
-    g->add_vertex(graphlab::random::rand_int(numprocs-1), vdata);
+    //DB: this is ugly - last node has to be on mpi node zero 
+    //since we need to compute test rmse on it
+    if (i == N-1)
+      g->add_vertex(0, vdata);
+    else
+      g->add_vertex(graphlab::random::rand_int(numprocs-1), vdata);
+   
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);
   }
