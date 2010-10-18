@@ -17,10 +17,12 @@
 
 #include <graphlab.hpp>
 #include "image.hpp"
+#include "kde.h"
 
 // include itpp
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
+
 
 #include <fstream>
 #include <cmath>
@@ -36,14 +38,16 @@ using namespace std;
 
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
-  vec message;
-  vec old_message;
+//  vec message;
+//  vec old_message;
+  kde msg;
   // vec lfeat_message;
   int update_count;
 }; // End of edge data
 
 struct vertex_data: public graphlab::unsupported_serialize {
-  vec belief;
+  kde obs;
+  //vec belief;
   size_t row, col;
 };
 
@@ -186,12 +190,12 @@ int main(int argc, char** argv) {
 */
   std::cout << "Computing estimation error" << std::endl;
   vec pred(isize[0]*isize[1]);
-  for (size_t v = 0; v < graph.num_vertices(); ++v) {
+/*  for (size_t v = 0; v < graph.num_vertices(); ++v) {
 	  const vertex_data& vdata = graph.vertex_data(v);
 	  pred(v) = testy(max_index(vdata.belief));
   }
   std::cout << "Mean absolute error: " << mean(abs(pred - truey)) << std::endl;
-
+*/
   delete [] pUud;
   delete [] pUdu;
   delete [] pUlr;
@@ -216,15 +220,15 @@ void bp_update(gl_types::iscope& scope,
   vertex_data& v_data = scope.vertex_data();
   graphlab::vertex_id_t vid = scope.vertex();
 
-  vec prod_message = prod_msg0.get_col(vid);
-  v_data.belief = belief0.get_col(vid);
+  //vec prod_message = prod_msg0.get_col(vid);
+  //v_data.belief = belief0.get_col(vid);
 
   // Get the in and out edges by reference
   graphlab::edge_list in_edges = scope.in_edge_ids();
   graphlab::edge_list out_edges = scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
-  // Flip the old and new messages to improve safety when using the
+/*  // Flip the old and new messages to improve safety when using the
   // unsynch scope
   std::map<graphlab::edge_id_t, vec> lfeat_message;
   foreach(graphlab::edge_id_t ineid, in_edges) {
@@ -244,7 +248,7 @@ void bp_update(gl_types::iscope& scope,
       lfeat_message[ineid],
       prod_message
     );
-  }
+  }*/
 
 //  std::cout << "vid: " << vid << std::endl;
 
@@ -275,79 +279,18 @@ void bp_update(gl_types::iscope& scope,
     edge_data& out_edge = scope.edge_data(outeid);
 
     // Compute cavity
-    elem_div_out(prod_message, lfeat_message[ineid], cavity);
+    //elem_div_out(prod_message, lfeat_message[ineid], cavity);
 
     vertex_data& tmp_v_data = scope.neighbor_vertex_data(scope.target(outeid));
-    // convolve cavity with the edge factor storing the result in the
-    // temporary message
-
-//    if (v_data.row == 0 && v_data.col == 0) {
-//    	std::cout << "(" << tmp_v_data.row << ", " << tmp_v_data.col << ")" << std::endl;
-//    }
-
-    if (v_data.row < tmp_v_data.row) {  // outgoing message to down;
-    	tmp_msg = pUud[v_data.row+1] * cavity;
-
-//    	if (vid == 0) {
-//    		std::cout<<"we are here plus 1"<<std::endl;
-//    		it_file f2("outfile2.it");
-//    		f2<<Name("pUud")<<pUud[v_data.row+1];
-//    		f2<<Name("cavity")<<cavity;
-//    		f2<<Name("tmp_msg")<<tmp_msg<<flush;
-//    		f2.close();
-//    		exit(0);
-//    	}
-
-    } else if (v_data.row > tmp_v_data.row) { // outgoing message to up;
-    	tmp_msg = pUdu[v_data.row-1] * cavity;
-    } else if (v_data.col < tmp_v_data.col) { // outgoing message to right;
-    	tmp_msg = pUlr[v_data.row] * cavity;
-
-//    	if (vid == 0) {
-//    		std::cout<<"we are here equal"<<std::endl;
-//    		it_file f2("outfile2.it");
-//    		f2<<Name("pUlr")<<pUlr[v_data.row];
-//    		f2<<Name("cavity")<<cavity;
-//    		f2<<Name("tmp_msg")<<tmp_msg<<flush;
-//    		f2.close();
-//    		exit(0);
-//    	}
-
-    } else { // outgoing message to left;
-    	tmp_msg = pUlr[v_data.row] * cavity;
-    }
-
-    tmp_msg /= sqrt(sum_sqr(tmp_msg));
-
-    // Damp the message
-    tmp_msg = damping * out_edge.old_message
-                     + (1-damping) * tmp_msg;
-    tmp_msg /= sqrt(sum_sqr(tmp_msg));
-
-    // Compute message residual
-    double residual = sqrt(sum_sqr(tmp_msg - out_edge.old_message));
-
-    // Assign the out message
-    out_edge.message = tmp_msg;
-
-//    if(residual > 1e-4 && out_edge.update_count < 30) {
-    if(out_edge.update_count < 10) {
-      out_edge.update_count++;
-      if (outeid == 0)
-        cout << scope.vertex() << ": " << residual << endl;
-
-      gl_types::update_task task(scope.target(outeid), bp_update);
-      scheduler.add_task(task, residual);
 //      scheduler.add_task(task, -vid);
     }
-  }
 
 } // end of BP_update
 
 void construct_graph(gl_types::graph& graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
-  vdata.belief.set_size(testno);
+  //vdata.belief.set_size(testno);
   // Add all the vertices
   for(size_t j = 0; j < (size_t) isize[1]; ++j) {
     for(size_t i = 0; i < (size_t) isize[0]; ++i) {
@@ -361,8 +304,8 @@ void construct_graph(gl_types::graph& graph) {
 
   // Add the edges
   edge_data edata;
-  edata.message = m0;
-  edata.old_message = edata.message;
+  //edata.message = m0;
+  //edata.old_message = edata.message;
   edata.update_count = 0;
 
   for(size_t j = 0; j < (size_t) isize[1]; ++j) {

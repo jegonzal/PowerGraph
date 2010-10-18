@@ -45,7 +45,6 @@ unsigned int Ndim,Ndens;   // useful constants
 unsigned long Nsamp;
 bool bwUniform;
 
-typedef itpp::Mat<unsigned int> uimat;
 
 #ifdef MEX
 //////////////////////////////////////////////////////////////////////
@@ -125,7 +124,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 		       unsigned int Nsamp,  //number of samples
                        double maxErr,  //epsilon
-                       const kde * kdes)
+                       const kde * kdes, 
+                       kde & out)
 {
   //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
   unsigned int i;//,j;
@@ -195,12 +195,13 @@ void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
   randnorm = vec2vec(&rNorm);
 
   //plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
-  itpp::mat ret = itpp::mat(Ndim, Nsamp);
+  out.centers = itpp::mat(Ndim, Nsamp); //TODO
   //samples = (double*) mxGetData(plhs[0]); TODO
+  samples = out.centers._data();
   //plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
-  uimat ret2 = uimat(Ndens, Nsamp);
- 
+  out.indices = uimat(Ndens, Nsamp);
   //indices = (BallTree::index*) mxGetData(plhs[1]); TODO
+  indices = (BallTree::index*) out.indices._data();
 
   SigValsMax = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
   SigValsMin = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
