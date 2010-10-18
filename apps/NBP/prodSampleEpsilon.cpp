@@ -12,6 +12,10 @@
 //DB: #define MEX
 //DB: #include "mex.h"
 #include "fakemex.h"
+// include itpp
+#include <itpp/itstat.h>
+#include <itpp/itbase.h>
+
 #include "cpp/BallTreeDensity.h"
 
 void multiEval(void);
@@ -38,6 +42,8 @@ double total, soFar, soFarMin; // partition f'n and accumulation
 unsigned int Ndim,Ndens;   // useful constants
 unsigned long Nsamp;
 bool bwUniform;
+
+typedef itpp::Mat<unsigned int> uimat;
 
 #ifdef MEX
 //////////////////////////////////////////////////////////////////////
@@ -114,10 +120,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //////////////////////////////////////////////////////////////////////
 // MEX WRAPPER
 //////////////////////////////////////////////////////////////////////
-void prodSampleEpsilon(unsigned int Ndens, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
+void prodSampleEpsilon(unsigned int Ndens, //dimension of density
+		       unsigned int Nsamp,  //number of samples
+                       double maxErr  //epsilon
+                       )
 {
-  mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
-  unsigned int i,j;
+  //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
+  unsigned int i;//,j;
   
  
 
@@ -133,13 +142,14 @@ void prodSampleEpsilon(unsigned int Ndens, int nlhs, mxArray *plhs[], int nrhs, 
   Ndens = mxGetN(prhs[0]); */
 
   assert(Ndens >= 1);
+  assert(Nsamp>= 1);
                               // get # of densities
 //  trees = new BallTreeDensity[Ndens];
   trees = (BallTreeDensity*) mxMalloc(Ndens*sizeof(BallTreeDensity));
   bwUniform = true;
   bool allGaussians = true;
   for (i=0;i<Ndens;i++) {                               // load densities
-    trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  
+    //trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  //DB: TODO
     if (trees[i].getType() != BallTreeDensity::Gaussian) allGaussians = false;
     bwUniform = bwUniform && trees[i].bwUniform();
   }
@@ -147,27 +157,40 @@ void prodSampleEpsilon(unsigned int Ndens, int nlhs, mxArray *plhs[], int nrhs, 
     mexErrMsgTxt("Sorry -- only Gaussian kernels supported");
 
   Ndim  = trees[0].Ndim();                      // more accessible dimension variable
-  Nsamp = (unsigned long) mxGetScalar(prhs[1]); // # of requested samples
-  maxErr= 2*mxGetScalar(prhs[2]);               // epsilon (we always use 2*epsilon)
+  //Nsamp = (unsigned long) mxGetScalar(prhs[1]); // # of requested samples
+  //maxErr= 2*mxGetScalar(prhs[2]);               // epsilon (we always use 2*epsilon)
 
   // Obtain enough random numbers for the sampling algorithm
   //
-  rsize = mxCreateDoubleMatrix(1,2,mxREAL);
-  double* rsizeP= mxGetPr(rsize); rsizeP[0] = 1; rsizeP[1] = Nsamp+1;
-  rUnif1 = mxCreateDoubleMatrix(1,Nsamp+1,mxREAL);
-  mexCallMATLAB(1, &rNorm, 1, &rsize, "rand");   randunif1 = mxGetPr(rNorm);
-  randunif1[Nsamp] = 100;
-  mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);
-  mxDestroyArray(rNorm);
-  rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
-  mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
-  rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
-  mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
+  
+  //rsize = mxCreateDoubleMatrix(1,2,mxREAL);
+  //double* rsizeP= mxGetPr(rsize); rsizeP[0] = 1; rsizeP[1] = Nsamp+1;
 
-  plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
-  samples = (double*) mxGetData(plhs[0]);
-  plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
-  indices = (BallTree::index*) mxGetData(plhs[1]);
+  //rUnif1 = mxCreateDoubleMatrix(1,Nsamp+1,mxREAL);
+
+  //mexCallMATLAB(1, &rNorm, 1, &rsize, "rand");   randunif1 = mxGetPr(rNorm);
+  //randunif1[Nsamp] = 100;//TODO
+ 
+  itpp::vec rUnif1 = itpp::randu(Nsamp+1);
+  rUnif1.set(Nsamp,100);
+  
+  //mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);//TODO
+  //mxDestroyArray(rNorm);
+  //rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
+
+  //mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
+  itpp::mat rUnif2; 
+  itpp::randn(Ndim, Nsamp, rUnif2);
+  //rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
+  //mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
+  
+  //plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
+  itpp::mat ret = itpp::mat(Ndim, Nsamp);
+  //samples = (double*) mxGetData(plhs[0]); TODO
+  //plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
+  uimat ret2 = uimat(Ndens, Nsamp);
+ 
+  //indices = (BallTree::index*) mxGetData(plhs[1]); TODO
 
   SigValsMax = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
   SigValsMin = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
@@ -183,8 +206,8 @@ void prodSampleEpsilon(unsigned int Ndens, int nlhs, mxArray *plhs[], int nrhs, 
 
   mxFree(C); mxFree(sC); mxFree(M); mxFree(SigValsMin); mxFree(SigValsMax);
 
-  mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
-  mxDestroyArray(rNorm); mxDestroyArray(rsize);
+  //mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
+  //mxDestroyArray(rNorm); mxDestroyArray(rsize);
 }
 
 #endif
@@ -375,7 +398,7 @@ void multiEvalRecursive(void) {
 
 
 void multiEval(void) {
-  unsigned int i,j,k;
+  unsigned int i,j;//,k;
 //  ind = new BallTree::index[Ndens];               // construct index array  
   ind = (BallTree::index*) mxMalloc(Ndens*sizeof(BallTree::index));    // construct index array  
   for (i=0;i<Ndens;i++) ind[i] = trees[i].root(); //  & init to root node
