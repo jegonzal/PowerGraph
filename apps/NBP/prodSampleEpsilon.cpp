@@ -150,7 +150,7 @@ void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
   bool allGaussians = true;
   for (i=0;i<Ndens;i++) {                               // load densities
     //trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  //DB: TODO
-    trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  //DB: TODO
+    trees[i] = BallTreeDensity( kdes[i] );  //DB: TODO
     if (trees[i].getType() != BallTreeDensity::Gaussian) allGaussians = false;
     bwUniform = bwUniform && trees[i].bwUniform();
   }

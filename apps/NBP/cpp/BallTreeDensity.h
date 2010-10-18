@@ -38,6 +38,9 @@ class BallTreeDensity : public BallTree {
 #ifdef MEX             // for loading ball trees from matlab
   BallTreeDensity(const mxArray* structure);
   static mxArray* createInMatlab(const mxArray* pts, const mxArray* wts, const mxArray* bw, BallTreeDensity::KernelType _type=Gaussian);
+#else
+  BallTreeDensity(const kde * pkde);
+  BallTreeDensity* createInMatlab(const mat* pts, const vec* wts, const vec* bw, BallTreeDensity::KernelType _type=Gaussian);
 #endif
 
   /////////////////////////////
