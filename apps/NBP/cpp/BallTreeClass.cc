@@ -16,6 +16,9 @@
 #include "BallTree.h"
 #include <utility>
 #include <map>
+#include <assert.h>
+
+#include "../kde.h"
 
 const char* BallTree::FIELD_NAMES[] = {"D", "N", "centers", "ranges", "weights",
             "lower", "upper", "leftch", "rightch", "perm"};
@@ -402,11 +405,12 @@ void BallTree::kNearestNeighbors(index *nns, double *dists, const double *points
 
 /////////////////////////////// matlab functions ////////////////////////////
 
-#ifdef MEX
-
 // Constructor that doesn't initialize members, so that they can be
 // set by the loadFromMatlab and createInMatlab functions.
 BallTree::BallTree() : next(1) {}
+
+
+#ifdef MEX
 
 // Load the arrays already allocated in matlab from the given
 // structure.
@@ -479,4 +483,30 @@ mxArray* BallTree::matlabMakeStruct(const mxArray* _pointsMatrix, const mxArray*
   return structure;
 }
 
+#else
+BallTree::BallTree(const kde& structure) 
+{
+  //dims       = (unsigned int) mxGetScalar(mxGetField(structure,0,"D")); // get the dimensions
+  dims = structure.centers.rows();
+  assert(dims >= 1);
+  //num_points = (BallTree::index) mxGetScalar(mxGetField(structure,0,"N")); //
+  num_points = structure.centers.cols();
+  assert(num_points >= 1); 
+ 
+  //centers = (double*) mxGetPr(mxGetField(structure,0,"centers"));
+  itpp::vec temp = structure.centers.get_row(0);
+  centers = vec2vec(&temp);
+  //ranges  = (double*) mxGetPr(mxGetField(structure,0,"ranges"));//TODO
+  //weights = (double*) mxGetPr(mxGetField(structure,0,"weights"));
+  weights = vec2vec(&structure.weights);
+
+/*
+  lowest_leaf = (BallTree::index*) mxGetData(mxGetField(structure,0,"lower"));
+  highest_leaf= (BallTree::index*) mxGetData(mxGetField(structure,0,"upper"));
+  left_child  = (BallTree::index*) mxGetData(mxGetField(structure,0,"leftch"));
+  right_child = (BallTree::index*) mxGetData(mxGetField(structure,0,"rightch"));
+  permutation = (BallTree::index*) mxGetData(mxGetField(structure,0,"perm"));
+*/   //TODO
+  next = 1;    // unimportant
+}
 #endif

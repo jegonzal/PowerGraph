@@ -7,7 +7,7 @@
 class kde{
 public:
 	itpp::mat centers;
-	itp::vec bw;
+	itpp::vec bw;
         itpp::vec weights;
 
 	kde(itpp::mat &_centers, itpp::vec &_bw, itpp::vec &_weights){

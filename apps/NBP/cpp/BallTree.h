@@ -19,6 +19,9 @@
 
 #include <math.h>
 #include <stdint.h>
+#include <itpp/itbase.h>
+#include "../kde.h"
+
 #define FALSE 0
 #define TRUE 1
 
@@ -28,6 +31,14 @@ double sqrt(double);
 double pow(double , double);
 double fabs(double);
 #define PI 3.141592653589
+
+ inline double * vec2vec(const itpp::vec * _vec){
+	double * ret = new double[_vec->size()];
+        //for (int i=0; i< _vec->size(); i++)
+        //    ret[i] = _vec->get(i);
+        memcpy(ret, _vec->_data(), _vec->size() * sizeof(double)); 
+       return ret;
+}
 
 
 class BallTree {
@@ -48,6 +59,8 @@ class BallTree {
   
   // For creating BallTree structures in matlab:
   static mxArray*  createInMatlab(const mxArray* pts, const mxArray* wts);
+#else
+  BallTree(const kde & pkde);     // for loading ball trees from matlab
 #endif
 
   /////////////////////////////

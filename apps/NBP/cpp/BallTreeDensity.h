@@ -16,6 +16,7 @@
 #include "BallTree.h"
 #include <assert.h>
 #include <float.h>
+#include "../kde.h"
 
 #ifndef NULL
 #define NULL 0
@@ -39,8 +40,8 @@ class BallTreeDensity : public BallTree {
   BallTreeDensity(const mxArray* structure);
   static mxArray* createInMatlab(const mxArray* pts, const mxArray* wts, const mxArray* bw, BallTreeDensity::KernelType _type=Gaussian);
 #else
-  BallTreeDensity(const kde * pkde);
-  BallTreeDensity* createInMatlab(const mat* pts, const vec* wts, const vec* bw, BallTreeDensity::KernelType _type=Gaussian);
+  BallTreeDensity(const kde & pkde);
+  BallTreeDensity* createInMatlab(const itpp::mat* pts, const itpp::vec* wts, const itpp::vec* bw, BallTreeDensity::KernelType _type=Gaussian);
 #endif
 
   /////////////////////////////
@@ -110,14 +111,19 @@ class BallTreeDensity : public BallTree {
       { case Gaussian:       return maxDistGauss(dRoot,atTree,aRoot);
         case Laplacian:      return maxDistLaplace(dRoot,atTree,aRoot); 
         case Epanetchnikov:  return maxDistEpanetch(dRoot,atTree,aRoot); 
+        default: assert(false);
       }
+      return -1;
     };
   double minDistKer(BallTree::index dRoot, const BallTree& atTree, BallTree::index aRoot) const {
     switch(getType()) 
       { case Gaussian:       return minDistGauss(dRoot,atTree,aRoot);
         case Laplacian:      return minDistLaplace(dRoot,atTree,aRoot); 
         case Epanetchnikov:  return minDistEpanetch(dRoot,atTree,aRoot); 
+        default: assert(false);
       }
+      return -1;
+     
     };
 
   // Types of kernels supported

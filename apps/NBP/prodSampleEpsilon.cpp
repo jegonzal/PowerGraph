@@ -15,6 +15,7 @@
 // include itpp
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
+#include "kde.h"
 
 #include "cpp/BallTreeDensity.h"
 
@@ -122,7 +123,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //////////////////////////////////////////////////////////////////////
 void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 		       unsigned int Nsamp,  //number of samples
-                       double maxErr  //epsilon
+                       double maxErr,  //epsilon
                        kde * kdes)
 {
   //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;

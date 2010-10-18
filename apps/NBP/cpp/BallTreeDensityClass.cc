@@ -16,6 +16,8 @@
 #endif
 #include "BallTreeDensity.h"
 
+
+
 double *pMin, *pMax;                // need to declare these here, for kernel 
 double **pAdd, *pErr;
 double *min, *max;                  //   derivative functions in kernel.h
@@ -535,6 +537,31 @@ mxArray* BallTreeDensity::matlabMakeStruct(const mxArray* _pointsMatrix, const m
 
   return structure;
 }
+#else
+// Load the arrays already allocated in matlab from the given
+// structure.
+BallTreeDensity::BallTreeDensity(const kde& structure) : BallTree(structure) {
+
+  //means     = mxGetPr(mxGetField(structure,0,"means"));
+  itpp::vec temp = structure.centers.get_row(0); 
+  means = vec2vec(&temp);
+
+  // bandwidth = (double*) mxGetData(mxGetField(structure,0,"bandwidth"));
+  bandwidth = vec2vec(&structure.bw);
+
+  type = Gaussian;  //DB: no support for other kernels!
+
+  //if (mxGetN(mxGetField(structure,0,"bandwidth")) == 6*num_points) {
+  if (structure.bw.size() > 1){ //TODO sort!
+    multibandwidth = 1;
+    bandwidthMax = bandwidth + 2*num_points*dims;       // not all the same =>
+    bandwidthMin = bandwidthMax + 2*num_points*dims;    //   track min/max vals
+  } else {                                              // all the same => min = max
+    multibandwidth = 0;                                 //         = any leaf node
+    bandwidthMax = bandwidthMin = bandwidth + num_points*dims;
+  }
+}
+
 #endif
 
 // returns true on success, false on failure
