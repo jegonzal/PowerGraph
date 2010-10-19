@@ -16,12 +16,12 @@
 #include <map>
 
 #include <graphlab.hpp>
-#include "image.hpp"
 #include "kde.h"
 
 // include itpp
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
+#include "../kernelbp/image_compare.hpp"
 
 
 #include <fstream>
@@ -34,7 +34,8 @@
 
 #define NSAMP 12
 #define EPSILON 1e-5
-
+int RESAMPLE_FREQUENCY = 0;
+int MAX_ITERATIONS = 6;
 
 using namespace itpp;
 using namespace std;
@@ -51,7 +52,7 @@ struct edge_data: public graphlab::unsupported_serialize {
 
 struct vertex_data: public graphlab::unsupported_serialize {
   kde obs;
-  //vec belief;
+  kde bel;
   size_t row, col;
 };
 
@@ -82,12 +83,13 @@ size_t msgdim;
 size_t basisno;
 size_t testno;
 
+int iiter = 0;
+
 double damping = 0.90;
 
 // GraphLab Update Function ===================================================>
 
 /** Construct denoising ising model based on the image */
-void construct_graph(gl_types::graph& graph);
 
 /**
  * The core belief propagation update function.  This update satisfies
@@ -98,119 +100,6 @@ void bp_update(gl_types::iscope& scope,
                gl_types::ishared_data* shared_data);
 
 
-// MAIN =======================================================================>
-int main(int argc, char** argv) {
-  std::cout << "kernel bp with denoising data" << std::endl;
-
-  // set the global logger
-  global_logger().set_log_level(LOG_WARNING);
-  global_logger().set_log_to_console(true);
-
-  std::string prefix(argv[1]);
-  std::string fname = prefix + "0.it";
-
-  std::cout << "file to load: " << fname << std::endl;
-
-  it_ifile part0(fname.c_str());
-  part0 >> Name("isize") >> isize;
-  part0 >> Name("m0") >> m0;
-  part0 >> Name("predy_k") >> predy_k;
-  part0 >> Name("predfy_k") >> predfy_k;
-  part0 >> Name("prod_msg0") >> prod_msg0;
-  part0 >> Name("belief0") >> belief0;
-  part0 >> Name("testy") >> testy;
-  part0 >> Name("truey") >> truey;
-  part0 >> Name("cfybasis") >> cfybasis;
-  part0 >> Name("ftesty") >> ftesty;
-
-  pUud = new mat[isize[0]];
-  pUdu = new mat[isize[0]];
-  pUlr = new mat[isize[0]];
-  pUrl = new mat[isize[0]];
-
-  for (size_t i = 0; i < (size_t) isize[0]; i++) {
-	  std::stringstream ss;
-	  ss << i + 1;
-	  fname = prefix + ss.str() + ".it";
-	  it_ifile part(fname.c_str());
-
-	  std::cout << "file to load: " << fname << std::endl;
-
-	  if (i > 0) part >> Name("ipUud") >> pUud[i];
-	  if (i < (size_t) (isize[0]-1)) part >> Name("ipUdu") >> pUdu[i];
-	  part >> Name("ipUlr") >> pUlr[i];
-	  part >> Name("ipUrl") >> pUrl[i];
-
-	  part.close();
-  }
-
-  msgdim = cfybasis.rows();
-  basisno = cfybasis.cols();
-  testno = ftesty.cols();
-
-  // Create the graph --------------------------------------------------------->
-  gl_types::graph graph;
-  std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-  construct_graph(graph);
-
-  // Create the engine -------------------------------------------------------->
-  gl_types::iengine* engine =
-    graphlab::engine_factory::new_engine("threaded",
-                                         "fifo",
-                                         "edge",
-                                         graph,
-                                         1);
-  if(engine == NULL) {
-    std::cout << "Unable to construct engine!" << std::endl;
-    return EXIT_FAILURE;
-  }
-
-
-  // Running the engine ------------------------------------------------------->
-
-  // Set options that may be useful to some of the schedulers
-  //size_t splash_size = 10000;
-  //engine->get_scheduler().set_option(gl_types::scheduler_options::SPLASH_SIZE,
-  //                                   (void*)&splash_size);
-  //engine->get_scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
-  //                                    (void*)bp_update);
-
-  std::cout << "Running the engine. " << std::endl;
-  graphlab::timer timer; timer.start();
-
-  // Add the bp update to all vertices
-  engine->get_scheduler().add_task_to_all(bp_update, 100);
-  // Starte the engine
-  engine->start();
-
-  double runtime = timer.current_time();
- /* size_t update_count = engine->get_profiling_info("update_count");
-  std::cout << "Finished Running engine in " << runtime
-            << " seconds." << std::endl
-            << "Total updates: " << update_count << std::endl
-            << "Efficiency: " << (double(update_count) / runtime)
-            << " updates per second "
-            << std::endl;
-*/
-  std::cout << "Computing estimation error" << std::endl;
-  vec pred(isize[0]*isize[1]);
-/*  for (size_t v = 0; v < graph.num_vertices(); ++v) {
-	  const vertex_data& vdata = graph.vertex_data(v);
-	  pred(v) = testy(max_index(vdata.belief));
-  }
-  std::cout << "Mean absolute error: " << mean(abs(pred - truey)) << std::endl;
-*/
-  delete [] pUud;
-  delete [] pUdu;
-  delete [] pUlr;
-  delete [] pUrl;
-
-  std::cout << "Done!" << std::endl;
-
-  if(engine != NULL) delete engine;
-
-  return EXIT_SUCCESS;
-} // End of main
 
 // Implementations
 // ============================================================>
@@ -218,12 +107,22 @@ void bp_update(gl_types::iscope& scope,
                gl_types::icallback& scheduler,
                gl_types::ishared_data* shared_data) {
 
+
+  bool debug = true;
+
   // Grab the state from the scope
   // ---------------------------------------------------------------->
   // Get the vertex data
   vertex_data& v_data = scope.vertex_data();
   graphlab::vertex_id_t vid = scope.vertex();
+  if (debug && vid == 0){
+     std::cout<<"Entering node " << (int)vid << " obs: ";
+     v_data.obs.matlab_print();
+     std::cout << std::endl;
+  }
 
+  if ((int)vid == 0)
+      iiter++;
   //vec prod_message = prod_msg0.get_col(vid);
   //v_data.belief = belief0.get_col(vid);
 
@@ -232,46 +131,10 @@ void bp_update(gl_types::iscope& scope,
   graphlab::edge_list out_edges = scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
-/*  // Flip the old and new messages to improve safety when using the
-  // unsynch scope
-  std::map<graphlab::edge_id_t, vec> lfeat_message;
-  foreach(graphlab::edge_id_t ineid, in_edges) {
-    // Get the in and out edge data
-    edge_data& e_data = scope.edge_data(ineid);
-    // Since we are about to receive the current message make it the
-    // old message
-    e_data.old_message = e_data.message;
-    lfeat_message[ineid] = cfybasis.transpose() * e_data.old_message;
-
-    elem_mult_inplace(
-      ftesty.transpose() * e_data.old_message,
-      v_data.belief
-    );
-
-    elem_mult_inplace(
-      lfeat_message[ineid],
-      prod_message
-    );
-  }*/
-
-//  std::cout << "vid: " << vid << std::endl;
-
-//  if (vid == 0) {
-//    it_file f2("outfile2.it");
-//    f2<<Name("vdata_belief")<<v_data.belief;
-//    f2<<Name("prod_message")<<prod_message<<flush;
-//    exit(0);
-//  }
-
-
-//  if (v_data.row == 0 && v_data.col == 0) {
-//	  std::cout << "in edge size: " << in_edges.size() << std::endl;
-//  }
 
   for (size_t j = 0; j < in_edges.size(); ++j){
    
      std::vector<kde> kdes;
-     kdes.push_back(v_data.obs);
      for(size_t i = 0; i < in_edges.size(); ++i) {
     
      // Get the edge ids
@@ -283,13 +146,10 @@ void bp_update(gl_types::iscope& scope,
          in_edge.msg.verify();
          kdes.push_back(in_edge.msg);
       }
-     // Compute cavity
-      //elem_div_out(prod_message, lfeat_message[ineid], cavity);
-
-       //vertex_data& tmp_v_data = scope.neighbor_vertex_data(scope.target(outeid));
-//      scheduler.add_task(task, -vid);
     }
 
+     kdes.push_back(v_data.obs);
+     
       graphlab::edge_id_t outeid = out_edges[j];
       edge_data& out_edge = scope.edge_data(outeid);
       kde marg = out_edge.edge_pot.marginal(1);  
@@ -300,6 +160,7 @@ void bp_update(gl_types::iscope& scope,
                                      EPSILON, 
                                      kdes);
      
+      m.verify();
       kde mar2 = out_edge.edge_pot.marginal(2);
       mar2.verify();
       kde outmsg = mar2.sample(m.indices,m.weights);
@@ -308,50 +169,293 @@ void bp_update(gl_types::iscope& scope,
 
     }
 
+
+   //compute belief
+   if (iiter == MAX_ITERATIONS - 1){
+	if (debug && vid == 0)
+	   printf("computing belief node %d\n", vid);
+
+      std::vector<kde> kdes;
+    
+
+      for (size_t j = 0; j < in_edges.size(); ++j){
+    
+         // Get the edge ids
+        graphlab::edge_id_t ineid = in_edges[j];
+      
+        edge_data& in_edge = scope.edge_data(ineid);
+        in_edge.msg.verify();
+        kdes.push_back(in_edge.msg);
+      }
+
+      kdes.push_back(v_data.obs);
+      kde m = prodSampleEpsilon(kdes.size(), 
+                                     NSAMP, 
+                                     EPSILON, 
+                                     kdes);
+     
+      m.verify();
+      v_data.bel = m;
+      if (debug && vid == 0){
+	   printf("computing belief node %d\n", vid);
+           m.matlab_print(); printf("\n");
+      }
+
+
+   }
+
 } // end of BP_update
 
-void construct_graph(gl_types::graph& graph) {
-  // Construct a single blob for the vertex data
-  vertex_data vdata;
-  //vdata.belief.set_size(testno);
-  // Add all the vertices
-  for(size_t j = 0; j < (size_t) isize[1]; ++j) {
-    for(size_t i = 0; i < (size_t) isize[0]; ++i) {
-    	size_t tmpvertid = j*isize[0] + i;
-    	vdata.row = i;
-    	vdata.col = j;
-        size_t vertid = graph.add_vertex(vdata);
-        assert(vertid == tmpvertid);
-    }
-  }
 
-  // Add the edges
-  edge_data edata;
-  //edata.message = m0;
-  //edata.old_message = edata.message;
-  edata.update_count = 0;
 
-  for(size_t j = 0; j < (size_t) isize[1]; ++j) {
-    for(size_t i = 0; i < (size_t) isize[0]; ++i) {
-      size_t vertid = j*isize[0] + i;
-      if(i-1 < (size_t)isize[0]) {
-        graph.add_edge(vertid, j*isize[0] + (i-1), edata);
+void construct_graph(std::string gmmfile,
+                    double numparticles,
+                     gl_types::graph& graph,
+                     size_t rows,
+                     size_t cols) {
+
+  image img(rows, cols);
+  // initialize a bunch of particles
+  for(size_t i = 0; i < rows; ++i) {
+    
+    it_ifile gmms((gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it").c_str());
+    
+    mat nodecenter, nodesigma, nodeweight;
+    vec doublevec;
+    gmms >> Name("like_ce") >> doublevec; nodecenter = doublevec;
+    gmms >> Name("like_alpha") >> nodeweight;
+    gmms >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
+    
+    ASSERT_EQ(nodeweight.rows(), cols);
+    
+    for(size_t j = 0; j < cols; ++j) {
+      vertex_data vdat;
+      //vdat.rounds = 0;
+
+      // Set the node potential
+      itpp::vec weights = nodeweight.get_row(j);
+      vdat.obs = kde(nodecenter, nodesigma, weights);
+      //vdat.p.simplify();
+      /*for (size_t n = 0;n < numparticles; ++n) {
+        particle p;
+        p.x = vdat.p.sample();
+        p.weight = 1.0/numparticles;
+        vdat.belief.push_back(p);
       }
-      if(i+1 < (size_t)isize[0]) {
-        graph.add_edge(vertid, j*isize[0] + (i+1), edata);
-      }
-      if(j-1 < (size_t)isize[1]) {
-        graph.add_edge(vertid, (j-1)*isize[0] + i, edata);
-      } if(j+1 < (size_t)isize[1]) {
-        graph.add_edge(vertid, (j+1)*isize[0] + i, edata);
-      }
+
+      if(i == 0 && j == 0) {
+        std::cout << "vertex 0 particles: ";
+        for (size_t i = 0;i < vdat.belief.size(); ++i) {
+          std::cout  << vdat.belief[i].x << " ";
+        }
+        std::cout << "\n";
+      }*/
+      graph.add_vertex(vdat);
+
     } // end of for j in cols
   } // end of for i in rows
 
-  graph.finalize();
 
+
+  // Add the edges
+  
+  edge_data edata;
+
+  //GaussianMixture<2> lrpot;
+  //GaussianMixture<2> udpot;
+  //GaussianMixture<2> lastudpot;
+  kde lrpot, udpot, lastudpot;
+  //
+  for(size_t i = 0; i < rows; ++i) {
+    
+    it_ifile gmms(gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it");
+    
+    mat lrcenter, lrsigma, lrweight;
+    vec doublevec;
+    gmms >> Name("lr_edge_ce") >> lrcenter;
+    gmms >> Name("lr_edge_alpha") >> doublevec; lrweight = doublevec;
+    gmms >> Name("lr_edge_sigma") >> doublevec; lrsigma = doublevec;
+
+    mat udcenter, udsigma, udweight;
+    gmms >> Name("ud_edge_ce") >> udcenter;
+    gmms >> Name("ud_edge_alpha") >> doublevec; udweight = doublevec;
+    gmms >> Name("ud_edge_sigma") >> doublevec; udsigma = doublevec;
+    lastudpot = udpot;
+    //lrpot = GaussianMixture<2>(lrcenter, lrsigma, lrweight);
+    lrpot = kde(lrcenter, lrsigma, lrweight);
+    //udpot = GaussianMixture<2>(udcenter, udsigma, udweight);
+    udpot = kde(udcenter, udsigma, udweight);   
+
+       for(size_t j = 0; j < cols; ++j) {
+
+      size_t vertid = img.vertid(i,j);
+      if(i-1 < img.rows()) {
+        //edata.message = graph.vertex_data(img.vertid(i-1, j)).belief;
+        edata.edge_pot = lastudpot;
+        graph.add_edge(vertid, img.vertid(i-1, j), edata);
+      }
+      if(i+1 < img.rows()) {
+        //edata.message = graph.vertex_data(img.vertid(i+1, j)).belief;
+        edata.edge_pot = udpot;
+        graph.add_edge(vertid, img.vertid(i+1, j), edata);
+      }
+      if(j-1 < img.cols()) {
+        //edata.message = graph.vertex_data(img.vertid(i, j-1)).belief;
+        edata.edge_pot = lrpot;
+        graph.add_edge(vertid, img.vertid(i, j-1), edata);
+      }
+      if(j+1 < img.cols()) {
+        //edata.message = graph.vertex_data(img.vertid(i, j+1)).belief;
+        edata.edge_pot = lrpot;
+        graph.add_edge(vertid, img.vertid(i, j+1), edata);
+      }
+    } // end of for j in cols
+  } // end of for i in rows
+  graph.finalize();
 } // End of construct graph
 
 
 
-#include <graphlab/macros_undef.hpp>
+void test(){
+  test_marginal();
+  test_max();
+  test_sample();
+  test_sample2();
+  test_product();
+  exit(0);
+}
+
+
+// MAIN =======================================================================>
+int main(int argc, char** argv) {
+  // set the global logger
+  global_logger().set_log_level(LOG_WARNING);
+  global_logger().set_log_to_console(true);
+
+  test();
+
+  size_t iterations = 100;
+  size_t numparticles = 100;
+  std::string pred_type = "map";
+
+  std::string gmmfile= "";
+  std::string kbpfile = "";
+  std::string logfile = "";
+
+  // Parse command line arguments --------------------------------------------->
+  graphlab::command_line_options clopts("Loopy BP image denoising");
+  clopts.attach_option("iterations",
+                       &iterations, iterations,
+                       "Number of iterations");
+  clopts.attach_option("particles",
+                       &numparticles, numparticles,
+                       "Number of particlesw");
+  clopts.attach_option("gmmfile",
+                       &gmmfile, std::string(""),
+                       "gmm mixture file");
+  clopts.attach_option("kbpfile",
+                       &kbpfile, std::string(""),
+                       "kbpfile");
+  clopts.attach_option("damping",
+                       &damping, damping,
+                       "damping");
+  clopts.attach_option("resample",
+                       &RESAMPLE_FREQUENCY, NSAMP,
+                       "resampling frequency");
+  //clopts.attach_option("mcmc",
+  //                     &MCMCSTEPS, MCMCSTEPS,
+  //                     "mcmc steps per resample");
+  clopts.attach_option("logfile",
+                       &logfile, std::string(""),
+                       "log file");
+
+  // set default scheduler type
+  clopts.scheduler_type = "round_robin";
+  //clopts.scope_type = "edge";
+
+  bool success = clopts.parse(argc, argv);
+  if(!success) {
+    return EXIT_FAILURE;
+  }
+
+  // fill the global vars
+  MAX_ITERATIONS = iterations;
+
+  // load ground truth
+  vec testy;
+  vec truey;
+  it_ifile kbppart0((kbpfile+"_part"+boost::lexical_cast<std::string>(0)+".it").c_str());
+  kbppart0 >> Name("testy") >> testy;
+  kbppart0 >> Name("truey") >> truey;
+
+  gl_types::core core;
+  // Set the engine options
+  core.set_engine_options(clopts);
+  
+  std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
+  construct_graph(gmmfile, numparticles, core.graph(),107,86);
+  
+
+
+  // Running the engine ------------------------------------------------------->
+  core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
+                              (void*)bp_update);
+
+  std::cout << "Running the engine. " << std::endl;
+
+
+  // Add the bp update to all vertices
+  core.add_task_to_all(bp_update, 100.0);
+  // Starte the engine
+  double runtime = core.start();
+
+  size_t update_count = core.last_update_count();
+  std::cout << "Finished Running engine in " << runtime
+            << " seconds." << std::endl
+            << "Total updates: " << update_count << std::endl
+            << "Efficiency: " << (double(update_count) / runtime)
+            << " updates per second "
+            << std::endl;
+
+
+  // Saving the output -------------------------------------------------------->
+  std::cout << "Rendering the cleaned image. " << std::endl;
+
+  vec pred(107*86);
+  image img(107, 86);
+  image trueimg(107, 86);
+  image transposedimg(86, 107);
+  for (size_t v = 0; v < core.graph().num_vertices(); ++v) {
+    const vertex_data& vdata = core.graph().vertex_data(v);
+    // ok... this is unbelievably annoying but my traversal order is opposite
+    // of the data's traversal order
+    // real physical location
+    std::pair<size_t, size_t> loc = img.loc(v);
+    // index in transposed image
+    size_t v2 = transposedimg.vertid(loc.second, loc.first);
+    pred(v2) = vdata.bel.max();
+    img.pixel(v) = pred(v2);
+    trueimg.pixel(v) = truey(v2);
+  }
+  img.save("pred.pgm", false, 0, 2);
+  trueimg.save("true.pgm", false, 0, 2);
+  double mae = mean(abs(pred - truey));
+  std::cout << "Mean absolute error: " << mae << std::endl;
+  
+  if (logfile.length() != 0) {
+    ofstream fout;
+    fout.open(logfile.c_str(), ios::app);
+    gmmfile = gmmfile.rfind("/") == std::string::npos ?
+                                       gmmfile:
+                                       gmmfile.substr(gmmfile.rfind("/")+1);
+    
+    fout << "pbp\t" << gmmfile << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << mae << "\t"
+    << runtime << std::endl;
+    fout.close();
+  }
+
+  std::cout << "Done!" << std::endl;
+
+  return EXIT_SUCCESS;
+} // End of main
+

@@ -497,6 +497,8 @@ BallTree::BallTree(const kde& structure)
   itpp::vec temp = structure.centers.get_row(0);
   centers = vec2vec(&temp);
   //ranges  = (double*) mxGetPr(mxGetField(structure,0,"ranges"));//TODO
+
+  ranges = new double[dims*num_points];
   //weights = (double*) mxGetPr(mxGetField(structure,0,"weights"));
   weights = vec2vec(&structure.weights);
 
@@ -508,5 +510,7 @@ BallTree::BallTree(const kde& structure)
   permutation = (BallTree::index*) mxGetData(mxGetField(structure,0,"perm"));
 */   //TODO
   next = 1;    // unimportant
+
+  buildTree();
 }
 #endif
