@@ -321,6 +321,7 @@ void test(){
   test_max();
   test_sample();
   test_sample2();
+  test_ROT();
   test_product();
   exit(0);
 }

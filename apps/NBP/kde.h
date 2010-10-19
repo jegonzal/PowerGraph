@@ -16,7 +16,6 @@ inline double square(const double v) {
 inline double log_likelihood(double u, double sigma, double x){
   return log(1.0/sigma) - square(x - u) / (2 * sigma * sigma);
 }
- 
 
 class kde{
 public:
@@ -155,6 +154,8 @@ public:
           std::cout<<"]";
       }
 
+
+
       void matlab_print(){
           std::cout<<"kde("; 
           matlab_print(centers);
@@ -165,6 +166,52 @@ public:
           std::cout << "]);" << std::endl;
       }
       
+/*function h = ksizeROT(npd,noIQR)
+% "Rule of Thumb" estimate (Silverman)
+%    Estimate is based on assumptions of Gaussian data and kernel
+%    Actually the multivariate version in Scott ('92) 
+%  Use ksizeROT(X,1) to force use of stddev. instead of min(std,C*iqr)
+%       (iqr = interquartile range, C*iqr = robust stddev estimate)
+%
+
+% Copyright (C) 2003 Alexander Ihler; distributable under GPL -- see README.txt
+
+  X = getPoints(npd);
+  N = size(X,2);  dim = size(X,1);
+  if (nargin<2) noIQR=0; end;
+
+  Rg = .282095; Mg=1;                     % See ksizeCalcUseful for derivation
+  Re = .6;      Me = .199994;             %   this is the canonical kernel adjustment
+  Rl = .25;     Ml = 1.994473;            %   for product kernels of these types
+  switch(npd.type),
+      case 0, prop = 1.0;                 % Approximate; 1D prop = 1.059224; % Gaussian
+      case 1, prop = ((Re/Rg)^dim / (Me/Mg)^2 )^(1/(dim+4)); % 1D prop = 2.344944; % Epanetchnikov
+      case 2, prop = ((Rl/Rg)^dim / (Ml/Mg)^2 )^(1/(dim+4)); % 1D prop = 0.784452; % Laplacian
+  end;
+  
+  sig = std(X,0,2);            % estimate sigma (standard)
+  if (noIQR)
+    h = prop*sig*N^(-1/(4+dim));
+  else  
+    iqrSig = .7413*iqr(X')';     % find interquartile range sigma est.
+    if (max(iqrSig)==0) iqrSig=sig; end;
+    h = prop * min(sig,iqrSig) * N^(-1/(4+dim));
+  end;
+
+%
+*/
+
+        void ROT(){
+            assert(getDim() == 1);
+            assert(getPoints() > 1); //no meaning to compute variance over one point
+            double prop = 1.0;
+            double sig = sqrt(itpp::variance(centers.get_row(0)));
+            assert(!isnan(sig));
+            assert(sig > 0);
+            double h = prop*sig*powf(getPoints(),(-1.0/(4.0+getDim())));
+            bw = itpp::ones(1,getPoints()) * h; 
+        }
+
   };
 
 kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
@@ -204,49 +251,66 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
           kde k = kde(mcenters, mbw, weights);
           k.matlab_print();
           std::cout<<k.max()<<std::endl;
+          assert(k.max() == 3);
 	  for (int i=0; i< mcenters.cols(); i++)
           	std::cout<<"i:"<<i<<" "<< k.likelihood(mcenters(i))<<std::endl;
+          kde k1 = kde("3 3 2", "3 3 2", "1 1 1");
+          assert(k1.max() == 2);
+          kde k2 = kde("3 3 2", " 1 1 2", "1 1 1");
+          assert(k2.max() == 3);
         }
 
         inline void test_sample(){
           printf("testing sample..\n");
-           itpp::mat cent = "1"; itpp::mat bw= "1"; itpp::mat weight = "1";
+           itpp::mat cent = "0"; itpp::mat bw= "1"; itpp::mat weight = "1";
            kde k(cent, bw, weight);
+           k.matlab_print();
            double sum = 0;
            itpp::mat ind = "0";
            itpp::vec vweight = "1";
-           for (int i=0; i< 1000; i++){
+           for (int i=0; i< 10000; i++){
               kde out = k.sample(ind, vweight);
               sum += out.centers(0);
            }
-           std::cout<<" mean is: " << sum << std::endl;
+           std::cout<<" mean is: " << sum/10000 << " should be: 0 "<< std::endl;
 
         }
        inline void test_sample2(){
           printf("testing sample2..\n");
            itpp::mat cent = "1 2 3 1 -1 2"; itpp::mat bw= "1 0.5 0.1 0.01 3 2"; itpp::mat weight = "0.5 0.2 0.1 0.1 0.1 0.1";
            kde k(cent, bw, weight);
+           k.matlab_print();
            double sum = 0;
            itpp::mat ind =     "0 1 3 2 3 2 3 3 2 1 4 5";
            itpp::vec vweight = ".5 .5 .2 .1 .2 .1 .2 .1 .1 .05 .05";
-           for (int i=0; i< 1000; i++){
+           for (int i=0; i< 10000; i++){
               kde out = k.sample(ind, vweight);
               sum += itpp::sum(itpp::sum(out.centers));
            }
-           std::cout<<" mean is: " << sum/(11*1000) << std::endl;
+           std::cout<<" mean is: " << sum/(11*01000) << std::endl;
 
         }
+
+        inline void test_ROT(){
+          printf("testing ROT..\n");
+          kde k1 = kde("3 3 2", "3 3 2", "1 1 1");
+          k1.matlab_print();
+          k1.ROT();
+          k1.matlab_print();
+          assert(square(k1.bw(0) - 0.4635)<1e-8);
+        }
+
  
         inline void test_product(){
           printf("testing product..\n");
-	   kde k = kde("3", "1", "1");
+	   kde k = kde("3 1", "1 1", "1 2");
 	   kde j = kde("2", ".5", "1");
            std::vector<kde> vecs;
            vecs.push_back(k);
            vecs.push_back(j);
-           kde out = prodSampleEpsilon(2,1,1e-5,vecs);
-           out.verify();
+           kde out = prodSampleEpsilon(2,48,1e-5,vecs);
            out.matlab_print();
+           out.verify();
          }
 
 

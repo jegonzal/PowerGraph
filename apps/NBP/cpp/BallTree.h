@@ -57,7 +57,18 @@ class BallTree {
   
   //BallTree( unsigned int d, index N, double* centers_,
   //     double* ranges_, double* weights_ );
-  BallTree();
+  BallTree(){
+    lowest_leaf = NULL;
+    highest_leaf = NULL;
+    left_child = NULL;
+    right_child = NULL;
+    permutation = NULL;
+    ranges = NULL;
+    centers = NULL;
+    weights = NULL;
+    dims = 0; num_points = 0; next = 1;
+  }
+  virtual ~BallTree();
 #ifdef MEX
   BallTree(const mxArray* structure);     // for loading ball trees from matlab
   
@@ -109,11 +120,11 @@ class BallTree {
   unsigned int dims;             // dimension of data 
   BallTree::index num_points;     // # of points 
   double *centers;                // ball centers, dims numbers per ball 
-  double *ranges;                 // bounding box ranges, dims per ball, dist from center to one side
+  double *ranges ;                 // bounding box ranges, dims per ball, dist from center to one side
   double *weights;                // total weight in each ball 
   
-  BallTree::index *left_child,  *right_child;  // left, right children; no parent indices
-  BallTree::index *lowest_leaf, *highest_leaf; // lower & upper leaf indices for each ball
+  BallTree::index *left_child ,  *right_child ;  // left, right children; no parent indices
+  BallTree::index *lowest_leaf , *highest_leaf; // lower & upper leaf indices for each ball
   BallTree::index *permutation;                // point's position in the original data
 
   BallTree::index next;                        // internal var for placing the non-leaf nodes 
