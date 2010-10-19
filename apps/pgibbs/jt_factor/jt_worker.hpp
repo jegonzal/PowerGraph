@@ -10,6 +10,7 @@
 #include <deque>
 #include <string>
 #include <cassert>
+#include <algorithm>
 
 
 
@@ -58,15 +59,21 @@ private:
   bool use_priorities;
 
 
+
   const factorized_model::factor_map_t* factors_ptr;
 
   // Tree building data structures 
+  size_t root_index;
+  const std::vector<vertex_id_t>* roots;
   vertex_id_t current_root;
+
   std::map<vertex_id_t, vertex_id_t> elim_time_map;
   clique_vector cliques;
   std::deque<vertex_id_t> bfs_queue;
   graphlab::mutable_queue<vertex_id_t, double> priority_queue;
   std::set<vertex_id_t> visited;
+
+  
 
 
   // Local junction tree graphlab core
@@ -93,6 +100,7 @@ public:
   void init(size_t wid,
             scope_factory_type& sf, 
             const factorized_model::factor_map_t& factors,
+            const std::vector<vertex_id_t>& root_perm, 
             size_t ncpus,
             float finish_time_secs,
             size_t treesize,
@@ -115,7 +123,8 @@ public:
     use_priorities = priorities;
     finish_time_seconds = finish_time_secs;
 
-
+    roots = &root_perm;    
+    root_index = root_perm.size();
     current_root = worker_id;
 
     // Initialize local jtcore
@@ -144,6 +153,16 @@ public:
   size_t num_samples() const { return total_samples; }
   size_t num_collisions() const { return collisions; }
 
+  
+  void move_to_next_root() {
+    // current_root = 
+    //   graphlab::random::rand_int(scope_factory->num_vertices() - 1);
+    root_index += worker_count;
+    if(root_index >= roots->size()) root_index = worker_id;
+    current_root = roots->at(root_index);
+  }
+
+
   // get a root
   void run() {
     
@@ -158,8 +177,7 @@ public:
       size_t sampled_variables = 0;
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-        current_root = 
-          graphlab::random::rand_int(scope_factory->num_vertices() - 1);
+        move_to_next_root();
         sampled_variables = sample_once();
         if(sampled_variables == 0) collisions++;
       }
@@ -276,6 +294,7 @@ public:
         conditional_factor.condition(factor, conditional_asg);        
         // Multiply the conditional factor in
         clique_factor *= conditional_factor;
+        //        clique_factor.normalize();
       } else {
         clique_factor *= factor;
       }
@@ -303,7 +322,8 @@ public:
     double residual = conditional_factor.log_residual(marginal_factor);
     assert( residual >= 0);
     assert( !std::isnan(residual) );
-    assert( std::isfinite(residual) );
+   
+    // assert( std::isfinite(residual) );
 
     // std::cout << residual << "  ";
     return residual;
@@ -505,19 +525,19 @@ public:
     
 
 
-    //     ///////////////////////////////////
-    //     // plot the graph
-    //     if(worker_id == 0) {
-    //       std::cout << "Saving treeImage:" << std::endl;
-    //       size_t rows = std::sqrt(mrf.num_vertices());
-    //       image img(rows, rows);
-    //       for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-    //         vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-    //         img.pixel(vid) = 
-    //             tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-    //       }
-    //       img.save(make_filename("tree", ".pgm", tree_count).c_str());
-    //     }
+        ///////////////////////////////////
+        // plot the graph
+        if(worker_id == 0) {
+          std::cout << "Saving treeImage:" << std::endl;
+          size_t rows = std::sqrt(mrf.num_vertices());
+          image img(rows, rows);
+          for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+            vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+            img.pixel(vid) = 
+                tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+          }
+          img.save(make_filename("tree", ".pgm", tree_count).c_str());
+        }
 
 
 
@@ -589,11 +609,19 @@ void parallel_sample(const factorized_model& fmodel,
   float finish_time_secs = 
     graphlab::lowres_time_seconds() + runtime_secs;
 
+
+  std::vector< vertex_id_t >  roots(mrf.num_vertices());
+  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
+    roots[vid] = vid;
+  std::random_shuffle(roots.begin(), roots.end());
+  
+
   for(size_t i = 0; i < ncpus; ++i) {
     // Initialize the worker
     workers[i].init(i, 
                     scope_factory, 
                     fmodel.factors(),
+                    roots,
                     ncpus,
                     finish_time_secs,
                     max_tree_size,

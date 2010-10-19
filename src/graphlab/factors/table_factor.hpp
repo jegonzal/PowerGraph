@@ -780,7 +780,7 @@ namespace graphlab {
       for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
         logP(asg.linear_index()) =
           log( exp(logP(asg.linear_index())) + exp(other.logP(asg)) );
-        assert(logP(asg.linear_index()) <= LOG_MAX_DOUBLE);
+        //        assert(logP(asg.linear_index()) <= LOG_MAX_DOUBLE);
         //  assert( !std::isinf( logP(asg.linear_index()) ) );
         //  assert( !std::isnan( logP(asg.linear_index()) ) );
       }
@@ -793,7 +793,10 @@ namespace graphlab {
     inline table_factor& operator*=(const table_factor& other) {
       for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
         logP(asg.linear_index()) += other.logP(asg);
-        assert(logP(asg.linear_index()) <= LOG_MAX_DOUBLE);
+        // if(std::isinf( logP(asg.linear_index()) ) ||
+        //    std::isnan( logP(asg.linear_index()) ) ) {
+        //   logP(asg.linear_index()) = -MAX_DOUBLE;
+        // } 
         assert( !std::isinf( logP(asg.linear_index()) ) );
         assert( !std::isnan( logP(asg.linear_index()) ) );
       }
