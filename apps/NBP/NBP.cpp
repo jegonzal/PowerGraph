@@ -32,6 +32,9 @@
 
 #include <graphlab/macros_def.hpp>
 
+#define NSAMP 12
+#define EPSILON 1e-5
+
 
 using namespace itpp;
 using namespace std;
@@ -41,6 +44,7 @@ struct edge_data: public graphlab::unsupported_serialize {
 //  vec message;
 //  vec old_message;
   kde msg;
+  kde edge_pot;
   // vec lfeat_message;
   int update_count;
 }; // End of edge data
@@ -259,30 +263,49 @@ void bp_update(gl_types::iscope& scope,
 //    exit(0);
 //  }
 
-  vec cavity;
-  cavity.set_size(basisno);
-  vec tmp_msg;
-  tmp_msg.set_size(msgdim);
 
 //  if (v_data.row == 0 && v_data.col == 0) {
 //	  std::cout << "in edge size: " << in_edges.size() << std::endl;
 //  }
 
-  for(size_t i = 0; i < in_edges.size(); ++i) {
-    // Get the edge ids
-    graphlab::edge_id_t outeid = out_edges[i];
-    graphlab::edge_id_t ineid = in_edges[i];
-    // CLEVER HACK: Here we are expoiting the sorting of the edge ids
-    // to do fast O(1) time edge reversal
-    assert(scope.target(outeid) == scope.source(ineid));
+  for (size_t j = 0; j < in_edges.size(); ++j){
+   
+     std::vector<kde> kdes;
+     kdes.push_back(v_data.obs);
+     for(size_t i = 0; i < in_edges.size(); ++i) {
+    
+     // Get the edge ids
+      graphlab::edge_id_t ineid = in_edges[i];
+      
     // const edge_data& in_edge = scope.edge_data(ineid);
-    edge_data& out_edge = scope.edge_data(outeid);
+      edge_data& in_edge = scope.edge_data(ineid);
+      if (i != j){
+         in_edge.msg.verify();
+         kdes.push_back(in_edge.msg);
+      }
+     // Compute cavity
+      //elem_div_out(prod_message, lfeat_message[ineid], cavity);
 
-    // Compute cavity
-    //elem_div_out(prod_message, lfeat_message[ineid], cavity);
-
-    vertex_data& tmp_v_data = scope.neighbor_vertex_data(scope.target(outeid));
+       //vertex_data& tmp_v_data = scope.neighbor_vertex_data(scope.target(outeid));
 //      scheduler.add_task(task, -vid);
+    }
+
+      graphlab::edge_id_t outeid = out_edges[j];
+      edge_data& out_edge = scope.edge_data(outeid);
+      kde marg = out_edge.edge_pot.marginal(1);  
+      kdes.push_back(marg);      
+ 
+      kde m = prodSampleEpsilon(kdes.size(), 
+                                     NSAMP, 
+                                     EPSILON, 
+                                     kdes);
+     
+      kde mar2 = out_edge.edge_pot.marginal(2);
+      mar2.verify();
+      kde outmsg = mar2.sample(m.indices,m.weights);
+      outmsg.verify(); 
+      out_edge.msg = outmsg;
+
     }
 
 } // end of BP_update

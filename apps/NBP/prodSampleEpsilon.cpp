@@ -121,11 +121,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //////////////////////////////////////////////////////////////////////
 // MEX WRAPPER
 //////////////////////////////////////////////////////////////////////
-void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
+kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 		       unsigned int Nsamp,  //number of samples
                        double maxErr,  //epsilon
-                       const kde * kdes, 
-                       kde & out)
+                       std::vector<kde>& kdes)
 {
   //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
   unsigned int i;//,j;
@@ -195,11 +194,12 @@ void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
   randnorm = vec2vec(&rNorm);
 
   //plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
+  kde out;
   out.centers = itpp::mat(Ndim, Nsamp); //TODO
   //samples = (double*) mxGetData(plhs[0]); TODO
   samples = out.centers._data();
   //plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
-  out.indices = uimat(Ndens, Nsamp);
+  out.indices = itpp::zeros(Ndens, Nsamp);
   //indices = (BallTree::index*) mxGetData(plhs[1]); TODO
   indices = (BallTree::index*) out.indices._data();
 
@@ -219,6 +219,8 @@ void prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 
   //mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
   //mxDestroyArray(rNorm); mxDestroyArray(rsize);
+  out.verify();
+  return out;
 }
 
 #endif
