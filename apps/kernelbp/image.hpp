@@ -62,7 +62,7 @@ public:
 
   
   /** A function to save the image to a file in pgm format */
-  inline void save(const char* filename) const;
+  inline void save(const char* filename, bool autorescale = true, double min=0, double max=255) const;
 
   inline void save_vec(const char* filename) const {
     std::ofstream os(filename);
@@ -142,7 +142,7 @@ inline std::pair<size_t, size_t> image::loc(size_t vertexid) const {
 }
 
 
-inline void image::save(const char* filename) const {
+inline void image::save(const char* filename, bool autorescale, double min_, double max_) const {
   assert(_rows > 0 && _cols > 0);
   std::ofstream os(filename);
   os << "P2" << std::endl
@@ -150,17 +150,24 @@ inline void image::save(const char* filename) const {
      << 255 << std::endl;
   // Compute min and max pixel intensities
   double min = data[0]; double max = data[0];
-  for(size_t i = 0; i < _rows * _cols; ++i) {
-    min = std::min(min, data[i]);
-    max = std::max(max, data[i]);
+  if (autorescale) {
+    for(size_t i = 0; i < _rows * _cols; ++i) {
+      min = std::min(min, data[i]);
+      max = std::max(max, data[i]);
+    }
   }
-
+  else {
+    min = min_;
+    max = max_;
+  }
   // Save the image (rescaled)
   for(size_t r = 0; r < _rows; ++r) {
     for(size_t c = 0; c < _cols; c++) {
       if(min != max) {
         int color = 
           static_cast<int>(255.0 * (pixel(r,c) - min)/(max-min));
+        if (color < 0) color = 0;
+        if (color > 255) color = 255;
         os << color;
       } else { os << min; }
       if(c != _cols-1) os << "\t";

@@ -35,19 +35,20 @@ double image_compare(image &trueimg, image &infered) {
     for (size_t i = 0; i < 256; ++i) std::cout << colormap[i] << " ";
     std::cout << std::endl;
     // round the infered image
-    for (size_t i = 0; i < infered.rows(); ++i) {
+   /* for (size_t i = 0; i < infered.rows(); ++i) {
       for (size_t j = 0; j < infered.cols(); ++j) {
         if (infered.pixel(i,j) >= 255) infered.pixel(i,j) = 255;
         if (infered.pixel(i,j) < 0) infered.pixel(i,j) = 0;
         infered.pixel(i,j) = colormap[(size_t)(infered.pixel(i,j) + 0.5)];
       }
-    }
+    }*/
     
     // compute absolute difference
     double err = 0;
     for (size_t i = 0; i < infered.rows(); ++i) {
       for (size_t j = 0; j < infered.cols(); ++j) {
-        err  += fabs(infered.pixel(i,j) - trueimg.pixel(i,j));
+        err  += (infered.pixel(i,j) - trueimg.pixel(i,j)) * (infered.pixel(i,j) - trueimg.pixel(i,j)) ;
+//        err += fabs(infered.pixel(i,j) - trueimg.pixel(i,j));
       }
     }
     err  /= (infered.rows() * infered.cols());
