@@ -45,13 +45,12 @@ size_t MAX_ITERATIONS;
 graphlab::atomic<size_t> proposal_count;
 graphlab::atomic<size_t> accept_count;
 
-graphlab::binary_factor global_edge_pot;
 
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
   graphlab::unary_factor message;
   graphlab::unary_factor old_message;
-  
+  graphlab::binary_factor edgepot;
 }; // End of edge data
 
 struct vertex_data: public graphlab::unsupported_serialize {
@@ -144,7 +143,7 @@ void bp_update(gl_types::iscope& scope,
     // temporary message
     tmp_msg.resize(out_edge.message.arity());
     tmp_msg.var() = out_edge.message.var();
-    tmp_msg.convolve(global_edge_pot, cavity);
+    tmp_msg.convolve(out_edge.edgepot, cavity);
     tmp_msg.normalize();
 
     // Damp the message
@@ -167,97 +166,124 @@ void bp_update(gl_types::iscope& scope,
 
 
 
-void construct_graph(image& img,
-                    const GaussianMixture<2> &edgepot,
-                    const GaussianMixture<2> &nodepot,
-                     double numparticles,
+
+
+
+
+
+
+
+
+
+void construct_graph(std::string gmmfile,
+                    double numparticles,
                      gl_types::graph& graph,
-                    std::vector<double> discretizationpts,
-                    bool usetruenodepot) {
+                     size_t rows,
+                     size_t cols,
+                     std::vector<double> discretizationpts) {
   size_t numasgs = discretizationpts.size();
+  image img(rows, cols);
   // initialize a bunch of particles
-  for(size_t i = 0; i < img.rows(); ++i) {
-    for(size_t j = 0; j < img.cols(); ++j) {
+  for(size_t i = 0; i < rows; ++i) {
+    
+    it_ifile gmms((gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it").c_str());
+    
+    mat nodecenter, nodesigma, nodeweight;
+    vec doublevec;
+    gmms >> Name("like_ce") >> doublevec; nodecenter = doublevec;
+    gmms >> Name("like_alpha") >> nodeweight;
+    gmms >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
+    
+    ASSERT_EQ(nodeweight.rows(), cols);
+    
+    for(size_t j = 0; j < cols; ++j) {
       vertex_data vdat;
       vdat.rounds = 0;
 
       // Set the node potential
-      vdat.obs = img.pixel(i,j);
+      GaussianMixture<1> vpot(nodecenter, nodesigma, mat(nodeweight.get_row(j)));
       vdat.potential.resize(numasgs);
-      if (usetruenodepot == false) {
-        GaussianMixture<1> np = gmm_conditional<2>()(nodepot, 01, vdat.obs);
-        for (size_t p = 0;p < numasgs; ++p) {
-          vdat.potential.logP(p) = log(np.likelihood(discretizationpts[p]));
-        }
-      }
-      else {
-        for(size_t pred = 0; pred < numasgs; ++pred) {
-          vdat.potential.logP(pred) =
-            -(vdat.obs - discretizationpts[pred])*(vdat.obs - discretizationpts[pred]) / (2.0 * 30 * 30);
-        }
+      for(size_t pred = 0; pred < numasgs; ++pred) {
+        vdat.potential.logP(pred) = log(vpot.likelihood(discretizationpts[pred]));
       }
       vdat.potential.normalize();
-
       vdat.belief = vdat.potential;
-      vdat.belief.normalize();
       graph.add_vertex(vdat);
+
     } // end of for j in cols
   } // end of for i in rows
 
 
-  // make the edge potential
+
+  // Add the edges
+  
   edge_data edata;
-  global_edge_pot.resize(numasgs, numasgs);
-  for (size_t p = 0; p < numasgs; ++p) {
-    for (size_t q = 0; q < numasgs; ++q) {
-      double d[2]; d[0] = discretizationpts[p]; d[1] = discretizationpts[q];
-      global_edge_pot.logP(p,q) = log(edgepot.likelihood(d));
+
+  GaussianMixture<2> lrpot;
+  GaussianMixture<2> udpot;
+  GaussianMixture<2> lastudpot;
+  graphlab::binary_factor lrpotfactor, udpotfactor, lastudpotfactor;
+  for(size_t i = 0; i < rows; ++i) {
+    
+    it_ifile gmms(gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it");
+    
+    mat lrcenter, lrsigma, lrweight;
+    vec doublevec;
+    gmms >> Name("lr_edge_ce") >> lrcenter;
+    gmms >> Name("lr_edge_alpha") >> doublevec; lrweight = doublevec;
+    gmms >> Name("lr_edge_sigma") >> doublevec; lrsigma = doublevec;
+
+    mat udcenter, udsigma, udweight;
+    gmms >> Name("ud_edge_ce") >> udcenter;
+    gmms >> Name("ud_edge_alpha") >> doublevec; udweight = doublevec;
+    gmms >> Name("ud_edge_sigma") >> doublevec; udsigma = doublevec;
+    lastudpot = udpot;
+    lrpot = GaussianMixture<2>(lrcenter, lrsigma, lrweight);
+    udpot = GaussianMixture<2>(udcenter, udsigma, udweight);
+    
+    lastudpotfactor = udpotfactor;
+    lrpotfactor.resize(numasgs, numasgs);
+    for (size_t p = 0; p < numasgs; ++p) {
+      for (size_t q = 0; q < numasgs; ++q) {
+        double d[2]; d[0] = discretizationpts[p]; d[1] = discretizationpts[q];
+        lrpotfactor.logP(p,q) = log(lrpot.likelihood(d));
+      }
     }
-  }
-
-  //std::cout << edataedge_pot << std::endl;
-
-  for(size_t i = 0; i < img.rows(); ++i) {
-    for(size_t j = 0; j < img.cols(); ++j) {
+    
+    udpotfactor.resize(numasgs, numasgs);
+    for (size_t p = 0; p < numasgs; ++p) {
+      for (size_t q = 0; q < numasgs; ++q) {
+        double d[2]; d[0] = discretizationpts[p]; d[1] = discretizationpts[q];
+        udpotfactor.logP(p,q) = log(udpot.likelihood(d));
+      }
+    }
+    for(size_t j = 0; j < cols; ++j) {
 
       size_t vertid = img.vertid(i,j);
       if(i-1 < img.rows()) {
         edata.message = graph.vertex_data(img.vertid(i-1, j)).belief;
-        edata.old_message = edata.message;
+        edata.edgepot = lastudpotfactor;
         graph.add_edge(vertid, img.vertid(i-1, j), edata);
       }
       if(i+1 < img.rows()) {
         edata.message = graph.vertex_data(img.vertid(i+1, j)).belief;
-        edata.old_message = edata.message;
+        edata.edgepot = udpotfactor;
         graph.add_edge(vertid, img.vertid(i+1, j), edata);
       }
       if(j-1 < img.cols()) {
         edata.message = graph.vertex_data(img.vertid(i, j-1)).belief;
-        edata.old_message = edata.message;
+        edata.edgepot = lrpotfactor;
         graph.add_edge(vertid, img.vertid(i, j-1), edata);
       }
       if(j+1 < img.cols()) {
         edata.message = graph.vertex_data(img.vertid(i, j+1)).belief;
-        edata.old_message = edata.message;
+        edata.edgepot = lrpotfactor;
         graph.add_edge(vertid, img.vertid(i, j+1), edata);
       }
     } // end of for j in cols
   } // end of for i in rows
   graph.finalize();
 } // End of construct graph
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -275,9 +301,8 @@ int main(int argc, char** argv) {
   size_t iterations = 100;
   size_t numparticles = 100;
   std::string pred_type = "map";
-  bool potfromtest = false;
   std::string gmmfile= "";
-  std::string inputfile = "";
+  std::string kbpfile = "";
   std::string logfile = "";
 
   // Parse command line arguments --------------------------------------------->
@@ -291,9 +316,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("gmmfile",
                        &gmmfile, std::string(""),
                        "gmm mixture file");
-  clopts.attach_option("inputfile",
-                       &inputfile, std::string(""),
-                       "input file");
+  clopts.attach_option("kbpfile",
+                       &kbpfile, std::string(""),
+                       "kbpfile");
   clopts.attach_option("damping",
                        &damping, damping,
                        "damping");
@@ -306,9 +331,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("logfile",
                        &logfile, std::string(""),
                        "log file");
-  clopts.attach_option("potfromtest",
-                       &potfromtest, false,
-                       "Get edge potentials from test image");
+
 
   // set default scheduler type
   clopts.scheduler_type = "splash(100)";
@@ -322,53 +345,15 @@ int main(int argc, char** argv) {
   // fill the global vars
   MAX_ITERATIONS = iterations;
 
-  // load the potentials mixture components
-  it_ifile f(gmmfile.c_str());
+  
+  // load ground truth
+  vec testy;
+  vec truey;
+  it_ifile kbppart0((kbpfile+"_part"+boost::lexical_cast<std::string>(0)+".it").c_str());
+  kbppart0 >> Name("testy") >> testy;
+  kbppart0 >> Name("truey") >> truey;
 
-  // weigghts
-  mat edgecenter, edgesigma, edgeweight;
-  mat nodecenter, nodesigma, nodeweight;
-  ivec truedata;
-  ivec imgsize;
-  // intermediate types to use...
-  imat integermat;
-  vec doublevec;
-  f >> Name("edge_ce") >> integermat;   edgecenter = to_mat(integermat);
-  f >> Name("edge_alpha") >> doublevec; edgeweight = doublevec;
-  f >> Name("edge_sigma") >> doublevec; edgesigma = doublevec;
 
-  f >> Name("like_ce") >> nodecenter;
-  f >> Name("like_alpha") >> doublevec; nodeweight = doublevec;
-  f >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
-  f >> Name("img1") >> truedata;
-  f >> Name("isize") >> imgsize;
-
-  size_t rows = imgsize(0);
-  size_t cols = imgsize(1);
-  std::cout << "Image size is "
-            << rows << " x " << cols << std::endl;
-  // make the GMMs
-  GaussianMixture<2> edgepot(edgecenter, edgesigma, edgeweight);
-  GaussianMixture<2> nodepot(nodecenter, nodesigma, nodeweight);
-  edgepot.simplify();
-  edgepot.print();
-  // convert the true image to an image
-  image trueimg(rows, cols);
-  for (size_t i = 0;i < truedata.size(); ++i) {
-    trueimg.pixel(i) = truedata(i);
-  }
-
-  // load the observations
-  it_ifile imgfile(inputfile.c_str());
-  vec observations;
-  imgfile >> Name("obs2") >> observations;
-  // convert observations to an image
-  image img(rows, cols);
-  for (size_t i = 0;i < observations.size(); ++i) {
-    img.pixel(i) = observations(i);
-  }
-  img.save("noisy.pgm");
-  trueimg.save("source_img.pgm");
 
   // Create the graph --------------------------------------------------------->
   gl_types::core core;
@@ -377,90 +362,21 @@ int main(int argc, char** argv) {
 
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
   // collect the discretization points
-  std::set<int> discretizationpts_set;
-  for (size_t i = 0; i < trueimg.rows(); ++i) {
-    for (size_t j = 0; j < trueimg.cols(); ++j) {
-      discretizationpts_set.insert(size_t(trueimg.pixel(i,j)));
-    }
-  }
   std::vector<double> discretizationpts;
-  std::map<size_t, size_t> discreterevmap;
-  foreach(int i, discretizationpts_set) {
-    discreterevmap[i] = discretizationpts.size();
-    discretizationpts.push_back(i);
-    std::cout << *(discretizationpts.end()-1) << " ";
+  double d = -0.5;
+  while (d <= 2.5) {
+    d += 0.1;
+    discretizationpts.push_back(d);
   }
+
+
   std::cout << std::endl;
   std::cout << "Arity: " << discretizationpts.size() << std::endl;
 
 
-  construct_graph(img, edgepot, nodepot, numparticles, core.graph(), discretizationpts, potfromtest);
-  // if I am supposed to construct the potential from the test image....
-  if (potfromtest) {
-    graphlab::binary_factor altedgepot;
-    graphlab::unary_factor unarycount;
-    size_t numasgs = discretizationpts.size();
-    altedgepot.resize(numasgs, numasgs);
-    unarycount.resize(numasgs);
-    // we use the logP to store the actual values
-    for (size_t i = 0;i < numasgs; ++i) {
-      for (size_t j = 0;j < numasgs; ++j) {
-        altedgepot.logP(i,j) = 0.01;  // initialize with something to avoid divide by 0s
-      }
-      unarycount.logP(i) = 0.01;
-    }
-    // count the pixels!
-    for (size_t i = 0; i < trueimg.rows(); ++i) {
-      for (size_t j = 0; j < trueimg.cols(); ++j) {
-       assert(discreterevmap.find(trueimg.pixel(i,j)) != discreterevmap.end());
-      }
-    } 
-    for (size_t i = 0; i < trueimg.rows(); ++i) {
-      for (size_t j = 0; j < trueimg.cols(); ++j) {
-        size_t color = discreterevmap[trueimg.pixel(i,j)]; 
-        unarycount.logP(color)++;
-        // check neighbors
-        if (i > 1) {
-         size_t color2 = discreterevmap[trueimg.pixel(i-1,j)]; 
-         altedgepot.logP(color, color2)++; 
-        }
-        if (i < trueimg.rows() - 1) {
-         size_t color2 = discreterevmap[trueimg.pixel(i+1,j)]; 
-         altedgepot.logP(color, color2)++; 
-        }
-        if (j > 1) {
-         size_t color2 = discreterevmap[trueimg.pixel(i,j-1)]; 
-         altedgepot.logP(color, color2)++; 
-        }
-        if (j < trueimg.cols() - 1) {
-         size_t color2 = discreterevmap[trueimg.pixel(i,j+1)]; 
-         altedgepot.logP(color, color2)++; 
-        }
-      }
-    } 
-    for (size_t i = 0;i < numasgs; ++i) {
-      for (size_t j = 0;j < numasgs; ++j) {
-        altedgepot.logP(i,j) = std::log(altedgepot.logP(i,j));
-      }
-      unarycount.logP(i) = std::log(unarycount.logP(i));
-    }
-    unarycount.normalize();
-    altedgepot.normalize();
-    for (size_t i = 0;i < numasgs; ++i) {
-      for (size_t j = 0;j < numasgs; ++j) {
-        altedgepot.logP(i,j) = altedgepot.logP(i,j) - unarycount.logP(i) - unarycount.logP(j);
-      }
-    }
-    altedgepot.normalize();
-    global_edge_pot = altedgepot;
-    for (size_t v = 0;v < core.graph().num_vertices(); ++v) {
-      graphlab::unary_factor& pot = core.graph().vertex_data(v).potential;
-      pot.times(unarycount);
-    }
-  }
-
-
-
+  construct_graph(gmmfile, numparticles, core.graph(),107,86,discretizationpts);
+  
+  
   // Running the engine ------------------------------------------------------->
   core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
                               (void*)bp_update);
@@ -485,47 +401,41 @@ int main(int argc, char** argv) {
   // Saving the output -------------------------------------------------------->
   std::cout << "Rendering the cleaned image. " << std::endl;
 
-  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+  
+  
+  vec pred(107*86);
+  image img(107, 86);
+  image trueimg(107, 86);
+  image transposedimg(86, 107);
+  for (size_t v = 0; v < core.graph().num_vertices(); ++v) {
     const vertex_data& vdata = core.graph().vertex_data(v);
-    float a = discretizationpts[vdata.belief.max_asg()];
-    img.pixel(v) = a;
+    // ok... this is unbelievably annoying but my traversal order is opposite
+    // of the data's traversal order
+    // real physical location
+    std::pair<size_t, size_t> loc = img.loc(v);
+    // index in transposed image
+    size_t v2 = transposedimg.vertid(loc.second, loc.first);
+    pred(v2) = discretizationpts[vdata.belief.max_asg()];
+    img.pixel(v) = pred(v2);
+    trueimg.pixel(v) = truey(v2);
   }
+  img.save("pred.pgm", false, 0, 2);
+  trueimg.save("true.pgm", false, 0, 2);
+  double mae = mean(abs(pred - truey));
+  std::cout << "Mean absolute error: " << mae << std::endl;
+  
 
-  double err = image_compare(trueimg, img);
-  std::cout << "RMSE: " << err << std::endl;
   if (logfile.length() != 0) {
     ofstream fout;
     fout.open(logfile.c_str(), ios::app);
     gmmfile = gmmfile.rfind("/") == std::string::npos ?
                                        gmmfile:
                                        gmmfile.substr(gmmfile.rfind("/")+1);
-    inputfile= inputfile.rfind("/") == std::string::npos ?
-                                       inputfile:
-                                       inputfile.substr(inputfile.rfind("/")+1);
-    if (potfromtest == false) {
-      fout << "dbp\t" << gmmfile << "\t" << inputfile << "\t" << discretizationpts.size() << "\t" << 0 << "\t" << err << "\t"
-           << runtime << std::endl;
-    }
-    else {
-      fout << "dbp2\t" << gmmfile << "\t" << inputfile << "\t" << discretizationpts.size() << "\t" << 0 << "\t" << err << "\t"
-           << runtime << std::endl;
-    }
+    fout << "dbp\t" << gmmfile << "\t" << discretizationpts.size() << "\t" << 0 << "\t" << mae << "\t"
+          << runtime << std::endl;
     fout.close();
   }
   
-  img.save("pred_map.pgm");
-
-
-  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-    const vertex_data& vdata = core.graph().vertex_data(v);
-    float a = vdata.belief.expectation();
-    if (a < 0) a = 0;
-    if (a > 255) a = 255;
-    img.pixel(v) = (a);
-  }
-  img.save("pred_exp.pgm");
-
-
   std::cout << "Done!" << std::endl;
 
   return EXIT_SUCCESS;
