@@ -2,6 +2,7 @@
 #define GRAPHLAB_RANDOM_HPP
 
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/util/timer.hpp>
 
 namespace graphlab {
 
@@ -39,7 +40,7 @@ namespace graphlab {
 
     /** Seed the random number generator with the default seed */
     static void seed() {
-      thread::get_thread_specific_data().seed();
+      thread::get_thread_specific_data().seed(timer::usec_of_day());
     }
   }; // end of random 
 } // end of graphlab

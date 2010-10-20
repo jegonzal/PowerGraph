@@ -31,7 +31,8 @@ namespace graphlab {
       double answer = 
        // (current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6) -
        // (start_time_.tv_sec + ((double)start_time_.tv_usec)/1.0E6);
-         current_time.tv_sec-start_time_.tv_sec+ ((double)(current_time.tv_usec-start_time_.tv_usec))/1.0E6;
+        (current_time.tv_sec - start_time_.tv_sec) + 
+        ((double)(current_time.tv_usec - start_time_.tv_usec))/1.0E6;
        return answer;
     }
 
@@ -39,9 +40,34 @@ namespace graphlab {
       return current_time() * 1000;      
     }
 
+    /**
+     * Get the time of day in seconds.  This is useful for
+     * initializing random number generators with high precision.
+     */
+    static double sec_of_day() {
+      timeval current_time;
+      gettimeofday(&current_time, NULL);
+      double answer = 
+        current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6;
+      std::cout << current_time.tv_sec << std::endl;
+      std::cout << current_time.tv_usec << std::endl;
+      return answer;
+    }
+
+    static size_t usec_of_day() {
+      timeval current_time;
+      gettimeofday(&current_time, NULL);
+      size_t answer = 
+        current_time.tv_sec * 1E6 + current_time.tv_usec;
+      return answer;
+    }
+
+
   }; // end of Timer
-  
+
+  //TOOD: Move into timer class namespace (as static functions)
   float lowres_time_seconds();
+  //TOOD: Move into timer class namespace (as static functions)
   size_t lowres_time_millis();
 
 } // end of graphlab namespace
