@@ -187,8 +187,8 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   //rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
 
   //mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
-  itpp::mat rUnif2; 
-  itpp::randu(Ndim, Nsamp, rUnif2);
+  itpp::mat rUnif2 = itpp::zeros(1,Nsamp+1); 
+  itpp::randu(Ndens, Nsamp, rUnif2);
   randunif2 = vec2vec(&rUnif2);
   //rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
   //mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
@@ -226,7 +226,10 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   out.ROT();
   out.weights = itpp::ones(1, out.getPoints())/(double)out.getPoints();
   out.verify();
-  
+ 
+  for (int i=0; i < trees.size(); i++)
+     trees[i].clean();
+  trees.clear(); 
  
   return out;
 }

@@ -543,12 +543,13 @@ mxArray* BallTreeDensity::matlabMakeStruct(const mxArray* _pointsMatrix, const m
 BallTreeDensity::BallTreeDensity(const kde& structure) : BallTree(structure) {
 
   //means     = mxGetPr(mxGetField(structure,0,"means"));
-  itpp::vec temp = structure.centers.get_row(0); 
-  means = vec2vec(&temp);
+  //itpp::vec temp = structure.centers.get_row(0); 
+  //means = vec2vec(&temp);
+  means = new double[2*dims*num_points];
+  for (int i=0; i<num_points; i++)
+     means[i+num_points*dims] = structure.centers.get_row(0).get(i); //temp(i);
 
-  // bandwidth = (double*) mxGetData(mxGetField(structure,0,"bandwidth"));
-  bandwidth = vec2vec(&structure.bw);
-
+ 
   type = Gaussian;  //DB: no support for other kernels!
 
 
@@ -560,12 +561,17 @@ BallTreeDensity::BallTreeDensity(const kde& structure) : BallTree(structure) {
 
   //if (mxGetN(mxGetField(structure,0,"bandwidth")) == 6*num_points) {
   if (structure.bw.size() > 1 && tmp(0) < tmp(tmp.size()-1)){ 
+    assert(false);
     multibandwidth = 1;
     bandwidthMax = bandwidth + 2*num_points*dims;       // not all the same =>
     bandwidthMin = bandwidthMax + 2*num_points*dims;    //   track min/max vals
   } else {                                              // all the same => min = max
-    multibandwidth = 0;                                 //         = any leaf node
-    bandwidthMax = bandwidthMin = bandwidth + num_points*dims;
+     bandwidth = new double[2*dims*num_points];
+     for (int i=0; i<num_points; i++)
+       bandwidth[i+num_points*dims] = structure.bw.get_row(0).get(i); //temp(i);
+
+     multibandwidth = 0;                                 //         = any leaf node
+     bandwidthMax = bandwidthMin = bandwidth + num_points*dims;
   }
 
   buildTree();

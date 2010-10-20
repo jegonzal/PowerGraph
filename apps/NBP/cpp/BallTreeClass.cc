@@ -498,24 +498,24 @@ BallTree::BallTree(const kde& structure)
 {
   //dims       = (unsigned int) mxGetScalar(mxGetField(structure,0,"D")); // get the dimensions
   dims = structure.centers.rows();
-  assert(dims >= 1);
+  assert(dims == 1);
   //num_points = (BallTree::index) mxGetScalar(mxGetField(structure,0,"N")); //
   num_points = structure.centers.cols();
   assert(num_points >= 1); 
  
   //centers = (double*) mxGetPr(mxGetField(structure,0,"centers"));
   itpp::vec temp = structure.centers.get_row(0);
-  //temp = itpp::concat(temp, temp);
-  centers = vec2vec(&temp);
-  //centers = new double[dims*2*num_points];
-  //for (int i=0; i< num_points; i++)
-  //   centers[i] = temp[i];
+  centers = new double[dims*2*num_points];
+  for (int i=0; i< num_points; i++)
+     centers[i+dims*num_points] = temp[i];
   //ranges  = (double*) mxGetPr(mxGetField(structure,0,"ranges"));
 
   ranges = new double[2 * dims*num_points];
   //weights = (double*) mxGetPr(mxGetField(structure,0,"weights"));
-  weights = vec2vec(&structure.weights);
-
+  //weights = vec2vec(&structure.weights);
+  weights = new double[2*dims*num_points];
+  for (int i=0; i< num_points; i++)
+     weights[i+dims*num_points] = structure.weights(i);
 
   lowest_leaf = new unsigned int[2*num_points]; //(BallTree::index*) mxGetData(mxGetField(structure,0,"lower"));
   highest_leaf=  new unsigned int[2*num_points];//(BallTree::index*) mxGetData(mxGetField(structure,0,"upper"));
@@ -528,6 +528,23 @@ BallTree::BallTree(const kde& structure)
   //buildTree();
 }
 
+void BallTree::clean(){
+  if (lowest_leaf != NULL)
+       delete[] lowest_leaf;
+  if (highest_leaf != NULL)
+       delete[] highest_leaf;
+  if (left_child != NULL)
+       delete[] left_child;
+  if (right_child != NULL)
+       delete[] right_child;
+  if (permutation != NULL)
+       delete[] permutation;
+  if (centers != NULL)
+       delete[] centers;
+  if (weights!= NULL)
+       delete[] weights;
+  dims = num_points = 0;
+}
 
 BallTree::~BallTree(){
 /*  if (lowest_leaf != NULL)
