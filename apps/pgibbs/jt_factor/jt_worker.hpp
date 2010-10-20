@@ -525,19 +525,19 @@ public:
     
 
 
-        ///////////////////////////////////
-        // plot the graph
-        if(worker_id == 0) {
-          std::cout << "Saving treeImage:" << std::endl;
-          size_t rows = std::sqrt(mrf.num_vertices());
-          image img(rows, rows);
-          for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-            vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-            img.pixel(vid) = 
-                tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-          }
-          img.save(make_filename("tree", ".pgm", tree_count).c_str());
-        }
+//         ///////////////////////////////////
+//         // plot the graph
+//         if(worker_id == 0) {
+//           std::cout << "Saving treeImage:" << std::endl;
+//           size_t rows = std::sqrt(mrf.num_vertices());
+//           image img(rows, rows);
+//           for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+//             vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+//             img.pixel(vid) = 
+//                 tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+//           }
+//           img.save(make_filename("tree", ".pgm", tree_count).c_str());
+//         }
 
 
 
