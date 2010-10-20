@@ -112,7 +112,7 @@ public:
             assert(bw.cols() == centers.cols()); 
             assert(weights.size() == centers.cols());
             if (indices.size() > 0){
-                assert(itpp::max(indices.get_row(0))< getPoints());
+                assert(itpp::max(indices.get_row(0))< 10*getPoints());//TODO more careful checkiung;
                 assert(itpp::min(indices.get_row(0))>=0);
              }
                              
