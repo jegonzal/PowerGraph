@@ -38,7 +38,7 @@ struct edge_data {
 struct vertex_data {
   float value;
   float self_weight; // GraphLab does not support edges from vertex to itself, so
-  				     // we save weight of vertex's self-edge in the vertex data
+  // we save weight of vertex's self-edge in the vertex data
   vertex_data(float value = 1) : value(value), self_weight(0) { }
 }; // End of vertex data
 
@@ -118,35 +118,35 @@ void pagerank_update(gl_types::iscope &scope,
 
 // Creates simple 5x5 graph
 void create_graph(pagerank_graph& graph) {
-	// Create 5 vertices
-	graph.add_vertex(vertex_data());
-	graph.add_vertex(vertex_data());
-	graph.add_vertex(vertex_data());
-	graph.add_vertex(vertex_data());
-	graph.add_vertex(vertex_data());
+  // Create 5 vertices
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
 
 	
-	// Page 0 links to page 3 only, so weight is 1
-	graph.add_edge(0, 3, edge_data(1));
+  // Page 0 links to page 3 only, so weight is 1
+  graph.add_edge(0, 3, edge_data(1));
 	
-	// Page 1 links to 0 and 2
-	graph.add_edge(1, 0, edge_data(0.5));
-	graph.add_edge(1, 2, edge_data(0.5));
+  // Page 1 links to 0 and 2
+  graph.add_edge(1, 0, edge_data(0.5));
+  graph.add_edge(1, 2, edge_data(0.5));
 	
-	// ... and so on
-	graph.add_edge(2, 0, edge_data(1.0/3));
-	graph.add_edge(2, 1, edge_data(1.0/3));
-	graph.add_edge(2, 3, edge_data(1.0/3));
-	graph.add_edge(3, 0, edge_data(0.25));
-	graph.add_edge(3, 1, edge_data(0.25));
-	graph.add_edge(3, 2, edge_data(0.25));
-	graph.add_edge(3, 4, edge_data(0.25));
-    graph.add_edge(4, 0, edge_data(0.2));
- 	graph.add_edge(4, 1, edge_data(0.2));
-	graph.add_edge(4, 2, edge_data(0.2));
-	graph.add_edge(4, 3, edge_data(0.2));
-	// and self edge which must be handled specially from 4 to 4
-	graph.vertex_data(4).self_weight = 0.2;
+  // ... and so on
+  graph.add_edge(2, 0, edge_data(1.0/3));
+  graph.add_edge(2, 1, edge_data(1.0/3));
+  graph.add_edge(2, 3, edge_data(1.0/3));
+  graph.add_edge(3, 0, edge_data(0.25));
+  graph.add_edge(3, 1, edge_data(0.25));
+  graph.add_edge(3, 2, edge_data(0.25));
+  graph.add_edge(3, 4, edge_data(0.25));
+  graph.add_edge(4, 0, edge_data(0.2));
+  graph.add_edge(4, 1, edge_data(0.2));
+  graph.add_edge(4, 2, edge_data(0.2));
+  graph.add_edge(4, 3, edge_data(0.2));
+  // and self edge which must be handled specially from 4 to 4
+  graph.vertex_data(4).self_weight = 0.2;
 
 }
 
@@ -186,14 +186,14 @@ int main(int argc, char** argv) {
   // it by hand.
   double norm = 0.0;
   for(graphlab::vertex_id_t vid=0; vid<core.graph().num_vertices(); vid++) {
-  	 norm += core.graph().vertex_data(vid).value;
+    norm += core.graph().vertex_data(vid).value;
   }
   
   // And output 5 first vertices pagerank after dividing their value
   // with the norm.
   for(graphlab::vertex_id_t vid=0; vid<5 && vid<core.graph().num_vertices(); vid++) {
-  	 std::cout << "Page " << vid << " pagerank = " <<
-  	 	core.graph().vertex_data(vid).value / norm << std::endl;
+    std::cout << "Page " << vid << " pagerank = " <<
+      core.graph().vertex_data(vid).value / norm << std::endl;
   }
   
 	  
