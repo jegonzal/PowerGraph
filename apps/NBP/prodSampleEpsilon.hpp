@@ -163,7 +163,7 @@ kde prodSampleEpsilonRun(unsigned int _Ndens, //number of densities to product
     mexErrMsgTxt("Outputs 2 results");
 
   Ndens = mxGetN(prhs[0]); */
-  bool debug = true;
+  bool debug = false;
 
   Ndens = _Ndens;
   Nsamp = _Nsamp;
@@ -246,7 +246,9 @@ kde prodSampleEpsilonRun(unsigned int _Ndens, //number of densities to product
   //mxDestroyArray(rNorm); mxDestroyArray(rsize);
   out.ROT();
   out.weights = itpp::ones(1, out.getPoints())/(double)out.getPoints();
+  if (debug)
   out.matlab_print();
+  else {printf("."); fflush(NULL);}
   out.indices = out.indices - 1; //c++ count starts from zero
   out.verify();
  
