@@ -1,5 +1,5 @@
-nvertices = 10;
-approx_edges = nvertices;
+nvertices = 10000;
+approx_edges = 3*nvertices;
 density = approx_edges / (nvertices^2) ;
 
 %% create random edges
@@ -15,6 +15,7 @@ E = E + E';
 E = sparse(1:nvertices , 1:nvertices, 1./sum(E,2), ...
     nvertices, nvertices) * E;
 
+spy(E);
 
 %% save random graph
 prefix = 'random_graph';
