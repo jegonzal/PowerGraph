@@ -22,7 +22,7 @@
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
 #include "../kernelbp/image_compare.hpp"
-
+#include "prodSampleEpsilon.hpp"
 
 #include <fstream>
 #include <cmath>
@@ -30,9 +30,10 @@
 #include <cfloat>
 //#include <graphlab/graph/graph.hpp>
 
+#include <graphlab/schedulers/round_robin_scheduler.hpp>
 #include <graphlab/macros_def.hpp>
 
-#define NSAMP 36
+#define NSAMP 24
 #define EPSILON 1e-5
 int RESAMPLE_FREQUENCY = 0;
 int MAX_ITERATIONS = 6;
@@ -54,6 +55,9 @@ struct vertex_data: public graphlab::unsupported_serialize {
   kde obs;
   kde bel;
   size_t row, col;
+  int rounds;
+
+  vertex_data(){ rounds = 0;}
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -121,6 +125,8 @@ void bp_update(gl_types::iscope& scope,
      std::cout << std::endl;
   }
 
+  v_data.rounds++;
+
   if ((int)vid == 0)
       iiter++;
   //vec prod_message = prod_msg0.get_col(vid);
@@ -154,8 +160,9 @@ void bp_update(gl_types::iscope& scope,
       edge_data& out_edge = scope.edge_data(outeid);
       kde marg = out_edge.edge_pot.marginal(0);  
       kdes.push_back(marg);      
- 
-      kde m = prodSampleEpsilon(kdes.size(), 
+
+      prodSampleEpsilon producter; 
+      kde m = producter.prodSampleEpsilonRun(kdes.size(), 
                                      NSAMP, 
                                      EPSILON, 
                                      kdes);
@@ -172,7 +179,7 @@ void bp_update(gl_types::iscope& scope,
 
 
    //compute belief
-   if (iiter == MAX_ITERATIONS - 1){
+   if (v_data.rounds == MAX_ITERATIONS - 1){
 	if (debug && vid == 0)
 	   printf("computing belief node %d\n", vid);
 
@@ -190,7 +197,8 @@ void bp_update(gl_types::iscope& scope,
       }
 
       kdes.push_back(v_data.obs);
-      kde m = prodSampleEpsilon(kdes.size(), 
+      prodSampleEpsilon prod;
+      kde m = prod.prodSampleEpsilonRun(kdes.size(), 
                                      NSAMP, 
                                      EPSILON, 
                                      kdes);
@@ -204,6 +212,12 @@ void bp_update(gl_types::iscope& scope,
 
 
    }
+  /*
+  if (v_data.rounds < MAX_ITERATIONS) {
+    gl_types::update_task task(scope.vertex(), bp_update);
+    scheduler.add_task(task, 1.0);
+  }*/
+
 
 } // end of BP_update
 
@@ -245,7 +259,8 @@ void construct_graph(std::string gmmfile,
       vdat.obs.verify();
       //vdat.p.simplify();
     
-      vdat.bel = vdat.obs.sample();
+      //vdat.bel = vdat.obs.sample();//TOOD
+      vdat.bel = vdat.obs;
       vdat.bel.verify();
       /*for (size_t n = 0;n < numparticles; ++n) {
         particle p;
@@ -398,7 +413,7 @@ int main(int argc, char** argv) {
 
   // set default scheduler type
   clopts.scheduler_type = "round_robin";
-  //clopts.scope_type = "edge";
+  clopts.scope_type = "none";
 
   bool success = clopts.parse(argc, argv);
   if(!success) {
@@ -427,6 +442,8 @@ int main(int argc, char** argv) {
   // Running the engine ------------------------------------------------------->
   core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
                               (void*)bp_update);
+  core.scheduler().set_option(gl_types::scheduler_options::MAX_ITERATIONS,
+                              (void*)&MAX_ITERATIONS);
 
   std::cout << "Running the engine. " << std::endl;
 
