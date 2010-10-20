@@ -551,8 +551,15 @@ BallTreeDensity::BallTreeDensity(const kde& structure) : BallTree(structure) {
 
   type = Gaussian;  //DB: no support for other kernels!
 
+
+  itpp::vec tmp = structure.bw.get_row(0);
+  if (structure.bw.size() > 1){
+    itpp::Sort<double> mysort;
+    mysort.sort(0,tmp.size()-1,tmp);
+  }
+
   //if (mxGetN(mxGetField(structure,0,"bandwidth")) == 6*num_points) {
-  if (structure.bw.size() > 1){ //TODO sort!
+  if (structure.bw.size() > 1 && tmp(0) < tmp(tmp.size()-1)){ 
     multibandwidth = 1;
     bandwidthMax = bandwidth + 2*num_points*dims;       // not all the same =>
     bandwidthMin = bandwidthMax + 2*num_points*dims;    //   track min/max vals
@@ -560,6 +567,8 @@ BallTreeDensity::BallTreeDensity(const kde& structure) : BallTree(structure) {
     multibandwidth = 0;                                 //         = any leaf node
     bandwidthMax = bandwidthMin = bandwidth + num_points*dims;
   }
+
+  buildTree();
 }
 
 #endif

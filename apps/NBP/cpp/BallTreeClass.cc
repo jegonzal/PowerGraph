@@ -88,6 +88,7 @@ BallTree::index BallTree::most_spread_coord(BallTree::index low, BallTree::index
 
   max_variance = 0;
   max_dim = 0;
+  assert(dims >0);
 
   for(dimension = 0; dimension<dims; dimension++) {
     mean = 0;
@@ -194,6 +195,7 @@ void BallTree::calcStats(BallTree::index root)
   BallTree::index leftI = left(root), rightI=right(root);   // get children indices 
   if (!validIndex(leftI) || !validIndex(rightI)) return;    // nothing to do if this
                                                             //   isn't a parent node
+  assert(dims > 0);
 
   // figure out the center and ranges of this ball based on it's children
   double max, min;
@@ -249,6 +251,8 @@ BallTree::index BallTree::closer(BallTree::index myLeft, BallTree::index myRight
 {
   if (myRight==NO_CHILD || otherRoot==NO_CHILD) return myLeft;
   double dist_sq_l = 0, dist_sq_r = 0;
+  assert(dims >0);
+ 
   for(int i=0; i<dims; i++) {
     dist_sq_l += (otherTree.center(otherRoot)[i] - center(myLeft)[i]) * 
       (otherTree.center(otherRoot)[i] - center(myLeft)[i]);
@@ -268,6 +272,7 @@ BallTree::index BallTree::closer(BallTree::index myLeft, BallTree::index myRight
 //
 void BallTree::movePoints(double* delta)
 {
+  assert(dims >0);
   index i;
   for (i=leafFirst(root());i<=leafLast(root());i++)
     for (unsigned int k=0;k<dims;k++)                   // first adjust locations by delta
@@ -280,6 +285,7 @@ void BallTree::movePoints(double* delta)
 // Assumes newWeights is the right size (num_points)
 void BallTree::changeWeights(const double *newWeights) {
 
+  assert(num_points>0);
   for(index i=num_points, j=0; i<num_points*2; i++, j++)
     weights[i] = newWeights[ getIndexOf(i) ];
 
@@ -297,6 +303,7 @@ double BallTree::minDist(index myBall, const double* point) const
 {
   double dist = 0, tmp;
 
+  assert(dims >0);
   for(index i=0; i<dims; i++) {
     tmp = fabs(center(myBall)[i] - point[i]) - range(myBall)[i];
     if(tmp >= 0)
@@ -309,6 +316,7 @@ double BallTree::maxDist(index myBall, const double* point) const
 {
   double dist = 0, tmp;
 
+  assert(dims >0);
   for(index i=0; i<dims; i++) {
     tmp = fabs(center(myBall)[i] - point[i]) + range(myBall)[i];
     dist += tmp*tmp;
@@ -330,6 +338,8 @@ void BallTree::kNearestNeighbors(index *nns, double *dists, const double *points
   myMap m;
   int leavesDone = 0;
   index lastBall;
+  assert(dims >0);
+  assert(N>0);
 
   for(index target = 0; target < N*dims; target += dims, ++leavesDone) {  
 
@@ -407,7 +417,7 @@ void BallTree::kNearestNeighbors(index *nns, double *dists, const double *points
 
 // Constructor that doesn't initialize members, so that they can be
 // set by the loadFromMatlab and createInMatlab functions.
-BallTree::BallTree() : next(1) {}
+//BallTree::BallTree() : next(1) {}
 
 
 #ifdef MEX
@@ -495,18 +505,46 @@ BallTree::BallTree(const kde& structure)
  
   //centers = (double*) mxGetPr(mxGetField(structure,0,"centers"));
   itpp::vec temp = structure.centers.get_row(0);
+  //temp = itpp::concat(temp, temp);
   centers = vec2vec(&temp);
-  //ranges  = (double*) mxGetPr(mxGetField(structure,0,"ranges"));//TODO
+  //centers = new double[dims*2*num_points];
+  //for (int i=0; i< num_points; i++)
+  //   centers[i] = temp[i];
+  //ranges  = (double*) mxGetPr(mxGetField(structure,0,"ranges"));
+
+  ranges = new double[2 * dims*num_points];
   //weights = (double*) mxGetPr(mxGetField(structure,0,"weights"));
   weights = vec2vec(&structure.weights);
 
-/*
-  lowest_leaf = (BallTree::index*) mxGetData(mxGetField(structure,0,"lower"));
-  highest_leaf= (BallTree::index*) mxGetData(mxGetField(structure,0,"upper"));
-  left_child  = (BallTree::index*) mxGetData(mxGetField(structure,0,"leftch"));
-  right_child = (BallTree::index*) mxGetData(mxGetField(structure,0,"rightch"));
-  permutation = (BallTree::index*) mxGetData(mxGetField(structure,0,"perm"));
-*/   //TODO
+
+  lowest_leaf = new unsigned int[2*num_points]; //(BallTree::index*) mxGetData(mxGetField(structure,0,"lower"));
+  highest_leaf=  new unsigned int[2*num_points];//(BallTree::index*) mxGetData(mxGetField(structure,0,"upper"));
+  left_child  =  new unsigned int[2*num_points];//(BallTree::index*) mxGetData(mxGetField(structure,0,"leftch"));
+  right_child =  new unsigned int [2*num_points];//BallTree::index*) mxGetData(mxGetField(structure,0,"rightch"));
+  permutation =  new unsigned int [2*num_points];//BallTree::index*) mxGetData(mxGetField(structure,0,"perm"));
+   
   next = 1;    // unimportant
+
+  //buildTree();
+}
+
+
+BallTree::~BallTree(){
+/*  if (lowest_leaf != NULL)
+       delete[] lowest_leaf;
+  if (highest_leaf != NULL)
+       delete[] highest_leaf;
+  if (left_child != NULL)
+       delete[] left_child;
+  if (right_child != NULL)
+       delete[] right_child;
+  if (permutation != NULL)
+       delete[] permutation;
+  if (centers != NULL)
+       delete[] centers;
+  if (weights!= NULL)
+       delete[] weights;
+*/
+//  printf("was in destructor\n");
 }
 #endif

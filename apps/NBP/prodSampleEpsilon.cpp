@@ -29,21 +29,22 @@ double normConstant(void);
 #define SIGVALSMIN(a,b,c) (SigValsMin + a+Ndim*b+Ndim*Ndens*c)
 double *SigValsMax, *SigValsMin;
 
-BallTreeDensity *trees;    // structure of all trees
-BallTree::index *ind;      // indices of this level of the trees
+//BallTreeDensity *trees;    // structure of all trees
+std::vector<BallTreeDensity> trees;
+BallTree::index *ind = NULL;      // indices of this level of the trees
 
 double *C,*sC,*M;
 
 double *randunif1, *randunif2, *randnorm;  // required random numbers
 double *samples;
-BallTree::index* indices;    // return data
+BallTree::index* indices = NULL;    // return data
 
-double maxErr;                 // epsilon tolerance (%) of algorithm
+double maxErr = 0;                 // epsilon tolerance (%) of algorithm
 double total, soFar, soFarMin; // partition f'n and accumulation
 
-unsigned int Ndim,Ndens;   // useful constants
-unsigned long Nsamp;
-bool bwUniform;
+unsigned int Ndim = 0,Ndens = 0;   // useful constants
+unsigned long Nsamp = 0;
+bool bwUniform = true;
 
 
 #ifdef MEX
@@ -121,9 +122,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //////////////////////////////////////////////////////////////////////
 // MEX WRAPPER
 //////////////////////////////////////////////////////////////////////
-kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
-		       unsigned int Nsamp,  //number of samples
-                       double maxErr,  //epsilon
+kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
+		       unsigned int _Nsamp,  //number of samples
+                       double _maxErr,  //epsilon
                        std::vector<kde>& kdes)
 {
   //mxArray *rNorm, *rUnif1, *rUnif2, *rsize;
@@ -142,16 +143,19 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 
   Ndens = mxGetN(prhs[0]); */
 
+  Ndens = _Ndens;
+  Nsamp = _Nsamp;
+  maxErr = _maxErr;
   assert(Ndens >= 1);
   assert(Nsamp>= 1);
                               // get # of densities
-//  trees = new BallTreeDensity[Ndens];
-  trees = (BallTreeDensity*) mxMalloc(Ndens*sizeof(BallTreeDensity));
+  //trees = new BallTreeDensity[Ndens];
+  //trees = (BallTreeDensity*) mxMalloc(Ndens*sizeof(BallTreeDensity));
   bwUniform = true;
   bool allGaussians = true;
   for (i=0;i<Ndens;i++) {                               // load densities
-    //trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) );  //DB: TODO
-    trees[i] = BallTreeDensity( kdes[i] );  //DB: TODO
+    //trees[i] = BallTreeDensity( mxGetCell(prhs[0],i) ); 
+    trees.push_back(BallTreeDensity( kdes[i] ));  
     if (trees[i].getType() != BallTreeDensity::Gaussian) allGaussians = false;
     bwUniform = bwUniform && trees[i].bwUniform();
   }
@@ -171,14 +175,14 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
   //rUnif1 = mxCreateDoubleMatrix(1,Nsamp+1,mxREAL);
 
   //mexCallMATLAB(1, &rNorm, 1, &rsize, "rand");   randunif1 = mxGetPr(rNorm);
-  //randunif1[Nsamp] = 100;//TODO
+  //randunif1[Nsamp] = 100;
  
   itpp::vec rUnif1 = itpp::randu(Nsamp+1);
   rUnif1.set(Nsamp,100);
   itpp::Sort<double> mysort;
-  mysort.sort(0,Nsamp+1,rUnif1);
+  mysort.sort(0,Nsamp,rUnif1);
   randunif1 = vec2vec(&rUnif1); 
- //mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);//TODO
+ //mexCallMATLAB(1, &rUnif1, 1, &rNorm, "sort");  randunif1 = mxGetPr(rUnif1);
   //mxDestroyArray(rNorm);
   //rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
 
@@ -195,12 +199,12 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
 
   //plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
   kde out;
-  out.centers = itpp::mat(Ndim, Nsamp); //TODO
-  //samples = (double*) mxGetData(plhs[0]); TODO
+  out.centers = itpp::zeros(Ndim, Nsamp); 
+  //samples = (double*) mxGetData(plhs[0]); 
   samples = out.centers._data();
   //plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
   out.indices = itpp::zeros(Ndens, Nsamp);
-  //indices = (BallTree::index*) mxGetData(plhs[1]); TODO
+  //indices = (BallTree::index*) mxGetData(plhs[1]); 
   indices = (BallTree::index*) out.indices._data();
 
   SigValsMax = (double*) mxMalloc(Ndim*Ndens*Ndens*sizeof(double));  // precalc'd constants
@@ -212,14 +216,18 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
   total =    -1; soFar = soFarMin = 0;   multiEval();  // calculate total weight
   total = soFar; soFar = soFarMin = 0;   multiEval();  //   then sample
 
-//  delete[] trees;
-  mxFree(trees);
+  //delete[] trees;
+//  mxFree(trees);
 
   mxFree(C); mxFree(sC); mxFree(M); mxFree(SigValsMin); mxFree(SigValsMax);
 
   //mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
   //mxDestroyArray(rNorm); mxDestroyArray(rsize);
+  out.ROT();
+  out.weights = itpp::ones(1, out.getPoints())/(double)out.getPoints();
   out.verify();
+  
+ 
   return out;
 }
 
@@ -296,6 +304,7 @@ double maxDistProd(const BallTreeDensity& bt1, BallTree::index i,
 // 
 void computeSigVals(void) {
   unsigned int i,j,k;
+  assert(Ndim > 0);
   double *SigNormMin = (double*) mxMalloc(Ndim*sizeof(double));
   double *SigNormMax = (double*) mxMalloc(Ndim*sizeof(double));
   for (i=0;i<Ndim;i++) {
@@ -413,7 +422,10 @@ void multiEvalRecursive(void) {
 void multiEval(void) {
   unsigned int i,j;//,k;
 //  ind = new BallTree::index[Ndens];               // construct index array  
+
+  assert(Ndens>0);
   ind = (BallTree::index*) mxMalloc(Ndens*sizeof(BallTree::index));    // construct index array  
+  memset(ind, 0, Ndens * sizeof(BallTree::index));
   for (i=0;i<Ndens;i++) ind[i] = trees[i].root(); //  & init to root node
 
   if (bwUniform) {                                     // if all one kernel size, do this in
