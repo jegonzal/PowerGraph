@@ -49,11 +49,16 @@ int main(int argc, char** argv) {
             << "inference on large factorized models."
             << std::endl;
 
+
+  std::srand ( graphlab::timer::usec_of_day() );
+  graphlab::random::seed();
+
+
   std::string model_filename = "";
 
   size_t treesize = 1000;
   bool priorities = false;
-  float runtime = 10;
+  std::vector<float> runtimes(1,10);
   size_t treewidth = 3;
   size_t factorsize = 0;
   size_t subthreads = 1; 
@@ -67,7 +72,7 @@ int main(int argc, char** argv) {
   clopts.add_positional("model");
 
   clopts.attach_option("runtime", 
-                       &runtime, runtime,
+                       &runtimes, runtimes,
                        "total runtime in seconds");
 
   clopts.attach_option("treesize", 
@@ -102,18 +107,6 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  size_t experiment_id = get_next_experiment_id(results_fn);
-
-  std::cout << "Settings: ======================" << std::endl
-            << "Experiment:    " << experiment_id << std::endl
-            << "Model:         " << model_filename << std::endl
-            << "runtime:       " << runtime << std::endl
-            << "treesize:      " << treesize << std::endl
-            << "treewidth:     " << treewidth << std::endl
-            << "factorsize:    " << factorsize << std::endl
-            << "subthreads:    " << subthreads << std::endl
-            << "priorities:    " << priorities << std::endl;
- 
 
   std::cout << "Load alchemy file." << std::endl;
   factorized_model factor_graph;
@@ -123,100 +116,114 @@ int main(int argc, char** argv) {
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
   
+
+  float run_so_far = 0;
+  foreach(float runtime, runtimes) {
+    
+    // Get the experiment id
+    size_t experiment_id = get_next_experiment_id(results_fn);
+
+    std::cout << "Settings: ======================" << std::endl
+              << "Experiment:    " << experiment_id << std::endl
+              << "Model:         " << model_filename << std::endl
+              << "runtime:       " << runtime << std::endl
+              << "treesize:      " << treesize << std::endl
+              << "treewidth:     " << treewidth << std::endl
+              << "factorsize:    " << factorsize << std::endl
+              << "subthreads:    " << subthreads << std::endl
+              << "priorities:    " << priorities << std::endl;
+   
+    // run the fully parallel sampler
+    float remaining_time = runtime - run_so_far;
+    if(remaining_time <= 0) remaining_time = 0;
+
+    graphlab::timer timer;
+    timer.start();
+    parallel_sample(factor_graph, mrf_graph, 
+                    clopts.ncpus,
+                    remaining_time,
+                    treesize,
+                    treewidth,
+                    factorsize,
+                    subthreads,
+                    priorities);
+    double actual_runtime = timer.current_time();
+    std::cout << "Local Runtime: " << actual_runtime << std::endl;
+    
+    run_so_far += actual_runtime;
+    std::cout << "Total Runtime: " << run_so_far << std::endl;
+    
+    std::cout << "Computing unnormalized log-likelihood" << std::endl;
+    double loglik = unnormalized_loglikelihood(mrf_graph,
+                                               factor_graph.factors());
+    
+    std::cout << "LogLikelihood: " << loglik << std::endl;
+    std::cout << "Saving final prediction" << std::endl;
+    
+    
+    std::cout << "Computing update distribution:" << std::endl;
+    mrf::save_beliefs(mrf_graph,  
+                      make_filename("beliefs",".tsv", experiment_id).c_str());
+    
+    
+    std::cout << "Computing update counts:" << std::endl;
+    size_t total_updates = 0;
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+      mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+      total_updates += vdata.updates;
+    }
+
+
+
+    std::ofstream fout(results_fn.c_str(),  std::ios::app);
+    fout.precision(16);
+    fout << experiment_id << '\t'
+         << clopts.ncpus << '\t'
+         << run_so_far << '\t'
+         << runtime << '\t'
+         << treesize << '\t'
+         << treewidth << '\t'
+         << factorsize << '\t'
+         << subthreads << '\t'
+         << priorities << '\t'
+         << actual_runtime << '\t'
+         << total_updates << '\t'
+         << loglik << std::endl;
+    fout.close();
+
+
+    
+    // Plot the final answer
+    size_t rows = std::sqrt(mrf_graph.num_vertices());
+    std::cout << "Rows: " << rows << std::endl;
+    image img(rows, rows);
+    std::vector<double> values(1);
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+      mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+      vdata.belief.normalize();
+      vdata.belief.expectation(values);
+      img.pixel(vid) = values[0];
+    }
+    img.pixel(0) = 0;
+    img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
+    img.save(make_filename("pred", ".pgm", experiment_id).c_str());
+    
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+      img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
+    }
+    img.save(make_filename("updates", ".pgm", experiment_id).c_str());
+    
+    //   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+    //     img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+    //   }
+    //   img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
+
   
-  
-  // run the fully parallel sampler
-  graphlab::timer timer;
-  timer.start();
-  parallel_sample(factor_graph, mrf_graph, 
-                  clopts.ncpus,
-                  runtime,
-                  treesize,
-                  treewidth,
-                  factorsize,
-                  subthreads,
-                  priorities);
-
-  double actual_runtime = timer.current_time();
-  std::cout << "Runtime: " << actual_runtime << std::endl;
-
-  std::cout << "Computing unnormalized log-likelihood" << std::endl;
-  double loglik = unnormalized_loglikelihood(mrf_graph,
-                                             factor_graph.factors());
-
-  std::cout << "LogLikelihood: " << loglik << std::endl;
-  std::cout << "Saving final prediction" << std::endl;
-
-
-  std::cout << "Computing update distribution:" << std::endl;
-  mrf::save_beliefs(mrf_graph,  
-                    make_filename("beliefs",".tsv", experiment_id).c_str());
-
-  
-  std::cout << "Computing update counts:" << std::endl;
-  size_t total_updates = 0;
-  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-    mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-    total_updates += vdata.updates;
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+      img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
+    }
+    img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
   }
-
-
-
-
-
-  std::ofstream fout(results_fn.c_str(),  std::ios::app);
-  fout << experiment_id << '\t'
-       << clopts.ncpus << '\t'
-       << runtime << '\t'
-       << treesize << '\t'
-       << treewidth << '\t'
-       << factorsize << '\t'
-       << subthreads << '\t'
-       << priorities << '\t'
-       << actual_runtime << '\t'
-       << total_updates << '\t'
-       << loglik << std::endl;
-  fout.close();
-
-
-
-
-
-
-
-
-
-  // Plot the final answer
-  size_t rows = std::sqrt(mrf_graph.num_vertices());
-  std::cout << "Rows: " << rows << std::endl;
-  image img(rows, rows);
-  std::vector<double> values(1);
-  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-    mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-    vdata.belief.normalize();
-    vdata.belief.expectation(values);
-    img.pixel(vid) = values[0];
-  }
-  img.pixel(0) = 0;
-  img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
-  img.save(make_filename("pred", ".pgm", experiment_id).c_str());
-
-  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
-  }
-  img.save(make_filename("updates", ".pgm", experiment_id).c_str());
-
-  //   for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-  //     img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
-  //   }
-  //   img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
-
-  
-  for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
-  }
-  img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
 
   
 

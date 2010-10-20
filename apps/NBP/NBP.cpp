@@ -22,7 +22,7 @@
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
 #include "../kernelbp/image_compare.hpp"
-
+#include "prodSampleEpsilon.hpp"
 
 #include <fstream>
 #include <cmath>
@@ -30,12 +30,16 @@
 #include <cfloat>
 //#include <graphlab/graph/graph.hpp>
 
+#include <graphlab/schedulers/round_robin_scheduler.hpp>
 #include <graphlab/macros_def.hpp>
 
-#define NSAMP 36
-#define EPSILON 1e-5
+#define NSAMP 13
+double EPSILON =1e-5;
 int RESAMPLE_FREQUENCY = 0;
 int MAX_ITERATIONS = 6;
+
+int ROWS=107;
+int COLS=86;
 
 using namespace itpp;
 using namespace std;
@@ -54,6 +58,9 @@ struct vertex_data: public graphlab::unsupported_serialize {
   kde obs;
   kde bel;
   size_t row, col;
+  int rounds;
+
+  vertex_data(){ rounds = 0;}
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -115,11 +122,13 @@ void bp_update(gl_types::iscope& scope,
   // Get the vertex data
   vertex_data& v_data = scope.vertex_data();
   graphlab::vertex_id_t vid = scope.vertex();
-  if (debug && vid == 0){
+  if (debug && vid%100 == 0){
      std::cout<<"Entering node " << (int)vid << " obs: ";
      v_data.obs.matlab_print();
      std::cout << std::endl;
   }
+
+  v_data.rounds++;
 
   if ((int)vid == 0)
       iiter++;
@@ -154,8 +163,9 @@ void bp_update(gl_types::iscope& scope,
       edge_data& out_edge = scope.edge_data(outeid);
       kde marg = out_edge.edge_pot.marginal(0);  
       kdes.push_back(marg);      
- 
-      kde m = prodSampleEpsilon(kdes.size(), 
+
+      prodSampleEpsilon producter; 
+      kde m = producter.prodSampleEpsilonRun(kdes.size(), 
                                      NSAMP, 
                                      EPSILON, 
                                      kdes);
@@ -172,7 +182,7 @@ void bp_update(gl_types::iscope& scope,
 
 
    //compute belief
-   if (iiter == MAX_ITERATIONS - 1){
+   if (v_data.rounds == MAX_ITERATIONS - 1){
 	if (debug && vid == 0)
 	   printf("computing belief node %d\n", vid);
 
@@ -190,7 +200,8 @@ void bp_update(gl_types::iscope& scope,
       }
 
       kdes.push_back(v_data.obs);
-      kde m = prodSampleEpsilon(kdes.size(), 
+      prodSampleEpsilon prod;
+      kde m = prod.prodSampleEpsilonRun(kdes.size(), 
                                      NSAMP, 
                                      EPSILON, 
                                      kdes);
@@ -198,12 +209,18 @@ void bp_update(gl_types::iscope& scope,
       m.verify();
       v_data.bel = m;
       if (debug && vid == 0){
-	   printf("computing belief node %d\n", vid);
+	   printf("belief node %d is\n", vid);
            m.matlab_print(); printf("\n");
       }
 
 
    }
+  /*
+  if (v_data.rounds < MAX_ITERATIONS) {
+    gl_types::update_task task(scope.vertex(), bp_update);
+    scheduler.add_task(task, 1.0);
+  }*/
+
 
 } // end of BP_update
 
@@ -245,7 +262,8 @@ void construct_graph(std::string gmmfile,
       vdat.obs.verify();
       //vdat.p.simplify();
     
-      vdat.bel = vdat.obs.sample();
+      //vdat.bel = vdat.obs.sample();//TOOD
+      vdat.bel = vdat.obs;
       vdat.bel.verify();
       /*for (size_t n = 0;n < numparticles; ++n) {
         particle p;
@@ -360,7 +378,7 @@ int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
 
   //test();
-
+  int sf = 1;
   size_t iterations = 100;
   size_t numparticles = 100;
   std::string pred_type = "map";
@@ -371,10 +389,16 @@ int main(int argc, char** argv) {
 
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
+  clopts.attach_option("sf",
+                       &sf, sf,
+                       "shrinking ratio of image (could be 1,2,3,4,5)");
   clopts.attach_option("iterations",
                        &iterations, iterations,
                        "Number of iterations");
-  clopts.attach_option("particles",
+  clopts.attach_option("epsilon",
+                       &EPSILON, EPSILON,
+                       "epsilon");
+   clopts.attach_option("particles",
                        &numparticles, numparticles,
                        "Number of particlesw");
   clopts.attach_option("gmmfile",
@@ -398,12 +422,17 @@ int main(int argc, char** argv) {
 
   // set default scheduler type
   clopts.scheduler_type = "round_robin";
-  //clopts.scope_type = "edge";
+  clopts.scope_type = "none";
 
   bool success = clopts.parse(argc, argv);
   if(!success) {
     return EXIT_FAILURE;
   }
+
+  assert(sf>0 && sf<=5);
+  ROWS = ceil(ROWS/(double)sf);
+  COLS = ceil(COLS/(double)sf);
+
 
   // fill the global vars
   MAX_ITERATIONS = iterations;
@@ -420,13 +449,15 @@ int main(int argc, char** argv) {
   core.set_engine_options(clopts);
   
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-  construct_graph(gmmfile, numparticles, core.graph(),107,86);
+  construct_graph(gmmfile, numparticles, core.graph(),ROWS,COLS);
   
 
 
   // Running the engine ------------------------------------------------------->
   core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
                               (void*)bp_update);
+  core.scheduler().set_option(gl_types::scheduler_options::MAX_ITERATIONS,
+                              (void*)&MAX_ITERATIONS);
 
   std::cout << "Running the engine. " << std::endl;
 
@@ -448,10 +479,10 @@ int main(int argc, char** argv) {
   // Saving the output -------------------------------------------------------->
   std::cout << "Rendering the cleaned image. " << std::endl;
 
-  vec pred(107*86);
-  image img(107, 86);
-  image trueimg(107, 86);
-  image transposedimg(86, 107);
+  vec pred(ROWS*COLS);
+  image img(ROWS, COLS);
+  image trueimg(ROWS, COLS);
+  image transposedimg(COLS, ROWS);
   for (size_t v = 0; v < core.graph().num_vertices(); ++v) {
     const vertex_data& vdata = core.graph().vertex_data(v);
     // ok... this is unbelievably annoying but my traversal order is opposite

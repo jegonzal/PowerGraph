@@ -6,6 +6,7 @@
 #include <itpp/stat/misc_stat.h>
 #include "assert.h"
 #include <vector>
+//#include "prodSampleEpsilon.hpp"
 
 typedef itpp::Mat<unsigned int> uimat;
 
@@ -111,7 +112,7 @@ public:
             assert(bw.cols() == centers.cols()); 
             assert(weights.size() == centers.cols());
             if (indices.size() > 0){
-                assert(itpp::max(indices.get_row(0))< getPoints());
+                assert(itpp::max(indices.get_row(0))< 10*getPoints());//TODO more careful checkiung;
                 assert(itpp::min(indices.get_row(0))>=0);
              }
                              
@@ -249,11 +250,6 @@ public:
 
   };
 
-kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
-		       unsigned int Nsamp,  //number of samples
-                       double maxErr,  //epsilon
-                       std::vector<kde>& kdes);//kdes to product
-
 
       inline void test_marginal(){ 
           printf("testing marginal..\n");
@@ -336,18 +332,5 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
         }
 
  
-        inline void test_product(){
-          printf("testing product..\n");
-	   kde k = kde("3 1", "1 1", "1 2");
-	   kde j = kde("2", ".5", "1");
-           std::vector<kde> vecs;
-           vecs.push_back(k);
-           vecs.push_back(j);
-           kde out = prodSampleEpsilon(2,48,1e-5,vecs);
-           out.matlab_print();
-           out.verify();
-         }
-
-
 
 #endif

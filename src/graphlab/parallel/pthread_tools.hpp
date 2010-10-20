@@ -45,7 +45,7 @@ namespace graphlab {
  
     thread_specific_data(size_t thread_id) :
       thread_id_(thread_id),
-      rng_(thread_id + rand() ),
+      rng_(thread_id + rand()),
       rnggaussian_(rng_, gaussian_dist_),
       rng_real_(rng_, real_dist_) {}
 
