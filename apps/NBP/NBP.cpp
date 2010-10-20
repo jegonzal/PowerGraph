@@ -32,7 +32,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-#define NSAMP 12
+#define NSAMP 36
 #define EPSILON 1e-5
 int RESAMPLE_FREQUENCY = 0;
 int MAX_ITERATIONS = 6;
@@ -152,7 +152,7 @@ void bp_update(gl_types::iscope& scope,
      
       graphlab::edge_id_t outeid = out_edges[j];
       edge_data& out_edge = scope.edge_data(outeid);
-      kde marg = out_edge.edge_pot.marginal(1);  
+      kde marg = out_edge.edge_pot.marginal(0);  
       kdes.push_back(marg);      
  
       kde m = prodSampleEpsilon(kdes.size(), 
@@ -161,9 +161,10 @@ void bp_update(gl_types::iscope& scope,
                                      kdes);
      
       m.verify();
-      kde mar2 = out_edge.edge_pot.marginal(2);
+      kde mar2 = out_edge.edge_pot.marginal(1);
       mar2.verify();
-      kde outmsg = mar2.sample(m.indices,m.weights);
+      imat firstrowind = m.indices(0,0,0,m.indices.cols()-1);
+      kde outmsg = mar2.sample(firstrowind,m.weights);
       outmsg.verify(); 
       out_edge.msg = outmsg;
 
@@ -214,17 +215,19 @@ void construct_graph(std::string gmmfile,
                      size_t rows,
                      size_t cols) {
 
+
   image img(rows, cols);
   // initialize a bunch of particles
   for(size_t i = 0; i < rows; ++i) {
     
     it_ifile gmms((gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it").c_str());
     
-    mat nodecenter, nodesigma, nodeweight;
+    mat nodeweight;
     vec doublevec;
-    gmms >> Name("like_ce") >> doublevec; nodecenter = doublevec;
+    gmms >> Name("like_ce") >> doublevec; mat nodecenter(1,doublevec.size()); nodecenter = doublevec; 
     gmms >> Name("like_alpha") >> nodeweight;
-    gmms >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
+    gmms >> Name("like_sigma") >> doublevec; 
+    mat nodesigma(1,doublevec.size()); nodesigma = doublevec;
     
     ASSERT_EQ(nodeweight.rows(), cols);
     
@@ -234,8 +237,16 @@ void construct_graph(std::string gmmfile,
 
       // Set the node potential
       itpp::vec weights = nodeweight.get_row(j);
+      if (nodecenter.rows() > nodecenter.cols())
+      	nodecenter = itpp::transpose(nodecenter); 
+      if (nodesigma.rows() > nodesigma.cols())
+         nodesigma = itpp::transpose(nodesigma);
       vdat.obs = kde(nodecenter, nodesigma, weights);
+      vdat.obs.verify();
       //vdat.p.simplify();
+    
+      vdat.bel = vdat.obs.sample();
+      vdat.bel.verify();
       /*for (size_t n = 0;n < numparticles; ++n) {
         particle p;
         p.x = vdat.p.sample();
@@ -270,42 +281,57 @@ void construct_graph(std::string gmmfile,
     
     it_ifile gmms(gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it");
     
-    mat lrcenter, lrsigma, lrweight;
+    mat lrcenter;
     vec doublevec;
     gmms >> Name("lr_edge_ce") >> lrcenter;
-    gmms >> Name("lr_edge_alpha") >> doublevec; lrweight = doublevec;
-    gmms >> Name("lr_edge_sigma") >> doublevec; lrsigma = doublevec;
+    gmms >> Name("lr_edge_alpha") >> doublevec; 
+    mat lrweight(1,doublevec.size());  
+    lrweight = doublevec;
+    gmms >> Name("lr_edge_sigma") >> doublevec; 
+    mat lrsigma(1,doublevec.size());
+    lrsigma = doublevec;
 
-    mat udcenter, udsigma, udweight;
+    mat udcenter;
     gmms >> Name("ud_edge_ce") >> udcenter;
-    gmms >> Name("ud_edge_alpha") >> doublevec; udweight = doublevec;
-    gmms >> Name("ud_edge_sigma") >> doublevec; udsigma = doublevec;
+    gmms >> Name("ud_edge_alpha") >> doublevec; 
+    mat udweight(1,doublevec.size());
+    udweight = doublevec;
+    gmms >> Name("ud_edge_sigma") >> doublevec; 
+    mat udsigma(1,doublevec.size());
+    udsigma = doublevec;
     lastudpot = udpot;
+    lrsigma = transpose(lrsigma); 
+    udsigma = transpose(udsigma); 
+    lrweight = transpose(lrweight);
+    udweight = transpose(udweight);
+
     //lrpot = GaussianMixture<2>(lrcenter, lrsigma, lrweight);
     lrpot = kde(lrcenter, lrsigma, lrweight);
+    lrpot.verify();
     //udpot = GaussianMixture<2>(udcenter, udsigma, udweight);
     udpot = kde(udcenter, udsigma, udweight);   
+    udpot.verify();
 
        for(size_t j = 0; j < cols; ++j) {
 
       size_t vertid = img.vertid(i,j);
       if(i-1 < img.rows()) {
-        //edata.message = graph.vertex_data(img.vertid(i-1, j)).belief;
+        edata.msg = graph.vertex_data(img.vertid(i-1, j)).bel;
         edata.edge_pot = lastudpot;
         graph.add_edge(vertid, img.vertid(i-1, j), edata);
       }
       if(i+1 < img.rows()) {
-        //edata.message = graph.vertex_data(img.vertid(i+1, j)).belief;
+        edata.msg = graph.vertex_data(img.vertid(i+1, j)).bel;
         edata.edge_pot = udpot;
         graph.add_edge(vertid, img.vertid(i+1, j), edata);
       }
       if(j-1 < img.cols()) {
-        //edata.message = graph.vertex_data(img.vertid(i, j-1)).belief;
+        edata.msg = graph.vertex_data(img.vertid(i, j-1)).bel;
         edata.edge_pot = lrpot;
         graph.add_edge(vertid, img.vertid(i, j-1), edata);
       }
       if(j+1 < img.cols()) {
-        //edata.message = graph.vertex_data(img.vertid(i, j+1)).belief;
+        edata.msg = graph.vertex_data(img.vertid(i, j+1)).bel;
         edata.edge_pot = lrpot;
         graph.add_edge(vertid, img.vertid(i, j+1), edata);
       }
@@ -333,7 +359,7 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
 
-  test();
+  //test();
 
   size_t iterations = 100;
   size_t numparticles = 100;

@@ -20,6 +20,11 @@
 
 #include "cpp/BallTreeDensity.h"
 
+class prodSampleEpsilon{
+
+
+public:
+
 void multiEval(void);
 double normConstant(void);
 
@@ -27,20 +32,20 @@ double normConstant(void);
 //   to access a^th dimension of density pair (b,c)'s constant
 #define SIGVALSMAX(a,b,c) (SigValsMax + a+Ndim*b+Ndim*Ndens*c)
 #define SIGVALSMIN(a,b,c) (SigValsMin + a+Ndim*b+Ndim*Ndens*c)
-double *SigValsMax, *SigValsMin;
+double *SigValsMax = NULL, *SigValsMin = NULL;
 
 //BallTreeDensity *trees;    // structure of all trees
 std::vector<BallTreeDensity> trees;
 BallTree::index *ind = NULL;      // indices of this level of the trees
 
-double *C,*sC,*M;
+double *C= NULL,*sC = NULL,*M = NULL;
 
-double *randunif1, *randunif2, *randnorm;  // required random numbers
-double *samples;
+double *randunif1 = NULL, *randunif2 = NULL, *randnorm = NULL;  // required random numbers
+double *samples = NULL;
 BallTree::index* indices = NULL;    // return data
 
 double maxErr = 0;                 // epsilon tolerance (%) of algorithm
-double total, soFar, soFarMin; // partition f'n and accumulation
+double total = 0, soFar = 0, soFarMin = 0; // partition f'n and accumulation
 
 unsigned int Ndim = 0,Ndens = 0;   // useful constants
 unsigned long Nsamp = 0;
@@ -142,6 +147,7 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
     mexErrMsgTxt("Outputs 2 results");
 
   Ndens = mxGetN(prhs[0]); */
+  bool debug = true;
 
   Ndens = _Ndens;
   Nsamp = _Nsamp;
@@ -203,7 +209,7 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   //samples = (double*) mxGetData(plhs[0]); 
   samples = out.centers._data();
   //plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
-  out.indices = itpp::zeros(Ndens, Nsamp);
+  out.indices = itpp::imat(Ndens, Nsamp);
   //indices = (BallTree::index*) mxGetData(plhs[1]); 
   indices = (BallTree::index*) out.indices._data();
 
@@ -225,7 +231,10 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   //mxDestroyArray(rNorm); mxDestroyArray(rsize);
   out.ROT();
   out.weights = itpp::ones(1, out.getPoints())/(double)out.getPoints();
+  out.matlab_print();
+  out.indices = out.indices - 1; //c++ count starts from zero
   out.verify();
+ 
  
   for (int i=0; i < trees.size(); i++)
      trees[i].clean();
@@ -382,7 +391,8 @@ void multiEvalRecursive(void) {
         for (j=0;j<Ndim;j++)                                 // compute product mean:
           M[j] += trees[i].center(index)[j] / trees[i].bw(index)[j];
         *(indices++) = trees[i].getIndexOf(index)+1;         // and save selected indices
-        if (!bwUniform) for (j=0;j<Ndim;j++)                 // compute covariance
+         assert(trees[i].getIndexOf(index)+1 <= Ndens*Nsamp);
+         if (!bwUniform) for (j=0;j<Ndim;j++)                 // compute covariance
             C[j] += 1/trees[i].bw(index)[j];                 //  contribution of each dens.
       }
       if (!bwUniform) for (j=0;j<Ndim;j++) {                 // finish computing covar and
@@ -447,4 +457,4 @@ void multiEval(void) {
 //  delete[] ind;
   mxFree(ind);
 }
-
+}; //class
