@@ -45,7 +45,7 @@ std::string labeledbin = "";
 std::string labeledimg = "";
 double multiplicity = 1.0;
 double smooth=5E-3;
-
+bool benchmark = false;
 
 size_t tovertexid(size_t img, size_t x, size_t y) {
   return img * width * height + x * height + y;
@@ -820,11 +820,14 @@ bool parse_command_line(int argc, char** argv, options& opts) {
      "imagepath")
      ("outputimages",  boost_po::value<bool>(&(outputimages))->default_value(false),
      "outputimages")
- ("bound",  boost_po::value<double>(&(termination_bound))->default_value(1E-5),
+    ("bound",  boost_po::value<double>(&(termination_bound))->default_value(1E-5),
      "termination bound")
-("basefile",
+    ("basefile",
      boost_po::value<std::string>(&(opts.basefile))->default_value(""),
-     "Base input/output graphname");
+     "Base input/output graphname")
+    ("benchmark",  boost_po::value<bool>(&(benchmark))->default_value(false),
+     "benchmark mode");
+
   // Parse the arguments
   boost_po::variables_map vm;
   boost_po::store(boost_po::parse_command_line(argc, argv, desc), vm);
@@ -953,6 +956,10 @@ int main(int argc,  char *argv[]) {
   engine->start();
   double runtime = ti.current_time();
   dc.barrier();
+  if (benchmark) {
+    std::cout << "Benchmark Mode: Due Now!" << std::endl;
+    return 0;
+  }
   graph.send_vertices_to_proczero();
   if (dc.procid() == 0) {
     // output the time

@@ -50,6 +50,7 @@ size_t iterations = 5;
 size_t countermax = 3;
 double threshold = 10;
 bool diagonals = false;
+bool benchmark = false;
 /*std::string imagepath = "/mnt/bigbrofs/usr3/ylow/data/soccer/";
 size_t width = 640/2;
 size_t height = 480/2;
@@ -79,6 +80,7 @@ bool parse_command_line(graphlab::command_line_options& opt, int argc, char** ar
   opt.attach_option("countermax", &countermax,size_t(3),"");
   opt.attach_option("threshold", &threshold,double(10),"");
   opt.attach_option("diagonals", &diagonals,bool(false),"");
+  opt.attach_option("benchmark", &benchmark,bool(false),"");
   opt.parse(argc, argv);
   opt.print();
   width/=2;
@@ -512,6 +514,11 @@ int main(int argc, char** argv) {
     dc.barrier();
     engine->start();
     dc.barrier();
+    if (benchmark) {
+      std::cout << "Benchmark Mode! Die Now!" << std::endl;
+      return 0;
+    }
+   
     std::cout << "Done!. Collecting." << std::endl;
     graph.send_vertices_to_proczero();
     dc.barrier();
