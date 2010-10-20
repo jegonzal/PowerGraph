@@ -1,3 +1,6 @@
+#ifndef PROD_SAMPL_EPS
+#define PROD_SAMPL_EPS
+
 /***********************************************************************
 ** multi-tree approximate sampling MEX code
 **
@@ -20,8 +23,11 @@
 
 #include "cpp/BallTreeDensity.h"
 
-void multiEval(void);
-double normConstant(void);
+class prodSampleEpsilon{
+
+
+public:
+
 
 // a little addressing formula: 
 //   to access a^th dimension of density pair (b,c)'s constant
@@ -31,21 +37,36 @@ double *SigValsMax, *SigValsMin;
 
 //BallTreeDensity *trees;    // structure of all trees
 std::vector<BallTreeDensity> trees;
-BallTree::index *ind = NULL;      // indices of this level of the trees
+BallTree::index *ind;      // indices of this level of the trees
 
 double *C,*sC,*M;
 
 double *randunif1, *randunif2, *randnorm;  // required random numbers
 double *samples;
-BallTree::index* indices = NULL;    // return data
+BallTree::index* indices;    // return data
 
-double maxErr = 0;                 // epsilon tolerance (%) of algorithm
+double maxErr;                 // epsilon tolerance (%) of algorithm
 double total, soFar, soFarMin; // partition f'n and accumulation
 
-unsigned int Ndim = 0,Ndens = 0;   // useful constants
-unsigned long Nsamp = 0;
-bool bwUniform = true;
+unsigned int Ndim,Ndens;   // useful constants
+unsigned long Nsamp;
+bool bwUniform ;
 
+prodSampleEpsilon(){
+ SigValsMin = SigValsMax = 0;
+ ind = 0; 
+ C = sC = M = 0;
+ randunif2 = randunif1 = randnorm = 0;
+ samples = 0; indices = 0;
+ maxErr = 0; total = 0; soFarMin =0; soFar = 0;
+ Ndim = 0; Ndens = 0; Nsamp = 0; bwUniform = true;
+}
+
+~prodSampleEpsilon(){
+
+  mxFree(C); mxFree(sC); mxFree(M); mxFree(SigValsMin); mxFree(SigValsMax);
+  //delete [] randunif1; delete[] randunif2; delete[] randnorm; 
+}
 
 #ifdef MEX
 //////////////////////////////////////////////////////////////////////
@@ -122,7 +143,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 //////////////////////////////////////////////////////////////////////
 // MEX WRAPPER
 //////////////////////////////////////////////////////////////////////
-kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
+kde prodSampleEpsilonRun(unsigned int _Ndens, //number of densities to product
 		       unsigned int _Nsamp,  //number of samples
                        double _maxErr,  //epsilon
                        std::vector<kde>& kdes)
@@ -142,6 +163,7 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
     mexErrMsgTxt("Outputs 2 results");
 
   Ndens = mxGetN(prhs[0]); */
+  bool debug = true;
 
   Ndens = _Ndens;
   Nsamp = _Nsamp;
@@ -187,8 +209,8 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   //rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
 
   //mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
-  itpp::mat rUnif2; 
-  itpp::randu(Ndim, Nsamp, rUnif2);
+  itpp::mat rUnif2 = itpp::zeros(1,Nsamp+1); 
+  itpp::randu(Ndens, Nsamp, rUnif2);
   randunif2 = vec2vec(&rUnif2);
   //rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
   //mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
@@ -203,7 +225,7 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   //samples = (double*) mxGetData(plhs[0]); 
   samples = out.centers._data();
   //plhs[1] = mxCreateNumericMatrix(Ndens,Nsamp,mxUINT32_CLASS,mxREAL);
-  out.indices = itpp::zeros(Ndens, Nsamp);
+  out.indices = itpp::imat(Ndens, Nsamp);
   //indices = (BallTree::index*) mxGetData(plhs[1]); 
   indices = (BallTree::index*) out.indices._data();
 
@@ -219,14 +241,19 @@ kde prodSampleEpsilon(unsigned int _Ndens, //number of densities to product
   //delete[] trees;
 //  mxFree(trees);
 
-  mxFree(C); mxFree(sC); mxFree(M); mxFree(SigValsMin); mxFree(SigValsMax);
 
   //mxDestroyArray(rUnif1); mxDestroyArray(rUnif2); 
   //mxDestroyArray(rNorm); mxDestroyArray(rsize);
   out.ROT();
   out.weights = itpp::ones(1, out.getPoints())/(double)out.getPoints();
+  out.matlab_print();
+  out.indices = out.indices - 1; //c++ count starts from zero
   out.verify();
-  
+ 
+ 
+  for (int i=0; i < trees.size(); i++)
+     trees[i].clean();
+  trees.clear(); 
  
   return out;
 }
@@ -379,7 +406,8 @@ void multiEvalRecursive(void) {
         for (j=0;j<Ndim;j++)                                 // compute product mean:
           M[j] += trees[i].center(index)[j] / trees[i].bw(index)[j];
         *(indices++) = trees[i].getIndexOf(index)+1;         // and save selected indices
-        if (!bwUniform) for (j=0;j<Ndim;j++)                 // compute covariance
+         //assert(trees[i].getIndexOf(index)+1 <= Ndens*Nsamp);
+         if (!bwUniform) for (j=0;j<Ndim;j++)                 // compute covariance
             C[j] += 1/trees[i].bw(index)[j];                 //  contribution of each dens.
       }
       if (!bwUniform) for (j=0;j<Ndim;j++) {                 // finish computing covar and
@@ -444,4 +472,21 @@ void multiEval(void) {
 //  delete[] ind;
   mxFree(ind);
 }
+}; //class
+        inline void test_product(){
+          printf("testing product..\n");
+	   kde k = kde("3 1", "1 1", "1 2");
+	   kde j = kde("2", ".5", "1");
+           std::vector<kde> vecs;
+           vecs.push_back(k);
+           vecs.push_back(j);
+           prodSampleEpsilon prod;
+           kde out = prod.prodSampleEpsilonRun(2,48,1e-5,vecs);
+           out.matlab_print();
+           out.verify();
+         }
 
+
+
+
+#endif

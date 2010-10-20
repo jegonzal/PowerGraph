@@ -94,6 +94,7 @@ class BallTree {
   BallTree::index right(BallTree::index i)  const { return right_child[i]; }
   BallTree::index leafFirst(BallTree::index i) const { return lowest_leaf[i]; }
   BallTree::index leafLast(BallTree::index i)  const { return highest_leaf[i]; }
+  void clean();
 
   // Convert a BallTree::index to the numeric index in the original data
   index getIndexOf(BallTree::index i) const { return permutation[i]; }

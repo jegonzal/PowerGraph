@@ -6,6 +6,7 @@
 #include <itpp/stat/misc_stat.h>
 #include "assert.h"
 #include <vector>
+//#include "prodSampleEpsilon.hpp"
 
 typedef itpp::Mat<unsigned int> uimat;
 
@@ -22,7 +23,7 @@ public:
 	itpp::mat centers;
 	itpp::mat bw;
         itpp::vec weights;
-        itpp::mat indices;
+        itpp::imat indices;
 
         kde(){};
 
@@ -38,14 +39,13 @@ public:
             weights = itpp::vec(_weights);
             normalize_weights();
         }
-		kde(itpp::mat &_centers, itpp::mat &_bw, itpp::mat &_weights){
+        kde(itpp::mat &_centers, itpp::mat &_bw, itpp::mat &_weights){
 	    centers = _centers;
             bw = _bw;
             assert(_weights.rows() == 1);
             weights = _weights.get_row(0);
             normalize_weights();
         }
-
 	kde(itpp::mat &_centers, itpp::mat &_bw){
 	    centers = _centers;
             bw = _bw;
@@ -107,8 +107,15 @@ public:
             assert(centers.cols() > 0);
             assert(itpp::max(itpp::max(centers)) < 1e10);
             assert(itpp::max(itpp::max(bw)) < 1e10);
+            assert(centers.size() < 1000);
             assert(weights.size() == getPoints());
             assert(bw.cols() == centers.cols()); 
+            assert(weights.size() == centers.cols());
+            if (indices.size() > 0){
+                assert(itpp::max(indices.get_row(0))< getPoints());
+                assert(itpp::min(indices.get_row(0))>=0);
+             }
+                             
        }
 
         int getDim() const{
@@ -120,10 +127,11 @@ public:
         }
 
         // points = pts(:,ind) + getBW(npd,ind).*randKernel(getDim(npd),length(ind),getType(npd));
-         kde sample(itpp::mat & ind,itpp::vec & weights){
-             assert(sum(weights)>0);
+         kde sample(itpp::imat & ind,itpp::vec & _weights){
+             assert(sum(_weights)>0);
              assert(itpp::max(itpp::max(ind)) < centers.cols());
-             assert(min(min(ind)) >= 0);
+             assert(itpp::min(itpp::min(ind)) >= 0);
+             assert(itpp::max(itpp::max(ind)) < getPoints());
              itpp::mat randN; 
              itpp::randn(getDim(), ind.size(), randN);
              itpp::mat pts = itpp::zeros(centers.rows(), ind.size());
@@ -135,11 +143,25 @@ public:
                 }
              }
              itpp::mat points = pts + elem_mult(pbw, randN);
-             return kde(points, pbw, weights);
+             return kde(points, pbw, _weights);
                     
          }
+         kde sample(){
+            itpp::ivec ind2 = itpp::randi(getPoints(), 0, getPoints() -1);
+            itpp::imat mind2(1,getPoints());
+            for (int i=0; i< getPoints(); i++)
+               mind2(0,i) = ind2(i);
+            itpp::vec weights2 = itpp::ones(getPoints());
+            return sample(mind2, weights2);
+            
 
-      static void matlab_print(const itpp::vec & data){
+         } 
+      static void matlab_print(const itpp::ivec & data){
+          for (int i=0; i< data.size(); i++)
+           	std::cout<<" "<<data(i);
+      }
+
+    static void matlab_print(const itpp::vec & data){
           for (int i=0; i< data.size(); i++)
            	std::cout<<" "<<data(i);
       }
@@ -153,6 +175,16 @@ public:
           }
           std::cout<<"]";
       }
+    static void matlab_print(const itpp::imat & data){
+          std::cout<<"[";
+          for (int i=0; i< data.rows(); i++){
+             matlab_print(data.get_row(i));
+             if (i < data.rows() -1 )
+                 std::cout<<";";
+          }
+          std::cout<<"]";
+      }
+
 
 
 
@@ -164,6 +196,10 @@ public:
           std::cout<< ",[";
           matlab_print(weights);
           std::cout << "]);" << std::endl;
+          if (indices.size() > 0)
+            std::cout<<"indices=[";
+            matlab_print(indices);
+            std::cout<<std::endl;
       }
       
 /*function h = ksizeROT(npd,noIQR)
@@ -214,11 +250,6 @@ public:
 
   };
 
-kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
-		       unsigned int Nsamp,  //number of samples
-                       double maxErr,  //epsilon
-                       std::vector<kde>& kdes);//kdes to product
-
 
       inline void test_marginal(){ 
           printf("testing marginal..\n");
@@ -266,7 +297,7 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
            kde k(cent, bw, weight);
            k.matlab_print();
            double sum = 0;
-           itpp::mat ind = "0";
+           itpp::imat ind = "0";
            itpp::vec vweight = "1";
            for (int i=0; i< 10000; i++){
               kde out = k.sample(ind, vweight);
@@ -281,7 +312,7 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
            kde k(cent, bw, weight);
            k.matlab_print();
            double sum = 0;
-           itpp::mat ind =     "0 1 3 2 3 2 3 3 2 1 4 5";
+           itpp::imat ind =     "0 1 3 2 3 2 3 3 2 1 4 5";
            itpp::vec vweight = ".5 .5 .2 .1 .2 .1 .2 .1 .1 .05 .05";
            for (int i=0; i< 10000; i++){
               kde out = k.sample(ind, vweight);
@@ -301,18 +332,5 @@ kde prodSampleEpsilon(unsigned int Ndens, //number of densities to product
         }
 
  
-        inline void test_product(){
-          printf("testing product..\n");
-	   kde k = kde("3 1", "1 1", "1 2");
-	   kde j = kde("2", ".5", "1");
-           std::vector<kde> vecs;
-           vecs.push_back(k);
-           vecs.push_back(j);
-           kde out = prodSampleEpsilon(2,48,1e-5,vecs);
-           out.matlab_print();
-           out.verify();
-         }
-
-
 
 #endif
