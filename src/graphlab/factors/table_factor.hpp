@@ -526,8 +526,8 @@ namespace graphlab {
     //! Make this an ending assignment
     void make_end() {
       _index = -1;
-      for(size_t i = 0; i < _args.num_vars(); ++i)
-        _asgs[i] = _args.var(i).arity;
+      // for(size_t i = 0; i < _args.num_vars(); ++i)
+      //   _asgs[i] = _args.var(i).arity;
     }
 
     //! Restrict the assignment to an assignment over the subdomain
