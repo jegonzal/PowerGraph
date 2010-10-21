@@ -48,6 +48,7 @@ private:
   size_t max_tree_size;
   size_t max_tree_width;
   size_t max_factor_size;
+  size_t max_tree_height;
 
   size_t tree_count;
 
@@ -106,6 +107,7 @@ public:
             size_t treesize,
             size_t treewidth,
             size_t factorsize,
+            size_t max_height,
             size_t internal_threads,
             bool priorities) {
     // Initialize parameters
@@ -114,6 +116,8 @@ public:
     worker_count = ncpus;
     max_tree_size = treesize;
     max_tree_width = treewidth;
+    max_tree_height = max_height;
+
     if(factorsize <= 0) {
       max_factor_size = std::numeric_limits<size_t>::max();
     } else {
@@ -345,6 +349,7 @@ public:
     bfs_queue.push_back(current_root);
     visited.insert(current_root);
 
+
     while(!bfs_queue.empty()) {
       // Take the top element
       const vertex_id_t next_vertex = bfs_queue.front();
@@ -361,22 +366,36 @@ public:
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
-        // test the 
-        bool safe_extension = 
+
+        // if this is the root vertex
+        vertex_id_t min_height = 0;
+        if(!cliques.empty()) {
+          min_height = max_tree_height;
+          // find the closest vertex to the root
+          foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+            vertex_id_t neighbor_vid = mrf.target(eid);
+            // if the neighbor is already in the tree
+            if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+              min_height = 
+                std::min(min_height, mrf.vertex_data(neighbor_vid).height + 1);
+            } 
+          }
+        } 
+        bool safe_extension = min_height < max_tree_height;
+
+        // test that its safe  
+        safe_extension = safe_extension && 
           extend_clique_list(mrf,
                              next_vertex,
                              elim_time_map,
                              cliques,
                              max_tree_width,
                              max_factor_size);
-        // // Limit the number of variables
-        // if(cliques.size() > max_tree_size) {
-        //   // release the scope
-        //   scope_factory->release_scope(&scope);                 
-        //   break;
-        // }
 
         if(safe_extension) {   
+          // set the height
+          mrf.vertex_data(next_vertex).height = min_height;
+
           // add the neighbors to the search queue
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
             vertex_id_t neighbor_vid = mrf.target(eid);
@@ -430,8 +449,21 @@ public:
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
+        // min height 
+        vertex_id_t min_height = max_tree_height;
+        // find the closest vertex to the root
+        foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+          vertex_id_t neighbor_vid = mrf.target(eid);
+          // if the neighbor is already in the tree
+          if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+            min_height = 
+              std::min(min_height, mrf.vertex_data(neighbor_vid).height + 1);
+          } 
+        } 
+
         // test the 
-        bool safe_extension = 
+        bool safe_extension = min_height < max_tree_height;
+        safe_extension = safe_extension &&
           extend_clique_list(mrf,
                              next_vertex,
                              elim_time_map,
@@ -439,19 +471,16 @@ public:
                              max_tree_width,
                              max_factor_size);
 
-        // // Limit the number of variables
-        // if(cliques.size() > max_tree_size) {
-        //   // release the scope
-        //   scope_factory->release_scope(&scope);                 
-        //   break;
-        // }
 
         bool favor_zero_updates = true;
         double zero_updates_bonus = 100;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
-        if(safe_extension) {                 
+        if(safe_extension) {
+          // set the height
+          mrf.vertex_data(next_vertex).height = min_height;
+
           // add the neighbors to the search queue or update their priority
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
             vertex_id_t neighbor_vid = mrf.target(eid);
@@ -521,23 +550,23 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
     
 
 
-//         ///////////////////////////////////
-//         // plot the graph
-//         if(worker_id == 0) {
-//           std::cout << "Saving treeImage:" << std::endl;
-//           size_t rows = std::sqrt(mrf.num_vertices());
-//           image img(rows, rows);
-//           for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-//             vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-//             img.pixel(vid) = 
-//                 tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-//           }
-//           img.save(make_filename("tree", ".pgm", tree_count).c_str());
-//         }
+        ///////////////////////////////////
+        // plot the graph
+        if(worker_id == 0) {
+          std::cout << "Saving treeImage:" << std::endl;
+          size_t rows = std::sqrt(mrf.num_vertices());
+          image img(rows, rows);
+          for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+            vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+            img.pixel(vid) = 
+                tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+          }
+          img.save(make_filename("tree", ".pgm", tree_count).c_str());
+        }
 
 
 
@@ -595,6 +624,7 @@ void parallel_sample(const factorized_model& fmodel,
                      size_t max_tree_size = 1000,
                      size_t max_tree_width = MAX_DIM,
                      size_t max_factor_size = (1 << MAX_DIM),
+                     size_t max_tree_height = 1000,
                      size_t internal_threads = 1,
                      bool use_priorities = false) {
   // create workers
@@ -627,6 +657,7 @@ void parallel_sample(const factorized_model& fmodel,
                     max_tree_size,
                     max_tree_width,
                     max_factor_size,
+                    max_tree_height,
                     internal_threads,
                     use_priorities);    
     // Launch the threads

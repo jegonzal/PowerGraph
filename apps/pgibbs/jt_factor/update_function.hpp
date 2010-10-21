@@ -291,6 +291,7 @@ namespace junction_tree{
           //           << ": sampling " << mrf_vdata.variable << std::endl;
           // remove the vertex from any trees
           mrf_vdata.tree_id = NULL_VID;
+          mrf_vdata.height = 0;
         } 
 
         // Reschedule unsampled neighbors

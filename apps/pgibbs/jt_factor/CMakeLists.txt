@@ -6,4 +6,4 @@ add_executable(test_jt test_jt.cpp)
 
 add_executable(alchemy_image_denoise alchemy_image_denoise.cpp)
 
-TARGET_LINK_LIBRARIES(pgibbs_jt_alchemy tcmalloc)
+#TARGET_LINK_LIBRARIES(pgibbs_jt_alchemy tcmalloc)

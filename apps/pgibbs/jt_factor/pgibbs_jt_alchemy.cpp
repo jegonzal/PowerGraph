@@ -57,6 +57,7 @@ int main(int argc, char** argv) {
   std::string model_filename = "";
 
   size_t treesize = 1000;
+  size_t treeheight = 1000;
   bool priorities = false;
   std::vector<float> runtimes(1,10);
   size_t treewidth = 3;
@@ -78,6 +79,11 @@ int main(int argc, char** argv) {
   clopts.attach_option("treesize", 
                        &treesize, treesize,
                        "The number of variables in a junction tree");
+
+  clopts.attach_option("treeheight", 
+                       &treeheight, treeheight,
+                       "The height of the tree.");
+
 
 
   clopts.attach_option("treewidth", 

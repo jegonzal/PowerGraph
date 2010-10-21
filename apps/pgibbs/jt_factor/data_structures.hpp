@@ -77,7 +77,7 @@ namespace mrf {
 
     bool           in_tree;
     vertex_id_t    tree_id;
-
+    vertex_id_t    height;
 
     vertex_data() : updates(0), 
                     in_tree(false), 
@@ -91,7 +91,8 @@ namespace mrf {
       belief(domain_t(variable)),
       updates(0),
       in_tree(false),
-      tree_id(NULL_VID) {    // Set the belief to uniform 0
+      tree_id(NULL_VID),
+      height(0) {    // Set the belief to uniform 0
       belief.uniform(-std::numeric_limits<double>::max());
       assert(!factor_ids.empty());
     }
@@ -103,6 +104,7 @@ namespace mrf {
       arc << belief;
       arc << updates;
       arc << in_tree;
+      arc << height;
     }
 
     void load(graphlab::iarchive &arc) {
@@ -112,6 +114,7 @@ namespace mrf {
       arc >> belief;
       arc >> updates;
       arc >> in_tree;
+      arc >> height;
     }
   }; // End of vertex data
 
