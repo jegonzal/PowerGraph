@@ -31,7 +31,7 @@ namespace junction_tree{
                         gl::icallback& callback,
                         gl::ishared_data* shared_data) {
     
-    // slow_update(scope, callback, shared_data);
+    //    slow_update(scope, callback, shared_data);
 
     fast_update(scope, callback, shared_data);
 
@@ -596,9 +596,10 @@ namespace junction_tree{
         //           << ": sampling " << mrf_vdata.variable << std::endl;
         // remove the vertex from any trees
         mrf_vdata.tree_id = NULL_VID;
-        // mrf_vdata.belief.logP(mrf_vdata.asg.at(0)) =
-        //   std:exp(mrf_vdata.belief.logP(mrf_vdata.asg.at(0))) + 1;
+        mrf_vdata.height = 0;
 
+        // double& logP = mrf_vdata.belief.logP(mrf_vdata.asg.asg_at(0));
+        // logP = std::log( std::exp(logP) + 1.0 );
 
       } 
 
