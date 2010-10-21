@@ -82,6 +82,7 @@ namespace graphlab {
       receive_target = this;
       pendinglocks.value = 0;
       syncs_in_progress.value = 0;
+      dht.set_pushed_updates(true);
     }
     
 
@@ -589,6 +590,7 @@ entry of the key
         apply_function_type fun = apply_function_type(applyfn);
         fun(key, dsdm, iter.second->second, newdata); 
         iter.second->first.unlock();
+        dsdm.dht.modified(key);
         dc.remote_call(source, set_ptr_to_value_1_handler, NULL, 0,applyptr);
       }
     }

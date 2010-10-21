@@ -70,6 +70,8 @@ class distributed_hash_table{
     /// Sets the key to the value
   void exchange(size_t key, const any &newvalue, any &oldvalue);
 
+  void modified(size_t key);
+
   /** Gets the value associated with the key. returns true on success.
       The any returned is a copy. */
   bool get(size_t key, any &value);
