@@ -135,6 +135,7 @@ int main(int argc, char** argv) {
               << "runtime:       " << runtime << std::endl
               << "treesize:      " << treesize << std::endl
               << "treewidth:     " << treewidth << std::endl
+              << "treeheight:    " << treeheight << std::endl
               << "factorsize:    " << factorsize << std::endl
               << "subthreads:    " << subthreads << std::endl
               << "priorities:    " << priorities << std::endl;
@@ -150,6 +151,7 @@ int main(int argc, char** argv) {
                     remaining_time,
                     treesize,
                     treewidth,
+                    treeheight,
                     factorsize,
                     subthreads,
                     priorities);

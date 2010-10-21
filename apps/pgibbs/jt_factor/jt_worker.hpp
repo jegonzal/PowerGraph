@@ -450,17 +450,20 @@ public:
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
         // min height 
-        vertex_id_t min_height = max_tree_height;
-        // find the closest vertex to the root
-        foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
-          vertex_id_t neighbor_vid = mrf.target(eid);
-          // if the neighbor is already in the tree
-          if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
-            min_height = 
-              std::min(min_height, mrf.vertex_data(neighbor_vid).height + 1);
-          } 
+        vertex_id_t min_height = 0;
+        if(!cliques.empty()) { 
+          min_height = max_tree_height;
+          // find the closest vertex to the root
+          foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+            vertex_id_t neighbor_vid = mrf.target(eid);
+            // if the neighbor is already in the tree
+            if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+              min_height = 
+                std::min(min_height, mrf.vertex_data(neighbor_vid).height + 1);
+            } 
+          }
         } 
-
+          
         // test the 
         bool safe_extension = min_height < max_tree_height;
         safe_extension = safe_extension &&
