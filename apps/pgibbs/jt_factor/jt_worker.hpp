@@ -118,6 +118,7 @@ public:
     max_tree_width = treewidth;
     max_tree_height = max_height;
 
+
     if(factorsize <= 0) {
       max_factor_size = std::numeric_limits<size_t>::max();
     } else {
@@ -369,7 +370,7 @@ public:
 
         // if this is the root vertex
         vertex_id_t min_height = 0;
-        if(!cliques.empty()) {
+        if(max_tree_height != 0 && !cliques.empty()) {
           min_height = max_tree_height;
           // find the closest vertex to the root
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
@@ -381,7 +382,9 @@ public:
             } 
           }
         } 
-        bool safe_extension = min_height < max_tree_height;
+        bool safe_extension = 
+          (max_tree_height == 0) ||
+          (min_height < max_tree_height);
 
         // test that its safe  
         safe_extension = safe_extension && 
@@ -451,7 +454,7 @@ public:
       if(grabbed) {
         // min height 
         vertex_id_t min_height = 0;
-        if(!cliques.empty()) { 
+        if(max_tree_height != 0 && !cliques.empty()) {
           min_height = max_tree_height;
           // find the closest vertex to the root
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
@@ -465,7 +468,10 @@ public:
         } 
           
         // test the 
-        bool safe_extension = min_height < max_tree_height;
+        bool safe_extension = 
+          (max_tree_height == 0) ||
+          (min_height < max_tree_height);
+
         safe_extension = safe_extension &&
           extend_clique_list(mrf,
                              next_vertex,
