@@ -33,10 +33,10 @@
 #include <graphlab/schedulers/round_robin_scheduler.hpp>
 #include <graphlab/macros_def.hpp>
 
-#define NSAMP 13
+int NSAMP =12;
 double EPSILON =1e-5;
 int RESAMPLE_FREQUENCY = 0;
-int MAX_ITERATIONS = 6;
+int MAX_ITERATIONS = 2;
 
 int ROWS=107;
 int COLS=86;
@@ -162,7 +162,7 @@ void bp_update(gl_types::iscope& scope,
       graphlab::edge_id_t outeid = out_edges[j];
       edge_data& out_edge = scope.edge_data(outeid);
       kde marg = out_edge.edge_pot.marginal(0);  
-      kdes.push_back(marg);      
+      kdes.insert(kdes.begin(), marg);//important: has to be first!     
 
       prodSampleEpsilon producter; 
       kde m = producter.prodSampleEpsilonRun(kdes.size(), 
@@ -182,8 +182,8 @@ void bp_update(gl_types::iscope& scope,
 
 
    //compute belief
-   if (v_data.rounds == MAX_ITERATIONS - 1){
-	if (debug && vid == 0)
+   if (v_data.rounds == MAX_ITERATIONS){
+	if (debug && vid%100 == 0)
 	   printf("computing belief node %d\n", vid);
 
       std::vector<kde> kdes;
@@ -259,6 +259,7 @@ void construct_graph(std::string gmmfile,
       if (nodesigma.rows() > nodesigma.cols())
          nodesigma = itpp::transpose(nodesigma);
       vdat.obs = kde(nodecenter, nodesigma, weights);
+      if (i==0 && j==0) printf("Number of observation components %d\n", vdat.obs.getPoints());
       vdat.obs.verify();
       //vdat.p.simplify();
     
@@ -325,6 +326,7 @@ void construct_graph(std::string gmmfile,
 
     //lrpot = GaussianMixture<2>(lrcenter, lrsigma, lrweight);
     lrpot = kde(lrcenter, lrsigma, lrweight);
+    if (i == 0) printf("Number of edge components %d\n", lrpot.getPoints());
     lrpot.verify();
     //udpot = GaussianMixture<2>(udcenter, udsigma, udweight);
     udpot = kde(udcenter, udsigma, udweight);   
@@ -457,7 +459,7 @@ int main(int argc, char** argv) {
   core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
                               (void*)bp_update);
   core.scheduler().set_option(gl_types::scheduler_options::MAX_ITERATIONS,
-                              (void*)&MAX_ITERATIONS);
+                              (void*)MAX_ITERATIONS);
 
   std::cout << "Running the engine. " << std::endl;
 
