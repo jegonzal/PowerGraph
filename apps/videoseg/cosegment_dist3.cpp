@@ -23,7 +23,8 @@ const size_t GAUSSIAN_CLUSTERS = 1;
 const size_t GAUSSIAN_CLUSTER_VERSION = 2;
 const size_t BOUND_ID = 3;
 const size_t DAMPING_ID = 4;
-
+const size_t GAUSSIAN_DELTA_SUM =  7;
+const size_t GAUSSIAN_CONVERGED =  8;
 const double FEATURESCALE = 1;
 const size_t INTERFRAME_POTENTIAL = 6;
 const size_t INTRAFRAME_POTENTIAL = 4;
@@ -81,19 +82,22 @@ struct vertex_data {
   std::vector<float> features;
   size_t numpixels;
   size_t potential_lastversion;
-  
+  size_t iterations;  
   void save(graphlab::oarchive &oarc) const{
     oarc << potential;
     oarc << belief;
     oarc << features;
     oarc << numpixels;
+    oarc << potential_lastversion;
+    oarc << iterations;
   }
   void load(graphlab::iarchive &iarc) {
     iarc >> potential;
     iarc >> belief;
     iarc >> features;
     iarc >> numpixels;
-    potential_lastversion = 0;
+    iarc >> potential_lastversion;
+    iarc >> iterations;
   }
 };
 
@@ -112,7 +116,7 @@ struct gaussian{
       ll += log(1/sqrt(variance[i])) 
                         -(feature[i] - mean[i]) * (feature[i] - mean[i]) / (2*variance[i]);
     }
-    if (ll < -10000) ll = -10000;
+    if (ll < -100) ll = -100;
     return ll;
   }
   
@@ -192,7 +196,7 @@ void bp_update(gl_types::iscope& scope,
   // Get the shared data
   double bound = shared_data->get_constant(BOUND_ID).as<double>();
   double damping = shared_data->get_constant(DAMPING_ID).as<double>();
-
+  size_t gaussconverged = shared_data->get(GAUSSIAN_CONVERGED).as<size_t>();
   // Grab the state from the scope
   // ---------------------------------------------------------------->
   // Get the vertex data
@@ -206,15 +210,15 @@ void bp_update(gl_types::iscope& scope,
     for (size_t i = 0;i < v_data.potential.arity(); ++i) {
       v_data.potential.logP(i) = gaussians[i].loglikelihood(v_data.features);
       //*                                                  (1.0 + 3.0/(1+exp(-double(v_data.numpixels))));
-      versionchange = true;
-      v_data.potential_lastversion=versionnumber;
-    }
-    v_data.potential.normalize();
+   }
+   versionchange = true;
+    v_data.potential_lastversion=versionnumber;
     /*for (size_t i = 0;i < v_data.potential.arity(); ++i) {
       if (v_data.potential.logP(i) < -10) v_data.potential.logP(i) = -10;
     }*/
     v_data.potential.normalize();
-    if (scope.vertex() == 1) {
+    if (scope.vertex() % 10000 == 0) {
+      std::cout << "version = " << versionnumber << "\n";
       std::cout << v_data.potential << "\n";
     }
   }
@@ -227,6 +231,7 @@ void bp_update(gl_types::iscope& scope,
   // ---------------------------------------------------------------->
   // Initialize the belief as the value of the factor
   v_data.belief = v_data.potential;
+  v_data.iterations++;
   foreach(graphlab::edge_id_t ineid, in_edges) {
     // Get the message
     const edge_data& e_data = scope.const_edge_data(ineid);
@@ -253,7 +258,7 @@ void bp_update(gl_types::iscope& scope,
     // Get the in and out edge data
     const edge_data& in_edge = scope.const_edge_data(ineid);
     edge_data& out_edge = scope.edge_data(outeid);
-    
+    const vertex_data& targetvdata = scope.neighbor_vertex_data(scope.target(outeid));
     // Compute cavity
     cavity = v_data.belief;
     cavity.divide(in_edge.message); // Make the cavity a cavity
@@ -279,16 +284,20 @@ void bp_update(gl_types::iscope& scope,
     if (scope.vertex() % 100000 == 0) {
       std::cout << scope.vertex() << " " << residual << std::endl;
     }
-    if(residual > bound) {
+    if(residual > bound && targetvdata.iterations < 30) { // || targetvdata.potential_lastversion < v_data.potential_lastversion) {
+  /*    if (scope.vertex() % 1000 == 0 && 
+          v_data.potential_lastversion >= 10 && targetvdata.potential_lastversion < v_data.potential_lastversion) {
+        std::cout << "scheduling " << scope.target(outeid) << " due to version change\n";
+      }*/
       gl_types::update_task task(scope.target(outeid), bp_update);      
       scheduler.add_task(task, residual);
     }    
     
   }
-/*  if (versionnumber < 10) {
+  if (v_data.iterations < 30) {
     gl_types::update_task task(scope.vertex(), bp_update);      
-    scheduler.add_task(task, 10);
-  }*/
+    scheduler.add_task(task, 1E-20);
+  }
 
 } // end of BP_update
 
@@ -365,6 +374,7 @@ void create_graph(std::string archivefile,
   vtx.potential.resize(arity);
   vtx.belief.resize(arity);
   vtx.potential_lastversion = 0;
+  vtx.iterations = 0;
   for (size_t i = 0; i < features.size(); ++i){
     for (size_t j = 0;j < arity; ++j) vtx.potential.logP(j) = gl_types::random::rand01() + 1E-10;
     vtx.belief = vtx.potential;
@@ -519,23 +529,26 @@ void apply_gaussian_clusters(size_t index,
                             const gl_types::ishared_data& shared_data,
                             graphlab::any& current_data,
                             const graphlab::any& new_data) {
-  
+  size_t gaussconverged =const_cast<gl_types::ishared_data&>(shared_data).get(GAUSSIAN_CONVERGED).as<size_t>();
   gaussian_cluster_type &curval = current_data.as<gaussian_cluster_type>();
   const gaussian_cluster_type & newval = new_data.as<gaussian_cluster_type>();
-
   double allweight = 0;
   for (size_t cluster = 0; cluster < newval.size(); ++cluster) {
-    allweight += newval[cluster].totalweight;
+    allweight += newval[cluster].totalweight + 100;
   }
-    
+  double delta = 0;
   for (size_t cluster = 0; cluster < curval.size(); ++cluster) {
-    curval[cluster].totalweight = newval[cluster].totalweight / allweight;
+    curval[cluster].totalweight = (newval[cluster].totalweight + 100)/ allweight;
     std::cout << "cluster " << cluster << ": " << curval[cluster].totalweight << std::endl;
     if (curval[cluster].totalweight > 1E-5) {
       for (size_t i = 0; i < curval[cluster].mean.size(); ++i) {
-        curval[cluster].mean[i] = newval[cluster].mean[i] / newval[cluster].totalweight;
-        curval[cluster].variance[i] = smooth + newval[cluster].variance[i] / newval[cluster].totalweight 
+        double nval = newval[cluster].mean[i] / newval[cluster].totalweight; 
+        delta += curval[cluster].totalweight * std::fabs(curval[cluster].mean[i] - nval);
+        curval[cluster].mean[i] = nval;
+        nval = smooth + newval[cluster].variance[i] / newval[cluster].totalweight 
                                             - curval[cluster].mean[i]*curval[cluster].mean[i];
+        delta += curval[cluster].totalweight * std::fabs(curval[cluster].variance[i] - nval);
+        curval[cluster].variance[i] = nval;
         //std::cout << "\t" << curval[cluster].mean[i] << "\t" << curval[cluster].variance[i] << "\n";
       }
     }
@@ -547,7 +560,21 @@ void apply_gaussian_clusters(size_t index,
       curval[cluster].totalweight = 0;
     }
   }
-  const_cast<gl_types::ishared_data&>(shared_data).atomic_apply(GAUSSIAN_CLUSTER_VERSION, increment, graphlab::any());
+//  double dsum = const_cast<gl_types::ishared_data&>(shared_data).get(GAUSSIAN_DELTA_SUM).as<double>();
+//  dsum += delta;
+//  std::cout << "Delta = " << dsum << "(" << delta << ")" << std::endl;
+  std::cout << "Delta = " << delta << std::endl;
+  std::cout << "GaussConverged = " << gaussconverged << std::endl;
+
+  if (delta > 1E-2 && gaussconverged == 0) {
+//    const_cast<gl_types::ishared_data&>(shared_data).atomic_set(GAUSSIAN_DELTA_SUM, double(0));
+    const_cast<gl_types::ishared_data&>(shared_data).atomic_apply(GAUSSIAN_CLUSTER_VERSION, increment, graphlab::any());
+  }
+  else {
+//    const_cast<gl_types::ishared_data&>(shared_data).atomic_set(GAUSSIAN_DELTA_SUM, double(dsum));
+    std::cout << "GaussConverged!" << std::endl;
+    const_cast<gl_types::ishared_data&>(shared_data).atomic_set(GAUSSIAN_CONVERGED, size_t(1));
+  }
 }
 
 
@@ -679,7 +706,7 @@ void create_shared_data(Gtype &g,
                apply_gaussian_clusters, 
                merge_gaussian_clusters,
                vg0,
-               100);                 
+               500);                 
 
 
   vg.resize(arity);  
@@ -720,6 +747,8 @@ void create_shared_data(Gtype &g,
 
   sdm.atomic_set(GAUSSIAN_CLUSTERS,vg);
   sdm.create_atomic(GAUSSIAN_CLUSTER_VERSION, size_t(1));
+  sdm.create_atomic(GAUSSIAN_DELTA_SUM, double(0));
+  sdm.create_atomic(GAUSSIAN_CONVERGED, size_t(0));
   sdm.set_constant(BOUND_ID, graphlab::any(termination_bound));
   sdm.set_constant(DAMPING_ID, graphlab::any(0.3));
 }
