@@ -143,6 +143,27 @@ void int_any_map_set_handler(distributed_control& dc,
 }
 
 
+void distributed_hash_table::modified(size_t key) {
+  if (pushed_updates) {
+    // read the value of the key
+    any value;
+    get(key, value);
+    
+    std::stringstream str;
+    oarchive oarc(str);
+    oarc << value;
+    std::string s = str.str();
+
+    procid_t owner = key_node_hash(key);
+    for (procid_t i = 0;i < dc.numprocs(); ++i) {
+      if (i != owner) {
+        dc.remote_call(i, cache_write_handler,
+                      (void*)(s.c_str()), s.length(), mapid, key);
+      }
+    }
+  }
+}
+
 
 /// Get handler. Remote request for the value to a key.
 void int_any_map_get_handler(distributed_control& dc, 
