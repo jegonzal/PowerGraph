@@ -9,6 +9,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
+#include <graphlab/util/random.hpp>
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
@@ -317,7 +318,10 @@ namespace graphlab {
       // repeatedly invoke run once as a random thread
       while(active) {
         // Pick a random cpu to run as
-        size_t cpuid = rand() % ncpus;
+        size_t cpuid = 0;
+        if(ncpus > 1) {
+          cpuid = random::rand_int(ncpus - 1);
+        }
         // Execute the update as that cpu
         active = run_once(cpuid);
       }
