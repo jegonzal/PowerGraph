@@ -11,10 +11,6 @@
 
 #include <graphlab.hpp>
 
-extern "C" {
-#include "../../apps/linear_algebra/random.hpp"
-};
-
 typedef double  sdouble; 
 
 #include "../../apps/linear_algebra/vecops.hpp"
