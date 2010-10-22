@@ -187,7 +187,7 @@ public:
         sampled_variables = sample_once();
         if(sampled_variables == 0) {
           collisions++;
-          sched_yield();
+          // sched_yield();
         }
       }
 
@@ -330,6 +330,8 @@ public:
 
     double residual = conditional_factor.log_residual(marginal_factor);
     
+    residual = (std::tanh(residual) + 1) / (vdata.updates + 1);
+
     // rescale by updates
     //    residual = residual / (vdata.updates + 1);
 
@@ -529,7 +531,6 @@ public:
             //   double score = score_vertex(neighbor_vid);
             //   if(favor_zero_updates && vdata.updates == 0 && score > 0) 
             //     score += zero_updates_bonus;
-
             //   if(score > 0) {
             //     // update the priority queue with the new score
             //     priority_queue.update(neighbor_vid, score);

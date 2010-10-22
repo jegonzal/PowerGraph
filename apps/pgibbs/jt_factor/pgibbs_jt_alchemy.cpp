@@ -26,6 +26,7 @@
 #include <graphlab/macros_def.hpp>
 
 
+#define DRAW_IMAGE
 
 
 std::string results_fn = "experiment_results.tsv";
@@ -208,42 +209,43 @@ int main(int argc, char** argv) {
     fout.close();
 
 
+
+#ifdef DRAW_IMAGE    
+    // Plot the final answer
+    size_t rows = std::sqrt(mrf_graph.num_vertices());
+    std::cout << "Rows: " << rows << std::endl;
+    image img(rows, rows);
+    std::vector<double> values(1);
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+      mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+      vdata.belief.normalize();
+      vdata.belief.expectation(values);
+      img.pixel(vid) = values[0];
+    }
+    img.pixel(0) = 0;
+    img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
+    img.save(make_filename("pred", ".pgm", experiment_id).c_str());
     
-    // // Plot the final answer
-    // size_t rows = std::sqrt(mrf_graph.num_vertices());
-    // std::cout << "Rows: " << rows << std::endl;
-    // image img(rows, rows);
-    // std::vector<double> values(1);
-    // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-    //   mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-    //   vdata.belief.normalize();
-    //   vdata.belief.expectation(values);
-    //   img.pixel(vid) = values[0];
-    // }
-    // img.pixel(0) = 0;
-    // img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
-    // img.save(make_filename("pred", ".pgm", experiment_id).c_str());
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+      img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
+    }
+    img.save(make_filename("updates", ".pgm", experiment_id).c_str());
     
-    // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    //   img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
-    // }
-    // img.save(make_filename("updates", ".pgm", experiment_id).c_str());
-    
-    // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    //   img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
-    // }
-    // img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+      img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+    }
+    img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
-    // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    //   img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
-    // }
-    // img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
+    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+      img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
+    }
+    img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 
     // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
     //   img.pixel(vid) = mrf_graph.vertex_data(vid).height;
     // }
     // img.save(make_filename("heights", ".pgm", experiment_id).c_str());
-
+#endif
 
   } // end of for loop over runtimes
 

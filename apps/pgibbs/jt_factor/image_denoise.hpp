@@ -260,14 +260,15 @@ void denoise_problem::save_all(const std::string& alchemy_fn) {
     std::cout << "Saving corrupted image tsv. " << std::endl;    
     noisy.save_vec("corrupted.tsv");
 
-    std::cout << "Saving Factors. " << std::endl;
-    {
-      std::ofstream fout("factors.tsv");
-      foreach(const factor_t& factor, model.factors()) {
-        fout << factor << '\n';
-      }
-      fout.close();
-    }
+    // std::cout << "Saving Factors. " << std::endl;
+    // {
+    //   std::ofstream fout("factors.tsv");
+    //   foreach(const factor_t& factor, model.factors()) {
+    //     fout << factor << '\n';
+    //   }
+    //   fout.close();
+    // }
+
     std::cout << "Saving Alchemy. " << std::endl;
     {
       model.save_alchemy(alchemy_fn);
