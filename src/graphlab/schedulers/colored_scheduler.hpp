@@ -186,9 +186,9 @@ namespace graphlab {
     void set_option(scheduler_options::options_enum opt, void* value) {
       if (opt == scheduler_options::UPDATE_FUNCTION) {
         update_function = (update_function_type) value;
-      } if (opt == scheduler_options::MAX_ITERATIONS) {
+      } else if (opt == scheduler_options::MAX_ITERATIONS) {
         max_iterations = (size_t)value;
-      }else {
+      } else {
         // unsupported option
         assert(false);
       }
