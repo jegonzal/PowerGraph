@@ -31,9 +31,9 @@ namespace junction_tree{
                         gl::icallback& callback,
                         gl::ishared_data* shared_data) {
     
-    slow_update(scope, callback, shared_data);
+    // slow_update(scope, callback, shared_data);
 
-    // fast_update(scope, callback, shared_data);
+    fast_update(scope, callback, shared_data);
 
   } // End of update function
 
@@ -252,7 +252,7 @@ namespace junction_tree{
         } // end of foreach
         belief.normalize();        
 
-        vdata.belief = belief;
+        // vdata.belief = belief;
 
         // Fill out the variables in the mrf
         mrf::graph_type& mrf_graph = 
@@ -392,7 +392,7 @@ namespace junction_tree{
       }
       // Extra normalization for stability on the table factors
       vdata.factor.normalize();
-      vdata.belief = vdata.factor;
+      // vdata.belief = vdata.factor;
     }
 
     //////////////////////////////////////////////////////////////////
@@ -404,8 +404,8 @@ namespace junction_tree{
         // if the message has been calibrated but not received
         if(in_edata.calibrated && !in_edata.received) {
           // receive message and mark as calibrated
-          vdata.belief *= in_edata.message;
-          vdata.belief.normalize();
+          vdata.factor *= in_edata.message;
+          vdata.factor.normalize();
           in_edata.received = true;
         }
         // track total received neighbors
@@ -444,7 +444,7 @@ namespace junction_tree{
 
           // if we are ready to send then compute message
           if(ready_to_send) {
-            cavity = vdata.belief;
+            cavity = vdata.factor;
             const edge_data& in_edata = scope.const_edge_data(rev_eid);
             // construct cavity if necessary
             if(in_edata.received) {
@@ -481,111 +481,85 @@ namespace junction_tree{
 
 
 
-      // // find the parent
-      // bool parent_found = false;
-      // foreach(edge_id_t in_eid, scope.in_edge_ids()) {       
-      //   const vertex_data& parent_vdata = 
-      //     scope.const_neighbor_vertex_data(scope.source(in_eid));
-      //   if(parent_vdata.sampled) {
-      //     assert(!parent_found);
-      //     parent_asg
-      //   }
-
-      // }
-
-      
-
-
-      if(vdata.parent != NULL_VID) {
+      // find the parent
+      bool parent_found = false;
+      foreach(edge_id_t out_eid, scope.out_edge_ids()) {       
         const vertex_data& parent_vdata = 
-          scope.const_neighbor_vertex_data(vdata.parent);
-        // if the parent is not yet sampled then just return
-        if(!parent_vdata.sampled) return;
-        assert(parent_vdata.sampled);
-        assert(parent_vdata.calibrated);
-        // otherwise get the parent eid
-        to_parent_eid = 
-          scope.edge(scope.vertex(), vdata.parent);
-        assert(scope.source(to_parent_eid) == scope.vertex());
-        assert(scope.target(to_parent_eid) == vdata.parent);
-        const edge_data& parent_edata = 
-          scope.const_edge_data(to_parent_eid);
-        // Restricted the parents assignment to an assignment over the
-        // edge variables
-        parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
-        assert(parent_asg.args() == parent_edata.variables);
+          scope.const_neighbor_vertex_data(scope.target(out_eid));
+        if(parent_vdata.sampled) {
+          assert(parent_vdata.calibrated);
+          assert(!parent_found);
+          parent_found = true;
+          to_parent_eid = out_eid;
+          const edge_data& parent_edata = 
+            scope.const_edge_data(to_parent_eid);
+          parent_asg = 
+            parent_vdata.asg.restrict(parent_edata.variables);
+          assert(parent_asg.args() == parent_edata.variables);            
+          // break;
+        }
       }
 
+      
       // Determine the remaining variables for which we will need to
       // sample and construct RB estimates
       domain_t unsampled_variables = 
         vdata.variables - parent_asg.args();
+      vdata.asg = parent_asg;
 
-      // // If there is nothing to sample just skip along
-      // if(unsampled_variables.num_vars() == 0) {
-      //   // if there was nothing to sample just mark this clique as
-      //   // sampled and pass along to child
-      //   vdata.sampled = true;
-      //   // Reschedule unsampled neighbors
-      //   foreach(edge_id_t out_eid, scope.out_edge_ids()) {
-      //     if(out_eid != to_parent_eid) {
-      //         const vertex_id_t neighbor_vid = scope.target(out_eid);
-      //         assert(neighbor_vid < scope.num_vertices());
-      //         callback.add_task(neighbor_vid, 
-      //                           calibrate_update, 
-      //                           1.0);
-      //     }
-      //   }
-      //   return;
-      // } // end of if variables empty
-            
-      // Fill out the variables in the mrf
-      mrf::graph_type& mrf_graph = 
-        *shared_data->get_constant(MRF_KEY).as<mrf::graph_type*>();
+      // if there are unsampled variables then sample them
+      if(unsampled_variables.num_vars() > 0) {
+        // Fill out the variables in the mrf
+        mrf::graph_type& mrf_graph = 
+          *shared_data->get_constant(MRF_KEY).as<mrf::graph_type*>();
       
-      // First update all the RB estimates for the unsampled
-      // variables in the mrf graph
-      factor_t tmp_belief;
-      for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
-        variable_t var = unsampled_variables.var(i);
-        // Construct the RB belief estimate
-        tmp_belief.set_args(var);
-        tmp_belief.marginalize(vdata.belief);
+        // First update all the RB estimates for the unsampled
+        // variables in the mrf graph
+        factor_t tmp_belief;
+        for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
+          variable_t var = unsampled_variables.var(i);
+          // Construct the RB belief estimate
+          tmp_belief.set_args(var);
+          tmp_belief.marginalize(vdata.factor);
+          tmp_belief.normalize();
+          // Update the MRF
+          mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
+          mrf_vdata.belief += tmp_belief;
+        } 
+
+        // Condition the belief on the parent assignmnet
+        tmp_belief.set_args(unsampled_variables);
+        tmp_belief.condition(vdata.factor, parent_asg);
         tmp_belief.normalize();
-        // Update the MRF
-        mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
-        mrf_vdata.belief += tmp_belief;
-      } 
 
-      // Condition the belief on the parent assignmnet
-      tmp_belief.set_args(unsampled_variables);
-      tmp_belief.condition(vdata.belief, parent_asg);
-      tmp_belief.normalize();
+        // Sample the remaining variables from the belief
+        assignment_t sample_asg = tmp_belief.sample();
+        // Set the local assignment
+        vdata.asg = sample_asg & parent_asg;
+        // the assignment should exacty cover the variables
+        assert(vdata.asg.args() == vdata.variables);
 
-      // Sample the remaining variables from the belief
-      assignment_t sample_asg = tmp_belief.sample();
-      // Set the local assignment
-      vdata.asg = sample_asg & parent_asg;
-      // the assignment should exacty cover the variables
-      assert(vdata.asg.args() == vdata.variables);
-      vdata.sampled = true;
       
-      //// Fill out the MRF with the sampled variables
-      for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
-        variable_t var = sample_asg.args().var(i);
-        mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
-        mrf_vdata.asg = sample_asg.restrict(var);
-        mrf_vdata.updates++;
-        // std::cout << graphlab::thread::thread_id()
-        //           << ": sampling " << mrf_vdata.variable << std::endl;
-        // remove the vertex from any trees
-        mrf_vdata.tree_id = NULL_VID;
-        mrf_vdata.height = 0;
+        //// Fill out the MRF with the sampled variables
+        for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
+          variable_t var = sample_asg.args().var(i);
+          mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
+          mrf_vdata.asg = sample_asg.restrict(var);
+          mrf_vdata.updates++;
+          // std::cout << graphlab::thread::thread_id()
+          //           << ": sampling " << mrf_vdata.variable << std::endl;
+          // remove the vertex from any trees
+          mrf_vdata.tree_id = NULL_VID;
+          mrf_vdata.height = 0;
+          
+          // double& logP = mrf_vdata.belief.logP(mrf_vdata.asg.asg_at(0));
+          // logP = std::log( std::exp(logP) + 1.0 );
+          
+        } 
+      } // end of sampling unsampled variables
 
-        // double& logP = mrf_vdata.belief.logP(mrf_vdata.asg.asg_at(0));
-        // logP = std::log( std::exp(logP) + 1.0 );
-
-      } 
+      // mark as sampled
+      vdata.sampled = true;
 
       // Reschedule unsampled neighbors
       foreach(edge_id_t out_eid, scope.out_edge_ids()) {

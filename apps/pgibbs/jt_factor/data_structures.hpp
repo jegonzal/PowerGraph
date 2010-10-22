@@ -508,7 +508,6 @@ namespace junction_tree {
     bool sampled;
     std::set<vertex_id_t> factor_ids;
     factor_t factor;
-    factor_t belief;
     assignment_t asg;
 
     vertex_data() : 

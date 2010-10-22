@@ -163,7 +163,7 @@ void run_colored_samples(const factorized_model& model,
 
 
 
-
+#ifdef DRAW_IMAGE
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -193,8 +193,7 @@ void run_colored_samples(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
-
+#endif
 
 
 
@@ -309,7 +308,7 @@ void run_colored_times(const factorized_model& model,
 
 
 
-
+#ifdef DRAW_IMAGE
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -339,7 +338,7 @@ void run_colored_times(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
+#endif
 
 
 
@@ -454,7 +453,7 @@ void run_async_samples(const factorized_model& model,
 
 
 
-
+#ifdef DRAW_IMAGE
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -484,7 +483,7 @@ void run_async_samples(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
+#endif
 
 
 
@@ -599,7 +598,7 @@ void run_async_times(const factorized_model& model,
 
 
 
-
+#ifdef DRAW_IMAGE
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -629,7 +628,7 @@ void run_async_times(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
+#endif
 
 
 
@@ -771,7 +770,7 @@ void run_tree_samples(const factorized_model& model,
 
 
 
-
+#ifdef DRAW_IMAGE
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -801,7 +800,7 @@ void run_tree_samples(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
+#endif
 
 
 
@@ -926,7 +925,7 @@ void run_tree_times(const factorized_model& model,
     fout.close();
 
 
-
+#ifdef DRAW_IMAGE
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -956,7 +955,7 @@ void run_tree_times(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-
+#endif
 
 
 

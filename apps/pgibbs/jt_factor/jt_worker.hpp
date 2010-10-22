@@ -71,7 +71,7 @@ private:
   std::map<vertex_id_t, vertex_id_t> elim_time_map;
   clique_vector cliques;
   std::deque<vertex_id_t> bfs_queue;
-  graphlab::mutable_queue<vertex_id_t, double> priority_queue;
+  graphlab::mutable_queue<size_t, double> priority_queue;
   std::set<vertex_id_t> visited;
 
   
@@ -185,7 +185,10 @@ public:
             graphlab::lowres_time_seconds() < finish_time_seconds) {
         //  move_to_next_root();
         sampled_variables = sample_once();
-        if(sampled_variables == 0) collisions++;
+        if(sampled_variables == 0) {
+          collisions++;
+          sched_yield();
+        }
       }
 
 
@@ -570,7 +573,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //        std::cout << "Varcount: " << cliques.size() << std::endl;  
 
         // ///////////////////////////////////
         // // plot the graph
@@ -619,26 +622,10 @@ public:
       assert(vdata.sampled);
       assert(vdata.calibrated);
       actual_tree_width = 
-        std::max(vdata.variables.num_vars(), actual_tree_width);
-
-
-      std::cout 
-        << "===============================\n"
-        << vdata.parent << '\n'
-        << vdata.factor << '\n'
-        << vdata.asg << '\n'
-        << vdata.belief << '\n';
-
-    }
-
-    exit(0);
-
-
+        std::max(vdata.variables.num_vars(), actual_tree_width);     
+    } 
     
-
-
-    std::cout << "Actual Tree Width: " << actual_tree_width 
-              << std::endl;
+    //    std::cout << "Treewidth: " << actual_tree_width << std::endl;
 
       
     // Sampled root successfully
