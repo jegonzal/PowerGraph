@@ -180,10 +180,10 @@ public:
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
-      //      move_to_next_root();
+      move_to_next_root();
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-        move_to_next_root();
+        //  move_to_next_root();
         sampled_variables = sample_once();
         if(sampled_variables == 0) collisions++;
       }

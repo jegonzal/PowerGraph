@@ -902,33 +902,33 @@ void single_sample_update(gl::iscope& scope,
 
 
 
-gl::iengine* make_colored_engine(gl::graph& graph,
-                                 gl::thread_shared_data& sdm,
-                                 size_t ncpus) {
+// gl::iengine* make_colored_engine(gl::graph& graph,
+//                                  gl::thread_shared_data& sdm,
+//                                  size_t ncpus) {
 
-  std::cout << "Computing coloring " << std::endl;
-  graph.compute_coloring();
+//   std::cout << "Computing coloring " << std::endl;
+//   graph.compute_coloring();
 
-  gl::iengine* engine =
-    graphlab::engine_factory::new_engine("threaded",
-                                         "colored",
-                                         "null",
-                                         graph,
-                                         ncpus);
+//   gl::iengine* engine =
+//     graphlab::engine_factory::new_engine("threaded",
+//                                          "colored",
+//                                          "null",
+//                                          graph,
+//                                          ncpus);
 
-  assert(engine != NULL);  
-  // Set the shared data 
-  engine->set_shared_data_manager(&sdm);
-  std::cout << "Using set schedule planner." << std::endl;
+//   assert(engine != NULL);  
+//   // Set the shared data 
+//   engine->set_shared_data_manager(&sdm);
+//   std::cout << "Using set schedule planner." << std::endl;
   
-  const bool use_callback = false;
-  gl::update_function update_function =
-    single_sample_update<use_callback>;
+//   const bool use_callback = false;
+//   gl::update_function update_function =
+//     single_sample_update<use_callback>;
 
-  engine->get_scheduler().set_option(gl::scheduler_options::UPDATE_FUNCTION, 
-                                     (void*) update_function);
-  return engine;
-} // end of make colored engine
+//   engine->get_scheduler().set_option(gl::scheduler_options::UPDATE_FUNCTION, 
+//                                      (void*) update_function);
+//   return engine;
+// } // end of make colored engine
 
 
 
@@ -971,7 +971,7 @@ gl::iengine* make_engine(gl::graph& graph,
 
 
 
-void add_factors_to_sdm(gl::thread_shared_data& sdm,
+void add_factors_to_sdm(gl::ishared_data_manager& sdm,
                         const std::vector<factor_t>& factors) {
   // Add all the edge factors to the shared data
   for(size_t i = 0; i < factors.size(); ++i) {
@@ -983,7 +983,7 @@ void add_factors_to_sdm(gl::thread_shared_data& sdm,
 
 
 
-void set_tree_sampler_constants(gl::thread_shared_data& sdm,
+void set_tree_sampler_constants(gl::ishared_data_manager& sdm,
                                 size_t nroots,
                                 size_t tree_height,
                                 bool use_weights, 
