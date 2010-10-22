@@ -201,9 +201,9 @@ kde prodSampleEpsilonRun(unsigned int _Ndens, //number of densities to product
   //mexCallMATLAB(1, &rNorm, 1, &rsize, "rand");   randunif1 = mxGetPr(rNorm);
   //randunif1[Nsamp] = 100;
  
-  itpp::vec rUnif1 = itpp::randu(Nsamp+1);
-  //itpp::vec rUnif1 = zeros(Nsamp+1);
-  //randv(Nsamp+1, rUnif1);
+  //itpp::vec rUnif1 = itpp::randu(Nsamp+1);
+  itpp::vec rUnif1 = zeros(Nsamp+1);
+  randv(Nsamp+1, rUnif1);
   rUnif1.set(Nsamp,100);
   itpp::Sort<double> mysort;
   mysort.sort(0,Nsamp,rUnif1);
@@ -213,17 +213,17 @@ kde prodSampleEpsilonRun(unsigned int _Ndens, //number of densities to product
   //rsizeP[0] = Ndens; rsizeP[1] = Nsamp;
 
   //mexCallMATLAB(1, &rUnif2, 1, &rsize, "rand");  randunif2 = mxGetPr(rUnif2);
-  itpp::mat rUnif2 = itpp::zeros(1,Nsamp+1); 
-  itpp::randu(Ndens, Nsamp, rUnif2);
-  //itpp::vec rUnif2 = zeros(Nsamp*Nsamp);
-  //randv(Ndens*Nsamp, rUnif2);
+  //itpp::mat rUnif2 = itpp::zeros(1,Nsamp+1); 
+  //itpp::randu(Ndens, Nsamp, rUnif2);
+  itpp::vec rUnif2 = zeros(Nsamp*Nsamp);
+  randv(Ndens*Nsamp, rUnif2);
   randunif2 = vec2vec(&rUnif2);
   //rsizeP[0] = Ndim; rsizeP[1] = Nsamp;
   //mexCallMATLAB(1, &rNorm, 1, &rsize, "randn");  randnorm  = mxGetPr(rNorm);
   
   itpp::mat rNorm = zeros(Ndim*Nsamp);
-  itpp::randn(Ndim, Nsamp, rNorm);
-  //rNorm = randn1(Ndim, Nsamp);
+  //itpp::randn(Ndim, Nsamp, rNorm);
+  rNorm = randn1(Ndim, Nsamp);
   randnorm = vec2vec(&rNorm);
 
   //plhs[0] = mxCreateDoubleMatrix(Ndim,Nsamp,mxREAL);
