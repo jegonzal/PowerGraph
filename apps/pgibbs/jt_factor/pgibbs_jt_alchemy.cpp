@@ -55,8 +55,12 @@ int main(int argc, char** argv) {
             << std::endl;
 
 
-  std::srand ( graphlab::timer::usec_of_day() );
-  graphlab::random::seed();
+  // std::srand ( graphlab::timer::usec_of_day() );
+  // graphlab::random::seed();
+
+  std::srand ( 123  );
+  graphlab::random::seed( 123 );
+
 
 
   std::string model_filename = "";

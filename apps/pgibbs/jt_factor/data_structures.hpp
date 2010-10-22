@@ -508,6 +508,7 @@ namespace junction_tree {
     bool sampled;
     std::set<vertex_id_t> factor_ids;
     factor_t factor;
+    factor_t belief;
     assignment_t asg;
 
     vertex_data() : 
@@ -521,7 +522,8 @@ namespace junction_tree {
     domain_t variables;
     factor_t message;
     bool calibrated;
-    edge_data() : calibrated(false) { }
+    bool received;
+    edge_data() : calibrated(false), received(false) { }
   }; // End of edge data
 
 

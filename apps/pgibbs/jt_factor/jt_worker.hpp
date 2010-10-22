@@ -603,23 +603,43 @@ public:
     jt_core.rebuild_engine();
     // add tasks to all vertices
     jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
+
     // Run the core
     jt_core.start();
 
+
+
     // Check that the junction tree is sampled
 
-    // size_t actual_tree_width = 0;
-    // for(vertex_id_t vid = 0; 
-    //     vid < jt_core.graph().num_vertices(); ++vid) {
-    //   const junction_tree::vertex_data& vdata = 
-    //     jt_core.graph().vertex_data(vid);
-    //   assert(vdata.sampled);
-    //   actual_tree_width = 
-    //     std::max(vdata.variables.num_vars(), actual_tree_width);
-    // }
+    size_t actual_tree_width = 0;
+    for(vertex_id_t vid = 0; 
+        vid < jt_core.graph().num_vertices(); ++vid) {
+      const junction_tree::vertex_data& vdata = 
+        jt_core.graph().vertex_data(vid);
+      assert(vdata.sampled);
+      assert(vdata.calibrated);
+      actual_tree_width = 
+        std::max(vdata.variables.num_vars(), actual_tree_width);
 
-//     std::cout << "Actual Tree Width: " << actual_tree_width 
-//               << std::endl;
+
+      std::cout 
+        << "===============================\n"
+        << vdata.parent << '\n'
+        << vdata.factor << '\n'
+        << vdata.asg << '\n'
+        << vdata.belief << '\n';
+
+    }
+
+    exit(0);
+
+
+    
+
+
+    std::cout << "Actual Tree Width: " << actual_tree_width 
+              << std::endl;
+
       
     // Sampled root successfully
     return cliques.size();

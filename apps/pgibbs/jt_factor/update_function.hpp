@@ -111,6 +111,8 @@ namespace junction_tree{
     }
 
 
+
+
     // Determine if their are any edges for which messages can be
     // computed
     factor_t cavity; // preallocate cavity factor
@@ -185,6 +187,9 @@ namespace junction_tree{
         }
       } // end of loop over in edges
 
+      vdata.calibrated = is_calibrated;
+
+
       // There can be at most one parent in the tree (the root has no
       // parents). 
       assert(parent_count < 2);
@@ -244,9 +249,10 @@ namespace junction_tree{
           const edge_data& edata = scope.const_edge_data(in_eid);
           assert(edata.calibrated);
           belief *= edata.message;
-          belief.normalize();
         } // end of foreach
-        // belief.normalize();        
+        belief.normalize();        
+
+        vdata.belief = belief;
 
         // Fill out the variables in the mrf
         mrf::graph_type& mrf_graph = 
@@ -386,127 +392,80 @@ namespace junction_tree{
       }
       // Extra normalization for stability on the table factors
       vdata.factor.normalize();
-
+      vdata.belief = vdata.factor;
     }
 
     //////////////////////////////////////////////////////////////////
-    // Send message up
-
-    // get the parent edge if there is one
-    edge_id_t to_parent_eid = NULL_EID;
-    if(vdata.parent != NULL_VID) {
-      to_parent_eid = scope.edge(scope.vertex(), vdata.parent);
-    }
-
-    // if this vertex has a parent and the parent has not yet received
-    // the message try to compute it
-    if(to_parent_eid != NULL_EID && 
-       !scope.const_edge_data(to_parent_eid).calibrated) {
-      // Determine if all children are ready
-      bool children_ready = true;
-      foreach(edge_id_t in_eid, scope.in_edge_ids()) {
-        const vertex_id_t source = scope.source(in_eid);
-        bool is_child = source != vdata.parent;
-        if(is_child) {
-          const edge_data& in_edata = scope.const_edge_data(in_eid);
-          if(!in_edata.calibrated) {
-            children_ready = false;
-            break;
-          }
-        }
-      }
-
-      // If all the children are ready then receive all the messages
-      // and update the factor
-      if(children_ready) {
-        foreach(edge_id_t in_eid, scope.in_edge_ids()) {
-          const vertex_id_t source = scope.source(in_eid);
-          bool is_child = source != vdata.parent;
-          if(is_child) {
-            const edge_data& in_edata = scope.const_edge_data(in_eid);
-            assert(in_edata.calibrated);
-            vdata.factor *= in_edata.message;
-          }
-        }
-        vdata.factor.normalize();
-
-        
-        // vdata.factor has received all inbound messages construct
-        // message to parent
-        assert(to_parent_eid != NULL_EID);
-        edge_data& parent_edata = scope.edge_data(to_parent_eid);
-        assert(!parent_edata.calibrated);
-        
-        // Marginalize all variables not in outbound message
-        parent_edata.message.set_args(parent_edata.variables);
-        parent_edata.message.marginalize(vdata.factor);
-        parent_edata.message.normalize();
-        parent_edata.calibrated = true;
-       
-        // Schedule the parent to receive the message
-        assert(vdata.parent < scope.num_vertices());
-        callback.add_task(vdata.parent, calibrate_update, 1.0);
-      }
-    } // end of send message up
-
-
-    //////////////////////////////////////////////////////////////////
-    // calibrate and send messages down
+    // receive any unreceived messages
+    size_t received_neighbors = 0;
     if(!vdata.calibrated) {
-      // Check that all in messages have been computed
-      bool ready_to_calibrate = true;
       foreach(edge_id_t in_eid, scope.in_edge_ids()) {
-        const edge_data& in_edata = scope.const_edge_data(in_eid);
-        if(!in_edata.calibrated) {
-          ready_to_calibrate = false;
-          break;
+        edge_data& in_edata = scope.edge_data(in_eid);
+        // if the message has been calibrated but not received
+        if(in_edata.calibrated && !in_edata.received) {
+          // receive message and mark as calibrated
+          vdata.belief *= in_edata.message;
+          vdata.belief.normalize();
+          in_edata.received = true;
         }
-      }
-      
-      // If we are ready to calibrate
-      if(ready_to_calibrate) {
+        // track total received neighbors
+        if(in_edata.received) received_neighbors++;
+      } // end of receive all in messages
+      // if all messages have been received then set as calibrated
+      vdata.calibrated = 
+        received_neighbors == scope.in_edge_ids().size();
+    } else {
+      received_neighbors = scope.in_edge_ids().size();
+    }
 
-        // Receive from parent if necessary
-        if(vdata.parent != NULL_VID) {
-          edge_id_t from_parent_eid = 
-            scope.edge(vdata.parent, scope.vertex());
-          // Get the edge data from the parent
-          const edge_data& parent_edata = 
-            scope.const_edge_data(from_parent_eid);
-          assert(parent_edata.calibrated);
-          vdata.factor *= parent_edata.message;
-        }
-        vdata.factor.normalize();
 
-        
-        // Calibrated!
-        vdata.calibrated = true;
-       
-        // Send messages to children (will need to compute cavity)
-        factor_t cavity;
-        foreach(edge_id_t out_eid, scope.out_edge_ids()) {
-          vertex_id_t target = scope.target(out_eid);
-          edge_data& out_edata = scope.edge_data(out_eid);
-          // if we have not calibrated the edge then send the message
-          if(!out_edata.calibrated) {
-            const edge_data& in_edata = 
-              scope.edge_data(scope.reverse_edge(out_eid));
-            assert(in_edata.calibrated);
-            cavity = vdata.factor;
-            cavity /= in_edata.message;
-            cavity.normalize();
+    //////////////////////////////////////////////////////////////////
+    // send any unset messages 
+    // if we have recieve enough in messages
+    if(received_neighbors + 1 >= scope.in_edge_ids().size()) {
+      factor_t cavity;
+      foreach(edge_id_t out_eid, scope.out_edge_ids()) {
+        edge_data& out_edata = scope.edge_data(out_eid);
+        edge_id_t rev_eid = scope.reverse_edge(out_eid);
+        // if the out message is not calibrated try to calibrate it:
+        if(!out_edata.calibrated) {
+          bool ready_to_send = true;
+          // check that all in messages (except the one we want to
+          // send) have been recieved
+          foreach(edge_id_t in_eid, scope.in_edge_ids()) {
+            const edge_data& in_edata = scope.const_edge_data(in_eid);
+            // if the in edge has not been received and is not from
+            // the destination of the out edge then we cannot send
+            if(!in_edata.received && rev_eid != in_eid) {
+              ready_to_send = false;
+              break;
+            }
+          } // check all neighbors are go for send
+
+          // if we are ready to send then compute message
+          if(ready_to_send) {
+            cavity = vdata.belief;
+            const edge_data& in_edata = scope.const_edge_data(rev_eid);
+            // construct cavity if necessary
+            if(in_edata.received) {
+              cavity /= in_edata.message;
+              cavity.normalize();
+            }
+            // compute actual message
             out_edata.message.set_args(out_edata.variables);
             out_edata.message.marginalize(cavity);
             out_edata.message.normalize();
             out_edata.calibrated = true;
-            // Schedule neighbor to receive message
-            assert(target < scope.num_vertices());
-            callback.add_task(target, calibrate_update, 1.0);
-          }
-        }
-        // all out edges are calibrated 
-      } // if it was time to calibrate
-    } // end of send messages down
+            // schedule the reception of the message
+            callback.add_task(scope.target(out_eid), calibrate_update, 1.0);      
+          } // end of if ready to send
+        } // end of if not calibrated
+      } // end of loop over outbound messages
+    } // of send all out messages
+
+
+
+
 
 
 
@@ -514,22 +473,47 @@ namespace junction_tree{
     // Construct RB estimate and Sample
     // if calibrated but not yet sampled
     if(vdata.calibrated && !vdata.sampled) {
-      // First we determine which variables are going to be sampled at
-      // this clique.  This is done by finding the parent assignment
-      // if there is one
+      // check that the parent is sampled and also determine which
+      // variables are going to be sampled at this clique.  This is
+      // done by finding the parent assignment if there is one
       assignment_t parent_asg;
       edge_id_t to_parent_eid = NULL_EID;
+
+
+
+      // // find the parent
+      // bool parent_found = false;
+      // foreach(edge_id_t in_eid, scope.in_edge_ids()) {       
+      //   const vertex_data& parent_vdata = 
+      //     scope.const_neighbor_vertex_data(scope.source(in_eid));
+      //   if(parent_vdata.sampled) {
+      //     assert(!parent_found);
+      //     parent_asg
+      //   }
+
+      // }
+
+      
+
+
       if(vdata.parent != NULL_VID) {
+        const vertex_data& parent_vdata = 
+          scope.const_neighbor_vertex_data(vdata.parent);
+        // if the parent is not yet sampled then just return
+        if(!parent_vdata.sampled) return;
+        assert(parent_vdata.sampled);
+        assert(parent_vdata.calibrated);
+        // otherwise get the parent eid
         to_parent_eid = 
           scope.edge(scope.vertex(), vdata.parent);
+        assert(scope.source(to_parent_eid) == scope.vertex());
+        assert(scope.target(to_parent_eid) == vdata.parent);
         const edge_data& parent_edata = 
           scope.const_edge_data(to_parent_eid);
-        const vertex_data& parent_vdata = 
-            scope.const_neighbor_vertex_data(vdata.parent);
-        assert(parent_vdata.calibrated);
-        // Restricted the parents assignment to an assignment over
-        // the edge variables
+        // Restricted the parents assignment to an assignment over the
+        // edge variables
         parent_asg = parent_vdata.asg.restrict(parent_edata.variables);
+        assert(parent_asg.args() == parent_edata.variables);
       }
 
       // Determine the remaining variables for which we will need to
@@ -566,7 +550,7 @@ namespace junction_tree{
         variable_t var = unsampled_variables.var(i);
         // Construct the RB belief estimate
         tmp_belief.set_args(var);
-        tmp_belief.marginalize(vdata.factor);
+        tmp_belief.marginalize(vdata.belief);
         tmp_belief.normalize();
         // Update the MRF
         mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
@@ -575,7 +559,7 @@ namespace junction_tree{
 
       // Condition the belief on the parent assignmnet
       tmp_belief.set_args(unsampled_variables);
-      tmp_belief.condition(vdata.factor, parent_asg);
+      tmp_belief.condition(vdata.belief, parent_asg);
       tmp_belief.normalize();
 
       // Sample the remaining variables from the belief
