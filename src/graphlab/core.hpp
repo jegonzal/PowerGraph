@@ -84,11 +84,20 @@ namespace graphlab {
       destroy_engine();
     }
 
-
+    
+    /**
+     * Set the number of cpus that the core will use
+     */
     void set_ncpus(size_t ncpus) {
       meopts.ncpus = ncpus;
       destroy_engine();
     }
+
+
+    
+
+
+
 
     /**
      * Get a reference to the active engine.  If no enge exists one is
@@ -98,7 +107,7 @@ namespace graphlab {
       bool success = auto_build_engine();
       assert(success);
       return *mengine; 
-    };
+    }
 
     
     /**
@@ -106,7 +115,7 @@ namespace graphlab {
      */
     typename types::ischeduler& scheduler() { 
       return engine().get_scheduler();
-    };
+    }
 
 
     /**
@@ -114,7 +123,7 @@ namespace graphlab {
      */
     typename types::ishared_data_manager& shared_data() {
       return mshared_data;
-    };
+    }
 
     
     /**
@@ -123,7 +132,7 @@ namespace graphlab {
      */
     const typename types::ishared_data_manager& shared_data() const {
       return mshared_data;
-    };
+    }
 
 
     /**
@@ -141,6 +150,13 @@ namespace graphlab {
      */
     void set_engine_options(const engine_options& opts) {
       meopts = opts;
+    }
+
+    /**
+     * View the engine options
+     */
+    const engine_options& get_engine_options() const { 
+      return meopts;
     }
 
     /**
