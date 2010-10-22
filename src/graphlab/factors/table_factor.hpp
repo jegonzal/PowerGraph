@@ -184,15 +184,16 @@ namespace graphlab {
           i < backup.num_vars() || j < other.num_vars(); ) {
         assert(_num_vars <= MAX_DIM);
         // Both 
-        if(i < backup.num_vars() && j < other.num_vars()) {
+        if(i < backup.num_vars() && j < other.num_vars() 
+           && _num_vars < MAX_DIM) {
           if(backup.var(i) < other.var(j))  
             _vars[_num_vars++] = backup.var(i++);
           else if(other.var(j) < backup.var(i))  
             _vars[_num_vars++] = other.var(j++);
           else { _vars[_num_vars++] = backup.var(i++); j++; }
-        } else if(i < backup.num_vars()) {
+        } else if(i < backup.num_vars() && _num_vars < MAX_DIM) {
           _vars[_num_vars++] = backup.var(i++);
-        } else if(j < other.num_vars()) {
+        } else if(j < other.num_vars() && _num_vars < MAX_DIM) {
           _vars[_num_vars++] = other.var(j++);
         } else {
           // Unreachable
@@ -471,7 +472,7 @@ namespace graphlab {
 
     //! Uniformly sample a new index value
     void uniform_sample() {
-      set_index( std::rand() % size() );
+      set_index( random::rand_int(size() - 1)  );
     }
     
     //! Get the index of this assignment
@@ -526,8 +527,8 @@ namespace graphlab {
     //! Make this an ending assignment
     void make_end() {
       _index = -1;
-      for(size_t i = 0; i < _args.num_vars(); ++i)
-        _asgs[i] = _args.var(i).arity;
+      // for(size_t i = 0; i < _args.num_vars(); ++i)
+      //   _asgs[i] = _args.var(i).arity;
     }
 
     //! Restrict the assignment to an assignment over the subdomain

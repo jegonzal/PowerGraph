@@ -71,7 +71,7 @@ private:
   std::map<vertex_id_t, vertex_id_t> elim_time_map;
   clique_vector cliques;
   std::deque<vertex_id_t> bfs_queue;
-  graphlab::mutable_queue<vertex_id_t, double> priority_queue;
+  graphlab::mutable_queue<size_t, double> priority_queue;
   std::set<vertex_id_t> visited;
 
   
@@ -180,11 +180,15 @@ public:
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
+      move_to_next_root();
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-        move_to_next_root();
+        //  move_to_next_root();
         sampled_variables = sample_once();
-        if(sampled_variables == 0) collisions++;
+        if(sampled_variables == 0) {
+          collisions++;
+          sched_yield();
+        }
       }
 
 
@@ -217,7 +221,7 @@ public:
    */
   bool try_grab_vertex(iscope_type& scope) {
     // Check that this vertex is not already in a tree
-    bool in_tree = scope.vertex_data().tree_id != vertex_id_t(-1);
+    bool in_tree = scope.vertex_data().tree_id != NULL_VID;
     if(in_tree) return false;
 
     // check that the neighbors are not in any other trees than this
@@ -226,7 +230,7 @@ public:
       vertex_id_t neighbor_vid = scope.source(in_eid);
       const mrf::vertex_data& vdata = 
         scope.const_neighbor_vertex_data(neighbor_vid);
-      bool in_tree = vdata.tree_id != vertex_id_t(-1);
+      bool in_tree = vdata.tree_id != NULL_VID;
       // if the neighbor is in a tree other than this one quit
       if(in_tree && worker_id != vdata.tree_id) return false;
     }
@@ -245,7 +249,7 @@ public:
    */
   void release_vertex(iscope_type& scope) {
     // This vertex does not neighbor any other trees than this one
-    scope.vertex_data().tree_id = vertex_id_t(-1);  
+    scope.vertex_data().tree_id = NULL_VID;
   }
 
 
@@ -325,10 +329,14 @@ public:
     //           << marginal_factor << "\n";
 
     double residual = conditional_factor.log_residual(marginal_factor);
+    
+    // rescale by updates
+    //    residual = residual / (vdata.updates + 1);
+
     assert( residual >= 0);
     assert( !std::isnan(residual) );
-   
-    // assert( std::isfinite(residual) );
+    assert( std::isfinite(residual) );
+
 
     // std::cout << residual << "  ";
     return residual;
@@ -441,6 +449,9 @@ public:
       // Take the top element
       const vertex_id_t next_vertex = priority_queue.pop().first;
 
+      // Skip with probability proportional to the number of updates
+      
+
       // Get the scope
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
@@ -452,8 +463,9 @@ public:
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
-        // min height 
-        vertex_id_t min_height = 0;
+        // compute the tree height of the new vertex
+        vertex_id_t min_height = 0;        
+        // if this is not the root and we care about tree height
         if(max_tree_height != 0 && !cliques.empty()) {
           min_height = max_tree_height;
           // find the closest vertex to the root
@@ -462,10 +474,11 @@ public:
             // if the neighbor is already in the tree
             if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
               min_height = 
-                std::min(min_height, mrf.vertex_data(neighbor_vid).height + 1);
+                std::min(min_height, 
+                         mrf.vertex_data(neighbor_vid).height + 1);
             } 
           }
-        } 
+        } // end of tree height check for non root vertex 
           
         // test the 
         bool safe_extension = 
@@ -481,8 +494,8 @@ public:
                              max_factor_size);
 
 
-        bool favor_zero_updates = true;
-        double zero_updates_bonus = 100;
+        const bool favor_zero_updates = false;
+        const double zero_updates_bonus = 1.0E100;
 
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
@@ -509,23 +522,24 @@ public:
               if(score > 0) priority_queue.push(neighbor_vid, score);
               visited.insert(neighbor_vid);
 
-            } else if(priority_queue.contains(neighbor_vid)) {
-              // vertex is still in queue we may need to recompute
-              // score
-              double score = score_vertex(neighbor_vid);
-              if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += zero_updates_bonus;
+            } 
+            // else if(priority_queue.contains(neighbor_vid)) {
+            //   // vertex is still in queue we may need to recompute
+            //   // score
+            //   double score = score_vertex(neighbor_vid);
+            //   if(favor_zero_updates && vdata.updates == 0 && score > 0) 
+            //     score += zero_updates_bonus;
 
-              if(score > 0) {
-                // update the priority queue with the new score
-                priority_queue.update(neighbor_vid, score);
-              } else {
-                // The score computation revealed that the clique
-                // would be too large so simply remove the vertex from
-                // the priority queue
-                priority_queue.remove(neighbor_vid);
-              }
-            } // otherwise the vertex has been visited and processed
+            //   if(score > 0) {
+            //     // update the priority queue with the new score
+            //     priority_queue.update(neighbor_vid, score);
+            //   } else {
+            //     // The score computation revealed that the clique
+            //     // would be too large so simply remove the vertex from
+            //     // the priority queue
+            //     priority_queue.remove(neighbor_vid);
+            //   }
+            // } // otherwise the vertex has been visited and processed
           }
         } else {
           // release the vertex since it could not be used in the tree
@@ -559,23 +573,21 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
-    
+    //        std::cout << "Varcount: " << cliques.size() << std::endl;  
 
-
-        ///////////////////////////////////
-        // plot the graph
-        if(worker_id == 0) {
-          std::cout << "Saving treeImage:" << std::endl;
-          size_t rows = std::sqrt(mrf.num_vertices());
-          image img(rows, rows);
-          for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-            vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-            img.pixel(vid) = 
-                tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-          }
-          img.save(make_filename("tree", ".pgm", tree_count).c_str());
-        }
+        // ///////////////////////////////////
+        // // plot the graph
+        // if(worker_id == 0) {
+        //   std::cout << "Saving treeImage:" << std::endl;
+        //   size_t rows = std::sqrt(mrf.num_vertices());
+        //   image img(rows, rows);
+        //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+        //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+        //     img.pixel(vid) = 
+        //         tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+        //   }
+        //   img.save(make_filename("tree", ".pgm", tree_count).c_str());
+        // }
 
 
 
@@ -594,21 +606,27 @@ public:
     jt_core.rebuild_engine();
     // add tasks to all vertices
     jt_core.add_task_to_all(junction_tree::calibrate_update, 1.0);
+
     // Run the core
     jt_core.start();
 
+
+
     // Check that the junction tree is sampled
+
     size_t actual_tree_width = 0;
     for(vertex_id_t vid = 0; 
         vid < jt_core.graph().num_vertices(); ++vid) {
       const junction_tree::vertex_data& vdata = 
         jt_core.graph().vertex_data(vid);
       assert(vdata.sampled);
+      assert(vdata.calibrated);
       actual_tree_width = 
-        std::max(vdata.variables.num_vars(), actual_tree_width);
-    }
-//     std::cout << "Actual Tree Width: " << actual_tree_width 
-//               << std::endl;
+        std::max(vdata.variables.num_vars(), actual_tree_width);     
+    } 
+    
+    //    std::cout << "Treewidth: " << actual_tree_width << std::endl;
+
       
     // Sampled root successfully
     return cliques.size();

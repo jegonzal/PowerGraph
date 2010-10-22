@@ -357,7 +357,7 @@ namespace graphlab {
     bool less(size_t i, size_t j) {
       assert( i < heap.size() );
       assert( j < heap.size() );
-      return heap[i].second < heap[j].second;
+      return heap[i].second <= heap[j].second;
     }
 
     //! Swaps the heap locations of two elements.
@@ -419,7 +419,7 @@ namespace graphlab {
       }
       // Bubble up
       index_map[item] = i;
-      while ((i > 1) && (priority_at(parent(i)) <= priority)) {
+      while ((i > 1) && (priority_at(parent(i)) < priority)) {
         swap(i, parent(i));
         i = parent(i);
       }
@@ -466,7 +466,7 @@ namespace graphlab {
       assert(item < index_map.size());
       size_t i = index_map[item];
       heap[i].second = priority;
-      while ((i > 1) && (priority_at(parent(i)) <= priority)) {
+      while ((i > 1) && (priority_at(parent(i)) < priority)) {
         swap(i, parent(i));
         i = parent(i);
       }

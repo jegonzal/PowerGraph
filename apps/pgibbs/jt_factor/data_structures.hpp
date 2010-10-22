@@ -459,6 +459,7 @@ void construct_mrf(const factorized_model& model,
   // Add all the variables
   foreach(variable_t variable, model.variables()) {
     mrf::vertex_data vdata(variable, model.factor_ids(variable));
+    vdata.asg.uniform_sample();
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).
@@ -520,7 +521,8 @@ namespace junction_tree {
     domain_t variables;
     factor_t message;
     bool calibrated;
-    edge_data() : calibrated(false) { }
+    bool received;
+    edge_data() : calibrated(false), received(false) { }
   }; // End of edge data
 
 

@@ -9,8 +9,8 @@
 
 #include <graphlab.hpp>
 
-#include "data_structures.hpp"
-#include "sequential_jt_gibbs.hpp"
+// #include "data_structures.hpp"
+// #include "sequential_jt_gibbs.hpp"
 
 
 #include <graphlab/macros_def.hpp>
@@ -79,11 +79,11 @@
 // }
 
 
-void test_alchemy(int argc, char** argv) {
-  factorized_model model;
-  model.load_alchemy(argv[1]);
-  model.save_alchemy(argv[2]);
-}
+// void test_alchemy(int argc, char** argv) {
+//   factorized_model model;
+//   model.load_alchemy(argv[1]);
+//   model.save_alchemy(argv[2]);
+// }
 
 
 // void test_compute_tree_width_old(int argc, char** argv) {
@@ -142,67 +142,82 @@ void test_alchemy(int argc, char** argv) {
 //   std::cout << "Tree Width: " << tree_width << std::endl;
 // }
 
-void test_fast_set(int argc, char** argv) {
-  const size_t SET_SIZE(10);
-  typedef graphlab::fast_set<SET_SIZE, size_t> set_t;
+// void test_fast_set(int argc, char** argv) {
+//   const size_t SET_SIZE(10);
+//   typedef graphlab::fast_set<SET_SIZE, size_t> set_t;
 
 
-  set_t set;
-  set += 1;
-  set += 7;
-  set += 5;
-  set += 2;
-  set -= 4;
-  set -= 2;
-  set += 3;
-  std::cout << set << std::endl;
+//   set_t set;
+//   set += 1;
+//   set += 7;
+//   set += 5;
+//   set += 2;
+//   set -= 4;
+//   set -= 2;
+//   set += 3;
+//   std::cout << set << std::endl;
 
-  set_t set2 = set_t(3) +  9 + 4 + 5;
-  std::cout << set2 << std::endl;
+//   set_t set2 = set_t(3) +  9 + 4 + 5;
+//   std::cout << set2 << std::endl;
 
-  std::cout << set - set2 << std::endl;
-  std::cout << set * set2 << std::endl;
+//   std::cout << set - set2 << std::endl;
+//   std::cout << set * set2 << std::endl;
 
-  foreach(size_t elem, (set + set2)) {
-    std::cout << elem << ", ";
+//   foreach(size_t elem, (set + set2)) {
+//     std::cout << elem << ", ";
+//   }
+//   std::cout << std::endl;
+
+// }
+
+
+// void test_compute_tree_width(int argc, char** argv) {
+//   factorized_model model;
+//   model.load_alchemy(argv[1]);
+//   std::cout << "Building graphlab MRF." << std::endl;
+//   mrf::graph_type mrf_graph;
+
+//   construct_mrf(model, mrf_graph);
+
+
+//   vertex_id_t root = atoi(argv[3]);
+//   std::cout << "Root: " << root << std::endl;
+//   junction_tree::graph_type jt;
+
+//   size_t tree_width = 0;
+//   if(strcmp(argv[2], "bfs") == 0) {
+//     std::cout << "bfs Method" << std::endl;
+//     tree_width = bfs_build_junction_tree(mrf_graph, root, jt);
+//   } else if(strcmp(argv[2], "minfill") == 0) {
+//     std::cout << "minfill Method" << std::endl;
+//     tree_width = min_fill_build_junction_tree(mrf_graph, root, jt);
+//   } else {
+//     std::cout << "Incremental Build" << std::endl;
+//     std::cout << "Building 10 times" << std::endl;
+//     for(size_t i = 0; i < 10; ++i) {
+//       std::cout << i << std::endl;
+//       tree_width = incremental_build_junction_tree(mrf_graph, root, jt);
+//     }
+//   } 
+//   std::cout << "Tree Width: " << tree_width << std::endl;
+// }
+
+
+void test_mutable_queue() {
+  graphlab::mutable_queue<size_t, double> queue;
+  for(size_t i = 0; i < 10; ++i) 
+    queue.push(i, 100);
+  while(!queue.empty()) {
+    std::cout << queue.pop().first << std::endl;
   }
-  std::cout << std::endl;
+
+  for(size_t i = 0; i < 10; ++i) 
+    queue.push(i, i);
+  while(!queue.empty()) {
+    std::cout << queue.pop().first << std::endl;
+  }
 
 }
-
-
-void test_compute_tree_width(int argc, char** argv) {
-  factorized_model model;
-  model.load_alchemy(argv[1]);
-  std::cout << "Building graphlab MRF." << std::endl;
-  mrf::graph_type mrf_graph;
-
-  construct_mrf(model, mrf_graph);
-
-
-  vertex_id_t root = atoi(argv[3]);
-  std::cout << "Root: " << root << std::endl;
-  junction_tree::graph_type jt;
-
-  size_t tree_width = 0;
-  if(strcmp(argv[2], "bfs") == 0) {
-    std::cout << "bfs Method" << std::endl;
-    tree_width = bfs_build_junction_tree(mrf_graph, root, jt);
-  } else if(strcmp(argv[2], "minfill") == 0) {
-    std::cout << "minfill Method" << std::endl;
-    tree_width = min_fill_build_junction_tree(mrf_graph, root, jt);
-  } else {
-    std::cout << "Incremental Build" << std::endl;
-    std::cout << "Building 10 times" << std::endl;
-    for(size_t i = 0; i < 10; ++i) {
-      std::cout << i << std::endl;
-      tree_width = incremental_build_junction_tree(mrf_graph, root, jt);
-    }
-  } 
-  std::cout << "Tree Width: " << tree_width << std::endl;
-}
-
-
 
 
 int main(int argc, char** argv) {
@@ -210,7 +225,8 @@ int main(int argc, char** argv) {
   //  test_alchemy(argc, argv);
   //   test_fast_set(argc, argv);
   //  test_compute_tree_width2(argc, argv);
-  test_compute_tree_width(argc, argv);
+  // test_compute_tree_width(argc, argv);
+  test_mutable_queue();
 
 
   return EXIT_SUCCESS;
