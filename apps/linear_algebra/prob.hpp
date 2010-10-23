@@ -7,6 +7,8 @@
 //#include <itpp/stat/misc_stat.h>
 #define pi 3.14152965
 
+#include "graphlab/util/random.hpp"
+
 using namespace itpp;
 using namespace std;
 
@@ -68,9 +70,9 @@ vec chi2rnd(vec v, int size){
 void randv(int n, vec & ret){
    assert(n>=1);
    for (int i=0; i< n; i++)
-       ret[i] = drand48();
+       //ret[i] = drand48();
+       ret[i] = graphlab::random::rand01();
 }
-
 mat randn1(int Dx, int Dy){
   if (Dx == 0)
     Dx = 1;
