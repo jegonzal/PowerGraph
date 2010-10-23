@@ -40,7 +40,7 @@ public:
 
  
 
-private:
+public:
   
   scope_factory_type* scope_factory;
   size_t worker_id;
@@ -74,17 +74,10 @@ private:
   graphlab::mutable_queue<size_t, double> priority_queue;
   std::set<vertex_id_t> visited;
 
-  
-
-
   // Local junction tree graphlab core
   junction_tree::gl::core jt_core;
+
  
-  
-
-
-public:
-
   jt_worker() : 
     scope_factory(NULL), 
     worker_id(0),
@@ -102,8 +95,7 @@ public:
             scope_factory_type& sf, 
             const factorized_model::factor_map_t& factors,
             const std::vector<vertex_id_t>& root_perm, 
-            size_t ncpus,
-            float finish_time_secs,
+            size_t ncpus,         
             size_t treesize,
             size_t treewidth,
             size_t factorsize,
@@ -126,7 +118,6 @@ public:
     }
     factors_ptr = &factors;
     use_priorities = priorities;
-    finish_time_seconds = finish_time_secs;
 
     roots = &root_perm;    
     root_index = root_perm.size();
@@ -157,6 +148,14 @@ public:
 
   size_t num_samples() const { return total_samples; }
   size_t num_collisions() const { return collisions; }
+  size_t num_trees() const { return tree_count; }
+
+  void set_runtime(float runtime_seconds) {
+    assert(runtime_seconds >= 0);
+    finish_time_seconds = 
+      graphlab::lowres_time_seconds() + runtime_seconds;          
+  }
+
 
   
   void move_to_next_root() {
@@ -169,14 +168,9 @@ public:
 
 
   // get a root
-  void run() {
-    
-    // Track the number of samples
-    total_samples = 0;
-    collisions = 0;
-    tree_count = 0;
+  void run() {   
+    // looup until runtime is reached
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
-    //    { current_root = 0;
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
@@ -207,12 +201,8 @@ public:
 //       }
 
       tree_count++;
-
-      // std::cout << "Worker " << worker_id 
-      //           << " sampled " << current_root
-      //           << " a tree of size " << sampled_variables
-      //           << std::endl;        
       total_samples += sampled_variables;
+
     } 
   }
 
@@ -236,12 +226,10 @@ public:
     }
     // Assert that this vertex is not in a tree and that none of the
     // neighbors are in other trees
-
     // This vertex does not neighbor any other trees than this one
     scope.vertex_data().tree_id = worker_id;
     return true;
-  
-  }
+  } // end of try grab vertex
 
 
   /**
@@ -250,7 +238,7 @@ public:
   void release_vertex(iscope_type& scope) {
     // This vertex does not neighbor any other trees than this one
     scope.vertex_data().tree_id = NULL_VID;
-  }
+  } // release the vertex
 
 
 
@@ -308,26 +296,15 @@ public:
         clique_factor *= factor;
       }
     } // end of loop over factors
-
-    // std::cout << "////////////////////////////////////////////////" << std::endl;
-    // std::cout << clique_factor << std::endl;
-
-
     // Compute the conditional factor and marginal factors
     conditional_factor.set_args(in_tree_vars - vdata.variable);
-    conditional_factor.condition(clique_factor, vdata.asg);
-    
-    
+    conditional_factor.condition(clique_factor, vdata.asg);        
     marginal_factor.set_args(in_tree_vars - vdata.variable);
     marginal_factor.marginalize(clique_factor);
     
     // Compute metric
     conditional_factor.normalize();
     marginal_factor.normalize();
-
-    // std::cout << conditional_factor << "\n"
-    //           << marginal_factor << "\n";
-
     double residual = conditional_factor.log_residual(marginal_factor);
     
     residual = (std::tanh(residual) + 1) / (vdata.updates + 1);
@@ -339,10 +316,8 @@ public:
     assert( !std::isnan(residual) );
     assert( std::isfinite(residual) );
 
-
-    // std::cout << residual << "  ";
     return residual;
-  }
+  } // end of score vertex
 
   
 
@@ -359,7 +334,6 @@ public:
     // add the root
     bfs_queue.push_back(current_root);
     visited.insert(current_root);
-
 
     while(!bfs_queue.empty()) {
       // Take the top element
@@ -422,10 +396,8 @@ public:
           release_vertex(scope);
         }
       } // end of grabbed
-      
       // release the scope
       scope_factory->release_scope(&scope);        
-
       // Limit the number of variables
       if(cliques.size() > max_tree_size) break;
     } // end of while loop
@@ -450,10 +422,6 @@ public:
     while(!priority_queue.empty()) {
       // Take the top element
       const vertex_id_t next_vertex = priority_queue.pop().first;
-
-      // Skip with probability proportional to the number of updates
-      
-
       // Get the scope
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
@@ -495,10 +463,6 @@ public:
                              max_tree_width,
                              max_factor_size);
 
-
-        const bool favor_zero_updates = false;
-        const double zero_updates_bonus = 1.0E100;
-
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
         if(safe_extension) {
@@ -507,16 +471,10 @@ public:
 
           // add the neighbors to the search queue or update their priority
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
-            vertex_id_t neighbor_vid = mrf.target(eid);
-            const mrf::vertex_data& vdata = mrf.vertex_data(neighbor_vid);
+            vertex_id_t neighbor_vid = mrf.target(eid);          
             if(visited.count(neighbor_vid) == 0) {
               // Vertex has not yet been visited
               double score = score_vertex(neighbor_vid);
-              // if the vertex has not been updated then give it a
-              // high priority.
-              if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += zero_updates_bonus;
-
               // if the score is greater than zero then add the
               // neighbor to the priority queue.  The score is zero if
               // there is no advantage or the treewidth is already too
@@ -529,8 +487,6 @@ public:
             //   // vertex is still in queue we may need to recompute
             //   // score
             //   double score = score_vertex(neighbor_vid);
-            //   if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-            //     score += zero_updates_bonus;
             //   if(score > 0) {
             //     // update the priority queue with the new score
             //     priority_queue.update(neighbor_vid, score);
@@ -639,75 +595,94 @@ public:
 
 
 
+class parallel_sampler {
+
+  std::vector<jt_worker> workers;
+  graphlab::general_scope_factory<mrf::graph_type> scope_factory;
+  std::vector< vertex_id_t > roots;
+  size_t total_samples;
+  size_t total_collisions;
+
+
+public:
+
+  parallel_sampler(const factorized_model& fmodel,
+                   mrf::graph_type& mrf,
+                   size_t ncpus,
+                   size_t max_tree_size = 1000,
+                   size_t max_tree_width = MAX_DIM,
+                   size_t max_factor_size = (1 << MAX_DIM),
+                   size_t max_tree_height = 1000,
+                   size_t internal_threads = 1,
+                   bool use_priorities = false) :
+    workers(ncpus),
+    scope_factory(mrf, ncpus, 
+                  graphlab::scope_range::EDGE_CONSISTENCY),
+    roots(mrf.num_vertices()),
+    total_samples(0),
+    total_collisions(0) { 
+
+    // Shuffle ther oot ordering 
+    for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
+      roots[vid] = vid;
+    std::random_shuffle(roots.begin(), roots.end());
+       
+    for(size_t i = 0; i < ncpus; ++i) {
+      // Initialize the worker
+      workers[i].init(i, 
+                      scope_factory, 
+                      fmodel.factors(),
+                      roots,
+                      ncpus,    
+                      max_tree_size,
+                      max_tree_width,
+                      max_factor_size,
+                      max_tree_height,
+                      internal_threads,
+                      use_priorities);    
+    }
+
+
+    
+  } // end of constructor
 
 
 
-
-
-
-void parallel_sample(const factorized_model& fmodel,
-                     mrf::graph_type& mrf,
-                     size_t ncpus,
-                     float runtime_secs,
-                     size_t max_tree_size = 1000,
-                     size_t max_tree_width = MAX_DIM,
-                     size_t max_factor_size = (1 << MAX_DIM),
-                     size_t max_tree_height = 1000,
-                     size_t internal_threads = 1,
-                     bool use_priorities = false) {
-  // create workers
-  graphlab::thread_group threads;
-  std::vector<jt_worker> workers(ncpus);
-
-  // Create a scope factor
-  graphlab::general_scope_factory<mrf::graph_type>
-    scope_factory(mrf, ncpus,
-                  graphlab::scope_range::EDGE_CONSISTENCY);
   
-  float finish_time_secs = 
-    graphlab::lowres_time_seconds() + runtime_secs;
+  void sample_once(float runtime_secs) {
+    // create workers
+    graphlab::thread_group threads;
+    
+    for(size_t i = 0; i < workers.size(); ++i) {
+      workers[i].set_runtime(runtime_secs);
+      // Launch the threads
+      bool use_cpu_affinity = false;
+      if(use_cpu_affinity) threads.launch(&(workers[i]), i);
+      else threads.launch(&(workers[i]));            
+    }
+ 
+    // Wait for all threads to finish
+    threads.join();
+
+    // Record the total number of samples
+    foreach(const jt_worker& worker, workers) {
+      total_samples += worker.num_samples();
+      total_collisions += worker.num_collisions();
+    }
+    std::cout << "Total samples: " << total_samples << "\n";
+    std::cout << "Total collisions: " << total_collisions << "\n";
+
+  }                   
+
+ 
+
+};
 
 
-  std::vector< vertex_id_t >  roots(mrf.num_vertices());
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
-    roots[vid] = vid;
-  std::random_shuffle(roots.begin(), roots.end());
-  
 
-  for(size_t i = 0; i < ncpus; ++i) {
-    // Initialize the worker
-    workers[i].init(i, 
-                    scope_factory, 
-                    fmodel.factors(),
-                    roots,
-                    ncpus,
-                    finish_time_secs,
-                    max_tree_size,
-                    max_tree_width,
-                    max_factor_size,
-                    max_tree_height,
-                    internal_threads,
-                    use_priorities);    
-    // Launch the threads
-    bool use_cpu_affinity = false;
-    if(use_cpu_affinity) threads.launch(&(workers[i]), i);
-    else threads.launch(&(workers[i]));            
-  }
-  
-  // Wait for all threads to finish
-  threads.join();
 
-  // Record the total number of samples
-  size_t total_samples = 0;
-  size_t total_collisions = 0;
-  foreach(const jt_worker& worker, workers) {
-    total_samples += worker.num_samples();
-    total_collisions += worker.num_collisions();
-  }
-  std::cout << "Total samples: " << total_samples << "\n";
-  std::cout << "Total collisions: " << total_collisions << "\n";
 
-}
+
 
 
 

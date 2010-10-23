@@ -129,7 +129,16 @@ int main(int argc, char** argv) {
   std::cout << "Building graphlab MRF." << std::endl;
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
-  
+
+  parallel_sampler sampler(factor_graph,
+                           mrf_graph,
+                           clopts.ncpus,
+                           treesize,
+                           treewidth,
+                           factorsize,
+                           treeheight,
+                           subthreads,
+                           priorities);
 
   float run_so_far = 0;
   foreach(float runtime, runtimes) {
@@ -154,15 +163,7 @@ int main(int argc, char** argv) {
 
     graphlab::timer timer;
     timer.start();
-    parallel_sample(factor_graph, mrf_graph, 
-                    clopts.ncpus,
-                    remaining_time,
-                    treesize,
-                    treewidth,
-                    factorsize,
-                    treeheight,
-                    subthreads,
-                    priorities);
+    sampler.sample_once(remaining_time);
     double actual_runtime = timer.current_time();
     std::cout << "Local Runtime: " << actual_runtime << std::endl;
     
