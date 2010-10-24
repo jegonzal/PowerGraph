@@ -47,7 +47,7 @@
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
 
-#define DRAW_IMAGE
+// #define DRAW_IMAGE
 
 
 

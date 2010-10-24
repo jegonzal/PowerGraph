@@ -307,7 +307,7 @@ public:
     marginal_factor.normalize();
     double residual = conditional_factor.log_residual(marginal_factor);
     
-    residual = (std::tanh(residual)) / (vdata.updates + 1);
+    //    residual = (std::tanh(residual)) / (vdata.updates + 1);
 
     // rescale by updates
     //    residual = residual / (vdata.updates + 1);

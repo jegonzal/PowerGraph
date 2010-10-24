@@ -26,7 +26,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-#define DRAW_IMAGE
+// #define DRAW_IMAGE
 
 
 std::string results_fn = "experiment_results.tsv";
