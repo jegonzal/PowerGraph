@@ -219,6 +219,7 @@ class factorized_model {
 public:
   void add_factor(const factor_t& factor) {
     _factors.push_back(factor);
+    _factors.rbegin()->normalize();
     size_t factor_id = _factors.size() - 1;
     for(size_t i = 0; i < factor.num_vars(); ++i) {
       variable_t var = factor.args().var(i); 

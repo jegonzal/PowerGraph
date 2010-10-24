@@ -73,15 +73,18 @@ namespace mrf {
     assignment_t   asg;
     std::set<vertex_id_t> factor_ids;
     factor_t       belief;
-    size_t         updates; 
+    size_t         updates;
+    size_t         changes;
 
     bool           in_tree;
     vertex_id_t    tree_id;
     vertex_id_t    height;
 
     vertex_data() : updates(0), 
+                    changes(0),
                     in_tree(false), 
-                    tree_id(NULL_VID) { }
+                    tree_id(NULL_VID),
+                    height(0) { }
 
     vertex_data(const variable_t& variable,
                 const std::set<vertex_id_t>& factor_ids) :
@@ -90,6 +93,7 @@ namespace mrf {
       factor_ids(factor_ids),
       belief(domain_t(variable)),
       updates(0),
+      changes(0),
       in_tree(false),
       tree_id(NULL_VID),
       height(0) {    // Set the belief to uniform 0
@@ -103,6 +107,7 @@ namespace mrf {
       arc << factor_ids;
       arc << belief;
       arc << updates;
+      arc << changes;
       arc << in_tree;
       arc << height;
     }
@@ -113,6 +118,7 @@ namespace mrf {
       arc >> factor_ids;
       arc >> belief;
       arc >> updates;
+      arc >> changes;
       arc >> in_tree;
       arc >> height;
     }
@@ -223,6 +229,7 @@ public:
 
   void add_factor(const factor_t& factor) {
     _factors.push_back(factor);
+    _factors.rbegin()->normalize();
     size_t factor_id = _factors.size() - 1;
     for(size_t i = 0; i < factor.num_vars(); ++i) {
       variable_t var = factor.args().var(i); 
@@ -368,7 +375,6 @@ public:
         // Values are stored in log form      
         factor.logP(asg.linear_index()) = value;                
       }
-
       // Save the factor to the factor graph
       add_factor(factor);                
     } // End of outer while loop over factors should be end of file
@@ -509,11 +515,13 @@ namespace junction_tree {
     std::set<vertex_id_t> factor_ids;
     factor_t factor;
     assignment_t asg;
+    size_t changes;
 
     vertex_data() : 
       parent(NULL_VID),
       calibrated(false), 
-      sampled(false)  { }
+      sampled(false),
+      changes(0)  { }
   }; // End of vertex data
 
 

@@ -633,7 +633,7 @@ namespace graphlab {
   static const double EPSILON = std::numeric_limits<double>::min();
   static const double LOG_EPSILON = std::log(EPSILON);
   static const double MAX_DOUBLE =  std::numeric_limits<double>::max();
-  static const double LOG_MAX_DOUBLE = std::log(MAX_DOUBLE);
+  //  static const double LOG_MAX_DOUBLE = std::log(MAX_DOUBLE);
 
 
 
@@ -794,12 +794,12 @@ namespace graphlab {
     inline table_factor& operator*=(const table_factor& other) {
       for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
         logP(asg.linear_index()) += other.logP(asg);
-        // if(std::isinf( logP(asg.linear_index()) ) ||
-        //    std::isnan( logP(asg.linear_index()) ) ) {
-        //   logP(asg.linear_index()) = -MAX_DOUBLE;
-        // } 
-        assert( !std::isinf( logP(asg.linear_index()) ) );
-        assert( !std::isnan( logP(asg.linear_index()) ) );
+        if(std::isinf( logP(asg.linear_index()) ) ||
+           std::isnan( logP(asg.linear_index()) ) ) {
+          logP(asg.linear_index()) = -MAX_DOUBLE;
+        } 
+        // assert( !std::isinf( logP(asg.linear_index()) ) );
+        // assert( !std::isnan( logP(asg.linear_index()) ) );
       }
       return *this;
     }

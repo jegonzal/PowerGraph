@@ -54,6 +54,7 @@ public:
 
   size_t total_samples;
   size_t collisions;
+  size_t changes;
 
   float finish_time_seconds;
 
@@ -88,6 +89,7 @@ public:
     tree_count(0),
     total_samples(0),
     collisions(0),
+    changes(0),
     finish_time_seconds(0),
     use_priorities(false) { }
 
@@ -148,6 +150,7 @@ public:
 
   size_t num_samples() const { return total_samples; }
   size_t num_collisions() const { return collisions; }
+  size_t num_changes() const { return changes; }
   size_t num_trees() const { return tree_count; }
 
   void set_runtime(float runtime_seconds) {
@@ -266,8 +269,8 @@ public:
         in_tree_vars += neighbor.variable;
         // If this vertex has too many tree neighbor than the priority
         // is set to 0;
-        if(in_tree_vars.num_vars() > max_tree_width) return 0;
-        if(in_tree_vars.size() > max_factor_size) return 0;
+        if(in_tree_vars.num_vars() > max_tree_width) return -1;
+        if(in_tree_vars.size() > max_factor_size) return -1;
       } 
     }
 
@@ -307,7 +310,7 @@ public:
     marginal_factor.normalize();
     double residual = conditional_factor.log_residual(marginal_factor);
     
-    //    residual = (std::tanh(residual)) / (vdata.updates + 1);
+    // residual = (std::tanh(residual)) / (vdata.updates + 1);
 
     // rescale by updates
     //    residual = residual / (vdata.updates + 1);
@@ -479,7 +482,7 @@ public:
               // neighbor to the priority queue.  The score is zero if
               // there is no advantage or the treewidth is already too
               // large
-              if(score > 0) priority_queue.push(neighbor_vid, score);
+              if(score >= 0) priority_queue.push(neighbor_vid, score);
               visited.insert(neighbor_vid);
 
             } 
@@ -487,7 +490,7 @@ public:
             //   // vertex is still in queue we may need to recompute
             //   // score
             //   double score = score_vertex(neighbor_vid);
-            //   if(score > 0) {
+            //   if(score >= 0) {
             //     // update the priority queue with the new score
             //     priority_queue.update(neighbor_vid, score);
             //   } else {
@@ -530,7 +533,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //        std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
 
         // ///////////////////////////////////
         // // plot the graph
@@ -572,6 +575,7 @@ public:
     // Check that the junction tree is sampled
 
     size_t actual_tree_width = 0;
+    size_t local_changes = 0;
     for(vertex_id_t vid = 0; 
         vid < jt_core.graph().num_vertices(); ++vid) {
       const junction_tree::vertex_data& vdata = 
@@ -579,11 +583,13 @@ public:
       assert(vdata.sampled);
       assert(vdata.calibrated);
       actual_tree_width = 
-        std::max(vdata.variables.num_vars(), actual_tree_width);     
+        std::max(vdata.variables.num_vars(), actual_tree_width); 
+      local_changes += vdata.changes;
     } 
+    changes += local_changes;
     
-    //    std::cout << "Treewidth: " << actual_tree_width << std::endl;
-
+    // std::cout << "Treewidth: " << actual_tree_width << std::endl;
+    // std::cout << "Local Changes: " << local_changes << std::endl;
       
     // Sampled root successfully
     return cliques.size();

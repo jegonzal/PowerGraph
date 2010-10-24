@@ -677,6 +677,7 @@ void run_tree_samples(const factorized_model& model,
                              tree_height,
                              use_weights,
                              pruning);
+  global_graph = &core.graph();
 
   add_factors_to_sdm(core.shared_data(), model.factors());
   core.shared_data().set_sync(NSAMPLES_ID,
@@ -836,6 +837,8 @@ void run_tree_times(const factorized_model& model,
                              pruning);
 
   add_factors_to_sdm(core.shared_data(), model.factors());
+
+  global_graph = & core.graph();
   
   core.shared_data().set_sync(NSAMPLES_ID,
                               gl::sync_ops::sum< size_t, get_nsamples >,
