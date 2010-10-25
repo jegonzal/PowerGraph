@@ -158,8 +158,12 @@ namespace graphlab {
     ischeduler_type& get_scheduler() { return scheduler; }
 
     //! set sched yeild
-    void set_sched_yield(bool value) {
+    void enable_sched_yield(bool value) {
       use_sched_yield = value;
+    }
+
+    void enable_cpu_affinities(bool value) {
+      use_cpu_affinity = value;
     }
 
     
@@ -313,8 +317,11 @@ namespace graphlab {
         // Start the worker thread using the thread group with cpu
         // affinity attached (CPU affinity currently only supported in
         // linux) since Mac affinity is set through the NX frameworks
-        if(use_cpu_affinity) threads.launch(&(workers[i]), i);
-        else threads.launch(&(workers[i]));        
+        if(use_cpu_affinity)  {
+	  threads.launch(&(workers[i]), i);
+	} else {
+	  threads.launch(&(workers[i]));        
+	}
       }
       threads.join();
     } // end of run threaded
