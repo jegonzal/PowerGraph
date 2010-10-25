@@ -79,6 +79,7 @@ void run_colored_samples(const factorized_model& model,
   // set some of the core options
   core.set_scheduler_type("colored");
   core.set_scope_type("null");
+  core.engine().set_sched_yield(false);
 
   // setup the update function 
   const bool use_callback = false;
@@ -87,9 +88,11 @@ void run_colored_samples(const factorized_model& model,
                               (void*) update_function);
 
 
+
   // Precolor the graph
   std::cout << "Computing coloring " << std::endl;
-  core.graph().compute_coloring();
+  size_t colors = core.graph().compute_coloring();
+  std::cout << "Colors: " << colors << std::endl;
 
   std::cout << "Adding all factors to shared data manager" << std::endl;
   add_factors_to_sdm(core.shared_data(), model.factors());
@@ -157,6 +160,7 @@ void run_colored_samples(const factorized_model& model,
     fout << experiment_id << '\t'
          << actual_samples << '\t'
          << core.get_engine_options().ncpus << '\t'
+	 << colors << '\t'
          << runtime << '\t'
          << update_counts << '\t'
          << loglik << std::endl;
@@ -220,6 +224,7 @@ void run_colored_times(const factorized_model& model,
   // set some of the core options
   core.set_scheduler_type("colored");
   core.set_scope_type("null");
+  core.engine().set_sched_yield(false);
 
   // setup the update function 
   const bool use_callback = false;
@@ -229,9 +234,12 @@ void run_colored_times(const factorized_model& model,
 
 
 
+
   // Precolor the graph
   std::cout << "Computing coloring " << std::endl;
-  core.graph().compute_coloring();
+  size_t colors = core.graph().compute_coloring();
+  std::cout << "Colors: " << colors << std::endl;
+
 
   std::cout << "Adding all factors to shared data manager" << std::endl;
   add_factors_to_sdm(core.shared_data(), model.factors());
@@ -302,6 +310,7 @@ void run_colored_times(const factorized_model& model,
     fout << experiment_id << '\t'
          << actual_samples << '\t'
          << core.get_engine_options().ncpus << '\t'
+	 << colors << '\t'
          << runtime << '\t'
          << update_counts << '\t'
          << loglik << std::endl;
