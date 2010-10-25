@@ -28,6 +28,7 @@
 
 
 
+
 #include <graphlab/macros_def.hpp>
 
 class jt_worker : public graphlab::runnable {
@@ -177,14 +178,14 @@ public:
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
-      move_to_next_root();
+      //      move_to_next_root();
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-        //  move_to_next_root();
+	move_to_next_root();
         sampled_variables = sample_once();
         if(sampled_variables == 0) {
           collisions++;
-          // sched_yield();
+	  //  sched_yield();
         }
       }
 
@@ -208,6 +209,32 @@ public:
 
     } 
   }
+
+
+
+  /**
+   * Grab this vertex into the tree owned by worker id
+   */
+  bool quick_try_vertex(vertex_id_t vid) {
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+    // Check that this vertex is not already in a tree
+    bool in_tree = vdata.tree_id != NULL_VID;
+    if(in_tree) return false;
+    // check that the neighbors are not in any other trees than this
+    // one
+    const graphlab::edge_list& in_eids = mrf.in_edge_ids(vid);
+    foreach(edge_id_t in_eid, in_eids) {
+      vertex_id_t neighbor_vid = mrf.source(in_eid);
+      const mrf::vertex_data& vdata = mrf.vertex_data(neighbor_vid);
+      bool in_tree = vdata.tree_id != NULL_VID;
+      // if the neighbor is in a tree other than this one quit
+      if(in_tree && worker_id != vdata.tree_id) return false;
+    }
+    return true;
+  } // end of try grab vertex
+
+
 
   /**
    * Grab this vertex into the tree owned by worker id
@@ -429,14 +456,18 @@ public:
       const vertex_id_t next_vertex = bfs_queue.front();
       bfs_queue.pop_front();
 
-      // Get the scope
+      // pretest that the vertex is available before trying to get it
+      bool grabbed = quick_try_vertex(next_vertex);
+      if(!grabbed) continue;
+
+      // Maybe we can get the vertex so actually try to get it
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
       assert(scope_ptr != NULL);
       iscope_type& scope(*scope_ptr);
 
       // See if we can get the vertex for this tree
-      bool grabbed = try_grab_vertex(scope);
+      grabbed = try_grab_vertex(scope);
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
@@ -511,6 +542,12 @@ public:
     while(!priority_queue.empty()) {
       // Take the top element
       const vertex_id_t next_vertex = priority_queue.pop().first;
+
+      // pretest that the vertex is available before trying to get it
+      bool grabbed = quick_try_vertex(next_vertex);
+      if(!grabbed) continue;
+
+
       // Get the scope
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
@@ -518,7 +555,7 @@ public:
       iscope_type& scope(*scope_ptr);
 
       // See if we can get the vertex for this tree
-      bool grabbed = try_grab_vertex(scope);
+      grabbed = try_grab_vertex(scope);
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
@@ -572,20 +609,21 @@ public:
               visited.insert(neighbor_vid);
 
             } 
-            else if(priority_queue.contains(neighbor_vid)) {
-              // vertex is still in queue we may need to recompute
-              // score
-              double score = score_vertex(neighbor_vid);
-              if(score >= 0) {
-                // update the priority queue with the new score
-                priority_queue.update(neighbor_vid, score);
-              } else {
-                // The score computation revealed that the clique
-                // would be too large so simply remove the vertex from
-                // the priority queue
-                priority_queue.remove(neighbor_vid);
-              }
-            } // otherwise the vertex has been visited and processed
+            // else if(priority_queue.contains(neighbor_vid)) {
+            //   // vertex is still in queue we may need to recompute
+            //   // score
+            //   double score = score_vertex(neighbor_vid);
+            //   if(score >= 0) {
+            //     // update the priority queue with the new score
+            //     priority_queue.update(neighbor_vid, score);
+            //   } else {
+            //     // The score computation revealed that the clique
+            //     // would be too large so simply remove the vertex from
+            //     // the priority queue
+            //     priority_queue.remove(neighbor_vid);
+            //   }
+            // } // otherwise the vertex has been visited and processed
+
           }
         } else {
           // release the vertex since it could not be used in the tree
@@ -619,21 +657,21 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
 
-        ///////////////////////////////////
-        // plot the graph
-        if(worker_id == 0) {
-          std::cout << "Saving treeImage:" << std::endl;
-          size_t rows = std::sqrt(mrf.num_vertices());
-          image img(rows, rows);
-          for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-            vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-            img.pixel(vid) = 
-                tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-          }
-          img.save(make_filename("tree", ".pgm", tree_count).c_str());
-        }
+        // ///////////////////////////////////
+        // // plot the graph
+        // if(worker_id == 0) {
+        //   std::cout << "Saving treeImage:" << std::endl;
+        //   size_t rows = std::sqrt(mrf.num_vertices());
+        //   image img(rows, rows);
+        //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+        //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+        //     img.pixel(vid) = 
+        //         tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+        //   }
+        //   img.save(make_filename("tree", ".pgm", tree_count).c_str());
+        // }
 
 
 
@@ -674,11 +712,11 @@ public:
     } 
     changes += local_changes;
     
-    std::cout << "Treewidth: " << actual_tree_width << std::endl;
-    std::cout << "Local Changes: " << local_changes << std::endl;
+    // std::cout << "Treewidth: " << actual_tree_width << std::endl;
+    // std::cout << "Local Changes: " << local_changes << std::endl;
       
-    // Sampled root successfully
-    return cliques.size();
+    // Return the number of variables in the tree
+    return elim_time_map.size();
   } // end of sample once
 
 
@@ -692,9 +730,6 @@ class parallel_sampler {
   std::vector<jt_worker> workers;
   graphlab::general_scope_factory<mrf::graph_type> scope_factory;
   std::vector< vertex_id_t > roots;
-  size_t total_samples;
-  size_t total_collisions;
-
 
 public:
 
@@ -710,9 +745,7 @@ public:
     workers(ncpus),
     scope_factory(mrf, ncpus, 
                   graphlab::scope_range::EDGE_CONSISTENCY),
-    roots(mrf.num_vertices()),
-    total_samples(0),
-    total_collisions(0) { 
+    roots(mrf.num_vertices()) { 
 
     // Shuffle ther oot ordering 
     for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
@@ -739,6 +772,43 @@ public:
   } // end of constructor
 
 
+  size_t total_changes() const {
+    size_t total_changes = 0;
+    // Record the total number of samples
+    foreach(const jt_worker& worker, workers)      
+      total_changes += worker.num_changes(); 
+    return total_changes;
+  }
+
+
+  size_t total_samples() const {
+    size_t total_samples = 0;
+    foreach(const jt_worker& worker, workers) 
+      total_samples += worker.num_samples();    
+    return total_samples;
+  }
+
+
+  size_t total_collisions() const {
+    size_t total_collisions = 0;
+    foreach(const jt_worker& worker, workers) 
+      total_collisions += worker.num_collisions();
+    return total_collisions;
+  }
+
+
+
+
+  size_t total_trees() const {
+    size_t total_trees = 0;
+    foreach(const jt_worker& worker, workers) 
+      total_trees += worker.num_trees();
+    return total_trees;
+  }
+
+
+
+
 
   
   void sample_once(float runtime_secs) {
@@ -755,14 +825,6 @@ public:
  
     // Wait for all threads to finish
     threads.join();
-
-    // Record the total number of samples
-    foreach(const jt_worker& worker, workers) {
-      total_samples += worker.num_samples();
-      total_collisions += worker.num_collisions();
-    }
-    std::cout << "Total samples: " << total_samples << "\n";
-    std::cout << "Total collisions: " << total_collisions << "\n";
 
   }                   
 
