@@ -952,7 +952,7 @@ namespace graphlab {
 
 
     //! compute the average l1 norm between to factors
-    inline double residual(const table_factor& other) const {
+    inline double l1_diff(const table_factor& other) const {
       // This factor must be over the same dimensions as the other
       // factor
       assert(args() == other.args());  
@@ -963,7 +963,9 @@ namespace graphlab {
       return sum / args().size();
     }
 
-    inline double log_residual(const table_factor& other) const {
+
+    //! compute the l1 norm in log space
+    inline double l1_logdiff(const table_factor& other) const {
       assert(args() == other.args());
       double sum = 0; 
       for(size_t i = 0; i < args().size(); ++i) {
