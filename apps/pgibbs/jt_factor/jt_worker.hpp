@@ -256,8 +256,8 @@ public:
   factor_t marginal_factor;
 
   double score_vertex(vertex_id_t vid) {
-    //  return score_vertex_log_odds(vid);
-    return score_vertex_l1_diff(vid);
+    return score_vertex_log_odds(vid);
+    // return score_vertex_l1_diff(vid);
   }
 
   double score_vertex_l1_diff(vertex_id_t vid) {
@@ -322,6 +322,13 @@ public:
 
     // Compute the residual
     double residual = clique_factor.l1_diff(product_of_marginals_factor);
+
+
+    assert( residual >= 0);
+    assert( !std::isnan(residual) );
+    assert( std::isfinite(residual) );
+
+
 
     return residual;
 
@@ -389,7 +396,7 @@ public:
     marginal_factor.normalize();
     double residual = conditional_factor.l1_logdiff(marginal_factor);
     
-    // residual = (std::tanh(residual)) / (vdata.updates + 1);
+    //    residual = (std::tanh(residual)) / (vdata.updates + 1);
 
     // rescale by updates
     //    residual = residual / (vdata.updates + 1);
@@ -565,20 +572,20 @@ public:
               visited.insert(neighbor_vid);
 
             } 
-            // else if(priority_queue.contains(neighbor_vid)) {
-            //   // vertex is still in queue we may need to recompute
-            //   // score
-            //   double score = score_vertex(neighbor_vid);
-            //   if(score >= 0) {
-            //     // update the priority queue with the new score
-            //     priority_queue.update(neighbor_vid, score);
-            //   } else {
-            //     // The score computation revealed that the clique
-            //     // would be too large so simply remove the vertex from
-            //     // the priority queue
-            //     priority_queue.remove(neighbor_vid);
-            //   }
-            // } // otherwise the vertex has been visited and processed
+            else if(priority_queue.contains(neighbor_vid)) {
+              // vertex is still in queue we may need to recompute
+              // score
+              double score = score_vertex(neighbor_vid);
+              if(score >= 0) {
+                // update the priority queue with the new score
+                priority_queue.update(neighbor_vid, score);
+              } else {
+                // The score computation revealed that the clique
+                // would be too large so simply remove the vertex from
+                // the priority queue
+                priority_queue.remove(neighbor_vid);
+              }
+            } // otherwise the vertex has been visited and processed
           }
         } else {
           // release the vertex since it could not be used in the tree
@@ -612,21 +619,21 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
 
-        // ///////////////////////////////////
-        // // plot the graph
-        // if(worker_id == 0) {
-        //   std::cout << "Saving treeImage:" << std::endl;
-        //   size_t rows = std::sqrt(mrf.num_vertices());
-        //   image img(rows, rows);
-        //   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
-        //     vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
-        //     img.pixel(vid) = 
-        //         tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
-        //   }
-        //   img.save(make_filename("tree", ".pgm", tree_count).c_str());
-        // }
+        ///////////////////////////////////
+        // plot the graph
+        if(worker_id == 0) {
+          std::cout << "Saving treeImage:" << std::endl;
+          size_t rows = std::sqrt(mrf.num_vertices());
+          image img(rows, rows);
+          for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+            vertex_id_t tree_id = mrf.vertex_data(vid).tree_id;
+            img.pixel(vid) = 
+                tree_id == vertex_id_t(-1)? 0 : tree_id + worker_count;
+          }
+          img.save(make_filename("tree", ".pgm", tree_count).c_str());
+        }
 
 
 
@@ -667,8 +674,8 @@ public:
     } 
     changes += local_changes;
     
-    // std::cout << "Treewidth: " << actual_tree_width << std::endl;
-    // std::cout << "Local Changes: " << local_changes << std::endl;
+    std::cout << "Treewidth: " << actual_tree_width << std::endl;
+    std::cout << "Local Changes: " << local_changes << std::endl;
       
     // Sampled root successfully
     return cliques.size();

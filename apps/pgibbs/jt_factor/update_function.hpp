@@ -545,10 +545,10 @@ namespace junction_tree{
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           assignment_t local_asg = sample_asg.restrict(var);
-          // if(mrf_vdata.asg != local_asg) {
-          //   mrf_vdata.changes++;
-          //   vdata.changes++;
-          // }
+          if(mrf_vdata.asg != local_asg) {
+            mrf_vdata.changes++;
+            vdata.changes++;
+          }
           mrf_vdata.asg = local_asg;
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
