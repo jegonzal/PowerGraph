@@ -206,6 +206,7 @@ namespace graphlab {
     virtual void clear_terminators() = 0;
     
 
+    virtual void set_sched_yield(bool value) { }
 
     
     
