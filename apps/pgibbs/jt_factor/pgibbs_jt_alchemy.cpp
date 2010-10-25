@@ -155,8 +155,9 @@ int main(int argc, char** argv) {
               << "treeheight:    " << treeheight << std::endl
               << "factorsize:    " << factorsize << std::endl
               << "subthreads:    " << subthreads << std::endl
-              << "priorities:    " << priorities << std::endl;
-   
+              << "priorities:    " << priorities << std::endl;   
+    clopts.print();
+
     // run the fully parallel sampler
     float remaining_time = runtime - run_so_far;
     if(remaining_time <= 0) remaining_time = 0;
@@ -170,25 +171,23 @@ int main(int argc, char** argv) {
     run_so_far += actual_runtime;
     std::cout << "Total Runtime: " << run_so_far << std::endl;
     
-    std::cout << "Computing unnormalized log-likelihood" << std::endl;
+
     double loglik = unnormalized_loglikelihood(mrf_graph,
                                                factor_graph.factors());
     
     std::cout << "LogLikelihood: " << loglik << std::endl;
-    std::cout << "Saving final prediction" << std::endl;
-    
-    
-    std::cout << "Computing update distribution:" << std::endl;
     mrf::save_beliefs(mrf_graph,  
                       make_filename("beliefs",".tsv", experiment_id).c_str());
-    
-    
-    std::cout << "Computing update counts:" << std::endl;
-    size_t total_updates = 0;
-    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-      mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-      total_updates += vdata.updates;
-    }
+
+    std::cout << "Total Samples: " << sampler.total_samples() 
+	      << std::endl;
+    std::cout << "Total Changes: " << sampler.total_changes() 
+	      << std::endl;
+    std::cout << "Total Trees: " << sampler.total_trees() 
+	      << std::endl;
+    std::cout << "Total Collisions: " << sampler.total_collisions() 
+	      << std::endl;
+
 
 
 
@@ -205,7 +204,9 @@ int main(int argc, char** argv) {
          << subthreads << '\t'
          << priorities << '\t'
          << actual_runtime << '\t'
-         << total_updates << '\t'
+         << sampler.total_samples() << '\t'
+         << sampler.total_changes() << '\t'
+         << sampler.total_trees() << '\t'
          << loglik << std::endl;
     fout.close();
 
