@@ -245,20 +245,28 @@ public:
 
 
 
-  factor_t clique_factor;
-  factor_t conditional_factor;
-  factor_t marginal_factor;
+
   /**
    * This function computes the value of adding the vertex to the tree
    *
    */
+  factor_t clique_factor;
+  factor_t product_of_marginals_factor;
+  factor_t conditional_factor;
+  factor_t marginal_factor;
+
   double score_vertex(vertex_id_t vid) {
+    //  return score_vertex_log_odds(vid);
+    return score_vertex_l1_diff(vid);
+  }
+
+  double score_vertex_l1_diff(vertex_id_t vid) {
     // Get the scope factory
     const mrf::graph_type& mrf = scope_factory->get_graph();
     const mrf::vertex_data& vdata = mrf.vertex_data(vid);
 
     // Construct the domain of neighbors that are already in the tree
-    domain_t in_tree_vars = vdata.variable;
+    domain_t vars = vdata.variable;
     foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
       const vertex_id_t neighbor_vid = mrf.source(ineid);
       const mrf::vertex_data& neighbor = mrf.vertex_data(neighbor_vid);
@@ -266,17 +274,16 @@ public:
       // elimination time map
       if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
         // otherwise add the tree variable
-        in_tree_vars += neighbor.variable;
+        vars += neighbor.variable;
         // If this vertex has too many tree neighbor than the priority
-        // is set to 0;
-        if(in_tree_vars.num_vars() > max_tree_width) return -1;
-        if(in_tree_vars.size() > max_factor_size) return -1;
+        // is set to -1;
+        if(vars.num_vars() > max_tree_width) return -1;
+        if(vars.size() > max_factor_size) return -1;
       } 
     }
 
-    
     // Compute the clique factor
-    clique_factor.set_args(in_tree_vars);
+    clique_factor.set_args(vars);
     clique_factor.uniform();
     // get all the factors
     const factorized_model::factor_map_t& factors(*factors_ptr);
@@ -284,7 +291,79 @@ public:
     foreach(size_t factor_id, vdata.factor_ids) {
       const factor_t& factor = factors[factor_id];      
       // Build up an assignment for the conditional
-      domain_t conditional_args = factor.args() - in_tree_vars;
+      domain_t conditional_args = factor.args() - vars;
+      if(conditional_args.num_vars() > 0) {
+        assignment_t conditional_asg;
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i)
+          conditional_asg &= mrf.vertex_data(conditional_args.var(i).id).asg;      
+        // set the factor arguments
+        conditional_factor.set_args(factor.args() - conditional_args);
+        conditional_factor.condition(factor, conditional_asg);        
+        // Multiply the conditional factor in
+        clique_factor *= conditional_factor;
+        //       clique_factor.normalize();
+      } else {
+        clique_factor *= factor;
+      }
+    } // end of loop over factors
+    clique_factor.normalize();
+
+
+    // Compute the product of marginals
+    product_of_marginals_factor.set_args(vars);
+    product_of_marginals_factor.uniform();
+    for(size_t i = 0; i < vars.num_vars(); ++i) {
+      marginal_factor.set_args(vars.var(i));
+      marginal_factor.marginalize(clique_factor);
+      marginal_factor.normalize();
+      product_of_marginals_factor *= marginal_factor;
+    }
+    product_of_marginals_factor.normalize();
+
+    // Compute the residual
+    double residual = clique_factor.l1_diff(product_of_marginals_factor);
+
+    return residual;
+
+    
+
+  } // end of score l1 diff
+
+
+
+  double score_vertex_log_odds(vertex_id_t vid) {
+    // Get the scope factory
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    // Construct the domain of neighbors that are already in the tree
+    domain_t vars = vdata.variable;
+    foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
+      const vertex_id_t neighbor_vid = mrf.source(ineid);
+      const mrf::vertex_data& neighbor = mrf.vertex_data(neighbor_vid);
+      // test to see if the neighbor is in the tree by checking the
+      // elimination time map
+      if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+        // otherwise add the tree variable
+        vars += neighbor.variable;
+        // If this vertex has too many tree neighbor than the priority
+        // is set to 0;
+        if(vars.num_vars() > max_tree_width) return -1;
+        if(vars.size() > max_factor_size) return -1;
+      } 
+    }
+
+    
+    // Compute the clique factor
+    clique_factor.set_args(vars);
+    clique_factor.uniform();
+    // get all the factors
+    const factorized_model::factor_map_t& factors(*factors_ptr);
+    // Iterate over the factors and multiply each into this factor
+    foreach(size_t factor_id, vdata.factor_ids) {
+      const factor_t& factor = factors[factor_id];      
+      // Build up an assignment for the conditional
+      domain_t conditional_args = factor.args() - vars;
       if(conditional_args.num_vars() > 0) {
         assignment_t conditional_asg;
         for(size_t i = 0; i < conditional_args.num_vars(); ++i)
@@ -300,15 +379,15 @@ public:
       }
     } // end of loop over factors
     // Compute the conditional factor and marginal factors
-    conditional_factor.set_args(in_tree_vars - vdata.variable);
+    conditional_factor.set_args(vars - vdata.variable);
     conditional_factor.condition(clique_factor, vdata.asg);        
-    marginal_factor.set_args(in_tree_vars - vdata.variable);
+    marginal_factor.set_args(vars - vdata.variable);
     marginal_factor.marginalize(clique_factor);
     
     // Compute metric
     conditional_factor.normalize();
     marginal_factor.normalize();
-    double residual = conditional_factor.log_residual(marginal_factor);
+    double residual = conditional_factor.l1_logdiff(marginal_factor);
     
     // residual = (std::tanh(residual)) / (vdata.updates + 1);
 

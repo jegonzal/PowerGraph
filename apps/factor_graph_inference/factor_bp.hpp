@@ -135,7 +135,7 @@ void bp_update(gl_types::iscope& scope,
 
    
     // Compute message residual
-    double residual = tmp_msg.residual(out_edge.old_message);
+    double residual = tmp_msg.l1_diff(out_edge.old_message);
      // Damp the message
     tmp_msg.damp(out_edge.message, damping);   
     // Assign the out message
