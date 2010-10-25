@@ -20,7 +20,8 @@
 typedef graphlab::fast_set<2*MAX_DIM, vertex_id_t> vertex_set;
 // typedef std::set<vertex_id_t> vertex_set;
 
-typedef std::map<vertex_id_t, vertex_set> vset_map;
+typedef std::map<vertex_id_t, vertex_set> vset_map_t;
+typedef std::map<vertex_id_t, vertex_id_t> elim_map_t;
 //typedef boost::unordered_map<vertex_id_t, vertex_set> vset_map;
 
 
@@ -73,8 +74,8 @@ double unnormalized_loglikelihood(const mrf::graph_type& graph,
 
 
 
-size_t build_minfill_elim_order(const vset_map& var2factors_const,
-                                const vset_map& factor2vars_const,
+size_t build_minfill_elim_order(const vset_map_t& var2factors_const,
+                                const vset_map_t& factor2vars_const,
                                 const vertex_id_t max_factor_id,
                                 std::vector<vertex_id_t>* elim_order = NULL,
                                 clique_vector* cliques = NULL) {
@@ -84,8 +85,8 @@ size_t build_minfill_elim_order(const vset_map& var2factors_const,
   if(cliques != NULL) cliques->clear();
 
   // Make local copies of the maps
-  vset_map var2factors(var2factors_const);
-  vset_map factor2vars(factor2vars_const);
+  vset_map_t var2factors(var2factors_const);
+  vset_map_t factor2vars(factor2vars_const);
 
   // track the treewidth
   size_t tree_width = 0;
@@ -96,7 +97,7 @@ size_t build_minfill_elim_order(const vset_map& var2factors_const,
   
   // Construct an elimination ordering:
   graphlab::mutable_queue<vertex_id_t, int> elim_priority_queue;
-  typedef vset_map::value_type vset_map_pair;
+  typedef vset_map_t::value_type vset_map_pair;
   foreach(const vset_map_pair& pair, var2factors) {
     vertex_id_t vid = pair.first;
     const vertex_set& factors = pair.second;
@@ -194,8 +195,8 @@ size_t build_minfill_elim_order(const vset_map& var2factors_const,
 
 
 
-size_t eval_elim_order(const vset_map& var2factors_const,
-                       const vset_map& factor2vars_const,
+size_t eval_elim_order(const vset_map_t& var2factors_const,
+                       const vset_map_t& factor2vars_const,
                        const vertex_id_t max_factor_id,
                        const std::vector<vertex_id_t>& elim_order,
                        clique_vector* cliques = NULL) {
@@ -204,8 +205,8 @@ size_t eval_elim_order(const vset_map& var2factors_const,
   if(cliques != NULL) cliques->clear();
 
   // Make local copies of the maps
-  vset_map var2factors(var2factors_const);
-  vset_map factor2vars(factor2vars_const);
+  vset_map_t var2factors(var2factors_const);
+  vset_map_t factor2vars(factor2vars_const);
 
   // track the treewidth
   size_t tree_width = 0;
@@ -431,7 +432,7 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
 
 template<typename T>
 void jtree_from_cliques(const mrf::graph_type& mrf, 
-                        const std::map<vertex_id_t, vertex_id_t>& elim_time_map,
+                        const elim_map_t& elim_time_map,
                         const T& begin_iter,
                         const T& end_iter,
                         junction_tree::graph_type& jt)  {
@@ -439,6 +440,8 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
   // Convert the iterators to a range and size
   const std::pair<T,T> cliques_range = 
     std::make_pair(begin_iter, end_iter);
+
+
 
   // Compute the parent of each clique
   foreach(elim_clique& clique, cliques_range) {
@@ -537,7 +540,7 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
  **/
 bool extend_clique_list(const mrf::graph_type& mrf,
                         vertex_id_t elim_vertex,
-                        std::map<vertex_id_t, vertex_id_t>& elim_time_map,
+                        elim_map_t& elim_time_map,
                         clique_vector& cliques,
                         size_t max_tree_width,
                         size_t max_factor_size) {
@@ -569,7 +572,7 @@ bool extend_clique_list(const mrf::graph_type& mrf,
   // Determine the parent of this clique
   vertex_id_t parent_id = 0;
   foreach(vertex_id_t vid, clique.vertices)
-    parent_id = std::max(parent_id, elim_time_map[vid]);
+    parent_id = std::max(parent_id, safe_find(elim_time_map, vid));
   clique.parent = parent_id;
 
 
@@ -631,7 +634,7 @@ bool extend_clique_list(const mrf::graph_type& mrf,
     vertex_id_t new_parent_vid = 0;
     foreach(vertex_id_t vid, parent_clique.vertices) {
       new_parent_vid = 
-        std::max(new_parent_vid, elim_time_map[vid]);
+        std::max(new_parent_vid, safe_find(elim_time_map, vid));
     }
     parent_vid = new_parent_vid;
 
@@ -781,8 +784,8 @@ size_t bfs_build_junction_tree(const mrf::graph_type& mrf,
                                vertex_id_t root,
                                junction_tree::graph_type& jt) {
   jt.clear();
-  vset_map var2factors;
-  vset_map factor2vars;
+  vset_map_t var2factors;
+  vset_map_t factor2vars;
 
 
   std::queue<vertex_id_t> bfs_queue;
@@ -871,8 +874,8 @@ size_t min_fill_build_junction_tree(const mrf::graph_type& mrf,
                                     junction_tree::graph_type& jt) {
   jt.clear();
 
-  vset_map var2factors;
-  vset_map factor2vars;
+  vset_map_t var2factors;
+  vset_map_t factor2vars;
 
 
   std::queue<vertex_id_t> bfs_queue;
