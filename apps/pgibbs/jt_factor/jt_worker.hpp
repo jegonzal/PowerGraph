@@ -730,35 +730,37 @@ class parallel_sampler {
   std::vector<jt_worker> workers;
   graphlab::general_scope_factory<mrf::graph_type> scope_factory;
   std::vector< vertex_id_t > roots;
+  bool use_cpu_affinity;
 
 public:
 
   parallel_sampler(const factorized_model& fmodel,
                    mrf::graph_type& mrf,
-                   size_t ncpus,
+                   const graphlab::engine_options& eopts,
                    size_t max_tree_size = 1000,
                    size_t max_tree_width = MAX_DIM,
                    size_t max_factor_size = (1 << MAX_DIM),
                    size_t max_tree_height = 1000,
                    size_t internal_threads = 1,
                    bool use_priorities = false) :
-    workers(ncpus),
-    scope_factory(mrf, ncpus, 
+    workers(eopts.ncpus),
+    scope_factory(mrf, eopts.ncpus, 
                   graphlab::scope_range::EDGE_CONSISTENCY),
-    roots(mrf.num_vertices()) { 
+    roots(mrf.num_vertices()),
+    use_cpu_affinity(eopts.enable_cpu_affinities) { 
 
     // Shuffle ther oot ordering 
     for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
       roots[vid] = vid;
     std::random_shuffle(roots.begin(), roots.end());
        
-    for(size_t i = 0; i < ncpus; ++i) {
+    for(size_t i = 0; i < eopts.ncpus; ++i) {
       // Initialize the worker
       workers[i].init(i, 
                       scope_factory, 
                       fmodel.factors(),
                       roots,
-                      ncpus,    
+                      eopts.ncpus,    
                       max_tree_size,
                       max_tree_width,
                       max_factor_size,
@@ -818,7 +820,6 @@ public:
     for(size_t i = 0; i < workers.size(); ++i) {
       workers[i].set_runtime(runtime_secs);
       // Launch the threads
-      bool use_cpu_affinity = false;
       if(use_cpu_affinity) threads.launch(&(workers[i]), i);
       else threads.launch(&(workers[i]));            
     }

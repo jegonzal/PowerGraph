@@ -79,7 +79,7 @@ void run_colored_samples(const factorized_model& model,
   // set some of the core options
   core.set_scheduler_type("colored");
   core.set_scope_type("null");
-  core.engine().set_sched_yield(false);
+  core.engine().enable_sched_yield(false);
 
   // setup the update function 
   const bool use_callback = false;
@@ -224,7 +224,7 @@ void run_colored_times(const factorized_model& model,
   // set some of the core options
   core.set_scheduler_type("colored");
   core.set_scope_type("null");
-  core.engine().set_sched_yield(false);
+  core.engine().enable_sched_yield(false);
 
   // setup the update function 
   const bool use_callback = false;

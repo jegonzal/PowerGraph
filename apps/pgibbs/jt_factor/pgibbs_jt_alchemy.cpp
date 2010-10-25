@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
 
   parallel_sampler sampler(factor_graph,
                            mrf_graph,
-                           clopts.ncpus,
+                           clopts,
                            treesize,
                            treewidth,
                            factorsize,
