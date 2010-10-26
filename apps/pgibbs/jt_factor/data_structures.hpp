@@ -70,7 +70,7 @@ namespace mrf {
   struct vertex_data {
     // Problem specific variables
     variable_t     variable;
-    assignment_t   asg;
+    size_t         asg;
     std::set<vertex_id_t> factor_ids;
     factor_t       belief;
     size_t         updates;
@@ -89,7 +89,7 @@ namespace mrf {
     vertex_data(const variable_t& variable,
                 const std::set<vertex_id_t>& factor_ids) :
       variable(variable),
-      asg(variable, std::rand() % variable.arity),
+      asg( graphlab::random::rand_int(variable.arity - 1) ),
       factor_ids(factor_ids),
       belief(domain_t(variable)),
       updates(0),
@@ -166,7 +166,7 @@ namespace mrf {
     std::ofstream fout(filename.c_str());
     graphlab::unary_factor marginal;
     for(size_t v = 0; v < graph.num_vertices(); ++v) 
-      fout << graph.vertex_data(v).asg.asg(v) << '\n';
+      fout << graph.vertex_data(v).asg << '\n';
     fout.close();
   } // End of save beliefs
 
@@ -465,7 +465,9 @@ void construct_mrf(const factorized_model& model,
   // Add all the variables
   foreach(variable_t variable, model.variables()) {
     mrf::vertex_data vdata(variable, model.factor_ids(variable));
-    vdata.asg.uniform_sample();
+    assignment_t asg(vdata.variable);
+    asg.uniform_sample();
+    vdata.asg = asg.asg_at(0);
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).

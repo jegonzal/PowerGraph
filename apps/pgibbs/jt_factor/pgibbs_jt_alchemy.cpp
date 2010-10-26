@@ -26,7 +26,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-// #define DRAW_IMAGE
+ #define DRAW_IMAGE
 
 
 std::string results_fn = "experiment_results.tsv";
@@ -239,7 +239,7 @@ int main(int argc, char** argv) {
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-      img.pixel(vid) = mrf_graph.vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = mrf_graph.vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 

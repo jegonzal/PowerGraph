@@ -137,7 +137,8 @@ namespace junction_tree{
           const mrf::vertex_data& mrf_vdata = 
             mrf.vertex_data(conditional_args.var(i).id);
           assert(mrf_vdata.tree_id == NULL_VID);
-          conditional_asg &= mrf_vdata.asg;         
+          conditional_asg &= 
+	    assignment_t(mrf_vdata.variable, mrf_vdata.asg);         
         }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
@@ -331,7 +332,7 @@ namespace junction_tree{
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
-          mrf_vdata.asg = sample_asg.restrict(var);
+          mrf_vdata.asg = sample_asg.restrict(var).asg_at(0);
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
@@ -425,7 +426,8 @@ namespace junction_tree{
           const mrf::vertex_data& mrf_vdata = 
             mrf.vertex_data(conditional_args.var(i).id);
           assert(mrf_vdata.tree_id == NULL_VID);
-          conditional_asg &= mrf_vdata.asg;         
+          conditional_asg &= 
+	    assignment_t(mrf_vdata.variable, mrf_vdata.asg);         
         }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
@@ -588,11 +590,11 @@ namespace junction_tree{
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           assignment_t local_asg = sample_asg.restrict(var);
-          if(mrf_vdata.asg != local_asg) {
+          if(mrf_vdata.asg != local_asg.asg_at(0)) {
             mrf_vdata.changes++;
             vdata.changes++;
           }
-          mrf_vdata.asg = local_asg;
+          mrf_vdata.asg = local_asg.asg_at(0);
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;

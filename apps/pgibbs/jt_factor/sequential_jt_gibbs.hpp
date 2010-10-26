@@ -21,7 +21,7 @@ typedef graphlab::fast_set<2*MAX_DIM, vertex_id_t> vertex_set;
 // typedef std::set<vertex_id_t> vertex_set;
 
 typedef std::map<vertex_id_t, vertex_set> vset_map_t;
-typedef std::map<vertex_id_t, vertex_id_t> elim_map_t;
+typedef boost::unordered_map<vertex_id_t, vertex_id_t> elim_map_t;
 //typedef boost::unordered_map<vertex_id_t, vertex_set> vset_map;
 
 
@@ -45,6 +45,15 @@ const B& safe_find(const std::map<A, B>& const_map, const A& key) {
   return iter->second;
 }
 
+template<typename A, typename B>
+const B& safe_find(const boost::unordered_map<A, B>& const_map, 
+		   const A& key) {
+  typedef typename boost::unordered_map<A, B>::const_iterator const_iterator;
+  const_iterator iter = const_map.find(key);
+  assert(iter != const_map.end());
+  return iter->second;
+}
+
 
 
 //! Compute the unormalized likelihood of the current assignment
@@ -60,7 +69,7 @@ double unnormalized_loglikelihood(const mrf::graph_type& graph,
       const vertex_id_t vid = dom.var(i).id;
       const mrf::vertex_data& vdata = graph.vertex_data(vid);
       assert(vdata.variable == dom.var(i));
-      asg &= vdata.asg;
+      asg &= assignment_t(vdata.variable, vdata.asg);
     }
     sum += factor.logP(asg);
   }
@@ -410,7 +419,7 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
     std::make_pair(begin_iter, end_iter);
 
 
-  std::map<vertex_id_t, vertex_id_t> elim_time_map;
+  elim_map_t elim_time_map;
 
   { // Compute the elimination time for each vertex that is eliminated
     size_t elim_time = 0;
@@ -680,7 +689,7 @@ size_t incremental_build_junction_tree(const mrf::graph_type& mrf,
                                        vertex_id_t root,
                                        junction_tree::graph_type& jt) {
   // Local data structures
-  std::map<vertex_id_t, vertex_id_t> elim_time_map;
+  elim_map_t elim_time_map;
   clique_vector cliques;
 
   std::vector<vertex_id_t> elim_order;

@@ -70,7 +70,7 @@ public:
   const std::vector<vertex_id_t>* roots;
   vertex_id_t current_root;
 
-  std::map<vertex_id_t, vertex_id_t> elim_time_map;
+  elim_map_t elim_time_map;
   clique_vector cliques;
   std::deque<vertex_id_t> bfs_queue;
   graphlab::mutable_queue<size_t, double> priority_queue;
@@ -321,8 +321,12 @@ public:
       domain_t conditional_args = factor.args() - vars;
       if(conditional_args.num_vars() > 0) {
         assignment_t conditional_asg;
-        for(size_t i = 0; i < conditional_args.num_vars(); ++i)
-          conditional_asg &= mrf.vertex_data(conditional_args.var(i).id).asg;      
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+	  const mrf::vertex_data& neighbor_vdata = 
+	    mrf.vertex_data(conditional_args.var(i).id);
+          conditional_asg &= 
+	    assignment_t(neighbor_vdata.variable, neighbor_vdata.asg);
+	}
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
         conditional_factor.condition(factor, conditional_asg);        
@@ -400,8 +404,12 @@ public:
       domain_t conditional_args = factor.args() - vars;
       if(conditional_args.num_vars() > 0) {
         assignment_t conditional_asg;
-        for(size_t i = 0; i < conditional_args.num_vars(); ++i)
-          conditional_asg &= mrf.vertex_data(conditional_args.var(i).id).asg;      
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+	  const mrf::vertex_data& neighbor_vdata = 
+	    mrf.vertex_data(conditional_args.var(i).id);
+          conditional_asg &= 
+	    assignment_t(neighbor_vdata.variable, neighbor_vdata.asg);
+	}
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
         conditional_factor.condition(factor, conditional_asg);        
@@ -414,7 +422,8 @@ public:
     } // end of loop over factors
     // Compute the conditional factor and marginal factors
     conditional_factor.set_args(vars - vdata.variable);
-    conditional_factor.condition(clique_factor, vdata.asg);        
+    conditional_factor.condition(clique_factor, 
+				 assignment_t(vdata.variable, vdata.asg));  
     marginal_factor.set_args(vars - vdata.variable);
     marginal_factor.marginalize(clique_factor);
     
