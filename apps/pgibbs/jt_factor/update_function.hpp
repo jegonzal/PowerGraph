@@ -12,6 +12,49 @@
 #include <graphlab/macros_def.hpp>
 
 
+pthread_key_t ufun_tls_key;
+struct ufun_tls {
+  factor_t cavity;
+  factor_t conditional_factor;
+  factor_t belief;
+  factor_t tmp_belief;
+};
+
+
+ufun_tls* create_ufun_tls() {
+  assert(pthread_getspecific(ufun_tls_key) == NULL);
+  ufun_tls* data = new ufun_tls();
+  assert(data != NULL);
+  pthread_setspecific(ufun_tls_key, data);
+  return data;
+}
+
+ufun_tls& get_ufun_tls() {
+  ufun_tls* tls =
+    reinterpret_cast<ufun_tls*>
+    (pthread_getspecific(ufun_tls_key) );
+  // If no tsd be has been associated, create one
+  if(tls == NULL) tls = create_ufun_tls();
+  assert(tls != NULL);
+  return *tls;
+}
+
+void destroy_ufun_tls(void* ptr) {
+  ufun_tls* tls = 
+    reinterpret_cast<ufun_tls*>(ptr);
+  if(tls != NULL) delete tls;
+
+}
+
+
+struct ufun_tls_key_creater {
+  ufun_tls_key_creater( )  {
+    pthread_key_create(&ufun_tls_key,
+                       destroy_ufun_tls);
+  }
+};
+static const ufun_tls_key_creater make_ufun_tls_key;
+
 
 namespace junction_tree{
   enum SDT_KEYS {FACTOR_KEY, MRF_KEY};
@@ -51,11 +94,6 @@ namespace junction_tree{
 
 
 
-
-
-
-
-
   void slow_update(gl::iscope& scope,
                    gl::icallback& callback,
                    gl::ishared_data* shared_data) {
@@ -64,6 +102,7 @@ namespace junction_tree{
     // get the vertex data
     vertex_data& vdata = scope.vertex_data();
     
+    ufun_tls& tls = get_ufun_tls();
     
     // If the factor args have not been set then we need to initialize
     // the local factor by setting the args and taking the product of
@@ -87,7 +126,7 @@ namespace junction_tree{
       // We now build up the factor by iteratoring over the dependent
       // factors conditioning if necessary into the conditional_factor
       // and then multiplying.
-      factor_t conditional_factor;
+      factor_t& conditional_factor(tls.conditional_factor);
       // Iterate over the factors and multiply each into this factor
       foreach(size_t factor_id, vdata.factor_ids) {
         const factor_t& factor = factors[factor_id];
@@ -115,7 +154,7 @@ namespace junction_tree{
 
     // Determine if their are any edges for which messages can be
     // computed
-    factor_t cavity; // preallocate cavity factor
+    factor_t& cavity(tls.cavity); // preallocate cavity factor
     foreach(edge_id_t out_eid, scope.out_edge_ids()) {
       vertex_id_t target = scope.target(out_eid);
       edge_data& out_edata = scope.edge_data(out_eid);
@@ -242,7 +281,8 @@ namespace junction_tree{
 
         // Now construct the full belief  
         // We start by taking the full factor
-        factor_t belief = vdata.factor;
+        factor_t& belief(tls.belief);
+        belief = vdata.factor;
        
         // Multiply in all the messages to compute the full belief
         foreach(edge_id_t in_eid, scope.in_edge_ids()) {
@@ -260,7 +300,7 @@ namespace junction_tree{
 
         // First update all the RB estimates for the unsampled
         // variables in the mrf graph
-        factor_t tmp_belief;
+        factor_t& tmp_belief(tls.tmp_belief);
         for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
           variable_t var = unsampled_variables.var(i);
           // Construct the RB belief estimate
@@ -344,6 +384,9 @@ namespace junction_tree{
     
     // get the vertex data
     vertex_data& vdata = scope.vertex_data();
+    
+    // get thread local storage to reduce hit on allocator
+    ufun_tls& tls = get_ufun_tls();
 
     //////////////////////////////////////////////////////////////////
     // Initialize factor
@@ -371,7 +414,7 @@ namespace junction_tree{
       // We now build up the factor by iteratoring over the dependent
       // factors conditioning if necessary into the conditional_factor
       // and then multiplying.
-      factor_t conditional_factor;
+      factor_t& conditional_factor(tls.conditional_factor);
       // Iterate over the factors and multiply each into this factor
       foreach(size_t factor_id, vdata.factor_ids) {
         const factor_t& factor = factors[factor_id];
@@ -423,7 +466,7 @@ namespace junction_tree{
     // send any unset messages 
     // if we have recieve enough in messages
     if(received_neighbors + 1 >= scope.in_edge_ids().size()) {
-      factor_t cavity;
+      factor_t& cavity(tls.cavity);
       foreach(edge_id_t out_eid, scope.out_edge_ids()) {
         edge_data& out_edata = scope.edge_data(out_eid);
         edge_id_t rev_eid = scope.reverse_edge(out_eid);
@@ -515,7 +558,7 @@ namespace junction_tree{
       
         // First update all the RB estimates for the unsampled
         // variables in the mrf graph
-        factor_t tmp_belief;
+        factor_t& tmp_belief(tls.tmp_belief);
         for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
           variable_t var = unsampled_variables.var(i);
           // Construct the RB belief estimate

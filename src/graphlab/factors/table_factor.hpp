@@ -160,7 +160,7 @@ namespace graphlab {
       assert(_num_vars <= MAX_DIM);     
       for(size_t i = 0; i < _num_vars; ++i)       
         _vars[i] = variables[i];
-      std::sort(_vars, _vars + _num_vars);
+      std::sort(_vars, _vars + std::min(MAX_DIM, _num_vars) );
       recompute_size();
     }
 
@@ -631,7 +631,7 @@ namespace graphlab {
 
 
   static const double EPSILON = std::numeric_limits<double>::min();
-  static const double LOG_EPSILON = std::log(EPSILON);
+  static const double LOG_EPSILON = log(EPSILON);
   static const double MAX_DOUBLE =  std::numeric_limits<double>::max();
   //  static const double LOG_MAX_DOUBLE = std::log(MAX_DOUBLE);
 
@@ -760,12 +760,12 @@ namespace graphlab {
       double Z = 0.0;
       for(size_t asg = 0; asg < size(); ++asg) {
         logP(asg) -= max_value;
-        Z += std::exp(logP(asg));
+        Z += exp(logP(asg));
       }
       assert( !std::isinf(Z) );
       assert( !std::isnan(Z) );
       assert( Z > 0.0);
-      double logZ = std::log(Z);
+      double logZ = log(Z);
       assert( !std::isinf(logZ) );
       assert( !std::isnan(logZ) );
       // Normalize
@@ -839,7 +839,7 @@ namespace graphlab {
       for(assignment_type asg = joint.args().begin();
           asg < joint.args().end(); ++asg) {
         const double value =
-          std::exp(joint.logP(asg.linear_index()) + other.logP(asg));
+          exp(joint.logP(asg.linear_index()) + other.logP(asg));
         assert( !std::isinf(value) );
         assert( !std::isnan(value) );
         logP(asg) += value;
@@ -921,13 +921,13 @@ namespace graphlab {
         for(assignment_type yasg = ydom.begin(); 
             yasg < ydom.end(); ++yasg) {
           assignment_type joint_asg = xasg & yasg;
-          sum += std::exp(joint.logP(joint_asg.linear_index()));
+          sum += exp(joint.logP(joint_asg.linear_index()));
         }
         assert( !std::isinf(sum) );
         assert( !std::isnan(sum) );
         assert(sum >= 0.0);
         if(sum == 0) logP(xasg.linear_index()) = -MAX_DOUBLE;
-        else logP(xasg.linear_index()) = std::log(sum);
+        else logP(xasg.linear_index()) = log(sum);
       }
     }
 
@@ -940,11 +940,11 @@ namespace graphlab {
       assert(damping >= 0.0);
       assert(damping < 1.0);
       for(size_t i = 0; i < args().size(); ++i) {
-        double val = damping * std::exp(other.logP(i)) + 
-          (1-damping) * std::exp(logP(i));
+        double val = damping * exp(other.logP(i)) + 
+          (1-damping) * exp(logP(i));
         assert(val >= 0);
         if(val == 0) logP(i) = -MAX_DOUBLE;
-        else logP(i) = std::log(val);
+        else logP(i) = log(val);
         assert( !std::isinf(logP(i)) );
         assert( !std::isnan(logP(i)) );
       }
@@ -958,7 +958,7 @@ namespace graphlab {
       assert(args() == other.args());  
       double sum = 0;
       for(size_t i = 0; i < args().size(); ++i) {
-        sum += std::abs(std::exp(other.logP(i)) - std::exp(logP(i)));
+        sum += std::abs(exp(other.logP(i)) - exp(logP(i)));
       }
       return sum / args().size();
     }
@@ -994,7 +994,7 @@ namespace graphlab {
       double sum = 0;
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        double scale = std::exp(logP(asg.linear_index()));
+        double scale = exp(logP(asg.linear_index()));
         sum += scale;
         for(size_t i = 0; i < num_vars(); ++i) {
           values[i] += asg.asg_at(i) * scale;
@@ -1013,7 +1013,7 @@ namespace graphlab {
       double sum = 0;
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        sum += std::exp(logP(asg.linear_index()));
+        sum += exp(logP(asg.linear_index()));
         if(t <= sum) return asg;
         assert(sum < 1);
       }
