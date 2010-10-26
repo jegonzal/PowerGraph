@@ -373,8 +373,9 @@ namespace graphlab {
     
     //! construct an assignment from two variables
     assignment(const variable& v1, size_t asg1) :
-      _args(v1), _index(0) {
-      set_asg(v1.id, asg1);
+      _args(v1), _index(asg1) {
+      assert(asg1 < v1.arity);
+      _asgs[0] = asg1;
     }
 
     
@@ -583,7 +584,7 @@ namespace graphlab {
       _index = 0;
       for(size_t i = 0; i < _args.num_vars(); ++i) {
         _index += multiple * _asgs[i];
-        assert(_args.var(i).arity > 0);
+	//        assert(_args.var(i).arity > 0);
         multiple *= _args.var(i).arity;
       }
     }
@@ -595,8 +596,7 @@ namespace graphlab {
       for(size_t i = 0; i < _args.num_vars(); ++i) {
         _asgs[i] = quotient % _args.var(i).arity;
         quotient /= _args.var(i).arity;
-        assert(_asgs[i] < _args.var(i).arity);
-
+        // assert(_asgs[i] < _args.var(i).arity);
       }
     }
 
