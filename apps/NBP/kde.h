@@ -33,7 +33,16 @@ public:
             weights = _weights;
             normalize_weights();
         }
-	kde(const char * _centers, const char * _bw, const char * _weights){
+	kde(double _center, double _bw, double _weight){
+	    centers = itpp::zeros(1,1);
+            centers.set(0,0,_center);
+            bw = itpp::zeros(1,1);
+            bw.set(0,0,_bw);
+            weights = itpp::vec(1);
+            weights[0] = _weight;
+            normalize_weights();
+        }
+ 	kde(const char * _centers, const char * _bw, const char * _weights){
 	    centers = itpp::mat(_centers);
             bw = itpp::mat(_bw);
             weights = itpp::vec(_weights);

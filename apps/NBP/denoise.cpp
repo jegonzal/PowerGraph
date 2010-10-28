@@ -16,7 +16,8 @@
 #include <limits>
 #include "kde.h"
 #include <float.h>
-#include "image.hpp"
+#include "../kernelbp/image.hpp"
+#include "prodSampleEpsilon.hpp"
 
 // include itpp
 #include <itpp/itstat.h>
@@ -29,8 +30,6 @@
 
 int NSAMP =12;
 double EPSILON =1e-5;
-int RESAMPLE_FREQUENCY = 0;
-int MAX_ITERATIONS = 2;
 
 int ROWS=107;
 int COLS=86;
@@ -49,10 +48,10 @@ float LAMBDA;
 float damping = 0.8;
 const size_t MCMCSTEPS = 30;
 const size_t RESAMPLE_FREQUENCY = 5;
-size_t MAX_ITERATIONS;
+size_t MAX_ITERATIONS = 2;
 graphlab::atomic<size_t> proposal_count;
 graphlab::atomic<size_t> accept_count;
-
+int iiter = 0;
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
 //  vec message;
@@ -213,7 +212,7 @@ void construct_graph(image& img,
 
       // Set the node potential
       vdat.obs = kde(img.pixel(i, j),30,1);;
-      vdat.belief = vdat.obs;
+      vdat.bel = vdat.obs;
       graph.add_vertex(vdat);
       vdat.obs.verify();
       vdat.bel.verify();
@@ -223,7 +222,12 @@ void construct_graph(image& img,
 
   // Add the edges
   edge_data edata;
-  
+  kde edge_pot = kde("255    0  226    0  141  113    0  198   85    0  170   56; \
+                     255    0    0  226  141    0  113  198   85  170    0   28",
+"70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001;  \
+ 70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001",
+  "0.24635     0.17462           0           0     0.18841           0           0     0.15803     0.14531           0           0    0.087277"); 
+  edge_pot.verify(); 
 
   for(size_t i = 0; i < img.rows(); ++i) {
     for(size_t j = 0; j < img.cols(); ++j) {
@@ -231,18 +235,22 @@ void construct_graph(image& img,
       size_t vertid = img.vertid(i,j);
       if(i-1 < img.rows()) {
         edata.msg = graph.vertex_data(img.vertid(i-1, j)).bel;
+        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i-1, j), edata);
       }
       if(i+1 < img.rows()) {
         edata.msg = graph.vertex_data(img.vertid(i+1, j)).bel;
+        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i+1, j), edata);
       }
       if(j-1 < img.cols()) {
         edata.msg = graph.vertex_data(img.vertid(i, j-1)).bel;
+        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i, j-1), edata);
       }
       if(j+1 < img.cols()) {
         edata.msg = graph.vertex_data(img.vertid(i, j+1)).bel;
+        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i, j+1), edata);
       }
     } // end of for j in cols
@@ -426,7 +434,7 @@ int main(int argc, char** argv) {
    
   for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
     const vertex_data& vdata = core.graph().vertex_data(v);
-    float a = vdata.max_asg();
+    float a = vdata.bel.max();
     if (a < 0) a = 0;
     if (a > 255) a = 255;
     img.pixel(v) = size_t(a);
@@ -434,7 +442,7 @@ int main(int argc, char** argv) {
   img.save("pred_map.pgm");
 
 
-  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+ /* for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
     const vertex_data& vdata = core.graph().vertex_data(v);
     float a = vdata.average();
     if (a < 0) a = 0;
@@ -442,7 +450,7 @@ int main(int argc, char** argv) {
     img.pixel(v) = (a);
   }
   img.save("pred_exp.pgm");
-
+*/ //TODO?
   std::cout << "Saving cleaned image. " << std::endl;
   img.save(pred_fn.c_str());
 
