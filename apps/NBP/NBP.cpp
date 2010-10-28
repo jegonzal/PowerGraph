@@ -492,7 +492,8 @@ int main(int argc, char** argv) {
   img.save("pred.pgm", false, 0, 2);
   trueimg.save("true.pgm", false, 0, 2);
   double mae = mean(abs(pred - truey));
-  std::cout << "Mean absolute error: " << mae << std::endl;
+  double rmse = mean(elem_mult(pred-truey,pred-truey));
+  std::cout << "MAE: " << mae << " RMSE: "<< rmse<<std::endl;
   
   if (logfile.length() != 0) {
     ofstream fout;
