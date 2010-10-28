@@ -1,12 +1,9 @@
-/*
- * kbp.cpp
+/**
+ * This file contains an example of graphlab used for discrete loopy
+ * belief propagation in a pairwise markov random field to denoise a
+ * synthetic noisy image.
  *
- * This file contains codes for kernel
- * belief propagation in a pairwise markov random field to
- * estimate depth from features from still images;
- *
- *  Created on: Oct 10, 2010
- *      Author: lesong
+ *  \author Yucheng
  */
 
 // INCLUDES ===================================================================>
@@ -16,22 +13,19 @@
 #include <map>
 
 #include <graphlab.hpp>
+#include <limits>
 #include "kde.h"
+#include <float.h>
+#include "image.hpp"
 
 // include itpp
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
-#include "../kernelbp/image_compare.hpp"
-#include "prodSampleEpsilon.hpp"
 
-#include <fstream>
-#include <cmath>
-#include <cstdio>
-#include <cfloat>
-//#include <graphlab/graph/graph.hpp>
-
-#include <graphlab/schedulers/round_robin_scheduler.hpp>
+// Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>
+
+#define PROPOSAL_STDEV 20
 
 int NSAMP =12;
 double EPSILON =1e-5;
@@ -41,8 +35,23 @@ int MAX_ITERATIONS = 2;
 int ROWS=107;
 int COLS=86;
 
+
 using namespace itpp;
 using namespace std;
+
+struct particle {
+  float x;
+  float weight;
+};
+
+float SIGMA;
+float LAMBDA;
+float damping = 0.8;
+const size_t MCMCSTEPS = 30;
+const size_t RESAMPLE_FREQUENCY = 5;
+size_t MAX_ITERATIONS;
+graphlab::atomic<size_t> proposal_count;
+graphlab::atomic<size_t> accept_count;
 
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
@@ -65,38 +74,6 @@ struct vertex_data: public graphlab::unsupported_serialize {
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
-
-mat* pUud;
-mat* pUdu;
-mat* pUlr;
-mat* pUrl;
-mat ipUud;
-mat ipUdu;
-mat ipUlr;
-mat ipUrl;
-
-ivec isize;
-vec m0;
-vec predy_k;
-mat predfy_k;
-mat prod_msg0;
-mat belief0;
-vec testy;
-vec truey;
-mat cfybasis;
-mat ftesty;
-
-size_t msgdim;
-size_t basisno;
-size_t testno;
-
-int iiter = 0;
-
-double damping = 0.90;
-
-// GraphLab Update Function ===================================================>
-
-/** Construct denoising ising model based on the image */
 
 
 
@@ -218,133 +195,54 @@ void bp_update(gl_types::iscope& scope,
 
 
 
-void construct_graph(std::string gmmfile,
-                    double numparticles,
-                     gl_types::graph& graph,
-                     size_t rows,
-                     size_t cols) {
 
 
-  image img(rows, cols);
+void construct_graph(image& img,
+                     size_t num_rings,
+                     double sigma,
+                     double numparticles,
+                     gl_types::graph& graph) {
   // initialize a bunch of particles
-  for(size_t i = 0; i < rows; ++i) {
-    
-    it_ifile gmms((gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it").c_str());
-    
-    mat nodeweight;
-    vec doublevec;
-    gmms >> Name("like_ce") >> doublevec; mat nodecenter(1,doublevec.size()); nodecenter = doublevec; 
-    gmms >> Name("like_alpha") >> nodeweight;
-    gmms >> Name("like_sigma") >> doublevec; 
-    mat nodesigma(1,doublevec.size()); nodesigma = doublevec;
-    
-    ASSERT_EQ(nodeweight.rows(), cols);
-    
-    for(size_t j = 0; j < cols; ++j) {
+
+
+  
+  for(size_t i = 0; i < img.rows(); ++i) {
+    for(size_t j = 0; j < img.cols(); ++j) {
       vertex_data vdat;
-      //vdat.rounds = 0;
+      vdat.rounds = 0;
 
       // Set the node potential
-      itpp::vec weights = nodeweight.get_row(j);
-      if (nodecenter.rows() > nodecenter.cols())
-      	nodecenter = itpp::transpose(nodecenter); 
-      if (nodesigma.rows() > nodesigma.cols())
-         nodesigma = itpp::transpose(nodesigma);
-      vdat.obs = kde(nodecenter, nodesigma, weights);
-      if (i==0 && j==0) printf("Number of observation components %d\n", vdat.obs.getPoints());
-      vdat.obs.verify();
-      //vdat.p.simplify();
-    
-      //vdat.bel = vdat.obs.sample();//TOOD
-      vdat.bel = vdat.obs;
-      vdat.bel.verify();
-      /*for (size_t n = 0;n < numparticles; ++n) {
-        particle p;
-        p.x = vdat.p.sample();
-        p.weight = 1.0/numparticles;
-        vdat.belief.push_back(p);
-      }
-
-      if(i == 0 && j == 0) {
-        std::cout << "vertex 0 particles: ";
-        for (size_t i = 0;i < vdat.belief.size(); ++i) {
-          std::cout  << vdat.belief[i].x << " ";
-        }
-        std::cout << "\n";
-      }*/
+      vdat.obs = kde(img.pixel(i, j),30,1);;
+      vdat.belief = vdat.obs;
       graph.add_vertex(vdat);
+      vdat.obs.verify();
+      vdat.bel.verify();
 
     } // end of for j in cols
   } // end of for i in rows
 
-
-
   // Add the edges
-  
   edge_data edata;
+  
 
-  //GaussianMixture<2> lrpot;
-  //GaussianMixture<2> udpot;
-  //GaussianMixture<2> lastudpot;
-  kde lrpot, udpot, lastudpot;
-  //
-  for(size_t i = 0; i < rows; ++i) {
-    
-    it_ifile gmms(gmmfile+"_part"+boost::lexical_cast<std::string>(i+1)+".it");
-    
-    mat lrcenter;
-    vec doublevec;
-    gmms >> Name("lr_edge_ce") >> lrcenter;
-    gmms >> Name("lr_edge_alpha") >> doublevec; 
-    mat lrweight(1,doublevec.size());  
-    lrweight = doublevec;
-    gmms >> Name("lr_edge_sigma") >> doublevec; 
-    mat lrsigma(1,doublevec.size());
-    lrsigma = doublevec;
-
-    mat udcenter;
-    gmms >> Name("ud_edge_ce") >> udcenter;
-    gmms >> Name("ud_edge_alpha") >> doublevec; 
-    mat udweight(1,doublevec.size());
-    udweight = doublevec;
-    gmms >> Name("ud_edge_sigma") >> doublevec; 
-    mat udsigma(1,doublevec.size());
-    udsigma = doublevec;
-    lastudpot = udpot;
-    lrsigma = transpose(lrsigma); 
-    udsigma = transpose(udsigma); 
-    lrweight = transpose(lrweight);
-    udweight = transpose(udweight);
-
-    //lrpot = GaussianMixture<2>(lrcenter, lrsigma, lrweight);
-    lrpot = kde(lrcenter, lrsigma, lrweight);
-    if (i == 0) printf("Number of edge components %d\n", lrpot.getPoints());
-    lrpot.verify();
-    //udpot = GaussianMixture<2>(udcenter, udsigma, udweight);
-    udpot = kde(udcenter, udsigma, udweight);   
-    udpot.verify();
-
-       for(size_t j = 0; j < cols; ++j) {
-
+  for(size_t i = 0; i < img.rows(); ++i) {
+    for(size_t j = 0; j < img.cols(); ++j) {
+      
       size_t vertid = img.vertid(i,j);
       if(i-1 < img.rows()) {
         edata.msg = graph.vertex_data(img.vertid(i-1, j)).bel;
-        edata.edge_pot = lastudpot;
         graph.add_edge(vertid, img.vertid(i-1, j), edata);
       }
       if(i+1 < img.rows()) {
         edata.msg = graph.vertex_data(img.vertid(i+1, j)).bel;
-        edata.edge_pot = udpot;
         graph.add_edge(vertid, img.vertid(i+1, j), edata);
       }
       if(j-1 < img.cols()) {
         edata.msg = graph.vertex_data(img.vertid(i, j-1)).bel;
-        edata.edge_pot = lrpot;
         graph.add_edge(vertid, img.vertid(i, j-1), edata);
       }
       if(j+1 < img.cols()) {
         edata.msg = graph.vertex_data(img.vertid(i, j+1)).bel;
-        edata.edge_pot = lrpot;
         graph.add_edge(vertid, img.vertid(i, j+1), edata);
       }
     } // end of for j in cols
@@ -354,97 +252,150 @@ void construct_graph(std::string gmmfile,
 
 
 
-void test(){
-  test_marginal();
-  test_max();
-  test_sample();
-  test_sample2();
-  test_ROT();
-  test_product();
-  exit(0);
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // MAIN =======================================================================>
 int main(int argc, char** argv) {
+  std::cout << "This program creates and denoises a synthetic " << std::endl
+            << "image using loopy belief propagation inside " << std::endl
+            << "the graphlab framework." << std::endl;
+
   // set the global logger
   global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
 
-  //test();
-  int sf = 1;
+
   size_t iterations = 100;
+  size_t colors = 5;
+  size_t rows = 200;
+  size_t cols = 200;
+  double sigma = 2;
+  double lambda = 10;
   size_t numparticles = 100;
+    std::string orig_fn = "source_img.pgm";
+  std::string noisy_fn = "noisy_img.pgm";
+  std::string pred_fn = "pred_img.pgm";
   std::string pred_type = "map";
 
-  std::string gmmfile= "";
-  std::string kbpfile = "";
-  std::string logfile = "";
+
+
 
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
-  clopts.attach_option("sf",
-                       &sf, sf,
-                       "shrinking ratio of image (could be 1,2,3,4,5)");
   clopts.attach_option("iterations",
                        &iterations, iterations,
                        "Number of iterations");
+  clopts.attach_option("particles",
+                       &numparticles, numparticles,
+                       "Number of particlesw");
   clopts.attach_option("epsilon",
                        &EPSILON, EPSILON,
                        "epsilon");
-   clopts.attach_option("particles",
-                       &numparticles, numparticles,
-                       "Number of particlesw");
-  clopts.attach_option("gmmfile",
-                       &gmmfile, std::string(""),
-                       "gmm mixture file");
-  clopts.attach_option("kbpfile",
-                       &kbpfile, std::string(""),
-                       "kbpfile");
+  clopts.attach_option("colors",
+                       &colors, colors,
+                       "The number of colors in the noisy image");
+  clopts.attach_option("rows",
+                       &rows, rows,
+                       "The number of rows in the noisy image");
+  clopts.attach_option("cols",
+                       &cols, cols,
+                       "The number of columns in the noisy image");
+  clopts.attach_option("sigma",
+                       &sigma, sigma,
+                       "Standard deviation of noise.");
+  clopts.attach_option("lambda",
+                       &lambda, lambda,
+                       "Smoothness parameter (larger => smoother).");
+  clopts.attach_option("orig",
+                       &orig_fn, orig_fn,
+                       "Original image file name.");
+  clopts.attach_option("noisy",
+                       &noisy_fn, noisy_fn,
+                       "Noisy image file name.");
+  clopts.attach_option("pred",
+                       &pred_fn, pred_fn,
+                       "Predicted image file name.");
+  clopts.attach_option("pred_type",
+                       &pred_type, pred_type,
+                       "Predicted image type {map, exp}");
   clopts.attach_option("damping",
                        &damping, damping,
                        "damping");
-  clopts.attach_option("resample",
-                       &RESAMPLE_FREQUENCY, NSAMP,
-                       "resampling frequency");
-  //clopts.attach_option("mcmc",
-  //                     &MCMCSTEPS, MCMCSTEPS,
-  //                     "mcmc steps per resample");
-  clopts.attach_option("logfile",
-                       &logfile, std::string(""),
-                       "log file");
 
-  // set default scheduler type
+
   clopts.scheduler_type = "round_robin";
   clopts.scope_type = "none";
+
 
   bool success = clopts.parse(argc, argv);
   if(!success) {
     return EXIT_FAILURE;
   }
 
-  assert(sf>0 && sf<=5);
-  ROWS = ceil(ROWS/(double)sf);
-  COLS = ceil(COLS/(double)sf);
-
-
   // fill the global vars
+  SIGMA = sigma;
+  LAMBDA = lambda;
   MAX_ITERATIONS = iterations;
 
-  // load ground truth
-  vec testy;
-  vec truey;
-  it_ifile kbppart0((kbpfile+"_part"+boost::lexical_cast<std::string>(0)+".it").c_str());
-  kbppart0 >> Name("testy") >> testy;
-  kbppart0 >> Name("truey") >> truey;
+  std::cout << "ncpus:          " << clopts.ncpus << std::endl
+            << "iterations:          " << iterations<< std::endl
+            << "particles:          " << numparticles<< std::endl
+            << "colors:         " << colors << std::endl
+            << "rows:           " << rows << std::endl
+            << "cols:           " << cols << std::endl
+            << "sigma:          " << sigma << std::endl
+            << "lambda:         " << lambda << std::endl
+            << "engine:         " << clopts.engine_type << std::endl
+            << "scope:          " << clopts.scope_type << std::endl
+            << "scheduler:      " << clopts.scheduler_type << std::endl
+            << "orig_fn:        " << orig_fn << std::endl
+            << "noisy_fn:       " << noisy_fn << std::endl
+            << "pred_fn:        " << pred_fn << std::endl
+            << "pred_type:      " << pred_type << std::endl;
 
+
+
+
+  // Create synthetic images -------------------------------------------------->
+  // Creating image for denoising
+  std::cout << "Creating a synethic image. " << std::endl;
+  image img(rows, cols);
+  img.paint_sunset(colors);
+  std::cout << "Saving image. " << std::endl;
+  img.save(orig_fn.c_str());
+  std::cout << "Corrupting Image. " << std::endl;
+  img.corrupt(sigma);
+  std::cout << "Saving corrupted image. " << std::endl;
+  img.save(noisy_fn.c_str());
+
+
+
+
+
+  // Create the graph --------------------------------------------------------->
   gl_types::core core;
   // Set the engine options
   core.set_engine_options(clopts);
-  
+
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-  construct_graph(gmmfile, numparticles, core.graph(),ROWS,COLS);
   
+  construct_graph(img, colors, sigma, numparticles, core.graph());
+
 
 
   // Running the engine ------------------------------------------------------->
@@ -472,42 +423,30 @@ int main(int argc, char** argv) {
 
   // Saving the output -------------------------------------------------------->
   std::cout << "Rendering the cleaned image. " << std::endl;
-
-  vec pred(ROWS*COLS);
-  image img(ROWS, COLS);
-  image trueimg(ROWS, COLS);
-  image transposedimg(COLS, ROWS);
-  for (size_t v = 0; v < core.graph().num_vertices(); ++v) {
+   
+  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
     const vertex_data& vdata = core.graph().vertex_data(v);
-    // ok... this is unbelievably annoying but my traversal order is opposite
-    // of the data's traversal order
-    // real physical location
-    std::pair<size_t, size_t> loc = img.loc(v);
-    // index in transposed image
-    size_t v2 = transposedimg.vertid(loc.second, loc.first);
-    pred(v2) = vdata.bel.max();
-    img.pixel(v) = pred(v2);
-    trueimg.pixel(v) = truey(v2);
+    float a = vdata.max_asg();
+    if (a < 0) a = 0;
+    if (a > 255) a = 255;
+    img.pixel(v) = size_t(a);
   }
-  img.save("pred.pgm", false, 0, 2);
-  trueimg.save("true.pgm", false, 0, 2);
-  double mae = mean(abs(pred - truey));
-  std::cout << "Mean absolute error: " << mae << std::endl;
-  
-  if (logfile.length() != 0) {
-    ofstream fout;
-    fout.open(logfile.c_str(), ios::app);
-    gmmfile = gmmfile.rfind("/") == std::string::npos ?
-                                       gmmfile:
-                                       gmmfile.substr(gmmfile.rfind("/")+1);
-    
-    fout << "pbp\t" << gmmfile << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << mae << "\t"
-    << runtime << std::endl;
-    fout.close();
+  img.save("pred_map.pgm");
+
+
+  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+    const vertex_data& vdata = core.graph().vertex_data(v);
+    float a = vdata.average();
+    if (a < 0) a = 0;
+    if (a > 255) a = 255;
+    img.pixel(v) = (a);
   }
+  img.save("pred_exp.pgm");
+
+  std::cout << "Saving cleaned image. " << std::endl;
+  img.save(pred_fn.c_str());
 
   std::cout << "Done!" << std::endl;
-
   return EXIT_SUCCESS;
 } // End of main
 
