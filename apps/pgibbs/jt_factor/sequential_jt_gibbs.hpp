@@ -593,22 +593,23 @@ bool extend_clique_list(const mrf::graph_type& mrf,
     const elim_clique& parent_clique = cliques[parent_vid];    
 
     // otherwise update that the rip_verts
-    rip_verts += parent_clique.vertices;
+    rip_verts -= parent_clique.vertices;
     rip_verts -= parent_clique.elim_vertex;
 
+    vertex_set tmp_verts = rip_verts + parent_clique.vertices;
+
     // Check that the expanded clique is still within tree width
-    if(rip_verts.size() + 1 > max_tree_width) return false;
+    if(tmp_verts.size() + 1 > max_tree_width) return false;
 
     // Compute the factor size
     size_t factor_size = 
       std::max(mrf.vertex_data(parent_clique.elim_vertex).variable.arity,
                uint32_t(1));
-    foreach(vertex_id_t vid, rip_verts) {
+    foreach(vertex_id_t vid, tmp_verts) {
       factor_size *= 
         std::max(mrf.vertex_data(vid).variable.arity, uint32_t(1));
     }
     if(factor_size > max_factor_size) return false;
-
 
     // Find the new parent
     vertex_id_t new_parent_vid = 0;
@@ -616,6 +617,11 @@ bool extend_clique_list(const mrf::graph_type& mrf,
       new_parent_vid = 
         std::max(new_parent_vid, elim_time_map[vid]);
     }
+    // if the parent changes then we may need to update RIP with
+    // tmp_verts otherwise we use rip_verts
+    if(new_parent_vid != parent_clique.parent) 
+      rip_verts = tmp_verts;
+
     parent_vid = new_parent_vid;
   }
 
@@ -633,11 +639,11 @@ bool extend_clique_list(const mrf::graph_type& mrf,
     elim_clique& parent_clique = cliques[parent_vid];       
 
     // otherwise update that the rip_verts
-    rip_verts += parent_clique.vertices;
+    rip_verts -= parent_clique.vertices;
     rip_verts -= parent_clique.elim_vertex;
 
     // Update the clique
-    parent_clique.vertices = rip_verts;
+    parent_clique.vertices += rip_verts;
 
     // Determine the new parent (except first vertex)
     vertex_id_t new_parent_vid = 0;
@@ -646,6 +652,8 @@ bool extend_clique_list(const mrf::graph_type& mrf,
         std::max(new_parent_vid, safe_find(elim_time_map, vid));
     }
     parent_vid = new_parent_vid;
+    if(new_parent_vid != parent_clique.parent)
+      rip_verts = parent_clique.vertices;
 
     // Update the parent for this clique
     parent_clique.parent = new_parent_vid;
