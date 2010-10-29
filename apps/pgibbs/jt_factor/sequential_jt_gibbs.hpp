@@ -428,7 +428,10 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
     }
   }
 
+  std::vector<bool> assigned_factors;
+
   jtree_from_cliques(mrf, 
+		     assigned_factors,
                      elim_time_map,
                      begin_iter,
                      end_iter,
@@ -441,6 +444,7 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
 
 template<typename T>
 void jtree_from_cliques(const mrf::graph_type& mrf, 
+			std::vector<bool>& assigned_factors,
                         const elim_map_t& elim_time_map,
                         const T& begin_iter,
                         const T& end_iter,
@@ -498,7 +502,9 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
 
 
   { // Assign factors 
-    std::set<vertex_id_t> assigned_factors;
+    size_t factor_count = assigned_factors.size();
+    assigned_factors.clear();
+    assigned_factors.resize(factor_count, false);
     // Very important that these be assigned in reverse order
     size_t jt_vid = jt.num_vertices() - 1;
     rev_foreach(elim_clique& clique, cliques_range) {
@@ -508,9 +514,9 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
       const mrf::vertex_data& mrf_vdata = 
         mrf.vertex_data(clique.elim_vertex);
       foreach(vertex_id_t fid, mrf_vdata.factor_ids) {
-        if(assigned_factors.count(fid) == 0) {
+        if(!assigned_factors[fid]) {
           jt_vdata.factor_ids.insert(fid);
-          assigned_factors.insert(fid);
+          assigned_factors[fid] = true;
         }
       }
     }

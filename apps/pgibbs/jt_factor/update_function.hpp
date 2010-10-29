@@ -12,50 +12,6 @@
 #include <graphlab/macros_def.hpp>
 
 
-pthread_key_t ufun_tls_key;
-struct ufun_tls {
-  factor_t cavity;
-  factor_t conditional_factor;
-  factor_t belief;
-  factor_t tmp_belief;
-};
-
-
-ufun_tls* create_ufun_tls() {
-  assert(pthread_getspecific(ufun_tls_key) == NULL);
-  ufun_tls* data = new ufun_tls();
-  assert(data != NULL);
-  pthread_setspecific(ufun_tls_key, data);
-  return data;
-}
-
-ufun_tls& get_ufun_tls() {
-  ufun_tls* tls =
-    reinterpret_cast<ufun_tls*>
-    (pthread_getspecific(ufun_tls_key) );
-  // If no tsd be has been associated, create one
-  if(tls == NULL) tls = create_ufun_tls();
-  assert(tls != NULL);
-  return *tls;
-}
-
-void destroy_ufun_tls(void* ptr) {
-  ufun_tls* tls = 
-    reinterpret_cast<ufun_tls*>(ptr);
-  if(tls != NULL) delete tls;
-
-}
-
-
-struct ufun_tls_key_creater {
-  ufun_tls_key_creater( )  {
-    pthread_key_create(&ufun_tls_key,
-                       destroy_ufun_tls);
-  }
-};
-static const ufun_tls_key_creater make_ufun_tls_key;
-
-
 namespace junction_tree{
   enum SDT_KEYS {FACTOR_KEY, MRF_KEY};
 

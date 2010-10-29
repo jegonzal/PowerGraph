@@ -61,6 +61,7 @@ public:
 
   bool use_priorities;
 
+  std::vector<bool> assigned_factors;
 
 
   const factorized_model::factor_map_t* factors_ptr;
@@ -113,6 +114,8 @@ public:
     max_tree_width = treewidth;
     max_tree_height = max_height;
 
+
+    assigned_factors.resize(factors.size(), false);
 
     if(factorsize <= 0) {
       max_factor_size = std::numeric_limits<size_t>::max();
@@ -696,7 +699,8 @@ public:
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    jtree_from_cliques(mrf, 
+    jtree_from_cliques(mrf,
+		       assigned_factors,
                        elim_time_map,
                        cliques.begin(), cliques.end(), 
                        jt_core.graph());
