@@ -283,8 +283,15 @@ public:
   factor_t marginal_factor;
 
   double score_vertex(vertex_id_t vid) {
-    return score_vertex_log_odds(vid);
-    // return score_vertex_l1_diff(vid);
+    double score = 0;
+
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+    if(vdata.updates < 100) {
+      score = score_vertex_log_odds(vid);
+      // return score_vertex_l1_diff(vid);
+    }
+    return (1.0 + graphlab::random::rand01() + score) / (vdata.updates + 1); 
   }
 
   double score_vertex_l1_diff(vertex_id_t vid) {
@@ -359,7 +366,8 @@ public:
     assert( !std::isnan(residual) );
     assert( std::isfinite(residual) );
 
-
+    // ensure score is bounded
+    residual = std::tanh(residual);
 
     return residual;
 
@@ -431,8 +439,7 @@ public:
     conditional_factor.normalize();
     marginal_factor.normalize();
     double residual = conditional_factor.l1_logdiff(marginal_factor);
-    
-    //    residual = (std::tanh(residual)) / (vdata.updates + 1);
+
 
     // rescale by updates
     //    residual = residual / (vdata.updates + 1);
@@ -440,6 +447,10 @@ public:
     assert( residual >= 0);
     assert( !std::isnan(residual) );
     assert( std::isfinite(residual) );
+
+    // ensure score is bounded
+    residual = std::tanh(residual);
+
 
     return residual;
   } // end of score vertex

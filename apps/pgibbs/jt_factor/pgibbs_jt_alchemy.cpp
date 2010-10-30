@@ -218,10 +218,12 @@ int main(int argc, char** argv) {
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
       mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;

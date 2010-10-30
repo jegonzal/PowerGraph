@@ -47,7 +47,7 @@
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
 
-// #define DRAW_IMAGE
+#define DRAW_IMAGE
 
 
 
@@ -175,10 +175,13 @@ void run_colored_samples(const factorized_model& model,
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -196,7 +199,7 @@ void run_colored_samples(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
@@ -325,10 +328,12 @@ void run_colored_times(const factorized_model& model,
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -346,7 +351,7 @@ void run_colored_times(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
@@ -470,10 +475,12 @@ void run_async_samples(const factorized_model& model,
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -491,7 +498,7 @@ void run_async_samples(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
@@ -615,10 +622,12 @@ void run_async_times(const factorized_model& model,
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -636,7 +645,7 @@ void run_async_times(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
@@ -788,10 +797,12 @@ void run_tree_samples(const factorized_model& model,
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -809,7 +820,7 @@ void run_tree_samples(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
@@ -945,10 +956,12 @@ void run_tree_times(const factorized_model& model,
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -966,7 +979,7 @@ void run_tree_times(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
