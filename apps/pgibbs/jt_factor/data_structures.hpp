@@ -22,7 +22,7 @@
 #include <cassert>
 
 
-#include <boost/unordered_set>
+#include <boost/unordered_set.hpp>
 // Including Standard Libraries
 
 #include <graphlab.hpp>
