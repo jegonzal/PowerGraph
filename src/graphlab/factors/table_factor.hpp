@@ -174,6 +174,25 @@ namespace graphlab {
     }
 
 
+
+    domain& operator+=(const variable& var) {
+      if(_vars[_num_vars - 1] < var) {
+        _vars[_num_vars] = var;
+        _num_vars++;
+        recompute_size();
+        return *this;
+      }
+      return operator+=(domain(var));
+    }
+
+    //! add the other domain to this domain
+    domain operator+(const variable& var) const {
+      domain dom = *this;
+      return dom += var;
+    }
+
+
+
     //! add the domain to this domain
     domain& operator+=(const domain& other) {
       if(other.num_vars() == 0) return *this;
@@ -400,51 +419,85 @@ namespace graphlab {
     }
     
     
-    //! Construct the union of two assignments
-    inline assignment& operator&=(const assignment& asg2) {
-      assignment asg1 = *this;
-      const domain_type& dom1 = asg1.args();
-      const domain_type& dom2 = asg2.args();
-      _args = dom1 + dom2;
-      _index = 0;
-      size_t i = 0, j1 = 0, j2 = 0;
-      for( ; i < _args.num_vars() && 
-             (j1 < dom1.num_vars() || j2 < dom2.num_vars()); 
-           ++i) {
-        // If the the two assignments share a same variable
-        if(j1 < dom1.num_vars() && 
-           _args.var(i) == dom1.var(j1) && 
-           j2 < dom2.num_vars() &&
-           _args.var(i) == dom2.var(j2)) {
-          // Then they must have the same assignment
-          assert(asg1._asgs[j1] == asg2._asgs[j2]);
-          _asgs[i] = asg1._asgs[j1];
-          ++j1; ++j2;
-        } else if(j1 < dom1.num_vars() &&
-                  _args.var(i) == dom1.var(j1) ) {
-          _asgs[i] = asg1._asgs[j1];
-          ++j1;
-        } else if(j2 < dom2.num_vars() &&
-                  _args.var(i) == dom2.var(j2) ) {
-          _asgs[i] = asg2._asgs[j2];
-          ++j2;
-        } else {
-          // Unreachable state
-          assert(false);
-        }
-      }
-      assert(i == _args.num_vars());
-      assert(j1 == dom1.num_vars());
-      assert(j2 == dom2.num_vars());
-      recompute_linear_index();
-      return *this;
-    }
+    // //! Construct the union of two assignments
+    // inline assignment& operator&=(const assignment& asg2) {
+    //   assignment asg1 = *this;
+    //   const domain_type& dom1 = asg1.args();
+    //   const domain_type& dom2 = asg2.args();
+    //   _args = dom1 + dom2;
+    //   _index = 0;
+    //   size_t i = 0, j1 = 0, j2 = 0;
+    //   for( ; i < _args.num_vars() && 
+    //          (j1 < dom1.num_vars() || j2 < dom2.num_vars()); 
+    //        ++i) {
+    //     // If the the two assignments share a same variable
+    //     if(j1 < dom1.num_vars() && 
+    //        _args.var(i) == dom1.var(j1) && 
+    //        j2 < dom2.num_vars() &&
+    //        _args.var(i) == dom2.var(j2)) {
+    //       // Then they must have the same assignment
+    //       //          assert(asg1._asgs[j1] == asg2._asgs[j2]);
+    //       _asgs[i] = asg1._asgs[j1];
+    //       ++j1; ++j2;
+    //     } else if(j1 < dom1.num_vars() &&
+    //               _args.var(i) == dom1.var(j1) ) {
+    //       _asgs[i] = asg1._asgs[j1];
+    //       ++j1;
+    //     } else if(j2 < dom2.num_vars() &&
+    //               _args.var(i) == dom2.var(j2) ) {
+    //       _asgs[i] = asg2._asgs[j2];
+    //       ++j2;
+    //     } else {
+    //       // Unreachable state
+    //       assert(false);
+    //     }
+    //   }
+    //   assert(i == _args.num_vars());
+    //   assert(j1 == dom1.num_vars());
+    //   assert(j2 == dom2.num_vars());
+    //   recompute_linear_index();
+    //   return *this;
+    // }
+    // // Construct the union of two assignments
+    // assignment operator&(const assignment& other) const {
+    //   assignment new_asg = *this;
+    //   return new_asg &= other;
+    // }
 
+
+
+
+    //! Construct the union of two assignments
+    inline assignment operator&(const assignment& other) const {
+      assignment result(args() + other.args());
+      // Require disjoint assignments
+      //      assert(args().size() + other.args().size() == result.size());
+      size_t i = 0, j = 0, k = 0;
+      while(i < num_vars() && j < other.num_vars()) {        
+        // extra increment if necessary
+        assert(k < result.num_vars());
+        result._asgs[k] = 
+          (result.args().var(k) == args().var(i))?
+          asg_at(i) : other.asg_at(j);
+        // move indexs
+        i += (args().var(i) == result.args().var(k));
+        j += (other.args().var(j) == result.args().var(k));
+        k++;
+      }
+      while(i < num_vars()) 
+        result._asgs[k++] = asg_at(i++);
+      while(j < other.num_vars()) 
+        result._asgs[k++] = other.asg_at(j++); 
+      // recompute the linear index of the result
+      result.recompute_linear_index();
+      return result;
+    }
     
     // Construct the union of two assignments
-    assignment operator&(const assignment& other) const {
-      assignment new_asg = *this;
-      return new_asg &= other;
+    inline assignment& operator&=(const assignment& other) {
+      assignment tmp = *this & other;
+      *this = tmp;
+      return *this;
     }
     
     //! Get the variable in the assignment
@@ -602,8 +655,8 @@ namespace graphlab {
 
 
     domain_type _args;
-    size_t _asgs[MAX_DIM];
-    size_t _index;
+    uint16_t _asgs[MAX_DIM];
+    uint32_t _index;
   };
 
 
@@ -739,7 +792,7 @@ namespace graphlab {
         
     void uniform() {
       std::fill(_data.begin(), _data.end(),
-                std::log(1.0/_data.size()));
+                log(1.0/_data.size()));
     }
  
     void uniform(double value) {
@@ -754,17 +807,17 @@ namespace graphlab {
       double max_value = logP(0);
       for(size_t asg = 0; asg < size(); ++asg) 
         max_value = std::max(max_value, logP(asg));
-      assert( !std::isinf(max_value) );
-      assert( !std::isnan(max_value) );
+      // assert( !std::isinf(max_value) );
+      // assert( !std::isnan(max_value) );
       // scale and compute normalizing constant
       double Z = 0.0;
       for(size_t asg = 0; asg < size(); ++asg) {
         logP(asg) -= max_value;
         Z += exp(logP(asg));
       }
-      assert( !std::isinf(Z) );
-      assert( !std::isnan(Z) );
-      assert( Z > 0.0);
+      // assert( !std::isinf(Z) );
+      // assert( !std::isnan(Z) );
+      // assert( Z > 0.0);
       double logZ = log(Z);
       assert( !std::isinf(logZ) );
       assert( !std::isnan(logZ) );
@@ -794,10 +847,10 @@ namespace graphlab {
     inline table_factor& operator*=(const table_factor& other) {
       for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
         logP(asg.linear_index()) += other.logP(asg);
-        if(std::isinf( logP(asg.linear_index()) ) ||
-           std::isnan( logP(asg.linear_index()) ) ) {
-          logP(asg.linear_index()) = -MAX_DOUBLE;
-        } 
+        // if(std::isinf( logP(asg.linear_index()) ) ||
+        //    std::isnan( logP(asg.linear_index()) ) ) {
+        //   logP(asg.linear_index()) = -MAX_DOUBLE;
+        // } 
         // assert( !std::isinf( logP(asg.linear_index()) ) );
         // assert( !std::isnan( logP(asg.linear_index()) ) );
       }
