@@ -283,15 +283,14 @@ public:
   factor_t marginal_factor;
 
   double score_vertex(vertex_id_t vid) {
-    double score = 0;
-
     const mrf::graph_type& mrf = scope_factory->get_graph();
     const mrf::vertex_data& vdata = mrf.vertex_data(vid);
     if(vdata.updates < 100) {
-      score = score_vertex_log_odds(vid);
+      return  score_vertex_log_odds(vid);
       // return score_vertex_l1_diff(vid);
     }
-    return (1.0 + graphlab::random::rand01() + score) / (vdata.updates + 1); 
+    //    return (1.0 + graphlab::random::rand01() + score) / (vdata.updates + 1); 
+    return graphlab::random::rand01();;
   }
 
   double score_vertex_l1_diff(vertex_id_t vid) {

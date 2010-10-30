@@ -47,7 +47,7 @@
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
 
-#define DRAW_IMAGE
+// #define DRAW_IMAGE
 
 
 
@@ -353,6 +353,8 @@ void run_colored_times(const factorized_model& model,
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
       img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
+    img.pixel(0) = 0;
+    img.pixel(1) = core.graph().vertex_data(0).variable.arity-1;
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 #endif
 

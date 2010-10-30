@@ -26,7 +26,7 @@
 #include <graphlab/macros_def.hpp>
 
 
- #define DRAW_IMAGE
+// #define DRAW_IMAGE
 
 
 std::string results_fn = "experiment_results.tsv";
@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
     std::vector<double> values(1);
     factor_t belief;
     for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-      mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+      const mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
       belief = vdata.belief;
       belief.normalize();
       belief.expectation(values);
@@ -243,6 +243,8 @@ int main(int argc, char** argv) {
     for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
       img.pixel(vid) = mrf_graph.vertex_data(vid).asg;
     }
+    img.pixel(0) = 0;
+    img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 
     // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   

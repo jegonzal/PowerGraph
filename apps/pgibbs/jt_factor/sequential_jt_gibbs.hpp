@@ -452,14 +452,14 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
 
 
 
-  // Compute the parent of each clique
-  foreach(elim_clique& clique, cliques_range) {
-    vertex_id_t parent = 0;
-    foreach(vertex_id_t vid, clique.vertices) {
-      parent =  std::max(parent, safe_find(elim_time_map, vid));
-    }
-    clique.parent = parent;
-  }
+  // // Compute the parent of each clique
+  // foreach(elim_clique& clique, cliques_range) {
+  //   vertex_id_t parent = 0;
+  //   foreach(vertex_id_t vid, clique.vertices) {
+  //     parent =  std::max(parent, safe_find(elim_time_map, vid));
+  //   }
+  //   clique.parent = parent;
+  // }
 
 
   {  // Construct the junction tree
@@ -543,6 +543,157 @@ void jtree_from_cliques(const mrf::graph_type& mrf,
 
 
 
+
+
+// /**
+//  *  Extend the clique tree with the next vertex
+//  *
+//  **/
+// bool extend_clique_list(const mrf::graph_type& mrf,
+//                         vertex_id_t elim_vertex,
+//                         elim_map_t& elim_time_map,
+//                         clique_vector& cliques,
+//                         size_t max_tree_width,
+//                         size_t max_factor_size) {
+//   // sanity check: The vertex to eliminate should not have already
+//   // been eliminated
+//   assert(elim_time_map.find(elim_vertex) == elim_time_map.end());
+
+//   // Construct the elimination clique for the new vertex
+//   elim_clique clique;
+//   clique.elim_vertex = elim_vertex;
+//   // the factor must at least have the eliminated vertex
+//   size_t factor_size = 
+//     std::max(mrf.vertex_data(elim_vertex).variable.arity,
+//              uint32_t(1));
+//   foreach(edge_id_t ineid, mrf.in_edge_ids(elim_vertex)) {
+//     vertex_id_t vid = mrf.source(ineid);
+//     // if the neighbor is in the set of vertices being eliminated
+//     if(elim_time_map.find(vid) != elim_time_map.end()) {      
+//       clique.vertices += vid;
+//       factor_size *= 
+//         std::max(mrf.vertex_data(vid).variable.arity, uint32_t(1) );
+//     }
+//     // if the clique ever gets too large then teminate
+//     // the + 1 is because we need to include the elim vertex
+//     if(clique.vertices.size() + 1 > max_tree_width) return false;
+//     if(factor_size > max_factor_size) return false;
+//   }
+
+//   // Determine the parent of this clique
+//   vertex_id_t parent_id = 0;
+//   foreach(vertex_id_t vid, clique.vertices)
+//     parent_id = std::max(parent_id, safe_find(elim_time_map, vid));
+//   clique.parent = parent_id;
+
+
+//   // Simulate injecting vertices in parent cliques back to when RIP is
+//   // satisfied
+//   vertex_set rip_verts = clique.vertices;
+//   for(vertex_id_t parent_vid = clique.parent; 
+//       !rip_verts.empty() && parent_vid < cliques.size(); ) {
+//     const elim_clique& parent_clique = cliques[parent_vid];    
+
+//     // otherwise update that the rip_verts
+//     rip_verts += parent_clique.vertices;
+//     rip_verts -= parent_clique.elim_vertex;
+
+//     // Check that the expanded clique is still within tree width
+//     if(rip_verts.size() + 1 > max_tree_width) return false;
+
+//     // Compute the factor size
+//     size_t factor_size = 
+//       std::max(mrf.vertex_data(parent_clique.elim_vertex).variable.arity,
+//                uint32_t(1));
+//     foreach(vertex_id_t vid, rip_verts) {
+//       factor_size *= 
+//         std::max(mrf.vertex_data(vid).variable.arity, uint32_t(1));
+//     }
+//     if(factor_size > max_factor_size) return false;
+
+
+//     // Find the new parent
+//     vertex_id_t new_parent_vid = 0;
+//     foreach(vertex_id_t vid, rip_verts) {
+//       new_parent_vid = 
+//         std::max(new_parent_vid, elim_time_map[vid]);
+//     }
+//     parent_vid = new_parent_vid;
+//   }
+
+//   // Assert that if we reached this point RIP can be satisfied safely
+//   // so proceed to update local data structures
+//   size_t elim_time = cliques.size();
+//   cliques.push_back(clique);
+//   elim_time_map[clique.elim_vertex] = elim_time;
+
+//   // Satisfy RIP
+//   rip_verts = clique.vertices;
+//   for(vertex_id_t parent_vid = clique.parent; 
+//       !rip_verts.empty() && parent_vid < cliques.size(); ) {
+//     // get the parent clique
+//     elim_clique& parent_clique = cliques[parent_vid];       
+
+//     // otherwise update that the rip_verts
+//     rip_verts += parent_clique.vertices;
+//     rip_verts -= parent_clique.elim_vertex;
+
+//     // Update the clique
+//     parent_clique.vertices = rip_verts;
+
+//     // Determine the new parent (except first vertex)
+//     vertex_id_t new_parent_vid = 0;
+//     foreach(vertex_id_t vid, parent_clique.vertices) {
+//       new_parent_vid = 
+//         std::max(new_parent_vid, safe_find(elim_time_map, vid));
+//     }
+//     parent_vid = new_parent_vid;
+
+//     // Update the parent for this clique
+//     parent_clique.parent = new_parent_vid;
+//   }
+//   // Add successfully
+//   return true;
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /**
  *  Extend the clique tree with the next vertex
  *
@@ -613,7 +764,7 @@ bool extend_clique_list(const mrf::graph_type& mrf,
 
     // Find the new parent
     vertex_id_t new_parent_vid = 0;
-    foreach(vertex_id_t vid, rip_verts) {
+    foreach(vertex_id_t vid, tmp_verts) {
       new_parent_vid = 
         std::max(new_parent_vid, elim_time_map[vid]);
     }
