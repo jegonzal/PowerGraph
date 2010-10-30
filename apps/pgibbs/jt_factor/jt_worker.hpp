@@ -182,10 +182,10 @@ public:
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
-      move_to_next_root();
+      //      move_to_next_root();
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-	//	move_to_next_root();
+	move_to_next_root();
         sampled_variables = sample_once();
         if(sampled_variables == 0) {
           collisions++;
@@ -289,13 +289,14 @@ public:
   double score_vertex(vertex_id_t vid) {
     // const mrf::graph_type& mrf = scope_factory->get_graph();
     // const mrf::vertex_data& vdata = mrf.vertex_data(vid);
-    //    if(vdata.updates < 200000) {
-    return  score_vertex_log_odds(vid); // +
+    // if(vdata.updates < 100) {
+      return score_vertex_log_odds(vid); // +
+      // }
 	//	graphlab::random::rand01();
       // return score_vertex_l1_diff(vid);
       //}
     //    return (1.0 + graphlab::random::rand01() + score) / (vdata.updates + 1); 
-    // return graphlab::random::rand01();;
+      //return graphlab::random::rand01();;
   }
 
   double score_vertex_l1_diff(vertex_id_t vid) {
