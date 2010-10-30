@@ -12,6 +12,7 @@
 #include <cassert>
 #include <algorithm>
 
+#include <boost/unordered_set.hpp>
 
 
 // Including Standard Libraries
@@ -75,7 +76,7 @@ public:
   clique_vector cliques;
   std::deque<vertex_id_t> bfs_queue;
   graphlab::mutable_queue<size_t, double> priority_queue;
-  std::set<vertex_id_t> visited;
+  boost::unordered_set<vertex_id_t> visited;
 
   // Local junction tree graphlab core
   junction_tree::gl::core jt_core;
@@ -131,12 +132,12 @@ public:
 
     // Initialize local jtcore
     if(internal_threads > 1) {
-      jt_core.set_scheduler_type("fifo");
+      jt_core.set_scheduler_type("sweep");
       jt_core.set_scope_type("edge");
       jt_core.set_ncpus(internal_threads);
       jt_core.set_engine_type("async");
     } else {
-      jt_core.set_scheduler_type("fifo");
+      jt_core.set_scheduler_type("sweep");
       jt_core.set_scope_type("none");
       jt_core.set_ncpus(1);
       jt_core.set_engine_type("async_sim");
@@ -181,10 +182,10 @@ public:
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
-      //      move_to_next_root();
+      move_to_next_root();
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-	move_to_next_root();
+	//	move_to_next_root();
         sampled_variables = sample_once();
         if(sampled_variables == 0) {
           collisions++;
@@ -286,14 +287,15 @@ public:
   factor_t marginal_factor;
 
   double score_vertex(vertex_id_t vid) {
-    const mrf::graph_type& mrf = scope_factory->get_graph();
-    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
-    if(vdata.updates < 100) {
-      return  score_vertex_log_odds(vid);
+    // const mrf::graph_type& mrf = scope_factory->get_graph();
+    // const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+    //    if(vdata.updates < 200000) {
+    return  score_vertex_log_odds(vid); // +
+	//	graphlab::random::rand01();
       // return score_vertex_l1_diff(vid);
-    }
+      //}
     //    return (1.0 + graphlab::random::rand01() + score) / (vdata.updates + 1); 
-    return graphlab::random::rand01();;
+    // return graphlab::random::rand01();;
   }
 
   double score_vertex_l1_diff(vertex_id_t vid) {
@@ -400,7 +402,6 @@ public:
         if(vars.size() > max_factor_size) return -1;
       } 
     }
-
     
     // Compute the clique factor
     clique_factor.set_args(vars);
@@ -571,6 +572,7 @@ public:
 
 
       // Get the scope
+      bool released_scope = false;
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
       assert(scope_ptr != NULL);
@@ -617,6 +619,11 @@ public:
           // set the height
           mrf.vertex_data(next_vertex).height = min_height;
 
+	  // release the scope early to allow other processors to move
+	  // in
+	  released_scope = true;
+	  scope_factory->release_scope(&scope);        
+
           // add the neighbors to the search queue or update their priority
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
             vertex_id_t neighbor_vid = mrf.target(eid);          
@@ -651,9 +658,12 @@ public:
           // release the vertex since it could not be used in the tree
           release_vertex(scope);
         }
-      } // end of grabbed      
-      // release the scope
-      scope_factory->release_scope(&scope);        
+      }
+
+      if(!released_scope) {
+	// release the scope
+	scope_factory->release_scope(&scope);        
+      }
       // Limit the number of variables
       if(cliques.size() > max_tree_size) break;
     } // end of while loop
@@ -763,7 +773,7 @@ public:
                    size_t max_tree_size = 1000,
                    size_t max_tree_width = MAX_DIM,
                    size_t max_factor_size = (1 << MAX_DIM),
-                   size_t max_tree_height = 1000,
+                   size_t max_tree_height = 0,
                    size_t internal_threads = 1,
                    bool use_priorities = false) :
     workers(eopts.ncpus),

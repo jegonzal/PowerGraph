@@ -22,7 +22,7 @@
 #include <cassert>
 
 
-#include <boost/unordered_set>
+#include <boost/unordered_set.hpp>
 // Including Standard Libraries
 
 #include <graphlab.hpp>
@@ -530,6 +530,8 @@ void construct_mrf(const factorized_model& model,
     assignment_t asg(vdata.variable);
     asg.uniform_sample();
     vdata.asg = asg.asg_at(0);
+    double& logP = vdata.belief.logP(vdata.asg);
+    logP = log(exp(logP) + 1.0);
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).
