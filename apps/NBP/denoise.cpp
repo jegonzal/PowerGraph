@@ -531,7 +531,7 @@ int main(int argc, char** argv) {
     if (a > 255) a = 255;
     img.pixel(v) = size_t(a);
   }
-  double err = image_compare_rmse(trueimg, img);
+  double err = sqrt(image_compare_rmse(trueimg, img));
   double err2 = image_compare_mae(trueimg, img);
   std::cout << "RMSE: " << err << " MAE: "<< err2<<std::endl;
 
