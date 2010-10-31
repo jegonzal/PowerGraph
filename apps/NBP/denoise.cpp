@@ -18,6 +18,7 @@
 #include <float.h>
 #include "../kernelbp/image.hpp"
 #include "prodSampleEpsilon.hpp"
+#include <set>
 
 // include itpp
 #include <itpp/itstat.h>
@@ -25,6 +26,7 @@
 
 // Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>
+#define NDEBUG
 
 #define PROPOSAL_STDEV 20
 
@@ -46,8 +48,6 @@ struct particle {
 float SIGMA;
 float LAMBDA;
 float damping = 0.8;
-const size_t MCMCSTEPS = 30;
-const size_t RESAMPLE_FREQUENCY = 5;
 size_t MAX_ITERATIONS = 2;
 graphlab::atomic<size_t> proposal_count;
 graphlab::atomic<size_t> accept_count;
@@ -75,6 +75,111 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
 
+double image_compare_mae(image &trueimg, image &infered) {
+    assert(trueimg.rows() == infered.rows());
+    assert(trueimg.cols() == infered.cols());
+    // get the set of colors in the trueimg
+    std::set<int> colors;
+    for (size_t i = 0; i < trueimg.rows(); ++i) {
+      for (size_t j = 0; j < trueimg.cols(); ++j) {
+        colors.insert(size_t(trueimg.pixel(i,j)));
+      }
+    }
+    
+    // fill a rounding color map
+    int colormap[256];
+    int previval = -256;
+    std::set<int>::iterator curi = colors.begin();
+    std::set<int>::iterator nexti = curi;
+    nexti++;
+    int nextival = (nexti != colors.end())?*nexti:512;
+    while (curi != colors.end()) {
+      int low = (previval + (*curi)) / 2; if (low < 0) low = 0;
+      int high = (nextival + (*curi)) / 2; if (high > 256) high = 256;
+      
+      for (int i = low; i < high; ++i) {
+          colormap[i] = (*curi);
+      }
+      previval = (*curi);
+      curi++;
+      nexti++;
+      nextival = (nexti != colors.end())?*nexti:512;
+    }
+    //for (size_t i = 0; i < 256; ++i) std::cout << colormap[i] << " ";
+    //std::cout << std::endl;
+    // round the infered image
+   /* for (size_t i = 0; i < infered.rows(); ++i) {
+      for (size_t j = 0; j < infered.cols(); ++j) {
+        if (infered.pixel(i,j) >= 255) infered.pixel(i,j) = 255;
+        if (infered.pixel(i,j) < 0) infered.pixel(i,j) = 0;
+        infered.pixel(i,j) = colormap[(size_t)(infered.pixel(i,j) + 0.5)];
+      }
+    }*/
+    
+    // compute absolute difference
+    double err = 0;
+    for (size_t i = 0; i < infered.rows(); ++i) {
+      for (size_t j = 0; j < infered.cols(); ++j) {
+        //err  += (infered.pixel(i,j) - trueimg.pixel(i,j)) * (infered.pixel(i,j) - trueimg.pixel(i,j)) ;
+        err += fabs(infered.pixel(i,j) - trueimg.pixel(i,j));
+      }
+    }
+    err  /= (infered.rows() * infered.cols());
+    return err;
+}
+
+double image_compare_rmse(image &trueimg, image &infered) {
+    assert(trueimg.rows() == infered.rows());
+    assert(trueimg.cols() == infered.cols());
+    // get the set of colors in the trueimg
+    std::set<int> colors;
+    for (size_t i = 0; i < trueimg.rows(); ++i) {
+      for (size_t j = 0; j < trueimg.cols(); ++j) {
+        colors.insert(size_t(trueimg.pixel(i,j)));
+      }
+    }
+    
+    // fill a rounding color map
+    int colormap[256];
+    int previval = -256;
+    std::set<int>::iterator curi = colors.begin();
+    std::set<int>::iterator nexti = curi;
+    nexti++;
+    int nextival = (nexti != colors.end())?*nexti:512;
+    while (curi != colors.end()) {
+      int low = (previval + (*curi)) / 2; if (low < 0) low = 0;
+      int high = (nextival + (*curi)) / 2; if (high > 256) high = 256;
+      
+      for (int i = low; i < high; ++i) {
+          colormap[i] = (*curi);
+      }
+      previval = (*curi);
+      curi++;
+      nexti++;
+      nextival = (nexti != colors.end())?*nexti:512;
+    }
+    //for (size_t i = 0; i < 256; ++i) std::cout << colormap[i] << " ";
+    //std::cout << std::endl;
+    // round the infered image
+   /* for (size_t i = 0; i < infered.rows(); ++i) {
+      for (size_t j = 0; j < infered.cols(); ++j) {
+        if (infered.pixel(i,j) >= 255) infered.pixel(i,j) = 255;
+        if (infered.pixel(i,j) < 0) infered.pixel(i,j) = 0;
+        infered.pixel(i,j) = colormap[(size_t)(infered.pixel(i,j) + 0.5)];
+      }
+    }*/
+    
+    // compute absolute difference
+    double err = 0;
+    for (size_t i = 0; i < infered.rows(); ++i) {
+      for (size_t j = 0; j < infered.cols(); ++j) {
+        err  += (infered.pixel(i,j) - trueimg.pixel(i,j)) * (infered.pixel(i,j) - trueimg.pixel(i,j)) ;
+//        err += fabs(infered.pixel(i,j) - trueimg.pixel(i,j));
+      }
+    }
+    err  /= (infered.rows() * infered.cols());
+    return err;
+}
 
 // Implementations
 // ============================================================>
@@ -90,7 +195,7 @@ void bp_update(gl_types::iscope& scope,
   // Get the vertex data
   vertex_data& v_data = scope.vertex_data();
   graphlab::vertex_id_t vid = scope.vertex();
-  if (debug && vid%100 == 0){
+  if (debug && vid%1000000 == 0){
      std::cout<<"Entering node " << (int)vid << " obs: ";
      v_data.obs.matlab_print();
      std::cout << std::endl;
@@ -151,7 +256,7 @@ void bp_update(gl_types::iscope& scope,
 
    //compute belief
    if (v_data.rounds == MAX_ITERATIONS){
-	if (debug && vid%100 == 0)
+	if (debug && vid%100000 == 0)
 	   printf("computing belief node %d\n", vid);
 
       std::vector<kde> kdes;
@@ -197,9 +302,7 @@ void bp_update(gl_types::iscope& scope,
 
 
 void construct_graph(image& img,
-                     size_t num_rings,
-                     double sigma,
-                     double numparticles,
+                     kde & edge_pot,
                      gl_types::graph& graph) {
   // initialize a bunch of particles
 
@@ -210,9 +313,18 @@ void construct_graph(image& img,
       vertex_data vdat;
       vdat.rounds = 0;
 
-      // Set the node potential
-      vdat.obs = kde(img.pixel(i, j),30,1);;
+      // Set the node potentiala
+      vec cent = zeros(2);
+      cent[0] = img.pixel(i,j);
+      cent[1] = img.pixel(i,j);
+      mat cent2 = cent; cent2 = transpose(cent2);
+      vec bw = "30 30";
+      mat bw2 = bw; bw2 = transpose(bw2);
+      vec wght = "1 1";
+      vdat.obs = kde(cent2, bw2, wght);
       vdat.bel = vdat.obs;
+      if (i == 0 && j == 0)
+       vdat.obs.matlab_print();
       graph.add_vertex(vdat);
       vdat.obs.verify();
       vdat.bel.verify();
@@ -222,12 +334,14 @@ void construct_graph(image& img,
 
   // Add the edges
   edge_data edata;
-  kde edge_pot = kde("255    0  226    0  141  113    0  198   85    0  170   56; \
-                     255    0    0  226  141    0  113  198   85  170    0   28",
+  kde _edge_pot = kde("255    0  226    0  141  113    0  198   85    0  170   56; \
+-                     255    0    0  226  141    0  113  198   85  170    0   28",
 "70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001;  \
  70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001      70.7001",
-  "0.24635     0.17462           0           0     0.18841           0           0     0.15803     0.14531           0           0    0.087277"); 
-  edge_pot.verify(); 
+  "0.24635     0.17462           1e-5           1e-5     0.18841           1e-5           1e-5     0.15803     0.14531           1e-5           1e-5    0.087277"); 
+  edata.edge_pot = edge_pot;
+  edata.edge_pot.matlab_print();
+  _edge_pot.verify(); 
 
   for(size_t i = 0; i < img.rows(); ++i) {
     for(size_t j = 0; j < img.cols(); ++j) {
@@ -235,22 +349,18 @@ void construct_graph(image& img,
       size_t vertid = img.vertid(i,j);
       if(i-1 < img.rows()) {
         edata.msg = graph.vertex_data(img.vertid(i-1, j)).bel;
-        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i-1, j), edata);
       }
       if(i+1 < img.rows()) {
         edata.msg = graph.vertex_data(img.vertid(i+1, j)).bel;
-        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i+1, j), edata);
       }
       if(j-1 < img.cols()) {
         edata.msg = graph.vertex_data(img.vertid(i, j-1)).bel;
-        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i, j-1), edata);
       }
       if(j+1 < img.cols()) {
         edata.msg = graph.vertex_data(img.vertid(i, j+1)).bel;
-        edata.edge_pot = edge_pot;
         graph.add_edge(vertid, img.vertid(i, j+1), edata);
       }
     } // end of for j in cols
@@ -279,33 +389,22 @@ void construct_graph(image& img,
 
 // MAIN =======================================================================>
 int main(int argc, char** argv) {
-  std::cout << "This program creates and denoises a synthetic " << std::endl
-            << "image using loopy belief propagation inside " << std::endl
-            << "the graphlab framework." << std::endl;
-
   // set the global logger
   global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
 
 
   size_t iterations = 100;
-  size_t colors = 5;
-  size_t rows = 200;
-  size_t cols = 200;
-  double sigma = 2;
-  double lambda = 10;
   size_t numparticles = 100;
-    std::string orig_fn = "source_img.pgm";
-  std::string noisy_fn = "noisy_img.pgm";
-  std::string pred_fn = "pred_img.pgm";
   std::string pred_type = "map";
 
+  std::string gmmfile= "";
+  std::string inputfile = "";
+  std::string logfile = "";
 
-
-
-  // Parse command line arguments --------------------------------------------->
+    // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
-  clopts.attach_option("iterations",
+ clopts.attach_option("iterations",
                        &iterations, iterations,
                        "Number of iterations");
   clopts.attach_option("particles",
@@ -314,40 +413,16 @@ int main(int argc, char** argv) {
   clopts.attach_option("epsilon",
                        &EPSILON, EPSILON,
                        "epsilon");
-  clopts.attach_option("colors",
-                       &colors, colors,
-                       "The number of colors in the noisy image");
-  clopts.attach_option("rows",
-                       &rows, rows,
-                       "The number of rows in the noisy image");
-  clopts.attach_option("cols",
-                       &cols, cols,
-                       "The number of columns in the noisy image");
-  clopts.attach_option("sigma",
-                       &sigma, sigma,
-                       "Standard deviation of noise.");
-  clopts.attach_option("lambda",
-                       &lambda, lambda,
-                       "Smoothness parameter (larger => smoother).");
-  clopts.attach_option("orig",
-                       &orig_fn, orig_fn,
-                       "Original image file name.");
-  clopts.attach_option("noisy",
-                       &noisy_fn, noisy_fn,
-                       "Noisy image file name.");
-  clopts.attach_option("pred",
-                       &pred_fn, pred_fn,
-                       "Predicted image file name.");
-  clopts.attach_option("pred_type",
-                       &pred_type, pred_type,
-                       "Predicted image type {map, exp}");
-  clopts.attach_option("damping",
-                       &damping, damping,
-                       "damping");
+  clopts.attach_option("gmmfile",
+                       &gmmfile, std::string(""),
+                       "gmm mixture file");
+  clopts.attach_option("inputfile",
+                       &inputfile, std::string(""),
+                       "input file");
 
 
   clopts.scheduler_type = "round_robin";
-  clopts.scope_type = "none";
+  clopts.scope_type = "edge";
 
 
   bool success = clopts.parse(argc, argv);
@@ -356,44 +431,61 @@ int main(int argc, char** argv) {
   }
 
   // fill the global vars
-  SIGMA = sigma;
-  LAMBDA = lambda;
   MAX_ITERATIONS = iterations;
 
-  std::cout << "ncpus:          " << clopts.ncpus << std::endl
-            << "iterations:          " << iterations<< std::endl
-            << "particles:          " << numparticles<< std::endl
-            << "colors:         " << colors << std::endl
-            << "rows:           " << rows << std::endl
-            << "cols:           " << cols << std::endl
-            << "sigma:          " << sigma << std::endl
-            << "lambda:         " << lambda << std::endl
-            << "engine:         " << clopts.engine_type << std::endl
-            << "scope:          " << clopts.scope_type << std::endl
-            << "scheduler:      " << clopts.scheduler_type << std::endl
-            << "orig_fn:        " << orig_fn << std::endl
-            << "noisy_fn:       " << noisy_fn << std::endl
-            << "pred_fn:        " << pred_fn << std::endl
-            << "pred_type:      " << pred_type << std::endl;
+  // load the potentials mixture components
+  it_ifile f(gmmfile.c_str());
+
+  // weigghts
+  mat edgecenter, edgesigma, edgeweight;
+  mat nodecenter, nodesigma, nodeweight;
+  ivec truedata;
+  ivec imgsize;
+  // intermediate types to use...
+  imat integermat;
+  vec doublevec;
+  f >> Name("edge_ce") >> integermat;   edgecenter = to_mat(integermat);
+  f >> Name("edge_alpha") >> doublevec; edgeweight = doublevec;
+  f >> Name("edge_sigma") >> doublevec; edgesigma = doublevec;
+
+  f >> Name("like_ce") >> nodecenter;
+  f >> Name("like_alpha") >> doublevec; nodeweight = doublevec;
+  f >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
+  f >> Name("img1") >> truedata;
+  f >> Name("isize") >> imgsize;
+
+  size_t rows = imgsize(0);
+  size_t cols = imgsize(1);
+  std::cout << "Image size is "
+            << rows << " x " << cols << std::endl;
+  mat edgesigma2 = edgesigma;
+  edgesigma2 = transpose(edgesigma2);
+  mat edgeweight2 = edgeweight;
+  edgeweight2 = transpose(edgeweight2); 
+  if (edgesigma2.cols() > edgecenter.cols())
+	edgesigma2 = edgesigma2(0,0,0,edgecenter.cols()-1);
+  kde edge_pot = kde(edgecenter, edgesigma2, edgeweight2);
 
 
 
 
-  // Create synthetic images -------------------------------------------------->
-  // Creating image for denoising
-  std::cout << "Creating a synethic image. " << std::endl;
+
+// convert the true image to an image
+  image trueimg(rows, cols);
+  for (size_t i = 0;i < truedata.size(); ++i) {
+    trueimg.pixel(i) = truedata(i);
+  }
+
+  it_ifile imgfile(inputfile.c_str());
+  vec observations;
+  imgfile >> Name("obs2") >> observations;
+  // convert observations to an image
   image img(rows, cols);
-  img.paint_sunset(colors);
-  std::cout << "Saving image. " << std::endl;
-  img.save(orig_fn.c_str());
-  std::cout << "Corrupting Image. " << std::endl;
-  img.corrupt(sigma);
-  std::cout << "Saving corrupted image. " << std::endl;
-  img.save(noisy_fn.c_str());
-
-
-
-
+  for (size_t i = 0;i < observations.size(); ++i) {
+    img.pixel(i) = observations(i);
+  }
+  img.save("noisy.pgm");
+  trueimg.save("source_img.pgm");
 
   // Create the graph --------------------------------------------------------->
   gl_types::core core;
@@ -401,8 +493,8 @@ int main(int argc, char** argv) {
   core.set_engine_options(clopts);
 
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-  
-  construct_graph(img, colors, sigma, numparticles, core.graph());
+
+   construct_graph(img, edge_pot, core.graph());
 
 
 
@@ -439,7 +531,11 @@ int main(int argc, char** argv) {
     if (a > 255) a = 255;
     img.pixel(v) = size_t(a);
   }
-  img.save("pred_map.pgm");
+  double err = sqrt(image_compare_rmse(trueimg, img));
+  double err2 = image_compare_mae(trueimg, img);
+  std::cout << "RMSE: " << err << " MAE: "<< err2<<std::endl;
+
+  //img.save("pred_map.pgm");
 
 
  /* for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
@@ -451,8 +547,6 @@ int main(int argc, char** argv) {
   }
   img.save("pred_exp.pgm");
 */ //TODO?
-  std::cout << "Saving cleaned image. " << std::endl;
-  img.save(pred_fn.c_str());
 
   std::cout << "Done!" << std::endl;
   return EXIT_SUCCESS;

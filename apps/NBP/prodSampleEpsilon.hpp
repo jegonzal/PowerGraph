@@ -255,7 +255,7 @@ kde prodSampleEpsilonRun(unsigned int _Ndens, //number of densities to product
   out.weights = itpp::ones(1, out.getPoints())/(double)out.getPoints();
   if (debug)
   out.matlab_print();
-  else {printf("."); fflush(NULL);}
+  //else {printf("."); fflush(NULL);}
   out.indices = out.indices - 1; //c++ count starts from zero
   out.verify();
  
