@@ -189,6 +189,11 @@ int main(int argc, char** argv) {
 	      << std::endl;
 
 
+    // check mrf graph
+    for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
+      assert(!mrf_graph.vertex_data(i).in_tree);
+      assert(mrf_graph.vertex_data(i).tree_id == NULL_VID);
+    }
 
 
     std::ofstream fout(results_fn.c_str(),  std::ios::app);

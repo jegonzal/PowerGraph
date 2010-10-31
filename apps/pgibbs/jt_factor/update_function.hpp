@@ -321,7 +321,8 @@ namespace junction_tree{
 
 
 
-
+  // double levine_score(factor_t rb1, factor_t rb2) {
+  // } // levine score 
 
 
 
@@ -559,8 +560,7 @@ namespace junction_tree{
           mrf_vdata.height = 0;
           
           // double& logP = mrf_vdata.belief.logP(mrf_vdata.asg.asg_at(0));
-          // logP = std::log( std::exp(logP) + 1.0 );
-          
+          // logP = std::log( std::exp(logP) + 1.0 );          
         } 
       } // end of sampling unsampled variables
 

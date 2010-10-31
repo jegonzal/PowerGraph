@@ -132,12 +132,12 @@ public:
 
     // Initialize local jtcore
     if(internal_threads > 1) {
-      jt_core.set_scheduler_type("sweep");
+      jt_core.set_scheduler_type("fifo");
       jt_core.set_scope_type("edge");
       jt_core.set_ncpus(internal_threads);
       jt_core.set_engine_type("async");
     } else {
-      jt_core.set_scheduler_type("sweep");
+      jt_core.set_scheduler_type("fifo");
       jt_core.set_scope_type("none");
       jt_core.set_ncpus(1);
       jt_core.set_engine_type("async_sim");
@@ -287,10 +287,27 @@ public:
   factor_t marginal_factor;
 
   double score_vertex(vertex_id_t vid) {
-    // const mrf::graph_type& mrf = scope_factory->get_graph();
-    // const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    return graphlab::random::rand01();
+
+    //    return score_vertex_log_odds(vid); 
+    // return score_vertex_lik(vid);
+    // if (vdata.updates > 100) {
+    //   return graphlab::random::rand01();
+    // } else {
+    //   return graphlab::random::rand01() + score_vertex_log_odds(vid); 
+    // }
+
+// +
+    //    return double(vdata.changes + graphlab::random::rand01()) 
+    //      / sqrt(double(vdata.updates + 1));
+
     // if(vdata.updates < 100) {
-     return score_vertex_log_odds(vid); // +
+
+
     //    return score_vertex_lik(vid); // +
       // }
 	//	graphlab::random::rand01();
@@ -377,9 +394,16 @@ public:
 
     return residual;
 
-    
-
   } // end of score l1 diff
+
+
+
+
+
+
+
+
+
 
 
 
@@ -405,6 +429,9 @@ public:
       } 
     }
     
+    assert(vars.num_vars() == 2);
+
+
     // Compute the clique factor
     clique_factor.set_args(vars);
     clique_factor.uniform();
@@ -674,26 +701,26 @@ public:
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
         // compute the tree height of the new vertex
-        vertex_id_t min_height = 0;        
-        // if this is not the root and we care about tree height
-        if(max_tree_height != 0 && !cliques.empty()) {
-          min_height = max_tree_height;
-          // find the closest vertex to the root
-          foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
-            vertex_id_t neighbor_vid = mrf.target(eid);
-            // if the neighbor is already in the tree
-            if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
-              min_height = 
-                std::min(min_height, 
-                         mrf.vertex_data(neighbor_vid).height + 1);
-            } 
-          }
-        } // end of tree height check for non root vertex 
+        // vertex_id_t min_height = 0;        
+        // // if this is not the root and we care about tree height
+        // if(max_tree_height != 0 && !cliques.empty()) {
+        //   min_height = max_tree_height;
+        //   // find the closest vertex to the root
+        //   foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+        //     vertex_id_t neighbor_vid = mrf.target(eid);
+        //     // if the neighbor is already in the tree
+        //     if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+        //       min_height = 
+        //         std::min(min_height, 
+        //                  mrf.vertex_data(neighbor_vid).height + 1);
+        //     } 
+        //   }
+        // } // end of tree height check for non root vertex 
           
         // test the 
-        bool safe_extension = 
-          (max_tree_height == 0) ||
-          (min_height < max_tree_height);
+        bool safe_extension = true;
+          // (max_tree_height == 0) ||
+          // (min_height < max_tree_height);
 
         safe_extension = safe_extension &&
           extend_clique_list(mrf,
@@ -706,8 +733,8 @@ public:
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
         if(safe_extension) {
-          // set the height
-          mrf.vertex_data(next_vertex).height = min_height;
+          // // set the height
+          // mrf.vertex_data(next_vertex).height = min_height;
 
 	  // release the scope early to allow other processors to move
 	  // in
@@ -779,7 +806,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //  std::cout << "Varcount: " << cliques.size() << std::endl;  
 
         // ///////////////////////////////////
         // // plot the graph
@@ -800,9 +827,9 @@ public:
     // Build the junction tree and sample
     jt_core.graph().clear();
     jtree_from_cliques(mrf,
+                       cliques,
 		       assigned_factors,
                        elim_time_map,
-                       cliques.begin(), cliques.end(), 
                        jt_core.graph());
 
     // jtree_from_cliques(mrf,  
@@ -835,8 +862,8 @@ public:
     } 
     changes += local_changes;
     
-    std::cout << "Treewidth: " << actual_tree_width << std::endl;
-    std::cout << "Local Changes: " << local_changes << std::endl;
+    // std::cout << "Treewidth: " << actual_tree_width << std::endl;
+    // std::cout << "Local Changes: " << local_changes << std::endl;
       
     // Return the number of variables in the tree
     return elim_time_map.size();

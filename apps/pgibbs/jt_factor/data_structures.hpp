@@ -135,6 +135,7 @@ namespace mrf {
     size_t         asg;
     std::set<vertex_id_t> factor_ids;
     factor_t       belief;
+    factor_t       old_rb;
     size_t         updates;
     size_t         changes;
 
@@ -154,6 +155,7 @@ namespace mrf {
       asg( graphlab::random::rand_int(variable.arity - 1) ),
       factor_ids(factor_ids),
       belief(domain_t(variable)),
+      old_rb(domain_t(variable)),
       updates(0),
       changes(0),
       in_tree(false),
