@@ -290,7 +290,8 @@ public:
     // const mrf::graph_type& mrf = scope_factory->get_graph();
     // const mrf::vertex_data& vdata = mrf.vertex_data(vid);
     // if(vdata.updates < 100) {
-      return score_vertex_log_odds(vid); // +
+     return score_vertex_log_odds(vid); // +
+    //    return score_vertex_lik(vid); // +
       // }
 	//	graphlab::random::rand01();
       // return score_vertex_l1_diff(vid);
@@ -372,7 +373,7 @@ public:
     assert( std::isfinite(residual) );
 
     // ensure score is bounded
-    residual = std::tanh(residual);
+    //    residual = std::tanh(residual);
 
     return residual;
 
@@ -453,11 +454,99 @@ public:
     assert( std::isfinite(residual) );
 
     // ensure score is bounded
-    residual = std::tanh(residual);
+    //    residual = std::tanh(residual);
+
 
 
     return residual;
   } // end of score vertex
+
+
+
+
+
+
+
+
+
+
+  double score_vertex_lik(vertex_id_t vid) {
+    // Get the scope factory
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    // Construct the domain of neighbors that are already in the tree
+    domain_t vars = vdata.variable;
+    foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
+      const vertex_id_t neighbor_vid = mrf.source(ineid);
+      const mrf::vertex_data& neighbor = mrf.vertex_data(neighbor_vid);
+      // test to see if the neighbor is in the tree by checking the
+      // elimination time map
+      if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+        // otherwise add the tree variable
+        vars += neighbor.variable;
+        // If this vertex has too many tree neighbor than the priority
+        // is set to 0;
+        if(vars.num_vars() > max_tree_width) return -1;
+        if(vars.size() > max_factor_size) return -1;
+      } 
+    }
+    
+    // Compute the clique factor
+    clique_factor.set_args(vars);
+    clique_factor.uniform();
+    // get all the factors
+    const factorized_model::factor_map_t& factors(*factors_ptr);
+    // Iterate over the factors and multiply each into this factor
+    foreach(size_t factor_id, vdata.factor_ids) {
+      const factor_t& factor = factors[factor_id];      
+      // Build up an assignment for the conditional
+      domain_t conditional_args = factor.args() - vars;
+      if(conditional_args.num_vars() > 0) {
+        assignment_t conditional_asg;
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+	  const mrf::vertex_data& neighbor_vdata = 
+	    mrf.vertex_data(conditional_args.var(i).id);
+          conditional_asg &= 
+	    assignment_t(neighbor_vdata.variable, neighbor_vdata.asg);
+	}
+        // set the factor arguments
+        conditional_factor.set_args(factor.args() - conditional_args);
+        conditional_factor.condition(factor, conditional_asg);        
+        // Multiply the conditional factor in
+        clique_factor *= conditional_factor;
+        //        clique_factor.normalize();
+      } else {
+        clique_factor *= factor;
+      }
+    } // end of loop over factors
+
+    // Compute the conditional factor and marginal factors
+    marginal_factor.set_args(vdata.variable);
+    marginal_factor.marginalize(clique_factor);
+    marginal_factor.normalize();
+    double residual =  1.0 - exp(marginal_factor.logP(vdata.asg));
+
+    assert( residual >= 0);
+    assert( !std::isnan(residual) );
+    assert( std::isfinite(residual) );
+
+    // // ensure score is bounded
+    // residual = std::tanh(residual);
+
+
+    return residual;
+  } // end of max lik
+
+
+
+
+
+
+
+
+
+
 
   
 
@@ -690,7 +779,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //    std::cout << "Varcount: " << cliques.size() << std::endl;  
+    std::cout << "Varcount: " << cliques.size() << std::endl;  
 
         // ///////////////////////////////////
         // // plot the graph
@@ -746,8 +835,8 @@ public:
     } 
     changes += local_changes;
     
-    // std::cout << "Treewidth: " << actual_tree_width << std::endl;
-    // std::cout << "Local Changes: " << local_changes << std::endl;
+    std::cout << "Treewidth: " << actual_tree_width << std::endl;
+    std::cout << "Local Changes: " << local_changes << std::endl;
       
     // Return the number of variables in the tree
     return elim_time_map.size();
