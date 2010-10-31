@@ -26,7 +26,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-// #define DRAW_IMAGE
+#define DRAW_IMAGE
 
 
 std::string results_fn = "experiment_results.tsv";
@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
   size_t treewidth = 3;
   size_t factorsize = 0;
   size_t subthreads = 1; 
+  bool draw = false;
 
 
   // Command line parsing
@@ -110,6 +111,11 @@ int main(int argc, char** argv) {
   clopts.attach_option("priorities",
                        &priorities, priorities,
                        "Use priorities?");
+
+  clopts.attach_option("draw",
+                       &draw, draw,
+                       "Draw a picture?");
+
 
 
 
@@ -188,6 +194,12 @@ int main(int argc, char** argv) {
     std::cout << "Total Collisions: " << sampler.total_collisions() 
 	      << std::endl;
 
+    size_t min_samples = 0;
+    size_t max_samples = 0;
+    min_max_samples(mrf_graph, min_samples, max_samples);
+    std::cout << "Min Samples:  " << min_samples << std::endl
+              << "Max Samples:  " << max_samples << std::endl;
+
 
     // check mrf graph
     for(size_t i = 0; i < mrf_graph.num_vertices(); ++i) {
@@ -217,46 +229,46 @@ int main(int argc, char** argv) {
 
 
 
-#ifdef DRAW_IMAGE    
-    // Plot the final answer
-    size_t rows = std::sqrt(mrf_graph.num_vertices());
-    std::cout << "Rows: " << rows << std::endl;
-    image img(rows, rows);
-    std::vector<double> values(1);
-    factor_t belief;
-    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
-      const mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
-      belief = vdata.belief;
-      belief.normalize();
-      belief.expectation(values);
-      img.pixel(vid) = values[0];
-    }
-    img.pixel(0) = 0;
-    img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
-    img.save(make_filename("pred", ".pgm", experiment_id).c_str());
+    if(draw) {
+      // Plot the final answer
+      size_t rows = std::sqrt(mrf_graph.num_vertices());
+      std::cout << "Rows: " << rows << std::endl;
+      image img(rows, rows);
+      std::vector<double> values(1);
+      factor_t belief;
+      for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {
+        const mrf::vertex_data& vdata = mrf_graph.vertex_data(vid);
+        belief = vdata.belief;
+        belief.normalize();
+        belief.expectation(values);
+        img.pixel(vid) = values[0];
+      }
+      img.pixel(0) = 0;
+      img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
+      img.save(make_filename("pred", ".pgm", experiment_id).c_str());
     
-    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-      img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
-    }
-    img.save(make_filename("updates", ".pgm", experiment_id).c_str());
+      for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+        img.pixel(vid) = mrf_graph.vertex_data(vid).updates;
+      }
+      img.save(make_filename("updates", ".pgm", experiment_id).c_str());
     
-    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-      img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
-    }
-    img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
+      for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+        img.pixel(vid) = mrf_graph.vertex_data(vid).updates == 0;
+      }
+      img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
-    for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-      img.pixel(vid) = mrf_graph.vertex_data(vid).asg;
-    }
-    img.pixel(0) = 0;
-    img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
-    img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
+      for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+        img.pixel(vid) = mrf_graph.vertex_data(vid).asg;
+      }
+      img.pixel(0) = 0;
+      img.pixel(1) = mrf_graph.vertex_data(0).variable.arity-1;
+      img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
 
-    // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
-    //   img.pixel(vid) = mrf_graph.vertex_data(vid).height;
-    // }
-    // img.save(make_filename("heights", ".pgm", experiment_id).c_str());
-#endif
+      // for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+      //   img.pixel(vid) = mrf_graph.vertex_data(vid).height;
+      // }
+      // img.save(make_filename("heights", ".pgm", experiment_id).c_str());
+    }
 
   } // end of for loop over runtimes
 

@@ -143,11 +143,14 @@ namespace mrf {
     vertex_id_t    tree_id;
     vertex_id_t    height;
 
+    double priority;
+
     vertex_data() : updates(0), 
                     changes(0),
                     in_tree(false), 
                     tree_id(NULL_VID),
-                    height(0) { }
+                    height(0),
+                    priority(-1) { }
 
     vertex_data(const variable_t& variable,
                 const std::set<vertex_id_t>& factor_ids) :
@@ -160,7 +163,8 @@ namespace mrf {
       changes(0),
       in_tree(false),
       tree_id(NULL_VID),
-      height(0) {    // Set the belief to uniform 0
+      height(0),
+      priority(-1) {    // Set the belief to uniform 0
       belief.uniform(-std::numeric_limits<double>::max());
       assert(!factor_ids.empty());
     }
@@ -527,10 +531,22 @@ private:
 void construct_mrf(const factorized_model& model,
                    mrf::graph_type& graph) {
   // Add all the variables
+  factor_t conditional, belief;
   foreach(variable_t variable, model.variables()) {
     mrf::vertex_data vdata(variable, model.factor_ids(variable));
-    assignment_t asg(vdata.variable);
-    asg.uniform_sample();
+
+    belief.set_args(variable);
+    belief.uniform();
+    conditional.set_args(variable);
+    const std::set<vertex_id_t>& factor_ids = model.factor_ids(variable);
+    foreach(vertex_id_t fid, factor_ids) {
+      conditional.marginalize(model.factors()[fid]);
+      belief *= conditional;
+    }
+    belief.normalize();
+    assignment_t asg = belief.sample();
+
+
     vdata.asg = asg.asg_at(0);
     double& logP = vdata.belief.logP(vdata.asg);
     logP = log(exp(logP) + 1.0);

@@ -288,18 +288,21 @@ public:
 
   double score_vertex(vertex_id_t vid) {
 
-    const mrf::graph_type& mrf = scope_factory->get_graph();
-    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+    /// ONly data set where this works: ./alchemy_image_denoise
+    /// --rows=200 --rings=7 --sigma=1 --lambda=3 --smoothing=square
 
-    return graphlab::random::rand01();
+
+    mrf::graph_type& mrf = scope_factory->get_graph();
+    mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    //    return graphlab::random::rand01();
 
     //    return score_vertex_log_odds(vid); 
     // return score_vertex_lik(vid);
-    // if (vdata.updates > 100) {
-    //   return graphlab::random::rand01();
-    // } else {
-    //   return graphlab::random::rand01() + score_vertex_log_odds(vid); 
-    // }
+    if (vdata.updates < 100 || vdata.priority < 0) {
+      vdata.priority = score_vertex_log_odds(vid); 
+    }
+    return vdata.priority;
 
 // +
     //    return double(vdata.changes + graphlab::random::rand01()) 
@@ -470,7 +473,8 @@ public:
     // Compute metric
     conditional_factor.normalize();
     marginal_factor.normalize();
-    double residual = conditional_factor.l1_logdiff(marginal_factor);
+    // double residual = conditional_factor.l1_logdiff(marginal_factor);
+    double residual = conditional_factor.l1_diff(marginal_factor);
 
 
     // rescale by updates
@@ -701,26 +705,26 @@ public:
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
         // compute the tree height of the new vertex
-        // vertex_id_t min_height = 0;        
-        // // if this is not the root and we care about tree height
-        // if(max_tree_height != 0 && !cliques.empty()) {
-        //   min_height = max_tree_height;
-        //   // find the closest vertex to the root
-        //   foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
-        //     vertex_id_t neighbor_vid = mrf.target(eid);
-        //     // if the neighbor is already in the tree
-        //     if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
-        //       min_height = 
-        //         std::min(min_height, 
-        //                  mrf.vertex_data(neighbor_vid).height + 1);
-        //     } 
-        //   }
-        // } // end of tree height check for non root vertex 
+        vertex_id_t min_height = 0;        
+        // if this is not the root and we care about tree height
+        if(max_tree_height != 0 && !cliques.empty()) {
+          min_height = max_tree_height;
+          // find the closest vertex to the root
+          foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
+            vertex_id_t neighbor_vid = mrf.target(eid);
+            // if the neighbor is already in the tree
+            if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+              min_height = 
+                std::min(min_height, 
+                         mrf.vertex_data(neighbor_vid).height + 1);
+            } 
+          }
+        } // end of tree height check for non root vertex 
           
         // test the 
-        bool safe_extension = true;
-          // (max_tree_height == 0) ||
-          // (min_height < max_tree_height);
+        bool safe_extension =
+          (max_tree_height == 0) ||
+          (min_height < max_tree_height);
 
         safe_extension = safe_extension &&
           extend_clique_list(mrf,
@@ -734,7 +738,7 @@ public:
         // cliques data structure are automatically extended
         if(safe_extension) {
           // // set the height
-          // mrf.vertex_data(next_vertex).height = min_height;
+          mrf.vertex_data(next_vertex).height = min_height;
 
 	  // release the scope early to allow other processors to move
 	  // in

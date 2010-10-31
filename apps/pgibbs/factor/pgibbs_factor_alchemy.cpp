@@ -49,7 +49,7 @@
 
 // #define DRAW_IMAGE
 
-
+bool draw = false;
 
 
 
@@ -169,7 +169,7 @@ void run_colored_samples(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -202,7 +202,7 @@ void run_colored_samples(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -322,7 +322,7 @@ void run_colored_times(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -356,7 +356,7 @@ void run_colored_times(const factorized_model& model,
     img.pixel(0) = 0;
     img.pixel(1) = core.graph().vertex_data(0).variable.arity-1;
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -471,7 +471,7 @@ void run_async_samples(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -503,7 +503,7 @@ void run_async_samples(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -618,7 +618,7 @@ void run_async_times(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -650,7 +650,7 @@ void run_async_times(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -793,7 +793,7 @@ void run_tree_samples(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -825,7 +825,7 @@ void run_tree_samples(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -952,7 +952,7 @@ void run_tree_times(const factorized_model& model,
     fout.close();
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
@@ -984,7 +984,7 @@ void run_tree_times(const factorized_model& model,
       img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -1053,6 +1053,12 @@ int main(int argc, char** argv) {
   clopts.attach_option("runtime", 
                        &runtimes, runtimes,
                        "total runtime in seconds");
+
+  clopts.attach_option("draw", 
+                       &draw, draw,
+                       "draw pictures");
+
+
 
   clopts.attach_option("experiment", 
                        &experiment_type, experiment_type,
