@@ -132,7 +132,7 @@ public:
 
     // Initialize local jtcore
     if(internal_threads > 1) {
-      jt_core.set_scheduler_type("fifo");
+      jt_core.set_scheduler_type("multiqueue_fifo");
       jt_core.set_scope_type("edge");
       jt_core.set_ncpus(internal_threads);
       jt_core.set_engine_type("async");

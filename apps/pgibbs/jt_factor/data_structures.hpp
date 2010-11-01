@@ -534,22 +534,28 @@ void construct_mrf(const factorized_model& model,
   factor_t conditional, belief;
   foreach(variable_t variable, model.variables()) {
     mrf::vertex_data vdata(variable, model.factor_ids(variable));
-
-    belief.set_args(variable);
-    belief.uniform();
-    conditional.set_args(variable);
-    const std::set<vertex_id_t>& factor_ids = model.factor_ids(variable);
-    foreach(vertex_id_t fid, factor_ids) {
-      conditional.marginalize(model.factors()[fid]);
-      belief *= conditional;
+    {
+      assignment_t asg(vdata.variable);
+      asg.uniform_sample();
+      vdata.asg = asg.asg_at(0);
+      double& logP = vdata.belief.logP(vdata.asg);
+      logP = log(exp(logP) + 1.0);
     }
-    belief.normalize();
-    assignment_t asg = belief.sample();
-
-
-    vdata.asg = asg.asg_at(0);
-    double& logP = vdata.belief.logP(vdata.asg);
-    logP = log(exp(logP) + 1.0);
+    // {
+    //   belief.set_args(variable);
+    //   belief.uniform();
+    //   conditional.set_args(variable);
+    //   const std::set<vertex_id_t>& factor_ids = model.factor_ids(variable);
+    //   foreach(vertex_id_t fid, factor_ids) {
+    // 	conditional.marginalize(model.factors()[fid]);
+    // 	belief *= conditional;
+    //   }
+    //   belief.normalize();
+    //   assignment_t asg = belief.sample();
+    //   vdata.asg = asg.asg_at(0);
+    //   double& logP = vdata.belief.logP(vdata.asg);
+    //   logP = log(exp(logP) + 1.0);
+    // }
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).

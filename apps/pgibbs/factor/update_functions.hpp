@@ -848,19 +848,34 @@ void down_tree_update(gl::iscope& scope,
 
 
 
+template<bool UseCallback>
+void single_sample_update1(gl::iscope& scope, 
+			   gl::icallback& scheduler,
+			   gl::ishared_data* shared_data);
 
-
-
-
-
-
+template<bool UseCallback>
+void single_sample_update2(gl::iscope& scope, 
+			   gl::icallback& scheduler,
+			   gl::ishared_data* shared_data);
 
 
 
 template<bool UseCallback>
 void single_sample_update(gl::iscope& scope, 
-                          gl::icallback& scheduler,
-                          gl::ishared_data* shared_data) {
+			  gl::icallback& scheduler,
+			  gl::ishared_data* shared_data) {
+  //single_sample_update1<UseCallback>(scope,scheduler, shared_data);
+  single_sample_update2<UseCallback>(scope,scheduler, shared_data);
+
+}
+
+
+
+
+template<bool UseCallback>
+void single_sample_update1(gl::iscope& scope, 
+			   gl::icallback& scheduler,
+			   gl::ishared_data* shared_data) {
   assert(shared_data != NULL);
   vertex_data& vdata = scope.vertex_data();
 
@@ -905,6 +920,45 @@ void single_sample_update(gl::iscope& scope,
     assert(asg.num_vars() + 1 == factor.num_vars());
     vdata.tmp_bp_belief.times_condition(factor, asg);    
   } 
+  vdata.tmp_bp_belief.normalize(); 
+  vdata.asg = vdata.tmp_bp_belief.sample().asg_at(0);
+  vdata.belief += vdata.tmp_bp_belief;
+  vdata.updates++;
+  
+  // Reschedule self
+  if(UseCallback) {
+    gl::update_task task(scope.vertex(), single_sample_update<UseCallback> );
+    double residual = 1.0;
+    scheduler.add_task(task, residual);
+  }
+}
+
+
+template<bool UseCallback>
+void single_sample_update2(gl::iscope& scope, 
+                          gl::icallback& scheduler,
+                          gl::ishared_data* shared_data) {
+  assert(shared_data != NULL);
+  vertex_data& vdata = scope.vertex_data();
+
+  factor_t conditional;
+  factor_t& belief(vdata.tmp_bp_belief);
+  belief.uniform();
+  conditional.set_args(vdata.variable);
+  foreach(vertex_id_t factor_id, vdata.factor_ids) {
+    const factor_t& factor =
+      shared_data->get_constant(FACTOR_ID + factor_id).as<factor_t>();
+    // build the conditional
+    assignment_t conditional_asg = factor.args() - vdata.variable;
+    for(size_t i = 0; i < conditional_asg.num_vars(); ++i) {
+      const vertex_data& other_vdata = 
+	scope.const_neighbor_vertex_data(conditional_asg.args().var(i).id);
+      assert(conditional_asg.args().var(i) == other_vdata.variable);
+      conditional_asg &= 
+	assignment_t(other_vdata.variable, other_vdata.asg);
+    }
+    belief.times_condition(factor, conditional_asg);
+  }
   vdata.tmp_bp_belief.normalize(); 
   vdata.asg = vdata.tmp_bp_belief.sample().asg_at(0);
   vdata.belief += vdata.tmp_bp_belief;

@@ -41,6 +41,40 @@ size_t get_next_experiment_id(const std::string& experiment_file) {
   return lines;
 }
 
+void gibbs_sweep(mrf::graph_type& mrf, 
+		 const factorized_model& factor_graph) {
+  factor_t conditional;
+  factor_t belief;
+  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+    mrf::vertex_data& vdata = mrf.vertex_data(vid);
+    belief.set_args(vdata.variable);
+    belief.uniform();
+    conditional.set_args(vdata.variable);
+    const std::set<vertex_id_t>& factor_ids = 
+      factor_graph.factor_ids(vdata.variable);
+    foreach(vertex_id_t fid, factor_ids) {
+      // get the factor
+      const factor_t& factor = factor_graph.factors()[fid];
+      // build the conditional
+      assignment_t conditional_asg = factor.args() - vdata.variable;
+      for(size_t i = 0; i < conditional_asg.num_vars(); ++i) {
+	const mrf::vertex_data& other_vdata = 
+	  mrf.vertex_data(conditional_asg.args().var(i).id);
+	assert(conditional_asg.args().var(i) == other_vdata.variable);
+	conditional_asg &= 
+	  assignment_t(other_vdata.variable, other_vdata.asg);
+      }
+      conditional.set_args(vdata.variable);
+      conditional.condition(factor, conditional_asg);
+      belief *= conditional;
+    }
+    belief.normalize();
+    vdata.asg = belief.sample().asg_at(0);
+  }
+
+}
+
+
 
 
 
@@ -135,6 +169,9 @@ int main(int argc, char** argv) {
   std::cout << "Building graphlab MRF." << std::endl;
   mrf::graph_type mrf_graph;
   construct_mrf(factor_graph, mrf_graph);
+  std::cout << "Quick init sweep" << std::endl;
+  //  gibbs_sweep(mrf_graph, factor_graph);
+  
 
   parallel_sampler sampler(factor_graph,
                            mrf_graph,

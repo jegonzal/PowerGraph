@@ -92,6 +92,7 @@ void run_colored_samples(const factorized_model& model,
   // Precolor the graph
   std::cout << "Computing coloring " << std::endl;
   size_t colors = core.graph().compute_coloring();
+  assert(core.graph().valid_coloring());
   std::cout << "Colors: " << colors << std::endl;
 
   std::cout << "Adding all factors to shared data manager" << std::endl;
