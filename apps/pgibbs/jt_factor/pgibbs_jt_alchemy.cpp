@@ -305,6 +305,12 @@ int main(int argc, char** argv) {
       //   img.pixel(vid) = mrf_graph.vertex_data(vid).height;
       // }
       // img.save(make_filename("heights", ".pgm", experiment_id).c_str());
+
+      for(vertex_id_t vid = 0; vid < mrf_graph.num_vertices(); ++vid) {   
+        img.pixel(vid) = tanh(std::max(0.0, mrf_graph.vertex_data(vid).priority));
+      }
+      img.save(make_filename("priorities", ".pgm", experiment_id).c_str());
+
     }
 
   } // end of for loop over runtimes
