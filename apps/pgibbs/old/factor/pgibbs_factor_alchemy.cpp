@@ -49,7 +49,7 @@
 
 // #define DRAW_IMAGE
 
-
+bool draw = false;
 
 
 
@@ -92,6 +92,7 @@ void run_colored_samples(const factorized_model& model,
   // Precolor the graph
   std::cout << "Computing coloring " << std::endl;
   size_t colors = core.graph().compute_coloring();
+  assert(core.graph().valid_coloring());
   std::cout << "Colors: " << colors << std::endl;
 
   std::cout << "Adding all factors to shared data manager" << std::endl;
@@ -169,16 +170,19 @@ void run_colored_samples(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -196,10 +200,10 @@ void run_colored_samples(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -319,16 +323,18 @@ void run_colored_times(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -346,10 +352,12 @@ void run_colored_times(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
+    img.pixel(0) = 0;
+    img.pixel(1) = core.graph().vertex_data(0).variable.arity-1;
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -464,16 +472,18 @@ void run_async_samples(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -491,10 +501,10 @@ void run_async_samples(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -609,16 +619,18 @@ void run_async_times(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -636,10 +648,10 @@ void run_async_times(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -782,16 +794,18 @@ void run_tree_samples(const factorized_model& model,
 
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -809,10 +823,10 @@ void run_tree_samples(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -939,16 +953,18 @@ void run_tree_times(const factorized_model& model,
     fout.close();
 
 
-#ifdef DRAW_IMAGE
+    if(draw) {
     // Plot the final answer
     size_t rows = std::sqrt(core.graph().num_vertices());
     std::cout << "Rows: " << rows << std::endl;
     image img(rows, rows);
     std::vector<double> values(1);
+    factor_t belief;
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {
-      vertex_data& vdata = core.graph().vertex_data(vid);
-      vdata.belief.normalize();
-      vdata.belief.expectation(values);
+      const vertex_data& vdata = core.graph().vertex_data(vid);
+      belief = vdata.belief;
+      belief.normalize();
+      belief.expectation(values);
       img.pixel(vid) = values[0];
     }
     img.pixel(0) = 0;
@@ -966,10 +982,10 @@ void run_tree_times(const factorized_model& model,
     img.save(make_filename("unsampled", ".pgm", experiment_id).c_str());
   
     for(vertex_id_t vid = 0; vid < core.graph().num_vertices(); ++vid) {   
-      img.pixel(vid) = core.graph().vertex_data(vid).asg.asg_at(0);
+      img.pixel(vid) = core.graph().vertex_data(vid).asg;
     }
     img.save(make_filename("final_sample", ".pgm", experiment_id).c_str());
-#endif
+    }
 
 
 
@@ -1038,6 +1054,12 @@ int main(int argc, char** argv) {
   clopts.attach_option("runtime", 
                        &runtimes, runtimes,
                        "total runtime in seconds");
+
+  clopts.attach_option("draw", 
+                       &draw, draw,
+                       "draw pictures");
+
+
 
   clopts.attach_option("experiment", 
                        &experiment_type, experiment_type,

@@ -32,6 +32,7 @@
 
 #include <graphlab/schedulers/round_robin_scheduler.hpp>
 #include <graphlab/macros_def.hpp>
+#define NDEBUG
 
 int NSAMP =12;
 double EPSILON =1e-5;
@@ -98,14 +99,6 @@ double damping = 0.90;
 
 /** Construct denoising ising model based on the image */
 
-/**
- * The core belief propagation update function.  This update satisfies
- * the graphlab update_function interface.
- */
-void bp_update(gl_types::iscope& scope,
-               gl_types::icallback& scheduler,
-               gl_types::ishared_data* shared_data);
-
 
 
 // Implementations
@@ -122,7 +115,7 @@ void bp_update(gl_types::iscope& scope,
   // Get the vertex data
   vertex_data& v_data = scope.vertex_data();
   graphlab::vertex_id_t vid = scope.vertex();
-  if (debug && vid%100 == 0){
+  if (debug && vid%1000000 == 0){
      std::cout<<"Entering node " << (int)vid << " obs: ";
      v_data.obs.matlab_print();
      std::cout << std::endl;
@@ -183,7 +176,7 @@ void bp_update(gl_types::iscope& scope,
 
    //compute belief
    if (v_data.rounds == MAX_ITERATIONS){
-	if (debug && vid%100 == 0)
+	if (debug && vid%1000000 == 0)
 	   printf("computing belief node %d\n", vid);
 
       std::vector<kde> kdes;
@@ -500,7 +493,8 @@ int main(int argc, char** argv) {
   img.save("pred.pgm", false, 0, 2);
   trueimg.save("true.pgm", false, 0, 2);
   double mae = mean(abs(pred - truey));
-  std::cout << "Mean absolute error: " << mae << std::endl;
+  double rmse = mean(elem_mult(pred-truey,pred-truey));
+  std::cout << "MAE: " << mae << " RMSE: "<< rmse<<std::endl;
   
   if (logfile.length() != 0) {
     ofstream fout;

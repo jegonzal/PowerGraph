@@ -284,7 +284,7 @@ namespace graphlab {
       //   printf("Linear: Sorted in %2.4lf secs\n", t.current_time());
       	  
       // } else {
-      printf("Linear: No special order...%u\n", (unsigned int) numvertices);
+      //      printf("Linear: No special order...%u\n", (unsigned int) numvertices);
       /* No order */
       for(vertex_id_t i=0; i<numvertices; i++) {
         v_to_int[i] = i;

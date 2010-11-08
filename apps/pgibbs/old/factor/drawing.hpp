@@ -59,10 +59,7 @@ void draw_asg(const graph_type& graph,
               size_t rows, size_t cols) {
   image img(rows, cols);
   for(size_t v = 0; v < graph.num_vertices(); ++v)  {
-    assignment_t asg = graph.vertex_data(v).asg;
-    assert(asg.num_vars() == 1);
-    img.pixel(v) = asg.asg(v); 
-
+    img.pixel(v) = graph.vertex_data(v).asg;
   }
   img.save(filename.c_str());
 } // End of draw_beliefs

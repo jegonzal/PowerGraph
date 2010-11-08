@@ -144,7 +144,7 @@ struct denoise_problem {
     if(corruption == "gaussian") 
       noisy.gaussian_corrupt(sigma);
     else if(corruption == "flip")
-      noisy.flip_corrupt(num_rings, 0.5);
+      noisy.flip_corrupt(num_rings, 0.75);
     else if(corruption == "ising") 
       noisy = image(rows, cols);
     else {

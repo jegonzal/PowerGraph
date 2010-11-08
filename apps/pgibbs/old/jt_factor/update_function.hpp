@@ -12,50 +12,6 @@
 #include <graphlab/macros_def.hpp>
 
 
-pthread_key_t ufun_tls_key;
-struct ufun_tls {
-  factor_t cavity;
-  factor_t conditional_factor;
-  factor_t belief;
-  factor_t tmp_belief;
-};
-
-
-ufun_tls* create_ufun_tls() {
-  assert(pthread_getspecific(ufun_tls_key) == NULL);
-  ufun_tls* data = new ufun_tls();
-  assert(data != NULL);
-  pthread_setspecific(ufun_tls_key, data);
-  return data;
-}
-
-ufun_tls& get_ufun_tls() {
-  ufun_tls* tls =
-    reinterpret_cast<ufun_tls*>
-    (pthread_getspecific(ufun_tls_key) );
-  // If no tsd be has been associated, create one
-  if(tls == NULL) tls = create_ufun_tls();
-  assert(tls != NULL);
-  return *tls;
-}
-
-void destroy_ufun_tls(void* ptr) {
-  ufun_tls* tls = 
-    reinterpret_cast<ufun_tls*>(ptr);
-  if(tls != NULL) delete tls;
-
-}
-
-
-struct ufun_tls_key_creater {
-  ufun_tls_key_creater( )  {
-    pthread_key_create(&ufun_tls_key,
-                       destroy_ufun_tls);
-  }
-};
-static const ufun_tls_key_creater make_ufun_tls_key;
-
-
 namespace junction_tree{
   enum SDT_KEYS {FACTOR_KEY, MRF_KEY};
 
@@ -137,7 +93,8 @@ namespace junction_tree{
           const mrf::vertex_data& mrf_vdata = 
             mrf.vertex_data(conditional_args.var(i).id);
           assert(mrf_vdata.tree_id == NULL_VID);
-          conditional_asg &= mrf_vdata.asg;         
+          conditional_asg &= 
+	    assignment_t(mrf_vdata.variable, mrf_vdata.asg);         
         }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
@@ -331,7 +288,7 @@ namespace junction_tree{
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
-          mrf_vdata.asg = sample_asg.restrict(var);
+          mrf_vdata.asg = sample_asg.restrict(var).asg_at(0);
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
@@ -364,7 +321,8 @@ namespace junction_tree{
 
 
 
-
+  // double levine_score(factor_t rb1, factor_t rb2) {
+  // } // levine score 
 
 
 
@@ -425,7 +383,8 @@ namespace junction_tree{
           const mrf::vertex_data& mrf_vdata = 
             mrf.vertex_data(conditional_args.var(i).id);
           assert(mrf_vdata.tree_id == NULL_VID);
-          conditional_asg &= mrf_vdata.asg;         
+          conditional_asg &= 
+	    assignment_t(mrf_vdata.variable, mrf_vdata.asg);         
         }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
@@ -588,11 +547,11 @@ namespace junction_tree{
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
           assignment_t local_asg = sample_asg.restrict(var);
-          if(mrf_vdata.asg != local_asg) {
+          if(mrf_vdata.asg != local_asg.asg_at(0)) {
             mrf_vdata.changes++;
             vdata.changes++;
           }
-          mrf_vdata.asg = local_asg;
+          mrf_vdata.asg = local_asg.asg_at(0);
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
@@ -601,8 +560,7 @@ namespace junction_tree{
           mrf_vdata.height = 0;
           
           // double& logP = mrf_vdata.belief.logP(mrf_vdata.asg.asg_at(0));
-          // logP = std::log( std::exp(logP) + 1.0 );
-          
+          // logP = std::log( std::exp(logP) + 1.0 );          
         } 
       } // end of sampling unsampled variables
 

@@ -22,7 +22,7 @@
 #include <cassert>
 
 
-
+#include <boost/unordered_set.hpp>
 // Including Standard Libraries
 
 #include <graphlab.hpp>
@@ -45,6 +45,68 @@ typedef factor_t::assignment_type       assignment_t;
 // Represents a null VID in the tree
 const vertex_id_t NULL_VID = -1;
 const edge_id_t NULL_EID = -1;
+
+
+
+
+
+
+
+pthread_key_t ufun_tls_key;
+struct ufun_tls {
+  factor_t cavity;
+  factor_t conditional_factor;
+  factor_t belief;
+  factor_t tmp_belief;
+};
+
+
+ufun_tls* create_ufun_tls() {
+  assert(pthread_getspecific(ufun_tls_key) == NULL);
+  ufun_tls* data = new ufun_tls();
+  assert(data != NULL);
+  pthread_setspecific(ufun_tls_key, data);
+  return data;
+}
+
+ufun_tls& get_ufun_tls() {
+  ufun_tls* tls =
+    reinterpret_cast<ufun_tls*>
+    (pthread_getspecific(ufun_tls_key) );
+  // If no tsd be has been associated, create one
+  if(tls == NULL) tls = create_ufun_tls();
+  assert(tls != NULL);
+  return *tls;
+}
+
+void destroy_ufun_tls(void* ptr) {
+  ufun_tls* tls = 
+    reinterpret_cast<ufun_tls*>(ptr);
+  if(tls != NULL) delete tls;
+
+}
+
+
+struct ufun_tls_key_creater {
+  ufun_tls_key_creater( )  {
+    pthread_key_create(&ufun_tls_key,
+                       destroy_ufun_tls);
+  }
+};
+static const ufun_tls_key_creater make_ufun_tls_key;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 std::string make_filename(const std::string& base,
@@ -70,9 +132,10 @@ namespace mrf {
   struct vertex_data {
     // Problem specific variables
     variable_t     variable;
-    assignment_t   asg;
+    size_t         asg;
     std::set<vertex_id_t> factor_ids;
     factor_t       belief;
+    factor_t       old_rb;
     size_t         updates;
     size_t         changes;
 
@@ -80,23 +143,28 @@ namespace mrf {
     vertex_id_t    tree_id;
     vertex_id_t    height;
 
+    double priority;
+
     vertex_data() : updates(0), 
                     changes(0),
                     in_tree(false), 
                     tree_id(NULL_VID),
-                    height(0) { }
+                    height(0),
+                    priority(-1) { }
 
     vertex_data(const variable_t& variable,
                 const std::set<vertex_id_t>& factor_ids) :
       variable(variable),
-      asg(variable, std::rand() % variable.arity),
+      asg( graphlab::random::rand_int(variable.arity - 1) ),
       factor_ids(factor_ids),
       belief(domain_t(variable)),
+      old_rb(domain_t(variable)),
       updates(0),
       changes(0),
       in_tree(false),
       tree_id(NULL_VID),
-      height(0) {    // Set the belief to uniform 0
+      height(0),
+      priority(-1) {    // Set the belief to uniform 0
       belief.uniform(-std::numeric_limits<double>::max());
       assert(!factor_ids.empty());
     }
@@ -166,7 +234,7 @@ namespace mrf {
     std::ofstream fout(filename.c_str());
     graphlab::unary_factor marginal;
     for(size_t v = 0; v < graph.num_vertices(); ++v) 
-      fout << graph.vertex_data(v).asg.asg(v) << '\n';
+      fout << graph.vertex_data(v).asg << '\n';
     fout.close();
   } // End of save beliefs
 
@@ -463,9 +531,31 @@ private:
 void construct_mrf(const factorized_model& model,
                    mrf::graph_type& graph) {
   // Add all the variables
+  factor_t conditional, belief;
   foreach(variable_t variable, model.variables()) {
     mrf::vertex_data vdata(variable, model.factor_ids(variable));
-    vdata.asg.uniform_sample();
+    {
+      assignment_t asg(vdata.variable);
+      asg.uniform_sample();
+      vdata.asg = asg.asg_at(0);
+      double& logP = vdata.belief.logP(vdata.asg);
+      logP = log(exp(logP) + 1.0);
+    }
+    // {
+    //   belief.set_args(variable);
+    //   belief.uniform();
+    //   conditional.set_args(variable);
+    //   const std::set<vertex_id_t>& factor_ids = model.factor_ids(variable);
+    //   foreach(vertex_id_t fid, factor_ids) {
+    // 	conditional.marginalize(model.factors()[fid]);
+    // 	belief *= conditional;
+    //   }
+    //   belief.normalize();
+    //   assignment_t asg = belief.sample();
+    //   vdata.asg = asg.asg_at(0);
+    //   double& logP = vdata.belief.logP(vdata.asg);
+    //   logP = log(exp(logP) + 1.0);
+    // }
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).
@@ -513,6 +603,7 @@ namespace junction_tree {
     bool calibrated;
     bool sampled;
     std::set<vertex_id_t> factor_ids;
+    // boost::unordered_set<vertex_id_t> factor_ids;
     factor_t factor;
     assignment_t asg;
     size_t changes;
