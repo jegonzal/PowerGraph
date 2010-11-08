@@ -134,6 +134,7 @@ struct mrf_edge_data {
 // define the graph type:
 typedef graphlab::graph< mrf_vertex_data, mrf_edge_data> mrf_graph_type;
 
+typedef graplab::types<mrf_graph_type> mrg_gl;
 
 
 
