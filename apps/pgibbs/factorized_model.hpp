@@ -40,7 +40,7 @@ typedef graphlab::variable              variable_t;
 typedef graphlab::table_factor<MAX_DIM> factor_t;
 typedef factor_t::domain_type           domain_t;
 typedef factor_t::assignment_type       assignment_t;
-o
+
 
 // Represents a null VID in the tree
 const vertex_id_t NULL_VID = -1;
