@@ -144,7 +144,7 @@ bool extend_jtree_list(const vertex_id_t elim_vertex,
     const bool is_in_jtree = 
       jt_list.elim_time.find(vid) != jt_list.elim_time.end();
     // if the neighbor is in the set of vertices being eliminated
-    if(in_in_jtree) {      
+    if(is_in_jtree) {      
       clique.vertices += vid;
       factor_size *= 
         std::max(mrf.vertex_data(vid).variable.arity, uint32_t(1) );
@@ -167,7 +167,7 @@ bool extend_jtree_list(const vertex_id_t elim_vertex,
   vertex_set rip_verts = clique.vertices;
   for(vertex_id_t parent_vid = clique.parent; 
       !rip_verts.empty() && parent_vid < jt_list.cliques.size(); ) {
-    const elim_clique& parent_clique = jt_list.cliques[parent_vid];    
+    const jtree_list::elim_clique& parent_clique = jt_list.cliques[parent_vid];    
     
     // Remove the parent vertex
     rip_verts -= parent_clique.elim_vertex;
@@ -220,7 +220,7 @@ bool extend_jtree_list(const vertex_id_t elim_vertex,
   for(vertex_id_t parent_vid = clique.parent; 
       !rip_verts.empty() && parent_vid < jt_list.cliques.size(); ) {
     // get the parent clique
-    elim_clique& parent_clique = jt_list.cliques[parent_vid];       
+    jtree_list::elim_clique& parent_clique = jt_list.cliques[parent_vid];       
 
     // otherwise update that the rip_verts
     rip_verts -= parent_clique.elim_vertex;
@@ -281,7 +281,7 @@ void jtree_list_to_jtree_graph(const jtree_list& jt_list,
   {  // Construct the junction tree
     // Ensure that the parent of the root is identifiable
     assert(jt_list.cliques.front().parent == NULL_VID); 
-    foreach(const elim_clique& clique, jt_list.cliques) {      
+    foreach(const jtree_list::elim_clique& clique, jt_list.cliques) {      
       const mrf_vertex_data& elim_vertex_vdata = 
         mrf.vertex_data(clique.elim_vertex);
       // Create the vertex data
@@ -316,11 +316,10 @@ void jtree_list_to_jtree_graph(const jtree_list& jt_list,
   { // Assign factors 
     // Very important that these be assigned in reverse order
     size_t jt_vid = jt_graph.num_vertices() - 1;
-    rev_foreach(const elim_clique& clique, jt_list.cliques) {
+    rev_foreach(const jtree_list::elim_clique& clique, jt_list.cliques) {
       assert(jt_vid < jt_graph.num_vertices());
       jtree_vertex_data& jt_vdata = jt_graph.vertex_data(jt_vid--);
-      const mrf_vertex_data& mrf_vdata = 
-        mrf.vertex_data(clique.elim_vertex);
+      const mrf_vertex_data& mrf_vdata = mrf.vertex_data(clique.elim_vertex);
       foreach(factor_id_t fid, mrf_vdata.factor_ids) {
         if(!assigned_factors[fid]) {
           jt_vdata.factor_ids.push_back(fid);

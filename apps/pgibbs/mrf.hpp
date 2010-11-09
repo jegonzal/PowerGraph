@@ -34,6 +34,13 @@
 
 #include <graphlab/macros_def.hpp>
 
+enum mrf_sdt_keys {
+  NSAMPLES_ID = 0,
+  MAX_NSAMPLES_ID = 1,
+  NUM_FACTORS_KEY = 99,
+  FACTOR_OFFSET = 100,
+};
+
 
 struct mrf_vertex_data {
   //! Problem specific variables
@@ -83,7 +90,7 @@ struct mrf_vertex_data {
   mrf_vertex_data() :
     asg(0),
     nsamples(0),
-    nchagnes(0) { }
+    nchanges(0) { }
 
   mrf_vertex_data(const variable_t& variable,
                   const std::set<factor_id_t>& factor_ids_set) :
@@ -134,15 +141,7 @@ struct mrf_edge_data {
 // define the graph type:
 typedef graphlab::graph< mrf_vertex_data, mrf_edge_data> mrf_graph_type;
 
-typedef graplab::types<mrf_graph_type> mrg_gl;
-
-
-
-
-
-
-
-
+typedef graphlab::types<mrf_graph_type> mrf_gl;
 
 
 
@@ -153,10 +152,10 @@ void save_beliefs(const mrf_graph_type& mrf,
   fout.precision(16);
   factor_t marginal;
   for(size_t v = 0; v < mrf.num_vertices(); ++v) {
-    const vertex_data& vdata = mrf.vertex_data(v);
+    const mrf_vertex_data& vdata = mrf.vertex_data(v);
     marginal = vdata.belief;
     marginal.normalize();
-    fout << vdata.updates << '\t';
+    fout << vdata.nsamples << '\t';
     size_t arity = marginal.args().var(0).arity;
     for(size_t asg = 0; asg < arity; ++asg) {
       fout << std::exp( marginal.logP(asg) );
@@ -169,55 +168,43 @@ void save_beliefs(const mrf_graph_type& mrf,
 
 
 
+void save_asg(const mrf_graph_type& mrf,
+              const std::string& filename) {
+  std::ofstream fout(filename.c_str());
+  for(size_t v = 0; v < mrf.num_vertices(); ++v) 
+    fout << mrf.vertex_data(v).asg << '\n';
+  fout.close();
+} // End of save beliefs
 
 
 
 
 
+//! look up a factor from the shared data table
+const factor_t& get_factor(const mrf_gl::ishared_data& shared_data,
+                           const factor_id_t factor_id) {
+  return shared_data.get_constant(FACTOR_OFFSET + factor_id).as<factor_t>();
+}
 
 
-
-
-//! Compute the unormalized likelihood of the current assignment
-double unnormalized_loglikelihood(const mrf_graph_type& graph,
-                                  const std::vector<factor_t>& factors) {
-  double sum = 0;
-  // Sum the logprob of each factor
-  foreach(const factor_t& factor, factors) {
-    // Accumulate the assignments 
-    domain_t dom = factor.args();
-    assignment_t asg;
-    for(size_t i = 0; i < dom.num_vars(); ++i) {
-      const vertex_id_t vid = dom.var(i).id;
-      const mrf::vertex_data& vdata = graph.vertex_data(vid);
-      assert(vdata.variable == dom.var(i));
-      asg &= assignment_t(vdata.variable, vdata.asg);
-    }
-    sum += factor.logP(asg);
-  }
-  return sum;
+//! look up a factor from the shared data table
+size_t get_num_factors(const mrf_gl::ishared_data& shared_data) {
+  return shared_data.get_constant(NUM_FACTORS_KEY).as<size_t>();
 }
 
 
 
 
 
-
-
-
-
-
-
-
 /** Construct an MRF from the factorized model */
-void mrf_from_factorized_model(const factorized_model& model,
-                               mrf_graph_type& mrf) {
-  
+void mrf_core_from_factorized_model(const factorized_model& model,
+                                    mrf_gl::core& core) {
+  mrf_graph_type& mrf(core.graph());
   ///======================================================================
   // Add all the variables
   factor_t conditional, belief;
   foreach(variable_t variable, model.variables()) {
-    mrf::vertex_data vdata(variable, model.factor_ids(variable));
+    mrf_vertex_data vdata(variable, model.factor_ids(variable));
     { // Construct a uniformly random initial assignment
       assignment_t asg(vdata.variable);
       asg.uniform_sample();
@@ -249,7 +236,7 @@ void mrf_from_factorized_model(const factorized_model& model,
 
   ///======================================================================
   // Add all the edges
-  const std::vector<factor_t>& factors = model.factors();
+  const factorized_model::factor_map_t& factors(model.factors());
   for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
     const mrf_vertex_data& vdata = mrf.vertex_data(vid);
     // Compute all the neighbors of this vertex by looping over all
@@ -267,12 +254,52 @@ void mrf_from_factorized_model(const factorized_model& model,
     // that variable
     foreach(const variable_t neighbor_variable, neighbors) {
       const vertex_id_t neighbor_vid = neighbor_variable.id;
-      mrf::edge_data edata;
+      mrf_edge_data edata;
       mrf.add_edge(vid, neighbor_vid, edata);      
     }
   } // loop over factors
   mrf.finalize();
+
+  ///======================================================================
+  // Add all the factors
+  mrf_gl::ishared_data_manager& shared_data(core.shared_data());
+  // record the number of factors
+  shared_data.set_constant(NUM_FACTORS_KEY, size_t(factors.size()));
+  // record all the factors
+  for(size_t i = 0; i < factors.size(); ++i) {
+    shared_data.set_constant(FACTOR_OFFSET + i, factors[i]);
+  }
 } // End of construct_mrf
+
+
+
+
+
+
+//! Compute the unormalized likelihood of the current assignment
+double unnormalized_loglikelihood(const mrf_gl::core& core) {
+  double sum = 0;
+  const mrf_graph_type& mrf(core.graph());
+  const mrf_gl::ishared_data& shared_data(core.shared_data());
+  size_t num_factors = get_num_factors(shared_data);
+  // Sum the logprob of each factor
+  for(factor_id_t fid = 0; fid < num_factors; ++fid) {
+    const factor_t& factor(get_factor(shared_data, fid));
+    // Accumulate the assignments 
+    domain_t dom = factor.args();
+    assignment_t asg;
+    for(size_t i = 0; i < dom.num_vars(); ++i) {
+      const vertex_id_t vid = dom.var(i).id;
+      const mrf_vertex_data& vdata = mrf.vertex_data(vid);
+      assert(vdata.variable == dom.var(i));
+      asg &= assignment_t(vdata.variable, vdata.asg);
+    }
+    sum += factor.logP(asg);
+  }
+  return sum;
+}
+
+
 
 
 

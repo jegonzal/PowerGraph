@@ -23,8 +23,7 @@ void single_gibbs_update(mrf_gl::iscope& scope,
   factor_t belief(vdata.variable);
   belief.uniform();
   foreach(const factor_id_t factor_id, vdata.factor_ids) {
-    const factor_t& factor =
-      shared_data->get_constant(FACTOR_ID + factor_id).as<factor_t>();
+    const factor_t& factor(get_factor(*shared_data, factor_id));
     // build the conditional
     assignment_t conditional_asg = factor.args() - vdata.variable;
     for(size_t i = 0; i < conditional_asg.num_vars(); ++i) {
