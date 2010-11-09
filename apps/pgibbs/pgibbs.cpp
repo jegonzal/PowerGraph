@@ -42,7 +42,7 @@
 #include "mrf.hpp"
 #include "junction_tree.hpp"
 #include "chromatic_sampler.hpp"
-
+#include "jt_splash_sampler.hpp"
 
 
 

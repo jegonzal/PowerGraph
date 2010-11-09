@@ -30,6 +30,13 @@ void save_beliefs(const mrf_graph_type& mrf,
 
 
 
+
+
+
+
+
+
+
 void save_asg(const mrf_graph_type& mrf,
               const std::string& filename) {
   std::ofstream fout(filename.c_str());
@@ -37,6 +44,13 @@ void save_asg(const mrf_graph_type& mrf,
     fout << mrf.vertex_data(v).asg << '\n';
   fout.close();
 } // End of save beliefs
+
+
+
+
+
+
+
 
 
 /** Construct an MRF from the factorized model */
@@ -106,13 +120,17 @@ void mrf_core_from_factorized_model(const factorized_model& model,
   ///======================================================================
   // Add all the factors
   mrf_gl::ishared_data_manager& shared_data(core.shared_data());
-  // record the number of factors
-  shared_data.set_constant(NUM_FACTORS_KEY, size_t(factors.size()));
-  // record all the factors
-  for(size_t i = 0; i < factors.size(); ++i) {
-    shared_data.set_constant(FACTOR_OFFSET + i, factors[i]);
-  }
+  shared_data.set_constant(FACTOR_MAP_KEY, &factors);
 } // End of construct_mrf
+
+
+
+
+
+
+
+
+
 
 
 
@@ -139,6 +157,17 @@ double unnormalized_loglikelihood(const mrf_gl::core& core) {
   }
   return sum;
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 void draw_mrf(const size_t experiment_id,

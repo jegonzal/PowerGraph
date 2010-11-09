@@ -27,10 +27,9 @@
 #include "factorized_model.hpp"
 
 enum mrf_sdt_keys {
-  NSAMPLES_ID = 0,
-  MAX_NSAMPLES_ID = 1,
-  NUM_FACTORS_KEY = 99,
-  FACTOR_OFFSET = 100,
+  NSAMPLES_KEY = 0,
+  MAX_NSAMPLES_KEY = 1,
+  FACTOR_MAP_KEY = 3
 };
 
 
@@ -148,16 +147,27 @@ void save_asg(const mrf_graph_type& mrf,
 
 
 
+inline const factorized_model::factor_map_t& 
+get_factor_map(const mrf_gl::ishared_data& shared_data) {
+  typedef factorized_model::factor_map_t factor_map_t;
+  const factor_map_t* fmap_ptr =  
+    shared_data.get_constant(FACTOR_MAP_KEY).as<const factor_map_t*>();
+  assert(fmap_ptr != NULL);
+  return *fmap_ptr;
+}
+
+
+
 //! look up a factor from the shared data table
 inline const factor_t& get_factor(const mrf_gl::ishared_data& shared_data,
                                   const factor_id_t factor_id) {
-  return shared_data.get_constant(FACTOR_OFFSET + factor_id).as<factor_t>();
+  return get_factor_map(shared_data)[factor_id];
 }
 
 
 //! look up a factor from the shared data table
 inline size_t get_num_factors(const mrf_gl::ishared_data& shared_data) {
-  return shared_data.get_constant(NUM_FACTORS_KEY).as<size_t>();
+  return get_factor_map(shared_data).size();
 }
 
 

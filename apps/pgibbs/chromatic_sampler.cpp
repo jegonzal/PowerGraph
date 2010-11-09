@@ -40,8 +40,8 @@ void single_gibbs_update(mrf_gl::iscope& scope,
 bool nsamples_terminator(const mrf_gl::ishared_data* shared_data) {
   assert(shared_data != NULL);
   const size_t& max_nsamples =
-    shared_data->get_constant(MAX_NSAMPLES_ID).as<size_t>();
-  size_t nsamples = shared_data->get(NSAMPLES_ID).as<size_t>();
+    shared_data->get_constant(MAX_NSAMPLES_KEY).as<size_t>();
+  size_t nsamples = shared_data->get(NSAMPLES_KEY).as<size_t>();
   bool terminate = nsamples >= max_nsamples;
   if(terminate) {
     //     std::cout << "Termination condition reached" << std::endl;

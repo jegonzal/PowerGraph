@@ -18,6 +18,8 @@ add_executable(pgibbs
   factorized_model.cpp
   mrf.cpp
   junction_tree.cpp
+  jt_splash_sampler.cpp
+  pgibbs_tls.cpp
   )
 
 

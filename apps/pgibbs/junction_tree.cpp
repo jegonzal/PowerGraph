@@ -158,7 +158,6 @@ void jtree_list_to_jtree_graph(const jtree_list& jt_list,
                                const mrf_graph_type& mrf,
                                const size_t num_factors,
                                jtree_graph_type& jt_graph) {
-  
   //! Todo: Turn this into stack allocated boolean vector
   std::vector<bool> assigned_factors(num_factors, false);
   
@@ -214,6 +213,24 @@ void jtree_list_to_jtree_graph(const jtree_list& jt_list,
     }
   }
 } // end of build junction tree
+
+
+
+
+
+void set_factor_map(const factorized_model::factor_map_t& factors,
+                    jtree_gl::ishared_data_manager& shared_data_manager) {
+  shared_data_manager.set_constant(JTREE_FACTOR_MAP_KEY, &factors);
+}
+
+void set_mrf_graph(mrf_graph_type& mrf_graph,
+                   jtree_gl::ishared_data_manager& shared_data_manager) {
+  shared_data_manager.set_constant(JTREE_MRF_GRAPH_KEY, &mrf_graph);
+}
+
+
+
+
 
 
 #include <graphlab/macros_undef.hpp>
