@@ -479,6 +479,10 @@ namespace graphlab {
         result._asgs[k] = 
           (result.args().var(k) == args().var(i))?
           asg_at(i) : other.asg_at(j);
+        // if the variables are the same then the assignments must
+        // also be the same
+        assert(!(args().var(i) == other.args().var(j)) ||
+               (asg_at(i) == other.asg_at(j)));               
         // move indexs
         i += (args().var(i) == result.args().var(k));
         j += (other.args().var(j) == result.args().var(k));
@@ -948,8 +952,8 @@ namespace graphlab {
         for(assignment_type xasg = args().begin(); 
             xasg < args().end(); ++xasg) {
           assignment_type joint = xasg & asg;
-          //          assert(joint.args() == other.args());
-          logP(xasg.linear_index()) += other.logP(joint);        
+          assert(joint.args() == other.args());
+          logP(xasg.linear_index()) += other.logP(joint.linear_index());        
         }
       }
     }

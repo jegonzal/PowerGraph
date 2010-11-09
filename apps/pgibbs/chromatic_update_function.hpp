@@ -18,7 +18,6 @@ void single_gibbs_update(mrf_gl::iscope& scope,
                          mrf_gl::ishared_data* shared_data) {
   assert(shared_data != NULL);
   mrf_vertex_data& vdata = scope.vertex_data();
-
   //TODO: switch to use tls
   factor_t belief(vdata.variable);
   belief.uniform();
@@ -30,18 +29,16 @@ void single_gibbs_update(mrf_gl::iscope& scope,
       const mrf_vertex_data& other_vdata = 
 	scope.const_neighbor_vertex_data(conditional_asg.args().var(i).id);
       assert(conditional_asg.args().var(i) == other_vdata.variable);
-      conditional_asg &= 
-	assignment_t(other_vdata.variable, other_vdata.asg);
+      conditional_asg.set_asg_at(i, other_vdata.asg);
     }
     belief.times_condition(factor, conditional_asg);
-    belief.normalize();
   }
+  belief.normalize();
   size_t new_asg = belief.sample().asg_at(0);
   vdata.nchanges += (new_asg != vdata.asg);
   vdata.asg = new_asg;
   vdata.belief += belief;
-  vdata.nsamples++;
-  
+  vdata.nsamples++;  
 }
 
 
