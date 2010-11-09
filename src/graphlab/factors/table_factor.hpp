@@ -614,9 +614,11 @@ namespace graphlab {
           i < num_vars() && j < other.num_vars(); ) {
         if(_args.var(i) == other._args.var(j)) {
           _asgs[i] = other._asgs[j]; i++; j++;
-        } else {
-          if(_args.var(i) < other._args.var(j)) i++; else j++;
         }
+        while(i < num_vars() &&
+              _args.var(i) < other.args().var(j)) i++;
+        while(j < other.num_vars() && 
+              other.args().var(j) < _args.var(i)) j++;
       }
       recompute_linear_index();
     }
