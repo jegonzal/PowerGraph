@@ -15,8 +15,9 @@ add_executable(pgibbs
   image.cpp
   chromatic_sampler.cpp 
   util.cpp 
-  mrf.cpp
   factorized_model.cpp
+  mrf.cpp
+  junction_tree.cpp
   )
 
 
