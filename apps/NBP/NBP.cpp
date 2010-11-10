@@ -30,11 +30,11 @@
 #include <cfloat>
 //#include <graphlab/graph/graph.hpp>
 
-#include <graphlab/schedulers/round_robin_scheduler.hpp>
+//#include <graphlab/schedulers/round_robin_scheduler.hpp>
 #include <graphlab/macros_def.hpp>
 #define NDEBUG
 
-int NSAMP =12;
+int NSAMP =6; //TODO
 double EPSILON =1e-5;
 int RESAMPLE_FREQUENCY = 0;
 int MAX_ITERATIONS = 2;
