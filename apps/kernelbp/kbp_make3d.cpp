@@ -24,7 +24,7 @@
 
 // Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>
-
+using namespace graphlab;
 using namespace itpp;
 using namespace std;
 
@@ -141,11 +141,11 @@ int main(int argc, char** argv) {
 
   // Create the engine -------------------------------------------------------->
   gl_types::iengine* engine =
-    graphlab::engine_factory::new_engine("threaded",
-                                         "fifo",
+    graphlab::engine_factory::new_engine("async",
+                                         "sweep",
                                          "edge",
                                          graph,
-                                         1);
+                                         8);
   if(engine == NULL) {
     std::cout << "Unable to construct engine!" << std::endl;
     return EXIT_FAILURE;
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
   engine->start();
 
   double runtime = timer.current_time();
-  size_t update_count = engine->get_profiling_info("update_count");
+  size_t update_count = engine->last_update_count();
   std::cout << "Finished Running engine in " << runtime
             << " seconds." << std::endl
             << "Total updates: " << update_count << std::endl
@@ -184,7 +184,8 @@ int main(int argc, char** argv) {
 	  const vertex_data& vdata = graph.vertex_data(v);
 	  pred(v) = testy(max_index(vdata.belief));
   }
-  std::cout << "Mean absolute error: " << mean(abs(pred - truey)) << std::endl;
+  double err = mean(abs(pred - truey));
+  std::cout << "Mean absolute error: " << err << std::endl;
 
   delete [] pUud;
   delete [] pUdu;
@@ -194,6 +195,21 @@ int main(int argc, char** argv) {
   std::cout << "Done!" << std::endl;
 
   if(engine != NULL) delete engine;
+
+  std::string logfile = "";
+  if (argc > 2) logfile = argv[2];
+  if (logfile.length() != 0) {
+    ofstream fout;
+    fout.open(logfile.c_str(), ios::app);
+    std::string gmmfile = argv[1];
+    gmmfile = gmmfile.rfind("/") == std::string::npos ?
+                                       gmmfile:
+                                       gmmfile.substr(gmmfile.rfind("/")+1);
+
+    fout << "kbp\t" << gmmfile << "\t" << 0 << "\t" << 0 << "\t" << err << "\t" << runtime << std::endl;
+    fout.close();
+  }
+  
 
   return EXIT_SUCCESS;
 } // End of main
@@ -214,9 +230,9 @@ void bp_update(gl_types::iscope& scope,
   v_data.belief = belief0.get_col(vid);
 
   // Get the in and out edges by reference
-  const std::vector<graphlab::edge_id_t>& in_edges =
+  const graphlab::edge_list& in_edges =
     scope.in_edge_ids();
-  const std::vector<graphlab::edge_id_t>& out_edges =
+  const graphlab::edge_list& out_edges =
     scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 

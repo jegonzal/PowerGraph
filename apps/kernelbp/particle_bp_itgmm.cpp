@@ -71,12 +71,14 @@ struct vertex_data: public graphlab::unsupported_serialize {
   uint rounds;
   GaussianMixture<1> p;
   float vertexpot(float x) const {
-    return p.likelihood(x);
+    //return p.likelihood(x);
+    return exp(-(x - obs)*(x-obs)/ (2 * 30 * 30));
   }
 
   float log_vertexpot(float x) const {
-    return std::log(p.likelihood(x));
+    return -(x - obs)*(x-obs)/ (2 * 30 * 30);
   }
+
 
   float average() const {
     float v = 0;
@@ -389,8 +391,12 @@ void construct_graph(image& img,
 
       // Set the node potential
       vdat.obs = img.pixel(i,j);
-      vdat.p = gmm_conditional<2>()(nodepot, 1, vdat.obs);
-      vdat.p.simplify();
+      //vdat.p = gmm_conditional<2>()(nodepot, 1, vdat.obs);
+      vdat.p.gaussians.resize(1);
+      vdat.p.gaussians[0].center=vdat.obs;
+      vdat.p.gaussians[0].sigma=30;
+      vdat.p.gaussians[0].weight=1;
+      //vdat.p.simplify();
       for (size_t n = 0;n < numparticles; ++n) {
         particle p;
         p.x = vdat.p.sample();

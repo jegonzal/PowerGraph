@@ -212,12 +212,9 @@ void bp_update(gl_types::iscope& scope,
   // ---------------------------------------------------------------->
   // Get the vertex data
   vertex_data& v_data = scope.vertex_data();
-  if (v_data.rounds >= MAX_ITERATIONS) return;
-  v_data.rounds++;
-  if (scope.vertex() == 0) {
-    std::cout << "Vertex 0 Round " << v_data.rounds << std::endl;
-  }
-
+  /*if (v_data.rounds >= MAX_ITERATIONS) return;
+  v_data.rounds++; */
+  
   graphlab::vertex_id_t vid = scope.vertex();
 
   vec prod_message = tmp_prod_msg_fobs2.get_col(vid);
@@ -268,6 +265,7 @@ void bp_update(gl_types::iscope& scope,
   cavity.set_size(basisno);
   vec tmp_msg;
   tmp_msg.set_size(msgdim);
+  double residual = 0;
   for(size_t i = 0; i < in_edges.size(); ++i) {
     // Get the edge ids
     graphlab::edge_id_t outeid = out_edges[i];
@@ -292,15 +290,24 @@ void bp_update(gl_types::iscope& scope,
     tmp_msg /= sqrt(sum_sqr(tmp_msg));
 
     // Compute message residual
-    //double residual = sqrt(sum_sqr(tmp_msg - out_edge.old_message));
+    double r = sqrt(sum_sqr(tmp_msg - out_edge.old_message));
 
     // Assign the out message
     out_edge.message = tmp_msg;
+    residual += r;
+    if (r > 1E-2) {
+      gl_types::update_task task(scope.target(outeid), bp_update);
+      scheduler.add_task(task, 1.0);
+    }
   }
-  if (v_data.rounds  < MAX_ITERATIONS) {
+  if (scope.vertex() == 0) {
+    std::cout << "Vertex 0 Residual " << residual << std::endl;
+  }
+
+  /*if (residual < 1E-5) {
     gl_types::update_task task(scope.vertex(), bp_update);
     scheduler.add_task(task, 1.0);
-  }
+  }*/
 } // end of BP_update
 
 void construct_graph(gl_types::graph& graph) {
