@@ -35,11 +35,11 @@ int main(int argc, char** argv) {
   std::string model_filename = "image";
   std::string drawing = "sunset";
   std::string corruption = "gaussian";
-  std::string smoothing = "laplace";
-  double lambda = 2;
+  std::string smoothing = "square";
+  double lambda = 3;
   double sigma = 1;
-  size_t rows = 100;
-  size_t rings = 5;
+  size_t rows = 200;
+  size_t rings = 7;
   
 
 
