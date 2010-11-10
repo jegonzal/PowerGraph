@@ -38,7 +38,7 @@ struct vertex_data {
   float value;
   float self_weight; // GraphLab does not support edges from vertex to itself, so
   // we save weight of vertex's self-edge in the vertex data
-  vertex_data(float value = 1) : value(value), self_weight(1) { }
+  vertex_data(float value = 1) : value(value), self_weight(0) { }
 }; // End of vertex data
 
 
@@ -185,6 +185,13 @@ int main(int argc, char** argv) {
     }
   }
 
+  //Normalize the vertices
+  for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
+    core.graph().vertex_data(i).value = 
+      1.0/core.graph().num_vertices();
+  }
+
+
   // Schedule all vertices to run pagerank update on the
   // first round.
   core.add_task_to_all(pagerank_update, 100.0);
@@ -241,16 +248,19 @@ void make_toy_graph(pagerank_graph& graph) {
   graph.add_edge(2, 0, edge_data(1.0/3));
   graph.add_edge(2, 1, edge_data(1.0/3));
   graph.add_edge(2, 3, edge_data(1.0/3));
+
   graph.add_edge(3, 0, edge_data(0.25));
   graph.add_edge(3, 1, edge_data(0.25));
   graph.add_edge(3, 2, edge_data(0.25));
   graph.add_edge(3, 4, edge_data(0.25));
+
   graph.add_edge(4, 0, edge_data(0.2));
   graph.add_edge(4, 1, edge_data(0.2));
   graph.add_edge(4, 2, edge_data(0.2));
   graph.add_edge(4, 3, edge_data(0.2));
   // and self edge which must be handled specially from 4 to 4
   graph.vertex_data(4).self_weight = 0.2;
+
 } // end of make_toy_graph
 
 
