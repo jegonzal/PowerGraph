@@ -186,9 +186,15 @@ int main(int argc, char** argv) {
   }
 
   //Normalize the vertices
+  double sum = 0;
   for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
     core.graph().vertex_data(i).value = 
-      1.0/core.graph().num_vertices();
+      graphlab::random::rand01() + 1;
+    sum += core.graph().vertex_data(i).value;
+  }
+  for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
+    core.graph().vertex_data(i).value = 
+      core.graph().vertex_data(i).value / sum;
   }
 
 
