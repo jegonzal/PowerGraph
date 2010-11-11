@@ -403,7 +403,8 @@ void create_graph(std::string archivefile,
       g.add_edge(i, adjlist[i][j], edata);
     }
   }
-
+  std::cout << g.num_vertices() << " vertices\n";
+  std::cout << g.num_edges() << " edges" << std::endl;
   g.finalize();
   (*featurearity) = features[0].size();
 }

@@ -27,17 +27,18 @@
 
 using namespace itpp;
 using namespace std;
-const size_t MAX_ITERATIONS = 30;
+
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
   vec message;
   vec old_message;
+  int update_count;
   // vec lfeat_message;
 }; // End of edge data
 
 struct vertex_data: public graphlab::unsupported_serialize {
   vec belief;
-  size_t rounds;
+  int rounds;
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -58,11 +59,9 @@ mat tmp_ftest_pL;
 size_t msgdim;
 size_t basisno;
 size_t testno;
-
+const size_t MAX_ITERATIONS=30;
 mat fobs2;
 ivec img1;
-mat tmp_prod_msg_fobs2;
-mat tmp_ftest_pL_fobs2;
 
 double damping = 0.8;
 
@@ -108,16 +107,14 @@ int main(int argc, char** argv) {
   it_ifile fnoisy(argv[2]);
   fnoisy >> Name("fobs2") >> fobs2;
   fnoisy >> Name("img1") >> img1;
-
-  tmp_prod_msg_fobs2 = tmp_prod_msg * fobs2;
-  tmp_ftest_pL_fobs2 = tmp_ftest_pL * fobs2;
-
+  size_t ncpus = 1;
+  if (argc >= 4) ncpus = atoi(argv[4]);
+  
   // Create the graph --------------------------------------------------------->
   gl_types::graph graph;
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
   construct_graph(graph);
-  size_t ncpus = 1;
-  if (argc > 4) ncpus = atoi(argv[4]);
+
   // Create the engine -------------------------------------------------------->
   gl_types::iengine* engine =
     graphlab::engine_factory::new_engine("async",
@@ -147,6 +144,7 @@ int main(int argc, char** argv) {
   engine->get_scheduler().add_task_to_all(bp_update, 100);
   // Starte the engine
   engine->start();
+
   double runtime = timer.current_time();
   size_t update_count = engine->last_update_count();
   std::cout << "Finished Running engine in " << runtime
@@ -156,13 +154,12 @@ int main(int argc, char** argv) {
             << " updates per second "
             << std::endl;
 
-
   std::cout << "Computing estimation error" << std::endl;
   ivec pred(isize[0]*isize[1]);
   image predimg(isize[0], isize[1]);
   for (size_t v = 0; v < graph.num_vertices(); ++v) {
-	  const vertex_data& vdata = graph.vertex_data(v);
-	  pred(v) = test(max_index(vdata.belief));
+    const vertex_data& vdata = graph.vertex_data(v);
+    pred(v) = test(max_index(vdata.belief));
     predimg.pixel(v) = pred(v);
   }
   std::cout << "Mean absolute error: " << mean(abs(pred - img1)) << std::endl;
@@ -177,7 +174,8 @@ int main(int argc, char** argv) {
   double err = image_compare(trueimg, predimg);
   predimg.save("result.pgm");
   std::cout << "RMSE: " << err << std::endl;
-  std::string logfile;
+  
+    std::string logfile;
   if (argc > 3) logfile = argv[3];
   if (logfile.length() != 0) {
     ofstream fout;
@@ -191,11 +189,11 @@ int main(int argc, char** argv) {
                                        inputfile:
                                        inputfile.substr(inputfile.rfind("/")+1);
 
-    fout << "kbp\t" << gmmfile << "\t" << inputfile << "\t" << 0 << "\t" << 0 << "\t" << err << "\t" << runtime << std::endl;
+    fout << "kbplinear\t" << gmmfile << "\t" << inputfile << "\t" << 0 << "\t" << 0 << "\t" << err << "\t" << runtime << std::endl;
     fout.close();
   }
-  
 
+  
   std::cout << "Done!" << std::endl;
 
   if(engine != NULL) delete engine;
@@ -208,26 +206,27 @@ int main(int argc, char** argv) {
 void bp_update(gl_types::iscope& scope,
                gl_types::icallback& scheduler,
                gl_types::ishared_data* shared_data) {
+  vertex_data& v_data = scope.vertex_data();
+  graphlab::vertex_id_t vid = scope.vertex();
+
+
+  if (v_data.rounds >= MAX_ITERATIONS) return;
+  v_data.rounds++;
+  if (scope.vertex() == 0) {
+    std::cout << "Vertex 0 Round " << v_data.rounds << std::endl;
+  }
+
   // Grab the state from the scope
   // ---------------------------------------------------------------->
   // Get the vertex data
-  vertex_data& v_data = scope.vertex_data();
-<<<<<<< local
-  if (v_data.rounds >= MAX_ITERATIONS) return;
-  v_data.rounds++; 
-=======
-  /*if (v_data.rounds >= MAX_ITERATIONS) return;
-  v_data.rounds++; */
->>>>>>> other
-  
-  graphlab::vertex_id_t vid = scope.vertex();
-
-  vec prod_message = tmp_prod_msg_fobs2.get_col(vid);
-  v_data.belief = tmp_ftest_pL_fobs2.get_col(vid);
+	vec prod_message = tmp_prod_msg * fobs2.get_col(vid);
+	v_data.belief = tmp_ftest_pL * fobs2.get_col(vid);
 
   // Get the in and out edges by reference
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
+  graphlab::edge_list in_edges =
+    scope.in_edge_ids();
+  graphlab::edge_list out_edges =
+    scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
   // Flip the old and new messages to improve safety when using the
@@ -270,7 +269,6 @@ void bp_update(gl_types::iscope& scope,
   cavity.set_size(basisno);
   vec tmp_msg;
   tmp_msg.set_size(msgdim);
-  double residual = 0;
   for(size_t i = 0; i < in_edges.size(); ++i) {
     // Get the edge ids
     graphlab::edge_id_t outeid = out_edges[i];
@@ -295,44 +293,33 @@ void bp_update(gl_types::iscope& scope,
     tmp_msg /= sqrt(sum_sqr(tmp_msg));
 
     // Compute message residual
-    double r = sqrt(sum_sqr(tmp_msg - out_edge.old_message));
+    double residual = sqrt(sum_sqr(tmp_msg - out_edge.old_message));
 
     // Assign the out message
     out_edge.message = tmp_msg;
-    residual += r;
-<<<<<<< local
- }
-  if (scope.vertex() == 0) {
-    std::cout << "Vertex 0 Residual " << residual << std::endl;
-=======
-    if (r > 1E-2) {
-      gl_types::update_task task(scope.target(outeid), bp_update);
+
+    if (v_data.rounds  < MAX_ITERATIONS) {
+      gl_types::update_task task(scope.vertex(), bp_update);
       scheduler.add_task(task, 1.0);
     }
->>>>>>> other
-  }
-<<<<<<< local
-=======
-  if (scope.vertex() == 0) {
-    std::cout << "Vertex 0 Residual " << residual << std::endl;
-  }
->>>>>>> other
+/*
+    if(out_edge.update_count < 30) {
+    //if(out_edge.update_count < 30) {
+      out_edge.update_count++;
+      if (outeid == 0)
+        cout << scope.vertex() << ": " << residual << endl;
 
-<<<<<<< local
-  if (v_data.rounds < MAX_ITERATIONS) {
-=======
-  /*if (residual < 1E-5) {
->>>>>>> other
-    gl_types::update_task task(scope.vertex(), bp_update);
-    scheduler.add_task(task, 1.0);
-  }*/
+      gl_types::update_task task(scope.target(outeid), bp_update);
+      scheduler.add_task(task, residual);
+    }*/
+  }
 } // end of BP_update
 
 void construct_graph(gl_types::graph& graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
-  vdata.rounds = 0;
   vdata.belief.set_size(testno);
+  vdata.rounds = 0;
   // Add all the vertices
   for (size_t i = 0; i < (size_t) isize[0] * isize[1]; i++) {
     size_t vertid = graph.add_vertex(vdata);
@@ -345,6 +332,7 @@ void construct_graph(gl_types::graph& graph) {
   edata.old_message = edata.message;
   // edata.lfeat_message.set_size(basisno);
   // edata.lfeat_message.ones();
+  edata.update_count = 0;
 
   for(size_t j = 0; j < (size_t) isize[1]; ++j) {
     for(size_t i = 0; i < (size_t) isize[0]; ++i) {
