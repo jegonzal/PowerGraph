@@ -32,11 +32,11 @@ target_link_libraries(kbp_make3d tcmalloc itpp)
 add_executable(pbp_protein pbp_protein.cpp)
 target_link_libraries(pbp_protein tcmalloc itpp)
 
-add_executable(kbp_protein kbp_protein.cpp)
-target_link_libraries(kbp_protein tcmalloc itpp)
+#add_executable(kbp_protein kbp_protein.cpp)
+#target_link_libraries(kbp_protein tcmalloc itpp)
 
-add_executable(kbplinear kbplinear.cpp image_compare.cpp)
-target_link_libraries(kbplinear tcmalloc itpp)
+#add_executable(kbplinear kbplinear.cpp image_compare.cpp)
+#target_link_libraries(kbplinear tcmalloc itpp)
 
-add_executable(kbplinear_protein kbplinear_protein.cpp)
-target_link_libraries(kbplinear_protein tcmalloc itpp)
+#add_executable(kbplinear_protein kbplinear_protein.cpp)
+#target_link_libraries(kbplinear_protein tcmalloc itpp)
