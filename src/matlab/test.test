@@ -1,0 +1,7 @@
+typedef struct emxArray__common {
+    void *data;
+    int32_T *size;
+    int32_T allocatedSize;
+    int32_T numDimensions;
+    boolean_T canFreeData;
+} emxArray__common;

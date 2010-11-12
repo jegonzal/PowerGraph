@@ -1,0 +1,18 @@
+The MATLAB update function must obey the following form:
+
+function status = update_function(currentvertex,  % scalar integer
+                                  handle)         % scalar integer                    
+end
+The update function returns a status integer
+
+
+
+
+In addition: the following functions are provided:
+
+function inedges = get_in_edges(handle, vertex)  % returns array of integers
+function outedges = get_out_edges(handle,vertex)  % returns array of integers
+function srcv = get_src_vertex(handle, edge)  % returns scalar integer
+function destv = get_dest_vertex(handle, edge)  % returns scalar integer
+
+function status = add_task(vertex, 'function name')  % returns 1 if add task successful. 0 if failure
