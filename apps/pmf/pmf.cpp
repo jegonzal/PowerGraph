@@ -890,8 +890,8 @@ void start(int argc, char ** argv) {
     }
  } 
  
- it_ifile output(infile + ".out");
- //output << Name("U") << U;
+ it_file output(infile + ".out");
+ output << Name("U") << U;
  //output << Name("V") << V;
   if (tensor){
     //output << Name("T") << T;
