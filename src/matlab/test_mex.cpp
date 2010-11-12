@@ -24,12 +24,12 @@
 template <typename F>
 void exec2arg(F f, const mxArray *rhs, mxArray *&lhs) {
   REMOVE_CONST_REF(typename boost::remove_pointer<NIF0>::type) b;
-  //REMOVE_CONST_REF(typename boost::remove_pointer<NIF1>::type) a;
-  REMOVE_CONST_REF(typename boost::remove_pointer<FRESULT>::type) a;
+  REMOVE_CONST_REF(typename boost::remove_pointer<NIF1>::type) a;
+//  REMOVE_CONST_REF(typename boost::remove_pointer<FRESULT>::type) a;
   clearemx(a);
   mxarray2emx(rhs, b);
   
-  a = f(b);
+  f(b, &a);
 
   emx2mxarray(a, lhs);
   freeemx(a);

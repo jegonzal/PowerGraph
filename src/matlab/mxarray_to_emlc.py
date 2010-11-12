@@ -30,16 +30,17 @@ def output_parser_header(typesheader):
   print "\treturn false;"
   print "}"
   print
-
+  print "#include \"struct_arrays.hpp\""
+  print "#include \"scalar_converters.hpp\""
   
 def output_parser_footer():
-  print "#include \"scalar_converters.hpp\""
   print "#endif"
 #enddef
 
 
+
 # generate the forward and backward parsers for standard emx types
-def generate_emxparser(structname, datatype):
+def generate_standard_emxparser(structname, datatype):
   print "template <>"
   print "void clearemx<%s>(%s &emxdata) {" % (structname, structname)
   print "\t clear_array<%s,%s>(emxdata);" % (datatype, structname)
@@ -47,6 +48,7 @@ def generate_emxparser(structname, datatype):
   print
   print "template <>"
   print "void freeemx<%s>(%s &emxdata) {" % (structname, structname)
+  print "\tif (!emxdata.canFreeData) return;"
   print "\tif (emxdata.data) free(emxdata.data);"
   print "\tif (emxdata.size) free(emxdata.size);"
   print "\temxdata.canFreeData = 0;"
@@ -62,6 +64,39 @@ def generate_emxparser(structname, datatype):
   print "}"
   print
 #enddef
+
+# generate the forward and backward parsers for struct emx types
+def generate_struct_emxparser(structname, datatype):
+  print "template <>"
+  print "void clearemx<%s>(%s &emxdata) {" % (structname, structname)
+  print "\t clear_struct_array<%s,%s>(emxdata);" % (datatype, structname)
+  print "}"
+  print
+  print "template <>"
+  print "void freeemx<%s>(%s &emxdata) {" % (structname, structname)
+  print "\t free_struct_array<%s,%s>(emxdata);" % (datatype, structname)
+  print "}"
+  print "template <>"
+  print "bool mxarray2emx<%s>(const mxArray* mx, %s &emxdata) {" % (structname, structname)
+  print "\t return read_struct_array<%s,%s>(mx, emxdata);" % (datatype, structname)
+  print "}"
+  print
+  print "template <>"
+  print "bool emx2mxarray<%s>(%s &emxdata, mxArray* &mx) {" % (structname, structname)
+  print "\t return write_struct_array<%s,%s>(emxdata, mx);" % (datatype, structname)
+  print "}"
+  print
+#enddef
+
+def generate_emxparser(structname, datatype):
+  # if the datatype ends with '_T' it is a standard type
+  if (datatype[-2:] == '_T'):
+    generate_standard_emxparser(structname, datatype)
+  else:
+    generate_struct_emxparser(structname, datatype)
+  #endif
+#enddef
+
 
 # generate the forward and backward parsers for all other structs
 def generate_structparser(structname, parse):

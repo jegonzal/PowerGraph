@@ -4,8 +4,11 @@ fnname = 'test';
 cfg = emlcoder.CompilerOptions;
 cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
 cfg.EnableVariableSizing = true;
-eginput = 0;
-%eginput.b = emlcoder.egs(0,[Inf,Inf]);
+%eginput = 0;
+eginput.a = emlcoder.egs(0,[Inf,Inf]);
+temp.a = 10;
+temp.b = 20;
+eginput.b = emlcoder.egs(temp,[Inf]);
 emlcstring= ['emlc -c -T RTW -d b2 ' ...
              fnname ...
              ' -eg {eginput} -s cfg'];

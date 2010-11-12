@@ -1,14 +1,14 @@
 function a = test(b) %#eml
-a = sqrt(b)
-%a.a = double([]);
-%a.b = int8([1,2,3]);
-%eml.varsize('a.a', 'a.b');
-%a.a = chol(b.a);
+%a = sqrt(b)
+a.a = double([]);
+a.b = int8([1,2,3]);
+eml.varsize('a.a', 'a.b');
+a.a = chol(b.a);
 
-%temp.a = 10;
-%temp.b = 20;
-%a.e = [temp];
-%eml.varsize('a.e');
+temp.a = 10;
+temp.b = 20;
+a.e = [temp,temp];
+eml.varsize('a.e');
 % a.b = int8([]);
 % a.c = int32([]);
 % a.d = double([]);

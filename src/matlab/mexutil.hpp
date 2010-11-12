@@ -13,6 +13,7 @@ bool clear_array(EMXType &out) {
   out.allocatedSize = 1;
   out.numDimensions = 2;
   out.canFreeData = 1;
+  return true;
 }
 
 /**
@@ -74,6 +75,7 @@ bool read_array(const mxArray *array, EMXType &out) {
   // we can do a direct memcpy
   void* ptr = NULL;
   if (mxIsComplex(array)) {
+    // TODO: this is wrong
     ptr = mxGetImagData(array);
   }
   else {
@@ -141,6 +143,7 @@ bool write_array(EMXType &in, mxArray * &array) {
   
   void* ptr = NULL;
   if (prefered_classid<T>::complex()) {
+    // TODO: this is wrong
     ptr = mxGetImagData(array);
   }
   else {
