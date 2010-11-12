@@ -7,13 +7,10 @@
 
 #include <vector>
 
-#ifndef D
-#define D 30 //diemnsion for U,V
-#endif
 
 int MAX_ITER=30; //maximal number of iterations to run
 int BURN_IN =20; // burn-in priod
-
+int D=30;
 
 typedef double  sdouble; 
 using namespace itpp;

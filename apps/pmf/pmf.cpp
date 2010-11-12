@@ -787,6 +787,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("max_iter", &MAX_ITER, MAX_ITER, "maximum allowed iterations (optional).");
   clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
+  clopts.attach_option("D", &D, D, "dmension of weight vector");
   
   assert(clopts.parse(argc-3, argv+3));
   engine = clopts.create_engine(g);
