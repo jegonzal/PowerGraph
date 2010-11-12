@@ -279,8 +279,7 @@ int main(int argc, char** argv) {
   std::string gmmfile= "";
   std::string inputfile = "";
   std::string logfile = "";
-  bool learnpot = false;
-  double ipf_update_damping;
+
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
   clopts.attach_option("iterations",
@@ -310,16 +309,6 @@ int main(int argc, char** argv) {
   clopts.attach_option("potfromtest",
                        &potfromtest, false,
                        "Get edge potentials from test image");
-clopts.attach_option("learnpot",
-                       &learnpot, false,
-                       "Learn an edge potential");
-clopts.attach_option("ipfdamp",
-                       &ipf_update_damping, 0.5,
-                       "IPF damping");
-std::string potfromfile;
-clopts.attach_option("potfromfile",
-                       &potfromfile, std::string(""),
-                       "potfromfile");
 
   // set default scheduler type
   clopts.scheduler_type = "splash(100)";
@@ -407,22 +396,18 @@ clopts.attach_option("potfromfile",
 
   construct_graph(img, edgepot, nodepot, numparticles, core.graph(), discretizationpts, potfromtest);
   // if I am supposed to construct the potential from the test image....
-  graphlab::binary_factor truebinarycount;
-  double disagreecount = 0;
   if (potfromtest) {
     graphlab::binary_factor altedgepot;
     graphlab::unary_factor unarycount;
     size_t numasgs = discretizationpts.size();
     altedgepot.resize(numasgs, numasgs);
-    truebinarycount.resize(numasgs, numasgs);
     unarycount.resize(numasgs);
     // we use the logP to store the actual values
     for (size_t i = 0;i < numasgs; ++i) {
       for (size_t j = 0;j < numasgs; ++j) {
-        altedgepot.logP(i,j) = 1;  // initialize with something to avoid divide by 0s
-        truebinarycount.logP(i,j) = 0.0;
+        altedgepot.logP(i,j) = 0.01;  // initialize with something to avoid divide by 0s
       }
-      unarycount.logP(i) = 1;
+      unarycount.logP(i) = 0.01;
     }
     // count the pixels!
     for (size_t i = 0; i < trueimg.rows(); ++i) {
@@ -438,30 +423,21 @@ clopts.attach_option("potfromfile",
         if (i > 1) {
          size_t color2 = discreterevmap[trueimg.pixel(i-1,j)]; 
          altedgepot.logP(color, color2)++; 
-         truebinarycount.logP(color,color2)++;
-         disagreecount += std::fabs((double)color - color2);
         }
         if (i < trueimg.rows() - 1) {
          size_t color2 = discreterevmap[trueimg.pixel(i+1,j)]; 
          altedgepot.logP(color, color2)++; 
-         truebinarycount.logP(color,color2)++;
-         disagreecount += std::fabs((double)color - color2);
         }
         if (j > 1) {
          size_t color2 = discreterevmap[trueimg.pixel(i,j-1)]; 
          altedgepot.logP(color, color2)++; 
-         truebinarycount.logP(color,color2)++;
-         disagreecount += std::fabs((double)color - color2);
         }
         if (j < trueimg.cols() - 1) {
          size_t color2 = discreterevmap[trueimg.pixel(i,j+1)]; 
          altedgepot.logP(color, color2)++; 
-         truebinarycount.logP(color,color2)++;
-         disagreecount += std::fabs((double)color - color2);
         }
       }
-    }
-    std::cout << unarycount;
+    } 
     for (size_t i = 0;i < numasgs; ++i) {
       for (size_t j = 0;j < numasgs; ++j) {
         altedgepot.logP(i,j) = std::log(altedgepot.logP(i,j));
@@ -476,102 +452,24 @@ clopts.attach_option("potfromfile",
       }
     }
     altedgepot.normalize();
-    
     global_edge_pot = altedgepot;
-    if (!(learnpot || potfromfile.length() > 0)) {
     for (size_t v = 0;v < core.graph().num_vertices(); ++v) {
       graphlab::unary_factor& pot = core.graph().vertex_data(v).potential;
       pot.times(unarycount);
-      pot.normalize();
-    }
     }
   }
 
 
-  if (potfromfile.length() > 0) {
-    std::ifstream fin;
-    fin.open(potfromfile.c_str());
-    graphlab::iarchive iarc(fin);
-    iarc >> global_edge_pot;
-    fin.close();
-  }
 
   // Running the engine ------------------------------------------------------->
   core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
                               (void*)bp_update);
-  if (learnpot) {
-    
-    
-    
-    double bestpot = 0.5;
-    double bestgap = 100000000000000;
-    double potstrength = 0.5;
-    for (size_t numlearniter = 0;numlearniter < 10; ++numlearniter) {
-      global_edge_pot.set_as_laplace(potstrength);
 
-      //  std::cout << global_edge_pot;
-      std::cout << "Running the engine. " << std::endl;
-      std::cout << "potential strength: " << potstrength << std::endl;
-      size_t numasgs = discretizationpts.size();
-      core.add_task_to_all(bp_update, 100.0);
-      double runtime = core.start();
-      //compute the edge counts
-      double counts = 0;
-      for (size_t v = 0;v < core.graph().num_vertices(); ++v) {
-        vertex_data& v_data = core.graph().vertex_data(v);
-        graphlab::edge_list ed = core.graph().out_edge_ids(v);
-        foreach(graphlab::edge_id_t outeid, ed) {   
-          vertex_data& w_data = core.graph().vertex_data(core.graph().target(outeid));
-          for (size_t i = 0;i < numasgs; ++i) {
-            for (size_t j = 0;j < numasgs; ++j) if (j!= i) counts += std::fabs((double)i-j) * std::exp(v_data.belief.logP(i) + w_data.belief.logP(j));
-          }
-        }
-      }
-      //std::cout << truebinarycount;
-      //std::cout << counts;
-      // compute the an IPF update    
-      double gap = disagreecount - counts;
-      //double step = 10 * gap / core.graph().num_edges();
-      //potstrength -= (1 - ipf_update_damping) * step;
-      potstrength = counts/disagreecount * potstrength;
-      global_edge_pot.set_as_laplace(potstrength);
-      gap = std::fabs(gap);
-      std::cout << "learniter " << numlearniter << ": " << gap << std::endl;
-      if (gap < bestgap) {
-        bestpot = potstrength;
-        bestgap = gap;
-        std::cout << "better!" << std::endl;
-        MAX_ITERATIONS += 20;
-      }
-      else if (gap / bestgap > 1.2) {
-        ipf_update_damping = 1 - ((1 - ipf_update_damping) / 2);
-        std::cout << "worse! Cutting learning rate to " << ipf_update_damping << std::endl;
-        potstrength = bestpot;
-        MAX_ITERATIONS += 20;
-      }
-      else {
-        MAX_ITERATIONS += 20;
-      }
-    }
-    std::string gmmfile2 = gmmfile.rfind("/") == std::string::npos ?
-                                       gmmfile:
-                                       gmmfile.substr(gmmfile.rfind("/")+1);
-
-    std::ofstream fout(("pot"+gmmfile2+".bin").c_str());
-    graphlab::oarchive oarc(fout);
-    global_edge_pot.set_as_laplace(bestpot);
-    oarc << global_edge_pot;
-    fout.close();
-    return 0;
-  }
-  
   std::cout << "Running the engine. " << std::endl;
 
-  std::vector<graphlab::vertex_id_t> v;
-  for (size_t i =0;i < core.graph().num_vertices(); ++i) v.push_back(i);
-  std::random_shuffle(v.begin(), v.end());
+
   // Add the bp update to all vertices
-  core.add_tasks(v, bp_update, 100.0);
+  core.add_task_to_all(bp_update, 100.0);
   // Starte the engine
   double runtime = core.start();
 

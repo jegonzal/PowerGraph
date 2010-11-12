@@ -2,8 +2,8 @@
  * kbp.cpp
  *
  * This file contains codes for kernel
- * belief propagation in a pairwise markov random field to
- * estimate depth from features from still images;
+ * belief propagation in a pairwise markov random field to denoise a
+ * synthetic noisy image.
  *
  *  Created on: Oct 10, 2010
  *      Author: lesong
@@ -21,10 +21,10 @@
 // include itpp
 #include <itpp/itstat.h>
 #include <itpp/itbase.h>
-
+#include "image_compare.hpp"
 // Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>
-using namespace graphlab;
+
 using namespace itpp;
 using namespace std;
 
@@ -32,43 +32,38 @@ using namespace std;
 struct edge_data: public graphlab::unsupported_serialize {
   vec message;
   vec old_message;
-  // vec lfeat_message;
   int update_count;
+  // vec lfeat_message;
 }; // End of edge data
 
 struct vertex_data: public graphlab::unsupported_serialize {
   vec belief;
-  size_t row, col;
+  int rounds;
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
-mat* pUud;
-mat* pUdu;
-mat* pUlr;
-mat* pUrl;
-mat ipUud;
-mat ipUdu;
-mat ipUlr;
-mat ipUrl;
 
+
+mat pU;
+mat pL;
+mat lfeat;
+ivec test;
+mat ftest;
 ivec isize;
 vec m0;
-vec predy_k;
-mat predfy_k;
-mat prod_msg0;
-mat belief0;
-vec testy;
-vec truey;
-mat cfybasis;
-mat ftesty;
-
+vec fmu;
+mat tmp_prod_msg;
+mat tmp_ftest_pL;
 size_t msgdim;
 size_t basisno;
 size_t testno;
+const size_t MAX_ITERATIONS=30;
+mat fobs2;
+ivec img1;
 
-double damping = 0.90;
+double damping = 0.8;
 
 // GraphLab Update Function ===================================================>
 
@@ -92,48 +87,29 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
 
-  std::string prefix(argv[1]);
-  std::string fname = prefix + "0.it";
+//  it_ifile f("../denoising_data2.it");
+  it_ifile fmodel(argv[1]);
+  fmodel >> Name("pU") >> pU;
+  fmodel >> Name("pL") >> pL;
+  fmodel >> Name("test") >> test;
+  fmodel >> Name("fimgbasis") >> lfeat;
+  fmodel >> Name("ftest") >> ftest;
+  fmodel >> Name("isize") >> isize;
+  fmodel >> Name("m0") >> m0;
+  fmodel >> Name("fmu") >> fmu;
+  fmodel >> Name("tmp_prod_msg") >> tmp_prod_msg;
+  fmodel >> Name("tmp_ftest_pL") >> tmp_ftest_pL;
 
-  std::cout << "file to load: " << fname << std::endl;
+  msgdim = lfeat.rows();
+  basisno = lfeat.cols();
+  testno = ftest.cols();
 
-  it_ifile part0(fname.c_str());
-  part0 >> Name("isize") >> isize;
-  part0 >> Name("m0") >> m0;
-  part0 >> Name("predy_k") >> predy_k;
-  part0 >> Name("predfy_k") >> predfy_k;
-  part0 >> Name("prod_msg0") >> prod_msg0;
-  part0 >> Name("belief0") >> belief0;
-  part0 >> Name("testy") >> testy;
-  part0 >> Name("truey") >> truey;
-  part0 >> Name("cfybasis") >> cfybasis;
-  part0 >> Name("ftesty") >> ftesty;
-
-  pUud = new mat[isize[0]];
-  pUdu = new mat[isize[0]];
-  pUlr = new mat[isize[0]];
-  pUrl = new mat[isize[0]];
-
-  for (size_t i = 0; i < (size_t) isize[0]; i++) {
-	  std::stringstream ss;
-	  ss << i + 1;
-	  fname = prefix + ss.str() + ".it";
-	  it_ifile part(fname.c_str());
-
-	  std::cout << "file to load: " << fname << std::endl;
-
-	  if (i > 0) part >> Name("ipUud") >> pUud[i];
-	  if (i < (size_t) (isize[0]-1)) part >> Name("ipUdu") >> pUdu[i];
-	  part >> Name("ipUlr") >> pUlr[i];
-	  part >> Name("ipUrl") >> pUrl[i];
-
-	  part.close();
-  }
-
-  msgdim = cfybasis.rows();
-  basisno = cfybasis.cols();
-  testno = ftesty.cols();
-
+  it_ifile fnoisy(argv[2]);
+  fnoisy >> Name("fobs2") >> fobs2;
+  fnoisy >> Name("img1") >> img1;
+  size_t ncpus = 1;
+  if (argc >= 4) ncpus = atoi(argv[4]);
+  
   // Create the graph --------------------------------------------------------->
   gl_types::graph graph;
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
@@ -145,7 +121,7 @@ int main(int argc, char** argv) {
                                          "sweep",
                                          "edge",
                                          graph,
-                                         8);
+                                         ncpus);
   if(engine == NULL) {
     std::cout << "Unable to construct engine!" << std::endl;
     return EXIT_FAILURE;
@@ -179,37 +155,48 @@ int main(int argc, char** argv) {
             << std::endl;
 
   std::cout << "Computing estimation error" << std::endl;
-  vec pred(isize[0]*isize[1]);
+  ivec pred(isize[0]*isize[1]);
+  image predimg(isize[0], isize[1]);
   for (size_t v = 0; v < graph.num_vertices(); ++v) {
-	  const vertex_data& vdata = graph.vertex_data(v);
-	  pred(v) = testy(max_index(vdata.belief));
+    const vertex_data& vdata = graph.vertex_data(v);
+    pred(v) = test(max_index(vdata.belief));
+    predimg.pixel(v) = pred(v);
   }
-  double err = mean(abs(pred - truey));
-  std::cout << "Mean absolute error: " << err << std::endl;
+  std::cout << "Mean absolute error: " << mean(abs(pred - img1)) << std::endl;
 
-  delete [] pUud;
-  delete [] pUdu;
-  delete [] pUlr;
-  delete [] pUrl;
-
-  std::cout << "Done!" << std::endl;
-
-  if(engine != NULL) delete engine;
-
-  std::string logfile = "";
-  if (argc > 2) logfile = argv[2];
+  std::cout << "Creating a synethic image. " << std::endl;
+  
+  image trueimg(isize[0], isize[1]);
+  for (size_t i = 0;i < img1.size(); ++i) {
+    trueimg.pixel(i) = img1(i);
+  }
+  trueimg.save("source_img.pgm");
+  double err = image_compare(trueimg, predimg);
+  predimg.save("result.pgm");
+  std::cout << "RMSE: " << err << std::endl;
+  
+    std::string logfile;
+  if (argc > 3) logfile = argv[3];
   if (logfile.length() != 0) {
     ofstream fout;
     fout.open(logfile.c_str(), ios::app);
     std::string gmmfile = argv[1];
+    std::string inputfile = argv[2];
     gmmfile = gmmfile.rfind("/") == std::string::npos ?
                                        gmmfile:
                                        gmmfile.substr(gmmfile.rfind("/")+1);
+    inputfile= inputfile.rfind("/") == std::string::npos ?
+                                       inputfile:
+                                       inputfile.substr(inputfile.rfind("/")+1);
 
-    fout << "kbp\t" << gmmfile << "\t" << 0 << "\t" << 0 << "\t" << err << "\t" << runtime << std::endl;
+    fout << "kbplinear\t" << gmmfile << "\t" << inputfile << "\t" << 0 << "\t" << 0 << "\t" << err << "\t" << runtime << std::endl;
     fout.close();
   }
+
   
+  std::cout << "Done!" << std::endl;
+
+  if(engine != NULL) delete engine;
 
   return EXIT_SUCCESS;
 } // End of main
@@ -219,20 +206,26 @@ int main(int argc, char** argv) {
 void bp_update(gl_types::iscope& scope,
                gl_types::icallback& scheduler,
                gl_types::ishared_data* shared_data) {
+  vertex_data& v_data = scope.vertex_data();
+  graphlab::vertex_id_t vid = scope.vertex();
+
+
+  if (v_data.rounds >= MAX_ITERATIONS) return;
+  v_data.rounds++;
+  if (scope.vertex() == 0) {
+    std::cout << "Vertex 0 Round " << v_data.rounds << std::endl;
+  }
 
   // Grab the state from the scope
   // ---------------------------------------------------------------->
   // Get the vertex data
-  vertex_data& v_data = scope.vertex_data();
-  graphlab::vertex_id_t vid = scope.vertex();
-
-  vec prod_message = prod_msg0.get_col(vid);
-  v_data.belief = belief0.get_col(vid);
+	vec prod_message = tmp_prod_msg * fobs2.get_col(vid);
+	v_data.belief = tmp_ftest_pL * fobs2.get_col(vid);
 
   // Get the in and out edges by reference
-  const graphlab::edge_list& in_edges =
+  graphlab::edge_list in_edges =
     scope.in_edge_ids();
-  const graphlab::edge_list& out_edges =
+  graphlab::edge_list out_edges =
     scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
@@ -245,10 +238,10 @@ void bp_update(gl_types::iscope& scope,
     // Since we are about to receive the current message make it the
     // old message
     e_data.old_message = e_data.message;
-    lfeat_message[ineid] = cfybasis.transpose() * e_data.old_message;
+    lfeat_message[ineid] = lfeat.transpose() * e_data.old_message;
 
     elem_mult_inplace(
-      ftesty.transpose() * e_data.old_message,
+      ftest.transpose() * e_data.old_message,
       v_data.belief
     );
 
@@ -258,24 +251,24 @@ void bp_update(gl_types::iscope& scope,
     );
   }
 
-//  std::cout << "vid: " << vid << std::endl;
+  elem_mult_inplace(
+    ftest.transpose() * fmu,
+    v_data.belief
+  );
 
-//  if (vid == 0) {
-//    it_file f2("outfile2.it");
-//    f2<<Name("vdata_belief")<<v_data.belief;
-//    f2<<Name("prod_message")<<prod_message<<flush;
-//    exit(0);
-//  }
+  /*
+  if (vid == 0) {
+    it_file f2("outfile2.it");
+    f2<<Name("vdata_belief")<<v_data.belief;
+    f2<<Name("prod_message")<<prod_message<<flush;
+    exit(0);
+  }
+  */
 
   vec cavity;
   cavity.set_size(basisno);
   vec tmp_msg;
   tmp_msg.set_size(msgdim);
-
-//  if (v_data.row == 0 && v_data.col == 0) {
-//	  std::cout << "in edge size: " << in_edges.size() << std::endl;
-//  }
-
   for(size_t i = 0; i < in_edges.size(); ++i) {
     // Get the edge ids
     graphlab::edge_id_t outeid = out_edges[i];
@@ -289,47 +282,10 @@ void bp_update(gl_types::iscope& scope,
     // Compute cavity
     elem_div_out(prod_message, lfeat_message[ineid], cavity);
 
-    vertex_data& tmp_v_data = scope.neighbor_vertex_data(scope.target(outeid));
     // convolve cavity with the edge factor storing the result in the
     // temporary message
-
-//    if (v_data.row == 0 && v_data.col == 0) {
-//    	std::cout << "(" << tmp_v_data.row << ", " << tmp_v_data.col << ")" << std::endl;
-//    }
-
-    if (v_data.row < tmp_v_data.row) {  // outgoing message to down;
-    	tmp_msg = pUud[v_data.row+1] * cavity;
-
-//    	if (vid == 0) {
-//    		std::cout<<"we are here plus 1"<<std::endl;
-//    		it_file f2("outfile2.it");
-//    		f2<<Name("pUud")<<pUud[v_data.row+1];
-//    		f2<<Name("cavity")<<cavity;
-//    		f2<<Name("tmp_msg")<<tmp_msg<<flush;
-//    		f2.close();
-//    		exit(0);
-//    	}
-
-    } else if (v_data.row > tmp_v_data.row) { // outgoing message to up;
-    	tmp_msg = pUdu[v_data.row-1] * cavity;
-    } else if (v_data.col < tmp_v_data.col) { // outgoing message to right;
-    	tmp_msg = pUlr[v_data.row] * cavity;
-
-//    	if (vid == 0) {
-//    		std::cout<<"we are here equal"<<std::endl;
-//    		it_file f2("outfile2.it");
-//    		f2<<Name("pUlr")<<pUlr[v_data.row];
-//    		f2<<Name("cavity")<<cavity;
-//    		f2<<Name("tmp_msg")<<tmp_msg<<flush;
-//    		f2.close();
-//    		exit(0);
-//    	}
-
-    } else { // outgoing message to left;
-    	tmp_msg = pUlr[v_data.row] * cavity;
-    }
-
-    tmp_msg /= sqrt(sum_sqr(tmp_msg));
+    tmp_msg = pU * cavity;
+    // tmp_msg /= sqrt(sum_sqr(tmp_msg));
 
     // Damp the message
     tmp_msg = damping * out_edge.old_message
@@ -342,16 +298,20 @@ void bp_update(gl_types::iscope& scope,
     // Assign the out message
     out_edge.message = tmp_msg;
 
-//    if(residual > 1e-4 && out_edge.update_count < 30) {
-    if(out_edge.update_count < 10) {
+    if (v_data.rounds  < MAX_ITERATIONS) {
+      gl_types::update_task task(scope.vertex(), bp_update);
+      scheduler.add_task(task, 1.0);
+    }
+/*
+    if(out_edge.update_count < 30) {
+    //if(out_edge.update_count < 30) {
       out_edge.update_count++;
       if (outeid == 0)
         cout << scope.vertex() << ": " << residual << endl;
 
       gl_types::update_task task(scope.target(outeid), bp_update);
       scheduler.add_task(task, residual);
-//      scheduler.add_task(task, -vid);
-    }
+    }*/
   }
 } // end of BP_update
 
@@ -359,21 +319,19 @@ void construct_graph(gl_types::graph& graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.belief.set_size(testno);
+  vdata.rounds = 0;
   // Add all the vertices
-  for(size_t j = 0; j < (size_t) isize[1]; ++j) {
-    for(size_t i = 0; i < (size_t) isize[0]; ++i) {
-    	size_t tmpvertid = j*isize[0] + i;
-    	vdata.row = i;
-    	vdata.col = j;
-        size_t vertid = graph.add_vertex(vdata);
-        assert(vertid == tmpvertid);
-    }
+  for (size_t i = 0; i < (size_t) isize[0] * isize[1]; i++) {
+    size_t vertid = graph.add_vertex(vdata);
+    assert(vertid == i);
   }
 
   // Add the edges
   edge_data edata;
   edata.message = m0;
   edata.old_message = edata.message;
+  // edata.lfeat_message.set_size(basisno);
+  // edata.lfeat_message.ones();
   edata.update_count = 0;
 
   for(size_t j = 0; j < (size_t) isize[1]; ++j) {

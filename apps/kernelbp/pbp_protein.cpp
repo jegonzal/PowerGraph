@@ -26,7 +26,7 @@
 // Include the macro for the for each operation
 #include <graphlab/macros_def.hpp>
 
-#define PROPOSAL_STDEV 20
+#define PROPOSAL_STDEV 1
 
 using namespace itpp;
 using namespace std;
@@ -34,30 +34,30 @@ using namespace std;
 
 
 struct particle {
-  float x;
+  std::vector<float> x;
   float weight;
 };
 
 float damping = 0.8;
 size_t MCMCSTEPS = 10;
 size_t RESAMPLE_FREQUENCY = 1000;
-size_t MAX_ITERATIONS;
+
 graphlab::atomic<size_t> proposal_count;
 graphlab::atomic<size_t> accept_count;
 
 // STRUCTS (Edge and Vertex data) =============================================>
 struct edge_data: public graphlab::unsupported_serialize {
   std::vector<particle> message;
-  GaussianMixture<2> p;
+  GaussianMixture<6> p;
   
-  float edgepot(float xsrc, float xdest) const {
-    double arr[2];
-    arr[0] = xsrc;
-    arr[1] = xdest;
-    return p.likelihood(arr);
+  float edgepot(const std::vector<float> &xsrc, const std::vector<float> &xdest) const {
+    float f[6];
+    for (size_t i = 0;i < 3; ++i) f[i] = xsrc[i];
+    for (size_t i = 0;i < 3; ++i) f[i+3] = xdest[i];
+    return p.likelihood(f);
   }
 
-  float log_edgepot(float xsrc, float xdest) const {
+  float log_edgepot(const std::vector<float> &xsrc, const std::vector<float> &xdest) const {
     return std::log(edgepot(xsrc, xdest));
   }
 
@@ -67,35 +67,24 @@ struct edge_data: public graphlab::unsupported_serialize {
 struct vertex_data: public graphlab::unsupported_serialize {
   // the belief at this vertex. Also provides the shape of all the incoming messages
   std::vector<particle> belief;
-  float obs;
   uint rounds;
-  GaussianMixture<1> p;
-  float vertexpot(float x) const {
-    //return p.likelihood(x);
-    return exp(-(x - obs)*(x-obs)/ (2 * 30 * 30));
+  GaussianMixture<3> p;
+  float vertexpot(const std::vector<float> &x) const {
+    return p.likelihood(x);
   }
 
-  float log_vertexpot(float x) const {
-    return -(x - obs)*(x-obs)/ (2 * 30 * 30);
-  }
-
-
-  float average() const {
-    float v = 0;
-    for (size_t i = 0;i < belief.size(); ++i) {
-      v = v  + belief[i].weight * belief[i].x;
-    }
-    return v;
+  float log_vertexpot(const std::vector<float> &x) const {
+    return log(p.likelihood(x));
   }
 
   void print() const{
     for (size_t i = 0;i < belief.size(); ++i) {
-      std::cout << belief[i].x << " " << belief[i].weight << "\t";
+      std::cout << belief[i].weight << "\t";
     }
     std::cout << std::endl;
   }
-  float max_asg()  const{
-    float ret = 0;
+  std::vector<float> max_asg() const{
+    std::vector<float> ret;
     float best = 0;
     for (size_t i = 0;i < belief.size(); ++i) {
       if (belief[i].weight > best) {
@@ -202,7 +191,7 @@ void update_belief(gl_types::iscope& scope) {
 /**
 Estimates  log P(v) by reevaluating all the incoming messages
 */
-double second_order_belief_ll(gl_types::iscope& scope, float v) {
+double second_order_belief_ll(gl_types::iscope& scope, std::vector<float> v) {
   graphlab::edge_list out_edges = scope.out_edge_ids();
   double ll = 0;
   foreach(graphlab::edge_id_t outeid, out_edges) {
@@ -248,13 +237,13 @@ float resample_particles(gl_types::iscope& scope,
   // if the number of particles is fine. don't resample
   if (eff_particles(scope) > srcvdata.belief.size() / 2 + 1) return 0;
   update_belief(scope);
-  std::vector<float> newparticles;
+  std::vector<std::vector<float> > newparticles;
   // sample from the old belief
   for (size_t i = 0;i < srcvdata.belief.size(); ++i) {
     // pick a particle to use
     double r = graphlab::random::rand01();
     // scan the CDF
-    float cursample = srcvdata.belief[srcvdata.belief.size()-1].x;
+    std::vector<float> cursample = srcvdata.belief[srcvdata.belief.size()-1].x;
     double accweight = 0;
     for (size_t j = 0;j < srcvdata.belief.size(); ++j) {
       accweight += srcvdata.belief[j].weight;
@@ -265,9 +254,12 @@ float resample_particles(gl_types::iscope& scope,
     }
     double curll = second_order_belief_ll(scope, cursample);
     for (size_t i = 0; i < MCMCSTEPS; ++i) {
-      float gauss = graphlab::random::gaussian_rand() * gaussian_proposal_stdev;
+
+      std::vector<float> proposal = cursample;
+      for (size_t j = 0;j < proposal.size(); ++j) {
+        proposal[j] += graphlab::random::gaussian_rand() * gaussian_proposal_stdev;;
+      }
       proposal_count.inc();
-      float proposal = cursample + gauss;
       // compute forward probability
       double proposell = second_order_belief_ll(scope, proposal);
       // since the gaussian is symmetric...
@@ -303,7 +295,7 @@ float resample_particles(gl_types::iscope& scope,
   if(scope.vertex() == 0) {
     std::cout << "vertex 0 particles: ";
     for (size_t i = 0;i < srcvdata.belief.size(); ++i) {
-      std::cout  << srcvdata.belief[i].x << ":" << srcvdata.belief[i].weight << " ";
+      std::cout  << srcvdata.belief[i].weight << " ";
     }
     std::cout << "\n";
   }
@@ -327,7 +319,6 @@ void bp_update(gl_types::iscope& scope,
   // resample the particles here.
 
   vertex_data &v = scope.vertex_data();
-  if (v.rounds >= MAX_ITERATIONS) return;
   if (scope.vertex() == 0) {
     std::cout << "vertex " << scope.vertex()
               << " round " << v.rounds << std::endl;
@@ -359,14 +350,11 @@ void bp_update(gl_types::iscope& scope,
   if(scope.vertex() == 0) {
     std::cout << "vertex 0 particles: ";
     for (size_t i = 0;i < v.belief.size(); ++i) {
-      std::cout  << v.belief[i].x << ":" << v.belief[i].weight << " ";
+      std::cout  << v.belief[i].weight << " ";
     }
     std::cout << "\n";
   }
-  if (v.rounds < MAX_ITERATIONS) {
-    gl_types::update_task task(scope.vertex(), bp_update);
-    scheduler.add_task(task, 1.0);
-  }
+
 
 } // end of BP_update
 
@@ -375,77 +363,71 @@ void bp_update(gl_types::iscope& scope,
 
 
 
+void get_edge(std::string foldbase, size_t srcatype, size_t destatype, edge_data &ed) {
+  std::string edgefname = foldbase + "_edge" + boost::lexical_cast<std::string>(srcatype) + 
+        "_" + boost::lexical_cast<std::string>(destatype) + ".it";
+  it_ifile f(edgefname.c_str());
+  mat edgecenter, edgesigma, edgeweight;  
+  vec doublevec;
+  f >> Name("edge_ce") >> edgecenter;
+  f >> Name("edge_alpha") >> doublevec; edgeweight = doublevec;
+  f >> Name("edge_sigma") >> doublevec; edgesigma = doublevec;
+
+  ed.p = GaussianMixture<6>(edgecenter, edgesigma, edgeweight);
+}
 
 
-void construct_graph(image& img,
-                    const GaussianMixture<2> &edgepot,
-                    const GaussianMixture<2> &nodepot,
-                     double numparticles,
-                     gl_types::graph& graph) {
-                     
-  // initialize a bunch of particles
-  for(size_t i = 0; i < img.rows(); ++i) {
-    for(size_t j = 0; j < img.cols(); ++j) {
-      vertex_data vdat;
-      vdat.rounds = 0;
+mat construct_graph(std::string foldbase,
+                    std::string testfile,
+                    double numparticles,
+                    gl_types::graph& graph) {
+  // open the test file 
+  it_ifile f(testfile.c_str());
+  mat coord;
+  mat feat;
+  ivec atype;
+  ivec chainlen;
+  vec doublevec;
+  mat nodecenter, nodesigma, nodeweight;
 
-      // Set the node potential
-      vdat.obs = img.pixel(i,j);
-      //vdat.p = gmm_conditional<2>()(nodepot, 1, vdat.obs);
-      vdat.p.gaussians.resize(1);
-      vdat.p.gaussians[0].center=vdat.obs;
-      vdat.p.gaussians[0].sigma=30;
-      vdat.p.gaussians[0].weight=1;
-      //vdat.p.simplify();
-      for (size_t n = 0;n < numparticles; ++n) {
-        particle p;
-        p.x = vdat.p.sample();
-        p.weight = 1.0/numparticles;
-        vdat.belief.push_back(p);
-      }
-
-      if(i == 0 && j == 0) {
-        std::cout << "vertex 0 particles: ";
-        for (size_t i = 0;i < vdat.belief.size(); ++i) {
-          std::cout  << vdat.belief[i].x << " ";
-        }
-        std::cout << "\n";
-      }
-      graph.add_vertex(vdat);
-
-    } // end of for j in cols
-  } // end of for i in rows
-
-
-
-  // Add the edges
+  f >> Name("coord") >> coord;
+  f >> Name("atype") >> atype;
+  f >> Name("chainlen") >> chainlen;
+  f >> Name("like_ce") >> nodecenter;
+  f >> Name("like_alpha") >> nodeweight;
+  f >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
   
-  edge_data edata;
-  edata.p = edgepot;
-
-  for(size_t i = 0; i < img.rows(); ++i) {
-    for(size_t j = 0; j < img.cols(); ++j) {
-
-      size_t vertid = img.vertid(i,j);
-      if(i-1 < img.rows()) {
-        edata.message = graph.vertex_data(img.vertid(i-1, j)).belief;
-        graph.add_edge(vertid, img.vertid(i-1, j), edata);
+  // build the chain
+  for (size_t i = 0; i < chainlen[0]; ++i) {
+    vertex_data vdat;
+    vdat.rounds = 0;
+    vdat.p = GaussianMixture<3>(nodecenter, nodesigma, mat(nodeweight.get_col(i)));
+    for (size_t n = 0;n < numparticles; ++n) {
+      particle p;
+      p.x = vdat.p.sample();
+      p.weight = 1.0/numparticles;
+      vdat.belief.push_back(p);
+    }
+    graph.add_vertex(vdat);
+    // add the edge to and from the node behind me
+    if (i > 0) {
+      // forward edge
+      {
+        edge_data ed;
+        get_edge(foldbase, atype[i-1], atype[i], ed);
+        ed.message = graph.vertex_data(i).belief;
+        graph.add_edge(i-1, i, ed);
       }
-      if(i+1 < img.rows()) {
-        edata.message = graph.vertex_data(img.vertid(i+1, j)).belief;
-        graph.add_edge(vertid, img.vertid(i+1, j), edata);
+      // backward edge
+      {
+        edge_data ed;
+        get_edge(foldbase, atype[i], atype[i-1], ed);
+        ed.message = graph.vertex_data(i-1).belief;
+        graph.add_edge(i, i-1, ed);
       }
-      if(j-1 < img.cols()) {
-        edata.message = graph.vertex_data(img.vertid(i, j-1)).belief;
-        graph.add_edge(vertid, img.vertid(i, j-1), edata);
-      }
-      if(j+1 < img.cols()) {
-        edata.message = graph.vertex_data(img.vertid(i, j+1)).belief;
-        graph.add_edge(vertid, img.vertid(i, j+1), edata);
-      }
-    } // end of for j in cols
-  } // end of for i in rows
-  graph.finalize();
+    }
+  }
+  return coord;
 } // End of construct graph
 
 
@@ -478,8 +460,8 @@ int main(int argc, char** argv) {
   size_t numparticles = 100;
   std::string pred_type = "map";
 
-  std::string gmmfile= "";
-  std::string inputfile = "";
+  std::string testfile= "";
+  std::string foldbase = "";
   std::string logfile = "";
 
   // Parse command line arguments --------------------------------------------->
@@ -490,11 +472,11 @@ int main(int argc, char** argv) {
   clopts.attach_option("particles",
                        &numparticles, numparticles,
                        "Number of particlesw");
-  clopts.attach_option("gmmfile",
-                       &gmmfile, std::string(""),
+  clopts.attach_option("foldbase",
+                       &foldbase, std::string(""),
                        "gmm mixture file");
-  clopts.attach_option("inputfile",
-                       &inputfile, std::string(""),
+  clopts.attach_option("testfile",
+                       &testfile, std::string(""),
                        "input file");
   clopts.attach_option("damping",
                        &damping, damping,
@@ -519,66 +501,11 @@ int main(int argc, char** argv) {
   }
 
   // fill the global vars
-  MAX_ITERATIONS = iterations;
-
-  // load the potentials mixture components
-  it_ifile f(gmmfile.c_str());
-
-  // weigghts
-  mat edgecenter, edgesigma, edgeweight;
-  mat nodecenter, nodesigma, nodeweight;
-  ivec truedata;
-  ivec imgsize;
-  // intermediate types to use...
-  imat integermat;
-  vec doublevec;
-  f >> Name("edge_ce") >> integermat;   edgecenter = to_mat(integermat);
-  f >> Name("edge_alpha") >> doublevec; edgeweight = doublevec;
-  f >> Name("edge_sigma") >> doublevec; edgesigma = doublevec;
-
-  f >> Name("like_ce") >> nodecenter;
-  f >> Name("like_alpha") >> doublevec; nodeweight = doublevec;
-  f >> Name("like_sigma") >> doublevec; nodesigma = doublevec;
-  f >> Name("img1") >> truedata;
-  f >> Name("isize") >> imgsize;
-
-  size_t rows = imgsize(0);
-  size_t cols = imgsize(1);
-  std::cout << "Image size is "
-            << rows << " x " << cols << std::endl;
-  // make the GMMs
-  GaussianMixture<2> edgepot(edgecenter, edgesigma, edgeweight);
-  GaussianMixture<2> nodepot(nodecenter, nodesigma, nodeweight);
-  edgepot.simplify();
-  edgepot.print();
-  std::cout << "node pot: " << std::endl;
-  nodepot.print();
-  // convert the true image to an image
-  image trueimg(rows, cols);
-  for (size_t i = 0;i < truedata.size(); ++i) {
-    trueimg.pixel(i) = truedata(i);
-  }
-
-  // load the observations
-  it_ifile imgfile(inputfile.c_str());
-  vec observations;
-  imgfile >> Name("obs2") >> observations;
-  // convert observations to an image
-  image img(rows, cols);
-  for (size_t i = 0;i < observations.size(); ++i) {
-    img.pixel(i) = observations(i);
-  }
-  img.save("noisy.pgm");
-  trueimg.save("source_img.pgm");
-
-  // Create the graph --------------------------------------------------------->
   gl_types::core core;
   // Set the engine options
   core.set_engine_options(clopts);
-
-  std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-
-  construct_graph(img, edgepot, nodepot, numparticles, core.graph());
+  
+  mat coord = construct_graph(foldbase, testfile, numparticles, core.graph());
 
 
 
@@ -590,10 +517,25 @@ int main(int argc, char** argv) {
 
 
   // Add the bp update to all vertices
-  core.add_task_to_all(bp_update, 100.0);
-  // Starte the engine
-  double runtime = core.start();
-
+  std::vector<graphlab::vertex_id_t> vforward, vbackward;
+  for (size_t i = 0;i < core.graph().num_vertices(); ++i) {
+    vforward.push_back(i);
+    vbackward.push_back(core.graph().num_vertices() - i - 1);
+  }
+  
+  graphlab::timer ti;
+  ti.start();
+  for (size_t iter = 0; iter < iterations; ++iter) {
+    if (iter == iterations - 1) RESAMPLE_FREQUENCY = 100000;
+    std::cout << "iteration " << iter << " forward" << std::endl;
+    core.add_tasks(vforward, bp_update, 100.0);
+    core.start();
+    std::cout << "iteration " << iter << " backward" << std::endl;
+    core.add_tasks(vbackward, bp_update, 100.0);
+    core.start();
+  }
+  
+  double runtime = ti.current_time();
   size_t update_count = core.last_update_count();
   std::cout << "Finished Running engine in " << runtime
             << " seconds." << std::endl
@@ -602,45 +544,32 @@ int main(int argc, char** argv) {
             << " updates per second "
             << std::endl;
 
-
-  // Saving the output -------------------------------------------------------->
-  std::cout << "Rendering the cleaned image. " << std::endl;
-
-  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-    const vertex_data& vdata = core.graph().vertex_data(v);
-    float a = vdata.max_asg();
-    img.pixel(v) = a;
+  // ok extract the predictions
+  mat predcoord;
+  predcoord.set_size(3, core.graph().num_vertices());
+  for (size_t i = 0;i < core.graph().num_vertices(); ++i) {
+    vertex_data &vdata = core.graph().vertex_data(i);
+    std::vector<float> vasg = vdata.max_asg();
+    for (size_t j = 0;j < 3; ++j) {
+      predcoord(j,i) = vasg[j];
+    }
   }
+  vec err = sum(elem_mult(coord, predcoord), 1);
+  double meanalign = mean(err);
+  std::cout << "average alignment " << meanalign << std::endl;
   
-  double err = image_compare(trueimg, img);
-  std::cout << "RMSE: " << err << std::endl;
   if (logfile.length() != 0) {
     ofstream fout;
     fout.open(logfile.c_str(), ios::app);
-    gmmfile = gmmfile.rfind("/") == std::string::npos ?
-                                       gmmfile:
-                                       gmmfile.substr(gmmfile.rfind("/")+1);
-    inputfile= inputfile.rfind("/") == std::string::npos ?
-                                       inputfile:
-                                       inputfile.substr(inputfile.rfind("/")+1);
-
-    fout << "pbp\t" << gmmfile << "\t" << inputfile << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << err << "\t"
+    foldbase = foldbase.rfind("/") == std::string::npos ?
+                                       foldbase:
+                                       foldbase.substr(foldbase.rfind("/")+1);
+    
+    fout << "pbp\t" << foldbase << "\t" << numparticles << "\t" << RESAMPLE_FREQUENCY << "\t" << meanalign << "\t"
     << runtime << std::endl;
     fout.close();
   }
-  img.save("pred_map.pgm");
-
-
-  for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-    const vertex_data& vdata = core.graph().vertex_data(v);
-    float a = vdata.average();
-    if (a < 0) a = 0;
-    if (a > 255) a = 255;
-    img.pixel(v) = (a);
-  }
-  img.save("pred_exp.pgm");
-
-
+  
   std::cout << "Done!" << std::endl;
 
   return EXIT_SUCCESS;
