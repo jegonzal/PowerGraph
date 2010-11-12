@@ -9,7 +9,7 @@
 template<class T, class EMXType>
 bool clear_struct_array(EMXType &out) {
   out.data = (T*)malloc(sizeof(T) * 1);
-  clearemx<T>(out.data[0]);
+  converter<T>::clearemx(out.data[0]);
   out.size = (int32_t*)malloc(sizeof(int32_t) * 2);
   out.size[0] = 1; out.size[1] = 1;
   out.allocatedSize = 1;
@@ -111,7 +111,7 @@ bool read_struct_array(const mxArray *array, EMXType &out) {
       mxSetFieldByNumber(tmp, 0, j, mxGetFieldByNumber(array,i,j));
     }
     // store
-    mxarray2emx<T>(tmp, out.data[i]);
+    converter<T>::mxarray2emx(tmp, out.data[i]);
   }
   // before we destroy, we restore the old mxarrays
   for (size_t j = 0;j < numfields; ++j) {
@@ -137,7 +137,7 @@ bool write_struct_array(EMXType &in, mxArray * &array) {
   }
   // ok. I need a sample of a conversion so I can get the field names
   mxArray* tmp = NULL;
-  emx2mxarray<T>(in.data[0], tmp);
+  converter<T>::emx2mxarray(in.data[0], tmp);
   
   // get the field names
   size_t numfields = mxGetNumberOfFields(tmp);
@@ -163,7 +163,7 @@ bool write_struct_array(EMXType &in, mxArray * &array) {
     // slice
     // read an element
     tmp = NULL;
-    emx2mxarray<T>(in.data[i], tmp);
+    converter<T>::emx2mxarray(in.data[i], tmp);
     for (size_t j = 0;j < numfields; ++j) {
         // destroy the old mxarray here if any
         mxArray* oldmxarray = mxGetFieldByNumber(array,i,j);

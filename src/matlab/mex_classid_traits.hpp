@@ -97,7 +97,7 @@ struct prefered_classid {
 
 template <> 
 struct prefered_classid<char> {
-  static mxClassID cid() { return mxINT8_CLASS; };
+  static mxClassID cid() { return mxCHAR_CLASS; };
   static bool complex() {return false; };
 };
 

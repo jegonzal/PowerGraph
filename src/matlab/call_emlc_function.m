@@ -8,10 +8,13 @@ cfg.EnableVariableSizing = true;
 eginput.a = emlcoder.egs(0,[Inf,Inf]);
 temp.a = 10;
 temp.b = 20;
+%temp.c = 'hello world';
+temp.c = emlcoder.egs('a',[Inf]);
 eginput.b = emlcoder.egs(temp,[Inf]);
+
 emlcstring= ['emlc -c -T RTW -d b2 ' ...
-             fnname ...
-             ' -eg {eginput} -s cfg'];
+             fnname ' -eg {eginput} ' ...
+             '-s cfg'];
 disp(emlcstring);
 eval(emlcstring);
 %% generate

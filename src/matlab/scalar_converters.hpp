@@ -10,18 +10,19 @@
 
 #define GEN_CONVERTERS(r, _, TYPENAME) \
 template <>                                                        \
-bool mxarray2emx<TYPENAME>(const mxArray* mx, TYPENAME &emxdata) { \
+struct converter<TYPENAME>{                                                  \
+static bool mxarray2emx(const mxArray* mx, TYPENAME &emxdata) {           \
   emxdata = mxGetScalar(mx);                                       \
 }                                                                  \
-template <>                                                        \
-bool emx2mxarray<TYPENAME>(TYPENAME &emxdata, mxArray* &mx) {      \
+static bool emx2mxarray(TYPENAME &emxdata, mxArray* &mx) {                \
   mx = mxCreateDoubleScalar(emxdata);                              \
 }                                                                  \
-template <>                                                        \
-void clearemx<TYPENAME>(TYPENAME &emxdata) {                       \
+static void clearemx(TYPENAME &emxdata) {                                 \
   emxdata = (TYPENAME)0;                                           \
-}                               
-
+}                                                                  \
+static void freeemx(TYPENAME &emxdata) {                                  \
+}                                                                  \
+};
 BOOST_PP_SEQ_FOR_EACH(GEN_CONVERTERS, _, TYPES);
 
 #undef GEN_CONVERTERS

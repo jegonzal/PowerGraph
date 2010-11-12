@@ -15,25 +15,35 @@ def output_parser_header(typesheader):
   print "#include \"%s\"" % typesheader
   print
   print "template <typename EMXType>"
-  print "void clearemx(EMXType &emxdata) { }"
-  print
-  print "template <typename EMXType>"
-  print "void freeemx(EMXType &emxdata) { }"
-  print
-  print "template <typename EMXType>"
-  print "bool mxarray2emx(const mxArray* mx, EMXType &emxdata) {"
-  print "\treturn false;"
-  print "}"
-  print
-  print "template <typename EMXType>"
-  print "bool emx2mxarray(EMXType &emxdata, mxArray* &mx) {"
-  print "\treturn false;"
-  print "}"
-  print
+  print "struct converter {"
+  print "  static void clearemx(EMXType &emxdata) { }"
+  print "  static void freeemx(EMXType &emxdata) { }"
+  print "  static bool mxarray2emx(const mxArray* mx, EMXType &emxdata) {"
+  print "    return false;"
+  print "  }"
+  print "  static bool emx2mxarray(EMXType &emxdata, mxArray* &mx) {"
+  print "    return false;"
+  print "  }"
+  print "};"
   print "#include \"struct_arrays.hpp\""
   print "#include \"scalar_converters.hpp\""
   
 def output_parser_footer():
+  print "template <typename T>"
+  print "void clearemx(T &emxdata) { converter<T>::clearemx(emxdata); }"
+  print
+  print "template <typename T>"
+  print "void freeemx(T &emxdata) {converter<T>::freeemx(emxdata); }"
+  print
+  print "template <typename T>"
+  print "bool mxarray2emx(const mxArray* mx, T &emxdata) {"
+  print "  return converter<T>::mxarray2emx(mx, emxdata);"
+  print "}"
+  print
+  print "template <typename T>"
+  print "bool emx2mxarray(T &emxdata, mxArray* &mx) {"
+  print "  return converter<T>::emx2mxarray(emxdata, mx);"
+  print "}"
   print "#endif"
 #enddef
 
@@ -42,49 +52,47 @@ def output_parser_footer():
 # generate the forward and backward parsers for standard emx types
 def generate_standard_emxparser(structname, datatype):
   print "template <>"
-  print "void clearemx<%s>(%s &emxdata) {" % (structname, structname)
-  print "\t clear_array<%s,%s>(emxdata);" % (datatype, structname)
-  print "}"
+  print "struct converter<%s> {" % (structname)
+  print "  static void clearemx(%s &emxdata) {" % (structname)
+  print "    clear_array<%s,%s>(emxdata);" % (datatype, structname)
+  print "  }"
   print
-  print "template <>"
-  print "void freeemx<%s>(%s &emxdata) {" % (structname, structname)
-  print "\tif (!emxdata.canFreeData) return;"
-  print "\tif (emxdata.data) free(emxdata.data);"
-  print "\tif (emxdata.size) free(emxdata.size);"
-  print "\temxdata.canFreeData = 0;"
-  print "}"
-  print "template <>"
-  print "bool mxarray2emx<%s>(const mxArray* mx, %s &emxdata) {" % (structname, structname)
-  print "\t return read_array<%s,%s>(mx, emxdata);" % (datatype, structname)
-  print "}"
+  print "  static void freeemx(%s &emxdata) {" % (structname)
+  print "    if (!emxdata.canFreeData) return;"
+  print "    if (emxdata.data) free(emxdata.data);"
+  print "    if (emxdata.size) free(emxdata.size);"
+  print "    emxdata.canFreeData = 0;"
+  print "  }"
+  print "  static bool mxarray2emx(const mxArray* mx, %s &emxdata) {" % (structname)
+  print "    return read_array<%s,%s>(mx, emxdata);" % (datatype, structname)
+  print "  }"
   print
-  print "template <>"
-  print "bool emx2mxarray<%s>(%s &emxdata, mxArray* &mx) {" % (structname, structname)
-  print "\t return write_array<%s,%s>(emxdata, mx);" % (datatype, structname)
-  print "}"
+  print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
+  print "    return write_array<%s,%s>(emxdata, mx);" % (datatype, structname)
+  print "  }"
+  print "};"
   print
 #enddef
 
 # generate the forward and backward parsers for struct emx types
 def generate_struct_emxparser(structname, datatype):
   print "template <>"
-  print "void clearemx<%s>(%s &emxdata) {" % (structname, structname)
-  print "\t clear_struct_array<%s,%s>(emxdata);" % (datatype, structname)
-  print "}"
+  print "struct converter<%s> {" % (structname)
+  print "  static void clearemx(%s &emxdata) {" % (structname)
+  print "    clear_struct_array<%s,%s>(emxdata);" % (datatype, structname)
+  print "  }"
   print
-  print "template <>"
-  print "void freeemx<%s>(%s &emxdata) {" % (structname, structname)
-  print "\t free_struct_array<%s,%s>(emxdata);" % (datatype, structname)
-  print "}"
-  print "template <>"
-  print "bool mxarray2emx<%s>(const mxArray* mx, %s &emxdata) {" % (structname, structname)
-  print "\t return read_struct_array<%s,%s>(mx, emxdata);" % (datatype, structname)
-  print "}"
+  print "  static void freeemx(%s &emxdata) {" % (structname)
+  print "    free_struct_array<%s,%s>(emxdata);" % (datatype, structname)
+  print "  }"
+  print "  static bool mxarray2emx(const mxArray* mx, %s &emxdata) {" % (structname)
+  print "    return read_struct_array<%s,%s>(mx, emxdata);" % (datatype, structname)
+  print "  }"
   print
-  print "template <>"
-  print "bool emx2mxarray<%s>(%s &emxdata, mxArray* &mx) {" % (structname, structname)
-  print "\t return write_struct_array<%s,%s>(emxdata, mx);" % (datatype, structname)
-  print "}"
+  print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
+  print "    return write_struct_array<%s,%s>(emxdata, mx);" % (datatype, structname)
+  print "  }"
+  print "};"
   print
 #enddef
 
@@ -101,46 +109,45 @@ def generate_emxparser(structname, datatype):
 # generate the forward and backward parsers for all other structs
 def generate_structparser(structname, parse):
   # output the clearer
-  
-  # output the emxarray to mxarray converter
   print "template <>"
-  print "void clearemx<%s>(%s &emxdata) {" % (structname, structname)
+  print "struct converter<%s> {" % (structname)
+
+  # output the emxarray to mxarray converter
+  print "  static void clearemx(%s &emxdata) {" % (structname)
   for decl in parse["decls"]:
       decltype = decl["decltype"]
       declname = decl["declname"]
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
-        print "\temxdata.%s = (%s*)malloc(sizeof(%s));" % (declname, decltype, decltype)
-        print "\tclearemx<%s>(*(emxdata.%s));" % (decltype, declname)
+        print "    emxdata.%s = (%s*)malloc(sizeof(%s));" % (declname, decltype, decltype)
+        print "    converter<%s>::clearemx(*(emxdata.%s));" % (decltype, declname)
       else:
         #scalar!
-        print "\tclearemx<%s>(emxdata.%s);" % (decltype, declname)
+        print "    converter<%s>::clearemx(emxdata.%s);" % (decltype, declname)
       #endif
   #endfor
-  print "}"
+  print "  }"
   
   # output the freeer
   
   # output the emxarray to mxarray converter
-  print "template <>"
-  print "void freeemx<%s>(%s &emxdata) {" % (structname, structname)
+  print "  static void freeemx(%s &emxdata) {" % (structname)
   for decl in parse["decls"]:
       decltype = decl["decltype"]
       declname = decl["declname"]
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
-        print "\tfreeemx(emxdata.%s);" % (declname)
-        print "\tfree(emxdata.%s);" % (declname)
+        print "    converter<%s>::freeemx(*(emxdata.%s));" % (decltype, declname)
+        print "    free(emxdata.%s);" % (declname)
       #endif
   #endfor
-  print "}"
+  print "  }"
   
   
   # output the mxarray to emxarray converter
-  print "template <>"
-  print "bool mxarray2emx<%s>(const mxArray* mx, %s &emxdata) {" % (structname, structname)
-  print "\tclearemx(emxdata);";
-  print "\tbool ret = true;"
+  print "  static bool mxarray2emx(const mxArray* mx, %s &emxdata) {" % (structname)
+  print "    clearemx(emxdata);";
+  print "    bool ret = true;"
   for decl in parse["decls"]:
       decltype = decl["decltype"]
       declname = decl["declname"]
@@ -156,45 +163,46 @@ def generate_structparser(structname, parse):
       # check if this is an array
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
-        print "\tret &= mxarray2emx<%s>(struct_has_field(mx, \"%s\"), *(emxdata.%s));" % (decltype, declname, declname)
+        print "    ret &= converter<%s>::mxarray2emx(struct_has_field(mx, \"%s\"), *(emxdata.%s));" % (decltype, declname, declname)
       else:
         #scalar!
-        print "\tif (struct_has_field(mx, \"%s\") != NULL) ";
-        print "\t\temxdata.%s = (%s)mxGetScalar(struct_has_field(mx, \"%s\"));" % (declname, decltype, declname);
+        print "    if (struct_has_field(mx, \"%s\") != NULL) ";
+        print "      emxdata.%s = (%s)mxGetScalar(struct_has_field(mx, \"%s\"));" % (declname, decltype, declname);
       #endif
   #endfor
-  print "\treturn ret;";
-  print "}"
+  print "    return ret;";
+  print "  }"
   print
   
   # output the emxarray to mxarray converter
-  print "template <>"
-  print "bool emx2mxarray<%s>(%s &emxdata, mxArray* &mx) {" % (structname, structname)
-  print "\tbool ret = true;"
-  print "\tmwSize dims[1];"
-  print "\tdims[0] = 1;"
-  print "\tmx = mxCreateStructArray(1,dims,0,NULL);"
-  print "\tmxArray* mxarr = NULL;";
+  print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
+  print "    bool ret = true;"
+  print "    mwSize dims[1];"
+  print "    dims[0] = 1;"
+  print "    mx = mxCreateStructArray(1,dims,0,NULL);"
+  print "    mxArray* mxarr = NULL;";
   for decl in parse["decls"]:
       decltype = decl["decltype"]
       declname = decl["declname"]
       # check if this is an array
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
-        print "\tmxarr = NULL;";
-        print "\tret &= emx2mxarray<%s>(*(emxdata.%s), mxarr);" % (decltype, declname)
-        print "\tmxAddField(mx, \"%s\");" % declname
-        print "\tmxSetField(mx, 0, \"%s\", mxarr);" % declname
+        print "    mxarr = NULL;";
+        print "    ret &= converter<%s>::emx2mxarray(*(emxdata.%s), mxarr);" % (decltype, declname)
+        print "    mxAddField(mx, \"%s\");" % declname
+        print "    mxSetField(mx, 0, \"%s\", mxarr);" % declname
       else:
         #scalar!
-        print "\tmxarr = NULL;";
-        print "\tmxarr = mxCreateDoubleScalar(emxdata.%s);" % (declname)
-        print "\tmxAddField(mx, \"%s\");" % declname
-        print "\tmxSetField(mx, 0, \"%s\", mxarr);" % declname
+        print "    mxarr = NULL;";
+        print "    mxarr = mxCreateDoubleScalar(emxdata.%s);" % (declname)
+        print "    mxAddField(mx, \"%s\");" % declname
+        print "    mxSetField(mx, 0, \"%s\", mxarr);" % declname
       #endif
   #endfor
-  print "\treturn ret;";
-  print "}"
+  print "    return ret;";
+  print "  }"
+  print "};"
+  print
   print 
   
 

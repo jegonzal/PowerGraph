@@ -5,9 +5,10 @@ a.b = int8([1,2,3]);
 eml.varsize('a.a', 'a.b');
 a.a = chol(b.a);
 
-temp.a = 10;
+temp.a = length(b.b(1).c);
 temp.b = 20;
 a.e = [temp,temp];
+a.d = b.b(1).c;
 eml.varsize('a.e');
 % a.b = int8([]);
 % a.c = int32([]);
