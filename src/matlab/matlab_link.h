@@ -1,14 +1,10 @@
 #ifndef EMLC_LINK_FUNCTIONS_H
 #define EMLC_LINK_FUNCTIONS_H
 
-#include <tmwtypes.h>
+#include "gl_emx_graphtypes.hpp"
 
-void get_in_edges_impl(int32_T handle, int32_T vertex, emxArray_int32_T *in_edges);
-
-void get_out_edges_impl(int32_T handle, int32_T vertex, emxArray_int32_T *out_edges);
-
-int32_T get_src_vertex_impl(int32_T handle, int32_T edge);
-int32_T get_dest_vertex_impl(int32_T handle, int32_T edge);
+void emx_get_edge_data(uint32_T handle, uint32_T eid, gl_emx_edgetype *edge);
+void emx_get_vertex_data(uint32_T handle, uint32_T vid, gl_emx_vertextype *vertex);
 
 
 #endif

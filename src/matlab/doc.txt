@@ -1,18 +1,53 @@
 The MATLAB update function must obey the following form:
 
-function status = update_function(currentvertex,  % scalar integer
-                                  handle)         % scalar integer                    
+function update_function(currentvertex,  % scalar integer
+                         inedges,        % array of in edge ids
+                         inv,            % array of sources vertices for each in edge id
+                         outedges,       % array of out edge ids
+                         outv,           % array of target vertices for each in edge id
+                         handle)         % scalar integer                    
 end
-The update function returns a status integer
+
 
 
 
 
 In addition: the following functions are provided:
 
-function inedges = get_in_edges(handle, vertex)  % returns array of integers
-function outedges = get_out_edges(handle,vertex)  % returns array of integers
-function srcv = get_src_vertex(handle, edge)  % returns scalar integer
-function destv = get_dest_vertex(handle, edge)  % returns scalar integer
-
+function vdata = get_vertex_data(handle, vertex)  % returns data on vertex 
+function edata = get_edge_data(handle, edge)  % returns data on edge 
 function status = add_task(vertex, 'function name')  % returns 1 if add task successful. 0 if failure
+
+
+
+Start by calling 
+
+[newvertexdata, newedgedata] = graphlab_mex(vertexdata, adj_mat, edgedata, schedule)
+  vertexdata: cell array of vertex data
+  adj_mat: sparse adjacency matrix where adj_mat[i][j] is an edge from vertex i to vertex j
+           and the data on the edge is edgedata(adjmat[i][j])
+  edgedata: cell array of edge data
+  schedule: array of task structs where each
+    task struct:
+      vertex: numeric vertex id
+      update function: string. Name of the update function
+    
+    
+  Returns the new vertex data and the new edge data
+  
+  
+
+The generation process works as such:
+1: user calls make_graphlab_mex([update function list], example vertex data, example edge data)
+
+2: make_graphlab_mex type checks the example data to ensure that the data types
+   are all supported, and to convert all the dynamic arrays
+
+3: get_vertex_data.m, get_edge_data.m are generated 
+
+3: EMLC is called to translate the update functions to C
+
+4: A python parser reads the C output and generates translators to go in between mxArray <--> emlc structures
+     (mxarray_to_emlc.py, scalar_converters.hpp, struct_arrays.hpp, mexutil.hpp)
+
+5: 
