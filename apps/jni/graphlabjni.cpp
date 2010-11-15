@@ -121,7 +121,7 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_schedule
     jsize sz = env->GetArrayLength(vertices);
     jint * arr = env->GetIntArrayElements(vertices, &isCopy);
     for(int i=0; i<sz; i++) {
-        core.add_task(i, jni_update);
+        core.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
     }
  }
 
@@ -132,7 +132,7 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_schedule
  */
 JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_scheduleAll
   (JNIEnv * env, jobject obj, jint funcid) {
-        core.add_task_to_all(jni_update);
+        core.add_task_to_all(jni_update, 1.0);
   }
 
 JNIEXPORT jint JNICALL Java_graphlab_test_JniTest_dummy
