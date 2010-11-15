@@ -3,6 +3,27 @@ function compile_update_function(updatefunctions, exvertex_, exedge_, workingdir
 olddir = pwd;
 oldpath = path;
 
+% ---------- Stage 0 ------------------------------------
+% Bug check: There is an interesting issue if the edge
+% structure is exactly equivalent to the vertex structure, or a substructure
+% of the vertex structure.  (or vice versa)
+% for instance:
+%
+% temp.a = []
+% vdata.b = temp;
+%
+% edata = temp;
+%
+% essentially, when instantiating the 'b' term in the vertex structure, 
+% emlc will complain that there are 2 candidate structures which match 
+% the required definition. Either 'emx_edgedata' or 'some random string'
+% 
+% The solution is to purturb both structures with a random useless field
+% which guarantees that they do not overlap definitions
+%--------------------------------------------------------
+exvertex_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
+exedge_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
+
 
 % ---------- Stage 1 ------------------------------------
 % Translate update functions and interface functions to C
@@ -14,6 +35,7 @@ if (status == 0)
     disp('Please see the documentation for details');
     return
 end
+
 [exedge, status gene] = gl_emx_typecheck(exedge_, 'edata');
 if (status == 0)
     disp('Vertex data uses capabilities which exceed the GraphLab/EMLC specification');
@@ -33,25 +55,8 @@ path(path, olddir);
 
 
 % generate the get vertexdata and get edge data functions
-f = fopen(['get_vertex_data.m'], 'w');
-fprintf(f, 'function vdata = get_vertex_data(handle, vertex) %%#eml\n');
-fprintf(f, [genv, '\n']);
-if (isstruct(exvertex_))
-    fprintf(f, 'eml.cstructname(vdata, ''emx_vertexdata'');\n');
-end
-fprintf(f, 'eml.ceval(''emx_get_vertex_data'', handle, vertex, eml.wref(vdata));\n');
-fprintf(f, 'end\n');
-fclose(f)
+generate_link_functions(exvertex_, exedge_, genv, gene);
 
-f = fopen(['get_edge_data.m'], 'w');
-fprintf(f, 'function edata = get_edge_data(handle, edge) %%#eml\n');
-fprintf(f, [gene, '\n']);
-if (isstruct(exedge_))
-    fprintf(f, 'eml.cstructname(edata, ''emx_edgedata'');\n');
-end
-fprintf(f, 'eml.ceval(''emx_get_edge_data'', handle, edge, eml.wref(edata));\n');
-fprintf(f, 'end\n');
-fclose(f)
 
 
 % construct the example input for update functions
@@ -80,8 +85,11 @@ for i = 1:length(updatefunctions)
 end
 
 % append the additional functions
+emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge}'];
 emlcstring = [emlcstring ' get_vertex_data -eg {uint32(0), uint32(0)}'];
 emlcstring = [emlcstring ' get_edge_data -eg {uint32(0), uint32(0)}'];
+emlcstring = [emlcstring ' set_vertex_data -eg {uint32(0), uint32(0), exvertex}'];
+emlcstring = [emlcstring ' set_edge_data -eg {uint32(0), uint32(0), exedge}'];
 emlcstring = [emlcstring ' matlab_link.h'];
 disp(emlcstring);
 eval(emlcstring);
@@ -90,7 +98,7 @@ eval(emlcstring);
 % ---------- Stage 2 --------------------
 % Generate mxArray <-> emxArray converters
 % ---------------------------------------
-[~,res] = system(['python ' olddir '/mxarray_to_emlc.py updates_types.h > generator.hpp']);
+[unused,res] = system(['python ' olddir '/mxarray_to_emlc.py updates_types.h > generator.hpp']);
 if (~isempty(res))
     disp 'Compilation Failed. ';
     error(res);

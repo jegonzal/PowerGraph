@@ -31,7 +31,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 return;
             else 
                 % vector/matrix. convert to dynamic
-                d = emlcoder.egs(d(1), ones([1,ndims(d)])*Inf);
+                d = emlcoder.egs(d(1), size(d) * Inf);
                 status = 1;
                 if (strcmp(cname, 'numeric'))
                     gen = [sid ' = [0.0];'];
@@ -48,7 +48,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
         case {'char'}
             % we only support standard char arrays. not char matrices
             if (isvector(d))
-                d = emlcoder.egs('a', Inf);
+                d = emlcoder.egs('a', [1, Inf]);
                 gen = [sid ' = '''';'];
                 gen = [gen '\n' 'eml.varsize(''' sid ''');'];
                 status = 1;
@@ -88,13 +88,8 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
             if (numel(d) == 1)
                 % one struct
                 d = temp;
-            elseif (numel(d) == length(d))
-                % vector!
-                d = emlcoder.egs(temp, Inf);
-                gen = [gen '\n' sid ' = [' recursename '];'];
-                gen = [gen '\n' 'eml.varsize(''' sid ''');'];
             else 
-                % matrix!
+                % vector/matrix!
                 d = emlcoder.egs(temp, size(d) * Inf);
                 gen = [gen '\n' sid ' = [' recursename '];'];
                 gen = [gen '\n' 'eml.varsize(''' sid ''');'];

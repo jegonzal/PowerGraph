@@ -164,10 +164,13 @@ def generate_structparser(structname, parse):
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
         print "    ret &= converter<%s>::mxarray2emx(struct_has_field(mx, \"%s\"), *(emxdata.%s));" % (decltype, declname, declname)
-      else:
+      elif decltype[-2:] == '_T':
         #scalar!
         print "    if (struct_has_field(mx, \"%s\") != NULL) ";
         print "      emxdata.%s = (%s)mxGetScalar(struct_has_field(mx, \"%s\"));" % (declname, decltype, declname);
+      else:
+        # single struct!
+        print "    ret &= converter<%s>::mxarray2emx(struct_has_field(mx, \"%s\"), emxdata.%s);" % (decltype, declname, declname)
       #endif
   #endfor
   print "    return ret;";
@@ -191,10 +194,16 @@ def generate_structparser(structname, parse):
         print "    ret &= converter<%s>::emx2mxarray(*(emxdata.%s), mxarr);" % (decltype, declname)
         print "    mxAddField(mx, \"%s\");" % declname
         print "    mxSetField(mx, 0, \"%s\", mxarr);" % declname
-      else:
+      elif decltype[-2:] == '_T':
         #scalar!
         print "    mxarr = NULL;";
         print "    mxarr = mxCreateDoubleScalar(emxdata.%s);" % (declname)
+        print "    mxAddField(mx, \"%s\");" % declname
+        print "    mxSetField(mx, 0, \"%s\", mxarr);" % declname
+      else:
+        # single struct
+        print "    mxarr = NULL;";
+        print "    ret &= converter<%s>::emx2mxarray(emxdata.%s, mxarr);" % (decltype, declname)
         print "    mxAddField(mx, \"%s\");" % declname
         print "    mxSetField(mx, 0, \"%s\", mxarr);" % declname
       #endif
