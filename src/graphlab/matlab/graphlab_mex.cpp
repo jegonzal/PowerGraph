@@ -7,7 +7,7 @@
 #include "mx_emx_converters.hpp"
 #include "updates_initialize.h"
 #include "gl_emx_graphtypes.hpp"
-
+#include "update_function_generator.hpp"
 
 /**
  * [newvdata, newadjmat, newedata] = graphlab_mex(vertexdata, adj_mat, edgedata, schedule, strict)
@@ -73,6 +73,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   output_graph(graph, plhs[0], plhs[1], plhs[2]);
 
+  register_all_matlab_update_functions();
   // destroy graph
 
   for (size_t i = 0;i < graph.num_vertices(); ++i) freeemx(graph.vertex_data(i));

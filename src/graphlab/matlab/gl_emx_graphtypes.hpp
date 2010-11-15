@@ -28,5 +28,12 @@ typedef graphlab::graph<gl_emx_vertextype, gl_emx_edgetype> emx_graph;
 typedef graphlab::types<emx_graph> gl_types;
 
 
+// update function type
+typedef void (*gl_emx_updatefn_type)(uint32_T eml_currentvertex, 
+                                    const emxArray_uint32_T *eml_inedges, 
+                                    const emxArray_uint32_T *eml_inv, 
+                                    const emxArray_uint32_T *eml_outedges, 
+                                    const emxArray_uint32_T *eml_outv, 
+                                    double eml_handle);
 
 #endif

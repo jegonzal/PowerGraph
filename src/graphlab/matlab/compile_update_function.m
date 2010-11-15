@@ -33,18 +33,24 @@ oldpath = path;
 % which guarantees that they do not overlap definitions
 %--------------------------------------------------------
 fprintf('\n\n');
+fprintf('-----------------------\n');
 disp(['Stage 0: EMLC workarounds']);
-
-exvertex_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
+fprintf('-----------------------\n');
+if (isstruct(exvertex_))
+    exvertex_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
+end
+if (isstruct(exedge_))
 exedge_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
+end
 
 
 % ---------- Stage 1 ------------------------------------
 % Translate update functions and interface functions to C
 % -------------------------------------------------------
 fprintf('\n\n');
+fprintf('-------------------------------------------------------------\n');
 disp(['Stage 1: Verify Datatype Limitations and Matlab Code Generation']);
-
+fprintf('-------------------------------------------------------------\n');
 [exvertex,status, genv] = gl_emx_typecheck(exvertex_, 'vdata');
 if (status == 0)
     disp('Vertex data uses capabilities which exceed the GraphLab/EMLC specification');
@@ -65,8 +71,9 @@ try
 % EMLC Compilation
 % ---------------------------------------
 fprintf('\n\n');
+fprintf('---------------------------\n');
 disp(['Stage 2: EMLC Generation']);
-
+fprintf('---------------------------\n');
 % create and shift the the working directory
 if (~isdir(workingdirectory))
     mkdir(workingdirectory);
@@ -101,7 +108,7 @@ exinput = ['-eg {uint32(0), ' ...               % current vertex
           'emlcoder.egs(uint32(0),[Inf]), ' ... % inV
           'emlcoder.egs(uint32(0),[Inf]), ' ... % out edges
           'emlcoder.egs(uint32(0),[Inf]), ' ... % outV
-          'uint32(0)} '];                       % handle
+          'double(0.0)} '];                       % handle
           
 cfg = emlcoder.CompilerOptions;
 cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
@@ -128,8 +135,9 @@ disp('EMLC Done');
 % Generate mxArray <-> emxArray converters
 % ----------------------------------------
 fprintf('\n\n');
+fprintf('--------------------------------------------------------------\n');
 disp('Stage 3: Generating Matlab <-> Embedded Matlab datatype converters');
-
+fprintf('--------------------------------------------------------------\n');
 cmd = ['python ' glmatlabdir '/mxarray_to_emlc.py updates_types.h > mx_emx_converters.hpp'];
 disp(['Issuing command: ' cmd]);
 [~,res] = system(cmd);
@@ -138,12 +146,16 @@ if (~isempty(res))
     error(res);
 end
 
+disp('Generating Update Function list:');
+generate_update_function_list(updatefunctions);
+
 % ---------- Stage 4 --------------------
 % Compilation
 % ---------------------------------------
 fprintf('\n\n');
+fprintf('---------------------\n');
 disp('Stage 4: MEX compilation');
-
+fprintf('---------------------\n');
 % pick up all the generated c files
 allcfiles = dir('*.c');
 str = '';
@@ -164,7 +176,6 @@ compilestring = ['mex -g '  ...
  '-lgraphlab_util_pic ' ...
  '-cxx ' ...
  largearraydims ...
- '-v ' ...
  'CC="g++" ' ...
  '-DBOOST_UBLAS_ENABLE_PROXY_SHORTCUTS ' ...
  '-D_SCL_SECURE_NO_WARNINGS ' ...
