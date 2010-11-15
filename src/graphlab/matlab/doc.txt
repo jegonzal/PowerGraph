@@ -12,12 +12,13 @@ end
 
 
 
-In addition: the following functions are provided:
+In addition: the following link functions are provided:
 
 function vdata = get_vertex_data(handle, vertex)  % returns data on vertex 
 function edata = get_edge_data(handle, edge)  % returns data on edge 
 function status = add_task(vertex, 'function name')  % returns 1 if add task successful. 0 if failure
-
+function set_vertex_data(handle, vertex, vdata)  % sets data on vertex
+function set_edge_data(handle, edge, edata)  % sets data on edge
 
 
 Start by calling 
@@ -38,16 +39,28 @@ Start by calling
   
 
 The generation process works as such:
+==--- Initial Matlab Generation ---===
 1: user calls make_graphlab_mex([update function list], example vertex data, example edge data)
 
 2: make_graphlab_mex type checks the example data to ensure that the data types
-   are all supported, and to convert all the dynamic arrays
+   are all supported, and to convert all the dynamic arrays. The EMX structure definitions are generated here.
 
-3: get_vertex_data.m, get_edge_data.m are generated 
+3: matlab link functions get_vertex_data.m, get_edge_data.m, set_edge_data.m, set_vertex_data.m are generated.
+   An additional empty function "datatype_identifier(vdata,edata)" is also created.
 
-3: EMLC is called to translate the update functions to C
+3: EMLC is called to translate the update functions to C.
 
-4: A python parser reads the C output and generates translators to go in between mxArray <--> emlc structures
-     (mxarray_to_emlc.py, scalar_converters.hpp, struct_arrays.hpp, mexutil.hpp)
+4: A python parser reads the C output and generates translators to go in between mxArray <--> emlc structures. (output to mx_emx_converters.hpp)
+     (mxarray_to_emlc.py, scalar_converters.hpp, struct_arrays.hpp, mexutil.hpp, mex_classid_traits.hpp)
+==--- C++ templates ---===
+5: gl_emx_graphtypes.hpp uses boost::function on the "datatype_identifier" to figure out the type of
+   of vertex data and type of edge data. It also typedefs the graph data type.
 
-5: 
+6: update_function_generator.hpp uses Boost preprocessor to create wrappers around each update function
+   and register their names in a global table. [incomplete]
+==--- Matlab->C++ entry point ---===
+7: graphlab_mex.cpp is the main entry point.
+
+8: graphlab_mex_parse.cpp type checks and processes the parameters and constructs the graph
+
+9: link functions [incomplete]
