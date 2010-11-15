@@ -1,7 +1,7 @@
 #include <mex.h>
 #include "rtwtypes.h"
 #include "updates_types.h"
-#include "generator.hpp"
+#include "mx_emx_converters.hpp"
 #include "updates_initialize.h"
 #include "gl_emx_graphtypes.hpp"
 

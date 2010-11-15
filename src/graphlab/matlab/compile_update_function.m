@@ -1,4 +1,9 @@
 function compile_update_function(updatefunctions, exvertex_, exedge_, workingdirectory)
+% Get the src/matlab directory
+[st,~] = dbstack('completenames');
+gldir = st.file;
+slashes = strfind(gldir, '/');
+gldir = gldir(1:(slashes(end)-1));
 % remember the current directory
 olddir = pwd;
 oldpath = path;
@@ -98,7 +103,7 @@ eval(emlcstring);
 % ---------- Stage 2 --------------------
 % Generate mxArray <-> emxArray converters
 % ---------------------------------------
-[unused,res] = system(['python ' olddir '/mxarray_to_emlc.py updates_types.h > generator.hpp']);
+[unused,res] = system(['python ' olddir '/mxarray_to_emlc.py updates_types.h > mx_emx_converters.hpp']);
 if (~isempty(res))
     disp 'Compilation Failed. ';
     error(res);
@@ -117,6 +122,7 @@ end
 compilestring = ['mex -g '  ...
   '-I. -I/usr/include ' ...
  '-I' olddir ' '...
+ '-I' 
  '-cxx ' ...
  'CC="g++" ' ...
  '-DBOOST_UBLAS_ENABLE_PROXY_SHORTCUTS ' ...
