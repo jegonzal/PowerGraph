@@ -38,7 +38,7 @@ struct vertex_data {
   float value;
   float self_weight; // GraphLab does not support edges from vertex to itself, so
   // we save weight of vertex's self-edge in the vertex data
-  vertex_data(float value = 1) : value(value), self_weight(1) { }
+  vertex_data(float value = 1) : value(value), self_weight(0) { }
 }; // End of vertex data
 
 
@@ -114,7 +114,7 @@ void pagerank_update(gl_types::iscope &scope,
   sum = random_reset_prob/scope.num_vertices() + 
     (1-random_reset_prob)*sum;
   vdata.value = sum;
-  
+   
   // Schedule the neighbors as needed
   foreach(graphlab::edge_id_t eid, scope.out_edge_ids()) {
     edge_data& outedgedata = scope.edge_data(eid);    
@@ -203,7 +203,7 @@ int main(int argc, char** argv) {
   double norm = 0.0;
   for(graphlab::vertex_id_t vid = 0; 
       vid < core.graph().num_vertices(); vid++) {
-    norm += core.graph().vertex_data(vid).value;
+            norm += core.graph().vertex_data(vid).value;
   }
   
   // And output 5 first vertices pagerank after dividing their value
@@ -314,6 +314,7 @@ bool load_graph_from_file(const std::string& filename,
     for(size_t i = 0; i < out_eids.size(); ++i) {
       graphlab::edge_id_t out_eid = out_eids[i];
       sum += graph.edge_data(out_eid).weight;
+      
     }
     assert(sum > 0);
     // divide everything by sum
