@@ -316,6 +316,10 @@ bool load_graph_from_file(const std::string& filename,
       sum += graph.edge_data(out_eid).weight;
       
     }
+    if (sum == 0) {
+        vdata.self_weight = 1.0;
+        sum = 1.0; //Dangling page
+    }
     assert(sum > 0);
     // divide everything by sum
     vdata.self_weight /= sum;
