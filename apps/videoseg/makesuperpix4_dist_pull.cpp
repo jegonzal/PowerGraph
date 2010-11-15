@@ -296,13 +296,12 @@ void cluster_update(gl_types::iscope& scope,
   // if oldid now has mass
   // also consider picking a totally new color
 //  uint64_t newid;
- /* if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
+  if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
     newid = oldid;
   }else {
     newid = gl_types::random::rand_int(UINT64_MAX - 1);
-  }*/
-  //assignmentpreferences[newid] = 0;
-  
+  }
+    
   //totalmass = totalmass;
   // invert so that we have the sum over edge weights of a different color
   std::map<uint64_t, double>::iterator i = assignmentpreferences.begin();

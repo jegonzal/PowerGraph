@@ -144,7 +144,7 @@ struct denoise_problem {
     if(corruption == "gaussian") 
       noisy.gaussian_corrupt(sigma);
     else if(corruption == "flip")
-      noisy.flip_corrupt(num_rings, 0.5);
+      noisy.flip_corrupt(num_rings, 0.75);
     else if(corruption == "ising") 
       noisy = image(rows, cols);
     else {
@@ -260,14 +260,15 @@ void denoise_problem::save_all(const std::string& alchemy_fn) {
     std::cout << "Saving corrupted image tsv. " << std::endl;    
     noisy.save_vec("corrupted.tsv");
 
-    std::cout << "Saving Factors. " << std::endl;
-    {
-      std::ofstream fout("factors.tsv");
-      foreach(const factor_t& factor, model.factors()) {
-        fout << factor << '\n';
-      }
-      fout.close();
-    }
+    // std::cout << "Saving Factors. " << std::endl;
+    // {
+    //   std::ofstream fout("factors.tsv");
+    //   foreach(const factor_t& factor, model.factors()) {
+    //     fout << factor << '\n';
+    //   }
+    //   fout.close();
+    // }
+
     std::cout << "Saving Alchemy. " << std::endl;
     {
       model.save_alchemy(alchemy_fn);

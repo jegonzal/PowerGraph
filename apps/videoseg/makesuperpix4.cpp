@@ -253,40 +253,68 @@ void cluster_update(gl_types::iscope& scope,
   double temperature = shared_data->get_constant(TEMPERATURE).as<double>();
   // grab 
   std::map<uint64_t, double> assignmentpreferences;
+  std::set<uint64_t> possibleasgs;
+  foreach(graphlab::edge_id_t eid, in_edges) {   
+    graphlab::vertex_id_t nbrv = scope.source(eid);
+    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
+    assignmentpreferences[nbrdat.id] = 0;
+    possibleasgs.insert(nbrdat.id);
+  }
+  
+  foreach(graphlab::edge_id_t eid, out_edges) {
+    graphlab::vertex_id_t nbrv = scope.target(eid);
+    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
+    assignmentpreferences[nbrdat.id] = 0;
+    possibleasgs.insert(nbrdat.id);
+  }
+  uint64_t newid;
+  if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
+    newid = oldid;
+  }else {
+    newid = gl_types::random::rand_int(UINT64_MAX - 1);
+  }
+  possibleasgs.insert(newid);
+  assignmentpreferences[newid] = 0;  
   
   
   // the cost of assigning to a particular color
   // is the sum over all the edge weights which are of a different color.
   // To compute that, we first sum over all the edge weights which are of the
   // same color, and subtract
-
-  double totalmass = 0;
-  foreach(graphlab::edge_id_t eid, in_edges) {   
-    graphlab::vertex_id_t nbrv = scope.source(eid);
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
-    
-    float edgeweight = scope.const_edge_data(eid);
-    assignmentpreferences[nbrdat.id] += -edgeweight / temperature;
-    totalmass += -edgeweight / temperature;
-  }
   
-  foreach(graphlab::edge_id_t eid, out_edges) {
-    graphlab::vertex_id_t nbrv = scope.target(eid);
-    const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
+  double totalmass = 0;
+  foreach(uint64_t asgid, possibleasgs) {
+    foreach(graphlab::edge_id_t eid, in_edges) {   
+      graphlab::vertex_id_t nbrv = scope.source(eid);
+      const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
+      if (nbrdat.id == asgid) {
+        float edgeweight = scope.const_edge_data(eid);
+        assignmentpreferences[nbrdat.id] += -edgeweight / temperature;
+        totalmass += -edgeweight / temperature;
+      }
+      else {
+        assignmentpreferences[nbrdat.id] += -2/ temperature;
+        totalmass += -2 / temperature;
+      }
+    }
     
-    float edgeweight = scope.const_edge_data(eid);
-    assignmentpreferences[nbrdat.id] += -edgeweight / temperature;
-    totalmass += -edgeweight / temperature;
+    foreach(graphlab::edge_id_t eid, out_edges) {
+      graphlab::vertex_id_t nbrv = scope.target(eid);
+      const vertexdata &nbrdat = scope.const_neighbor_vertex_data(nbrv);
+      if (nbrdat.id == asgid) {
+        float edgeweight = scope.const_edge_data(eid);
+        assignmentpreferences[nbrdat.id] += -edgeweight / temperature;
+        totalmass += -edgeweight / temperature;
+      }
+      else {
+        assignmentpreferences[nbrdat.id] += -2/ temperature;
+        totalmass += -2 / temperature;
+      }
+    }
   }
   // if oldid now has mass
   // also consider picking a totally new color
 //  uint64_t newid;
- /* if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
-    newid = oldid;
-  }else {
-    newid = gl_types::random::rand_int(UINT64_MAX - 1);
-  }*/
-  //assignmentpreferences[newid] = 0;
   
   //totalmass = totalmass;
   // invert so that we have the sum over edge weights of a different color
@@ -333,6 +361,7 @@ void cluster_update(gl_types::iscope& scope,
   }
 
   curvertexdata.counter++;
+  
   if (curvertexdata.id != oldid) {
     foreach(graphlab::edge_id_t eid, out_edges) {
       scheduler.add_task(gl_types::update_task(scope.target(eid), cluster_update), 10.0); 

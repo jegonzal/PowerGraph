@@ -1,5 +1,5 @@
-#ifndef JT_DATA_STRUCTURES_HPP
-#define JT_DATA_STRUCTURES_HPP
+#ifndef DATA_STRUCTURES_HPP
+#define DATA_STRUCTURES_HPP
 
 /**
  *
@@ -12,8 +12,6 @@
 
 
 #include <iostream>
-#include <iomanip>
-
 #include <fstream>
 #include <vector>
 #include <map>
@@ -30,12 +28,11 @@
 #include <graphlab/macros_def.hpp>
 
 
-// The maximum number of dimensions in a factor table
-const size_t MAX_DIM = 16;
 
-// Basic graphical model typedefs
 typedef graphlab::vertex_id_t     vertex_id_t;
 typedef graphlab::edge_id_t       edge_id_t;
+
+const size_t MAX_DIM = 10;
 typedef graphlab::variable              variable_t;
 typedef graphlab::table_factor<MAX_DIM> factor_t;
 typedef factor_t::domain_type           domain_t;
@@ -44,168 +41,170 @@ typedef factor_t::assignment_type       assignment_t;
 
 // Represents a null VID in the tree
 const vertex_id_t NULL_VID = -1;
-const edge_id_t NULL_EID = -1;
-
-
-std::string make_filename(const std::string& base,
-                          const std::string& suffix,
-                          size_t number) {
-  std::stringstream strm;
-  strm << base
-       << std::setw(10) << std::setfill('0')
-       << number
-       << suffix;
-  std::cout << strm.str() << std::endl;
-  return strm.str();
-}
 
 
 
+// STRUCTS (Edge and Vertex data) =============================================>
 
-namespace mrf {
+struct vertex_data {
 
+  enum vertex_state {
+    AVAILABLE,         // Vertex is completely available [Default]
 
+    CANDIDATE,         // The vertex is currently a candidate
+    
+    BOUNDARY,          // The vertex is on the boundary of a tree
 
-  // STRUCTS (Edge and Vertex data) =============================================>
-  struct vertex_data {
-    // Problem specific variables
-    variable_t     variable;
-    assignment_t   asg;
-    std::set<vertex_id_t> factor_ids;
-    factor_t       belief;
-    size_t         updates; 
-
-    bool           in_tree;
-    vertex_id_t    tree_id;
-    vertex_id_t    height;
-
-    vertex_data() : updates(0), 
-                    in_tree(false), 
-                    tree_id(NULL_VID) { }
-
-    vertex_data(const variable_t& variable,
-                const std::set<vertex_id_t>& factor_ids) :
-      variable(variable),
-      asg(variable, std::rand() % variable.arity),
-      factor_ids(factor_ids),
-      belief(domain_t(variable)),
-      updates(0),
-      in_tree(false),
-      tree_id(NULL_VID),
-      height(0) {    // Set the belief to uniform 0
-      belief.uniform(-std::numeric_limits<double>::max());
-      assert(!factor_ids.empty());
-    }
-
-    void save(graphlab::oarchive &arc) const {
-      arc << variable;
-      arc << asg;
-      arc << factor_ids;
-      arc << belief;
-      arc << updates;
-      arc << in_tree;
-      arc << height;
-    }
-
-    void load(graphlab::iarchive &arc) {
-      arc >> variable;
-      arc >> asg;
-      arc >> factor_ids;
-      arc >> belief;
-      arc >> updates;
-      arc >> in_tree;
-      arc >> height;
-    }
-  }; // End of vertex data
-
-  /**
-   * The data associated with each directed edge in the pairwise markov
-   * random field
-   */
-  struct edge_data { 
-    // Currently empty
-    void save(graphlab::oarchive &arc) const {  }
-    void load(graphlab::iarchive &arc) { }
+    TREE_NODE,         // The vertex is in a tree
+    
+    CALIBRATED         // The vertex has been calibrated and has 
+                       // computed the message to the parent 
   };
 
-  // define the graph type:
-  typedef graphlab::graph< vertex_data, edge_data> graph_type;
-  typedef graphlab::types<graph_type> gl;
+
+  // Problem specific variables
+  variable_t     variable;
+  size_t asg;
+  std::vector<size_t> factor_ids;
+  factor_t       belief;
+  
+  factor_t       tmp_bp_belief;
+  
+  size_t         updates;
 
 
-  /** Save the beliefs stored in the graph */
-  void save_beliefs(const graph_type& graph,
-                    const std::string& filename) {
-    std::ofstream fout(filename.c_str());
-    fout.precision(16);
-    factor_t marginal;
-    for(size_t v = 0; v < graph.num_vertices(); ++v) {
-      const vertex_data& vdata = graph.vertex_data(v);
-      marginal = vdata.belief;
-      marginal.normalize();
-      fout << vdata.updates << '\t';
-      size_t arity = marginal.args().var(0).arity;
-      for(size_t asg = 0; asg < arity; ++asg) {
-        fout << std::exp( marginal.logP(asg) );
-        if(asg + 1 < arity ) fout << '\t';      
-      }
-      fout << '\n';
-    } 
-    fout.close();
-  } // End of save beliefs
+  
+  // Tree construction variables
+  vertex_id_t    parent;
+  vertex_state   state;
+  size_t         marked_up;
+  size_t         height;
 
+  graphlab::atomic<size_t> child_candidates;
+  
+  vertex_data() :
+    updates(0),
+    parent(NULL_VID),
+    state(AVAILABLE),
+    height(0),
+    child_candidates(0){ }
 
-  void save_asg(const graph_type& graph,
-                const std::string& filename) {
-    std::ofstream fout(filename.c_str());
-    graphlab::unary_factor marginal;
-    for(size_t v = 0; v < graph.num_vertices(); ++v) 
-      fout << graph.vertex_data(v).asg.asg(v) << '\n';
-    fout.close();
-  } // End of save beliefs
-
-
-  void save_color(const graph_type& graph,
-                  const std::string& filename) {
-    std::ofstream fout(filename.c_str());
-    graphlab::unary_factor marginal;
-    for(size_t v = 0; v < graph.num_vertices(); ++v) 
-      fout << graph.color(v) << '\n';
-    fout.close();
-  } // End of save beliefs
-
-
-
-
-  void save_tree_state(const graph_type& graph,
-                       const std::string& filename) {
-    std::ofstream fout(filename.c_str());
-    for(size_t v = 0; v < graph.num_vertices(); ++v) {
-      const vertex_data& vdata = graph.vertex_data(v);
-      fout << v << '\t'
-           << vdata.in_tree << '\t'
-           << vdata.tree_id << '\n';
-    } 
-    fout.close();
-  } // End of save beliefs
-
-
-
-  void min_max_samples(const graph_type& graph,
-                       size_t& min_samples,
-                       size_t& max_samples) {
-    max_samples = 0;
-    min_samples = -1;
-    for(size_t i = 0; i < graph.num_vertices(); ++i) {
-      const vertex_data& vdata = graph.vertex_data(i);
-      max_samples = std::max(max_samples, vdata.updates);
-      min_samples = std::min(min_samples, vdata.updates);
-    }
+  vertex_data(const variable_t& variable,
+              const std::vector<size_t>& factor_ids) :
+    variable(variable),
+    asg(graphlab::random::rand_int(variable.arity - 1)),
+    factor_ids(factor_ids),
+    belief(domain_t(variable)),
+    tmp_bp_belief(domain_t(variable)),
+    updates(0),
+    parent(NULL_VID),
+    state(AVAILABLE),
+    height(0),
+    child_candidates(0) {
+    // Set the belief to uniform 0
+    belief.uniform(-std::numeric_limits<double>::max());
+    assert(!factor_ids.empty());
   }
 
 
+  
 
-}; // end of MRF namespace  
+  void save(graphlab::oarchive &arc) const {
+    arc << variable;
+    arc << asg;
+    arc << factor_ids;
+    arc << belief;
+    arc << tmp_bp_belief;
+    arc << updates;
+
+    arc << parent;
+    arc.o->write(reinterpret_cast<const char*>(&state), sizeof(vertex_state));
+    arc << height;
+    size_t value = child_candidates.value;
+    arc << value;
+  }
+  
+  void load(graphlab::iarchive &arc) {
+    arc >> variable;
+    arc >> asg;
+    arc >> factor_ids;
+    arc >> belief;
+    arc >> tmp_bp_belief;
+    arc >> updates;
+
+    arc >> parent;
+    arc.i->read(reinterpret_cast<char*>(&state), sizeof(vertex_state));
+    arc >> height;
+    size_t value;
+    arc >> value;
+    child_candidates.value = value;
+  }
+}; // End of vertex data
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * The data associated with each directed edge in the pairwise markov
+ * random field
+ */
+struct edge_data { 
+  double     weight;
+  factor_t   message;
+  factor_t   edge_factor;
+  bool     exploring;
+  
+  edge_data() : weight(0), exploring(false) { }
+  edge_data(const variable_t& source, const variable_t& target) :
+    weight(0), message( domain_t(target) ),
+    edge_factor( domain_t(source, target) ),
+    exploring(false) { }
+
+  void save(graphlab::oarchive &arc) const {
+    arc << weight;
+    arc << message;
+    arc << edge_factor;
+    arc << exploring;
+  }
+  
+  void load(graphlab::iarchive &arc) {
+    arc >> weight;
+    arc >> message;
+    arc >> edge_factor;
+    arc >> exploring;
+  }
+}; 
+
+
+
+
+
+
+
+
+
+
+// define the graph type:
+typedef graphlab::graph< vertex_data, edge_data> graph_type;
+typedef graphlab::types<graph_type> gl;
+
+
+
+
+
+
+
+
+
 
 
 
@@ -218,26 +217,24 @@ namespace mrf {
 // of factors.
 class factorized_model {
 public:
-
-  typedef std::vector<factor_t> factor_map_t;
-
   void add_factor(const factor_t& factor) {
     _factors.push_back(factor);
+    _factors.rbegin()->normalize();
     size_t factor_id = _factors.size() - 1;
     for(size_t i = 0; i < factor.num_vars(); ++i) {
       variable_t var = factor.args().var(i); 
       _variables.insert(var);
       // add factor to reverse map
-      _var_to_factor[var].insert(factor_id);
+      _var_to_factor[var].push_back(factor_id);
     }
   }
 
   
-  const factor_map_t& factors() const { return _factors; }
+  const std::vector<factor_t>& factors() const { return _factors; }
   const std::set<variable_t>& variables() const { return _variables; }
 
-  const std::set<vertex_id_t>& factor_ids(const variable_t& var) const {
-    typedef std::map<variable_t, std::set<vertex_id_t> >::const_iterator iterator;
+  const std::vector<size_t>& factor_ids(const variable_t& var) const {
+    typedef std::map<variable_t, std::vector<size_t> >::const_iterator iterator;
     iterator iter = _var_to_factor.find(var);
     assert(iter != _var_to_factor.end());
     return iter->second;
@@ -280,7 +277,6 @@ public:
       }
       // Get the variable name
       std::string var_name = trim(line.substr(0, namelen));
-      assert(varsize > 0);
       // Create a new finite variable in the universe
       variable_t variable(unique_var_id++, varsize);
       // Store the variable in the local variable map
@@ -391,41 +387,20 @@ public:
         >> _factors
         >> _var_to_factor
         >> _var_name;
-  }  
-
-
-  //! save the alchemy file
-  void save_alchemy(const std::string& filename) const {
-    std::ofstream fout(filename.c_str());
-    assert(fout.good());
-    fout << "variables:" << std::endl;
-    foreach(variable_t var, _variables) {
-      fout << var.id << '\t' << var.arity << "\n";
-    }
-    fout << "factors:" << std::endl;
-    foreach(const factor_t& factor, _factors) {
-      domain_t domain = factor.args();
-      for(size_t i = 0; i < domain.num_vars(); ++i) {
-        fout << domain.var(i).id;
-        if(i + 1 < domain.num_vars()) fout << " / ";
-      }
-      fout << " // ";
-      for(size_t i = 0; i < factor.size(); ++i) {
-        fout << factor.logP(i);
-        if(i + 1 < factor.size()) fout << ' ';
-      }
-      fout << '\n';
-    }
-    fout.flush();
-    fout.close();
   }
 
 
+  
+
+  
+  
 private:
   std::set<variable_t> _variables;
   std::vector<factor_t> _factors;
-  std::map< variable_t, std::set<vertex_id_t> > _var_to_factor;
+  std::map< variable_t, std::vector<size_t> > _var_to_factor;
   std::vector<std::string> _var_name;
+
+  
   /**
    * same as the stl string get line but this also increments a line
    * counter which is useful for debugging purposes
@@ -435,6 +410,7 @@ private:
                       size_t line_number) {
     return std::getline(fin, line).good();
   }
+  
   /**
    * Removes trailing and leading white space from a string
    */
@@ -444,6 +420,7 @@ private:
     return str.substr(pos1 == std::string::npos ? 0 : pos1,
                       pos2 == std::string::npos ? str.size()-1 : pos2-pos1+1);
   }
+
 }; //end of factorized model
 
 
@@ -453,13 +430,24 @@ private:
 
 
 
-/** Construct an MRF from the factorized model */
-void construct_mrf(const factorized_model& model,
-                   mrf::graph_type& graph) {
+
+
+
+
+
+
+
+void construct_clique_graph(const factorized_model& model,
+                            graph_type& graph) {
   // Add all the variables
   foreach(variable_t variable, model.variables()) {
-    mrf::vertex_data vdata(variable, model.factor_ids(variable));
-    vdata.asg.uniform_sample();
+    vertex_data vdata(variable, model.factor_ids(variable));
+    // start with an initial random assignment
+    assignment_t asg(vdata.variable);
+    asg.uniform_sample();
+    vdata.asg = asg.asg_at(0);
+    double& logP = vdata.belief.logP(vdata.asg);
+    logP = log(exp(logP) + 1.0);
     graphlab::vertex_id_t vid = graph.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).
@@ -469,7 +457,7 @@ void construct_mrf(const factorized_model& model,
   const std::vector<factor_t>& factors = model.factors();
   // Add all the edges
   for(vertex_id_t vid = 0; vid < graph.num_vertices(); ++vid) {
-    const mrf::vertex_data& vdata  = graph.vertex_data(vid);
+    const vertex_data& vdata  = graph.vertex_data(vid);
     // Compute all the neighbors of this vertex by looping over all
     // the variables in all the factors that contain this vertex
     std::set<variable_t> neighbors;
@@ -485,52 +473,12 @@ void construct_mrf(const factorized_model& model,
     // that variable
     foreach(variable_t neighbor_variable, neighbors) {
       vertex_id_t neighbor_vid = neighbor_variable.id;
-      mrf::edge_data edata;
+      edge_data edata(vdata.variable, neighbor_variable);
       graph.add_edge(vid, neighbor_vid, edata);      
     }
   } // loop over factors
-  graph.finalize();
-} // End of construct_mrf
 
-
-
-
-
-
-
-
-
-namespace junction_tree {
-  struct vertex_data {
-    vertex_id_t parent;
-    domain_t variables;
-    bool calibrated;
-    bool sampled;
-    std::set<vertex_id_t> factor_ids;
-    factor_t factor;
-    assignment_t asg;
-
-    vertex_data() : 
-      parent(NULL_VID),
-      calibrated(false), 
-      sampled(false)  { }
-  }; // End of vertex data
-
-
-  struct edge_data {
-    domain_t variables;
-    factor_t message;
-    bool calibrated;
-    bool received;
-    edge_data() : calibrated(false), received(false) { }
-  }; // End of edge data
-
-
-  // define the graph type:
-  typedef graphlab::graph< vertex_data, edge_data> graph_type;
-  typedef graphlab::types<graph_type> gl;
-
-}; // The namespace for junction trees
+} // End of construct_clique_graph
 
 
 
@@ -543,13 +491,75 @@ namespace junction_tree {
 
 
 
+/** Save the beliefs stored in the graph */
+void save_beliefs(const graph_type& graph,
+                  const std::string& filename) {
+  std::ofstream fout(filename.c_str());
+  fout.precision(16);
+  factor_t marginal;
+  for(size_t v = 0; v < graph.num_vertices(); ++v) {
+    const vertex_data& vdata = graph.vertex_data(v);
+    marginal = vdata.belief;
+    marginal.normalize();
+    fout << vdata.updates << '\t';
+    size_t arity = marginal.args().var(0).arity;
+    for(size_t asg = 0; asg < arity; ++asg) {
+      fout << std::exp( marginal.logP(asg) );
+      if(asg + 1 < arity ) fout << '\t';      
+    }
+    fout << '\n';
+  } 
+  fout.close();
+} // End of save beliefs
+
+
+void save_asg(const graph_type& graph,
+              const std::string& filename) {
+  std::ofstream fout(filename.c_str());
+  graphlab::unary_factor marginal;
+  for(size_t v = 0; v < graph.num_vertices(); ++v) 
+    fout << graph.vertex_data(v).asg << '\n';
+  fout.close();
+} // End of save beliefs
+
+
+void save_color(const graph_type& graph,
+                const std::string& filename) {
+  std::ofstream fout(filename.c_str());
+  graphlab::unary_factor marginal;
+  for(size_t v = 0; v < graph.num_vertices(); ++v) 
+    fout << graph.color(v) << '\n';
+  fout.close();
+} // End of save beliefs
 
 
 
 
+void save_tree_state(const graph_type& graph,
+                     const std::string& filename) {
+  std::ofstream fout(filename.c_str());
+  for(size_t v = 0; v < graph.num_vertices(); ++v) {
+    const vertex_data& vdata = graph.vertex_data(v);
+    fout << v << '\t'
+         << vdata.state << '\t'
+         << vdata.parent << '\n';
+  } 
+  fout.close();
+} // End of save beliefs
 
 
 
+void min_max_samples(const graph_type& graph,
+                 size_t& min_samples,
+                 size_t& max_samples) {
+  max_samples = 0;
+  min_samples = -1;
+  for(size_t i = 0; i < graph.num_vertices(); ++i) {
+    const vertex_data& vdata = graph.vertex_data(i);
+    max_samples = std::max(max_samples, vdata.updates);
+    min_samples = std::min(min_samples, vdata.updates);
+  }
+}
 
 
 

@@ -18,9 +18,6 @@
 #include <graphlab/distributed/distributed_round_robin_scheduler.hpp>
 
 
-extern "C" {
-#include "../../apps/linear_algebra/random.hpp"
-};
 
 typedef double  sdouble; 
 

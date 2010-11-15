@@ -1,11 +1,17 @@
 #ifndef UPDATE_FUNCTIONS_HPP
 #define UPDATE_FUNCTIONS_HPP
 
+#include <boost/unordered_map.hpp>
+
 #include "data_structures.hpp"
 
 // Include the macro for the foreach operation
 #include <graphlab/macros_def.hpp>
 
+
+typedef std::pair<variable_t, uint32_t> mini_asg_t;
+
+typedef std::map<vertex_id_t, mini_asg_t> asg_map_type;
 
 /** Important!! edge_factor_id must be last */
 enum constants {MAX_HEIGHT_ID, 
@@ -55,7 +61,7 @@ double unnormalized_likelihood(const graph_type& graph,
       const vertex_id_t vid = dom.var(i).id;
       const vertex_data& vdata = graph.vertex_data(vid);
       assert(vdata.variable == dom.var(i));
-      asg &= vdata.asg;
+      asg &= assignment_t(vdata.variable, vdata.asg);
     }
     sum += factor.logP(asg);
   }
@@ -75,7 +81,6 @@ double compute_edge_weight(vertex_id_t parent,
   graphlab::edge_list child_in_edges = global_graph->in_edge_ids(child);
   
   // Collect assignment to all variables in the neighborhood of parent and child
-  typedef std::map<variable_t, assignment_t> asg_map_type;
   typedef asg_map_type::const_iterator map_iterator;
   asg_map_type large_assignment;
 
@@ -83,7 +88,9 @@ double compute_edge_weight(vertex_id_t parent,
   foreach(edge_id_t eid, child_in_edges) {
     const vertex_id_t neighbor = global_graph->source(eid);
     const vertex_data& neighbor_vdata = global_graph->vertex_data(neighbor);
-    large_assignment[neighbor_vdata.variable] = neighbor_vdata.asg;
+    large_assignment[neighbor_vdata.variable.id] = 
+      std::make_pair(neighbor_vdata.variable,
+		     neighbor_vdata.asg);
   }
 
   // Construct the child and edge belief
@@ -109,9 +116,12 @@ double compute_edge_weight(vertex_id_t parent,
       // on it
       if(var != parent_vdata.variable &&
          var != child_vdata.variable) {
-        map_iterator iter = large_assignment.find(var);
+        map_iterator iter = large_assignment.find(var.id);
         assert(iter != large_assignment.end());
-        asg &= iter->second;
+	assignment_t local_asg(iter->second.first, 
+			       iter->second.second);
+
+        asg &= local_asg;
       }
     }
     // If the factor can be conditioned away (node_potential)
@@ -133,7 +143,8 @@ double compute_edge_weight(vertex_id_t parent,
   bp_message.convolve(edge_factor, child_potential);
   bp_message.normalize();
   factor_t conditional(parent_vdata.variable);
-  conditional.condition(edge_factor, child_vdata.asg);
+  assignment_t child_asg(child_vdata.variable, child_vdata.asg);
+  conditional.condition(edge_factor, child_asg);
   conditional.normalize();
 
   // // Compute the l1 difference
@@ -519,7 +530,6 @@ void up_tree_update(gl::iscope& scope,
   
   // Construct an assignment map to all the neighbors that are not in
   // the tree
-  typedef std::map<variable_t, assignment_t> asg_map_type;
   typedef asg_map_type::const_iterator map_iterator;
   asg_map_type large_assignment;
 
@@ -536,7 +546,9 @@ void up_tree_update(gl::iscope& scope,
     // if the neighbor is neither a child or a parent then add it to
     // the conditioning set
     if(!(is_child || is_parent)) {
-      large_assignment[neighbor_vdata.variable] = neighbor_vdata.asg;
+      large_assignment[neighbor_vdata.variable.id] = 
+      std::make_pair(neighbor_vdata.variable,
+		     neighbor_vdata.asg);
     } else  if(is_child) {
       // Multiply in the message from the children
       const edge_data& neighbor_edata = scope.edge_data(eid);
@@ -557,11 +569,15 @@ void up_tree_update(gl::iscope& scope,
       const variable_t& var = args.var(i);
       // if the ith variable is not the same as this vertex variable
       if(vdata.variable != var) {
-        map_iterator iter = large_assignment.find(var);
+        map_iterator iter = large_assignment.find(var.id);
         // If the map has a value for this variable
         if(iter == large_assignment.end()) {
           node_potential = false; break;
-        } else asg &= iter->second;
+        } else {
+	  assignment_t local_asg(iter->second.first, 
+				 iter->second.second);
+	  asg &= local_asg;
+	}
       }
     }
     // If the factor can be conditioned away (node_potential)
@@ -618,11 +634,15 @@ void up_tree_update(gl::iscope& scope,
           assert(is_edge_factor == false);
           is_edge_factor = true;
         } else if(vdata.variable != var) {
-          map_iterator iter = large_assignment.find(var);
+          map_iterator iter = large_assignment.find(var.id);
           // If the map does not have a value for this variable
           if(iter == large_assignment.end()) {
             is_edge_factor = false; break;
-          } else asg &= iter->second;
+          } else {
+	    assignment_t local_asg(iter->second.first, 
+				   iter->second.second);
+	    asg &= local_asg;
+	  } 
         }
       }
       // If the only two non-conditional variables are this and its
@@ -760,7 +780,8 @@ void down_tree_update(gl::iscope& scope,
     const vertex_data& parent_vdata = scope.neighbor_vertex_data(vdata.parent);
     const edge_id_t to_parent_eid = scope.edge(vid, vdata.parent);
     const edge_data& to_parent_edata = scope.edge_data(to_parent_eid);
-    sample_dist.times_condition(to_parent_edata.edge_factor, parent_vdata.asg);
+    assignment_t parent_asg(parent_vdata.variable, parent_vdata.asg);
+    sample_dist.times_condition(to_parent_edata.edge_factor, parent_asg);
     sample_dist.normalize();
     // Update the belief with message from parent
     const edge_id_t from_parent_eid = scope.edge(vdata.parent, vid);
@@ -769,7 +790,7 @@ void down_tree_update(gl::iscope& scope,
   }
 
   // Actually Draw the sample
-  vdata.asg = sample_dist.sample();
+  vdata.asg = sample_dist.sample().asg_at(0);
   vdata.updates++;
   vdata.belief += sample_dist;
   
@@ -827,26 +848,40 @@ void down_tree_update(gl::iscope& scope,
 
 
 
+template<bool UseCallback>
+void single_sample_update1(gl::iscope& scope, 
+			   gl::icallback& scheduler,
+			   gl::ishared_data* shared_data);
 
-
-
-
-
-
+template<bool UseCallback>
+void single_sample_update2(gl::iscope& scope, 
+			   gl::icallback& scheduler,
+			   gl::ishared_data* shared_data);
 
 
 
 template<bool UseCallback>
 void single_sample_update(gl::iscope& scope, 
-                          gl::icallback& scheduler,
-                          gl::ishared_data* shared_data) {
+			  gl::icallback& scheduler,
+			  gl::ishared_data* shared_data) {
+  //single_sample_update1<UseCallback>(scope,scheduler, shared_data);
+  single_sample_update2<UseCallback>(scope,scheduler, shared_data);
+
+}
+
+
+
+
+template<bool UseCallback>
+void single_sample_update1(gl::iscope& scope, 
+			   gl::icallback& scheduler,
+			   gl::ishared_data* shared_data) {
   assert(shared_data != NULL);
   vertex_data& vdata = scope.vertex_data();
 
     
   // Construct an assignment map to all the neighbors that are not in
   // the tree
-  typedef std::map<variable_t, assignment_t> asg_map_type;
   typedef asg_map_type::const_iterator map_iterator;
   asg_map_type large_assignment;
 
@@ -854,8 +889,12 @@ void single_sample_update(gl::iscope& scope,
   // messages into temporary bp belief
   foreach(edge_id_t eid, scope.in_edge_ids()) {
     const vertex_id_t neighbor        = scope.source(eid);
-    const vertex_data& neighbor_vdata = scope.neighbor_vertex_data(neighbor);
-    large_assignment[neighbor_vdata.variable] = neighbor_vdata.asg;
+    const vertex_data& neighbor_vdata = 
+      scope.neighbor_vertex_data(neighbor);
+    large_assignment[neighbor_vdata.variable.id] = 
+      std::make_pair(neighbor_vdata.variable,
+		     neighbor_vdata.asg);
+    
   }
 
   // Prepare to compute the tmp belief 
@@ -871,16 +910,57 @@ void single_sample_update(gl::iscope& scope,
     for(size_t i = 0; i < args.num_vars(); ++i) {
       const variable_t& var = args.var(i);
       if(var != vdata.variable) {
-        map_iterator iter = large_assignment.find(var);
+        map_iterator iter = large_assignment.find(var.id);
         assert(iter != large_assignment.end());
-        asg &= iter->second;
+	assignment_t local_asg(iter->second.first, 
+			       iter->second.second);
+	asg &= local_asg;
       }
     }
     assert(asg.num_vars() + 1 == factor.num_vars());
     vdata.tmp_bp_belief.times_condition(factor, asg);    
   } 
   vdata.tmp_bp_belief.normalize(); 
-  vdata.asg = vdata.tmp_bp_belief.sample();
+  vdata.asg = vdata.tmp_bp_belief.sample().asg_at(0);
+  vdata.belief += vdata.tmp_bp_belief;
+  vdata.updates++;
+  
+  // Reschedule self
+  if(UseCallback) {
+    gl::update_task task(scope.vertex(), single_sample_update<UseCallback> );
+    double residual = 1.0;
+    scheduler.add_task(task, residual);
+  }
+}
+
+
+template<bool UseCallback>
+void single_sample_update2(gl::iscope& scope, 
+                          gl::icallback& scheduler,
+                          gl::ishared_data* shared_data) {
+  assert(shared_data != NULL);
+  vertex_data& vdata = scope.vertex_data();
+
+  factor_t conditional;
+  factor_t& belief(vdata.tmp_bp_belief);
+  belief.uniform();
+  conditional.set_args(vdata.variable);
+  foreach(vertex_id_t factor_id, vdata.factor_ids) {
+    const factor_t& factor =
+      shared_data->get_constant(FACTOR_ID + factor_id).as<factor_t>();
+    // build the conditional
+    assignment_t conditional_asg = factor.args() - vdata.variable;
+    for(size_t i = 0; i < conditional_asg.num_vars(); ++i) {
+      const vertex_data& other_vdata = 
+	scope.const_neighbor_vertex_data(conditional_asg.args().var(i).id);
+      assert(conditional_asg.args().var(i) == other_vdata.variable);
+      conditional_asg &= 
+	assignment_t(other_vdata.variable, other_vdata.asg);
+    }
+    belief.times_condition(factor, conditional_asg);
+  }
+  vdata.tmp_bp_belief.normalize(); 
+  vdata.asg = vdata.tmp_bp_belief.sample().asg_at(0);
   vdata.belief += vdata.tmp_bp_belief;
   vdata.updates++;
   

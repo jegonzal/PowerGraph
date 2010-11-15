@@ -73,17 +73,23 @@ void vec2vec2(const sdouble * _vec, vec & _vec2, int len){
      return ret;
  }
  
- inline void dot2(sdouble * x1, const vec & x3, sdouble * ret, int len){
+ inline void dot2(vec& x1, const vec & x3, sdouble * ret, int len){
+             for (int i=0; i< len; i++){
+                ret[i] = (x1[i] * x3[i]);
+             }
+        }
+ inline void dot2(const sdouble* x1, const vec & x3, sdouble * ret, int len){
              for (int i=0; i< len; i++){
                 ret[i] = (x1[i] * x3[i]);
              }
         }
 
- inline void dot2(sdouble * x1, const sdouble * x3, mat & Q, int j, int len){
+
+ inline void dot2(vec & x1, const vec & x3, mat & Q, int j, int len){
              for (int i=0; i< len; i++){
                 Q.set(i,j,(x1[i] * x3[i]));
              }
-        }
+}
 
 
 mat GenDiffMat(int K){
@@ -100,5 +106,15 @@ mat GenDiffMat(int K){
     }
    return ret;
 }
+
+void debug_print_vec(const char * name,const vec& _vec, int len){
+  printf("%s ) ", name);
+  for (int i=0; i< len; i++)
+    if (_vec[i] == 0)
+      printf("      0    ");
+    else printf("%12.4g    ", _vec[i]);
+  printf("\n");
+}
+
 
 #endif //_ITPP_VEC_UTILS_H

@@ -46,12 +46,18 @@ namespace graphlab {
     //! The compiler flags
     std::string compile_flags;
 
+    //! Use CPU affinities
+    bool enable_cpu_affinities;
+    bool enable_sched_yield;
+
     
     engine_options() :
       ncpus(2),
       engine_type("async"),
       scope_type("edge"),
-      scheduler_type("fifo") {
+      scheduler_type("fifo"),
+      enable_cpu_affinities(false),
+      enable_sched_yield(true) {
       // Grab all the compiler flags 
 #ifdef COMPILEFLAGS
 #define QUOTEME_(x) #x
@@ -76,6 +82,9 @@ namespace graphlab {
                                    scope_type,
                                    graph,
                                    ncpus);
+      assert(eng != NULL);
+      eng->enable_sched_yield(enable_sched_yield);
+      eng->enable_cpu_affinities(enable_cpu_affinities);
       return eng;
     }
 
@@ -88,7 +97,9 @@ namespace graphlab {
                 << "ncpus:       " << ncpus << "\n"
                 << "engine:      " << engine_type << "\n"
                 << "scope:       " << scope_type  << "\n"
-                << "scheduler:   " << scheduler_type << std::endl;
+                << "scheduler:   " << scheduler_type << "\n"
+                << "affinities:  " << enable_cpu_affinities << "\n"
+		<< "schedyield: " << enable_sched_yield  << std::endl;
     }
 
 
@@ -101,7 +112,9 @@ namespace graphlab {
           << engine_type
           << scope_type
           << scheduler_type
-          << compile_flags;
+          << compile_flags
+	  << enable_cpu_affinities
+	  << enable_sched_yield;
     } // end of save
 
 
@@ -113,7 +126,9 @@ namespace graphlab {
           >> engine_type
           >> scope_type
           >> scheduler_type
-          >> compile_flags;
+          >> compile_flags
+	  >> enable_cpu_affinities
+	  >> enable_sched_yield;
     } // end of load
   };
 

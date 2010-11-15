@@ -104,6 +104,26 @@ struct GaussianMixture{
     }
   }
   
+  std::vector<float> sample() const{
+    float d = graphlab::random::rand01();
+    float s = 0;
+    // select a gaussian
+    size_t sel = 0;
+    for (size_t i = 0;i < gaussians.size(); ++i) {
+      s += gaussians[i].weight;
+      if (s >= d) {
+        sel = i;
+        break;
+      }
+    }
+    std::vector<float> ret;
+    ret.resize(DIM);
+    for (size_t i = 0;i < DIM; ++i) {
+      ret[i] = gaussians[sel].center[i] + graphlab::random::gaussian_rand() * gaussians[sel].sigma;
+    }
+    return ret;
+  }
+  
   void simplify(float threshold = 1E-8) {
     normalize();
     std::vector<SphericalGaussian<DIM> > newgaussians;

@@ -185,6 +185,19 @@ int main(int argc, char** argv) {
     }
   }
 
+  //Normalize the vertices
+  double sum = 0;
+  for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
+    core.graph().vertex_data(i).value = 
+      graphlab::random::rand01() + 1;
+    sum += core.graph().vertex_data(i).value;
+  }
+  for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
+    core.graph().vertex_data(i).value = 
+      core.graph().vertex_data(i).value / sum;
+  }
+
+
   // Schedule all vertices to run pagerank update on the
   // first round.
   core.add_task_to_all(pagerank_update, 100.0);
@@ -241,16 +254,19 @@ void make_toy_graph(pagerank_graph& graph) {
   graph.add_edge(2, 0, edge_data(1.0/3));
   graph.add_edge(2, 1, edge_data(1.0/3));
   graph.add_edge(2, 3, edge_data(1.0/3));
+
   graph.add_edge(3, 0, edge_data(0.25));
   graph.add_edge(3, 1, edge_data(0.25));
   graph.add_edge(3, 2, edge_data(0.25));
   graph.add_edge(3, 4, edge_data(0.25));
+
   graph.add_edge(4, 0, edge_data(0.2));
   graph.add_edge(4, 1, edge_data(0.2));
   graph.add_edge(4, 2, edge_data(0.2));
   graph.add_edge(4, 3, edge_data(0.2));
   // and self edge which must be handled specially from 4 to 4
   graph.vertex_data(4).self_weight = 0.2;
+
 } // end of make_toy_graph
 
 

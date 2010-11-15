@@ -39,4 +39,4 @@ add_dist_executable(makesuperpix4_dist makesuperpix4_dist.cpp)
 dist_target_link_libraries(makesuperpix4_dist jpeg tcmalloc)
 
 add_dist_executable(makesuperpix4_dist_pull makesuperpix4_dist_pull.cpp)
-dist_target_link_libraries(makesuperpix4_dist_pull jpeg tcmalloc)
+dist_target_link_libraries(makesuperpix4_dist_pull jpeg)
