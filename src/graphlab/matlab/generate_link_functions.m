@@ -20,7 +20,7 @@ if (isstruct(exvertex_))
 end
 fprintf(f, 'eml.ceval(''emx_get_vertex_data'', handle, vertex, eml.ref(vdata));\n');
 fprintf(f, 'end\n');
-fclose(f)
+fclose(f);
 
 % get_edge_data can be called by the user function to get the data
 % on an edge. This call works by redirecting to a C function
@@ -33,7 +33,7 @@ if (isstruct(exedge_))
 end
 fprintf(f, 'eml.ceval(''emx_get_edge_data'', handle, edge, eml.ref(edata));\n');
 fprintf(f, 'end\n');
-fclose(f)
+fclose(f);
 
 % datatype_identifier is an empty function that allows the C++
 % side to identify the vertex and edge data types
@@ -46,7 +46,7 @@ if (isstruct(exedge_))
     fprintf(f, 'eml.cstructname(edata, ''emx_edgedata'');\n');
 end
 fprintf(f, 'end\n');
-fclose(f)
+fclose(f);
 
 
 
@@ -60,7 +60,7 @@ if (isstruct(exvertex_))
 end
 fprintf(f, 'eml.ceval(''emx_set_vertex_data'', handle, vertex, eml.ref(vdata));\n');
 fprintf(f, 'end\n');
-fclose(f)
+fclose(f);
 
 % set_edge_data can be called by the user function to get the data
 % on an edge. This call works by redirecting to a C function
@@ -72,5 +72,5 @@ if (isstruct(exedge_))
 end
 fprintf(f, 'eml.ceval(''emx_set_edge_data'', handle, edge, eml.ref(edata));\n');
 fprintf(f, 'end\n');
-fclose(f)
+fclose(f);
 end

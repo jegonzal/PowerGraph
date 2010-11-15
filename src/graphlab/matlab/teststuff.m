@@ -7,4 +7,4 @@ vdata.c = [temp,temp];
 vdata.d = [temp,temp];
 edata = temp;
 %%
-compile_update_function({'test_update_function'}, vdata,edata , 'b3');
+compile_update_function({'test_update_function'}, vdata,edata , [getenv('HOME') '/graphlab/graphlabapi/release/src/graphlab'], 'b3');

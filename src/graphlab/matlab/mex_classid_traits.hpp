@@ -13,73 +13,73 @@
 /**
  * Checks if the classID is storage compatible with the type T
  */
-template <typename T> bool compatible_classid(mxClassID cid) { return false; };
+template <typename T> inline bool compatible_classid(mxClassID cid) { return false; };
 
-template <> bool compatible_classid<char>(mxClassID cid) { 
+template <> inline bool compatible_classid<char>(mxClassID cid) {
   return cid == mxCHAR_CLASS || cid == mxINT8_CLASS || cid == mxUINT8_CLASS; 
 };
-template <> bool compatible_classid<int8_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<int8_T>(mxClassID cid) {
   return cid == mxINT8_CLASS || cid == mxUINT8_CLASS; 
 };
-template <> bool compatible_classid<uint8_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<uint8_T>(mxClassID cid) {
   return cid == mxINT8_CLASS || cid == mxUINT8_CLASS; 
 };
-template <> bool compatible_classid<int16_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<int16_T>(mxClassID cid) {
   return cid == mxINT16_CLASS || cid == mxUINT16_CLASS; 
 };
-template <> bool compatible_classid<uint16_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<uint16_T>(mxClassID cid) {
   return cid == mxINT16_CLASS || cid == mxUINT16_CLASS; 
 };
-template <> bool compatible_classid<int32_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<int32_T>(mxClassID cid) {
   return cid == mxINT32_CLASS || cid == mxUINT32_CLASS; 
 };
-template <> bool compatible_classid<uint32_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<uint32_T>(mxClassID cid) {
   return cid == mxINT32_CLASS || cid == mxUINT32_CLASS; 
 };
-template <> bool compatible_classid<int64_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<int64_T>(mxClassID cid) {
   return cid == mxINT64_CLASS || cid == mxUINT64_CLASS; 
 };
-template <> bool compatible_classid<uint64_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<uint64_T>(mxClassID cid) {
   return cid == mxINT64_CLASS || cid == mxUINT64_CLASS; 
 };
-template <> bool compatible_classid<real32_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<real32_T>(mxClassID cid) {
   return cid == mxSINGLE_CLASS; 
 };
-template <> bool compatible_classid<real64_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<real64_T>(mxClassID cid) {
   return cid == mxDOUBLE_CLASS; 
 };
 #ifdef CREAL_T
-template <> bool compatible_classid<cint8_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cint8_T>(mxClassID cid) {
   return cid == mxINT8_CLASS || cid == mxUINT8_CLASS; 
 };
-template <> bool compatible_classid<cuint8_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cuint8_T>(mxClassID cid) {
   return cid == mxINT8_CLASS || cid == mxUINT8_CLASS; 
 };
-template <> bool compatible_classid<cint16_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cint16_T>(mxClassID cid) {
   return cid == mxINT16_CLASS || cid == mxUINT16_CLASS; 
 };
-template <> bool compatible_classid<cuint16_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cuint16_T>(mxClassID cid) {
   return cid == mxINT16_CLASS || cid == mxUINT16_CLASS; 
 };
-template <> bool compatible_classid<cint32_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cint32_T>(mxClassID cid) {
   return cid == mxINT32_CLASS || cid == mxUINT32_CLASS; 
 };
-template <> bool compatible_classid<cuint32_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cuint32_T>(mxClassID cid) {
   return cid == mxINT32_CLASS || cid == mxUINT32_CLASS; 
 };
-template <> bool compatible_classid<cint64_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cint64_T>(mxClassID cid) {
   return cid == mxINT64_CLASS || cid == mxUINT64_CLASS; 
 };
-template <> bool compatible_classid<cuint64_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<cuint64_T>(mxClassID cid) {
   return cid == mxINT64_CLASS || cid == mxUINT64_CLASS; 
 };
-template <> bool compatible_classid<creal_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<creal_T>(mxClassID cid) {
   return cid == mxSINGLE_CLASS; 
 };
-template <> bool compatible_classid<creal32_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<creal32_T>(mxClassID cid) {
   return cid == mxSINGLE_CLASS; 
 };
-template <> bool compatible_classid<creal64_T>(mxClassID cid) { 
+template <> inline bool compatible_classid<creal64_T>(mxClassID cid) {
   return cid == mxDOUBLE_CLASS; 
 };
 #endif

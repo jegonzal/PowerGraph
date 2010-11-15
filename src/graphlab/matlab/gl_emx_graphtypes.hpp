@@ -11,17 +11,22 @@
 #include <boost/mpl/less.hpp>
 #include <boost/mpl/comparison.hpp>
 
+// datatype_identifier is a special function which we use to pick up
+// the datatypes for the vertex and edge data
 #include "datatype_identifier.h"
 
-#define F1(F) boost::function<F>::arg1_type
-#define F2(F) boost::function<F>::arg2_type
-
+// using boost to identify the vertex/edge data type
 
 typedef BOOST_TYPEOF(datatype_identifier) datatype_identifier_fn_type;
 
-typedef F1(datatype_identifier_fn_type) gl_emx_vertextype;
-typedef F2(datatype_identifier_fn_type) gl_emx_edgetype;
+typedef boost::function<datatype_identifier_fn_type>::arg1_type gl_emx_vertextype;
+typedef boost::function<datatype_identifier_fn_type>::arg2_type gl_emx_edgetype;
 
-#undef F1
-#undef F2
+// define the graphlab data types
+#include <graphlab.hpp>
+typedef graphlab::graph<gl_emx_vertextype, gl_emx_edgetype> emx_graph;
+typedef graphlab::types<emx_graph> gl_types;
+
+
+
 #endif

@@ -71,7 +71,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 recursename = sid;
             else
                 recursename = [sid '_struct'];
-                recursename(find(recursename == '.')) = '_';
+                recursename(recursename == '.') = '_';
             end
             temp = d(1);
             fnames = fieldnames(temp);
@@ -81,7 +81,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 % if fail, return immediately
                 gen = [gen '\n' gen2];
                 if (status == 0) 
-                    return
+                    return;
                 end
             end
             % is this one struct or a struct array?
