@@ -244,6 +244,21 @@ ENDIF(MPI_FOUND)
 ENDMACRO(dist_target_link_libraries)
 
 
+MACRO(add_jni_library NAME)
+	
+	#TODO: find JNI headers
+	ADD_LIBRARY(${NAME} MODULE ${ARGN})
+	TARGET_LINK_LIBRARIES(${NAME}  graphlab) 
+	SET(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -framework JavaVM ")
+	IF (APPLE)
+		INCLUDE_DIRECTORIES("/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/")
+        SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
+        SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
+    ENDIF (APPLE)
+    
+ENDMACRO(add_jni_library)
+	
+
 # FIND_PACKAGE(Matlab)
 # MACRO(add_mex_library NAME)
 # IF(MATLAB_FOUND)
