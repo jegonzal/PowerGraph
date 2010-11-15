@@ -12,6 +12,7 @@
 #include <cassert>
 #include <algorithm>
 
+#include <boost/unordered_set.hpp>
 
 
 // Including Standard Libraries
@@ -28,6 +29,7 @@
 
 
 
+
 #include <graphlab/macros_def.hpp>
 
 class jt_worker : public graphlab::runnable {
@@ -40,7 +42,7 @@ public:
 
  
 
-private:
+public:
   
   scope_factory_type* scope_factory;
   size_t worker_id;
@@ -54,11 +56,13 @@ private:
 
   size_t total_samples;
   size_t collisions;
+  size_t changes;
 
   float finish_time_seconds;
 
   bool use_priorities;
 
+  std::vector<bool> assigned_factors;
 
 
   const factorized_model::factor_map_t* factors_ptr;
@@ -68,23 +72,16 @@ private:
   const std::vector<vertex_id_t>* roots;
   vertex_id_t current_root;
 
-  std::map<vertex_id_t, vertex_id_t> elim_time_map;
+  elim_map_t elim_time_map;
   clique_vector cliques;
   std::deque<vertex_id_t> bfs_queue;
   graphlab::mutable_queue<size_t, double> priority_queue;
-  std::set<vertex_id_t> visited;
-
-  
-
+  boost::unordered_set<vertex_id_t> visited;
 
   // Local junction tree graphlab core
   junction_tree::gl::core jt_core;
+
  
-  
-
-
-public:
-
   jt_worker() : 
     scope_factory(NULL), 
     worker_id(0),
@@ -95,6 +92,7 @@ public:
     tree_count(0),
     total_samples(0),
     collisions(0),
+    changes(0),
     finish_time_seconds(0),
     use_priorities(false) { }
 
@@ -102,8 +100,7 @@ public:
             scope_factory_type& sf, 
             const factorized_model::factor_map_t& factors,
             const std::vector<vertex_id_t>& root_perm, 
-            size_t ncpus,
-            float finish_time_secs,
+            size_t ncpus,         
             size_t treesize,
             size_t treewidth,
             size_t factorsize,
@@ -119,6 +116,8 @@ public:
     max_tree_height = max_height;
 
 
+    assigned_factors.resize(factors.size(), false);
+
     if(factorsize <= 0) {
       max_factor_size = std::numeric_limits<size_t>::max();
     } else {
@@ -126,7 +125,6 @@ public:
     }
     factors_ptr = &factors;
     use_priorities = priorities;
-    finish_time_seconds = finish_time_secs;
 
     roots = &root_perm;    
     root_index = root_perm.size();
@@ -134,7 +132,7 @@ public:
 
     // Initialize local jtcore
     if(internal_threads > 1) {
-      jt_core.set_scheduler_type("fifo");
+      jt_core.set_scheduler_type("multiqueue_fifo");
       jt_core.set_scope_type("edge");
       jt_core.set_ncpus(internal_threads);
       jt_core.set_engine_type("async");
@@ -157,6 +155,15 @@ public:
 
   size_t num_samples() const { return total_samples; }
   size_t num_collisions() const { return collisions; }
+  size_t num_changes() const { return changes; }
+  size_t num_trees() const { return tree_count; }
+
+  void set_runtime(float runtime_seconds) {
+    assert(runtime_seconds >= 0);
+    finish_time_seconds = 
+      graphlab::lowres_time_seconds() + runtime_seconds;          
+  }
+
 
   
   void move_to_next_root() {
@@ -169,25 +176,20 @@ public:
 
 
   // get a root
-  void run() {
-    
-    // Track the number of samples
-    total_samples = 0;
-    collisions = 0;
-    tree_count = 0;
+  void run() {   
+    // looup until runtime is reached
     while(graphlab::lowres_time_seconds() < finish_time_seconds) {
-    //    { current_root = 0;
       /////////////////////////////////////////////////////////
       // Construct one tree (we must succeed in order to count a tree
       size_t sampled_variables = 0;
-      move_to_next_root();
+      //      move_to_next_root();
       while(sampled_variables == 0 && 
             graphlab::lowres_time_seconds() < finish_time_seconds) {
-        //  move_to_next_root();
+	move_to_next_root();
         sampled_variables = sample_once();
         if(sampled_variables == 0) {
           collisions++;
-          sched_yield();
+	  //  sched_yield();
         }
       }
 
@@ -207,14 +209,36 @@ public:
 //       }
 
       tree_count++;
-
-      // std::cout << "Worker " << worker_id 
-      //           << " sampled " << current_root
-      //           << " a tree of size " << sampled_variables
-      //           << std::endl;        
       total_samples += sampled_variables;
+
     } 
   }
+
+
+
+  /**
+   * Grab this vertex into the tree owned by worker id
+   */
+  bool quick_try_vertex(vertex_id_t vid) {
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+    // Check that this vertex is not already in a tree
+    bool in_tree = vdata.tree_id != NULL_VID;
+    if(in_tree) return false;
+    // check that the neighbors are not in any other trees than this
+    // one
+    const graphlab::edge_list& in_eids = mrf.in_edge_ids(vid);
+    foreach(edge_id_t in_eid, in_eids) {
+      vertex_id_t neighbor_vid = mrf.source(in_eid);
+      const mrf::vertex_data& vdata = mrf.vertex_data(neighbor_vid);
+      bool in_tree = vdata.tree_id != NULL_VID;
+      // if the neighbor is in a tree other than this one quit
+      if(in_tree && worker_id != vdata.tree_id) return false;
+    }
+    return true;
+  } // end of try grab vertex
+
+
 
   /**
    * Grab this vertex into the tree owned by worker id
@@ -236,12 +260,10 @@ public:
     }
     // Assert that this vertex is not in a tree and that none of the
     // neighbors are in other trees
-
     // This vertex does not neighbor any other trees than this one
     scope.vertex_data().tree_id = worker_id;
     return true;
-  
-  }
+  } // end of try grab vertex
 
 
   /**
@@ -250,24 +272,61 @@ public:
   void release_vertex(iscope_type& scope) {
     // This vertex does not neighbor any other trees than this one
     scope.vertex_data().tree_id = NULL_VID;
-  }
+  } // release the vertex
 
 
 
-  factor_t clique_factor;
-  factor_t conditional_factor;
-  factor_t marginal_factor;
+
   /**
    * This function computes the value of adding the vertex to the tree
    *
    */
+  factor_t clique_factor;
+  factor_t product_of_marginals_factor;
+  factor_t conditional_factor;
+  factor_t marginal_factor;
+
   double score_vertex(vertex_id_t vid) {
+
+    /// ONly data set where this works: ./alchemy_image_denoise
+    /// --rows=200 --rings=7 --sigma=1 --lambda=3 --smoothing=square
+
+
+    mrf::graph_type& mrf = scope_factory->get_graph();
+    mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    //    return graphlab::random::rand01();
+
+    //    return score_vertex_log_odds(vid); 
+    // return score_vertex_lik(vid);
+    if (vdata.updates < 100 || vdata.priority < 0) {
+      vdata.priority = score_vertex_log_odds(vid); 
+    }
+    return vdata.priority;
+
+// +
+    //    return double(vdata.changes + graphlab::random::rand01()) 
+    //      / sqrt(double(vdata.updates + 1));
+
+    // if(vdata.updates < 100) {
+
+
+    //    return score_vertex_lik(vid); // +
+      // }
+	//	graphlab::random::rand01();
+      // return score_vertex_l1_diff(vid);
+      //}
+    //    return (1.0 + graphlab::random::rand01() + score) / (vdata.updates + 1); 
+      //return graphlab::random::rand01();;
+  }
+
+  double score_vertex_l1_diff(vertex_id_t vid) {
     // Get the scope factory
     const mrf::graph_type& mrf = scope_factory->get_graph();
     const mrf::vertex_data& vdata = mrf.vertex_data(vid);
 
     // Construct the domain of neighbors that are already in the tree
-    domain_t in_tree_vars = vdata.variable;
+    domain_t vars = vdata.variable;
     foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
       const vertex_id_t neighbor_vid = mrf.source(ineid);
       const mrf::vertex_data& neighbor = mrf.vertex_data(neighbor_vid);
@@ -275,17 +334,16 @@ public:
       // elimination time map
       if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
         // otherwise add the tree variable
-        in_tree_vars += neighbor.variable;
+        vars += neighbor.variable;
         // If this vertex has too many tree neighbor than the priority
-        // is set to 0;
-        if(in_tree_vars.num_vars() > max_tree_width) return 0;
-        if(in_tree_vars.size() > max_factor_size) return 0;
+        // is set to -1;
+        if(vars.num_vars() > max_tree_width) return -1;
+        if(vars.size() > max_factor_size) return -1;
       } 
     }
 
-    
     // Compute the clique factor
-    clique_factor.set_args(in_tree_vars);
+    clique_factor.set_args(vars);
     clique_factor.uniform();
     // get all the factors
     const factorized_model::factor_map_t& factors(*factors_ptr);
@@ -293,11 +351,196 @@ public:
     foreach(size_t factor_id, vdata.factor_ids) {
       const factor_t& factor = factors[factor_id];      
       // Build up an assignment for the conditional
-      domain_t conditional_args = factor.args() - in_tree_vars;
+      domain_t conditional_args = factor.args() - vars;
       if(conditional_args.num_vars() > 0) {
         assignment_t conditional_asg;
-        for(size_t i = 0; i < conditional_args.num_vars(); ++i)
-          conditional_asg &= mrf.vertex_data(conditional_args.var(i).id).asg;      
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+	  const mrf::vertex_data& neighbor_vdata = 
+	    mrf.vertex_data(conditional_args.var(i).id);
+          conditional_asg &= 
+	    assignment_t(neighbor_vdata.variable, neighbor_vdata.asg);
+	}
+        // set the factor arguments
+        conditional_factor.set_args(factor.args() - conditional_args);
+        conditional_factor.condition(factor, conditional_asg);        
+        // Multiply the conditional factor in
+        clique_factor *= conditional_factor;
+        //       clique_factor.normalize();
+      } else {
+        clique_factor *= factor;
+      }
+    } // end of loop over factors
+    clique_factor.normalize();
+
+
+    // Compute the product of marginals
+    product_of_marginals_factor.set_args(vars);
+    product_of_marginals_factor.uniform();
+    for(size_t i = 0; i < vars.num_vars(); ++i) {
+      marginal_factor.set_args(vars.var(i));
+      marginal_factor.marginalize(clique_factor);
+      marginal_factor.normalize();
+      product_of_marginals_factor *= marginal_factor;
+    }
+    product_of_marginals_factor.normalize();
+
+    // Compute the residual
+    double residual = clique_factor.l1_diff(product_of_marginals_factor);
+
+
+    assert( residual >= 0);
+    assert( !std::isnan(residual) );
+    assert( std::isfinite(residual) );
+
+    // ensure score is bounded
+    //    residual = std::tanh(residual);
+
+    return residual;
+
+  } // end of score l1 diff
+
+
+
+
+
+
+
+
+
+
+
+
+  double score_vertex_log_odds(vertex_id_t vid) {
+    // Get the scope factory
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    // Construct the domain of neighbors that are already in the tree
+    domain_t vars = vdata.variable;
+    foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
+      const vertex_id_t neighbor_vid = mrf.source(ineid);
+      const mrf::vertex_data& neighbor = mrf.vertex_data(neighbor_vid);
+      // test to see if the neighbor is in the tree by checking the
+      // elimination time map
+      if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+        // otherwise add the tree variable
+        vars += neighbor.variable;
+        // If this vertex has too many tree neighbor than the priority
+        // is set to 0;
+        if(vars.num_vars() > max_tree_width) return -1;
+        if(vars.size() > max_factor_size) return -1;
+      } 
+    }
+    
+    assert(vars.num_vars() == 2);
+
+
+    // Compute the clique factor
+    clique_factor.set_args(vars);
+    clique_factor.uniform();
+    // get all the factors
+    const factorized_model::factor_map_t& factors(*factors_ptr);
+    // Iterate over the factors and multiply each into this factor
+    foreach(size_t factor_id, vdata.factor_ids) {
+      const factor_t& factor = factors[factor_id];      
+      // Build up an assignment for the conditional
+      domain_t conditional_args = factor.args() - vars;
+      if(conditional_args.num_vars() > 0) {
+        assignment_t conditional_asg;
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+	  const mrf::vertex_data& neighbor_vdata = 
+	    mrf.vertex_data(conditional_args.var(i).id);
+          conditional_asg &= 
+	    assignment_t(neighbor_vdata.variable, neighbor_vdata.asg);
+	}
+        // set the factor arguments
+        conditional_factor.set_args(factor.args() - conditional_args);
+        conditional_factor.condition(factor, conditional_asg);        
+        // Multiply the conditional factor in
+        clique_factor *= conditional_factor;
+        //        clique_factor.normalize();
+      } else {
+        clique_factor *= factor;
+      }
+    } // end of loop over factors
+    // Compute the conditional factor and marginal factors
+    conditional_factor.set_args(vars - vdata.variable);
+    conditional_factor.condition(clique_factor, 
+				 assignment_t(vdata.variable, vdata.asg));  
+    marginal_factor.set_args(vars - vdata.variable);
+    marginal_factor.marginalize(clique_factor);
+    
+    // Compute metric
+    conditional_factor.normalize();
+    marginal_factor.normalize();
+    // double residual = conditional_factor.l1_logdiff(marginal_factor);
+    double residual = conditional_factor.l1_diff(marginal_factor);
+
+
+    // rescale by updates
+    //    residual = residual / (vdata.updates + 1);
+
+    assert( residual >= 0);
+    assert( !std::isnan(residual) );
+    assert( std::isfinite(residual) );
+
+    // ensure score is bounded
+    //    residual = std::tanh(residual);
+
+
+
+    return residual;
+  } // end of score vertex
+
+
+
+
+
+
+
+
+
+
+  double score_vertex_lik(vertex_id_t vid) {
+    // Get the scope factory
+    const mrf::graph_type& mrf = scope_factory->get_graph();
+    const mrf::vertex_data& vdata = mrf.vertex_data(vid);
+
+    // Construct the domain of neighbors that are already in the tree
+    domain_t vars = vdata.variable;
+    foreach(edge_id_t ineid, mrf.in_edge_ids(vid)) {
+      const vertex_id_t neighbor_vid = mrf.source(ineid);
+      const mrf::vertex_data& neighbor = mrf.vertex_data(neighbor_vid);
+      // test to see if the neighbor is in the tree by checking the
+      // elimination time map
+      if(elim_time_map.find(neighbor_vid) != elim_time_map.end()) {
+        // otherwise add the tree variable
+        vars += neighbor.variable;
+        // If this vertex has too many tree neighbor than the priority
+        // is set to 0;
+        if(vars.num_vars() > max_tree_width) return -1;
+        if(vars.size() > max_factor_size) return -1;
+      } 
+    }
+    
+    // Compute the clique factor
+    clique_factor.set_args(vars);
+    clique_factor.uniform();
+    // get all the factors
+    const factorized_model::factor_map_t& factors(*factors_ptr);
+    // Iterate over the factors and multiply each into this factor
+    foreach(size_t factor_id, vdata.factor_ids) {
+      const factor_t& factor = factors[factor_id];      
+      // Build up an assignment for the conditional
+      domain_t conditional_args = factor.args() - vars;
+      if(conditional_args.num_vars() > 0) {
+        assignment_t conditional_asg;
+        for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
+	  const mrf::vertex_data& neighbor_vdata = 
+	    mrf.vertex_data(conditional_args.var(i).id);
+          conditional_asg &= 
+	    assignment_t(neighbor_vdata.variable, neighbor_vdata.asg);
+	}
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
         conditional_factor.condition(factor, conditional_asg);        
@@ -309,38 +552,32 @@ public:
       }
     } // end of loop over factors
 
-    // std::cout << "////////////////////////////////////////////////" << std::endl;
-    // std::cout << clique_factor << std::endl;
-
-
     // Compute the conditional factor and marginal factors
-    conditional_factor.set_args(in_tree_vars - vdata.variable);
-    conditional_factor.condition(clique_factor, vdata.asg);
-    
-    
-    marginal_factor.set_args(in_tree_vars - vdata.variable);
+    marginal_factor.set_args(vdata.variable);
     marginal_factor.marginalize(clique_factor);
-    
-    // Compute metric
-    conditional_factor.normalize();
     marginal_factor.normalize();
-
-    // std::cout << conditional_factor << "\n"
-    //           << marginal_factor << "\n";
-
-    double residual = conditional_factor.log_residual(marginal_factor);
-    
-    // rescale by updates
-    //    residual = residual / (vdata.updates + 1);
+    double residual =  1.0 - exp(marginal_factor.logP(vdata.asg));
 
     assert( residual >= 0);
     assert( !std::isnan(residual) );
     assert( std::isfinite(residual) );
 
+    // // ensure score is bounded
+    // residual = std::tanh(residual);
 
-    // std::cout << residual << "  ";
+
     return residual;
-  }
+  } // end of max lik
+
+
+
+
+
+
+
+
+
+
 
   
 
@@ -358,20 +595,23 @@ public:
     bfs_queue.push_back(current_root);
     visited.insert(current_root);
 
-
     while(!bfs_queue.empty()) {
       // Take the top element
       const vertex_id_t next_vertex = bfs_queue.front();
       bfs_queue.pop_front();
 
-      // Get the scope
+      // pretest that the vertex is available before trying to get it
+      bool grabbed = quick_try_vertex(next_vertex);
+      if(!grabbed) continue;
+
+      // Maybe we can get the vertex so actually try to get it
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
       assert(scope_ptr != NULL);
       iscope_type& scope(*scope_ptr);
 
       // See if we can get the vertex for this tree
-      bool grabbed = try_grab_vertex(scope);
+      grabbed = try_grab_vertex(scope);
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
@@ -420,10 +660,8 @@ public:
           release_vertex(scope);
         }
       } // end of grabbed
-      
       // release the scope
       scope_factory->release_scope(&scope);        
-
       // Limit the number of variables
       if(cliques.size() > max_tree_size) break;
     } // end of while loop
@@ -449,17 +687,20 @@ public:
       // Take the top element
       const vertex_id_t next_vertex = priority_queue.pop().first;
 
-      // Skip with probability proportional to the number of updates
-      
+      // pretest that the vertex is available before trying to get it
+      bool grabbed = quick_try_vertex(next_vertex);
+      if(!grabbed) continue;
+
 
       // Get the scope
+      bool released_scope = false;
       iscope_type* scope_ptr = 
         scope_factory->get_edge_scope(worker_id, next_vertex);
       assert(scope_ptr != NULL);
       iscope_type& scope(*scope_ptr);
 
       // See if we can get the vertex for this tree
-      bool grabbed = try_grab_vertex(scope);
+      grabbed = try_grab_vertex(scope);
 
       // If we failed to grab the scope then skip this vertex
       if(grabbed) {
@@ -481,7 +722,7 @@ public:
         } // end of tree height check for non root vertex 
           
         // test the 
-        bool safe_extension = 
+        bool safe_extension =
           (max_tree_height == 0) ||
           (min_height < max_tree_height);
 
@@ -493,33 +734,28 @@ public:
                              max_tree_width,
                              max_factor_size);
 
-
-        const bool favor_zero_updates = false;
-        const double zero_updates_bonus = 1.0E100;
-
         // If the extension was safe than the elim_time_map and
         // cliques data structure are automatically extended
         if(safe_extension) {
-          // set the height
+          // // set the height
           mrf.vertex_data(next_vertex).height = min_height;
+
+	  // release the scope early to allow other processors to move
+	  // in
+	  released_scope = true;
+	  scope_factory->release_scope(&scope);        
 
           // add the neighbors to the search queue or update their priority
           foreach(edge_id_t eid, mrf.out_edge_ids(next_vertex)) {
-            vertex_id_t neighbor_vid = mrf.target(eid);
-            const mrf::vertex_data& vdata = mrf.vertex_data(neighbor_vid);
+            vertex_id_t neighbor_vid = mrf.target(eid);          
             if(visited.count(neighbor_vid) == 0) {
               // Vertex has not yet been visited
               double score = score_vertex(neighbor_vid);
-              // if the vertex has not been updated then give it a
-              // high priority.
-              if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-                score += zero_updates_bonus;
-
               // if the score is greater than zero then add the
               // neighbor to the priority queue.  The score is zero if
               // there is no advantage or the treewidth is already too
               // large
-              if(score > 0) priority_queue.push(neighbor_vid, score);
+              if(score >= 0) priority_queue.push(neighbor_vid, score);
               visited.insert(neighbor_vid);
 
             } 
@@ -527,10 +763,7 @@ public:
             //   // vertex is still in queue we may need to recompute
             //   // score
             //   double score = score_vertex(neighbor_vid);
-            //   if(favor_zero_updates && vdata.updates == 0 && score > 0) 
-            //     score += zero_updates_bonus;
-
-            //   if(score > 0) {
+            //   if(score >= 0) {
             //     // update the priority queue with the new score
             //     priority_queue.update(neighbor_vid, score);
             //   } else {
@@ -540,14 +773,18 @@ public:
             //     priority_queue.remove(neighbor_vid);
             //   }
             // } // otherwise the vertex has been visited and processed
+
           }
         } else {
           // release the vertex since it could not be used in the tree
           release_vertex(scope);
         }
-      } // end of grabbed      
-      // release the scope
-      scope_factory->release_scope(&scope);        
+      }
+
+      if(!released_scope) {
+	// release the scope
+	scope_factory->release_scope(&scope);        
+      }
       // Limit the number of variables
       if(cliques.size() > max_tree_size) break;
     } // end of while loop
@@ -573,7 +810,7 @@ public:
     // If we failed to build a tree return failure
     if(cliques.empty()) return 0;
 
-    //        std::cout << "Varcount: " << cliques.size() << std::endl;  
+    //  std::cout << "Varcount: " << cliques.size() << std::endl;  
 
         // ///////////////////////////////////
         // // plot the graph
@@ -593,9 +830,10 @@ public:
 
     // Build the junction tree and sample
     jt_core.graph().clear();
-    jtree_from_cliques(mrf, 
+    jtree_from_cliques(mrf,
+                       cliques,
+		       assigned_factors,
                        elim_time_map,
-                       cliques.begin(), cliques.end(), 
                        jt_core.graph());
 
     // jtree_from_cliques(mrf,  
@@ -615,6 +853,7 @@ public:
     // Check that the junction tree is sampled
 
     size_t actual_tree_width = 0;
+    size_t local_changes = 0;
     for(vertex_id_t vid = 0; 
         vid < jt_core.graph().num_vertices(); ++vid) {
       const junction_tree::vertex_data& vdata = 
@@ -622,14 +861,16 @@ public:
       assert(vdata.sampled);
       assert(vdata.calibrated);
       actual_tree_width = 
-        std::max(vdata.variables.num_vars(), actual_tree_width);     
+        std::max(vdata.variables.num_vars(), actual_tree_width); 
+      local_changes += vdata.changes;
     } 
+    changes += local_changes;
     
-    //    std::cout << "Treewidth: " << actual_tree_width << std::endl;
-
+    // std::cout << "Treewidth: " << actual_tree_width << std::endl;
+    // std::cout << "Local Changes: " << local_changes << std::endl;
       
-    // Sampled root successfully
-    return cliques.size();
+    // Return the number of variables in the tree
+    return elim_time_map.size();
   } // end of sample once
 
 
@@ -638,75 +879,119 @@ public:
 
 
 
+class parallel_sampler {
+
+  std::vector<jt_worker> workers;
+  graphlab::general_scope_factory<mrf::graph_type> scope_factory;
+  std::vector< vertex_id_t > roots;
+  bool use_cpu_affinity;
+
+public:
+
+  parallel_sampler(const factorized_model& fmodel,
+                   mrf::graph_type& mrf,
+                   const graphlab::engine_options& eopts,
+                   size_t max_tree_size = 1000,
+                   size_t max_tree_width = MAX_DIM,
+                   size_t max_factor_size = (1 << MAX_DIM),
+                   size_t max_tree_height = 0,
+                   size_t internal_threads = 1,
+                   bool use_priorities = false) :
+    workers(eopts.ncpus),
+    scope_factory(mrf, eopts.ncpus, 
+                  graphlab::scope_range::EDGE_CONSISTENCY),
+    roots(mrf.num_vertices()),
+    use_cpu_affinity(eopts.enable_cpu_affinities) { 
+
+    // Shuffle ther oot ordering 
+    for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
+      roots[vid] = vid;
+    std::random_shuffle(roots.begin(), roots.end());
+       
+    for(size_t i = 0; i < eopts.ncpus; ++i) {
+      // Initialize the worker
+      workers[i].init(i, 
+                      scope_factory, 
+                      fmodel.factors(),
+                      roots,
+                      eopts.ncpus,    
+                      max_tree_size,
+                      max_tree_width,
+                      max_factor_size,
+                      max_tree_height,
+                      internal_threads,
+                      use_priorities);    
+    }
 
 
+    
+  } // end of constructor
 
 
-
-
-void parallel_sample(const factorized_model& fmodel,
-                     mrf::graph_type& mrf,
-                     size_t ncpus,
-                     float runtime_secs,
-                     size_t max_tree_size = 1000,
-                     size_t max_tree_width = MAX_DIM,
-                     size_t max_factor_size = (1 << MAX_DIM),
-                     size_t max_tree_height = 1000,
-                     size_t internal_threads = 1,
-                     bool use_priorities = false) {
-  // create workers
-  graphlab::thread_group threads;
-  std::vector<jt_worker> workers(ncpus);
-
-  // Create a scope factor
-  graphlab::general_scope_factory<mrf::graph_type>
-    scope_factory(mrf, ncpus,
-                  graphlab::scope_range::EDGE_CONSISTENCY);
-  
-  float finish_time_secs = 
-    graphlab::lowres_time_seconds() + runtime_secs;
-
-
-  std::vector< vertex_id_t >  roots(mrf.num_vertices());
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid)
-    roots[vid] = vid;
-  std::random_shuffle(roots.begin(), roots.end());
-  
-
-  for(size_t i = 0; i < ncpus; ++i) {
-    // Initialize the worker
-    workers[i].init(i, 
-                    scope_factory, 
-                    fmodel.factors(),
-                    roots,
-                    ncpus,
-                    finish_time_secs,
-                    max_tree_size,
-                    max_tree_width,
-                    max_factor_size,
-                    max_tree_height,
-                    internal_threads,
-                    use_priorities);    
-    // Launch the threads
-    bool use_cpu_affinity = false;
-    if(use_cpu_affinity) threads.launch(&(workers[i]), i);
-    else threads.launch(&(workers[i]));            
+  size_t total_changes() const {
+    size_t total_changes = 0;
+    // Record the total number of samples
+    foreach(const jt_worker& worker, workers)      
+      total_changes += worker.num_changes(); 
+    return total_changes;
   }
-  
-  // Wait for all threads to finish
-  threads.join();
 
-  // Record the total number of samples
-  size_t total_samples = 0;
-  size_t total_collisions = 0;
-  foreach(const jt_worker& worker, workers) {
-    total_samples += worker.num_samples();
-    total_collisions += worker.num_collisions();
+
+  size_t total_samples() const {
+    size_t total_samples = 0;
+    foreach(const jt_worker& worker, workers) 
+      total_samples += worker.num_samples();    
+    return total_samples;
   }
-  std::cout << "Total samples: " << total_samples << "\n";
-  std::cout << "Total collisions: " << total_collisions << "\n";
 
-}
+
+  size_t total_collisions() const {
+    size_t total_collisions = 0;
+    foreach(const jt_worker& worker, workers) 
+      total_collisions += worker.num_collisions();
+    return total_collisions;
+  }
+
+
+
+
+  size_t total_trees() const {
+    size_t total_trees = 0;
+    foreach(const jt_worker& worker, workers) 
+      total_trees += worker.num_trees();
+    return total_trees;
+  }
+
+
+
+
+
+  
+  void sample_once(float runtime_secs) {
+    // create workers
+    graphlab::thread_group threads;
+    
+    for(size_t i = 0; i < workers.size(); ++i) {
+      workers[i].set_runtime(runtime_secs);
+      // Launch the threads
+      if(use_cpu_affinity) threads.launch(&(workers[i]), i);
+      else threads.launch(&(workers[i]));            
+    }
+ 
+    // Wait for all threads to finish
+    threads.join();
+
+  }                   
+
+ 
+
+};
+
+
+
+
+
+
 
 
 

@@ -115,8 +115,15 @@ include_directories(
   ${GraphLab_SOURCE_DIR}/src
   ${GraphLab_SOURCE_DIR}/cxxtest
   ${Boost_INCLUDE_DIR}
-  ${MPI_INCLUDE_PATH}
   )
+
+IF(MPI_FOUND)
+  include_directories(
+    ${MPI_INCLUDE_PATH}
+    )
+ENDIF(MPI_FOUND)
+
+
 
 
 

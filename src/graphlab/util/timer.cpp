@@ -19,7 +19,7 @@ namespace graphlab {
       tout_val.it_interval.tv_sec = 0;
       tout_val.it_interval.tv_usec = 0;
       tout_val.it_value.tv_sec = 0;
-      tout_val.it_value.tv_usec = 100000;
+      tout_val.it_value.tv_usec = 50000;
       setitimer(ITIMER_REAL, &tout_val,0);
       signal(SIGALRM,alarm_wakeup); /* set the Alarm signal capture */    
       ti.start();
@@ -45,7 +45,6 @@ namespace graphlab {
     double realtime = hmstimer.ti.current_time() ;
     // round down
     hmstimer.ctr = (size_t)(realtime * 10);
-    hmstimer.tout_val.it_value.tv_usec = (hmstimer.ctr + 1) * 100000 - realtime * 1000000;
     setitimer(ITIMER_REAL, &(hmstimer.tout_val), 0);   
   }
 

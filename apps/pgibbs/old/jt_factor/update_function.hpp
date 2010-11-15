@@ -12,7 +12,6 @@
 #include <graphlab/macros_def.hpp>
 
 
-
 namespace junction_tree{
   enum SDT_KEYS {FACTOR_KEY, MRF_KEY};
 
@@ -51,11 +50,6 @@ namespace junction_tree{
 
 
 
-
-
-
-
-
   void slow_update(gl::iscope& scope,
                    gl::icallback& callback,
                    gl::ishared_data* shared_data) {
@@ -64,6 +58,7 @@ namespace junction_tree{
     // get the vertex data
     vertex_data& vdata = scope.vertex_data();
     
+    ufun_tls& tls = get_ufun_tls();
     
     // If the factor args have not been set then we need to initialize
     // the local factor by setting the args and taking the product of
@@ -87,7 +82,7 @@ namespace junction_tree{
       // We now build up the factor by iteratoring over the dependent
       // factors conditioning if necessary into the conditional_factor
       // and then multiplying.
-      factor_t conditional_factor;
+      factor_t& conditional_factor(tls.conditional_factor);
       // Iterate over the factors and multiply each into this factor
       foreach(size_t factor_id, vdata.factor_ids) {
         const factor_t& factor = factors[factor_id];
@@ -98,7 +93,8 @@ namespace junction_tree{
           const mrf::vertex_data& mrf_vdata = 
             mrf.vertex_data(conditional_args.var(i).id);
           assert(mrf_vdata.tree_id == NULL_VID);
-          conditional_asg &= mrf_vdata.asg;         
+          conditional_asg &= 
+	    assignment_t(mrf_vdata.variable, mrf_vdata.asg);         
         }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
@@ -115,7 +111,7 @@ namespace junction_tree{
 
     // Determine if their are any edges for which messages can be
     // computed
-    factor_t cavity; // preallocate cavity factor
+    factor_t& cavity(tls.cavity); // preallocate cavity factor
     foreach(edge_id_t out_eid, scope.out_edge_ids()) {
       vertex_id_t target = scope.target(out_eid);
       edge_data& out_edata = scope.edge_data(out_eid);
@@ -242,7 +238,8 @@ namespace junction_tree{
 
         // Now construct the full belief  
         // We start by taking the full factor
-        factor_t belief = vdata.factor;
+        factor_t& belief(tls.belief);
+        belief = vdata.factor;
        
         // Multiply in all the messages to compute the full belief
         foreach(edge_id_t in_eid, scope.in_edge_ids()) {
@@ -260,7 +257,7 @@ namespace junction_tree{
 
         // First update all the RB estimates for the unsampled
         // variables in the mrf graph
-        factor_t tmp_belief;
+        factor_t& tmp_belief(tls.tmp_belief);
         for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
           variable_t var = unsampled_variables.var(i);
           // Construct the RB belief estimate
@@ -291,7 +288,7 @@ namespace junction_tree{
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
-          mrf_vdata.asg = sample_asg.restrict(var);
+          mrf_vdata.asg = sample_asg.restrict(var).asg_at(0);
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
@@ -324,7 +321,8 @@ namespace junction_tree{
 
 
 
-
+  // double levine_score(factor_t rb1, factor_t rb2) {
+  // } // levine score 
 
 
 
@@ -344,6 +342,9 @@ namespace junction_tree{
     
     // get the vertex data
     vertex_data& vdata = scope.vertex_data();
+    
+    // get thread local storage to reduce hit on allocator
+    ufun_tls& tls = get_ufun_tls();
 
     //////////////////////////////////////////////////////////////////
     // Initialize factor
@@ -371,7 +372,7 @@ namespace junction_tree{
       // We now build up the factor by iteratoring over the dependent
       // factors conditioning if necessary into the conditional_factor
       // and then multiplying.
-      factor_t conditional_factor;
+      factor_t& conditional_factor(tls.conditional_factor);
       // Iterate over the factors and multiply each into this factor
       foreach(size_t factor_id, vdata.factor_ids) {
         const factor_t& factor = factors[factor_id];
@@ -382,7 +383,8 @@ namespace junction_tree{
           const mrf::vertex_data& mrf_vdata = 
             mrf.vertex_data(conditional_args.var(i).id);
           assert(mrf_vdata.tree_id == NULL_VID);
-          conditional_asg &= mrf_vdata.asg;         
+          conditional_asg &= 
+	    assignment_t(mrf_vdata.variable, mrf_vdata.asg);         
         }
         // set the factor arguments
         conditional_factor.set_args(factor.args() - conditional_args);
@@ -423,7 +425,7 @@ namespace junction_tree{
     // send any unset messages 
     // if we have recieve enough in messages
     if(received_neighbors + 1 >= scope.in_edge_ids().size()) {
-      factor_t cavity;
+      factor_t& cavity(tls.cavity);
       foreach(edge_id_t out_eid, scope.out_edge_ids()) {
         edge_data& out_edata = scope.edge_data(out_eid);
         edge_id_t rev_eid = scope.reverse_edge(out_eid);
@@ -515,7 +517,7 @@ namespace junction_tree{
       
         // First update all the RB estimates for the unsampled
         // variables in the mrf graph
-        factor_t tmp_belief;
+        factor_t& tmp_belief(tls.tmp_belief);
         for(size_t i = 0; i < unsampled_variables.num_vars(); ++i) {
           variable_t var = unsampled_variables.var(i);
           // Construct the RB belief estimate
@@ -544,7 +546,12 @@ namespace junction_tree{
         for(size_t i = 0; i < sample_asg.num_vars(); ++i) {
           variable_t var = sample_asg.args().var(i);
           mrf::vertex_data& mrf_vdata = mrf_graph.vertex_data(var.id);
-          mrf_vdata.asg = sample_asg.restrict(var);
+          assignment_t local_asg = sample_asg.restrict(var);
+          if(mrf_vdata.asg != local_asg.asg_at(0)) {
+            mrf_vdata.changes++;
+            vdata.changes++;
+          }
+          mrf_vdata.asg = local_asg.asg_at(0);
           mrf_vdata.updates++;
           // std::cout << graphlab::thread::thread_id()
           //           << ": sampling " << mrf_vdata.variable << std::endl;
@@ -553,8 +560,7 @@ namespace junction_tree{
           mrf_vdata.height = 0;
           
           // double& logP = mrf_vdata.belief.logP(mrf_vdata.asg.asg_at(0));
-          // logP = std::log( std::exp(logP) + 1.0 );
-          
+          // logP = std::log( std::exp(logP) + 1.0 );          
         } 
       } // end of sampling unsampled variables
 

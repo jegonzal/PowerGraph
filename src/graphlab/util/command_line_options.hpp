@@ -48,7 +48,7 @@ namespace graphlab {
     
     
   public:
-    command_line_options(const std::string& desc_str = "A GraphLab program.",
+    command_line_options(const std::string& desc_str = "GraphLab program.",
                          size_t default_ncpus = 2,
                          const std::string default_engine = "async",
                          const std::string default_scope = "edge",
@@ -81,6 +81,14 @@ namespace graphlab {
          boost_po::value<std::string>(&(engine_type))->
          default_value(engine_type),
          "Options are {async, async_sim, synchronous}")
+        ("affinities",
+         boost_po::value<bool>(&(enable_cpu_affinities))->
+         default_value(enable_cpu_affinities),
+         "Enable forced assignment of threads to cpus")
+        ("schedyield",
+         boost_po::value<bool>(&(enable_sched_yield))->
+         default_value(enable_sched_yield),
+         "Enable yeilding when threads conflict in the scheduler.")
         ("scope",
          boost_po::value<std::string>(&(scope_type))->
          default_value(scope_type),

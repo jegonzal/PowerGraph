@@ -497,16 +497,19 @@ namespace graphlab {
       // construct a permuation of the vertices to use in the greedy
       // coloring. \todo Should probably sort by degree instead when
       // constructing greedy coloring.
-      std::vector<vertex_id_t> permutation(num_vertices());
+      std::vector<std::pair<vertex_id_t, vertex_id_t> > 
+	permutation(num_vertices());
+
       for(vertex_id_t v = 0; v < num_vertices(); ++v) 
-        permutation[v] = v;
-      std::random_shuffle(permutation.begin(), permutation.end());
+        permutation[v] = std::make_pair(-num_in_neighbors(v), v);
+      //      std::random_shuffle(permutation.begin(), permutation.end());
+      std::sort(permutation.begin(), permutation.end());
       // Recolor
       size_t max_color = 0;
       std::set<vertex_color_type> neighbor_colors;
       for(size_t i = 0; i < permutation.size(); ++i) {
         neighbor_colors.clear();
-        const vertex_id_t& vid = permutation[i];
+        const vertex_id_t& vid = permutation[i].second;
         edge_list in_edges = in_edge_ids(vid);
         // Get the neighbor colors
         foreach(edge_id_t eid, in_edges){
@@ -624,10 +627,11 @@ namespace graphlab {
     }
 
     /**
-     * partition the graph with roughtly the same number of edges for each part
+     * partition the graph with roughtly the same number of edges for
+     * each part
      */
-    void edge_num_partition(size_t nparts, std::vector<uint32_t>& vertex2part){
-      
+    void edge_num_partition(size_t nparts, 
+			    std::vector<uint32_t>& vertex2part){
       vertex2part.resize(num_vertices());
       size_t e = 2 * num_edges();
       size_t edge_per_part = e / nparts;
