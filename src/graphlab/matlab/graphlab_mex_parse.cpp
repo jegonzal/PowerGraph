@@ -6,25 +6,25 @@
 
 bool basic_typecheck(mex_parameters &param) {
   // vdata is a cell array of vertex data
-  if (!mxIsCell(param.vdata)) {
+  if (param.vdata == NULL || !mxIsCell(param.vdata)) {
     mexWarnMsgTxt("First parameter should be a cell array of vertex data.");
     return false;
   }
 
   // adjmat is a numeric matrix
-  if (!mxIsDouble(param.adjmat)) {
+  if (param.adjmat == NULL || !mxIsDouble(param.adjmat)) {
     mexWarnMsgTxt("Second parameter should be a (sparse) numeric (double) adjacency matrix.");
   }
 
   
   // edata is a cell array of edge data
-  if (!mxIsCell(param.edata)) {
+  if (param.edata == NULL || !mxIsCell(param.edata)) {
     mexWarnMsgTxt("Third parameter should be a cell array of edge data.");
     return false;
   }
 
   // sched is a struct array
-  if (!mxIsStruct(param.sched)) {
+  if (param.sched == NULL || !mxIsStruct(param.sched)) {
     mexWarnMsgTxt("Fourth parameter should be a struct array describing the schedule.");
     return false;
   }
@@ -40,7 +40,7 @@ bool basic_typecheck(mex_parameters &param) {
   }
 
   // update_function field should be a string
-  if (!mxIsNumeric(param.strict)) {
+  if (param.strict == NULL || !mxIsNumeric(param.strict)) {
     mexWarnMsgTxt("strict should be a numeric scalar.");
     return false;
   }
@@ -59,11 +59,19 @@ int construct_graph(emx_graph &graph,
   for (size_t i = 0;i < nvertices; ++i) {
     // get the cell entry
     const mxArray* mx_vtx = mxGetCell(vdata, i);
-    // perform the conversion
     gl_emx_vertextype emx_vtx;
-    conversions_ok |= mxarray2emx(mx_vtx, emx_vtx);
-    // insert the vertex
-    graph.add_vertex(emx_vtx);
+    if (mx_vtx == NULL) {
+      // mx_vtx is empty. insert an empty entry. and
+      // denote as conversion failure
+      graph.add_vertex(emx_vtx);
+      conversions_ok = false;
+    }
+    else {
+      // perform the conversion
+      conversions_ok |= mxarray2emx(mx_vtx, emx_vtx);
+      // insert the vertex
+      graph.add_vertex(emx_vtx);
+    }
   }
 
   // add edges
@@ -94,6 +102,7 @@ int try_add_edge(emx_graph &graph, const mxArray* edata,
   }
   // get the edge data
   const mxArray* mx_edge = mxGetCell(edata, edataidx);
+
     // see whether the edge data exists
   if (mx_edge == NULL) {
     // edge data out of range!
@@ -109,7 +118,7 @@ int try_add_edge(emx_graph &graph, const mxArray* edata,
   // insert the edge
   // but first make sure that source and dest are in range.
   if (src < graph.num_vertices() && dest < graph.num_vertices()) {
-    graph.add_edge( src, dest, emx_edge);
+    graph.add_edge(src, dest, emx_edge);
   }
   else {
     char errmsg[256];

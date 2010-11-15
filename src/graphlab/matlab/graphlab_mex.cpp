@@ -1,6 +1,7 @@
 #include <mex.h>
-#include <graphlab_mex_parse.hpp>
 #include <graphlab.hpp>
+#include "graphlab_mex_parse.hpp"
+#include "graphlab_mex_output.hpp"
 #include "rtwtypes.h"
 #include "updates_types.h"
 #include "mx_emx_converters.hpp"
@@ -9,7 +10,7 @@
 
 
 /**
- * graphlab_mex(vertexdata, adj_mat, edgedata, schedule, strict)
+ * [newvdata, newadjmat, newedata] = graphlab_mex(vertexdata, adj_mat, edgedata, schedule, strict)
  * 
  * vertexdata: cell array of vertex data
  * adj_mat: (sparse) adjacency matrix where adj_mat[i][j] is an edge from vertex
@@ -27,12 +28,11 @@
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // basic data type checks
   // we must output to something
-  if (nlhs == 0) {
-    mexWarnMsgTxt("No output arguments.");
-    plhs[0] = mxCreateDoubleScalar(-1);
+  if (nlhs < 3) {
+    mexWarnMsgTxt("Too few output arguments.");
     return;
   }
-  else if (nlhs > 1) {
+  else if (nlhs > 3) {
     mexWarnMsgTxt("Too many output arguments.");
     return;
   }
@@ -40,7 +40,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   if (nrhs != 5) {
     mexWarnMsgTxt("Erronous function call");
     mexWarnMsgTxt("Usage: graphlab_mex(vertexdata, adj_mat, edgedata, schedule, strict)");
-    plhs[0] = mxCreateDoubleScalar(-1);
     return;
   }
 
@@ -53,7 +52,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   param.strict = prhs[4];
   // basic type check of the parameters
   if (basic_typecheck(param) == false) {
-    plhs[0] = mxCreateDoubleScalar(-1);
     return;
   }
   bool strict = mxGetScalar(param.strict) != 0;
@@ -63,12 +61,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   if (ret == false) {
     if (strict) {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is set. Terminating.");
-      plhs[0] = mxCreateDoubleScalar(-1);
       return;
     }
     else {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is not set. Continuing.");
     }
   }
+  graph.finalize();
+  
   updates_initialize();
+
+  output_graph(graph, plhs[0], plhs[1], plhs[2]);
+
+  // destroy graph
+
+  for (size_t i = 0;i < graph.num_vertices(); ++i) freeemx(graph.vertex_data(i));
+  for (size_t i = 0;i < graph.num_edges(); ++i) freeemx(graph.edge_data(i));
+  
 }
