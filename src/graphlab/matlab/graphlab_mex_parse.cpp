@@ -61,6 +61,7 @@ int construct_graph(emx_graph &graph,
     const mxArray* mx_vtx = mxGetCell(vdata, i);
     gl_emx_vertextype emx_vtx;
     if (mx_vtx == NULL) {
+      clearemx(emx_vtx);
       // mx_vtx is empty. insert an empty entry. and
       // denote as conversion failure
       graph.add_vertex(emx_vtx);
