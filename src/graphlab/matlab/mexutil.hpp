@@ -221,7 +221,13 @@ bool write_array(EMXType &in, mxArray * &array) {
     write_storage_compatible_array<T, EMXType>(in, array);
   }
   else if (cid == mxCHAR_CLASS && sizeof(T) == 1) {
-    array = mxCreateString((char*)(in.data));
+    // it may not always be NULL terminated
+    size_t len = 1;
+    for (size_t i = 0;i < in.numDimensions; ++i) len *= in.size[i];
+    char c[len+1];
+    memcpy(c, in.data, len);
+    c[len] = 0;
+    array = mxCreateString((char*)(c));
   }
   else {
     if (!printed) {
@@ -243,8 +249,8 @@ bool write_array(EMXType &in, mxArray * &array) {
  */
 template<class T, class EMXType>
 bool copy_array(EMXType &dest, const EMXType &src) {
-  dest.data = (T*)malloc(sizeof(T) * src.allocatedSize);
-  dest.size = (int32_t*)malloc(sizeof(int32_t) * src.numDimensions);
+  dest.data = (T*)realloc(dest.data, sizeof(T) * src.allocatedSize);
+  dest.size = (int32_t*)realloc(dest.size, sizeof(int32_t) * src.numDimensions);
   dest.allocatedSize = src.allocatedSize;
   dest.numDimensions = src.numDimensions;
   dest.canFreeData = 1;
@@ -252,6 +258,8 @@ bool copy_array(EMXType &dest, const EMXType &src) {
   for (size_t i = 0;i < src.numDimensions; ++i) dest.size[i] = src.size[i];
   memcpy(dest.data, src.data, src.allocatedSize * sizeof(T));
 }
+
+
 /**
  * If the mxArray is a struct and has a field, this is set to the field's mxArray
  * Returns NULL otherwise

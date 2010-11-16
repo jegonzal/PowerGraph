@@ -153,8 +153,11 @@ def generate_structparser(structname, parse):
       declname = decl["declname"]
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
-        print "    converter<%s>::freeemx(*(emxdata.%s));" % (decltype, declname)
-        print "    free(emxdata.%s);" % (declname)
+        print "    if (emxdata.%s != NULL) {" % declname
+        print "      converter<%s>::freeemx(*(emxdata.%s));" % (decltype, declname)
+        print "      free(emxdata.%s);" % (declname)
+        print "      emxdata.%s = NULL;" % (declname)
+        print "    }"
       #endif
   #endfor
   print "  }"
@@ -229,13 +232,16 @@ def generate_structparser(structname, parse):
   
   #output the copier
   print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
-  print "    freeemx(dest);"
   for decl in parse["decls"]:
       decltype = decl["decltype"]
       declname = decl["declname"]
       # check if this is an array
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
+        print "    if (dest.%s == NULL) {" % (declname)
+        print "      dest.%s = (%s *)malloc(sizeof(%s));" % (declname,decltype, decltype)
+        print "      converter<%s>::clearemx(*(dest.%s));" % (decltype,declname)
+        print "    }"
         print "    converter<%s>::emxcopy(*(dest.%s), *(src.%s));" % (decltype, declname,declname)
       elif decltype[-2:] == '_T':
         #scalar!

@@ -35,7 +35,7 @@ struct gl_update_function_params{
 };
 
 template <gl_emx_updatefn_type emx_update_fn>
-inline void exec_update_function(gl_types::iscope& scope, 
+void exec_update_function(gl_types::iscope& scope, 
                                  gl_types::icallback& scheduler,
                                  gl_types::ishared_data* shared_data) {
   // create the graph structure arrays I need to pass to the update function

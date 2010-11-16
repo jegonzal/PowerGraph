@@ -22,7 +22,9 @@ bool clear_struct_array(EMXType &out) {
 template<class T, class EMXType>
 void free_struct_array(EMXType &in) {
   if (!in.canFreeData) return;
-  for (size_t i = 0 ;i < in.allocatedSize; ++i) {
+  size_t numelem = 1;
+  for (size_t i = 0 ;i < in.numDimensions; ++i) numelem *= in.size[i];
+  for (size_t i = 0 ;i < numelem; ++i) {
     freeemx(in.data[i]);
   }
   free(in.data);
@@ -182,8 +184,15 @@ bool write_struct_array(EMXType &in, mxArray * &array) {
  */
 template<class T, class EMXType>
 bool copy_struct_array(EMXType &dest, const EMXType &src) {
-  dest.data = (T*)malloc(sizeof(T) * src.allocatedSize);
-  dest.size = (int32_t*)malloc(sizeof(int32_t) * src.numDimensions);
+  // free the data in this struct
+  size_t destusedsize = 1;
+  for (size_t i = 0;i < dest.numDimensions; ++i) destusedsize *= dest.size[i];
+  for (size_t i = 0;i < destusedsize; ++i) {
+    freeemx(dest.data[i]);
+  }
+
+  dest.data = (T*)realloc(dest.data, sizeof(T) * src.allocatedSize);
+  dest.size = (int32_t*)realloc(dest.size, sizeof(int32_t) * src.numDimensions);
   dest.allocatedSize = src.allocatedSize;
   dest.numDimensions = src.numDimensions;
   dest.canFreeData = 1;

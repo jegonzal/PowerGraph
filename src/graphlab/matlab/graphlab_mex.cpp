@@ -56,8 +56,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   }
   bool strict = mxGetScalar(param.strict) != 0;
   // make the graph.
-  emx_graph graph;
-  bool ret = construct_graph(graph, param.vdata, param.adjmat, param.edata);
+  gl_types::core core;
+  core.set_scope_type("edge");
+  core.set_engine_type("async");
+  core.set_ncpus(2);
+  core.set_scheduler_type("fifo");
+  
+  bool ret = construct_graph(core.graph(), param.vdata, param.adjmat, param.edata);
   if (ret == false) {
     if (strict) {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is set. Terminating.");
@@ -67,16 +72,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is not set. Continuing.");
     }
   }
-  graph.finalize();
+  core.graph().finalize();
+  
   
   updates_initialize();
 
-  output_graph(graph, plhs[0], plhs[1], plhs[2]);
+  core.add_task_to_all(__gl__test_update_function, 100.0);
+  core.start();
+  
+  output_graph(core.graph(), plhs[0], plhs[1], plhs[2]);
 
   register_all_matlab_update_functions();
-  // destroy graph
 
-  for (size_t i = 0;i < graph.num_vertices(); ++i) freeemx(graph.vertex_data(i));
-  for (size_t i = 0;i < graph.num_edges(); ++i) freeemx(graph.edge_data(i));
+  // destroy emx graph data
+  for (size_t i = 0;i < core.graph().num_vertices(); ++i) freeemx(core.graph().vertex_data(i));
+  for (size_t i = 0;i < core.graph().num_edges(); ++i) freeemx(core.graph().edge_data(i));
   
 }

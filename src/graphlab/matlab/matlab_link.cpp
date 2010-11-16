@@ -7,7 +7,7 @@
 void emx_get_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
   // turn the handle back into a pointer
   double *handleptr = &handle;
-  gl_update_function_params *paramsptr = reinterpret_cast<gl_update_function_params*>(handleptr);
+  gl_update_function_params *paramsptr = *reinterpret_cast<gl_update_function_params**>(handleptr);
   // get the data and copy it out
   const gl_emx_edgetype &e = paramsptr->scope->const_edge_data(eid);
   emxcopy(*edge, e);
@@ -16,7 +16,7 @@ void emx_get_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
 void emx_get_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex) {
   // turn the handle back into a pointer
   double *handleptr = &handle;
-  gl_update_function_params *paramsptr = reinterpret_cast<gl_update_function_params*>(handleptr);
+  gl_update_function_params *paramsptr = *reinterpret_cast<gl_update_function_params**>(handleptr);
   // get the data and copy it out
   // if vid is current vertex, we use vertex_data. Otherwise we use neighbor_vertex_data
   if (vid == paramsptr->scope->vertex()) {
@@ -32,7 +32,7 @@ void emx_get_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex)
 void emx_set_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
   // turn the handle back into a pointer
   double *handleptr = &handle;
-  gl_update_function_params *paramsptr = reinterpret_cast<gl_update_function_params*>(handleptr);
+  gl_update_function_params *paramsptr = *reinterpret_cast<gl_update_function_params**>(handleptr);
   // write the data
   gl_emx_edgetype &e = paramsptr->scope->edge_data(eid);
   emxcopy(e, *edge);
@@ -41,7 +41,7 @@ void emx_set_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
 void emx_set_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex) {
   // turn the handle back into a pointer
   double *handleptr = &handle;
-  gl_update_function_params *paramsptr = reinterpret_cast<gl_update_function_params*>(handleptr);
+  gl_update_function_params *paramsptr = *reinterpret_cast<gl_update_function_params**>(handleptr);
   // write the data
   // if vid is current vertex, we use vertex_data. Otherwise we use neighbor_vertex_data
   if (vid == paramsptr->scope->vertex()) {
