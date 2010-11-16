@@ -31,7 +31,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 return;
             else 
                 % vector/matrix. convert to dynamic
-                d = emlcoder.egs(d(1), size(d) * Inf);
+                d = emlcoder.egs(d, size(d) * Inf);
                 status = 1;
                 if (strcmp(cname, 'numeric'))
                     gen = [sid ' = [0.0];'];

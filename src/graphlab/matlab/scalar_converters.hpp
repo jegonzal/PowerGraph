@@ -13,9 +13,11 @@ template <>                                                        \
 struct converter<TYPENAME>{                                                  \
 static bool mxarray2emx(const mxArray* mx, TYPENAME &emxdata) {           \
   emxdata = mxGetScalar(mx);                                       \
+  return true;                                                     \
 }                                                                  \
 static bool emx2mxarray(TYPENAME &emxdata, mxArray* &mx) {                \
   mx = mxCreateDoubleScalar(emxdata);                              \
+  return true;                                                     \
 }                                                                  \
 static void clearemx(TYPENAME &emxdata) {                                 \
   emxdata = (TYPENAME)0;                                           \

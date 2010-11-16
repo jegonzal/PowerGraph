@@ -59,8 +59,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   gl_types::core core;
   core.set_scope_type("edge");
   core.set_engine_type("async");
-  core.set_ncpus(2);
-  core.set_scheduler_type("fifo");
+  core.set_ncpus(4);
+  core.set_scheduler_type("sweep");
   
   bool ret = construct_graph(core.graph(), param.vdata, param.adjmat, param.edata);
   if (ret == false) {
@@ -77,9 +77,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   
   updates_initialize();
 
-  core.add_task_to_all(__gl__test_update_function, 100.0);
-  core.start();
-  
+  core.add_task_to_all(__gl__chol_update, 100.0);
+  double time = core.start();
+  mexPrintf("GraphLab spent : %f seconds\n", time);
   output_graph(core.graph(), plhs[0], plhs[1], plhs[2]);
 
   register_all_matlab_update_functions();

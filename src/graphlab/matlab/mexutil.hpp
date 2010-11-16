@@ -14,6 +14,8 @@ inline size_t get_class_element_size(mxClassID cid) {
     case mxLOGICAL_CLASS:
     case mxVOID_CLASS:
     case mxFUNCTION_CLASS:
+    case mxOPAQUE_CLASS:
+    case mxOBJECT_CLASS:
       return 0;
     case mxINT8_CLASS:
     case mxUINT8_CLASS:
@@ -24,12 +26,14 @@ inline size_t get_class_element_size(mxClassID cid) {
       return 2;
     case mxINT32_CLASS:
     case mxUINT32_CLASS:
+    case mxSINGLE_CLASS:
       return 4;
     case mxDOUBLE_CLASS:
     case mxINT64_CLASS:
     case mxUINT64_CLASS:
       return 8;
   }
+  assert(false);
 }
 
 
@@ -51,7 +55,6 @@ bool clear_array(EMXType &out) {
  */
 template<class T, class EMXType>
 bool read_storage_compatible_array(const mxArray *array, EMXType &out) {
-  bool printed = false;
   // get the number of dimensions
   out.numDimensions = mxGetNumberOfDimensions(array);
   // get the dimensions. Allocate the size array and copy it
@@ -61,7 +64,7 @@ bool read_storage_compatible_array(const mxArray *array, EMXType &out) {
   out.size = (int32_t *)malloc((sizeof(int32_t) * out.numDimensions));
   // count the number of elements
   size_t numel = 1;
-  for (size_t i = 0; i < out.numDimensions; ++i) {
+  for (int i = 0; i < out.numDimensions; ++i) {
     out.size[i] = dimptr[i];
     numel = numel * dimptr[i];
   }
@@ -176,7 +179,7 @@ template<class T, class EMXType>
 bool write_storage_compatible_array(EMXType &in, mxArray * &array) {
   // get the dimensions. 
   mwSize dimptr[in.numDimensions];
-  for (size_t i = 0; i < in.numDimensions; ++i) dimptr[i] = in.size[i];
+  for (int i = 0; i < in.numDimensions; ++i) dimptr[i] = in.size[i];
   
   // allocate the array
   array = mxCreateNumericArray(in.numDimensions, 
@@ -189,6 +192,7 @@ bool write_storage_compatible_array(EMXType &in, mxArray * &array) {
   void* ptr = NULL;
   ptr = mxGetData(array);
   memcpy(ptr, in.data, sizeof(T) * mxGetNumberOfElements(array));
+  return true;
 }
 
 
@@ -223,7 +227,7 @@ bool write_array(EMXType &in, mxArray * &array) {
   else if (cid == mxCHAR_CLASS && sizeof(T) == 1) {
     // it may not always be NULL terminated
     size_t len = 1;
-    for (size_t i = 0;i < in.numDimensions; ++i) len *= in.size[i];
+    for (int i = 0;i < in.numDimensions; ++i) len *= in.size[i];
     char c[len+1];
     memcpy(c, in.data, len);
     c[len] = 0;
@@ -255,8 +259,9 @@ bool copy_array(EMXType &dest, const EMXType &src) {
   dest.numDimensions = src.numDimensions;
   dest.canFreeData = 1;
   // copy
-  for (size_t i = 0;i < src.numDimensions; ++i) dest.size[i] = src.size[i];
+  for (int i = 0;i < src.numDimensions; ++i) dest.size[i] = src.size[i];
   memcpy(dest.data, src.data, src.allocatedSize * sizeof(T));
+  return true;
 }
 
 

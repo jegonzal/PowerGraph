@@ -15,12 +15,21 @@
 // the datatypes for the vertex and edge data
 #include "datatype_identifier.h"
 
-// using boost to identify the vertex/edge data type
+// using boost to identify the vertex/edge data type. decay all consts
+// and pointers. we store the base struct/type
 
 typedef BOOST_TYPEOF(datatype_identifier) datatype_identifier_fn_type;
 
-typedef boost::function<datatype_identifier_fn_type>::arg1_type gl_emx_vertextype;
-typedef boost::function<datatype_identifier_fn_type>::arg2_type gl_emx_edgetype;
+typedef boost::remove_const<
+            boost::remove_pointer<
+              boost::function<datatype_identifier_fn_type>::arg1_type>
+            ::type>
+        ::type gl_emx_vertextype;
+typedef boost::remove_const<
+            boost::remove_pointer<
+              boost::function<datatype_identifier_fn_type>::arg2_type>
+            ::type>
+        ::type gl_emx_edgetype;
 
 // define the graphlab data types
 #include <graphlab.hpp>

@@ -208,5 +208,6 @@ bool copy_struct_array(EMXType &dest, const EMXType &src) {
   for (size_t i = 0;i < usedsize; ++i) {
     converter<T>::emxcopy(destdata[i], srcdata[i]);
   }
+  return true;
 }
 #endif  

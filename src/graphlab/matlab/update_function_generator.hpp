@@ -94,7 +94,7 @@ void exec_update_function(gl_types::iscope& scope,
   gl_update_function_params params;
   params.scope = &scope;
   params.scheduler = &scheduler;
-  gl_update_function_params *paramsptr = &params;
+  size_t paramsptr = (size_t)(&params);
   // force cast to a double
   double handle = *reinterpret_cast<double*>(&paramsptr);
   emx_update_fn(scope.vertex(), &eml_inedges, &eml_inv, &eml_outedges, &eml_outv, handle);
