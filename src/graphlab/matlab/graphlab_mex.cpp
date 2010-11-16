@@ -61,8 +61,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   core.set_engine_type("async");
   core.set_ncpus(4);
   core.set_scheduler_type("sweep");
-  
   bool ret = construct_graph(core.graph(), param.vdata, param.adjmat, param.edata);
+  core.graph().compute_coloring();
   if (ret == false) {
     if (strict) {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is set. Terminating.");
@@ -76,13 +76,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   
   
   updates_initialize();
+  register_all_matlab_update_functions();
 
-  core.add_task_to_all(__gl__chol_update, 100.0);
+  core.add_task_to_all(__gl__bp_update, 100.0);
+
   double time = core.start();
   mexPrintf("GraphLab spent : %f seconds\n", time);
+  mexPrintf("Update Counts: %d\n", core.last_update_count());
   output_graph(core.graph(), plhs[0], plhs[1], plhs[2]);
 
-  register_all_matlab_update_functions();
 
   // destroy emx graph data
   for (size_t i = 0;i < core.graph().num_vertices(); ++i) freeemx(core.graph().vertex_data(i));

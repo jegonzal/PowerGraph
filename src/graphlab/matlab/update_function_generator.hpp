@@ -50,15 +50,15 @@ void exec_update_function(gl_types::iscope& scope,
   // read the inedges and out edges and fill the graph structure
   size_t ctr = 0;
   foreach (graphlab::edge_id_t eid, scope.in_edge_ids()) {
-    inedges[ctr] = eid;
-    inv[ctr] = scope.source(eid);
+    inedges[ctr] = eid + 1;           // add one to everything to match matlab
+    inv[ctr] = scope.source(eid) + 1; // add one to everything to match matlab
     ++ctr;
   }
   
   ctr = 0;
   foreach (graphlab::edge_id_t eid, scope.out_edge_ids()) {
-    outedges[ctr] = eid;
-    outv[ctr] = scope.target(eid);
+    outedges[ctr] = eid + 1;           // add one to everything to match matlab
+    outv[ctr] = scope.target(eid) + 1; // add one to everything to match matlab
     ++ctr;
   }
   
@@ -94,10 +94,15 @@ void exec_update_function(gl_types::iscope& scope,
   gl_update_function_params params;
   params.scope = &scope;
   params.scheduler = &scheduler;
-  size_t paramsptr = (size_t)(&params);
-  // force cast to a double
-  double handle = *reinterpret_cast<double*>(&paramsptr);
-  emx_update_fn(scope.vertex(), &eml_inedges, &eml_inv, &eml_outedges, &eml_outv, handle);
+#if __SIZEOF_DOUBLE__ != 8
+  #error "sizeof(double) != 8 Type punning pointers to double does not work on this platform!"
+#endif
+  // store the pointer in a 64 bit integer
+  uint64_t paramsptr = (uint64_t)(&params);  
+  double handle = 0;
+  // force cast the contents of the integer to a double
+  handle = *reinterpret_cast<double*>(&paramsptr);
+  emx_update_fn(scope.vertex() + 1, &eml_inedges, &eml_inv, &eml_outedges, &eml_outv, handle);
 
   // nothing to free since everything is on the stack
 }
@@ -113,7 +118,10 @@ BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION_DECL, _)
  * Registers all the graphlab update functions created in a map
  * so I get a string->update_function mapping.
  *********************************************************************/
-extern boost::unordered_map<std::string, graphlab::update_task<emx_graph>::update_function_type> update_function_map;
+typedef boost::unordered_map<std::string, 
+                graphlab::update_task<emx_graph>::update_function_type> update_function_map_type;
+
+extern update_function_map_type update_function_map;
 void register_all_matlab_update_functions();
 
 

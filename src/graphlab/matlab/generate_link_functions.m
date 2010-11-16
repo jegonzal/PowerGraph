@@ -73,4 +73,14 @@ end
 fprintf(f, 'eml.ceval(''emx_set_edge_data'', handle, edge, eml.ref(edata));\n');
 fprintf(f, 'end\n');
 fclose(f);
+
+
+% add task
+f = fopen(['add_task.m'], 'w');
+fprintf(f, 'function add_task(handle, vertex, functionname, priority) %%#eml\n');
+fprintf(f, '  eml.ceval(''emx_add_task'', handle, vertex, [functionname, 0], priority)\n');
+fprintf(f, 'end');
+fclose(f);
+
+
 end

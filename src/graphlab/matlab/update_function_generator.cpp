@@ -38,7 +38,7 @@ BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION, _)
 #define INSERT_ELEM_INTO_MAP(Z,N, _) \
   update_function_map[GET_GL_UPDATE_FUNCTION_NAME_N(N)] = GET_GL_UPDATE_FUNCTION_N(N); \
   mexPrintf("Registering update function: " GET_GL_UPDATE_FUNCTION_NAME_N(N) "\n");
-boost::unordered_map<std::string, graphlab::update_task<emx_graph>::update_function_type> update_function_map;
+update_function_map_type update_function_map;
 
 void register_all_matlab_update_functions() {
   BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, INSERT_ELEM_INTO_MAP, _)

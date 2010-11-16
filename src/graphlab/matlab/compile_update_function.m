@@ -1,12 +1,14 @@
 function compile_update_function(updatefunctions, exvertex_, exedge_, gllibdir, workingdirectory)
 [st,~] = dbstack('-completenames');
-curdir = st.file;
+mfiledirectory = st.file;
 % get the graphlab/matlab directory
-slashes = strfind(curdir, '/');
-glmatlabdir = curdir(1:(slashes(end)-1));
+slashes = strfind(mfiledirectory, '/');
+glmatlabdir = mfiledirectory(1:(slashes(end)-1));
+linkfndirectory = [glmatlabdir, '/link_functions'];
 % get the graphlab directory
 slashes = strfind(glmatlabdir, '/');
 gldir = glmatlabdir(1:(slashes(end)-1));
+
 
 disp(['Graphlab source directory in :', gldir]);
 disp(['Graphlab matlab source directory in :', glmatlabdir]);
@@ -90,13 +92,16 @@ end
 cd(workingdirectory);
 % make sure the old pwd is still in the path so that we can pick up the
 % update functions
-path(path, glmatlabdir);
+addpath(olddir);
+% drop the link functions directory since we are making new ones
+rmpath(linkfndirectory);
+% keep the directory of this function in the path
+addpath(glmatlabdir);
 
 disp(['Generating Matlab<->Graphlab Link Functions']);
 
 % generate the get vertexdata and get edge data functions
 generate_link_functions(exvertex_, exedge_, genv, gene);
-
 
 disp(['EMLC generation']);
 
@@ -131,6 +136,7 @@ emlcstring = [emlcstring ' get_vertex_data -eg {double(0), uint32(0)}'];
 emlcstring = [emlcstring ' get_edge_data -eg {double(0), uint32(0)}'];
 emlcstring = [emlcstring ' set_vertex_data -eg {double(0), uint32(0), exvertex}'];
 emlcstring = [emlcstring ' set_edge_data -eg {double(0), uint32(0), exedge}'];
+emlcstring = [emlcstring ' add_task -eg {double(0), uint32(0), emlcoder.egs(''a'', [Inf]), double(0)}'];
 emlcstring = [emlcstring ' matlab_link.h'];
 disp(['Issuing command: ' emlcstring]);
 eval(emlcstring);
@@ -191,8 +197,8 @@ compilestring = ['mex -g '  ...
  '-D_CRT_SECURE_NO_WARNINGS ' ...
  '-D_SECURE_SCL=0 ' ...
  '-DMEX_COMPILE ' ...   
- 'CXXFLAGS="$CXXFLAGS -g -fpic -O3 -Wall -fno-strict-aliasing" ' ...
- 'CFLAGS="-D_GNU_SOURCE  -O3 -fexceptions -fPIC -fno-omit-frame-pointer -pthread" ' ...
+ 'CXXFLAGS="$CXXFLAGS -g -fpic -Wall -fno-strict-aliasing" ' ...
+ 'CFLAGS="-D_GNU_SOURCE -fexceptions -fPIC -fno-omit-frame-pointer -pthread" ' ...
  '-output test_mex ' ...
  glmatlabdir '/graphlab_mex.cpp ' ...
  glmatlabdir '/matlab_link.cpp ' ...

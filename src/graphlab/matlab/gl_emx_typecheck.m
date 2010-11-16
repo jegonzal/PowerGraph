@@ -30,8 +30,11 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 end
                 return;
             else 
-                % vector/matrix. convert to dynamic
-                d = emlcoder.egs(d, size(d) * Inf);
+                % vector/matrix. convert to dynamic. make sure vectors stay
+                % as vectors
+                dtemp = size(d);
+                dtemp(dtemp > 1) = Inf;
+                d = emlcoder.egs(d, dtemp);
                 status = 1;
                 if (strcmp(cname, 'numeric'))
                     gen = [sid ' = [0.0];'];
@@ -40,7 +43,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 else
                     gen = [sid ' = [' cname '(0)];'];
                 end
-                gen = [gen '\n' 'eml.varsize(''' sid ''');'];
+                gen = [gen '\n' 'eml.varsize(''' sid ''',' mat2str(dtemp) ');'];
                 return;
             end
             
@@ -50,7 +53,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
             if (isvector(d))
                 d = emlcoder.egs('a', [1, Inf]);
                 gen = [sid ' = '''';'];
-                gen = [gen '\n' 'eml.varsize(''' sid ''');'];
+                gen = [gen '\n' 'eml.varsize(''' sid ''', [1, Inf]);'];
                 status = 1;
                 return;
             else
@@ -89,10 +92,10 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 % one struct
                 d = temp;
             else 
-                % vector/matrix!
+                % vector/matrix of structs
                 d = emlcoder.egs(temp, size(d) * Inf);
                 gen = [gen '\n' sid ' = [' recursename '];'];
-                gen = [gen '\n' 'eml.varsize(''' sid ''');'];
+                gen = [gen '\n' 'eml.varsize(''' sid ''',' mat2str(size(d) * Inf) ');'];
             end
             status = 1;
         case {'function_handle','logical','cell'}

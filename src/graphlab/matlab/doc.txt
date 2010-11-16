@@ -16,14 +16,14 @@ In addition: the following link functions are provided:
 
 function vdata = get_vertex_data(handle, vertex)  % returns data on vertex 
 function edata = get_edge_data(handle, edge)  % returns data on edge 
-function status = add_task(vertex, 'function name')  % returns 1 if add task successful. 0 if failure
+function add_task(handle, vertex, 'function name', priority)  
 function set_vertex_data(handle, vertex, vdata)  % sets data on vertex
 function set_edge_data(handle, edge, edata)  % sets data on edge
 
 
 Start by calling 
 
-[newvertexdata, newedgedata] = graphlab_mex(vertexdata, adj_mat, edgedata, schedule)
+[newvertexdata, adj, newedgedata] = graphlab_mex(vertexdata, adj_mat, edgedata, schedule)
   vertexdata: cell array of vertex data
   adj_mat: sparse adjacency matrix where adj_mat[i][j] is an edge from vertex i to vertex j
            and the data on the edge is edgedata(adjmat[i][j])
