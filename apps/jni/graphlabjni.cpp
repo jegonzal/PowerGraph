@@ -24,14 +24,41 @@ typedef graphlab::graph<vertex_data, edge_data> jni_graph;
  */
 typedef graphlab::types<jni_graph> gl_types;
 
+static JavaVM *jvm = NULL;
+JNIEnv * cachedEnv;
+jobject cachedObj;
+jmethodID wrapperMethodID;
+std::vector<JNIEnv *> envs;
+
 /**
  * The Page rank update function
  */
 void jni_update(gl_types::iscope &scope,
                      gl_types::icallback &scheduler,
                      gl_types::ishared_data* shared_data) {
-
-        std::cout << "Jni update: " << scope.vertex() << std::endl;
+        jint vertexid = scope.vertex();
+        jint functionid = 0;
+        
+        int threadid = graphlab::thread::thread_id();
+        JNIEnv * jenv;
+        if (envs[threadid] == NULL) {
+            int res = jvm->AttachCurrentThread((void **)&jenv, NULL);
+            std::cout << "Attached to JVM: " << res << std::endl;
+            assert(res>=0);
+            envs[threadid] = jenv;
+        }
+        jenv = envs[threadid];
+        
+        jintArray result = (jintArray) jenv->CallObjectMethod(cachedObj, wrapperMethodID, vertexid, functionid);
+        jsize task_sz = jenv->GetArrayLength(result)/2;
+      //  std::cout << "New tasks: " << task_sz << std::endl; 
+        jboolean isCopy = false;
+        jint * arr = jenv->GetIntArrayElements(result, &isCopy);
+        for(int i=0; i<task_sz; i++) {
+            // TODO: support multiple tasks, priority
+            scheduler.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
+        }
+        jenv->ReleaseIntArrayElements(result, arr, JNI_ABORT);
 }  
 
 
@@ -63,8 +90,24 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_initGraphlab
    // Set the engine options
    // TODO.
    core.set_engine_options(clopts);
-  
  }
+
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setScheduler
+  (JNIEnv * env, jobject obj, jstring schedulertype) {
+    const char *str = env->GetStringUTFChars(schedulertype, 0);
+    core.set_scheduler_type(std::string(str));
+  }
+
+/*
+ * Class:     graphlab_wrapper_GraphLabJNIWrapper
+ * Method:    setScopeType
+ * Signature: (Ljava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setScopeType
+  (JNIEnv * env, jobject obj, jstring scopetype) {
+    const char *str = env->GetStringUTFChars(scopetype, 0);
+    core.set_scope_type(std::string(str));
+  }
 
 /*
  * Class:     graphlab_wrapper_GraphLabJNIWrapper
@@ -93,9 +136,8 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_addEdges
     jint * arr = env->GetIntArrayElements(toVertices, &isCopy);
     for(int i=0; i<sz; i++) {
         graph.add_edge(fromVertex, arr[i]);
-        std::cout << " Added edge: " << fromVertex << " to " << arr[i] << std::endl;
     }
-    //ReleaseIntArrayElements(env, toVertices, arr, JNI_ABORT);
+    env->ReleaseIntArrayElements(toVertices, arr, JNI_ABORT);
 }
     
 
@@ -106,7 +148,19 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_addEdges
  */
 JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_runGraphlab
   (JNIEnv * env, jobject obj) {
-    core.start(); 
+    // HACK - where to get number of workers?
+    envs = std::vector<JNIEnv * >(512, NULL);
+    if (jvm == NULL) env->GetJavaVM(&jvm);
+
+    cachedObj = obj;
+    jclass clazz = env->GetObjectClass(obj);
+    wrapperMethodID = env->GetMethodID(clazz, "execUpdate", "(II)[I");
+    std::cout << "Got method ID " << wrapperMethodID << std::endl;
+    std::cout << "Graph has: " << core.graph().num_vertices() << " vertices and " << 
+                core.graph().num_edges() << " edges." << std::endl;
+    core.get_engine_options().print();
+    double runtime = core.start(); 
+    std::cout << "Runtime: " << runtime << " seconds." << std::endl;
 }
 
 /*
