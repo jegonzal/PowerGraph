@@ -1,6 +1,5 @@
 #ifndef GRAPHLAB_MEX_HPP
 #define GRAPHLAB_MEX_HPP
-#include <mex.h>
 
 struct mex_parameters{
   const mxArray* vdata;

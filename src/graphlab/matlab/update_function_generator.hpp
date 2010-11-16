@@ -1,28 +1,23 @@
 #ifndef UPDATE_FUNCTION_GENERATOR_HPP
 #define UPDATE_FUNCTION_GENERATOR_HPP
-#include <mex.h>
 #include <boost/unordered_map.hpp>
 #include <boost/preprocessor.hpp>
 #include "gl_emx_graphtypes.hpp"
 #include "update_function_array.hpp"
 #include "graphlab/macros_def.hpp"
 /*********************************************************************
- * The __matlab_config.hpp defines an array UPDATE_FUNCTIONS 
+ * The update_function_array.hpp defines an array UPDATE_FUNCTIONS 
  * which lists all the matlab update functions available.
  * However, I need to generate my own graphlab update functions 
  * which call the matlab update functions. So, for each matlab update 
  * function, I generate a graphlab update function with the same name but
  * prefixed with __gl__
  *********************************************************************/
+#define GET_NUM_UPDATE_FUNCTIONS BOOST_PP_ARRAY_SIZE(__UPDATE_FUNCTIONS__)
+#define GET_GL_UPDATE_FUNCTION_N(N) BOOST_PP_CAT( __gl__ , BOOST_PP_ARRAY_ELEM(N, __UPDATE_FUNCTIONS__))
+
 
 // Some useful macros to extract elements from the UPDATE_FUNCTIONS array 
-#define GET_UPDATE_FUNCTION_N(N) BOOST_PP_ARRAY_ELEM(N, UPDATE_FUNCTIONS)
-#define GET_NUM_UPDATE_FUNCTIONS BOOST_PP_ARRAY_SIZE(UPDATE_FUNCTIONS)
-#define GET_UPDATE_FUNCTION_NAME_N(N) BOOST_PP_STRINGIZE(GET_UPDATE_FUNCTION_N(N))
-// To get the GraphLab versions of the update functions
-#define GET_GL_UPDATE_FUNCTION_N(N) BOOST_PP_CAT( __gl__ , BOOST_PP_ARRAY_ELEM(N, UPDATE_FUNCTIONS))
-#define GET_GL_UPDATE_FUNCTION_NAME_N(N) BOOST_PP_STRINGIZE(GET_GL_UPDATE_FUNCTION_N(N))
-
 
 
 /*********************************************************************
@@ -107,38 +102,26 @@ inline void exec_update_function(gl_types::iscope& scope,
   // nothing to free since everything is on the stack
 }
 
-#define GEN_UPDATE_FUNCTION(Z,N,_) void GET_GL_UPDATE_FUNCTION_N(N)     \
+#define GEN_UPDATE_FUNCTION_DECL(Z,N,_) void GET_GL_UPDATE_FUNCTION_N(N)     \
                                   (gl_types::iscope& scope,               \
                                    gl_types::icallback& scheduler,         \
-                                   gl_types::ishared_data* shared_data) {  \
-  exec_update_function< GET_UPDATE_FUNCTION_N(N) >(scope,scheduler,shared_data); \
-}
+                                   gl_types::ishared_data* shared_data);
   
-BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION, _)
+BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION_DECL, _)
   
 /*********************************************************************
  * Registers all the graphlab update functions created in a map
  * so I get a string->update_function mapping.
  *********************************************************************/
-#define INSERT_ELEM_INTO_MAP(Z,N, _) \
-  update_function_map[GET_GL_UPDATE_FUNCTION_NAME_N(N)] = GET_GL_UPDATE_FUNCTION_N(N); \
-  mexPrintf("Registering update function: " GET_GL_UPDATE_FUNCTION_NAME_N(N) "\n");
-boost::unordered_map<std::string, graphlab::update_task<emx_graph>::update_function_type> update_function_map;
-inline void register_all_matlab_update_functions() {
-  BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, INSERT_ELEM_INTO_MAP, _)
-}
+extern boost::unordered_map<std::string, graphlab::update_task<emx_graph>::update_function_type> update_function_map;
+void register_all_matlab_update_functions();
 
 
 #include <graphlab/macros_undef.hpp>
 
-#undef UPDATE_FUNCTIONS
-#undef INSERT_ELEM_INTO_MAP
-#undef GEN_UPDATE_FUNCTION
-#undef GET_UPDATE_FUNCTION_N
+//#undef UPDATE_FUNCTIONS
 #undef GET_NUM_UPDATE_FUNCTIONS
-#undef GET_UPDATE_FUNCTION_NAME_N
 #undef GET_GL_UPDATE_FUNCTION_N
-#undef GET_GL_UPDATE_FUNCTION_NAME_N
-
+#undef GEN_UPDATE_FUNCTION_DECL
 
 #endif

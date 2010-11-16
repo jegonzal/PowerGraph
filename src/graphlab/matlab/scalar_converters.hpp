@@ -22,6 +22,9 @@ static void clearemx(TYPENAME &emxdata) {                                 \
 }                                                                  \
 static void freeemx(TYPENAME &emxdata) {                                  \
 }                                                                  \
+static void emxcopy(TYPENAME &dest, const TYPENAME &src) {        \
+  dest = src;                                                     \
+}                                                                  \
 };
 BOOST_PP_SEQ_FOR_EACH(GEN_CONVERTERS, _, TYPES);
 

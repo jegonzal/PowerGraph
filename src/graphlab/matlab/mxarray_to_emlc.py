@@ -24,26 +24,35 @@ def output_parser_header(typesheader):
   print "  static bool emx2mxarray(EMXType &emxdata, mxArray* &mx) {"
   print "    return false;"
   print "  }"
+  print "  static void emxcopy(EMXType &dest, const EMXType &src) {"
+  print "    assert(false);"
+  print "  }"
   print "};"
   print "#include \"struct_arrays.hpp\""
   print "#include \"scalar_converters.hpp\""
   
 def output_parser_footer():
-  print "template <typename T>"
-  print "void clearemx(T &emxdata) { converter<T>::clearemx(emxdata); }"
+  print "template <typename EMXType>"
+  print "void clearemx(EMXType &emxdata) { converter<EMXType>::clearemx(emxdata); }"
   print
-  print "template <typename T>"
-  print "void freeemx(T &emxdata) {converter<T>::freeemx(emxdata); }"
+  print "template <typename EMXType>"
+  print "void freeemx(EMXType &emxdata) {converter<EMXType>::freeemx(emxdata); }"
   print
-  print "template <typename T>"
-  print "bool mxarray2emx(const mxArray* mx, T &emxdata) {"
-  print "  return converter<T>::mxarray2emx(mx, emxdata);"
+  print "template <typename EMXType>"
+  print "bool mxarray2emx(const mxArray* mx, EMXType &emxdata) {"
+  print "  return converter<EMXType>::mxarray2emx(mx, emxdata);"
   print "}"
   print
-  print "template <typename T>"
-  print "bool emx2mxarray(T &emxdata, mxArray* &mx) {"
-  print "  return converter<T>::emx2mxarray(emxdata, mx);"
+  print "template <typename EMXType>"
+  print "bool emx2mxarray(EMXType &emxdata, mxArray* &mx) {"
+  print "  return converter<EMXType>::emx2mxarray(emxdata, mx);"
   print "}"
+  print
+  print "template <typename EMXType>"
+  print "void emxcopy(EMXType &dest, const EMXType &src) {"
+  print "  converter<EMXType>::emxcopy(dest, src);"
+  print "}"
+  
   print "#endif"
 #enddef
 
@@ -70,6 +79,10 @@ def generate_standard_emxparser(structname, datatype):
   print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
   print "    return write_array<%s,%s>(emxdata, mx);" % (datatype, structname)
   print "  }"
+  print
+  print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
+  print "    copy_array<%s,%s>(dest, src);" % (datatype, structname)
+  print "  }"
   print "};"
   print
 #enddef
@@ -91,6 +104,9 @@ def generate_struct_emxparser(structname, datatype):
   print
   print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
   print "    return write_struct_array<%s,%s>(emxdata, mx);" % (datatype, structname)
+  print "  }"
+  print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
+  print "    copy_struct_array<%s,%s>(dest, src);" % (datatype, structname)
   print "  }"
   print "};"
   print
@@ -209,6 +225,26 @@ def generate_structparser(structname, parse):
       #endif
   #endfor
   print "    return ret;";
+  print "  }"
+  
+  #output the copier
+  print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
+  print "    freeemx(dest);"
+  for decl in parse["decls"]:
+      decltype = decl["decltype"]
+      declname = decl["declname"]
+      # check if this is an array
+      if (declname[0] == '*'):
+        declname = declname[1:len(declname)]
+        print "    converter<%s>::emxcopy(*(dest.%s), *(src.%s));" % (decltype, declname,declname)
+      elif decltype[-2:] == '_T':
+        #scalar!
+        print "    dest.%s = src.%s;" % (declname, declname)
+      else:
+        # single struct
+        print "    converter<%s>::emxcopy(dest.%s, src.%s);" % (decltype, declname, declname)
+      #endif
+  #endfor
   print "  }"
   print "};"
   print

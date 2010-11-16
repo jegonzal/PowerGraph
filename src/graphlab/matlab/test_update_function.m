@@ -1,3 +1,5 @@
 function test_update_function(currentvertex, inedges, inv, outedges, outv, handle)   
-    currentvertex = 1;
+    vdata = get_vertex_data(handle, currentvertex);
+    vdata.b = 'moo';
+    set_vertex_data(handle, currentvertex, vdata);
 end

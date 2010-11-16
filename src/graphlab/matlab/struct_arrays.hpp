@@ -174,4 +174,30 @@ bool write_struct_array(EMXType &in, mxArray * &array) {
   }
   return true;
 }
+
+
+/**
+ * Copy an emxArray(EMXType).
+ * Returns true on success, false on failure
+ */
+template<class T, class EMXType>
+bool copy_struct_array(EMXType &dest, const EMXType &src) {
+  dest.data = (T*)malloc(sizeof(T) * src.allocatedSize);
+  dest.size = (int32_t*)malloc(sizeof(int32_t) * src.numDimensions);
+  dest.allocatedSize = src.allocatedSize;
+  dest.numDimensions = src.numDimensions;
+  dest.canFreeData = 1;
+  // copy
+  size_t usedsize = 1;
+  for (size_t i = 0;i < src.numDimensions; ++i) {
+    usedsize *= src.size[i];
+    dest.size[i] = src.size[i];
+  }
+  
+  T* destdata = (T*)(dest.data);
+  T* srcdata = (T*)(src.data);
+  for (size_t i = 0;i < usedsize; ++i) {
+    converter<T>::emxcopy(destdata[i], srcdata[i]);
+  }
+}
 #endif  
