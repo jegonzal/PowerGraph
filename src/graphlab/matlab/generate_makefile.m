@@ -79,12 +79,13 @@ function generate_makefile(makefilename, binname, cppfiles, includepaths, libpat
         cppfile = cppfiles{i};
         % turn it into a .o
         dotpos = max(strfind(cppfile, '.'));
-        ofile = [objprefix cppfile(1:dotpos), 'o'];
+        ofile = [cppfile(1:dotpos), 'o'];
         % make the o file local
         slashpos = strfind(ofile, '/');
         if (~isempty(slashpos))
             ofile = ofile(slashpos(end)+1:end);
         end
+        ofile = [objprefix ofile];
         allofiles = [allofiles ' ' ofile];
         
         fprintf(f, '%s: %s Makefile\n', ofile, cppfile);
