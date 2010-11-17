@@ -9,9 +9,7 @@
 #include "rtwtypes.h"
 #include "updates_types.h"
 #include "mx_emx_converters.hpp"
-#include "updates_initialize.h"
 #include "gl_emx_graphtypes.hpp"
-#include "update_function_generator.hpp"
 
 
 /**
@@ -83,9 +81,14 @@ parse_emx_schedule(const emxArray_graphlab_initial_schedule &sched) {
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // basic data type checks
   // there must be exactly 6 arguments
+  if (nlhs != 1) {
+    mexWarnMsgTxt("Wrong number of output arguments");
+    return;
+  }
   if (nrhs != 6) {
     mexWarnMsgTxt("Erronous function call");
     mexWarnMsgTxt("Usage: graphlab_mex(vertexdata, adj_mat, edgedata, options, graphfile, strict)");
+    plhs[0] = mxCreateLogicalScalar(false);
     return;
   }
 
@@ -101,6 +104,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // basic type check of the parameters
   if (basic_typecheck(param) == false) {
     mexWarnMsgTxt("Basic typechecks failed.");
+    plhs[0] = mxCreateLogicalScalar(false);
     return;
   }
   bool strict = mxGetScalar(param.strict) != 0;
@@ -117,6 +121,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     if (strict != 0) {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is set. Terminating.");
       cleanup_graph(graph);
+      plhs[0] = mxCreateLogicalScalar(false);
       return;
     }
     else {
@@ -143,6 +148,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   fout.close();
   cleanup_graph(graph);
   graph.clear();
+  plhs[0] = mxCreateLogicalScalar(true);
   return;
 }
 

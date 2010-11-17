@@ -8,7 +8,6 @@
 #include "rtwtypes.h"
 #include "updates_types.h"
 #include "mx_emx_converters.hpp"
-#include "updates_initialize.h"
 #include "gl_emx_graphtypes.hpp"
 
 /**
@@ -28,23 +27,11 @@ void cleanup_graph(emx_graph &graph) {
 
 /**
  * [vertexdata, adj_mat, edgedata] mex_load_graph(graphfile)
- *
- * vertexdata: cell array of vertex data
- * adj_mat: (sparse) adjacency matrix where adj_mat[i][j] is an edge from vertex
- *          i to vertex j and the data on the edge is edgedata(adjmat[i][j])
- * edgedata: cell array of edge data
- * options: options and schedule struct
- * graphfile: graph output file
+*
+* graphfile: graph output file
  * strict: numeric 0/1 . Strictness of typechecking
  *  Returns new graph  data on exit
- *
- *
- *  optionsstruct:
- * -- scheduler: Scheduler string
- * -- scope: Scope Type
- * -- ncpus: number of cpus to use
- * -- initial_schedule: and array of structs describing the schedule
-  */
+ */
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // basic data type checks
   // there must be exactly 6 arguments
