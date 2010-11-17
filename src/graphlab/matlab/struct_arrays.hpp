@@ -5,7 +5,7 @@
 #ifndef STRUCT_ARRAYS_HPP
 #define STRUCT_ARRAYS_HPP
 #include <iostream>
-
+#include "graphlab/serialization/serialization_includes.hpp"
 template<class T, class EMXType>
 bool clear_struct_array(EMXType &out) {
   out.data = (T*)malloc(sizeof(T) * 1);
@@ -210,4 +210,45 @@ bool copy_struct_array(EMXType &dest, const EMXType &src) {
   }
   return true;
 }
+
+template<class T, class EMXType>
+void serialize_struct_array(graphlab::oarchive& arc, const EMXType &emx) {
+  arc << emx.allocatedSize;
+  arc << emx.numDimensions;
+  serialize(arc, emx.size, emx.numDimensions * sizeof(int32_T));
+
+  // get the actual contents of the array
+  size_t usedsize = 1;
+  for (size_t i = 0;i < emx.numDimensions; ++i) usedsize *= emx.size[i];
+  // cast the data to right type.and serialize each entry
+  T* data = emx.data;
+  for (size_t i = 0;i < usedsize; ++i) {
+    arc << data[i];
+  }
+}
+
+template<class T, class EMXType>
+void deserialize_struct_array(graphlab::iarchive& arc, EMXType &emx) {
+  arc >> emx.allocatedSize;
+  arc >> emx.numDimensions;
+  // allocate the data
+  emx.size = malloc(sizeof(int32_T) * emx.numDimensions);
+  emx.data = malloc(sizeof(T) * emx.allocatedSize);
+  // deserialize the size
+  deserialize(arc, emx.size, emx.numDimensions * sizeof(int32_T));
+  // zero the data
+  memset(emx.data, 0, sizeof(T) * emx.allocatedSize);
+
+  
+  size_t usedsize = 1;
+  for (size_t i = 0;i < emx.numDimensions; ++i) usedsize *= emx.size[i];
+  // cast the data to right type.and deserialize each entry
+  // as long as data is fully zeroed, the target should not try
+  // to free it. (or rather, free should not do anything to it)
+  T* data = emx.data;
+  for (size_t i = 0;i < usedsize; ++i) {
+    arc >> data[i];
+  }
+}
+
 #endif  

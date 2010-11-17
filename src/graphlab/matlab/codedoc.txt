@@ -1,0 +1,5 @@
+the emxarrays can be serialized and deserialized
+However. keep in mind that the deserialization requires that the emxarray be
+freeed first as it cannot do it for you. Due to a lack of a constructor for the
+emxarray datastructures, it is impossible to tell if the pointers inside the
+emxarray are real pointers, or are random garbage.

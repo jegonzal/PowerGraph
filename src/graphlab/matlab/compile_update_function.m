@@ -94,7 +94,9 @@ cd(workingdirectory);
 % update functions
 addpath(olddir);
 % drop the link functions directory since we are making new ones
-rmpath(linkfndirectory);
+if (~isempty(strfind(path, linkfndirectory)))
+    rmpath(linkfndirectory);
+end
 % keep the directory of this function in the path
 addpath(glmatlabdir);
 
@@ -131,7 +133,7 @@ for i = 1:length(updatefunctions)
 end
 
 % append the additional functions
-emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge}'];
+emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge, emlcoder.egs(double(0), [Inf])}'];
 emlcstring = [emlcstring ' get_vertex_data -eg {double(0), uint32(0)}'];
 emlcstring = [emlcstring ' get_edge_data -eg {double(0), uint32(0)}'];
 emlcstring = [emlcstring ' set_vertex_data -eg {double(0), uint32(0), exvertex}'];
@@ -149,7 +151,7 @@ fprintf('\n\n');
 fprintf('--------------------------------------------------------------\n');
 disp('Stage 3: Generating Matlab <-> Embedded Matlab datatype converters');
 fprintf('--------------------------------------------------------------\n');
-cmd = ['python ' glmatlabdir '/mxarray_to_emlc.py updates_types.h > mx_emx_converters.hpp'];
+cmd = ['python ' glmatlabdir '/mxarray_to_emlc.py updates_types.h ' glmatlabdir '/graphlab_options_struct.h > mx_emx_converters.hpp'];
 disp(['Issuing command: ' cmd]);
 [~,res] = system(cmd);
 if (~isempty(res))

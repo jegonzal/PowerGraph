@@ -4,15 +4,26 @@ import sys
 import fileinput
 
 
+scalar_types = frozenset(["int8_T", "uint8_T", "int16_T", "uint16_T", "int32_T", \
+                    "uint32_T", "int64_T", "uint64_T", "real32_T", "real64_T",\
+                    "real_T", "time_T", "boolean_T", "int_T", "uint_T", \
+                    "ulong_T", "char_T", "byte_T", "cint8_T", "cuint8_T", \
+                    "cint16_T", "cuint16_T", "cint32_T", "cuint32_T", \
+                    "cint64_T", "cuint64_T", "creal32_T", "creal64_T"])
 
+def is_scalar(typename):
+  return typename in scalar_types
+#enddef
 
-
-def output_parser_header(typesheader):
+def output_parser_header(typesheaders):
   print "#ifndef MXARRAY_TO_EMLC_HPP"
   print "#define MXARRAY_TO_EMLC_HPP"
   print "#include <mex.h>"
   print "#include \"mexutil.hpp\""
-  print "#include \"%s\"" % typesheader
+  for t in typesheaders:
+    print "#include \"%s\"" % t
+  #endfor
+  print "#include \"graphlab/serialization/serialization_includes.hpp\""
   print
   print "template <typename EMXType>"
   print "struct converter {"
@@ -85,6 +96,22 @@ def generate_standard_emxparser(structname, datatype):
   print "  }"
   print "};"
   print
+  print "BEGIN_OUT_OF_PLACE_SAVE(arc, %s, emxdata)" % (structname)
+  print "  arc << emxdata.allocatedSize;"
+  print "  arc << emxdata.numDimensions;"
+  print "  serialize(arc, emxdata.size, emxdata.numDimensions * sizeof(int32_T));"
+  print "  serialize(arc, emxdata.data, emxdata.allocatedSize * sizeof(%s));" % (datatype)
+
+  print "END_OUT_OF_PLACE_SAVE()"
+  print
+  print "BEGIN_OUT_OF_PLACE_LOAD(arc, %s, emxdata)" % (structname)
+  print "  arc >> emxdata.allocatedSize;"
+  print "  arc >> emxdata.numDimensions;"
+  print "  emxdata.size = (int32_T*)malloc(sizeof(int32_T) * emxdata.numDimensions);"
+  print "  emxdata.data = (%s*)malloc(sizeof(%s) * emxdata.allocatedSize);" % (datatype, datatype)
+  print "  deserialize(arc, emxdata.size, emxdata.numDimensions * sizeof(int32_T));"
+  print "  deserialize(arc, emxdata.data, emxdata.allocatedSize * sizeof(%s));" % (datatype)
+  print "END_OUT_OF_PLACE_LOAD()"
 #enddef
 
 # generate the forward and backward parsers for struct emx types
@@ -109,6 +136,14 @@ def generate_struct_emxparser(structname, datatype):
   print "    copy_struct_array<%s,%s>(dest, src);" % (datatype, structname)
   print "  }"
   print "};"
+
+  print "BEGIN_OUT_OF_PLACE_SAVE(arc, %s, emxdata)" % (structname)
+  print "  serialize_struct_array<%s,%s>(arc, emxdata);" % (datatype, structname)
+  print "END_OUT_OF_PLACE_SAVE()"
+  print
+  print "BEGIN_OUT_OF_PLACE_LOAD(arc, %s, emxdata)" % (structname)
+  print "  deserialize_struct_array<%s,%s>(arc, emxdata);" % (datatype, structname)
+  print "END_OUT_OF_PLACE_LOAD()"
   print
 #enddef
 
@@ -138,7 +173,7 @@ def generate_structparser(structname, parse):
         print "    emxdata.%s = (%s*)malloc(sizeof(%s));" % (declname, decltype, decltype)
         print "    converter<%s>::clearemx(*(emxdata.%s));" % (decltype, declname)
       else:
-        #scalar!
+        #scalar or single struct
         print "    converter<%s>::clearemx(emxdata.%s);" % (decltype, declname)
       #endif
   #endfor
@@ -183,7 +218,7 @@ def generate_structparser(structname, parse):
       if (declname[0] == '*'):
         declname = declname[1:len(declname)]
         print "    ret &= converter<%s>::mxarray2emx(struct_has_field(mx, \"%s\"), *(emxdata.%s));" % (decltype, declname, declname)
-      elif decltype[-2:] == '_T':
+      elif is_scalar(decltype):
         #scalar!
         print "    if (struct_has_field(mx, \"%s\") != NULL) ";
         print "      emxdata.%s = (%s)mxGetScalar(struct_has_field(mx, \"%s\"));" % (declname, decltype, declname);
@@ -213,7 +248,7 @@ def generate_structparser(structname, parse):
         print "    ret &= converter<%s>::emx2mxarray(*(emxdata.%s), mxarr);" % (decltype, declname)
         print "    mxAddField(mx, \"%s\");" % declname
         print "    mxSetField(mx, 0, \"%s\", mxarr);" % declname
-      elif decltype[-2:] == '_T':
+      elif is_scalar(decltype):
         #scalar!
         print "    mxarr = NULL;";
         print "    mxarr = mxCreateDoubleScalar(emxdata.%s);" % (declname)
@@ -243,7 +278,7 @@ def generate_structparser(structname, parse):
         print "      converter<%s>::clearemx(*(dest.%s));" % (decltype,declname)
         print "    }"
         print "    converter<%s>::emxcopy(*(dest.%s), *(src.%s));" % (decltype, declname,declname)
-      elif decltype[-2:] == '_T':
+      elif is_scalar(decltype):
         #scalar!
         print "    dest.%s = src.%s;" % (declname, declname)
       else:
@@ -254,8 +289,51 @@ def generate_structparser(structname, parse):
   print "  }"
   print "};"
   print
-  print 
-  
+  print "BEGIN_OUT_OF_PLACE_SAVE(arc, %s, emxdata)" % (structname)
+  for decl in parse["decls"]:
+      decltype = decl["decltype"]
+      declname = decl["declname"]
+      # check if this is an array
+      if (declname[0] == '*'):
+        declname = declname[1:len(declname)]
+        print "  arc << (emxdata.%s == NULL);" % (declname)
+        print "  if (emxdata.%s != NULL) arc << *(emxdata.%s);" % (declname, declname)
+      elif is_scalar(decltype):
+        #scalar!
+        print "  arc << emxdata.%s;" % (declname)
+      else:
+        # single struct
+        print "  arc << emxdata.%s;" % (declname)
+      #endif
+  #endfor
+  print "END_OUT_OF_PLACE_SAVE()"
+  print
+  print "BEGIN_OUT_OF_PLACE_LOAD(arc, %s, emxdata)" % (structname)
+  print "  bool isnull;"
+  for decl in parse["decls"]:
+      decltype = decl["decltype"]
+      declname = decl["declname"]
+      # check if this is an array
+      if (declname[0] == '*'):
+        declname = declname[1:len(declname)]
+        print "  arc >> isnull;"
+        print "  if (!isnull) {"
+        print "    emxdata.%s = (%s*)malloc(sizeof(%s));" % (declname, decltype, decltype)
+        print "    arc >> *(emxdata.%s);" % (declname)
+        print "  }"
+        print "  else {"
+        print "    emxdata.%s = NULL;" % (declname)
+        print "  }"
+      elif is_scalar(decltype):
+        #scalar!
+        print "  arc >> emxdata.%s;" % (declname)
+      else:
+        # single struct
+        print "  arc >> emxdata.%s;" % (declname)
+      #endif
+  #endfor
+  print "END_OUT_OF_PLACE_LOAD()"
+  print
 
   return 0
 #enddef
@@ -333,7 +411,7 @@ for line in fileinput.input():
 scn = c_structdef.scanString(f)
 
 # output the header
-output_parser_header(sys.argv[1])
+output_parser_header(sys.argv[1:])
 # output the body
 ret = 0;
 for data,dataStart,dataEnd in scn:

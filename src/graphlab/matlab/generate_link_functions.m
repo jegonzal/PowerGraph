@@ -37,8 +37,10 @@ fclose(f);
 
 % datatype_identifier is an empty function that allows the C++
 % side to identify the vertex and edge data types
+% the unused is specified as a double array to force instantiation
+% of the emxArray_real_T type.
 f = fopen(['datatype_identifier.m'], 'w');
-fprintf(f, 'function datatype_identifier(vdata, edata) %%#eml\n');
+fprintf(f, 'function datatype_identifier(vdata, edata, unused) %%#eml\n');
 if (isstruct(exvertex_))
     fprintf(f, 'eml.cstructname(vdata, ''emx_vertexdata'');\n');
 end

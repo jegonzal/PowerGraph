@@ -63,6 +63,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   core.set_scheduler_type("sweep");
   bool ret = construct_graph(core.graph(), param.vdata, param.adjmat, param.edata);
   core.graph().compute_coloring();
+  core.graph().save("test.bin");
+  core.graph().clear();
+  core.graph().load("test.bin");
   if (ret == false) {
     if (strict) {
       mexWarnMsgTxt("Type conversion errors. Strict-mode is set. Terminating.");
