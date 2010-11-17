@@ -60,71 +60,16 @@ parse_emx_schedule(const emxArray_graphlab_initial_schedule &sched) {
 }
 
 
-/**
- * Tries to call the binary side of the mex
- * returns false on failure
- */
-bool issue_binary_call(std::string binarystage,
-                       graphlab_options_struct &optionsstruct,
-                       std::string tempfilename) {
-  // compile the command...
-  std::stringstream command;
-  command << "./" << binarystage;
-
-  command << " --engine=async";
-  // ncpus
-  size_t ncpus = optionsstruct.ncpus;
-  if (ncpus < 1) {
-    std::cout << "Invalid value for ncpus. Setting to 1." << std::endl;
-    ncpus = 1;
-  }
-  else if (ncpus > 65536){
-    std::cout << "Do you really want to start > 65536 threads?" << std::endl;
-    std::cout << "Maxing out to 65536." << std::endl;
-    ncpus = 65536;
-  }
-  command << " --ncpus=" << ncpus;
-  if (optionsstruct.scheduler == NULL) {
-    mexWarnMsgTxt("Scheduler parameter not optional.");
-    return false;
-  }
-
-  command << " --scheduler=" <<
-                          emxArray_char_T_to_string(*optionsstruct.scheduler);
-
-  if (optionsstruct.scope == NULL) {
-    mexWarnMsgTxt("Scope parameter missing. Defaulting to \'edge\'.");
-    command << "--scope=edge";
-  }
-  else {
-    command << " --scope=" <<
-                          emxArray_char_T_to_string(*optionsstruct.scope);
-  }
-
-  // tempfilename
-  command << " --graphfile=" << tempfilename;
-
-  std::string commandstr = command.str();
-  mexPrintf("Issuing command: %s\n", commandstr.c_str());
-  
-  int ret = system(commandstr.c_str());
-  if (ret != 0) {
-    mexWarnMsgTxt("Failed to execute command!");
-    std::cerr << "Error number: " << errno << std::endl;
-    std::cerr << "Return value : " << WEXITSTATUS(ret) << std::endl;
-    return false;
-  }
-  return true;
-}
 
 /**
- * [newvdata, newadjmat, newedata] = graphlab_mex(vertexdata, adj_mat, edgedata, options, strict)
+ * mex_save_graph(vertexdata, adj_mat, edgedata, options, graphfile, strict)
  *
  * vertexdata: cell array of vertex data
  * adj_mat: (sparse) adjacency matrix where adj_mat[i][j] is an edge from vertex
  *          i to vertex j and the data on the edge is edgedata(adjmat[i][j])
  * edgedata: cell array of edge data
  * options: options and schedule struct
+ * graphfile: graph output file
  * strict: numeric 0/1 . Strictness of typechecking
  *  Returns new graph  data on exit
  *
@@ -137,19 +82,10 @@ bool issue_binary_call(std::string binarystage,
   */
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // basic data type checks
-  // we must output to something
-  if (nlhs < 3) {
-    mexWarnMsgTxt("Too few output arguments.");
-    return;
-  }
-  else if (nlhs > 3) {
-    mexWarnMsgTxt("Too many output arguments.");
-    return;
-  }
-  // there must be exactly 4 arguments
-  if (nrhs != 5) {
+  // there must be exactly 6 arguments
+  if (nrhs != 6) {
     mexWarnMsgTxt("Erronous function call");
-    mexWarnMsgTxt("Usage: graphlab_mex(vertexdata, adj_mat, edgedata, schedule, strict)");
+    mexWarnMsgTxt("Usage: graphlab_mex(vertexdata, adj_mat, edgedata, options, graphfile, strict)");
     return;
   }
 
@@ -159,7 +95,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   param.adjmat = prhs[1];
   param.edata = prhs[2];
   param.options = prhs[3];
-  param.strict = prhs[4];
+  param.graphfile = prhs[4];
+  param.strict = prhs[5];
 
     // basic type check of the parameters
   if (basic_typecheck(param) == false) {
@@ -189,17 +126,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   graph.finalize();
   graph.compute_coloring();
 
-  // create a temporary file to store the serialization
-  char* tmpfilename = tmpnam(NULL);
-  if (tmpfilename == NULL) {
-    mexWarnMsgTxt("Cannot create temporary file! Terminating.");
-    cleanup_graph(graph);
-    return;
-  }
-  mexPrintf("Serializing to: %s\n", tmpfilename);
-  std::ofstream fout(tmpfilename, std::ios_base::binary);
+  char* graphfile = mxArrayToString(param.graphfile);
+  mexPrintf("Serializing to: %s\n", graphfile);
+  std::ofstream fout(graphfile, std::ios_base::binary);
   if (!fout.good()) {
-    mexWarnMsgTxt("Unable to open temporary file! Terminating.");
+    mexWarnMsgTxt("Unable to open output file! Terminating.");
     cleanup_graph(graph);
     return;
   }
@@ -211,8 +142,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   oarc << schedule;
   fout.close();
   cleanup_graph(graph);
-
-  issue_binary_call("binary_stage", optionsstruct, tmpfilename);
+  graph.clear();
   return;
 }
 

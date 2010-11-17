@@ -1,6 +1,5 @@
 #ifndef GRAPHLAB_MEX_OUTPUT_HPP
 #define GRAPHLAB_MEX_OUTPUT_HPP
-#include "graphlab_mex.hpp"
 #include "gl_emx_graphtypes.hpp"
 
 /**

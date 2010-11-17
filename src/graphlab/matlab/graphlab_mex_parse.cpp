@@ -23,23 +23,18 @@ bool basic_typecheck(mex_parameters &param) {
     return false;
   }
 
-  // sched is a struct array
-  if (param.sched == NULL || !mxIsStruct(param.sched)) {
-    mexWarnMsgTxt("Fourth parameter should be a struct array describing the schedule.");
+  // options is a struct array
+  if (param.options == NULL || !mxIsStruct(param.options)) {
+    mexWarnMsgTxt("Fourth parameter should be a struct array describing options.");
     return false;
   }
-  // struct array should have a "vertex" and an "update_function" field
-  if (mxGetFieldNumber(param.sched,"vertex") == -1) {
-    mexWarnMsgTxt("schedule parameter is missing the \"vertex\" field.");
-    return false;
-  }
-
-  if (mxGetFieldNumber(param.sched,"update_function") == -1) {
-    mexWarnMsgTxt("schedule parameter is missing the \"update_function\" field.");
+  // graphfile is a filename
+  if (param.graphfile == NULL || !mxIsChar(param.graphfile)) {
+    mexWarnMsgTxt("Fifth parameter should be a file name.");
     return false;
   }
 
-  // update_function field should be a string
+  // strict field should be a string
   if (param.strict == NULL || !mxIsNumeric(param.strict)) {
     mexWarnMsgTxt("strict should be a numeric scalar.");
     return false;

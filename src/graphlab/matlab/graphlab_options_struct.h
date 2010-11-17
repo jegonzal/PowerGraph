@@ -1,6 +1,9 @@
 #ifndef GRAPHLAB_OPTIONS_STRUCT_H
 #define GRAPHLAB_OPTIONS_STRUCT_H
-#include "updates_types.h"
+#include "rtwtypes.h"
+#include <vector>
+#include <string>
+#include "graphlab/serialization/serialization_includes.hpp"
 // unfortunately this file has to be a .h otherwise matlab won't recognize it
 
 // To simplify the process of passing options to mex,
@@ -21,6 +24,15 @@ typedef struct graphlab_initial_schedule{
 } graphlab_initial_schedule;
 
 
+typedef struct emxArray_graphlab_initial_schedule {
+  struct graphlab_initial_schedule *data;
+  int32_T *size;
+  int32_T allocatedSize;
+  int32_T numDimensions;
+  boolean_T canFreeData;
+} emxArray_graphlab_initial_schedule;
+
+
 /**
  * Options which control the graphlab start up.
  * scheduler: Scheduler string
@@ -30,9 +42,22 @@ typedef struct graphlab_initial_schedule{
  */
 typedef struct graphlab_options_struct{
   emxArray_char_T *scheduler; 
-  emxArray_char_T *scope_type;  
+  emxArray_char_T *scope;
   real_T ncpus;
-  graphlab_initial_schedule *initial_schedule;
+  emxArray_graphlab_initial_schedule *initial_schedule;
 } graphlab_options_struct;
 
+
+
+struct parsed_initial_schedule{
+  std::string update_function;
+  std::vector<uint32_t> vertices;
+  std::vector<double> priorities;
+  void save(graphlab::oarchive &oarc) const{
+    oarc << update_function << vertices << priorities;
+  }
+  void load(graphlab::iarchive &iarc) {
+    iarc >> update_function >> vertices >> priorities;
+  }
+};
 #endif

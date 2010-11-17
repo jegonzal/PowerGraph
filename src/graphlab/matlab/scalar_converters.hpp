@@ -28,9 +28,29 @@ static void emxcopy(TYPENAME &dest, const TYPENAME &src) {        \
   dest = src;                                                     \
 }                                                                  \
 };
+
+
+#define GEN_MEX_LESS_CONVERTERS(r, _, TYPENAME) \
+template <>                                                        \
+struct converter<TYPENAME>{                                                  \
+static void clearemx(TYPENAME &emxdata) {                                 \
+emxdata = (TYPENAME)0;                                           \
+}                                                                  \
+static void freeemx(TYPENAME &emxdata) {                                  \
+}                                                                  \
+static void emxcopy(TYPENAME &dest, const TYPENAME &src) {        \
+dest = src;                                                     \
+}                                                                  \
+};
+
+#ifdef mex_h
 BOOST_PP_SEQ_FOR_EACH(GEN_CONVERTERS, _, TYPES);
+#else
+BOOST_PP_SEQ_FOR_EACH(GEN_MEX_LESS_CONVERTERS, _, TYPES);
+#endif
 
 #undef GEN_CONVERTERS
+#undef GEN_MEX_LESS_CONVERTERS
 #undef TYPES
 #undef COMPLEX_TYPES
 

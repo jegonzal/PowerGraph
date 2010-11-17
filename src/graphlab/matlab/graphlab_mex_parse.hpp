@@ -1,6 +1,6 @@
 #ifndef GRAPHLAB_MEX_TYPECHECK_HPP
 #define GRAPHLAB_MEX_TYPECHECK_HPP
-#include "graphlab_mex.hpp"
+#include "mex_save_graph.hpp"
 #include "gl_emx_graphtypes.hpp"
 
 /**

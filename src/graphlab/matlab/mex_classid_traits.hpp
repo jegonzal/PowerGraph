@@ -4,7 +4,8 @@
 #endif
 
 #ifndef mex_h
-#error "mex.h must be included before this file"
+// if there is no mex, we do not use this file
+#define MEX_CLASSID_TRAITS_HPP
 #endif
 
 #ifndef MEX_CLASSID_TRAITS_HPP

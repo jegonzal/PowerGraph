@@ -6,6 +6,7 @@ struct mex_parameters{
   const mxArray* adjmat;
   const mxArray* edata;
   const mxArray* options;
+  const mxArray* graphfile;
   const mxArray* strict;
 };
 

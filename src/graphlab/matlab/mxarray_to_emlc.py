@@ -18,7 +18,6 @@ def is_scalar(typename):
 def output_parser_header(typesheaders):
   print "#ifndef MXARRAY_TO_EMLC_HPP"
   print "#define MXARRAY_TO_EMLC_HPP"
-  print "#include <mex.h>"
   print "#include \"mexutil.hpp\""
   for t in typesheaders:
     print "#include \"%s\"" % t
@@ -29,12 +28,14 @@ def output_parser_header(typesheaders):
   print "struct converter {"
   print "  static void clearemx(EMXType &emxdata) { }"
   print "  static void freeemx(EMXType &emxdata) { }"
+  print "#ifdef mex_h"
   print "  static bool mxarray2emx(const mxArray* mx, EMXType &emxdata) {"
   print "    return false;"
   print "  }"
   print "  static bool emx2mxarray(EMXType &emxdata, mxArray* &mx) {"
   print "    return false;"
   print "  }"
+  print "#endif"
   print "  static void emxcopy(EMXType &dest, const EMXType &src) {"
   print "    assert(false);"
   print "  }"
@@ -49,6 +50,7 @@ def output_parser_footer():
   print "template <typename EMXType>"
   print "void freeemx(EMXType &emxdata) {converter<EMXType>::freeemx(emxdata); }"
   print
+  print "#ifdef mex_h"
   print "template <typename EMXType>"
   print "bool mxarray2emx(const mxArray* mx, EMXType &emxdata) {"
   print "  return converter<EMXType>::mxarray2emx(mx, emxdata);"
@@ -58,6 +60,7 @@ def output_parser_footer():
   print "bool emx2mxarray(EMXType &emxdata, mxArray* &mx) {"
   print "  return converter<EMXType>::emx2mxarray(emxdata, mx);"
   print "}"
+  print "#endif"
   print
   print "template <typename EMXType>"
   print "void emxcopy(EMXType &dest, const EMXType &src) {"
@@ -83,6 +86,7 @@ def generate_standard_emxparser(structname, datatype):
   print "    if (emxdata.size) free(emxdata.size);"
   print "    emxdata.canFreeData = 0;"
   print "  }"
+  print "#ifdef mex_h"
   print "  static bool mxarray2emx(const mxArray* mx, %s &emxdata) {" % (structname)
   print "    return read_array<%s,%s>(mx, emxdata);" % (datatype, structname)
   print "  }"
@@ -90,7 +94,8 @@ def generate_standard_emxparser(structname, datatype):
   print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
   print "    return write_array<%s,%s>(emxdata, mx);" % (datatype, structname)
   print "  }"
-  print
+  print "#endif"
+  print 
   print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
   print "    copy_array<%s,%s>(dest, src);" % (datatype, structname)
   print "  }"
@@ -125,6 +130,8 @@ def generate_struct_emxparser(structname, datatype):
   print "  static void freeemx(%s &emxdata) {" % (structname)
   print "    free_struct_array<%s,%s>(emxdata);" % (datatype, structname)
   print "  }"
+  print
+  print "#ifdef mex_h"
   print "  static bool mxarray2emx(const mxArray* mx, %s &emxdata) {" % (structname)
   print "    return read_struct_array<%s,%s>(mx, emxdata);" % (datatype, structname)
   print "  }"
@@ -132,6 +139,8 @@ def generate_struct_emxparser(structname, datatype):
   print "  static bool emx2mxarray(%s &emxdata, mxArray* &mx) {" % (structname)
   print "    return write_struct_array<%s,%s>(emxdata, mx);" % (datatype, structname)
   print "  }"
+  print "#endif"
+  print
   print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
   print "    copy_struct_array<%s,%s>(dest, src);" % (datatype, structname)
   print "  }"
@@ -197,10 +206,11 @@ def generate_structparser(structname, parse):
   #endfor
   print "  }"
   
-  
+  print "#ifdef mex_h"
   # output the mxarray to emxarray converter
   print "  static bool mxarray2emx(const mxArray* mx, %s &emxdata) {" % (structname)
-  print "    clearemx(emxdata);";
+  print "    clearemx(emxdata);"
+  print "    if (mx == NULL) return false;"
   print "    bool ret = true;"
   for decl in parse["decls"]:
       decltype = decl["decltype"]
@@ -264,7 +274,8 @@ def generate_structparser(structname, parse):
   #endfor
   print "    return ret;";
   print "  }"
-  
+  print "#endif"
+  print
   #output the copier
   print "  static void emxcopy(%s &dest, const %s &src) {" % (structname, structname)
   for decl in parse["decls"]:

@@ -3,8 +3,10 @@
 #include <iostream>
 #include <typeinfo>
 #include <cstring>
+#include <string>
 #include "mex_classid_traits.hpp"
 
+#ifdef mex_h
 /** Gets the result of mxGetElementSize(..) on an array created using the classID */
 inline size_t get_class_element_size(mxClassID cid) {
   switch(cid) {
@@ -35,20 +37,20 @@ inline size_t get_class_element_size(mxClassID cid) {
   }
   assert(false);
 }
-
+#endif
 
 template<class T, class EMXType>
 bool clear_array(EMXType &out) {
   out.data = (T*)malloc(sizeof(T) * 1);
   out.size = (int32_t*)malloc(sizeof(int32_t) * 2);
-  out.size[0] = 1; out.size[1] = 1;
+  out.size[0] = 0; out.size[1] = 0;
   out.allocatedSize = 1;
   out.numDimensions = 2;
   out.canFreeData = 1;
   return true;
 }
 
-
+#ifdef mex_h
 /**
  * Converts an array to an emxarray assuming the internal storage of array
  * is storage compatible
@@ -86,6 +88,10 @@ bool read_storage_compatible_array(const mxArray *array, EMXType &out) {
  */
 template<class T, class EMXType>
 bool read_byte_array(const mxArray *array, EMXType &out) {
+  if (array == NULL) {
+    clear_array<T,EMXType>(out);
+    return false;
+  }
   static bool printed = false;
   // character matrix not supported
   if (mxGetN(array) != 1 &&  mxGetM(array) != 1) {
@@ -246,7 +252,7 @@ bool write_array(EMXType &in, mxArray * &array) {
 }
 
 
-
+#endif
 /**
  * Copy an emxArray(EMXType).
  * Returns true on success, false on failure
@@ -265,6 +271,7 @@ bool copy_array(EMXType &dest, const EMXType &src) {
 }
 
 
+#ifdef mex_h
 /**
  * If the mxArray is a struct and has a field, this is set to the field's mxArray
  * Returns NULL otherwise
@@ -274,5 +281,41 @@ inline const mxArray* struct_has_field(const mxArray *array, const char *fieldna
       return mxGetField(array,0,fieldname);
   }
   return NULL;
+}
+#endif
+inline std::string emxArray_char_T_to_string(emxArray_char_T &c) {
+  if (c.data == NULL) return "";
+  // now the matlab char array is quite annoying
+  // get the length
+  // length of string is either to the first 0 or the actual dims
+  // whichever comes first
+  // get the actual dims
+  size_t length = 1;
+  for (int i = 0;i < c.numDimensions; ++i) length *= c.size[i];
+  
+  // scan for \0
+  for (size_t i = 0; i < length; ++i) {
+    if (c.data[i] == 0) {
+      length= i - 1;
+      break;
+    }
+  }
+  
+  return std::string(c.data, length);
+}
+
+template <typename T, typename EMXType>
+std::vector<T> emxArray_to_vector(EMXType &c) {
+  std::vector<T> ret;
+  if (c.data == NULL) return ret;
+  size_t length = 1;
+  for (int i = 0;i < c.numDimensions; ++i) length *= c.size[i];
+  ret.reserve(length);
+  // scan for \0
+  for (size_t i = 0; i < length; ++i) {
+    ret[i] = c.data[i];
+  }
+  
+  return ret;
 }
 #endif

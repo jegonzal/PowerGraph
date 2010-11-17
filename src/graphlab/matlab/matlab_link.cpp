@@ -1,4 +1,3 @@
-#include <mex.h>
 #include "gl_emx_graphtypes.hpp"
 #include "matlab_link.h"
 #include "update_function_generator.hpp"

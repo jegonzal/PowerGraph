@@ -1,7 +1,3 @@
-#ifndef mex_h
-#error "mex.h must be included before this file"
-#endif
-
 #ifndef STRUCT_ARRAYS_HPP
 #define STRUCT_ARRAYS_HPP
 #include <iostream>
@@ -23,7 +19,7 @@ template<class T, class EMXType>
 void free_struct_array(EMXType &in) {
   if (!in.canFreeData) return;
   size_t numelem = 1;
-  for (size_t i = 0 ;i < in.numDimensions; ++i) numelem *= in.size[i];
+  for (int i = 0 ;i < in.numDimensions; ++i) numelem *= in.size[i];
   for (size_t i = 0 ;i < numelem; ++i) {
     freeemx(in.data[i]);
   }
@@ -33,6 +29,7 @@ void free_struct_array(EMXType &in) {
 }
 
 
+#ifdef mex_h
 
 /**
  * Converts an mxArray to an emxArray(EMXType ) of a particular struct type (T)
@@ -71,7 +68,7 @@ bool read_struct_array(const mxArray *array, EMXType &out) {
   }
   // count the number of elements
   size_t numel = 1;
-  for (size_t i = 0; i < out.numDimensions; ++i) {
+  for (int i = 0; i < out.numDimensions; ++i) {
     out.size[i] = dimptr[i];
     numel = numel * dimptr[i];
   }
@@ -131,7 +128,6 @@ bool read_struct_array(const mxArray *array, EMXType &out) {
  */
 template<class T, class EMXType>
 bool write_struct_array(EMXType &in, mxArray * &array) {
-  static bool printed = false;
   // empty array
   if (in.numDimensions == 0) {
     array = NULL;
@@ -151,7 +147,7 @@ bool write_struct_array(EMXType &in, mxArray * &array) {
   // get the dimensions. 
   mwSize dimptr[in.numDimensions];
   size_t numel = 1;
-  for (size_t i = 0; i < in.numDimensions; ++i) {
+  for (int i = 0; i < in.numDimensions; ++i) {
     dimptr[i] = in.size[i];
     numel = numel * in.size[i];
   }
@@ -176,7 +172,7 @@ bool write_struct_array(EMXType &in, mxArray * &array) {
   }
   return true;
 }
-
+#endif
 
 /**
  * Copy an emxArray(EMXType).
@@ -186,7 +182,7 @@ template<class T, class EMXType>
 bool copy_struct_array(EMXType &dest, const EMXType &src) {
   // free the data in this struct
   size_t destusedsize = 1;
-  for (size_t i = 0;i < dest.numDimensions; ++i) destusedsize *= dest.size[i];
+  for (int i = 0;i < dest.numDimensions; ++i) destusedsize *= dest.size[i];
   for (size_t i = 0;i < destusedsize; ++i) {
     freeemx(dest.data[i]);
   }
@@ -198,7 +194,7 @@ bool copy_struct_array(EMXType &dest, const EMXType &src) {
   dest.canFreeData = 1;
   // copy
   size_t usedsize = 1;
-  for (size_t i = 0;i < src.numDimensions; ++i) {
+  for (int i = 0;i < src.numDimensions; ++i) {
     usedsize *= src.size[i];
     dest.size[i] = src.size[i];
   }

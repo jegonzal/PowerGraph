@@ -1,4 +1,3 @@
-#include <mex.h>
 #include <boost/unordered_map.hpp>
 #include <boost/preprocessor.hpp>
 #include "gl_emx_graphtypes.hpp"
@@ -37,7 +36,7 @@ BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION, _)
  *********************************************************************/
 #define INSERT_ELEM_INTO_MAP(Z,N, _) \
   update_function_map[GET_GL_UPDATE_FUNCTION_NAME_N(N)] = GET_GL_UPDATE_FUNCTION_N(N); \
-  mexPrintf("Registering update function: " GET_GL_UPDATE_FUNCTION_NAME_N(N) "\n");
+  std::cout << "Registering update function: " << GET_GL_UPDATE_FUNCTION_NAME_N(N) << std::endl;
 update_function_map_type update_function_map;
 
 void register_all_matlab_update_functions() {
