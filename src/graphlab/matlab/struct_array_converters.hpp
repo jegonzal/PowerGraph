@@ -1,5 +1,5 @@
-#ifndef STRUCT_ARRAYS_HPP
-#define STRUCT_ARRAYS_HPP
+#ifndef STRUCT_ARRAY_CONVERTERS_HPP
+#define STRUCT_ARRAY_CONVERTERS_HPP
 #include <iostream>
 #include "graphlab/serialization/serialization_includes.hpp"
 template<class T, class EMXType>

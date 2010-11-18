@@ -1,5 +1,5 @@
-#ifndef MEXUTIL_HPP
-#define MEXUTIL_HPP
+#ifndef ARRAY_CONVERTERS_HPP
+#define ARRAY_CONVERTERS_HPP
 #include <iostream>
 #include <typeinfo>
 #include <cstring>
@@ -39,6 +39,9 @@ inline size_t get_class_element_size(mxClassID cid) {
 }
 #endif
 
+/**
+ * Allocates and resets an emxArray of a base type T.
+ */
 template<class T, class EMXType>
 bool clear_array(EMXType &out) {
   out.data = (T*)malloc(sizeof(T) * 1);

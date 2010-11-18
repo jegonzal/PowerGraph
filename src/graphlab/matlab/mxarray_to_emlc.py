@@ -18,7 +18,7 @@ def is_scalar(typename):
 def output_parser_header(typesheaders):
   print "#ifndef MXARRAY_TO_EMLC_HPP"
   print "#define MXARRAY_TO_EMLC_HPP"
-  print "#include \"mexutil.hpp\""
+  print "#include \"array_converters.hpp\""
   for t in typesheaders:
     print "#include \"%s\"" % t
   #endfor
@@ -40,7 +40,7 @@ def output_parser_header(typesheaders):
   print "    assert(false);"
   print "  }"
   print "};"
-  print "#include \"struct_arrays.hpp\""
+  print "#include \"struct_array_converters.hpp\""
   print "#include \"scalar_converters.hpp\""
   
 def output_parser_footer():
