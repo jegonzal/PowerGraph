@@ -1,29 +1,18 @@
 /**
    \mainpage 
- 
-  \section intro_sec Introduction
- 
-GraphLab is a powerful new system for designing and implementing
-parallel algorithms in machine learning.  While the current version
-1.0 implementation targets multi-core shared memory parallel
-systems we are in the process of implementing a distributed version
-(1.5) and plan to provide support for alternative parallel
-architectures include GPUs.
- 
-The GraphLab abstraction divides a parallel algorithm into three
-key parts:
-<ol>
-  <li> Sparse Data Dependency Graph </li>
-  <li> Local computation </li>
-  <li> Computation Schedule </li>
-</ol>
- 
- 
-\section install_sec Installation
- 
-\subsection step1 Step 1: Opening the box
    
-  etc...
+   \section intro_sec Introduction
+   
+   GraphLab is a powerful new system for designing and implementing
+   parallel algorithms in machine learning.  While the current targets
+   multi-core shared memory parallel systems we are in the process of
+   implementing a distributed version and plan to provide support for
+   alternative parallel architectures include GPUs in the near future.
+ 
+   For a more user friendly tour of GraphLab and its features visit
+   the site: <a href="http://www.graphlab.ml.cmu.edu/details.html">
+   http://www.graphlab.ml.cmu.edu/details.html </a>
+   
 */
 
 
