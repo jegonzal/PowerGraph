@@ -1,10 +1,5 @@
 // written by Danny Bickson, CMU 
 // #define NDEBUG
-
-#include <itpp/itbase.h>
-#include <itpp/itstat.h>
-#include <itpp/stat/misc_stat.h>
-
 #include <fstream>
 #include <cmath>
 #include <cstdio>
@@ -182,8 +177,7 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
 
     const vertex_data * data= &g.vertex_data(i);
      
-    vec mean; 
-    vec2vec2(data->pvec, mean, D);
+    vec mean = data->pvec;
     Umean += mean;
     //Q.set_col(k, ret);
     t.start(); 
@@ -283,9 +277,7 @@ mat calc_DT(){
 
   mat T = zeros(D, K);
   for (int i=0; i<K; i++){
-    vec tmp; 
-    vec2vec2(times[i].pvec, tmp, D);
-    T.set_col(i,tmp);
+    T.set_col(i,times[i].pvec);
   }
   
   mat diff = zeros(D,K-1);
@@ -305,8 +297,7 @@ void sample_T(){
   assert(tensor);
 
   double beta0_ = beta0 + 1;
-  vec pvec; 
-  vec2vec2(times[0].pvec,pvec, D);
+  vec pvec = times[0].pvec; 
   vec mu0_ = (pvec + beta0*mu0T)/beta0_;
   double nu0_ = nu0 +K;
   //vec dMu = mu0 - Umean;
@@ -368,13 +359,13 @@ double calc_rmse(graph_type * _g, bool test, double & res){
         edge_data & edge = edges.medges[j];
         assert(edge.weight != 0);
         double sum = 0; 
-        double add = rmse(data->pvec, pdata->pvec, tensor? times[(int)edge.time].pvec:NULL, D, edge.weight, sum);
+        double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
         assert(sum != 0);         
         if (BPTF && iiter > BURN_IN)
           edge.avgprd += sum;
 
         if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
-          cout<<"RMSE:"<<i <<"u1"<< *vec2vec(data->pvec, D) << " v1 "<< *vec2vec(pdata->pvec, D)<<endl; 
+          cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
         //assert(add<25 && add>= 0);
        
         if (BPTF && iiter > BURN_IN){
@@ -512,7 +503,7 @@ void pmf_update_function(gl_types::iscope &scope,
 
         i++;
         double sum;     
-        double trmse = rmse(vdata.pvec, pdata.pvec, tensor?times[(int)edge.time].pvec:NULL, D, edge.weight, sum);
+        double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
         assert(sum != 0);
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += sum;        
@@ -561,8 +552,7 @@ void pmf_update_function(gl_types::iscope &scope,
     std::cout <<(BPTF?"BPTF":"ALS")<<" Q: " << Q << " result: " << result << " edges: " << i << std::endl;
   }
       
-  memcpy(vdata.pvec, result._data(), D*sizeof(double));
-
+  vdata.pvec =  result;
   if (!tensor && (int)scope.vertex() == M+N-1)
     last_iter();
 
@@ -641,7 +631,7 @@ void calc_T(int i){
     assert((int)g.source(edge)< M);
     vertex_data * v1 = &g.vertex_data(g.target(edge));
     vertex_data * v2 = &g.vertex_data(g.source(edge));
-    vec ret = dot(v1->pvec, v2->pvec, D);
+    vec ret = elem_mult(v1->pvec, v2->pvec);
      
     //Q.set_col(k, ret);
     t.start(); 
@@ -676,8 +666,7 @@ void calc_T(int i){
 
   t.start();
   if (i == 0){
-    vec t1;  
-    vec2vec2(times[1].pvec, t1, D);
+    vec t1 = times[1].pvec; 
     if (!BPTF){
       QQ = QQ+ 2*eDT;
       bool ret = itpp::ls_solve(QQ, pT*(t1 + vones*muT)+ RQ, out);
@@ -693,8 +682,7 @@ void calc_T(int i){
     }
   }
   else if (i == K-1){
-    vec tk_2; 
-    vec2vec2(times[K-2].pvec, tk_2, D);
+    vec tk_2 = times[K-2].pvec; 
     if (!BPTF){
       QQ = QQ + eDT;
       bool ret = itpp::ls_solve(QQ, pT*tk_2 + RQ, out);
@@ -711,10 +699,8 @@ void calc_T(int i){
   }
   else {
     vec tsum; 
-    vec t1;  
-    vec2vec2(times[i-1].pvec,t1, D);
-    vec t2;
-    vec2vec2(times[i+1].pvec,t2, D);
+    vec t1 = times[i-1].pvec; 
+    vec t2 = times[i+1].pvec;
     tsum = t1+t2;
     if (!BPTF){
       QQ = QQ + 2*eDT;
@@ -731,9 +717,9 @@ void calc_T(int i){
     }
   }
 
-  vec2vec(times[i].pvec, out, D);
+  times[i].pvec = out;
   if (debug && (i == 0|| i == K-1)) 
-    std::cout<<*vec2vec(times[i].pvec,D)<<std::endl;
+    std::cout<<times[i].pvec<<std::endl;
   assert(QQ.rows() == D && QQ.cols() == D);
   counter[6] += t.current_time();
   //}
@@ -768,8 +754,7 @@ double calc_obj(double res){
     T = mat(D,K);
     _zeros(T,D,K);
     for (int i=0; i<K; i++){
-      vec tmp;
-      vec2vec2(times[i].pvec, tmp, D);
+      vec tmp = times[i].pvec;
       sumT += pow(norm(tmp - vones, 2),2);
       T.set_col(i, tmp);
     }
@@ -802,6 +787,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("max_iter", &MAX_ITER, MAX_ITER, "maximum allowed iterations (optional).");
   clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
+  clopts.attach_option("D", &D, D, "dmension of weight vector");
   
   assert(clopts.parse(argc-3, argv+3));
   engine = clopts.create_engine(g);
@@ -879,24 +865,23 @@ void start(int argc, char ** argv) {
  for (int i=0; i< M+N; i++){ //TODO: optimize to start from N?
     vertex_data * data = &g.vertex_data(i);
     if (i < M)
-     	memcpy(U._data() + i*D, data->pvec, D*sizeof(double));
+     	memcpy(U._data() + i*D, data->pvec._data(), D*sizeof(double));
     else
-     	memcpy(V._data() + (i-M)*D, data->pvec, D*sizeof(double));
+     	memcpy(V._data() + (i-M)*D, data->pvec._data(), D*sizeof(double));
  }
 
  if (tensor){ 
     for (int i=0; i<K; i++){
-     	memcpy(T._data() + i*D, times[i].pvec, D*sizeof(double));
+     	memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
     }
  } 
  
- it_ifile output(infile + ".out");
- //output << Name("U") << U;
- //output << Name("V") << V;
+ it_file output(infile + ".out");
+ output << Name("U") << U;
+ output << Name("V") << V;
   if (tensor){
-    //output << Name("T") << T;
+    output << Name("T") << T;
  }
- //output.flush();
  output.close();
 }
 
@@ -987,7 +972,7 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
 
  
   vertex_data vdata;
-  ones(vdata.pvec, D, 0.1);
+  vdata.pvec = ones(D);
    
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
@@ -1009,7 +994,7 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
     vec tones = itpp::ones(D)*(K==1?1:0.1);
     //add T time node (tensor dim 3)
     for (int i=0; i<K; i++){
-      vec2vec(times[i].pvec ,tones, D);
+      times[i].pvec =tones;
       g->add_vertex(times[i]);
       if (debug && (i <= 5 || i == K-1))
         debug_print_vec("T: ", times[i].pvec, D);
