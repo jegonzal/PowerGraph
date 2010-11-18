@@ -1,18 +1,80 @@
-The main wrapper around the entire generation process is 
-compile_update_function.m. The generation process can be split into 4 stages.
+Table of Contents:
+==================================================================
+1) Introduction
+2) EMLC Workarounds
+3) Type checking and .m generation
+    - Type Specification
+    - Variable Size Arrays
+    - Return Variable Types
+    - Code Generation
+4) EMLC Compilation
+5) Generate MX <-> EMX Translators
+6) Makefile generation
+7) The C++ Side
+==================================================================
+
+
+= ====== Introduction ==========
+The goal is to:
+
+Allow the user to write update functions of the form
+
+    function bp_update(currentvertex, inedges, inv, outedges, outv, handle) %#eml
+        ...
+    end
+
+Where the user will use functions
+
+    function vdata = get_vertex_data(handle, vertex)  % returns data on vertex
+    function edata = get_edge_data(handle, edge)  % returns data on edge
+    function set_vertex_data(handle, vertex, vdata)  % sets data on vertex
+    function set_edge_data(handle, edge, edata)  % sets data on edge
+    function add_task(handle, vertex, 'function name', priority)
+    
+To get and set graph data and to perform dynamic scheduling.
+
+We will then provide a mechanism to allow this code to compiled to native C.
+The proposed mechanism is to generate
+
+1) save_graph(...): A mex program which will allow a Matlab represented data
+   graph to be serialized to disk.
+
+2) A binary executable: which is a GraphLab program which can read the graph
+   data outputed by save_graph(...), run GraphLab, and store the resultant
+   data graph back to disk.
+
+3) load_graph(...): A mex program which reads the output of the binary
+   executable back into Matlab
+
+The main wrapper around the entire generation process is
+compile_update_function.m. The generation process can be split into 5 stages.
+
  - EMLC Workarounds
+    Performs some minor workaround.
+
  - Type checking and .m generation
- - EMLC compilation
+    Ensures that the vertex and edge data do not use any unsupported types, and
+    generates the functions get_vertex_data(...), get_edge_data(...).
+
+ - EMLC Compilation
+    Generates the C code for all m files
+
+ - Generate MX <-> EMX Translators
+    Generate code which translates between the Matlab datatypes and the
+    Embedded Matlab datatypes
+
  - Makefile generation
+    Creates Makefiles that compiles all the mex binaries and the
+    GraphLab executable
  
 ===== EMLC Workaround ======
 There is an interesting issue if the edge structure is exactly equivalent to 
 the vertex structure, or a substructure of the vertex structure. (or vice versa)
 for instance:
 
-vdata.b.a = 0;
+    vdata.b.a = 0;
 
-edata.a = 0;
+    edata.a = 0;
 
 Now, we observe that vdata.b and edata are the same type. When instantiating 
 the 'b' term in the vertex structure, EMLC will complain that there are 
@@ -22,108 +84,240 @@ Either 'emx_edgedata' or 'some random string'.
 The solution is to purturb both structures with a random useless field
 which guarantees that they do not overlap in structure definitions.
 
-if (isstruct(exvertex_))
-    exvertex_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
-end
+    if (isstruct(exvertex_))
+      exvertex_.(char(randi(26,[1,20])+'a'-1)) = 0.0;
+    end
 
 
 ===== Type checking and .m generation ======
 
---- Type specification ---
+----------- Type specification ------------
 
 There are two procedures to define the "type" of a variable in an EML function.
 The type of parameters of the function are specified through the EMLC compiler.
 
- emlc -T RTW [EML function] -eg {[arg1_example], [arg2_example], ...}
+  emlc -T RTW [EML function] -eg {[arg1_example], [arg2_example], ...}
  
- where "arg1_example" is a representative example of the first argument,
- and "arg2_example" is a representative example of the second argument.
+where "arg1_example" is a representative example of the first argument,
+and "arg2_example" is a representative example of the second argument.
+
+All other variables, including the return variables of the EML function must
+be specified within the EML function itself by explicitly constructing the
+output. This is generally not an issue since the function must, at some point,
+assign values to the output.
  
- All other variables, including the return variables of the EML function must
- be specified within the EML function itself by explicitly constructing the 
- output. This is generally not an issue since the function must, at some point,
- assign values to the output. 
  
+For instance, if I have an EML function
  
- For instance, if I have an EML function
- 
- function out = test(in) %#eml
-    out.a = in.a;
-    out.b = in.b;
-  end
+  function out = test(in) %#eml
+      out.a = in.a;
+      out.b = in.b;
+    end
+
+Which takes in a struct variable 'in' with two fields 
+    in.a is a string
+    in.b is a 5x5 double matrix
   
-  Which takes in a struct variable 'in' with two fields 
-     in.a is a string
-     in.b is a 5x5 double matrix
+And returns a struct variable 'out' with two fields
+    out.a is a string
+    out.b is a 5x5 double matrix
   
-  And returns a struct variable 'out' with two fields
-     out.a is a string
-     out.b is a 5x5 double matrix
+To compile this file, I will need to describe the type of 'in' during the
+EMLC call. To do so, I define a variable 'temp' then call emlc with it.
   
-  To compile this file, I will need to describe the type of 'in' during the 
-  EMLC call. To do so, I define a variable 'temp' then call emlc with it.
+    temp.a = 'a';
+    temp.b = zeros(5);
+    emlc -T RTW test -eg {temp}
+
+---------- Variable Size Arrays -----------
+
+Note that once this is used, temp.b can ONLY be a 5x5 matrix and no
+bigger/smaller. Therefore for safety and flexibility reasons, the GraphLab
+code generator forces all matrices to be variable sized.
+
+To do so, requires a slight change when describing 'temp':
+
+    temp.a = 'a';
+    temp.b = emlcoder.egs(double(0), [Inf, Inf]);
   
-  temp.a = 'a';
-  temp.b = zeros(5);
-  emlc -T RTW test -eg {temp}
+Where the first parameter to emlcoder.egs describes the data type, and the
+second parameter describes the dimensions. 'Inf' is used to denote variable
+sizing.
 
---- Variable Size Arrays ---
-
-  Note that once this is used, temp.b can ONLY be a 5x5 matrix and no 
-  bigger/smaller. Therefore for safety and flexibility reasons, the GraphLab 
-  code generator forces all matrices to be variable sized.
+The EMLC configuration also has to be changed to support variable
+sized arrays:
   
-  To do so, requires a slight change when describing 'temp':
-  temp.a = 'a';
-  temp.b = emlcoder.egs(double(0), [Inf, Inf]);
+    cfg = emlcoder.CompilerOptions;
+    cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
+    cfg.EnableVariableSizing = true;
+
+The final EMLC call becones:
+
+    emlc -s cfg -T RTW test -eg {temp}
+
+---------- Return Variable Types  -----------
+
+The statement earlier that the type of return variables is typically
+not a problem is really a lie. There is one situation where it is necessary
+to explicitly construct the type of the return variable.
+
+That is, when the value of the return variable is used when invoking a C
+function.
+
+EMLC allows the eml code to call C functions through the use of eml.ceval.
+
+    eml.ceval(CFUNCTION_NAME, PARAMETER1, PARAMETER2 ... )
   
-  Where the first parameter to emlcoder.egs describes the data type, and the
-  second parameter describes the dimensions. 'Inf' is used to denote variable 
-  sizing.
+In particular, the 'get_vertex_data' function is implemented as:
 
-  The EMLC configuration also has to be changed to support variable 
-  sized arrays:
-  
-  cfg = emlcoder.CompilerOptions;
-  cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
-  cfg.EnableVariableSizing = true;
+    function vdata = get_vertex_data(handle, vertex) %#eml
+      eml.ceval('emx_get_vertex_data', handle, vertex, eml.ref(vdata));
+    end
 
-  The final EMLC call becones:
-  emlc -s cfg -T RTW test -eg {temp}
-  
---- Calling C functions ---
+In this case, it becomes impossible for Matlab to infer the type of the return
+variable 'vdata'. It is therefore necessary to generate code here which
+constructs 'vdata', allowing Matlab to infer the type correctly. For instance,
+if vdata is a struct such that:
 
-  The 
-  
-==--- Initial Matlab Generation ---===
-1: user calls make_graphlab_mex([update function list], example vertex data, example edge data, ...)
+    vdata.a is a string
+    vdata.b is a variable sized double matrix
 
-2: make_graphlab_mex type checks the example data to ensure that the data types
-   are all supported, and to convert all the dynamic arrays. The EMX structure definitions are generated here.
+it is necessary to insert the following lines before the call to eml.ceval:
 
-3: matlab link functions get_vertex_data.m, get_edge_data.m, set_edge_data.m, set_vertex_data.m are generated.
-   An additional empty function "datatype_identifier(vdata,edata)" is also created.
+    vdata.a = 'a';
+    eml.varsize('vdata.a', [1, Inf]);
+    vdata.b = [double(0)];
+    eml.varsize('vdata.b', [Inf, Inf]);
 
-3: EMLC is called to translate the update functions to C.
-
-4: A python parser reads the C output and generates translators to go in between mxArray <--> emlc structures. (output to mx_emx_converters.hpp)
-     (mxarray_to_emlc.py, scalar_converters.hpp, struct_arrays.hpp, mexutil.hpp, mex_classid_traits.hpp)
-==--- C++ templates ---===
-5: gl_emx_graphtypes.hpp uses boost::function on the "datatype_identifier" to figure out the type of
-   of vertex data and type of edge data. It also typedefs the graph data type.
-
-6: update_function_generator.hpp uses Boost preprocessor to create wrappers around each update function
-   and register their names in a global table. [incomplete]
-==--- Matlab->C++ entry point ---===
-7: graphlab_mex.cpp is the main entry point.
-
-8: graphlab_mex_parse.cpp type checks and processes the parameters and constructs the graph
-
-9: link functions [incomplete]
+Where the eml.varsize(...) command behaves similarly to emlcoder.egs in the
+previous subsection.
 
 
-the emxarrays can be serialized and deserialized
-However. keep in mind that the deserialization requires that the emxarray be
-freeed first as it cannot do it for you. Due to a lack of a constructor for the
-emxarray datastructures, it is impossible to tell if the pointers inside the
-emxarray are real pointers, or are random garbage.
+---------- Code Generation  -----------
+The return variable scheme is used to define to the get_edge_data and
+get_vertex_data functions. While the regular "parameter" scheme is used to
+define the set_edge_data and set_vertex_data functions.
+
+To ensure that the names of the vertex/edge data are reasonable,
+
+    eml.cstructname(vdata, 'emx_vertexdata')
+
+is used to force the vdata struct to be named "emx_vertexdata". And
+similarly for the edge data. (Note that this only works for structs.
+If vertex/edges are non-structs, this code does not work and will generate a
+compilation error).
+
+Since the code for all the graph accessors vary depending on the input to
+compile_update_function, all the graph accessor code are generated into the
+working directory. The code generator can be found in gl_emx_typecheck.m and
+generate_link_functions.m.
+
+In addition, a dummy function called datatype_identifier is also generated
+
+    function datatype_identifier(vdata, edata)
+
+This generates a C function with a known fixed specification which is used by
+the C++ side to figure out the graph datatypes.
+
+
+
+===== EMLC Compilation ======
+
+There is little to say here. We call EMLC, passing it all the user update
+functions as weill as the generated .m files. 
+
+===== Generate MX <-> EMX Translators =====
+An interesting complication arises due to the differences between Matlab's
+representation of data, and Embedded Matlab's representation of data.
+
+In particular, Embedded Matlab does not have a nice friendly mxArray object,
+but instead every datatype has its own C struct.For instance, a real matrix has
+the type emxArray_real_T, while an integer matrix could have the type
+emxArray_uint32_T. Structs and struct arrays in particular are even more
+complicated to manage. Essentially each different Matlab struct produces a
+new C struct.
+
+All EMLC compiled code operate on these Embedded Matlab (EMX) datatypes which
+are generated in updates_types.h. However, to interface with regular Matlab,
+it is necessary to be able to translate between the regular mxArray and
+the EMX datatypes.
+
+To achieve this, a Python script mxarray_to_emlc.py is written whicfh parses
+update_types.h and generates for each EMX type:
+  - A "clear" function (essentially zeros the data type)
+  - A "free" function
+  - A mxArray to EMX converter
+  - An EMX to mxArray converter
+  - A serializer/deserializer (using GraphLab's serialization library).
+
+The "portable" translation code is defined
+ - scalar_converters.hpp (translates between mxArray and EMX scalars)
+ - array_converters.hpp (translates between arrays of basic datatypes)
+ - struct_array_converters.hpp (translates between arrays of structs)
+
+The python script generates the file 
+ - mx_emx_converters.hpp
+ which are specialized to the types stored in update_types.h
+
+Note:
+the emxarrays can be serialized and deserialized using the GraphLab
+serialization library, However. keep in mind that the deserialization requires
+that the emxarray be freeed first as it cannot do it for you. Due to a lack of
+a constructor for the emxarray datastructures, it is impossible to tell if the
+pointers inside the emxarray are real pointers, or are random garbage.
+
+ ------ Type Oddities and Limitations ------
+ In addition to the EMLC type limitations (no cell arrays), we define
+ a few more additional limitations due to the complexity of conversion
+ (can be added in at a later date)
+
+  - No complex types.
+    Matlab stores the real and imaginary arrays seperately.
+    EMX defines a complex type which is a struct of a real and imaginary part
+    and stores an array over the struct.
+
+  - Char arrays are limited to strings. No char matrixes
+    Matlab's management oof char matrixes are quite complicated. Also, Matlab
+    uses wide (2 byte) characters while EMX uses regular characters. 
+    
+  - No logical arrays / matrixes
+    Should be be supportable.
+
+
+====== Makefile generation =======
+It was surprisingly tricky getting the build parameters for a mex library.
+The key options are stored in $MATLAB/bin/mexopts.sh, but that file is not
+easily parseable.
+
+Instead, we create a shell script get_mex_params.sh, which partly emulates
+the behavior of the "mex" perl script. By calling get_mex_params.sh within
+the Matlab environment allows all the necessary environment variables to be
+defined. the get_mex_params.sh script then "sources" the mexopt.sh
+file, which allws the build options to be read and returned.
+
+The Makefile generation script is provided in generate_makefile.m
+
+
+
+
+====== The C++ Side =============
+The key C++ file that makes everything work is gl_emx_graphtypes.hpp.
+This file performs type inference on the datatype_identifier EML function
+to figure out the datatypes of the vertex and edge data, allowing the
+Graph data type to be defined.
+
+update_function_generator.cpp/hpp provides GraphLab wrappers the EMLC generated
+update functions. These work by including a header file "update_function_array.hpp"
+generated during then EMLC compilation phase.
+update_function_array.hpp simply provides in a #define a list of all the user
+update functions passed into compile_update_function.
+
+The wrapping is a complicated by the fact that the EML functions do need to
+know the scope and the scheduler_callback. However, EMLC does not provide
+a neat way of passing those information to an EML function.
+Instead, the update function wrapper creates a struct which stores the
+scope and the scheduler_callback. A pointer to the struct is then type-punned
+into a double, which is passed to the EML function. It is this use of
+type-punning that forces the compilation to include the flag -"fno-strict-aliasing"
+
+
