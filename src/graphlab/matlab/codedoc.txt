@@ -19,7 +19,7 @@ The goal is to:
 
 Allow the user to write update functions of the form
 
-    function bp_update(currentvertex, inedges, inv, outedges, outv, handle) %#eml
+    function bp_update(currentvertex, inedges, inv, outedges, outv, handle)%#eml
         ...
     end
 
@@ -109,7 +109,7 @@ assign values to the output.
  
 For instance, if I have an EML function
  
-  function out = test(in) %#eml
+  function out = testeml(in) %#eml
       out.a = in.a;
       out.b = in.b;
     end
@@ -127,7 +127,7 @@ EMLC call. To do so, I define a variable 'temp' then call emlc with it.
   
     temp.a = 'a';
     temp.b = zeros(5);
-    emlc -T RTW test -eg {temp}
+    emlc -T RTW testeml -eg {temp}
 
 ---------- Variable Size Arrays -----------
 
@@ -153,7 +153,7 @@ sized arrays:
 
 The final EMLC call becones:
 
-    emlc -s cfg -T RTW test -eg {temp}
+    emlc -s cfg -T RTW testeml -eg {temp}
 
 ---------- Return Variable Types  -----------
 
@@ -307,10 +307,14 @@ to figure out the datatypes of the vertex and edge data, allowing the
 Graph data type to be defined.
 
 update_function_generator.cpp/hpp provides GraphLab wrappers the EMLC generated
-update functions. These work by including a header file "update_function_array.hpp"
-generated during then EMLC compilation phase.
-update_function_array.hpp simply provides in a #define a list of all the user
-update functions passed into compile_update_function.
+update functions.The EMLC compilation phase generates a header file
+update_function_array.hpp which provides using a #define __UPDATE_FUNCTIONS__:
+a list of all the user update functions passed into the Matlab to GraphLab
+compiler. update_function_generator.cpp/hpp then uses Boost Preprocessor to
+wrap each matlab update function with an adapter that allows it to behave like
+a C++ GraphLab update function. It also stores the names of the update function
+in a look up table to allow for dynamic scheduling (add_task needs to
+translate from a name of an update function to the function itself).
 
 The wrapping is a complicated by the fact that the EML functions do need to
 know the scope and the scheduler_callback. However, EMLC does not provide
@@ -318,6 +322,11 @@ a neat way of passing those information to an EML function.
 Instead, the update function wrapper creates a struct which stores the
 scope and the scheduler_callback. A pointer to the struct is then type-punned
 into a double, which is passed to the EML function. It is this use of
-type-punning that forces the compilation to include the flag -"fno-strict-aliasing"
+type-punning that requires the compilation to include the flag
+-fno-strict-aliasing
+
+matlab_link.cpp/hpp provides the link functions which allow the EML update
+functions to call GraphLab. They convert the handle back to a struct pointer
+to get the pointers to the scope and the scheduler_callback.
 
 
