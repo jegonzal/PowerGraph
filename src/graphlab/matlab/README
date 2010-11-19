@@ -25,6 +25,9 @@ functions are also provided which allow the user to interact with the GraphLab
 program from Matlab. The only caveat is that update functions must be written
 in Embedded Matlab: a subset of the full Matlab language.
 
+Unfortunately not all of GraphLab is fully supported yet. We will continue
+making improvements available as we implement them.
+
 ============== System Requirements ==============
 
   - A *nix environment.
