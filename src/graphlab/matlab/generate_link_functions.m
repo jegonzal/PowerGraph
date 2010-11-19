@@ -13,10 +13,17 @@ substs.GENEDGE = gene;
 if (isstruct(exvertex_))
      substs.EXTERN_VERTEX_STRUCT = 'eml.cstructname(vdata, ''emx_vertexdata'', ''extern'');';
      substs.VERTEX_STRUCT = 'eml.cstructname(vdata, ''emx_vertexdata'');';
+else
+    substs.EXTERN_VERTEX_STRUCT = '';
+    substs.VERTEX_STRUCT ='';
 end
+
 if (isstruct(exedge_))
      substs.EXTERN_EDGE_STRUCT = 'eml.cstructname(edata, ''emx_edgedata'', ''extern'');';
      substs.EDGE_STRUCT = 'eml.cstructname(edata, ''emx_edgedata'');';
+else
+     substs.EXTERN_EDGE_STRUCT = '';
+     substs.EDGE_STRUCT = '';
 end
 
 file_template_substitution([templatedirectory, '/get_vertex_data.template'], ...
