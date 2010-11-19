@@ -68,7 +68,7 @@
 %
 %   (OUT_NAME)_save_graph is a mex library
 %
-%            (OUT_NAME)_save_graph(VDATA, ADJ, EDATA, ...
+%            SUCCESS = (OUT_NAME)_save_graph(VDATA, ADJ, EDATA, ...
 %                                       OPTIONS, GRAPHFILE, STRICT)
 %
 %   This function will serialize the graph described by VDATA, ADJ, EDATA 
@@ -345,7 +345,7 @@ addpath(glmatlabdir);
 disp(['Generating Matlab<->Graphlab Link Functions']);
 
 % generate the get vertexdata and get edge data functions
-generate_link_functions(exvertex_, exedge_, genv, gene);
+generate_link_functions(exvertex_, exedge_, genv, gene, [glmatlabdir,'/templates']);
 
 disp(['EMLC generation']);
 
@@ -393,7 +393,7 @@ fprintf('\n\n');
 fprintf('--------------------------------------------------------------\n');
 disp('Stage 3: Generating Matlab <-> Embedded Matlab datatype converters');
 fprintf('--------------------------------------------------------------\n');
-cmd = ['python ' glmatlabdir '/mxarray_to_emlc.py updates_types.h ' glmatlabdir '/graphlab_options_struct.h > mx_emx_converters.hpp'];
+cmd = ['python ' glmatlabdir '/mxarray_to_emlc.py updates_types.h ' glmatlabdir '/mex_options_struct.h > mx_emx_converters.hpp'];
 disp(['Issuing command: ' cmd]);
 [~,res] = system(cmd);
 if (~isempty(res))
@@ -424,44 +424,16 @@ if (strcmp(computer, 'GLNXA64') ~= 1)
     largearraydims = ['-DMX_COMPAT_32'];
 end
 
-% 
-% compilestring = ['mex -g '  ...
-%   '-I. -I/usr/include ' ...
-%  '-I' glmatlabdir ' '...
-%  '-I' gldir '/../ ' ...
-%  '-L' gllibdir ' ' ...
-% '-L' gllibdir '/extern/metis/libmetis ' ...
-% '-L' gllibdir '/extern/metis/GKlib ' ...
-%  '-lgraphlab_pic ' ...
-%  '-lgraphlab_util_pic ' ...
-%  '-lgraphlab_metis_pic ' ...
-%  '-lgraphlab_GKlib_pic ' ...
-%  '-cxx -v ' ...
-%  largearraydims ...
-%  'CC="g++" ' ...
-%  '-DBOOST_UBLAS_ENABLE_PROXY_SHORTCUTS ' ...
-%  '-D_SCL_SECURE_NO_WARNINGS ' ...
-%  '-D_CRT_SECURE_NO_WARNINGS ' ...
-%  '-D_SECURE_SCL=0 ' ...
-%  '-DMEX_COMPILE ' ...   
-%  'CXXFLAGS="$CXXFLAGS -g -fpic -Wall -fno-strict-aliasing" ' ...
-%  'CFLAGS="-D_GNU_SOURCE -fexceptions -fPIC -fno-omit-frame-pointer -pthread" ' ...
-%  '-output test_mex ' ...
-%  glmatlabdir '/graphlab_mex.cpp ' ...
-%  glmatlabdir '/matlab_link.cpp ' ...
-%  glmatlabdir '/graphlab_mex_parse.cpp ' ...
-%  glmatlabdir '/graphlab_mex_output.cpp ' ...
-%  glmatlabdir '/update_function_generator.cpp ' ...
-%  str ];
 
-%build up a list of all the files to compile
-%compilefiles = allcfilescellarray;
+% -------------------------------------------------------------------------
+%           Create the make file for the save_graph function 
+% -------------------------------------------------------------------------
+
+
 compilefiles = {};
-%compilefiles{length(compilefiles)+1} = [glmatlabdir '/matlab_link.cpp '];
 compilefiles{length(compilefiles)+1} = [glmatlabdir '/mex_save_graph.cpp '];
 compilefiles{length(compilefiles)+1} = [glmatlabdir '/graphlab_mex_parse.cpp '];
 compilefiles{length(compilefiles)+1} = [glmatlabdir '/graphlab_mex_output.cpp '];
-%compilefiles{length(compilefiles)+1} = [glmatlabdir '/update_function_generator.cpp '];
 
 includepaths = {};
 includepaths{length(includepaths)+1} = '.';
@@ -495,6 +467,10 @@ generate_makefile( [workingdirectory '/Makefile_save'], ...
                        '-lgraphlab_pic -lgraphlab_util_pic -lgraphlab_metis_pic -lgraphlab_GKlib_pic', ...
                        true);
 
+% -------------------------------------------------------------------------
+%           Create the make file for the load_graph function 
+% -------------------------------------------------------------------------
+
 compilefiles = {};
 %compilefiles{length(compilefiles)+1} = [glmatlabdir '/matlab_link.cpp '];
 compilefiles{length(compilefiles)+1} = [glmatlabdir '/mex_load_graph.cpp '];
@@ -511,14 +487,22 @@ generate_makefile( [workingdirectory '/Makefile_load'], ...
                        '-lgraphlab_pic -lgraphlab_util_pic -lgraphlab_metis_pic -lgraphlab_GKlib_pic', ...
                        true);
 
+% -------------------------------------------------------------------------
+%           Create the make file for the binary function 
+% -------------------------------------------------------------------------
+
 % check for tcmalloc
 tcmalloclib = '';
 if (notcmalloc == 0)
-    [~,r] = system('whereis -b libtcmalloc.a');
-    if (~isempty(strfind(r,'libtcmalloc.a')))
-        tcmalloclib = '-ltcmalloc';
+    % checking for -ltcmalloc
+    system('touch tcmallocprobe.cpp');
+    [~,r] = system('g++ tcmallocprobe.cpp -ltcmalloc');
+    if (~isempty(strfind(r,'cannot find -ltcmalloc')))
+        disp('tcmalloc not found. It should be installed to obtain optimal performance.');
+        disp('If Ubuntu, this can be installed using apt-get install libgoogle-perftools-dev');
     else
-        disp('tcmalloc not found (using whereis). It should be installed to obtain optimal performance.');
+        disp('tcmalloc found!');
+        tcmalloclib = '-ltcmalloc';
     end
     
 end
@@ -539,8 +523,27 @@ generate_makefile( [workingdirectory '/Makefile_bin'], ...
                        false, ...
                        'b_');
 
-%unix(['make -j' num2str(parcompiles)]);
-                       
+% -------------------------------------------------------------------------
+% Copy over the Makefile to rule them all. (And in the darness bind them)
+% -------------------------------------------------------------------------
+
+copyfile([glmatlabdir '/templates/Makefile.template'], 'Makefile');
+
+% -------------------------------------------------------------------------
+%       Output the m wrapper
+% -------------------------------------------------------------------------
+
+substs.BASENAME = outputmname;
+substs.BINARY = [outputmname '_binary'];
+substs.SAVEMEX = [outputmname '_save_graph'];
+substs.LOADMEX = [outputmname '_load_graph'];
+file_template_substitution([glmatlabdir '/templates/m_mex_interface.template'], ...
+                           [outputmname '.m'], ...
+                           substs);
+
+
+unix(['make -j' num2str(parcompiles)]);
+
 %disp(['Issuing command: ' compilestring]);
 %eval(compilestring);
 

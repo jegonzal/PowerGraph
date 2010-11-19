@@ -4,6 +4,7 @@ import sys
 import fileinput
 
 
+
 scalar_types = frozenset(["int8_T", "uint8_T", "int16_T", "uint16_T", "int32_T", \
                     "uint32_T", "int64_T", "uint64_T", "real32_T", "real64_T",\
                     "real_T", "time_T", "boolean_T", "int_T", "uint_T", \
@@ -230,7 +231,7 @@ def generate_structparser(structname, parse):
         print "    ret &= converter<%s>::mxarray2emx(struct_has_field(mx, \"%s\"), *(emxdata.%s));" % (decltype, declname, declname)
       elif is_scalar(decltype):
         #scalar!
-        print "    if (struct_has_field(mx, \"%s\") != NULL) ";
+        print "    if (struct_has_field(mx, \"%s\") != NULL) " % (declname);
         print "      emxdata.%s = (%s)mxGetScalar(struct_has_field(mx, \"%s\"));" % (declname, decltype, declname);
       else:
         # single struct!

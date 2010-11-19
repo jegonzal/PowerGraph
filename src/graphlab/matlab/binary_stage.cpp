@@ -6,7 +6,7 @@
 #include "updates_types.h"
 #include "updates_initialize.h"
 #include "gl_emx_graphtypes.hpp"
-#include "graphlab_options_struct.h"
+#include "mex_options_struct.h"
 #include "update_function_generator.hpp"
 #include "mx_emx_converters.hpp"
 

@@ -1,0 +1,5 @@
+function vdata = get_vertex_data(handle, vertex) %#eml
+%#GENVERTEX#%
+%#EXTERN_VERTEX_STRUCT#%
+eml.ceval('emx_get_vertex_data', handle, vertex, eml.ref(vdata));
+end

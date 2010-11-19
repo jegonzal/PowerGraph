@@ -313,7 +313,7 @@ std::vector<T> emxArray_to_vector(EMXType &c) {
   if (c.data == NULL) return ret;
   size_t length = 1;
   for (int i = 0;i < c.numDimensions; ++i) length *= c.size[i];
-  ret.reserve(length);
+  ret.resize(length);
   // scan for \0
   for (size_t i = 0; i < length; ++i) {
     ret[i] = c.data[i];

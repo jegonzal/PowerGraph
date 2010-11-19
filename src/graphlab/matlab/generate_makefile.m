@@ -74,6 +74,11 @@ function generate_makefile(makefilename, binname, cppfiles, includepaths, libpat
         fprintf(f, 'LDFLAGS = %s\n\n', ldflags);
     end
     % a target for each object file
+    % generates:
+    %
+    % target.o: makefile target.cpp
+    %       g++ -c $(CPPFLAGS) $< -o $@  
+    %
     allofiles ='';
     for i = 1:length(cppfiles)
         cppfile = cppfiles{i};
@@ -88,11 +93,11 @@ function generate_makefile(makefilename, binname, cppfiles, includepaths, libpat
         ofile = [objprefix ofile];
         allofiles = [allofiles ' ' ofile];
         
-        fprintf(f, '%s: %s Makefile\n', ofile, cppfile);
+        fprintf(f, '%s: %s %s\n', ofile, cppfile, makefilename);
         fprintf(f, '\tg++ -c $(CPPFLAGS) $< -o $@\n\n\n');
     end
     % final mex target
-    fprintf(f, '%s: Makefile %s\n', binname, allofiles);
+    fprintf(f, '%s: %s %s\n', binname, makefilename, allofiles);
     fprintf(f, '\tg++ -o $@ %s $(LDFLAGS)\n\n', allofiles);
     
     fprintf(f, 'clean:\n');

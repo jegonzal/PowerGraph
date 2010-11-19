@@ -6,6 +6,7 @@
 % gen returns code when can be used to instantiate a variable of this type
 % in an emx m file
 function [d, status, gen] = gl_emx_typecheck(d, genprefix)
+    NL = sprintf('\n');
     if (~exist('genprefix','var'))
         genprefix = 'v';
     end
@@ -43,7 +44,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 else
                     gen = [sid ' = [' cname '(0)];'];
                 end
-                gen = [gen '\n' 'eml.varsize(''' sid ''',' mat2str(dtemp) ');'];
+                gen = [gen NL 'eml.varsize(''' sid ''',' mat2str(dtemp) ');'];
                 return;
             end
             
@@ -53,7 +54,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
             if (isvector(d))
                 d = emlcoder.egs('a', [1, Inf]);
                 gen = [sid ' = '''';'];
-                gen = [gen '\n' 'eml.varsize(''' sid ''', [1, Inf]);'];
+                gen = [gen NL 'eml.varsize(''' sid ''', [1, Inf]);'];
                 status = 1;
                 return;
             else
@@ -82,7 +83,7 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
                 % recursively check the field
                 [temp.(fnames{i}), status, gen2] = gl_emx_typecheck(temp.(fnames{i}),[recursename '.' fnames{i}]);
                 % if fail, return immediately
-                gen = [gen '\n' gen2];
+                gen = [gen NL gen2];
                 if (status == 0) 
                     return;
                 end
@@ -94,8 +95,8 @@ function [d, status, gen] = gl_emx_typecheck(d, genprefix)
             else 
                 % vector/matrix of structs
                 d = emlcoder.egs(temp, size(d) * Inf);
-                gen = [gen '\n' sid ' = [' recursename '];'];
-                gen = [gen '\n' 'eml.varsize(''' sid ''',' mat2str(size(d) * Inf) ');'];
+                gen = [gen NL sid ' = [' recursename '];'];
+                gen = [gen NL 'eml.varsize(''' sid ''',' mat2str(size(d) * Inf) ');'];
             end
             status = 1;
         case {'function_handle','logical','cell'}

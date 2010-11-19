@@ -32,22 +32,35 @@
 % options.initial_schedule is a struct array of 'sched', allowing
 % multiple update functions to be defined in the schedule
 
-function [vertexdata, adj_mat, edgedata] = m_mex_interface(vertexdata, adj_mat, edgedata, options)
+function [vertexdata, adj_mat, edgedata] = %#BASENAME#%(vertexdata, adj_mat, edgedata, options)
+try
 % cast vertices as uint32
 for i = 1:length(options.initial_schedule)
     options.initial_schedule(i).vertices = uint32(options.initial_schedule(i).vertices);
 end
-graphfile = 'graph.tmp';
-ret = mex_save_graph(vertexdata, adj_mat, edgedata, options, graphfile, 1);
+graphfileinput = ['graphinput_' (randi(20,[1,5])+'a'-1)];
+graphfileoutput = ['graphoutput_' (randi(20,[1,5])+'a'-1)];
+
+ret = %#SAVEMEX#%(vertexdata, adj_mat, edgedata, options, graphfileinput, 1);
 if ret == false
     return
 end
 
 % construct the binary call
-command = ['./binary --scheduler="' options.scheduler '" --ncpus=' num2str(options.ncpus) ...
-           ' --scope=' options.scope ' --ingraphfile=graph.tmp --outgraphfile=graphout.tmp'];
+command = ['env LD_LIBRARY_PATH= ./%#BINARY#% --scheduler="' options.scheduler '" --ncpus=' num2str(options.ncpus) ...
+           ' --scope=' options.scope ' --ingraphfile=' graphfileinput ' --outgraphfile=' graphfileoutput];
 
-unix(command);
+system(command);
 
-[vertexdata, adj_mat, edgedata] = mex_load_graph(graphoutfile);
+[vertexdata, adj_mat, edgedata] = %#LOADMEX#%(graphfileoutput);
+
+
+catch exception
+    disp(getReport(exception,'extended'));
+    rethrow(exception);
+end
+
+delete(graphfileinput);
+delete(graphfileoutput);
+
 end

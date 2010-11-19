@@ -112,20 +112,24 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // read the options information
   graphlab_options_struct optionsstruct;
   memset(&optionsstruct, 0, sizeof(graphlab_options_struct));
-  mxarray2emx(param.options, optionsstruct);
-
+  bool ret = mxarray2emx(param.options, optionsstruct);
+  if (ret == false) {
+    mexWarnMsgTxt("Type conversion errors in Options. Strict-mode is set. Terminating.");
+    plhs[0] = mxCreateLogicalScalar(false);
+    return;
+  }
   // construct the graph
   emx_graph graph;
-  bool ret = construct_graph(graph, param.vdata, param.adjmat, param.edata);
+  ret = construct_graph(graph, param.vdata, param.adjmat, param.edata);
   if (ret == false) {
     if (strict != 0) {
-      mexWarnMsgTxt("Type conversion errors. Strict-mode is set. Terminating.");
+      mexWarnMsgTxt("Type conversion errors in Graph Data. Strict-mode is set. Terminating.");
       cleanup_graph(graph);
       plhs[0] = mxCreateLogicalScalar(false);
       return;
     }
     else {
-      mexWarnMsgTxt("Type conversion errors. Strict-mode is not set. Continuing.");
+      mexWarnMsgTxt("Type conversion errors in Graph Data. Strict-mode is not set. Continuing.");
     }
   }
   graph.finalize();
