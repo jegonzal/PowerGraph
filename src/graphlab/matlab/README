@@ -8,7 +8,7 @@ Matlab to GraphLab Compiler v1.0
    - Graph Representation
    - Update Functions
    - Compilation
-
+5) Limitations
 ============== Introduction ==================
 
 The goal is to simplify the process of GraphLab rapid propotyping by
@@ -61,8 +61,6 @@ In addition, the Matlab to GraphLab Compiler does not yet support
  - logical arrays
  - character matrices. (strings are supported)
  - complex numbers
-
-Even so, many typical Matlab functions should work with minimal modifications.
 
 ------------ Typing -----------------
 Embedded Matlab can be thought of as a "strongly typed" version of Matlab.
@@ -385,3 +383,25 @@ GraphLab header files)
    writeable.  Next, it will invoke the program (OUT_NAME)_binary
    passing it the rest of the parameters in OPTIONS. Finally the output
    of the binary is read back using (OUT_NAME)_load_graph and returned.
+
+
+==================== Limitations ===========================
+
+1) Type limitations: The Matlab to GraphLab compiler oes not yet support
+
+ - logical arrays
+ - character matrices. (strings are supported)
+ - complex numbers
+
+2) Pseudo-Random numbers: 
+
+EMLC does provide random number generation through the family of rand()
+functions. However, they are not built to be thread-safe, so use at
+your own risk. Later improvements to the GraphLab to Matlab compiler
+will provide alternate substitutes for rand() which are thread safe.
+Even so, many typical Matlab functions should work with minimal modifications.
+
+3) GraphLab's Shared Data Table and Sync Operation
+
+Future versions of the Matlab to GraphLab compiler may provide this.
+This is low priority at the moment.
