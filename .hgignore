@@ -6,4 +6,5 @@ debug/*
 release/*
 profile/*
 dist/graphlabapi*
+doc/doxygen/*
 
