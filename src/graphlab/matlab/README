@@ -48,7 +48,8 @@ does not support
  - Sparse matrices
  - try/catch statements
  - Recursion
-- 64 bit integers
+ - 64 bit integers
+
 (Source: http://www.mathworks.com/help/toolbox/eml/ug/bq37agh.html#bq37dee)
 
 It also supports only a subset of Matlab functions.
