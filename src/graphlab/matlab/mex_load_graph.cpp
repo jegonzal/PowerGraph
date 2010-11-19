@@ -41,7 +41,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   }
   if (nrhs != 1) {
     mexWarnMsgTxt("Erronous function call");
-    mexWarnMsgTxt("Usage: graphlab_mex(igraphfile)");
+    mexWarnMsgTxt("Usage: [.._load_graph](igraphfile)");
     return;
   }
 

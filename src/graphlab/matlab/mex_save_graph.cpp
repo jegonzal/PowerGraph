@@ -87,7 +87,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   }
   if (nrhs != 6) {
     mexWarnMsgTxt("Erronous function call");
-    mexWarnMsgTxt("Usage: graphlab_mex(vertexdata, adj_mat, edgedata, options, graphfile, strict)");
+    mexWarnMsgTxt("Usage: [.._save_graph](vertexdata, adj_mat, edgedata, options, graphfile, strict)");
     plhs[0] = mxCreateLogicalScalar(false);
     return;
   }

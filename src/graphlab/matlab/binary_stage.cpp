@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
       }
       printed = true;
     }
-    for (size_t j = 0; j < schedule[i].vertices.size(); ++i) {
+    for (size_t j = 0; j < schedule[i].vertices.size(); ++j) {
       uint32_t vertexid = schedule[i].vertices[j] - 1;
       // look for the update function
       double priority = 1;
