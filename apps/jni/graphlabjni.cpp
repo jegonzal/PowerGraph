@@ -32,7 +32,7 @@ std::vector<JNIEnv *> envs;
 
 int taskbudget=0;
 int maxiter=0;
-
+ 
 /**
  * The Page rank update function
  */
@@ -223,6 +223,10 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setIterations
     maxiter = iter;
 }
 
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setNumCPUs
+  (JNIEnv * env, jobject obj, jint ncpus) {
+    core.set_ncpus(ncpus);
+  }
 
 
 /*
