@@ -90,9 +90,14 @@ endif()
 # used for the class branch, not the lab branch: subdirs(src examples
 # EXCLUDE_FROM_ALL tests timings projects) (Remove EXCLUDE_FROM_ALL
 # for lab branch.)
-subdirs(src tests apps demoapps)
+subdirs(src tests)
 
-
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
+	subdirs(apps)
+endif()
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
+	subdirs(demoapps)
+endif()
 # add random environment variable definitions
 # deal with Boost time shtuff: we want nanoseconds!
 # add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)

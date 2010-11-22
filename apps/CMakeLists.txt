@@ -1,36 +1,5 @@
 project(GraphLab)
 
-# subdirs(
-# #  affine_scaling
-# #  coem
-#   image_denoise
-# #  eigenvec
-# #  eigenvec_set
-#   factor_graph_inference
-#   gabp
-# #  inverse_iter
-# #  jacobi
-# #  l1_ls_boyd
-# #  protein
-# #  mplasso
-# pagerank
-# #  eyeball
-# #  ssl
-#   svm
-#   shooting
-# #  dist_pagerank
-# #  system_monitor
-# #  aapo_project
-# #  pmf
-# #  yucheng_boyd
-#  # pmf
-#   demo
-#   lesong
-#   pgibbs
-# #  videoseg
-# )
-
-
 
 link_libraries(${GraphLab_LIBRARIES})
 
