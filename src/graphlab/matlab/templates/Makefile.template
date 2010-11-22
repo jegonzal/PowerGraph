@@ -1,0 +1,10 @@
+all: Makefile_save Makefile_load Makefile_bin 
+	+make -f Makefile_save
+	+make -f Makefile_load
+	+make -f Makefile_bin
+
+clean: Makefile_save Makefile_load Makefile_bin 
+	+make -f Makefile_save clean
+	+make -f Makefile_load clean
+	+make -f Makefile_bin clean
+

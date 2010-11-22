@@ -25,6 +25,8 @@ add_library(graphlab_util STATIC
   parallel/pthread_tools.cpp
 )
 
+
+
 if(Sctp-FOUND)
   set(sctp_source rpc/dc_sctp_comm.cpp)
 endif()
@@ -80,3 +82,20 @@ if(MPI_FOUND)
      ${MPI_EXTRA_LIBRARY} )
    set_property(TARGET graphlab_dist APPEND PROPERTY COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
  endif(MPI_FOUND)
+
+
+# PIC versions of the graphlab libraries
+get_target_property(graphlab_util_sources graphlab_util SOURCES)
+get_property(graphlab_util_flags TARGET graphlab_util PROPERTY COMPILE_FLAGS)
+add_library(graphlab_util_pic STATIC ${graphlab_util_sources})
+set_target_properties(graphlab_util_pic PROPERTIES 
+                      COMPILE_FLAGS "${graphlab_util_flags} -fPIC")
+
+
+
+get_target_property(graphlab_sources graphlab SOURCES)
+get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
+add_library(graphlab_pic STATIC ${graphlab_sources})
+set_target_properties(graphlab_pic PROPERTIES 
+                      COMPILE_FLAGS "${graphlab_flags} -fPIC")
+

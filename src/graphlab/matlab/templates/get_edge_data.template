@@ -1,0 +1,5 @@
+function edata = get_edge_data(handle, edge) %#eml
+%#GENEDGE#%
+%#EXTERN_EDGE_STRUCT#%
+eml.ceval('emx_get_edge_data', handle, edge, eml.ref(edata));
+end
