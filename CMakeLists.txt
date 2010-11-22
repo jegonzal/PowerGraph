@@ -90,7 +90,7 @@ endif()
 # used for the class branch, not the lab branch: subdirs(src examples
 # EXCLUDE_FROM_ALL tests timings projects) (Remove EXCLUDE_FROM_ALL
 # for lab branch.)
-subdirs(src tests apps)
+subdirs(src tests apps demoapps)
 
 
 # add random environment variable definitions
