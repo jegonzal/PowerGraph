@@ -259,14 +259,23 @@ ENDMACRO(dist_target_link_libraries)
 MACRO(add_jni_library NAME)
 	
 	#TODO: find JNI headers
+	#SET(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -fPIC ")
+    #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC ")
+	#SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "${CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS} -fPIC ")
+	#set(CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} -fPIC")
+	#set(CMAKE_CXX_FLAGS_RELEASE  "${CMAKE_CXX_FLAGS_RELEASE} -fPIC")
+
 	ADD_LIBRARY(${NAME} MODULE ${ARGN})
-	TARGET_LINK_LIBRARIES(${NAME}  graphlab) 
-	SET(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -framework JavaVM ")
+	TARGET_LINK_LIBRARIES(${NAME}  graphlab_pic) 
+    TARGET_LINK_LIBRARIES(${NAME}  graphlab_util_pic) 
+	TARGET_LINK_LIBRARIES(${NAME}  graphlab_metis_pic) 
+	TARGET_LINK_LIBRARIES(${NAME}  graphlab_GKlib_pic) 
+
 	IF (APPLE)
 		INCLUDE_DIRECTORIES("/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/")
-        SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
-        SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
-    ENDIF (APPLE)
+        	SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
+       		SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
+    	ENDIF (APPLE)
     
 ENDMACRO(add_jni_library)
 	
