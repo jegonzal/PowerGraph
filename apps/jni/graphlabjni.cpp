@@ -30,6 +30,9 @@ jobject cachedObj;
 jmethodID wrapperMethodID;
 std::vector<JNIEnv *> envs;
 
+int taskbudget=0;
+int maxiter=0;
+
 /**
  * The Page rank update function
  */
@@ -54,6 +57,25 @@ void jni_update(gl_types::iscope &scope,
       //  std::cout << "New tasks: " << task_sz << std::endl; 
         jboolean isCopy = false;
         jint * arr = jenv->GetIntArrayElements(result, &isCopy);
+        
+        // Check for exception
+        jthrowable exc = jenv->ExceptionOccurred();
+        if (exc) {
+          std::cout << "Exception occured!!" << std::endl;
+         /* We don't do much with the exception, except that
+            we print a debug message for it, clear it, and 
+            throw a new exception. */
+         jclass newExcCls;
+         jenv->ExceptionDescribe();
+         jenv->ExceptionClear();
+         newExcCls = jenv->FindClass("java/lang/IllegalArgumentException");
+         if (newExcCls == NULL) {
+             /* Unable to find the exception class, give up. */
+             return;
+         }
+          jenv->ThrowNew(newExcCls, "thrown from C code");
+        }
+        
         for(int i=0; i<task_sz; i++) {
             // TODO: support multiple tasks, priority
             scheduler.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
@@ -159,7 +181,13 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_runGraphlab
     std::cout << "Graph has: " << core.graph().num_vertices() << " vertices and " << 
                 core.graph().num_edges() << " edges." << std::endl;
     core.get_engine_options().print();
+    if (taskbudget>0)
+        core.engine().set_task_budget(taskbudget);
+    if (maxiter>0)
+        core.scheduler().set_option(graphlab::scheduler_options::MAX_ITERATIONS, (void*)maxiter);
+ 
     double runtime = core.start(); 
+    std::cout << "Finished after " << core.engine().last_update_count() << " updates." << std::endl;
     std::cout << "Runtime: " << runtime << " seconds." << std::endl;
 }
 
@@ -178,6 +206,24 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_schedule
         core.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
     }
  }
+
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setTaskBudget
+  (JNIEnv * env, jobject obj, jint budget) {
+    std::cout << "Set task budget: " << budget << std::endl;
+    taskbudget = budget;
+ }
+
+/*
+ * Class:     graphlab_wrapper_GraphLabJNIWrapper
+ * Method:    setIterations
+ * Signature: (I)V
+ */
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setIterations
+  (JNIEnv * env, jobject obj, jint iter) {
+    maxiter = iter;
+}
+
+
 
 /*
  * Class:     graphlab_wrapper_GraphLabJNIWrapper

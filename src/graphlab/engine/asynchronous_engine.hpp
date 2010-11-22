@@ -324,7 +324,7 @@ namespace graphlab {
 	}
       }
       threads.join();
-    } // end of run threaded
+  } // end of run threaded
 
 
     /**
@@ -373,7 +373,7 @@ namespace graphlab {
        * If the task budget is greater than zero and the last update
        * count exceeds the task budget then terminate
        */
-      if(task_budget > 0 && task_budget > last_update_count()) {
+      if(task_budget > 0 && last_update_count() > task_budget) {
         termination_reason = EXEC_TASK_BUDGET_EXCEEDED;
         // Deactivate the engine
         return true;
