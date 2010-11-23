@@ -40,7 +40,8 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
-
+    typedef shared_termination terminator_type;
+    
   private:
     using base::monitor;
    
@@ -91,7 +92,7 @@ namespace graphlab {
       num_of_updatefunctions = 0;
       v_to_int = NULL;
       int_to_v = NULL;
-      aborted = false;
+      permute_vertices = false;
     }
     
     
@@ -103,10 +104,11 @@ namespace graphlab {
       free(int_to_v);
     }
     
+    void start() { }
     
     /** Get next dirty vertex in queue. Each cpu checks vertices with
         modulo num_cpus = cpuid */
-    sched_status::status_enum __get_next_task(size_t cpuid, 
+    sched_status::status_enum get_next_task(size_t cpuid,
                                  update_task_type &ret_task) {
       size_t lastidx = last_index[cpuid];
       
@@ -144,40 +146,9 @@ namespace graphlab {
       }
       // printf("Cpu %d Task new %d done%d\n", cpuid, task_new.value,
       // task_done.value);
-      return sched_status::WAITING;
+      return sched_status::EMPTY;
     }
 
-    sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task){
-      // While the scheduler is active
-      while(true) {
-        // Try and get next task for splash
-        sched_status::status_enum ret = __get_next_task(cpuid, ret_task);
-        // If we are not waiting then just return
-        if (ret != sched_status::WAITING) {
-          return ret;        
-        } else {
-          // Otherwise enter the shared terminator code
-          terminator.begin_sleep_critical_section(cpuid);
-          // Try once more to get the next task
-          ret = __get_next_task(cpuid, ret_task);
-          // If we are waiting then 
-          if (ret != sched_status::WAITING) {
-            // If we are either complete or succeeded then cancel the
-            // critical section and return
-            terminator.cancel_sleep_critical_section(cpuid);
-            return ret;
-          } else {
-            // Otherwise end sleep waiting for either completion
-            // (true) or some new work to become available.
-            if (terminator.end_sleep_critical_section(cpuid)) {
-              return sched_status::COMPLETE;
-            }
-          } 
-        }
-      } // End of while loop
-      // We reach this point only if we are no longer active
-      return sched_status::COMPLETE;
-    }
 
     uint8_t get_update_func_id(update_function_type upf) {
       for(int i=0; i<num_of_updatefunctions; i++ ){
@@ -255,59 +226,54 @@ namespace graphlab {
       /* Mappings */
       v_to_int = (vertex_id_t*) calloc(numvertices, sizeof(vertex_id_t));
       int_to_v = (vertex_id_t*) calloc(numvertices, sizeof(vertex_id_t));
-      
-      // /* Special sorter */
-      // if (cmp != NULL) {
-      //   _g = g;
-      //   lcmpfunc = cmp;
-      	  
-      //   timer t;
-      //   t.start();
-      	  
-      //   /* Sorting */
-      //   // Stupid to make an interim vector... well
-      //   std::vector<vertex_id_t> v = std::vector<vertex_id_t>();
-      //   v.reserve(numvertices);
-      //   for(vertex_id_t i=0; i<numvertices; i++) {
-      //     v.push_back(i);
-      //   }
-      //   if (cmp == graphlab::shuffler) {
-      //     std::random_shuffle(v.begin(), v.end());
-      //   } else {
-      //     sort(v.begin(), v.end(), lvertexcmp);
-      //   }		 
-      //   /* Make lists */
-      //   for(vertex_id_t i=0; i<numvertices; i++) {
-      //     v_to_int[v[i]] = i;
-      //     int_to_v[i] = v[i];
-      //   }
-      //   printf("Linear: Sorted in %2.4lf secs\n", t.current_time());
-      	  
-      // } else {
-      //      printf("Linear: No special order...%u\n", (unsigned int) numvertices);
-      /* No order */
-      for(vertex_id_t i=0; i<numvertices; i++) {
-        v_to_int[i] = i;
-        int_to_v[i] = i;
+      if (permute_vertices) {
+        std::random_shuffle(&(v_to_int[0]), &(v_to_int[numvertices]));
+        for(vertex_id_t i=0; i<numvertices; i++) {
+          int_to_v[v_to_int[i]] = i;
+        }
+      }
+      else {
+        for(vertex_id_t i=0; i<numvertices; i++) {
+          v_to_int[i] = i;
+          int_to_v[i] = i;
+        }
       }
     }
     
     void completed_task(size_t cpuid, const update_task_type &task) { }
 
-    void abort() {aborted = true; }
-    
-    void restart() {aborted = false; }
 
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){}
-    
-    void update_state(size_t cpuid, 
-                      const std::vector<vertex_id_t>& updated_vertices,
-                      const std::vector<edge_id_t>& updatededges) {
-    } // end of update state
-    
-    
-    
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
+    void set_option(scheduler_options::options_enum opt, void* value) {
+      if (opt == scheduler_options::SWEEP_PERMUTE) {
+        if ((size_t)(value) > 0) {
+          permute_vertices = true;
+        }
+      }
+    }
+
+    void parse_options(std::stringstream &strm) {
+      std::string ordertype;
+      strm >> ordertype;
+      if (ordertype == "permute") {
+        permute_vertices = true;
+        logstream(LOG_INFO) << "Ordering vertices randomly" << std::endl;
+      }
+      else if (ordertype == "linear") {
+        permute_vertices = false;
+        logstream(LOG_INFO) << "Ordering vertices in sequence" << std::endl;
+      }
+      else {
+        logger(LOG_FATAL, "Invalid arguments to sweep scheduler");
+      }
+    }
+    void print_options_help() {
+      std::cout << "sweep(ordering)\n";
+      std::cout << "ordering: linear, permute\n";
+    };
   private:
     
     char* dirty_vertices;
@@ -321,7 +287,7 @@ namespace graphlab {
     size_t num_cpus;
     std::vector< direct_callback<Graph>* > callbacks;
     Graph* g;
-    bool aborted;
+    bool permute_vertices;
   }; 
   
   

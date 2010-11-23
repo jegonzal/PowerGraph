@@ -15,7 +15,7 @@
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/shared_data/ishared_data.hpp>
 #include <graphlab/shared_data/ishared_data_manager.hpp>
-
+#include <graphlab/schedulers/support/scheduler_option_cache.hpp>
 namespace graphlab {
   
   /**
@@ -27,6 +27,7 @@ namespace graphlab {
    *
    */
   enum exec_status {
+    
     /** Execution completed successfully due to task depletion */
     EXEC_TASK_DEPLETION,
 
@@ -236,6 +237,13 @@ namespace graphlab {
      */
     virtual void set_task_budget(size_t max_tasks) = 0;
 
+
+    virtual void set_sched_option(std::stringstream &strm) {}
+    
+    virtual void set_sched_option(scheduler_options::options_enum opt, void* value) {}
+    
+    virtual void set_sched_option(const scheduler_option_cache &cache) {}
+    
   };
 
 }

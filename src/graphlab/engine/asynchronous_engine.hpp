@@ -17,6 +17,7 @@
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
+#include <graphlab/schedulers/support/scheduler_option_cache.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -87,10 +88,10 @@ namespace graphlab {
     bool use_sched_yield;
     
     /** Responsible for managing the update of scopes */
-    ScopeFactory scope_manager;
+    ScopeFactory *scope_manager;
 
     /** Responsible for maintaining the schedule over tasks */
-    Scheduler scheduler;
+    Scheduler *scheduler;
 
     /** Track the number of updates */
     std::vector<size_t> update_counts;
@@ -121,6 +122,22 @@ namespace graphlab {
 
     /** The cause of the last termination condition */
     exec_status termination_reason;
+
+    scope_range::scope_range_enum default_scope_range;
+
+    scheduler_option_cache sched_opt_cache;
+    
+    void construct_scheduler() {
+      if (scheduler == NULL) {
+        scheduler = new Scheduler(this, graph, std::max(ncpus, size_t(1)));
+        sched_opt_cache.apply_options(*scheduler);
+      }
+    }
+    void construct_scope_manager() {
+      if (scope_manager == NULL) {
+        scope_manager = new ScopeFactory(graph, std::max(ncpus, size_t(1)));
+      }
+    }
     
   public:
 
@@ -138,8 +155,8 @@ namespace graphlab {
       exec_type(exec_type),
       use_cpu_affinity(false),
       use_sched_yield(true),
-      scope_manager(graph, std::max(ncpus, size_t(1) ) ),
-      scheduler(this, graph, std::max(ncpus, size_t(1)) ),
+      scope_manager(NULL),
+      scheduler(NULL),
       update_counts(std::max(ncpus, size_t(1)), 0),
       monitor(NULL),
       shared_data(NULL),
@@ -149,13 +166,25 @@ namespace graphlab {
       task_budget(0),
       active(false) { }
 
+    ~asynchronous_engine() {
+      if (scope_manager != NULL) delete scope_manager;
+      if (scheduler != NULL) delete scheduler;
+    }
 
     //! Get the number of cpus
     size_t get_ncpus() const { return ncpus; }
 
+    void set_sched_option(std::stringstream &strm) {
+      sched_opt_cache.parse_options(strm);
+    }
 
-    //! Get the scheduler associated with this engine 
-    ischeduler_type& get_scheduler() { return scheduler; }
+    void set_sched_option(scheduler_options::options_enum opt, void* value) {
+      sched_opt_cache.set_option(opt, value);
+    }
+
+    void set_sched_option(const scheduler_option_cache &cache) {
+      sched_opt_cache = cache;
+    }
 
     //! set sched yeild
     void enable_sched_yield(bool value) {
@@ -166,6 +195,11 @@ namespace graphlab {
       use_cpu_affinity = value;
     }
 
+    //! Get the scheduler associated with this engine
+    ischeduler_type& get_scheduler() {
+      construct_scheduler();
+      return *scheduler;
+    }
     
     //! Set the shared data manager for this engine
     void set_shared_data_manager(ishared_data_manager_type* _shared_data) {
@@ -173,7 +207,7 @@ namespace graphlab {
       // if the data manager is not null then the scope factory is
       // passed back
       if(shared_data != NULL) {
-        shared_data->set_scope_factory(&scope_manager);
+        shared_data->set_scope_factory(scope_manager);
       }
     } // end of set shared data manager
 
@@ -182,13 +216,17 @@ namespace graphlab {
      * Set the default scope range.  The scope ranges are defined in
      * iscope.hpp
      */
-    void set_default_scope(scope_range::scope_range_enum default_scope_range) {
-      scope_manager.set_default_scope(default_scope_range);
+    void set_default_scope(scope_range::scope_range_enum default_scope_range_) {
+      default_scope_range = default_scope_range_;
     }
 
 
     /** Execute the engine */
     void start() {
+      construct_scheduler();
+      construct_scope_manager();
+      sched_opt_cache.apply_options(*scheduler);
+      scope_manager->set_default_scope(default_scope_range);
       /**
        * Prepare data structures for execution:
        * 1) finalize the graph.
@@ -206,9 +244,9 @@ namespace graphlab {
       // Reset the last exec status 
       termination_reason = EXEC_TASK_DEPLETION;
       // Ensure that the data manager has the correct scope_factory
-      if(shared_data != NULL) shared_data->set_scope_factory(&scope_manager);
+      if(shared_data != NULL) shared_data->set_scope_factory(scope_manager);
       // Start any scheduler threads (if necessary)
-      scheduler.start();
+      scheduler->start();
       
       /**
        * Depending on the execution type call the correct internal
@@ -220,8 +258,11 @@ namespace graphlab {
       /**
        * Run any necessary cleanup
        */
-      // Allow the scheduler to free any threads
-      scheduler.stop();
+      delete scheduler;
+      // TODO: delete scope manager here
+      //delete scope_manager;
+      scheduler = NULL;
+      //scope_manager = NULL;
     } // End of start
 
 
@@ -264,7 +305,7 @@ namespace graphlab {
      */
     void register_monitor(imonitor<Graph>* _monitor = NULL) {
       monitor = _monitor;
-      scheduler.register_monitor(monitor);
+      scheduler->register_monitor(monitor);
       if(monitor != NULL) monitor->init(this);
     } // end of register monitor
 
@@ -318,13 +359,13 @@ namespace graphlab {
         // affinity attached (CPU affinity currently only supported in
         // linux) since Mac affinity is set through the NX frameworks
         if(use_cpu_affinity)  {
-	  threads.launch(&(workers[i]), i);
-	} else {
-	  threads.launch(&(workers[i]));        
-	}
+          threads.launch(&(workers[i]), i);
+        } else {
+          threads.launch(&(workers[i]));
+        }
       }
       threads.join();
-  } // end of run threaded
+    } // end of run threaded
 
 
     /**
@@ -420,34 +461,49 @@ namespace graphlab {
          * Get and execute the next task from the scheduler.
          */
         update_task_type task;
-        sched_status::status_enum stat = scheduler.get_next_task(cpuid, task);
-        switch(stat) {
-        case sched_status::WAITING :
-	  if(use_sched_yield) sched_yield();
-          break;
-        case sched_status::COMPLETE :          
-          return false;
-          break;
-        case sched_status::NEWTASK :
+        sched_status::status_enum stat = scheduler->get_next_task(cpuid, task);
+        
+        if (stat == sched_status::EMPTY) {
+          // check the schedule terminator
+          scheduler->get_terminator().begin_critical_section(cpuid);
+          stat = scheduler->get_next_task(cpuid, task);
+          if (stat == sched_status::NEWTASK) {
+            scheduler->get_terminator().cancel_critical_section(cpuid);
+          }
+          else {
+            if (scheduler->get_terminator().end_critical_section(cpuid)) {
+              termination_reason = EXEC_TASK_DEPLETION;
+              active = true;
+              return false;
+            }
+            else {
+              if(use_sched_yield) sched_yield();
+              if (exec_type != SIMULATED) continue;
+              else return true;
+            }
+          }
+        }
+        
+        if (stat == sched_status::NEWTASK) {
           // If the status is new task than we must execute the task
           const vertex_id_t vertex = task.vertex();
           assert(vertex < graph.num_vertices());
           assert(task.function() != NULL);
           // Lock the vertex to ensure that no other processor tries
           // to take it build a scope
-          iscope_type* scope = scope_manager.get_scope(cpuid, vertex);          
+          iscope_type* scope = scope_manager->get_scope(cpuid, vertex);
           assert(scope != NULL);                    
           // get the callback for this cpu
           typename Scheduler::callback_type& scallback =
-            scheduler.get_callback(cpuid);        
+                  scheduler->get_callback(cpuid);
           // execute the task
           task.function()(*scope, scallback, shared_data);
           // Commit any changes to the scope
           scope->commit();
           // Release the scope
-          scope_manager.release_scope(scope);
+          scope_manager->release_scope(scope);
           // Mark the task as completed in the scheduler
-          scheduler.completed_task(cpuid, task);
+          scheduler->completed_task(cpuid, task);
           // record the successful execution of the task
           update_counts[cpuid]++;
           return true;

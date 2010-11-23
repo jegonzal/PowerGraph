@@ -36,6 +36,7 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
+    typedef task_count_termination terminator_type;
 
   private:
     using base::monitor;
@@ -77,14 +78,15 @@ namespace graphlab {
       return callbacks[cpuid];
     }
     
-    
+
+    void start() {};
+
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid, update_task_type& ret_task) {
       queuelock.lock();
       if (task_queue.empty()) {
         queuelock.unlock();
-        if (terminator.finish()) return sched_status::COMPLETE;
-        else return sched_status::WAITING;
+        return sched_status::EMPTY;
       } else {
         // Get the highest priority vertex
         vertex_id_t vertex = task_queue.pop().first;
@@ -140,6 +142,8 @@ namespace graphlab {
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add tasks 
+
+
     
     
     void add_task_to_all(update_function_type func, double priority) {
@@ -147,23 +151,15 @@ namespace graphlab {
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add tasks to all
-    
-    void update_state(size_t cpuid,
-                      const std::vector<vertex_id_t> &updated_vertices,
-                      const std::vector<edge_id_t>& updatededges) { 
-    }
 
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){}
-
-    void completed_task(size_t cpuid, const update_task_type& task) {
+    void completed_task(size_t cpuid, const update_task_type &task) {
       terminator.completed_job();
     }
-    
-    void abort() { terminator.abort(); }
-    
-    void restart() { terminator.restart(); }
-    
+
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
   }; // end of priority_queue class
 
 

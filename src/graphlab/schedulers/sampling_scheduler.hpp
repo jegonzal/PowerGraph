@@ -36,7 +36,7 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
-
+    typedef task_count_termination terminator_type;
 
   private:
     using base::monitor;
@@ -80,10 +80,10 @@ namespace graphlab {
       return callbacks[cpuid];
     }
     
+    void start() {};
     
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {
-      if(terminator.finish()) return sched_status::COMPLETE;        
       size_t vertex_id = -1;
       // Try and draw a sample (select a vertex)
       while(multinomial.sample(vertex_id, cpuid)) {
@@ -116,7 +116,7 @@ namespace graphlab {
       // If we get to this point then the multinomial is currently empty
       // and we are either finished or waiting for some task to return
       // and update the multinomial
-      return sched_status::WAITING;
+      return sched_status::EMPTY;
     } // end of get next task
     
     
@@ -170,22 +170,15 @@ namespace graphlab {
     } // add_task_to_all
     
 
-    inline void update_state(size_t cpuid,
-                             const std::vector<vertex_id_t>& updated_vertices,
-                             const std::vector<edge_id_t>& updatededges) { }
-
-
     void completed_task(size_t cpuid, const update_task_type& task) {
       terminator.completed_job();
     }
     
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){}    
-    
-    void abort() { terminator.abort(); }
-  
-    void restart() { terminator.restart(); }
-    
+
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
   }; // end of sampling_scheduler
   
 

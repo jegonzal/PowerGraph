@@ -3,7 +3,7 @@
 
 
 #include <graphlab.hpp>
-
+#include <graphlab/schedulers/support/scheduler_option_cache.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -109,13 +109,6 @@ namespace graphlab {
       return *mengine; 
     }
 
-    
-    /**
-     * Get a reference to the scheduler associated with this core
-     */
-    typename types::ischeduler& scheduler() { 
-      return engine().get_scheduler();
-    }
 
 
     /**
@@ -159,6 +152,11 @@ namespace graphlab {
       return meopts;
     }
 
+  inline void set_sched_option(scheduler_options::options_enum opt,
+                               void* value) {
+    sched_opt_cache.set_option(opt, value);
+  }
+
     /**
      * Set the engien options by simply parsing the command line
      * arguments.
@@ -201,7 +199,7 @@ namespace graphlab {
      * Add a single task with a fixed priority.
      */
     void add_task(typename types::update_task task, double priority) {
-      scheduler().add_task(task, priority);
+      engine().get_scheduler().add_task(task, priority);
     }
 
     /**
@@ -210,7 +208,7 @@ namespace graphlab {
      */
     void add_tasks(const std::vector<vertex_id_t>& vertices, 
                    typename types::update_function func, double priority) {
-      scheduler().add_tasks(vertices, func, priority);
+      engine().get_scheduler().add_tasks(vertices, func, priority);
     }
 
 
@@ -239,6 +237,7 @@ namespace graphlab {
       if(mengine == NULL) {
         // create the engine
         mengine = meopts.create_engine(mgraph);
+        mengine->set_sched_option(sched_opt_cache);
         if(mengine == NULL) return false;
         else mengine->set_shared_data_manager(&mshared_data);
       }
@@ -297,7 +296,7 @@ namespace graphlab {
     typename types::graph mgraph;
     typename types::thread_shared_data mshared_data;    
     engine_options meopts;
-    
+    scheduler_option_cache sched_opt_cache;
     typename types::iengine *mengine;
     
    

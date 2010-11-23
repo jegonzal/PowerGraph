@@ -97,10 +97,10 @@ namespace graphlab {
          boost_po::value<std::string>(&(scheduler_type))->
          default_value(scheduler_type),
          "There are several scheduler supported by the graphlab framework:"
-         "{synchronous, fifo, sweep, multiqueue_fifo, priority, "
-         "sampling, splash(splash_size), multiqueue_priority, set, "
+         "{fifo, sweep({permute,linear}), multiqueue_fifo, priority, "
+         "sampling,  multiqueue_priority, "
          "clustered_priority(one of {metis,bfs,random}, vertices perpartition), "
-         "round_robin, colored}");      
+         "round_robin(iterations), colored(iterations)}");
       // Parse the arguments
       try{
         boost_po::store(boost_po::command_line_parser(argc, argv).

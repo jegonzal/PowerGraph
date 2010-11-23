@@ -91,18 +91,11 @@ namespace graphlab {
     typedef graphlab::apply_ops<Graph> apply_ops;
 
     typedef graphlab::thread_shared_data<graph>  thread_shared_data;
-    
-    typedef graphlab::ivertex_set<graph>         ivertex_set;
-    typedef graphlab::vertex_set<graph>          vset;
-    typedef graphlab::restricted_vertex_set<graph> rvset;
-    typedef typename rvset::selector_function_type  selector_function;
-    typedef typename graphlab::execution_plan<graph> execution_plan;
-    
+
 
 
     template<typename Scheduler, typename ScopeFactory>
     struct engines {
-      typedef graphlab::synchronous_engine<graph> synchronous;
       typedef graphlab::
       asynchronous_engine<graph, Scheduler, ScopeFactory> asynchronous;
       #ifdef GLDISTRIBUTED
@@ -114,11 +107,9 @@ namespace graphlab {
     typedef graphlab::fifo_scheduler<graph> fifo_scheduler;
     typedef graphlab::priority_scheduler<graph> priority_scheduler;
     typedef graphlab::sampling_scheduler<graph> sampling_scheduler;
-    typedef graphlab::splash_scheduler<graph> splash_scheduler;
     typedef graphlab::sweep_scheduler<graph> sweep_scheduler;
     typedef graphlab::multiqueue_fifo_scheduler<graph> multiqueue_fifo_scheduler;
     typedef graphlab::multiqueue_priority_scheduler<graph> multiqueue_priority_scheduler;
-    typedef graphlab::set_scheduler<graph> set_scheduler;
     typedef graphlab::clustered_priority_scheduler<graph> clustered_priority_scheduler;
     typedef graphlab::round_robin_scheduler<graph> round_robin_scheduler;
     typedef graphlab::colored_scheduler<graph> colored_scheduler;

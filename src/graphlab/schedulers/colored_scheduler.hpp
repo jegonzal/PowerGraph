@@ -7,7 +7,7 @@
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/schedulers/icallback.hpp>
-
+#include <graphlab/util/controlled_termination.hpp>
 
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/schedulers/support/unused_scheduler_callback.hpp>
@@ -33,8 +33,10 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type        callback_type;
     typedef typename base::monitor_type         monitor_type;
+    typedef controlled_termination terminator_type;
 
-
+    
+    
     colored_scheduler(iengine_type* engine,
                       Graph& graph, size_t ncpus) :
       graph(graph),
@@ -44,7 +46,7 @@ namespace graphlab {
       update_function(NULL) {
       color.value = 0;
       // Verify the coloring
-      // assert(graph.valid_coloring());
+      assert(graph.valid_coloring());
       // Initialize the colored blocks
       for(size_t i = 0; i < graph.num_vertices(); ++i) {
         graphlab::vertex_color_type color = graph.color(i);
@@ -63,18 +65,13 @@ namespace graphlab {
       // Initialize the cpu indexs
       for(size_t i = 0; i < cpu_index.size(); ++i) {
         cpu_index[i] = i;
-        cpu_color[i] = color.value;
-        cpu_waiting[i] = false;
+        cpu_color[i] = -1;
+        cpu_waiting[i] = true;
       }
       // Set waiting to zero
       waiting.value = 0;
-      completed = false;
     }
 
-    /** Called when the engine stops */
-    void stop() {
-      completed = true;
-    }
 
     
     /// Adds an update task with a particular priority
@@ -116,20 +113,14 @@ namespace graphlab {
      *
      *  \retval NEWTASK There is an update task in ret_task to be
      *   executed
-     * 
-     *  \retval WAITING ret_task is empty. But the engine should wait
-     *  as execution is still not complete
-     *
-     *  \retval COMPLETE ret_task is empty and the engine should
-     *  proceed to terminate
+     *  \retval EMPTY Scheduler is empty
      */
     sched_status::status_enum get_next_task(size_t cpuid, 
                                             update_task_type &ret_task) {
-      if(completed) return sched_status::COMPLETE;
       // See if we are waiting
       if(cpu_waiting[cpuid]) {
         // Nothing has changed so we are still waiting
-        if(cpu_color[cpuid] == color.value) return sched_status::WAITING;
+        if(cpu_color[cpuid] == color.value) return sched_status::EMPTY;
         // Otherwise color has changed so we reset and leave waiting
         // state
         cpu_color[cpuid] = color.value;
@@ -143,9 +134,10 @@ namespace graphlab {
       size_t current_color = cpu_color[cpuid] % color_blocks.size();
 
       // Check to see that we have not run the maximum number of iterations
-      if(cpu_color[cpuid] / color_blocks.size() >= max_iterations)
-        return sched_status::COMPLETE;
-      
+      if(cpu_color[cpuid] / color_blocks.size() >= max_iterations) {
+        terminator.complete();
+        return sched_status::EMPTY;
+      }
       
       // If the index is good then execute it
       if(cpu_index[cpuid] < color_blocks[ current_color ].size()) {
@@ -163,10 +155,9 @@ namespace graphlab {
         waiting.value = 0;
         color.inc();
         // Let the engine callback again
-        return sched_status::WAITING;
+        return sched_status::EMPTY;
       }
-      // otherwise switch to waiting state and return waiting
-      return sched_status::WAITING;
+      return sched_status::EMPTY;
     } // end of get_next_task
     
     /**
@@ -176,12 +167,6 @@ namespace graphlab {
                         const update_task_type &task) {} 
 
    
-    /** allow for quick removal of all pending tasks from queues */  
-    void abort() { 
-      // Not supported
-      completed = true;
-    }
-
 
     void set_option(scheduler_options::options_enum opt, void* value) {
       if (opt == scheduler_options::UPDATE_FUNCTION) {
@@ -190,10 +175,24 @@ namespace graphlab {
         max_iterations = (size_t)value;
       } else {
         // unsupported option
-        assert(false);
+        logger(LOG_ERROR, "Unsupported Scheduler option.");
       }
     }
- 
+
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
+    void parse_options(std::stringstream &strm) {
+      strm >> max_iterations;
+      logstream(LOG_INFO) << "Max iterations: " << max_iterations << std::endl;
+      ASSERT_GT(max_iterations, 0);
+    }
+    void print_options_help() {
+      std::cout << "colored(#iterations)\n";
+    };
+    
+    
   private:
     Graph& graph;
     
@@ -211,11 +210,10 @@ namespace graphlab {
 
     update_function_type update_function;
 
-    bool completed;
     atomic<size_t> color;
     atomic<size_t> waiting;
 
-    
+    terminator_type terminator;
 
    
     

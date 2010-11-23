@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
 
 
   // Running the engine ------------------------------------------------------->
-  core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
+  core.set_sched_option(gl_types::scheduler_options::UPDATE_FUNCTION,
                               (void*)bp_update);
 
   std::cout << "Running the engine. " << std::endl;
