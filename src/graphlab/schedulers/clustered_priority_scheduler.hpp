@@ -317,43 +317,20 @@ namespace graphlab {
       }
     }
 
-    void set_option(scheduler_options::options_enum opt, void* value) {
-      if (opt == scheduler_options::VERTICES_PER_PARTITION) {
-        verticespercluster = (size_t)(value);
-      }
-      else if (opt == scheduler_options::PARTITION_METHOD) {
-        partmethod = (partition_method::partition_method_enum)(size_t)(value);
-      }
-      else {
-        // unsupported option
-        logger(LOG_ERROR, "Unsupported Scheduler option.");
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("vertices_per_partition", verticespercluster);
+      std::string strpartmethod;
+      if (opts.get_string_option("partition_method", strpartmethod)) {
+        if (!partition_method::string_to_enum(strpartmethod, partmethod)) {
+          logstream(LOG_WARNING) << "Invalid Partition Method" << strpartmethod
+                                                               << std::endl;
+        }
       }
     }
 
-    void parse_options(std::stringstream &strm) {
-      std::string strpartmethod;
-      strm >> strpartmethod;
-      if (strpartmethod == "metis") {
-        partmethod = partition_method::PARTITION_METIS;
-      }
-      else if (strpartmethod == "bfs") {
-        partmethod = partition_method::PARTITION_BFS;
-      }
-      else if (strpartmethod == "random") {
-        partmethod = partition_method::PARTITION_RANDOM;
-      }
-      else {
-        logger(LOG_FATAL, "Invalid Partition Method");
-      }
-      strm >> verticespercluster;
-      ASSERT_GT(verticespercluster, 0);
-      logstream(LOG_INFO) << "Partitioning with " << strpartmethod
-              << " into pieces of about " << verticespercluster << " vertices"
-              << std::endl;
-    }
-    void print_options_help() {
-      std::cout << "clustered_priority(partition_method, vertices per partition)\n";
-      std::cout << "partition_method: metis, random, bfs\n";
+    static void print_options_help(std::ostream &out) {
+      out << "partition_method = [string: metis/random/bfs, default=metis]\n";
+      out << "vertices_per_partition = [integer, default = 100]\n";
     };
 
     terminator_type& get_terminator() {

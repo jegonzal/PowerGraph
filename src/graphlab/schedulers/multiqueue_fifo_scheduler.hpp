@@ -16,6 +16,7 @@
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/util/random.hpp>
 #include <graphlab/schedulers/support/direct_callback.hpp>
 #include <graphlab/schedulers/support/binary_vertex_task_set.hpp>
 //#include <graphlab/util/shared_termination.hpp>
@@ -212,6 +213,10 @@ namespace graphlab {
       return terminator;
     };
 
+    void set_options(const scheduler_options &opts) { }
+
+    static void print_options_help(std::ostream &out) { };
+    
   private:
     size_t numvertices; /// Remember the number of vertices in the graph
   

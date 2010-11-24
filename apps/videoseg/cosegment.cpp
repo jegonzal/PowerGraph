@@ -645,7 +645,7 @@ int main(int argc,  char *argv[]) {
   for (size_t iter = 0;iter < 10; ++iter) {
     if (iter > 0) shared_data.trigger_sync(GAUSSIAN_CLUSTERS);
     for (size_t i = 0;i < graph.num_vertices(); ++i) {
-      engine->get_scheduler().add_task(gl_types::update_task(i, bp_update), 10.0);
+      engine->add_task(gl_types::update_task(i, bp_update), 10.0);
     }
 
     engine->start();

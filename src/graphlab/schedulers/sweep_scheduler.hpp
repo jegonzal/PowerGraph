@@ -247,33 +247,26 @@ namespace graphlab {
       return terminator;
     };
 
-    void set_option(scheduler_options::options_enum opt, void* value) {
-      if (opt == scheduler_options::SWEEP_PERMUTE) {
-        if ((size_t)(value) > 0) {
+
+    void set_options(const scheduler_options &opts) {
+      std::string ordertype;
+      if (opts.get_string_option("ordering", ordertype)) {
+        if (ordertype == "permute") {
           permute_vertices = true;
+        }
+        else if (ordertype == "linear") {
+          permute_vertices = false;
+        }
+        else {
+          logstream(LOG_WARNING) << "Invalid Ordering Method" << ordertype
+                                                               << std::endl;
         }
       }
     }
-
-    void parse_options(std::stringstream &strm) {
-      std::string ordertype;
-      strm >> ordertype;
-      if (ordertype == "permute") {
-        permute_vertices = true;
-        logstream(LOG_INFO) << "Ordering vertices randomly" << std::endl;
-      }
-      else if (ordertype == "linear") {
-        permute_vertices = false;
-        logstream(LOG_INFO) << "Ordering vertices in sequence" << std::endl;
-      }
-      else {
-        logger(LOG_FATAL, "Invalid arguments to sweep scheduler");
-      }
-    }
-    void print_options_help() {
-      std::cout << "sweep(ordering)\n";
-      std::cout << "ordering: linear, permute\n";
+    static void print_options_help(std::ostream &out) {
+      out << "ordering = [string: linear/permute, default=linear]\n";
     };
+
   private:
     
     char* dirty_vertices;

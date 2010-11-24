@@ -98,7 +98,7 @@ namespace graphlab {
     
     //! Adds an update task with a particular priority
     void add_task(update_task_type task, double priority) {
-      assert(task.function() == update_fun);
+      //assert(task.function() == update_fun);
       assert(task.vertex() < graph.num_vertices());      
       vertex_id_t vertex = task.vertex();
       // Get the priority queue for the vertex
@@ -155,19 +155,6 @@ namespace graphlab {
     void set_update_function(update_function_type fun) { update_fun = fun; }    
     void set_splash_size(size_t size) { splash_size = size; }
 
-    void set_option(scheduler_options::options_enum opt, void* value) { 
-      if (opt == scheduler_options::SPLASH_SIZE) {
-        set_splash_size((size_t)(value));
-      }
-      else if (opt == scheduler_options::UPDATE_FUNCTION) {
-        set_update_function((update_function_type)(value));
-      }
-      else {
-        logger(LOG_WARNING, 
-              "Splash Scheduler was passed an invalid option %d", opt);
-      }
-    }
-
     sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task){
       assert(cpuid < splashes.size());
       // Loop until we either can't build a splash or we find an element
@@ -206,6 +193,20 @@ namespace graphlab {
       return terminator;
     };
 
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("splash_size", splash_size);
+      any uf;
+      if (opts.get_any_option("update_function", uf)) {
+        update_fun = uf.as<update_function_type>();
+      }
+    }
+
+    static void print_options_help(std::ostream &out) {
+      out << "splash_size = [integer, default = 100]\n";
+      out << "update_function = [update_function_type,"
+                                 "default = set on add_task_to_all]\n";
+    };
+    
   private:
 
     bool get_top(size_t cpuid, 

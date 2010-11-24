@@ -383,11 +383,11 @@ int main(int argc,  char ** argv) {
   /* Special handling for round_robin */
   vertex_id_t zero = 0;
   graphlab.get_scheduler().add_task_to_all(coem_update_function, 1.0);
-  graphlab.get_scheduler().set_option(scheduler_options::MAX_ITERATIONS, (void*)3);
-  graphlab.get_scheduler().set_option(scheduler_options::DISTRIBUTED_CONTROL, (void*)dc);
-  graphlab.get_scheduler().set_option(scheduler_options::BARRIER, &zero);  
+  graphlab.get_scheduler().set_option(scheduler_options_enum::MAX_ITERATIONS, (void*)3);
+  graphlab.get_scheduler().set_option(scheduler_options_enum::DISTRIBUTED_CONTROL, (void*)dc);
+  graphlab.get_scheduler().set_option(scheduler_options_enum::BARRIER, &zero);
   size_t lastNP =  sdm.get_constant(NUM_NPS).as<size_t>();
-  graphlab.get_scheduler().set_option(scheduler_options::BARRIER, &lastNP);  
+  graphlab.get_scheduler().set_option(scheduler_options_enum::BARRIER, &lastNP);
   
   if (task_budget > 0) {
  	 //graphlab.get_scheduler().set_task_budget(task_budget);

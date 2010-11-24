@@ -618,9 +618,8 @@ int main(int argc,  char *argv[]) {
   // TOOD is this the correct starting priority?
   double initial_priority = 1.0;
   core.add_task_to_all(gabp_update_function, initial_priority);
-  if(clopts.scheduler_type == "round_robin") {    
-    ((gl_types::round_robin_scheduler*)
-     &(core.scheduler()))->set_start_vertex(size_t(0));
+  if(clopts.scheduler_type == "round_robin") {
+    core.sched_options().add_option("start_vertex", 0);
   }
   clopts.scope_type = "null";
 

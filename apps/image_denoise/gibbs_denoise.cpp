@@ -211,7 +211,7 @@ int main(int argc, char** argv) {
     // Set the shared data manager for the engine
     engine->set_shared_data_manager(&sdm);
     // Attach the correct schedule
-    engine->get_scheduler().set_option(gl::scheduler_options::SCHEDULING_FUNCTION, 
+    engine->get_scheduler().set_option(gl::scheduler_options::SCHEDULING_FUNCTION,
                                        (void*)color_schedule);
     
   } else {
@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
     // Add the tasks in shuffled order (helps with fifo scheduler)
     const bool use_callback = true;
     double residual = 1.0;
-    engine->get_scheduler().add_tasks(vertex_ids,
+    engine->add_tasks(vertex_ids,
                                       gibbs_update<use_callback>,
                                       residual);
   }

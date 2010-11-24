@@ -160,6 +160,10 @@ namespace graphlab {
       return terminator;
     };
 
+    void set_options(const scheduler_options &opts) { }
+
+    static void print_options_help(std::ostream &out) { };
+
   }; // end of priority_queue class
 
 

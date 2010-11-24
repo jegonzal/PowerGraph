@@ -335,7 +335,7 @@ namespace graphlab {
       sched.abort();
     }
 
-    void set_option(scheduler_options::options_enum opt, void* value) { 
+    void set_option(scheduler_options_enum::options_enum opt, void* value) { 
       sched.set_option(opt,value);
     }
   };

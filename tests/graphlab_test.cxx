@@ -85,11 +85,9 @@ bool test_graphlab_round_robin(gl::core &glcore,
 
   init_graph(glcore.graph(),NUM_VERTICES);
 
-  glcore.set_sched_option(gl::scheduler_options::MAX_ITERATIONS,
-                                (void*)(iterations));
+  glcore.sched_options().add_option("max_iterations",iterations);
   size_t startv = rand() % 10000;
-  glcore.set_sched_option(gl::scheduler_options::START_VERTEX,
-                                (void*)startv);
+  glcore.sched_options().add_option("start_vertex",startv);
 
   for (size_t v = skiptov;v < NUM_VERTICES; ++v) {
     glcore.add_task(gl::update_task(v, update_function), 1.0);
@@ -128,8 +126,7 @@ bool test_graphlab_colored(gl::core &glcore,
   init_graph(glcore.graph(),NUM_VERTICES);
   glcore.graph().compute_coloring();
   glcore.add_task_to_all(update_function, 1.0);
-  glcore.set_sched_option(gl::scheduler_options::MAX_ITERATIONS,
-                                (void*)(numiterations));
+  glcore.sched_options().add_option("max_iterations",numiterations);
   glcore.start();
   
   TS_ASSERT_EQUALS(glcore.engine().last_update_count(),

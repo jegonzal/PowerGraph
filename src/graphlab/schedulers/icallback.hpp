@@ -3,7 +3,6 @@
 
 #include <vector>
 
-#include <graphlab/engine/iengine.hpp>
 #include <graphlab/scope/iscope_factory.hpp>
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
@@ -11,7 +10,7 @@
 
 
 namespace graphlab {
-
+  template <typename Graph> class iengine;
   /**
    * This is the class that is passed to the update functions. This
    * class allows the update functions to create and add new tasks to

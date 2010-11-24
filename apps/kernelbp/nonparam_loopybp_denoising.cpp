@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
   graphlab::timer timer; timer.start();
   
   // Add the bp update to all vertices
-  engine->get_scheduler().add_task_to_all(bp_update, 100);
+  engine->add_task_to_all(bp_update, 100);
   // Starte the engine
   engine->start();
 

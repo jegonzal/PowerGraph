@@ -17,7 +17,7 @@
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
-#include <graphlab/schedulers/support/scheduler_option_cache.hpp>
+#include <graphlab/engine/scope_manager_and_scheduler_wrapper.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -27,7 +27,7 @@ namespace graphlab {
    */
   template<typename Graph, typename Scheduler, typename ScopeFactory>
   class asynchronous_engine : 
-    public iengine<Graph> {
+    public scope_manager_and_scheduler_wrapper<Graph, Scheduler, ScopeFactory> {
 
   public: // Type declerations
     enum execution_type {THREADED, SIMULATED};
@@ -87,14 +87,7 @@ namespace graphlab {
     /** Use schedule yielding when waiting on the scheduler*/
     bool use_sched_yield;
     
-    /** Responsible for managing the update of scopes */
-    ScopeFactory *scope_manager;
 
-    /** Responsible for maintaining the schedule over tasks */
-    Scheduler *scheduler;
-    size_t last_graph_nvertices;
-    size_t last_graph_nedges;
-    size_t last_graph_changeid;
     
     /** Track the number of updates */
     std::vector<size_t> update_counts;
@@ -128,20 +121,13 @@ namespace graphlab {
 
     scope_range::scope_range_enum default_scope_range;
 
-    scheduler_option_cache sched_opt_cache;
-    
-    void construct_scheduler() {
-      if (scheduler == NULL) {
-        scheduler = new Scheduler(this, graph, std::max(ncpus, size_t(1)));
-        sched_opt_cache.apply_options(*scheduler);
-      }
-    }
-    void construct_scope_manager() {
-      if (scope_manager == NULL) {
-        scope_manager = new ScopeFactory(graph, std::max(ncpus, size_t(1)));
-      }
-    }
-    
+    /** pointers to the current scheduler. Only valid when engine is running */
+    Scheduler* scheduler;
+
+    /** pointers to the current scope_manager.
+     * Only valid when engine is running */
+    ScopeFactory* scope_manager;
+
   public:
 
     /**
@@ -153,13 +139,14 @@ namespace graphlab {
     asynchronous_engine(Graph& graph,
                         size_t ncpus = 1,
                         execution_type exec_type = THREADED) :
+      scope_manager_and_scheduler_wrapper<Graph,
+                                          Scheduler,
+                                          ScopeFactory>(graph,ncpus),
       graph(graph),
       ncpus( std::max(ncpus, size_t(1)) ),
       exec_type(exec_type),
       use_cpu_affinity(false),
       use_sched_yield(true),
-      scope_manager(NULL),
-      scheduler(NULL),
       update_counts(std::max(ncpus, size_t(1)), 0),
       monitor(NULL),
       shared_data(NULL),
@@ -167,27 +154,16 @@ namespace graphlab {
       timeout_millis(0),
       last_check_millis(0),
       task_budget(0),
-      active(false) { }
+      active(false),
+      scheduler(NULL),
+      scope_manager(NULL){
+      }
 
     ~asynchronous_engine() {
-      if (scope_manager != NULL) delete scope_manager;
-      if (scheduler != NULL) delete scheduler;
     }
 
     //! Get the number of cpus
     size_t get_ncpus() const { return ncpus; }
-
-    void set_sched_option(std::stringstream &strm) {
-      sched_opt_cache.parse_options(strm);
-    }
-
-    void set_sched_option(scheduler_options::options_enum opt, void* value) {
-      sched_opt_cache.set_option(opt, value);
-    }
-
-    void set_sched_option(const scheduler_option_cache &cache) {
-      sched_opt_cache = cache;
-    }
 
     //! set sched yeild
     void enable_sched_yield(bool value) {
@@ -198,19 +174,14 @@ namespace graphlab {
       use_cpu_affinity = value;
     }
 
-    //! Get the scheduler associated with this engine
-    ischeduler_type& get_scheduler() {
-      construct_scheduler();
-      return *scheduler;
-    }
-    
+
     //! Set the shared data manager for this engine
     void set_shared_data_manager(ishared_data_manager_type* _shared_data) {
       shared_data = _shared_data;
       // if the data manager is not null then the scope factory is
       // passed back
       if(shared_data != NULL) {
-        shared_data->set_scope_factory(scope_manager);
+        
       }
     } // end of set shared data manager
 
@@ -226,11 +197,20 @@ namespace graphlab {
 
     /** Execute the engine */
     void start() {
-      construct_scheduler();
-      construct_scope_manager();
-      sched_opt_cache.apply_options(*scheduler);
+      // call the scope_manager_and_scheduler_wrapper for the scheduler
+      // and scope manager
+      scheduler = this->get_scheduler();
+      this->apply_scheduler_options();
+      scheduler->register_monitor(monitor);
+      scope_manager =this->get_scope_manager();
+
       scope_manager->set_default_scope(default_scope_range);
-      /**
+      
+      shared_data->set_scope_factory(scope_manager);
+      std::cout << "Scheduler Options:\n";
+      std::cout << this->sched_options();
+      
+      /*
        * Prepare data structures for execution:
        * 1) finalize the graph.
        * 2) Reset engine fields
@@ -251,22 +231,18 @@ namespace graphlab {
       // Start any scheduler threads (if necessary)
       scheduler->start();
       
-      /**
+      /*
        * Depending on the execution type call the correct internal
        * start
        */
       if(exec_type == THREADED) run_threaded();
       else run_simulated();
-      
-      /**
-       * Run any necessary cleanup
-       */
-      delete scheduler;
-      // TODO: delete scope manager here
-      //delete scope_manager;
+
+      shared_data->set_scope_factory(NULL);
+      this->release_scheduler_and_scope_manager();
       scheduler = NULL;
-      //scope_manager = NULL;
-    } // End of start
+      scope_manager = NULL;
+    } 
 
 
     /**
@@ -308,7 +284,6 @@ namespace graphlab {
      */
     void register_monitor(imonitor<Graph>* _monitor = NULL) {
       monitor = _monitor;
-      scheduler->register_monitor(monitor);
       if(monitor != NULL) monitor->init(this);
     } // end of register monitor
 

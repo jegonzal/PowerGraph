@@ -15,7 +15,6 @@
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/shared_data/ishared_data.hpp>
 #include <graphlab/shared_data/ishared_data_manager.hpp>
-#include <graphlab/schedulers/support/scheduler_option_cache.hpp>
 namespace graphlab {
   
   /**
@@ -104,14 +103,6 @@ namespace graphlab {
     //! get the number of cpus
     virtual size_t get_ncpus() const = 0;
 
-    
-    /**
-     * \brief Get the underlying scheduler.
-     *
-     * This function returns a reference to the scheduler used by the
-     * engine.
-     */
-    virtual ischeduler_type& get_scheduler() = 0;
 
     /**
      * \brief Set the shared data manager
@@ -191,7 +182,27 @@ namespace graphlab {
      */
     virtual void register_monitor(imonitor_type* listener) = 0;
     
+  /**
+    * Adds an update task with a particular priority.
+    * This function is forwarded to the scheduler.
+    */
+  virtual void add_task(update_task_type task, double priority) = 0;
 
+  /**
+    * Creates a collection of tasks on all the vertices in
+    * 'vertices', and all with the same update function and priority
+    * This function is forwarded to the scheduler.
+    */
+  virtual void add_tasks(const std::vector<vertex_id_t>& vertices,
+                          update_function_type func, double priority) = 0;
+
+  /**
+    * Creates a collection of tasks on all the vertices in the graph,
+    * with the same update function and priority
+    * This function is forwarded to the scheduler.
+    */
+  virtual void add_task_to_all(update_function_type func,
+                                double priority) = 0;
     /**
      * \brief associate a termination function with this engine.
      *
@@ -238,12 +249,10 @@ namespace graphlab {
     virtual void set_task_budget(size_t max_tasks) = 0;
 
 
-    virtual void set_sched_option(std::stringstream &strm) {}
     
-    virtual void set_sched_option(scheduler_options::options_enum opt, void* value) {}
-    
-    virtual void set_sched_option(const scheduler_option_cache &cache) {}
-    
+    virtual scheduler_options& sched_options() = 0;
+
+    virtual const scheduler_options& sched_options() const = 0;
   };
 
 }

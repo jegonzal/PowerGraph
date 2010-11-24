@@ -3,16 +3,14 @@
 
 #include <vector>
 #include <sstream>
-
-#include <graphlab/engine/iengine.hpp>
+#include <ostream>
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/schedulers/icallback.hpp>
-
+#include <graphlab/schedulers/scheduler_options.hpp>
 
 namespace graphlab {
-        
-  
+  template <typename Graph> class iengine;
   /**
    * This is an enumeration for the possible return values for
    * get_next_tasks
@@ -29,7 +27,8 @@ namespace graphlab {
     };
   };
   
-  struct scheduler_options {
+ /// TODO: Deprecated
+  struct scheduler_options_enum {
     enum options_enum {
       UPDATE_FUNCTION,    /// used by 1-update function schedulers
       MAX_ITERATIONS,     /// maximum iteration count. Used by round-robin
@@ -42,7 +41,7 @@ namespace graphlab {
       DISTRIBUTED_CONTROL
     };
   };
-
+  
 
   /**
    * This describes the interface/concept for the scheduler. The
@@ -140,10 +139,13 @@ namespace graphlab {
       monitor = monitor_;
     }
 
-    virtual void set_option(scheduler_options::options_enum opt, void* value) { };
+    virtual void set_options(const scheduler_options &opts) { };
 
-    virtual void parse_options(std::stringstream &strm) { };
-    virtual void print_options_help() { };
+    static void print_options_help(std::ostream &out) { };
+
+
+    /// UNUSED!!! Only used for temporary backward compatibility with the distributed code
+    virtual void set_option(scheduler_options_enum::options_enum, void*) { };
     
     /** Returns a reference to the terminator */
     terminator_type& get_terminator() {

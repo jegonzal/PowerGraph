@@ -295,7 +295,7 @@ void cluster_update(gl_types::iscope& scope,
   }
   // if oldid now has mass
   // also consider picking a totally new color
-//  uint64_t newid;
+  uint64_t newid;
   if (assignmentpreferences.find(oldid) == assignmentpreferences.end()) {
     newid = oldid;
   }else {
@@ -457,7 +457,9 @@ int main(int argc, char** argv) {
 
  
     // create the engine
-  gl_types::iengine *engine = NULL;
+  graphlab::distributed_engine<gl_types::graph,
+    graphlab::distributed_scheduler_wrapper<gl_types::graph,
+    graphlab::multiqueue_fifo_scheduler<gl_types::graph> > > *engine = NULL;
 
   {
     graphlab::distributed_engine<gl_types::graph,

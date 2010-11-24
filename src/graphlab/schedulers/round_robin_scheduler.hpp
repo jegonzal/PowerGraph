@@ -65,7 +65,7 @@ namespace graphlab {
       numvertices(g.num_vertices()),
       callback(engine),
       task_set(numvertices),
-      maxiterations(-1),
+      maxiterations(0),
       startvertex(0),
       endtask(numvertices),
       endvertex(numvertices){
@@ -130,20 +130,6 @@ namespace graphlab {
     size_t get_iterations() {
       return iterations.value;
     }
- 
-    void set_option(scheduler_options::options_enum opt, void* value) { 
-      if (opt == scheduler_options::MAX_ITERATIONS) {
-        set_max_iterations((size_t)(value));
-      }
-      else if (opt == scheduler_options::START_VERTEX) {
-        set_start_vertex((size_t)(value));
-      }
-      else {
-        logger(LOG_WARNING, 
-               "Round Robin Scheduler was passed an invalid option %d", 
-               opt);
-      }
-    };
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid,
@@ -172,16 +158,16 @@ namespace graphlab {
       return terminator;
     };
 
-    void parse_options(std::stringstream &strm) {
-      size_t max_iterations;
-      strm >> max_iterations;
-      logstream(LOG_INFO) << "Max iterations: " << max_iterations << std::endl;
-      ASSERT_GT(max_iterations, 0);
-      set_max_iterations(max_iterations);
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("max_iterations", maxiterations);
+      opts.get_int_option("start_vertex", startvertex);
     }
-    void print_options_help() {
-      std::cout << "round_robin(#iterations)\n";
-    };
+
+    static void print_options_help(std::ostream &out) {
+      out << "max_iterations = [integer, default = 0]\n";
+      out << "start_vertex = [integer, default = 0]\n";
+    }
+
     
     
   };

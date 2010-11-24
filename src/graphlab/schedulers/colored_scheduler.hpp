@@ -38,7 +38,7 @@ namespace graphlab {
       graph(graph),
       callback(engine),
       cpu_index(ncpus), cpu_color(ncpus), cpu_waiting(ncpus),
-      max_iterations(-1),
+      max_iterations(0),
       update_function(NULL) {
       color.value = 0;
       // Verify the coloring
@@ -164,31 +164,24 @@ namespace graphlab {
 
    
 
-    void set_option(scheduler_options::options_enum opt, void* value) {
-      if (opt == scheduler_options::UPDATE_FUNCTION) {
-        update_function = (update_function_type) value;
-      } else if (opt == scheduler_options::MAX_ITERATIONS) {
-        max_iterations = (size_t)value;
-      } else {
-        // unsupported option
-        logger(LOG_ERROR, "Unsupported Scheduler option.");
-      }
-    }
-
     terminator_type& get_terminator() {
       return terminator;
     };
 
-    void parse_options(std::stringstream &strm) {
-      strm >> max_iterations;
-      logstream(LOG_INFO) << "Max iterations: " << max_iterations << std::endl;
-      ASSERT_GT(max_iterations, 0);
+
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("max_iterations", max_iterations);
+      any uf;
+      if (opts.get_any_option("update_function", uf)) {
+        update_function = uf.as<update_function_type>();
+      }
     }
-    void print_options_help() {
-      std::cout << "colored(#iterations)\n";
+
+    static void print_options_help(std::ostream &out) {
+      out << "max_iterations = [integer, default = 0]\n";
+      out << "update_function = [update_function_type,"
+                                        "default = set on add_task]\n";
     };
-    
-    
   private:
     Graph& graph;
     

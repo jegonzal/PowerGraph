@@ -200,10 +200,10 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
   assert(Umean.size() == D);
   return MMT;
 }
-
+/*
 int _iiter(){
   return ((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->get_iterations();   
-}
+}*/
 
 
 // sample from movie nodes
@@ -559,10 +559,11 @@ void pmf_update_function(gl_types::iscope &scope,
 }
 
 void last_iter(){
+  /*
   printf("Entering last iter with %d\n", 
          int(((round_robin_scheduler<graph_type>*) 
               &engine->get_scheduler())->get_iterations()));   
-
+*/
   double res,res2;
   double rmse = calc_rmse_q(res);
   //rmse=0;
@@ -804,13 +805,13 @@ void start(int argc, char ** argv) {
     um.push_back(i);
  
   // add update function for user and movie nodes (tensor dims 1+2) 
-  engine->get_scheduler().add_tasks(um, pmf_update_function, 1);
+  engine->add_tasks(um, pmf_update_function, 1);
   
   if (tensor){
     for (int i=M+N; i< M+N+K; i++)
       tv.push_back(i);
      // add update function for time nodes (tensor dim 3)
-    engine->get_scheduler().add_tasks(tv, T_update_function, 1);
+    engine->add_tasks(tv, T_update_function, 1);
   }
 
   //((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->set_start_vertex(size_t(0));   

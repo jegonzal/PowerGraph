@@ -421,22 +421,20 @@ void coemapp::start() {
   
   TARGET_PRECISION = opts.threshold;
   typedef gl_types::ischeduler ischeduler_type;
-  graphlab->get_scheduler().set_option(scheduler_options::UPDATE_FUNCTION,
-                                       (void*) coem_update_function);
+  graphlab->set_option("update_function",coem_update_function);
   if (typeid(*graphlab) == typeid(synchronous_engine<blob_graph>)) {
     ((synchronous_engine<blob_graph>*)(graphlab))->
       set_update_function(coem_update_function);
   } else {
     if (opts.scheduler == "round_robin") {
-      graphlab->get_scheduler().add_task_to_all(coem_update_function, 1.0);
+      graphlab->add_task_to_all(coem_update_function, 1.0);
     } else {
       /* Initial tasks - only positive seeds */
       for(int vid=0; vid<n; vid++) {
         coem_vertex_data * vdata =
           g->vertex_data(vid).as_ptr<coem_vertex_data>();
         if ((vdata->flags & POSITIVESEED_FLAG) != 0) {
-          graphlab->get_scheduler().
-            add_task(gl_types::update_task(vid, coem_update_function), 1.0);
+          graphlab->add_task(gl_types::update_task(vid, coem_update_function), 1.0);
           set_status("Add initial task: %d\n", vid);
         }
         //   printf("Flag: %d %d", vid, vdata->flags); 

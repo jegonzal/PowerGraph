@@ -183,10 +183,9 @@ void standard_main(const options& opts,
     gibbs_update<use_callback>;
 
   // Set the update function
-  engine->get_scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
-                                     (void*)update_function);
+  engine->sched_options().add_option("update_function", update_function);
 
-  engine->get_scheduler().add_task_to_all(update_function, DEFAULT_RESIDUAL);
+  engine->add_task_to_all(update_function, DEFAULT_RESIDUAL);
 
   // Running the engine ------------------------------------------------------->
   std::cout << "Running the engine. " << std::endl;
@@ -240,7 +239,8 @@ void set_scheduler_main(const options& opts,
 
   // Set the shared data 
   engine->set_shared_data_manager(&sdm);
-  if (opts.use_planner) {
+  // TODO set scheduler disabled
+/*  if (opts.use_planner) {
     std::cout << "Using set schedule planner." << std::endl;
      engine->get_scheduler().set_option(gl_types::scheduler_options::SCHEDULING_FUNCTION, 
                                           (void*)planned_color_schedule);
@@ -248,7 +248,7 @@ void set_scheduler_main(const options& opts,
     std::cout << "Using the basic schedule planner." << std::endl;
     engine->get_scheduler().set_option(gl_types::scheduler_options::SCHEDULING_FUNCTION, 
                                         (void*)basic_color_schedule);
-  }
+  }*/
 
 
   // Running the engine ------------------------------------------------------->

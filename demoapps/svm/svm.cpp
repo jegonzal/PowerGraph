@@ -370,8 +370,7 @@ void start(gl_types::iengine *engine, graph_type &g,
   // schedule all the data vertices
   engine->add_terminator(primal_terminator);
   for (size_t i = 0;i < numdat; ++i) {
-    engine->get_scheduler().
-      add_task(gl_types::update_task(i, dat_update_function), 1000.0);
+    engine->add_task(gl_types::update_task(i, dat_update_function), 1000.0);
   }
   timer ti;
   ti.start();

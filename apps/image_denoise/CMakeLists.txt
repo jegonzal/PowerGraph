@@ -6,8 +6,8 @@ add_executable(loopybp_denoise loopybp_denoise.cpp)
 #TARGET_LINK_LIBRARIES(loopybp_denoise tcmalloc)
 
 
-add_executable(gibbs_denoise gibbs_denoise.cpp)
-TARGET_LINK_LIBRARIES(gibbs_denoise tcmalloc)
+#add_executable(gibbs_denoise gibbs_denoise.cpp)
+#TARGET_LINK_LIBRARIES(gibbs_denoise tcmalloc)
 
 
 add_dist_executable(loopybp_denoise_dist loopybp_denoise_dist.cpp)

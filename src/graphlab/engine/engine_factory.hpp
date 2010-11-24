@@ -18,16 +18,10 @@
 
 
 // Schedulers
-#include <graphlab/schedulers/fifo_scheduler.hpp>
-#include <graphlab/schedulers/priority_scheduler.hpp>
-#include <graphlab/schedulers/sampling_scheduler.hpp>
-#include <graphlab/schedulers/round_robin_scheduler.hpp>
-#include <graphlab/schedulers/colored_scheduler.hpp>
-#include <graphlab/schedulers/sweep_scheduler.hpp>
-#include <graphlab/schedulers/splash_scheduler.hpp>
-#include <graphlab/schedulers/multiqueue_fifo_scheduler.hpp>
-#include <graphlab/schedulers/multiqueue_priority_scheduler.hpp>
-#include <graphlab/schedulers/clustered_priority_scheduler.hpp>
+#include <graphlab/schedulers/scheduler_list.hpp>
+
+#include <boost/preprocessor.hpp>
+
 
 namespace graphlab {
   
@@ -132,70 +126,34 @@ namespace graphlab {
       std::stringstream arg_strm(arguments);
       
       iengine<Graph>* eng = NULL;
+
+
+      #define __GENERATE_NEW_ENGINE__(r_unused, data_unused, i,  elem) \
+        BOOST_PP_EXPR_IF(i, else) if (scheduler == BOOST_PP_TUPLE_ELEM(3,0,elem)) { \
+          eng = new_engine<Graph, BOOST_PP_TUPLE_ELEM(3,1,elem) <Graph> > (engine, scope_factory, _graph, ncpus); \
+        }
+
+      // generate the construction calls
+      BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_NEW_ENGINE__, _, __SCHEDULER_LIST__)
+      /*
       if(scheduler == "fifo") {
         eng =  new_engine<Graph, fifo_scheduler<Graph> >(engine,
                                                   scope_factory,
                                                   _graph,
                                                   ncpus);
-      } else if(scheduler == "priority") {
-        eng = new_engine<Graph, priority_scheduler<Graph> >(engine,
-                                                      scope_factory,
-                                                      _graph,
-                                                      ncpus);
-      } else if(scheduler == "sampling") {
-        eng = new_engine<Graph, sampling_scheduler<Graph> >(engine,
-                                                      scope_factory,
-                                                      _graph,
-                                                      ncpus);
-      } else if(scheduler == "sweep") {
-        eng = new_engine<Graph, sweep_scheduler<Graph> >(engine,
-                                                          scope_factory,
-                                                          _graph,
-                                                          ncpus);
-      } else if(scheduler == "multiqueue_fifo") {
-        eng = new_engine<Graph, multiqueue_fifo_scheduler<Graph> >(engine,
-                                                             scope_factory,
-                                                             _graph,
-                                                             ncpus);     
-
-      } else if(scheduler == "multiqueue_priority") {
-        eng = new_engine<Graph, multiqueue_priority_scheduler<Graph> >(engine,
-                                                                        scope_factory,
-                                                                        _graph,
-                                                                        ncpus);     
-      } else if(scheduler == "clustered_priority") {
-        eng = new_engine<Graph, clustered_priority_scheduler<Graph> >(engine,
-                                                                  scope_factory,
-                                                                  _graph,
-                                                                  ncpus);
-      } else if(scheduler == "round_robin") {
-        eng = new_engine<Graph, round_robin_scheduler<Graph> >(engine,
-                                                                scope_factory,
-                                                                _graph,
-                                                                ncpus);      
-      } else if(scheduler == "splash") {
-        eng = new_engine<Graph, splash_scheduler<Graph> >(engine,
-                                                          scope_factory,
-                                                          _graph,
-                                                          ncpus);            
-      } else if(scheduler == "colored") {
-        eng = new_engine<Graph, colored_scheduler<Graph> >
-                                                    (engine,
-                                                    scope_factory,
-                                                    _graph,
-                                                    ncpus);
-      } else {
+      } else if ....*/
+      else {
         std::cout << "Invalid scheduler type: " << scheduler
                   << std::endl;
         return NULL;
       }
       if(eng != NULL) {
         if(!arguments.empty()) {
-          eng->set_sched_option(arg_strm);
+          eng->sched_options().parse_options(arg_strm);
         }
       }
       return eng;
-      
+      #undef __GENERATE_NEW_ENGINE__ 
       
     } // end of new engine  
 

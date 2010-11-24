@@ -1245,8 +1245,11 @@ double calc_obj(gl_dtypes::ishared_data &sdm){
 
 
 
-
-gl_dtypes::iengine* tengine = NULL;
+typedef   graphlab::pushy_distributed_engine<gl_dtypes::graph,
+      graphlab::distributed_scheduler_wrapper<gl_dtypes::graph,
+      graphlab::distributed_round_robin_scheduler<gl_dtypes::graph> >,
+      general_scope_factory<gl_dtypes::graph> > engine_type;
+engine_type* tengine = NULL;
 void barrier_fn(){ 
   std::cout << "Sync Barrier." << std::endl;
   // assert(false);
@@ -1410,10 +1413,10 @@ void start(int argc, char ** argv, distributed_control & dc) {
 
     tengine->get_scheduler().add_task_to_all(pmf_update_function, 1.0);
 
-    tengine->get_scheduler().set_option(scheduler_options::MAX_ITERATIONS, (void*)NUM_ITERATIONS_TO_RUN);
-    tengine->get_scheduler().set_option(scheduler_options::DISTRIBUTED_CONTROL, (void*)(&dc));
-    tengine->get_scheduler().set_option(scheduler_options::BARRIER, &zero);
-    tengine->get_scheduler().set_option(scheduler_options::BARRIER, &Mv);
+    tengine->get_scheduler().set_option(scheduler_options_enum::MAX_ITERATIONS, (void*)NUM_ITERATIONS_TO_RUN);
+    tengine->get_scheduler().set_option(scheduler_options_enum::DISTRIBUTED_CONTROL, (void*)(&dc));
+    tengine->get_scheduler().set_option(scheduler_options_enum::BARRIER, &zero);
+    tengine->get_scheduler().set_option(scheduler_options_enum::BARRIER, &Mv);
 
     sdm.set_constant(IS_ROUND_ROBIN_CONSTANT, bool(true));
   }

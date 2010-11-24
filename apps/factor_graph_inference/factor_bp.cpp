@@ -92,16 +92,14 @@ int main(int argc, char** argv) {
   // Set the shared data manager
   engine->set_shared_data_manager(&sdm);
   // Set the splash size if necessary
-  engine->get_scheduler().set_option(gl_types::scheduler_options::SPLASH_SIZE,
-                                     (void*)opts.splash_size);
+  engine->sched_options().add_option("splash_size", opts.splash_size);
   // Set the update function
-  engine->get_scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
-                                     (void*)bp_update);
+  engine->sched_options().add_option("update_function", bp_update);
 
   // Tell the scheduler that the bp_update function should be applied
   // to all vertices with priority:
   double initial_priority = 100.0;
-  engine->get_scheduler().add_task_to_all(bp_update, initial_priority);
+  engine->add_task_to_all(bp_update, initial_priority);
 
   
 
