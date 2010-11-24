@@ -248,7 +248,7 @@ uint16_t parallel_graph_color(gl_types::graph& graph,
   // Register the shared data
   engine->set_shared_data_manager(&sdm);
   double initial_priority = 1.0;
-  engine->get_scheduler().add_task_to_all(color_update, initial_priority);
+  engine->add_task_to_all(color_update, initial_priority);
   engine->start();
   // Run an extra sync at the end to compute the largest color
   sdm.sync(MAX_COLOR_ID);
@@ -382,6 +382,8 @@ bool select_color(uint32_t color,
 }
 
 
+/* TODO: set scheduler is GONE!
+
 // Set scheduler colored schedule
 void basic_color_schedule(gl_types::set_scheduler &sched) { 
   // All sets must be created before scheduling calls
@@ -451,7 +453,7 @@ void planned_color_schedule(gl_types::set_scheduler &sched) {
   }
 }
 
-
+*/
 
 
 // //! color the graph sequentially

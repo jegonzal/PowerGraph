@@ -804,7 +804,7 @@ int main(int argc,  char *argv[]) {
       vec.push_back(i);
     }
     std::random_shuffle(vec.begin(), vec.end());
-    engine->get_scheduler().add_tasks(vec, bp_update, 100.0);
+    engine->add_tasks(vec, bp_update, 100.0);
     shared_data.trigger_sync(GAUSSIAN_CLUSTERS);
   ti.start();  
   // Starte the engine

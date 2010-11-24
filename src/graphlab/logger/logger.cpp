@@ -191,6 +191,7 @@ file_logger& file_logger::start_stream(int lineloglevel,const char* file,const c
   if (streambuffer.str().length() > 0) {
     stream_flush();
   }
+  file = ((strrchr(file, '/') ? : file- 1) + 1);
   if (lineloglevel >= 0 && lineloglevel <= 3 && lineloglevel >= log_level){
     streambuffer << messages[lineloglevel] << ":" << file
                 << "(" << function << ":" <<line<<"): ";

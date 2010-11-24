@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/engine_factory.hpp>
+#include <graphlab/schedulers/scheduler_options.hpp>
 
 namespace graphlab {
 
@@ -50,6 +51,7 @@ namespace graphlab {
     bool enable_cpu_affinities;
     bool enable_sched_yield;
 
+    scheduler_options schedopts;
     
     engine_options() :
       ncpus(2),
@@ -85,9 +87,17 @@ namespace graphlab {
       assert(eng != NULL);
       eng->enable_sched_yield(enable_sched_yield);
       eng->enable_cpu_affinities(enable_cpu_affinities);
+      eng->sched_options().merge_options(sched_options());
       return eng;
     }
 
+    scheduler_options& sched_options() {
+      return schedopts;
+    }
+
+    const scheduler_options& sched_options() const{
+      return schedopts;
+    }
 
     /**
      * Display the current engine options
@@ -99,13 +109,18 @@ namespace graphlab {
                 << "scope:       " << scope_type  << "\n"
                 << "scheduler:   " << scheduler_type << "\n"
                 << "affinities:  " << enable_cpu_affinities << "\n"
-		<< "schedyield: " << enable_sched_yield  << std::endl;
+                << "schedyield: " << enable_sched_yield  << std::endl;
+      std::cout << "\n";
+      std::cout << "Scheduler Options: \n";
+      std::cout << sched_options();
+      std::cout << std::endl;
     }
 
 
 
     /**
      * Save the engine options to a serialized archive
+     * TODO: does not save scheduler options
      */
     void save(oarchive& arc) const {
       arc << ncpus
@@ -113,13 +128,14 @@ namespace graphlab {
           << scope_type
           << scheduler_type
           << compile_flags
-	  << enable_cpu_affinities
-	  << enable_sched_yield;
+          << enable_cpu_affinities
+          << enable_sched_yield;
     } // end of save
 
 
     /**
      * Load the engine options from a serialized archive
+     * TODO: does not save scheduler options
      */
     void load(iarchive& arc) {
       arc >> ncpus
@@ -127,8 +143,8 @@ namespace graphlab {
           >> scope_type
           >> scheduler_type
           >> compile_flags
-	  >> enable_cpu_affinities
-	  >> enable_sched_yield;
+          >> enable_cpu_affinities
+          >> enable_sched_yield;
     } // end of load
   };
 

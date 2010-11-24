@@ -23,6 +23,7 @@ add_library(graphlab_util STATIC
   util/command_line_options.cpp
   logger/logger.cpp
   parallel/pthread_tools.cpp
+  schedulers/scheduler_list.cpp
 )
 
 
@@ -52,7 +53,8 @@ target_link_libraries(graphlab_rpc graphlab_util)
 add_library(graphlab STATIC
   factors/table_factor.cpp
   factors/binary_factor.cpp
-  factors/unary_factor.cpp)
+  factors/unary_factor.cpp
+  schedulers/scheduler_options.cpp)
 
 if(Sctp-FOUND)
   target_link_libraries(graphlab_rpc sctp)

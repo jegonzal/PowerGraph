@@ -27,6 +27,15 @@
 
 namespace graphlab {
 
+  /**
+   *
+   * This scheduler creates a priority queue where each element
+   * in the priority queue is a fixed subset of vertices in the graph.
+   * The graph is first partitioned into N partitions.
+   * Each partition then forms an entry in the priority queue, where
+   * the priority of the partition is the max priority of any task
+   * of any vertex in the partition.
+   */
   template<typename Graph>
   class clustered_priority_scheduler : 
     public ischeduler<Graph> {
@@ -39,7 +48,7 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
-
+    typedef shared_termination terminator_type;
   private:
     using base::monitor;
  
@@ -50,6 +59,7 @@ namespace graphlab {
 
     /** Remember the number of vertices in the graph */
     size_t num_vertices;  
+    bool started;
     
     /** The queue over vertices */
     mutable_queue<size_t, double> task_queue;
@@ -66,12 +76,19 @@ namespace graphlab {
   
     /** The callbacks pre-created for each cpuid */
     std::vector<direct_callback<Graph> > callbacks;
+
+    
+    std::vector<std::pair<update_task_type, double> > pre_init_tasks;
     
     /** Used to assess termination */
-    shared_termination terminator;
+    terminator_type terminator;
     
     size_t ncpus;
-    bool aborted;
+
+
+    /** clustering parameters */
+    size_t verticespercluster;
+    partition_method::partition_method_enum partmethod;
     
     struct cpustate {
       int clusterid; // the cluster ID this cpu is currently running
@@ -88,6 +105,34 @@ namespace graphlab {
 
     std::vector<cpustate> cpu_state;
 
+
+    // perform the clustering
+    void cluster() {
+      size_t numclusters = g.num_vertices() / verticespercluster;
+      if (numclusters == 0) {
+        numclusters = 1;
+      }
+      // cluster the vertices
+      timer ti;
+      ti.start();
+      g.partition(partmethod,numclusters, vertex2id);
+      
+      logger(LOG_INFO, "Partition took %f seconds", ti.current_time());
+      
+      id2vertex.resize(numclusters);
+      for (size_t i = 0 ;i < g.num_vertices(); ++i) {
+        id2vertex[vertex2id[i]].push_back(i);
+      }
+      for (size_t i = 0;i < numclusters; ++i) {
+        task_queue.push(i,0.0);
+      }
+      
+      for (size_t i = 0; i < ncpus; ++i) {
+        cpu_state[i].buffered_priority_updates.resize(numclusters);
+        cpu_state[i].hasbuffer.resize(numclusters);
+        cpu_state[i].hasbuffer.clear();
+      }
+    }
   public:
     
     clustered_priority_scheduler(iengine_type* engine,
@@ -95,12 +140,14 @@ namespace graphlab {
                                  size_t ncpus_) :
       g(_g),
       num_vertices(_g.num_vertices()),
+      started(false),
       task_set(_g.num_vertices()),
       callbacks(ncpus_, direct_callback<Graph>(this, engine) ),
       terminator(ncpus_),
-      ncpus(ncpus_) { 
+      ncpus(ncpus_),
+      verticespercluster(100),
+      partmethod(partition_method::PARTITION_METIS) {
       cpu_state.resize(ncpus);
-      aborted = false;
       for (size_t i = 0; i < ncpus; ++i) {
         cpu_state[i].clusterid = -1;
         cpu_state[i].cluster_offset = 0;
@@ -117,43 +164,15 @@ namespace graphlab {
       return callbacks[cpuid];
     }
     
-    void cluster(size_t verticespercluster,
-                 partition_method::partition_method_enum method) {
-      size_t numclusters = g.num_vertices() / verticespercluster;
-      if (numclusters == 0) {
-        numclusters = 1;
-      }
-      // cluster the vertices
-      timer ti;
-      ti.start();
-      g.partition(method,numclusters, vertex2id);
-      
-      logger(LOG_INFO, "Partition took %f seconds", ti.current_time());
-
-      id2vertex.resize(numclusters);
-      for (size_t i = 0 ;i < g.num_vertices(); ++i) {
-        id2vertex[vertex2id[i]].push_back(i);
-      }
-      for (size_t i = 0;i < numclusters; ++i) {
-        task_queue.push(i,0.0);
-      }
-      
-      for (size_t i = 0; i < ncpus; ++i) {
-        cpu_state[i].buffered_priority_updates.resize(numclusters);
-        cpu_state[i].hasbuffer.resize(numclusters);
-        cpu_state[i].hasbuffer.clear();
-      }
-    }
     
     /** Get the next element in the queue */
-    sched_status::status_enum get_next_task_from_list(size_t cpuid, 
+    sched_status::status_enum get_next_task(size_t cpuid,
                                          update_task_type &ret_task) {
       // Loop until we either can't build a splash or we find an
       // element
       cpustate &curstate = cpu_state[cpuid];
       while(true) {
-        if (aborted) return sched_status::WAITING;
-        // check for work to do in the updatefunction list
+          // check for work to do in the updatefunction list
         if (curstate.update_function_list != 0) {
           // look for a bit to pop
           size_t bitpos = __builtin_ctzl(curstate.update_function_list);
@@ -166,7 +185,8 @@ namespace graphlab {
           if (monitor != NULL) 
             monitor->scheduler_task_scheduled(ret_task, 0.0);
           return sched_status::NEWTASK;
-        } else if (curstate.clusterid >= 0 && 
+        }
+        else if (curstate.clusterid >= 0 && 
                    curstate.cluster_offset < 
                    id2vertex[curstate.clusterid].size()) {
           // if update_function_list is empty
@@ -196,49 +216,20 @@ namespace graphlab {
           get_next_list(cpuid);
           // if I can't get next list
           if (curstate.clusterid < 0) {
-            return sched_status::WAITING;
+            return sched_status::EMPTY;
           }
         }
       }
     } // end of get next task
-    
-    
-    sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {
-      // While the scheduler is active
-      while(true) {
-        // Try and get next task for splash
-        sched_status::status_enum ret = get_next_task_from_list(cpuid, ret_task);
-        // If we are not waiting then just return
-        if (ret != sched_status::WAITING) {
-          return ret;        
-        } else {
-          // Otherwise enter the shared terminator code
-          terminator.begin_sleep_critical_section(cpuid);
-          // Try once more to get the next task
-          ret = get_next_task_from_list(cpuid, ret_task);
-          // If we are waiting then 
-          if (ret != sched_status::WAITING) {
-            // If we are either complete or succeeded then cancel the
-            // critical section and return
-            terminator.cancel_sleep_critical_section(cpuid);
-            return ret;
-          } else {
-            // Otherwise end sleep waiting for either completion
-            // (true) or some new work to become available.
-            if (terminator.end_sleep_critical_section(cpuid)) {
-              return sched_status::COMPLETE;
-            }
-          } 
-        }
-      } // End of while loop
-      // We reach this point only if we are no longer active
-      return sched_status::COMPLETE;
-    }
-    
+
     void start() {
-      // need to dump CPU0
-      completed_task(0, update_task_type(0, NULL));
-      terminator.reset();
+      started = true;
+      cluster();
+      // "add_tasks" which occur before start()
+      // will end up inside preinit_tasks. dump them
+      for (size_t i = 0;i < pre_init_tasks.size(); ++i) {
+        add_task(pre_init_tasks[i].first, pre_init_tasks[i].second);
+      }
     }
     
     void get_next_list(size_t cpuid) {
@@ -265,6 +256,10 @@ namespace graphlab {
     }
     
     void add_task(update_task_type task, double priority) {
+      if (!started) {
+        pre_init_tasks.push_back(std::make_pair(task, priority));
+        return;
+      }
       size_t tid = thread::thread_id();
       // buffer the change in priority
       size_t clusterid = vertex2id[task.vertex()];
@@ -292,13 +287,6 @@ namespace graphlab {
       }
     } // end of add tasks to all
     
-    void update_state(size_t cpuid,
-                      const std::vector<vertex_id_t> &updated_vertices,
-                      const std::vector<edge_id_t>& updatededges) { 
-    }
-
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){}
 
     void completed_task(size_t cpuid, const update_task_type &task) {
       // if I am at the end of the current list, dump the buffer
@@ -328,27 +316,26 @@ namespace graphlab {
         }
       }
     }
-    
-    void abort() { aborted=true; }
-    
-    void restart() { 
-      aborted=false;
-      for (size_t i = 0; i < ncpus; ++i) {
-        cpu_state[i].clusterid = -1;
-        cpu_state[i].cluster_offset = 0;
-        cpu_state[i].update_function_list = 0;
-        cpu_state[i].vertex = 0;
-        cpu_state[i].buffered_task_creations.clear();
 
-        for (size_t j = 0; 
-             j < cpu_state[i].buffered_priority_updates.size(); ++j) {
-          cpu_state[i].buffered_priority_updates[j] = 0;;
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("vertices_per_partition", verticespercluster);
+      std::string strpartmethod;
+      if (opts.get_string_option("partition_method", strpartmethod)) {
+        if (!partition_method::string_to_enum(strpartmethod, partmethod)) {
+          logstream(LOG_WARNING) << "Invalid Partition Method" << strpartmethod
+                                                               << std::endl;
         }
-        cpu_state[i].hasbuffer.clear();
       }
-      completed_task(0, update_task_type(0,NULL)); 
     }
-    
+
+    static void print_options_help(std::ostream &out) {
+      out << "partition_method = [string: metis/random/bfs, default=metis]\n";
+      out << "vertices_per_partition = [integer, default = 100]\n";
+    };
+
+    terminator_type& get_terminator() {
+      return terminator;
+    };
   }; // end of priority_queue class
 
 

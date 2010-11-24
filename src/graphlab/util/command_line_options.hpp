@@ -46,7 +46,6 @@ namespace graphlab {
     pos_opts;
     boost::program_options::variables_map vm;
     
-    
   public:
     command_line_options(const std::string& desc_str = "GraphLab program.",
                          size_t default_ncpus = 2,
@@ -58,75 +57,27 @@ namespace graphlab {
       scope_type = default_scope;
       scheduler_type = default_scheduler;
       // Add documentation for help
+      namespace boost_po = boost::program_options;
+      
       desc.add_options()("help", "Print this help message.");
+      
+      desc.add_options()("schedhelp",
+                         boost_po::value<std::string>()->implicit_value(""),
+                        "Display help for a particular scheduler.");
+
     } // End constructor
 
 
     
     //! Print the description
-    void print_description() const { std::cout << desc << std::endl; }
+    inline void print_description() const { std::cout << desc << std::endl; }
 
 
     //! Parse the command line arguments
-    bool parse(int argc, char** argv) {
-      namespace boost_po = boost::program_options;
-      
-      // Set the program options
-      desc.add_options()
-        ("ncpus",
-         boost_po::value<size_t>(&(ncpus))->
-         default_value(ncpus),
-         "Number of cpus to use.")
-        ("engine",
-         boost_po::value<std::string>(&(engine_type))->
-         default_value(engine_type),
-         "Options are {async, async_sim, synchronous}")
-        ("affinities",
-         boost_po::value<bool>(&(enable_cpu_affinities))->
-         default_value(enable_cpu_affinities),
-         "Enable forced assignment of threads to cpus")
-        ("schedyield",
-         boost_po::value<bool>(&(enable_sched_yield))->
-         default_value(enable_sched_yield),
-         "Enable yeilding when threads conflict in the scheduler.")
-        ("scope",
-         boost_po::value<std::string>(&(scope_type))->
-         default_value(scope_type),
-         "Options are {none, vertex, edge, full}")
-        ("scheduler",
-         boost_po::value<std::string>(&(scheduler_type))->
-         default_value(scheduler_type),
-         "There are several scheduler supported by the graphlab framework:"
-         "{synchronous, fifo, sweep, multiqueue_fifo, priority, "
-         "sampling, splash(splash_size), multiqueue_priority, set, "
-         "clustered_priority(one of {metis,bfs,random}, vertices perpartition), "
-         "round_robin, colored}");      
-      // Parse the arguments
-      try{
-        boost_po::store(boost_po::command_line_parser(argc, argv).
-                        options(desc).positional(pos_opts).run(), vm);
-        boost_po::notify(vm);
-      } catch( boost_po::error error) {
-        std::cout << "Invalid syntax:\n" 
-                  << "\t" << error.what()
-                  << "\n\n" << std::endl 
-                  << "Description:"
-                  << std::endl;        
-        print_description();
-        return false;
-      }
-      if(vm.count("help")) {
-        print_description();
-        return false;
-      }
-      return true;
-    } // end of parse
-
+    bool parse(int argc, char** argv);
 
     //! test whether the program option was set
-    bool is_set(const std::string& option) {
-      return vm.count(option);
-    }
+    bool is_set(const std::string& option);
 
 
     //! Attach a user define option to parse
@@ -158,9 +109,7 @@ namespace graphlab {
     }
     
     //! add a positional argument
-    void add_positional(const std::string& str) {
-      pos_opts.add(str.c_str(), 1);
-    }
+    void add_positional(const std::string& str);
 
     
   }; // end class command line options

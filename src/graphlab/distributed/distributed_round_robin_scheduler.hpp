@@ -95,7 +95,7 @@ namespace graphlab {
 
     void abort(){ terminator.abort(); }
 
-    void restart() { terminator.restart(); }
+    void restart() { }
 
     void start() {
       cur_task.value = size_t(0);
@@ -143,14 +143,14 @@ namespace graphlab {
       return (int)iterations.value;
     }
  
-    void set_option(scheduler_options::options_enum opt, void* value) { 
-      if (opt == scheduler_options::MAX_ITERATIONS) {
+    void set_option(scheduler_options_enum::options_enum opt, void* value) { 
+      if (opt == scheduler_options_enum::MAX_ITERATIONS) {
         set_max_iterations((size_t)(value));
       }
-      else if (opt == scheduler_options::START_VERTEX) {
+      else if (opt == scheduler_options_enum::START_VERTEX) {
         set_start_vertex((size_t)(value));
       }
-      else if (opt == scheduler_options::BARRIER) {
+      else if (opt == scheduler_options_enum::BARRIER) {
         vertex_id_t vid = (* (vertex_id_t *) (value));
         if (checkpoints.size() > 0) {
           // Check points must be inserted in ascending order
@@ -158,7 +158,7 @@ namespace graphlab {
     	}
     	checkpoints.push_back(vid);
     //	checkpoint_iter.push_back(vid);
-      } else if (opt == scheduler_options::DISTRIBUTED_CONTROL) { 
+      } else if (opt == scheduler_options_enum::DISTRIBUTED_CONTROL) { 
         dc = (distributed_control *) value;
       } else {
         logger(LOG_WARNING, 

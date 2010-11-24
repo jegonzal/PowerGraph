@@ -231,7 +231,7 @@ int main(int argc, char** argv) {
       vec.push_back(i);
     }
     std::random_shuffle(vec.begin(), vec.end());
-    engine->get_scheduler().add_tasks(vec, bp_update, 100.0);
+    engine->add_tasks(vec, bp_update, 100.0);
     //engine->get_scheduler().add_task_to_all(bp_update, 100.0);
   }
   dc.barrier();

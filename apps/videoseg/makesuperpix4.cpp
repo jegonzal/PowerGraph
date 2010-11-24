@@ -450,7 +450,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0;i < perm.size(); ++i) {
       graph.vertex_data(perm[i]).counter = 0;
       numparts.insert(graph.vertex_data(perm[i]).id);
-      engine->get_scheduler().add_task(gl_types::update_task(perm[i], cluster_update), 10.0);
+      engine->add_task(gl_types::update_task(perm[i], cluster_update), 10.0);
     }
     std::cout << "Starting to Anneal at temperature: " << temp << "\n";
     std::cout << "Currently has " << numparts.size() << " partitions" << std::endl;

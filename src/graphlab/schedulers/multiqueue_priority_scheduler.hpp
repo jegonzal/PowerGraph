@@ -39,7 +39,8 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type        callback_type;
     typedef typename base::monitor_type         monitor_type;
-
+    typedef task_count_termination terminator_type;
+    
     typedef mutable_queue<update_task_type, double> taskqueue_type;
 
   private:
@@ -78,13 +79,11 @@ namespace graphlab {
       return callbacks[cpuid];
     }
 
-
+    void start() {};
+    
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid,
                                             update_task_type &ret_task) {
-      if (terminator.finish()) {
-        return sched_status::COMPLETE;
-      }
       bool found = false;
       /* First check my own queues. Keep track which own queue was checked
          so next time I can check next of my own queues to keep balance. */
@@ -121,7 +120,7 @@ namespace graphlab {
       }
  
       if(!found) {
-        return sched_status::WAITING;
+        return sched_status::EMPTY;
       }
       
       binary_vertex_tasks.remove(ret_task);
@@ -151,7 +150,7 @@ namespace graphlab {
 
 //         size_t r1 = random::rand_int(num_queues - 1);
 //         size_t r2 = random::rand_int(num_queues - 1);
-        size_t prod = size_t(random::rand01() * num_queues * num_queues);
+        size_t prod = random::rand_int(num_queues * num_queues - 1);
         size_t r1 = prod / num_queues;
         size_t r2 = prod % num_queues;
 
@@ -186,23 +185,7 @@ namespace graphlab {
       }
     }
 
-  
-    void update_state(size_t cpuid,
-                      const std::vector<vertex_id_t> &updated_vertices,
-                      const std::vector<edge_id_t>& updatededges) {};
 
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){}
-
-    void completed_task(size_t cpuid, const update_task_type &task) {
-      terminator.completed_job();
-    }
-
-
-    void abort() { terminator.abort(); }
-  
-    void restart() { terminator.restart(); }
-  
     bool is_task_scheduled(update_task_type task)  {
       return binary_vertex_tasks.get(task);
     }
@@ -214,11 +197,22 @@ namespace graphlab {
       for(size_t i = 0; i < task_queues.size(); ++i) {
         std::cout << task_queues[i].size() << std::endl;
       }
-      std::cout << "Is the terminator reporting finished: "
-                << terminator.finish() << std::endl;
       std::cout << "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS" << std::endl;
         
     }
+
+
+    void completed_task(size_t cpuid, const update_task_type &task) {
+      terminator.completed_job();
+    }
+
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
+    void set_options(const scheduler_options &opts) { }
+
+    static void print_options_help(std::ostream &out) { };
 
   private:
     size_t numvertices; /// Remember the number of vertices in the graph

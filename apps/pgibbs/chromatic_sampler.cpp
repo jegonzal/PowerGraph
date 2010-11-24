@@ -61,8 +61,7 @@ void run_chromatic_sampler(mrf_gl::core& core,
   // color
   core.engine().enable_sched_yield(false);
   // Use fixed update function
-  core.scheduler().set_option(mrf_gl::scheduler_options::UPDATE_FUNCTION, 
-                              (void*) single_gibbs_update);
+  core.sched_options().add_option("update_funtion", single_gibbs_update);
   
   double total_runtime = 0;
   double actual_total_runtime = 0;

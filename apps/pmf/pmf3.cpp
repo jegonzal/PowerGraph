@@ -683,9 +683,9 @@ void sample_U(){
           cout<<"Sampling from U" <<A_U<<" "<<mu_U<<" "<<Umean<<" "<<W0_<<tmp<<endl;
 }*/
 
-int _iiter(){
+/*int _iiter(){
    return ((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->get_iterations();   
-}
+}*/
 
 void sample_V(){
 
@@ -1055,8 +1055,8 @@ void pmf_update_function(gl_types::iscope &scope,
 }
 
 void last_iter(){
-         printf("Entering last iter with %d\n", 
- 	 	((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->get_iterations());   
+    /*     printf("Entering last iter with %d\n",
+ 	 	((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->get_iterations());   */
 
          if (tensor && BPTF){
                sdm.trigger_sync(0);
@@ -1078,7 +1078,7 @@ void last_iter(){
           }
          
          if (iiter == 20){
- 		engine->get_scheduler().abort();
+ 		engine->stop();
           }
           if (BPTF){
      	      sample_alpha(res);
@@ -1324,7 +1324,7 @@ void start(int argc, char ** argv) {
   for (int i=0; i< M+N; i++)
      um.push_back(i);
   
-   engine->get_scheduler().add_tasks(um, pmf_update_function, 1);
+   engine->add_tasks(um, pmf_update_function, 1);
   
  /* if (tensor){
     for (int i=M+N; i< M+N+K; i++)
@@ -1332,7 +1332,7 @@ void start(int argc, char ** argv) {
       engine->get_scheduler().add_tasks(tv, T_update_function, 1);
   }*/
 
-  ((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->set_start_vertex(size_t(0));   
+ engine->set_options("start_vertex", 0);
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", BPTF?"BPTF":"PTF_ALS", tensor?"tensor":"matrix", M, N, K, L, D);
   

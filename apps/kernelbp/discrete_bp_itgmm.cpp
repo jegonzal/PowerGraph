@@ -497,8 +497,7 @@ clopts.attach_option("potfromfile",
   }
 
   // Running the engine ------------------------------------------------------->
-  core.scheduler().set_option(gl_types::scheduler_options::UPDATE_FUNCTION,
-                              (void*)bp_update);
+  core.sched_options().add_option("update_function", bp_update);
   if (learnpot) {
     
     

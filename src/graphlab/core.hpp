@@ -5,7 +5,6 @@
 #include <graphlab.hpp>
 
 
-
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
   template<typename Graph> struct types;
@@ -109,13 +108,6 @@ namespace graphlab {
       return *mengine; 
     }
 
-    
-    /**
-     * Get a reference to the scheduler associated with this core
-     */
-    typename types::ischeduler& scheduler() { 
-      return engine().get_scheduler();
-    }
 
 
     /**
@@ -159,6 +151,15 @@ namespace graphlab {
       return meopts;
     }
 
+    scheduler_options& sched_options() {
+      return meopts.sched_options();
+    }
+
+    const scheduler_options& sched_options() const{
+      return meopts.sched_options();
+    }
+
+
     /**
      * Set the engien options by simply parsing the command line
      * arguments.
@@ -201,7 +202,7 @@ namespace graphlab {
      * Add a single task with a fixed priority.
      */
     void add_task(typename types::update_task task, double priority) {
-      scheduler().add_task(task, priority);
+      engine().add_task(task, priority);
     }
 
     /**
@@ -210,7 +211,7 @@ namespace graphlab {
      */
     void add_tasks(const std::vector<vertex_id_t>& vertices, 
                    typename types::update_function func, double priority) {
-      scheduler().add_tasks(vertices, func, priority);
+      engine().add_tasks(vertices, func, priority);
     }
 
 
@@ -219,7 +220,7 @@ namespace graphlab {
      */
     void add_task_to_all(typename types::update_function func, 
                          double priority) {
-      engine().get_scheduler().add_task_to_all(func, priority);
+      engine().add_task_to_all(func, priority);
     }
     
     /**
@@ -241,6 +242,11 @@ namespace graphlab {
         mengine = meopts.create_engine(mgraph);
         if(mengine == NULL) return false;
         else mengine->set_shared_data_manager(&mshared_data);
+      }
+      else {
+        // scheduler options is one parameter that is allowed
+        // to change without rebuilding the engine
+        mengine->sched_options() = sched_options();
       }
       return true;
     }
@@ -297,7 +303,6 @@ namespace graphlab {
     typename types::graph mgraph;
     typename types::thread_shared_data mshared_data;    
     engine_options meopts;
-    
     typename types::iengine *mengine;
     
    

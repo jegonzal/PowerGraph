@@ -400,11 +400,9 @@ int main(int argc, char** argv) {
 
   engine->set_shared_data(&sdm);
   // Set the splash size if necessary
-  engine->get_scheduler().set_option(gl_types::ischeduler::SPLASH_SIZE,
-                                     (void*)opts.splash_size);
+  engine->set_option("splash_size", opts.splash_size);
   // Set the update function
-  engine->get_scheduler().set_option(gl_types::ischeduler::UPDATE_FUNCTION,
-                                     (void*)bp_update);
+  engine->set_option("update_function", bp_update);
 
 
 
@@ -432,7 +430,7 @@ int main(int argc, char** argv) {
     //  engine->get_scheduler().add_task(graphlab::update_task(vertex, bp_update), 100.0+float(rand())/RAND_MAX);
     //}
     // Change by Aapo: need to use add_task_to_all to utilize shuffler
-    engine->get_scheduler().add_task_to_all(bp_update, 100.0);
+    engine->add_task_to_all(bp_update, 100.0);
   
     engine->start();
   }

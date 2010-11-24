@@ -846,6 +846,14 @@ int main(int argc,  char *argv[]) {
   graph.load(opts.basefile, dc);
   dc.barrier();
   gl_types::iengine* engine = NULL;
+
+      typedef graphlab::distributed_engine<gl_types::graph,
+  graphlab::distributed_scheduler_wrapper<gl_types::graph,
+  graphlab::multiqueue_fifo_scheduler<gl_types::graph> > > mqfifoengine_type;
+
+  typedef  graphlab::distributed_engine<gl_types::graph,
+  graphlab::distributed_scheduler_wrapper<gl_types::graph,
+  graphlab::multiqueue_priority_scheduler<gl_types::graph> > > pqueueengine_type;
   
   if (opts.scheduler == "multiqueue_fifo") {
     graphlab::distributed_engine<gl_types::graph,
@@ -916,7 +924,20 @@ int main(int argc,  char *argv[]) {
       vec.push_back(i);
     }
     std::random_shuffle(vec.begin(), vec.end());
-    engine->get_scheduler().add_tasks(vec, bp_update, 100.0);
+    //engine->get_scheduler().add_tasks(vec, bp_update, 100.0);
+    if (opts.scheduler == "multiqueue_fifo") {
+      graphlab::distributed_engine<gl_types::graph,
+      graphlab::distributed_scheduler_wrapper<gl_types::graph,
+      graphlab::multiqueue_fifo_scheduler<gl_types::graph> > > *tengine = (mqfifoengine_type*)engine;
+      tengine->get_scheduler().add_tasks(vec, bp_update, 100.0);
+    }
+    else {
+      graphlab::distributed_engine<gl_types::graph,
+      graphlab::distributed_scheduler_wrapper<gl_types::graph,
+      graphlab::multiqueue_priority_scheduler<gl_types::graph> > >* tengine = (pqueueengine_type*)engine;
+      tengine->get_scheduler().add_tasks(vec, bp_update, 100.0);
+    }
+    
     shared_data.trigger_sync(GAUSSIAN_CLUSTERS);
   }
   dc.barrier();

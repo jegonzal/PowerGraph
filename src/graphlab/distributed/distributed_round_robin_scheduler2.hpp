@@ -143,7 +143,7 @@ class distributed_round_robin_scheduler2: public ischeduler<Graph> {
      return (int)iterations.value;
   }
  
-  void set_option(scheduler_options::options_enum opt, void* value) { 
+  void set_option(scheduler_options_enum::options_enum opt, void* value) { 
     if (opt == scheduler_options::MAX_ITERATIONS) {
       set_max_iterations((size_t)(value));
     }

@@ -74,6 +74,40 @@ namespace graphlab {
       PARTITION_BFS,
       PARTITION_EDGE_NUM,
     };
+
+    static std::string enum_to_string(partition_method_enum val) {
+      switch(val) {
+        case PARTITION_RANDOM:
+          return "random";
+        case PARTITION_METIS:
+          return "metis";
+        case PARTITION_BFS:
+          return "bfs";
+        case PARTITION_EDGE_NUM:
+          return "edge_num";
+        default:
+          return "";
+      }
+    }
+    static bool string_to_enum(std::string s, partition_method_enum &val) {
+      if (s == "random") {
+        val = PARTITION_RANDOM;
+        return true;
+      }
+      else if (s == "metis") {
+        val = PARTITION_METIS;
+        return true;
+      }
+      else if (s == "bfs") {
+        val = PARTITION_BFS;
+        return true;
+      }
+      else if (s == "edge_num") {
+        val = PARTITION_EDGE_NUM;
+        return true;
+      }
+      return false;
+    }
   };
 
   /** The type of a vertex is a simple size_t */
@@ -167,7 +201,7 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-    graph() : finalized(true) {  }
+    graph() : finalized(true),changeid(0) {  }
 
     /**
      * BUG: Should not reserve but instead directly create vertices.
@@ -177,7 +211,7 @@ namespace graphlab {
     graph(size_t nverts) : 
       vertices(nverts),
       in_edges(nverts), out_edges(nverts), vcolors(nverts),
-      finalized(true) { }
+      finalized(true),changeid(0) { }
 
     graph(const graph<VertexData, EdgeData> &g) { (*this) = g; }
 
@@ -193,6 +227,7 @@ namespace graphlab {
       out_edges.clear();
       vcolors.clear();
       finalized = true;
+      ++changeid;
     }
     
     /**
@@ -562,7 +597,11 @@ namespace graphlab {
       assert(v < out_edges.size());
       return edge_list(out_edges[v]);
     } // end of out edges
-
+    
+    /** count the number of times the graph was cleared and rebuilt */
+    size_t get_changeid() const {
+      return changeid;
+    }
 
     /** Load the graph from an archive */
     void load(iarchive& arc) {
@@ -1159,7 +1198,10 @@ namespace graphlab {
         performance. */
     bool finalized;
     
-    
+    /** increments whenever the graph is cleared. Used to track the
+     *  changes to the graph structure  */
+    size_t changeid;
+
     // PRIVATE HELPERS =========================================================>
     /**
      * This function tries to find the edge in the vector.  If it

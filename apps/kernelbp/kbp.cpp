@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
   graphlab::timer timer; timer.start();
 
   // Add the bp update to all vertices
-  engine->get_scheduler().add_task_to_all(bp_update, 100);
+  engine->add_task_to_all(bp_update, 100);
   // Starte the engine
   engine->start();
   double runtime = timer.current_time();
@@ -212,14 +212,9 @@ void bp_update(gl_types::iscope& scope,
   // ---------------------------------------------------------------->
   // Get the vertex data
   vertex_data& v_data = scope.vertex_data();
-<<<<<<< local
   if (v_data.rounds >= MAX_ITERATIONS) return;
   v_data.rounds++; 
-=======
-  /*if (v_data.rounds >= MAX_ITERATIONS) return;
-  v_data.rounds++; */
->>>>>>> other
-  
+ 
   graphlab::vertex_id_t vid = scope.vertex();
 
   vec prod_message = tmp_prod_msg_fobs2.get_col(vid);
@@ -300,32 +295,11 @@ void bp_update(gl_types::iscope& scope,
     // Assign the out message
     out_edge.message = tmp_msg;
     residual += r;
-<<<<<<< local
- }
-  if (scope.vertex() == 0) {
-    std::cout << "Vertex 0 Residual " << residual << std::endl;
-=======
-    if (r > 1E-2) {
-      gl_types::update_task task(scope.target(outeid), bp_update);
+    if (v_data.rounds < MAX_ITERATIONS) {
+      gl_types::update_task task(scope.vertex(), bp_update);
       scheduler.add_task(task, 1.0);
     }
->>>>>>> other
   }
-<<<<<<< local
-=======
-  if (scope.vertex() == 0) {
-    std::cout << "Vertex 0 Residual " << residual << std::endl;
-  }
->>>>>>> other
-
-<<<<<<< local
-  if (v_data.rounds < MAX_ITERATIONS) {
-=======
-  /*if (residual < 1E-5) {
->>>>>>> other
-    gl_types::update_task task(scope.vertex(), bp_update);
-    scheduler.add_task(task, 1.0);
-  }*/
 } // end of BP_update
 
 void construct_graph(gl_types::graph& graph) {

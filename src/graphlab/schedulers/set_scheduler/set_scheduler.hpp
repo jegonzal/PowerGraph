@@ -99,7 +99,8 @@ namespace graphlab {
     }
 
     /** Called by the engine to get a new task */
-    sched_status::status_enum __get_next_task(size_t cpuid, update_task_type &ret_task) {
+    sched_status::status_enum get_next_task(size_t cpuid,
+                                           update_task_type &ret_task) {
       // check for pending tasks from execute()
       if (cureplan != NULL) {
         if (cureplan->get_next_task(cpuid, ret_task)) { 
@@ -110,7 +111,7 @@ namespace graphlab {
           schedposlock.lock();
           schedposcond.signal();
           schedposlock.unlock();
-          return sched_status::WAITING;
+          return sched_status::EMPTY;
         }
       }
       else if(pendingtasks.safepop(&ret_task)) {
@@ -128,49 +129,16 @@ namespace graphlab {
         return sched_status::NEWTASK;
       }
       // otherwise, are we complete?
-      else if (complete) return sched_status::WAITING;
+      else if (complete) return sched_status::EMPTY;
       // If not, we are waiting
       else {
         schedposlock.lock();
         schedposcond.signal();
         schedposlock.unlock();
-        return sched_status::WAITING;
+        return sched_status::EMPTY;
       }
     }
 
-
-    sched_status::status_enum get_next_task(size_t cpuid, 
-                               update_task_type& ret_task) {
-      // While the scheduler is active
-      while(true) {
-        // Try and get next task for splash
-        sched_status::status_enum ret = __get_next_task(cpuid, ret_task);
-        // If we are not waiting then just return
-        if (ret != sched_status::WAITING) {
-          return ret;        
-        } else {
-          // Otherwise enter the shared terminator code
-          terminator.begin_sleep_critical_section(cpuid);
-          // Try once more to get the next task
-          ret = __get_next_task(cpuid, ret_task);
-          // If we are waiting then 
-          if (ret != sched_status::WAITING) {
-            // If we are either complete or succeeded then cancel the
-            // critical section and return
-            terminator.cancel_sleep_critical_section(cpuid);
-            return ret;
-          } else {
-            // Otherwise end sleep waiting for either completion
-            // (true) or some new work to become available.
-            if (terminator.end_sleep_critical_section(cpuid)) {
-              return sched_status::COMPLETE;
-            }
-          } 
-        }
-      } // End of while loop
-      // We reach this point only if we are no longer active
-      return sched_status::COMPLETE;
-    }
 
     /// triggers changes in the root set
     void update_state(size_t cpuid,
@@ -425,21 +393,10 @@ namespace graphlab {
     }
     
 
-    void stop() {
-      std::cout << "Engine stop reached" << std::endl;
-      complete = true;
-    }
-
     bool completed() const {
       return complete;
     }
 
-    void abort() {
-      complete = true;
-    }
-    void restart(){
-      complete  = false;
-    }
  
     Graph& get_graph() {
       return g;
