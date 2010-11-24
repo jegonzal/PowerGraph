@@ -238,7 +238,8 @@ namespace graphlab {
       if(exec_type == THREADED) run_threaded();
       else run_simulated();
 
-      shared_data->set_scope_factory(NULL);
+      
+      //shared_data->set_scope_factory(NULL);
       this->release_scheduler_and_scope_manager();
       scheduler = NULL;
       scope_manager = NULL;
