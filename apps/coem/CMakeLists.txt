@@ -7,8 +7,8 @@ project(GraphLab)
 # target_link_libraries(coem tcmalloc)
 
 
-add_executable(multicoem  multicoemapp.cpp)
-target_link_libraries(multicoem tcmalloc)
+#add_executable(multicoem  multicoemapp.cpp)
+#target_link_libraries(multicoem tcmalloc)
 
 
 # add_executable(multicoemlarge multicoemlarge.cpp multicoemapp.cpp)
