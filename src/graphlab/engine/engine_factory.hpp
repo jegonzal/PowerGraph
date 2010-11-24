@@ -24,6 +24,7 @@
 #include <graphlab/schedulers/round_robin_scheduler.hpp>
 #include <graphlab/schedulers/colored_scheduler.hpp>
 #include <graphlab/schedulers/sweep_scheduler.hpp>
+#include <graphlab/schedulers/splash_scheduler.hpp>
 #include <graphlab/schedulers/multiqueue_fifo_scheduler.hpp>
 #include <graphlab/schedulers/multiqueue_priority_scheduler.hpp>
 #include <graphlab/schedulers/clustered_priority_scheduler.hpp>
@@ -172,7 +173,11 @@ namespace graphlab {
                                                                 scope_factory,
                                                                 _graph,
                                                                 ncpus);      
-      
+      } else if(scheduler == "splash") {
+        eng = new_engine<Graph, splash_scheduler<Graph> >(engine,
+                                                          scope_factory,
+                                                          _graph,
+                                                          ncpus);            
       } else if(scheduler == "colored") {
         eng = new_engine<Graph, colored_scheduler<Graph> >
                                                     (engine,

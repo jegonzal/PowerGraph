@@ -37,6 +37,7 @@ namespace graphlab {
       VERTICES_PER_PARTITION,  /// Used by cluster_priority
       PARTITION_METHOD,        /// Used by cluster_priority
       SWEEP_PERMUTE,           /// used by sweep scheduler
+      SPLASH_SIZE,             /// used by splash scheduler
       BARRIER,
       DISTRIBUTED_CONTROL
     };

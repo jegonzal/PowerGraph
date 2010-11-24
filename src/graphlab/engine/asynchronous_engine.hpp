@@ -92,7 +92,10 @@ namespace graphlab {
 
     /** Responsible for maintaining the schedule over tasks */
     Scheduler *scheduler;
-
+    size_t last_graph_nvertices;
+    size_t last_graph_nedges;
+    size_t last_graph_changeid;
+    
     /** Track the number of updates */
     std::vector<size_t> update_counts;
 

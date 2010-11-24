@@ -16,11 +16,7 @@
 namespace graphlab {
 
   /**
-   * This describes the interface/concept for the scheduler. The
-   * engine will be passed the scheduler type as a template argument,
-   * so the scheduler must inherit and satisfy this interface
-   * EXACTLY. Note that all functions (with the exception of the
-   * constructor and destructor) must be thread-safe.
+   * Colored Scheduler
    */
   template<typename Graph>
   class colored_scheduler : public ischeduler<Graph> {

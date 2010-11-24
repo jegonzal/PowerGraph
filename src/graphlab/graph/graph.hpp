@@ -167,7 +167,7 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-    graph() : finalized(true) {  }
+    graph() : finalized(true),changeid(0) {  }
 
     /**
      * BUG: Should not reserve but instead directly create vertices.
@@ -177,7 +177,7 @@ namespace graphlab {
     graph(size_t nverts) : 
       vertices(nverts),
       in_edges(nverts), out_edges(nverts), vcolors(nverts),
-      finalized(true) { }
+      finalized(true),changeid(0) { }
 
     graph(const graph<VertexData, EdgeData> &g) { (*this) = g; }
 
@@ -193,6 +193,7 @@ namespace graphlab {
       out_edges.clear();
       vcolors.clear();
       finalized = true;
+      ++changeid;
     }
     
     /**
@@ -563,6 +564,9 @@ namespace graphlab {
       return edge_list(out_edges[v]);
     } // end of out edges
 
+    size_t get_changeid() const {
+      return changeid;
+    }
 
     /** Load the graph from an archive */
     void load(iarchive& arc) {
@@ -1154,6 +1158,9 @@ namespace graphlab {
     /** The vertex colors specified by the user. **/
     std::vector< vertex_color_type > vcolors;  
     
+    /** increments whenever the graph is cleared. Used to track the
+     *  changes to the graph structure  */
+    size_t changeid;  
     /** Mark whether the graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve
         performance. */
