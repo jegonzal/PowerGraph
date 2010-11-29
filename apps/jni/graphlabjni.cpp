@@ -184,7 +184,7 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_runGraphlab
     if (taskbudget>0)
         core.engine().set_task_budget(taskbudget);
     if (maxiter>0)
-        core.scheduler().set_option(graphlab::scheduler_options::MAX_ITERATIONS, (void*)maxiter);
+        core.sched_options().add_option("max_iterations", maxiter);
  
     double runtime = core.start(); 
     std::cout << "Finished after " << core.engine().last_update_count() << " updates." << std::endl;

@@ -55,6 +55,7 @@ add_library(graphlab STATIC
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   schedulers/scheduler_options.cpp)
+  
 
 if(Sctp-FOUND)
   target_link_libraries(graphlab_rpc sctp)
