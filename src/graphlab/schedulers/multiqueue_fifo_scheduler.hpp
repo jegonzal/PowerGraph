@@ -7,6 +7,7 @@
 #ifndef GRAPHLAB_MULTIQUEUE_FIFO_SCHEDULER_HPP
 #define GRAPHLAB_MULTIQUEUE_FIFO_SCHEDULER_HPP
 
+#include <cstring>
 #include <queue>
 #include <cmath>
 #include <cassert>
@@ -21,7 +22,7 @@
 #include <graphlab/schedulers/support/binary_vertex_task_set.hpp>
 //#include <graphlab/util/shared_termination.hpp>
 #include <graphlab/util/task_count_termination.hpp>
-
+#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -44,8 +45,9 @@ namespace graphlab {
     typedef typename base::monitor_type monitor_type;
 
     typedef std::queue<update_task_type> taskqueue_t;
-
     typedef task_count_termination terminator_type;
+
+    
   private:
     using base::monitor;
 
@@ -55,7 +57,7 @@ namespace graphlab {
                               Graph& g, 
                               size_t ncpus) : 
       callbacks(ncpus, direct_callback<Graph>(this, engine)), 
-      binary_vertex_tasks(g.num_vertices()) {
+      binary_vertex_tasks(g.num_vertices()), prunecounter(ncpus, 0) {
       numvertices = g.num_vertices();
         
       /* How many queues per cpu. More queues, less contention */
@@ -73,7 +75,10 @@ namespace graphlab {
     }
 
   
-    ~multiqueue_fifo_scheduler() {}
+    ~multiqueue_fifo_scheduler() {
+        metrics & sched_metrics = metrics::create_metrics_instance("multiqueue_fifo", true);
+        for(unsigned int i=0; i<prunecounter.size(); i++) sched_metrics.add("pruned", prunecounter[i], INTEGER); 
+    }
 
     callback_type& get_callback(size_t cpuid) {
       return callbacks[cpuid];
@@ -166,6 +171,7 @@ namespace graphlab {
         if (monitor != NULL) 
           monitor->scheduler_task_added(task, priority);
       } else {
+        prunecounter[thread::thread_id()]++;
         if (monitor != NULL) 
           monitor->scheduler_task_pruned(task);
       }
@@ -232,9 +238,13 @@ namespace graphlab {
 
     // Task set for task pruning
     binary_vertex_task_set<Graph> binary_vertex_tasks;
-
-  
+    
+    // Terminator
     task_count_termination terminator;
+    
+        
+    // Keep track of how many tasks were pruned.
+    std::vector<size_t> prunecounter;
   }; 
 
 

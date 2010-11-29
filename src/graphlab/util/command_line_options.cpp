@@ -53,6 +53,10 @@ namespace graphlab {
         boost_po::value<std::string>(&(scope_type))->
           default_value(scope_type),
         "Options are {none, vertex, edge, full}")
+      ("metrics",
+        boost_po::value<std::string>(&(metrics_type))->
+          default_value(metrics_type),
+          "Options are {none, basic, file, html}")
       ("scheduler",
         boost_po::value<std::string>(&(scheduler_type))->
           default_value(scheduler_type),

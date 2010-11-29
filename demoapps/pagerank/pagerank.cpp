@@ -10,6 +10,7 @@
 
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 
 // Constants for the algorithm. Better way would be to
@@ -141,7 +142,9 @@ int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
   logger(LOG_INFO, "PageRank starting\n");
 
- 
+  // Metrics  
+  graphlab::metrics &  app_metrics = graphlab::metrics::create_metrics_instance("app::pagerank");
+
   // Setup the parser
   graphlab::command_line_options
     clopts("Run the PageRank algorithm.");
@@ -172,6 +175,7 @@ int main(int argc, char** argv) {
   core.set_engine_options(clopts);
   
   // Create or load graph depending on if the file was set
+  app_metrics.start_time("load");
   if(graph_file.empty()) {
     // Create a synthetic graph
     make_toy_graph(core.graph());
@@ -184,8 +188,10 @@ int main(int argc, char** argv) {
       return EXIT_FAILURE;
     }
   }
+  app_metrics.stop_time("load");
 
   //Normalize the vertices
+  app_metrics.start_time("normalize");
   double sum = 0;
   for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
     core.graph().vertex_data(i).value = 
@@ -196,15 +202,15 @@ int main(int argc, char** argv) {
     core.graph().vertex_data(i).value = 
       core.graph().vertex_data(i).value / sum;
   }
-
-
+  app_metrics.stop_time("normalize");
+  
   // Schedule all vertices to run pagerank update on the
   // first round.
   core.add_task_to_all(pagerank_update, 100.0);
   
   // Run the engine
   double runtime = core.start();
-
+  
   // We are done, now output results.
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;

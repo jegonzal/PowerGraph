@@ -18,6 +18,7 @@
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/engine/scope_manager_and_scheduler_wrapper.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -127,7 +128,8 @@ namespace graphlab {
     /** pointers to the current scope_manager.
      * Only valid when engine is running */
     ScopeFactory* scope_manager;
-
+    
+      
   public:
 
     /**
@@ -193,7 +195,18 @@ namespace graphlab {
     void set_default_scope(scope_range::scope_range_enum default_scope_range_) {
       default_scope_range = default_scope_range_;
     }
-
+  
+      // Convenience function.
+      std::string exec_status_as_string(exec_status es) {
+          switch(es) {
+            case EXEC_FORCED_ABORT: return "forced abort";
+            case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
+            case EXEC_TERM_FUNCTION: return "termination function";
+            case EXEC_TASK_DEPLETION: return "task depletion (natural)";
+            case EXEC_TIMEOUT: return "timeout";
+          };
+         return "unknown";
+      }
 
     /** Execute the engine */
     void start() {
@@ -243,6 +256,18 @@ namespace graphlab {
       this->release_scheduler_and_scope_manager();
       scheduler = NULL;
       scope_manager = NULL;
+      
+      
+      metrics &  engine_metrics = metrics::create_metrics_instance("engine", true);
+
+      // Metrics: update counts
+      for(size_t i = 0; i < update_counts.size(); ++i) {
+        engine_metrics.add("updatecount", update_counts[i], INTEGER);
+      }
+      engine_metrics.set("runtime", (lowres_time_millis()-start_time_millis)*0.001, TIME);
+      engine_metrics.set("termination_reason", exec_status_as_string(termination_reason));
+      engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
+      engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
     } 
 
 

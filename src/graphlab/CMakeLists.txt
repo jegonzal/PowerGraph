@@ -14,7 +14,8 @@ subdirs(
  tasks
  util
  serialization
- logger)
+ logger
+ metrics)
 
 
 add_library(graphlab_util STATIC
@@ -24,6 +25,7 @@ add_library(graphlab_util STATIC
   logger/logger.cpp
   parallel/pthread_tools.cpp
   schedulers/scheduler_list.cpp
+  metrics/metrics.cpp
 )
 
 

@@ -5,7 +5,7 @@
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/engine_factory.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
-
+ 
 namespace graphlab {
 
 
@@ -46,7 +46,9 @@ namespace graphlab {
     std::string scheduler_type;
     //! The compiler flags
     std::string compile_flags;
-
+    //! Metrics type
+    std::string metrics_type;
+    
     //! Use CPU affinities
     bool enable_cpu_affinities;
     bool enable_sched_yield;
@@ -58,6 +60,7 @@ namespace graphlab {
       engine_type("async"),
       scope_type("edge"),
       scheduler_type("fifo"),
+      metrics_type("basic"),
       enable_cpu_affinities(false),
       enable_sched_yield(true) {
       // Grab all the compiler flags 
@@ -109,6 +112,7 @@ namespace graphlab {
                 << "scope:       " << scope_type  << "\n"
                 << "scheduler:   " << scheduler_type << "\n"
                 << "affinities:  " << enable_cpu_affinities << "\n"
+                << "metrics:     " << metrics_type << "\n"
                 << "schedyield: " << enable_sched_yield  << std::endl;
       std::cout << "\n";
       std::cout << "Scheduler Options: \n";

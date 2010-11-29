@@ -3,7 +3,10 @@
 
 
 #include <graphlab.hpp>
-
+#include <graphlab/metrics/metrics.hpp>
+#include <graphlab/metrics/reporters/basic_reporter.hpp>
+#include <graphlab/metrics/reporters/file_reporter.hpp>
+#include <graphlab/metrics/reporters/html_reporter.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -35,7 +38,34 @@ namespace graphlab {
      * Destroy the core clearing any state associated with the graph,
      * shared data or engine
      */
-    ~core() { destroy_engine(); } 
+    ~core() { 
+        destroy_engine(); 
+        
+        // Write options to metrics
+        metrics & coremetrics = metrics::create_metrics_instance("core", true);
+        coremetrics.set("ncpus", meopts.ncpus);
+        coremetrics.set("engine", meopts.engine_type);
+        coremetrics.set("scope", meopts.scope_type);
+        coremetrics.set("scheduler", meopts.scheduler_type);
+        coremetrics.set("affinities", meopts.enable_cpu_affinities ? "true" : "false");
+        coremetrics.set("schedyield", meopts.enable_sched_yield ? "true" : "false");
+        coremetrics.set("compile_flags", meopts.compile_flags);
+        
+        // Metrics dump: basic 
+        if (meopts.metrics_type == "basic") { 
+            basic_reporter reporter = basic_reporter();
+            metrics::report_all(reporter); 
+        }
+        // Metrics dump: file
+        if (meopts.metrics_type == "file") {
+            file_reporter freporter = file_reporter("graphlab_metrics.txt");
+            metrics::report_all(freporter);
+        }
+        if (meopts.metrics_type == "html") {
+            html_reporter hreporter = html_reporter("graphlab_metrics.html");
+            metrics::report_all(hreporter);
+        }
+     } 
        
     //! Get a reference to the graph associated with this core
     typename types::graph& graph() { return mgraph; }
@@ -91,11 +121,6 @@ namespace graphlab {
       meopts.ncpus = ncpus;
       destroy_engine();
     }
-
-
-    
-
-
 
 
     /**
@@ -304,8 +329,7 @@ namespace graphlab {
     typename types::thread_shared_data mshared_data;    
     engine_options meopts;
     typename types::iengine *mengine;
-    
-   
+      
   };
 
 }
