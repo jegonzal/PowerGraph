@@ -256,20 +256,21 @@ IF(MPI_FOUND)
 ENDIF(MPI_FOUND)
 ENDMACRO(dist_target_link_libraries)
 
-
+FIND_PACKAGE(JNI)
 MACRO(add_jni_library NAME)
-	ADD_LIBRARY(${NAME} MODULE ${ARGN})
-	TARGET_LINK_LIBRARIES(${NAME}  graphlab_pic) 
-    TARGET_LINK_LIBRARIES(${NAME}  graphlab_util_pic) 
-	TARGET_LINK_LIBRARIES(${NAME}  graphlab_metis_pic) 
-	TARGET_LINK_LIBRARIES(${NAME}  graphlab_GKlib_pic) 
-
-	IF (APPLE)
-		INCLUDE_DIRECTORIES("/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/")
-        	SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
-       		SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
-    	ENDIF (APPLE)
+    IF (JAVA_INCLUDE_PATH)
+        ADD_LIBRARY(${NAME} MODULE ${ARGN})
+        TARGET_LINK_LIBRARIES(${NAME}  graphlab_pic) 
+        TARGET_LINK_LIBRARIES(${NAME}  graphlab_util_pic) 
+        TARGET_LINK_LIBRARIES(${NAME}  graphlab_metis_pic) 
+        TARGET_LINK_LIBRARIES(${NAME}  graphlab_GKlib_pic) 
     
+        IF (APPLE)
+            INCLUDE_DIRECTORIES("/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/")
+                SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
+                SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
+        ENDIF (APPLE)
+    ENDIF (JAVA_INCLUDE_PATH)
 ENDMACRO(add_jni_library)
 	
 
