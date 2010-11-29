@@ -40,30 +40,10 @@ namespace graphlab {
      */
     ~core() { 
         destroy_engine(); 
-        
-        // Write options to metrics
-        metrics & coremetrics = metrics::create_metrics_instance("core", true);
-        coremetrics.set("ncpus", meopts.ncpus);
-        coremetrics.set("engine", meopts.engine_type);
-        coremetrics.set("scope", meopts.scope_type);
-        coremetrics.set("scheduler", meopts.scheduler_type);
-        coremetrics.set("affinities", meopts.enable_cpu_affinities ? "true" : "false");
-        coremetrics.set("schedyield", meopts.enable_sched_yield ? "true" : "false");
-        coremetrics.set("compile_flags", meopts.compile_flags);
-        
-        // Metrics dump: basic 
-        if (meopts.metrics_type == "basic") { 
-            basic_reporter reporter = basic_reporter();
-            metrics::report_all(reporter); 
-        }
-        // Metrics dump: file
-        if (meopts.metrics_type == "file") {
-            file_reporter freporter = file_reporter("graphlab_metrics.txt");
-            metrics::report_all(freporter);
-        }
-        if (meopts.metrics_type == "html") {
-            html_reporter hreporter = html_reporter("graphlab_metrics.html");
-            metrics::report_all(hreporter);
+        if (meopts.metrics_type != "none") {        
+            // Write options to metrics
+            fill_metrics();
+            report_metrics();
         }
      } 
        
@@ -111,6 +91,10 @@ namespace graphlab {
     void set_engine_type(const std::string& engine_type) {
       meopts.engine_type = engine_type;
       destroy_engine();
+    }
+    
+    void set_metrics_type(const std::string& metrics_type) {
+      meopts.metrics_type = metrics_type;
     }
 
     
@@ -255,7 +239,35 @@ namespace graphlab {
       if(mengine == NULL) return 0;
       else return mengine->last_update_count();
     }
-
+    
+     void fill_metrics() {
+        metrics & coremetrics = metrics::create_metrics_instance("core", true);
+        coremetrics.set("ncpus", meopts.ncpus);
+        coremetrics.set("engine", meopts.engine_type);
+        coremetrics.set("scope", meopts.scope_type);
+        coremetrics.set("scheduler", meopts.scheduler_type);
+        coremetrics.set("affinities", meopts.enable_cpu_affinities ? "true" : "false");
+        coremetrics.set("schedyield", meopts.enable_sched_yield ? "true" : "false");
+        coremetrics.set("compile_flags", meopts.compile_flags);
+     }
+    
+    void report_metrics() {
+        // Metrics dump: basic 
+        if (meopts.metrics_type == "basic") { 
+            basic_reporter reporter = basic_reporter();
+            metrics::report_all(reporter); 
+        }
+        // Metrics dump: file
+        if (meopts.metrics_type == "file") {
+            file_reporter freporter = file_reporter("graphlab_metrics.txt");
+            metrics::report_all(freporter);
+        }
+        if (meopts.metrics_type == "html") {
+            html_reporter hreporter = html_reporter("graphlab_metrics.html");
+            metrics::report_all(hreporter);
+        }
+    }
+    
   private:
 
     /**

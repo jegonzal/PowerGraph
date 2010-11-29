@@ -131,6 +131,11 @@ namespace graphlab {
      */
     static void join(thread& other);
     
+    // Called just before thread exits. Can be used
+    // to do special cleanup... (need for Java JNI)
+    static void thread_destroy_callback();
+    static void set_thread_destroy_callback(void (*callback)());
+
       
     /**
      * Return the number processing units (individual cores) on this
@@ -156,7 +161,7 @@ namespace graphlab {
     }; // end of struct
 
 
- 
+    
     
   public:
     
@@ -270,6 +275,9 @@ namespace graphlab {
         std::cout << "pthread_create() returned error " << error << std::endl;
         exit(EXIT_FAILURE);
       }
+      
+      
+      
       // destroy the attribute object
       error = pthread_attr_destroy(&attr);
       assert(!error);
@@ -449,6 +457,7 @@ namespace graphlab {
     }
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
+      if (error) std::cout << "mutex.lock() error: " << error << std::endl;
       assert(!error);
     }
     inline void unlock() const {
