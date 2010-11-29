@@ -47,17 +47,17 @@ namespace graphlab {
                 for(int round=0; round<3; round++) { 
                     std::map<std::string, metrics_entry>::iterator it;
                     int c = 0;
-                    fprintf(f, "<p><table>");
+                    fprintf(f, "<!-- Round %d -->\n", round);
+                    fprintf(f, "\n<p>");
                     for(it = entries.begin(); it != entries.end(); ++it) {
-                        fprintf(f, "<tr>");
                         metrics_entry ent = it->second;
                         switch(ent.valtype) {
                             case INTEGER:
                                 if (round == 0) {   
                                     if (c++ == 0)
-                                        fprintf(f, "<tr><th>Key</th><th>Value</th><th>Count</th><th>Min</th><th>Max</th><th>Average</th></tr>");
+                                        fprintf(f, "<table><tr><th>Key</th><th>Value</th><th>Count</th><th>Min</th><th>Max</th><th>Average</th></tr>");
                                         
-                                    fprintf(f, "<td>%s</td>\n",  it->first.c_str());
+                                    fprintf(f, "<tr><td>%s</td>\n",  it->first.c_str());
                                     
                                     fprintf(f, "<td>%ld</td>\n", (long int) ent.value);
                                     if (ent.count > 1) {
@@ -66,20 +66,21 @@ namespace graphlab {
                                         fprintf(f, "<td>%ld</td>\n", (long int) ent.maxvalue);
                                         fprintf(f, "<td>%.3lf</td>\n",  ent.cumvalue/ent.count);
                                      } else fprintf(f, "<td colspan=4>&nbsp;</td>");
+                                     fprintf(f, "</tr>");
                                 }
                                 break;
                             case REAL:
                                if (round == 0) {   
                                     if (c++ == 0)
-                                        fprintf(f, "<tr><th>Key</th><th>Value</th><th>Count</th><th>Min</th><th>Max</th><th>Average</th></tr>");
+                                        fprintf(f, "<table><tr><th>Key</th><th>Value</th><th>Count</th><th>Min</th><th>Max</th><th>Average</th></tr>");
                                }
                             case TIME:
                                 if (ent.valtype == TIME && round == 1) {
                                     if (c++ == 0) 
-                                         fprintf(f, "<tr><th>Key</th><th>Value (sec)</th><th>Count</th><th>Min (sec)</th><th>Max (sec)</th><th>Average (sec)</th></tr>");
+                                         fprintf(f, "<table><tr><th>Key</th><th>Value (sec)</th><th>Count</th><th>Min (sec)</th><th>Max (sec)</th><th>Average (sec)</th></tr>\n");
                                 }
                                 if ((round == 0 && ent.valtype == REAL)||(round == 1 && ent.valtype == TIME)) {
-                                    fprintf(f, "<td>%s</td>\n",  it->first.c_str());
+                                    fprintf(f, "<tr><td>%s</td>\n",  it->first.c_str());
                                     
                                     fprintf(f, "<td>%lf</td>\n",  ent.value);
                                     if (ent.count > 1) {
@@ -88,19 +89,22 @@ namespace graphlab {
                                         fprintf(f, "<td>%.3lf</td>\n",  ent.maxvalue);
                                         fprintf(f, "<td>%.3lf</td>\n",  ent.cumvalue/ent.count);
                                     } else fprintf(f, "<td colspan=4>&nbsp;</td>");
-                                }
+                                    fprintf(f, "</tr>");
+                                } 
                                 break;
                             case STRING:
                                 if (round == 2) {
                                     if (c++ == 0)
-                                        fprintf(f, "<tr><th>Key</th><th>Value</th></tr>"); 
-                                    fprintf(f, "<td>%s</td><td width=400>%s</td>",  it->first.c_str(), ent.stringval.c_str());                                
+                                        fprintf(f, "<table><tr><th>Key</th><th>Value</th></tr>\n"); 
+                                    fprintf(f, "<tr><td>%s</td><td width=400>%s</td>\n",  it->first.c_str(), ent.stringval.c_str());                                
+                                    fprintf(f, "</tr>");
                                 }
+                                
                                 break;
                         }
-                        fprintf(f, "</tr");
                     }
-                    fprintf(f, "</table></p>");
+                    if (c>0) fprintf(f, "</table>");
+                    fprintf(f, " </p>");
                 }
 
                 fflush(f);
