@@ -32,7 +32,17 @@ std::vector<JNIEnv *> envs;
 
 int taskbudget=0;
 int maxiter=0;
+std::string metrics_type = "none";
  
+void detach_from_JVM() {
+    int threadid = graphlab::thread::thread_id();
+    if (envs[threadid] != NULL) {
+        int res = jvm->DetachCurrentThread();
+        std::cout << "Detached from JVM: " << res << std::endl;
+        assert(res>=0);
+    }
+}
+
 /**
  * The Page rank update function
  */
@@ -186,7 +196,18 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_runGraphlab
     if (maxiter>0)
         core.sched_options().add_option("max_iterations", maxiter);
  
+    // Set thread destroy callback
+    graphlab::thread::set_thread_destroy_callback(detach_from_JVM);
+   
     double runtime = core.start(); 
+    if (metrics_type != "none") {
+        core.set_metrics_type(metrics_type);
+        core.fill_metrics();
+        core.report_metrics();
+        // Hack: this prevents core destructor from dumping the metrics.
+        // ... which leads to some weird mutex error.
+        core.set_metrics_type("none");
+    }
     std::cout << "Finished after " << core.engine().last_update_count() << " updates." << std::endl;
     std::cout << "Runtime: " << runtime << " seconds." << std::endl;
 }
@@ -222,6 +243,12 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setIterations
   (JNIEnv * env, jobject obj, jint iter) {
     maxiter = iter;
 }
+
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setMetrics
+  (JNIEnv * env, jobject obj, jstring schedulertype) {
+    const char *str = env->GetStringUTFChars(schedulertype, 0);
+    metrics_type = std::string(str);
+ }
 
 JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setNumCPUs
   (JNIEnv * env, jobject obj, jint ncpus) {

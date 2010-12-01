@@ -15,7 +15,8 @@ subdirs(
  util
  serialization
  logger
- metrics)
+ metrics
+jni)
 
 
 add_library(graphlab_util STATIC
