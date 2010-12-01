@@ -29,7 +29,6 @@ ENABLE_TESTING()
 
 # Use Python interpreter
 FIND_PACKAGE(PythonInterp)
-SET (Boost_USE_STATIC_LIBS TRUE)
 # Use the Boost libraries
 SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
