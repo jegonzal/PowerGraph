@@ -1,31 +1,38 @@
 #ifndef GLSHARED_HPP
 #define GLSHARED_HPP
 #include <boost/shared_ptr.hpp>
-#include <graphlab/engine/iengine.hpp>
+#include <boost/function.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/assertions.hpp>
 
 namespace graphlab {
 
 
-typedef void(*sync_function_type)(iscope_type& scope,
-                                  any& accumulator);
+
+
+
+
+class glshared_base{
+ public:
+
+  typedef void(*apply_function_type)(any& current_data, const any& param);
+
+  virtual any get_any() const = 0;
+  virtual void set_any(const any&) = 0;
+  virtual void apply(apply_function_type fun,
+                         const any& srcd) = 0;
   
-typedef void(*apply_function_type)(T& current_data,
-                                    const T& new_data);
-
-typedef void(*merge_function_type)(any& merge_dest,
-                                    const any& merge_src);
-
-
-struct gl_shared_deleter{
-  rwlock &lock;
-  gl_shared_deleter(rwlock &lock_):lock(lock_) { }
-  
-  operator() {
-    lock.unlock();
-  }
 };
+
+
+
+namespace glshared_impl {
+  template <typename T>
+  struct empty_deleter {
+    void operator()(T* d) { }
+  };
+};
+
 
 /**
  * A shared data entry
@@ -33,54 +40,46 @@ struct gl_shared_deleter{
  * 
  */
 template <typename T>
-class glshared{
+class glshared:public glshared_base{
  private:
   T buffer_and_head[2];
-  shared_ptr buffer_and_head_ptr[2];
-  shared_ptr* buffer;
-  shared_ptr* head;
+  boost::shared_ptr<T> buffer_and_head_ptr[2];
+  boost::shared_ptr<T>* buffer;
+  boost::shared_ptr<T>* head;
   
-  iengine* engine;
   
   mutex set_lock;
 
-  wait_for_buffer_release() {
-    while(!(buffer->unique())) sched_yield;
+  
+  inline void wait_for_buffer_release() {
+    while(!(buffer->unique())) sched_yield();
   }
   
-  exchange_buffer_and_head() {
+  inline void exchange_buffer_and_head() {
     atomic_exchange(buffer, head);
   }
   
  public:
-  gl_shared():engine(NULL) { 
-    buffer_and_head_ptr[0].reset(&(buffer_and_head[0]));
-    buffer_and_head_ptr[1].reset(&(buffer_and_head[1]));
+    typedef glshared_base::apply_function_type apply_function_type;
+  
+
+  glshared() {
+    buffer_and_head_ptr[0].reset(&(buffer_and_head[0]), glshared_impl::empty_deleter<T>());
+    buffer_and_head_ptr[1].reset(&(buffer_and_head[1]), glshared_impl::empty_deleter<T>());
     buffer = &(buffer_and_head_ptr[0]);
     head = &(buffer_and_head_ptr[1]);
   }
   
-  /**
-   * Associates this shared data variable with a sync and apply
-   * operation in the engine.
-   * The sync operation will be performed every 'sync_interval' updates.
-   * and will perform a fold over all vertices within the range
-   * [rangelow, rangehigh] inclusive
-   */
-  void associate_with(iengine* eng, 
-                      sync_function_type sync_fun,
-                      apply_function_type apply_fun,
-                      const any& zero,
-                      size_t sync_interval = -1,
-                      size_t rangelow = 0,
-                      size_t rangehigh = -1) {
-    engine = eng;
-  }
-  
+
   /// Returns a copy of the data
   inline T get_val() const{
     return *(*(head));
   }
+
+  any get_any() const {
+    return *(*(head));
+  }
+  
   
   /**
    * Returns a shared_ptr to the data.
@@ -88,8 +87,8 @@ class glshared{
    * pointer becomes invalid. The user should not request
    * for the underlying pointer inside the shared_ptr.
    */
-  inline shared_ptr<const T> get_ptr() const{
-    return (*head);
+  inline boost::shared_ptr<const T> get_ptr() const{
+    return boost::const_pointer_cast<const T, T>(*head);
   }
 
   /// changes the data to 't'. This operation is atomic
@@ -99,6 +98,10 @@ class glshared{
     *(*buffer) = t;
     exchange_buffer_and_head();
     set_lock.unlock();
+  }
+
+  void set_any(const any &t) const {
+    set(t.as<T>());
   }
   
   /// Exchanges the data with 't'. This operation is atomic
@@ -110,41 +113,22 @@ class glshared{
     exchange_buffer_and_head();
     set_lock.unlock();
   }
-  
-  /** Applies a function to the data together with an additional
-   * argument 'srcd'. This operation is atomic.
-  */
+  /**
+   * Like apply() but takes the current value as an any
+   */
   void apply(apply_function_type fun,
-             const any& srcd) {
+                  const any& srcd) {
     set_lock.lock();
     wait_for_buffer_release();
 
-    any destd = get_val();
-    fun(destd, srcd);
-    *(*buffer) = destd.as<T>();
-    
-    *(*buffer) = t;
+    any temp = *(*head);
+    fun(temp, srcd);
+    *(*buffer) = temp;
     exchange_buffer_and_head();
     set_lock.unlock();
   }
-  /** 
-   * Performs a sync operation on this shared variable immediately.
-   * Result will be available when the function completes.
-   * Requires an engine to be registered.
-   */
-  void sync_now(){
-    ASSERT_NE(engine, NULL);
-    engine->sync_now();
-  }
-
-  /** Requests a defered sync operation on this shared variable. 
-   *  Requires an engine to be registered.
-   */
-  void sync_soon(){
-    ASSERT_NE(engine, NULL);
-    engine->trigger_sync();
-  }
 };
+
 
 }
 #endif

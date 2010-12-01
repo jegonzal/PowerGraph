@@ -14,6 +14,7 @@
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/shared_data/ishared_data.hpp>
+#include <graphlab/shared_data/glshared.hpp>
 #include <graphlab/shared_data/ishared_data_manager.hpp>
 namespace graphlab {
   
@@ -84,6 +85,13 @@ namespace graphlab {
 
     //! The type of shared data manager
     typedef ishared_data_manager<Graph> ishared_data_manager_type;
+
+    typedef void(*sync_function_type)(iscope_type& scope,
+                                      any& accumulator);
+
+    typedef void(*merge_function_type)(any& merge_dest,
+                                       const any& merge_src);
+
     
     /**
      * The termination function is a function that reads the shared
@@ -255,6 +263,49 @@ namespace graphlab {
     virtual scheduler_options& sched_options() = 0;
 
     virtual const scheduler_options& sched_options() const = 0;
+
+    /**
+     * Registers a sync with the engine.
+     * The sync will be performed every "interval" updates,
+     * and will perform a reduction over all vertices from rangelow
+     * to rangehigh inclusive.
+     * The merge function may be NULL, in which it will not be used.
+     *
+     * \param shared The shared variable to synchronize
+     * \param sync The reduction function
+     * \param apply The final apply function which writes to the shared value
+     * \param zero The initial zero value passed to the reduction
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
+     * \param sync_interval Frequency at which the sync is initiated.
+     *                      Corresponds approximately to the number of
+     *                     update function calls before the sync is reevaluated.
+     *                     If 0, the sync will only be evaluated once
+     *                     at engine start,  and will never be evaluated again.
+     *                     Defaults to 0.
+     * \param rangelow he lower range of vertex id to start syncing.
+     *                 The range is inclusive. i.e. vertex with id 'rangelow'
+     *                 and vertex with id 'rangehigh' will be included.
+     *                 Defaults to 0.
+     * \param rangehigh The upper range of vertex id to stop syncing.
+     *                  The range is inclusive. i.e. vertex with id 'rangelow'
+     *                  and vertex with id 'rangehigh' will be included.
+     *                  Defaults to infinity.
+     */
+    virtual void set_sync(glshared_base& shared,
+                              sync_function_type sync,
+                              glshared_base::apply_function_type apply,
+                              const any& zero,
+                              merge_function_type merge = NULL,
+                              size_t sync_interval = 0,
+                              size_t rangelow = 0,
+                              size_t rangehigh = -1);
+
+    /**
+     * Performs a sync immediately. This function requires that the shared
+     * variable already be registered with the engine.
+     */
+    virtual void sync_now(glshared_base& shared) = 0;
   };
 
 }

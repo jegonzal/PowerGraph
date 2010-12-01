@@ -62,7 +62,11 @@ namespace graphlab {
     
   public:
 
-    thread_shared_data() : scope_factory(NULL) { }
+    thread_shared_data() : scope_factory(NULL) {
+      logger(LOG_WARNING, 
+            "The use of the shared_data table has been deprecated. "
+            "Please use glshared");
+    }
 
 
     /** Set an immutable constant */
