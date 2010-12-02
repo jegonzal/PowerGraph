@@ -141,7 +141,6 @@ namespace graphlab {
      * core.
      */
     const typename types::ishared_data_manager& shared_data() const {
-      shared_data_used = true;
       return mshared_data;
     }
 
