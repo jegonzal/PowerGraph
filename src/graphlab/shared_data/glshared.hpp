@@ -21,7 +21,7 @@ class glshared_base{
   virtual void set_any(const any&) = 0;
   virtual void apply(apply_function_type fun,
                          const any& srcd) = 0;
-  
+  virtual bool is_unique() const = 0;
 };
 
 
@@ -80,6 +80,9 @@ class glshared:public glshared_base{
     return *(*(head));
   }
   
+  bool is_unique() const {
+    return buffer->unique() && head->unique();
+  }
   
   /**
    * Returns a shared_ptr to the data.
@@ -91,7 +94,10 @@ class glshared:public glshared_base{
     return boost::const_pointer_cast<const T, T>(*head);
   }
 
-  /// changes the data to 't'. This operation is atomic
+  /** changes the data to 't'. This operation is atomic
+   * This operation could stall forever if there are active shared pointers
+   * to this variable which are never released.
+   */
   void set(const T& t) {
     set_lock.lock();
     wait_for_buffer_release();
@@ -100,11 +106,14 @@ class glshared:public glshared_base{
     set_lock.unlock();
   }
 
-  void set_any(const any &t) const {
+  void set_any(const any &t) {
     set(t.as<T>());
   }
   
-  /// Exchanges the data with 't'. This operation is atomic
+  /** Exchanges the data with 't'. This operation is atomic
+   * This operation could stall forever if there are active shared pointers
+   * to this variable which are never released.
+   */
   void exchange(T& t) {
     set_lock.lock();
     wait_for_buffer_release();
@@ -114,16 +123,17 @@ class glshared:public glshared_base{
     set_lock.unlock();
   }
   /**
-   * Like apply() but takes the current value as an any
+   * apply's a function to this variable passing an additional parameter.
+   * This operation could stall forever if there are active shared pointers
+   * to this variable which are never released.
    */
   void apply(apply_function_type fun,
                   const any& srcd) {
     set_lock.lock();
     wait_for_buffer_release();
-
     any temp = *(*head);
     fun(temp, srcd);
-    *(*buffer) = temp;
+    *(*buffer) = temp.as<T>();
     exchange_buffer_and_head();
     set_lock.unlock();
   }

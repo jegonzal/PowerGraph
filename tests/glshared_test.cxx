@@ -7,8 +7,8 @@
 
 graphlab::glshared<size_t> testint;
 
-void increment(size_t &a, const graphlab::any& b) {
-  a = a + b.as<size_t>();
+void increment(graphlab::any &a, const graphlab::any& b) {
+  a.as<size_t>() += b.as<size_t>();
 }
 
 void testfn_single() {

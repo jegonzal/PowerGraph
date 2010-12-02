@@ -53,8 +53,7 @@ namespace graphlab {
     bool enable_cpu_affinities;
     bool enable_sched_yield;
 
-    scheduler_options schedopts;
-    
+   
     engine_options() :
       ncpus(2),
       engine_type("async"),
@@ -94,13 +93,11 @@ namespace graphlab {
       return eng;
     }
 
-    scheduler_options& sched_options() {
-      return schedopts;
+    scheduler_options sched_options() const {
+      std::pair<std::string, scheduler_options> opts = parse_scheduler_string(scheduler_type);
+      return opts.second;
     }
 
-    const scheduler_options& sched_options() const{
-      return schedopts;
-    }
 
     /**
      * Display the current engine options

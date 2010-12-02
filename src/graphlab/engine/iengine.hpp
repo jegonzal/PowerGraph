@@ -275,14 +275,14 @@ namespace graphlab {
      * \param sync The reduction function
      * \param apply The final apply function which writes to the shared value
      * \param zero The initial zero value passed to the reduction
-     * \param merge Combined intermediate reduction value. defaults to NULL.
-     *              in which case, it will not be used.
      * \param sync_interval Frequency at which the sync is initiated.
      *                      Corresponds approximately to the number of
      *                     update function calls before the sync is reevaluated.
      *                     If 0, the sync will only be evaluated once
      *                     at engine start,  and will never be evaluated again.
      *                     Defaults to 0.
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
      * \param rangelow he lower range of vertex id to start syncing.
      *                 The range is inclusive. i.e. vertex with id 'rangelow'
      *                 and vertex with id 'rangehigh' will be included.
@@ -296,16 +296,16 @@ namespace graphlab {
                               sync_function_type sync,
                               glshared_base::apply_function_type apply,
                               const any& zero,
-                              merge_function_type merge = NULL,
                               size_t sync_interval = 0,
+                              merge_function_type merge = NULL,
                               size_t rangelow = 0,
-                              size_t rangehigh = -1);
+                              size_t rangehigh = -1) { }
 
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    virtual void sync_now(glshared_base& shared) = 0;
+    virtual void sync_now(glshared_base& shared) { };
   };
 
 }

@@ -159,14 +159,14 @@ namespace graphlab {
       assert(cpuid < splashes.size());
       // Loop until we either can't build a splash or we find an element
       while(true) {
-        if (aborted) return sched_status::WAITING;
+        if (aborted) return sched_status::EMPTY;
         // If the splash is depleted then start a new splash
         if((splash_index[cpuid] >= splashes[cpuid].size()) ) {
           rebuild_splash(cpuid);
         }
         
         // If we were unable to build a splash return waiting
-        if(splash_index[cpuid] >= splashes[cpuid].size()) return sched_status::WAITING;
+        if(splash_index[cpuid] >= splashes[cpuid].size()) return sched_status::EMPTY;
         
         // Otherwise loop until we obtian a vertex that is still
         // schedulable (in the active set) or we run out of vertices

@@ -116,13 +116,13 @@ int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
 
 
-  double bound = 1E-15;
+  double bound = 1E-4;
   double damping = 0.1;
   size_t colors = 5;
   size_t rows = 200;
   size_t cols = 200;
   double sigma = 2;
-  double lambda = 10;
+  double lambda = 2;
   std::string smoothing = "laplace";
   std::string orig_fn = "source_img.pgm";
   std::string noisy_fn = "noisy_img.pgm";
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
                        "Residual termination bound");
   clopts.attach_option("damping",
                        &damping, damping,
-                       "The ammount of message damping");
+                       "The amount of message damping (higher = more damping)");
   clopts.attach_option("colors",
                        &colors, colors,
                        "The number of colors in the noisy image");
@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
                        "Predicted image type {map, exp}");
   
 
-  clopts.scheduler_type = "splash(100)";
+  clopts.scheduler_type = "splash(splash_size=100)";
   clopts.scope_type = "edge";
   
 

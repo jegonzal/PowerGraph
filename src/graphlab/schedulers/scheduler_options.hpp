@@ -129,11 +129,17 @@ class scheduler_options {
                                                      keys(other.options));
     if (commonopts.size() > 0) {
       std::set<std::string>::const_iterator i = commonopts.begin();
-      logger(LOG_WARNING,
-             "Common scheduler options detected between options set\n"
-             "programmatically and options set on the command line.\n");
       while(i != commonopts.end()) {
-        logstream(LOG_WARNING) << "\t" << *i << "\n";
+        std::string myval, otherval;
+        this->get_string_option(*i, myval);
+        other.get_string_option(*i, otherval);
+        if (myval != otherval) {
+          logger(LOG_WARNING,
+              "Common scheduler options detected between options set\n"
+              "programmatically and options set on the command line.\n");
+          logstream(LOG_WARNING) << "\t" << *i << " = " << myval << " || " 
+                                 << otherval << "\n";
+        }
         ++i;
       }
     }
@@ -160,7 +166,7 @@ class scheduler_options {
     // read till the equal
     while(s.good()) {
       getline(s, opt, '=');
-      if (s.bad()) break;
+      if (s.bad() || s.eof()) break;
       getline(s, value);
       if (s.bad()) break;
       add_option_str(trim(opt), trim(value));
@@ -185,5 +191,6 @@ class scheduler_options {
 std::ostream& operator<<(std::ostream& out,
                         const graphlab::scheduler_options& opts);
 
+std::pair<std::string, scheduler_options> parse_scheduler_string(std::string scheduler_raw);
 }
 #endif

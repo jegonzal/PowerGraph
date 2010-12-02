@@ -14,8 +14,8 @@ add_dist_executable(loopybp_denoise_dist loopybp_denoise_dist.cpp)
 dist_target_link_libraries(loopybp_denoise_dist tcmalloc)
 
 
-# add_executable(learning_denoise learning_denoise.cpp)
-# TARGET_LINK_LIBRARIES(learning_denoise tcmalloc)
+add_executable(learning_denoise learning_denoise.cpp)
+TARGET_LINK_LIBRARIES(learning_denoise tcmalloc)
 
 
 

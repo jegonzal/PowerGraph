@@ -32,7 +32,7 @@ namespace graphlab {
 
   public:
     //! default constructor does nothing
-    core() : mengine(NULL) { }
+    core() : mengine(NULL),engine_has_been_modified(false),shared_data_used(false) { }
 
     /**
      * Destroy the core clearing any state associated with the graph,
@@ -59,6 +59,7 @@ namespace graphlab {
      * See schedulers for the list of supported scheduler (strings)
      */
     void set_scheduler_type(const std::string& scheduler_type) {
+      check_engine_modification();
       meopts.scheduler_type = scheduler_type;
       destroy_engine();
     }
@@ -77,6 +78,7 @@ namespace graphlab {
      * </ol>
      */
     void set_scope_type(const std::string& scope_type) {
+      check_engine_modification();
       meopts.scope_type = scope_type;
       destroy_engine();
     }
@@ -89,6 +91,7 @@ namespace graphlab {
      *
      */
     void set_engine_type(const std::string& engine_type) {
+      check_engine_modification();
       meopts.engine_type = engine_type;
       destroy_engine();
     }
@@ -97,11 +100,16 @@ namespace graphlab {
       meopts.metrics_type = metrics_type;
     }
 
-    
+    void reset() {
+      engine_has_been_modified = false;
+      shared_data_used = false;
+      destroy_engine();
+    }
     /**
      * Set the number of cpus that the core will use
      */
     void set_ncpus(size_t ncpus) {
+      check_engine_modification();
       meopts.ncpus = ncpus;
       destroy_engine();
     }
@@ -123,6 +131,7 @@ namespace graphlab {
      * Get a reference to the shared data associated with this core.
      */
     typename types::ishared_data_manager& shared_data() {
+      shared_data_used = true;
       return mshared_data;
     }
 
@@ -132,6 +141,7 @@ namespace graphlab {
      * core.
      */
     const typename types::ishared_data_manager& shared_data() const {
+      shared_data_used = true;
       return mshared_data;
     }
 
@@ -150,7 +160,10 @@ namespace graphlab {
      * Set the engine options by passing in an engine options object.
      */
     void set_engine_options(const engine_options& opts) {
+      check_engine_modification();
       meopts = opts;
+      bool success = auto_build_engine();
+      assert(success);
     }
 
     /**
@@ -161,11 +174,11 @@ namespace graphlab {
     }
 
     scheduler_options& sched_options() {
-      return meopts.sched_options();
+      return sched_opts;
     }
 
     const scheduler_options& sched_options() const{
-      return meopts.sched_options();
+      return sched_opts;
     }
 
 
@@ -174,6 +187,7 @@ namespace graphlab {
      * arguments.
      */
     bool parse_engine_options(int argc, char **argv) {
+      check_engine_modification();
       command_line_options clopts;
       bool success = clopts.parse(argc, argv);
       assert(success);
@@ -189,6 +203,9 @@ namespace graphlab {
       bool success = auto_build_engine();
       assert(success);
       assert(mengine != NULL);
+      // merge in options from command line and other manually set options
+      mengine->sched_options().merge_options(meopts.sched_options());
+      mengine->sched_options().merge_options(sched_options());
       graphlab::timer ti;
       ti.start();
       mengine->start();
@@ -202,6 +219,7 @@ namespace graphlab {
     void add_task(vertex_id_t vertex,
                   typename types::update_function func,
                   double priority) {
+      engine_has_been_modified = true;
       typename types::update_task task(vertex, func);
       add_task(task, priority);
     }
@@ -211,6 +229,7 @@ namespace graphlab {
      * Add a single task with a fixed priority.
      */
     void add_task(typename types::update_task task, double priority) {
+      engine_has_been_modified = true;
       engine().add_task(task, priority);
     }
 
@@ -220,6 +239,7 @@ namespace graphlab {
      */
     void add_tasks(const std::vector<vertex_id_t>& vertices, 
                    typename types::update_function func, double priority) {
+      engine_has_been_modified = true;
       engine().add_tasks(vertices, func, priority);
     }
 
@@ -229,6 +249,7 @@ namespace graphlab {
      */
     void add_task_to_all(typename types::update_function func, 
                          double priority) {
+      engine_has_been_modified = true;
       engine().add_task_to_all(func, priority);
     }
     
@@ -268,6 +289,55 @@ namespace graphlab {
         }
     }
     
+        /**
+     * Registers a sync with the engine.
+     * The sync will be performed every "interval" updates,
+     * and will perform a reduction over all vertices from rangelow
+     * to rangehigh inclusive.
+     * The merge function may be NULL, in which it will not be used.
+     *
+     * \param shared The shared variable to synchronize
+     * \param sync The reduction function
+     * \param apply The final apply function which writes to the shared value
+     * \param zero The initial zero value passed to the reduction
+     * \param sync_interval Frequency at which the sync is initiated.
+     *                      Corresponds approximately to the number of
+     *                     update function calls before the sync is reevaluated.
+     *                     If 0, the sync will only be evaluated once
+     *                     at engine start,  and will never be evaluated again.
+     *                     Defaults to 0.
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
+     * \param rangelow he lower range of vertex id to start syncing.
+     *                 The range is inclusive. i.e. vertex with id 'rangelow'
+     *                 and vertex with id 'rangehigh' will be included.
+     *                 Defaults to 0.
+     * \param rangehigh The upper range of vertex id to stop syncing.
+     *                  The range is inclusive. i.e. vertex with id 'rangelow'
+     *                  and vertex with id 'rangehigh' will be included.
+     *                  Defaults to infinity.
+     */
+    void set_sync(glshared_base& shared,
+                  typename types::iengine::sync_function_type sync,
+                  glshared_base::apply_function_type apply,
+                  const any& zero,
+                  size_t sync_interval = 0,
+                  typename types::iengine::merge_function_type merge = NULL,
+                  size_t rangelow = 0,
+                  size_t rangehigh = -1) { 
+      engine_has_been_modified = true;
+      engine().set_sync(shared, sync, apply, zero, 
+                        sync_interval, merge, rangelow, rangehigh);
+      
+    }
+
+    /**
+     * Performs a sync immediately. This function requires that the shared
+     * variable already be registered with the engine.
+     */
+    void sync_now(glshared_base& shared) { 
+      engine().sync_now(shared);
+    };
   private:
 
     /**
@@ -278,13 +348,10 @@ namespace graphlab {
         // create the engine
         mengine = meopts.create_engine(mgraph);
         if(mengine == NULL) return false;
-        else mengine->set_shared_data_manager(&mshared_data);
+        else if (shared_data_used) mengine->set_shared_data_manager(&mshared_data);
       }
-      else {
-        // scheduler options is one parameter that is allowed
-        // to change without rebuilding the engine
-        mengine->sched_options() = sched_options();
-      }
+      // scheduler options is one parameter that is allowed
+      // to change without rebuilding the engine
       return true;
     }
 
@@ -335,12 +402,23 @@ namespace graphlab {
     } // end of load
 
 
+    void check_engine_modification() {
+      ASSERT_MSG(engine_has_been_modified == false, 
+                   "Modifications to the engine/scheduler parameters are not"
+                   "allowed once tasks have been inserted into the engine.");
+    }
     
     // graph and data objects
     typename types::graph mgraph;
     typename types::thread_shared_data mshared_data;    
     engine_options meopts;
     typename types::iengine *mengine;
+    scheduler_options sched_opts;
+    /** For error tracking. Once engine has been modified, any scheduler/
+     * engine parameter modifications will reset the modifications
+     */
+    bool engine_has_been_modified;
+    bool shared_data_used;
       
   };
 
