@@ -62,18 +62,20 @@ for xi = 1:imgdim
 end
 %% compile update function
 % you need to set the graphlab directory 
-compile_update_function({'bp_update'}, vdata{1},edata{1}, [getenv('HOME') '/graphlab/graphlabapi/release/src/graphlab'], 'bp', 'bp');
+compile_update_function({'bp_update'}, vdata{1},edata{1}, [getenv('HOME') '/graphlabapi/graphlabapi/release/src/graphlab'], 'bp', 'bp');
 %% set options
 options.initial_schedule(1).update_function = 'bp_update';
 options.initial_schedule(1).vertices=uint32(1:(imgdim * imgdim));
 options.initial_schedule(1).priorities=ones(size(options.initial_schedule(1).vertices));
-options.scheduler = 'sweep';
+options.scheduler = 'splash(50)';
 options.ncpus = 4;
 options.scope = 'edge';
 %% cd in the BP directory and call
 cd bp
+%%
 [v2,adj2,e2] = bp(vdata,adj,edata, options);
-%cd ..
+%%
+cd ..
 %% display output
 
 outputimg = zeros(imgdim);

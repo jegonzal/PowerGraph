@@ -99,6 +99,7 @@ namespace graphlab {
     //! Adds an update task with a particular priority
     void add_task(update_task_type task, double priority) {
       //assert(task.function() == update_fun);
+      if (update_fun == NULL) update_fun = task.function();
       assert(task.vertex() < graph.num_vertices());      
       vertex_id_t vertex = task.vertex();
       // Get the priority queue for the vertex
@@ -136,7 +137,7 @@ namespace graphlab {
 
     
     void add_task_to_all(update_function_type func, double priority) {
-      update_fun = func;      
+      if (update_fun == NULL) update_fun = func;
       for (vertex_id_t vertex = 0; vertex < graph.num_vertices(); 
            ++vertex){
         add_task(update_task_type(vertex, func), priority);

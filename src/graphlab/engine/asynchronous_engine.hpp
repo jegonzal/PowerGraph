@@ -456,6 +456,7 @@ namespace graphlab {
       
       sync_task_queue_lock.lock();
       sync_task_queue.insert_max(iter->second, 0);
+      sync_task_queue_next_update = 0;
       sync_task_queue_lock.unlock();
     }
     
@@ -666,7 +667,8 @@ namespace graphlab {
                "Sync interval is too short."
                "Engine may not be able to achieve desired Sync frequency");
       }
-      sync_task_queue_next_update = 0;
+      if (sync_task_queue.size() > 0) sync_task_queue_next_update = 0;
+      else sync_task_queue_next_update = size_t(-1);
     }
   
     void evaluate_sync(size_t syncid, 

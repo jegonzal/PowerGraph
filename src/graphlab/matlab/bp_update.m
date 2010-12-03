@@ -3,11 +3,14 @@ function bp_update(currentvertex, inedges, inv, outedges, outv, handle) %#eml
     % update belief
     % compute new belief
     vdata.belief = vdata.unary;
+    
     for i = 1:length(inedges)
         inedata = get_edge_data(handle, inedges(i));
         vdata.belief = vdata.belief .* inedata.msg;
         vdata.belief = vdata.belief / sum(vdata.belief);
     end
+   
+    
     set_vertex_data(handle, currentvertex, vdata);    
     % write out messages
     for i = 1:length(inedges)
