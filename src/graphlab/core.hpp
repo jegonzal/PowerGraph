@@ -131,7 +131,12 @@ namespace graphlab {
      * Get a reference to the shared data associated with this core.
      */
     typename types::ishared_data_manager& shared_data() {
-      shared_data_used = true;
+      if (shared_data_used == false) {
+        if (mengine != NULL) {
+          mengine->set_shared_data_manager(&mshared_data);
+        }
+        shared_data_used = true;
+      }
       return mshared_data;
     }
 
@@ -347,7 +352,7 @@ namespace graphlab {
         // create the engine
         mengine = meopts.create_engine(mgraph);
         if(mengine == NULL) return false;
-        else if (shared_data_used) mengine->set_shared_data_manager(&mshared_data);
+        if (shared_data_used) mengine->set_shared_data_manager(&mshared_data);
       }
       // scheduler options is one parameter that is allowed
       // to change without rebuilding the engine
