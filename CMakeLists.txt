@@ -257,6 +257,7 @@ ENDMACRO(dist_target_link_libraries)
 
 FIND_PACKAGE(JNI)
 MACRO(add_jni_library NAME)
+
     IF (JAVA_INCLUDE_PATH)
         include_directories(
             ${JAVA_INCLUDE_PATH}

@@ -173,6 +173,18 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_addEdges
 }
     
 
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setVertexColors
+    (JNIEnv * env, jobject obj, jintArray colors) {
+    jni_graph & graph = core.graph();
+    jsize sz = env->GetArrayLength(colors);
+    jboolean isCopy = false;
+    jint * arr = env->GetIntArrayElements(colors, &isCopy);
+    for(int i=0; i<sz; i++) {
+        graph.color(i) = (graphlab::vertex_color_type) arr[i];
+    }
+    env->ReleaseIntArrayElements(colors, arr, JNI_ABORT);
+}
+
 /*
  * Class:     graphlab_wrapper_GraphLabJNIWrapper
  * Method:    runGraphlab
@@ -254,6 +266,14 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setNumCPUs
   (JNIEnv * env, jobject obj, jint ncpus) {
     core.set_ncpus(ncpus);
   }
+
+
+
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_computeGraphColoring
+  (JNIEnv * env, jobject obj, jint ncpus) {
+    core.graph().compute_coloring();
+  }
+
 
 
 /*
