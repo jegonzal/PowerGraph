@@ -63,7 +63,7 @@ void jni_update(gl_types::iscope &scope,
         jenv = envs[threadid];
         
         jintArray result = (jintArray) jenv->CallObjectMethod(cachedObj, wrapperMethodID, vertexid, functionid);
-        jsize task_sz = jenv->GetArrayLength(result)/2;
+        jsize task_sz = jenv->GetArrayLength(result)/3;
       //  std::cout << "New tasks: " << task_sz << std::endl; 
         jboolean isCopy = false;
         jint * arr = jenv->GetIntArrayElements(result, &isCopy);
@@ -88,7 +88,7 @@ void jni_update(gl_types::iscope &scope,
         
         for(int i=0; i<task_sz; i++) {
             // TODO: support multiple tasks, priority
-            scheduler.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
+            scheduler.add_task(gl_types::update_task(arr[i], jni_update), arr[i+2*task_sz]/(1.0e6));
         }
         jenv->ReleaseIntArrayElements(result, arr, JNI_ABORT);
 }  
