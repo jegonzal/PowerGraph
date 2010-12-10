@@ -25,7 +25,8 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
- 
+   /** \ingroup group_schedulers
+    */
   template<typename Graph>
   class multiqueue_priority_scheduler : 
     public ischeduler<Graph> {

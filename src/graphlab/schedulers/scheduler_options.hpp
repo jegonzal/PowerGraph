@@ -12,6 +12,13 @@
 
 namespace graphlab {
 
+/**
+Scheduler options data structure.
+Defines a collection of key->value pairs where the key 
+is a string, and the value is an arbitrary data type.
+The scheduler_options class will invisibly cast between string, integer
+and double data types. For instance, if a scheduler expects a 
+*/
 class scheduler_options {
  public:
    

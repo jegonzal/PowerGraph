@@ -23,6 +23,7 @@ namespace graphlab {
 
   /**
    * \brief The shared data interface
+   * \deprecated Use glshared
    *
    * Often in a graphlab program there is data (constant and mutable)
    * that cannot be directly expressed in the graph.  Typical forms of

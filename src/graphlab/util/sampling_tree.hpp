@@ -15,7 +15,10 @@
 
 
 namespace graphlab {
-  
+  /**
+   \ingroup util_internal
+  Fast multinomial sampler
+  */
   template <typename Data, typename Priority>
   class sampling_tree{
   private:

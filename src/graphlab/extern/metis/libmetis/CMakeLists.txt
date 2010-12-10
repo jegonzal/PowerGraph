@@ -47,4 +47,4 @@ add_library(graphlab_metis_pic STATIC ${graphlab_metis_sources})
 set_target_properties(graphlab_metis_pic PROPERTIES COMPILE_FLAGS "${METIS_BUILD_OPTS} -fPIC")
 target_link_libraries(graphlab_metis_pic graphlab_GKlib_pic)
 
-INSTALL(TARGETS graphlab_metis DESTINATION lib)
+INSTALL(TARGETS graphlab_metis graphlab_metis_pic DESTINATION lib)

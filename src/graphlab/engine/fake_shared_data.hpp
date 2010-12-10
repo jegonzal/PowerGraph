@@ -2,8 +2,9 @@
 #define FAKE_SHARED_DATA_HPP
 #include <graphlab/util/generics/any.hpp>
 namespace graphlab {
-/**
+/** \internal
  * Temporary backward compatibility hack for the shared data manager
+ * Do not use!
  */
 template<typename Engine>
 class fake_shared_data:public ishared_data<typename Engine::graph_type> {

@@ -13,6 +13,7 @@ namespace graphlab {
 
   
   /**
+   \ingroup util_internal
      Implementation of a self-resizing circular queue
   */
   template <typename T>

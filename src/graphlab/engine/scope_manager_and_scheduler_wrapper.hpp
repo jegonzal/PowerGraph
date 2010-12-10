@@ -9,7 +9,7 @@
 
 namespace graphlab {
 
-/**
+/** \internal
  * This is the implementation for the scope manager and scheduler
  * "dynamic reconstruction" capabilities of the engine.
  */

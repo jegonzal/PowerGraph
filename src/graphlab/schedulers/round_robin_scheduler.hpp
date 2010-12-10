@@ -32,6 +32,7 @@ namespace graphlab {
 
 
   /**
+     \ingroup group_schedulers
      This class defines a simple First-In-First_Out scheduler
   */
   template<typename Graph>

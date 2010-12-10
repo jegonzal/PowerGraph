@@ -1,19 +1,3 @@
-/**
-   \mainpage 
-   
-   \section intro_sec Introduction
-   
-   GraphLab is a powerful new system for designing and implementing
-   parallel algorithms in machine learning.  While the current targets
-   multi-core shared memory parallel systems we are in the process of
-   implementing a distributed version and plan to provide support for
-   alternative parallel architectures include GPUs in the near future.
- 
-   For a more user friendly tour of GraphLab and its features visit
-   the site: <a href="http://www.graphlab.ml.cmu.edu/details.html">
-   http://www.graphlab.ml.cmu.edu/details.html </a>
-   
-*/
 
 
 #ifndef GRAPHLAB_MASTER_INCLUDES
@@ -89,6 +73,8 @@ namespace graphlab {
     typedef graphlab::ishared_data_manager<graph> ishared_data_manager;
     typedef graphlab::sync_ops<Graph> sync_ops;
     typedef graphlab::apply_ops<Graph> apply_ops;
+    typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
+    typedef graphlab::glshared_apply_ops glshared_apply_ops;
 
     typedef graphlab::thread_shared_data<graph>  thread_shared_data;
 
@@ -130,9 +116,10 @@ namespace graphlab {
     typedef graphlab::scope_range scope_range;
 
     typedef graphlab::random  random;
+
+    template <typename T>
+    class glshared:public graphlab::glshared<T> { };
   };
-  
-  // typedef types<blob_graph> blob_types;
 
 }
 

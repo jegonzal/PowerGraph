@@ -33,6 +33,8 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
+   /** \ingroup group_schedulers
+    */
   template<typename Graph>
   class splash_scheduler : 
     public ischeduler<Graph> {

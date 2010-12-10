@@ -7,6 +7,7 @@
 
 namespace graphlab {
 
+  ///  \ingroup util_internal
   template <typename T>
   class prioritized_multiqueue {
 

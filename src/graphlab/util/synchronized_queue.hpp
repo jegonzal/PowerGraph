@@ -6,7 +6,7 @@
 
 #include <graphlab/parallel/pthread_tools.hpp>
 namespace graphlab {
-
+  /// \ingroup util_internal
   template <typename T>
   class synchronized_queue {
 

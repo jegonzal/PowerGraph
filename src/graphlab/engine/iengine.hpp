@@ -1,4 +1,4 @@
-/* \file inengine.hpp
+/* \file iengine.hpp
    \brief The file containing the iengine description
    
   This file contains the description of the engine interface.  All
@@ -27,35 +27,37 @@ namespace graphlab {
    *
    */
   enum exec_status {
-    
-    /** Execution completed successfully due to task depletion */
-    EXEC_TASK_DEPLETION,
+    EXEC_TASK_DEPLETION, /**<Execution completed successfully due to task depletion */
 
-    /** 
-     * Execution completed successfully due to termination
-     * function.
-     */
-    EXEC_TERM_FUNCTION,
+    EXEC_TERM_FUNCTION,  /**< Execution completed successfully due to termination
+                          function. */
 
-    //! The execution completed after timing out
-    EXEC_TIMEOUT,
+    EXEC_TIMEOUT,       /**< The execution completed after timing out */
 
-    /** The execution completed because the maximum number of tasks
-        was exceeded */
-    EXEC_TASK_BUDGET_EXCEEDED,
+    EXEC_TASK_BUDGET_EXCEEDED, /**< The execution completed because the maximum number of tasks
+                                 was exceeded */
 
-    /** the engine was stopped by calling force abort */
-    EXEC_FORCED_ABORT
+    EXEC_FORCED_ABORT     /**< the engine was stopped by calling force abort */
   };
   
 
   
   /**
      \brief The abstract interface of a GraphLab engine.
-     
      The graphlab engine interface describes the core functionality
      provided by all graphlab engines.  The engine is templatized over
      the type of graph.
+     
+     The GraphLab engines are a core element of the GraphLab framework. 
+     The engines are responsible for applying a the update tasks and sync 
+     operations to a graph and shared data using the scheduler to determine 
+     the update schedule. This class provides a generic interface
+     to interact with engines written to execute on different platforms.
+     
+     While users are free to directly instantiate the engine of their choice we highly recommend 
+     the use of the \ref core data structure to manage the creation of engines. Alternatively, 
+     users can use the \ref engine_factory static functions 
+     to create engines directly from configuration strings. 
   */
   template<typename Graph>
   class iengine {
@@ -116,6 +118,7 @@ namespace graphlab {
 
     /**
      * \brief Set the shared data manager
+     * \deprecated Use set_sync and glshared
      *
      * If a shared data is to be available to update functions called
      * by this engine then it must be set here.  The shared data can
@@ -129,24 +132,20 @@ namespace graphlab {
      * \brief Set the default scope range.
      *
      * The default scope range determines the locking extent of an
-     * update function. 
+     * update function. See \ref Scopes for details.
      *
      * \param default_scope_range can take on any of the values
-     * described in scope_range::scope_range_enum.
+     * described in \ref scope_range
      *
-     * \todo make sure this documentation properly references the
-     * enum.
-     * 
      */
     virtual void set_default_scope(scope_range::scope_range_enum default_scope_range) = 0;
     
     /**
      * \brief Start the engine execution.
      *
-     * This <b>blocking</b> function starts the engine and does not
+     * This \b blocking function starts the engine and does not
      * return until either one of the termination conditions evaluate
      * true or the scheduler has no tasks remaining.
-     *
      */
     virtual void start() = 0;
 
@@ -166,7 +165,6 @@ namespace graphlab {
      * \brief Describe the reason for termination.
      *
      * Return the reason for the last termination.
-     *
      */
     virtual exec_status last_exec_status() const = 0;
 
@@ -179,7 +177,6 @@ namespace graphlab {
      * run of this engine.
      * 
      * \return the total number of updates
-     *
      */
     virtual size_t last_update_count() const = 0;
 
@@ -193,13 +190,13 @@ namespace graphlab {
     virtual void register_monitor(imonitor_type* listener) = 0;
     
   /**
-    * Adds an update task with a particular priority.
+    * \brief Adds an update task with a particular priority.
     * This function is forwarded to the scheduler.
     */
   virtual void add_task(update_task_type task, double priority) = 0;
 
   /**
-    * Creates a collection of tasks on all the vertices in
+    * \brief Creates a collection of tasks on all the vertices in
     * 'vertices', and all with the same update function and priority
     * This function is forwarded to the scheduler.
     */
@@ -207,7 +204,7 @@ namespace graphlab {
                           update_function_type func, double priority) = 0;
 
   /**
-    * Creates a collection of tasks on all the vertices in the graph,
+    * \brief Creates a collection of tasks on all the vertices in the graph,
     * with the same update function and priority
     * This function is forwarded to the scheduler.
     */
@@ -221,6 +218,10 @@ namespace graphlab {
      * takes a constant reference to the shared data and returns a
      * boolean which is true if the engine should terminate execution.
      *
+     * A termination function has the following type:
+     * \code
+     * bool term_fun(const ishared_data_type* shared_data)
+     * \endcode
      */
     virtual void add_terminator(termination_function_type term) = 0;
 
@@ -235,11 +236,9 @@ namespace graphlab {
     
     
     /**
-     *  Timeout. Default - no timeout. The timeout is the total
+     *  \brief The timeout is the total
      *  ammount of time in seconds that the engine may run before
      *  exeuction is automatically terminated.
-     *
-     * \todo Should we continue to support this function. 
      */
     virtual void set_timeout(size_t timeout_secs) = 0;
     
@@ -253,15 +252,14 @@ namespace graphlab {
      * nonzero the engine encurs the cost of an additional atomic
      * operation in the main loop potentially reducing the overall
      * parallel performance.
-     *
-     * \todo Should we continue to support this function?
      */
     virtual void set_task_budget(size_t max_tasks) = 0;
 
 
-    
+    /** \brief Returns a modifiable reference to the scheduler options.   */
     virtual scheduler_options& sched_options() = 0;
 
+    /** \brief Returns a constant reference to the scheduler options.   */
     virtual const scheduler_options& sched_options() const = 0;
 
     /**

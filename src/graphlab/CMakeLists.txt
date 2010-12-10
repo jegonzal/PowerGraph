@@ -67,8 +67,6 @@ endif()
 target_link_libraries(graphlab graphlab_metis graphlab_rpc graphlab_util)
 
 
-INSTALL(TARGETS graphlab ARCHIVE DESTINATION lib)
-
 
 if(MPI_FOUND)
    add_library(graphlab_dist STATIC
@@ -104,4 +102,7 @@ get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
 add_library(graphlab_pic STATIC ${graphlab_sources})
 set_target_properties(graphlab_pic PROPERTIES 
                       COMPILE_FLAGS "${graphlab_flags} -fPIC")
+
+INSTALL(TARGETS graphlab graphlab_util graphlab_pic graphlab_util_pic ARCHIVE DESTINATION lib)
+
 

@@ -6,6 +6,7 @@
 
 namespace graphlab {
   /**
+   \ingroup util_internal
      simple condition variable based shared termination checker.
      When a processor finds that it is out of work, it should call
      - begin_critical_section(cpuid),

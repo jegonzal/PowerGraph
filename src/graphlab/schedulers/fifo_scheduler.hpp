@@ -26,7 +26,8 @@
 namespace graphlab {
 
 
- 
+  /** \ingroup group_schedulers
+   */
   template<typename Graph>
   class fifo_scheduler: public ischeduler<Graph> {
   public:

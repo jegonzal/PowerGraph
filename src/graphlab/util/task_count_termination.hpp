@@ -9,6 +9,7 @@
 
 namespace graphlab {
   /**
+   *  \ingroup util_internal
    *  termination checker based on task counting.
    * simple condition variable based shared termination checker.
    * When a processor finds that it is out of work, it should call

@@ -606,7 +606,7 @@ namespace graphlab {
           else {
             if (scheduler->get_terminator().end_critical_section(cpuid)) {
               termination_reason = EXEC_TASK_DEPLETION;
-              active = true;
+              active = false;
               return false;
             }
             else {
@@ -662,7 +662,7 @@ namespace graphlab {
           min_sync_interval = std::min(min_sync_interval, sync_tasks[i].sync_interval);
         }
       }
-      if (min_sync_interval < 32 * APX_INTERVAL) {
+      if (min_sync_interval < ncpus * APX_INTERVAL) {
         logger(LOG_WARNING, 
                "Sync interval is too short."
                "Engine may not be able to achieve desired Sync frequency");

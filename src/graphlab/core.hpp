@@ -13,16 +13,35 @@ namespace graphlab {
   template<typename Graph> struct types;
   
   /**
-   * A GraphLab core is the base (or core) data structure in GraphLab.
-   * The core contains the 
+   * \brief A GraphLab core is the base (or core) data structure in GraphLab.
+   *
+    Because many GraphLab programs will consists of a graph 
+    and an engine we have created a single data-structure,
+    called a core, which manages all the pieces of GraphLab including
+    engine and scheduler construction parameters.
 
-   <ol>
-   <li> Data Graph: which represents the structured data dependencies. </li>
-   <li> Shared Data: which represents the global constants and mutable data. </li>
-   <li> Engine: The computational structure which contains the
-        scheduling and execution statistics for the GraphLab program. </li>
-   </ol>
+    The core is templatized over the VertexType and EdgeType however by using the
+    \ref types typedef, one can simply create a core by doing the following:
+  \code
+  gl::core glcore;
+  \endcode
+
+   The core contains the 
+
+   \li Data Graph: which represents the structured data dependencies.
+   \li Engine: The computational structure which contains the
+        scheduling and execution statistics for the GraphLab program. 
+        The core provides pass-through calls for many engine functions.
+        
+   The core also manages the engine and scheduler construction parameters.
    
+   The core will invisibly recreate the engine each time engine options are 
+   modified. This will mean that this internal behavior of the core should be
+   pretty much "transparent" for the typical use case where engine options and 
+   scheduler options are defined before tasks are added to the scheduler.
+   
+   Otherwise, modifications to the engine options will result in the clearing
+   of all scheduler tasks.
    * 
    */
   template <typename VertexType, typename EdgeType>
@@ -31,13 +50,10 @@ namespace graphlab {
     typedef graphlab::types<graphlab::graph<VertexType, EdgeType> > types;
 
   public:
-    //! default constructor does nothing
+    /// default constructor does nothing
     core() : mengine(NULL),engine_has_been_modified(false),shared_data_used(false) { }
 
-    /**
-     * Destroy the core clearing any state associated with the graph,
-     * shared data or engine
-     */
+
     ~core() { 
         destroy_engine(); 
         if (meopts.metrics_type != "none") {        
@@ -47,16 +63,18 @@ namespace graphlab {
         }
      } 
        
-    //! Get a reference to the graph associated with this core
+    /// \brief Get a modifiable reference to the graph associated with this core
     typename types::graph& graph() { return mgraph; }
 
-    //! Get a reference to the graph associated with this core
+    /// \brief Get a constant reference to the graph associated with this core
     const typename types::graph& graph() const { return mgraph; }
 
     /**
-     * Set the type of scheduler.  This will destroy the current
+     * \brief Set the type of scheduler.  
+     *
+     * This will destroy the current
      * engine and any tasks currently associated with the scheduler.
-     * See schedulers for the list of supported scheduler (strings)
+     * See \ref Schedulers for the list of supported schedulers.
      */
     void set_scheduler_type(const std::string& scheduler_type) {
       check_engine_modification();
@@ -65,17 +83,20 @@ namespace graphlab {
     }
 
     /**
-     * Set the scope consistency model used in this engine.  This will
+     * Set the scope consistency model used in this engine.  
+     *
+     * This will
      * destroy the current engine and any tasks associated with the
      * current scheduler.  The available scopes are: 
-     * <ol>
-     *  <li> full : This ensures full data consistency within the scope </li>
-     *  <li> edge : This ensures data consistency with just the 
-                    vertex and edges </li>
-     *  <li> vertex : This ensures that a vertex cannot be updated 
-     *                by two processors simultaneously </li>
-     *  <li> none : This eliminates all locking </li>
-     * </ol>
+     * 
+     *  \li \b "full" This ensures full data consistency within the scope 
+     *  \li \b "edge" This ensures data consistency with just the 
+                    vertex and edges 
+     *  \li \b "vertex" This ensures that a vertex cannot be updated 
+     *                by two processors simultaneously 
+     *  \li \b "none" This eliminates all locking 
+     *
+     * See \ref Scopes for details
      */
     void set_scope_type(const std::string& scope_type) {
       check_engine_modification();
@@ -85,10 +106,16 @@ namespace graphlab {
 
 
     /**
-     * Set the engine type { threaded, sequential, sim, synchronous}.
-     * This will destroy the current engine and any tasks assocaited
+     * \brief Set the engine type.
+     *
+     * This will destroy the current engine and any tasks associated
      * with the current scheduler. 
      *
+     *  \li \b "async" This is the regular multithreaded engine
+     *  \li \b "async_sim" This is a single threaded engine. But it can be 
+     *                     be started with multiple "simulated threads".
+     *                     The simulation is low-fidelity however, and should
+     *                     be used with caution.
      */
     void set_engine_type(const std::string& engine_type) {
       check_engine_modification();
@@ -96,17 +123,32 @@ namespace graphlab {
       destroy_engine();
     }
     
+    /**
+    * \brief Sets the output format of any recorded metrics
+    *
+     *  \li \b "basic" Outputs to screen
+     *  \li \b "file" Outputs to a text file graphlab_metrics.txt
+     *  \li \b "html" Outputs to a html file graphlab_metrics.html
+    */
     void set_metrics_type(const std::string& metrics_type) {
       meopts.metrics_type = metrics_type;
     }
 
+    /**
+     \brief Destroys a created engine (if any).
+    */
     void reset() {
       engine_has_been_modified = false;
       shared_data_used = false;
       destroy_engine();
     }
+    
     /**
-     * Set the number of cpus that the core will use
+     * \brief Set the number of cpus that the engine will use.
+     *
+     * This will destroy the current engine and any tasks associated
+     * with the current scheduler. 
+     *
      */
     void set_ncpus(size_t ncpus) {
       check_engine_modification();
@@ -116,7 +158,7 @@ namespace graphlab {
 
 
     /**
-     * Get a reference to the active engine.  If no enge exists one is
+     * Get a reference to the active engine.  If no engine exists one is
      * created.
      */
     typename types::iengine& engine() { 
@@ -128,7 +170,8 @@ namespace graphlab {
 
 
     /**
-     * Get a reference to the shared data associated with this core.
+     * \deprecated {Do not use. Use \ref glshared }
+     * \brief Get a reference to the shared data manager associated with this core.
      */
     typename types::ishared_data_manager& shared_data() {
       if (shared_data_used == false) {
@@ -142,7 +185,8 @@ namespace graphlab {
 
     
     /**
-     * Get a const reference to the shared data associated with this
+     * \deprecated {Do not use. Use \ref glshared }
+     * \brief Get a const reference to the shared data associated with this
      * core.
      */
     const typename types::ishared_data_manager& shared_data() const {
@@ -151,7 +195,7 @@ namespace graphlab {
 
 
     /**
-     * Finalize the core by clearing the current engine and
+     * \brief Destroys and reconstructs the current engine,
      * reprocessing the engine arguments.  
      */
     bool rebuild_engine() {
@@ -161,7 +205,7 @@ namespace graphlab {
     }
 
     /**
-     * Set the engine options by passing in an engine options object.
+     * \brief Set the engine options by passing in an engine options object.
      */
     void set_engine_options(const engine_options& opts) {
       check_engine_modification();
@@ -171,24 +215,30 @@ namespace graphlab {
     }
 
     /**
-     * View the engine options
+     * \brief Returns the engine options
      */
     const engine_options& get_engine_options() const { 
       return meopts;
     }
 
+    /**
+     * \brief Returns a modifiable reference to the scheduler options
+     */
     scheduler_options& sched_options() {
       return sched_opts;
     }
 
+    /**
+     * \brief Returns a constant reference to the scheduler options
+     */
     const scheduler_options& sched_options() const{
       return sched_opts;
     }
 
 
     /**
-     * Set the engien options by simply parsing the command line
-     * arguments.
+     * \brief Set the engine options by simply parsing the command line
+     * arguments. 
      */
     bool parse_engine_options(int argc, char **argv) {
       check_engine_modification();
@@ -200,7 +250,7 @@ namespace graphlab {
 
 
     /**
-     * Run the engine until a termination condition is reached or
+     * \brief Run the engine until a termination condition is reached or
      * there are no more tasks remaining to execute.
      */
     double start() {
@@ -218,7 +268,7 @@ namespace graphlab {
   
 
     /**
-     * Add a single update function to a single vertex.
+     * \brief Add a single update function to a single vertex.
      */
     void add_task(vertex_id_t vertex,
                   typename types::update_function func,
@@ -230,7 +280,7 @@ namespace graphlab {
 
 
     /**
-     * Add a single task with a fixed priority.
+     * \brief Add a single task with a fixed priority.
      */
     void add_task(typename types::update_task task, double priority) {
       engine_has_been_modified = true;
@@ -238,7 +288,7 @@ namespace graphlab {
     }
 
     /**
-     * Add the update function to all the veritces in the provided
+     * \brief Add the update function to all the veritces in the provided
      * vector with the given priority.
      */
     void add_tasks(const std::vector<vertex_id_t>& vertices, 
@@ -249,7 +299,7 @@ namespace graphlab {
 
 
     /**
-     * Add the given function to all vertices using the given priority
+     * \brief Add the given function to all vertices using the given priority
      */
     void add_task_to_all(typename types::update_function func, 
                          double priority) {
@@ -258,7 +308,7 @@ namespace graphlab {
     }
     
     /**
-     * Get the number of updates executed by the engine
+     * \brief Get the number of updates executed by the engine
      */
     size_t last_update_count() {
       if(mengine == NULL) return 0;
@@ -276,7 +326,11 @@ namespace graphlab {
         coremetrics.set("compile_flags", meopts.compile_flags);
      }
     
+    /**
+     \brief Outputs the recorded metrics
+    */
     void report_metrics() {
+        fill_metrics();
         // Metrics dump: basic 
         if (meopts.metrics_type == "basic") { 
             basic_reporter reporter = basic_reporter();
@@ -293,7 +347,9 @@ namespace graphlab {
         }
     }
     
-        /**
+     /**
+     * \brief Registers a sync with the engine.
+     *
      * Registers a sync with the engine.
      * The sync will be performed every "interval" updates,
      * and will perform a reduction over all vertices from rangelow
@@ -334,6 +390,7 @@ namespace graphlab {
                         sync_interval, merge, rangelow, rangehigh);
       
     }
+    
 
     /**
      * Performs a sync immediately. This function requires that the shared

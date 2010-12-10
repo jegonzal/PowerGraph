@@ -81,35 +81,28 @@ void init_graph(graph_type& g,
 
 
 
-
-enum shared_data_keys {
-  NUM_VERTICES_KEY,
-  RED_PROPORTION_KEY,
-  NUM_FLIPS_KEY
-};
+gl::glshared<size_t> NUM_VERTICES;
+gl::glshared<double> RED_PROPORTION;
+gl::glshared<size_> NUM_FLIPS;
 
 
 
 
-void reduce_red_proportion(size_t index,
-                           const gl::ishared_data& shared_data,
-                           gl::iscope& scope,
+void reduce_red_proportion(gl::iscope& scope,
                            graphlab::any& accumulator) {
   if (scope.vertex_data().color) accumulator.as<double>() += 1.0;
 }
 
 
 
-static void apply_red_proportion(size_t index,
-                                  const gl::ishared_data& shared_data,
-                                  graphlab::any& current_data,
+static void apply_red_proportion(graphlab::any& current_data,
                                   const graphlab::any& new_data) {
 
-  size_t numvertices = shared_data.get_constant(NUM_VERTICES_KEY).as<size_t>();
+  size_t numvertices = NUM_VERTICES.get_val();
   double numred = new_data.as<double>();
   double proportion = numred / numvertices;
   std::cout << "Red Proportion: " << proportion << std::endl;
-  current_data = (double)proportion;
+  current_data.as<double>() = proportion;
 }
 
 
@@ -120,15 +113,22 @@ size_t get_flip(const vertex_data &v) {
 
 
 
-void init_shared_data(gl::thread_shared_data& sdm,
-                      size_t dim) {
-  sdm.set_constant(NUM_VERTICES_KEY, (size_t)(dim * dim));
-  sdm.set_sync(RED_PROPORTION_KEY,
-               reduce_red_proportion, 
-               apply_red_proportion,  
-               double(0),             
-               100);                  
-  sdm.set_sync(NUM_FLIPS_KEY,
+void init_shared_data(gl::iengine &engine, size_t dim) {
+  NUM_VERTICES.set(dim*dim);
+  sdm.set_constant(NUM_VERTICES, (size_t)(dim * dim));
+  engine.set_sync(RED_PROPORTION,
+                  reduce_red_proportion,
+                  apply_red_proportion,
+                  double(0),
+                  10);
+
+  engine.set_sync(RED_PROPORTION,
+                  reduce_red_proportion,
+                  apply_red_proportion,
+                  double(0),
+                  10);
+                  
+  sdm.set_sync(NUM_FLIPS,
                gl::sync_ops::sum<size_t, get_flip>,
                gl::apply_ops::identity<size_t>,
                size_t(0),
@@ -159,7 +159,6 @@ int main(int argc,  char *argv[]) {
 
   // Initialize the the data structures
   init_graph(glcore.graph(), dimensions);
-  init_shared_data(glcore.shared_data(), dimensions);
   // Add all starting tasks
   glcore.add_task_to_all(update_function, 1.0);
   
@@ -167,16 +166,15 @@ int main(int argc,  char *argv[]) {
   double runtime = glcore.start();
   
   std::cout << "Completed in " << runtime << " seconds" << std::endl;
-  glcore.shared_data().sync(NUM_FLIPS_KEY);
-  glcore.shared_data().sync(RED_PROPORTION_KEY);
+//  glcore.sync_now(NUM_FLIPS);
+  glcore.sync_now(RED_PROPORTION);
 
   // now we can look the values using the get() function
-  size_t numberofflips =
-    glcore.shared_data().get(NUM_FLIPS_KEY).as<size_t>();
-  double redprop =
-    glcore.shared_data().get(RED_PROPORTION_KEY).as<double>();
+  size_t numberofflips = 0;
+//    glcore.shared_data().get(NUM_FLIPS_KEY).as<size_t>();
+
   std::cout << "Number of flips: " <<  numberofflips << std::endl;
-  std::cout << "Red prop: " << redprop << std::endl;
+  std::cout << "Red prop: " << RED_PROPORTION.get_val() << std::endl;
 
   // output the graph
   size_t ctr = 0;
