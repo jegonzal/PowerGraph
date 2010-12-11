@@ -15,11 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author akyrola
  */
 public class GraphLabJNIWrapper {
-
-
-
     private AtomicInteger counter = new AtomicInteger(0);
-
     private List<UpdateFunction> updateFunctions;
     private Graph graph;
 
@@ -58,7 +54,8 @@ public class GraphLabJNIWrapper {
     native public void setIterations(int maxiter);
 
     /**
-     * Set the number of parallel threads to use. Default = all.
+     * Set the number of parallel threads to use. Default = all. You can also use
+     * command line argument <tt>-Dgraphlab.ncpus=X</tt>.
      * @param ncpus
      */
     native public void setNumCPUs(int ncpus);
@@ -69,7 +66,17 @@ public class GraphLabJNIWrapper {
      * @param s
      */
     native public void setScheduler(String s);
+    
+    /** 
+      * Set scope consistency mode. Must be: "vertex", "edge" or "full".
+      * @param s scope type string
+      */
     native public void setScopeType(String s);
+    
+    /**
+      * Set metrics output format: "file", "html", "basic".
+      * @param s metrics output
+      */
     native public void setMetrics(String s);
 
     /**
@@ -129,8 +136,6 @@ public class GraphLabJNIWrapper {
         runGraphlab();
         System.out.println("Update count: " + counter);
     }
-
-
 
 
     private Scope getScope(final int vertexId) {
@@ -243,8 +248,11 @@ public class GraphLabJNIWrapper {
         }
     }
 
-
+    /** 
+      * Add initial task
+      */
     public void addTask(int vertexid, UpdateFunction func) {
+        assert(updateFunctions.contains(func));
         schedule(new int[]{vertexid}, new int[]{func.functionId});
     }
 

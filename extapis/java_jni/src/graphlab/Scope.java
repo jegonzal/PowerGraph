@@ -20,22 +20,28 @@ public interface Scope {
     Vertex getVertex();
     
     /**
-      * @param list of inbound edges (unmodifiable).
+      * @return list of inbound edges (unmodifiable).
       */
     public List<Edge> getInboundEdges();
 
     /**
-      * @param list of out bound edges (unmodifiable).
+      * @return list of out bound edges (unmodifiable).
       */
     public List<Edge> getOutboundEdges();
  
     
+    /**
+      * @return neighbor vertex object
+      */
     public Vertex getNeighbor(int vertexId);
 
     public int getNumInboundEdges();
 
     public int getNumOutboundEdges();
-
+    
+    /**
+      * @return number of vertices in graph
+      */
     public int getNumOfVertices();
 
 }
