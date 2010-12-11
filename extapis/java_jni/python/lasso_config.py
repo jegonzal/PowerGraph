@@ -1,4 +1,5 @@
 
 
 graphlab.setScheduler("round_robin")
-graphlab.setTaskBudget(250000)
+graphlab.setIterations(100)
+graphlab.setScopeType("vertex")
