@@ -3,9 +3,11 @@
 
 mkdir dist/graphlabapi
 rsync --verbose --recursive --links --times --owner --perms --delete \
-    --exclude=debug --exclude=release --exclude=profile --exclude=.hg \
+    --exclude=debug --exclude=release --exclude=profile --exclude=apps --exclude=.hg \
     --exclude=dist \
     * dist/graphlabapi/.
+
+mkdir dist/graphlabapi/apps
 
 version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
 echo "Version: $version"
