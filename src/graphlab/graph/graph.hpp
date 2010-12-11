@@ -55,26 +55,28 @@ namespace graphlab {
   struct partition_method {
 
     /**
-     * \brief the partition methods
-     *
-     * <ul>
-     *
-     *   <li> PARTITION_RANDOM: Randomly partition the graph. </li>
-     *
-     *   <li> PARTITION_METIS: Partition the graph using the metis
-     *   algorithm </li>
-     *
-     *   <li> PARTITION_BFS: Use BFS partition method. </li>
-     *
-     * </ul>
+      \brief the partition methods
      */
     enum partition_method_enum {
-      PARTITION_RANDOM,
-      PARTITION_METIS,
-      PARTITION_BFS,
-      PARTITION_EDGE_NUM,
+      PARTITION_RANDOM, /**< Vertices are randomly assigned to partitions. Every partition
+                      will have roughly the same number of vertices. (between
+                      #vertices / nparts and (#vertices / nparts + 1)) */
+      PARTITION_METIS,  /**< Partitions the graph using the
+                    <a href="http://glaros.dtc.umn.edu/gkhome/views/metis"> METIS</a>
+                    graph partitioning package. <b>A modified version of METIS is
+                    included with GraphLab, so contact us if you encounter any
+                    issues.*/
+      PARTITION_BFS, /**< Partitions the graph using Breadth First Searches. A random
+                    root vertex is selected and inserted into the first
+                    partition. Additional vertices are inserted into the partition
+                    by starting a BFS from the root vertex.  When the partition
+                    reaches capacity: (#vertices / nparts), the procedure restarts
+                    with a next partition with a new random root vertex. */
+      PARTITION_EDGE_NUM, /**< Partitions the vertices such that every partition 
+                        has roughly the same number of edges. */
     };
 
+    /// Converts a partition_method_enum to a string
     static std::string enum_to_string(partition_method_enum val) {
       switch(val) {
         case PARTITION_RANDOM:
@@ -89,6 +91,8 @@ namespace graphlab {
           return "";
       }
     }
+    
+    /// Converts a string to a partition_method_enum. Returns true on success
     static bool string_to_enum(std::string s, partition_method_enum &val) {
       if (s == "random") {
         val = PARTITION_RANDOM;
@@ -110,13 +114,13 @@ namespace graphlab {
     }
   };
 
-  /** The type of a vertex is a simple size_t */
+  /// The type of a vertex is a simple size_t
   typedef uint32_t vertex_id_t;
 
-  /** The type of an edge id */
+  /// The type of an edge id 
   typedef uint32_t edge_id_t;
 
-  /** Type for vertex colors **/
+  /// Type for vertex colors 
   typedef uint8_t vertex_color_type;
 
 
@@ -130,42 +134,42 @@ namespace graphlab {
     const edge_id_t* begin_ptr; // Points to first element
     const edge_id_t* end_ptr; // One past end   
   public:
-    /** Construct an empty edge list */
+    /** \brief Construct an empty edge list */
     edge_list() : begin_ptr(NULL), end_ptr(NULL) { }
-    /** Construct an edge list from an std vector */
+    /** \brief Construct an edge list from an std vector */
     edge_list(const std::vector<edge_id_t>& edges) :
       begin_ptr(&(*edges.begin())), 
       end_ptr(begin_ptr + edges.size()) { }
-    /** Construct an edge list from an in memory array */
+    /** \brief Construct an edge list from an in memory array */
     edge_list(const edge_id_t* begin_ptr, size_t len) :
       begin_ptr(begin_ptr),  end_ptr(begin_ptr + len) { }
 
-    /** Get the size of the edge list */
+    /** \brief Get the size of the edge list */
     size_t size() const { return end_ptr - begin_ptr; }
 
-    /** Get the ith element */
+    /** \brief Get the ith edge in the edge list */
     edge_id_t operator[](size_t i) const {
       assert(i < size());
       return *(begin_ptr + i);
     }
 
-    /** Get the beginning */
+    /** \brief Returns a pointer to the start of the edge list */
     const edge_id_t* begin() const {
       return begin_ptr;
     }
 
-    /** Get the end */
+    /** \brief Returns a pointer to the end of the edge list */
     const edge_id_t* end() const {
       return end_ptr;
     } 
 
-    /** Fill a vector with edge id list */
+    /** \brief Fill a vector with edge id list */
     void fill_vector(std::vector<edge_id_t>& lvalue) const {
       lvalue.clear();
       foreach(edge_id_t eid, *this) lvalue.push_back(eid);    
     }
 
-    /** test if the edge list is empty */
+    /** \brief test if the edge list is empty */
     bool empty() const { return size() == 0; }
 
   }; // End of edge list
@@ -179,10 +183,53 @@ namespace graphlab {
 
   // CLASS GRAPH ==============================================================>
   /**
-   * The graph data structure which behaves like a container of edge
-   * and vertex data. Intuitively the graph behaves like an
-   * std::vector over VertexData with data associated with select
-   * pairs of indices corresponding to edge data.
+    \brief The GraphLab primary Graph container templatized over the vertex and edge types.
+    
+    Every vertex and edge in the graph is assigned a unique integer
+    ID.  The type of the vertex id
+    is <code>graphlab::vertex_id_t</code> and the type of the edge id
+    is <code>graphlab::edge_id_t</code>. Both <code>vertex_id_t</code>
+    and <code>edge_id_t</code> are currently defined
+    as <code>uint32_t</code>.  While this limits the graphs to 4
+    billion vertices it also helps reduce the storage overhead. We
+    encourage users to use the <code>vertex_id_t</code>
+    and <code>edge_id_t</code> types as they may change in larger
+    distributed systems.
+
+    <h2> Graph Creation </h2>
+  
+    Vertices and edges are added using the graph::add_vertex()
+    and graph::add_edge() member functions:
+  
+  
+  \code
+  vertex_id_t graph::add_vertex(const VertexData& vdata = VertexData()) 
+  edge_id_t graph::add_edge(vertex_id_t source, vertex_id_t target, const EdgeData& edata = EdgeData()) 
+  \endcode
+  
+    The functions return the id's of the added vertex and edge
+    respectively.  An edge can only be added if both the source and
+    target vertex id's are already in the graph. Duplicate edges are not 
+    supported and may result in undefined behavior.
+
+    The graph behaves like an STL container by storing a local copy of
+    any vertex or edge data.  This data can be accessed using
+    the useful graph routines described below.
+
+    The Graph datastructure is stored internally as a sorted adjacency
+    list.  Where each vertex contains two vectors listing all of its
+    in-edges and all of its out-edges. The in-edges are sorted by the
+    id of the source vertex, while the out-edges are sorted by the id
+    of the destination vertex. This allows for <i>O(log(n))</i> time
+    look up of an edge id given its source and destination vertex.
+   
+    However, this invariant is very expensive to maintain during graph
+    consruction.  Therefore, the Graph datastructure allows the
+    invariant to be violated during
+    graph::add_vertex() or graph::add_edge(). A final call to the member function
+    graph::finalize() is needed after graph construction
+    to restore the invariant.  The engine routines will defensively
+    call graph::finalize() it is not first called by the user.
    */
   template<typename VertexData, typename EdgeData>
   class graph {
@@ -204,7 +251,7 @@ namespace graphlab {
     graph() : finalized(true),changeid(0) {  }
 
     /**
-     * BUG: Should not reserve but instead directly create vertices.
+     * \BUG: Should not reserve but instead directly create vertices.
      * Create a graph with space allocated for num_vertices and
      * num_edges.
      */
@@ -218,7 +265,7 @@ namespace graphlab {
     // METHODS =================================================================>
 
     /**
-     * Clear all internal data
+     * \brief Resets the graph state.
      */
     void clear() {
       vertices.clear();
@@ -232,7 +279,10 @@ namespace graphlab {
     
     /**
      * Finalize a graph by sorting its edges to maximize the
-     * efficiency of graphlab.  This is invoked by the engine at
+     * efficiency of graphlab.  
+     * This function takes O(|V|log(degree)) time and will 
+     * fail if there are any duplicate edges.
+     * This is also automatically invoked by the engine at
      * start.
      */
     void finalize() {    
@@ -275,30 +325,33 @@ namespace graphlab {
       finalized = true;
     } // End of finalize
             
-    /** Get the number of vetices */
+    /** \brief Get the number of vetices */
     size_t num_vertices() const {
       return vertices.size();
     } // end of num vertices
 
-    /** Get the number of edges */
+    /** \brief Get the number of edges */
     size_t num_edges() const {
       return edges.size();
     } // end of num edges
 
 
-    /** Get the number of in edges */
+    /** \brief Get the number of in edges of a particular vertex */
     size_t num_in_neighbors(vertex_id_t v) const {
       assert(v < vertices.size());
       return in_edges[v].size();
     } // end of num vertices
     
-    /** get the number of out edges */
+    /** \brief Get the number of out edges of a particular vertex */
     size_t num_out_neighbors(vertex_id_t v) const  {
       assert(v < vertices.size());
       return out_edges[v].size();
     } // end of num vertices
 
-    /** Find an edge */
+    /** \brief Finds an edge.
+    The value of the first element of the pair will be true if an 
+    edge from src to target is found and false otherwise. If the 
+    edge is found, the edge ID is returned in the second element of the pair. */
     std::pair<bool, edge_id_t>
     find(vertex_id_t source, vertex_id_t target) const {
       assert(source < in_edges.size());
@@ -354,7 +407,9 @@ namespace graphlab {
     } // end of find
 
     
-    /** get the edge id for the edge */
+    /** \brief A less safe version of find. 
+        Returns the edge_id of an edge from src to target exists. 
+        Assertion failure otherwise. */
     edge_id_t edge_id(vertex_id_t source, vertex_id_t target) const {
       std::pair<bool, edge_id_t> res = find(source, target);
       // The edge must exist
@@ -364,7 +419,8 @@ namespace graphlab {
     } // end of edge_id
 
     
-    /** get the reverser edge id for the edge */
+    /** \brief Returns the edge ID of the edge going in the opposite direction. 
+        Assertion failure if such an edge is not found.  */
     edge_id_t rev_edge_id(edge_id_t eid) const {
       assert(eid < edges.size());
       vertex_id_t source = edges[eid].source();
@@ -374,8 +430,9 @@ namespace graphlab {
 
     
     /** 
-     * Creates a vertex containing the vertex data and returns the id
-     * of the new vertex id.
+     * \brief Creates a vertex containing the vertex data and returns the id
+     * of the new vertex id. Vertex ids are assigned in increasing order with
+     * the first vertex having id 0.
      */
     vertex_id_t add_vertex(const VertexData& vdata = VertexData() ) {
       vertices.push_back(vdata);
@@ -388,8 +445,8 @@ namespace graphlab {
 
 
     /** 
-     * Add additional vertices up to provided num_vertices.  This will
-     * fail is resizing down.
+     * \brief Add additional vertices up to provided num_vertices.  This will
+     * fail if resizing down.
      */
     void resize(size_t num_vertices ) {
       assert(num_vertices >= vertices.size());
@@ -402,7 +459,7 @@ namespace graphlab {
     
     
     /**
-     * Creates an edge connecting vertex source to vertex target.  Any
+     * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
      */
     edge_id_t add_edge(vertex_id_t source, vertex_id_t target, 
@@ -452,19 +509,19 @@ namespace graphlab {
     } // End of add edge
         
     
-    /** Get the vertex data */
+    /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_t v) {
       assert(v < vertices.size());
       return vertices[v];
     } // end of data(v)
     
-    /** Get the vertex data */
+    /** \brief Returns a constant reference to the data stored on the vertex v */
     const VertexData& vertex_data(vertex_id_t v) const {
       assert(v < vertices.size());
       return vertices[v];
     } // end of data(v)
 
-    /** Get the edge_data */
+    /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_t source, vertex_id_t target) {
       assert(source < vertices.size());
       assert(target < vertices.size());
@@ -476,7 +533,7 @@ namespace graphlab {
       return edges[ans.second].data();
     } // end of edge_data(u,v)
     
-    /** Get the edge_data */
+    /** \brief Returns a constant reference to the data stored on the edge source->target */
     const EdgeData& edge_data(vertex_id_t source, vertex_id_t target) const {
       assert(source < vertices.size());
       assert(target < vertices.size());
@@ -488,44 +545,47 @@ namespace graphlab {
       return edges[ans.second].data();
     } // end of edge_data(u,v)
 
-    /** Get the edge_data */
+    /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_id_t edge_id) { 
       assert(edge_id < edges.size());
       return edges[edge_id].data();
     }
     
-    /** Get the edge_data */
+    /** \brief Returns a constant reference to the data stored on the edge e */
     const EdgeData& edge_data(edge_id_t edge_id) const {
       assert(edge_id < edges.size());
       return edges[edge_id].data();
     }
 
-    /** get the source of the edge */
+    /** \brief Returns the source vertex of an edge. */
     vertex_id_t source(edge_id_t edge_id) const {
       //      assert(edge_id < edges.size());
       return edges[edge_id].source();
     }
 
-    /** get the dest of the edge */
+    /** \brief Returns the destination vertex of an edge. */
     vertex_id_t target(edge_id_t edge_id) const {
       //      assert(edge_id < edges.size());
       return edges[edge_id].target();    
     }
     
-    /** Set vertex color **/
+    /** \brief Returns the vertex color of a vertex.
+        Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_t vertex) const {
       assert(vertex < vertices.size());
       return vcolors[vertex];
     }
 
+    /** \brief Returns the vertex color of a vertex.
+        Only valid if compute_coloring() is called first.*/
     vertex_color_type& color(vertex_id_t vertex) {
       assert(vertex < vertices.size());
       return vcolors[vertex];
     }
 
 
-    /** This function constructs a coloring for the graph and returns
-        the number of colors */
+    /** \brief This function constructs a heuristic coloring for the 
+    graph and returns the number of colors */
     size_t compute_coloring() {
       // Reset the colors
       for(vertex_id_t v = 0; v < num_vertices(); ++v) color(v) = 0;
@@ -568,7 +628,7 @@ namespace graphlab {
 
 
     /**
-     * Check that the colors satisfy a valid coloring of the graph.
+     * \brief Check that the colors satisfy a valid coloring of the graph.
      * return true is coloring is valid;
      */
     bool valid_coloring() {
@@ -586,24 +646,24 @@ namespace graphlab {
     }
     
     
-    /** Get the ids of the in edges */
+    /** \brief Return the edge ids of the edges arriving at v */
     edge_list in_edge_ids(vertex_id_t v) const {
       assert(v < in_edges.size());
       return edge_list(in_edges[v]);
     } // end of in edges    
 
-    /** Get the ids of the out edges */
+    /** \brief Return the edge ids of the edges leaving at v */
     edge_list out_edge_ids(vertex_id_t v) const {
       assert(v < out_edges.size());
       return edge_list(out_edges[v]);
     } // end of out edges
     
-    /** count the number of times the graph was cleared and rebuilt */
+    /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {
       return changeid;
     }
 
-    /** Load the graph from an archive */
+    /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
       clear();    
       // read the vertices and colors
@@ -615,7 +675,7 @@ namespace graphlab {
           >> finalized;
     } // end of load
 
-    /** Save the graph to an archive */
+    /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
       // Write the number of edges and vertices
       arc << vertices
@@ -627,7 +687,7 @@ namespace graphlab {
     } // end of save
     
 
-    /** Load the graph from a file */
+    /** \brief Load the graph from a file */
     void load(const std::string& filename) {
       std::ifstream fin(filename.c_str());
       iarchive iarc(fin);
@@ -638,7 +698,6 @@ namespace graphlab {
 
     /**
      * \brief save the graph to the file given by the filename
-     * 
      */    
     void save(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
@@ -666,8 +725,12 @@ namespace graphlab {
     }
 
     /**
-     * partition the graph with roughtly the same number of edges for
-     * each part
+     * \brief partition the graph with roughly the same number of edges for
+     * each part. Equivalent to calling partition() with the 
+     * partition_method::PARTITION_EDGE_NUM parameter.
+     *
+     * \param numparts The number of parts to partition into
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
      */
     void edge_num_partition(size_t nparts, 
 			    std::vector<uint32_t>& vertex2part){
@@ -692,8 +755,13 @@ namespace graphlab {
 
 
     /**
-     * Randomly assign vertices to partitions.  This will assign
+     * \brief Randomly assign vertices to partitions.  This will assign
      * vertices evenly to each partition.
+     * Equivalent to calling partition() with the 
+     * partition_method::PARTITION_RANDOM parameter
+     *
+     * \param numparts The number of parts to partition into
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
      */
     void random_partition(size_t nparts, std::vector<uint32_t>& vertex2part) {
       vertex2part.resize(num_vertices());
@@ -705,8 +773,14 @@ namespace graphlab {
 
 
     /**
-     * Use a modified version of the METIS library to partition the
-     * graph. The methis library is described in:
+     * \brief Use a modified version of the METIS library to partition the
+     * graph. Equivalent to calling partition() with the 
+     * partition_method::PARTITION_METIS paramter
+     *
+     * \param numparts The number of parts to partition into
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     *
+     * The metis library is described in:
      *
      *   "A Fast and Highly Quality Multilevel Scheme for Partitioning
      *   Irregular Graphs”. George Karypis and Vipin Kumar. SIAM
@@ -719,7 +793,6 @@ namespace graphlab {
      * the contact information provided at:
      *
      *   http://www.select.cs.cmu.edu/code
-     *
      */
     void metis_partition(size_t numparts , std::vector<uint32_t>& ret_part) {
       if (numparts == 1) {
@@ -842,7 +915,7 @@ namespace graphlab {
     /**
      * This function computes a weighted graph partition using METIS.
      * \param numparts The number of parts to partition into
-     * \param ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
      * \param vfunction A function of the type size_t (*)(const VertexData &v)
      *                  This function takes in the data on a vertex, and 
      *                  returns the weight of the vertex
@@ -997,7 +1070,19 @@ namespace graphlab {
       if(res != NULL) delete [] res;
     } // end of metis partition
     
-    
+     /**
+     * \brief Performs a breadth first search partitioning of the graph.
+     * Equivalent to calling partition() with the 
+     * partition_method::PARTITION_EDGE_NUM paramter
+     *
+     * \param numparts The number of parts to partition into
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     *
+     * The algorithm works by picking up a random vertex and performing a breadth
+     * first search until the number of vertices touched is |V|/nparts.
+     * This will then be assigned as the first partition. This procedure repeats
+     * until all partitions are filled.
+     */
     void bfs_partition(size_t nparts, std::vector<uint32_t> &vertex2part) {
       // create a list of all unassigned variables
       std::set<vertex_id_t> unassigned;
@@ -1058,6 +1143,11 @@ namespace graphlab {
     /**
      * Partition the graph using one of the available partitioning
      * methods.
+     * \param partmethod A partition method. \ref partition_method
+     *
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
+     * 
      */
     void partition(partition_method::partition_method_enum partmethod,
                    size_t nparts, std::vector<uint32_t>& vertex2part) {
@@ -1076,8 +1166,11 @@ namespace graphlab {
     }
 
     /**
-     * builds a topological_sort of the graph. assuming it is top
-     * sortable will return false if fails (i.e. cycles)
+     * builds a topological_sort of the graph returning it in topsort. 
+     * 
+     * \param[out] Resultant topological sort of the graph vertices.
+     *
+     * sortable will return false if graph is not acyclic.
      */
     bool topological_sort(std::vector<vertex_id_t>& topsort) const {
       topsort.clear();

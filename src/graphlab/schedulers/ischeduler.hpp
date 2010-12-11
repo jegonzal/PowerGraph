@@ -11,23 +11,24 @@
 
 namespace graphlab {
   template <typename Graph> class iengine;
+  
   /**
    * This is an enumeration for the possible return values for
    * get_next_tasks
    */
   struct sched_status {
     enum status_enum {
-      NEWTASK,      /// The get_next_tasks function returned a new task
-                    /// to be executed
-      EMPTY,         /// The schedule is empty.
-
+      NEWTASK,      /**< The get_next_tasks function returned a new task 
+                        to be executed */
+      EMPTY,         /**< The schedule is empty. */
+      
       /// Deprecated options. to be phased out. do not use.
-      WAITING,      /// Deprecated
-      COMPLETE      /// Deprecated
+      WAITING,      /// \deprecated
+      COMPLETE      /// \deprecated
     };
   };
   
- /// TODO: Deprecated
+ /// \deprecated
   struct scheduler_options_enum {
     enum options_enum {
       UPDATE_FUNCTION,    /// used by 1-update function schedulers
@@ -44,6 +45,7 @@ namespace graphlab {
   
 
   /**
+   * \ingroup group_schedulers
    * This describes the interface/concept for the scheduler. The
    * engine will be passed the scheduler type as a template argument,
    * so the scheduler must inherit and satisfy this interface

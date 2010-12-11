@@ -6,6 +6,7 @@
 namespace graphlab {
   
 /**
+ \ingroup util_internal
 A boost sink device which counts the number of characters written
 */
 struct char_counting_sink {

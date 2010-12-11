@@ -4,6 +4,8 @@
 #include <boost/iostreams/categories.hpp>
 
 namespace graphlab {
+
+/// \ingroup util_internal
 struct resizing_array_sink{
   resizing_array_sink(size_t initial) { 
     str = (char*)(malloc(initial));

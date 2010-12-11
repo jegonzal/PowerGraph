@@ -9,6 +9,7 @@
 
 namespace graphlab {
   /**
+   *  \ingroup util_internal
    * The simplest possible terminator.
    * Always fails until a flag is set
    */

@@ -10,6 +10,10 @@
 
 namespace graphlab {
 
+   /** 
+    * \ingroup util_internal
+    * \brief Implements a blocking queue useful for producer/consumer models
+    */
   template<typename T>
   class blocking_queue {
   private:

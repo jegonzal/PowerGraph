@@ -28,6 +28,7 @@
 namespace graphlab {
 
   /**
+   * \ingroup group_schedulers
    *
    * This scheduler creates a priority queue where each element
    * in the priority queue is a fixed subset of vertices in the graph.

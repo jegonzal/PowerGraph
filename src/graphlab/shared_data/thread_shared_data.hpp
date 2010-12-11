@@ -15,6 +15,7 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
+   /** \brief \deprecated Use glshared */
   template<typename Graph>
   class thread_shared_data : 
     public ishared_data_manager<Graph> {

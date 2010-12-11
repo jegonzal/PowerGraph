@@ -28,6 +28,8 @@
 
 namespace graphlab {
 
+   /** \ingroup group_schedulers
+    */
   template<typename Graph>
   class sweep_scheduler : 
     public ischeduler<Graph> {

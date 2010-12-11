@@ -16,7 +16,7 @@ add_library(graphlab_GKlib_pic STATIC ${graphlab_GKlib_sources})
 set_target_properties(graphlab_GKlib_pic PROPERTIES COMPILE_FLAGS "${METIS_BUILD_OPTS} -fPIC")
 
 
-INSTALL(TARGETS graphlab_GKlib DESTINATION lib)
+INSTALL(TARGETS graphlab_GKlib graphlab_GKlib_pic DESTINATION lib)
 
 
 

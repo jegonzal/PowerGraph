@@ -8,7 +8,7 @@
 
 
 namespace graphlab {
-
+  /// \ingroup util_internal
   template <typename T>
   class synchronized_multiqueue {
 

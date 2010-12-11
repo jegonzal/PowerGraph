@@ -16,6 +16,8 @@
 namespace graphlab {
 
   /**
+   * \ingroup group_schedulers
+   *
    * Colored Scheduler
    */
   template<typename Graph>

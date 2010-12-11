@@ -283,11 +283,13 @@ void init_graph(graph_type& g,
   
  We will therefore define 3 entries in the Shared Data table.
 */
-enum shared_data_keys {
-  NUM_VERTICES_KEY,
-  RED_PROPORTION_KEY,
-  NUM_FLIPS_KEY
-};
+
+
+gl::glshared<size_t> NUM_VERTICES;
+gl::glshared<double> RED_PROPORTION;
+gl::glshared<size_t> NUM_FLIPS;
+
+
 
 
 // A sync is defined by a pair of functions, a reducer, and an apply
@@ -318,9 +320,7 @@ We just count the number of red verices.
 
 \param accumulator The input and output of the fold/reduce operation.
 */       
-void reduce_red_proportion(size_t index,
-                           const gl::ishared_data& shared_data,
-                           gl::iscope& scope,
+void reduce_red_proportion(gl::iscope& scope,
                            graphlab::any& accumulator) {
   // each entry in the shared_data table is a special data type called
   // graphlab::any (which is derived and modified from boost::any).
@@ -346,12 +346,10 @@ We divide the accumulated value by the number of vertices
 
 \param new_data The result of the reduce operation on all the vertices.
 */       
-static void apply_red_proportion(size_t index,
-                                  const gl::ishared_data& shared_data,
-                                  graphlab::any& current_data,
-                                  const graphlab::any& new_data) {
+void apply_red_proportion(double& current_data,
+                                 const graphlab::any& new_data) {
   // get the number of vertices from the constant section of the shared data
-  size_t numvertices = shared_data.get_constant(NUM_VERTICES_KEY).as<size_t>();
+  size_t numvertices = NUM_VERTICES.get_val();
 
   // new_data is the reduced result, which is the number of red vertices
   double numred = new_data.as<double>();
@@ -380,8 +378,7 @@ size_t get_flip(const vertex_data &v) {
 /**
   Here we create the shared data table
 */
-void init_shared_data(gl::ishared_data_manager& sdm,
-                        size_t dim) {
+void init_shared_data(gl::core &core, size_t dim) {
   // the number of vertices is a constant and is just dim * dim
   // since this is a constant we will just use the "constant" part of the table
   // using the function add_constant(index, value)
@@ -390,16 +387,15 @@ void init_shared_data(gl::ishared_data_manager& sdm,
   // practice to explicitly state the data type of the value you are storing
   // (size_t here). You will see this theme alot in all uses of the shared
   // data table
-  sdm.set_constant(NUM_VERTICES_KEY, (size_t)(dim * dim));
+  NUM_VERTICES.set(dim*dim);
  
   // create the sync for the red_proportion entriy
-  sdm.set_sync(RED_PROPORTION_KEY,        // the entry we are creating
-               reduce_red_proportion, // the reduce function
-               apply_red_proportion,  // the apply function
-               double(0),               // the initial value for the fold/reduce
-               100);                    // syncing frequency.in milliseconds
-                                        // the highest effective syncing
-                                        // frequency is 0.1 seconds (100ms)
+
+  core.set_sync(RED_PROPORTION,       // The value we are syncing
+                reduce_red_proportion, // the reduce function
+                graphlab::apply_adapter<double, apply_red_proportion>,  // the apply function
+                double(0),             // the initial value for the fold/reduce
+                128);                    // syncing frequency.in #updates
 
 
   // for the number of flips counter, we will demonstrate
@@ -414,11 +410,11 @@ void init_shared_data(gl::ishared_data_manager& sdm,
   // apply_ops::identity<size_t> is the identity apply which directly
   // writes the result of the reduction into the shared data table entry.
   // The template field (size_t) is the type of the entry.
-  sdm.set_sync(NUM_FLIPS_KEY,
-               gl::sync_ops::sum<size_t, get_flip>,
-               gl::apply_ops::identity<size_t>,
+  core.set_sync(NUM_FLIPS,  
+               gl::glshared_sync_ops::sum<size_t, get_flip>,
+               gl::glshared_apply_ops::identity<size_t>,
                size_t(0),
-               100);
+               128);
 }
 
 
@@ -457,7 +453,7 @@ int main(int argc,  char *argv[]) {
   // call init_graph to create the graph
   init_graph(glcore.graph(), dimensions);
   // call create shared_data to create the shared data
-  init_shared_data(glcore.shared_data(), dimensions);
+  init_shared_data(glcore, dimensions);
 
   // since we are using a task scheduler, we need to
   // to create tasks. otherwise the engine will just terminate immediately
@@ -475,12 +471,12 @@ int main(int argc,  char *argv[]) {
   // since it is possible for the engine to terminate in between syncs
   // if we want to get a correct value for the syncs we should run them again
   // we can do his with
-  glcore.shared_data().sync(NUM_FLIPS_KEY);
-  glcore.shared_data().sync(RED_PROPORTION_KEY);
+  glcore.sync_now(NUM_FLIPS);
+//  glcore.shared_data().sync(RED_PROPORTION_KEY);
 
   // now we can look the values using the get() function
-  size_t numberofflips = glcore.shared_data().get(NUM_FLIPS_KEY).as<size_t>();
-  double redprop = glcore.shared_data().get(RED_PROPORTION_KEY).as<double>();
+  size_t numberofflips = NUM_FLIPS.get_val();
+  double redprop = RED_PROPORTION.get_val();
 
   // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;

@@ -7,6 +7,7 @@
 namespace graphlab {
 
   /**
+   * \ingroup util_internal
    * A thin wrapper around ifstream to provide simplicity of reading
    * of binary data.
    * \see binary_output_stream
@@ -37,6 +38,7 @@ namespace graphlab {
 
 
   /**
+   * \ingroup util_internal
    * A thin wrapper around ifstream to provide simplicity of writing
    * of binary data.
    * \see binary_input_stream

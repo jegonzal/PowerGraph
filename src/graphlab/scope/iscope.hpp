@@ -53,12 +53,12 @@ namespace graphlab {
    */
   struct scope_range {
     enum scope_range_enum {
-      NULL_CONSISTENCY = 0,    // no locks
-      VERTEX_READ_CONSISTENCY, // read only from self
-      READ_CONSISTENCY,        // read from self and adjacent structures
-      VERTEX_CONSISTENCY,      // write to self. no lock on adjacent
-      EDGE_CONSISTENCY,        // write to self, read from adjacent structures
-      FULL_CONSISTENCY,        // write to self and adjacent structures
+      NULL_CONSISTENCY = 0,    ///< no locks
+      VERTEX_READ_CONSISTENCY, ///< read only from self
+      READ_CONSISTENCY,        ///< read from self and adjacent structures
+      VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
+      EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
+      FULL_CONSISTENCY,        ///< write to self and adjacent structures
       USE_DEFAULT
     };
   };
