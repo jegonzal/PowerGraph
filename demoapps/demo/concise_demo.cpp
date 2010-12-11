@@ -1,8 +1,6 @@
 #include <iostream>
 #include <graphlab.hpp>
 
-
-
 struct vertex_data: public graphlab::unsupported_serialize {
   size_t numflips;
   bool color;     // black == FALSE, red == TRUE,
@@ -10,9 +8,7 @@ struct vertex_data: public graphlab::unsupported_serialize {
 
 typedef char edge_data;
 
-
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-
 typedef graphlab::types<graph_type> gl;
 
 

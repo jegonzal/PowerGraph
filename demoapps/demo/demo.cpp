@@ -138,8 +138,7 @@ termination evaluator with the engine, but we are not going to describe
 that here.
 
 \param shared_data
-This provides access to the shared_data object. If no shared_data object
-is provided, this could be NULL.
+Deprecated
 */
 void update_function(gl::iscope& scope,
                      gl::icallback& scheduler,
