@@ -1,3 +1,8 @@
+%% SET THIS!!
+% this should be the location of graphlab.a etc
+BINARY_DIRECTORY = [getenv('HOME') '/graphlabapi/graphlabapi/release/src/graphlab'];
+%%
+% Image dimensions and arity
 arity = 5;
 imgdim = 100;
 %% generate images
@@ -62,7 +67,7 @@ for xi = 1:imgdim
 end
 %% compile update function
 % you need to set the graphlab directory 
-compile_update_function({'bp_update'}, vdata{1},edata{1}, [getenv('HOME') '/graphlabapi/graphlabapi/release/src/graphlab'], 'bp', 'bp');
+compile_update_function({'bp_update'}, vdata{1},edata{1}, BINARY_DIRECTORY, 'bp', 'bp');
 %% set options
 options.initial_schedule(1).update_function = 'bp_update';
 options.initial_schedule(1).vertices=uint32(1:(imgdim * imgdim));
