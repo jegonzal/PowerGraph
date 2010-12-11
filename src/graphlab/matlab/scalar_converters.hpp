@@ -3,9 +3,9 @@
 #include <boost/preprocessor.hpp>
 
 #define TYPES (char)(int8_T)(uint8_T)(int16_T)(uint16_T)(int32_T)\
-              (uint32_T)(int64_T)(uint64_T)(real32_T)(real64_T)
+              (uint32_T)(real32_T)(real64_T)
 #define COMPLEX_TYPES (cint8_T)(cuint8_T)(cint16_T)(cuint16_T)(cint32_T)\
-                      (cuint32_T)(cint64_T)(cuint64_T)(creal_T)(creal32_T)(creal64_T)
+                      (cuint32_T)(creal_T)(creal32_T)(creal64_T)
 
 
 #define GEN_CONVERTERS(r, _, TYPENAME) \

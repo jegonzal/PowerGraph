@@ -105,4 +105,13 @@ set_target_properties(graphlab_pic PROPERTIES
 
 INSTALL(TARGETS graphlab graphlab_util graphlab_pic graphlab_util_pic ARCHIVE DESTINATION lib)
 
+INSTALL(DIRECTORY matlab/  
+  DESTINATION include/graphlab/matlab
+  FILES_MATCHING PATTERN "*" 
+  PATTERN "*.sh" EXCLUDE
+)
+
+INSTALL(FILES matlab/get_mex_params.sh
+        DESTINATION include/graphlab/matlab
+        PERMISSIONS OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 
