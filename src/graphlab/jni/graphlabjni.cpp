@@ -30,6 +30,7 @@ jobject cachedObj;
 jmethodID wrapperMethodID;
 std::vector<JNIEnv *> envs;
 
+
 int taskbudget=0;
 int maxiter=0;
 std::string metrics_type = "none";
@@ -43,15 +44,52 @@ void detach_from_JVM() {
     }
 }
 
+void jni_update_wrapper(gl_types::iscope &scope,
+                     gl_types::icallback &scheduler,
+                     gl_types::ishared_data* shared_data,
+                     jint functionid);
+
+ void jni_update_0(gl_types::iscope &scope,
+                     gl_types::icallback &scheduler,
+                     gl_types::ishared_data* shared_data) {
+    jni_update_wrapper(scope, scheduler, shared_data, 0);                  
+ }
+
+ void jni_update_1(gl_types::iscope &scope,
+                     gl_types::icallback &scheduler,
+                     gl_types::ishared_data* shared_data) {
+    jni_update_wrapper(scope, scheduler, shared_data, 1);                  
+ }
+ 
+  void jni_update_2(gl_types::iscope &scope,
+                     gl_types::icallback &scheduler,
+                     gl_types::ishared_data* shared_data) {
+    jni_update_wrapper(scope, scheduler, shared_data, 2);                  
+ }
+ 
+  void jni_update_3(gl_types::iscope &scope,
+                     gl_types::icallback &scheduler,
+                     gl_types::ishared_data* shared_data) {
+    jni_update_wrapper(scope, scheduler, shared_data, 3);                  
+ }
+ 
+ 
+  void jni_update_4(gl_types::iscope &scope,
+                     gl_types::icallback &scheduler,
+                     gl_types::ishared_data* shared_data) {
+    jni_update_wrapper(scope, scheduler, shared_data, 4);                  
+ }
+
+ gl_types::update_function functions[5] = {jni_update_0, jni_update_1, jni_update_2, jni_update_3, jni_update_4};
+
 /**
  * The Page rank update function
  */
-void jni_update(gl_types::iscope &scope,
+void jni_update_wrapper(gl_types::iscope &scope,
                      gl_types::icallback &scheduler,
-                     gl_types::ishared_data* shared_data) {
-        jint vertexid = scope.vertex();
-        jint functionid = 0;
-        
+                     gl_types::ishared_data* shared_data,
+                     jint functionid) {
+        jint vertexid = scope.vertex();        
         int threadid = graphlab::thread::thread_id();
         JNIEnv * jenv;
         if (envs[threadid] == NULL) {
@@ -63,7 +101,7 @@ void jni_update(gl_types::iscope &scope,
         jenv = envs[threadid];
         
         jintArray result = (jintArray) jenv->CallObjectMethod(cachedObj, wrapperMethodID, vertexid, functionid);
-        jsize task_sz = jenv->GetArrayLength(result)/2;
+        jsize task_sz = jenv->GetArrayLength(result)/3;
       //  std::cout << "New tasks: " << task_sz << std::endl; 
         jboolean isCopy = false;
         jint * arr = jenv->GetIntArrayElements(result, &isCopy);
@@ -88,14 +126,10 @@ void jni_update(gl_types::iscope &scope,
         
         for(int i=0; i<task_sz; i++) {
             // TODO: support multiple tasks, priority
-            scheduler.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
+            scheduler.add_task(gl_types::update_task(arr[i], functions[arr[i+task_sz]]), arr[i+2*task_sz]/(1.0e6));
         }
         jenv->ReleaseIntArrayElements(result, arr, JNI_ABORT);
 }  
-
-
- 
-
 
  #ifdef __cplusplus
 extern "C" {
@@ -173,6 +207,18 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_addEdges
 }
     
 
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setVertexColors
+    (JNIEnv * env, jobject obj, jintArray colors) {
+    jni_graph & graph = core.graph();
+    jsize sz = env->GetArrayLength(colors);
+    jboolean isCopy = false;
+    jint * arr = env->GetIntArrayElements(colors, &isCopy);
+    for(int i=0; i<sz; i++) {
+        graph.color(i) = (graphlab::vertex_color_type) arr[i];
+    }
+    env->ReleaseIntArrayElements(colors, arr, JNI_ABORT);
+}
+
 /*
  * Class:     graphlab_wrapper_GraphLabJNIWrapper
  * Method:    runGraphlab
@@ -223,9 +269,12 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_schedule
     jboolean isCopy = false;
     jsize sz = env->GetArrayLength(vertices);
     jint * arr = env->GetIntArrayElements(vertices, &isCopy);
+    jint * funcarr = env->GetIntArrayElements(funcs, &isCopy);
     for(int i=0; i<sz; i++) {
-        core.add_task(gl_types::update_task(arr[i], jni_update), 1.0);
+        core.add_task(gl_types::update_task(arr[i], functions[funcarr[i]]), 1.0);
     }
+    env->ReleaseIntArrayElements(vertices, arr, JNI_ABORT);
+    env->ReleaseIntArrayElements(funcs, funcarr, JNI_ABORT);
  }
 
 JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setTaskBudget
@@ -256,6 +305,14 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setNumCPUs
   }
 
 
+
+JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_computeGraphColoring
+  (JNIEnv * env, jobject obj, jint ncpus) {
+    core.graph().compute_coloring();
+  }
+
+
+
 /*
  * Class:     graphlab_wrapper_GraphLabJNIWrapper
  * Method:    scheduleAll
@@ -263,7 +320,7 @@ JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setNumCPUs
  */
 JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_scheduleAll
   (JNIEnv * env, jobject obj, jint funcid) {
-        core.add_task_to_all(jni_update, 1.0);
+        core.add_task_to_all(functions[0], 1.0);
   }
 
 JNIEXPORT jint JNICALL Java_graphlab_test_JniTest_dummy

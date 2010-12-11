@@ -711,7 +711,9 @@ namespace graphlab {
         ++tries;
         // check the head again
         // if head is not ready. unlock and quit
-        if (sync_task_queue.empty() ||
+        if (sync_task_queue.empty())
+            return;
+        if (
             size_t(-sync_task_queue.top().second) > curupdatecount) {
           sync_task_queue_next_update = size_t(-sync_task_queue.top().second);
           sync_task_queue_lock.unlock();
