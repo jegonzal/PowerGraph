@@ -1,7 +1,20 @@
 /*
- *  \author akyrola
- *  Multi category CoEM implementation, based on material by Justin Betteridge
+ *  \author akyrola, akyrola@cs.cmu.edu
+ *  Implementation of Co-EM Algorithm (Jones, 2005) for Named Entity Recognition.
+ *  This application reads a file of noun phrases (NPs) and contexts (CTs) and 
+ *  co-occurence counts between them. In addition, a list of positive and negative
+ *  seeds is provided. Co-EM algorithm is run until convergence (or for a predefined number
+ *  of iterations) to compute a probability of each NP and CT belonging to an entity
+ *  class (such as "city", "politician", "animal"). For further information, see description in our
+ *  paper: http://www.select.cs.cmu.edu/publications/scripts/papers.cgi?Low+al:uai10graphlab 
  *
+ *  This application uses a data format used by Tom Mitchell's (CMU) group. It should be
+ *  straightforward to modify it to support your preferred format. 
+ *
+ *  Application is unnecessary complicated because data sets are typicall large and
+ *  several optimizations, which unfortunatelly worsen readability, have been implemented.
+ *
+ *  Thanks for Justin Betteridge for the algorithm definition and for providing test data!
  */
  
 #include <cmath>
@@ -19,13 +32,14 @@
 using namespace std;
 using namespace graphlab;
 
-// Last bit of flag determines type
+// Last bit of flag determines vertex type
 #define TYPEMASK  (1<<2)
 #define NP_MASK  (0) 
 #define CTX_MASK  (1<<2)
 #define SEEDMASK  0x1
 
-// Hack to define seeds
+// A dirty hack to encode negative and positive
+// seed probabilities without using extra memory.
 float NEGSEEDPROB = -1e-30f ;
 float POSSEEDPROB = 1.000001f;
 
@@ -33,6 +47,7 @@ float INITIAL_NP_VALUE = 0.0f;
 
 #define TEXT_LENGTH 64
 
+// Shared data keys.
 const size_t PARAM_M  = 1;
 const size_t NUM_CATS = 2;
 const size_t NUM_NPS  = 3;
@@ -40,10 +55,11 @@ const size_t NUM_CTX  = 4;
 
 bool ROUNDROBIN = false;
  
-// lfidc is a modified weight formula for Co-EM (see Justin
+// tfidc is a modified weight formula for Co-EM (see Justin
 // Betteridge's "CoEM results" page)
 #define TFIDF(coocc, num_neighbors, vtype_total) (log(1+coocc)*log(vtype_total*1.0/num_neighbors))   
 
+// Vertex and Edge data definitions.
 struct vertex_data {
   unsigned short flags;
   int nbcount;
@@ -109,13 +125,7 @@ bool prune_edges;
   
 // Hack for speeding up
 std::vector<vertex_id_t> ** vertex_lookups;
-
-// For convergence analysis
-std::vector<vertex_data> * XSTAR;
-
-
-// Temporary hack 
-//multicoemapp * coapp;
+ 
 
 // Forward declarations
 void loadCategories();
@@ -128,23 +138,17 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
 void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map);
 void loadAndConvertToBin(gl_types::core& core, std::string binfile);
 void output_results(gl_types::core& core);
-void writeDump(coem_graph& g, 
-               bool is_xstar, long int budget, 
-               double *l1res, double * linf);
-std::vector<std::string> dump_headers();
-std::vector<double> l1_residual(coem_graph &g);
 
 /// ====== UPDATE FUNCTION ======= ///
 void coem_update_function(gl_types::iscope& scope, 
                           gl_types::icallback& scheduler,
                           gl_types::ishared_data* shared_data) {
-  // scheduler.disable_buffering();
-   
-  /* Hacky optimization */
+                          
+  /* A optimization. Use thred-local lookup-table for faster computation. */
   std::vector<vertex_id_t> vlookup = *vertex_lookups[thread::thread_id()];
   vlookup.clear();
    
-  /* Get shared vars */
+  /* Get shared vars. These are just constants. */
   float param_m = shared_data->get_constant(PARAM_M).as<float>();
   size_t num_nps = shared_data->get_constant(NUM_NPS).as<size_t>();
   size_t num_ctxs = shared_data->get_constant(NUM_CTX).as<size_t>();
@@ -154,7 +158,7 @@ void coem_update_function(gl_types::iscope& scope,
   vertex_data& vdata =   scope.vertex_data();
    
   /* We use directed edges as indirected, so either this vertex has only incoming  
-     or outgoing vertices */
+     or outgoing vertices.  */
   bool use_outgoing = (scope.in_edge_ids().size()==0);
   edge_list edge_ids = 
     (use_outgoing ? scope.out_edge_ids() : scope.in_edge_ids());
@@ -193,7 +197,7 @@ void coem_update_function(gl_types::iscope& scope,
   assert(num_cats<200);
   for(int i=0; i<200; i++) tmp[i] = param_m;
 	
-	
+  // Compute weighted averages of neighbors' beliefs.
   foreach(edge_id_t eid, edge_ids) {
     const edge_data& edata = scope.const_edge_data(eid);
     vertex_id_t nbvid = use_outgoing ? scope.target(eid) : scope.source(eid);
@@ -222,15 +226,13 @@ void coem_update_function(gl_types::iscope& scope,
     }
   }
 	
-  // Write data to edges and schedule if threshold reached
-  double randomNum = graphlab::random::rand01();
-  assert(randomNum >= 0.0);
-  assert(randomNum <= 1.0);
-  if (scope.vertex()%20000 == 0) 
-    printf("%d Entering foreach: %lf \n", scope.vertex(), residual);
-    
+      
+ // Round robin scheduler does not use dynamic scheduling, so we can
+ // skip it.
  if (!ROUNDROBIN) {
     int sz = edge_ids.size();
+    // Write data to edges and schedule if threshold reached
+    double randomNum = graphlab::random::rand01();
     for(int l = 0; l<sz; l++) {
         vertex_id_t nbvid = vlookup[l];
         gl_types::update_task task(nbvid, coem_update_function);
@@ -244,6 +246,8 @@ void coem_update_function(gl_types::iscope& scope,
             TFIDF(edata.cooccurence_count, 
                   vdata.nbcount, vtype_other_total) / 
             nb_vdata.normalizer);	
+         // Stochastically schedule neighbor if change is less than
+         // predetermined threshold.
          if ((neighbor_residual/TARGET_PRECISION >= randomNum) || 
              was_first_run) {
            scheduler.add_task(task, neighbor_residual);
@@ -252,24 +256,8 @@ void coem_update_function(gl_types::iscope& scope,
   }
 }
 
-/**
-  * Used for analysis. Ignore.
-  */
-void analysis_load_ground_truth() {
-	/* Load XSTAR - i.e the "ground truth". Used for convergence anlaysis. */
-  if (fopen("MC_XSTAR.dat", "r") != NULL) {
-    XSTAR = new vector<vertex_data>();
-    std::cout << "Loading x_star..." << std::endl;
-    std::ifstream fin("MC_XSTAR.dat");
-    iarchive iarc(fin);
-    iarc >> *XSTAR;
-    fin.close();
-  }
-}
-
+ 
 int ncats = 0;
-int dumpcount = 0;
-int task_budget;
 
 
 /**
@@ -278,31 +266,22 @@ int task_budget;
 int main(int argc,  char ** argv) {
   
   /**** GRAPHLAB INITIALIZATION *****/
-  std::string root = "/mnt/bigbrofs/usr5/graphlab/testdata/coem/justin/";
+  std::string root = "./";
   
-  // Setup the parser
+  // Setup the command line parser
   graphlab::command_line_options   clopts("Run the CoEM algorithm.");
   
   clopts.attach_option("data_root", &root, root,
                        "Root for data.");
   clopts.attach_option("subsampling_ratio", &subsamplingRatio, subsamplingRatio,
   				"Subsampling ratio.");
-  clopts.attach_option("task_budget", &task_budget, 0,
-  										"Task budget (needed for round robin).");
   clopts.attach_option("target_precision", &TARGET_PRECISION, 0.0f,
   										"Termination threshold.");
   										
-  // TODO: do not hard-code
-  npsfile     = root + "/cat_nps.txt";
-  contextfile = root + "/cat_contexts.txt";
-  matrixfile  = root + "/cat_pairs_cont-idx.txt";
-  seedsdir    = root + "/seeds/";
-  negseedsdir = root + "/seeds-neg/";
+
  
   // Create a graphlab core
   gl_types::core core;
-
-
   
   if(!clopts.parse(argc, argv)) {
      std::cout << "Error in parsing input." << std::endl;
@@ -312,15 +291,19 @@ int main(int argc,  char ** argv) {
   // Set the engine options
   core.set_engine_options(clopts);
   
+  // TODO: do not hard-code
+  npsfile     = root + "/cat_nps.txt";
+  contextfile = root + "/cat_contexts.txt";
+  matrixfile  = root + "/cat_pairs_cont-idx.txt";
+  seedsdir    = root + "/seeds/";
+  negseedsdir = root + "/seeds-neg/";
   
   /**** GRAPH LOADING ****/
   timer t;
   t.start();
   load(core);
   printf("Loading data took %lf secs\n", t.current_time());
-  analysis_load_ground_truth();
 
-  
   /** Hack **/
   vertex_lookups = (std::vector<vertex_id_t> **) 
     malloc(sizeof(std::vector<vertex_id_t> *) * clopts.ncpus);
@@ -329,71 +312,22 @@ int main(int argc,  char ** argv) {
     vertex_lookups[i]->reserve(1e6);
   }
   
+  // Prepare graph, i.e do some precomputation
   prepare(core);
  
   /* Special handling for round_robin */
   if (clopts.scheduler_type == "round_robin") {
     core.add_task_to_all(coem_update_function, 1.0);
-    assert(task_budget > 0);  // Need to use budget with round robin
     ROUNDROBIN = true;
   }
-  
-  if (task_budget > 0) {
- 	  core.engine().set_task_budget(task_budget);
-  }
-  
-  
-  
-  /*** TODO:
-  if (clopts.monitor == "analyzer") {
-    ncats = categories.size();
-    l1_residual(core.graph());
-  }
-  */
-  
+   
+  // Run GraphLab! 
   double runtime = core.start();
-  
-  
   std::cout << "Finished in " << runtime << " seconds." << std::endl;
-
-  //if (opts.visualizer == "analyzer") retrospective_dump();
-
   std::cout << "Going to output results... " << std::endl;
   
+  // Write the results
   output_results(core);
-  
-  if (clopts.scheduler_type == "round_robin" && task_budget >= 20000000) {
-    writeDump(core.graph(), true, task_budget, NULL, NULL);
-  }  
-
-//  if (clopts.extra == "dump") {
-//    writeDump(core.graph(), true, 0, NULL, NULL);
-//  }
-  
-  /*** Write output ***/
-  /*
-  std::cout << "==== DUMPING FOR JUSTIN ===\n" << std::endl;
-  FILE * fnp = fopen("justin_np.txt", "w");
-  FILE * fct = fopen("justin_ct.txt", "w");
-    
-  int n = core.graph().num_vertices();
-  loadCategories();
-  int ncats = categories.size();
-  cout << "Categories: " << ncats << std::endl;
-  for(int i=0; i<n; i++) {
-    vertex_data& v1 = core.graph().vertex_data(i);
-    FILE * f = (((v1.flags & TYPEMASK) == NP_MASK) ? fnp : fct);
-    fprintf(f, "%s", v1.text);
-    for(int c=0; c<ncats; c++) {
-      fprintf(f, "\t%s^^%f", categories[c].c_str(), v1.p[c]);
-    }
-    fprintf(f, "\n");
-    if (i%1000 == 0) fflush(f);
-    if (i%500 == 0) printf("%d\n", i);
-  }
-    
-  fclose(fnp);
-  fclose(fct);*/
 }
 
 
@@ -403,6 +337,9 @@ bool cmp(vertex_data * a, vertex_data * b) {
   return a->p[sort_cat_id] > b->p[sort_cat_id]; // Descending order
 }
 
+//
+// Writes top 50 noun phrases for each entity category.
+//
 void output_results(gl_types::core& core) {
   int cat_id = 0;
   int n = core.graph().num_vertices();
@@ -434,6 +371,10 @@ void output_results(gl_types::core& core) {
     cat_id++;
   }
 }
+
+//
+// Graph Loading functionality. Not documented!
+//
 
 void load(gl_types::core& core) {
   // Load categories
@@ -582,6 +523,11 @@ void loadCategories() {
   DIR *dp;
   struct dirent *ep;   
   dp = opendir (seedsdir.c_str());
+  if (dp == NULL) {
+    std::cout << "ERROR: cannot open directory for seeds: " << seedsdir << std::endl;
+    std::cout << "Remember to set variable --data_root" << std::endl;
+    assert(dp != NULL);
+  }
   while(  (ep = readdir (dp))  ) {
     std::string s(ep->d_name);
     if (!((s == ".")|| (s == ".."))) {
@@ -780,6 +726,7 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
   free(s);
 }
 
+// Load data and convert to binary format for faster loading.
 void loadAndConvertToBin(gl_types::core& core, std::string binfile) {
   /* Open files */
   FILE * fnps = fopen(npsfile.c_str(), "r");
@@ -822,139 +769,4 @@ void loadAndConvertToBin(gl_types::core& core, std::string binfile) {
 }
 
 
-
-/**** ANALYZER FUNCTIONS ****/
- void calcdiff(std::vector<vertex_data>& x, 
-              std::vector<vertex_data>& x_star, 
-              double * l1, double * linf) {
-  double l1res = 0, l1inf = 0;
-  for(unsigned int i=0; i<x.size(); i++) {
-    vertex_data& v1 = x_star[i];
-    vertex_data& v2 = x[i];
-		
-    for(int catid=0; catid<ncats; catid++) {
-      l1res += std::fabs(v1.p[catid] - v2.p[catid]);
-      l1inf = std::max((double)std::fabs(v1.p[catid] - v2.p[catid]), l1inf);
-
-    }
-  }  
-	
-  *l1 = l1res;
-  *linf = l1inf;
-	
-  std::cout << "Diff: "<< l1res << " " << l1inf << std::endl;
-}
-
-void writeDump(coem_graph& g, 
-               bool is_xstar, long int budget=0, 
-               double *l1res=NULL, double * linf=NULL) {
-  std::vector<vertex_data> dump(0);
-  dump.reserve(g.num_vertices());
-    
-  for(unsigned int i=0; i<g.num_vertices(); i++) {
-    dump.push_back(g.vertex_data(i));
-  }   
-    
-  char fname[255];
-  if (!is_xstar) sprintf(fname, "mc_dump.%d", dumpcount++);
-  else sprintf(fname, "mc_dump.star.%ld", budget);
-    
-  printf("==========> Dumping to %s\n", fname);
-  std::ofstream fout(fname);
-  oarchive oarc(fout);
-  oarc << dump;
-  fout.close();
-    
-  /* Calculate diff to real x-star */
-  if (l1res != NULL && linf != NULL && XSTAR != NULL) {
-    calcdiff(dump, *XSTAR, l1res, linf);
-  }
-}
-
-
-
-std::vector<double> l1_residual(coem_graph &g) {
-  double l1res=0, linf=0;
-
-  // Dumps a snapshot to disk
-  writeDump(g, false, 0, &l1res, &linf);
-   
-  // Just fake numbers - actual residuals computed after convergence
-  std::vector<double> v;
-  v.push_back(log(l1res/g.num_vertices()));
-  v.push_back(log(linf));
-  return v;
-}
-
-/* Used with analyzer_listener */
-//global_dumper dump_function() {
-//  return multicoemdumper;
-//}
-
-std::vector<std::string> dump_headers() {
-  std::vector<std::string> h;
-  h.push_back("l1_residual");
-  h.push_back("inf_residual");
-  return h;
-}
-
-int dump_frequency() {
-  return 50000; 
-} 
-
-void retrospective_dump() {
-  std::string filename = "multicoem_dump2.dat";
-  FILE * dumpfile = fopen(filename.c_str(), "w");
-  /* Write headers */
-  fprintf(dumpfile, "updates\t");
-  for(unsigned int i=0; i<dump_headers().size(); i++) {
-    fprintf(dumpfile, "\t");
-    fprintf(dumpfile, "%s", dump_headers()[i].c_str());
-  }
-  fprintf(dumpfile,"\n");
-  std::vector<vertex_data> x_star;
-    
-  char fname[255];
-
-  std::cout << "Reading x*" << std::endl;
-  int lastdumpid = dumpcount-1;
-  {
-    sprintf(fname, "mc_dump.%d", lastdumpid);
-    std::ifstream fin(fname);
-    iarchive iarc(fin);
-    iarc >> x_star;
-    fin.close();
-  }
-    
-    
-  for(int dumpid=0; dumpid<lastdumpid; dumpid++) {
-    std::vector<vertex_data> x;
-    sprintf(fname, "mc_dump.%d", dumpid);
-    std::cout << "Reading " << fname << std::endl;
-    std::ifstream fin(fname);
-    iarchive iarc(fin);
-    iarc >> x;
-    fin.close();
-        
-    std::cout << "x size " << x.size() << std::endl;
-        
-    /* Calculate l1 and linf */
-    double l1res = 0, l1inf = 0;
-   		
-    calcdiff(x, x_star, &l1res, &l1inf);
-   		
-    printf("l1res=%lf\n", l1res);
-    l1res = l1res/x_star.size();
-    fprintf(dumpfile, "%d\t%lf\t%lf\n", dumpid*dump_frequency(), log(l1res), log(l1inf));
-        
-  }
-  fclose(dumpfile);
-}
-
-
-/* Writes current graph L1 norm and max value */
-std::vector<double> multicoemdumper(coem_graph &g) {
-  return l1_residual(g);
-}
-
-
+  
