@@ -148,13 +148,7 @@ public class GraphLabJNIWrapper {
                 return   graph.getVertex(vertexId).getOutboundEdges();
             }
 
-            public int[] getInboundEdgeIds() {
-                return graph.parents(vertexId);
-            }
-
-            public int[] getOutboundEdgeIds() {
-                return graph.children(vertexId);
-            }
+          
 
             // TODO: should I check for neighborness?
             public Vertex getNeighbor(int nbid) {
@@ -236,7 +230,7 @@ public class GraphLabJNIWrapper {
 
         // TODO: use System.arraycopy
         public void addTaskToOutbound(Scope scope) {
-            addTask(scope.getOutboundEdgeIds());
+            addTask(scope.getVertex().getChildren());
         }
 
         int[] toIntArray() {
