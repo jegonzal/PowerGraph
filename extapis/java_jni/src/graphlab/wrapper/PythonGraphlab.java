@@ -9,7 +9,7 @@ import java.io.FileNotFoundException;
 /**
  * Application starter for Python/Jython GraphLab applications.
  * Pass python scripts as command-line parameters.
- * <tt>Usage: grahlab.wrapper.PythonGraphlab [loader-script[.py]] [config-script[.pu]][update-function[.py]] [postprocessor[.py]] [inputfile]</tt>
+ * <tt>Usage: graphlab.wrapper.PythonGraphlab [loader-script[.py]] [config-script[.pu]][update-function[.py]] [postprocessor[.py]] [inputfile]</tt>
  * @author akyrola
  */
 public class PythonGraphlab {
