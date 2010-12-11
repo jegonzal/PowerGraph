@@ -15,18 +15,6 @@ using namespace graphlab;
 // Allow easy testing with float/double.
 typedef double probability_t;
 
-const size_t PRIMAL_LOSS = 0;   // double value. The estimated primal loss
-const size_t NUMSVS = 1;        // integer value. The number of support vectors
-const size_t TOTALGRADIENT = 2; // double. L1 gradient
-const size_t STEPSIZE = 3;      // double. current stepsize
-const size_t ITERATION_COUNT = 4; // double. Number of times 'b' has been updated
-const size_t NUMDAT = 5;        // size_t Number of data points
-const size_t NUMDIM = 6;        // size_t. Number of dimensions
-const size_t BVERTEX = 7;       // size_t. vertexid of the B vertex
-
-const double BOUND = 1E-5;
-double C = 1.0;
-
 
 
 struct dat_vertex_data {
@@ -85,6 +73,19 @@ double get_gradient(const vertex_data &v) {
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
+
+gl_types::glshared<double> PRIMAL_LOSS;
+gl_types::glshared<size_t> NUMSVS;
+gl_types::glshared<double> TOTALGRADIENT;
+gl_types::glshared<double> STEPSIZE;
+gl_types::glshared<size_t> ITERATION_COUNT;
+gl_types::glshared<size_t> NUMDAT;
+gl_types::glshared<size_t> NUMDIM;
+gl_types::glshared<size_t> BVERTEX;
+
+const double BOUND = 1E-5;
+double C = 1.0;
+
 void dat_update_function(gl_types::iscope &scope,
                          gl_types::icallback &scheduler,
                          gl_types::ishared_data* shared_data);
@@ -95,9 +96,9 @@ void w_update_function(gl_types::iscope &scope,
                        
 bool primal_terminator(const gl_types::ishared_data* shared_data) {
   assert(shared_data != NULL);
-  double stepsize = shared_data->get(STEPSIZE).as<double>();
-  double l1gradient = shared_data->get(TOTALGRADIENT).as<double>();
-  size_t numdim = shared_data->get(NUMDAT).as<size_t>();
+  double stepsize = STEPSIZE.get_val();
+  double l1gradient = TOTALGRADIENT.get_val();
+  size_t numdim = NUMDAT.get_val();
   std::cout << stepsize*(l1gradient/numdim) << "\n";
   return stepsize*(l1gradient/numdim) <= BOUND;
 }
@@ -108,7 +109,7 @@ void dat_update_function(gl_types::iscope &scope,
                          gl_types::icallback &scheduler,
                          gl_types::ishared_data* shared_data) {
   
-  size_t numdat = shared_data->get(NUMDAT).as<size_t>();
+  size_t numdat = NUMDAT.get_val();
   dat_vertex_data& thisvertex = scope.vertex_data().dat;
   // compute alpha
   
@@ -154,9 +155,9 @@ void w_update_function(gl_types::iscope &scope,
   // am I b?
   feat_vertex_data& thisvertex = scope.vertex_data().feat;
   double gradient = 0.0;
-  double stepsize = shared_data->get(STEPSIZE).as<double>();
-  size_t numdat = shared_data->get(NUMDAT).as<size_t>();
-  size_t bvertex = shared_data->get(BVERTEX).as<size_t>();
+  double stepsize = STEPSIZE.get_val();
+  size_t numdat = NUMDAT.get_val();
+  size_t bvertex = BVERTEX.get_val();
   
   if (scope.vertex() != bvertex) {
 
@@ -186,15 +187,12 @@ void w_update_function(gl_types::iscope &scope,
   }
   
   if (scope.vertex() == bvertex) {
-    shared_data->atomic_apply(ITERATION_COUNT, 
-                              gl_types::apply_ops::increment<size_t>, 
-                              size_t(1));
-    size_t iterationcount = shared_data->get(ITERATION_COUNT).as<size_t>();
+    ITERATION_COUNT.apply(gl_types::glshared_apply_ops::increment<size_t>, 
+                          size_t(1));
+                          
+    size_t iterationcount = ITERATION_COUNT.get_val();
     stepsize = 100.0 / (C*iterationcount);
-    shared_data->atomic_set(STEPSIZE, stepsize);
-/*    shared_data->sync(NUMSVS);
-    shared_data->sync(PRIMAL_LOSS);
-    shared_data->sync(TOTALGRADIENT);*/
+    STEPSIZE.set(stepsize);
   }
   thisvertex.primal_loss = thisvertex.w * thisvertex.w / 2;
   thisvertex.gradient = gradient;
@@ -233,7 +231,6 @@ void w_update_function(gl_types::iscope &scope,
 }
 
 void create_graph(graph_type& g,
-                  gl_types::thread_shared_data &sdm,
                   std::string infile) {
   std::ifstream fin(infile.c_str());
   // first pass. Count the number of data points
@@ -317,31 +314,11 @@ void create_graph(graph_type& g,
   fin.close();
   g.finalize();
 
-  
-  // initialize the shared data
-  sdm.set_sync(PRIMAL_LOSS, 
-               gl_types::sync_ops::sum<double, get_loss>,
-               gl_types::apply_ops::identity<double>,
-               double(0),
-               100);
-
-  sdm.set_sync(NUMSVS, 
-               gl_types::sync_ops::sum<size_t, get_sv>,
-               gl_types::apply_ops::identity<size_t>,
-               size_t(0),
-               100);
-  
-  sdm.set_sync(TOTALGRADIENT, 
-               gl_types::sync_ops::sum<double, get_gradient>,
-               gl_types::apply_ops::identity<double>,
-               double(0),
-               100);
-               
-  sdm.create_atomic(STEPSIZE,  double(1.0));
-  sdm.create_atomic(ITERATION_COUNT, size_t(0));
-  sdm.create_atomic(NUMDAT, numdat);
-  sdm.create_atomic(NUMDIM, numdim);
-  sdm.create_atomic(BVERTEX, bvertex);
+  STEPSIZE.set(1.0);
+  ITERATION_COUNT.set(0);
+  NUMDAT.set(numdat);
+  NUMDIM.set(numdim);
+  BVERTEX.set(bvertex);
 
   std::cout << g.num_vertices() << " vertices\n";
   std::cout << g.num_edges() << " edges\n";
@@ -363,39 +340,6 @@ bool classify(graph_type &g, vertex_id_t vertexid){
   return false;
 }
 
-void start(gl_types::iengine *engine, graph_type &g, 
-           gl_types::thread_shared_data &sdm) {
-  
-  size_t numdat = sdm.get(NUMDAT).as<size_t>();
-  // schedule all the data vertices
-  engine->add_terminator(primal_terminator);
-  for (size_t i = 0;i < numdat; ++i) {
-    engine->add_task(gl_types::update_task(i, dat_update_function), 1000.0);
-  }
-  timer ti;
-  ti.start();
-  engine->start();
-
-  
-  size_t correctcount = 0;
-  for (size_t i = 0;i < numdat; ++i) {
-    correctcount += classify(g, i);
-  }
-  std::cout << "w = ";
-  for (size_t i = numdat ;i < g.num_vertices(); ++i) {
-    std::cout << g.vertex_data(i).feat.w << " ";
-  }
-  std::cout << "\n";
-  sdm.sync(PRIMAL_LOSS);
-  std::cout << correctcount << "/" << numdat << "\n";;
-  std::cout << "Primal Loss: " << sdm.get(PRIMAL_LOSS).as<double>() << "\n";
-  std::cout << "NumSVS : " << sdm.get(NUMSVS).as<size_t>() << "\n";
-  std::cout << "Gradient: " << sdm.get(TOTALGRADIENT).as<double>() << "\n";
-  std::cout << ti.current_time() << " seconds\n";
-}
-
-  
-  
 
 int main(int argc,  char *argv[]) {
   global_logger().set_log_level(LOG_INFO);
@@ -404,39 +348,71 @@ int main(int argc,  char *argv[]) {
 
   std::string infile;
   std::string outfile;
-
-  namespace boost_po = boost::program_options;
-  // Create a description for this program
-  boost_po::options_description
-  desc("SVM input file");
-  // Set the program options
-  desc.add_options()
-  ("infile",  boost_po::value<std::string>(&(infile))->default_value(""),
-   "Input filename ")
-   ("outfile",  boost_po::value<std::string>(&(outfile))->default_value(""));
-
-  boost_po::variables_map vm;
-  boost_po::store(boost_po::command_line_parser(argc, argv).options(desc).allow_unregistered().run(), vm);
-  boost_po::notify(vm);
-
+  graphlab::command_line_options clopts("Simple Primal SVM");
+  clopts.attach_option("infile", &infile, std::string(""), "Input filename" );
+  clopts.attach_option("outfile", &outfile, std::string(""), "Output filename" );
+  clopts.parse(argc, argv);
+  
   if (infile == "") {
     std::cout << "Input Graph needed\n";
     return 0;
   }
-  graph_type graph;
-  gl_types::thread_shared_data sdm;
-  create_graph(graph, sdm, infile);
+  gl_types::core core;
+  core.set_engine_options(clopts);
   
-  command_line_options clopts;
-  clopts.parse(argc, argv);
-  gl_types::iengine *engine = clopts.create_engine(graph);
-  engine->set_shared_data_manager(&sdm);
-  sdm.sync(PRIMAL_LOSS);
-  sdm.sync(NUMSVS);
-  sdm.sync(TOTALGRADIENT);
+  
+  
+  // initialize the shared data
+  core.set_sync(PRIMAL_LOSS, 
+               gl_types::glshared_sync_ops::sum<double, get_loss>,
+               gl_types::glshared_apply_ops::identity<double>,
+               double(0),
+               100);
 
-  start(engine, graph, sdm);
+
+  core.set_sync(NUMSVS, 
+               gl_types::glshared_sync_ops::sum<size_t, get_sv>,
+               gl_types::glshared_apply_ops::identity<size_t>,
+               size_t(0),
+               100);
   
+  core.set_sync(TOTALGRADIENT, 
+               gl_types::glshared_sync_ops::sum<double, get_gradient>,
+               gl_types::glshared_apply_ops::identity<double>,
+               double(0),
+               100);
+               
+  create_graph(core.graph(), infile);
+  core.sync_now(PRIMAL_LOSS);
+  core.sync_now(NUMSVS);
+  core.sync_now(TOTALGRADIENT);
+
+  
+
+  size_t numdat = NUMDAT.get_val();
+  // schedule all the data vertices
+  core.engine().add_terminator(primal_terminator);
+  for (size_t i = 0;i < numdat; ++i) {
+    core.add_task(gl_types::update_task(i, dat_update_function), 1000.0);
+  }
+  timer ti;
+  core.start();
+
+  
+  size_t correctcount = 0;
+  for (size_t i = 0;i < numdat; ++i) {
+    correctcount += classify(core.graph(), i);
+  }
+  std::cout << "w = ";
+  for (size_t i = numdat ;i < core.graph().num_vertices(); ++i) {
+    std::cout << core.graph().vertex_data(i).feat.w << " ";
+  }
+  std::cout << "\n";
+  core.sync_now(PRIMAL_LOSS);
+  std::cout << correctcount << "/" << numdat << "\n";;
+  std::cout << "Primal Loss: " << PRIMAL_LOSS.get_val() << "\n";
+  std::cout << "NumSVS : " << NUMSVS.get_val() << "\n";
+  std::cout << "Gradient: " << TOTALGRADIENT.get_val() << "\n";
   
 }
 

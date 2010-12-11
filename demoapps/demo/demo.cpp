@@ -310,12 +310,6 @@ gl::glshared<size_t> NUM_FLIPS;
 This is the reducer for the RED_PROPORTION sync.
 We just count the number of red verices.
 
-\param index This is the entry of the shared data table
-             corresponding to this reduce. In this example, it should be
-             RED_PROPORTION
-
-\param shared_data A reference to the shared data object
-
 \param scope The scope on the vertex we are currently accessing
 
 \param accumulator The input and output of the fold/reduce operation.
@@ -334,12 +328,6 @@ void reduce_red_proportion(gl::iscope& scope,
 /**
 This is the apply for the RED_PROPORTION sync.
 We divide the accumulated value by the number of vertices
-
-\param index This is the entry of the shared data table
-             corresponding to this reduce. In this example, it should be
-             RED_PROPORTION
-
-\param shared_data A reference to the shared data object
 
 \param current_data The current (old) value in the shared data table entry.
                     Overwriting this will update the shared data table entry
