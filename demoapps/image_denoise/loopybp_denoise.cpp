@@ -307,7 +307,6 @@ void bp_update(gl_types::iscope& scope,
                gl_types::ishared_data* shared_data) {
   //  std::cout << scope.vertex();;
   //  std::getchar();
-  assert(shared_data != NULL);
 
   // Get the shared data
   double bound = BOUND.get_val();
