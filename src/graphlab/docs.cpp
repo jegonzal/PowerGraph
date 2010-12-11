@@ -21,6 +21,21 @@
    the <a href="http://www.select.cs.cmu.edu/publications/scripts/papers.cgi?Low+al:uai10graphlab">
    GraphLab paper </a>.
 
+  The key pages of interest are:
+  \li The \ref graphlab::graph data structure. \n
+    The Graph data-structured defined in <graphlab/graph/graph.hpp> 
+    represents a directed graph container and is used extensively throughout GraphLab. 
+  \li The \ref graphlab::core data structure. \n
+    This provides a convenient wrapper around most of Graphlab.
+  \li \ref graphlab::types \n
+    This provides typedefs for all shared memory GraphLab types.
+  \li \ref graphlab::iengine
+  \li \ref Scopes
+  \li \ref Schedulers
+  \li \ref shared_data Shared Data
+  \li \ref graphlab::command_line_options
+  \li \ref Serialization
+
 \endpage
 
 
@@ -232,4 +247,312 @@ The fifo scheduler executes tasks in the classical first in
 \endpage
 
 
+
+\page Serialization Serialization
+We have a custom serialization scheme which is designed for performance rather than 
+compatibility. It does not perform type checking, It does not perform pointer tracking, 
+and has only limited support across platforms. It has been tested, and should be compatible 
+across x86 platforms (integer width is normalized).
+
+There are two serialization classes graphlab::oarchive and graphlab::iarchive. The former 
+does output, while the latter does input. To include all serialization headers,
+#include <graphlab/serialization/serialization_includes.hpp>.
+
+\ssection sec_basic_serialize Basic serialize/deserialize
+
+To serialize data to disk, you just create an output archive, and associate it with a file stream.
+
+\code
+std::ofstream fout("file.bin", std::fstream::binary);
+graphlab::oarchive oarc(fout);
+\endcode
+
+The stream operators are then used to write data into the archive.
+
+\code
+int i = 10;
+double j = 20;
+std::vector v(10,1.0);
+
+oarc << i << j << v;
+\endcode
+
+To read back, you use the iarchive with an input file stream, and read 
+back the variables in the same order:
+
+\code
+std::ifstream fin("file.bin", std::fstream::binary);
+graphlab::iarchive iarc(fout);
+  
+int i;
+double j;
+std::vector v;
+
+iarc >> i >> j >> v;
+\endcode
+
+All basic datatypes are supported. 
+The four STL containers std::map, std::set, std::list and std::vector are supported 
+as long as the contained type can be serialized. That is to say, it will correctly 
+serialize a vector of a set of integers.
+
+\section sec_serialize_user User Structs and Classes
+
+To serialize a struct/class, all you need to do is to define a public load/save function. For instance:
+
+\code
+class TestClass{
+ public:
+  int i, j;
+  std::vector<int> k;
+
+  void save(oarchive& oarc) const {
+    oarc << i << j << k;
+  }
+
+  void load(iarchive& iarc) {
+    iarc >> i >> j >> k;
+  }
+};
+\endcode
+
+After which, the standard stream operators as described in the previous section 
+will work fine. STL containers of TestClass will work as well.
+
+\section sec:serialize_caveats Minor Caveats
+
+For various useability reasons, the following code will always compile, 
+irregardless if the variable some_variable is serializable or not.
+
+\code
+graphlab::oarchive oarc(fout);
+oarc << some_variable;
+\endcode
+
+It will however fault with an assertion failure at runtime. This 
+issue may be fixed in the future. In the meantime, the user should make sure 
+to test all serialization code carefully.
+
+\endpage
+
+
+
+
+
+
+
+\page shared_data Shared Data
+
+The shared data system provides controlled thread-safe access to  
+global variables. They are mainly used to provide two capabilities:
+
+\li <b> Globally Shared Variables </b>
+    Allows all GraphLab computation to have controlled access to "global variables". 
+    Indeed in the shared memory parallelism case, this can be said to be redundant. 
+    However, the abstraction provided here extends to the distributed memory case.
+\li <b> Sync </b>
+  A fold/reduction framework which performs background accumulation of all vertex data.
+  
+\section shared_Data_gsv Globally Shared Variables
+
+All shared data must be global variables which are declared using the syntax. 
+
+\code
+gl::glshared<T> var;
+\endcode
+
+, where T is the data type of variable. Arbitrary data types 
+can be used and is guaranteed to be thread-safe. The current implementation operates 
+by keeping two reference counted copies of the data and so will consume twice the 
+memory capacity of using a regular variable.
+
+To read the value of the variable by value:
+
+\code
+T val = var.get_val();
+\endcode
+
+
+To read the value of the variable by reference:
+
+\code
+boost::shared_ptr<T> ptr = var.get_ptr();
+\endcode 
+
+The get_ptr() function returns a pointer to the data. 
+The pointer is in the form of a boost::shared_ptr which can be dereferenced 
+like a usual pointer using the dereference operator (*). While the pointer 
+is still in scope, the values read from the pointer is guaranteed to not change. 
+Under particular conditions, holding on to the shared pointer could prevent writes 
+to the variable from progressing. The pointer should therefore be released as soon 
+as possible by either letting it go out of scope, or by calling ptr.release() explicitly.
+
+The variable is modified using the set_val() function, which is quite self-explanatory.
+
+\code
+var.set_val(T newval);
+\endcode
+
+The shared data type also provides Atomic operations.
+
+\subsection sec_gsv_atomics Atomics
+
+In addition to the regular get/set functions, the shared variable also provides two basic atomic operations.
+
+\code
+T oldval = glshared<T>::exchange(T newval)
+\endcode
+
+Writes the "newvalue" into the variable while returning a copy of the previous value.
+
+\code
+void glshared<T>::apply(apply_function_type fun, const any& closure)
+\endcode
+
+Calls the function fun with a reference to the value of the shared variable. The type of the function is
+
+\code
+void(*apply_function_type)(any& current_value,
+                           const any& closure);
+\endcode
+It is unfortunate, but due to current design limitations, the current_value must be passed 
+to the apply function as an any type. However, the type of the value within the any container 
+is the type of original glshared variable. For instance, if shared variable is declared using:
+
+\code
+      gl::glshared<size_t> shared_counts;
+\endcode
+
+And I write an apply function which adds the closure value to the shared_counts, 
+the resultant code will be:
+
+\code
+      void add_counts(any& current_value, const any& increment) {
+        current_value.as<size_t>() += increment.as<size_t>();
+      }
+\endcode
+
+Observe that the current_value can be accessed (and written to) through the 
+\ref graphlab::any::as() function and the type to be passed to the as() function 
+matches the type of the shared variable. The apply function is allowed to make 
+changes to the current_value, and future reads from this variable will return the new value.
+
+\section sec_shared_data_sync Sync
+
+Sync performs a function accumulation (also called fold/reduce) across all the 
+vertices in the graph and writes the result to an associated entry in the shared 
+data table. A Sync operation is defined by a pair of functions. A Sync function 
+and a Apply function. This concept is best explained with an example. For instance, 
+consider a graph with an double on each vertex.
+
+\code
+typedef graphlab::graph<double, double> graph_type;
+typedef graphlab::types<graph_type> gl;
+\endcode
+
+and I would like to compute the L2 Norm of all the integers i.e. 
+(square root of the sum of squares). I would define a shared variable used to
+hold the final result.
+
+\code
+      gl::glshared<double> l2norm_value;
+\endcode
+
+As well as the following sync and apply functions:
+
+\code
+void squared_sum_sync(gl::iscope& scope, 
+                 graphlab::any& accumulator) { 
+
+  accumulator.as<double>() += 
+         scope.const_vertex_data() * scope.const_vertex_data();
+}
+
+void square_root_apply(graphlab::any& current_data,  
+                 const graphlab::any& new_data) {
+
+  current_data.as<double>() = sqrt(new_data.as<double>());
+}
+\endcode
+
+The variable is associated with the sync/apply functions using:
+
+\code
+core.set_sync(l2norm_value,       // shared variable
+              squared_sum_sync,   // sync function
+              square_root_apply,  // apply function
+              double(0.0),        // initial sync value
+              100);               // sync frequency
+
+\endcode
+
+When evaluated, the sync function (squared_sum_sync) will be called on the 
+scope of each vertex in turn. The accumulator is passed from one function 
+call to the next function call, accumulating the values as it goes along. 
+The squared_sum function is passed the index of the associated entry in the 
+shared data table, as well as a reference to the table and the scope of 
+current vertex being evaluated.
+
+When all the vertices are done, the apply function (square_root_apply) is 
+evaluated on the result of the accumulation. The new_data variable 
+contains the final value of the accumulator during the accumulation stage. 
+At this point current_data is a reference to the shared variable l2norm_value. 
+That is to say: the value of current_data is equivalent to the value of 
+<code>l2norm_value.get_val()</code>. 
+Modifications to current_data will be reflected in future accesses 
+to l2norm_value.
+
+
+A sync is created using the \ref graphlab::iengine::set_sync() member function of the engine
+or the core \ref graphlab::core::set_sync()
+(the core simply forwards the call to the engine it contains).
+
+
+
+
+\subsection sec_common_sync_applys Common Syncs and Applyies
+
+A collection of commonly used Syncs and Applies are provided in 
+gl::glshared_sync_ops and gl::glshared_apply_ops.
+
+To use the glshared_sync_ops, you must provide an accessor function of the form 
+AccumulationType accessor(const vertex_data& v);
+
+Then you can make use of the following sync functions:
+
+\li \ref graphlab::glshared_sync_ops::sum<AccumulationType, accessor>
+Adds the value on each vertex using the accessor function to read the vertex data.
+\li \ref graphlab::glshared_sync_ops::l1sum<AccumulationType, accessor>
+Adds the absolute value of each vertex using the accessor function to read the vertex data.
+\li \ref graphlab::glshared_sync_ops::l2sum<AccumulationType, accessor>
+Adds the squared value of each vertex using the accessor function to read the vertex data.
+\li \ref graphlab::glshared_sync_ops::max<AccumulationType, accessor>
+Computes the maximum value of all the vertices using the accessor function to read the vertex data.
+A collection of apply function are also provided.
+
+\li \ref graphlab::glshared_apply_ops::identity<AccumulationType>
+Stores the accumulated value to the shared data entry
+\li \ref graphlab::glshared_apply_ops::identity_print<AccumulationType>
+Stores the accumulated value to the shared data entry and writes it to screen
+\li \ref graphlab::glshared_apply_ops::increment<AccumulationType>
+Adds the final accumulated value to the associated shared data table entry.
+\li \ref graphlab::glshared_apply_ops::decrement<AccumulationType>
+Subtracts the final accumulated value from the associated shared data table entry.
+\li \ref graphlab::glshared_apply_ops::sqrt<AccumulationType>
+Stores the square root of the accumulated value to the shared data entry
+For instance, the following code will create a sync which behaves exactly the same way as the example above:
+
+\code
+double accessor(const double& v) {
+  return v;
+}
+
+shared_data.set_sync(l2norm_value, 
+                     gl::sync_ops::l2sum<double, accessor>,
+                     gl::apply_ops::sqrt<double>,
+                     double(0.0), 
+                     100);
+\endcode
+
+\endpage
 */

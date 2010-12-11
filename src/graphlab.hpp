@@ -46,18 +46,40 @@
 */
 namespace graphlab {
  
+  /**
+  \brief A types datastructure which provides convenient specializations of all
+  user-facing GraphLab types.
   
+  GraphLab is heavily templatized. The graphlab::types object provides a 
+  convenient way to access the GraphLab classes without requiring excessive 
+  angle brackets (< , >). The GraphLab types object is located in <graphlab.hpp>. 
+  To define a graphlab type object:
+  
+  \code
+  typedef graphlab::graph<vertex_data, edge_data> graph_type;
+  typedef graphlab::types<graph_type> gl;
+  \endcode
+  
+  Now we can use gl::... to access all the available graphlab types. 
+  */
   template<typename Graph>
   struct types {
+    ///  \brief The type of the Graph. 
     typedef Graph graph;
 
+    /** \brief A convenient wrapper object around the commonly used portions of GraphLab. 
+    This is useful for most GraphLab applications. See the \ref graphlab::core object for more details.
+    */
     typedef graphlab::core<typename graph::vertex_data_type,
                            typename graph::edge_data_type> core;
 
     typedef graphlab::command_line_options command_line_options;
     typedef graphlab::engine_options engine_options;
     
+    /// \brief The type of the data stored on each vertex of the Graph. 
     typedef typename graph::vertex_data_type vertex_data_type;
+    
+    /// \brief The type of the data stored on each edge of the Graph.   
     typedef typename graph::edge_data_type   edge_data_type;
     
     typedef graphlab::update_task<graph>        update_task;
@@ -105,9 +127,11 @@ namespace graphlab {
     
     
 
-    
+    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::vertex_id_t
     typedef graphlab::vertex_id_t vertex_id_t;
+    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
     typedef graphlab::edge_id_t edge_id_t;
+
     typedef graphlab::edge_list edge_list;
     
     typedef graphlab::scheduler_options          scheduler_options;
