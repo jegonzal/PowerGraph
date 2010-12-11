@@ -401,7 +401,7 @@ your own risk. Later improvements to the GraphLab to Matlab compiler
 will provide alternate substitutes for rand() which are thread safe.
 Even so, many typical Matlab functions should work with minimal modifications.
 
-3) GraphLab's Shared Data Table and Sync Operation
+3) GraphLab's Shared Variables and Sync Operation are not supported
 
 Future versions of the Matlab to GraphLab compiler may provide this.
 This is low priority at the moment.
