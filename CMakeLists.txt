@@ -32,7 +32,7 @@ FIND_PACKAGE(PythonInterp)
 # Use the Boost libraries
 SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
-  program_options REQUIRED)
+  program_options;regex REQUIRED)
 
 FIND_LIBRARY(Sctp sctp1)
 
