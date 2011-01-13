@@ -30,7 +30,7 @@ ENABLE_TESTING()
 # Use Python interpreter
 FIND_PACKAGE(PythonInterp)
 # Use the Boost libraries
-SET (Boost_USE_STATIC_LIBS TRUE)
+# SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
   program_options;regex REQUIRED)
 
@@ -258,9 +258,11 @@ ENDMACRO(dist_target_link_libraries)
 FIND_PACKAGE(JNI)
 MACRO(add_jni_library NAME)
 
+
     IF (JAVA_INCLUDE_PATH)
         include_directories(
             ${JAVA_INCLUDE_PATH}
+            ${JAVA_INCLUDE_PATH}/linux
         )
         ADD_LIBRARY(${NAME} MODULE ${ARGN})
         TARGET_LINK_LIBRARIES(${NAME}  graphlab_pic) 
