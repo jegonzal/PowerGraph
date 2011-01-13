@@ -1,5 +1,8 @@
 project(GraphLab)
 
+# link_libraries(${Boost_LIBRARIES})
+
+
 subdirs(
  distributed
  engine
@@ -16,7 +19,7 @@ subdirs(
  serialization
  logger
  metrics
-jni)
+ jni)
 
 
 add_library(graphlab_util STATIC
@@ -45,6 +48,8 @@ add_library(graphlab_rpc STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_services.cpp
   rpc/dc_comm_services.cpp)
+
+
 
 if(Sctp-FOUND)
   set_property(TARGET graphlab_rpc APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
@@ -88,6 +93,12 @@ if(MPI_FOUND)
  endif(MPI_FOUND)
 
 
+
+target_link_libraries(graphlab ${Boost_LIBRARIES})
+target_link_libraries(graphlab_util ${Boost_LIBRARIES})
+
+
+
 # PIC versions of the graphlab libraries
 get_target_property(graphlab_util_sources graphlab_util SOURCES)
 get_property(graphlab_util_flags TARGET graphlab_util PROPERTY COMPILE_FLAGS)
@@ -115,3 +126,6 @@ INSTALL(FILES matlab/get_mex_params.sh
         DESTINATION include/graphlab/matlab
         PERMISSIONS OWNER_WRITE WORLD_READ WORLD_EXECUTE)
 
+
+target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})
+target_link_libraries(graphlab_util_pic ${Boost_SHARED_LIBRARIES})

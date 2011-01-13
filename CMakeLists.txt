@@ -30,11 +30,21 @@ ENABLE_TESTING()
 # Use Python interpreter
 FIND_PACKAGE(PythonInterp)
 # Use the Boost libraries
-# SET (Boost_USE_STATIC_LIBS TRUE)
+SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
   program_options;regex REQUIRED)
 
 FIND_LIBRARY(Sctp sctp1)
+
+SET(Boost_SHARED_LIBRARIES "")
+# Stupid hack because Cmake cannot seperate the shared from the static versions
+foreach(blib ${Boost_LIBRARIES})
+    message(STATUS "Boost libs: " ${blib})
+    STRING(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
+    message(STATUS "Boost dyn libs: " ${bout})
+    SET(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
+endforeach()
+message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 ## Not used currently
 # find_package(Java)
@@ -137,7 +147,7 @@ ENDIF(MPI_FOUND)
 link_directories(
   ${Boost_LIBRARY_DIRS}
   )
-link_libraries(${Boost_LIBRARIES})
+
 
 
 
@@ -269,7 +279,7 @@ MACRO(add_jni_library NAME)
         TARGET_LINK_LIBRARIES(${NAME}  graphlab_util_pic) 
         TARGET_LINK_LIBRARIES(${NAME}  graphlab_metis_pic) 
         TARGET_LINK_LIBRARIES(${NAME}  graphlab_GKlib_pic) 
-    
+        TARGET_LINK_LIBRARIES(${NAME} ${Boost_SHARED_LIBRARIES})
         IF (APPLE)
             INCLUDE_DIRECTORIES("/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/")
                 SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
