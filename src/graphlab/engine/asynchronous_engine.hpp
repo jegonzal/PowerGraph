@@ -123,7 +123,9 @@ namespace graphlab {
     ishared_data_manager_type* shared_data;
 
     /// for shared data table compatibility 
-    fake_shared_data<asynchronous_engine<Graph,Scheduler,ScopeFactory> > f_shared_data;
+    fake_shared_data<asynchronous_engine<Graph,Scheduler,ScopeFactory> > 
+    f_shared_data;
+    
     bool use_fake_shared_data;    
     
     inline ishared_data<Graph>* get_shared_data() {
@@ -215,7 +217,7 @@ namespace graphlab {
       last_check_millis(0),
       task_budget(0),
       active(false){
-      }
+    }
 
     ~asynchronous_engine() {
     }
@@ -236,8 +238,8 @@ namespace graphlab {
     //! Set the shared data manager for this engine. \todo DEPRECATED
     void set_shared_data_manager(ishared_data_manager_type* _shared_data) {
       logger(LOG_WARNING, 
-            "The use of the shared_data table has been deprecated. "
-            "Please use glshared");
+             "The use of the shared_data table has been deprecated. "
+             "Please use glshared");
       shared_data = _shared_data;
     } // end of set shared data manager
 
@@ -250,17 +252,17 @@ namespace graphlab {
       default_scope_range = default_scope_range_;
     }
   
-      // Convenience function.
-      std::string exec_status_as_string(exec_status es) {
-          switch(es) {
-            case EXEC_FORCED_ABORT: return "forced abort";
-            case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
-            case EXEC_TERM_FUNCTION: return "termination function";
-            case EXEC_TASK_DEPLETION: return "task depletion (natural)";
-            case EXEC_TIMEOUT: return "timeout";
-          };
-         return "unknown";
-      }
+    // Convenience function.
+    std::string exec_status_as_string(exec_status es) {
+      switch(es) {
+      case EXEC_FORCED_ABORT: return "forced abort";
+      case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
+      case EXEC_TERM_FUNCTION: return "termination function";
+      case EXEC_TASK_DEPLETION: return "task depletion (natural)";
+      case EXEC_TIMEOUT: return "timeout";
+      };
+      return "unknown";
+    }
 
     /** Execute the engine */
     void start() {
@@ -320,10 +322,14 @@ namespace graphlab {
 
       // Metrics: update counts
       for(size_t i = 0; i < update_counts.size(); ++i) {
-        engine_metrics.add("updatecount", update_counts[i], INTEGER);
+        engine_metrics.add("updatecount", 
+                           update_counts[i], INTEGER);
       }
-      engine_metrics.set("runtime", (lowres_time_millis()-start_time_millis)*0.001, TIME);
-      engine_metrics.set("termination_reason", exec_status_as_string(termination_reason));
+      engine_metrics.set("runtime", 
+                         (lowres_time_millis()-start_time_millis)*0.001, TIME);
+      engine_metrics.set("termination_reason", 
+                         exec_status_as_string(termination_reason));
+
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
       engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
@@ -361,7 +367,7 @@ namespace graphlab {
 
     /** This function provides an approximation to the last update count.
      * This is a faster version of last_update_count and may be off
-       by at most (APX_INTERVAL+1)*Nthreads */
+     by at most (APX_INTERVAL+1)*Nthreads */
     inline size_t approximate_last_update_count() const {
       return apx_update_counts.value;
     }
@@ -628,7 +634,7 @@ namespace graphlab {
           assert(scope != NULL);                    
           // get the callback for this cpu
           typename Scheduler::callback_type& scallback =
-                  scheduler->get_callback(cpuid);
+            scheduler->get_callback(cpuid);
           // execute the task
           
           task.function()(*scope, scallback, get_shared_data());
@@ -712,7 +718,7 @@ namespace graphlab {
         // check the head again
         // if head is not ready. unlock and quit
         if (sync_task_queue.empty())
-            return;
+          return;
         if (
             size_t(-sync_task_queue.top().second) > curupdatecount) {
           sync_task_queue_next_update = size_t(-sync_task_queue.top().second);
@@ -735,7 +741,7 @@ namespace graphlab {
         if (sync_tasks[head.first].sync_interval > 0) {
           sync_task_queue_lock.lock();
           sync_task_queue.insert_max(head.first, 
-                          -(int)(approximate_last_update_count() + sync_tasks[head.first].sync_interval));
+                                     -(int)(approximate_last_update_count() + sync_tasks[head.first].sync_interval));
           // update the head tracker
           sync_task_queue_next_update = -(sync_task_queue.top().second);
           sync_task_queue_lock.unlock();

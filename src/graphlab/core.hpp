@@ -10,40 +10,47 @@
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
+
+  // Predecleration 
   template<typename Graph> struct types;
   
+
+
   /**
-   * \brief A GraphLab core is the base (or core) data structure in GraphLab.
-   *
-    Because many GraphLab programs will consists of a graph 
-    and an engine we have created a single data-structure,
-    called a core, which manages all the pieces of GraphLab including
-    engine and scheduler construction parameters.
+     \brief A GraphLab core is the base (or core) data structure in GraphLab.
+     
+     Because many GraphLab programs will consists of a graph and an
+     engine we have created a single data-structure, called a core,
+     which manages all the pieces of GraphLab including engine and
+     scheduler construction parameters.
 
-    The core is templatized over the VertexType and EdgeType however by using the
-    \ref types typedef, one can simply create a core by doing the following:
-  \code
-  gl::core glcore;
-  \endcode
-
-   The core contains the 
-
-   \li Data Graph: which represents the structured data dependencies.
-   \li Engine: The computational structure which contains the
-        scheduling and execution statistics for the GraphLab program. 
-        The core provides pass-through calls for many engine functions.
+     The core is templatized over the VertexType and EdgeType however
+     by using the ref types typedef, one can simply create a core by
+     doing the following:
+   
+     \code
+     gl::core glcore;
+     \endcode
+   
+     The core contains the 
+   
+     \li Data Graph: which represents the structured data dependencies.
+     \li Engine: The computational structure which contains the
+     scheduling and execution statistics for the GraphLab program. The
+     core provides pass-through calls for many engine functions.
         
-   The core also manages the engine and scheduler construction parameters.
+     The core also manages the engine and scheduler construction
+     parameters.
    
-   The core will invisibly recreate the engine each time engine options are 
-   modified. This will mean that this internal behavior of the core should be
-   pretty much "transparent" for the typical use case where engine options and 
-   scheduler options are defined before tasks are added to the scheduler.
+     The core will invisibly recreate the engine each time engine
+     options are modified. This will mean that this internal behavior of
+     the core should be pretty much "transparent" for the typical use
+     case where engine options and scheduler options are defined before
+     tasks are added to the scheduler.
    
-   Otherwise, modifications to the engine options will result in the clearing
-   of all scheduler tasks.
-   * 
-   */
+     Otherwise, modifications to the engine options will result in the
+     clearing of all scheduler tasks.
+  */
   template <typename VertexType, typename EdgeType>
   class core {
   public:
@@ -55,13 +62,13 @@ namespace graphlab {
 
 
     ~core() { 
-        destroy_engine(); 
-        if (meopts.metrics_type != "none") {        
-            // Write options to metrics
-            fill_metrics();
-            report_metrics();
-        }
-     } 
+      destroy_engine(); 
+      if (meopts.metrics_type != "none") {        
+        // Write options to metrics
+        fill_metrics();
+        report_metrics();
+      }
+    } 
        
     /// \brief Get a modifiable reference to the graph associated with this core
     typename types::graph& graph() { return mgraph; }
@@ -70,11 +77,11 @@ namespace graphlab {
     const typename types::graph& graph() const { return mgraph; }
 
     /**
-     * \brief Set the type of scheduler.  
+     * \brief Set the type of scheduler.
      *
-     * This will destroy the current
-     * engine and any tasks currently associated with the scheduler.
-     * See \ref Schedulers for the list of supported schedulers.
+     * This will destroy the current engine and any tasks currently
+     * associated with the scheduler.  See \ref Schedulers for the
+     * list of supported schedulers.
      */
     void set_scheduler_type(const std::string& scheduler_type) {
       check_engine_modification();
@@ -83,17 +90,16 @@ namespace graphlab {
     }
 
     /**
-     * Set the scope consistency model used in this engine.  
+     * \brief Set the scope consistency model used in this engine.
      *
-     * This will
-     * destroy the current engine and any tasks associated with the
-     * current scheduler.  The available scopes are: 
+     * This will destroy the current engine and any tasks associated
+     * with the current scheduler.  The available scopes are:
      * 
-     *  \li \b "full" This ensures full data consistency within the scope 
-     *  \li \b "edge" This ensures data consistency with just the 
-                    vertex and edges 
-     *  \li \b "vertex" This ensures that a vertex cannot be updated 
-     *                by two processors simultaneously 
+     *  \li \b "full" This ensures full data consistency within the scope
+     *  \li \b "edge" This ensures data consistency with just the
+     *     vertex and edges
+     *  \li \b "vertex" This ensures that a vertex cannot be updated
+     *     by two processors simultaneously
      *  \li \b "none" This eliminates all locking 
      *
      * See \ref Scopes for details
@@ -124,18 +130,18 @@ namespace graphlab {
     }
     
     /**
-    * \brief Sets the output format of any recorded metrics
-    *
+     * \brief Sets the output format of any recorded metrics
+     *
      *  \li \b "basic" Outputs to screen
      *  \li \b "file" Outputs to a text file graphlab_metrics.txt
      *  \li \b "html" Outputs to a html file graphlab_metrics.html
-    */
+     */
     void set_metrics_type(const std::string& metrics_type) {
       meopts.metrics_type = metrics_type;
     }
 
     /**
-     \brief Destroys a created engine (if any).
+       \brief Destroys a created engine (if any).
     */
     void reset() {
       engine_has_been_modified = false;
@@ -315,39 +321,39 @@ namespace graphlab {
       else return mengine->last_update_count();
     }
     
-     void fill_metrics() {
-        metrics & coremetrics = metrics::create_metrics_instance("core", true);
-        coremetrics.set("ncpus", meopts.ncpus);
-        coremetrics.set("engine", meopts.engine_type);
-        coremetrics.set("scope", meopts.scope_type);
-        coremetrics.set("scheduler", meopts.scheduler_type);
-        coremetrics.set("affinities", meopts.enable_cpu_affinities ? "true" : "false");
-        coremetrics.set("schedyield", meopts.enable_sched_yield ? "true" : "false");
-        coremetrics.set("compile_flags", meopts.compile_flags);
-     }
-    
-    /**
-     \brief Outputs the recorded metrics
-    */
-    void report_metrics() {
-        fill_metrics();
-        // Metrics dump: basic 
-        if (meopts.metrics_type == "basic") { 
-            basic_reporter reporter = basic_reporter();
-            metrics::report_all(reporter); 
-        }
-        // Metrics dump: file
-        if (meopts.metrics_type == "file") {
-            file_reporter freporter = file_reporter("graphlab_metrics.txt");
-            metrics::report_all(freporter);
-        }
-        if (meopts.metrics_type == "html") {
-            html_reporter hreporter = html_reporter("graphlab_metrics.html");
-            metrics::report_all(hreporter);
-        }
+    void fill_metrics() {
+      metrics & coremetrics = metrics::create_metrics_instance("core", true);
+      coremetrics.set("ncpus", meopts.ncpus);
+      coremetrics.set("engine", meopts.engine_type);
+      coremetrics.set("scope", meopts.scope_type);
+      coremetrics.set("scheduler", meopts.scheduler_type);
+      coremetrics.set("affinities", meopts.enable_cpu_affinities ? "true" : "false");
+      coremetrics.set("schedyield", meopts.enable_sched_yield ? "true" : "false");
+      coremetrics.set("compile_flags", meopts.compile_flags);
     }
     
-     /**
+    /**
+       \brief Outputs the recorded metrics
+    */
+    void report_metrics() {
+      fill_metrics();
+      // Metrics dump: basic 
+      if (meopts.metrics_type == "basic") { 
+        basic_reporter reporter = basic_reporter();
+        metrics::report_all(reporter); 
+      }
+      // Metrics dump: file
+      if (meopts.metrics_type == "file") {
+        file_reporter freporter = file_reporter("graphlab_metrics.txt");
+        metrics::report_all(freporter);
+      }
+      if (meopts.metrics_type == "html") {
+        html_reporter hreporter = html_reporter("graphlab_metrics.html");
+        metrics::report_all(hreporter);
+      }
+    }
+    
+    /**
      * \brief Registers a sync with the engine.
      *
      * Registers a sync with the engine.
@@ -465,8 +471,8 @@ namespace graphlab {
 
     void check_engine_modification() {
       ASSERT_MSG(engine_has_been_modified == false, 
-                   "Modifications to the engine/scheduler parameters are not"
-                   "allowed once tasks have been inserted into the engine.");
+                 "Modifications to the engine/scheduler parameters are not"
+                 "allowed once tasks have been inserted into the engine.");
     }
     
     // graph and data objects

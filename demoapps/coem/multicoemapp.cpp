@@ -1,20 +1,25 @@
 /*
- *  \author akyrola, akyrola@cs.cmu.edu
- *  Implementation of Co-EM Algorithm (Jones, 2005) for Named Entity Recognition.
- *  This application reads a file of noun phrases (NPs) and contexts (CTs) and 
- *  co-occurence counts between them. In addition, a list of positive and negative
- *  seeds is provided. Co-EM algorithm is run until convergence (or for a predefined number
- *  of iterations) to compute a probability of each NP and CT belonging to an entity
- *  class (such as "city", "politician", "animal"). For further information, see description in our
- *  paper: http://www.select.cs.cmu.edu/publications/scripts/papers.cgi?Low+al:uai10graphlab 
+ *  \author akyrola, akyrola@cs.cmu.edu Implementation of Co-EM
+ *  Algorithm (Jones, 2005) for Named Entity Recognition.  This
+ *  application reads a file of noun phrases (NPs) and contexts (CTs)
+ *  and co-occurence counts between them. In addition, a list of
+ *  positive and negative seeds is provided. Co-EM algorithm is run
+ *  until convergence (or for a predefined number of iterations) to
+ *  compute a probability of each NP and CT belonging to an entity
+ *  class (such as "city", "politician", "animal"). For further
+ *  information, see description in our paper:
+ *  http://www.select.cs.cmu.edu/publications/scripts/papers.cgi?Low+al:uai10graphlab
  *
- *  This application uses a data format used by Tom Mitchell's (CMU) group. It should be
- *  straightforward to modify it to support your preferred format. 
+ *  This application uses a data format used by Tom Mitchell's (CMU)
+ *  group. It should be straightforward to modify it to support your
+ *  preferred format.
  *
- *  Application is unnecessary complicated because data sets are typicall large and
- *  several optimizations, which unfortunatelly worsen readability, have been implemented.
+ *  Application is unnecessary complicated because data sets are
+ *  typicall large and several optimizations, which unfortunatelly
+ *  worsen readability, have been implemented.
  *
- *  Thanks for Justin Betteridge for the algorithm definition and for providing test data!
+ *  Thanks for Justin Betteridge for the algorithm definition and for
+ *  providing test data!
  */
  
 #include <cmath>
@@ -68,17 +73,17 @@ struct vertex_data {
   float p[200];
  
   vertex_data() {
-  	memset(p, 0, sizeof(float)*200);
-  	normalizer = 0.0f;
-  	nbcount = 0;
-  	flags = 0;
+    memset(p, 0, sizeof(float)*200);
+    normalizer = 0.0f;
+    nbcount = 0;
+    flags = 0;
   }
   
-   // TODO: save p!
+  // TODO: save p!
   void save(graphlab::oarchive& archive) const { 
     archive << flags << nbcount  << normalizer;
     serialize(archive, text, sizeof(char)*TEXT_LENGTH);
-   	serialize(archive, p, sizeof(float)*200);
+    serialize(archive, p, sizeof(float)*200);
   } 
   
   void load(graphlab::iarchive& archive) { 
@@ -133,8 +138,8 @@ std::map<std::string, vertex_id_t>  loadVertices(gl_types::core& core, short typ
 void prepare(gl_types::core& core);
 void load(gl_types::core& core);
 void loadEdges(gl_types::core& core, FILE * fcont_to_nps, 
-                             std::map<std::string, vertex_id_t>& nps_map,
-                             std::map<std::string, vertex_id_t>& ctx_map);
+               std::map<std::string, vertex_id_t>& nps_map,
+               std::map<std::string, vertex_id_t>& ctx_map);
 void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map);
 void loadAndConvertToBin(gl_types::core& core, std::string binfile);
 void output_results(gl_types::core& core);
@@ -181,9 +186,9 @@ void coem_update_function(gl_types::iscope& scope,
       const edge_data& edata = scope.const_edge_data(eid);
       const vertex_data& nb_vdata = 
         scope.const_neighbor_vertex_data(use_outgoing ? 
-                                   scope.target(eid) :
-                                   scope.source(eid));
-       norm += TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+                                         scope.target(eid) :
+                                         scope.source(eid));
+      norm += TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
     }
     vdata.normalizer = norm;
     was_first_run = true; // Used to cause update to all neighbors
@@ -218,7 +223,7 @@ void coem_update_function(gl_types::iscope& scope,
           vdata.p[cat_id] == NEGSEEDPROB)) {
       residual += std::fabs(tmp[cat_id] - vdata.p[cat_id]);
       vdata.p[cat_id] = tmp[cat_id];
-   }  else {
+    }  else {
       // I am seed - do not change
       if (vdata.p[cat_id] == POSSEEDPROB) {
         assert((vdata.flags & SEEDMASK) != 0); 
@@ -227,31 +232,31 @@ void coem_update_function(gl_types::iscope& scope,
   }
 	
       
- // Round robin scheduler does not use dynamic scheduling, so we can
- // skip it.
- if (!ROUNDROBIN) {
+  // Round robin scheduler does not use dynamic scheduling, so we can
+  // skip it.
+  if (!ROUNDROBIN) {
     int sz = edge_ids.size();
     // Write data to edges and schedule if threshold reached
     double randomNum = graphlab::random::rand01();
     for(int l = 0; l<sz; l++) {
-        vertex_id_t nbvid = vlookup[l];
-        gl_types::update_task task(nbvid, coem_update_function);
-   		edge_id_t eid = edge_ids[l];
-        const edge_data& edata = scope.const_edge_data(eid);
+      vertex_id_t nbvid = vlookup[l];
+      gl_types::update_task task(nbvid, coem_update_function);
+      edge_id_t eid = edge_ids[l];
+      const edge_data& edata = scope.const_edge_data(eid);
            
-        const vertex_data nb_vdata = scope.const_neighbor_vertex_data(nbvid);
-        float neighbor_residual = 
-           (nb_vdata.normalizer == 0.0f ? 1.0 : 
-            residual * 
-            TFIDF(edata.cooccurence_count, 
-                  vdata.nbcount, vtype_other_total) / 
-            nb_vdata.normalizer);	
-         // Stochastically schedule neighbor if change is less than
-         // predetermined threshold.
-         if ((neighbor_residual/TARGET_PRECISION >= randomNum) || 
-             was_first_run) {
-           scheduler.add_task(task, neighbor_residual);
-         }
+      const vertex_data nb_vdata = scope.const_neighbor_vertex_data(nbvid);
+      float neighbor_residual = 
+        (nb_vdata.normalizer == 0.0f ? 1.0 : 
+         residual * 
+         TFIDF(edata.cooccurence_count, 
+               vdata.nbcount, vtype_other_total) / 
+         nb_vdata.normalizer);	
+      // Stochastically schedule neighbor if change is less than
+      // predetermined threshold.
+      if ((neighbor_residual/TARGET_PRECISION >= randomNum) || 
+          was_first_run) {
+        scheduler.add_task(task, neighbor_residual);
+      }
     }
   }
 }
@@ -261,8 +266,8 @@ int ncats = 0;
 
 
 /**
-  *  MAIN FUNCTION 
-  */
+ *  MAIN FUNCTION 
+ */
 int main(int argc,  char ** argv) {
   
   /**** GRAPHLAB INITIALIZATION *****/
@@ -274,9 +279,9 @@ int main(int argc,  char ** argv) {
   clopts.attach_option("data_root", &root, root,
                        "Root for data.");
   clopts.attach_option("subsampling_ratio", &subsamplingRatio, subsamplingRatio,
-  				"Subsampling ratio.");
+                       "Subsampling ratio.");
   clopts.attach_option("target_precision", &TARGET_PRECISION, 0.0f,
-  										"Termination threshold.");
+                       "Termination threshold.");
   										
 
  
@@ -284,8 +289,8 @@ int main(int argc,  char ** argv) {
   gl_types::core core;
   
   if(!clopts.parse(argc, argv)) {
-     std::cout << "Error in parsing input." << std::endl;
-     return EXIT_FAILURE;
+    std::cout << "Error in parsing input." << std::endl;
+    return EXIT_FAILURE;
   }
   
   // Set the engine options
@@ -582,8 +587,8 @@ void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map)
 }
 
 void loadEdges(gl_types::core& core, FILE * fcont_to_nps, 
-                             std::map<std::string, vertex_id_t>& nps_map,
-                             std::map<std::string, vertex_id_t>& ctx_map) {
+               std::map<std::string, vertex_id_t>& nps_map,
+               std::map<std::string, vertex_id_t>& ctx_map) {
   size_t MAXBUF = 5*1000000;
   char  * s = (char*) malloc(MAXBUF); 	// 10 meg buffer :)
   char delims[] = "\t";	
@@ -765,7 +770,7 @@ void loadAndConvertToBin(gl_types::core& core, std::string binfile) {
   fclose(fctx);
   fclose(fmatrix);
 	
-  exit(0);
+  exit(EXIT_SUCCESS);
 }
 
 

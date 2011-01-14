@@ -358,7 +358,7 @@ int main(int argc, char** argv) {
             << std::endl;  
 
 
-  // Saving the output -------------------------------------------------------->
+  // Saving the output ----------------------------------------------------->
   std::cout << "Rendering the cleaned image. " << std::endl;
   if(pred_type == "map") {
     for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
@@ -433,8 +433,8 @@ void bp_update(gl_types::iscope& scope,
   
   // Compute outbound messages
   // ---------------------------------------------------------------->
-
-  boost::shared_ptr<const graphlab::binary_factor> edge_factor_ptr = sh_edgepot.get_ptr();
+  boost::shared_ptr<const graphlab::binary_factor> edge_factor_ptr = 
+    sh_edgepot.get_ptr();
   
   
   // Send outbound messages
@@ -497,14 +497,18 @@ void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc) {
     
     graphlab::vertex_id_t srcv = scope.source(ineid);
     // message from v->u
-    const graphlab::unary_factor &msgvu = scope.const_edge_data(ineid).message;
+    const graphlab::unary_factor &msgvu = 
+      scope.const_edge_data(ineid).message;
     // belief at v
-    const graphlab::unary_factor& blfv= scope.const_neighbor_vertex_data(srcv).belief;
+    const graphlab::unary_factor& blfv= 
+      scope.const_neighbor_vertex_data(srcv).belief;
     // get the message from u->v. requires the reverse edge
     graphlab::edge_id_t outeid = scope.reverse_edge(ineid);
-    const graphlab::unary_factor &msguv = scope.const_edge_data(outeid).message;
+    const graphlab::unary_factor &msguv = 
+      scope.const_edge_data(outeid).message;
     
-    boost::shared_ptr<const graphlab::binary_factor> edge_factor = sh_edgepot.get_ptr();
+    boost::shared_ptr<const graphlab::binary_factor> edge_factor = 
+      sh_edgepot.get_ptr();
     
     graphlab::binary_factor edge_belief;
     edge_belief.resize(blfu.arity(), blfv.arity());
@@ -513,7 +517,9 @@ void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc) {
     // using logP to store actual counts
     for (size_t i = 0;i < blfu.arity(); ++i) {
       for (size_t j = 0;j < blfv.arity(); ++j) {
-        edge_belief.logP(i,j) = blfu.logP(i) - msgvu.logP(i) + blfv.logP(j) - msguv.logP(j) + edge_factor->logP(i,j);
+        edge_belief.logP(i,j) = 
+          blfu.logP(i) - msgvu.logP(i) + blfv.logP(j) - 
+          msguv.logP(j) + edge_factor->logP(i,j);
       }
     }
     edge_belief.normalize();
@@ -532,7 +538,8 @@ void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
   // IPF update
   graphlab::binary_factor& res = result.as<graphlab::binary_factor>();
   graphlab::binary_factor truecounts = sh_truecounts.get_val();
-  const graphlab::binary_factor& curcounts = acc.as<graphlab::binary_factor>();
+  const graphlab::binary_factor& curcounts = 
+    acc.as<graphlab::binary_factor>();
   double ipfdamping = sh_ipfdamping.get_val();
   // perform the IPF update
   // note that BP+IPF can be quite unstable
@@ -540,7 +547,10 @@ void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
   for (size_t i = 0;i < res.arity1(); ++i) {
     for (size_t j = 0;j < res.arity2(); ++j) {
       // + 100 to avoid divide by 0 problems
-      double newval = ipfdamping*log((truecounts.logP(i,j)+100) / (curcounts.logP(i,j)+100)) + res.logP(i,j);
+      double newval = 
+        ipfdamping * log((truecounts.logP(i,j)+100) / 
+                         (curcounts.logP(i,j)+100)) + 
+        res.logP(i,j);
       if (std::fabs(res.logP(i,j) - newval) >= 1E-2) {
         res.logP(i,j) = newval;
       }
