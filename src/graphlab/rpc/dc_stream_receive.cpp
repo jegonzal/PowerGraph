@@ -53,7 +53,7 @@ void dc_stream_receive::process_buffer() {
       // we have already peeked the header. skipit
       buffer.skip(sizeof(packet_hdr));
 
-      // if it is a fast call, dispatch the function immediately
+
       if (hdr.packet_type_mask & BARRIER) {
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Comm barrier" << std::endl;
@@ -65,6 +65,7 @@ void dc_stream_receive::process_buffer() {
         if (barrier) break;
       }
       if (hdr.packet_type_mask & FAST_CALL) {
+        // if it is a fast call, dispatch the function immediately
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Is fast call" << std::endl;
         #endif

@@ -15,7 +15,7 @@ The base class of all comms implementations
 class dc_comm_base {
  public:
    
-  dc_comm_base() {}
+  dc_comm_base();
   
   virtual size_t capabilities() const  = 0;
   /**

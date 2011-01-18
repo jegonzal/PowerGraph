@@ -4,43 +4,63 @@
 #include <graphlab/rpc/dc_services_base.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 
+#define DC_SERVICES_BARRIER_BRANCH_FACTOR 128
 namespace graphlab {
+
 class dc_services:public dc_services_base {
  private:
   dc_dist_object<dc_services> rpc;
-  //DC_DIST_OBJECT_ACCESS(dc_services);
-  // barrier flags. 
-  /// The next value of the barrier 
-  char barrier_sense;
+  
+  // Sense reversing barrier
+  /// The next value of the barrier. either +1 or -1
+  int barrier_sense;
   /// When this flag == the current barrier value. The barrier is complete
-  char barrier_release;
-  /// Set to the current value of the barrier when the child is done
-  char child_barrier[2];
+  int barrier_release;
+  /** when barrier sense is 1, barrier clears when 
+   * child_barrier_counter == numchild. When barrier sense is -1, barrier
+   * clears when child_barrier_counter == 0;
+   */
+  atomic<int> child_barrier_counter;
   /// condition variable and mutex protecting the barrier variables
   conditional barrier_cond;
   mutex barrier_mut;
-  procid_t parent;  /// parent node
-  procid_t child[2]; /// children nodes
-  
+  size_t parent;  /// parent node
+  size_t childbase; /// id of my first child
+  size_t numchild;  /// number of children
   
   // set the waiting flag
   void __child_to_parent_barrier_trigger(procid_t source);
   
-  void __parent_to_child_barrier_release(char releaseval);
+  void __parent_to_child_barrier_release(int releaseval);
   
  public:
   dc_services(distributed_control &dc):rpc(dc, this) { 
-    child_barrier[0] = 0; child_barrier[1] = 0;
+    // reset the child barrier values
+    child_barrier_counter.value = 0;
     barrier_sense = 1;
-    barrier_release = 0;
+    barrier_release = -1;
+
+    // compute my children
+    childbase = size_t(rpc.dc().procid()) * DC_SERVICES_BARRIER_BRANCH_FACTOR + 1;
+    if (childbase >= rpc.dc().numprocs()) {
+      numchild = 0;
+    }
+    else {
+      size_t maxchild = std::min<size_t>(rpc.dc().numprocs(), 
+                               childbase + DC_SERVICES_BARRIER_BRANCH_FACTOR);
+      numchild = maxchild - childbase;
+    }
     
-    child[0] = rpc.dc().procid() * 2 + 1;
-    child[1] = rpc.dc().procid() * 2 + 2; 
-    parent =  (rpc.dc().procid() - 1) / 2;
+    parent =  (rpc.dc().procid() - 1) / DC_SERVICES_BARRIER_BRANCH_FACTOR   ;
+    logger(LOG_INFO, "%d %d %d", childbase, numchild, parent);
   }
  
-
+  /**
+   * tree-reduction based sense-reversing barrier with a branching factor of 
+   * DC_SERVICES_BARRIER_BRANCH_FACTOR
+   */
   void barrier();
+  
   
   /**
   This function allows one machine to broadcasts a string of data 

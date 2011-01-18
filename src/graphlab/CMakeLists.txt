@@ -39,6 +39,7 @@ if(Sctp-FOUND)
 endif()
   
 add_library(graphlab_rpc STATIC
+  rpc/dc_comm_base.cpp
   rpc/dc_tcp_comm.cpp
   ${sctp_source}
   rpc/circular_char_buffer.cpp

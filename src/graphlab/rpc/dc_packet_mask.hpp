@@ -2,6 +2,7 @@
 #define DC_PACKET_MASK_HPP
 namespace graphlab {
   // ---------  Packet header types --------------
+ 
   /** If FAST_CALL is set, the RPC call will be 
   issued as early as possible, taking precedence over
   other non-fast-calls. Fast Calls also avoid additional

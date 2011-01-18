@@ -33,12 +33,13 @@ class distributed_vector {
 
 int main(int argc, char ** argv) {
   /** Initialization */
+  global_logger().set_log_level(LOG_INFO);
   size_t machineid = atoi(argv[1]);
   std::vector<std::string> machines;
   machines.push_back("127.0.0.1:10000");
   machines.push_back("127.0.0.1:10001");
 
-  distributed_control dc(machines,"", machineid);
+  distributed_control dc(machines,"", machineid, 8, SCTP_COMM);
   dc_services services(dc);
   
   distributed_vector<std::string> vec(dc);

@@ -34,11 +34,11 @@ For instance:
 distributed_control dc(dc_MPI_init(argc, argv));
 */
 struct dc_init_param{
- std::vector<std::string> machines;
- std::string initstring;
- procid_t curmachineid;
- size_t numhandlerthreads;
- dc_comm_type commtype;
+  std::vector<std::string> machines;
+  std::string initstring;
+  procid_t curmachineid;
+  size_t numhandlerthreads;
+  dc_comm_type commtype;
 };
 
 

@@ -106,7 +106,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
     comm = new dc_impl::dc_tcp_comm();
   }
   else if (commtype == SCTP_COMM) {
-    #ifdef DHAS_SCTP
+    #ifdef HAS_SCTP
     comm = new dc_impl::dc_sctp_comm();
     #else
     logger(LOG_FATAL, "SCTP support was not compiled");
