@@ -165,23 +165,25 @@ if(NOT ${CMAKE_SYSTEM} MATCHES Windows)
   link_libraries(pthread)   
 endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 
+
+
+
 # Flags for the debug and release mode
-if(CMAKE_COMPILER_IS_GNUCXX)
+## IMPORTANT: we currently assume a GCC compiler when setting flags
+# if(CMAKE_COMPILER_IS_GNUCXX)
   
-  ### Set the debug flags ----------------------------------------------------->
-  # Note: -fkeep-inline-functions significantly slows down the compilation
-  set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self  ") 
+   ### Set the debug flags ----------------------------------------------------->
+   # Note: -fkeep-inline-functions significantly slows down the compilation
+   set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self  ") 
                                    #-fno-implicit-templates")
 
-  ### Set the release flags --------------------------------------------------->
-  if (CROSS_COMPILE_32_BIT MATCHES 1)
-
-    set(CMAKE_CXX_FLAGS_RELEASE 
+   ### Set the release flags --------------------------------------------------->
+   if (CROSS_COMPILE_32_BIT MATCHES 1)
+     set(CMAKE_CXX_FLAGS_RELEASE 
       "-m32 -O3 -Wall -Wextra -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays ")
-    set(CMAKE_C_FLAGS_RELEASE 
+     set(CMAKE_C_FLAGS_RELEASE 
       "-m32 -O3 -Wall -Wextra -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays ")
-
-  else(CROSS_COMPILE_32_BIT MATCHES 1)
+   else(CROSS_COMPILE_32_BIT MATCHES 1)
     
     # Set the C compiler flags in release mode on 64bit systems
     set(CMAKE_C_FLAGS_RELEASE 
@@ -196,24 +198,26 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 
   endif(CROSS_COMPILE_32_BIT MATCHES 1)
 
-# Mex setup
- set(CMAKE_CXX_FLAGS_MEX  "${CMAKE_CXX_FLAGS_RELEASE} -D_GNU_SOURCE -fPIC -fno-omit-frame-pointer -pthread ")
- set(CMAKE_C_FLAGS_MEX  "${CMAKE_C_FLAGS_RELEASE}   -D_GNU_SOURCE  -fexceptions -fPIC -fno-omit-frame-pointer -pthread ")
+   # Mex setup
+   set(CMAKE_CXX_FLAGS_MEX  "${CMAKE_CXX_FLAGS_RELEASE} -D_GNU_SOURCE -fPIC -fno-omit-frame-pointer -pthread ")
+   set(CMAKE_C_FLAGS_MEX  "${CMAKE_C_FLAGS_RELEASE}   -D_GNU_SOURCE  -fexceptions -fPIC -fno-omit-frame-pointer -pthread ")
 
 
-if (CMAKE_BUILD_TYPE MATCHES "Release")
-  add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_RELEASE})
-elseif(CMAKE_BUILD_TYPE MATCHES "Debug")
-  add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_DEBUG})
-elseif(CMAKE_BUILD_TYPE MATCHES "Mex")
-  message(STATUS "Mex CXX" ${CMAKE_CXX_FLAGS_MEX})
-  message(STATUS "Mex C" ${CMAKE_C_FLAGS_MEX})
+   if (CMAKE_BUILD_TYPE MATCHES "Release")
+     add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_RELEASE})
+   elseif(CMAKE_BUILD_TYPE MATCHES "Debug")
+     add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_DEBUG})
+   elseif(CMAKE_BUILD_TYPE MATCHES "Mex")
+     message(STATUS "Mex CXX" ${CMAKE_CXX_FLAGS_MEX})
+     message(STATUS "Mex C" ${CMAKE_C_FLAGS_MEX})
+     add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_MEX})
+  endif()
 
-  add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_MEX})
-endif()
+##endif(CMAKE_COMPILER_IS_GNUCXX)
 
 
-endif(CMAKE_COMPILER_IS_GNUCXX)
+
+
 
 # uncomment the following line to get CMake variables to print to screen
 # include(CMakePrintSystemInformation)
@@ -257,7 +261,6 @@ IF(MPI_FOUND)
   TARGET_LINK_LIBRARIES(${NAME} graphlab_dist ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY} graphlab)
   set_property(TARGET ${NAME} APPEND PROPERTY COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
   add_definitions(-DGLDISTRIBUTED)
-
 ELSE(MPI_FOUND)
   message(STATUS "Not Building " ${NAME})
 ENDIF(MPI_FOUND)
@@ -272,10 +275,20 @@ ENDIF(MPI_FOUND)
 ENDMACRO(dist_target_link_libraries)
 
 FIND_PACKAGE(JNI)
+
+IF(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
+  SET(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
+  actually exists")
+  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+ELSE( )
+  SET(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
+  actually exists")
+  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+ENDIF( )
+
 MACRO(add_jni_library NAME)
-
-
-    IF (JAVA_INCLUDE_PATH)
+    # Only build if JNI was found
+    IF (JNI_REALLY_FOUND)
         include_directories(
             ${JAVA_INCLUDE_PATH}
             ${JAVA_INCLUDE_PATH}/linux
@@ -286,12 +299,11 @@ MACRO(add_jni_library NAME)
         TARGET_LINK_LIBRARIES(${NAME}  graphlab_metis_pic) 
         TARGET_LINK_LIBRARIES(${NAME}  graphlab_GKlib_pic) 
         TARGET_LINK_LIBRARIES(${NAME} ${Boost_SHARED_LIBRARIES})
-        IF (APPLE)
-            INCLUDE_DIRECTORIES("/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/")
-                SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
-                SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
-        ENDIF (APPLE)
-    ENDIF (JAVA_INCLUDE_PATH)
+        # IF (APPLE)
+        #         SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
+        #         SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
+        # ENDIF (APPLE)
+    ENDIF ()
 ENDMACRO(add_jni_library)
 	
 
