@@ -105,6 +105,7 @@ class distributed_control{
   distributed_control& operator=(const distributed_control& dc) { return *this; }
 
 
+  std::map<std::string, std::string> parse_options(std::string initstring);
  public:
    
 

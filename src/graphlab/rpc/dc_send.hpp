@@ -34,6 +34,8 @@ class dc_send{
   virtual void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
+                 
+  virtual void shutdown() = 0;
 
 };
   

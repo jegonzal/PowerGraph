@@ -2,6 +2,7 @@
 #define DC_COMM_BASE_HPP
 #include <vector>
 #include <string>
+#include <map>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 
@@ -43,7 +44,7 @@ class dc_comm_base {
    tag: An additional pointer passed to the receiving function.
   */
   virtual void init(const std::vector<std::string> &machines,
-            const std::string &initstring,
+            const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
             comm_recv_callback_type recvcallback,
             void* tag) = 0;

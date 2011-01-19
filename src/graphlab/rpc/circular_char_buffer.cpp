@@ -192,5 +192,49 @@ void circular_char_buffer::clear() {
 circular_char_buffer::~circular_char_buffer() {
   free(buffer);
 }
-  
+
+std::streamsize circular_char_buffer::introspective_read(char* &s) {
+  if (len == 0) {
+    s = NULL;
+    return 0;
+  }
+  s = buffer + head;
+  // how much we do read?
+  // we can go up to the end of the buffer, or until a looparound
+  // case 1: no looparound
+  // case 2: looparound
+  std::streamsize readlen = 0;
+  if (tail > head) {
+    readlen = tail - head;
+  }
+  else {
+    readlen = bufsize - head;
+  }
+  skip(readlen);
+  return readlen;
+}
+
+std::streamsize circular_char_buffer::introspective_read(char* &s, std::streamsize clen) {
+  if (len == 0) {
+    s = NULL;
+    return 0;
+  }
+  s = buffer + head;
+  // how much we do read?
+  // we can go up to the end of the buffer, or until a looparound
+  // case 1: no looparound
+  // case 2: looparound
+  std::streamsize readlen = 0;
+  if (tail > head) {
+    readlen = tail - head;
+  }
+  else {
+    readlen = bufsize - head;
+  }
+  if (clen < readlen) readlen = clen;
+
+  skip(readlen);
+  return readlen;
+}
+
 };

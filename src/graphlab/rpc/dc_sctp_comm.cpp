@@ -38,7 +38,7 @@ dc_sctp_comm::~dc_sctp_comm() {
   
 
 void dc_sctp_comm::init(const std::vector<std::string> &machines,
-                       const std::string &initstring,
+                       const std::map<std::string,std::string> &initopts,
                        procid_t curmachineid,
                        comm_recv_callback_type _recvcallback,
                        void* _tag){

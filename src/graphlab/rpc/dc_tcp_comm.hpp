@@ -36,7 +36,7 @@ class dc_tcp_comm:public dc_comm_base {
    attached receiver
    
    machines: a vector of strings where each string is of the form [IP]:[portnumber]
-   initstring: unused
+   initopts: unused
    curmachineid: The ID of the current machine. machines[curmachineid] will be 
                  the listening address of this machine
    
@@ -44,7 +44,7 @@ class dc_tcp_comm:public dc_comm_base {
    tag: An additional pointer passed to the receiving function.
   */
   void init(const std::vector<std::string> &machines,
-            const std::string &initstring,
+            const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
             comm_recv_callback_type recvcallback,
             void* tag);
