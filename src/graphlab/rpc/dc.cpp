@@ -14,6 +14,7 @@
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/dc_services.hpp>
 
 namespace graphlab {
 
@@ -109,6 +110,7 @@ void distributed_control::fcallhandler_loop() {
 
 
 std::map<std::string, std::string> distributed_control::parse_options(std::string initstring) {
+  std::map<std::string, std::string> options;
   std::replace(initstring.begin(), initstring.end(), ',', ' ');
   std::replace(initstring.begin(), initstring.end(), ';', ' ');        
   std::string opt, value;
@@ -121,7 +123,7 @@ std::map<std::string, std::string> distributed_control::parse_options(std::strin
     if (s.bad()) break;
     options[trim(opt)] = trim(value);
   }
-
+  return options;
 }
 
 void distributed_control::init(const std::vector<std::string> &machines,
@@ -184,7 +186,14 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // start the machines
   comm->init(machines, options, curmachineid, 
             dc_recv_callback, this); 
+
+  // construct the services
+  distributed_services = new dc_services(*this);
+
+}
   
-  }
+dc_services& distributed_control::services() {
+  return *distributed_services;
+}
 
 }
