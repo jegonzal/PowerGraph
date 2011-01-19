@@ -39,11 +39,13 @@ if(Sctp-FOUND)
 endif()
   
 add_library(graphlab_rpc STATIC
+  rpc/dc_comm_base.cpp
   rpc/dc_tcp_comm.cpp
   ${sctp_source}
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_send.cpp
   rpc/dc_stream_receive.cpp
+  rpc/dc_buffered_stream_send.cpp
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
   rpc/dc_services.cpp

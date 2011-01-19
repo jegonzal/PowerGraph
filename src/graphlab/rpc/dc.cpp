@@ -1,5 +1,10 @@
+#include <map>
+#include <sstream>
+
 #include <boost/unordered_map.hpp>
 #include <boost/bind.hpp>
+
+#include <graphlab/util/stl_util.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
@@ -7,7 +12,9 @@
 
 #include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/dc_services.hpp>
 
 namespace graphlab {
 
@@ -22,8 +29,14 @@ void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
 distributed_control::~distributed_control() {
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   comm->close();
-  for (size_t i = 0;i < senders.size(); ++i) delete senders[i];
-  for (size_t i = 0;i < receivers.size(); ++i) delete receivers[i];
+  for (size_t i = 0;i < senders.size(); ++i) {
+    senders[i]->shutdown();
+    delete senders[i];
+  }
+  for (size_t i = 0;i < receivers.size(); ++i) {
+    receivers[i]->shutdown();
+    delete receivers[i];
+  }
   senders.clear();
   receivers.clear();
   // shutdown function call handlers
@@ -49,7 +62,7 @@ void distributed_control::exec_function_call(procid_t source, std::istream &istr
     char isrequest;
     arc >> isrequest;
     if (isrequest == 0) {
-      std::cout << "portable call to " << s << std::endl;
+      // std::cout << "portable call to " << s << std::endl;
       // look for the registration
       dc_impl::dispatch_map_type::const_iterator iter = portable_dispatch_call_map.find(s);
       if (iter == portable_dispatch_call_map.end()) {
@@ -61,7 +74,7 @@ void distributed_control::exec_function_call(procid_t source, std::istream &istr
 
     }
     else {
-     std::cout << "portable request to " << s << std::endl;
+     // std::cout << "portable request to " << s << std::endl;
      dc_impl::dispatch_map_type::const_iterator iter = portable_dispatch_request_map.find(s);
       if (iter == portable_dispatch_request_map.end()) {
         logstream(LOG_ERROR) << "Unable to locate dispatcher for function " << s << std::endl;
@@ -96,18 +109,48 @@ void distributed_control::fcallhandler_loop() {
 }
 
 
+std::map<std::string, std::string> distributed_control::parse_options(std::string initstring) {
+  std::map<std::string, std::string> options;
+  std::replace(initstring.begin(), initstring.end(), ',', ' ');
+  std::replace(initstring.begin(), initstring.end(), ';', ' ');        
+  std::string opt, value;
+  // read till the equal
+  std::stringstream s(initstring);
+  while(s.good()) {
+    getline(s, opt, '=');
+    if (s.bad() || s.eof()) break;
+    getline(s, value);
+    if (s.bad()) break;
+    options[trim(opt)] = trim(value);
+  }
+  return options;
+}
+
 void distributed_control::init(const std::vector<std::string> &machines,
             const std::string &initstring,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {   
   REGISTER_RPC((*this), reply_increment_counter);
+  // parse the initstring
+  std::map<std::string,std::string> options = parse_options(initstring);
+  bool buffered_send = false;
+  if (options["buffered_send"] == "true" || 
+    options["buffered_send"] == "1" ||
+    options["buffered_send"] == "yes") {
+    buffered_send = true;
+    std::cerr << "Buffered Send Option is ON." << std::endl;
+  }
+  
+  
   if (commtype == TCP_COMM) {
     comm = new dc_impl::dc_tcp_comm();
+    std::cerr << "TCP Communication layer constructed." << std::endl;
   }
   else if (commtype == SCTP_COMM) {
-    #ifdef DHAS_SCTP
+    #ifdef HAS_SCTP
     comm = new dc_impl::dc_sctp_comm();
+    std::cerr << "SCTP Communication layer constructed." << std::endl;
     #else
     logger(LOG_FATAL, "SCTP support was not compiled");
     #endif
@@ -119,7 +162,12 @@ void distributed_control::init(const std::vector<std::string> &machines,
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
       receivers.push_back(new dc_impl::dc_stream_receive(this));
-      senders.push_back(new dc_impl::dc_stream_send(this, comm));
+      if (buffered_send) {
+        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm));
+      }
+      else{
+        senders.push_back(new dc_impl::dc_stream_send(this, comm));
+      }
     }
   }
   else {
@@ -136,9 +184,16 @@ void distributed_control::init(const std::vector<std::string> &machines,
   }
 
   // start the machines
-  comm->init(machines, initstring, curmachineid, 
+  comm->init(machines, options, curmachineid, 
             dc_recv_callback, this); 
+
+  // construct the services
+  distributed_services = new dc_services(*this);
+
+}
   
-  }
+dc_services& distributed_control::services() {
+  return *distributed_services;
+}
 
 }

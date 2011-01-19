@@ -50,10 +50,8 @@ void dc_stream_receive::process_buffer() {
       //do we have enough to extract a single packet
       // if not, quit now!
       if (size_t(buffer.size()) < sizeof(packet_hdr) + hdr.len) break;
-      // we have already peeked the header. skipit
-      buffer.skip(sizeof(packet_hdr));
 
-      // if it is a fast call, dispatch the function immediately
+
       if (hdr.packet_type_mask & BARRIER) {
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Comm barrier" << std::endl;
@@ -65,6 +63,9 @@ void dc_stream_receive::process_buffer() {
         if (barrier) break;
       }
       if (hdr.packet_type_mask & FAST_CALL) {
+        // if it is a fast call, dispatch the function immediately
+        buffer.skip(sizeof(packet_hdr));
+
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Is fast call" << std::endl;
         #endif
@@ -75,6 +76,7 @@ void dc_stream_receive::process_buffer() {
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Is deferred call" << std::endl;
         #endif
+        buffer.skip(sizeof(packet_hdr));
         // not a fast call. so read out the buffer
         char* tmpbuf = new char[hdr.len];
         buffer.read(tmpbuf, hdr.len);
@@ -85,6 +87,8 @@ void dc_stream_receive::process_buffer() {
     bufferlock.unlock();
   }
 }
+
+void dc_stream_receive::shutdown() { }
 
 } // namespace dc_impl
 } // namespace graphlab

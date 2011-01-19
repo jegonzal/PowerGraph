@@ -22,7 +22,7 @@ TCP implementation of the communications subsystem
 class dc_sctp_comm:public dc_comm_base {
  public:
    
-  dc_sctp_comm() {}
+  dc_sctp_comm();
   
   size_t capabilities() const {
     return COMM_STREAM;
@@ -36,7 +36,7 @@ class dc_sctp_comm:public dc_comm_base {
    attached receiver
    
    machines: a vector of strings where each string is of the form [IP]:[portnumber]
-   initstring: unused
+   initopts: unused
    curmachineid: The ID of the current machine. machines[curmachineid] will be 
                  the listening address of this machine
    
@@ -44,7 +44,7 @@ class dc_sctp_comm:public dc_comm_base {
    tag: An additional pointer passed to the receiving function.
   */
   void init(const std::vector<std::string> &machines,
-            const std::string &initstring,
+            const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
             comm_recv_callback_type recvcallback,
             void* tag);
@@ -52,9 +52,7 @@ class dc_sctp_comm:public dc_comm_base {
   /** shuts down all sockets and cleans up */
   void close();
   
-  ~dc_sctp_comm() {
-    close();
-  }
+  ~dc_sctp_comm();
   
   /**
     Returns the number of machines in the network.
@@ -79,15 +77,7 @@ class dc_sctp_comm:public dc_comm_base {
   void send2(size_t target, 
              const char* buf1, const size_t len1,
              const char* buf2, const size_t len2); 
-  // receiving socket handler
-  class socket_handler:public runnable {
-   public:
-    dc_sctp_comm &owner;
-    int fd;
-    socket_handler(dc_sctp_comm& owner, int fd, size_t id):owner(owner), fd(fd) {}
-    
-    void run();
-  };
+
 
  private:
  
@@ -122,6 +112,13 @@ class dc_sctp_comm:public dc_comm_base {
   int sendsock;
   
   void server_handler_loop();
+  
+  std::vector<char> machines_started;
+  /// waits for all machines to start up
+  void wait_for_all_machines();
+  void handle_control(procid_t src, 
+                      const char* buf, size_t len);
+
 };
 
 } // namespace dc_impl

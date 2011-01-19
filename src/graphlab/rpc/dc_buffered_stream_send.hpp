@@ -1,5 +1,5 @@
-#ifndef DC_STREAM_SEND_HPP
-#define DC_STREAM_SEND_HPP
+#ifndef DC_BUFFERED_STREAM_SEND_HPP
+#define DC_BUFFERED_STREAM_SEND_HPP
 #include <iostream>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
@@ -8,6 +8,7 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
 #include <graphlab/rpc/dc_send.hpp>
+#include <graphlab/rpc/circular_char_buffer.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -25,13 +26,14 @@ namespace dc_impl {
   corresponding "receive call" on the receiver end.
 */
 
-class dc_stream_send: public dc_send{
+class dc_buffered_stream_send: public dc_send{
  public:
-  dc_stream_send(distributed_control* dc, dc_comm_base *comm): dc(dc), comm(comm){ 
- 
+  dc_buffered_stream_send(distributed_control* dc, dc_comm_base *comm): dc(dc), comm(comm), done(false){ 
+    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send::send_loop, 
+                                      this));
   }
   
-  ~dc_stream_send() {
+  ~dc_buffered_stream_send() {
   }
   
 
@@ -53,16 +55,21 @@ class dc_stream_send: public dc_send{
                  unsigned char packet_type_mask,
                  char* data, size_t len);
 
+  void send_loop();
+  
   void shutdown();
   
  private:
-  mutex lock;
-  
   /// pointer to the owner
   distributed_control* dc;
   dc_comm_base *comm;
 
+  mutex sendbuflock;
+  circular_char_buffer sendbuf;
+  conditional sendcond;
 
+  thread thr;
+  bool done;
 };
 
 

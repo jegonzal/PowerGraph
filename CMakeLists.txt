@@ -27,6 +27,7 @@ set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 # Make sure testing is enabled
 ENABLE_TESTING()
 
+FIND_LIBRARY(Sctp NAMES sctp)
 # Use Python interpreter
 FIND_PACKAGE(PythonInterp)
 # Use the Boost libraries
@@ -34,7 +35,7 @@ SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
   program_options;regex REQUIRED)
 
-FIND_LIBRARY(Sctp sctp1)
+
 
 SET(Boost_SHARED_LIBRARIES "")
 # Stupid hack because Cmake cannot seperate the shared from the static versions
@@ -89,10 +90,12 @@ if(CROSS_COMPILE_32_BIT MATCHES 1)
 set(HAVE_64_BIT 0)
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
 
-if(Sctp-FOUND)
-  message(STATUS "libsctp found")
-else()
+if(Sctp-NOTFOUND)
   message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
+else()
+  add_definitions(-DHAS_SCTP)
+  set(Sctp-FOUND 1)
+  message(STATUS "libsctp found")
 endif()
 
 

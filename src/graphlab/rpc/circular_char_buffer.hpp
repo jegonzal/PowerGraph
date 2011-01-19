@@ -60,7 +60,30 @@ class circular_char_buffer {
       the capacity is the same as the length of the buffer */
   void squeeze();
 
-
+  /**
+   * Returns a pointer (through s) and a length of the read.
+   * This pointer is a direct pointer into the internal buffer 
+   * of this datastructure. The pointer is valid as long as no other operations
+   * are performed on this structure.
+   * The length of the introspective_read may be less than the actual
+   * length of the buffer. Multiple calls to introspective_read may be 
+   * necessary to read all data in the buffer. If the function returns 0,
+   * the buffer is empty.
+   */
+  std::streamsize introspective_read(char* &s);
+  
+  /**
+   * Returns a pointer (through s) and a length of the read.
+   * This pointer is a direct pointer into the internal buffer 
+   * of this datastructure. The pointer is valid as long as no other operations
+   * are performed on this structure.
+   * The length of the introspective_read may be less than the number 
+   * of bytes requested. Multiple calls to introspective_read may be 
+   * necessary to read all data in the buffer. If the function returns 0,
+   * the buffer is empty.
+   */
+  std::streamsize introspective_read(char* &s, std::streamsize clen);
+  
   inline void consistency_check() const {
 /*    ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
     ASSERT_LT(head, bufsize); ASSERT_LE(tail, bufsize);

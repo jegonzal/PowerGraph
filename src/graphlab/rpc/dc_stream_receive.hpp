@@ -56,12 +56,13 @@ class dc_stream_receive: public dc_receive{
   /// pointer to the owner
   distributed_control* dc;
   
-  
   /**
     Reads the incoming buffer and processes, dispatching
     calls when enough bytes are received
   */
   void process_buffer() ;
+  
+  void shutdown();
 };
 
 

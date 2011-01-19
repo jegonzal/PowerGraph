@@ -72,6 +72,7 @@ void dc_stream_send::send_data(procid_t target,
   free(data);
 }
 
+void dc_stream_send::shutdown() { }
 
 } // namespace dc_impl
 } // namespace graphlab

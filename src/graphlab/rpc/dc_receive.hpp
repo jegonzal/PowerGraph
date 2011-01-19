@@ -31,6 +31,8 @@ class dc_receive {
   /** called by the controller when a function
   call is completed */
   virtual void function_call_completed() = 0;
+  
+  virtual void shutdown() = 0;
 };
 
 

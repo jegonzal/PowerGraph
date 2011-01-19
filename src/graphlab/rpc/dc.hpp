@@ -34,13 +34,15 @@ For instance:
 distributed_control dc(dc_MPI_init(argc, argv));
 */
 struct dc_init_param{
- std::vector<std::string> machines;
- std::string initstring;
- procid_t curmachineid;
- size_t numhandlerthreads;
- dc_comm_type commtype;
+  std::vector<std::string> machines;
+  std::string initstring;
+  procid_t curmachineid;
+  size_t numhandlerthreads;
+  dc_comm_type commtype;
 };
 
+// forward declaration for dc services
+class dc_services;
 
 /**
 The primary distributed RPC object.
@@ -105,6 +107,9 @@ class distributed_control{
   distributed_control& operator=(const distributed_control& dc) { return *this; }
 
 
+  std::map<std::string, std::string> parse_options(std::string initstring);
+  
+  dc_services* distributed_services;
  public:
    
 
@@ -208,8 +213,6 @@ class distributed_control{
   */
   void fcallhandler_loop();
   
-  
-  void barrier();
   /**
     Instantiates a find_dispatch with the right arguments,
     and store the dispatch function in the hash map.
@@ -254,6 +257,9 @@ class distributed_control{
   void clear_registered_object(size_t id) {
     registered_objects[id] = (void*)NULL;
   }
+  
+  
+  dc_services& services();
 };
 
 
