@@ -45,7 +45,6 @@ add_dist_executable(dist_engine_test2 dist_engine_test2.cpp)
 add_dist_executable(dist_engine_test3 dist_engine_test3.cpp)
 add_dist_executable(dist_term_test dist_term_test.cpp)
 add_dist_executable(distributed_shared_data_test distributed_shared_data_test.cpp)
-
 # cuda_add_executable(cuda_test cuda_test.cpp)
 
 # add_executable(itppserialize itppserialize.cpp)
@@ -83,6 +82,9 @@ add_executable(example7 example7.cpp)
 add_executable(example8 example8.cpp)
 
 add_executable(lowrestimertest lowrestimertest.cpp)
+
+add_executable(cachingdhttest cachingdhttest.cpp)
+add_executable(coherentdhttest coherentdhttest.cpp)
 
 
 

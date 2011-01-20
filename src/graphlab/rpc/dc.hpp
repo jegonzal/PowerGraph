@@ -162,7 +162,7 @@ class distributed_control{
   /**
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_call_issue, 0) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_call_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::remote_call_issue, FAST_CALL) )
  
 
@@ -179,7 +179,7 @@ class distributed_control{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
  // BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::remote_request_issue, 0) )
-   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::remote_request_issue, 0) )
+   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL) )
 
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type fast_remote_request, dc_impl::remote_request_issue, FAST_CALL) )
  
@@ -241,25 +241,28 @@ class distributed_control{
   }
 
 
-  size_t register_object(void* v) {
+  inline size_t register_object(void* v) {
     ASSERT_NE(v, (void*)NULL);
     registered_objects.push_back(v);
     return registered_objects.size() - 1;
   }
 
 
-  void* get_registered_object(size_t id) {
+  inline void* get_registered_object(size_t id) {
     ASSERT_LT(id, registered_objects.size());
     ASSERT_NE(registered_objects[id], (void*)NULL);
     return registered_objects[id];
   }
   
-  void clear_registered_object(size_t id) {
+  inline void clear_registered_object(size_t id) {
     registered_objects[id] = (void*)NULL;
   }
   
   
   dc_services& services();
+  
+  void comm_barrier(procid_t targetmachine);
+  void comm_barrier();
 };
 
 

@@ -1,13 +1,12 @@
 #ifndef DC_SERVICES_HPP
 #define DC_SERVICES_HPP
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/rpc/dc_services_base.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 
 #define DC_SERVICES_BARRIER_BRANCH_FACTOR 128
 namespace graphlab {
 
-class dc_services:public dc_services_base {
+class dc_services {
  private:
   dc_dist_object<dc_services> rpc;
   
@@ -61,6 +60,14 @@ class dc_services:public dc_services_base {
    */
   void barrier();
   
+  
+  inline void comm_barrier(procid_t targetmachine) {
+    rpc.dc().comm_barrier(targetmachine);
+  }
+  
+  inline void comm_barrier() {
+    rpc.dc().comm_barrier();
+  }
   
   /**
   This function allows one machine to broadcasts a string of data 

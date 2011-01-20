@@ -24,6 +24,7 @@ void dc_stream_send::send_data(procid_t target,
     size_t l = 0;
     while(istrm.good()) {
       l = istrm.readsome(cbuffer, 10240);
+      if (l == 0) break;  // end of buffer if readsome returns 0
       comm->send(target, cbuffer, l);
     }
     comm->flush(target);

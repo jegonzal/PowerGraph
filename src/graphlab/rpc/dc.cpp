@@ -196,4 +196,22 @@ dc_services& distributed_control::services() {
   return *distributed_services;
 }
 
+
+void distributed_control::comm_barrier(procid_t targetmachine) {
+  ASSERT_LT(targetmachine, numprocs());
+  if (targetmachine != procid()) {
+    std::stringstream strm;
+    senders[targetmachine]->send_data(targetmachine, BARRIER, strm, 0);
+  }
+}
+
+void distributed_control::comm_barrier() {
+  std::stringstream strm;
+  for (size_t i = 0;i < senders.size(); ++i) {
+    if (i != procid()) {
+      senders[i]->send_data(i, BARRIER, strm, 0);
+    }
+  }
+}
+
 }

@@ -67,15 +67,25 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
 
- find_package(MPICH2)
- IF(MPI_FOUND)
-   message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
- ELSE(MPI_FOUND)
-   message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
- ENDIF(MPI_FOUND)
+find_package(MPICH2)
+IF(MPI_FOUND)
+  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+ELSE(MPI_FOUND)
+  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+ENDIF(MPI_FOUND)
 
 
 
+if(Sctp MATCHES Sctp-NOTFOUND)
+  message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
+  set(Sctp-FOUND)
+  set(Sctp-NOTFOUND 1)
+else()
+  add_definitions(-DHAS_SCTP)
+  set(Sctp-FOUND 1)
+  set(Sctp-NOTFOUND)
+  message(STATUS "libsctp found")
+endif()
 
 
 # architecture detection
@@ -90,30 +100,7 @@ if(CROSS_COMPILE_32_BIT MATCHES 1)
 set(HAVE_64_BIT 0)
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
 
-if(Sctp MATCHES Sctp-NOTFOUND)
-  message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
-  set(Sctp-FOUND)
-  set(Sctp-NOTFOUND 1)
-else()
-  add_definitions(-DHAS_SCTP)
-  set(Sctp-FOUND 1)
-  set(Sctp-NOTFOUND)
-  message(STATUS "libsctp found")
-endif()
 
-
-# Specify the subdirectories for this root directory This will be
-# used for the class branch, not the lab branch: subdirs(src examples
-# EXCLUDE_FROM_ALL tests timings projects) (Remove EXCLUDE_FROM_ALL
-# for lab branch.)
-subdirs(src tests)
-
-if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
-	subdirs(apps)
-endif()
-if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
-	subdirs(demoapps)
-endif()
 # add random environment variable definitions
 # deal with Boost time shtuff: we want nanoseconds!
 # add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
@@ -155,11 +142,6 @@ link_directories(
   )
 
 
-
-
-set(GraphLab_LIBRARIES graphlab)
-
-
 # Add posix threads on non-windows systems
 if(NOT ${CMAKE_SYSTEM} MATCHES Windows)
   link_libraries(pthread)   
@@ -176,7 +158,7 @@ endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
    # Note: -fkeep-inline-functions significantly slows down the compilation
    set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self  ") 
                                    #-fno-implicit-templates")
-
+  message(STATUS "Debug opts: " ${CMAKE_CXX_FLAGS_DEBUG})
    ### Set the release flags --------------------------------------------------->
    if (CROSS_COMPILE_32_BIT MATCHES 1)
      set(CMAKE_CXX_FLAGS_RELEASE 
@@ -336,6 +318,26 @@ ENDMACRO(add_jni_library)
 
 
 
+
+
+
+
+set(GraphLab_LIBRARIES graphlab)
+
+
+# Specify the subdirectories for this root directory This will be
+# used for the class branch, not the lab branch: subdirs(src examples
+# EXCLUDE_FROM_ALL tests timings projects) (Remove EXCLUDE_FROM_ALL
+# for lab branch.)
+subdirs(src tests)
+
+
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
+  subdirs(apps)
+endif()
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
+  subdirs(demoapps)
+endif()
 
 
 ## Installation rules

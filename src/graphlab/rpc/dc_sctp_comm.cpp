@@ -143,13 +143,15 @@ void dc_sctp_comm::set_socket_options(int fd) {
              SCTP_EVENTS, &events, sizeof(events));
 
   // set nodelay to minimize latency
-    int flag = 1;
-   int result = setsockopt(fd,            /* socket affected */
-                           IPPROTO_SCTP,     /* set option at TCP level */
-                           SCTP_NODELAY,     /* name of option */
-                           (char *) &flag,  
-                           sizeof(int));   
-
+  int flag = 1;
+  int result = setsockopt(fd,            /* socket affected */
+                          IPPROTO_SCTP,     /* set option at TCP level */
+                          SCTP_NODELAY,     /* name of option */
+                          (char *) &flag,  
+                          sizeof(int));   
+  if (result < 0) {
+     logger(LOG_WARNING, "Unable to set SCTP_NODELAY. Performance may be signifantly reduced");
+   }
 }
 
 void dc_sctp_comm::flush(size_t target) {

@@ -51,7 +51,7 @@ void dc_stream_receive::process_buffer() {
       // if not, quit now!
       if (size_t(buffer.size()) < sizeof(packet_hdr) + hdr.len) break;
 
-
+      buffer.skip(sizeof(packet_hdr));
       if (hdr.packet_type_mask & BARRIER) {
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Comm barrier" << std::endl;
@@ -62,21 +62,18 @@ void dc_stream_receive::process_buffer() {
         // ok. we do have incomplete calls. quit processing.
         if (barrier) break;
       }
-      if (hdr.packet_type_mask & FAST_CALL) {
+      else if (hdr.packet_type_mask & FAST_CALL) {
         // if it is a fast call, dispatch the function immediately
-        buffer.skip(sizeof(packet_hdr));
-
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Is fast call" << std::endl;
         #endif
         boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
         dc->exec_function_call(hdr.src, strm);
       }
-      else {
+      else if (hdr.packet_type_mask & STANDARD_CALL) {
         #ifdef DC_RECEIVE_DEBUG
         logstream(LOG_INFO) << "Is deferred call" << std::endl;
         #endif
-        buffer.skip(sizeof(packet_hdr));
         // not a fast call. so read out the buffer
         char* tmpbuf = new char[hdr.len];
         buffer.read(tmpbuf, hdr.len);

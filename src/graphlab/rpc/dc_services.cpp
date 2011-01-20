@@ -31,51 +31,53 @@ void dc_services::__parent_to_child_barrier_release(int releaseval) {
 
 
 void dc_services::barrier() {
-    // upward message
-    char barrier_val = barrier_sense;      
-    barrier_mut.lock();
-    // wait for all children to be done
-    while(1) {
-      if ((barrier_sense == -1 && child_barrier_counter.value == 0) || 
-          (barrier_sense == 1 && child_barrier_counter.value == numchild)) {
-        // flip the barrier sense
-        barrier_sense = -barrier_sense;
-        // call child to parent in parent
-        barrier_mut.unlock();
-        if (rpc.dc().procid() != 0) {
-          rpc.fast_remote_call(parent, 
-                              &dc_services::__child_to_parent_barrier_trigger,
-                              rpc.dc().procid());
-        }
-        break;
+  // upward message
+  char barrier_val = barrier_sense;      
+  barrier_mut.lock();
+  // wait for all children to be done
+  while(1) {
+    if ((barrier_sense == -1 && child_barrier_counter.value == 0) || 
+        (barrier_sense == 1 && child_barrier_counter.value == (int)(numchild))) {
+      // flip the barrier sense
+      barrier_sense = -barrier_sense;
+      // call child to parent in parent
+      barrier_mut.unlock();
+      if (rpc.dc().procid() != 0) {
+        rpc.fast_remote_call(parent, 
+                            &dc_services::__child_to_parent_barrier_trigger,
+                            rpc.dc().procid());
       }
-      barrier_cond.wait(barrier_mut);
+      break;
     }
-    
-    
-    logger(LOG_INFO, "barrier phase 1 complete");
-    // I am root. send the barrier release downwards
-    if (rpc.dc().procid() == 0) {
-      barrier_release = barrier_val;
-
-      for (size_t i = 0;i < numchild; ++i) {
-        rpc.fast_remote_call(childbase + i,
-                            &dc_services::__parent_to_child_barrier_release,
-                            barrier_val);
-
-      }
-    }
-    // wait for the downward message releasing the barrier
-    barrier_mut.lock();
-    while(1) {
-      if (barrier_release == barrier_val) break;
-      barrier_cond.wait(barrier_mut);
-    }
-    barrier_mut.unlock();
-
-    logger(LOG_INFO, "barrier phase 2 complete");
+    barrier_cond.wait(barrier_mut);
   }
   
+  
+  logger(LOG_INFO, "barrier phase 1 complete");
+  // I am root. send the barrier release downwards
+  if (rpc.dc().procid() == 0) {
+    barrier_release = barrier_val;
+
+    for (size_t i = 0;i < numchild; ++i) {
+      rpc.fast_remote_call(childbase + i,
+                          &dc_services::__parent_to_child_barrier_release,
+                          barrier_val);
+
+    }
+  }
+  // wait for the downward message releasing the barrier
+  barrier_mut.lock();
+  while(1) {
+    if (barrier_release == barrier_val) break;
+    barrier_cond.wait(barrier_mut);
+  }
+  barrier_mut.unlock();
+
+  logger(LOG_INFO, "barrier phase 2 complete");
+}
+  
+
+
 
 } // graphlab
 
