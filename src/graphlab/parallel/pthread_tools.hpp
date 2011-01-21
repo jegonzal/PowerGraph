@@ -12,9 +12,9 @@
 #include <cassert>
 #include <list>
 #include <iostream>
-
 #include <boost/random.hpp>
 #include <boost/function.hpp>
+#include <graphlab/parallel/atomic.hpp>
 #include <graphlab/macros_def.hpp>
 
  #undef _POSIX_SPIN_LOCKS
@@ -787,6 +787,7 @@ namespace graphlab {
 
     for (cp = (char*)(addr); cp < end; cp += 64) __builtin_prefetch(cp, 1);
   }
+
 
 
 }; // End Namespace

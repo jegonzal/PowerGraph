@@ -85,6 +85,8 @@ add_executable(lowrestimertest lowrestimertest.cpp)
 
 add_executable(cachingdhttest cachingdhttest.cpp)
 add_executable(coherentdhttest coherentdhttest.cpp)
+add_executable(queued_rw_lock_test queued_rw_lock_test.cpp)
+add_executable(deferred_rwlock_test deferred_rwlock_test.cpp)
 
 
 
