@@ -141,7 +141,7 @@ void f3(void) {
   std::vector<bool> randsign;  
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
-  queued_rw_lock::request req;
+  queued_rw_lock::request req[NUM_LOCKS];
   
   for (size_t i = 0;i < NUM_ITER; ++i) {
     bar1.wait();
@@ -152,14 +152,14 @@ void f3(void) {
     std::sort(randlocks.begin(), randlocks.end());
     for (size_t j = 0;j < NUM_RAND; ++j) {
       if (randsign[j]) {
-        queuedlocks[randlocks[j]].writelock(&req);
+        queuedlocks[randlocks[j]].writelock(&req[randlocks[j]]);
         eval_wr(randlocks[j]);
-        queuedlocks[randlocks[j]].wrunlock(&req);
+        queuedlocks[randlocks[j]].wrunlock(&req[randlocks[j]]);
       }
       else {
-        queuedlocks[randlocks[j]].readlock(&req);
+        queuedlocks[randlocks[j]].readlock(&req[randlocks[j]]);
         eval_rd(randlocks[j]);
-        queuedlocks[randlocks[j]].rdunlock(&req);
+        queuedlocks[randlocks[j]].rdunlock(&req[randlocks[j]]);
       }
     }
     bar2.wait();
@@ -230,13 +230,13 @@ int main(int argc, char** argv) {
   thread_group group;
   timer ti;
   ti.start();
-  for (size_t i = 0;i < nthreads ; ++i) {
+/*  for (size_t i = 0;i < nthreads ; ++i) {
     launch_in_new_thread(group, f);
   }
   group.join();
   ASSERT_EQ(numacquired.value, nthreads * NUM_RAND * NUM_ITER);
   std::cout << nthreads * NUM_RAND * NUM_ITER << " deferred locks acquired and released in " << ti.current_time() << std::endl;
-/*
+
   thread_group group2;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
@@ -244,12 +244,12 @@ int main(int argc, char** argv) {
   }
   group2.join();
   std::cout << nthreads * NUM_RAND * NUM_ITER << " regular locks acquired and released in " << ti.current_time() << std::endl;
-  
+  */
   thread_group group3;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
     launch_in_new_thread(group3, f3);
   }
   group3.join();
-  std::cout << nthreads * NUM_RAND * NUM_ITER << " queued locks acquired and released in " << ti.current_time() << std::endl;*/
+  std::cout << nthreads * NUM_RAND * NUM_ITER << " queued locks acquired and released in " << ti.current_time() << std::endl;
 }

@@ -19,10 +19,10 @@ class queued_rw_lock{
  public:
   
   union state_union {
-    uint32_t stateu;
+    volatile uint32_t stateu;
     struct {
-      uint16_t successor_class;
-      bool blocked;
+      volatile uint16_t successor_class;
+      volatile bool blocked;
     } state;
   };
   
@@ -30,10 +30,10 @@ class queued_rw_lock{
     void* id;  
     volatile request* volatile next;
     volatile state_union s;
-    char lockclass;
+    volatile char lockclass;
   };
  private:
-  request* tail;
+  request* volatile tail;
   atomic<size_t> reader_count;
   request* volatile next_writer;
  public:
@@ -45,8 +45,8 @@ class queued_rw_lock{
     I->s.stateu = 0;
     I->s.state.blocked = true;
     I->s.state.successor_class = QUEUED_RW_LOCK_REQUEST_NONE;
-
-    request* predecessor = fetch_and_store(tail, I);
+    __sync_synchronize();
+    request* predecessor = __sync_lock_test_and_set(&tail, I);
 
     if (predecessor == NULL) {
       next_writer = I;
@@ -66,10 +66,13 @@ class queued_rw_lock{
   }
 
   inline void wrunlock(request *I) {
-    if (I->next != NULL || !atomic_compare_and_swap(tail, I, (request*)NULL)) {
+    __sync_synchronize(); 
+
+    if (I->next != NULL || !__sync_bool_compare_and_swap(&tail, I, (request*)NULL)) {
       // wait
       while(I->next == NULL) sched_yield();
-    
+     __sync_synchronize(); 
+   
       if (I->next->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
         reader_count.inc();
       }
@@ -83,8 +86,9 @@ class queued_rw_lock{
     I->s.stateu = 0;
     I->s.state.successor_class = QUEUED_RW_LOCK_REQUEST_NONE;
     I->s.state.blocked = true;
-    
-    request* predecessor = fetch_and_store(tail, I);
+    __sync_synchronize(); 
+    request* predecessor = __sync_lock_test_and_set(&tail, I);
+
     if (predecessor == NULL) {
       reader_count.inc();
       I->s.state.blocked = false;
@@ -96,21 +100,23 @@ class queued_rw_lock{
       tempold.state.successor_class = QUEUED_RW_LOCK_REQUEST_NONE;
       tempnew.state.blocked = true;
       tempnew.state.successor_class = QUEUED_RW_LOCK_REQUEST_READ;
-      bool ret = atomic_compare_and_swap(predecessor->s.stateu, tempold.stateu, tempnew.stateu);
-      if (predecessor->lockclass == QUEUED_RW_LOCK_REQUEST_WRITE ||  ret) {
+      __sync_synchronize();
+      if (predecessor->lockclass == QUEUED_RW_LOCK_REQUEST_WRITE || atomic_compare_and_swap(predecessor->s.stateu, tempold.stateu, tempnew.stateu)) {
         
         predecessor->next = I;
         // wait
-      
+        __sync_synchronize(); 
         volatile state_union& is = I->s;
         while(is.state.blocked) sched_yield();
       }
       else {
         reader_count.inc();
         predecessor->next = I;
+        __sync_synchronize();
         I->s.state.blocked = false;
       }
     }
+    __sync_synchronize();
     if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_READ) {
       
       // wait
@@ -121,8 +127,8 @@ class queued_rw_lock{
   }
 
   inline void rdunlock(request *I)  {
-    bool ret = !atomic_compare_and_swap(tail, I, (request*)NULL);
-    if (I->next != NULL || ret) {
+    __sync_synchronize();
+    if (I->next != NULL || !__sync_bool_compare_and_swap(&tail, I, (request*)NULL)) {
       while(I->next == NULL) sched_yield();
       if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_WRITE) {
         next_writer = (request*)(I->next);
@@ -130,6 +136,7 @@ class queued_rw_lock{
       }
     }
     if (reader_count.dec() == 0) {
+      __sync_synchronize(); 
       request * w = __sync_lock_test_and_set(&next_writer, (request*)NULL);
       if (w != NULL) {
         w->s.state.blocked = false;
@@ -208,7 +215,7 @@ class deferred_rw_lock{
     if (predecessor == NULL) {
       next_writer = I;
       __sync_synchronize();
-      if (reader_count.value == 0 && __sync_lock_test_and_set(&next_writer, (request*)NULL) == I) {
+      if (reader_count.value == 0 &&  __sync_lock_test_and_set(&next_writer, (request*)NULL) == I) {
         I->s.state.blocked = false;
       }
     }
@@ -255,7 +262,6 @@ class deferred_rw_lock{
       
       
       if (I->next->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
-        reader_count.inc();
         I->next->s.state.blocked = false;
         numreleased = resume_rdlock((request*)(I->next), released);
       }
@@ -298,12 +304,11 @@ class deferred_rw_lock{
       tempnew.state.blocked = true;
       tempnew.state.returned = false;
       tempnew.state.successor_class = QUEUED_RW_LOCK_REQUEST_READ;
-      bool ret = atomic_compare_and_swap(predecessor->s.stateu, tempold.stateu, tempnew.stateu);
-      if (predecessor->lockclass == QUEUED_RW_LOCK_REQUEST_WRITE ||  ret) {
+      if (predecessor->lockclass == QUEUED_RW_LOCK_REQUEST_WRITE ||  atomic_compare_and_swap(predecessor->s.stateu, tempold.stateu, tempnew.stateu)) {
         
         predecessor->next = I;
         // wait
-        
+        __sync_synchronize(); 
         volatile state_union& is = I->s;
         state_union unblocked_not_returned, unblocked_returned;
         unblocked_not_returned.state.blocked = false;
@@ -315,6 +320,7 @@ class deferred_rw_lock{
                                     unblocked_returned.state2.blocked_and_returned)) {
           allreleases = I;
           numreleased = 1;
+          reader_count.inc(); 
         }
 
       }
@@ -333,7 +339,6 @@ class deferred_rw_lock{
     if (numreleased > 0 && I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_READ) {
       // wait
       while(I->next == NULL) sched_yield();
-      reader_count.inc();
       I->next->s.state.blocked = false;
       request* unused;
       numreleased += resume_rdlock((request*)(I->next), unused);
@@ -356,16 +361,17 @@ class deferred_rw_lock{
     if (atomic_compare_and_swap(is.state2.blocked_and_returned, 
                                 unblocked_not_returned.state2.blocked_and_returned, 
                                 unblocked_returned.state2.blocked_and_returned)) {
+      reader_count.inc();
       released = I;
       ++numreleased ;
     }
     
     if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_READ) {
       while(I->next == NULL) sched_yield();
-      reader_count.inc();
       I->next->s.state.blocked = false;
       request* unused;
       numreleased += resume_rdlock((request*)(I->next), unused);
+      if (released == NULL) released = unused;
     }
     return numreleased;
   }
@@ -374,8 +380,7 @@ class deferred_rw_lock{
     //nread.inc();
     released = NULL;
     size_t numreleased = 0;
-    bool ret = !atomic_compare_and_swap(tail, I, (request*)NULL);
-    if (I->next != NULL || ret) {
+    if (I->next != NULL || !atomic_compare_and_swap(tail, I, (request*)NULL)) {
       while(I->next == NULL) sched_yield();
 //      nreadpath1.inc();
       if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_WRITE) {
