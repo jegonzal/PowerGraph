@@ -62,7 +62,6 @@ namespace graphlab {
         } else {          
           assert(scheduler != NULL);
           assert(scope_manager != NULL);
-          scheduler->set_options(schedopts);
           deletionmark = false;
           return;
         }
