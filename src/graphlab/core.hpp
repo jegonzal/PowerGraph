@@ -58,7 +58,10 @@ namespace graphlab {
 
   public:
     /// default constructor does nothing
-    core() : mengine(NULL),engine_has_been_modified(false),shared_data_used(false) { }
+    core() : 
+      mengine(NULL),
+      engine_has_been_modified(false), 
+      shared_data_used(false) { }
 
 
     ~core() { 
