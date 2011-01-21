@@ -749,10 +749,9 @@ namespace graphlab {
         // put it back if the interval is postive
         if (sync_tasks[head.first].sync_interval > 0) {
           sync_task_queue_lock.lock();
-          int next_time = 
-            -(int)(approximate_last_update_count() + 
-                   sync_tasks[head.first].sync_interval)
-          sync_task_queue.insert_max(head.first, next_time);
+          int next_time(approximate_last_update_count() + 
+                        sync_tasks[head.first].sync_interval);
+          sync_task_queue.insert_max(head.first, -next_time);
           // update the head tracker
           sync_task_queue_next_update = -(sync_task_queue.top().second);
           sync_task_queue_lock.unlock();
