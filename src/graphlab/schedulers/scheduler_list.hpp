@@ -1,11 +1,11 @@
-#ifndef SCHEDULER_LIST_HPP
-#define SCHEDULER_LIST_HPP
+#ifndef GRAPHLAB_SCHEDULER_LIST_HPP
+#define GRAPHLAB_SCHEDULER_LIST_HPP
 #include <string>
 #include <vector>
 #include <iostream>
 #include <boost/preprocessor.hpp>
 
-#define __SCHEDULER_LIST__ (("colored", colored_scheduler, \
+#define __SCHEDULER_LIST__ (("chromatic", chromatic_scheduler, \
                              "a scheduler which performs #iterations sweeps of the graph using a graph color ordering.")) \
                             (("sweep", sweep_scheduler, \
                               "very fast dynamic scheduler. Scans all vertices in sequence, running all update tasks on each vertex evaluated."))  \
@@ -31,7 +31,7 @@
 #include <graphlab/schedulers/priority_scheduler.hpp>
 #include <graphlab/schedulers/sampling_scheduler.hpp>
 #include <graphlab/schedulers/round_robin_scheduler.hpp>
-#include <graphlab/schedulers/colored_scheduler.hpp>
+#include <graphlab/schedulers/chromatic_scheduler.hpp>
 #include <graphlab/schedulers/sweep_scheduler.hpp>
 #include <graphlab/schedulers/splash_scheduler.hpp>
 #include <graphlab/schedulers/multiqueue_fifo_scheduler.hpp>

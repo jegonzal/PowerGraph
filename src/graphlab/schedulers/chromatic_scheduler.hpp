@@ -1,5 +1,5 @@
-#ifndef GRAPHLAB_COLORED_SCHEDULER_HPP
-#define GRAPHLAB_COLORED_SCHEDULER_HPP
+#ifndef GRAPHLAB_CHROMATIC_SCHEDULER_HPP
+#define GRAPHLAB_CHROMATIC_SCHEDULER_HPP
 
 #include <vector>
 
@@ -18,10 +18,10 @@ namespace graphlab {
   /**
    * \ingroup group_schedulers
    *
-   * Colored Scheduler
+   * Chromatic Scheduler
    */
   template<typename Graph>
-  class colored_scheduler : public ischeduler<Graph> {
+  class chromatic_scheduler : public ischeduler<Graph> {
   public:
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
@@ -35,8 +35,8 @@ namespace graphlab {
 
     
     
-    colored_scheduler(iengine_type* engine,
-                      Graph& graph, size_t ncpus) :
+    chromatic_scheduler(iengine_type* engine,
+                        Graph& graph, size_t ncpus) :
       graph(graph),
       callback(engine),
       cpu_index(ncpus), cpu_color(ncpus), cpu_waiting(ncpus),
@@ -45,7 +45,7 @@ namespace graphlab {
       color.value = 0;
       // Verify the coloring
       assert(graph.valid_coloring());
-      // Initialize the colored blocks
+      // Initialize the chromatic blocks
       for(size_t i = 0; i < graph.num_vertices(); ++i) {
         graphlab::vertex_color_type color = graph.color(i);
         if( color >= color_blocks.size() ) color_blocks.resize(color + 1);
@@ -182,7 +182,7 @@ namespace graphlab {
     static void print_options_help(std::ostream &out) {
       out << "max_iterations = [integer, default = 0]\n";
       out << "update_function = [update_function_type,"
-                                        "default = set on add_task]\n";
+        "default = set on add_task]\n";
     };
   private:
     Graph& graph;
@@ -213,7 +213,7 @@ namespace graphlab {
  
 
 
-  }; // End of colored scheduler
+  }; // End of chromatic scheduler
 
 }
 #endif

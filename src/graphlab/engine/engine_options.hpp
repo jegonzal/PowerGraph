@@ -29,7 +29,7 @@ namespace graphlab {
    Currently we support a wide range of schedulers: {synchronous,
    fifo, priority, sampling, splash,  sweep, multiqueue_fifo,
    multiqueue_priority,  set, clustered_priority, round_robin,
-   colored} </li>
+   chromatic} </li>
 
    <li> size_t splash_size: The size parameter for the splash
    scheduler. </li>

@@ -271,7 +271,7 @@ namespace graphlab {
       Scheduler* scheduler = this->get_scheduler();
       this->apply_scheduler_options();
       scheduler->register_monitor(monitor);
-      ScopeFactory* scope_manager =this->get_scope_manager();
+      ScopeFactory* scope_manager = this->get_scope_manager();
 
       scope_manager->set_default_scope(default_scope_range);
       

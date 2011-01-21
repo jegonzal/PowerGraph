@@ -1,5 +1,5 @@
-#ifndef SCOPE_MANAGER_AND_SCHEDULER_WRAPPER_HPP
-#define SCOPE_MANAGER_AND_SCHEDULER_WRAPPER_HPP
+#ifndef GRAPHLAB_SCOPE_MANAGER_AND_SCHEDULER_WRAPPER_HPP
+#define GRAPHLAB_SCOPE_MANAGER_AND_SCHEDULER_WRAPPER_HPP
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
@@ -14,16 +14,17 @@ namespace graphlab {
    * "dynamic reconstruction" capabilities of the engine.
    */
   template <typename Graph, typename Scheduler, typename ScopeFactory>
-  class scope_manager_and_scheduler_wrapper:public iengine<Graph>{
+  class scope_manager_and_scheduler_wrapper : public iengine<Graph>{
   public:
     typedef typename Scheduler::update_task_type update_task_type;
     typedef typename Scheduler::update_function_type update_function_type;
 
   private:
 
-    Graph &graph;
+    Graph& graph;
 
     size_t ncpus;
+
     /** Responsible for managing the update of scopes */
     ScopeFactory *scope_manager;
 
@@ -42,7 +43,7 @@ namespace graphlab {
       size_t nvertices;
       size_t nedges;
       size_t changeid;
-    } graphtracker;
+    }  graphtracker ;
   
     void construct_members() {
       // if deletion mark is set
@@ -58,8 +59,10 @@ namespace graphlab {
           scope_manager = NULL;
           deletionmark = false;
           // re-query the graph
-        }
-        else {
+        } else {          
+          assert(scheduler != NULL);
+          assert(scope_manager != NULL);
+          scheduler->set_options(schedopts);
           deletionmark = false;
           return;
         }
@@ -69,11 +72,11 @@ namespace graphlab {
       if (scheduler == NULL && scope_manager == NULL) {
         scheduler = new Scheduler(this, graph, std::max(ncpus, size_t(1)));
         scheduler->set_options(schedopts);
-
         scope_manager = new ScopeFactory(graph, std::max(ncpus, size_t(1)));
-
         update_graph_tracker();
       }
+      assert(scheduler != NULL);
+      assert(scope_manager != NULL);
     }
 
 
@@ -98,8 +101,7 @@ namespace graphlab {
         // and the graph has changed
         ASSERT_MSG(!graph_changed(),
                    "Graph modifications not allowed once tasks have been added!");
-      }
-      else {
+      } else {
         construct_members();
         update_graph_tracker();
       }
@@ -127,12 +129,12 @@ namespace graphlab {
     }
   
   public:
-    scope_manager_and_scheduler_wrapper(Graph &graph, size_t ncpus)
-      :graph(graph),
-       ncpus(ncpus),
-       scope_manager(NULL),
-       scheduler(NULL),
-       deletionmark(false){
+    scope_manager_and_scheduler_wrapper(Graph &graph, size_t ncpus) :
+      graph(graph),
+      ncpus(ncpus),
+      scope_manager(NULL),
+      scheduler(NULL),
+      deletionmark(false) {
       update_graph_tracker();
     }
 

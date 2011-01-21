@@ -7,7 +7,7 @@
 #include <graphlab/schedulers/multiqueue_priority_scheduler.hpp>
 #include <graphlab/schedulers/priority_scheduler.hpp>
 #include <graphlab/schedulers/round_robin_scheduler.hpp>
-#include <graphlab/schedulers/colored_scheduler.hpp>
+#include <graphlab/schedulers/chromatic_scheduler.hpp>
 #include <graphlab/schedulers/sampling_scheduler.hpp>
 
 

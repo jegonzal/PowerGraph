@@ -120,7 +120,7 @@ namespace graphlab {
     typedef graphlab::multiqueue_priority_scheduler<graph> multiqueue_priority_scheduler;
     typedef graphlab::clustered_priority_scheduler<graph> clustered_priority_scheduler;
     typedef graphlab::round_robin_scheduler<graph> round_robin_scheduler;
-    typedef graphlab::colored_scheduler<graph> colored_scheduler;
+    typedef graphlab::chromatic_scheduler<graph> chromatic_scheduler;
     
     
     
