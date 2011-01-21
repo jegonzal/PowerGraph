@@ -181,7 +181,7 @@ class deferred_rw_lock{
     void* id;  
     volatile request* volatile next;
     volatile state_union s;
-    char lockclass;
+    volatile char lockclass;
   };
  private:
   request* tail;
@@ -209,7 +209,7 @@ class deferred_rw_lock{
     I->s.state.blocked = true;
     I->s.state.returned = false;
     I->s.state.successor_class = QUEUED_RW_LOCK_REQUEST_NONE;
-
+    __sync_synchronize();
     request* predecessor = fetch_and_store(tail, I);
 
     if (predecessor == NULL) {
@@ -255,11 +255,12 @@ class deferred_rw_lock{
     //nwrite.inc();
     released = NULL;
     size_t numreleased  = 0;
+    __sync_synchronize(); 
     if (I->next != NULL || !atomic_compare_and_swap(tail, I, (request*)NULL)) {
       // wait
       while(I->next == NULL) sched_yield();
       // unlock the next sequence
-      
+      __sync_synchronize(); 
       
       if (I->next->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
         I->next->s.state.blocked = false;
@@ -285,7 +286,7 @@ class deferred_rw_lock{
     I->s.state.successor_class = QUEUED_RW_LOCK_REQUEST_NONE;
     I->s.state.returned = false;
     I->s.state.blocked = true;
-    
+    __sync_synchronize(); 
     request* predecessor = fetch_and_store(tail, I);
     if (predecessor == NULL) {
       reader_count.inc();
@@ -304,6 +305,7 @@ class deferred_rw_lock{
       tempnew.state.blocked = true;
       tempnew.state.returned = false;
       tempnew.state.successor_class = QUEUED_RW_LOCK_REQUEST_READ;
+      __sync_synchronize();
       if (predecessor->lockclass == QUEUED_RW_LOCK_REQUEST_WRITE ||  atomic_compare_and_swap(predecessor->s.stateu, tempold.stateu, tempnew.stateu)) {
         
         predecessor->next = I;
@@ -335,7 +337,7 @@ class deferred_rw_lock{
       }
     }
     
-    
+    __sync_synchronize(); 
     if (numreleased > 0 && I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_READ) {
       // wait
       while(I->next == NULL) sched_yield();
@@ -366,6 +368,7 @@ class deferred_rw_lock{
       ++numreleased ;
     }
     
+    __sync_synchronize(); 
     if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_READ) {
       while(I->next == NULL) sched_yield();
       I->next->s.state.blocked = false;
@@ -390,6 +393,7 @@ class deferred_rw_lock{
     }
     if (reader_count.dec() == 0) {
       //nreadpath2.inc();
+      __sync_synchronize(); 
       request * w = __sync_lock_test_and_set(&next_writer, (request*)NULL);
       if (w != NULL) {
         w->s.state.blocked = false;
