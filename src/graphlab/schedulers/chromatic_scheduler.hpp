@@ -34,6 +34,17 @@ namespace graphlab {
     typedef controlled_termination terminator_type;
 
     
+    /**
+     * Used to prevent false cache sharing by padding T
+     */
+    template <typename T> struct cache_line_pad  {
+      T value;
+      char pad[64 - (sizeof(T) % 64)];      
+      cache_line_pad(const T& value = T()) : value(value) { }
+      T& operator=(const T& other) { return value = other; }
+      
+    };
+
     
     chromatic_scheduler(iengine_type* engine,
                         Graph& graph, size_t ncpus) :
@@ -116,38 +127,39 @@ namespace graphlab {
     sched_status::status_enum get_next_task(size_t cpuid, 
                                             update_task_type &ret_task) {
       // See if we are waiting
-      if(cpu_waiting[cpuid]) {
+      if(cpu_waiting[cpuid].value) {
         // Nothing has changed so we are still waiting
-        if(cpu_color[cpuid] == color.value) return sched_status::EMPTY;
+        if(cpu_color[cpuid].value == color.value) return sched_status::EMPTY;
         // Otherwise color has changed so we reset and leave waiting
         // state
-        cpu_color[cpuid] = color.value;
-        cpu_index[cpuid] = cpuid;
-        cpu_waiting[cpuid] = false; 
+        cpu_color[cpuid].value = color.value;
+        cpu_index[cpuid].value = cpuid;
+        cpu_waiting[cpuid].value = false; 
       } else {      
         // Increment the index
-        cpu_index[cpuid] += cpu_index.size();
+        cpu_index[cpuid].value += cpu_index.size();
       }
 
-      size_t current_color = cpu_color[cpuid] % color_blocks.size();
+      size_t current_color = cpu_color[cpuid].value % color_blocks.size();
 
       // Check to see that we have not run the maximum number of iterations
-      if(cpu_color[cpuid] / color_blocks.size() >= max_iterations) {
+      if(max_iterations > 0 && 
+         cpu_color[cpuid].value / color_blocks.size() >= max_iterations) {
         terminator.complete();
         return sched_status::EMPTY;
       }
       
       // If the index is good then execute it
-      if(cpu_index[cpuid] < color_blocks[ current_color ].size()) {
+      if(cpu_index[cpuid].value < color_blocks[ current_color ].size()) {
         vertex_id_t vertex =
-          color_blocks[ current_color ][ cpu_index[cpuid] ];
+          color_blocks[ current_color ][ cpu_index[cpuid].value ];
         ret_task = update_task_type(vertex, update_function);
         return sched_status::NEWTASK;
       }
       
       // We overran so switch to waiting and increment the waiting counter
       size_t current_waiting = waiting.inc();
-      cpu_waiting[cpuid] = true;
+      cpu_waiting[cpuid].value = true;
       // If everyone is waiting reset and try again
       if(current_waiting == cpu_index.size()) {
         waiting.value = 0;
@@ -190,12 +202,11 @@ namespace graphlab {
     /// The callbacks pre-created for each cpuid
     unused_scheduler_callback<Graph> callback;
 
-
     
     std::vector< std::vector< vertex_id_t> > color_blocks;
-    std::vector< size_t > cpu_index;
-    std::vector< size_t > cpu_color;
-    std::vector< size_t > cpu_waiting;
+    std::vector< cache_line_pad<size_t> > cpu_index;
+    std::vector< cache_line_pad<size_t> > cpu_color;
+    std::vector< cache_line_pad<size_t> > cpu_waiting;
 
     size_t max_iterations;
 
