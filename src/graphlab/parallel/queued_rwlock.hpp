@@ -50,6 +50,7 @@ class queued_rw_lock{
 
     if (predecessor == NULL) {
       next_writer = I;
+      __sync_synchronize();
       if (reader_count.value == 0 && __sync_lock_test_and_set(&next_writer, (request*)NULL) == I) {
         I->s.state.blocked = false;
       }
@@ -125,6 +126,7 @@ class queued_rw_lock{
       while(I->next == NULL) sched_yield();
       if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_WRITE) {
         next_writer = (request*)(I->next);
+        __sync_synchronize();
       }
     }
     if (reader_count.dec() == 0) {
@@ -178,7 +180,9 @@ class deferred_rw_lock{
   request* tail;
   atomic<size_t> reader_count;
   request* volatile next_writer;
+
  public:
+  //atomic<size_t> nreadpath1, nreadpath2;
   deferred_rw_lock(): tail(NULL), reader_count(0), next_writer(NULL) { }
 
   // debugging purposes only
@@ -203,6 +207,7 @@ class deferred_rw_lock{
 
     if (predecessor == NULL) {
       next_writer = I;
+      __sync_synchronize();
       if (reader_count.value == 0 && __sync_lock_test_and_set(&next_writer, (request*)NULL) == I) {
         I->s.state.blocked = false;
       }
@@ -219,10 +224,9 @@ class deferred_rw_lock{
     unblocked_not_returned.state.returned = false;
     unblocked_returned.state.blocked = false;
     unblocked_returned.state.returned = true;
-    if (atomic_compare_and_swap(is.state2.blocked_and_returned, 
+    return (atomic_compare_and_swap(is.state2.blocked_and_returned, 
                                 unblocked_not_returned.state2.blocked_and_returned, 
-                                unblocked_returned.state2.blocked_and_returned)) return true;
-    else return false;
+                                unblocked_returned.state2.blocked_and_returned));
   }
 
 
@@ -373,9 +377,10 @@ class deferred_rw_lock{
     bool ret = !atomic_compare_and_swap(tail, I, (request*)NULL);
     if (I->next != NULL || ret) {
       while(I->next == NULL) sched_yield();
-      //nreadpath1.inc();
+//      nreadpath1.inc();
       if (I->s.state.successor_class == QUEUED_RW_LOCK_REQUEST_WRITE) {
         next_writer = (request*)(I->next);
+        __sync_synchronize();
       }
     }
     if (reader_count.dec() == 0) {

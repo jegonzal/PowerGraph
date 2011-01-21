@@ -7,12 +7,13 @@
 using namespace graphlab;
 
 #define NUM_LOCKS 1000
-#define NUM_RAND 600
-#define NUM_ITER 100000
+#define NUM_RAND 500
+#define NUM_ITER 10000
 deferred_rw_lock locks[NUM_LOCKS];
+queued_rw_lock queuedlocks[NUM_LOCKS];
 rwlock regularlocks[NUM_LOCKS];
 atomic<int> readers[NUM_LOCKS];
-#define nthreads 32
+#define nthreads 4
 barrier bar1(nthreads);
 barrier bar2(nthreads);
 void eval_wr(size_t lockid) ;
@@ -96,6 +97,8 @@ void f(void) {
     for (size_t j = 0;j < NUM_LOCKS; ++j) {
       ASSERT_EQ(locks[j].get_reader_count(), 0);
       ASSERT_FALSE(locks[j].has_waiters());
+      //locks[j].nreadpath1.value = 0;
+      //locks[j].nreadpath2.value = 0;
     }
   }  
 }
@@ -130,6 +133,38 @@ void f2(void) {
   }  
 }
 
+
+
+
+void f3(void) {
+  std::vector<size_t> randlocks;
+  std::vector<bool> randsign;  
+  randlocks.resize(NUM_RAND);
+  randsign.resize(NUM_RAND);
+  queued_rw_lock::request req;
+  
+  for (size_t i = 0;i < NUM_ITER; ++i) {
+    bar1.wait();
+    for (size_t j = 0;j < NUM_RAND; ++j) {
+      randlocks[j] = random::rand_int(NUM_LOCKS - 1);
+      randsign[j] = random::rand_int(2);
+    }
+    std::sort(randlocks.begin(), randlocks.end());
+    for (size_t j = 0;j < NUM_RAND; ++j) {
+      if (randsign[j]) {
+        queuedlocks[randlocks[j]].writelock(&req);
+        eval_wr(randlocks[j]);
+        queuedlocks[randlocks[j]].wrunlock(&req);
+      }
+      else {
+        queuedlocks[randlocks[j]].readlock(&req);
+        eval_rd(randlocks[j]);
+        queuedlocks[randlocks[j]].rdunlock(&req);
+      }
+    }
+    bar2.wait();
+  }  
+}
 
 
 
@@ -201,12 +236,20 @@ int main(int argc, char** argv) {
   group.join();
   ASSERT_EQ(numacquired.value, nthreads * NUM_RAND * NUM_ITER);
   std::cout << nthreads * NUM_RAND * NUM_ITER << " deferred locks acquired and released in " << ti.current_time() << std::endl;
-  
-/*  thread_group group2;
+/*
+  thread_group group2;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
-    launch_in_new_thread(group, f2);
+    launch_in_new_thread(group2, f2);
   }
-  group.join();
-  std::cout << nthreads * NUM_RAND * NUM_ITER << " regular locks acquired and released in " << ti.current_time() << std::endl;*/
+  group2.join();
+  std::cout << nthreads * NUM_RAND * NUM_ITER << " regular locks acquired and released in " << ti.current_time() << std::endl;
+  
+  thread_group group3;
+  ti.start();
+  for (size_t i = 0;i < nthreads ; ++i) {
+    launch_in_new_thread(group3, f3);
+  }
+  group3.join();
+  std::cout << nthreads * NUM_RAND * NUM_ITER << " queued locks acquired and released in " << ti.current_time() << std::endl;*/
 }
