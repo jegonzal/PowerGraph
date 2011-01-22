@@ -21,6 +21,10 @@
 #define _POSIX_SPIN_LOCKS -1
 
 
+#define __likely__(x)       __builtin_expect((x),1)
+#define __unlikely__(x)     __builtin_expect((x),0)
+
+
 
 
 /**
@@ -520,6 +524,32 @@ namespace graphlab {
 #define SPINLOCK_SUPPORTED 0
 #endif
 
+  
+  
+  class simple_spinlock {
+  private:
+    // mutable not actually needed
+    mutable volatile char spinner;
+  public:
+    simple_spinlock () {
+      spinner = 0;
+    }
+  
+    inline void lock() const { 
+      while(spinner == 1 || __sync_lock_test_and_set(&spinner, 1));
+    }
+    inline void unlock() const {
+      __sync_synchronize();
+      spinner = 0;
+    }
+    inline bool try_lock() const {
+      return (__sync_lock_test_and_set(&spinner, 1) == 0);
+    }
+    ~simple_spinlock(){
+      assert(spinner == 0);
+    }
+  };
+  
 
   /**
    * \class conditional

@@ -12,28 +12,28 @@ class deferred_rw_lock{
     char lockclass;
   };
  private:
-  mutex lock;
   request* head;
   request* tail;
   uint16_t reader_count;
   bool writer;
+  simple_spinlock lock;
  public:
 
   deferred_rw_lock(): head(NULL),
                       tail(NULL), reader_count(0),writer(false) { }
 
   // debugging purposes only
-  size_t get_reader_count() {
+  inline size_t get_reader_count() {
     __sync_synchronize();
     return reader_count;
   }
 
   // debugging purposes only
-  bool has_waiters() {
+  inline bool has_waiters() {
     return head != NULL || tail != NULL;
   }
 
-  void insert_queue(request *I) {
+  inline void insert_queue(request *I) {
     if (head == NULL) {
       head = I;
       tail = I;

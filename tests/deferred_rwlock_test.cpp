@@ -14,7 +14,8 @@ deferred_rw_lock locks[NUM_LOCKS];
 queued_rw_lock queuedlocks[NUM_LOCKS];
 rwlock regularlocks[NUM_LOCKS];
 atomic<int> readers[NUM_LOCKS];
-#define nthreads 8
+#define nthreads 32
+#define READ_PROP 2
 barrier bar1(nthreads);
 barrier bar2(nthreads);
 void eval_wr(size_t lockid) ;
@@ -72,16 +73,15 @@ void f(void) {
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
   deferred_rw_lock::request testreqs[NUM_RAND];
-for (size_t i = 0;i < NUM_ITER; ++i) {
-    bar1.wait();
     for (size_t j = 0;j < NUM_RAND; ++j) {
       randlocks[j] = random::rand_int(NUM_LOCKS - 1);
-      randsign[j] = random::rand_int(2);
-//      randsign[j] = true;
+      randsign[j] = random::rand_int(READ_PROP);
     }
+for (size_t i = 0;i < NUM_ITER; ++i) {
+    bar1.wait();
     std::sort(randlocks.begin(), randlocks.end());
     for (size_t j = 0;j < NUM_RAND; ++j) {
-      if (randsign[j]) {
+      if (randsign[j] == 0) {
         if (locks[randlocks[j]].writelock(&testreqs[j])) {
           eval_wr(randlocks[j]);
           release_wr(randlocks[j], &testreqs[j]);
@@ -125,16 +125,17 @@ void f2(void) {
   std::vector<bool> randsign;  
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
-
+  for (size_t j = 0;j < NUM_RAND; ++j) {
+    randlocks[j] = random::rand_int(NUM_LOCKS - 1);
+    randsign[j] = random::rand_int(READ_PROP);
+  }
+    
   for (size_t i = 0;i < NUM_ITER; ++i) {
     bar1.wait();
-    for (size_t j = 0;j < NUM_RAND; ++j) {
-      randlocks[j] = random::rand_int(NUM_LOCKS - 1);
-      randsign[j] = random::rand_int(2);
-    }
+
     std::sort(randlocks.begin(), randlocks.end());
     for (size_t j = 0;j < NUM_RAND; ++j) {
-      if (randsign[j]) {
+      if (randsign[j] == 0) {
         regularlocks[randlocks[j]].writelock();
         eval_wr(randlocks[j]);
         regularlocks[randlocks[j]].unlock();
@@ -158,16 +159,16 @@ void f3(void) {
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
   queued_rw_lock::request req[NUM_LOCKS];
+  for (size_t j = 0;j < NUM_RAND; ++j) {
+    randlocks[j] = random::rand_int(NUM_LOCKS - 1);
+    randsign[j] = random::rand_int(READ_PROP);
+  }
   
   for (size_t i = 0;i < NUM_ITER; ++i) {
     bar1.wait();
-    for (size_t j = 0;j < NUM_RAND; ++j) {
-      randlocks[j] = random::rand_int(NUM_LOCKS - 1);
-      randsign[j] = random::rand_int(2);
-    }
     std::sort(randlocks.begin(), randlocks.end());
     for (size_t j = 0;j < NUM_RAND; ++j) {
-      if (randsign[j]) {
+      if (randsign[j] == 0) {
         queuedlocks[randlocks[j]].writelock(&req[randlocks[j]]);
         eval_wr(randlocks[j]);
         queuedlocks[randlocks[j]].wrunlock(&req[randlocks[j]]);
