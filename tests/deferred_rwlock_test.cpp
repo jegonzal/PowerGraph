@@ -1,5 +1,6 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/queued_rwlock.hpp>
+#include <graphlab/parallel/deferred_rwlock.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/random.hpp>
 #include <vector>
@@ -13,7 +14,7 @@ deferred_rw_lock locks[NUM_LOCKS];
 queued_rw_lock queuedlocks[NUM_LOCKS];
 rwlock regularlocks[NUM_LOCKS];
 atomic<int> readers[NUM_LOCKS];
-#define nthreads 4
+#define nthreads 8
 barrier bar1(nthreads);
 barrier bar2(nthreads);
 void eval_wr(size_t lockid) ;
@@ -22,7 +23,8 @@ void release_wr(size_t lockid, deferred_rw_lock::request* l) ;
 void release_rd(size_t lockid, deferred_rw_lock::request* l);
 void iterate_released(size_t lockid, deferred_rw_lock::request *l, size_t numok) ;
 
-atomic<int> numacquired;
+atomic<size_t> numacquired;
+atomic<size_t> numreleased;
 
 void eval_wr(size_t lockid) {
   numacquired.inc();
@@ -38,12 +40,14 @@ void eval_rd(size_t lockid) {
 void release_wr(size_t lockid, deferred_rw_lock::request* l) {
   deferred_rw_lock::request* reqs;
   size_t numok = locks[lockid].wrunlock(l, reqs);
+  numreleased.inc();
   iterate_released(lockid, reqs, numok);
 }
 
 void release_rd(size_t lockid, deferred_rw_lock::request* l) {
   deferred_rw_lock::request* reqs;
   size_t numok = locks[lockid].rdunlock(l, reqs);
+  numreleased.inc();
   iterate_released(lockid, reqs, numok);
 }
 
@@ -68,12 +72,12 @@ void f(void) {
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
   deferred_rw_lock::request testreqs[NUM_RAND];
-
-  for (size_t i = 0;i < NUM_ITER; ++i) {
+for (size_t i = 0;i < NUM_ITER; ++i) {
     bar1.wait();
     for (size_t j = 0;j < NUM_RAND; ++j) {
       randlocks[j] = random::rand_int(NUM_LOCKS - 1);
       randsign[j] = random::rand_int(2);
+//      randsign[j] = true;
     }
     std::sort(randlocks.begin(), randlocks.end());
     for (size_t j = 0;j < NUM_RAND; ++j) {
@@ -90,16 +94,28 @@ void f(void) {
       }
     }
     bar2.wait();
+    ASSERT_EQ(numacquired.value, (i+1) * NUM_RAND * nthreads);
     // check that all locks are released
-    for (size_t j = 0;j < NUM_RAND; ++j) {
-      ASSERT_FALSE(testreqs[j].s.state.blocked);
+   /* for (size_t j = 0;j < NUM_RAND; ++j) {
+      ASSERT_EQ(testreqs[j].s.state.blocked, UNBLOCKED_AND_RETURNED);
     }
     for (size_t j = 0;j < NUM_LOCKS; ++j) {
       ASSERT_EQ(locks[j].get_reader_count(), 0);
       ASSERT_FALSE(locks[j].has_waiters());
-      //locks[j].nreadpath1.value = 0;
-      //locks[j].nreadpath2.value = 0;
-    }
+      #ifdef DEFERRED_LOCK_DEBUG
+      locks[j].nreadpath1.value = 0;
+      locks[j].nreadpath2.value = 0;
+      locks[j].nwrunlock.value = 0;
+      locks[j].nwrpath.value = 0;
+      locks[j].nrlock.value = 0;
+      locks[j].nwrlock.value = 0;
+      locks[j].nreadpath3.value = 0;
+      locks[j].nrdunlock.value = 0;
+      locks[j].nreadpath4.value = 0;
+      locks[j].nreadpath5.value = 0;
+      locks[j].nreadpath6.value = 0;
+      #endif
+    }*/
   }  
 }
 
@@ -163,6 +179,10 @@ void f3(void) {
       }
     }
     bar2.wait();
+   /* for (size_t j = 0;j < NUM_LOCKS; ++j) {
+      ASSERT_EQ(locks[j].get_reader_count(), 0);
+      ASSERT_FALSE(locks[j].has_waiters());
+    }*/
   }  
 }
 
@@ -190,7 +210,7 @@ int main(int argc, char** argv) {
   
   // writes block reads
   ASSERT_TRUE(lock.writelock(&reqs[0]));
-  ASSERT_TRUE(lock.readlock(&reqs[1], released) == 0);
+  ASSERT_EQ(lock.readlock(&reqs[1], released), 0);
   ASSERT_TRUE(lock.readlock(&reqs[2], released) == 0);
   ASSERT_TRUE(lock.readlock(&reqs[3], released) == 0);
   // unlocking the write will release the reads
@@ -230,12 +250,12 @@ int main(int argc, char** argv) {
   thread_group group;
   timer ti;
   ti.start();
-/*  for (size_t i = 0;i < nthreads ; ++i) {
+  for (size_t i = 0;i < nthreads ; ++i) {
     launch_in_new_thread(group, f);
   }
   group.join();
-  ASSERT_EQ(numacquired.value, nthreads * NUM_RAND * NUM_ITER);
-  std::cout << nthreads * NUM_RAND * NUM_ITER << " deferred locks acquired and released in " << ti.current_time() << std::endl;
+  ASSERT_EQ(numacquired.value, (size_t)(nthreads) * NUM_RAND * NUM_ITER);
+  std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER << " deferred locks acquired and released in " << ti.current_time() << std::endl;
 
   thread_group group2;
   ti.start();
@@ -244,12 +264,12 @@ int main(int argc, char** argv) {
   }
   group2.join();
   std::cout << nthreads * NUM_RAND * NUM_ITER << " regular locks acquired and released in " << ti.current_time() << std::endl;
-  */
+  
   thread_group group3;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
     launch_in_new_thread(group3, f3);
   }
   group3.join();
-  std::cout << nthreads * NUM_RAND * NUM_ITER << " queued locks acquired and released in " << ti.current_time() << std::endl;
+  std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER << " queued locks acquired and released in " << ti.current_time() << std::endl;
 }
