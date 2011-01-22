@@ -108,15 +108,15 @@ needed automatically).
   add_task calls, and typically repeat a predefined
   sequence until termination.
 
-\subsection sec_colored_scheduler Colored Scheduler ["colored_scheduler"]
+\subsection sec_chromatic_scheduler Chromatic Scheduler ["chromatic_scheduler"]
 
-      The colored scheduler supports only a single update function and
-      applies it in sweeps over the graph.  The colored reads the
+      The chromatic scheduler supports only a single update function and
+      applies it in sweeps over the graph.  The chromatic reads the
       color of each vertex from the \ref graph::color()
       function.  The scheduler then executes all vertices of the same
       color before proceeding to the next color.  Within a color,
       processors may execute update functions on multiple vertices
-      simultaneously.  However, the colored scheduler ensures that at
+      simultaneously.  However, the chromatic scheduler ensures that at
       no point are vertices of different colors executed
       simultaneously. 
 
@@ -138,7 +138,7 @@ needed automatically).
       be filled in program code. If this parameter is not provided,
       the update function will be set to the update function provided on 
       the most recent call to add_task(). Even though add_task() has no
-      effect on the scheduling, it is used here by the colored_scheduler
+      effect on the scheduling, it is used here by the chromatic_scheduler
       to provide a default update function to use.
 
 \subsection sec_round_robin Round Robin Scheduler ["round_robin"]

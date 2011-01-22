@@ -11,7 +11,7 @@
 %
 %
 % options.scheduler is the scheduler string. This can be for instance
-%                    'sweep', or 'fifo' or 'colored(10)'.
+%                    'sweep', or 'fifo' or 'chromatic(10)'.
 %
 % options.ncpus is the number of threads to start
 %

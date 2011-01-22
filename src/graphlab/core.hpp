@@ -58,7 +58,10 @@ namespace graphlab {
 
   public:
     /// default constructor does nothing
-    core() : mengine(NULL),engine_has_been_modified(false),shared_data_used(false) { }
+    core() : 
+      mengine(NULL),
+      engine_has_been_modified(false), 
+      shared_data_used(false) { }
 
 
     ~core() { 
@@ -321,8 +324,11 @@ namespace graphlab {
       else return mengine->last_update_count();
     }
     
+    /**
+     * TODO: DOCUMENT
+     */
     void fill_metrics() {
-      metrics & coremetrics = metrics::create_metrics_instance("core", true);
+      metrics& coremetrics = metrics::create_metrics_instance("core", true);
       coremetrics.set("ncpus", meopts.ncpus);
       coremetrics.set("engine", meopts.engine_type);
       coremetrics.set("scope", meopts.scope_type);
@@ -336,19 +342,18 @@ namespace graphlab {
        \brief Outputs the recorded metrics
     */
     void report_metrics() {
-      fill_metrics();
       // Metrics dump: basic 
       if (meopts.metrics_type == "basic") { 
-        basic_reporter reporter = basic_reporter();
+        basic_reporter reporter;
         metrics::report_all(reporter); 
       }
       // Metrics dump: file
       if (meopts.metrics_type == "file") {
-        file_reporter freporter = file_reporter("graphlab_metrics.txt");
+        file_reporter freporter("graphlab_metrics.txt");
         metrics::report_all(freporter);
       }
       if (meopts.metrics_type == "html") {
-        html_reporter hreporter = html_reporter("graphlab_metrics.html");
+        html_reporter hreporter("graphlab_metrics.html");
         metrics::report_all(hreporter);
       }
     }

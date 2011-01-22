@@ -35,18 +35,27 @@ namespace graphlab {
 
   public: // Type declerations
     enum execution_type {THREADED, SIMULATED};
-    typedef iengine<Graph> base;
-    typedef typename base::update_task_type update_task_type;
-    typedef typename base::update_function_type update_function_type;
-    typedef typename base::ischeduler_type ischeduler_type;
-    typedef typename base::imonitor_type imonitor_type;
-    typedef typename base::termination_function_type termination_function_type;
-    typedef typename base::iscope_type iscope_type;
-    typedef typename base::ishared_data_type ishared_data_type;
-    typedef typename base::ishared_data_manager_type ishared_data_manager_type;
+
+    typedef scope_manager_and_scheduler_wrapper<Graph, Scheduler, ScopeFactory> base;
+    using base::apply_scheduler_options;
+    using base::release_scheduler_and_scope_manager;
+    using base::get_scheduler;
+    using base::get_scope_manager;
+    using base::sched_options;
     
-    typedef typename base::sync_function_type sync_function_type;
-    typedef typename base::merge_function_type merge_function_type;
+
+    typedef iengine<Graph> iengine_base;
+    typedef typename iengine_base::update_task_type update_task_type;
+    typedef typename iengine_base::update_function_type update_function_type;
+    typedef typename iengine_base::ischeduler_type ischeduler_type;
+    typedef typename iengine_base::imonitor_type imonitor_type;
+    typedef typename iengine_base::termination_function_type termination_function_type;
+    typedef typename iengine_base::iscope_type iscope_type;
+    typedef typename iengine_base::ishared_data_type ishared_data_type;
+    typedef typename iengine_base::ishared_data_manager_type ishared_data_manager_type;
+    
+    typedef typename iengine_base::sync_function_type sync_function_type;
+    typedef typename iengine_base::merge_function_type merge_function_type;
 
 
     /** The internal worker thread class used for the threaded engine */
@@ -268,16 +277,16 @@ namespace graphlab {
     void start() {
       // call the scope_manager_and_scheduler_wrapper for the scheduler
       // and scope manager
-      Scheduler* scheduler = this->get_scheduler();
-      this->apply_scheduler_options();
+      Scheduler* scheduler = get_scheduler();
+      apply_scheduler_options();
       scheduler->register_monitor(monitor);
-      ScopeFactory* scope_manager =this->get_scope_manager();
+      ScopeFactory* scope_manager = get_scope_manager();
 
       scope_manager->set_default_scope(default_scope_range);
       
       if (shared_data) shared_data->set_scope_factory(scope_manager);
       std::cout << "Scheduler Options:\n";
-      std::cout << this->sched_options();
+      std::cout << sched_options();
       
       /*
        * Prepare data structures for execution:
@@ -315,7 +324,7 @@ namespace graphlab {
 
       
       //shared_data->set_scope_factory(NULL);
-      this->release_scheduler_and_scope_manager();
+      release_scheduler_and_scope_manager();
       
       
       metrics &  engine_metrics = metrics::create_metrics_instance("engine", true);
@@ -448,10 +457,10 @@ namespace graphlab {
       // makes sure the sync registration exists
       std::map<glshared_base*, size_t>::iterator iter = var2synctask.find(&shared);
       ASSERT_TRUE(iter != var2synctask.end());
-      ScopeFactory* local_scope_manager = this->get_scope_manager();
+      ScopeFactory* local_scope_manager = get_scope_manager();
       
       evaluate_sync(iter->second, local_scope_manager, 0);
-      this->release_scheduler_and_scope_manager();
+      release_scheduler_and_scope_manager();
     }
     
     void sync_soon(glshared_base& shared) {
@@ -740,8 +749,9 @@ namespace graphlab {
         // put it back if the interval is postive
         if (sync_tasks[head.first].sync_interval > 0) {
           sync_task_queue_lock.lock();
-          sync_task_queue.insert_max(head.first, 
-                                     -(int)(approximate_last_update_count() + sync_tasks[head.first].sync_interval));
+          int next_time(approximate_last_update_count() + 
+                        sync_tasks[head.first].sync_interval);
+          sync_task_queue.insert_max(head.first, -next_time);
           // update the head tracker
           sync_task_queue_next_update = -(sync_task_queue.top().second);
           sync_task_queue_lock.unlock();

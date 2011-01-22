@@ -96,7 +96,7 @@ namespace graphlab {
      * scheduler    = {synchronous, fifo, priority, sampling,
      *                 sweep, multiqueue_fifo, multiqueue_priority,
      *                 clustered_priority({metis, bfs, random}, verts. per part)
-     *                 round_robin, colored}
+     *                 round_robin, chromatic}
      * 
      * Note that the caller is responsible for freeing the
      * corresponding engine
@@ -147,6 +147,7 @@ namespace graphlab {
                   << std::endl;
         return NULL;
       }
+
       if(eng != NULL) {
         if(!arguments.empty()) {
           eng->sched_options().parse_options(arg_strm);

@@ -4,6 +4,8 @@
 #include <graphlab/shared_data/shared_data_ops.hpp>
 #include <graphlab/shared_data/thread_shared_data.hpp>
 #include <graphlab/shared_data/glshared.hpp>
+#include <graphlab/shared_data/glshared_const.hpp>
+
 
 
 
