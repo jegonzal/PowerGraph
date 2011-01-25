@@ -2,9 +2,8 @@
 #include <vector>
 
 
+
 #include <graphlab.hpp>
-
-
 
 int main(int argc, char** argv) {
   std::string filename;
@@ -30,8 +29,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("nsamples",
                        &nsamples, nsamples,
                        "A vector of the number of samples"); 
-  clopts.scheduler_type = "fifo";
-  clopts.scope_type = "edge";
+  clopts.set_scheduler_type("fifo");
+  clopts.set_scope_type("edge");
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if(!clopts.is_set("file")) {
     std::cout << "Input file not provided" << std::endl;
