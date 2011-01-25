@@ -235,8 +235,6 @@ namespace graphlab {
     void set_engine_options(const engine_options& opts) {
       check_engine_modification();
       meopts = opts;
-      bool success = auto_build_engine();
-      assert(success);
     }
 
     /**
