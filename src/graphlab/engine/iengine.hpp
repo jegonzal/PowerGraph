@@ -27,6 +27,9 @@ namespace graphlab {
    *
    */
   enum exec_status {
+
+    EXEC_UNSET,  /** The default termination reason */
+
     EXEC_TASK_DEPLETION, /**<Execution completed successfully due to
                             task depletion */
 

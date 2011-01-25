@@ -224,11 +224,10 @@ namespace graphlab {
       timeout_millis(0),
       last_check_millis(0),
       task_budget(0),
-      active(false){
-    }
+      active(false),
+      termination_reason(EXEC_UNSET) { }
 
-    ~asynchronous_engine() {
-    }
+    //    ~asynchronous_engine() { }
 
     //! Get the number of cpus
     size_t get_ncpus() const { return ncpus; }
@@ -263,6 +262,7 @@ namespace graphlab {
     // Convenience function.
     std::string exec_status_as_string(exec_status es) {
       switch(es) {
+      case EXEC_UNSET: return "engine not run!";
       case EXEC_FORCED_ABORT: return "forced abort";
       case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
       case EXEC_TERM_FUNCTION: return "termination function";
@@ -325,8 +325,9 @@ namespace graphlab {
       //shared_data->set_scope_factory(NULL);
       release_scheduler_and_scope_manager();
       
+
       
-      metrics &  engine_metrics = metrics::create_metrics_instance("engine", true);
+      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
 
       // Metrics: update counts
       for(size_t i = 0; i < update_counts.size(); ++i) {
@@ -684,6 +685,8 @@ namespace graphlab {
       if (sync_task_queue.size() > 0) sync_task_queue_next_update = 0;
       else sync_task_queue_next_update = size_t(-1);
     }
+
+
   
     void evaluate_sync(size_t syncid, 
                        ScopeFactory* scope_manager,
