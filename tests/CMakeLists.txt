@@ -53,7 +53,7 @@ add_dist_executable(distributed_shared_data_test distributed_shared_data_test.cp
 
 add_executable(partransform partransform.cpp)
 
-add_executable(clopts command_line_options.cpp)
+add_executable(clopts test_command_line_options.cpp)
 
 
 # serialization tests 

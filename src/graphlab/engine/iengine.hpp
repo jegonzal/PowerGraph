@@ -1,13 +1,13 @@
 /* \file iengine.hpp
    \brief The file containing the iengine description
    
-  This file contains the description of the engine interface.  All
-  graphlab engines (single_threaded, multi_threaded, distributed, ...)
-  should satisfy the functionality described below.
- */
+   This file contains the description of the engine interface.  All
+   graphlab engines (single_threaded, multi_threaded, distributed, ...)
+   should satisfy the functionality described below.
+*/
 
-#ifndef IENGINE_HPP
-#define IENGINE_HPP
+#ifndef GRAPHLAB_IENGINE_HPP
+#define GRAPHLAB_IENGINE_HPP
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/schedulers/ischeduler.hpp>
@@ -27,17 +27,21 @@ namespace graphlab {
    *
    */
   enum exec_status {
-    EXEC_TASK_DEPLETION, /**<Execution completed successfully due to task depletion */
+    EXEC_TASK_DEPLETION, /**<Execution completed successfully due to
+                            task depletion */
 
-    EXEC_TERM_FUNCTION,  /**< Execution completed successfully due to termination
-                          function. */
+    EXEC_TERM_FUNCTION,  /**< Execution completed successfully due to
+                            termination function. */
 
-    EXEC_TIMEOUT,       /**< The execution completed after timing out */
+    EXEC_TIMEOUT,       /**< The execution completed after timing
+                           out */
 
-    EXEC_TASK_BUDGET_EXCEEDED, /**< The execution completed because the maximum number of tasks
-                                 was exceeded */
+    EXEC_TASK_BUDGET_EXCEEDED, /**< The execution completed because
+                                  the maximum number of tasks was
+                                  exceeded */
 
-    EXEC_FORCED_ABORT     /**< the engine was stopped by calling force abort */
+    EXEC_FORCED_ABORT     /**< the engine was stopped by calling force
+                             abort */
   };
   
 
@@ -48,16 +52,18 @@ namespace graphlab {
      provided by all graphlab engines.  The engine is templatized over
      the type of graph.
      
-     The GraphLab engines are a core element of the GraphLab framework. 
-     The engines are responsible for applying a the update tasks and sync 
-     operations to a graph and shared data using the scheduler to determine 
-     the update schedule. This class provides a generic interface
-     to interact with engines written to execute on different platforms.
+     The GraphLab engines are a core element of the GraphLab
+     framework.  The engines are responsible for applying a the update
+     tasks and sync operations to a graph and shared data using the
+     scheduler to determine the update schedule. This class provides a
+     generic interface to interact with engines written to execute on
+     different platforms.
      
-     While users are free to directly instantiate the engine of their choice we highly recommend 
-     the use of the \ref core data structure to manage the creation of engines. Alternatively, 
-     users can use the \ref engine_factory static functions 
-     to create engines directly from configuration strings. 
+     While users are free to directly instantiate the engine of their
+     choice we highly recommend the use of the \ref core data
+     structure to manage the creation of engines. Alternatively, users
+     can use the \ref engine_factory static functions to create
+     engines directly from configuration strings.
   */
   template<typename Graph>
   class iengine {
@@ -189,27 +195,27 @@ namespace graphlab {
      */
     virtual void register_monitor(imonitor_type* listener) = 0;
     
-  /**
-    * \brief Adds an update task with a particular priority.
-    * This function is forwarded to the scheduler.
-    */
-  virtual void add_task(update_task_type task, double priority) = 0;
+    /**
+     * \brief Adds an update task with a particular priority.
+     * This function is forwarded to the scheduler.
+     */
+    virtual void add_task(update_task_type task, double priority) = 0;
 
-  /**
-    * \brief Creates a collection of tasks on all the vertices in
-    * 'vertices', and all with the same update function and priority
-    * This function is forwarded to the scheduler.
-    */
-  virtual void add_tasks(const std::vector<vertex_id_t>& vertices,
-                          update_function_type func, double priority) = 0;
+    /**
+     * \brief Creates a collection of tasks on all the vertices in
+     * 'vertices', and all with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    virtual void add_tasks(const std::vector<vertex_id_t>& vertices,
+                           update_function_type func, double priority) = 0;
 
-  /**
-    * \brief Creates a collection of tasks on all the vertices in the graph,
-    * with the same update function and priority
-    * This function is forwarded to the scheduler.
-    */
-  virtual void add_task_to_all(update_function_type func,
-                                double priority) = 0;
+    /**
+     * \brief Creates a collection of tasks on all the vertices in the graph,
+     * with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    virtual void add_task_to_all(update_function_type func,
+                                 double priority) = 0;
     /**
      * \brief associate a termination function with this engine.
      *
@@ -229,9 +235,16 @@ namespace graphlab {
     virtual void clear_terminators() = 0;
     
 
-    virtual void enable_sched_yield(bool value) { }
+    /**
+     * Set whether sched yield should be used when waiting on new
+     * jobs
+     */
+    virtual void set_sched_yield(bool value) { }
 
-    virtual void enable_cpu_affinities(bool value) { }
+    /**
+     * Set whether cpu affinities should be used.
+     */
+    virtual void set_cpu_affinities(bool value) { }
 
     
     
@@ -256,11 +269,10 @@ namespace graphlab {
     virtual void set_task_budget(size_t max_tasks) = 0;
 
 
-    /** \brief Returns a modifiable reference to the scheduler options.   */
-    virtual scheduler_options& sched_options() = 0;
+    /** \brief Update the scheduler options.  */
+    virtual void set_scheduler_options(const scheduler_options& opts) = 0;
 
-    /** \brief Returns a constant reference to the scheduler options.   */
-    virtual const scheduler_options& sched_options() const = 0;
+
 
     /**
      * Registers a sync with the engine.
@@ -291,13 +303,13 @@ namespace graphlab {
      *                  Defaults to infinity.
      */
     virtual void set_sync(glshared_base& shared,
-                              sync_function_type sync,
-                              glshared_base::apply_function_type apply,
-                              const any& zero,
-                              size_t sync_interval = 0,
-                              merge_function_type merge = NULL,
-                              size_t rangelow = 0,
-                              size_t rangehigh = -1) { }
+                          sync_function_type sync,
+                          glshared_base::apply_function_type apply,
+                          const any& zero,
+                          size_t sync_interval = 0,
+                          merge_function_type merge = NULL,
+                          size_t rangelow = 0,
+                          size_t rangehigh = -1) { }
 
     /**
      * Performs a sync immediately. This function requires that the shared

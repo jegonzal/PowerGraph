@@ -1,4 +1,5 @@
 #include <graphlab/util/command_line_options.hpp>
+#include <graphlab/schedulers/scheduler_list.hpp>
 
 namespace boost {  
   template<>
@@ -29,41 +30,51 @@ namespace boost {
 
 
 namespace graphlab {
+  
   bool command_line_options::parse(int argc, char** argv) {
     namespace boost_po = boost::program_options;
+    
+    size_t ncpus(get_ncpus());
+    std::string enginetype(get_engine_type());
+    bool cpuaffin(get_cpu_affinities());
+    bool schedyield(get_sched_yield());
+    std::string scopetype(get_scope_type());
+    std::string schedulertype(get_scheduler_type());
+    std::string metricstype(get_metrics_type());
+
     // Set the program options
     desc.add_options()
       ("ncpus",
-        boost_po::value<size_t>(&(ncpus))->
-          default_value(ncpus),
-        "Number of cpus to use.")
+       boost_po::value<size_t>(&(ncpus))->
+       default_value(ncpus),
+       "Number of cpus to use.")
       ("engine",
-        boost_po::value<std::string>(&(engine_type))->
-          default_value(engine_type),
-        "Options are {async, async_sim, synchronous}")
+       boost_po::value<std::string>(&(enginetype))->
+       default_value(enginetype),
+       "Options are {async, async_sim, synchronous}")
       ("affinities",
-        boost_po::value<bool>(&(enable_cpu_affinities))->
-          default_value(enable_cpu_affinities),
-        "Enable forced assignment of threads to cpus")
+       boost_po::value<bool>(&(cpuaffin))->
+       default_value(cpuaffin),
+       "Enable forced assignment of threads to cpus")
       ("schedyield",
-        boost_po::value<bool>(&(enable_sched_yield))->
-          default_value(enable_sched_yield),
-        "Enable yeilding when threads conflict in the scheduler.")
+       boost_po::value<bool>(&(schedyield))->
+       default_value(schedyield),
+       "Enable yielding when threads conflict in the scheduler.")
       ("scope",
-        boost_po::value<std::string>(&(scope_type))->
-          default_value(scope_type),
-        "Options are {none, vertex, edge, full}")
+       boost_po::value<std::string>(&(scopetype))->
+       default_value(scopetype),
+       "Options are {none, vertex, edge, full}")
       ("metrics",
-        boost_po::value<std::string>(&(metrics_type))->
-          default_value(metrics_type),
-          "Options are {none, basic, file, html}")
+       boost_po::value<std::string>(&(metricstype))->
+       default_value(metricstype),
+       "Options are {none, basic, file, html}")
       ("scheduler",
-        boost_po::value<std::string>(&(scheduler_type))->
-          default_value(scheduler_type),
-        (std::string("Supported schedulers are: ")
-                    + get_scheduler_names_str() +
-                    ". Too see options for each scheduler, run the program with the option"
-                    " ---schedhelp=[scheduler_name]").c_str());
+       boost_po::value<std::string>(&(schedulertype))->
+       default_value(schedulertype),
+       (std::string("Supported schedulers are: ")
+        + get_scheduler_names_str() +
+        ". Too see options for each scheduler, run the program with the option"
+        " ---schedhelp=[scheduler_name]").c_str());
     // Parse the arguments
     try{
       boost_po::store(boost_po::command_line_parser(argc, argv).
@@ -94,7 +105,37 @@ namespace graphlab {
         }
       }
       return false;
+    }    
+
+    set_ncpus(ncpus);
+
+    if(!set_engine_type(enginetype)) {
+      std::cout << "Invalid engine type! : " << enginetype 
+                << std::endl;
+      return false;
     }
+
+    set_cpu_affinities(cpuaffin);
+    set_sched_yield(schedyield);
+
+    if(!set_scope_type(scopetype)) {
+      std::cout << "Invalid scope type! : " << scopetype
+                << std::endl;
+      return false;
+    }
+
+    if(!set_scheduler_type(schedulertype)) {
+      std::cout << "Invalid scheduler type! : " << schedulertype 
+                << std::endl;
+      return false;
+    }
+    
+    if(!set_metrics_type(metricstype)) {
+      std::cout << "Invalid metrics type! : " << metricstype
+                << std::endl;
+      return false;
+    }
+
     return true;
   } // end of parse
 

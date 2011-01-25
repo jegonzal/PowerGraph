@@ -1,3 +1,4 @@
+#include <graphlab.hpp>
 #include <graphlab/distributed/lock_manager.hpp>
 #include <graphlab/distributed/graph_lock_manager.hpp>
 #include <graphlab/distributed/graph/cloned_graph.hpp>

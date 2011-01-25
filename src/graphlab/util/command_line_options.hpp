@@ -34,20 +34,23 @@ namespace boost {
   std::string lexical_cast< std::string>(const std::vector<float>& vec);
   template<>
   std::string lexical_cast< std::string>(const std::vector<std::string>& vec);
-};
+
+}; // end of namespace boost
 
 
 namespace graphlab {
   /**
-  Because of the many engine options GraphLab has relatively sophisticated command line 
-  parsing tools. However we have found that many of our ML applications had poorly written 
-  command line parsing support so we tried to generalize the GraphLab command line tools 
-  to enable user applications to benefit from sophisticated and still easy to use command 
-  line parsing.
+  Because of the many engine options GraphLab has relatively
+  sophisticated command line parsing tools. However we have found that
+  many of our ML applications had poorly written command line parsing
+  support so we tried to generalize the GraphLab command line tools to
+  enable user applications to benefit from sophisticated and still
+  easy to use command line parsing.
 
-  The command_line_options data-structure extends (wrapping) the boost::program_options 
-  library. We have tried to retain much of the functionality of the boost::program_options 
-  library while hiding some of the less "friendly" template meta-programming "features". 
+  The command_line_options data-structure extends (wrapping) the
+  boost::program_options library. We have tried to retain much of the
+  functionality of the boost::program_options library while hiding
+  some of the less "friendly" template meta-programming "features".
   
   Here is an example of how the library is used:
   
@@ -77,8 +80,8 @@ namespace graphlab {
     clopts.attach_option("nsamples",
                          &nsamples, nsamples,
                          "A vector of the number of samples"); 
-    clopts.scheduler_type = "fifo";
-    clopts.scope_type = "edge";
+    clopts.set_scheduler_type("fifo");
+    clopts.set_scope_type("edge");
   
     if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   
@@ -142,17 +145,20 @@ namespace graphlab {
 
 
     /**
-    \brief attach a user defined option to the command line options parser. 
+    \brief attach a user defined option to the command line options
+    parser.
     
-    The attach option command is used to attach a user defined option to the command line 
-    options parser. 
+    The attach option command is used to attach a user defined option
+    to the command line options parser.
     
-    \param option The name of the command line flag for that option. 
+    \param option The name of the command line flag for that option.
 
-    \param ret_cont A pointer to an "arbitrary" type which can be any of the 
-                    basic types (char, int, size_t, float, double, bool, string...) or 
-                    an std::vector of basic types. It is important that the ret_cont point to 
-                    a memory block that will exist  when parse is invoked. 
+    \param ret_cont A pointer to an "arbitrary" type which can be any
+                    of the basic types (char, int, size_t, float,
+                    double, bool, string...) or an std::vector of
+                    basic types. It is important that the ret_cont
+                    point to a memory block that will exist when parse
+                    is invoked.
                     
     \param desc Used to describe the option when --help 
           is called or when print_description is invoked.
@@ -171,20 +177,24 @@ namespace graphlab {
 
 
     /**
-    \brief attach a user defined option to the command line  options parser. 
+    \brief attach a user defined option to the command line options
+    parser.
     
-    The attach option command is used to attach a user defined option to the command line 
-    options parser. 
+    The attach option command is used to attach a user defined option
+    to the command line options parser.
     
-    \param option The name of the command line flag for that option. 
+    \param option The name of the command line flag for that option.
 
-    \param ret_cont A pointer to an "arbitrary" type which can be any of the 
-                    basic types (char, int, size_t, float, double, bool, string...) or 
-                    an std::vector of basic types. It is important that the ret_cont point to 
-                    a memory block that will exist  when parse is invoked. 
+    \param ret_cont A pointer to an "arbitrary" type which can be any
+                    of the basic types (char, int, size_t, float,
+                    double, bool, string...) or an std::vector of
+                    basic types. It is important that the ret_cont
+                    point to a memory block that will exist when parse
+                    is invoked.
 
-    \param default_value The default value of the parameter if the user does not provide
-                         this parameter on the command line.
+    \param default_value The default value of the parameter if the
+                         user does not provide this parameter on the
+                         command line.
 
     \param desc Used to describe the option when --help 
           is called or when print_description is invoked.
@@ -202,10 +212,10 @@ namespace graphlab {
          description.c_str());
     }
     
-    /** This function adds the option as a positional argument. 
-    A positional argument does not require --option and instead is 
-    read based on its location. Each add_positional call adds to the 
-    next position. */
+    /** This function adds the option as a positional argument.  A
+    positional argument does not require --option and instead is read
+    based on its location. Each add_positional call adds to the next
+    position. */
     void add_positional(const std::string& str);
 
     

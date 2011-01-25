@@ -41,7 +41,6 @@ namespace graphlab {
     using base::release_scheduler_and_scope_manager;
     using base::get_scheduler;
     using base::get_scope_manager;
-    using base::sched_options;
     
 
     typedef iengine<Graph> iengine_base;
@@ -285,8 +284,8 @@ namespace graphlab {
       scope_manager->set_default_scope(default_scope_range);
       
       if (shared_data) shared_data->set_scope_factory(scope_manager);
-      std::cout << "Scheduler Options:\n";
-      std::cout << sched_options();
+      // std::cout << "Scheduler Options:\n";
+      // std::cout << sched_options();
       
       /*
        * Prepare data structures for execution:
@@ -758,9 +757,9 @@ namespace graphlab {
         }
       }
     }
-
+    
   }; // end of asynchronous engine
-
+  
 
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

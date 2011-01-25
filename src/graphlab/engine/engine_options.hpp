@@ -1,9 +1,9 @@
-#ifndef ENGINE_OPTIONS_HPP
-#define ENGINE_OPTIONS_HPP
+#ifndef GRAPHLAB_ENGINE_OPTIONS_HPP
+#define GRAPHLAB_ENGINE_OPTIONS_HPP
 
 #include <boost/program_options.hpp>
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/engine_factory.hpp>
+// #include <graphlab/engine/engine_factory.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
  
 namespace graphlab {
@@ -35,7 +35,8 @@ namespace graphlab {
    scheduler. </li>
    </ul>
    */
-  struct engine_options {
+  class engine_options {
+  protected:
     //! The number of cpus
     size_t ncpus;
     //! The type of engine {async, async_sim, synchronous}
@@ -44,15 +45,24 @@ namespace graphlab {
     std::string scope_type;
     //! The type of scheduler to use
     std::string scheduler_type;
-    //! The compiler flags
-    std::string compile_flags;
+
     //! Metrics type
     std::string metrics_type;
+
+
+    //! The options associated with the scheduler
+    scheduler_options scheduler_opts;
+
+    //! The compiler flags
+    std::string compile_flags;
+
     
     //! Use CPU affinities
     bool enable_cpu_affinities;
+
     bool enable_sched_yield;
 
+  public:
    
     engine_options() :
       ncpus(2),
@@ -72,32 +82,111 @@ namespace graphlab {
 #endif
     } // end of constructor
 
-
-    /**
-     * create an engine for the given graph using the engine options.
-     * If the engine options are not set correctly this will return
-     * NULL.
-     */
-    template<typename Graph>
-    iengine<Graph>* create_engine(Graph& graph) {
-      iengine<Graph>* eng =
-        engine_factory::new_engine(engine_type,
-                                   scheduler_type,
-                                   scope_type,
-                                   graph,
-                                   ncpus);
-      assert(eng != NULL);
-      eng->enable_sched_yield(enable_sched_yield);
-      eng->enable_cpu_affinities(enable_cpu_affinities);
-      eng->sched_options().merge_options(sched_options());
-      return eng;
+    //! Set the cpu affinities value (true = enabled)
+    void set_cpu_affinities(bool enabled) {
+      enable_cpu_affinities = enabled;
     }
 
-    scheduler_options sched_options() const {
-      std::pair<std::string, scheduler_options> opts = parse_scheduler_string(scheduler_type);
-      return opts.second;
+    //! Get the cpu affinities value (true = enabled)
+    bool get_cpu_affinities() const { 
+      return enable_cpu_affinities;
     }
 
+    //! Turn on schedule yielding  (true = enabled)
+    void set_sched_yield(bool enabled) {
+      enable_sched_yield = enabled;
+    }
+
+    //! Get schedule yielding value (true = enabled)
+    bool get_sched_yield() const {
+      return enable_sched_yield;
+    }
+
+
+    //! Set the number of cpus
+    void set_ncpus(size_t n) { ncpus = n; }
+
+    //! Get the number of cpus
+    size_t get_ncpus() const { return ncpus; }
+
+    //! Set the engine type
+    bool set_engine_type(const std::string& etype) {
+      engine_type = etype;
+      return true; // TODO: ADD CHECKING
+    }
+
+    //! Get the engine type
+    const std::string& get_engine_type() const {
+      return engine_type;
+    }
+
+    //! Set the scope type
+    bool set_scope_type(const std::string& stype) {
+      scope_type = stype;
+      return true; // TODO: ADD CHECKING
+    }
+
+    //! Get the scope type
+    const std::string& get_scope_type() const {
+      return scope_type;
+    }
+
+
+    //! Set the scope type
+    bool set_scheduler_type(const std::string& stype) {
+      scheduler_type = scheduler_opts.parse_scheduler_string(stype);
+      return true; // TODO: ADD CHECKING
+    }
+
+    //! Get the scope type
+    const std::string& get_scheduler_type() const {
+      return scheduler_type;
+    }
+
+
+    //! Set the metrics type
+    bool set_metrics_type(const std::string& mtype) {
+      metrics_type = mtype;
+      return true; // TODO: ADD CHECKING
+    }
+
+    //! Get the metrics type
+    const std::string& get_metrics_type() const {
+      return metrics_type;
+    }
+    
+
+
+    //! Get the scheduler options
+    const scheduler_options& get_scheduler_options() const { 
+      return scheduler_opts;
+    }
+
+    //! Get the scheduler options
+    scheduler_options& get_scheduler_options() { 
+      return scheduler_opts;
+    }
+
+    //! Get the compiler options (flags)
+    const std::string& get_compile_flags() const {
+      return compile_flags;
+    }
+
+
+
+
+    // /**
+    //  * create an engine for the given graph using the engine options.
+    //  * If the engine options are not set correctly this will return
+    //  * NULL.
+    //  */
+    // template<typename Graph>
+    // iengine<Graph>* create_engine(Graph& graph) {
+    //   iengine<Graph>* eng =
+    //     engine_factory::new_engine(*this, graph);
+    //   assert(eng != NULL);
+    //   return eng;
+    // }
 
     /**
      * Display the current engine options
@@ -110,10 +199,10 @@ namespace graphlab {
                 << "scheduler:   " << scheduler_type << "\n"
                 << "affinities:  " << enable_cpu_affinities << "\n"
                 << "metrics:     " << metrics_type << "\n"
-                << "schedyield: " << enable_sched_yield  << std::endl;
+                << "schedyield:  " << enable_sched_yield  << std::endl;
       std::cout << "\n";
       std::cout << "Scheduler Options: \n";
-      std::cout << sched_options();
+      std::cout << scheduler_opts;
       std::cout << std::endl;
     }
 
@@ -128,6 +217,7 @@ namespace graphlab {
           << engine_type
           << scope_type
           << scheduler_type
+        //          << scheduler_opts
           << compile_flags
           << enable_cpu_affinities
           << enable_sched_yield;
@@ -143,6 +233,7 @@ namespace graphlab {
           >> engine_type
           >> scope_type
           >> scheduler_type
+        //          << scheduler_opts
           >> compile_flags
           >> enable_cpu_affinities
           >> enable_sched_yield;

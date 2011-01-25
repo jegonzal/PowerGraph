@@ -1,12 +1,24 @@
 #ifndef GRAPHLAB_CORE_HPP
 #define GRAPHLAB_CORE_HPP
 
+#include <graphlab/engine/iengine.hpp>
+#include <graphlab/engine/engine_options.hpp>
+#include <graphlab/engine/engine_factory.hpp>
 
-#include <graphlab.hpp>
+#include <graphlab/util/command_line_options.hpp>
+
+#include <graphlab/schedulers/ischeduler.hpp>
+#include <graphlab/scope/iscope.hpp>
+#include <graphlab/graph/graph.hpp>
+
+
+
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/metrics/reporters/basic_reporter.hpp>
 #include <graphlab/metrics/reporters/file_reporter.hpp>
 #include <graphlab/metrics/reporters/html_reporter.hpp>
+
+
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -66,7 +78,7 @@ namespace graphlab {
 
     ~core() { 
       destroy_engine(); 
-      if (meopts.metrics_type != "none") {        
+      if (meopts.get_metrics_type() != "none") {        
         // Write options to metrics
         fill_metrics();
         report_metrics();
@@ -88,7 +100,8 @@ namespace graphlab {
      */
     void set_scheduler_type(const std::string& scheduler_type) {
       check_engine_modification();
-      meopts.scheduler_type = scheduler_type;
+      bool success = meopts.set_scheduler_type(scheduler_type);
+      assert(success);
       destroy_engine();
     }
 
@@ -109,7 +122,8 @@ namespace graphlab {
      */
     void set_scope_type(const std::string& scope_type) {
       check_engine_modification();
-      meopts.scope_type = scope_type;
+      bool success = meopts.set_scope_type(scope_type);
+      assert(success);
       destroy_engine();
     }
 
@@ -128,7 +142,8 @@ namespace graphlab {
      */
     void set_engine_type(const std::string& engine_type) {
       check_engine_modification();
-      meopts.engine_type = engine_type;
+      bool success = meopts.set_engine_type(engine_type);
+      assert(success);
       destroy_engine();
     }
     
@@ -140,7 +155,8 @@ namespace graphlab {
      *  \li \b "html" Outputs to a html file graphlab_metrics.html
      */
     void set_metrics_type(const std::string& metrics_type) {
-      meopts.metrics_type = metrics_type;
+      bool success = meopts.set_metrics_type(metrics_type);
+      assert(success);
     }
 
     /**
@@ -161,7 +177,7 @@ namespace graphlab {
      */
     void set_ncpus(size_t ncpus) {
       check_engine_modification();
-      meopts.ncpus = ncpus;
+      meopts.set_ncpus(ncpus);
       destroy_engine();
     }
 
@@ -234,14 +250,14 @@ namespace graphlab {
      * \brief Returns a modifiable reference to the scheduler options
      */
     scheduler_options& sched_options() {
-      return sched_opts;
+      return meopts.get_scheduler_options();
     }
 
     /**
      * \brief Returns a constant reference to the scheduler options
      */
     const scheduler_options& sched_options() const{
-      return sched_opts;
+      return meopts.get_scheduler_options();
     }
 
 
@@ -267,8 +283,7 @@ namespace graphlab {
       assert(success);
       assert(mengine != NULL);
       // merge in options from command line and other manually set options
-      mengine->sched_options().merge_options(meopts.sched_options());
-      mengine->sched_options().merge_options(sched_options());
+      mengine->set_scheduler_options( meopts.get_scheduler_options() );
       graphlab::timer ti;
       ti.start();
       mengine->start();
@@ -329,30 +344,28 @@ namespace graphlab {
      */
     void fill_metrics() {
       metrics& coremetrics = metrics::create_metrics_instance("core", true);
-      coremetrics.set("ncpus", meopts.ncpus);
-      coremetrics.set("engine", meopts.engine_type);
-      coremetrics.set("scope", meopts.scope_type);
-      coremetrics.set("scheduler", meopts.scheduler_type);
-      coremetrics.set("affinities", meopts.enable_cpu_affinities ? "true" : "false");
-      coremetrics.set("schedyield", meopts.enable_sched_yield ? "true" : "false");
-      coremetrics.set("compile_flags", meopts.compile_flags);
+      coremetrics.set("ncpus", meopts.get_ncpus());
+      coremetrics.set("engine", meopts.get_engine_type());
+      coremetrics.set("scope", meopts.get_scope_type());
+      coremetrics.set("scheduler", meopts.get_scheduler_type());
+      coremetrics.set("affinities", meopts.get_cpu_affinities() ? "true" : "false");
+      coremetrics.set("schedyield", meopts.get_sched_yield() ? "true" : "false");
+      coremetrics.set("compile_flags", meopts.get_compile_flags());
     }
     
     /**
        \brief Outputs the recorded metrics
     */
     void report_metrics() {
-      // Metrics dump: basic 
-      if (meopts.metrics_type == "basic") { 
+      if (meopts.get_metrics_type() == "basic") { 
+        // Metrics dump: basic 
         basic_reporter reporter;
         metrics::report_all(reporter); 
-      }
-      // Metrics dump: file
-      if (meopts.metrics_type == "file") {
+      } else if (meopts.get_metrics_type() == "file") { 
+        // Metrics dump: file
         file_reporter freporter("graphlab_metrics.txt");
         metrics::report_all(freporter);
-      }
-      if (meopts.metrics_type == "html") {
+      } else if (meopts.get_metrics_type() == "html") {
         html_reporter hreporter("graphlab_metrics.html");
         metrics::report_all(hreporter);
       }
@@ -418,7 +431,7 @@ namespace graphlab {
     bool auto_build_engine() {
       if(mengine == NULL) {
         // create the engine
-        mengine = meopts.create_engine(mgraph);
+        mengine = engine_factory::new_engine(meopts, mgraph);
         if(mengine == NULL) return false;
         if (shared_data_used) mengine->set_shared_data_manager(&mshared_data);
       }
@@ -485,7 +498,6 @@ namespace graphlab {
     typename types::thread_shared_data mshared_data;    
     engine_options meopts;
     typename types::iengine *mengine;
-    scheduler_options sched_opts;
     /** For error tracking. Once engine has been modified, any scheduler/
      * engine parameter modifications will reset the modifications
      */

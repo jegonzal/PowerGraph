@@ -4,7 +4,9 @@
 #define GRAPHLAB_MASTER_INCLUDES
 
 
+
 //
+
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
@@ -19,6 +21,7 @@
 #include <graphlab/util/util_includes.hpp>
 
 #include <graphlab/core.hpp>
+
 
 #ifdef GLDISTRIBUTED
 #include <graphlab/distributed/distributed_includes.hpp>
@@ -67,8 +70,9 @@ namespace graphlab {
     ///  \brief The type of the Graph. 
     typedef Graph graph;
 
-    /** \brief A convenient wrapper object around the commonly used portions of GraphLab. 
-    This is useful for most GraphLab applications. See the \ref graphlab::core object for more details.
+    /** \brief A convenient wrapper object around the commonly used
+    portions of GraphLab.  This is useful for most GraphLab
+    applications. See the \ref graphlab::core object for more details.
     */
     typedef graphlab::core<typename graph::vertex_data_type,
                            typename graph::edge_data_type> core;
