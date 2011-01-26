@@ -1,6 +1,7 @@
 #ifndef GRAPH_LOCAL_STORE_HPP
 #define GRAPH_LOCAL_STORE_HPP
 #include <src/graphlab/graph/graph.hpp>
+#include <src/graphlab/logger/assertions.hpp>
 namespace graphlab {
 namespace dist_graph_impl {
   
@@ -517,12 +518,67 @@ namespace dist_graph_impl {
       fout.close();
     }
     
+    /**
+     * Renumbers vertex id revmap[i] to vertex_id i.
+     * revmap must be #vertices in length, and the range of revmap
+     * must be [0, #vertices-1] where no element is duplicated.
+     * The revmap vector will be modified by this function call
+     */
+    void renumber_vids(std::vector<vertex_id_t> &revmap) {
+      // quick sanity check
+      ASSERT_EQ(revmap.size(), vertices.size());
+
+      // build the forward map
+      std::vector<vertex_id_t> forwardmap(revmap.size());      
+      for (size_t i = 0;i < revmap.size(); ++i) {
+        forwardmap[revmap[i]] = i;
+      }
+      
+      // forward map all the edges
+      for (size_t i = 0; i < edges.size(); ++i) {
+        edges[i]._source = forwardmap[edges[i]._source];
+        edges[i]._target = forwardmap[edges[i]._target];
+      }
+      // remap the vertex data by swapping around the cycles
+      for (size_t i = 0;i < revmap.size(); ++i) {
+        // check if I need to remap
+        if (remap[i] != i) {
+          // yes I do!
+          // begin a remapping cycle
+          // remember the value of the first element in the cycle
+          VertexData initialdata = vdata[i];
+          size_t j = i;
+          size_t prev;
+          while (1) {
+            if (remap[j] != i) {
+              // if we are not back to the start of the cycle
+              // move the data on cycle upwards the cycle
+              vdata[j] = vdata[remap[j]];
+              prev = j;
+              // move down the cycle
+              j = remap[j];
+              // reset the remap value on this entry
+              remap[prev] = prev;
+            }
+            else {
+              // back at the start of the cycle!
+              // make a sanity check
+              vdata[j] = initialdata;
+              // and we are done!
+              remap[j] = j;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
   private:    
     /** Internal edge class  */   
-    class edge {
+    struct edge {
       vertex_id_t _source;
       vertex_id_t _target;
-    public:
+
       edge() : _source(-1), _target(-1) { }
       edge(const edge& other) :
         _source(other.source()), _target(other.target()) { }
@@ -659,7 +715,7 @@ namespace dist_graph_impl {
     return out;
   }
   
-
+  
   
 }
 }

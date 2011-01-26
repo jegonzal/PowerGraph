@@ -186,7 +186,11 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // start the machines
   comm->init(machines, options, curmachineid, 
             dc_recv_callback, this); 
-
+  
+  // set the local proc values
+  localprocid = comm->procid();
+  localnumprocs = comm->numprocs();
+  
   // construct the services
   distributed_services = new dc_services(*this);
 

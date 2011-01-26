@@ -40,6 +40,15 @@ class dc_dist_object{
     return dc_;
   }
   
+  inline procid_t procid() {
+    return dc_.procid();
+  }
+
+  inline procid_t numprocs() {
+    return dc_.numprocs();
+  }
+
+  
     /**
   This generates the interface functions for the standard calls, basic calls, and fast calls
   */

@@ -94,6 +94,13 @@ class distributed_control{
   /// object registrations;
   std::vector<void*> registered_objects;
 
+  /// For convenience, we provide a instance of dc_services 
+  dc_services* distributed_services;
+
+  /// ID of the local machine
+  procid_t localprocid;
+  /// Number of machines
+  procid_t localnumprocs;
   
   /// the callback given to the comms class. Called when data is inbound
   friend void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len);
@@ -103,13 +110,14 @@ class distributed_control{
   template <typename T> friend class dc_dist_object;
   
   
-  // disable the operator= by placing it in private 
+  /// disable the operator= by placing it in private 
   distributed_control& operator=(const distributed_control& dc) { return *this; }
 
 
   std::map<std::string, std::string> parse_options(std::string initstring);
   
-  dc_services* distributed_services;
+  
+  
  public:
    
 
@@ -134,12 +142,12 @@ class distributed_control{
 
   /// returns the id of the current processor
   inline procid_t procid() const {
-    return comm->procid();
+    return localprocid;
   }
   
   /// returns the number of processors in total.
   inline procid_t numprocs() const {
-    return comm->numprocs();
+    return localnumprocs;
   }
   
   /**
