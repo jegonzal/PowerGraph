@@ -1,6 +1,7 @@
 #ifndef DISTRIBUTED_GRAPH_HPP
 #define DISTRIBUTED_GRAPH_HPP
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
+#include <graphlab/distributed2/graph/atom_index_file.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/caching_dht.hpp>
@@ -29,7 +30,7 @@ namespace graphlab {
  * a machine, the machine's <b> partition </b>. We call the set of vertices 
  * and edges adjacent to the partition (but not in the partition), the 
  * <b> boundary </b>. Finally, we will call a machine's local copy of the 
- * partition + boundary, the machine's <b> replica </b>.
+ * partition + boundary, the machine's <b> fragment </b>.
  * 
  * 
  *
@@ -45,14 +46,14 @@ namespace graphlab {
  * GraphLab to not depend on sequential numbering. The user should not 
  * expect the sequential numbering property to be preserved in future versions. 
  * 
- * Each machine has a local representation for its replica of the 
- * graph. Within the local replica, each vertex/edge has a local vertex/edge 
+ * Each machine has a local representation for its fragment of the 
+ * graph. Within the local fragment, each vertex/edge has a local vertex/edge 
  * ID. This local ID is hidden and abstracted from the user. Implementors 
  * however should keep in mind the following requirements for the local 
  * representation:
  * <ul>
  * <li> Local vertex / edge IDs are unique and sequentially assigned </li>
- * <li> Sorting all vertices/edges in the local replica must
+ * <li> Sorting all vertices/edges in the local fragment must
  *      produce the same sequence whether or not we sort by global IDs 
  *      or Local IDs. </li>
  * </ul>
@@ -62,10 +63,10 @@ namespace graphlab {
  * The object guarantees global sequential consistency of the graph structure 
  * over add_vertex / add_edge operations. Consistency of graph data however,
  * is not managed and must be done manually through the various synchronize()
- * operations. All data reads will be accessed through the local replica if
- * the local replica contains the data. Otherwise, it will be requested from
+ * operations. All data reads will be accessed through the local fragment if
+ * the local fragment contains the data. Otherwise, it will be requested from
  * the owner of the data. All data writes will be sent to the owner of the data.
- * The writes may not however, update all replicas unless explicitly requested.
+ * The writes may not however, update all fragments unless explicitly requested.
  * 
  * Data references:
  * 
@@ -92,33 +93,23 @@ template<typename VertexData, typename EdgeData>
 class distributed_graph {
  
  public:
-  void distributed_graph(distributed_control &dc, std::string atomindex):
+  void distributed_graph(distributed_control &dc, std::string atomidxfile):
                               rmi(dc, this),
-                              globalvid2owner(dc, 65536) { 
-  }
-
-  void distributed_graph(distributed_control &dc, size_t nverts):rmi(dc, this),
-                                                                 globalvid2owner(dc, 65536) { 
-    init_mmap_store();
-    // ok. every machine takes an equal partition of nverts
-    numglobalverts.value = nverts;
-    numglobaledges.value = 0;
-    numlocaledges = 0;
-
-    size_t firstvid = (dc.procid() * nverts) / dc.numprocs();
-    size_t lastvid = (((dc.procid() + 1) * nverts) / dc.numprocs()) - 1;
-    // generate mappings
-    localvdata->resize(lastvid - firstvid + 1);
-    // fill the vid mappings
-    for (size_t i = firstvid;i <= lastvid; ++i) {
-      global2localvid[i] = i - firstvid;
-      globalvid2owner.set(i, dc.procid());
-      local2globalvid[i - firstvid] = i;
-      localvid2owner[i - firstvid] = dc.procid();
+                              globalvid2owner(dc, 65536) {
+    // read the atom index.
+    atom_index_file atomindex = read_atom_index(atomidxfile);
+    // store the graph size
+    numglobalverts = atomindex.nverts;
+    numglobaledges = atomindex.nedges;
+    // machine 0 partitions it
+    std::vector<std::vector<size_t> > partitions;
+    if (dc.procid() == 0) {
+      partitions = partition_atoms(atomindex, dc.numprocs());
     }
-    rmi.barrier();
+    dc.services().broadcast(partitions, dc.procid() == 0);
+    construct_local_subgraph(atomindex, partitions, rmi.procid());
   }
-  
+
   /**
    * Returns the number of vertices in the graph.
    * If machine 0, we can return this immediately since machine 0
@@ -148,36 +139,6 @@ class distributed_graph {
                  distributed_graph<VertexData,EdgeData>::num_edges);                    
     }
   }
-  
-  /**
-   * Add vertex picks a random processor and call add_vertex_impl on it
-   */
-  vertex_id_t add_vertex() {
-    vertex_id_t globalvid = get_new_vertex_id();
-    // find a machine to store it
-    rmi.remote_call(random::rand_int(dc.numprocs() - 1), 
-                    &distributed_graph<VertexData, EdgeData>::add_vertex_impl,
-                    globalvid);
-                    
-  }
-  
-  /**
-   * Add vertex picks a random processor and call add_vertex_impl on it
-   */
-  vertex_id_t add_vertex(const VertexData &vdata) {
-    vertex_id_t globalvid = get_new_vertex_id();
-    rmi.remote_call(random::rand_int(dc.numprocs() - 1), 
-                    &distributed_graph<VertexData, EdgeData>::add_vertex_impl_with_data,
-                    globalvid,
-                    vdata);
-  }
-  
-  
-
-  edge_id_t add_edge(vertex_id_t source, vertex_id_t target) {
-    edge_id_t globaleid = get_new_edge_id();
-    
-  }
  
  private:
   /// RMI object
@@ -189,12 +150,12 @@ class distributed_graph {
    */
   mutex alldatalock;
   
-  /// stores the local replica of the graph
+  /// stores the local fragment of the graph
   graph_local_store<VertexData, EdgeData> localstore;
 
 
   /** all the mappings requried to move from global to local vid/eids
-   *  We only store mappings if the vid/eid is in the local replica 
+   *  We only store mappings if the vid/eid is in the local fragment 
    */
   boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid, local2globalvid;
   boost::unordered_map<vertex_id_t, vertex_id_t> global2localeid, local2globaleid;
@@ -211,7 +172,7 @@ class distributed_graph {
    */
   caching_dht<vertex_id_t, procid_t> globaleid2owner;
   
-  /** This provides a fast mapping from the local vids in the replica
+  /** This provides a fast mapping from the local vids in the fragment
    * to its owner. Since this operation is quite frequently needed.
    */
   boost::unordered_map<vertex_id_t, procid_t> localvid2owner;
@@ -221,122 +182,40 @@ class distributed_graph {
    * Currently only consistent on machine 0 since machine 0 manages 
    * the allocation of global VIDs and local VIDs.
    */
-  atomic<size_t> numglobalverts, numglobaledges;
+  size_t numglobalverts, numglobaledges;
 
   
-  /**
-   * Gets a new unique global sequential vertex ID. To ensure sequentiality,
-   * vertex numbering is managed on machine 0. 
-   * \note Sequentiality guarantee may be relaxed in the future.
-   */
-  vertex_id_t get_new_vertex_id() {
-    if (rmi.procid() == 0) return numglobalverts.inc();
-    else return rmi.fast_remote_request(0,
-                &distributed_graph<VertexData, EdgeData>::get_new_vertex_id);
-
-  }
-
-  /**
-   * Gets a new unique global sequential edge ID. To ensure sequentiality,
-   * vertex numbering is managed on machine 0. 
-   * \note Sequentiality guarantee may be relaxed in the future.
-   */
-  edge_id_t get_new_edge_id() {
-    if (rmi.procid() == 0) return numglobaledges.inc();
-    else return rmi.fast_remote_request(0,
-                &distributed_graph<VertexData, EdgeData>::get_new_vertex_id);
-  }
   
   /**
-   * Adds a new vertex to the local store with global vid globalvid and data
-   * vdata. Update the localstore and update all the mappings.
-   */
-  void add_vertex_impl_with_data(size_t globalvid, const VertexData &vdata) {
-    // lock the strucure
-    alldatalock.lock();
-    // insert the vertex into the local store
-    // and get the local vertex id. 
-    vertex_id_t localvid = localstore.add_vertex(vdata);
-    global2localvid[globalvid] = localvid;
-    local2globalvid[localvid] = globalvid;
-    globalvid2owner.set(globalvid, rmi.procid());
-    localvid2owner[localvid] = rmi.procid();
-    alldatalock.unlock();
-  }
-
-  /**
-   * Adds a new vertex to the local store with global vid globalvid.
-   * Update the localstore and update all the mappings.
-   */
-  void add_vertex_impl(size_t globalvid) {
-    // lock the strucure
-    alldatalock.lock();
-    // insert the vertex into the local store
-    // and get the local vertex id. 
-    vertex_id_t localvid = localstore.add_vertex();
-    global2localvid[globalvid] = localvid;
-    local2globalvid[localvid] = globalvid;
-    globalvid2owner.set(globalvid, rmi.procid());
-    localvid2owner[localvid] = rmi.procid();
-    alldatalock.unlock();
-  }
-  
-  /**
-   * Adds a new edge (globalsrc, globaldest) to the local store with 
-   * global eid globaleid and with data edata.
-   */
-  void add_edge_impl_with_data(size_t eid, const EdgeData &edata, 
-                               size_t globalsrc, size_t globaldest) {
-    // this is a little tricky
-    // first ensure that both globalsrc and globaldest are in the localstore
-    // and I MUST own at least one of them
-    alldatalock.lock();
-    bool src_in_replica = global_vid_in_local_replica(globalsrc);
-    bool dest_in_replica = global_vid_in_local_replica(globaldest);
-    assert(src_in_replica || dest_in_replica);
-    
-    
-    alldatalock.unlock();
-    
-  }
-  
-  void add_edge_impl(size_t globalsrc, size_t globaldest) {
-    size_t globaleid = rmi.fast_remote_request(0,
-                         &distributed_graph<VertexData, EdgeData>::get_new_edge_id);
-    alldatalock.lock();
-    // get the local vertex id. This is just the number of local vertices
-    size_t localeid = numlocaledges;
-    numlocaledges++;
-    // update all mappings
-    global2localeid[globalvid] = localeid;
-    local2globaleid[localvid] = globaleid;
-    // store the data
-    localedata->push_back(EdgeData());
-    alldatalock.unlock();
-  }
-  
-  /**
-   * Returns true if the global vid is in the local replica
+   * Returns true if the global vid is in the local fragment
    * This is not synchronized. Caller must lock if there is a risk
    * of the structure changing while this check is performed.
    */
-  bool global_vid_in_local_replica(vertex_id_t globalvid) {
+  bool global_vid_in_local_fragment(vertex_id_t globalvid) {
     // easiest way to check is to see if it is in the global2localvid mapping
     return global2localvid.find(globalvid) != global2localvid.end();
   }
   
   /**
-   * Returns true if the global eid is in the local replica
+   * Returns true if the global eid is in the local fragment
    * This is not synchronized. Caller must lock if there is a risk
    * of the structure changing while this check is performed.
    */
-  bool global_eid_in_local_replica(edge_id_t globaleid) {
+  bool global_eid_in_local_fragment(edge_id_t globaleid) {
     // easiest way to check is to see if it is in the global2localvid mapping
     return global2localeid.find(globaleid) != global2localeid.end();
   }
   
-  void add_boundary_vertex_to_replica(vertex_id_t boundaryv) {
+  
+  void construct_local_subgraph(atom_index_file atomindex,
+                                std::vector<std::vector<size_t> > partitiontoatom,
+                                size_t curpartition) {
     
+    // merge all the atoms in partitiontoatom[curpartition]
+    
+    for (size_t i = 0;i < partitiontoatom[curpartition].size(); ++i) {
+      
+    }
   }
 };
 
