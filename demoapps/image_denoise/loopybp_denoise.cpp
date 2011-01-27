@@ -174,8 +174,8 @@ int main(int argc, char** argv) {
                        "Predicted image type {map, exp}");
   
 
-  clopts.scheduler_type = "splash(splash_size=100)";
-  clopts.scope_type = "edge";
+  clopts.set_scheduler_type("splash(splash_size=100)");
+  clopts.set_scope_type("edge");
   
 
   bool success = clopts.parse(argc, argv);
@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
 
 
   
-  std::cout << "ncpus:          " << clopts.ncpus << std::endl
+  std::cout << "ncpus:          " << clopts.get_ncpus() << std::endl
             << "bound:          " << bound << std::endl
             << "damping:        " << damping << std::endl
             << "colors:         " << colors << std::endl
@@ -194,9 +194,9 @@ int main(int argc, char** argv) {
             << "sigma:          " << sigma << std::endl
             << "lambda:         " << lambda << std::endl
             << "smoothing:      " << smoothing << std::endl
-            << "engine:         " << clopts.engine_type << std::endl
-            << "scope:          " << clopts.scope_type << std::endl
-            << "scheduler:      " << clopts.scheduler_type << std::endl
+            << "engine:         " << clopts.get_engine_type() << std::endl
+            << "scope:          " << clopts.get_scope_type() << std::endl
+            << "scheduler:      " << clopts.get_scheduler_type() << std::endl
             << "orig_fn:        " << orig_fn << std::endl
             << "noisy_fn:       " << noisy_fn << std::endl
             << "pred_fn:        " << pred_fn << std::endl

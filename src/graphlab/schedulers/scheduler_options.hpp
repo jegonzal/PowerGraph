@@ -1,5 +1,5 @@
-#ifndef SCHEDULER_OPTIONS
-#define SCHEDULER_OPTIONS
+#ifndef GRAPHLAB_SCHEDULER_OPTIONS
+#define GRAPHLAB_SCHEDULER_OPTIONS
 #include <map>
 #include <sstream>
 #include <ostream>
@@ -13,11 +13,11 @@
 namespace graphlab {
 
   /**
-     Scheduler options data structure.
-     Defines a collection of key->value pairs where the key 
-     is a string, and the value is an arbitrary data type.
-     The scheduler_options class will invisibly cast between string, integer
-     and double data types. For instance, if a scheduler expects a 
+     Scheduler options data structure.  Defines a collection of
+     key->value pairs where the key is a string, and the value is an
+     arbitrary data type.  The scheduler_options class will invisibly
+     cast between string, integer and double data types. For instance,
+     if a scheduler expects a
   */
   class scheduler_options {
   public:
@@ -139,9 +139,9 @@ namespace graphlab {
     /**
      * Combines two scheduler options. Warns if options intersects
      */
-    inline void merge_options(const scheduler_options &other) {
-      std::set<std::string> commonopts = set_intersect(keys(options),
-                                                       keys(other.options));
+    inline void apply_options(const scheduler_options &other) {
+      std::set<std::string> commonopts = 
+        set_intersect(keys(options),  keys(other.options));
       if (commonopts.size() > 0) {
         std::set<std::string>::const_iterator i = commonopts.begin();
         while(i != commonopts.end()) {
@@ -159,7 +159,7 @@ namespace graphlab {
         }
       }
       std::map<std::string, scheduler_option_values> res;
-      res = map_union(options, other.options);
+      res = map_union(other.options, options);
       options = res;
     }
 
@@ -197,16 +197,27 @@ namespace graphlab {
     };
 
 
+    
+    /**
+     * Parse the scheduler string returning the scheduler and storing
+     * all the options.
+     */
+    std::string parse_scheduler_string(std::string scheduler_raw);
+
+
+
     std::map<std::string, scheduler_option_values> options;
 
   };
 
 
-
   std::ostream& operator<<(std::ostream& out,
-                           const graphlab::scheduler_options& opts);
+                         const graphlab::scheduler_options& opts);
 
-  std::pair<std::string, scheduler_options> 
-  parse_scheduler_string(std::string scheduler_raw);
-}
+
+} // end of graphlab namespace
+
+
+
+
 #endif

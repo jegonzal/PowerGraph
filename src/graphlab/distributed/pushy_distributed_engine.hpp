@@ -460,28 +460,34 @@ namespace graphlab {
       return ret;
     }
 
-/////////////////Stuff not implemented ////////////////////////
-  void add_task(update_task_type task, double priority) {}
+    /////////////////Stuff not implemented ////////////////////////
+    void add_task(update_task_type task, double priority) {}
 
-  /**
-    * Creates a collection of tasks on all the vertices in
-    * 'vertices', and all with the same update function and priority
-    * This function is forwarded to the scheduler.
-    */
-  void add_tasks(const std::vector<vertex_id_t>& vertices,
-                          update_function_type func, double priority) {}
+    /**
+     * Creates a collection of tasks on all the vertices in
+     * 'vertices', and all with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    void add_tasks(const std::vector<vertex_id_t>& vertices,
+                   update_function_type func, double priority) {}
 
-  /**
-    * Creates a collection of tasks on all the vertices in the graph,
-    * with the same update function and priority
-    * This function is forwarded to the scheduler.
-    */
-  void add_task_to_all(update_function_type func,
-                                double priority) {}
-  scheduler_options unused;
-  scheduler_options& sched_options() { return unused;}
+    /**
+     * Creates a collection of tasks on all the vertices in the graph,
+     * with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    void add_task_to_all(update_function_type func,
+                         double priority) {}
+    scheduler_options unused;
+    void set_scheduler_options(const scheduler_options& opts) { 
+      unused = opts;
+    }
 
-  const scheduler_options& sched_options() const {return unused;}
+
+
+
+
+
   }; // end of pushy_distributed_engine
 
   
