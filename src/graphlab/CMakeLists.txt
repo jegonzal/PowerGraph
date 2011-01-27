@@ -95,6 +95,10 @@ if(MPI_FOUND)
  endif(MPI_FOUND)
 
 
+add_library(graphlab_dist2 STATIC
+    distributed2/graph/atom_index_file.cpp)
+
+
 
 target_link_libraries(graphlab ${Boost_LIBRARIES})
 target_link_libraries(graphlab_util ${Boost_LIBRARIES})

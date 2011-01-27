@@ -20,10 +20,10 @@ struct atom_index_file {
   std::vector<atom_file> atoms;
 };
 
-atom_index_file read_atom_index(std::string indexfile);
+atom_index_file read_atom_index(std::string indexfile, size_t nparts);
 std::vector<std::vector<size_t> >
   partition_atoms(const atom_index_file& atomindex);
 
-}
+} // end namespace graphlab
 
 #endif
