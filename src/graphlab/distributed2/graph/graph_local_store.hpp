@@ -40,18 +40,23 @@ namespace dist_graph_impl {
     /**
      * Build a basic graph
      */
-    local_graph_store(size_t maxv, size_t maxe) : finalized(true),changeid(0) {  }
+    local_graph_store(): vdata(NULL), edata(NULL), finalized(true), changeid(0) {  }
 
-    /**
-     * \BUG: Should not reserve but instead directly create vertices.
-     * Create a graph with space allocated for num_vertices and
-     * num_edges.
-     */
-    local_graph_store(size_t maxv, size_t maxe, size_t nverts) : 
-      vertices(nverts),
-      in_edges(nverts), out_edges(nverts), vcolors(nverts),
-      finalized(true),changeid(0) { }
+    create_store(size_t create_num_verts, size_t create_num_edges) { 
+      nvertices = create_num_verts;
+      nedges = create_num_edges;
+      
+      edges.resize(nedges);
+      in_edges.resize(nvertices);
+      out_edges.resize(nvertices);
+      vcolors.resize(nvertices);
 
+      finalized = true;
+      changeid = 0;
+      
+      // allocate the vdata and edata
+      
+    }
 
     // METHODS =================================================================>
 
@@ -118,12 +123,12 @@ namespace dist_graph_impl {
             
     /** \brief Get the number of vetices */
     size_t num_vertices() const {
-      return vertices.size();
+      return nvertices;
     } // end of num vertices
 
     /** \brief Get the number of edges */
     size_t num_edges() const {
-      return edges.size();
+      return nedges;
     } // end of num edges
 
 
@@ -219,44 +224,15 @@ namespace dist_graph_impl {
       return edge_id(target, source);
     } // end of rev_edge_id
 
-    
-    /** 
-     * \brief Creates a vertex containing the vertex data and returns the id
-     * of the new vertex id. Vertex ids are assigned in increasing order with
-     * the first vertex having id 0.
-     */
-    vertex_id_t add_vertex(const VertexData& vdata = VertexData() ) {
-      vertices.push_back(vdata);
-      // Resize edge maps
-      out_edges.resize(vertices.size());
-      in_edges.resize(vertices.size());
-      vcolors.resize(vertices.size());
-      return vertices.size() - 1;
-    } // End of add vertex;
-
-
-    /** 
-     * \brief Add additional vertices up to provided num_vertices.  This will
-     * fail if resizing down.
-     */
-    void resize(size_t num_vertices ) {
-      assert(num_vertices >= vertices.size());
-      vertices.resize(num_vertices);
-      // Resize edge maps
-      out_edges.resize(vertices.size());
-      in_edges.resize(vertices.size());
-      vcolors.resize(vertices.size());
-    } // End of resize
-    
+  
     
     /**
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
      */
-    edge_id_t add_edge(vertex_id_t source, vertex_id_t target, 
-                       const EdgeData& edata = EdgeData()) {
-      if ( source >= vertices.size() 
-           || target >= vertices.size() ) {
+    void add_edge(edge_id_t edge_id, vertex_id_t source, vertex_id_t target) {
+      if ( source >= nvertices
+           || target >= nvertices ) {
 
         logstream(LOG_FATAL) 
           << "Attempting add_edge (" << source
@@ -264,11 +240,13 @@ namespace dist_graph_impl {
           << ") when there are only " << vertices.size() 
           << " vertices" << std::endl;
 
-        ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
-        ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
+        ASSERT_MSG(source < nvertices, "Invalid source vertex!");
+        ASSERT_MSG(target < nvertices, "Invalid target vertex!");
       }
 
-
+      if (eid >= nedges) {
+        ASSERT_MSG(eid < nedges, "Invalid edge ID!");
+      }
       if(source == target) {
         logstream(LOG_FATAL) 
           << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
@@ -277,13 +255,9 @@ namespace dist_graph_impl {
       }
 
       // Add the edge to the set of edge data (this copies the edata)
-      edges.push_back( edge( source, target) );
+      edges[edge_id] = edge(source, target);
       
-      /** \todo: switch to mmap*/
-      edgedata.push_back(edata);
 
-      // Add the edge id to in and out edge maps
-      edge_id_t edge_id = edges.size() - 1;
       in_edges[target].push_back(edge_id);
       out_edges[source].push_back(edge_id);
 
@@ -299,7 +273,6 @@ namespace dist_graph_impl {
         ((out_edges[source].size() < 2) ||
          edge_id_less(*(out_edges[source].end()-2),
                       *(out_edges[source].end()-1)));
-      return edge_id;
     } // End of add edge
         
     
@@ -518,61 +491,6 @@ namespace dist_graph_impl {
       fout.close();
     }
     
-    /**
-     * Renumbers vertex id revmap[i] to vertex_id i.
-     * revmap must be #vertices in length, and the range of revmap
-     * must be [0, #vertices-1] where no element is duplicated.
-     * The revmap vector will be modified by this function call
-     */
-    void renumber_vids(std::vector<vertex_id_t> &revmap) {
-      // quick sanity check
-      ASSERT_EQ(revmap.size(), vertices.size());
-
-      // build the forward map
-      std::vector<vertex_id_t> forwardmap(revmap.size());      
-      for (size_t i = 0;i < revmap.size(); ++i) {
-        forwardmap[revmap[i]] = i;
-      }
-      
-      // forward map all the edges
-      for (size_t i = 0; i < edges.size(); ++i) {
-        edges[i]._source = forwardmap[edges[i]._source];
-        edges[i]._target = forwardmap[edges[i]._target];
-      }
-      // remap the vertex data by swapping around the cycles
-      for (size_t i = 0;i < revmap.size(); ++i) {
-        // check if I need to remap
-        if (remap[i] != i) {
-          // yes I do!
-          // begin a remapping cycle
-          // remember the value of the first element in the cycle
-          VertexData initialdata = vdata[i];
-          size_t j = i;
-          size_t prev;
-          while (1) {
-            if (remap[j] != i) {
-              // if we are not back to the start of the cycle
-              // move the data on cycle upwards the cycle
-              vdata[j] = vdata[remap[j]];
-              prev = j;
-              // move down the cycle
-              j = remap[j];
-              // reset the remap value on this entry
-              remap[prev] = prev;
-            }
-            else {
-              // back at the start of the cycle!
-              // make a sanity check
-              vdata[j] = initialdata;
-              // and we are done!
-              remap[j] = j;
-              break;
-            }
-          }
-        }
-      }
-    }
-    
   private:    
     /** Internal edge class  */   
     struct edge {
@@ -633,13 +551,11 @@ namespace dist_graph_impl {
  
     // PRIVATE DATA MEMBERS ===================================================>    
     /** The vertex data is simply a vector of vertex data 
-     * \todo To switch to mmap
      */
-    std::vector<VertexData> vertices;
+    VertexData* vertices;
     
-    /** Vector of edge data 
-     * \todo To switch to mmap*/
-    std::vector<EdgeData> edgedata;
+    /** Vector of edge data  */
+    EdgeData* edgedata;
     
     /** The edge data is a vector of edges where each edge stores its
         source, destination. */
@@ -653,6 +569,9 @@ namespace dist_graph_impl {
     
     /** The vertex colors specified by the user. **/
     std::vector< vertex_color_type > vcolors;  
+    
+    size_t nvertices;
+    size_t nedges;
     
     /** Mark whether the graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve
@@ -708,6 +627,7 @@ namespace dist_graph_impl {
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
                            const local_graph_store<VertexData, EdgeData>& graph) {
+  
     for(vertex_id_t vid = 0; vid < graph.num_vertices(); ++vid) {
       foreach(edge_id_t eid, graph.out_edge_ids(vid))
         out << vid << ", " << graph.target(eid) << '\n';      

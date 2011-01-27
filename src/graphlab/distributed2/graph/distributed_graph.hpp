@@ -1,7 +1,9 @@
 #ifndef DISTRIBUTED_GRAPH_HPP
 #define DISTRIBUTED_GRAPH_HPP
+#include <algorithm>
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
 #include <graphlab/distributed2/graph/atom_index_file.hpp>
+#include <graphlab/distributed2/graph/atom_file.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/caching_dht.hpp>
@@ -60,33 +62,13 @@ namespace graphlab {
  * 
  * Consistency: 
  * 
- * The object guarantees global sequential consistency of the graph structure 
- * over add_vertex / add_edge operations. Consistency of graph data however,
- * is not managed and must be done manually through the various synchronize()
- * operations. All data reads will be accessed through the local fragment if
- * the local fragment contains the data. Otherwise, it will be requested from
- * the owner of the data. All data writes will be sent to the owner of the data.
- * The writes may not however, update all fragments unless explicitly requested.
+ * Consistency of graph data, is not managed and must be done manually 
+ * through the various synchronize() operations. All data reads will be accessed 
+ * through the local fragment if the local fragment contains the data. Otherwise, 
+ * it will be requested from the owner of the data. All data writes will be sent 
+ * to the owner of the data. The writes may not however, update all fragments 
+ * unless explicitly requested.
  * 
- * Data references:
- * 
- * Now, unlike in the \ref graph datastructure, vertex_data(v) and edge_data(v)
- * cannot return a direct reference to the data since it could be on a remote
- * machine. It must therefore return a proxy object 
- * much like how std::vector<bool> works. This means that the following code 
- * will no longer compile:
- * 
- * \code
- * vertex_data &v = graph.vertex_data(v);
- * dosomething(v);
- * v = somethingelse;
- * \endcode
- * 
- * instead, the user should call graph.vertex(v) directly to both read and write.
-  * \code
- * dosomething(graph.vertex_data(v)); // dosomething must not take by reference!
- * graph.vertex_data(v) = somethingelse;
- * \endcode
  * 
  */
 template<typename VertexData, typename EdgeData> 
@@ -107,37 +89,21 @@ class distributed_graph {
       partitions = partition_atoms(atomindex, dc.numprocs());
     }
     dc.services().broadcast(partitions, dc.procid() == 0);
-    construct_local_subgraph(atomindex, partitions, rmi.procid());
+    construct_local_fragment(atomindex, partitions, rmi.procid());
   }
 
   /**
    * Returns the number of vertices in the graph.
-   * If machine 0, we can return this immediately since machine 0
-   * manages the global vid allocation. Otherwise, a remote call is necessary.
    */
   size_t num_vertices() const{
-    if (rmi.dc().procid() == 0) {
-      return numglobalverts.value;
-    }
-    else {
-      return rmi.fast_remote_request(0,
-                 distributed_graph<VertexData,EdgeData>::num_vertices);                    
-    }
+      return numglobalverts;
   }
 
   /**
    * Returns the number of edges in the graph.
-   * If machine 0, we can return this immediately since machine 0
-   * manages the global eid allocation. Otherwise, a remote call is necessary.
    */  
   size_t num_edges() const{
-    if (rmi.dc().procid() == 0) {
-      return numglobaledges.value;
-    }
-    else {
-      return rmi.fast_remote_request(0,
-                 distributed_graph<VertexData,EdgeData>::num_edges);                    
-    }
+      return numglobaledges;
   }
  
  private:
@@ -157,8 +123,10 @@ class distributed_graph {
   /** all the mappings requried to move from global to local vid/eids
    *  We only store mappings if the vid/eid is in the local fragment 
    */
-  boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid, local2globalvid;
-  boost::unordered_map<vertex_id_t, vertex_id_t> global2localeid, local2globaleid;
+  boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid;
+  std::vector<vertex_id_t> local2globalvid;
+  boost::unordered_map<vertex_id_t, vertex_id_t> global2localeid
+  std::vector<edge_id_t> local2globaleid;
    
   /** To avoid requiring O(V) storage on each maching, the 
    * global_vid -> owner mapping cannot be stored in its entirely locally
@@ -175,7 +143,7 @@ class distributed_graph {
   /** This provides a fast mapping from the local vids in the fragment
    * to its owner. Since this operation is quite frequently needed.
    */
-  boost::unordered_map<vertex_id_t, procid_t> localvid2owner;
+  std::vector<procid_t> localvid2owner;
   
   /**
    * The number of vertices and edges in the entire graph so far.
@@ -207,15 +175,92 @@ class distributed_graph {
   }
   
   
-  void construct_local_subgraph(atom_index_file atomindex,
+  /**
+   * From the atoms listed in the atom index file, construct the local store
+   * using all the atoms in the current partition.
+   */
+  void construct_local_fragment(atom_index_file atomindex,
                                 std::vector<std::vector<size_t> > partitiontoatom,
                                 size_t curpartition) {
-    
-    // merge all the atoms in partitiontoatom[curpartition]
-    
-    for (size_t i = 0;i < partitiontoatom[curpartition].size(); ++i) {
-      
+    // first make a map mapping atoms to machines
+    // we will need this later
+    std::vector<procid_t> atom2machine;
+    for (size_t i = 0 ;i< partitiontoatom.size(); ++i) {
+      for (size_t j = 0 ; j < partitiontoatom[i].size(); ++j) {
+        if (atom2machine.size() <= partitiontoatom[i][j]) atom2machine.resize(partitiontoatom[i][j] + 1);
+        atom2machine[partitiontoatom[i][j]] = i;
+      }
     }
+    
+    
+    // the atomfiles for the local fragment
+    std::vector<atom_file<VertexData, EdgeData> > atomfiles;
+    // for convenience take a reference to the list of atoms in this partition
+    std::vector<size_t>& atoms_in_curpart = partitiontoatom[curpartition];
+    
+    // create the atom file readers.
+    // and load the vid / eid mappings
+    atomfiles.resize(atoms_in_curpart.size();
+    for (size_t i = 0;i < atoms_in_curpart.size(); ++i) {
+      atomfiles[i].set_filename(atomindex.atoms[atoms_in_curpart[i]].protocol,
+                                atomindex.atoms[atoms_in_curpart[i]].file);
+      atomfiles[i].load_id_maps();
+    }
+    
+    // Lets first construct the global/local vid/eid mappings by merging
+    // the mappings in each atom
+    // cat all the globalvids and globaleids into a single big list
+    // and sort it
+    for (size_t i = 0;i < atomfiles.size(); ++i) {
+      std::copy(atomfiles.globalvids().begin(), atomfiles.globalvids.end(),
+                std::back_inserter(local2globalvid));
+      std::copy(atomfiles.globaleids().begin(), atomfiles.globaleids.end(),
+                std::back_inserter(local2globaleid));
+    }
+    
+    // Find only unique occurances of each vertex, by sorting, unique, and resize
+    std::sort(local2globalvid.begin(), local2globalvid.end());
+    std::vector<vertex_id_t>::iterator uviter = std::unique(local2globalvid.begin(), 
+                                                            local2globalvid.end());
+    local2globalvid.resize(uviter - local2globalvid.begin());
+    
+    // do the same thing to each edge    
+    std::sort(local2globaleid.begin(), local2globaleid.end());
+    std::vector<edge_id_t>::iterator ueiter = std::unique(local2globaleid.begin(), 
+                                                            local2globaleid.end());
+    local2globaleid.resize(ueiter - local2globaleid.begin());
+    
+    //construct the reverse maps
+    for (size_t i = 0;i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
+    for (size_t i = 0;i < local2globaleid.size(); ++i) global2localeid[local2globaleid[i]] = i;
+    
+    
+    // now lets construct the graph structure
+    localstore.create_store(local2globalvid.size(), local2globaleid.size());
+    std::vector<bool> eidloaded(local2globaleid.size(), false);
+    for (size_t i = 0;i < atomfiles.size(); ++i) {
+      atomfiles[i].load_structure();
+      for (size_t j = 0;j < atomfiles[i].edge_src_dest().size(); ++j) {
+        // convert from the atom's local eid, to the global eid, then to the fragment localeid
+        size_t localeid = global2localeid[atomfiles[i].globaleids()[j]];
+        if (eidloaded[localeid] == false) {
+          std::pair<vertex_id_t, vertex_id_t> srcdest = atomfiles[i].edge_src_dest()[j];
+          localstore.add_edge(localeid, srcdest.first, srcdest.second);
+          eidloaded[localeid] = true;
+        }
+      }
+      
+      // set the color
+      for (size_t j = 0; j < atomfiles[i].vcolor().size(); ++j) {
+        // convert from the atom's local vid, to the global vid, then to the fragment localvid
+        size_t localvid = global2localvid[atomfiles[i].globalvids()[j]];
+        localstore.color(localvid) = atomfiles[i].vcolor()[j];
+      }
+    }
+    
+    
+    // done! structure constructed!
+    // now for the data!
   }
 };
 

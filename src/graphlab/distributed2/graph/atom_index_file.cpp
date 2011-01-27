@@ -22,7 +22,7 @@ atom_index_file read_atom_index(std::string indexfile) {
     //   [atom_nverts] [atom_nedges]  [#adjacent atoms]  
     //           [space delimited list of adjacent atoms]    [atom_file_name] 
 
-    atom_file atom;
+    atom_file_descriptor atom;
     fin >> atom.nverts >> atom.nedges;
     size_t numadj;
     fin >> numadj;
