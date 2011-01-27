@@ -27,11 +27,17 @@ class dc_services {
   size_t childbase; /// id of my first child
   size_t numchild;  /// number of children
   
+  std::string broadcast_receive;
+  
   // set the waiting flag
   void __child_to_parent_barrier_trigger(procid_t source);
   
   void __parent_to_child_barrier_release(int releaseval);
   
+  
+  void set_broadcast_receive(const std::string &s) {
+    broadcast_receive = s;
+  }
  public:
   dc_services(distributed_control &dc):rpc(dc, this) { 
     // reset the child barrier values
@@ -70,22 +76,58 @@ class dc_services {
   }
   
   /**
-  This function allows one machine to broadcasts a string of data 
-  to all machines.
+  This function allows one machine to broadcasts a variable to all machines.
   
   The originator calls broadcast with data provided in 
-  in 'data' and length len. All other machines must call
-  broadcast with data = NULL. 
+  in 'data' and originator set to true. 
+  All other callers call with originator set to false.
   
   The originator will then return 'data'. All other machines
-  will return a new pointer, with the length of the string
-  returned in 'len'. The returned pointer must be freed
-  by the caller (with the exception of the originator). 
+  will receive the originator's transmission in the "data" parameter.
   
-  This function is not guaranteed to have barrier-like behavior.
-  That is, broadcast could be implemented in a buffered fashion.
+  This call is guaranteed to have barrier-like behavior. That is to say,
+  this call will block until all machines enter the broadcast function.
+  
+  \note Behavior is undefined if more than one machine calls broadcast
+  with originator set to true.
+  
+  \note Behavior is undefined if multiple threads on the same machine
+  call broadcast simultaneously. If multiple-thread broadcast is necessary,
+  each thread should use its own instance of the services class.
   */
-  char* broadcast(char* data, size_t &len) { return NULL;};
+  template <typename T>
+  void broadcast(T& data, bool originator) { 
+    if (originator) {
+      // construct the data stream
+      std::stringstream strm;
+      oarchive oarc(strm);
+      oarc << data;
+      broadcast_receive = strm.str();
+      
+      for (size_t i = 0;i < rpc.numprocs(); ++i) {
+        if (i != rpc.procid()) {
+          rpc.fast_remote_request(i,
+                                  &dc_services::set_broadcast_receive,
+                                  broadcast_receive);
+        }
+      }
+    }
+    
+    // by the time originator gets here, all machines
+    // will have received the data due to the broadcast_receive
+    // set a barrier here.
+    barrier();
+    
+    // all machines will now deserialize the data
+    if (!originator) {
+      std::stringstream strm(broadcast_receive);
+      iarchive iarc(strm);
+      iarc >> data;
+    }
+    
+  }
+  
+  
 };
 
 }

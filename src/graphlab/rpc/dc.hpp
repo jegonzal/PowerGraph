@@ -283,4 +283,5 @@ class distributed_control{
 #include <graphlab/rpc/function_arg_types_undef.hpp>
 #include <graphlab/rpc/function_call_dispatch.hpp>
 #include <graphlab/rpc/request_dispatch.hpp>
+#include <graphlab/rpc/dc_services.hpp>
 #endif
