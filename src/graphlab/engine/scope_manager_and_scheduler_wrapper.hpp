@@ -1,5 +1,6 @@
 #ifndef GRAPHLAB_SCOPE_MANAGER_AND_SCHEDULER_WRAPPER_HPP
 #define GRAPHLAB_SCOPE_MANAGER_AND_SCHEDULER_WRAPPER_HPP
+
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
@@ -35,7 +36,7 @@ namespace graphlab {
     Scheduler *scheduler;
 
     /// lazy deletion.
-    bool deletionmark;
+    bool deletionmark; // = has_engine_run
   
     scheduler_options schedopts;
 
@@ -148,13 +149,11 @@ namespace graphlab {
       }
     }
 
-    scheduler_options& sched_options() {
-      return schedopts;
+    void set_scheduler_options(const scheduler_options& opts) {
+      schedopts = opts;
+      apply_scheduler_options();
     }
-
-    const scheduler_options& sched_options() const{
-      return schedopts;
-    }
+    
 
     /**
      * Adds an update task with a particular priority.

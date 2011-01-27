@@ -10,6 +10,7 @@
 // The engines
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/asynchronous_engine.hpp>
+#include <graphlab/engine/engine_options.hpp>
 
 
 
@@ -56,9 +57,9 @@ namespace graphlab {
                                Graph& _graph,
                                size_t ncpus) {
       iengine<Graph>* ret = new_engine<Graph, Scheduler,
-                          general_scope_factory<Graph> >(engine,
-                                                         _graph,
-                                                         ncpus);
+        general_scope_factory<Graph> >(engine,
+                                       _graph,
+                                       ncpus);
       if(ret == NULL) { return NULL; }
       
       if(scope_factory == "unsync" || scope_factory == "vertex") {
@@ -76,18 +77,68 @@ namespace graphlab {
       }
       
       if(scope_factory == "unsync" || scope_factory == "locked" ||
-        scope_factory == "extlocked") {
+         scope_factory == "extlocked") {
         logstream(LOG_WARNING) << "The scope names \"unsync\", \"locked\""
-                                  "and \"extlocked\" have been deprecated";
+          "and \"extlocked\" have been deprecated";
         logstream(LOG_WARNING) << "Please use the new names \"vertex\", "
-                                  "\"edge\" and \"full\"" << std::endl;
+          "\"edge\" and \"full\"" << std::endl;
       }
       return ret;
     }
 
   
 
+
+
+    
+
+
+    template<typename Graph>
+    iengine<Graph>* new_engine(const engine_options& eopts,
+                               Graph& _graph) {
+      iengine<Graph>* eng = NULL;
+
+#define __GENERATE_NEW_ENGINE__(r_unused, data_unused, i,  elem)        \
+      BOOST_PP_EXPR_IF(i, else)                                         \
+        if (eopts.get_scheduler_type() == BOOST_PP_TUPLE_ELEM(3,0,elem)) { \
+          eng = new_engine<Graph, BOOST_PP_TUPLE_ELEM(3,1,elem) <Graph> > \
+            ( eopts.get_engine_type(),                                  \
+              eopts.get_scope_type(),                                   \
+              _graph,                                                   \
+              eopts.get_ncpus() );                                      \
+        }
+      
+      // generate the construction calls
+      BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_NEW_ENGINE__, _, __SCHEDULER_LIST__)
+        /*
+          if(scheduler == "fifo") {
+          eng =  new_engine<Graph, fifo_scheduler<Graph> >(engine,
+          scope_factory,
+          _graph,
+          ncpus);
+          } else if ....*/
+      else {
+        std::cout << "Invalid scheduler type: " << eopts.get_scheduler_type()
+                  << std::endl;
+        return NULL;
+      }
+
+      if(eng != NULL) {
+        // Should we merge instead?
+        eng->set_scheduler_options( eopts.get_scheduler_options() );
+      }
+      return eng;
+#undef __GENERATE_NEW_ENGINE__ 
+      
+    } // end of new engine  
+
+
+
+
+
     /**
+     * Deprecated but used by some older apps
+     *
      * Allocate an engine given the strings for the engine type, scope
      * factory, and scheduler.
      *
@@ -102,61 +153,20 @@ namespace graphlab {
      * corresponding engine
      */
     template<typename Graph>
-    iengine<Graph>* new_engine(const std::string& engine,
-                               const std::string& scheduler_raw,
-                               const std::string& scope_factory,
+    iengine<Graph>* new_engine(const std::string& engine_type,
+                               const std::string& scheduler_type,
+                               const std::string& scope_type,
                                Graph& _graph,
-                               size_t ncpus = 1) {
-      // Break the scheduler string appart
-      size_t first_paren = scheduler_raw.find_first_of('(');
-      size_t last_paren = scheduler_raw.find_last_of(')');
-      std::string scheduler = scheduler_raw.substr(0, first_paren);
-      std::string arguments;
-      // Fill in the arguments if such are possibe
-      if(first_paren != std::string::npos &&
-         last_paren != std::string::npos) {
-        arguments = scheduler_raw.substr(first_paren + 1,
-                                         last_paren - first_paren - 1 );
-      }
-      
-      if(!arguments.empty()) {
-        std::replace(arguments.begin(), arguments.end(), ',', ' ');
-        std::replace(arguments.begin(), arguments.end(), ';', ' ');        
-      }     
-      std::stringstream arg_strm(arguments);
-      
-      iengine<Graph>* eng = NULL;
+                               size_t ncpus) {
+      engine_options eopts;
+      eopts.set_engine_type(engine_type);
+      eopts.set_scheduler_type(scheduler_type);
+      eopts.set_scope_type(scope_type);
+      eopts.set_ncpus(ncpus);
+      return new_engine(eopts, _graph);
+    }
 
 
-      #define __GENERATE_NEW_ENGINE__(r_unused, data_unused, i,  elem) \
-        BOOST_PP_EXPR_IF(i, else) if (scheduler == BOOST_PP_TUPLE_ELEM(3,0,elem)) { \
-          eng = new_engine<Graph, BOOST_PP_TUPLE_ELEM(3,1,elem) <Graph> > (engine, scope_factory, _graph, ncpus); \
-        }
-
-      // generate the construction calls
-      BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_NEW_ENGINE__, _, __SCHEDULER_LIST__)
-      /*
-      if(scheduler == "fifo") {
-        eng =  new_engine<Graph, fifo_scheduler<Graph> >(engine,
-                                                  scope_factory,
-                                                  _graph,
-                                                  ncpus);
-      } else if ....*/
-      else {
-        std::cout << "Invalid scheduler type: " << scheduler
-                  << std::endl;
-        return NULL;
-      }
-
-      if(eng != NULL) {
-        if(!arguments.empty()) {
-          eng->sched_options().parse_options(arg_strm);
-        }
-      }
-      return eng;
-      #undef __GENERATE_NEW_ENGINE__ 
-      
-    } // end of new engine  
 
   }; // end of class engine factory
 }; // End of namespace graphl

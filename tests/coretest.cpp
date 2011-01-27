@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
   
   graphlab::command_line_options clopts;
 
-  std::cout << "Flags: " << clopts.compile_flags << std::endl;
+  std::cout << "Flags: " << clopts.get_compile_flags() << std::endl;
   
   int opt1 = 2;
   std::string opt2 = "nope";
@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
   
   glcore.set_engine_options(clopts);
 
-  std::cout << "Engine       " << clopts.engine_type << "\n"
+  std::cout << "Engine       " << clopts.get_engine_type() << "\n"
             << "Option 1:    " << opt1 << "\n"
             << "Option 2:    " << opt2 << "\n"
             << "Option 3:    " << opt3 << "\n"

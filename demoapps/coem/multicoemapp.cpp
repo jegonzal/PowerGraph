@@ -311,8 +311,8 @@ int main(int argc,  char ** argv) {
 
   /** Hack **/
   vertex_lookups = (std::vector<vertex_id_t> **) 
-    malloc(sizeof(std::vector<vertex_id_t> *) * clopts.ncpus);
-  for(unsigned int i=0; i<clopts.ncpus; i++) {
+    malloc(sizeof(std::vector<vertex_id_t> *) * clopts.get_ncpus());
+  for(unsigned int i=0; i< clopts.get_ncpus(); i++) {
     vertex_lookups[i] = new std::vector<vertex_id_t>();
     vertex_lookups[i]->reserve(1e6);
   }
@@ -321,7 +321,7 @@ int main(int argc,  char ** argv) {
   prepare(core);
  
   /* Special handling for round_robin */
-  if (clopts.scheduler_type == "round_robin") {
+  if (clopts.get_scheduler_type() == "round_robin") {
     core.add_task_to_all(coem_update_function, 1.0);
     ROUNDROBIN = true;
   }
