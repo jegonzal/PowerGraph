@@ -236,7 +236,10 @@ class distributed_graph {
     
     
     // now lets construct the graph structure
-    localstore.create_store(local2globalvid.size(), local2globaleid.size());
+    localstore.create_store(local2globalvid.size(), local2globaleid.size(),
+                            "vdata."+tostr(curpartition),
+                            "edata."+tostr(curpartition));
+                            
     std::vector<bool> eidloaded(local2globaleid.size(), false);
     for (size_t i = 0;i < atomfiles.size(); ++i) {
       atomfiles[i].load_structure();
@@ -261,7 +264,26 @@ class distributed_graph {
     
     // done! structure constructed!
     // now for the data!
+    // load atoms one at a time, don't keep more than one atom in memor at any one time
+    for (size_t i = 0;i < atomfiles.size(); ++i) {
+      atomfiles[i].load_all();
+      for (size_t j = 0; j < atomfiles.vdata.size(); ++j) {        
+        // convert from the atom's local vid, to the global vid, then to the fragment localvi
+        size_t localvid = global2localvid[atomfiles[i].globalvids()[j]];
+        localstore.vertex_data(localvid) = atomfiles.vdata[j];
+      }
+      for (size_t j = 0; j < atomfiles.edata.size(); ++j) {        
+        // convert from the atom's local vid, to the global vid, then to the fragment localvi
+        size_t localeid = global2localeid[atomfiles[i].globaleids()[j]];
+        localstore.edge_data(localeid) = atomfiles.edata[j];
+      }
+      atomfiles[i].clear();
+    }
+    // flush the store
+    localstore.flush();
+    compute_minimal_prefetch();
   }
+  
 };
 
 }

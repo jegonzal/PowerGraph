@@ -365,6 +365,12 @@ namespace graphlab {
                       pos2 == std::string::npos ? str.size()-1 : pos2-pos1+1);
   }
 
+  template<typename T>
+  std::string tostr(const T &t) {
+    std::stringstream strm;
+    strm << t;
+    return strm.str();
+  }
 }; // end of namespace graphlab
 
 #include <graphlab/macros_undef.hpp>

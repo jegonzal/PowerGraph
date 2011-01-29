@@ -36,7 +36,7 @@ class mmap_wrapper{
     int ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
     
     // seek to the padding point and write a byte
-    if (pad > 0 && statbuf.st_size < pad) {
+    if (pad > 0 && statbuf.st_size < (int)pad) {
       lseek(fd, pad, SEEK_SET);
       write(fd, " ", 1);
       ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
@@ -69,6 +69,23 @@ class mmap_wrapper{
       fd = 0;
       ptrlen = 0;
     }
+  }
+  
+  inline void prefer_seq_access() {
+    madvise(ptr, ptrlen, MADV_SEQUENTIAL);
+  }
+  
+  inline void prefer_random_access() {
+    madvise(ptr, ptrlen, MADV_RANDOM);
+  }
+  
+  inline void prefer_reset() {
+    madvise(ptr, ptrlen, MADV_NORMAL);
+  }
+  
+  
+  inline void prefetch(void* loc, size_t len) {
+    madvise(loc, len, MADV_WILLNEED);
   }
   
   inline ~mmap_wrapper() {

@@ -88,6 +88,7 @@ add_executable(coherentdhttest coherentdhttest.cpp)
 add_executable(queued_rw_lock_test queued_rw_lock_test.cpp)
 add_executable(deferred_rwlock_test deferred_rwlock_test.cpp)
 add_executable(mmaptest mmaptest.cpp)
+add_executable(bench_mmap bench_mmap.cpp)
 
 
 

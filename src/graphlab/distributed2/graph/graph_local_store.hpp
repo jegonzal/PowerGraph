@@ -1,17 +1,17 @@
 #ifndef GRAPH_LOCAL_STORE_HPP
 #define GRAPH_LOCAL_STORE_HPP
-#include <src/graphlab/graph/graph.hpp>
-#include <src/graphlab/logger/assertions.hpp>
+#include <graphlab/graph/graph.hpp>
+#include <graphlab/logger/assertions.hpp>
+#include <graphlab/util/mmap_wrapper.hpp>
 namespace graphlab {
 namespace dist_graph_impl {
   
 
-
+#define PREFETCH_MERGE_LIMIT 4096
   
   template<typename VertexData, typename EdgeData> class graph;
 
 
-  // CLASS GRAPH ==============================================================>
   /**
     \brief The local storage abstraction for the distributed graph data type.
 
@@ -36,13 +36,13 @@ namespace dist_graph_impl {
     
   public:
 
-    // CONSTRUCTORS ============================================================>
     /**
      * Build a basic graph
      */
     local_graph_store(): vdata(NULL), edata(NULL), finalized(true), changeid(0) {  }
 
-    create_store(size_t create_num_verts, size_t create_num_edges) { 
+    create_store(size_t create_num_verts, size_t create_num_edges,
+                std::string vertexstorefile, std::string edgestorefile) { 
       nvertices = create_num_verts;
       nedges = create_num_edges;
       
@@ -50,11 +50,16 @@ namespace dist_graph_impl {
       in_edges.resize(nvertices);
       out_edges.resize(nvertices);
       vcolors.resize(nvertices);
+      
+      vertex_store_file = vertexstorefile;
+      edge_store_file = edgestorefile;
+      
 
       finalized = true;
       changeid = 0;
       
       // allocate the vdata and edata
+      setup_mmap();
       
     }
 
@@ -64,7 +69,6 @@ namespace dist_graph_impl {
      * \brief Resets the graph state.
      */
     void clear() {
-      vertices.clear();
       edges.clear();
       in_edges.clear();
       out_edges.clear();
@@ -434,23 +438,36 @@ namespace dist_graph_impl {
     void load(iarchive& arc) {
       clear();    
       // read the vertices and colors
-      arc >> vertices
+      arc >> nvertices
+          >> nedges
           >> edges
           >> in_edges
           >> out_edges
           >> vcolors
           >> finalized;
+      // rebuild the map
+      delete vertexmmap;
+      delete edgemmap;
+      setup_mmap();
+      deserialize(arc, vertices, sizeof(VertexData * nvertices));
+      deserialize(arc, edgedata, sizeof(EdgeData * nedges));
+      
     } // end of load
 
     /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
       // Write the number of edges and vertices
-      arc << vertices
+      arc << nvertices
+          << nedges
           << edges
           << in_edges
           << out_edges
           << vcolors
           << finalized;
+
+      serialize(arc, vertices, sizeof(VertexData * nvertices));
+      serialize(arc, edgedata, sizeof(EdgeData * nedges));
+          
     } // end of save
     
 
@@ -489,6 +506,51 @@ namespace dist_graph_impl {
         assert(fout.good());
       }          
       fout.close();
+    }
+    
+    void flush() {
+      vertexmmap->sync_all();
+      edgemmap->sync_all();
+    }
+    
+    
+    
+    void compute_minimal_prefetch() {
+      minimal_prefetch_vertex.resize(nvertices);
+      minimal_prefetch_edge.resize(nvertices);
+      for (size_t i = 0;i < nvertices; ++i) {
+        std::map<void*, size_t> prefetchvertex;
+        std::map<void*, size_t> prefetchedge;
+        // first get a list of all the prefetch targets
+        prefetchvertex[vertices + v] = sizeof(VertexData);
+        for (size_t i = 0;i < in_edges[v].size(); ++i) {
+          prefetchvertex[vertices + edges[in_edges[v][i]].source()] = sizeof(VertexData);
+          prefetchedge[edgedata + in_edges[v][i]] = sizeof(EdgeData);
+        }
+        for (size_t i = 0;i < out_edges[v].size(); ++i) {
+          prefetchvertex[vertices + edges[out_edges[v][i]].target()] = sizeof(VertexData);
+          prefetchedge[edgedata + out_edges[v][i]] = sizeof(EdgeData);
+        }
+        reduce_prefetch_list(prefetchvertex);
+        reduce_prefetch_list(prefetchedge);
+        
+        minimal_prefetch_vertex[i].clear();
+        std::copy(prefetchvertex.begin(), prefetchvertex.end(),
+                  std::back_inserter(minimal_prefetch_vertex[i]));
+                  
+                  minimal_prefetch_edge[i].clear(); 
+                  std::copy(prefetchedge.begin(), prefetchedge.end(),
+                            std::back_inserter(minimal_prefetch_edge[i]));
+      }
+    }
+    
+    void prefetch_scope(vertex_id_t v) {
+      for (size_t i = 0;i < minimal_prefetch_vertex[v].size(); ++i) {
+        vertexmmap.prefetch(minimal_prefetch_vertex[v][i].first, minimal_prefetch_vertex[v][i].second);
+      }
+      for (size_t i = 0;i < minimal_prefetch_edge[v].size(); ++i) {
+        edgemmap.prefetch(minimal_prefetch_edge[v][i].first, minimal_prefetch_edge[v][i].second);
+      }
     }
     
   private:    
@@ -557,6 +619,11 @@ namespace dist_graph_impl {
     /** Vector of edge data  */
     EdgeData* edgedata;
     
+    std::string vertex_store_file;
+    std::string edge_store_file;
+    
+    mmap_wrapper *vertexmmap, *edgemmap;
+    
     /** The edge data is a vector of edges where each edge stores its
         source, destination. */
     std::vector<edge> edges;
@@ -570,6 +637,8 @@ namespace dist_graph_impl {
     /** The vertex colors specified by the user. **/
     std::vector< vertex_color_type > vcolors;  
     
+    std::vector<std::vector<std::pair<void*, size_t> > minimal_prefetch_vertex; 
+    std::vector<std::vector<std::pair<void*, size_t> > minimal_prefetch_edge;
     size_t nvertices;
     size_t nedges;
     
@@ -621,7 +690,62 @@ namespace dist_graph_impl {
       // We failed to find
       return -1;
     } // end of binary search 
-    
+
+    void setup_mmap() {
+      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(VertexData) * nvertices);
+      edgemmap = new mmap_wrapper(edge_store_file, sizeof(EdgeData) * nedges);
+      vertices = vertexmmap->mapped_ptr();
+      edgedata = edgemmap->mapped_ptr();
+    }
+
+
+    std::pair<void*, size_t> merge_targets(std::pair<void*, size_t> lower,
+                                           std::pair<void*, size_t> higher) {
+      void* lowleftptr = lower.first;
+      void* lowrightptr = lower.first + lower.second;
+      void* highleftptr = higher.first;
+      void* highrightptr = higher.first + higher.second;
+      if (lowrightptr >= highleftptr && lowrightptr <= highrightptr) {
+        // new target intersects an existing target
+        return lower;
+      }
+      else (lowrightptr + PREFETCH_MERGE_LIMIT >= highrightptr && lowrightptr + PREFETCH_MERGE_LIMIT <= highrightptr) {
+        // see if we can extend the old target to include the new target.
+        // don't extend by more than PREFETCH_MERGE_LIMIT
+        // yes we do! extend
+        lower.second = highrightptr - lowleftptr;
+        return lower;
+      }
+      else {
+        return std::make_pair<void*, size_t>(NULL, 0);
+      }
+    }
+     
+    void reduce_prefetch_list(std::map<void*, size_t> &current) {
+      std::iterator iter = current.begin();
+      while(iter != current.end()) {
+        while(1) {
+          std::map<void*, size_t> next = iter;
+          next++;
+          if (next == current.end()) break;    
+          std::pair<void*, size_t> ret;
+          ret = merge_targets(std::make_pair<void*, size_t>(iter->first, iter->second),
+                              std::make_pair<void*, size_t>(next->first, next->second));
+          
+          if (ret.first != NULL) {
+            iter->second = ret.second;
+            current.erase(next);
+          }
+          else {
+            break;
+          }
+        }
+        ++iter;
+      }
+    }
+
+   
+
   }; // End of graph
 
   template<typename VertexData, typename EdgeData>
