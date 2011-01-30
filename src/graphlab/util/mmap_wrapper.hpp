@@ -20,6 +20,7 @@ class mmap_wrapper{
    */
   inline mmap_wrapper(std::string file, size_t pad = 0, bool diskuncached = false):
                                                         fname(file), fd(0), ptr(NULL), ptrlen(0) {
+    advisetype = MADV_NORMAL;
     fd = 0;
     if (diskuncached) {
       fd = open(file.c_str(), O_RDWR | O_CREAT | O_DSYNC, 
@@ -51,6 +52,13 @@ class mmap_wrapper{
   inline void* mapped_ptr() {
     return ptr;
   }
+
+  inline void remap() {
+    munmap(ptr, ptrlen);
+    ptr = mmap(0, ptrlen, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
+    ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
+    madvise(ptr, ptrlen, advisetype);
+  }
   
   inline void sync(void* start, size_t length) {
     msync(start, length, MS_SYNC);
@@ -81,17 +89,19 @@ class mmap_wrapper{
   
   inline void prefer_seq_access() {
     madvise(ptr, ptrlen, MADV_SEQUENTIAL);
+    advisetype = MADV_SEQUENTIAL;
   }
   
   inline void prefer_random_access() {
     madvise(ptr, ptrlen, MADV_RANDOM);
+    advisetype = MADV_RANDOM;
   }
   
   inline void prefer_reset() {
     madvise(ptr, ptrlen, MADV_NORMAL);
+    advisetype = MADV_NORMAL;
   }
-  
-  
+
   inline void prefetch(void* loc, size_t len) {
     madvise(loc, len, MADV_WILLNEED);
   }
@@ -105,6 +115,7 @@ class mmap_wrapper{
   int fd;
   void* ptr;
   size_t ptrlen;
+  int advisetype;
 };
 
 } // end namespace graphlab
