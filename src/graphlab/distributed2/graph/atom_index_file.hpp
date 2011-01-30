@@ -25,9 +25,6 @@ atom_index_file read_atom_index(std::string indexfile);
 std::vector<std::vector<size_t> >
   partition_atoms(const atom_index_file& atomindex, size_t nparts);
 
-
-
-
 } // end namespace graphlab
 
 #endif

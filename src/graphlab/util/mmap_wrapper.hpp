@@ -60,6 +60,14 @@ class mmap_wrapper{
     sync(ptr, ptrlen);
   }
   
+  inline void background_sync(void* start, size_t length) {
+    msync(start, length, MS_ASYNC);
+  }
+  
+  inline void background_sync_all() {
+    background_sync(ptr, ptrlen);
+  }
+  
   inline void close() {
     if (ptr != NULL) {
       sync_all();

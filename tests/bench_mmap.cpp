@@ -136,6 +136,7 @@ void bench_mmap(mmap_wrapper &wrap) {
   std::cout << 4096 << "b block: " << random_writetest<4096>(c) << std::endl;
   wrap.sync_all();
   std::cout << 8192 << "b block: " << random_writetest<8192>(c) << std::endl;
+  wrap.sync_all();
   std::cout << "Sustained Random (64b): " << sustained_random_writetest<64>(c, 30)/1024/1024 << " MBps" << std::endl;
   wrap.sync_all();
  

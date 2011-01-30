@@ -49,7 +49,8 @@ add_library(graphlab_rpc STATIC
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
   rpc/dc_services.cpp
-  rpc/dc_comm_services.cpp)
+  rpc/dc_comm_services.cpp
+  distributed2/graph/atom_index_file.cpp)
 
 
 

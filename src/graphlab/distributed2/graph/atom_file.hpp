@@ -2,11 +2,15 @@
 #define GRAPHLAB_DISTRIBUTED_ATOM_FILE_HPP
 #include <vector>
 #include <string>
+#include <fstream>
+#include <algorithm>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
-
+#include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/util/stl_util.hpp>
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
 
 /**
@@ -15,7 +19,7 @@ namespace graphlab {
 template <typename VertexData, typename EdgeData>
 class atom_file {
  public:
-  atom_file():protocol_(protocol), filename_(filename), iarc(NULL), loadstage(0){
+  atom_file(): iarc(NULL), loadstage(0){
   }
 
   /**
@@ -24,9 +28,9 @@ class atom_file {
    * the accessors) are not yet loaded until the load functions are 
    * called. \see load_id_maps() \see load_structure() \see load_all()
    */
-  void set_filename(std::string protocol, std::string filename) {
+  void input_filename(std::string protocol, std::string filename) {
     if (protocol == "file") {
-      fin.open(filename.c_str(), "b");
+      fin.open(filename.c_str());
       iarc = new iarchive(fin);
       loadstage = 0;
     }
@@ -35,7 +39,8 @@ class atom_file {
     }
   }
   /**
-   * Only load the globalvids and the globaleids
+   * Only load the globalvids and the globaleids from the input.
+   * input_filename() must be called first.
    * All remaining entries are not loaded.
    */
   void load_id_maps() {
@@ -47,17 +52,19 @@ class atom_file {
   
   /**
    * Loads all entries except the vdata and edata entries.
+   * input_filename() must be called first.
    */
   void load_structure() {
     if (loadstage < 1) load_id_maps();
     if (loadstage == 1) {
-      (*iarc) >> atom_ >> vcolor_ >> in_edges_ >> out_edges_ >> edge_src_dest_;
+      (*iarc) >> atom_ >> vcolor_ >> edge_src_dest_;
       ++loadstage;
     }
   }
   
   /**
-   * Completely loads the file. All datastructures are now accessible.
+   * Completely loads the file defined by the input_filename()
+   * All datastructures are now accessible.
    */
   void load_all() {
     if (loadstage < 2) load_structure();
@@ -68,18 +75,29 @@ class atom_file {
 
   }
   
+  void write_to_file(std::string protocol, std::string outfilename) {
+    assert(protocol == "file");
+    std::ofstream fout;
+    fout.open(outfilename.c_str());
+    assert(fout.good());
+    oarchive oarc(fout);
+    oarc << globalvids_ << globaleids_ << atom_ << vcolor_ << edge_src_dest_
+         << vdata_ << edata_;
+  }
+  
   /**
    * Clears all loaded data and closes the file.
    */
   void clear() {
-    delete iarc;
-    fin.close();
+    if (iarc != NULL) {
+      delete iarc;
+      fin.close();
+      iarc = NULL;
+    }
     globalvids_.clear();
     globaleids_.clear();
     atom_.clear();
     vcolor_.clear();
-    in_edges_.clear();
-    out_edges_.clear();
     edge_src_dest_.clear();
     vdata_.clear();
     edata_.clear();
@@ -89,17 +107,26 @@ class atom_file {
     clear();
   }
   
+  
   inline const std::string& protocol() const { return protocol_; }
   inline const std::string& filename() const { return filename_; }
   inline const std::vector<vertex_id_t>& globalvids() const { return globalvids_; }
   inline const std::vector<edge_id_t>& globaleids() const { return globaleids_; }
   inline const std::vector<procid_t>& atom() const { return atom_; }
   inline const std::vector<vertex_color_type>& vcolor() const { return vcolor_; }
-  inline const std::vector< std::vector<edge_id_t> >& in_edges() const { return in_edges_; }
-  inline const std::vector< std::vector<edge_id_t> >& out_edges() const { return out_edges_; }
   inline const std::vector< std::pair<vertex_id_t, vertex_id_t> >& edge_src_dest() const { return edge_src_dest_; }
   inline const std::vector<VertexData>& vdata() const { return vdata_; }
   inline const std::vector<EdgeData>& edata() const { return edata_; }
+
+  inline std::string& protocol() { return protocol_; }
+  inline std::string& filename() { return filename_; }
+  inline std::vector<vertex_id_t>& globalvids() { return globalvids_; }
+  inline std::vector<edge_id_t>& globaleids() { return globaleids_; }
+  inline std::vector<procid_t>& atom() { return atom_; }
+  inline std::vector<vertex_color_type>& vcolor() { return vcolor_; }
+  inline std::vector< std::pair<vertex_id_t, vertex_id_t> >& edge_src_dest() { return edge_src_dest_; }
+  inline std::vector<VertexData>& vdata() { return vdata_; }
+  inline std::vector<EdgeData>& edata() { return edata_; }
 
 
 private:
@@ -107,7 +134,7 @@ private:
   std::string filename_;
   
   // for file protocol
-  ifstream fin;
+  std::ifstream fin;
   iarchive *iarc;
   size_t loadstage;
   
@@ -115,13 +142,115 @@ private:
   std::vector<edge_id_t> globaleids_;
   std::vector<procid_t> atom_;
   std::vector<vertex_color_type> vcolor_;
-  std::vector< std::vector<edge_id_t> >  in_edges_;
-  std::vector< std::vector<edge_id_t> >  out_edges_;
   std::vector< std::pair<vertex_id_t, vertex_id_t> > edge_src_dest_;
   std::vector<VertexData> vdata_;
   std::vector<EdgeData> edata_;
 };
 
 
+
+/**
+Converts the partition partid as an atom.
+graph must be colored!
+*/
+template <typename VertexData, typename EdgeData>
+void graph_partition_to_atom(const graph<VertexData, EdgeData> &g, 
+                             const std::vector<uint32_t>& vertex2part,
+                             uint32_t partid,
+                             atom_file<VertexData, EdgeData> &atom) {
+  atom.clear();
+  // build the ID mappings
+  // collect the set of vertices / edges that are within this atom
+  // that would be all vertices with this partition ID as well as all neighbors
+  dense_bitset goodvertices(g.num_vertices()), goodedges(g.num_edges());
+
+  for (size_t v = 0;v < g.num_vertices(); ++v) {
+    if (vertex2part[v] == partid) {
+      // add myself and all neighbors
+      goodvertices.set_bit_unsync(v);
+      // loop through all the edges
+      foreach(edge_id_t eid, g.out_edge_ids(v)) {
+        goodedges.set_bit_unsync(eid);
+        goodvertices.set_bit_unsync(g.target(eid));
+      }
+      foreach(edge_id_t eid, g.in_edge_ids(v)) {
+        goodedges.set_bit_unsync(eid);
+        goodvertices.set_bit_unsync(g.source(eid));
+      }
+  
+    }
+  }
+  
+  // done. now construct the mappings
+  uint32_t vid;
+  if (goodvertices.first_bit(vid)) {
+    do {
+      atom.globalvids().push_back(vid);
+      atom.atom().push_back(vertex2part[vid]);
+      atom.vcolor().push_back(g.color(vid));
+      atom.vdata().push_back(g.vertex_data(vid));
+    } while(goodvertices.next_bit(vid));
+  }
+
+  uint32_t eid;
+  if (goodedges.first_bit(eid)) {
+    do {
+      atom.globaleids().push_back(eid);
+      atom.edge_src_dest().push_back(std::make_pair<vertex_id_t, 
+                                             vertex_id_t>(g.source(eid), 
+                                                          g.target(eid)));
+      atom.edata().push_back(g.edge_data(vid));
+    } while(goodedges.next_bit(eid));
+  }
+}
+
+
+
+/**
+Converts a graph into an on disk atom representation.
+graph must be colored before calling this function.
+The index file is written to idxfilename while the atoms 
+are written to atombasename.0, atombasename.1, etc
+*/
+template <typename VertexData, typename EdgeData>
+void graph_partition_to_atomindex(const graph<VertexData, EdgeData> &graph,
+                                  const std::vector<uint32_t>& vertex2part,
+                                  std::string idxfilename,
+                                  std::string atombasename) {
+  assert(graph.valid_coloring());
+  // get the number of partitions
+  uint32_t numparts = 0 ;
+  for (size_t i = 0;i < vertex2part.size(); ++i) {
+    numparts = std::max(numparts, vertex2part[i]);
+  }
+  ++numparts;
+  std::ofstream fout(idxfilename.c_str());
+  fout << graph.num_vertices() << "\t" << graph.num_edges() << "\t" << numparts << "\n";
+  
+  for (size_t i = 0; i < numparts; ++i) {
+    std::string atomfilename = atombasename + "." + tostr(i);
+    atom_file<VertexData, EdgeData> atomfile;
+    graph_partition_to_atom(graph, vertex2part, i, atomfile);
+    atomfile.write_to_file("file", atomfilename);
+    
+    // get list of adjacent atoms
+    std::set<size_t> adjatoms;
+    for (size_t v = 0; v < atomfile.atom().size(); ++v) {
+      if (atomfile.atom()[v] != i) adjatoms.insert(atomfile.atom()[v]);
+    }
+    
+    fout << atomfile.globalvids().size() << "\t" << atomfile.globaleids().size() 
+         << "\t" << adjatoms.size()  << "\t";
+    foreach(size_t v, adjatoms) {
+      fout << v << " ";
+    }
+    fout << "\t"<<"file://" << atomfilename << "\n";
+  }
+}
+
+
+
+
 } // end namespace graphlab
+#include <graphlab/macros_undef.hpp>
 #endif

@@ -39,6 +39,7 @@
 
 
 
+
 #include <graphlab/macros_def.hpp>
 namespace graphlab { 
 
@@ -631,7 +632,7 @@ namespace graphlab {
      * \brief Check that the colors satisfy a valid coloring of the graph.
      * return true is coloring is valid;
      */
-    bool valid_coloring() {
+    bool valid_coloring() const {
       for(vertex_id_t vid = 0; vid < num_vertices(); ++vid) {
         const vertex_color_type& vertex_color = color(vid);
         edge_list in_edges = in_edge_ids(vid);
@@ -1202,7 +1203,6 @@ namespace graphlab {
       if (q.empty() && topsort.size() != num_vertices()) return false;
       return true;
     } // end of topological sort
-
 
     
   private:    

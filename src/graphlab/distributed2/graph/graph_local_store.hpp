@@ -1,15 +1,18 @@
 #ifndef GRAPH_LOCAL_STORE_HPP
 #define GRAPH_LOCAL_STORE_HPP
+#include <graphlab/util/mmap_wrapper.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/logger/assertions.hpp>
-#include <graphlab/util/mmap_wrapper.hpp>
+
+#include <graphlab/macros_def.hpp>
+
 namespace graphlab {
 namespace dist_graph_impl {
   
 
 #define PREFETCH_MERGE_LIMIT 4096
   
-  template<typename VertexData, typename EdgeData> class graph;
+  template<typename VertexData, typename EdgeData> class graph_local_store;
 
 
   /**
@@ -24,7 +27,7 @@ namespace dist_graph_impl {
    not provide local <-> global mappings. This must be done at a higher
    level container */
   template<typename VertexData, typename EdgeData>
-  class local_graph_store {
+  class graph_local_store {
   public:
 
     /** The type of the vertex data stored in the graph */
@@ -39,9 +42,9 @@ namespace dist_graph_impl {
     /**
      * Build a basic graph
      */
-    local_graph_store(): vdata(NULL), edata(NULL), finalized(true), changeid(0) {  }
+    graph_local_store(): vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
 
-    create_store(size_t create_num_verts, size_t create_num_edges,
+    void create_store(size_t create_num_verts, size_t create_num_edges,
                 std::string vertexstorefile, std::string edgestorefile) { 
       nvertices = create_num_verts;
       nedges = create_num_edges;
@@ -138,13 +141,13 @@ namespace dist_graph_impl {
 
     /** \brief Get the number of in edges of a particular vertex */
     size_t num_in_neighbors(vertex_id_t v) const {
-      assert(v < vertices.size());
+      assert(v < nvertices);
       return in_edges[v].size();
     } // end of num vertices
     
     /** \brief Get the number of out edges of a particular vertex */
     size_t num_out_neighbors(vertex_id_t v) const  {
-      assert(v < vertices.size());
+      assert(v < nvertices);
       return out_edges[v].size();
     } // end of num vertices
 
@@ -185,7 +188,7 @@ namespace dist_graph_impl {
         if(in_edges[target].size() < out_edges[source].size()) {
           // linear search the in_edges at the target 
           foreach(edge_id_t eid, in_edges[target]) {
-            assert(eid < edges.size());
+            assert(eid < nedges);
             if(edges[eid].source() == source 
                && edges[eid].target() == target) {
               return std::make_pair(true, eid);
@@ -195,7 +198,7 @@ namespace dist_graph_impl {
         } else { // fewer out edges at the source
           // linear search the out_edges at the source
           foreach(edge_id_t eid, out_edges[source]) {
-            assert(eid < edges.size());
+            assert(eid < nedges);
             if(edges[eid].source() == source 
                && edges[eid].target() == target) {
               return std::make_pair(true, eid);
@@ -214,7 +217,7 @@ namespace dist_graph_impl {
       std::pair<bool, edge_id_t> res = find(source, target);
       // The edge must exist
       assert(res.first);
-      assert(res.second < edges.size());
+      assert(res.second < nedges);
       return res.second;
     } // end of edge_id
 
@@ -222,7 +225,7 @@ namespace dist_graph_impl {
     /** \brief Returns the edge ID of the edge going in the opposite direction. 
         Assertion failure if such an edge is not found.  */
     edge_id_t rev_edge_id(edge_id_t eid) const {
-      assert(eid < edges.size());
+      assert(eid < nedges);
       vertex_id_t source = edges[eid].source();
       vertex_id_t target = edges[eid].target();    
       return edge_id(target, source);
@@ -241,15 +244,15 @@ namespace dist_graph_impl {
         logstream(LOG_FATAL) 
           << "Attempting add_edge (" << source
           << " -> " << target
-          << ") when there are only " << vertices.size() 
+          << ") when there are only " << nvertices
           << " vertices" << std::endl;
 
         ASSERT_MSG(source < nvertices, "Invalid source vertex!");
         ASSERT_MSG(target < nvertices, "Invalid target vertex!");
       }
 
-      if (eid >= nedges) {
-        ASSERT_MSG(eid < nedges, "Invalid edge ID!");
+      if (edge_id >= nedges) {
+        ASSERT_MSG(edge_id < nedges, "Invalid edge ID!");
       }
       if(source == target) {
         logstream(LOG_FATAL) 
@@ -282,75 +285,75 @@ namespace dist_graph_impl {
     
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_t v) {
-      assert(v < vertices.size());
+      assert(v < nvertices);
       return vertices[v];
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
     const VertexData& vertex_data(vertex_id_t v) const {
-      assert(v < vertices.size());
+      assert(v < nvertices);
       return vertices[v];
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_t source, vertex_id_t target) {
-      assert(source < vertices.size());
-      assert(target < vertices.size());
+      assert(source < nvertices);
+      assert(target < nvertices);
       std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
       assert(ans.first);
       // the edge id should be valid!
-      assert(ans.second < edges.size());
+      assert(ans.second < nedges);
       return edgedata[ans.second];
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the edge source->target */
     const EdgeData& edge_data(vertex_id_t source, vertex_id_t target) const {
-      assert(source < vertices.size());
-      assert(target < vertices.size());
+      assert(source < nvertices);
+      assert(target < nvertices);
       std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
       assert(ans.first);
       // the edge id should be valid!
-      assert(ans.second < edges.size());
+      assert(ans.second < nedges);
       return edgedata[ans.second];
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_id_t edge_id) { 
-      assert(edge_id < edges.size());
+      assert(edge_id < nedges);
       return edgedata[edge_id];
     }
     
     /** \brief Returns a constant reference to the data stored on the edge e */
     const EdgeData& edge_data(edge_id_t edge_id) const {
-      assert(edge_id < edges.size());
+      assert(edge_id < nedges);
       return edgedata[edge_id];
     }
 
     /** \brief Returns the source vertex of an edge. */
     vertex_id_t source(edge_id_t edge_id) const {
-      //      assert(edge_id < edges.size());
+      //      assert(edge_id < nedges);
       return edges[edge_id].source();
     }
 
     /** \brief Returns the destination vertex of an edge. */
     vertex_id_t target(edge_id_t edge_id) const {
-      //      assert(edge_id < edges.size());
+      //      assert(edge_id < nedges);
       return edges[edge_id].target();    
     }
     
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_t vertex) const {
-      assert(vertex < vertices.size());
+      assert(vertex < nvertices);
       return vcolors[vertex];
     }
 
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     vertex_color_type& color(vertex_id_t vertex) {
-      assert(vertex < vertices.size());
+      assert(vertex < nvertices);
       return vcolors[vertex];
     }
 
@@ -449,8 +452,8 @@ namespace dist_graph_impl {
       delete vertexmmap;
       delete edgemmap;
       setup_mmap();
-      deserialize(arc, vertices, sizeof(VertexData * nvertices));
-      deserialize(arc, edgedata, sizeof(EdgeData * nedges));
+      deserialize(arc, vertices, sizeof(VertexData) * nvertices);
+      deserialize(arc, edgedata, sizeof(EdgeData) * nedges);
       
     } // end of load
 
@@ -465,8 +468,8 @@ namespace dist_graph_impl {
           << vcolors
           << finalized;
 
-      serialize(arc, vertices, sizeof(VertexData * nvertices));
-      serialize(arc, edgedata, sizeof(EdgeData * nedges));
+      serialize(arc, vertices, sizeof(VertexData) * nvertices);
+      serialize(arc, edgedata, sizeof(EdgeData) * nedges);
           
     } // end of save
     
@@ -501,7 +504,7 @@ namespace dist_graph_impl {
     void save_adjacency(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
       assert(fout.good());
-      for(size_t i = 0; i < edges.size(); ++i) {
+      for(size_t i = 0; i < nedges; ++i) {
         fout << edges[i].source() << ", " << edges[i].target() << "\n";
         assert(fout.good());
       }          
@@ -513,12 +516,17 @@ namespace dist_graph_impl {
       edgemmap->sync_all();
     }
     
+    void background_flush() {
+      vertexmmap->background_sync_all();
+      edgemmap->background_sync_all();
+    }
+    
     
     
     void compute_minimal_prefetch() {
       minimal_prefetch_vertex.resize(nvertices);
       minimal_prefetch_edge.resize(nvertices);
-      for (size_t i = 0;i < nvertices; ++i) {
+      for (size_t v = 0;v < nvertices; ++v) {
         std::map<void*, size_t> prefetchvertex;
         std::map<void*, size_t> prefetchedge;
         // first get a list of all the prefetch targets
@@ -534,22 +542,35 @@ namespace dist_graph_impl {
         reduce_prefetch_list(prefetchvertex);
         reduce_prefetch_list(prefetchedge);
         
-        minimal_prefetch_vertex[i].clear();
+        minimal_prefetch_vertex[v].clear();
         std::copy(prefetchvertex.begin(), prefetchvertex.end(),
-                  std::back_inserter(minimal_prefetch_vertex[i]));
+                  std::back_inserter(minimal_prefetch_vertex[v]));
                   
-                  minimal_prefetch_edge[i].clear(); 
-                  std::copy(prefetchedge.begin(), prefetchedge.end(),
-                            std::back_inserter(minimal_prefetch_edge[i]));
+        minimal_prefetch_edge[v].clear(); 
+        std::copy(prefetchedge.begin(), prefetchedge.end(),
+                  std::back_inserter(minimal_prefetch_edge[v]));
       }
     }
-    
+    void print_prefetch_list(vertex_id_t v) {
+      std::cout << "Vertex " << v << " prefetch list:\n";
+      std::cout << "Vertex: \n";
+      for (size_t i = 0;i < minimal_prefetch_vertex[v].size(); ++i) {
+        std::cout << "at idx: " << ((char*)minimal_prefetch_vertex[v][i].first - (char*)vertices) / sizeof(VertexData) 
+                  << " span "
+                  << minimal_prefetch_vertex[v][i].second / sizeof(VertexData) << "\n";
+      }
+      std::cout << "Edge: \n";
+      for (size_t i = 0;i < minimal_prefetch_edge[v].size(); ++i) {
+        std::cout << "at idx: " << ((char*)minimal_prefetch_edge[v][i].first - (char*)edgedata) / sizeof(EdgeData) 
+                  << " span "
+                  << minimal_prefetch_edge[v][i].second / sizeof(EdgeData) << "\n";      }
+    }
     void prefetch_scope(vertex_id_t v) {
       for (size_t i = 0;i < minimal_prefetch_vertex[v].size(); ++i) {
-        vertexmmap.prefetch(minimal_prefetch_vertex[v][i].first, minimal_prefetch_vertex[v][i].second);
+        vertexmmap->prefetch(minimal_prefetch_vertex[v][i].first, minimal_prefetch_vertex[v][i].second);
       }
       for (size_t i = 0;i < minimal_prefetch_edge[v].size(); ++i) {
-        edgemmap.prefetch(minimal_prefetch_edge[v][i].first, minimal_prefetch_edge[v][i].second);
+        edgemmap->prefetch(minimal_prefetch_edge[v][i].first, minimal_prefetch_edge[v][i].second);
       }
     }
     
@@ -564,8 +585,6 @@ namespace dist_graph_impl {
         _source(other.source()), _target(other.target()) { }
       edge(vertex_id_t source, vertex_id_t target) :
         _source(source), _target(target)  { }
-      edge(vertex_id_t source, vertex_id_t target) : 
-        _source(source), _target(target) {}
 
       bool operator<(const edge& other) const {
         return (_source < other._source) || 
@@ -589,8 +608,8 @@ namespace dist_graph_impl {
 
     
     struct edge_id_less_functor {
-      graph* g_ptr;
-      edge_id_less_functor(graph* g_ptr) : g_ptr(g_ptr) { }
+      graph_local_store<VertexData, EdgeData> * g_ptr;
+      edge_id_less_functor(graph_local_store<VertexData, EdgeData>* g_ptr) : g_ptr(g_ptr) { }
       bool operator()(edge_id_t a, edge_id_t b) {
         return g_ptr->edge_id_less(a,b);
       }
@@ -604,8 +623,8 @@ namespace dist_graph_impl {
      * edge
      */
     inline bool edge_id_less(edge_id_t a, edge_id_t b) const {
-      assert(a < edges.size());
-      assert(b < edges.size());
+      assert(a < nedges);
+      assert(b < nedges);
       return edges[a] < edges[b];
     }
 
@@ -637,8 +656,8 @@ namespace dist_graph_impl {
     /** The vertex colors specified by the user. **/
     std::vector< vertex_color_type > vcolors;  
     
-    std::vector<std::vector<std::pair<void*, size_t> > minimal_prefetch_vertex; 
-    std::vector<std::vector<std::pair<void*, size_t> > minimal_prefetch_edge;
+    std::vector<std::vector<std::pair<void*, size_t> > > minimal_prefetch_vertex; 
+    std::vector<std::vector<std::pair<void*, size_t> > > minimal_prefetch_edge;
     size_t nvertices;
     size_t nedges;
     
@@ -692,28 +711,29 @@ namespace dist_graph_impl {
     } // end of binary search 
 
     void setup_mmap() {
-      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(VertexData) * nvertices);
+      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(VertexData) * nvertices);
       edgemmap = new mmap_wrapper(edge_store_file, sizeof(EdgeData) * nedges);
-      vertices = vertexmmap->mapped_ptr();
-      edgedata = edgemmap->mapped_ptr();
+      vertices = (VertexData*)(vertexmmap->mapped_ptr());
+      edgedata = (EdgeData*)(edgemmap->mapped_ptr());
     }
 
 
     std::pair<void*, size_t> merge_targets(std::pair<void*, size_t> lower,
                                            std::pair<void*, size_t> higher) {
-      void* lowleftptr = lower.first;
-      void* lowrightptr = lower.first + lower.second;
-      void* highleftptr = higher.first;
-      void* highrightptr = higher.first + higher.second;
-      if (lowrightptr >= highleftptr && lowrightptr <= highrightptr) {
+      char* lowleftptr = (char*)lower.first;
+      char* lowrightptr = (char*)lower.first + lower.second;
+      char* highleftptr = (char*)higher.first;
+      char* highrightptr = (char*)higher.first + higher.second;
+      if (lowrightptr >= highleftptr && lowrightptr >= highrightptr) {
         // new target intersects an existing target
         return lower;
       }
-      else (lowrightptr + PREFETCH_MERGE_LIMIT >= highrightptr && lowrightptr + PREFETCH_MERGE_LIMIT <= highrightptr) {
+      else if (lowrightptr + PREFETCH_MERGE_LIMIT >= highrightptr && 
+            lowrightptr + PREFETCH_MERGE_LIMIT >= highrightptr) {
         // see if we can extend the old target to include the new target.
         // don't extend by more than PREFETCH_MERGE_LIMIT
         // yes we do! extend
-        lower.second = highrightptr - lowleftptr;
+        lower.second = (char*)highrightptr - (char*)lowleftptr;
         return lower;
       }
       else {
@@ -722,10 +742,10 @@ namespace dist_graph_impl {
     }
      
     void reduce_prefetch_list(std::map<void*, size_t> &current) {
-      std::iterator iter = current.begin();
+      std::map<void*, size_t>::iterator iter = current.begin();
       while(iter != current.end()) {
         while(1) {
-          std::map<void*, size_t> next = iter;
+          std::map<void*, size_t>::iterator next = iter;
           next++;
           if (next == current.end()) break;    
           std::pair<void*, size_t> ret;
@@ -750,7 +770,7 @@ namespace dist_graph_impl {
 
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
-                           const local_graph_store<VertexData, EdgeData>& graph) {
+                           const graph_local_store<VertexData, EdgeData>& graph) {
   
     for(vertex_id_t vid = 0; vid < graph.num_vertices(); ++vid) {
       foreach(edge_id_t eid, graph.out_edge_ids(vid))
@@ -763,5 +783,6 @@ namespace dist_graph_impl {
   
 }
 }
+#include <graphlab/macros_undef.hpp>
 
 #endif

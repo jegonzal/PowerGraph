@@ -116,7 +116,9 @@ class distributed_control{
 
   std::map<std::string, std::string> parse_options(std::string initstring);
   
-  
+  volatile inline size_t num_registered_objects() {
+    return registered_objects.size();
+  }
   
  public:
    
@@ -255,9 +257,11 @@ class distributed_control{
     return registered_objects.size() - 1;
   }
 
+  
 
   inline void* get_registered_object(size_t id) {
-    ASSERT_LT(id, registered_objects.size());
+    while(id >= num_registered_objects()) sched_yield();
+//    ASSERT_LT(id, registered_objects.size());
     ASSERT_NE(registered_objects[id], (void*)NULL);
     return registered_objects[id];
   }
