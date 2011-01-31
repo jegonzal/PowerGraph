@@ -1,5 +1,5 @@
-#ifndef DISTRIBUTED_GRAPH_HPP
-#define DISTRIBUTED_GRAPH_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
+#define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #include <algorithm>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
@@ -19,45 +19,49 @@ namespace graphlab {
  * \brief Distributed Graph Implementation.
  * 
  * A fully distributed implementation of the \ref graph object.
- * Vertices are partitioned across machines. Each vertex is owned by a unique
- * machine. Each edge is owned by its destination vertex.
- * Each machine stores all vertex data for vertices within its partition,
- * as well as vertex data for vertices/edges on the boundary of the partition.
- * Each vertex data instance is therefore replicated as many times as the number
- * of distinct machines owning neighbors of the vertex in question.
+ * Vertices are partitioned across machines. Each vertex is owned by a
+ * unique machine. Each edge is owned by its destination vertex.  Each
+ * machine stores all vertex data for vertices within its partition,
+ * as well as vertex data for vertices/edges on the boundary of the
+ * partition.  Each vertex data instance is therefore replicated as
+ * many times as the number of distinct machines owning neighbors of
+ * the vertex in question.
  * 
- * Formally, where \f$ \Gamma(v)\f$ is the set of neighbors of \f$ v\f$ and \f$o(v)\f$ 
- * is the owner of vertex v, vertex v is replicated
- * \f$ \mbox{DISTINCT} \left( \left\{ o(u), u \in \left\{ v,\Gamma(v) \right\} \right\} \right) \f$
- * times.
+ * Formally, where \f$ \Gamma(v)\f$ is the set of neighbors of \f$
+ * v\f$ and \f$o(v)\f$ is the owner of vertex v, vertex v is
+ * replicated \f$ \mbox{DISTINCT} \left( \left\{ o(u), u \in \left\{
+ * v,\Gamma(v) \right\} \right\} \right) \f$ times.
  * 
  * Each edge is replicated a maximum of 2 times.
  * 
- * To standardize on terminology, we call the set of vertices and edges owned by 
- * a machine, the machine's <b> partition </b>. We call the set of vertices 
- * and edges adjacent to the partition (but not in the partition), the 
- * <b> boundary </b>. Finally, we will call a machine's local copy of the 
- * partition + boundary, the machine's <b> fragment </b>.
+ * To standardize on terminology, we call the set of vertices and
+ * edges owned by a machine, the machine's <b> partition </b>. We call
+ * the set of vertices and edges adjacent to the partition (but not in
+ * the partition), the <b> boundary </b>. Finally, we will call a
+ * machine's local copy of the partition + boundary, the machine's <b>
+ * fragment </b>.
  * 
  * 
  *
  * Vertex / Edge IDs: 
  * 
- * Every vertex/edge in the graph has a uniquely assigned global vertex/edge ID.
- * The task of guaranteeing unique sequential assignment is currently managed by
- * machine 0. 
+ * Every vertex/edge in the graph has a uniquely assigned global
+ * vertex/edge ID.  The task of guaranteeing unique sequential
+ * assignment is currently managed by machine 0.
  * 
- * \note If this is a performance issue in the future, the sequential assignment
- * guarantee could be dropped by having either a post-graph-construction 
- * renumbering scheme, or by building the rest of the components of 
- * GraphLab to not depend on sequential numbering. The user should not 
- * expect the sequential numbering property to be preserved in future versions. 
+ * \note If this is a performance issue in the future, the sequential
+ * assignment guarantee could be dropped by having either a
+ * post-graph-construction renumbering scheme, or by building the rest
+ * of the components of GraphLab to not depend on sequential
+ * numbering. The user should not expect the sequential numbering
+ * property to be preserved in future versions.
  * 
- * Each machine has a local representation for its fragment of the 
- * graph. Within the local fragment, each vertex/edge has a local vertex/edge 
- * ID. This local ID is hidden and abstracted from the user. Implementors 
- * however should keep in mind the following requirements for the local 
- * representation:
+ * Each machine has a local representation for its fragment of the
+ * graph. Within the local fragment, each vertex/edge has a local
+ * vertex/edge ID. This local ID is hidden and abstracted from the
+ * user. Implementors however should keep in mind the following
+ * requirements for the local representation:
+ *
  * <ul>
  * <li> Local vertex / edge IDs are unique and sequentially assigned </li>
  * <li> Sorting all vertices/edges in the local fragment must
@@ -67,12 +71,13 @@ namespace graphlab {
  * 
  * Consistency: 
  * 
- * Consistency of graph data, is not managed and must be done manually 
- * through the various synchronize() operations. All data reads will be accessed 
- * through the local fragment if the local fragment contains the data. Otherwise, 
- * it will be requested from the owner of the data. All data writes will be sent 
- * to the owner of the data. The writes may not however, update all fragments 
- * unless explicitly requested.
+ * Consistency of graph data, is not managed and must be done manually
+ * through the various synchronize() operations. All data reads will
+ * be accessed through the local fragment if the local fragment
+ * contains the data. Otherwise, it will be requested from the owner
+ * of the data. All data writes will be sent to the owner of the
+ * data. The writes may not however, update all fragments unless
+ * explicitly requested.
  * 
  * 
  */
@@ -113,7 +118,8 @@ class distributed_graph {
   }
 
   size_t num_in_neighbors(vertex_id_t vid) const {
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
+      global2localvid.find(vid);
     // if I have this vertex in my fragment
     if (iter != global2localvid.end()) {
       // and if I own it (it is interior)
@@ -126,13 +132,15 @@ class distributed_graph {
     assert(vidowner.first);
     // otherwise I need to ask the owner
     return rmi.remote_request(vidowner.second,
-                              &distributed_graph<VertexData, EdgeData>::num_in_neighbors,
+                              &distributed_graph<VertexData, EdgeData>::
+                              num_in_neighbors,
                               vid);
   }
 
 
   size_t num_out_neighbors(vertex_id_t vid) const {
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
+      global2localvid.find(vid);
     // if I have this vertex in my fragment
     if (iter != global2localvid.end()) {
       // and if I own it (it is interior)
@@ -147,7 +155,8 @@ class distributed_graph {
 
     // otherwise I need to ask the owner
     return rmi.remote_request(vidowner.second,
-                              &distributed_graph<VertexData, EdgeData>::num_out_neighbors,
+                              &distributed_graph<VertexData, EdgeData>::
+                              num_out_neighbors,
                               vid);
   }
 
@@ -156,10 +165,13 @@ class distributed_graph {
   find(vertex_id_t source, vertex_id_t target) const {
     std::pair<bool, edge_id_t> ret;
     // hmm. surprisingly tricky
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator itersource = global2localvid.find(source);
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator itertarget = global2localvid.find(target);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator itersource = 
+      global2localvid.find(source);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator itertarget = 
+      global2localvid.find(target);
     // both are local, I can find it
-    if (itersource != global2localvid.end() && itertarget != global2localvid.end()) {
+    if (itersource != global2localvid.end() && 
+        itertarget != global2localvid.end()) {
       ret = localstore.find(itersource->second, itertarget->second);
       // convert to global edge ids
       if (ret.first) ret.second = local2globaleid[ret.second];
@@ -194,7 +206,9 @@ class distributed_graph {
 
   edge_id_t rev_edge_id(edge_id_t eid) const {
     // do I have this edge in the fragment?
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = global2localeid.find(eid);
+    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = 
+      global2localeid.find(eid);
+
     // yup ! then I must have the reverse in my fragment too
     if (iter != global2localeid.end()) {
       // get the local store to reverse it, and convert back to global
@@ -206,8 +220,9 @@ class distributed_graph {
 
       // I don't have it. Lets ask the owner of the edge
       return rmi.remote_request(eidowner.second,
-                              &distributed_graph<VertexData, EdgeData>::rev_edge_id,
-                              eid);
+                                &distributed_graph<VertexData, EdgeData>::
+                                rev_edge_id,
+                                eid);
     }
   } // end of rev_edge_id
 
@@ -215,7 +230,8 @@ class distributed_graph {
   /** \brief Returns the source vertex of an edge. */
   vertex_id_t source(edge_id_t eid) const {
     // do I have this edge in the fragment?
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = global2localeid.find(eid);
+    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = 
+      global2localeid.find(eid);
     if (iter != global2localeid.end()) {
         // yup!
       return local2globalvid[localstore.source(iter->second)];
@@ -234,7 +250,8 @@ class distributed_graph {
   /** \brief Returns the destination vertex of an edge. */
   vertex_id_t target(edge_id_t eid) const {
     // do I have this edge in the fragment?
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = global2localeid.find(eid);
+    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = 
+      global2localeid.find(eid);
     if (iter != global2localeid.end()) {
         // yup!
       return local2globalvid[localstore.target(iter->second)];
@@ -252,13 +269,15 @@ class distributed_graph {
 
     /** \brief Return the edge ids of the edges arriving at v */
   dgraph_edge_list in_edge_ids(vertex_id_t v) const {
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(v);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
+      global2localvid.find(v);
     // if I have the vertex in my fragment
     // and if it is interior
     if (iter != global2localvid.end()) {
       vertex_id_t localvid = iter->second;
       if (localvid2owner[localvid]  == rmi.procid()) {
-        return dgraph_edge_list(localstore.in_edge_ids(localvid), local2globaleid);
+        return dgraph_edge_list(localstore.in_edge_ids(localvid), 
+                                local2globaleid);
       }
     }
     // ok I need to construct a vector
@@ -266,7 +285,8 @@ class distributed_graph {
   } // end of in edges
 
   std::vector<edge_id_t> in_edge_id_as_vec(vertex_id_t v) const {
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(v);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
+      global2localvid.find(v);
     // if I have the vertex in my fragment
     // and if it is interior
     std::vector<edge_id_t> ret;
@@ -283,13 +303,15 @@ class distributed_graph {
     assert(vidowner.first);
 
     return rmi.remote_request(vidowner.second,
-                              &distributed_graph<VertexData, EdgeData>::in_edge_id_as_vec,
+                              &distributed_graph<VertexData, EdgeData>::
+                              in_edge_id_as_vec,
                               v);
   } // end of in edges
 
   /** \brief Return the edge ids of the edges leaving at v */
   dgraph_edge_list out_edge_ids(vertex_id_t v) const {
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(v);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
+      global2localvid.find(v);
     // if I have the vertex in my fragment
     // and if it is interior
     if (iter != global2localvid.end()) {
@@ -306,7 +328,8 @@ class distributed_graph {
 
 
   std::vector<edge_id_t> out_edge_id_as_vec(vertex_id_t v) const {
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(v);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
+      global2localvid.find(v);
     // if I have the vertex in my fragment
     // and if it is interior
     std::vector<edge_id_t> ret;
@@ -323,7 +346,8 @@ class distributed_graph {
     assert(vidowner.first);
 
     return rmi.remote_request(vidowner.second,
-                              &distributed_graph<VertexData, EdgeData>::out_edge_id_as_vec,
+                              &distributed_graph<VertexData, EdgeData>::
+                              out_edge_id_as_vec,
                               v);
   } // end of in edges
 
@@ -331,7 +355,8 @@ class distributed_graph {
 
   void print(std::ostream &out) const {
     for (size_t i = 0;i < localstore.num_edges(); ++i) {
-      std::cout << local2globalvid[localstore.source(i)] << ", " << local2globalvid[localstore.target(i)] << "\n";
+      std::cout << local2globalvid[localstore.source(i)] << ", " 
+                << local2globalvid[localstore.target(i)] << "\n";
     }
   }
 
@@ -406,16 +431,20 @@ class distributed_graph {
    * If the edge is not on this fragment, the request is sent
    * to a remote machine.
    */
-  EdgeData get_edge_data_from_pair(vertex_id_t source, vertex_id_t target) const {
-    if (global_vid_in_local_fragment(source) && global_vid_in_local_fragment(target)) {
+  EdgeData get_edge_data_from_pair(vertex_id_t source, 
+                                   vertex_id_t target) const {
+    if (global_vid_in_local_fragment(source) && 
+        global_vid_in_local_fragment(target)) {
       return edge_data(source, target);
     }
     else {
-      std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(target);
+      std::pair<bool, procid_t> vidowner = 
+        globalvid2owner.get_cached(target);
       assert(vidowner.first);
 
       return rmi.remote_request(vidowner.second,
-                                &distributed_graph<VertexData,EdgeData>::get_edge_data_from_pair,
+                                &distributed_graph<VertexData,EdgeData>::
+                                get_edge_data_from_pair,
                                 source,
                                 target);
     }
@@ -435,7 +464,8 @@ class distributed_graph {
       assert(eidowner.first);
 
       return rmi.remote_request(eidowner.second,
-                                &distributed_graph<VertexData,EdgeData>::get_edge_data_from_eid,
+                                &distributed_graph<VertexData,EdgeData>::
+                                get_edge_data_from_eid,
                                 eid);
     }
   }
@@ -472,7 +502,8 @@ class distributed_graph {
       assert(vidowner.first);
 
       return rmi.remote_request(vidowner.second,
-                                &distributed_graph<VertexData,EdgeData>::get_vertex_data,
+                                &distributed_graph<VertexData,EdgeData>::
+                                get_vertex_data,
                                 vid);
     }
   }
@@ -480,15 +511,16 @@ class distributed_graph {
 
 
   /**
-   * Sets the data on the edge source->target
-   * If the edge is not on this fragment, the request is sent
-   * to a remote machine. If async is true, the function returns immediately
-   * without waiting for confirmation from the remote machine.
+   * Sets the data on the edge source->target If the edge is not on
+   * this fragment, the request is sent to a remote machine. If async
+   * is true, the function returns immediately without waiting for
+   * confirmation from the remote machine.
    */
   void set_edge_data_from_pair(vertex_id_t source, vertex_id_t target,
                               const EdgeData edata, bool async) {
     // sets must go straight to the owner
-    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator targetiter = global2localvid.find(target);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator targetiter = 
+      global2localvid.find(target);
     // if I own the target vertex, then I own the edge
     if (targetiter != global2localvid.end()) {
       if (localvid2owner[targetiter->second] == rmi.procid()) {
@@ -501,17 +533,19 @@ class distributed_graph {
 
     if (async) {
       rmi.remote_call(vidowner.second,
-                      &distributed_graph<VertexData,EdgeData>::set_edge_data_from_pair,
+                      &distributed_graph<VertexData,EdgeData>::
+                      set_edge_data_from_pair,
                       source,
                       target,
                       edata);
     }
     else {
       rmi.remote_request(vidowner.second,
-                        &distributed_graph<VertexData,EdgeData>::set_edge_data_from_pair,
-                        source,
-                        target,
-                        edata);
+                         &distributed_graph<VertexData,EdgeData>::
+                         set_edge_data_from_pair,
+                         source,
+                         target,
+                         edata);
     }
   }
 
@@ -521,8 +555,10 @@ class distributed_graph {
    * to a remote machine. If async is true, the function returns immediately
    * without waiting for confirmation from the remote machine.
    */
-  void set_edge_data_from_eid(edge_id_t eid, const EdgeData edata, bool async){
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator eiditer = global2localeid.find(eid);
+  void set_edge_data_from_eid(edge_id_t eid, 
+                              const EdgeData edata, bool async){
+    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator eiditer = 
+      global2localeid.find(eid);
     if (eiditer != global2localeid.end()) {
       // who owns the target of the edge?
       if (localvid2owner[localstore.target(eiditer->second)] == rmi.procid()) {
@@ -537,13 +573,15 @@ class distributed_graph {
 
     if (async) {
       rmi.remote_call(eidowner.second,
-                      &distributed_graph<VertexData,EdgeData>::set_edge_data_from_eid,
+                      &distributed_graph<VertexData,EdgeData>::
+                      set_edge_data_from_eid,
                       eid,
                       edata);
     }
     else {
       rmi.remote_request(eidowner.second,
-                        &distributed_graph<VertexData,EdgeData>::set_edge_data_from_eid,
+                        &distributed_graph<VertexData,EdgeData>::
+                         set_edge_data_from_eid,
                         eid,
                         edata);
     }
@@ -556,7 +594,8 @@ class distributed_graph {
    * It will wait for the remote machine to complete the modification before
    * returning control.
    */
-  void set_edge_data(vertex_id_t source, vertex_id_t target, const EdgeData edata) {
+  void set_edge_data(vertex_id_t source, vertex_id_t target, 
+                     const EdgeData edata) {
     set_edge_data_from_pair(source, target, edata, false);
   }
 
@@ -596,7 +635,9 @@ class distributed_graph {
    * If the edge is not on this fragment, the request is sent
    * to a remote machine. This modification is performed asynchronously.
    */
-  void set_edge_data_async(vertex_id_t source, vertex_id_t target, const EdgeData edata) {
+  void set_edge_data_async(vertex_id_t source, 
+                           vertex_id_t target, 
+                           const EdgeData edata) {
     set_edge_data_from_pair(source, target, edata, true);
   }
 
@@ -619,10 +660,12 @@ class distributed_graph {
       vertex_data(vid) = vdata;
     }
     else {
-      std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(vid);
+      std::pair<bool, procid_t> vidowner = 
+        globalvid2owner.get_cached(vid);
       assert(vidowner.first);
       rmi.remote_call(vidowner.second,
-                      &distributed_graph<VertexData,EdgeData>::set_vertex_data_async,
+                      &distributed_graph<VertexData,EdgeData>::
+                      set_vertex_data_async,
                       vdata);
     }
   }
@@ -718,7 +761,7 @@ class distributed_graph {
 
 
   /** all the mappings requried to move from global to local vid/eids
-   *  We only store mappings if the vid/eid is in the local fragment 
+   *  We only store mappings if the vid/eid is in the local fragment
    */
   boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid;
   std::vector<vertex_id_t> local2globalvid;
@@ -784,7 +827,8 @@ class distributed_graph {
     std::vector<procid_t> atom2machine;
     for (size_t i = 0 ;i< partitiontoatom.size(); ++i) {
       for (size_t j = 0 ; j < partitiontoatom[i].size(); ++j) {
-        if (atom2machine.size() <= partitiontoatom[i][j]) atom2machine.resize(partitiontoatom[i][j] + 1);
+        if (atom2machine.size() <= partitiontoatom[i][j]) 
+          atom2machine.resize(partitiontoatom[i][j] + 1);
         atom2machine[partitiontoatom[i][j]] = i;
       }
     }
@@ -813,27 +857,32 @@ class distributed_graph {
     // cat all the globalvids and globaleids into a single big list
     // and sort it
     for (size_t i = 0;i < atomfiles.size(); ++i) {
-      std::copy(atomfiles[i]->globalvids().begin(), atomfiles[i]->globalvids().end(),
+      std::copy(atomfiles[i]->globalvids().begin(), 
+                atomfiles[i]->globalvids().end(),
                 std::back_inserter(local2globalvid));
-      std::copy(atomfiles[i]->globaleids().begin(), atomfiles[i]->globaleids().end(),
+      std::copy(atomfiles[i]->globaleids().begin(), 
+                atomfiles[i]->globaleids().end(),
                 std::back_inserter(local2globaleid));
     }
     
-    // Find only unique occurances of each vertex, by sorting, unique, and resize
+    // Find only unique occurances of each vertex, by sorting, unique,
+    // and resize
     std::sort(local2globalvid.begin(), local2globalvid.end());
-    std::vector<vertex_id_t>::iterator uviter = std::unique(local2globalvid.begin(), 
-                                                            local2globalvid.end());
+    std::vector<vertex_id_t>::iterator uviter = 
+      std::unique(local2globalvid.begin(), local2globalvid.end());
     local2globalvid.resize(uviter - local2globalvid.begin());
     
     // do the same thing to each edge    
     std::sort(local2globaleid.begin(), local2globaleid.end());
-    std::vector<edge_id_t>::iterator ueiter = std::unique(local2globaleid.begin(), 
-                                                            local2globaleid.end());
+    std::vector<edge_id_t>::iterator ueiter = 
+      std::unique(local2globaleid.begin(), local2globaleid.end());
     local2globaleid.resize(ueiter - local2globaleid.begin());
     localvid2owner.resize(local2globalvid.size());
     //construct the reverse maps
-    for (size_t i = 0;i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
-    for (size_t i = 0;i < local2globaleid.size(); ++i) global2localeid[local2globaleid[i]] = i;
+    for (size_t i = 0; i < local2globalvid.size(); ++i) 
+      global2localvid[local2globalvid[i]] = i;
+    for (size_t i = 0; i < local2globaleid.size(); ++i) 
+      global2localeid[local2globaleid[i]] = i;
     
     logger(LOG_INFO, "Creating mmap store");
     // now lets construct the graph structure
@@ -848,12 +897,16 @@ class distributed_graph {
       atomfiles[i]->load_structure();
       // iterate through all the edges in this atom
       for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
-        // convert from the atom's local eid, to the global eid, then to the fragment localeid
+        // convert from the atom's local eid, to the global eid, then
+        // to the fragment localeid
         edge_id_t localeid = global2localeid[atomfiles[i]->globaleids()[j]];
         if (eidloaded[localeid] == false) {
-          std::pair<vertex_id_t, vertex_id_t> srcdest = atomfiles[i]->edge_src_dest()[j];
-          vertex_id_t sourcevid = global2localvid[atomfiles[i]->globalvids()[srcdest.first]];
-          vertex_id_t destvid = global2localvid[atomfiles[i]->globalvids()[srcdest.second]];
+          std::pair<vertex_id_t, vertex_id_t> srcdest = 
+            atomfiles[i]->edge_src_dest()[j];
+          vertex_id_t sourcevid = 
+            global2localvid[atomfiles[i]->globalvids()[srcdest.first]];
+          vertex_id_t destvid = 
+            global2localvid[atomfiles[i]->globalvids()[srcdest.second]];
           localstore.add_edge(localeid, sourcevid, destvid);
           eidloaded[localeid] = true;
         }
@@ -861,7 +914,8 @@ class distributed_graph {
       
       // set the color and localvid2owner mappings
       for (size_t j = 0; j < atomfiles[i]->vcolor().size(); ++j) {
-        // convert from the atom's local vid, to the global vid, then to the fragment localvid
+        // convert from the atom's local vid, to the global vid, then
+        // to the fragment localvid
         vertex_id_t globalvid = atomfiles[i]->globalvids()[j];
         vertex_id_t localvid = global2localvid[globalvid];
 
@@ -875,8 +929,9 @@ class distributed_graph {
     }
 
     logger(LOG_INFO, "Set up global eid table");
-    // unfortunately, I need one more pass here to set ownership of all the edgeids
-    // I can only do this after all the vid ownerships are set
+    // unfortunately, I need one more pass here to set ownership of
+    // all the edgeids I can only do this after all the vid ownerships
+    // are set
     for (size_t i = 0;i < atomfiles.size(); ++i) {
       for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
         edge_id_t globaleid = atomfiles[i]->globaleids()[j];
@@ -890,18 +945,20 @@ class distributed_graph {
     }
     
     logger(LOG_INFO, "Loading data");
-    // done! structure constructed!
-    // now for the data!
-    // load atoms one at a time, don't keep more than one atom in memor at any one time
+    // done! structure constructed!  now for the data!  load atoms one
+    // at a time, don't keep more than one atom in memor at any one
+    // time
     for (size_t i = 0;i < atomfiles.size(); ++i) {
       atomfiles[i]->load_all();
       for (size_t j = 0; j < atomfiles[i]->vdata().size(); ++j) {
-        // convert from the atom's local vid, to the global vid, then to the fragment localvi
+        // convert from the atom's local vid, to the global vid, then
+        // to the fragment localvi
         size_t localvid = global2localvid[atomfiles[i]->globalvids()[j]];
         localstore.vertex_data(localvid) = atomfiles[i]->vdata()[j];
       }
       for (size_t j = 0; j < atomfiles[i]->edata().size(); ++j) {
-        // convert from the atom's local vid, to the global vid, then to the fragment localvi
+        // convert from the atom's local vid, to the global vid, then
+        // to the fragment localvi
         size_t localeid = global2localeid[atomfiles[i]->globaleids()[j]];
         localstore.edge_data(localeid) = atomfiles[i]->edata()[j];
       }
