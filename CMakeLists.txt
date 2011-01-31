@@ -76,6 +76,54 @@ ENDIF(MPI_FOUND)
 
 
 
+
+
+#Find the JNI library
+FIND_PACKAGE(JNI)
+IF(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
+  SET(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
+  actually exists")
+message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+ELSE( )
+  SET(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
+  actually exists")
+message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+ENDIF( )
+
+
+
+
+
+
+#Find zoltan library
+SET(ZOLTAN_ROOT "/usr/local/glzoltan" CACHE STRING 
+  "The path to zoltan/include and zoltan/lib")
+IF(EXISTS ${ZOLTAN_ROOT} )
+  SET(ZOLTAN_FOUND 1 CACHE BOOL "True if the Zoltan library was found")
+  SET(ZOLTAN_INCLUDE_DIR 
+    ${ZOLTAN_ROOT}/include 
+    CACHE STRING "Zoltan library include directory")
+  SET(ZOLTAN_LINK_DIR 
+    ${ZOLTAN_ROOT}/lib 
+    CACHE STRING "Zoltan library lib directory")
+  SET(ZOLTAN_LIBS 
+    zoltan
+    parmetis
+    metis
+    CACHE STRING "Zoltan library include directory")
+  message(STATUS "Zoltan library was found at " ${ZOLTAN_ROOT})
+
+  include_directories( ${ZOLTAN_INCLUDE_DIR} )
+  link_directories( ${ZOLTAN_LINK_DIR}  )
+ELSE( )
+  SET(ZOLTAN_FOUND 0 CACHE BOOL "True if the Zoltan library was found")
+  message(STATUS "Zoltan library was NOT found at " ${ZOLTAN_ROOT})
+ENDIF( )
+
+
+
+
+
 if(Sctp MATCHES Sctp-NOTFOUND)
   message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
   set(Sctp-FOUND)
@@ -245,13 +293,40 @@ ENDMACRO(EXEC)
 MACRO(add_dist_executable NAME)
   IF(MPI_FOUND)
     ADD_EXECUTABLE(${NAME} ${ARGN})
-    TARGET_LINK_LIBRARIES(${NAME} graphlab_dist ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY} graphlab)
-    set_property(TARGET ${NAME} APPEND PROPERTY COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
-    add_definitions(-DGLDISTRIBUTED)
+    TARGET_LINK_LIBRARIES(${NAME} 
+      graphlab_dist 
+      ${MPI_LIBRARY} 
+      ${MPI_EXTRA_LIBRARY} 
+      graphlab)
+
+    SET_SOURCE_FILES_PROPERTIES( ${ARGN}
+      PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED" )
+    # set_property(TARGET ${NAME} APPEND PROPERTY 
+    #   COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
+    #    add_definitions(-DGLDISTRIBUTED)
+
   ELSE(MPI_FOUND)
-    message(STATUS "Not Building " ${NAME})
+    message(STATUS "Not Building " ${NAME} " since mpi was not found.")
   ENDIF(MPI_FOUND)
 ENDMACRO(add_dist_executable)
+
+
+MACRO(add_zoltan_executable NAME)
+  IF(MPI_FOUND AND ZOLTAN_FOUND)
+    ADD_EXECUTABLE(${NAME} ${ARGN})   
+    TARGET_LINK_LIBRARIES(${NAME} 
+      graphlab 
+      ${ZOLTAN_LIBS}
+      ${MPI_LIBRARY} 
+      ${MPI_EXTRA_LIBRARY} )
+  ELSE( )
+    message(STATUS "Not Building " ${NAME} 
+      " because zoltan was not found")
+  ENDIF( )
+ENDMACRO(add_zoltan_executable)
+
+
+
 
 
 
@@ -261,17 +336,7 @@ MACRO(dist_target_link_libraries NAME)
   ENDIF(MPI_FOUND)
 ENDMACRO(dist_target_link_libraries)
 
-FIND_PACKAGE(JNI)
 
-IF(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
-  SET(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
-  actually exists")
-message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-ELSE( )
-  SET(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
-  actually exists")
-message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
-ENDIF( )
 
 MACRO(add_jni_library NAME)
   # Only build if JNI was found

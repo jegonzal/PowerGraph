@@ -93,7 +93,8 @@ if(MPI_FOUND)
 
    TARGET_LINK_LIBRARIES(graphlab_dist ${MPI_LIBRARY}
      ${MPI_EXTRA_LIBRARY} )
-   set_property(TARGET graphlab_dist APPEND PROPERTY COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
+   set_property(TARGET graphlab_dist 
+     APPEND PROPERTY COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
  endif(MPI_FOUND)
 
 
@@ -122,7 +123,11 @@ add_library(graphlab_pic STATIC ${graphlab_sources})
 set_target_properties(graphlab_pic PROPERTIES 
                       COMPILE_FLAGS "${graphlab_flags} -fPIC")
 
-INSTALL(TARGETS graphlab graphlab_util graphlab_pic graphlab_util_pic ARCHIVE DESTINATION lib)
+INSTALL(TARGETS 
+  graphlab 
+  graphlab_util 
+  graphlab_pic 
+  graphlab_util_pic ARCHIVE DESTINATION lib)
 
 INSTALL(DIRECTORY matlab/  
   DESTINATION include/graphlab/matlab
