@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include <algorithm>
+#include <boost/unordered_map.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -180,27 +181,32 @@ void graph_partition_to_atom(const graph<VertexData, EdgeData> &g,
   
     }
   }
-  
-  // done. now construct the mappings
-  uint32_t vid;
-  if (goodvertices.first_bit(vid)) {
-    do {
-      atom.globalvids().push_back(vid);
-      atom.atom().push_back(vertex2part[vid]);
-      atom.vcolor().push_back(g.color(vid));
-      atom.vdata().push_back(g.vertex_data(vid));
-    } while(goodvertices.next_bit(vid));
-  }
 
-  uint32_t eid;
-  if (goodedges.first_bit(eid)) {
-    do {
-      atom.globaleids().push_back(eid);
-      atom.edge_src_dest().push_back(std::make_pair<vertex_id_t, 
-                                             vertex_id_t>(g.source(eid), 
-                                                          g.target(eid)));
-      atom.edata().push_back(g.edge_data(vid));
-    } while(goodedges.next_bit(eid));
+  boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid;
+  {
+    // done. now construct the mappings
+    uint32_t vid;
+    if (goodvertices.first_bit(vid)) {
+      do {
+        global2localvid[vid] = atom.globalvids().size();
+        atom.globalvids().push_back(vid);
+        atom.atom().push_back(vertex2part[vid]);
+        atom.vcolor().push_back(g.color(vid));
+        atom.vdata().push_back(g.vertex_data(vid));
+      } while(goodvertices.next_bit(vid));
+    }
+  }
+  {
+    uint32_t eid;
+    if (goodedges.first_bit(eid)) {
+      do {
+        atom.globaleids().push_back(eid);
+        atom.edge_src_dest().push_back(std::make_pair<vertex_id_t,
+                                              vertex_id_t>(global2localvid[g.source(eid)],
+                                                           global2localvid[g.target(eid)]));
+        atom.edata().push_back(g.edge_data(eid));
+      } while(goodedges.next_bit(eid));
+    }
   }
 }
 

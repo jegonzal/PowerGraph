@@ -37,6 +37,7 @@ void dc_buffered_stream_send::send_data(procid_t target,
     size_t l = 0;
     while(istrm.good()) {
       l = istrm.readsome(cbuffer, 10240);
+      if (l == 0) break;  // 0 return is empty buffer
       sendbuf.write(cbuffer, l);
     }
     sendcond.signal();

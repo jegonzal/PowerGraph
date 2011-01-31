@@ -48,6 +48,9 @@ class dc_dist_object{
     return dc_.numprocs();
   }
 
+  inline void comm_barrier() {
+    return dc_.comm_barrier();
+  }
   
     /**
   This generates the interface functions for the standard calls, basic calls, and fast calls

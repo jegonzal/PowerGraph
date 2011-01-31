@@ -157,8 +157,8 @@ namespace dist_graph_impl {
     edge is found, the edge ID is returned in the second element of the pair. */
     std::pair<bool, edge_id_t>
     find(vertex_id_t source, vertex_id_t target) const {
-      assert(source < in_edges.size());
-      assert(target < out_edges.size());
+
+
       // Check the base case that the souce or target have no edges
       if (in_edges[target].size() == 0 ||
           out_edges[source].size() == 0) {
@@ -422,13 +422,13 @@ namespace dist_graph_impl {
     
     /** \brief Return the edge ids of the edges arriving at v */
     edge_list in_edge_ids(vertex_id_t v) const {
-      assert(v < in_edges.size());
+
       return edge_list(in_edges[v]);
     } // end of in edges    
 
     /** \brief Return the edge ids of the edges leaving at v */
     edge_list out_edge_ids(vertex_id_t v) const {
-      assert(v < out_edges.size());
+
       return edge_list(out_edges[v]);
     } // end of out edges
     

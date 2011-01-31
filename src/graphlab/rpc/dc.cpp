@@ -13,6 +13,7 @@
 #include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
+#include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
@@ -27,8 +28,8 @@ void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
 }
 
 distributed_control::~distributed_control() {
+  services().barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
-  comm->close();
   for (size_t i = 0;i < senders.size(); ++i) {
     senders[i]->shutdown();
     delete senders[i];
@@ -39,6 +40,7 @@ distributed_control::~distributed_control() {
   }
   senders.clear();
   receivers.clear();
+  comm->close();
   // shutdown function call handlers
   fcallqueue.stop_blocking();
   fcallhandlers.join();
@@ -119,7 +121,7 @@ std::map<std::string, std::string> distributed_control::parse_options(std::strin
   while(s.good()) {
     getline(s, opt, '=');
     if (s.bad() || s.eof()) break;
-    getline(s, value);
+    getline(s, value, ' ');
     if (s.bad()) break;
     options[trim(opt)] = trim(value);
   }
@@ -135,13 +137,20 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
   bool buffered_send = false;
+  bool buffered_recv = false;
   if (options["buffered_send"] == "true" || 
     options["buffered_send"] == "1" ||
     options["buffered_send"] == "yes") {
     buffered_send = true;
     std::cerr << "Buffered Send Option is ON." << std::endl;
   }
-  
+
+  if (options["buffered_recv"] == "true" ||
+    options["buffered_recv"] == "1" ||
+    options["buffered_recv"] == "yes") {
+    buffered_recv = true;
+    std::cerr << "Buffered Recv Option is ON." << std::endl;
+  }
   
   if (commtype == TCP_COMM) {
     comm = new dc_impl::dc_tcp_comm();
@@ -161,7 +170,13 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
-      receivers.push_back(new dc_impl::dc_stream_receive(this));
+      if (buffered_recv) {
+        receivers.push_back(new dc_impl::dc_buffered_stream_receive(this));
+      }
+      else {
+        receivers.push_back(new dc_impl::dc_stream_receive(this));
+      }
+      
       if (buffered_send) {
         senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm));
       }
