@@ -24,7 +24,8 @@ class dc_buffered_stream_receive: public dc_receive{
  public:
   
   dc_buffered_stream_receive(distributed_control* dc):
-                  dc(dc), barrier(false), done(false) {
+                  dc(dc), barrier(false), done(false),
+                   bytesreceived(0), callsreceived(0) {
     thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_receive::receive_loop,
                                       this));
   }
@@ -62,7 +63,9 @@ class dc_buffered_stream_receive: public dc_receive{
 
   thread thr;
   bool done;
-  
+
+  size_t bytesreceived;
+  size_t callsreceived;
   
   /**
     Reads the incoming buffer and processes, dispatching
@@ -71,6 +74,9 @@ class dc_buffered_stream_receive: public dc_receive{
   void process_buffer() ;
 
   void receive_loop();
+
+  size_t bytes_received();
+  size_t calls_received();
   
   void shutdown();
 };

@@ -25,8 +25,10 @@ int main(int argc, char** argv) {
   std::vector<std::string> machines;
   machines.push_back("127.0.0.1:10000");
   machines.push_back("127.0.0.1:10001");
+  machines.push_back("127.0.0.1:10002");
+  machines.push_back("127.0.0.1:10003");
   //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
-  distributed_control dc(machines, "buffered_send=yes", machineid);
+  distributed_control dc(machines, "", machineid, 8, TCP_COMM);
   dc.services().barrier();
   distributed_graph<size_t, double> dg(dc, "atomidx.txt");
 

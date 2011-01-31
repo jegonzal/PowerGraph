@@ -19,6 +19,7 @@ void dc_stream_receive::incoming_data(procid_t src,
   bufferlock.lock();
   buffer.write(buf, len);
   bufferlock.unlock();
+  bytesreceived += len;
   process_buffer();
 }
   
@@ -68,6 +69,7 @@ void dc_stream_receive::process_buffer() {
         logstream(LOG_INFO) << "Is fast call" << std::endl;
         #endif
         boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
+        ++callsreceived;
         dc->exec_function_call(hdr.src, strm);
       }
       else if (hdr.packet_type_mask & STANDARD_CALL) {
@@ -78,6 +80,7 @@ void dc_stream_receive::process_buffer() {
         char* tmpbuf = new char[hdr.len];
         buffer.read(tmpbuf, hdr.len);
         pending_calls.inc();
+        ++callsreceived;
         dc->deferred_function_call(hdr.src, tmpbuf, hdr.len);
       }
     }
@@ -85,6 +88,13 @@ void dc_stream_receive::process_buffer() {
   }
 }
 
+size_t dc_stream_receive::bytes_received() {
+  return bytesreceived;
+}
+size_t dc_stream_receive::calls_received() {
+  return callsreceived;
+}
+  
 void dc_stream_receive::shutdown() { }
 
 } // namespace dc_impl

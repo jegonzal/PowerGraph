@@ -34,7 +34,11 @@ distributed_control::~distributed_control() {
     senders[i]->shutdown();
     delete senders[i];
   }
+  size_t bytesreceived = 0;
+  size_t callsreceived = 0;
   for (size_t i = 0;i < receivers.size(); ++i) {
+    bytesreceived += receivers[i]->bytes_received();
+    callsreceived += receivers[i]->calls_received();
     receivers[i]->shutdown();
     delete receivers[i];
   }
@@ -45,6 +49,8 @@ distributed_control::~distributed_control() {
   fcallqueue.stop_blocking();
   fcallhandlers.join();
   delete comm;
+  logstream(LOG_INFO) << "Bytes Received: " << bytesreceived << std::endl;
+  logstream(LOG_INFO) << "Calls Received: " << callsreceived << std::endl;
 }
   
 void distributed_control::exec_function_call(procid_t source, std::istream &istrm) {

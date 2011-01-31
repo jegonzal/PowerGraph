@@ -24,7 +24,8 @@ class dc_stream_receive: public dc_receive{
  public:
   
   dc_stream_receive(distributed_control* dc): 
-                  barrier(false), dc(dc) { }
+                  barrier(false), dc(dc),
+                  bytesreceived(0), callsreceived(0) { }
 
   /**
    Called by the controller when there is data coming
@@ -55,12 +56,18 @@ class dc_stream_receive: public dc_receive{
   
   /// pointer to the owner
   distributed_control* dc;
+
+  size_t bytesreceived;
+  size_t callsreceived;
   
   /**
     Reads the incoming buffer and processes, dispatching
     calls when enough bytes are received
   */
   void process_buffer() ;
+
+  size_t bytes_received();
+  size_t calls_received();
   
   void shutdown();
 };
