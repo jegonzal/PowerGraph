@@ -18,11 +18,11 @@ description::description() { }
 description::    
 description(const std::string& base,
                      vertex_id_t id, 
-                     vertex_id_t nblocks,
+                     vertex_id_t nfragments,
                      vertex_id_t nverts,
                      vertex_id_t nedges) :
   id(id), 
-  nblocks(nblocks), 
+  nfragments(nfragments), 
   nverts(nverts), 
   nedges(nedges) {
   
@@ -35,11 +35,11 @@ description(const std::string& base,
   name = strm.str();
 
   // Compute the vertex range
-  block_size = nverts / nblocks;
-  assert(block_size >= 1);
-  block_remainder = nverts % nblocks;
-  begin_vertex = block_size * id + std::min(id, block_remainder);
-  end_vertex = block_size * (id + 1) + std::min(id+1, block_remainder);
+  fragment_size = nverts / nfragments;
+  assert(fragment_size >= 1);
+  fragment_remainder = nverts % nfragments;
+  begin_vertex = fragment_size * id + std::min(id, fragment_remainder);
+  end_vertex = fragment_size * (id + 1) + std::min(id+1, fragment_remainder);
 
   assert(begin_vertex < end_vertex);
   // std::cout << "id(" << id << ") : " 
@@ -58,12 +58,12 @@ is_local(vertex_id_t vid) const {
 }
 
 vertex_id_t description::
-owning_block(vertex_id_t vid) const {   
-  if(vid < (block_size+1) * block_remainder) 
-    return vid / (block_size+1);
+owning_fragment(vertex_id_t vid) const {   
+  if(vid < (fragment_size+1) * fragment_remainder) 
+    return vid / (fragment_size+1);
   else 
-    return (vid - ((block_size+1) * block_remainder)) / block_size 
-      + block_remainder;
+    return (vid - ((fragment_size+1) * fragment_remainder)) / fragment_size 
+      + fragment_remainder;
 }
 
 vertex_id_t description::
@@ -76,11 +76,11 @@ void description::
 save(graphlab::oarchive& oarc) const {
   oarc << name
        << id
-       << nblocks
+       << nfragments
        << nverts
        << nedges
-       << block_size
-       << block_remainder
+       << fragment_size
+       << fragment_remainder
        << begin_vertex
        << end_vertex;
 }
@@ -89,14 +89,44 @@ void description::
 load(graphlab::iarchive& iarc) {
   iarc >> name
        >> id
-       >> nblocks
+       >> nfragments
        >> nverts
        >> nedges
-       >> block_size
-       >> block_remainder
+       >> fragment_size
+       >> fragment_remainder
        >> begin_vertex
        >> end_vertex;
 }
+
+void description::
+vids_to_fragmentids(const std::vector<vertex_id_t>& vids,
+                    std::vector<vertex_id_t>& fragmentids) const {
+
+  fragmentids.clear();
+  fragmentids.resize(vids.size());
+  for(vertex_id_t i = 0; i < vids.size(); ++i) {
+    fragmentids[i] = owning_fragment(vids[i]);
+  }
+
+}
+
+std::ostream& 
+operator<<(std::ostream& out, 
+           const graphlab::graph_fragment::description& desc) {
+  return out << "name:                " << desc.name << std::endl
+             << "id:                  " << desc.id << std::endl
+             << "nblocks:             " << desc.nfragments << std::endl
+             << "nverts:              " << desc.nverts << std::endl
+             << "nedges:              " << desc.nedges << std::endl
+             << "fragment_size:       " << desc.fragment_size << std::endl
+             << "fragment_remainder:  " << desc.fragment_remainder << std::endl
+             << "begin_vertex:        " << desc.begin_vertex << std::endl
+             << "end_vertex:          " << desc.end_vertex << std::endl
+             << "local verts:         " << desc.num_local_verts() << std::endl;
+  
+}
+
+
 
 
 

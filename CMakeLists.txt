@@ -33,7 +33,7 @@ FIND_PACKAGE(PythonInterp)
 # Use the Boost libraries
 SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
-  program_options;regex REQUIRED)
+  program_options; regex; filesystem; system REQUIRED)
 
 
 
