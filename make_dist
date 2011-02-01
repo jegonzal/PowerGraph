@@ -1,6 +1,6 @@
 #!/bin/bash
 
-major_version=2
+major_version=1
 
 mkdir dist/graphlabapi
 rsync --verbose --recursive --links --times --owner --perms --delete \
@@ -11,7 +11,7 @@ rsync --verbose --recursive --links --times --owner --perms --delete \
 mkdir dist/graphlabapi/apps
 
 version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
-version=$major_version.$version
+version="v${major_version}_$version"
 echo "Version: $version"
 
 
