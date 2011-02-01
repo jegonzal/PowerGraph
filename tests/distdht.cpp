@@ -22,7 +22,7 @@ struct data{
 };
 
 int main(int argc, char** argv) {
-  size_t max32bit = 4294967296;
+  size_t max32bit(std::numeric_limits<size_t>::max());
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   distributed_control dc(&argc, &argv);
