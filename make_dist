@@ -1,5 +1,6 @@
 #!/bin/bash
 
+major_version=2
 
 mkdir dist/graphlabapi
 rsync --verbose --recursive --links --times --owner --perms --delete \
@@ -10,12 +11,13 @@ rsync --verbose --recursive --links --times --owner --perms --delete \
 mkdir dist/graphlabapi/apps
 
 version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
+version=$major_version.$version
 echo "Version: $version"
 
 
 cd dist
 tar -vz \
-    -cf graphlabapi_v${version}.tar.gz \
+    -cf graphlabapi_${version}.tar.gz \
     graphlabapi
     
 
