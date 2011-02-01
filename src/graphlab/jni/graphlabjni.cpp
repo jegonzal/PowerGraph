@@ -80,7 +80,8 @@ void jni_update_4(gl_types::iscope &scope,
   jni_update_wrapper(scope, scheduler, shared_data, 4);                  
 }
 
-gl_types::update_function functions[5] = {jni_update_0, jni_update_1, jni_update_2, jni_update_3, jni_update_4};
+gl_types::update_function functions[5] = 
+  {jni_update_0, jni_update_1, jni_update_2, jni_update_3, jni_update_4};
 
 /**
  * The Page rank update function
@@ -255,8 +256,11 @@ extern "C" {
       // ... which leads to some weird mutex error.
       core.set_metrics_type("none");
     }
-    std::cout << "Finished after " << core.engine().last_update_count() << " updates." << std::endl;
-    std::cout << "Runtime: " << runtime << " seconds." << std::endl;
+    std::cout << "Finished after " 
+	      << core.engine().last_update_count() 
+	      << " updates." << std::endl;
+    std::cout << "Runtime: " << runtime 
+	      << " seconds." << std::endl;
   }
 
   /*
