@@ -51,7 +51,8 @@ add_library(graphlab_rpc STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_services.cpp
   rpc/dc_comm_services.cpp
-  distributed2/graph/atom_index_file.cpp)
+  distributed2/graph/atom_index_file.cpp
+  distributed2/graph/graph_fragment.cpp)
 
 
 
@@ -99,7 +100,8 @@ if(MPI_FOUND)
 
 
 add_library(graphlab_dist2 STATIC
-    distributed2/graph/atom_index_file.cpp)
+    distributed2/graph/atom_index_file.cpp
+    distributed2/graph/graph_fragment.cpp)
 
 
 
