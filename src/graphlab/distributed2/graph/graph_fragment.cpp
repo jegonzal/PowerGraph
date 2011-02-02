@@ -174,6 +174,8 @@ operator<<(std::ostream& out,
 }
 
 
+structure_description::structure_description() { }
+
 structure_description::
 structure_description(const file_description& desc) :
   desc(desc), 

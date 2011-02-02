@@ -52,7 +52,8 @@ add_library(graphlab_rpc STATIC
   rpc/dc_services.cpp
   rpc/dc_comm_services.cpp
   distributed2/graph/atom_index_file.cpp
-  distributed2/graph/graph_fragment.cpp)
+  distributed2/graph/graph_fragment.cpp
+  distributed2/graph/zoltan_atom_builder.cpp)  
 
 
 
@@ -101,7 +102,8 @@ if(MPI_FOUND)
 
 add_library(graphlab_dist2 STATIC
     distributed2/graph/atom_index_file.cpp
-    distributed2/graph/graph_fragment.cpp)
+    distributed2/graph/graph_fragment.cpp
+    distributed2/graph/zoltan_atom_builder.cpp)
 
 
 

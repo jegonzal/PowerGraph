@@ -67,6 +67,8 @@ namespace graphlab {
       std::vector< std::vector<vertex_id_t> >      in_neighbor_ids;
       std::vector< std::vector<edge_id_t> >        in_edge_ids;
 
+
+      structure_description();
       structure_description(const file_description& desc);
       
       /**
