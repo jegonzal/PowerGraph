@@ -7,9 +7,7 @@
 namespace graphlab {
 
 
- void build_atom_files(int arc,
-                       char** argv,
-                       const std::string& path);
+  void build_atom_files(int argc, char** argv, const std::string& path);
   
  
 
