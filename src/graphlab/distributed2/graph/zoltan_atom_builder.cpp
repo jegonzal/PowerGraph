@@ -32,6 +32,17 @@
 
 using namespace graphlab;
 
+
+typedef std::vector<graph_fragment::structure_description> 
+structure_vec_type;
+
+typedef std::map<vertex_id_t, vertex_id_t> part2proc_type;
+
+struct zoltan_graph_data{
+  structure_vec_type structure_vec;
+  part2proc_type part2proc;
+};
+
 void list_structure_files(const std::string& pathname, 
                           std::vector<std::string>& files) {
   namespace fs = boost::filesystem;
@@ -52,9 +63,12 @@ void list_structure_files(const std::string& pathname,
 
 
 
+
+
+
 void load_structures(const std::string& path,
                      const std::vector<std::string>& structure_fnames,
-                     std::vector<graph_fragment::structure_description>& structures) {
+                     structure_vec_type& structures) {
   structures.resize(structure_fnames.size());
   for(size_t i = 0; i < structure_fnames.size(); ++i) {
     std::string abs_filename(path + "/" + structure_fnames[i]);
@@ -70,8 +84,11 @@ void load_structures(const std::string& path,
 } // end of load structures
 
 
-void distribute_part2proc_map(std::map<vertex_id_t, vertex_id_t>& part2proc) {
-  typedef std::map<vertex_id_t, vertex_id_t> map_type;
+
+
+
+
+void distribute_part2proc_map(part2proc_type& part2proc) {
   // Get the mpi rank and size
   int mpi_rank, mpi_size;
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
@@ -82,17 +99,18 @@ void distribute_part2proc_map(std::map<vertex_id_t, vertex_id_t>& part2proc) {
   std::stringstream cstrm;
   graphlab::oarchive arc(cstrm);
   arc << part2proc;
-  std::string buffer(cstrm.str());
+  std::string str_buffer(cstrm.str());
 
-  // All gather the size of the maps that must be received
-  // int buffer_size = cstrm->size();
-  int buffer_size(buffer.size());
+
+  // All gather the size of the maps that must be received int
+  // buffer_size = cstrm->size();
+  int buffer_size(str_buffer.size());
   std::vector<int> sizes(mpi_size);
   // Compute the sizes
   MPI_Allgather(&buffer_size,  // Send buffer
                 1,             // send count
                 MPI_INT,       // send type
-                &sizes[0],     // recvbuffer
+                &(sizes[0]),     // recvbuffer
                 1,             // recvcount
                 MPI_UNSIGNED,  // recvtype
                 MPI_COMM_WORLD);  
@@ -105,67 +123,170 @@ void distribute_part2proc_map(std::map<vertex_id_t, vertex_id_t>& part2proc) {
     tmp = offsets[i]; offsets[i] = sum; sum += tmp; 
   }
 
-  if(mpi_rank == 0) {
-    for(size_t i = 0; i < sizes.size(); ++i) 
-      std::cout << sizes[i] << '\t';
-    std::cout << std::endl;
-    for(size_t i = 0; i < offsets.size(); ++i) 
-      std::cout << offsets[i] << '\t';
-    std::cout << std::endl;
-    std::cout << "Sum: " << sum << std::endl;
-  }
+  //   if(mpi_rank == 0) {
+  //     for(size_t i = 0; i < sizes.size(); ++i) 
+  //       std::cout << sizes[i] << '\t';
+  //     std::cout << std::endl;
+  //     for(size_t i = 0; i < offsets.size(); ++i) 
+  //       std::cout << offsets[i] << '\t';
+  //     std::cout << std::endl;
+  //     std::cout << "Sum: " << sum << std::endl;
+  //   }
     
   // recv all the maps 
-  std::vector<char> recv_buffer(sum);
-  MPI_Allgatherv(const_cast<char*>(buffer.c_str()),  // sned buffer
+  std::vector<char> recv_buffer(sum, 0);
+  MPI_Allgatherv(const_cast<char*>(str_buffer.c_str()),  // send buffer
                  buffer_size,                // how much to send
-                 MPI_CHAR,                   // send type
-                 &recv_buffer[0],            // recv buffer
-                 &sizes[0],                  // amount to recv for each process
-                 &offsets[0],                // where to place data
-                 MPI_CHAR,
+                 MPI_BYTE,                   // send type
+                 &(recv_buffer[0]),            // recv buffer
+                 &(sizes[0]),                  // amount to recv for each process
+                 &(offsets[0]),                // where to place data
+                 MPI_BYTE,
                  MPI_COMM_WORLD);
-
 
   // Update the local map
   namespace bio = boost::iostreams;
   typedef bio::stream<bio::array_source> icharstream;
-
-  icharstream strm(&buffer[0], buffer.size());
+  icharstream strm(&(recv_buffer[0]), recv_buffer.size());
   graphlab::iarchive iarc(strm);
   for(size_t i = 0; i < sizes.size(); ++i) {
-    std::cout << "Preread: " << std::endl;
-    map_type other_map;
+    part2proc_type other_map;
     iarc >> other_map;
-    std::cout << "post read" << std::endl;
-    foreach(const map_type::value_type& pair, other_map) 
+    foreach(const part2proc_type::value_type& pair, other_map) 
       part2proc[pair.first] = pair.second;        
+  }  
+  
+} // distribute_part2proc_map
+
+
+
+
+
+
+
+
+int zoltan_num_obj_fun(void* data, int* ierr) {
+  structure_vec_type& structures(*reinterpret_cast<structure_vec_type*>(data));
+  int num_objects(0);
+  foreach(const graph_fragment::structure_description& structure, structures) {
+    num_objects += structure.desc.num_local_verts;
   }
+  *ierr = ZOLTAN_OK;
+  return num_objects;
+} // end of zoltan_num_obj_fun
 
-  // if rank 0 print the map
-  if(mpi_rank == 0) {
-    foreach(const map_type::value_type& pair, part2proc)
-      std::cout << pair.first << ",  " << pair.second << std::endl;
 
-    
+
+
+void zoltan_obj_list_fun(void* data, 
+                         int num_gid_entries,
+                         int num_lid_entries,
+                         ZOLTAN_ID_PTR global_ids,
+                         ZOLTAN_ID_PTR local_ids,
+                         int wgt_dim,
+                         float* obj_wgts,
+                         int* ierr) {
+  zoltan_graph_data& zgdata(*reinterpret_cast<zoltan_graph_data*>(data));
+  *ierr = ZOLTAN_OK;
+  assert(num_gid_entries == 1);
+  assert(num_lid_entries == 0);
+  assert(local_ids == NULL);
+  assert(obj_wgts == NULL);
+  size_t index(0);
+  foreach(const graph_fragment::structure_description& structure, 
+          zgdata.structure_vec) {
+    for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++index) {
+      global_ids[index] = i + structure.desc.begin_vertex;
+    }
   }
-  
-  
-
-
-  
-
-
-
- 
-  
-  
-  
-  
 }
 
 
-void graphlab::build_atom_files(int argc, char** argv, 
+
+
+static void zoltan_num_edges_multi_fun(void* data,
+                                       int num_gid_entries,
+                                       int num_lid_entries,
+                                       int num_objs,
+                                       ZOLTAN_ID_PTR global_ids,
+                                       ZOLTAN_ID_PTR local_ids, 
+                                       int* num_edges, 
+                                       int* ierr) {
+  zoltan_graph_data& zgdata(*reinterpret_cast<zoltan_graph_data*>(data));
+  *ierr = ZOLTAN_OK;
+  assert(num_gid_entries == 1);
+  assert(num_lid_entries == 0);
+  assert(local_ids == NULL);
+  assert(num_objs >= 0);
+  size_t index(0);
+  foreach(const graph_fragment::structure_description& structure, zgdata.structure_vec) {
+    for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++index) {
+      assert(index < size_t(num_objs));
+      assert(global_ids[index] == i + structure.desc.begin_vertex);
+      num_edges[index] = structure.neighbor_ids[i].size();
+    }
+  }
+} 
+
+
+
+
+
+
+static void zoltan_edge_list_multi_fun(void* data,
+                                       int num_gid_entries,
+                                       int num_lid_entries,
+                                       int num_objs,
+                                       ZOLTAN_ID_PTR global_ids,
+                                       ZOLTAN_ID_PTR local_ids, 
+                                       int* num_edges, 
+                                       ZOLTAN_ID_PTR nbor_global_id,
+                                       int* nbor_procs,
+                                       int wgt_dim,
+                                       float* ewgts,
+                                       int* ierr) {
+  zoltan_graph_data& zgdata(*reinterpret_cast<zoltan_graph_data*>(data));
+  *ierr = ZOLTAN_OK;
+  assert(num_gid_entries == 1);
+  assert(num_lid_entries == 0);
+  assert(local_ids == NULL);
+  assert(num_objs >= 0);
+
+  size_t vindex(0), eindex(0);
+  foreach(const graph_fragment::structure_description& structure, 
+          zgdata.structure_vec) {
+    for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++vindex) {
+      assert(vindex < size_t(num_objs));
+      assert(global_ids[vindex] == i + structure.desc.begin_vertex);
+      assert(num_edges[vindex] >= 0);
+      assert(size_t(num_edges[vindex]) == structure.neighbor_ids[i].size());
+      // save all the edges
+      for(vertex_id_t j = 0; 
+          j < structure.neighbor_ids[i].size(); ++j, ++eindex) {
+        nbor_global_id[eindex] = structure.neighbor_ids[i][j];
+        // compute the owning processor
+        nbor_procs[eindex] = 
+          zgdata.part2proc[structure.desc.owning_fragment( nbor_global_id[eindex] ) ];
+
+      }
+    }
+  }
+}
+
+
+    // // set the num_edges field for all local edges
+//     for(int i = 0, sum_index = 0; i < graph.num_local_objects(); ++i) {
+//       assert(num_edges[i] == graph.num_edges(local_ids[i]));
+//       for(size_t j = 0; j < graph.edges[i].size(); ++j, ++sum_index) {
+//         nbor_global_id[sum_index] = graph.edges[i][j];
+//         nbor_procs[sum_index] = graph.owning_proc(nbor_global_id[sum_index]);
+//       }
+//     }
+//   } 
+
+
+void graphlab::build_atom_files(int argc, char** argv,
+                                int numparts,
                                 const std::string& path) {
   // Get the mpi rank and size
   int mpi_rank, mpi_size;
@@ -173,52 +294,178 @@ void graphlab::build_atom_files(int argc, char** argv,
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
 
+  zoltan_graph_data zgdata;
+
   // Load the filenames
   std::vector<std::string> structure_fnames;
   list_structure_files(path, structure_fnames);
   // Load the structures files
-  std::vector<graph_fragment::structure_description> structures;
-  load_structures(path, structure_fnames, structures);
+  structure_vec_type structures;
+  load_structures(path, structure_fnames, zgdata.structure_vec);
 
 
   // Initialize the map
-  std::map<vertex_id_t, vertex_id_t> part2proc;
   for(size_t i = 0; i < structures.size(); ++i) {
-    part2proc[structures[i].desc.id] = mpi_rank;
+    zgdata.part2proc[structures[i].desc.id] = mpi_rank;
   } // end of for
-  distribute_part2proc_map(part2proc);
+  distribute_part2proc_map(zgdata.part2proc);
+  
+  
+  // Initialize Zoltan
+  float zoltan_version;
+  int error = Zoltan_Initialize(argc, argv, &zoltan_version);
+  if(error != ZOLTAN_OK) {
+    std::cout << "Unable to launch Zoltan!" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  if(mpi_rank == 0)
+    std::cout << "Zoltan version: " << zoltan_version << std::endl;
+
+  
+  // Create the Zoltan object
+  Zoltan* zolt_ptr = new Zoltan(MPI::COMM_WORLD);
+  assert(zolt_ptr != NULL);
+  Zoltan& zolt(*zolt_ptr);
+
+
+  // Set the partitioning method to graph
+  error = zolt.Set_Param("LB_METHOD", "GRAPH");
+  assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param( "NUM_GID_ENTRIES", "1");  /* global ID is 1 integer */
+  assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param( "NUM_LID_ENTRIES", "0");  /* local ID is 1 integer */
+  assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param( "OBJ_WEIGHT_DIM", "0");   /* we omit object weights */
+  assert(error == ZOLTAN_OK);
+
+  // Set the package to parmetis
+  // For more details see:
+  // http://www.cs.sandia.gov/zoltan/ug_html/ug_alg_parmetis.html
+  error = zolt.Set_Param("GRAPH_PACKAGE", "Parmetis");
+  assert(error == ZOLTAN_OK);
+  error = zolt.Set_Param("LB_APPROACH", "PARTITION");
+  assert(error == ZOLTAN_OK);
+
+  // http://www.cs.sandia.gov/zoltan/ug_html/ug_alg.html#RETURN_LISTS 
+  {
+    std::stringstream strm;
+    strm << numparts;
+    std::string str(strm.str());
+    if(mpi_rank == 0) std::cout << "Parts: " << str << std::endl;
+    error = zolt.Set_Param("NUM_GLOBAL_PARTS", str.c_str());
+    assert(error == ZOLTAN_OK);
+  } 
+
+  error = zolt.Set_Param("RETURN_LISTS", "PARTS");
+  assert(error == ZOLTAN_OK);
+
+//   // Auto migration?
+//   error = zolt.Set_Param("AUTO_MIGRATE", "TRUE");
+//   assert(error == ZOLTAN_OK);
+
+
+
+  // Set functions
+  error = zolt.Set_Num_Obj_Fn(zoltan_num_obj_fun, &zgdata);
+  assert(error == ZOLTAN_OK);
+  
+  error = zolt.Set_Obj_List_Fn(zoltan_obj_list_fun, &zgdata);
+  assert(error == ZOLTAN_OK);
+  
+  error = zolt.Set_Num_Edges_Multi_Fn(zoltan_num_edges_multi_fun, &zgdata);
+  assert(error == ZOLTAN_OK);
+  
+  error = zolt.Set_Edge_List_Multi_Fn(zoltan_edge_list_multi_fun, &zgdata);
+  assert(error == ZOLTAN_OK);
+
+
+  ///////////////////////////////////////////////////////////////////////
+  // Do the partitioning 
+  //////
+  // Documentation:
+  // http://www.cs.sandia.gov/zoltan/ug_html/ug_interface_lb.html#Zoltan_LB_Partition
+  
+  int changes = -1;
+  int num_gid_entries = -1;
+  int num_lid_entries = -1;
+  int num_import = -1;
+  ZOLTAN_ID_PTR import_global_ids = NULL;
+  ZOLTAN_ID_PTR import_local_ids = NULL;
+  int* import_procs = NULL;
+  int* import_to_part = NULL;
+  int num_export = -1;
+  ZOLTAN_ID_PTR export_global_ids = NULL;
+  ZOLTAN_ID_PTR export_local_ids = NULL;
+  int* export_procs = NULL;
+  int* export_to_part = NULL;
+
+  error = 
+    zolt.LB_Partition(changes,
+                      num_gid_entries,
+                      num_lid_entries,
+                      num_import,
+                      import_global_ids,
+                      import_local_ids,
+                      import_procs,
+                      import_to_part,
+                      num_export,
+                      export_global_ids,
+                      export_local_ids,
+                      export_procs,
+                      export_to_part);
+  assert(error == ZOLTAN_OK);
+
+  // Check return values
+  assert(changes == true);
+  assert(num_gid_entries == 1);
+  assert(num_lid_entries == 0);
+  
+  assert(num_import == -1);
+  assert(import_global_ids == NULL);
+  assert(import_local_ids == NULL);
+  assert(import_procs == NULL);
+  assert(import_to_part == NULL);
+  
+
+  assert(export_global_ids != NULL);
+  assert(export_local_ids == NULL);
+  assert(export_procs != NULL);
+  assert(export_to_part != NULL);
+  
+
+
+  // Do something with the partitioning 
   
 
 
 
+  ///////////////////////////////////////////////////////////////////////
+  // cleanup
+  //////
 
+  // Free the arrays after doing something
+  error = zolt.LB_Free_Part(&import_global_ids,
+                            &import_local_ids,
+                            &import_procs,
+                            &import_to_part);
+  assert(error == ZOLTAN_OK);
 
-  // // if(mpi_rank == 0) {
-  // //   std::cout << "Size: " << mpi_size << std::endl;
-  // // }
+  error = zolt.LB_Free_Part(&export_global_ids,
+                            &export_local_ids,
+                            &export_procs,
+                            &export_to_part);
+  assert(error == ZOLTAN_OK);
 
-  // // Initialize Zoltan
-  // float zoltan_version;
-  // int error = Zoltan_Initialize(argc, argv, &zoltan_version);
-  // if(error != ZOLTAN_OK) {
-  //   std::cout << "Unable to launch Zoltan!" << std::endl;
-  //   exit(EXIT_FAILURE);
-  // }
-  // if(mpi_rank == 0)
-  //   std::cout << "Zoltan version: " << zoltan_version << std::endl;
-
-  
-  // // Create the Zoltan object
-  // Zoltan* zolt_ptr = new Zoltan(MPI::COMM_WORLD);
-  // assert(zolt_ptr != NULL);
-  // // Zoltan& zolt(*zolt_ptr);
 
 
   
 
 
-  // // Destroy the zoltan object
-  // delete zolt_ptr;
+  // Destroy the zoltan object
+  delete zolt_ptr;
 
 } // build atom files
 
