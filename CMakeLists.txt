@@ -338,6 +338,7 @@ MACRO(add_zoltan_executable NAME)
     TARGET_LINK_LIBRARIES(${NAME} 
       graphlab
       graphlab_dist2
+      graphlab_zoltan
       ${ZOLTAN_LIBS}
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} )
