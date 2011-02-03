@@ -52,7 +52,8 @@ void release_rd(size_t lockid, deferred_rw_lock::request* l) {
   iterate_released(lockid, reqs, numok);
 }
 
-void iterate_released(size_t lockid, deferred_rw_lock::request *reqs, size_t numok) {
+void iterate_released(size_t lockid, 
+		      deferred_rw_lock::request *reqs, size_t numok) {
   for (size_t i = 0;i < numok; ++i) {
     if (reqs->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
       eval_rd(lockid);
@@ -74,8 +75,8 @@ void f(void) {
   randsign.resize(NUM_RAND);
   deferred_rw_lock::request testreqs[NUM_RAND];
     for (size_t j = 0;j < NUM_RAND; ++j) {
-      randlocks[j] = random::rand_int(NUM_LOCKS - 1);
-      randsign[j] = random::rand_int(READ_PROP);
+      randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
+      randsign[j] = graphlab::random::rand_int(READ_PROP);
     }
 for (size_t i = 0;i < NUM_ITER; ++i) {
     bar1.wait();
@@ -89,7 +90,8 @@ for (size_t i = 0;i < NUM_ITER; ++i) {
       }
       else {
         deferred_rw_lock::request *allreleased;
-        size_t numok = locks[randlocks[j]].readlock(&testreqs[j], allreleased);
+        size_t numok = 
+	  locks[randlocks[j]].readlock(&testreqs[j], allreleased);
         iterate_released(randlocks[j], allreleased, numok);
       }
     }
@@ -126,8 +128,8 @@ void f2(void) {
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
   for (size_t j = 0;j < NUM_RAND; ++j) {
-    randlocks[j] = random::rand_int(NUM_LOCKS - 1);
-    randsign[j] = random::rand_int(READ_PROP);
+    randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
+    randsign[j] = graphlab::random::rand_int(READ_PROP);
   }
     
   for (size_t i = 0;i < NUM_ITER; ++i) {
@@ -160,8 +162,8 @@ void f3(void) {
   randsign.resize(NUM_RAND);
   queued_rw_lock::request req[NUM_LOCKS];
   for (size_t j = 0;j < NUM_RAND; ++j) {
-    randlocks[j] = random::rand_int(NUM_LOCKS - 1);
-    randsign[j] = random::rand_int(READ_PROP);
+    randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
+    randsign[j] = graphlab::random::rand_int(READ_PROP);
   }
   
   for (size_t i = 0;i < NUM_ITER; ++i) {
@@ -256,7 +258,9 @@ int main(int argc, char** argv) {
   }
   group.join();
   ASSERT_EQ(numacquired.value, (size_t)(nthreads) * NUM_RAND * NUM_ITER);
-  std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER << " deferred locks acquired and released in " << ti.current_time() << std::endl;
+  std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER 
+	    << " deferred locks acquired and released in " 
+	    << ti.current_time() << std::endl;
 
   thread_group group2;
   ti.start();
@@ -264,7 +268,9 @@ int main(int argc, char** argv) {
     launch_in_new_thread(group2, f2);
   }
   group2.join();
-  std::cout << nthreads * NUM_RAND * NUM_ITER << " regular locks acquired and released in " << ti.current_time() << std::endl;
+  std::cout << nthreads * NUM_RAND * NUM_ITER 
+	    << " regular locks acquired and released in " 
+	    << ti.current_time() << std::endl;
   
   thread_group group3;
   ti.start();
@@ -272,5 +278,7 @@ int main(int argc, char** argv) {
     launch_in_new_thread(group3, f3);
   }
   group3.join();
-  std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER << " queued locks acquired and released in " << ti.current_time() << std::endl;
+  std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER 
+	    << " queued locks acquired and released in " 
+	    << ti.current_time() << std::endl;
 }
