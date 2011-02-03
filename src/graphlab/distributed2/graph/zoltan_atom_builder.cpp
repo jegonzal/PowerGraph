@@ -17,13 +17,15 @@
 #include <zoltan_cpp.h>
 
 
-
-
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <boost/filesystem.hpp>
+
+
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/distributed2/graph/graph_fragment.hpp>
 #include <graphlab/distributed2/graph/zoltan_atom_builder.hpp>
-#include <graphlab/util/charstream.hpp>
+// #include <graphlab/util/charstream.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -69,18 +71,22 @@ void load_structures(const std::string& path,
 
 
 void distribute_part2proc_map(std::map<vertex_id_t, vertex_id_t>& part2proc) {
+  typedef std::map<vertex_id_t, vertex_id_t> map_type;
   // Get the mpi rank and size
   int mpi_rank, mpi_size;
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
   // Serialize the local map
-  graphlab::charstream cstrm(128);
+  //  graphlab::charstream cstrm(128);
+  std::stringstream cstrm;
   graphlab::oarchive arc(cstrm);
   arc << part2proc;
+  std::string buffer(cstrm.str());
 
   // All gather the size of the maps that must be received
-  int buffer_size = cstrm->size();
+  // int buffer_size = cstrm->size();
+  int buffer_size(buffer.size());
   std::vector<int> sizes(mpi_size);
   // Compute the sizes
   MPI_Allgather(&buffer_size,  // Send buffer
@@ -109,18 +115,42 @@ void distribute_part2proc_map(std::map<vertex_id_t, vertex_id_t>& part2proc) {
     std::cout << "Sum: " << sum << std::endl;
   }
     
-  // recv all the maps
-//   std::vector<char> recv_buffer(sum);
-//   MPI_Allgatherv(cstrm->c_str(),  // sned buffer
-//                  buffer_size,                // how much to send
-//                  MPI_CHAR,                   // send type
-//                  &recv_buffer[0],            // recv buffer
-//                  &sizes[0],                  // amount to recv for each process
-//                  &offsets[0],                // where to place data
-//                  MPI_CHAR,
-//                  MPI_COMM_WORLD);
-                 
+  // recv all the maps 
+  std::vector<char> recv_buffer(sum);
+  MPI_Allgatherv(const_cast<char*>(buffer.c_str()),  // sned buffer
+                 buffer_size,                // how much to send
+                 MPI_CHAR,                   // send type
+                 &recv_buffer[0],            // recv buffer
+                 &sizes[0],                  // amount to recv for each process
+                 &offsets[0],                // where to place data
+                 MPI_CHAR,
+                 MPI_COMM_WORLD);
 
+
+  // Update the local map
+  namespace bio = boost::iostreams;
+  typedef bio::stream<bio::array_source> icharstream;
+
+  icharstream strm(&buffer[0], buffer.size());
+  graphlab::iarchive iarc(strm);
+  for(size_t i = 0; i < sizes.size(); ++i) {
+    std::cout << "Preread: " << std::endl;
+    map_type other_map;
+    iarc >> other_map;
+    std::cout << "post read" << std::endl;
+    foreach(const map_type::value_type& pair, other_map) 
+      part2proc[pair.first] = pair.second;        
+  }
+
+  // if rank 0 print the map
+  if(mpi_rank == 0) {
+    foreach(const map_type::value_type& pair, part2proc)
+      std::cout << pair.first << ",  " << pair.second << std::endl;
+
+    
+  }
+  
+  
 
 
   
