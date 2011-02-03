@@ -23,7 +23,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/distributed2/graph/graph_fragment.hpp>
 #include <graphlab/distributed2/graph/zoltan_atom_builder.hpp>
-
+#include <graphlab/util/charstream.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -73,20 +73,62 @@ void distribute_part2proc_map(std::map<vertex_id_t, vertex_id_t>& part2proc) {
   int mpi_rank, mpi_size;
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-  
-  std::stringstream strm_buffer;
-  graphlab::oarchive arc(strm_buffer);
+
+  // Serialize the local map
+  graphlab::charstream cstrm(128);
+  graphlab::oarchive arc(cstrm);
   arc << part2proc;
-  unsigned int buffer_size = strm_buffer.str().size();
-  std::vector<unsigned int> sizes(mpi_size);
+
+  // All gather the size of the maps that must be received
+  int buffer_size = cstrm->size();
+  std::vector<int> sizes(mpi_size);
   // Compute the sizes
-  MPI_Allgather(&buffer_size,   // Send buffer
+  MPI_Allgather(&buffer_size,  // Send buffer
                 1,             // send count
-                MPI_UNSIGNED,  // send type
+                MPI_INT,       // send type
                 &sizes[0],     // recvbuffer
-                sizes.size(),  // recvcount
+                1,             // recvcount
                 MPI_UNSIGNED,  // recvtype
                 MPI_COMM_WORLD);  
+
+
+  // Construct offsets
+  std::vector<int> offsets = sizes;
+  int sum = 0, tmp = 0;
+  for(size_t i = 0; i < offsets.size(); ++i) {
+    tmp = offsets[i]; offsets[i] = sum; sum += tmp; 
+  }
+
+  if(mpi_rank == 0) {
+    for(size_t i = 0; i < sizes.size(); ++i) 
+      std::cout << sizes[i] << '\t';
+    std::cout << std::endl;
+    for(size_t i = 0; i < offsets.size(); ++i) 
+      std::cout << offsets[i] << '\t';
+    std::cout << std::endl;
+    std::cout << "Sum: " << sum << std::endl;
+  }
+    
+  // recv all the maps
+//   std::vector<char> recv_buffer(sum);
+//   MPI_Allgatherv(cstrm->c_str(),  // sned buffer
+//                  buffer_size,                // how much to send
+//                  MPI_CHAR,                   // send type
+//                  &recv_buffer[0],            // recv buffer
+//                  &sizes[0],                  // amount to recv for each process
+//                  &offsets[0],                // where to place data
+//                  MPI_CHAR,
+//                  MPI_COMM_WORLD);
+                 
+
+
+
+  
+
+
+
+ 
+  
   
   
   
