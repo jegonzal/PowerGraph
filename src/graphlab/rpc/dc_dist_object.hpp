@@ -51,7 +51,11 @@ class dc_dist_object{
   inline void comm_barrier() {
     return dc_.comm_barrier();
   }
-  
+
+  inline dc_services& services() {
+    return dc_.services();
+  }
+
     /**
   This generates the interface functions for the standard calls, basic calls, and fast calls
   */

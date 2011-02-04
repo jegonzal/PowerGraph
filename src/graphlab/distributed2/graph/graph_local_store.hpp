@@ -1,5 +1,6 @@
 #ifndef GRAPH_LOCAL_STORE_HPP
 #define GRAPH_LOCAL_STORE_HPP
+#include <climits>
 #include <graphlab/util/mmap_wrapper.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -35,8 +36,16 @@ namespace dist_graph_impl {
 
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
-      
-    
+
+    struct vdata_store {
+      VertexData data;
+      uint64_t version;
+    };
+
+    struct edata_store {
+      EdgeData data;
+      uint64_t version;
+    };
   public:
 
     /**
@@ -286,15 +295,38 @@ namespace dist_graph_impl {
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_t v) {
       assert(v < nvertices);
-      return vertices[v];
+      return vertices[v].data;
     } // end of data(v)
-    
+
     /** \brief Returns a constant reference to the data stored on the vertex v */
     const VertexData& vertex_data(vertex_id_t v) const {
       assert(v < nvertices);
-      return vertices[v];
+      return vertices[v].data;
     } // end of data(v)
 
+    set_vertex_version(vertex_id_t v, uint64_t version) {
+      vertices[v].version = version;
+    }
+    
+    uint64_t vertex_version(vertex_id_t v) const{
+      return vertices[v].version && uint64_t(0x7FFFFFFFFFFFFFFF);
+    }
+
+
+    void set_vertex_modified(vertex_id_t v, bool modified) {
+      if (modified) {
+        vertices[v].version |= uint64_t(0x8000000000000000);
+      }
+      else {
+        vertices[v].version = vertex_version(v);
+      }
+    }
+
+    bool vertex_modified(vertex_id_t v) const{
+      return vertices[v].version & uint64_t(0x8000000000000000);
+    }
+
+    
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_t source, vertex_id_t target) {
       assert(source < nvertices);
@@ -304,7 +336,7 @@ namespace dist_graph_impl {
       assert(ans.first);
       // the edge id should be valid!
       assert(ans.second < nedges);
-      return edgedata[ans.second];
+      return edgedata[ans.second].data;
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the edge source->target */
@@ -316,20 +348,63 @@ namespace dist_graph_impl {
       assert(ans.first);
       // the edge id should be valid!
       assert(ans.second < nedges);
-      return edgedata[ans.second];
+      return edgedata[ans.second].data;
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_id_t edge_id) { 
       assert(edge_id < nedges);
-      return edgedata[edge_id];
+      return edgedata[edge_id].data;
     }
     
     /** \brief Returns a constant reference to the data stored on the edge e */
     const EdgeData& edge_data(edge_id_t edge_id) const {
       assert(edge_id < nedges);
-      return edgedata[edge_id];
+      return edgedata[edge_id].data;
     }
+
+    void set_edge_version(edge_id_t edge_id, uint64_t version) {
+      return edgedata[edge_id].version = version;
+    }
+
+    uint64_t edge_version(edge_id_t edge_id) const{
+      return edgedata[edge_id].version && uint64_t(0x7FFFFFFFFFFFFFFF);
+    }
+
+    void set_edge_modified(vertex_id_t v, bool modified) {
+      if (modified) {
+        edgedata[v].version |= uint64_t(0x8000000000000000);
+      }
+      else {
+        edgedata[v].version = edge_version(v);
+      }
+    }
+
+    bool edge_modified(vertex_id_t v) const{
+      return edgedata[v].version & uint64_t(0x8000000000000000);
+    }
+
+    size_t& edge_version(vertex_id_t source, vertex_id_t target) {
+      assert(source < nvertices);
+      assert(target < nvertices);
+      std::pair<bool, edge_id_t> ans = find(source, target);
+      // We must find the edge!
+      assert(ans.first);
+      // the edge id should be valid!
+      assert(ans.second < nedges);
+      return edgedata[ans.second].version;
+    } // end of edge_data(u,v)
+
+    size_t edge_version(vertex_id_t source, vertex_id_t target) const {
+      assert(source < nvertices);
+      assert(target < nvertices);
+      std::pair<bool, edge_id_t> ans = find(source, target);
+      // We must find the edge!
+      assert(ans.first);
+      // the edge id should be valid!
+      assert(ans.second < nedges);
+      return edgedata[ans.second].version;
+    } // end of edge_data(u,v)
 
     /** \brief Returns the source vertex of an edge. */
     vertex_id_t source(edge_id_t edge_id) const {
@@ -633,10 +708,10 @@ namespace dist_graph_impl {
     // PRIVATE DATA MEMBERS ===================================================>    
     /** The vertex data is simply a vector of vertex data 
      */
-    VertexData* vertices;
+    vdata_store* vertices;
     
     /** Vector of edge data  */
-    EdgeData* edgedata;
+    edata_store* edgedata;
     
     std::string vertex_store_file;
     std::string edge_store_file;
@@ -711,10 +786,10 @@ namespace dist_graph_impl {
     } // end of binary search 
 
     void setup_mmap() {
-      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(VertexData) * nvertices);
-      edgemmap = new mmap_wrapper(edge_store_file, sizeof(EdgeData) * nedges);
-      vertices = (VertexData*)(vertexmmap->mapped_ptr());
-      edgedata = (EdgeData*)(edgemmap->mapped_ptr());
+      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
+      edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
+      vertices = (vdata_store*)(vertexmmap->mapped_ptr());
+      edgedata = (edata_store*)(edgemmap->mapped_ptr());
     }
 
 

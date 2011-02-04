@@ -28,7 +28,8 @@ class dc_services {
   size_t numchild;  /// number of children
   
   std::string broadcast_receive;
-  
+
+  std::vector<std::string> gather_receive;
   // set the waiting flag
   void __child_to_parent_barrier_trigger(procid_t source);
   
@@ -38,6 +39,11 @@ class dc_services {
   void set_broadcast_receive(const std::string &s) {
     broadcast_receive = s;
   }
+
+  void set_gather_receive(procid_t source, const std::string &s) {
+    gather_receive[source] = s;
+  }
+  
  public:
   dc_services(distributed_control &dc):rpc(dc, this) { 
     // reset the child barrier values
@@ -124,10 +130,50 @@ class dc_services {
       iarchive iarc(strm);
       iarc >> data;
     }
+  }
+
+  /**
+   * data must be of length data[numprocs].
+   * My data is stored in data[dc.procid()].
+   * when function returns, machine sendto will have the complete vector
+   * where data[i] is the data contributed by machine i.
+   * All machines must have the same parameter for "sendto"
+   */
+  template <typename T>
+  void gather(std::vector<T>& data, procid_t sendto) {
+    if (sendto != rpc.procid()) {
+      std::stringstream strm;
+      oarchive oarc(strm);
+      oarc << data;
+      gather_receive.resize(rpc.numprocs());
+      rpc.fast_remote_request(sendto,
+                              &dc_services::set_gather_receive,
+                              rpc.procid(),
+                              strm.str());
+    }
+    barrier();
+
+    if (sendto == rpc.procid()) {
+      for (procid_t i = 0; i < rpc.numprocs(); ++i) {
+        std::stringstream strm(gather_receive[i]);
+        iarchive iarc(strm);
+        iarc >> data[i];
+      }
+    }
     
   }
-  
-  
+
+  /**
+   * data must be of length data[numprocs].
+   * My data is stored in data[dc.procid()]
+   * when function returns, everyone will have the same data vector
+   * where data[i] is the data contributed by machine i.
+   */
+  template <typename T>
+  void all_gather(std::vector<T>& data) {
+    gather(data, 0);
+    broadcast(data, rpc.procid() == 0);
+  }
 };
 
 }
