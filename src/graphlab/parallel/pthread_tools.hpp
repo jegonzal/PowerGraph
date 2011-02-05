@@ -604,6 +604,42 @@ namespace graphlab {
    * \class semaphore
    * Wrapper around pthread's semaphore
    */
+#ifdef __APPLE__
+  class semaphore {
+  private:
+    conditional cond;
+    mutex mut;
+    mutable volatile size_t semvalue;
+    mutable volatile size_t waitercount;
+  public:
+    semaphore() {
+      semvalue = 0;
+      waitercount = 0;
+    }
+    inline void post() const {
+      mut.lock();
+      if (waitercount > 0) {
+        cond.signal();
+      }
+      semvalue++;
+      mut.unlock();
+    }
+    inline void wait() const {
+      mut.lock();
+      waitercount++;
+      while (semvalue == 0) {
+        cond.wait(mut);
+      }
+      waitercount--;
+      semvalue--;
+      mut.unlock();
+    }
+    ~semaphore() {
+      assert(waitercount == 0);
+      assert(semvalue == 0);
+    }
+  }; // End semaphore
+#else
   class semaphore {
   private:
     mutable sem_t  m_sem;
@@ -625,7 +661,7 @@ namespace graphlab {
       assert(!error);
     }
   }; // End semaphore
-
+#endif
   
 
 #define atomic_xadd(P, V) __sync_fetch_and_add((P), (V))

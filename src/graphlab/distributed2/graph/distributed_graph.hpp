@@ -1,5 +1,7 @@
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
+#include <map>
+#include <vector>
 #include <algorithm>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
@@ -764,147 +766,18 @@ class distributed_graph {
   bool is_ghost(vertex_id_t vid) {
     return localvid2owner[global2localvid[vid]] != rmi.procid();
   }
-
-  /**
-   * In a synchronous way, synchronize the data on vertex with global id vid
-   * vid must be a ghost
-   */
-  void synchronize_vertex(vertex_id_t vid, bool async = false) {
-    vertex_id_t localvid = global2localvid[vid];
-    if (is_ghost(vid)) {
-      vertex_conditional_store out;
-      out.hasdata = localstore.vertex_modified(localvid);
-      if (out.hasdata) out.data.first = localstore.vertex_data(localvid);
-      if (async == false) {
-        vertex_conditional_store v = rmi.remote_request(localvid2owner[localvid],
-                                                        &distributed_graph<VertexData, EdgeData>::get_vertex_if_version_less_than,
-                                                        vid,
-                                                        localstore.vertex_version(localvid),
-                                                        out);
-      }
-      else {
-        vertex_conditional_store v = rmi.remote_call(localvid2owner[localvid],
-                                                     rmi.procid(),
-                                                     &distributed_graph<VertexData, EdgeData>::async_get_vertex_if_version_less_than,
-                                                     vid,
-                                                     localstore.vertex_version(localvid),
-                                                     out);
-      }
-      if (v.hasdata) {
-        localstore.vertex_data(localvid) = v.data.first;
-        localstore.vertex_version(localvid) = v.data.second;
-      }
-    }
+  bool localvid_is_ghost(vertex_id_t localvid) {
+    return localvid2owner[localvid] != rmi.procid();
   }
-
-  /**
-   * In a synchronous way, synchronize the data on edge with global id eid
-   * target of edge must be a ghost
-   */
-  void synchronize_edge(edge_id_t eid, bool async = false) {
-
-    if (!edge_canonical_numbering) {
-      edge_id_t localeid = eid;
-
-      edge_conditional_store out;
-      out.hasdata = localstore.edge_modified(localeid);
-      if (out.hasdata) out.data.first = localstore.edge_data(localeid);
-
-      if (localvid2owner[localstore.target(localeid)] != rmi.procid()) {
-        if (async == false) {
-          edge_conditional_store e = rmi.remote_request(localvid2owner[localstore.target(localeid)],
-                                                      &distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than,
-                                                      eid,
-                                                      localstore.vertex_version(localeid),
-                                                      out);
-        }
-        else {
-          edge_conditional_store e = rmi.remote_call(localvid2owner[localstore.target(localeid)],
-                                                     rmi.procid(),
-                                                     &distributed_graph<VertexData, EdgeData>::async_get_edge_if_version_less_than,
-                                                     eid,
-                                                     localstore.vertex_version(localeid),
-                                                     out);
-        }
-        if (e.hasdata) {
-          localstore.edge_data(localeid) = e.data.first;
-          localstore.edge_version(localeid) = e.data.second;
-        }
-      }
-    }
-    else {
-      edge_id_t localeid = eid;
-      vertex_id_t localtargetvid = localstore.target(localeid);
-      vertex_id_t targetvid = local2globalvid[localtargetvid];
-      vertex_id_t localsourcevid = localstore.source(localeid);
-      vertex_id_t sourcevid = local2globalvid[localsourcevid];
-
-      if (is_ghost(targetvid)) {
-
-        edge_conditional_store out;
-        out.hasdata = localstore.edge_modified(localeid);
-        if (out.hasdata) out.data.first = localstore.edge_data(localeid);
-        if (async == false) {
-          edge_conditional_store e = rmi.remote_request(localvid2owner[localtargetvid],
-                                                        &distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than2,
-                                                        sourcevid,
-                                                        targetvid,
-                                                        localstore.vertex_version(localeid),
-                                                        out);
-        }
-        else {
-          edge_conditional_store e = rmi.remote_call(localvid2owner[localtargetvid],
-                                                     rmi.procid(),
-                                                     &distributed_graph<VertexData, EdgeData>::async_get_edge_if_version_less_than2,
-                                                     sourcevid,
-                                                     targetvid,
-                                                     localstore.vertex_version(localeid),
-                                                     out);
-        }
-        if (e.hasdata) {
-          localstore.edge_data(localeid) = e.data.first;
-          localstore.edge_version(localeid) = e.data.second;
-        }
-      }
-    }
-  }
-
-
-
   
-
-  /**
-   * In a synchronous way, synchronize the entire scope for vertex vid
-   */
-  void synchronize_scope(vertex_id_t vid) {
-    if (edge_canonical_numbering) {
-      // use 2
-      vertex_id_t localvid = global2localvid[vid];
-      std::map<procid_t, >
-      foreach(edge_id_t localineid, localstore.in_edge_ids(localvid)) {
-        if (
-      }
-    }
-  }
-
-
-
-  /**
-   * In a asynchronous way, synchronize the entire scope for vertex vid
-   */
-  void async_synchronize_scope(vertex_id_t vid) {
-
-  }
-
-  /**
-   * Waits for all asynchronous data synchronizations to complete
-   */
-  void wait_for_all_async_syncs() {
-    while(pending_async_updates.value != 0) sched_yield();
-  }
-
-
-
+  // synchronzation aclls
+  void synchronize_vertex(vertex_id_t vid, bool async = false);
+  void synchronize_edge(edge_id_t eid, bool async = false);
+  void synchronize_scope(vertex_id_t vid, bool async = false);   
+  void wait_for_all_async_syncs();
+ public:
+  
+  // extra types
   template <typename DataType>
   struct conditional_store{
     bool hasdata;
@@ -919,6 +792,47 @@ class distributed_graph {
     }
   };
   
+  typedef conditional_store<std::pair<VertexData, uint64_t> >  vertex_conditional_store;
+  typedef conditional_store<std::pair<EdgeData, uint64_t> >  edge_conditional_store;
+
+  
+
+
+  struct block_synchronize_request {
+    std::vector<vertex_id_t> vid;
+    std::vector<uint64_t > vidversion;
+    std::vector<vertex_conditional_store> vstore;
+    std::vector<edge_id_t> eid;
+    std::vector<uint64_t > edgeversion;
+    std::vector<edge_conditional_store> estore;
+    void save(oarchive &oarc) {
+      oarc << vid << vidversion << vstore
+           << eid << edgeversion << estore;
+    }
+
+    void load(iarchive &iarc) {
+      iarc >> vid >> vidversion >> vstore
+           >> eid >> edgeversion >> estore;
+    }
+  };
+
+  struct block_synchronize_request2 {
+    std::vector<vertex_id_t> vid;
+    std::vector<uint64_t > vidversion;
+    std::vector<vertex_conditional_store> vstore;
+    std::vector<std::pair<vertex_id_t, vertex_id_t> > srcdest;
+    std::vector<uint64_t > edgeversion;
+    std::vector<edge_conditional_store> estore;
+    void save(oarchive &oarc) {
+      oarc << vid << vidversion << vstore
+           << srcdest << edgeversion << estore;
+    }
+
+    void load(iarchive &iarc) {
+      iarc >> vid >> vidversion >> vstore
+           >> srcdest >> edgeversion >> estore;
+    }
+  };
  private:
   /// RMI object
   mutable dc_dist_object<distributed_graph<VertexData, EdgeData> > rmi;
@@ -969,9 +883,6 @@ class distributed_graph {
   atomic<size_t> pending_async_updates;
 
 
-
-  typedef conditional_store<std::pair<VertexData, uint64_t> >  vertex_conditional_store;
-  typedef conditional_store<std::pair<EdgeData, uint64_t> >  edge_conditional_store;
   
   
   /**
@@ -1194,14 +1105,14 @@ class distributed_graph {
         // to the fragment localvi
         size_t localvid = global2localvid[atomfiles[i]->globalvids()[j]];
         localstore.vertex_data(localvid) = atomfiles[i]->vdata()[j];
-        localstore.vertex_version(localvid) = 0;
+        localstore.set_vertex_version(localvid, 0);
       }
       for (size_t j = 0; j < atomfiles[i]->edata().size(); ++j) {
         // convert from the atom's local vid, to the global vid, then
         // to the fragment localvi
         size_t localeid = global2localeid[atomfiles[i]->globaleids()[j]];
         localstore.edge_data(localeid) = atomfiles[i]->edata()[j];
-        localstore.edge_version(localeid) = 0;
+        localstore.set_edge_version(localeid, 0);
       }
       atomfiles[i]->clear();
       delete atomfiles[i];
@@ -1217,254 +1128,87 @@ class distributed_graph {
     rmi.comm_barrier();
   }
 
-  vertex_conditional_store get_vertex_if_version_less_than(vertex_id_t vid,
-                                                           uint64_t  vertexversion,
-                                                           vertex_conditional_store vdata) {
-    vertex_conditional_store ret;
-    size_t localvid = global2localvid[vid];
-    uint64_t local_vertex_version = localstore.vertex_version(localvid);
-    if (local_vertex_version  > vertexversion) {
-      ret.hasdata = true;
-      ret.data.first = localstore.vertex_data(localvid);
-      ret.data.second = local_vertex_version;
-    }
-    else if (local_vertex_version < vertexversion) {
-      assert(vdata.hasdata);
-      localstore.vertex_data(localvid) = vdata.data.first;
-      localstore.set_vertex_version(localvid, vertexversion);
-      ret.hasdata = false;
-    }
-    else {
-      ret.hasdata = false;
-    }
-    return ret;
-  }
-
-  edge_conditional_store get_edge_if_version_less_than(edge_id_t eid, uint64_t  edgeversion,
-                                                       edge_conditional_store edata) {
-    edge_conditional_store ret;
-    size_t localeid = global2localeid[eid];
-    uint64_t  local_edge_version = localstore.edge_version(localeid);
-    if (local_edge_version > edgeversion) {
-      ret.hasdata = true;
-      ret.data.first = localstore.edge_data(localeid);
-      ret.data.second = local_edge_version;
-    }
-    else if (local_edge_version < edgeversion) {
-      assert(edata.hasdata);
-      localstore.edge_data(localeid) = edata.data.first;
-      localstore.set_edge_version(localeid, edgeversion);
-      ret.hasdata = false;
-    }
-    else {
-      ret.hasdata = false;
-    }
-    return ret;
-  }
-
-  edge_conditional_store get_edge_if_version_less_than2(vertex_id_t source,
-                                                        vertex_id_t target,
-                                                        uint64_t  edgeversion,
-                                                        edge_conditional_store edata) {
-    edge_conditional_store ret;
-    size_t localsource = global2localvid[source];
-    size_t localtarget = global2localvid[target];
-    std::pair<bool, edge_id_t> findret = localstore.find(localsource, localtarget);
-    assert(findret.first);
-    edge_id_t localeid = findret.second;
-    
-    uint64_t  local_edge_version = localstore.edge_version(localeid);
-    if (local_edge_version > edgeversion) {
-      ret.hasdata = true;
-      ret.data.first = localstore.edge_data(localeid);
-      ret.data.second = local_edge_version;
-    }
-    else if (local_edge_version < edgeversion) {
-      assert(edata.hasdata);
-      localstore.edge_data(localeid) = edata.data.first;
-      localstore.set_edge_version(localeid, edgeversion);
-      ret.hasdata = false;
-    }
-    else {
-      ret.hasdata = false;
-    }
-    return ret;
-  }
-
-
-
-  void async_get_vertex_if_version_less_than(procid_t srcproc, vertex_id_t vid, uint64_t  vertexversion) {
-    rmi.remote_call(srcproc,
-                    &distributed_graph<VertexData, EdgeData>::reply_vertex_data_and_version,
-                    vid,
-                    get_vertex_if_version_less_than(vid, vertexversion));
-  }
-
-  void async_get_edge_if_version_less_than(procid_t srcproc, edge_id_t eid, uint64_t  edgeversion) {
-    rmi.remote_call(srcproc,
-                    &distributed_graph<VertexData, EdgeData>::reply_edge_data_and_version,
-                    eid,
-                    get_edge_if_version_less_than(eid, edgeversion));
-  }
-
-  void async_get_edge_if_version_less_than2(procid_t srcproc, vertex_id_t source, vertex_id_t target, uint64_t  edgeversion) {
-    rmi.remote_call(srcproc,
-                    &distributed_graph<VertexData, EdgeData>::reply_edge_data_and_version2,
-                    source,
-                    target,
-                    get_edge_if_version_less_than2(source, target, edgeversion));
-  }
-
-  struct block_synchronize_request {
-    std::vector<vertex_id_t> vid;
-    std::vector<uint64_t > vidversion;
-    std::vector<vertex_conditional_store> vstore;
-    std::vector<edge_id_t> eid;
-    std::vector<uint64_t > edgeversion;
-    std::vector<edge_conditional_store> estore;
-    void save(oarchive &oarc) {
-      oarc << vid << vidversion << vstore
-           << eid << edgeversion << estore;
-    }
-
-    void load(iarchive &iarc) {
-      oarc >> vid >> vidversion >> vstore
-           >> eid >> edgeversion >> estore;
-    }
-  };
-
-  block_synchronize_request& get_alot(procid_t srcproc,
-                                     block_synchronize_request &request) {
-    std::vector<vertex_conditional_store> vresponse(request.vid.size());
-    std::vector<edge_conditional_store> eresponse(request.eid.size());
-    for (size_t i = 0;i < request.vid.size(); ++i) {
-      request.vstore[i] = get_vertex_if_version_less_than(request.vid[i], request.vidversion[i], request.vstore[i]);
-    }
-    for (size_t i = 0;i < request.eid.size(); ++i) {
-      request.estore[i] = get_edge_if_version_less_than(request.eid[i], request.edgeversion[i], request.estore[i]);
-    }
-    request.vidversion.clear();
-    request.edgeversion.clear();
-
-    return request;
-  }
-
-
-  void async_get_alot(procid_t srcproc,
-                      block_synchronize_request &request) {
-    get_alot(srcproc, request);
-    rmi.remote_call(srcproc,
-                    &distributed_graph<VertexData, EdgeData>::reply_alot,
-                    request);
-  }
-
-
-  struct block_synchronize_request2 {
-    std::vector<vertex_id_t> vid;
-    std::vector<uint64_t > vidversion;
-    std::vector<vertex_conditional_store> vstore;
-    std::vector<std::pair<vertex_id_t, vertex_id_t> > srcdest;
-    std::vector<uint64_t > edgeversion;
-    std::vector<edge_conditional_store> estore;
-    void save(oarchive &oarc) {
-      oarc << vid << vidversion << vstore
-           << srcdest << edgeversion << estore;
-    }
-
-    void load(iarchive &iarc) {
-      oarc >> vid >> vidversion >> vstore
-           >> srcdest >> edgeversion >> estore;
-    }
-  };
-
-  block_synchronize_request2& get_alot2(procid_t srcproc,
-                                        block_synchronize_request2 &request) {
-    std::vector<vertex_conditional_store> vresponse(request.vid.size());
-    std::vector<edge_conditional_store> eresponse(request.srcdest.size());
-    for (size_t i = 0;i < request.vid.size(); ++i) {
-      request.vstore[i] = get_vertex_if_version_less_than(request.vid[i], request.vidversion[i], request.vstore[i]);
-    }
-    for (size_t i = 0;i < request.srcdest.size(); ++i) {
-      request.estore[i] = get_edge_if_version_less_than2(request.srcdest[i].first, request.srcdest[i].second, request.edgeversion[i], request.estore[i]);
-    }
-    request.vidversion.clear();
-    request.edgeversion.clear();
-    return request;
-  }
   
-  void async_get_alot2(procid_t srcproc,
-                       block_synchronize_request2 &request) {
-    get_alot2(srcproc, request);
-    rmi.remote_call(srcproc,
-                    &distributed_graph<VertexData, EdgeData>::reply_alot2,
-                    request);
-  }
+  vertex_conditional_store get_vertex_if_version_less_than(vertex_id_t vid, 
+                                                           uint64_t vertexversion,
+                                                           vertex_conditional_store &vdata);
+  
+  edge_conditional_store get_edge_if_version_less_than(edge_id_t eid, 
+                                                       uint64_t edgeversion,
+                                                       edge_conditional_store &edata);
+                                                       
+  edge_conditional_store get_edge_if_version_less_than2(vertex_id_t source, 
+                                                        vertex_id_t target, 
+                                                        uint64_t edgeversion,
+                                                        edge_conditional_store &edata);
+  
+  
+  void async_get_vertex_if_version_less_than(procid_t srcproc, 
+                                             vertex_id_t vid, 
+                                             uint64_t vertexversion,
+                                             vertex_conditional_store &vdata);
+                                             
+  void async_get_edge_if_version_less_than(procid_t srcproc, 
+                                           edge_id_t eid, 
+                                           uint64_t edgeversion,
+                                           edge_conditional_store &edata);
+                                           
+  void async_get_edge_if_version_less_than2(procid_t srcproc, 
+                                            vertex_id_t source, 
+                                            vertex_id_t target, 
+                                            uint64_t edgeversion,
+                                            edge_conditional_store &edata);
+                                   
+                                   
+  
+  void reply_vertex_data_and_version(vertex_id_t vid,
+                                      vertex_conditional_store &estore);
+  
+  
+  void reply_edge_data_and_version(edge_id_t eid,
+                                    edge_conditional_store &estore);
+  
+  
+  void reply_edge_data_and_version2(vertex_id_t source, 
+                                    vertex_id_t target, 
+                                    edge_conditional_store &estore);
+  
+  
+  
+  void update_vertex_data_and_version(vertex_id_t vid,
+                                      vertex_conditional_store &estore);
+  
+  
+  void update_edge_data_and_version(edge_id_t eid,
+                                    edge_conditional_store &estore);
+  
+  
+  void update_edge_data_and_version2(vertex_id_t source, 
+                                    vertex_id_t target, 
+                                    edge_conditional_store &estore);
+  
+  
+  block_synchronize_request& get_alot(block_synchronize_request &request);
+  block_synchronize_request2& get_alot2(block_synchronize_request2 &request);
+  
+  void async_get_alot(procid_t srcproc, block_synchronize_request &request);
+  void async_get_alot2(procid_t srcproc, block_synchronize_request2 &request);
+  
+  void update_alot(block_synchronize_request &request) ;
+  void update_alot2(block_synchronize_request2 &request) ;
+  
+  void reply_alot(block_synchronize_request &request);
+  void reply_alot2(block_synchronize_request2 &request);
 
-  void reply_vertex_data_and_version(vertex_id_t vid, vertex_conditional_store &vstore) {
-    update_vertex_data_and_version(vid, vstore);
-    pending_async_updates.dec();
-  }
-
-  void reply_edge_data_and_version(edge_id_t eid, edge_conditional_store &estore) {
-    update_edge_data_and_version(eid, estore);
-    pending_async_updates.dec();
-  }
-
-  void reply_edge_data_and_version2(vertex_id_t source, vertex_id_t target, edge_conditional_store &estore) {
-    update_edge_data_and_version2(source, target, estore);
-    pending_async_updates.dec();
-  }
 
 
-  void update_vertex_data_and_version(vertex_id_t vid, vertex_conditional_store &vstore) {
-    if (vstore.hasdata) {
-      vertex_id_t localvid = global2localvid[vid];
-      localstore.vertex_data(localvid) = vstore.data.first;
-      localstore.vertex_version(localvid) = vstore.data.second;
-    }
-  }
-
-  void update_edge_data_and_version(edge_id_t eid, edge_conditional_store &estore) {
-    if (estore.hasdata) {
-      edge_id_t localeid = global2localeid[eid];
-      localstore.edge_data(localeid) = estore.data.first;
-      localstore.edge_version(localeid) = estore.data.second;
-    }
-  }
-
-  void update_edge_data_and_version2(vertex_id_t source, vertex_id_t target, edge_conditional_store &estore) {
-    if (estore.hasdata) {
-      vertex_id_t localsourcevid = global2localvid[source];
-      vertex_id_t localtargetvid = global2localvid[target];
-      std::pair<bool, edge_id_t> findret = localstore.find(localsourcevid, localtargetvid);
-      assert(findret.first);
-      localstore.edge_data(findret.second) = estore.data.first;
-      localstore.edge_version(findret.second) = estore.data.second;
-    }
-  }
-
-  void reply_alot(block_synchronize_request &request) {
-    for (size_t i = 0;i < request.vid.size(); ++i) {
-      update_vertex_data_and_version(request.vid[i], request.vstore[i]);
-    }
-
-    for (size_t i = 0;i < request.eid.size(); ++i) {
-      update_edge_data_and_version(request.eid[i], request.estore[i]);
-    }
-    pending_async_updates.dec();
-  }
-
-  void reply_alot2(block_synchronize_request2 &request) {
-    for (size_t i = 0;i < request.vid.size(); ++i) {
-      update_vertex_data_and_version(request.vid[i], request.vstore[i]);
-    }
-
-    for (size_t i = 0;i < request.srcdest.size(); ++i) {
-      update_edge_data_and_version2(request.srcdest[i].first, request.srcdest[i].second, request.estore[i]);
-    }
-    pending_async_updates.dec();
-  }
 };
+
+
+#define FROM_DISTRIBUTED_GRAPH_INCLUDE
+#include <graphlab/distributed2/graph/distributed_graph_synchronization.hpp>
+#undef FROM_DISTRIBUTED_GRAPH_INCLUDE
+
 
 template<typename VertexData, typename EdgeData>
 std::ostream& operator<<(std::ostream& out,

@@ -304,7 +304,7 @@ namespace dist_graph_impl {
       return vertices[v].data;
     } // end of data(v)
 
-    set_vertex_version(vertex_id_t v, uint64_t version) {
+    void set_vertex_version(vertex_id_t v, uint64_t version) {
       vertices[v].version = version;
     }
     
@@ -364,7 +364,7 @@ namespace dist_graph_impl {
     }
 
     void set_edge_version(edge_id_t edge_id, uint64_t version) {
-      return edgedata[edge_id].version = version;
+      edgedata[edge_id].version = version;
     }
 
     uint64_t edge_version(edge_id_t edge_id) const{

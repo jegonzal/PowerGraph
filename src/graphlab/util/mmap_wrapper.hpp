@@ -25,16 +25,17 @@ namespace graphlab {
       advisetype = MADV_NORMAL;
       fd = 0;
       if (diskuncached) {
-	fd = open(file.c_str(), O_RDWR | O_CREAT | O_SYNC, 
-		  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); // chmod 644 (u+rw g+r o+r)
-	// Does not work on Mac since O_DSYNC is non standard changed
-	// to O_SYNC
-	// 	fd = open(file.c_str(), O_RDWR | O_CREAT | O_DSYNC, 
-	// 		  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); // chmod 644 (u+rw g+r o+r)
+#ifdef __APPLE__
+        fd = open(file.c_str(), O_RDWR | O_CREAT | O_SYNC, 
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); // chmod 644 (u+rw g+r o+r)
+#else
+        fd = open(file.c_str(), O_RDWR | O_CREAT | O_DSYNC, 
+         		  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); // chmod 644 (u+rw g+r o+r)
+#endif
       }
       else {
-	fd = open(file.c_str(), O_RDWR | O_CREAT, 
-		  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); // chmod 644 (u+rw g+r o+r)
+	      fd = open(file.c_str(), O_RDWR | O_CREAT, 
+		    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); // chmod 644 (u+rw g+r o+r)
       }
       ASSERT_MSG(fd >= 0, strerror(errno));    
     
@@ -44,10 +45,10 @@ namespace graphlab {
     
       // seek to the padding point and write a byte
       if (pad > 0 && statbuf.st_size < (int)pad) {
-	lseek(fd, pad, SEEK_SET);
-	write(fd, " ", 1);
-	ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
-	ASSERT_GE(statbuf.st_size, pad);
+        lseek(fd, pad, SEEK_SET);
+        write(fd, " ", 1);
+        ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
+        ASSERT_GE(statbuf.st_size, pad);
       }
       // mmap it into memory
       ptrlen = statbuf.st_size;
@@ -84,12 +85,12 @@ namespace graphlab {
   
     inline void close() {
       if (ptr != NULL) {
-	sync_all();
-	munmap(ptr, ptrlen);
-	::close(fd);
-	ptr = NULL;
-	fd = 0;
-	ptrlen = 0;
+        sync_all();
+        munmap(ptr, ptrlen);
+        ::close(fd);
+        ptr = NULL;
+        fd = 0;
+        ptrlen = 0;
       }
     }
   
