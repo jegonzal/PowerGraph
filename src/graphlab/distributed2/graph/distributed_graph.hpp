@@ -378,6 +378,26 @@ class distributed_graph {
   bool edge_is_local(edge_id_t eid) const{
     return global_eid_in_local_fragment(eid);
   }
+  
+  bool is_ghost(vertex_id_t vid) const{
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
+    if (iter == global2localvid.end()) return false;
+    return localvid2owner[iter->second] != rmi.procid();
+  }
+  
+  
+  bool localvid_is_ghost(vertex_id_t localvid) const {
+    return localvid2owner[localvid] != rmi.procid();
+  }
+
+  bool is_owned(vertex_id_t vid) const{
+    return vertex_is_local(vid) && !is_ghost(vid);
+  }
+  
+  const std::vector<vertex_id_t>& owned_vertices() const{
+    return ownedvertices;
+  }
+  
   /**
    * Returns a reference to the edge data on the edge source->target
    * assertion failure if the edge is not within the current fragment
@@ -762,13 +782,6 @@ class distributed_graph {
     }
   }
 
-
-  bool is_ghost(vertex_id_t vid) {
-    return localvid2owner[global2localvid[vid]] != rmi.procid();
-  }
-  bool localvid_is_ghost(vertex_id_t localvid) {
-    return localvid2owner[localvid] != rmi.procid();
-  }
   
   // synchronzation aclls
   void synchronize_vertex(vertex_id_t vid, bool async = false);
@@ -854,7 +867,10 @@ class distributed_graph {
   std::vector<vertex_id_t> local2globalvid;
   boost::unordered_map<edge_id_t, edge_id_t> global2localeid;
   std::vector<edge_id_t> local2globaleid;
-   
+  
+  // collection of vertices I own
+  std::vector<vertex_id_t> ownedvertices;
+  
   /** To avoid requiring O(V) storage on each maching, the 
    * global_vid -> owner mapping cannot be stored in its entirely locally
    * instead, we store it in a DHT. \see globaleid2owner
@@ -1004,9 +1020,13 @@ class distributed_graph {
     for (size_t i = 0;i < atomfiles.size(); ++i) {
       atomfiles[i]->load_structure();
       for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
-        if (canonical_numbering.find(atomfiles[i]->edge_src_dest()[j]) == canonical_numbering.end()) {
+        std::pair<vertex_id_t, vertex_id_t> globaledge = 
+            std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
+                           atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
+                           
+        if (canonical_numbering.find(globaledge) == canonical_numbering.end()) {
           size_t newid = canonical_numbering.size();
-          canonical_numbering[atomfiles[i]->edge_src_dest()[j]] = newid;
+          canonical_numbering[globaledge] = newid;
         }
       }
     }
@@ -1039,20 +1059,19 @@ class distributed_graph {
         // convert from the atom's local eid, to the global eid, then
         // to the fragment localeid
         edge_id_t localeid;
+       std::pair<vertex_id_t, vertex_id_t> globaledge = 
+            std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
+                           atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
+
         if (!edge_canonical_numbering) {
           localeid = global2localeid[atomfiles[i]->globaleids()[j]];
         }
         else {
-          localeid = canonical_numbering[atomfiles[i]->edge_src_dest()[j]];
+          localeid = canonical_numbering[globaledge];
         }
         if (eidloaded[localeid] == false) {
-          std::pair<vertex_id_t, vertex_id_t> srcdest = 
-            atomfiles[i]->edge_src_dest()[j];
-          vertex_id_t sourcevid = 
-            global2localvid[atomfiles[i]->globalvids()[srcdest.first]];
-          vertex_id_t destvid = 
-            global2localvid[atomfiles[i]->globalvids()[srcdest.second]];
-          localstore.add_edge(localeid, sourcevid, destvid);
+          std::pair<vertex_id_t, vertex_id_t> localedge = global_edge_to_local_edge(globaledge);
+          localstore.add_edge(localeid, localedge.first, localedge.second);
           eidloaded[localeid] = true;
         }
       }
@@ -1071,6 +1090,11 @@ class distributed_graph {
           globalvid2owner.set(globalvid, rmi.procid());
         }
       }
+    }
+    
+    // fill the ownedvertices list
+    for (size_t i = 0;i < localvid2owner.size(); ++i) {
+      if (localvid2owner[i] == rmi.procid()) ownedvertices.push_back(local2globalvid[i]);
     }
     
     if (!edge_canonical_numbering) {
@@ -1110,7 +1134,16 @@ class distributed_graph {
       for (size_t j = 0; j < atomfiles[i]->edata().size(); ++j) {
         // convert from the atom's local vid, to the global vid, then
         // to the fragment localvi
-        size_t localeid = global2localeid[atomfiles[i]->globaleids()[j]];
+        edge_id_t localeid;
+        if (!edge_canonical_numbering) {
+          localeid = global2localeid[atomfiles[i]->globaleids()[j]];
+        }
+        else {
+         std::pair<vertex_id_t, vertex_id_t> globaledge = 
+            std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
+                           atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
+          localeid = canonical_numbering[globaledge];     
+        }
         localstore.edge_data(localeid) = atomfiles[i]->edata()[j];
         localstore.set_edge_version(localeid, 0);
       }
@@ -1173,6 +1206,20 @@ class distributed_graph {
                                     vertex_id_t target, 
                                     edge_conditional_store &estore);
   
+  
+  std::pair<vertex_id_t, vertex_id_t> 
+          local_edge_to_global_edge(std::pair<vertex_id_t, vertex_id_t> e) const{
+    return std::make_pair(local2globalvid[e.first], local2globalvid[e.second]);
+  }
+  
+  std::pair<vertex_id_t, vertex_id_t> 
+          global_edge_to_local_edge(std::pair<vertex_id_t, vertex_id_t> e) const{
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter1 = global2localvid.find(e.first);
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter2 = global2localvid.find(e.second);
+    assert(iter1 != global2localvid.end());
+    assert(iter2 != global2localvid.end()); 
+    return std::make_pair(iter1->first, iter2->second);
+  }
   
   
   void update_vertex_data_and_version(vertex_id_t vid,

@@ -158,7 +158,8 @@ template <typename VertexData, typename EdgeData>
 void graph_partition_to_atom(const graph<VertexData, EdgeData> &g, 
                              const std::vector<uint32_t>& vertex2part,
                              uint32_t partid,
-                             atom_file<VertexData, EdgeData> &atom) {
+                             atom_file<VertexData, EdgeData> &atom,
+                             bool noglobaleids = false) {
   atom.clear();
   // build the ID mappings
   // collect the set of vertices / edges that are within this atom
@@ -208,6 +209,7 @@ void graph_partition_to_atom(const graph<VertexData, EdgeData> &g,
       } while(goodedges.next_bit(eid));
     }
   }
+  if (noglobaleids) atom.globaleids().clear();
 }
 
 
@@ -222,7 +224,8 @@ template <typename VertexData, typename EdgeData>
 void graph_partition_to_atomindex(const graph<VertexData, EdgeData> &graph,
                                   const std::vector<uint32_t>& vertex2part,
                                   std::string idxfilename,
-                                  std::string atombasename) {
+                                  std::string atombasename,
+                                  bool noglobaleids = false) {
   assert(graph.valid_coloring());
   // get the number of partitions
   uint32_t numparts = 0 ;
@@ -236,7 +239,7 @@ void graph_partition_to_atomindex(const graph<VertexData, EdgeData> &graph,
   for (size_t i = 0; i < numparts; ++i) {
     std::string atomfilename = atombasename + "." + tostr(i);
     atom_file<VertexData, EdgeData> atomfile;
-    graph_partition_to_atom(graph, vertex2part, i, atomfile);
+    graph_partition_to_atom(graph, vertex2part, i, atomfile, noglobaleids);
     atomfile.write_to_file("file", atomfilename);
     
     // get list of adjacent atoms

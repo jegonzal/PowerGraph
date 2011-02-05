@@ -91,7 +91,7 @@ add_executable(mmaptest mmaptest.cpp)
 add_executable(bench_mmap bench_mmap.cpp)
 add_executable(distributed_graph_test distributed_graph_test.cpp)
 add_executable(distributed_graph_local_store_test distributed_graph_local_store_test.cpp)
-
+add_executable(distributed_graph_test_canonical distributed_graph_test_canonical.cpp)
 
 add_zoltan_executable(zoltantest zoltantest.cpp)
 
