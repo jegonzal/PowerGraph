@@ -25,13 +25,16 @@ int main(int argc, char** argv) {
   if (argc == 1) {
     generate_atoms(); return 0;
   }
+  assert(argc == 3);
   size_t machineid = atoi(argv[1]);
-  global_logger().set_log_level(LOG_INFO);
+  size_t nummachines = atoi(argv[2]);
+  global_logger().set_log_level(LOG_DEBUG);
   std::vector<std::string> machines;
-  machines.push_back("127.0.0.1:10000");
-  //machines.push_back("127.0.0.1:10001");
-  //machines.push_back("127.0.0.1:10002");
-  //machines.push_back("127.0.0.1:10003");
+  for (size_t i = 0;i < nummachines; ++i) {
+    std::stringstream strm;
+    strm << "127.0.0.1:" << 10000+i;
+    machines.push_back(strm.str());
+  }
   //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
   distributed_control dc(machines, "", machineid, 8, TCP_COMM);
   dc.services().barrier();

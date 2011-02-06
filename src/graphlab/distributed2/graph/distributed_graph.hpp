@@ -93,7 +93,8 @@ class distributed_graph {
                               globaleid2owner(dc, 65536){
     edge_canonical_numbering = false;
     // read the atom index.
-    atom_index_file atomindex = read_atom_index(atomidxfile);
+    atom_index_file atomindex;
+    atomindex.read_from_file(atomidxfile);
     // store the graph size
     numglobalverts = atomindex.nverts;
     numglobaledges = atomindex.nedges;
@@ -101,6 +102,15 @@ class distributed_graph {
     std::vector<std::vector<size_t> > partitions;
     if (dc.procid() == 0) {
       partitions = partition_atoms(atomindex, dc.numprocs());
+
+      for (size_t i = 0;i < partitions.size(); ++i) {
+        logstream(LOG_DEBUG) << i << ":";
+        for (size_t j = 0; j < partitions[i].size(); ++j) {
+          logstream(LOG_DEBUG) << partitions[i][j] << ", ";
+        }
+        logstream(LOG_DEBUG) << std::endl;
+      }
+
     }
     dc.services().broadcast(partitions, dc.procid() == 0);
     construct_local_fragment(atomindex, partitions, rmi.procid());
@@ -1218,7 +1228,7 @@ class distributed_graph {
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter2 = global2localvid.find(e.second);
     assert(iter1 != global2localvid.end());
     assert(iter2 != global2localvid.end()); 
-    return std::make_pair(iter1->first, iter2->second);
+    return std::make_pair(iter1->second, iter2->second);
   }
   
   

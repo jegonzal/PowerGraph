@@ -10,7 +10,8 @@ file_logger& global_logger() {
   return l;
 }
 
-const char* messages[] = {  "INFO   ",
+const char* messages[] = {  "DEBUG  ",
+                            "INFO   ",
                             "WARNING",
                             "ERROR  ",
                             "FATAL  "};
@@ -179,6 +180,10 @@ void file_logger::_lograw(int lineloglevel, const char* buf, int len) {
       else if (lineloglevel == LOG_WARNING) {
         textcolor(stderr, BRIGHT, GREEN);
       }
+      else if (lineloglevel == LOG_DEBUG) {
+        textcolor(stderr, BRIGHT, YELLOW);
+      }
+
     #endif
     std::cerr.write(buf,len);
     #ifdef COLOROUTPUT
@@ -188,13 +193,12 @@ void file_logger::_lograw(int lineloglevel, const char* buf, int len) {
 }
 
 file_logger& file_logger::start_stream(int lineloglevel,const char* file,const char* function, int line) {
-  if (streambuffer.str().length() > 0) {
-    stream_flush();
-  }
   file = ((strrchr(file, '/') ? : file- 1) + 1);
-  if (lineloglevel >= 0 && lineloglevel <= 3 && lineloglevel >= log_level){
-    streambuffer << messages[lineloglevel] << ":" << file
-                << "(" << function << ":" <<line<<"): ";
+  if (lineloglevel >= log_level){
+    if (streambuffer.str().length() == 0) {
+      streambuffer << messages[lineloglevel] << ":" << file
+                  << "(" << function << ":" <<line<<"): ";
+    }
     streamactive = true;
     streamloglevel = lineloglevel;
   }

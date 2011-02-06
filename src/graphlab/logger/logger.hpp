@@ -24,19 +24,21 @@
 #include <cstring>
 /**
  * \def LOG_FATAL
-    Used for fatal and probably irrecoverable conditions
+ *   Used for fatal and probably irrecoverable conditions
  * \def LOG_ERROR
-    Used for errors which are recoverable within the scope of the function
+ *   Used for errors which are recoverable within the scope of the function
  * \def LOG_WARNING
-    Logs interesting conditions which are probably not fatal
+ *   Logs interesting conditions which are probably not fatal
  * \def LOG_INFO
-    Used for providing general useful information
- *
+ *   Used for providing general useful information
+ * \def LOG_DEBUG
+ *   Debugging purposes only
  */
-#define LOG_FATAL 3
-#define LOG_ERROR 2
-#define LOG_WARNING 1
-#define LOG_INFO 0
+#define LOG_FATAL 4
+#define LOG_ERROR 3
+#define LOG_WARNING 2
+#define LOG_INFO 1
+#define LOG_DEBUG 0
 
 /**
  * \def OUTPUTLEVEL
@@ -44,7 +46,7 @@
  * \def LOG_NONE
  *  OUTPUTLEVEL to LOG_NONE to disable logging
  */
-#define LOG_NONE 4
+#define LOG_NONE 5
 #define OUTPUTLEVEL LOG_INFO
 
 /// If set, logs to screen will be printed in color
