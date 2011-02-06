@@ -51,6 +51,9 @@ class dc_services {
     barrier_sense = 1;
     barrier_release = -1;
 
+    // initialize gathers
+    gather_receive.resize(rpc.numprocs());
+    
     // compute my children
     childbase = size_t(rpc.dc().procid()) * DC_SERVICES_BARRIER_BRANCH_FACTOR + 1;
     if (childbase >= rpc.dc().numprocs()) {
@@ -145,7 +148,6 @@ class dc_services {
       std::stringstream strm;
       oarchive oarc(strm);
       oarc << data;
-      gather_receive.resize(rpc.numprocs());
       rpc.fast_remote_request(sendto,
                               &dc_services::set_gather_receive,
                               rpc.procid(),
@@ -154,10 +156,14 @@ class dc_services {
     barrier();
 
     if (sendto == rpc.procid()) {
+      // if I am the receiver
       for (procid_t i = 0; i < rpc.numprocs(); ++i) {
-        std::stringstream strm(gather_receive[i]);
-        iarchive iarc(strm);
-        iarc >> data[i];
+        if (i != rpc.procid()) {
+          // receiving only from others
+          std::stringstream strm(gather_receive[i]);
+          iarchive iarc(strm);
+          iarc >> data[i];
+        }
       }
     }
     
