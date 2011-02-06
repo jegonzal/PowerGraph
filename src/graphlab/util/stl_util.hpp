@@ -371,6 +371,23 @@ namespace graphlab {
     strm << t;
     return strm.str();
   }
+
+  inline std::vector<std::string> strsplit(std::string s, std::string splitchars) {
+    std::vector<std::string> ret;
+    size_t pos = 0;
+    while(1) {
+      size_t nextpos = s.find_first_of(splitchars, pos);
+      if (nextpos != std::string::npos) {
+        ret.push_back(s.substr(pos, nextpos - pos));
+        pos = nextpos + 1;
+      }
+      else {
+        ret.push_back(s.substr(pos));
+        break;
+      }
+    }
+    return ret;
+  }
 }; // end of namespace graphlab
 
 #include <graphlab/macros_undef.hpp>

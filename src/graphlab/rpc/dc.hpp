@@ -41,6 +41,9 @@ struct dc_init_param{
   dc_comm_type commtype;
 };
 
+#define DEFAULT_NUMHANDLERTHREADS 8
+#define DEFAULT_COMMTYPE TCP_COMM
+
 // forward declaration for dc services
 class dc_services;
 
@@ -71,7 +74,7 @@ class distributed_control{
              const std::string &initstring,
              procid_t curmachineid,
              size_t numhandlerthreads,
-             dc_comm_type commtype = TCP_COMM);
+             dc_comm_type commtype = DEFAULT_COMMTYPE);
    
   /// a pointer to the communications subsystem
   dc_impl::dc_comm_base* comm; 
@@ -135,8 +138,8 @@ class distributed_control{
   distributed_control(const std::vector<std::string> &machines,
                       const std::string &initstring, 
                       procid_t curmachineid, 
-                      size_t numhandlerthreads = 8,
-                      dc_comm_type commtype = TCP_COMM) {
+                      size_t numhandlerthreads = DEFAULT_NUMHANDLERTHREADS,
+                      dc_comm_type commtype = DEFAULT_COMMTYPE) {
     init(machines, initstring, curmachineid, numhandlerthreads, commtype);
   }
 
