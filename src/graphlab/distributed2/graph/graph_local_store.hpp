@@ -304,12 +304,17 @@ namespace dist_graph_impl {
       return vertices[v].data;
     } // end of data(v)
 
+    /// Sets the vertex version. Setting the version also clears the modified flag
     void set_vertex_version(vertex_id_t v, uint64_t version) {
       vertices[v].version = version;
     }
-    
+
+    void increment_vertex_version(vertex_id_t v) {
+      ++vertices[v].version;
+    }
+
     uint64_t vertex_version(vertex_id_t v) const{
-      return vertices[v].version && uint64_t(0x7FFFFFFFFFFFFFFF);
+      return vertices[v].version & uint64_t(0x7FFFFFFFFFFFFFFF);
     }
 
 
@@ -367,16 +372,20 @@ namespace dist_graph_impl {
       edgedata[edge_id].version = version;
     }
 
+    void increment_edge_version(edge_id_t edge_id) {
+      ++edgedata[edge_id].version;
+    }
+    
     uint64_t edge_version(edge_id_t edge_id) const{
-      return edgedata[edge_id].version && uint64_t(0x7FFFFFFFFFFFFFFF);
+      return edgedata[edge_id].version & uint64_t(0x7FFFFFFFFFFFFFFF);
     }
 
-    void set_edge_modified(vertex_id_t v, bool modified) {
+    void set_edge_modified(edge_id_t edge_id, bool modified) {
       if (modified) {
-        edgedata[v].version |= uint64_t(0x8000000000000000);
+        edgedata[edge_id].version |= uint64_t(0x8000000000000000);
       }
       else {
-        edgedata[v].version = edge_version(v);
+        edgedata[edge_id].version = edge_version(edge_id);
       }
     }
 
@@ -390,10 +399,16 @@ namespace dist_graph_impl {
       std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
       assert(ans.first);
-      // the edge id should be valid!
-      assert(ans.second < nedges);
       return edgedata[ans.second].version;
     } // end of edge_data(u,v)
+
+    void increment_edge_version(vertex_id_t source, vertex_id_t target) {
+      assert(source < nvertices);
+      assert(target < nvertices);
+      std::pair<bool, edge_id_t> ans = find(source, target);
+      assert(ans.first);
+      ++edgedata[ans.second].version;
+    }
 
     size_t edge_version(vertex_id_t source, vertex_id_t target) const {
       assert(source < nvertices);
@@ -401,8 +416,6 @@ namespace dist_graph_impl {
       std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
       assert(ans.first);
-      // the edge id should be valid!
-      assert(ans.second < nedges);
       return edgedata[ans.second].version;
     } // end of edge_data(u,v)
 

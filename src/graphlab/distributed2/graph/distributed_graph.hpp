@@ -3,6 +3,8 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/caching_dht.hpp>
@@ -407,7 +409,18 @@ class distributed_graph {
   const std::vector<vertex_id_t>& owned_vertices() const{
     return ownedvertices;
   }
+
+  const std::vector<vertex_id_t>& boundary_scopes() const{
+    return boundaryscopes;
+  }
+
+  const boost::unordered_set<vertex_id_t>& boundary_scopes_set() const{
+    return boundaryscopesset;
+  }
   
+  const std::vector<vertex_id_t>& ghost_vertices() const{
+    return ghostvertices;
+  }
   /**
    * Returns a reference to the edge data on the edge source->target
    * assertion failure if the edge is not within the current fragment
@@ -456,6 +469,29 @@ class distributed_graph {
     assert(global_vid_in_local_fragment(vid));
     return localstore.vertex_data(global2localvid[vid]);
   }
+
+  void increment_vertex_version(vertex_id_t vid) {
+    localstore.increment_vertex_version(global2localvid[vid]);
+  }
+
+  void increment_edge_version(vertex_id_t eid) {
+    localstore.increment_edge_version(global2localeid[eid]);
+  }
+
+  void vertex_modified(vertex_id_t vid) {
+    // the modified flag only makes sense for ghosts
+    if (is_ghost(vid)) {
+      return localstore.set_vertex_modified(global2localvid[vid], true);
+    }
+  }
+
+  void edge_modified(edge_id_t eid) {
+    // the modified flag only makes sense for ghosts
+    if (is_ghost(target(eid))) {
+      return localstore.set_edge_modified(global2localeid[eid], true);
+    }
+  }
+
 
   /**
    * Returns a constant reference to the vertex data on vertex vid
@@ -798,6 +834,10 @@ class distributed_graph {
   void synchronize_edge(edge_id_t eid, bool async = false);
   void synchronize_scope(vertex_id_t vid, bool async = false);   
   void wait_for_all_async_syncs();
+  void synchronize_all_vertices(bool async = false);
+  void synchronize_all_edges(bool async = false);
+  void synchronize_all_scopes(bool async = false);
+
  public:
   
   // extra types
@@ -805,7 +845,7 @@ class distributed_graph {
   struct conditional_store{
     bool hasdata;
     DataType data;
-    void save(oarchive &oarc) {
+    void save(oarchive &oarc) const {
       oarc << hasdata;
       if (hasdata) oarc << data;
     }
@@ -828,7 +868,7 @@ class distributed_graph {
     std::vector<edge_id_t> eid;
     std::vector<uint64_t > edgeversion;
     std::vector<edge_conditional_store> estore;
-    void save(oarchive &oarc) {
+    void save(oarchive &oarc) const{
       oarc << vid << vidversion << vstore
            << eid << edgeversion << estore;
     }
@@ -846,7 +886,7 @@ class distributed_graph {
     std::vector<std::pair<vertex_id_t, vertex_id_t> > srcdest;
     std::vector<uint64_t > edgeversion;
     std::vector<edge_conditional_store> estore;
-    void save(oarchive &oarc) {
+    void save(oarchive &oarc) const{
       oarc << vid << vidversion << vstore
            << srcdest << edgeversion << estore;
     }
@@ -878,8 +918,15 @@ class distributed_graph {
   boost::unordered_map<edge_id_t, edge_id_t> global2localeid;
   std::vector<edge_id_t> local2globaleid;
   
-  // collection of vertices I own
+  /// collection of vertices I own
   std::vector<vertex_id_t> ownedvertices;
+
+  /// collection of ghost vertices
+  std::vector<vertex_id_t> ghostvertices;
+
+  /// collection of owned vertices which have a ghost neighbor
+  boost::unordered_set<vertex_id_t> boundaryscopesset;
+  std::vector<vertex_id_t> boundaryscopes;
   
   /** To avoid requiring O(V) storage on each maching, the 
    * global_vid -> owner mapping cannot be stored in its entirely locally
@@ -1105,7 +1152,27 @@ class distributed_graph {
     // fill the ownedvertices list
     for (size_t i = 0;i < localvid2owner.size(); ++i) {
       if (localvid2owner[i] == rmi.procid()) ownedvertices.push_back(local2globalvid[i]);
+      else {
+        ghostvertices.push_back(local2globalvid[i]);
+
+        // if any of my neighbors are not ghosts, they are a boundary scope
+        foreach(edge_id_t ineid, localstore.in_edge_ids(i)) {
+          vertex_id_t localinvid = localstore.source(ineid);
+          if (localvid2owner[localinvid] == rmi.procid()) {
+            boundaryscopesset.insert(local2globalvid[localinvid]);
+          }
+        }
+        foreach(edge_id_t outeid, localstore.out_edge_ids(i)) {
+          vertex_id_t localoutvid = localstore.target(outeid);
+          if (localvid2owner[localoutvid] == rmi.procid()) {
+            boundaryscopesset.insert(local2globalvid[localoutvid]);
+          }
+        }
+      }
     }
+    std::copy(boundaryscopesset.begin(), boundaryscopesset.end(),
+              std::back_inserter(boundaryscopes));
+    
     
     if (!edge_canonical_numbering) {
       logger(LOG_INFO, "Set up global eid table");
@@ -1256,8 +1323,6 @@ class distributed_graph {
   
   void reply_alot(block_synchronize_request &request);
   void reply_alot2(block_synchronize_request2 &request);
-
-
 
 };
 
