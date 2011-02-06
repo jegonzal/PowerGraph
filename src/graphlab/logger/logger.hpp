@@ -161,7 +161,7 @@ class file_logger{
   * logs the message if loglevel>=OUTPUTLEVEL
   * This function should not be used directly. Use logger()
   *
-  * @param loglevel Type of message \see LOG_INFO LOG_WARNING LOG_ERROR LOG_FATAL
+  * @param loglevel Type of message \see LOG_DEBUG LOG_INFO LOG_WARNING LOG_ERROR LOG_FATAL
   * @param file File where the logger call originated
   * @param function Function where the logger call originated
   * @param line Line number where the logger call originated
