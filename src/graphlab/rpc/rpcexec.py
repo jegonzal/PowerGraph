@@ -22,9 +22,13 @@ nmachines = 0
 hostsfile = ''
 prog = ''
 opts = ''
+printhelp = 0
 i = 1
 while(i < len(sys.argv)):
-  if sys.argv[i] == '-n':
+  if sys.argv[i] == '-h':
+    printhelp = 1
+    break
+  elif sys.argv[i] == '-n':
     nmachines = int(sys.argv[i+1])
     i = i + 2
   elif sys.argv[i] == '-f':
@@ -39,16 +43,18 @@ while(i < len(sys.argv)):
   #endif
 #endwhile
 
-if (nmachines == 0 and hostsfile == ''):
-  cmd = 'env SPAWNNODES=localhost SPAWNID=0 %s %s' % (prog, opts)
-  p = subprocess.Popen(cmd, shell=True)
-  os.waitpid(p.pid, 0)
-  exit(0)
-elif (nmachines == 0 and hostsfile == ''):
+if (printhelp):
   print
   print("Usage: rpcexec -n n_to_start -f [hostsfile] [program] [options]")
   print("To start local only: rpcexec [program] [options]")
   print
+  exit(0)
+#endif
+
+if (nmachines == 0 and hostsfile == ''):
+  cmd = 'env SPAWNNODES=localhost SPAWNID=0 %s %s' % (prog, opts)
+  p = subprocess.Popen(cmd, shell=True)
+  os.waitpid(p.pid, 0)
   exit(0)
 #endif
 print('Starting ' + str(nmachines) + ' machines')
