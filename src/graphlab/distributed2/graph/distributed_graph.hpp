@@ -1024,19 +1024,27 @@ class distributed_graph {
     // Lets first construct the global/local vid/eid mappings by merging
     // the mappings in each atom
     // cat all the globalvids and globaleids into a single big list
-    // and sort it
+    // and sort it. Make sure that my owned vertices come first before the ghost vertices
+    std::vector<std::pair<bool, vertex_id_t> > globalvid_notowned_zip;
     for (size_t i = 0;i < atomfiles.size(); ++i) {
-      std::copy(atomfiles[i]->globalvids().begin(), 
-                atomfiles[i]->globalvids().end(),
-                std::back_inserter(local2globalvid));
+      for (size_t j = 0;j < atomfiles[i]->globalvids().size(); ++j) {
+        globalvid_notowned_zip.push_back(std::make_pair(atomfiles[i]->globalvids()[j],
+                                                    atomfiles[i]->atom()[j] == rmi.procid()));
+      }
     }
     
     // Find only unique occurances of each vertex, by sorting, unique,
     // and resize
-    std::sort(local2globalvid.begin(), local2globalvid.end());
-    std::vector<vertex_id_t>::iterator uviter = 
-      std::unique(local2globalvid.begin(), local2globalvid.end());
-    local2globalvid.resize(uviter - local2globalvid.begin());
+    std::sort(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
+    std::vector<std::pair<bool, vertex_id_t> >::iterator uviter = 
+              std::unique(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
+              
+    globalvid_notowned_zip.resize(uviter - globalvid_notowned_zip.begin());
+    local2globalvid.resize(globalvid_notowned_zip.size());
+    // copy out info to global2localvid
+    for (size_t i = 0; i < globalvid_notowned_zip.size(); ++i) {
+      local2globalvid[i] = globalvid_notowned_zip[i].second;
+    } 
     
     // construct localvid2owner
     localvid2owner.resize(local2globalvid.size());

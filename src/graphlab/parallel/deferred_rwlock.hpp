@@ -1,15 +1,16 @@
 #ifndef DEFERRED_RWLOCK_HPP
 #define DEFERRED_RWLOCK_HPP
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/parallel/queued_rwlock.hpp>
 #include <graphlab/logger/assertions.hpp>
 namespace graphlab {
 class deferred_rw_lock{
  public:
 
   struct request{
-    void* id;
+    char lockclass : 2;
+    uint64_t id : 62; 
     request* next;
-    char lockclass;
   };
  private:
   request* head;

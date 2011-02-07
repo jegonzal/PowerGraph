@@ -46,7 +46,7 @@ class atom_file {
    */
   void load_id_maps() {
     if (loadstage == 0) {
-      (*iarc) >> globalvids_ >> globaleids_;
+      (*iarc) >> globalvids_ >> globaleids_ >> atom_;
       ++loadstage;
     }
   }
@@ -58,7 +58,7 @@ class atom_file {
   void load_structure() {
     if (loadstage < 1) load_id_maps();
     if (loadstage == 1) {
-      (*iarc) >> atom_ >> vcolor_ >> edge_src_dest_;
+      (*iarc) >> vcolor_ >> edge_src_dest_;
       ++loadstage;
     }
   }
