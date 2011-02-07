@@ -1028,8 +1028,8 @@ class distributed_graph {
     std::vector<std::pair<bool, vertex_id_t> > globalvid_notowned_zip;
     for (size_t i = 0;i < atomfiles.size(); ++i) {
       for (size_t j = 0;j < atomfiles[i]->globalvids().size(); ++j) {
-        globalvid_notowned_zip.push_back(std::make_pair(atomfiles[i]->globalvids()[j],
-                                                    atomfiles[i]->atom()[j] == rmi.procid()));
+        globalvid_notowned_zip.push_back(std::make_pair(atomfiles[i]->atom()[j] == rmi.procid(),
+                                                        atomfiles[i]->globalvids()[j]));
       }
     }
     
