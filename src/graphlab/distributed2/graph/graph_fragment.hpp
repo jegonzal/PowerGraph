@@ -76,7 +76,10 @@ namespace graphlab {
        * is local then return true. 
        *
        */
-      bool add_edge(const vertex_id_t source, const vertex_id_t target);      
+      bool add_edge(const vertex_id_t source, const vertex_id_t target);   
+      void finalize();
+
+
       void save(graphlab::oarchive& oarc) const;
       void load(graphlab::iarchive& iarc); 
     }; // end of structure_description

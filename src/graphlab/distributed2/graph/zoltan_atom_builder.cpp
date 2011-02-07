@@ -9,6 +9,8 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include <iostream>
 #include <graphlab.hpp>
 #include <boost/filesystem.hpp>
@@ -52,9 +54,12 @@ void list_structure_files(const std::string& pathname,
       iter != end_iter; ++iter) {
     if( ! fs::is_directory(iter->status()) ) {
       std::string filename(iter->path().filename());
-      std::string ending(filename.substr(filename.rfind('.')));
-      if(ending == graph_fragment::structure_suffix) {
-        files.push_back(iter->path().filename());
+      size_t period_loc = filename.rfind('.');
+      if(period_loc != std::string::npos) {
+        std::string ending(filename.substr(period_loc));
+        if(ending == graph_fragment::structure_suffix) {
+          files.push_back(iter->path().filename());
+        }
       }
     }
   }
@@ -83,6 +88,78 @@ void load_structures(const std::string& path,
   }
 } // end of load structures
 
+
+// template<typename T>
+// void mpi_allgather(const T& elem, std::vector<T>& results) {
+//   // Get the mpi rank and size
+//   int mpi_rank, mpi_size;
+//   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+//   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
+//   // Serialize the local map
+//   //  graphlab::charstream cstrm(128);
+//   std::stringstream cstrm;
+//   graphlab::oarchive arc(cstrm);
+//   arc << part2proc;
+//   std::string str_buffer(cstrm.str());
+
+
+//   // All gather the size of the maps that must be received int
+//   // buffer_size = cstrm->size();
+//   int buffer_size(str_buffer.size());
+//   std::vector<int> sizes(mpi_size);
+//   // Compute the sizes
+//   MPI_Allgather(&buffer_size,  // Send buffer
+//                 1,             // send count
+//                 MPI_INT,       // send type
+//                 &(sizes[0]),     // recvbuffer
+//                 1,             // recvcount
+//                 MPI_UNSIGNED,  // recvtype
+//                 MPI_COMM_WORLD);  
+
+
+//   // Construct offsets
+//   std::vector<int> offsets = sizes;
+//   int sum = 0, tmp = 0;
+//   for(size_t i = 0; i < offsets.size(); ++i) {
+//     tmp = offsets[i]; offsets[i] = sum; sum += tmp; 
+//   }
+
+//   //   if(mpi_rank == 0) {
+//   //     for(size_t i = 0; i < sizes.size(); ++i) 
+//   //       std::cout << sizes[i] << '\t';
+//   //     std::cout << std::endl;
+//   //     for(size_t i = 0; i < offsets.size(); ++i) 
+//   //       std::cout << offsets[i] << '\t';
+//   //     std::cout << std::endl;
+//   //     std::cout << "Sum: " << sum << std::endl;
+//   //   }
+    
+//   // recv all the maps 
+//   std::vector<char> recv_buffer(sum, 0);
+//   MPI_Allgatherv(const_cast<char*>(str_buffer.c_str()),  // send buffer
+//                  buffer_size,                // how much to send
+//                  MPI_BYTE,                   // send type
+//                  &(recv_buffer[0]),            // recv buffer
+//                  &(sizes[0]),                  // amount to recv for each process
+//                  &(offsets[0]),                // where to place data
+//                  MPI_BYTE,
+//                  MPI_COMM_WORLD);
+
+//   // Update the local map
+//   namespace bio = boost::iostreams;
+//   typedef bio::stream<bio::array_source> icharstream;
+//   icharstream strm(&(recv_buffer[0]), recv_buffer.size());
+//   graphlab::iarchive iarc(strm);
+//   for(size_t i = 0; i < sizes.size(); ++i) {
+//     part2proc_type other_map;
+//     iarc >> other_map;
+//     foreach(const part2proc_type::value_type& pair, other_map) 
+//       part2proc[pair.first] = pair.second;        
+//   }  
+
+  
+// }
 
 
 
@@ -285,9 +362,11 @@ static void zoltan_edge_list_multi_fun(void* data,
 //   } 
 
 
-void graphlab::build_atom_files(int argc, char** argv,
-                                int numparts,
-                                const std::string& path) {
+
+
+void graphlab::construct_partitioning(int argc, char** argv,
+                                      int numparts,
+                                      const std::string& path) {
   // Get the mpi rank and size
   int mpi_rank, mpi_size;
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
@@ -332,6 +411,10 @@ void graphlab::build_atom_files(int argc, char** argv,
   error = zolt.Set_Param("LB_METHOD", "GRAPH");
   assert(error == ZOLTAN_OK);
 
+  error = zolt.Set_Param("DEBUG_LEVEL", "0");
+  assert(error == ZOLTAN_OK);
+
+
   error = zolt.Set_Param( "NUM_GID_ENTRIES", "1");  /* global ID is 1 integer */
   assert(error == ZOLTAN_OK);
 
@@ -359,6 +442,9 @@ void graphlab::build_atom_files(int argc, char** argv,
     assert(error == ZOLTAN_OK);
   } 
 
+  
+  // Documentation for return lists
+  // http://www.cs.sandia.gov/zoltan/ug_html/ug_alg.html#RETURN_LISTS
   error = zolt.Set_Param("RETURN_LISTS", "PARTS");
   assert(error == ZOLTAN_OK);
 
@@ -402,6 +488,9 @@ void graphlab::build_atom_files(int argc, char** argv,
   int* export_procs = NULL;
   int* export_to_part = NULL;
 
+  if(mpi_rank == 0) 
+    std::cout << "Running partitioner." << std::endl;
+
   error = 
     zolt.LB_Partition(changes,
                       num_gid_entries,
@@ -417,6 +506,10 @@ void graphlab::build_atom_files(int argc, char** argv,
                       export_procs,
                       export_to_part);
   assert(error == ZOLTAN_OK);
+
+  if(mpi_rank == 0) 
+    std::cout << "Finished Successfully." << std::endl;
+  
 
   // Check return values
   assert(changes == true);
@@ -437,8 +530,55 @@ void graphlab::build_atom_files(int argc, char** argv,
   
 
 
-  // Do something with the partitioning 
-  
+  // Export the partition file on each machine
+  {
+    if(mpi_rank == 0)
+      std::cout << "Saving partitioning." << std::endl;
+    std::string partition_filename;
+    std::stringstream strm;
+    strm << path << "/partition_" << std::setw(3) << std::setfill('0')
+         << mpi_rank << ".txt";
+    partition_filename = strm.str();
+    std::ofstream fout(partition_filename.c_str());
+    assert(fout.good());
+    for(int i = 0; i < num_export; ++i) {
+      fout << export_global_ids[i] << '\t'
+           << export_to_part[i] << '\n';
+    }
+    fout.close();
+    if(mpi_rank == 0)
+      std::cout << "Finished saving partitioning." << std::endl;
+  }
+
+  // Evaluate the partitioning
+  {     
+    if(mpi_rank == 0)
+      std::cout << "Evaluating Partitioning" << std::endl;
+    const int print_stats(1);
+    ZOLTAN_GRAPH_EVAL graph_info;
+    // http://www.cs.sandia.gov/zoltan/ug_html/ug_interface_lb.html#Zoltan_LB_Eval
+    error = zolt.LB_Eval_Graph(print_stats,   &graph_info);
+    assert(error == ZOLTAN_OK);
+//     if(mpi_rank == 0) {
+//       std::cout << "Imbalance: " << graph_info.obj_imbalance
+//                 << std::endl;
+//       std::cout << "Cuts:\t";
+//       for(size_t i = 1; i < EVAL_SIZE; ++i) {
+//         std::cout << graph_info.cuts[i] << '\t';
+//       }
+//       std::cout << std::endl;
+//       std::cout << "nnborparts:\t";
+//       for(size_t i = 1; i < EVAL_SIZE; ++i) {
+//         std::cout << graph_info.nnborparts[i] << '\t';
+//       }
+//       std::cout << std::endl;
+//     }
+    
+    if(mpi_rank == 0)
+      std::cout << "Finished evaluating partitioning." << std::endl;
+  }
+
+
 
 
 

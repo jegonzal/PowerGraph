@@ -7,9 +7,9 @@
 namespace graphlab {
 
 
-  void build_atom_files(int argc, char** argv, 
-                        int numparts,
-                        const std::string& path);
+  void construct_partitioning(int argc, char** argv, 
+                              int numparts,
+                              const std::string& path);
   
  
 

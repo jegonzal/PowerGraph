@@ -206,8 +206,18 @@ add_edge(const vertex_id_t source, const vertex_id_t target) {
 
 
 
+void structure_description::finalize() {
+  for(size_t i = 0; i < neighbor_ids.size(); ++i) {
+    std::vector<vertex_id_t>& vec(neighbor_ids[i]);
+    std::sort(vec.begin(), vec.end());
+    typedef std::vector<vertex_id_t>::iterator iterator;
+    iterator new_end = std::unique(vec.begin(), vec.end());
+    vec.resize(new_end - vec.begin());
+  }
+}
+
 void structure_description::
-save(graphlab::oarchive& oarc) const {
+save(graphlab::oarchive& oarc) const {  
   oarc << desc 
        << neighbor_ids
        << in_neighbor_ids 
