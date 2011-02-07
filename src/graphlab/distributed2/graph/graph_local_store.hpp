@@ -39,12 +39,14 @@ namespace dist_graph_impl {
 
     struct vdata_store {
       VertexData data;
-      uint64_t version;
+      uint64_t version:63;
+      bool modified:1;
     };
 
     struct edata_store {
       EdgeData data;
-      uint64_t version;
+      uint64_t version:63;
+      bool modified:1;
     };
   public:
 
@@ -307,6 +309,7 @@ namespace dist_graph_impl {
     /// Sets the vertex version. Setting the version also clears the modified flag
     void set_vertex_version(vertex_id_t v, uint64_t version) {
       vertices[v].version = version;
+      vertices[v].modified = false;
     }
 
     void increment_vertex_version(vertex_id_t v) {
@@ -314,21 +317,16 @@ namespace dist_graph_impl {
     }
 
     uint64_t vertex_version(vertex_id_t v) const{
-      return vertices[v].version & uint64_t(0x7FFFFFFFFFFFFFFF);
+      return vertices[v].version;
     }
 
 
     void set_vertex_modified(vertex_id_t v, bool modified) {
-      if (modified) {
-        vertices[v].version |= uint64_t(0x8000000000000000);
-      }
-      else {
-        vertices[v].version = vertex_version(v);
-      }
+      vertices[v].modified = modified;
     }
 
     bool vertex_modified(vertex_id_t v) const{
-      return vertices[v].version & uint64_t(0x8000000000000000);
+      return vertices[v].modified;
     }
 
     
@@ -370,6 +368,7 @@ namespace dist_graph_impl {
 
     void set_edge_version(edge_id_t edge_id, uint64_t version) {
       edgedata[edge_id].version = version;
+      edgedata[edge_id].modified = false;
     }
 
     void increment_edge_version(edge_id_t edge_id) {
@@ -377,20 +376,15 @@ namespace dist_graph_impl {
     }
     
     uint64_t edge_version(edge_id_t edge_id) const{
-      return edgedata[edge_id].version & uint64_t(0x7FFFFFFFFFFFFFFF);
+      return edgedata[edge_id].version;
     }
 
     void set_edge_modified(edge_id_t edge_id, bool modified) {
-      if (modified) {
-        edgedata[edge_id].version |= uint64_t(0x8000000000000000);
-      }
-      else {
-        edgedata[edge_id].version = edge_version(edge_id);
-      }
+      edgedata[edge_id].modified = modified;
     }
 
-    bool edge_modified(vertex_id_t v) const{
-      return edgedata[v].version & uint64_t(0x8000000000000000);
+    bool edge_modified(edge_id_t edge_id) const{
+      return edgedata[edge_id].modified;
     }
 
     size_t& edge_version(vertex_id_t source, vertex_id_t target) {
@@ -400,7 +394,7 @@ namespace dist_graph_impl {
       // We must find the edge!
       assert(ans.first);
       return edgedata[ans.second].version;
-    } // end of edge_data(u,v)
+    }
 
     void increment_edge_version(vertex_id_t source, vertex_id_t target) {
       assert(source < nvertices);
