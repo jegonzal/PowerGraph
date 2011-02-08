@@ -1,10 +1,6 @@
 
 
 
-#include <sys/types.h>
-#include <ifaddrs.h>
-#include <netinet/in.h>
-
 
 
 #include <string>
@@ -123,11 +119,8 @@ void load_structures(const std::string& path,
 
 
 void compute_local_fnames(std::vector<std::string>& fnames) {
-  int mpi_rank(-1), mpi_size(-1);
-  MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-  assert(mpi_rank >= 0);
-  assert(mpi_size >= 0);
+  size_t mpi_rank = graphlab::mpi_tools::rank();
+  size_t mpi_size = graphlab::mpi_tools::size();
   size_t num_cpus(mpi_size);
 
   std::vector< std::vector<std::string> > cpu2fnames;
@@ -167,35 +160,9 @@ void compute_local_fnames(std::vector<std::string>& fnames) {
 
 
 
-uint32_t get_local_ip() {
-  uint32_t ip;
-  // code adapted from
-  struct ifaddrs * ifAddrStruct = NULL;
-  getifaddrs(&ifAddrStruct);
-  struct ifaddrs * firstifaddr = ifAddrStruct;
-  ASSERT_NE(ifAddrStruct, NULL);
-  while (ifAddrStruct != NULL) {
-    if (ifAddrStruct->ifa_addr != NULL && 
-        ifAddrStruct->ifa_addr->sa_family == AF_INET) {
-      char* tmpAddrPtr = NULL;
-        // check it is IP4 and not lo0.
-      tmpAddrPtr = (char*)&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
-      ASSERT_NE(tmpAddrPtr, NULL);
-      if (tmpAddrPtr[0] != 127) {
-        memcpy(&ip, tmpAddrPtr, 4);
-        break;
-      }
-      //break;
-    }
-    ifAddrStruct=ifAddrStruct->ifa_next;
-  }
-  freeifaddrs(firstifaddr);
-  return ip;
-}
 
 
-void gather_partition_results(const std::vector<int>& root_rank,
-                              const int num_export,
+void gather_partition_results(const int num_export,
                               const ZOLTAN_ID_PTR export_global_ids,
                               const int* export_to_part) {
   std::vector< vertex_info > local_vertex_info(num_export);
@@ -204,6 +171,8 @@ void gather_partition_results(const std::vector<int>& root_rank,
     vinfo.vid = export_global_ids[i];
     vinfo.atom_id = export_to_part[i];
   }
+
+
   
 }
 
