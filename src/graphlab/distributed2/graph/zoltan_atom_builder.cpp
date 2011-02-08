@@ -162,14 +162,77 @@ void compute_local_fnames(std::vector<std::string>& fnames) {
 
 
 
-void gather_partition_results(const int num_export,
+void gather_partition_results(const size_t num_vertices,
+                              const int num_export,
                               const ZOLTAN_ID_PTR export_global_ids,
-                              const int* export_to_part) {
+                              const int* export_to_part,
+                              const std::string& path) {
   std::vector< vertex_info > local_vertex_info(num_export);
   for(size_t i = 0; i < local_vertex_info.size(); ++i) {
     vertex_info& vinfo(local_vertex_info[i]);
     vinfo.vid = export_global_ids[i];
     vinfo.atom_id = export_to_part[i];
+  }
+
+  
+  // build up the local vertex info table
+  std::vector< std::vector<vertex_info> > all_vertex_info;
+  if(mpi_tools::rank() == 0) { //root code
+    mpi_tools::gather(local_vertex_info, all_vertex_info);
+  } else {
+    mpi_tools::gather(0, local_vertex_info);
+  }
+
+
+
+  // compute the masters
+  std::set<size_t> master_ranks;
+  mpi_tools::get_master_ranks(master_ranks);
+  assert(master_ranks.count(0) > 0);
+
+  // Construct global atom table
+  std::vector<uint16_t> global_atom_table;  
+
+  // on node zero gather up a single giant vector
+  if(mpi_tools::rank() == 0) {
+    assert(all_vertex_info.size() == mpi_tools::size());
+    // Construct global atom table
+    global_atom_table.resize(num_vertices);
+    for(size_t i = 0; i < all_vertex_info.size(); ++i) {
+      for(size_t j = 0; j < all_vertex_info[i].size(); ++j) {
+        global_atom_table[all_vertex_info[i][j].vid] = 
+          all_vertex_info[i][j].atom_id;
+      }
+    }
+    
+    // Send the giant vector to the master ranks
+    foreach(size_t dest, master_ranks)
+      mpi_tools::send(global_atom_table, dest);
+
+    // save a raw text file of the global atom table
+    std::string absfname = path + "/fullpart.txt";
+    std::ofstream fout(absfname.c_str());
+    for(size_t i = 0; i < global_atom_table.size(); ++i) {
+      fout << global_atom_table[i] << '\n';
+    }
+    fout.close();
+  } else {
+    // recv the global atom table
+    mpi_tools::recv(global_atom_table, 0);
+  }
+
+  if(!global_atom_table.empty()) {
+    assert(master_ranks.count(mpi_tools::rank()) > 0);
+    // Save the table
+    std::string absfname = path + "/fullpart.bin";
+    std::ofstream binout(absfname.c_str(),
+                         std::ios::binary | 
+                         std::ios::out |
+                         std::ios::trunc );
+    assert(binout.good());
+    oarchive oarc(binout);
+    oarc << global_atom_table;
+    binout.close();
   }
 
 
@@ -480,27 +543,32 @@ void graphlab::construct_partitioning(int argc, char** argv,
   assert(export_cpus != NULL);
   assert(export_to_part != NULL);
   
+  gather_partition_results(zgdata.desc_vec.front().nverts,
+                           num_export,
+                           export_global_ids,
+                           export_to_part,
+                           path);
 
 
-  // Export the partition file on each machine
-  {
-    if(mpi_rank == 0)
-      std::cout << "Saving partitioning." << std::endl;
-    std::string partition_filename;
-    std::stringstream strm;
-    strm << path << "/partition_" << std::setw(3) << std::setfill('0')
-         << mpi_rank << ".txt";
-    partition_filename = strm.str();
-    std::ofstream fout(partition_filename.c_str());
-    assert(fout.good());
-    for(int i = 0; i < num_export; ++i) {
-      fout << export_global_ids[i] << '\t'
-           << export_to_part[i] << '\n';
-    }
-    fout.close();
-    if(mpi_rank == 0)
-      std::cout << "Finished saving partitioning." << std::endl;
-  }
+  // // Export the partition file on each machine
+  // {
+  //   if(mpi_rank == 0)
+  //     std::cout << "Saving partitioning." << std::endl;
+  //   std::string partition_filename;
+  //   std::stringstream strm;
+  //   strm << path << "/partition_" << std::setw(3) << std::setfill('0')
+  //        << mpi_rank << ".txt";
+  //   partition_filename = strm.str();
+  //   std::ofstream fout(partition_filename.c_str());
+  //   assert(fout.good());
+  //   for(int i = 0; i < num_export; ++i) {
+  //     fout << export_global_ids[i] << '\t'
+  //          << export_to_part[i] << '\n';
+  //   }
+  //   fout.close();
+  //   if(mpi_rank == 0)
+  //     std::cout << "Finished saving partitioning." << std::endl;
+  // }
 
   // Evaluate the partitioning
   {     
