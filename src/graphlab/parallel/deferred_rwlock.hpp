@@ -4,7 +4,7 @@
 #include <graphlab/parallel/queued_rwlock.hpp>
 #include <graphlab/logger/assertions.hpp>
 namespace graphlab {
-class deferred_rw_lock{
+class deferred_rwlock{
  public:
 
   struct request{
@@ -20,7 +20,7 @@ class deferred_rw_lock{
   simple_spinlock lock;
  public:
 
-  deferred_rw_lock(): head(NULL),
+  deferred_rwlock(): head(NULL),
                       tail(NULL), reader_count(0),writer(false) { }
 
   // debugging purposes only
@@ -85,7 +85,7 @@ class deferred_rw_lock{
     return numcompleted;
   }
   
-  inline size_t wrunlock(request *I, request* &released) {
+  inline size_t wrunlock(request* &released) {
     released = NULL;
     lock.lock();
     writer = false;
@@ -130,7 +130,7 @@ class deferred_rw_lock{
     }
   }
 
-  inline size_t rdunlock(request *I, request* &released)  {
+  inline size_t rdunlock(request* &released)  {
     released = NULL;
     lock.lock();
     --reader_count;
