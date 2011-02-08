@@ -3,6 +3,7 @@
 #include <set>
 #include <algorithm>
 #include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/macros_def.hpp>
@@ -241,23 +242,20 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
   }
 }
 
-using namespace graphlab;
 int main(int argc, char** argv) {
-  if (argc == 1) {
+  dc_init_param param;
+  if (init_param_from_env(param) == false) {
     generate_atoms(); return 0;
   }
-  assert(argc == 3);
-  size_t machineid = atoi(argv[1]);
-  size_t nummachines = atoi(argv[2]);
+  
   global_logger().set_log_level(LOG_DEBUG);
-  std::vector<std::string> machines;
-  for (size_t i = 0;i < nummachines; ++i) {
-    std::stringstream strm;
-    strm << "127.0.0.1:" << 10000+i;
-    machines.push_back(strm.str());
-  }
+
+  param.numhandlerthreads = 1;
   //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
-  distributed_control dc(machines, "", machineid, 1, TCP_COMM);
+  distributed_control dc(param);
+
+  //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
+//  distributed_control dc(machines, "", machineid, 1, TCP_COMM);
   dc.services().barrier();
   distributed_graph<size_t, double> dg(dc, "atomidx_ne.txt");
 
