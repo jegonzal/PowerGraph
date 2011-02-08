@@ -284,6 +284,14 @@ void dc_tcp_comm::connect(size_t target) {
         logstream(LOG_WARNING) << "connect " << curid << " to " << target << ": "
                               << strerror(errno) << "\n";
         sleep(1);
+        // posix says that 
+        /* If connect() fails, the state of the socket is unspecified. 
+           Conforming applications should close the file descriptor and 
+           create a new socket before attempting to reconnect. */
+        ::close(newsock);
+        newsock = socket(AF_INET, SOCK_STREAM, 0);
+        set_socket_options(newsock);
+
       }
       else {
         // send my machine id
@@ -311,7 +319,7 @@ void dc_tcp_comm::socket_handler::run() {
     
     int msglen = recv(fd, c, 10240, 0);
     // if msglen == 0, the scoket is closed
-    if (msglen == 0) {
+    if (msglen <= 0) {
       owner.socks[sourceid] = -1;
       // self deleting
       delete this;
