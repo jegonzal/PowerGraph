@@ -45,6 +45,9 @@ struct vertex_info {
   vertex_id_t vid;
   uint16_t atom_id;
 };
+SERIALIZABLE_POD(vertex_info);
+
+
 
 
 struct graph_data {
@@ -162,11 +165,12 @@ void compute_local_fnames(std::vector<std::string>& fnames) {
 
 
 
-void gather_partition_results(const size_t num_vertices,
-                              const int num_export,
-                              const ZOLTAN_ID_PTR export_global_ids,
-                              const int* export_to_part,
-                              const std::string& path) {
+void save_partition_results(const size_t num_vertices,
+                            const int num_export,
+                            const ZOLTAN_ID_PTR export_global_ids,
+                            const int* export_to_part,
+                            const std::string& path) {
+
   std::vector< vertex_info > local_vertex_info(num_export);
   for(size_t i = 0; i < local_vertex_info.size(); ++i) {
     vertex_info& vinfo(local_vertex_info[i]);
@@ -182,7 +186,6 @@ void gather_partition_results(const size_t num_vertices,
   } else {
     mpi_tools::gather(0, local_vertex_info);
   }
-
 
 
   // compute the masters
@@ -204,11 +207,19 @@ void gather_partition_results(const size_t num_vertices,
           all_vertex_info[i][j].atom_id;
       }
     }
-    
     // Send the giant vector to the master ranks
-    foreach(size_t dest, master_ranks)
-      mpi_tools::send(global_atom_table, dest);
+    foreach(size_t dest, master_ranks) {
+      if(dest != 0) {    
+        mpi_tools::send(global_atom_table, dest);
+      }
+    }   
+  } else if(master_ranks.count(mpi_tools::rank()) > 0) {
+    mpi_tools::recv(global_atom_table, 0);
+  }
 
+  // save the master files
+  if(!global_atom_table.empty()) {
+    assert(master_ranks.count(mpi_tools::rank()) > 0);
     // save a raw text file of the global atom table
     std::string absfname = path + "/fullpart.txt";
     std::ofstream fout(absfname.c_str());
@@ -216,27 +227,17 @@ void gather_partition_results(const size_t num_vertices,
       fout << global_atom_table[i] << '\n';
     }
     fout.close();
-  } else {
-    // recv the global atom table
-    mpi_tools::recv(global_atom_table, 0);
+//     // Save the table
+//     std::string absfname = path + "/fullpart.bin";
+//     std::ofstream binout(absfname.c_str(),
+//                          std::ios::binary | 
+//                          std::ios::out |
+//                          std::ios::trunc );
+//     assert(binout.good());
+//     oarchive oarc(binout);
+//     oarc << global_atom_table;
+//     binout.close();
   }
-
-  if(!global_atom_table.empty()) {
-    assert(master_ranks.count(mpi_tools::rank()) > 0);
-    // Save the table
-    std::string absfname = path + "/fullpart.bin";
-    std::ofstream binout(absfname.c_str(),
-                         std::ios::binary | 
-                         std::ios::out |
-                         std::ios::trunc );
-    assert(binout.good());
-    oarchive oarc(binout);
-    oarc << global_atom_table;
-    binout.close();
-  }
-
-
-  
 }
 
 
@@ -324,7 +325,8 @@ static void zoltan_num_edges_multi_fun(void* data,
     for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++index) {
       assert(index < size_t(num_objs));
       assert(global_ids[index] == i + structure.desc.begin_vertex);
-      num_edges[index] = structure.neighbor_ids[i].size();
+      //      num_edges[index] = structure.neighbor_ids[i].size();
+      num_edges[index] = structure.in_neighbor_ids[i].size();
     }
   }
 } 
@@ -361,11 +363,13 @@ static void zoltan_edge_list_multi_fun(void* data,
       assert(vindex < size_t(num_objs));
       assert(global_ids[vindex] == i + structure.desc.begin_vertex);
       assert(num_edges[vindex] >= 0);
-      assert(size_t(num_edges[vindex]) == structure.neighbor_ids[i].size());
+      //      assert(size_t(num_edges[vindex]) == structure.neighbor_ids[i].size());
+      assert(size_t(num_edges[vindex]) == structure.in_neighbor_ids[i].size());
       // save all the edges
       for(vertex_id_t j = 0; 
           j < structure.neighbor_ids[i].size(); ++j, ++eindex) {
-        nbor_global_id[eindex] = structure.neighbor_ids[i][j];
+        // nbor_global_id[eindex] = structure.neighbor_ids[i][j];
+        nbor_global_id[eindex] = structure.in_neighbor_ids[i][j];
         // compute the owning cpuessor
         nbor_cpus[eindex] = 
           zgdata.part2cpu[structure.desc.owning_fragment( nbor_global_id[eindex] ) ];
@@ -426,8 +430,19 @@ void graphlab::construct_partitioning(int argc, char** argv,
   error = zolt.Set_Param("LB_METHOD", "GRAPH");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("DEBUG_LEVEL", "0");
+  error = zolt.Set_Param("DEBUG_LEVEL", "1");
   assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param("IMBALANCE_TOL", "2");
+  assert(error == ZOLTAN_OK);
+
+
+  error = zolt.Set_Param("GRAPH_SYMMETRIZE", "TRANSPOSE");
+  assert(error == ZOLTAN_OK);
+
+  //   error = zolt.Set_Param("CHECK_GRAPH", "2");
+  //   assert(error == ZOLTAN_OK);
+
 
 
   error = zolt.Set_Param( "NUM_GID_ENTRIES", "1");  /* global ID is 1 integer */
@@ -483,12 +498,62 @@ void graphlab::construct_partitioning(int argc, char** argv,
   assert(error == ZOLTAN_OK);
 
 
+
+
+  // Do coloring on machine zero online
+  {
+    //     error = zolt.Set_Param("COLORING_PROBLEM", "distance-2");
+    //     assert(error == ZOLTAN_OK);
+    
+    //     error = zolt.Set_Param("COMM_PATTERN", "A");
+    //     assert(error == ZOLTAN_OK);
+
+    size_t super_step_size = 
+      std::max(size_t(100),
+               zgdata.desc_vec.front().nverts / mpi_tools::size());
+    std::stringstream strm;
+    strm << super_step_size;
+    std::string super_step_size_str(strm.str());
+    
+
+    error = zolt.Set_Param("SUPERSTEP_SIZE", super_step_size_str.c_str());
+    assert(error == ZOLTAN_OK);
+
+
+    std::set<size_t> master_ranks;
+    mpi_tools::get_master_ranks(master_ranks);
+    if(master_ranks.count(mpi_tools::rank()) > 0) {
+      int nverts = zgdata.desc_vec.front().nverts;
+      int num_gid_entries = 1;
+      std::vector<ZOLTAN_ID_TYPE> globalids(nverts);
+      std::vector<int> colors(nverts, -1);
+      for(size_t i = 0; i < globalids.size(); ++i) globalids[i] = i;
+      error = zolt.Color(num_gid_entries, 
+                         nverts,
+                         &(globalids[0]),
+                         &(colors[0]));
+      std::string absfname = path + "/coloring.txt";
+      std::ofstream fout(absfname.c_str());
+      for(size_t i = 0; i < colors.size(); ++i) {
+        fout << colors[i] << '\n';
+      }
+      fout.close();
+    } else {
+      int nverts = 0;
+      int num_gid_entries = 1;
+      error = zolt.Color(num_gid_entries, 
+                         nverts,
+                         NULL, NULL);
+    }
+  }
+                     
+
+
   ///////////////////////////////////////////////////////////////////////
   // Do the partitioning 
   //////
   // Documentation:
   // http://www.cs.sandia.gov/zoltan/ug_html/ug_interface_lb.html#Zoltan_LB_Partition
-  
   int changes = -1;
   int num_gid_entries = -1;
   int num_lid_entries = -1;
@@ -502,6 +567,7 @@ void graphlab::construct_partitioning(int argc, char** argv,
   ZOLTAN_ID_PTR export_local_ids = NULL;
   int* export_cpus = NULL;
   int* export_to_part = NULL;
+  
 
   if(mpi_rank == 0) 
     std::cout << "Running partitioner." << std::endl;
@@ -543,11 +609,13 @@ void graphlab::construct_partitioning(int argc, char** argv,
   assert(export_cpus != NULL);
   assert(export_to_part != NULL);
   
-  gather_partition_results(zgdata.desc_vec.front().nverts,
-                           num_export,
-                           export_global_ids,
-                           export_to_part,
-                           path);
+
+  save_partition_results(zgdata.desc_vec.front().nverts,
+                         num_export,
+                         export_global_ids,
+                         export_to_part,
+                         path);
+
 
 
   // // Export the partition file on each machine
@@ -571,32 +639,32 @@ void graphlab::construct_partitioning(int argc, char** argv,
   // }
 
   // Evaluate the partitioning
-  {     
-    if(mpi_rank == 0)
-      std::cout << "Evaluating Partitioning" << std::endl;
-    const int print_stats(1);
-    ZOLTAN_GRAPH_EVAL graph_info;
-    // http://www.cs.sandia.gov/zoltan/ug_html/ug_interface_lb.html#Zoltan_LB_Eval
-    error = zolt.LB_Eval_Graph(print_stats,   &graph_info);
-    assert(error == ZOLTAN_OK);
-//     if(mpi_rank == 0) {
-//       std::cout << "Imbalance: " << graph_info.obj_imbalance
-//                 << std::endl;
-//       std::cout << "Cuts:\t";
-//       for(size_t i = 1; i < EVAL_SIZE; ++i) {
-//         std::cout << graph_info.cuts[i] << '\t';
-//       }
-//       std::cout << std::endl;
-//       std::cout << "nnborparts:\t";
-//       for(size_t i = 1; i < EVAL_SIZE; ++i) {
-//         std::cout << graph_info.nnborparts[i] << '\t';
-//       }
-//       std::cout << std::endl;
-//     }
+//   {     
+//     if(mpi_rank == 0)
+//       std::cout << "Evaluating Partitioning" << std::endl;
+//     const int print_stats(1);
+//     ZOLTAN_GRAPH_EVAL graph_info;
+//     // http://www.cs.sandia.gov/zoltan/ug_html/ug_interface_lb.html#Zoltan_LB_Eval
+//     error = zolt.LB_Eval_Graph(print_stats,   &graph_info);
+//     assert(error == ZOLTAN_OK);
+// //     if(mpi_rank == 0) {
+// //       std::cout << "Imbalance: " << graph_info.obj_imbalance
+// //                 << std::endl;
+// //       std::cout << "Cuts:\t";
+// //       for(size_t i = 1; i < EVAL_SIZE; ++i) {
+// //         std::cout << graph_info.cuts[i] << '\t';
+// //       }
+// //       std::cout << std::endl;
+// //       std::cout << "nnborparts:\t";
+// //       for(size_t i = 1; i < EVAL_SIZE; ++i) {
+// //         std::cout << graph_info.nnborparts[i] << '\t';
+// //       }
+// //       std::cout << std::endl;
+// //     }
     
-    if(mpi_rank == 0)
-      std::cout << "Finished evaluating partitioning." << std::endl;
-  }
+//     if(mpi_rank == 0)
+//       std::cout << "Finished evaluating partitioning." << std::endl;
+//   }
 
 
 
