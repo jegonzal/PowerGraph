@@ -1,6 +1,7 @@
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #include <map>
+#include <set>
 #include <vector>
 #include <algorithm>
 #include <boost/unordered_map.hpp>
@@ -17,6 +18,11 @@
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
+
+
+// forward definition of a friend
+template <typename VertexData, typename EdgeData>
+class graph_lock;
 
 
 /**
@@ -94,6 +100,8 @@ class distributed_graph {
                               globalvid2owner(dc, 65536),
                               globaleid2owner(dc, 65536){
     edge_canonical_numbering = false;
+    cur_proc_vector.push_back(rmi.procid());
+    
     // read the atom index.
     atom_index_file atomindex;
     atomindex.read_from_file(atomidxfile);
@@ -420,6 +428,24 @@ class distributed_graph {
   
   const std::vector<vertex_id_t>& ghost_vertices() const{
     return ghostvertices;
+  }
+  
+  /// returns a vector of all processors having a replica of this globalvid
+  const std::vector<procid_t>& localvid_to_replicas(vertex_id_t localvid) const {
+    boost::unordered_map<vertex_id_t, std::vector<procid_t> >::const_iterator 
+                    iter = localvid2ghostedprocs.find(localvid);
+    if (iter == localvid2ghostedprocs.end()) {
+      return cur_proc_vector;
+    }
+    else {
+      return iter->second;
+    }
+  }
+  
+   /// returns a vector of all processors having a replica of this globalvid
+  const std::vector<procid_t>& globalvid_to_replicas(vertex_id_t globalvid) const {
+    vertex_id_t localvid = global2localvid[globalvid];
+    return localvid_to_replicas(localvid);
   }
   /**
    * Returns a reference to the edge data on the edge source->target
@@ -928,6 +954,9 @@ class distributed_graph {
   boost::unordered_set<vertex_id_t> boundaryscopesset;
   std::vector<vertex_id_t> boundaryscopes;
   
+  boost::unordered_map<vertex_id_t, std::vector<procid_t> > localvid2ghostedprocs;
+  std::vector<procid_t> cur_proc_vector;  // vector containing only 1 element. the current proc
+  
   /** To avoid requiring O(V) storage on each maching, the 
    * global_vid -> owner mapping cannot be stored in its entirely locally
    * instead, we store it in a DHT. \see globaleid2owner
@@ -1045,6 +1074,8 @@ class distributed_graph {
     for (size_t i = 0; i < globalvid_notowned_zip.size(); ++i) {
       local2globalvid[i] = globalvid_notowned_zip[i].second;
     } 
+    // don't need it anymore. clear the vector
+    std::vector<std::pair<bool, vertex_id_t> >().swap(globalvid_notowned_zip);
     
     // construct localvid2owner
     localvid2owner.resize(local2globalvid.size());
@@ -1071,7 +1102,8 @@ class distributed_graph {
         std::unique(local2globaleid.begin(), local2globaleid.end());
 
       local2globaleid.resize(ueiter - local2globaleid.begin());
-
+      // shrink to fit and save some memory
+      std::vector<edge_id_t>(local2globaleid).swap(local2globaleid);
       for (size_t i = 0; i < local2globaleid.size(); ++i) {
         global2localeid[local2globaleid[i]] = i;
       }
@@ -1159,7 +1191,28 @@ class distributed_graph {
     
     // fill the ownedvertices list
     for (size_t i = 0;i < localvid2owner.size(); ++i) {
-      if (localvid2owner[i] == rmi.procid()) ownedvertices.push_back(local2globalvid[i]);
+      if (localvid2owner[i] == rmi.procid()) {
+        ownedvertices.push_back(local2globalvid[i]);
+        // loop through the neighbors and figure out who else might
+        // have a ghost of me. Fill the vertex2ghostedprocs vector
+        // those who have a ghost of me are the owners of my ghost vertices
+        std::set<procid_t> ghostownersset;
+        ghostownersset.insert(rmi.procid());  // must always have the current proc
+        foreach(edge_id_t ineid, localstore.in_edge_ids(i)) {
+          vertex_id_t localinvid = localstore.source(ineid);
+          if (localvid2owner[localinvid] != rmi.procid()) {
+            ghostownersset.insert(localvid2owner[localinvid]);
+          }
+        }
+        foreach(edge_id_t outeid, localstore.out_edge_ids(i)) {
+          vertex_id_t localoutvid = localstore.target(outeid);
+          if (localvid2owner[localoutvid] != rmi.procid()) {
+            ghostownersset.insert(localvid2owner[localoutvid]);
+          }
+        }
+        std::copy(ghostownersset.begin(), ghostownersset.end(), 
+                  std::back_inserter(localvid2ghostedprocs[i]));
+      }
       else {
         ghostvertices.push_back(local2globalvid[i]);
 
@@ -1331,6 +1384,8 @@ class distributed_graph {
   
   void reply_alot(block_synchronize_request &request);
   void reply_alot2(block_synchronize_request2 &request);
+
+  friend class graph_lock<VertexData, EdgeData>;
 
 };
 

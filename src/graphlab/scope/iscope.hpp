@@ -61,7 +61,50 @@ namespace graphlab {
       FULL_CONSISTENCY,        ///< write to self and adjacent structures
       USE_DEFAULT
     };
+    
+    enum lock_type_enum {
+      NO_LOCK = 0,
+      READ_LOCK = 1,
+      WRITE_LOCK = 2
+    };
   };
+
+  inline scope_range::lock_type_enum central_vertex_lock_type(scope_range::scope_range_enum srange) {
+    switch (srange) {
+      case scope_range::NULL_CONSISTENCY:
+        return scope_range::NO_LOCK;
+      case scope_range::VERTEX_READ_CONSISTENCY:
+      case scope_range::READ_CONSISTENCY:
+        return scope_range::READ_LOCK;
+      case scope_range::VERTEX_CONSISTENCY:
+      case scope_range::EDGE_CONSISTENCY:
+      case scope_range::FULL_CONSISTENCY:
+        return scope_range::WRITE_LOCK;
+      default:
+        assert(false);
+        // unreachable
+        return scope_range::NO_LOCK;
+    }
+  }
+
+  inline scope_range::lock_type_enum adjacent_vertex_lock_type(scope_range::scope_range_enum srange) {
+    switch (srange) {
+      case scope_range::NULL_CONSISTENCY:
+      case scope_range::VERTEX_READ_CONSISTENCY:
+      case scope_range::VERTEX_CONSISTENCY:
+        return scope_range::NO_LOCK;
+      case scope_range::READ_CONSISTENCY:
+      case scope_range::EDGE_CONSISTENCY:
+        return scope_range::READ_LOCK;
+      case scope_range::FULL_CONSISTENCY:
+        return scope_range::WRITE_LOCK;
+      default:
+        assert(false);
+        // unreachable
+        return scope_range::NO_LOCK;
+    }
+  }
+
 
   inline bool scope_is_subset_of(scope_range::scope_range_enum A,
                                  scope_range::scope_range_enum B) {

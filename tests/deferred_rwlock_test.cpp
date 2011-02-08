@@ -10,7 +10,7 @@ using namespace graphlab;
 #define NUM_LOCKS 1000
 #define NUM_RAND 500
 #define NUM_ITER 10000
-deferred_rw_lock locks[NUM_LOCKS];
+deferred_rwlock locks[NUM_LOCKS];
 queued_rw_lock queuedlocks[NUM_LOCKS];
 rwlock regularlocks[NUM_LOCKS];
 atomic<int> readers[NUM_LOCKS];
@@ -20,9 +20,9 @@ barrier bar1(nthreads);
 barrier bar2(nthreads);
 void eval_wr(size_t lockid) ;
 void eval_rd(size_t lockid);
-void release_wr(size_t lockid, deferred_rw_lock::request* l) ;
-void release_rd(size_t lockid, deferred_rw_lock::request* l);
-void iterate_released(size_t lockid, deferred_rw_lock::request *l, size_t numok) ;
+void release_wr(size_t lockid, deferred_rwlock::request* l) ;
+void release_rd(size_t lockid, deferred_rwlock::request* l);
+void iterate_released(size_t lockid, deferred_rwlock::request *l, size_t numok) ;
 
 atomic<size_t> numacquired;
 atomic<size_t> numreleased;
@@ -38,22 +38,22 @@ void eval_rd(size_t lockid) {
   readers[lockid].dec();
 }
 
-void release_wr(size_t lockid, deferred_rw_lock::request* l) {
-  deferred_rw_lock::request* reqs;
-  size_t numok = locks[lockid].wrunlock(l, reqs);
+void release_wr(size_t lockid, deferred_rwlock::request* l) {
+  deferred_rwlock::request* reqs;
+  size_t numok = locks[lockid].wrunlock(reqs);
   numreleased.inc();
   iterate_released(lockid, reqs, numok);
 }
 
-void release_rd(size_t lockid, deferred_rw_lock::request* l) {
-  deferred_rw_lock::request* reqs;
-  size_t numok = locks[lockid].rdunlock(l, reqs);
+void release_rd(size_t lockid, deferred_rwlock::request* l) {
+  deferred_rwlock::request* reqs;
+  size_t numok = locks[lockid].rdunlock(reqs);
   numreleased.inc();
   iterate_released(lockid, reqs, numok);
 }
 
 void iterate_released(size_t lockid, 
-		      deferred_rw_lock::request *reqs, size_t numok) {
+		      deferred_rwlock::request *reqs, size_t numok) {
   for (size_t i = 0;i < numok; ++i) {
     if (reqs->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
       eval_rd(lockid);
@@ -63,7 +63,7 @@ void iterate_released(size_t lockid,
       eval_wr(lockid);
       release_wr(lockid, reqs);
     }
-    reqs = (deferred_rw_lock::request*)reqs->next;
+    reqs = (deferred_rwlock::request*)reqs->next;
   }
 }
 
@@ -73,7 +73,7 @@ void f(void) {
   std::vector<bool> randsign;  
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
-  deferred_rw_lock::request testreqs[NUM_RAND];
+  deferred_rwlock::request testreqs[NUM_RAND];
     for (size_t j = 0;j < NUM_RAND; ++j) {
       randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
       randsign[j] = graphlab::random::rand_int(READ_PROP);
@@ -89,7 +89,7 @@ for (size_t i = 0;i < NUM_ITER; ++i) {
         }
       }
       else {
-        deferred_rw_lock::request *allreleased;
+        deferred_rwlock::request *allreleased;
         size_t numok = 
 	  locks[randlocks[j]].readlock(&testreqs[j], allreleased);
         iterate_released(randlocks[j], allreleased, numok);
@@ -192,13 +192,13 @@ void f3(void) {
 
 
 int main(int argc, char** argv) {
-  deferred_rw_lock::request reqs[4];
+  deferred_rwlock::request reqs[4];
   
   // basic functionality
-  deferred_rw_lock lock;
-  deferred_rw_lock::request* released;
+  deferred_rwlock lock;
+  deferred_rwlock::request* released;
   ASSERT_TRUE(lock.writelock(&reqs[0]));
-  ASSERT_EQ(lock.wrunlock(&reqs[0], released), 0);
+  ASSERT_EQ(lock.wrunlock(released), 0);
   
   // write reads work
   ASSERT_TRUE(lock.readlock(&reqs[0], released) == 1);
@@ -207,9 +207,9 @@ int main(int argc, char** argv) {
   ASSERT_TRUE(released == &reqs[1]);
   ASSERT_TRUE(lock.readlock(&reqs[2], released) == 1);
   ASSERT_TRUE(released == &reqs[2]);
-  ASSERT_EQ(lock.rdunlock(&reqs[1], released), 0);
-  ASSERT_EQ(lock.rdunlock(&reqs[0], released), 0);
-  ASSERT_EQ(lock.rdunlock(&reqs[2], released), 0);
+  ASSERT_EQ(lock.rdunlock(released), 0);
+  ASSERT_EQ(lock.rdunlock(released), 0);
+  ASSERT_EQ(lock.rdunlock(released), 0);
   
   // writes block reads
   ASSERT_TRUE(lock.writelock(&reqs[0]));
@@ -217,17 +217,17 @@ int main(int argc, char** argv) {
   ASSERT_TRUE(lock.readlock(&reqs[2], released) == 0);
   ASSERT_TRUE(lock.readlock(&reqs[3], released) == 0);
   // unlocking the write will release the reads
-  ASSERT_EQ(lock.wrunlock(&reqs[0], released), 3);
+  ASSERT_EQ(lock.wrunlock(released), 3);
   ASSERT_TRUE(released != NULL);
   // check to see if I have all of them
   ASSERT_TRUE(released == &reqs[1]);
-  released = (deferred_rw_lock::request*)released->next;
+  released = (deferred_rwlock::request*)released->next;
   ASSERT_TRUE(released == &reqs[2]);
-  released = (deferred_rw_lock::request*)released->next;
+  released = (deferred_rwlock::request*)released->next;
   ASSERT_TRUE(released == &reqs[3]);
-  ASSERT_EQ(lock.rdunlock(&reqs[3], released), 0);
-  ASSERT_EQ(lock.rdunlock(&reqs[2], released), 0);
-  ASSERT_EQ(lock.rdunlock(&reqs[1], released), 0);
+  ASSERT_EQ(lock.rdunlock(released), 0);
+  ASSERT_EQ(lock.rdunlock(released), 0);
+  ASSERT_EQ(lock.rdunlock(released), 0);
   
   
   // reads block writes and writes block writes
@@ -237,13 +237,13 @@ int main(int argc, char** argv) {
   ASSERT_FALSE(lock.writelock(&reqs[2]));
   ASSERT_FALSE(lock.writelock(&reqs[3]));
   // releasing the read only releases one write
-  ASSERT_EQ(lock.rdunlock(&reqs[0], released), 1);
+  ASSERT_EQ(lock.rdunlock(released), 1);
   ASSERT_TRUE(released == &reqs[1]);
-  ASSERT_EQ(lock.wrunlock(&reqs[1], released), 1);
+  ASSERT_EQ(lock.wrunlock(released), 1);
   ASSERT_TRUE(released == &reqs[2]);
-  ASSERT_EQ(lock.wrunlock(&reqs[2], released), 1);
+  ASSERT_EQ(lock.wrunlock(released), 1);
   ASSERT_TRUE(released == &reqs[3]);
-  ASSERT_EQ(lock.wrunlock(&reqs[3], released), 0);
+  ASSERT_EQ(lock.wrunlock(released), 0);
   ASSERT_TRUE(released == NULL);
   
   ASSERT_FALSE(lock.has_waiters());
