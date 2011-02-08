@@ -1,10 +1,10 @@
-
-#include <graphlab/distributed2/graph/graph_fragment.hpp>
-
+#include <boost/filesystem.hpp>
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 
+
+#include <graphlab/distributed2/graph/graph_fragment.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -232,6 +232,29 @@ load(graphlab::iarchive& iarc)  {
        >> in_neighbor_ids 
        >> in_edge_ids;
 }
+
+void graph_fragment::list_structure_files(const std::string& pathname, 
+                          std::vector<std::string>& files) {
+  namespace fs = boost::filesystem;
+  fs::path path(pathname);
+  assert(fs::exists(path));
+  for(fs::directory_iterator iter( path ), end_iter; 
+      iter != end_iter; ++iter) {
+    if( ! fs::is_directory(iter->status()) ) {
+      std::string filename(iter->path().filename());
+      size_t period_loc = filename.rfind('.');
+      if(period_loc != std::string::npos) {
+        std::string ending(filename.substr(period_loc));
+        if(ending == graph_fragment::structure_suffix) {
+          files.push_back(iter->path().filename());
+        }
+      }
+    }
+  }
+  std::sort(files.begin(), files.end());
+} // end of list_structure_files
+
+
 
 
 

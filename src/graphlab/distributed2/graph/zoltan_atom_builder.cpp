@@ -11,7 +11,6 @@
 #include <sstream>
 #include <iostream>
 #include <graphlab.hpp>
-#include <boost/filesystem.hpp>
 
 #include <mpi.h>
 #include <zoltan_cpp.h>
@@ -56,26 +55,6 @@ struct graph_data {
   part2cpu_type part2cpu;
 };
 
-void list_structure_files(const std::string& pathname, 
-                          std::vector<std::string>& files) {
-  namespace fs = boost::filesystem;
-  fs::path path(pathname);
-  assert(fs::exists(path));
-  for(fs::directory_iterator iter( path ), end_iter; 
-      iter != end_iter; ++iter) {
-    if( ! fs::is_directory(iter->status()) ) {
-      std::string filename(iter->path().filename());
-      size_t period_loc = filename.rfind('.');
-      if(period_loc != std::string::npos) {
-        std::string ending(filename.substr(period_loc));
-        if(ending == graph_fragment::structure_suffix) {
-          files.push_back(iter->path().filename());
-        }
-      }
-    }
-  }
-  std::sort(files.begin(), files.end());
-} // end of list_structure_file
 
 
 void load_file_descs(const std::string& path,
@@ -221,7 +200,7 @@ void save_partition_results(const size_t num_vertices,
   if(!global_atom_table.empty()) {
     assert(master_ranks.count(mpi_tools::rank()) > 0);
     // save a raw text file of the global atom table
-    std::string absfname = path + "/fullpart.txt";
+    std::string absfname = path + "/partitioning.txt";
     std::ofstream fout(absfname.c_str());
     for(size_t i = 0; i < global_atom_table.size(); ++i) {
       fout << global_atom_table[i] << '\n';
@@ -393,7 +372,7 @@ void graphlab::construct_partitioning(int argc, char** argv,
 
   // Load the filenames
   std::vector<std::string> fnames;
-  list_structure_files(path, fnames);
+  graph_fragment::list_structure_files(path, fnames);
   compute_local_fnames(fnames);
 
   // global structure with all necessary information
@@ -440,8 +419,13 @@ void graphlab::construct_partitioning(int argc, char** argv,
   error = zolt.Set_Param("GRAPH_SYMMETRIZE", "TRANSPOSE");
   assert(error == ZOLTAN_OK);
 
-  //   error = zolt.Set_Param("CHECK_GRAPH", "2");
-  //   assert(error == ZOLTAN_OK);
+  error = zolt.Set_Param("CHECK_GRAPH", "0");
+  assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param("GRAPH_BUILD_TYPE", "NORMAL");
+  assert(error == ZOLTAN_OK);
+
+
 
 
 
@@ -505,8 +489,8 @@ void graphlab::construct_partitioning(int argc, char** argv,
     //     error = zolt.Set_Param("COLORING_PROBLEM", "distance-2");
     //     assert(error == ZOLTAN_OK);
     
-    //     error = zolt.Set_Param("COMM_PATTERN", "A");
-    //     assert(error == ZOLTAN_OK);
+    error = zolt.Set_Param("COMM_PATTERN", "A");
+    assert(error == ZOLTAN_OK);
 
     size_t super_step_size = 
       std::max(size_t(100),
@@ -522,12 +506,13 @@ void graphlab::construct_partitioning(int argc, char** argv,
 
     std::set<size_t> master_ranks;
     mpi_tools::get_master_ranks(master_ranks);
-    if(master_ranks.count(mpi_tools::rank()) > 0) {
+    if( master_ranks.count(mpi_tools::rank()) > 0) {
       int nverts = zgdata.desc_vec.front().nverts;
       int num_gid_entries = 1;
       std::vector<ZOLTAN_ID_TYPE> globalids(nverts);
       std::vector<int> colors(nverts, -1);
-      for(size_t i = 0; i < globalids.size(); ++i) globalids[i] = i;
+      for(size_t i = 0; i < globalids.size(); ++i) 
+        globalids[i] = i;
       error = zolt.Color(num_gid_entries, 
                          nverts,
                          &(globalids[0]),
@@ -539,11 +524,24 @@ void graphlab::construct_partitioning(int argc, char** argv,
       }
       fout.close();
     } else {
-      int nverts = 0;
+//       int ierr(-1);
+//       int nverts = zoltan_num_obj_fun(&zgdata, &ierr);
+//       std::cout << "local objects: " << nverts << std::endl;
+//       std::vector<ZOLTAN_ID_TYPE> globalids(nverts);
+//       std::vector<int> colors(nverts, -1);
+//       zoltan_obj_list_fun(&zgdata, 1, 0, &(globalids[0]), NULL, 0, NULL, &ierr);
+//       int num_gid_entries = 1;
+//       error = zolt.Color(num_gid_entries, 
+//                          nverts,
+//                          &(globalids[0]), 
+//                          &(colors[0]));
       int num_gid_entries = 1;
+      int nverts = 0;
       error = zolt.Color(num_gid_entries, 
                          nverts,
                          NULL, NULL);
+
+
     }
   }
                      

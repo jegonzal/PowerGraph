@@ -7,6 +7,7 @@
  *
  */
 
+
 #include <vector>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
@@ -85,6 +86,12 @@ namespace graphlab {
     }; // end of structure_description
       
 
+    void list_structure_files(const std::string& pathname, 
+                              std::vector<std::string>& files);
+
+
+
+
   }; // End of graph fragment
 
 
@@ -99,12 +106,6 @@ namespace graphlab {
 std::ostream& 
 operator<<(std::ostream& out, 
            const graphlab::graph_fragment::file_description& desc);
-
-
-
-
-
-
 
 
 #include <graphlab/macros_undef.hpp>
