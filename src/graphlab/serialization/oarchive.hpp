@@ -55,7 +55,7 @@ struct serialize_impl<ArcType, const T> {
 Allows Use of the "stream" syntax for serialization 
 */
 template <typename T>
-oarchive& operator<<(oarchive& a, const T i) {
+oarchive& operator<<(oarchive& a, const T& i) {
   archive_detail::serialize_impl<oarchive, T>::exec(a, i);
   return a;
 }
