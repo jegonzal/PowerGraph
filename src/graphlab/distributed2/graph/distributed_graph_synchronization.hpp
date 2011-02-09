@@ -345,7 +345,7 @@ distributed_graph<VertexData, EdgeData>::get_vertex_if_version_less_than(vertex_
 
   //logstream(LOG_DEBUG) << "get vertex: " << vid << ":" << vertexversion << " vs " << local_vertex_version << std::endl;
   
-  if (local_vertex_version  > vertexversion) {
+  if (local_vertex_version  >= vertexversion) {
     ret.hasdata = true;
     ret.data.first = localstore.vertex_data(localvid);
     ret.data.second = local_vertex_version;
@@ -354,9 +354,6 @@ distributed_graph<VertexData, EdgeData>::get_vertex_if_version_less_than(vertex_
     assert(vdata.hasdata);
     localstore.vertex_data(localvid) = vdata.data.first;
     localstore.set_vertex_version(localvid, vertexversion);
-    ret.hasdata = false;
-  }
-  else {
     ret.hasdata = false;
   }
   return ret;
@@ -373,7 +370,7 @@ distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than(edge_id_t
   
   //logstream(LOG_DEBUG) << "get edge: " << eid << ":" << edgeversion << " vs " << local_edge_version << std::endl;
   
-  if (local_edge_version > edgeversion) {
+  if (local_edge_version >= edgeversion) {
     ret.hasdata = true;
     ret.data.first = localstore.edge_data(localeid);
     ret.data.second = local_edge_version;
@@ -382,9 +379,6 @@ distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than(edge_id_t
     assert(edata.hasdata);
     localstore.edge_data(localeid) = edata.data.first;
     localstore.set_edge_version(localeid, edgeversion);
-    ret.hasdata = false;
-  }
-  else {
     ret.hasdata = false;
   }
   return ret;
@@ -408,7 +402,7 @@ distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than2(vertex_i
   uint64_t  local_edge_version = localstore.edge_version(localeid);
 
   //logstream(LOG_DEBUG) << "get edge2: " << "(" << localsource << "->" << localtarget << ")" << ":" << edgeversion << " vs " << local_edge_version << std::endl;
-  if (local_edge_version > edgeversion) {
+  if (local_edge_version >= edgeversion) {
     ret.hasdata = true;
     ret.data.first = localstore.edge_data(localeid);
     ret.data.second = local_edge_version;
@@ -417,9 +411,6 @@ distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than2(vertex_i
     assert(edata.hasdata);
     localstore.edge_data(localeid) = edata.data.first;
     localstore.set_edge_version(localeid, edgeversion);
-    ret.hasdata = false;
-  }
-  else {
     ret.hasdata = false;
   }
   return ret;
