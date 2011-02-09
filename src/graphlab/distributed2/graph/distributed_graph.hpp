@@ -94,6 +94,9 @@ template<typename VertexData, typename EdgeData>
 class distributed_graph {
  
  public:
+  typedef VertexData vertex_data_type;
+  typedef EdgeData edge_data_type;
+  
   distributed_graph(distributed_control &dc, std::string atomidxfile):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),

@@ -135,6 +135,9 @@ namespace graphlab {
     //! The edge data type associated with the graph
     typedef typename Graph::edge_data_type   edge_data_type;
 
+    //! The edge data type associated with the graph
+    typedef typename Graph::edge_list_type   edge_list_type;
+
 
 
   public:    
@@ -224,7 +227,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list in_edge_ids() const {
+    edge_list_type in_edge_ids() const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->in_edge_ids(_vertex);
     }
@@ -235,7 +238,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list in_edge_ids(vertex_id_t v) const {
+    edge_list_type in_edge_ids(vertex_id_t v) const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->in_edge_ids(v);
     }
@@ -247,7 +250,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list out_edge_ids() const {
+    edge_list_type out_edge_ids() const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->out_edge_ids(_vertex);
     }
@@ -258,7 +261,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list out_edge_ids(vertex_id_t v) const {
+    edge_list_type out_edge_ids(vertex_id_t v) const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->out_edge_ids(v);
     }

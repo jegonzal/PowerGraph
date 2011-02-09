@@ -242,7 +242,7 @@ namespace graphlab {
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
       
-    
+    typedef edge_list edge_list_type;
   public:
 
     // CONSTRUCTORS ============================================================>

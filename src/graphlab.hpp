@@ -136,7 +136,7 @@ namespace graphlab {
     /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
     typedef graphlab::edge_id_t edge_id_t;
 
-    typedef graphlab::edge_list edge_list;
+    typedef typename graph::edge_list_type edge_list;
     
     typedef graphlab::scheduler_options          scheduler_options;
     typedef graphlab::sched_status               sched_status;
