@@ -1,5 +1,5 @@
-#ifndef DC_HPP
-#define DC_HPP
+#ifndef GRAPHLAB_DC_HPP
+#define GRAPHLAB_DC_HPP
 #include <iostream>
 #include <boost/iostreams/stream.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
