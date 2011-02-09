@@ -135,13 +135,16 @@ if inscreen and gui:
 
 if (printhelp):
   print
-  print("Usage: rpcexec -n n_to_start -f [hostsfile] [program] [options]")
+  print("Usage: rpcexec -n [n_to_start] -f [hostsfile] [program] [options]")
   print("To start local only: rpcexec [program] [options]")
   print("Optional Arguments:")
   print("-g: Launch the command within Xterm on all machines. ")
-  print("-s [screenname] : Launch a shell_popen session and launch the commands in each window in the shell_popen")
+  print("-s [screenname] : Launch a screen session and launch the")
+  print("        commands in each window in each window. Any ssh connections")
+  print("        are preserved on termination of the program with environment")
+  print("        properly set up for subsequent executions")
   print("")
-  print("-s and -g are mutually exclusive")
+  print("Note: -s [screenname] and -g are mutually exclusive")
   
   exit(0)
 #endif
