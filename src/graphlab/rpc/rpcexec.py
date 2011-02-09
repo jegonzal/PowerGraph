@@ -83,7 +83,7 @@ def get_screen_cmd(gui, machines, port, machineid, prog, opts):
                     (port[machineid], machines[machineid], cwd, allmachines,     \
                     machineid, guicmd, prog, opts)
   #endif
-  return "'" + escape(cmd) + "\n'"
+  return "'" + cmd + "\n'"
 #enddef
 
 
@@ -95,7 +95,7 @@ def shell_popen(cmd):
 def shell_wait_native(cmd):
   print cmd
   pid = subprocess.Popen(cmd, shell=True,executable='/bin/bash')
-#  os.waitpid(pid.pid, 0)
+  os.waitpid(pid.pid, 0)
 #  os.system(cmd)
 #  time.sleep(0.5)
 #endif
