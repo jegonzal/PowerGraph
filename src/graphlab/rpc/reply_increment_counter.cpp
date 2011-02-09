@@ -5,8 +5,8 @@
 namespace graphlab {
 
 void reply_increment_counter(distributed_control &dc, procid_t src, 
-                             size_t ptr, blob ret) {
-  reply_ret_type *a = reinterpret_cast<reply_ret_type*>(ptr);
+                             size_t ptr, dc_impl::blob ret) {
+  dc_impl::reply_ret_type *a = reinterpret_cast<dc_impl::reply_ret_type*>(ptr);
   a->val=ret;
   a->flag.inc();  
   if (a->usesem) a->sem.post();

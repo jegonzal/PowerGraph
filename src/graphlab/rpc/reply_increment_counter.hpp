@@ -8,7 +8,7 @@ namespace graphlab {
 
 class distributed_control;
 
-
+namespace dc_impl {
 /**
 A wrapper around a char array. This structure 
 is incapable of freeing itself and must be managed externally
@@ -61,10 +61,11 @@ struct reply_ret_type{
   }
 };
 
+}
 
 
 void reply_increment_counter(distributed_control &dc, procid_t src, 
-                             size_t ptr, blob ret);
+                             size_t ptr, dc_impl::blob ret);
 
 }
 
