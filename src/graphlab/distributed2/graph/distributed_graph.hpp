@@ -96,6 +96,7 @@ class distributed_graph {
  public:
   typedef VertexData vertex_data_type;
   typedef EdgeData edge_data_type;
+  typedef dgraph_edge_list edge_list_type;
   
   distributed_graph(distributed_control &dc, std::string atomidxfile):
                               rmi(dc, this),
