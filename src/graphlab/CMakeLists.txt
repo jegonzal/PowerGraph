@@ -51,14 +51,13 @@ add_library(graphlab_rpc STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_services.cpp
   rpc/dc_comm_services.cpp
-  rpc/dc_init_from_env.cpp
-  distributed2/graph/atom_index_file.cpp
-  distributed2/graph/graph_fragment.cpp)
+  rpc/dc_init_from_env.cpp)
 
 
 IF(ZOLTAN_FOUND)
   add_library(graphlab_zoltan
-              distributed2/graph/zoltan_atom_builder.cpp)
+              distributed2/graph/partitioning/raw_fragment.cpp
+              distributed2/graph/partitioning/partitioning_tools.cpp)
 #   TARGET_LINK_LIBRARIES(graphlab_zoltan 
 #     ${MPI_LIBRARY} 
 #     ${MPI_EXTRA_LIBRARY}
@@ -110,8 +109,8 @@ if(MPI_FOUND)
 
 
 add_library(graphlab_dist2 STATIC
-    distributed2/graph/atom_index_file.cpp
-    distributed2/graph/graph_fragment.cpp)
+    distributed2/graph/partitioning/raw_fragment.cpp      
+    distributed2/graph/atom_index_file.cpp)
 
 
 

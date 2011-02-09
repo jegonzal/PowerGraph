@@ -21,21 +21,19 @@
 #include <boost/filesystem.hpp>
 
 
-#include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/distributed2/graph/graph_fragment.hpp>
-#include <graphlab/distributed2/graph/zoltan_atom_builder.hpp>
 #include <graphlab/util/mpi_tools.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
+
+#include <graphlab/distributed2/graph/partitioning/raw_fragment.hpp>
+#include <graphlab/distributed2/graph/partitioning/partitioning_tools.hpp>
+
 
 
 #include <graphlab/macros_def.hpp>
 
 using namespace graphlab;
 
-typedef std::vector<graph_fragment::file_description> 
-description_vec_type;
-
-typedef std::vector<graph_fragment::structure_description> 
-structure_vec_type;
+typedef std::vector<raw_fragment> fragment_vec_type;
 
 typedef std::map<vertex_id_t, vertex_id_t> part2cpu_type;
 
@@ -50,52 +48,35 @@ SERIALIZABLE_POD(vertex_info);
 
 
 struct graph_data {
-  description_vec_type desc_vec;
-  structure_vec_type structure_vec;
+  fragment_vec_type frag_vec;
   part2cpu_type part2cpu;
-};
-
-
-
-void load_file_descs(const std::string& path,
-                     const std::vector<std::string>& fnames,
-                     description_vec_type& file_desc_vec) {
-  file_desc_vec.resize(fnames.size());
-  for(size_t i = 0; i < fnames.size(); ++i) {
-    std::string abs_filename(path + "/" + fnames[i]);
-    std::ifstream fin(abs_filename.c_str(), std::ios::binary | std::ios::in);
-    assert(fin.good());
-    graphlab::iarchive iarc(fin);
-    iarc >> file_desc_vec[i];
-    fin.close();
-  }
-} // end of load structures
-
-
-
-
-void load_structures(const std::string& path,
-                     const std::vector<std::string>& structure_fnames,
-                     structure_vec_type& structures) {
-  structures.resize(structure_fnames.size());
-  for(size_t i = 0; i < structure_fnames.size(); ++i) {
-    std::string abs_filename(path + "/" + structure_fnames[i]);
-    std::cout << abs_filename << std::endl;
-    std::ifstream fin(abs_filename.c_str(), std::ios::binary | std::ios::in);
-    assert(fin.good());
-    graphlab::iarchive iarc(fin);
-    graph_fragment::file_description desc;
-    iarc >> desc >> structures[i];
-    fin.close();
-  }
-} // end of load structures
-
-
-
-
-
-
-
+  vertex_id_t nverts;
+  graph_data(const std::string& path,
+             const std::vector< std::string >& fnames) :
+    frag_vec(fnames.size()) {
+    // load teh fragment vector
+    for(size_t i = 0; i < fnames.size(); ++i) {
+      std::string abs_filename(path + "/" + fnames[i]);
+      std::ifstream fin(abs_filename.c_str(), std::ios::binary | std::ios::in);
+      assert(fin.good());
+      graphlab::iarchive iarc(fin);
+      iarc >> frag_vec[i];
+      fin.close();
+    }    
+    // compute the part 2 cpu assignment
+    std::vector<vertex_id_t> local_parts(frag_vec.size());
+    for(size_t i = 0; i < local_parts.size(); ++i)
+      local_parts[i] = frag_vec[i].id;    
+    std::vector< std::vector<vertex_id_t> > cpu2parts;
+    mpi_tools::all_gather(local_parts, cpu2parts);
+    for(size_t i = 0; i < cpu2parts.size(); ++i) {
+      for(size_t j = 0; j < cpu2parts[i].size(); ++j) {
+        part2cpu[cpu2parts[i][j]] = i;
+      }
+    }
+    nverts = frag_vec.front().nverts;
+  } // end of constructor            
+}; // end of graph_data
 
 
 
@@ -206,37 +187,11 @@ void save_partition_results(const size_t num_vertices,
       fout << global_atom_table[i] << '\n';
     }
     fout.close();
-//     // Save the table
-//     std::string absfname = path + "/fullpart.bin";
-//     std::ofstream binout(absfname.c_str(),
-//                          std::ios::binary | 
-//                          std::ios::out |
-//                          std::ios::trunc );
-//     assert(binout.good());
-//     oarchive oarc(binout);
-//     oarc << global_atom_table;
-//     binout.close();
   }
 }
 
 
 
-
-void compute_part2cpu(const description_vec_type& local_files,
-                      part2cpu_type& part2cpu) {
-
-  std::vector<vertex_id_t> local_parts(local_files.size());
-  for(size_t i = 0; i < local_files.size(); ++i)
-    local_parts[i] = local_files[i].id;
-
-  std::vector< std::vector<vertex_id_t> > cpu2parts;
-  mpi_tools::all_gather(local_parts, cpu2parts);
-  for(size_t i = 0; i < cpu2parts.size(); ++i) {
-    for(size_t j = 0; j < cpu2parts[i].size(); ++j) {
-      part2cpu[cpu2parts[i][j]] = i;
-    }
-  }
-}
 
 
 
@@ -247,8 +202,8 @@ int zoltan_num_obj_fun(void* data, int* ierr) {
   assert(data != NULL);
   graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
   int num_objects(0);
-  foreach(const graph_fragment::file_description& desc, zgdata.desc_vec) {
-    num_objects += desc.num_local_verts;
+  foreach(const raw_fragment& frag, zgdata.frag_vec) {
+    num_objects += frag.num_local_verts;
   }
   *ierr = ZOLTAN_OK;
   return num_objects;
@@ -273,10 +228,9 @@ void zoltan_obj_list_fun(void* data,
   assert(local_ids == NULL);
   assert(obj_wgts == NULL);
   size_t index(0);
-  foreach(const graph_fragment::structure_description& structure, 
-          zgdata.structure_vec) {
-    for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++index) {
-      global_ids[index] = i + structure.desc.begin_vertex;
+  foreach(const raw_fragment& frag, zgdata.frag_vec) {
+    for(vertex_id_t i = 0; i < frag.num_local_verts; ++i, ++index) {
+      global_ids[index] = i + frag.begin_vertex;
     }
   }
 }
@@ -300,12 +254,12 @@ static void zoltan_num_edges_multi_fun(void* data,
   assert(local_ids == NULL);
   assert(num_objs >= 0);
   size_t index(0);
-  foreach(const graph_fragment::structure_description& structure, zgdata.structure_vec) {
-    for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++index) {
+  foreach(const raw_fragment& frag, zgdata.frag_vec) {
+    for(vertex_id_t i = 0; i < frag.num_local_verts; ++i, ++index) {
       assert(index < size_t(num_objs));
-      assert(global_ids[index] == i + structure.desc.begin_vertex);
-      //      num_edges[index] = structure.neighbor_ids[i].size();
-      num_edges[index] = structure.in_neighbor_ids[i].size();
+      assert(global_ids[index] == i + frag.begin_vertex);
+      //      num_edges[index] = frag.neighbor_ids[i].size();
+      num_edges[index] = frag.in_neighbor_ids[i].size();
     }
   }
 } 
@@ -336,22 +290,20 @@ static void zoltan_edge_list_multi_fun(void* data,
   assert(num_objs >= 0);
 
   size_t vindex(0), eindex(0);
-  foreach(const graph_fragment::structure_description& structure, 
-          zgdata.structure_vec) {
-    for(vertex_id_t i = 0; i < structure.desc.num_local_verts; ++i, ++vindex) {
+  foreach(const raw_fragment& frag,  zgdata.frag_vec) {
+    for(vertex_id_t i = 0; i < frag.num_local_verts; ++i, ++vindex) {
       assert(vindex < size_t(num_objs));
-      assert(global_ids[vindex] == i + structure.desc.begin_vertex);
+      assert(global_ids[vindex] == i + frag.begin_vertex);
       assert(num_edges[vindex] >= 0);
       //      assert(size_t(num_edges[vindex]) == structure.neighbor_ids[i].size());
-      assert(size_t(num_edges[vindex]) == structure.in_neighbor_ids[i].size());
+      assert(size_t(num_edges[vindex]) == frag.in_neighbor_ids[i].size());
       // save all the edges
-      for(vertex_id_t j = 0; 
-          j < structure.neighbor_ids[i].size(); ++j, ++eindex) {
+      for(vertex_id_t j = 0; j < frag.neighbor_ids[i].size(); ++j, ++eindex) {
         // nbor_global_id[eindex] = structure.neighbor_ids[i][j];
-        nbor_global_id[eindex] = structure.in_neighbor_ids[i][j];
+        nbor_global_id[eindex] = frag.in_neighbor_ids[i][j];
         // compute the owning cpuessor
         nbor_cpus[eindex] = 
-          zgdata.part2cpu[structure.desc.owning_fragment( nbor_global_id[eindex] ) ];
+          zgdata.part2cpu[frag.owning_fragment( nbor_global_id[eindex] ) ];
 
       }
     }
@@ -361,9 +313,10 @@ static void zoltan_edge_list_multi_fun(void* data,
 
 
 
-void graphlab::construct_partitioning(int argc, char** argv,
-                                      int numparts,
-                                      const std::string& path) {
+void graphlab::partitioning_tools::
+construct_partitioning(int argc, char** argv,
+                       int numparts,
+                       const std::string& path) {
   // Get the mpi rank and size
   int mpi_rank, mpi_size;
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
@@ -372,22 +325,12 @@ void graphlab::construct_partitioning(int argc, char** argv,
 
   // Load the filenames
   std::vector<std::string> fnames;
-  graph_fragment::list_structure_files(path, fnames);
+  raw_fragment::list_structure_files(path, fnames);
   compute_local_fnames(fnames);
 
-  // global structure with all necessary information
-  graph_data zgdata;
+  // construct the local graph data
+  graph_data zgdata(path, fnames);
   
-
-  // Load all the descriptions for the filenames we own
-  load_file_descs(path, fnames, zgdata.desc_vec);
-  
-  // compute part2cpus map
-  compute_part2cpu(zgdata.desc_vec, zgdata.part2cpu);
-
-  // load the actual structure files
-  load_structures(path, fnames, zgdata.structure_vec);
-
   // Initialize Zoltan
   float zoltan_version;
   int error = Zoltan_Initialize(argc, argv, &zoltan_version);
@@ -494,7 +437,7 @@ void graphlab::construct_partitioning(int argc, char** argv,
 
     size_t super_step_size = 
       std::max(size_t(100),
-               zgdata.desc_vec.front().nverts / mpi_tools::size());
+               zgdata.nverts / mpi_tools::size());
     std::stringstream strm;
     strm << super_step_size;
     std::string super_step_size_str(strm.str());
@@ -507,7 +450,7 @@ void graphlab::construct_partitioning(int argc, char** argv,
     std::set<size_t> master_ranks;
     mpi_tools::get_master_ranks(master_ranks);
     if( master_ranks.count(mpi_tools::rank()) > 0) {
-      int nverts = zgdata.desc_vec.front().nverts;
+      int nverts = zgdata.nverts;
       int num_gid_entries = 1;
       std::vector<ZOLTAN_ID_TYPE> globalids(nverts);
       std::vector<int> colors(nverts, -1);
@@ -608,7 +551,7 @@ void graphlab::construct_partitioning(int argc, char** argv,
   assert(export_to_part != NULL);
   
 
-  save_partition_results(zgdata.desc_vec.front().nverts,
+  save_partition_results(zgdata.nverts,
                          num_export,
                          export_global_ids,
                          export_to_part,
