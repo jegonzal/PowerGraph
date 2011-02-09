@@ -61,29 +61,25 @@ def get_screen_cmd(gui, machines, port, machineid, prog, opts):
 
   # construct the command line
   cwd = os.getcwd()
-  if (gui):
-    sshcmd = 'ssh -X -Y -n -q '
-  else:
-    sshcmd = 'ssh -n -q '
+  sshcmd = 'ssh '
   #endif
 
   guicmd = ''
-  if (gui):
-    guicmd = 'xterm -geometry 120x60 -e '
-  #endif
 
   if (machines[i] == "localhost" or machines[i].startswith("127.")):
-    cmd = 'export SPAWNNODES=%s SPAWNID=%d ; %s %s' % (allmachines,i, prog, opts)
+    cmd = [None, 'export SPAWNNODES=%s SPAWNID=%d ; %s %s' % (allmachines,i, prog, opts)]
   elif (port[i] == 22):
-    cmd = sshcmd + '%s "cd %s ; export SPAWNNODES=%s SPAWNID=%d ; %s %s %s"' %                       \
-                    (machines[machineid], cwd, allmachines,machineid,           \
-                    guicmd, prog, opts)
+    cmd = [sshcmd + '%s' % (machines[machineid]),					\
+          'cd %s ; export SPAWNNODES=%s SPAWNID=%d ; %s %s %s' %                       \
+                    (cwd, allmachines,machineid,           \
+                    guicmd, prog, opts)]
   else:
-    cmd = sshcmd + '-oPort=%d %s "cd %s ; export SPAWNNODES=%s SPAWNID=%d ; %s %s %s"' %              \
-                    (port[machineid], machines[machineid], cwd, allmachines,     \
-                    machineid, guicmd, prog, opts)
+    cmd = [sshcmd + '-oPort=%d %s' % (port[machineid], machines[machineid]), 	\
+          'cd %s ; export SPAWNNODES=%s SPAWNID=%d ; %s %s %s' %                       \
+                    (cwd, allmachines,machineid,           \
+                    guicmd, prog, opts)]
   #endif
-  return "'" + cmd + "\n'"
+  return cmd
 #enddef
 
 
@@ -94,10 +90,9 @@ def shell_popen(cmd):
 
 def shell_wait_native(cmd):
   print cmd
-  pid = subprocess.Popen(cmd, shell=True,executable='/bin/bash')
+  pid = subprocess.Popen(cmd, shell=True)
   os.waitpid(pid.pid, 0)
-#  os.system(cmd)
-#  time.sleep(0.5)
+  time.sleep(0.5)
 #endif
 
 
@@ -202,6 +197,7 @@ for i in range(nmachines):
     cmd[i] = get_ssh_cmd(gui, machines, port, i, prog, opts)
   else:
     cmd[i] = get_screen_cmd(gui, machines, port, i, prog, opts)
+    print cmd[i]
   #endif
 #endfor
 
@@ -225,7 +221,17 @@ else:
     shell_wait_native("screen -x %s -X screen -t %s" % (screenname, machines[i+1][0:8]))
   #endfor
   # set the titles in each one and run the program
-  for i in range(nmachines):
-    shell_popen("screen -x %s -p %d -X stuff %s" % (screenname, i, cmd[i]))
+  # we stripe it across windows so if there are ssh commands they will 
+  # have time to finish running first
+  for j in range(2):
+    for i in range(nmachines):
+      if (len(cmd[i]) > j and cmd[i][j] != None):
+        shell_wait_native("screen -x %s -p %d -X stuff %s" % (screenname, i, "'"+cmd[i][j]+"\n'"))
+      #endif
+    #endfor
+    if (j == 0):
+      print("Waiting for ssh to complete")
+      time.sleep(3)
+    #endif
   #endfor
 #endif
