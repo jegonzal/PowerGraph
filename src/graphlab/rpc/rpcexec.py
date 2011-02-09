@@ -61,23 +61,21 @@ def get_screen_cmd(gui, machines, port, machineid, prog, opts):
 
   # construct the command line
   cwd = os.getcwd()
-  sshcmd = 'ssh '
+  sshcmd = 'ssh -t '
   #endif
 
   guicmd = ''
 
   if (machines[i] == "localhost" or machines[i].startswith("127.")):
-    cmd = [None, 'export SPAWNNODES=%s SPAWNID=%d ; %s %s' % (allmachines,i, prog, opts)]
+    cmd = ['export SPAWNNODES=%s SPAWNID=%d ; %s %s' % (allmachines,i, prog, opts)]
   elif (port[i] == 22):
-    cmd = [sshcmd + '%s' % (machines[machineid]),					\
-          'cd %s ; export SPAWNNODES=%s SPAWNID=%d ; %s %s %s' %                       \
-                    (cwd, allmachines,machineid,           \
-                    guicmd, prog, opts)]
+    cmd = [sshcmd + '%s "cd %s ; export SPAWNNODES=%s SPAWNID=%d; %s %s %s ; bash -il"' %                       \
+                    (machines[machineid], escape(cwd), escape(allmachines),machineid,           \
+                    guicmd, escape(prog), escape(opts))]
   else:
-    cmd = [sshcmd + '-oPort=%d %s' % (port[machineid], machines[machineid]), 	\
-          'cd %s ; export SPAWNNODES=%s SPAWNID=%d ; %s %s %s' %                       \
-                    (cwd, allmachines,machineid,           \
-                    guicmd, prog, opts)]
+    cmd = [sshcmd + '-oPort=%d %s "cd %s ; export SPAWNNODES=%s SPAWNID=%d; %s %s %s ; bash -il"' %              \
+                    (port[machineid], machines[machineid], escape(cwd), escape(allmachines),     \
+                    machineid, guicmd, escape(prog), escape(opts))]
   #endif
   return cmd
 #enddef
@@ -92,7 +90,7 @@ def shell_wait_native(cmd):
   print cmd
   pid = subprocess.Popen(cmd, shell=True)
   os.waitpid(pid.pid, 0)
-  time.sleep(0.5)
+  #time.sleep(0.5)
 #endif
 
 
@@ -229,9 +227,5 @@ else:
         shell_wait_native("screen -x %s -p %d -X stuff %s" % (screenname, i, "'"+cmd[i][j]+"\n'"))
       #endif
     #endfor
-    if (j == 0):
-      print("Waiting for ssh to complete")
-      time.sleep(3)
-    #endif
   #endfor
 #endif
