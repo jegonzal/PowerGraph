@@ -19,9 +19,7 @@ class oarchive{
   oarchive(std::ostream& os)
     : o(&os) {}
 
-  ~oarchive() {
-    if (o) o->flush();
-  }
+  ~oarchive() { }
 };
 
 
