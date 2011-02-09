@@ -21,6 +21,7 @@ nmachines = 0
 hostsfile = ''
 prog = ''
 opts = ''
+gui = 0
 printhelp = 0
 i = 1
 while(i < len(sys.argv)):
@@ -33,6 +34,9 @@ while(i < len(sys.argv)):
   elif sys.argv[i] == '-f':
     hostsfile = sys.argv[i+1]
     i = i + 2
+  elif sys.argv[i] == '-g':
+    gui = 1
+    i = i + 1
   else:
     prog = sys.argv[i]
     if (len(sys.argv) > i+1):
@@ -61,7 +65,12 @@ print('Hosts file: ' + hostsfile)
 print('Command Line to run: ' + prog + ' ' + opts)
 
 # construct the command line
-sshcmd = 'ssh -x -n -q '
+if (gui):
+  sshcmd = 'ssh -X -Y -n -q '
+else:
+  sshcmd = 'ssh -n -q '
+#endif
+
 
 
 # open the hosts file and read the machines
@@ -99,13 +108,19 @@ cwd = os.getcwd()
 allmachines = allmachines
 prog = prog
 opts = opts
+
+guicmd = ''
+if (gui):
+  guicmd = 'xterm -e '
+#endif
+
 for i in range(nmachines):
   if (machines[i] == "localhost" or machines[i].startswith("127.")):
     cmd = 'env SPAWNNODES=%s SPAWNID=%d %s %s' % (allmachines,i, prog, opts)
   elif (port[i] == 22):
-    cmd = sshcmd + '%s "cd %s ; env SPAWNNODES=%s SPAWNID=%d %s %s"' % (machines[i], escape(cwd), escape(allmachines),i, escape(prog), escape(opts))
+    cmd = sshcmd + '%s "cd %s ; env SPAWNNODES=%s SPAWNID=%d %s %s %s"' % (machines[i], escape(cwd), escape(allmachines),i, guicmd, escape(prog), escape(opts))
   else:
-    cmd = sshcmd + '-oPort=%d %s "cd %s ; env SPAWNNODES=%s SPAWNID=%d %s %s"' % (port[i], machines[i], escape(cwd), escape(allmachines),i, escape(prog), escape(opts))
+    cmd = sshcmd + '-oPort=%d %s "cd %s ; env SPAWNNODES=%s SPAWNID=%d %s %s %s"' % (port[i], machines[i], escape(cwd), escape(allmachines),i, guicmd, escape(prog), escape(opts))
   #endif
   print cmd
   procs[i] = subprocess.Popen(cmd, shell=True)
