@@ -21,8 +21,7 @@ namespace graphlab {
 
 
 // forward definition of a friend
-template <typename VertexData, typename EdgeData>
-class graph_lock;
+template <typename GraphType> class graph_lock;
 
 
 /**
@@ -1385,7 +1384,7 @@ class distributed_graph {
   void reply_alot(block_synchronize_request &request);
   void reply_alot2(block_synchronize_request2 &request);
 
-  friend class graph_lock<VertexData, EdgeData>;
+  friend class graph_lock<distributed_graph<VertexData, EdgeData> >;
 
 };
 

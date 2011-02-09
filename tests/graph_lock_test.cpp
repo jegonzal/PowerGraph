@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
   distributed_control dc(param);
   dc.services().barrier();
   distributed_graph<size_t, double> dg(dc, "atomidx_ne.txt");
-  graph_lock<size_t, double> graphlock(dc, dg);
+  graph_lock<distributed_graph<size_t, double> > graphlock(dc, dg);
   dc.services().barrier();
   std::cout << "Constructed!" << std::endl;
   const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();

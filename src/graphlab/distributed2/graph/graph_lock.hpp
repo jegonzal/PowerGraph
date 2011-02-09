@@ -24,12 +24,17 @@ namespace graphlab {
   It completes the lock on local vertices.
   It iterates over the owned vertices within the scope of the vertex, acquiring
   locks.
+  
+  \note
+  This class is templatized over graph type, but really it requires relatively deep
+  introspection into the graph and will only work with the distributed_graph implementation
+  right now. This could be generalized.
   */
-template <typename VertexData, typename EdgeData>
+template <typename GraphType>
 class graph_lock {
  public:
   graph_lock(distributed_control &dc,
-            distributed_graph<VertexData, EdgeData> &dgraph):dgraph(dgraph), rmi(dc, this) {
+            GraphType &dgraph):dgraph(dgraph), rmi(dc, this) {
     locks.resize(dgraph.owned_vertices().size());
   }
 
@@ -85,7 +90,7 @@ class graph_lock {
         }
         else {
           rmi.remote_call(procs[i],
-                          &graph_lock<VertexData, EdgeData>::partial_unlock,
+                          &graph_lock<GraphType>::partial_unlock,
                           globalvid,
                           (size_t)scopetype);
         }
@@ -124,9 +129,9 @@ class graph_lock {
   
  private:
   /// The distributed graph we are locking over
-  const distributed_graph<VertexData, EdgeData> &dgraph;
+  const GraphType &dgraph;
   /// The RMI object
-  dc_dist_object<graph_lock<VertexData, EdgeData> > rmi;
+  dc_dist_object<graph_lock<GraphType> > rmi;
   
   /** the set of deferred locks local to this machine.
    * lock i corresponds to local vertex i. (by construction, 
@@ -166,7 +171,7 @@ class graph_lock {
     }
     else {
       rmi.remote_call(destproc,
-                      &graph_lock<VertexData,EdgeData>::partial_lock_request_impl,
+                      &graph_lock<GraphType>::partial_lock_request_impl,
                       rmi.procid(),
                       globalvid,
                       (size_t)scopetype,
@@ -358,7 +363,7 @@ class graph_lock {
     }
     else {
       rmi.remote_call(params.srcproc,
-                      &graph_lock<VertexData, EdgeData>::partial_lock_completion,
+                      &graph_lock<GraphType>::partial_lock_completion,
                       (size_t)params.src_tag);
     }
     partiallock_lock.lock();
