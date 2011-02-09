@@ -21,6 +21,7 @@ namespace graphlab {
     typedef iscope<Graph> base;
     typedef typename Graph::vertex_data_type vertex_data_type;
     typedef typename Graph::edge_data_type edge_data_type;
+    typedef typename Graph::edge_list_type   edge_list_type;
 
     using base::_vertex;
     using base::_graph_ptr;
