@@ -9,8 +9,8 @@
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
 
 namespace graphlab {
-#define COMPILER_WRITE_BARRIER asm volatile("":::"memory")
-
+// #define COMPILER_WRITE_BARRIER asm volatile("":::"memory")
+#define COMPILER_WRITE_BARRIER
 /**
 
   The locking implementation is basically two families of continuations.
@@ -87,7 +87,7 @@ class graph_lock {
     scope_range::scope_range_enum scopetype;
     bool curlocked;
     deferred_rwlock::request req;
-  };
+  } __attribute__ ((aligned (8))) ;
   
  private:
   /// The distributed graph we are locking over
@@ -386,6 +386,6 @@ class graph_lock {
   }
 };
 
-
+#undef COMPILER_WRITE_BARRIER
 } // namespace graphlab
 #endif

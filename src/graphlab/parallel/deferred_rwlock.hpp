@@ -9,7 +9,7 @@ class deferred_rwlock{
 
   struct request{
     char lockclass : 2;
-    uint64_t id : 62; 
+    __attribute__((may_alias)) uint64_t id : 62; 
     request* next;
   };
  private:
