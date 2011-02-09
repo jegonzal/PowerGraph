@@ -11,6 +11,7 @@
 namespace graphlab {
 // #define COMPILER_WRITE_BARRIER asm volatile("":::"memory")
 #define COMPILER_WRITE_BARRIER
+//#define DISTRIBUTED_LOCK_DEBUG
 /**
 
   The locking implementation is basically two families of continuations.
@@ -60,8 +61,40 @@ class graph_lock {
     continue_scope_lock(ptr);
   }
 
+  /**
+    Isues an unlock on the scope surrounding globalvid.
+    A lock on this scope MUST have been acquired before or
+    very bad things will happen
+  */
+  void scope_unlock(vertex_id_t globalvid,
+                    scope_range::scope_range_enum scopetype) {
+    // check if I need to unlock neighbors
+    if (adjacent_vertex_lock_type(scopetype) != scope_range::NO_LOCK) {
+      // the complicated case. I need to unlock on my neighbors
+      // get all my replicas
+      boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator 
+                                iter = dgraph.global2localvid.find(globalvid);
+      assert(iter != dgraph.global2localvid.end());
 
-
+      vertex_id_t localvid = iter->second;
+      
+      const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(localvid);
+      for (size_t i = 0;i < procs.size(); ++i) {
+        if (procs[i] == rmi.procid()) {
+          partial_unlock(globalvid, (size_t)scopetype);
+        }
+        else {
+          rmi.remote_call(procs[i],
+                          &graph_lock<VertexData, EdgeData>::partial_unlock,
+                          globalvid,
+                          (size_t)scopetype);
+        }
+      }
+    }
+    else {
+      partial_unlock(globalvid, (size_t)scopetype);
+    } 
+  }
 
         
   /**
@@ -83,7 +116,7 @@ class graph_lock {
     size_t outidx;      // the next out idx to consider in the in_edges/out_edges parallel iteration
     vertex_id_t localvid;
     procid_t srcproc;
-    size_t src_tag;   // holds a pointer to the caller's scope lock continuation
+    __attribute__((may_alias)) size_t src_tag;   // holds a pointer to the caller's scope lock continuation
     scope_range::scope_range_enum scopetype;
     bool curlocked;
     deferred_rwlock::request req;
@@ -211,7 +244,9 @@ class graph_lock {
                          size_t scopetype,
                          size_t src_tag) {
     // construct a partiallock_continuation
+#ifdef DISTRIBUTED_LOCK_DEBUG
     logstream(LOG_DEBUG) << rmi.procid() << ": p-lock request from "<< srcproc << " : " << globalvid << std::endl;
+#endif
     partiallock_cont_params plockparams;
     plockparams.srcproc = srcproc;
     plockparams.inidx = 0;
@@ -268,7 +303,8 @@ class graph_lock {
                                 central_vertex_lock_type(params.scopetype)) == false) {
           return;
         }
-      } else if (inv < outv) {
+      } 
+      else if (inv < outv) {
         ++params.inidx;
         COMPILER_WRITE_BARRIER;
         if (dgraph.localvid_is_ghost(inv) == false &&
@@ -278,7 +314,8 @@ class graph_lock {
           return;
         }
         inv  = (inedges.size() > params.inidx) ? dgraph.localstore.source(inedges[params.inidx]) : (vertex_id_t)(-1);
-      } else if (outv < inv) {
+      } 
+      else if (outv < inv) {
         ++params.outidx;
         COMPILER_WRITE_BARRIER;
         if (dgraph.localvid_is_ghost(outv) == false &&
@@ -288,7 +325,8 @@ class graph_lock {
           return;
         }
         outv  = (outedges.size() > params.outidx) ? dgraph.localstore.target(outedges[params.outidx]) : (vertex_id_t)(-1);
-      } else if (inv == outv){
+      } 
+      else if (inv == outv){
         ++params.inidx; ++params.outidx;
         COMPILER_WRITE_BARRIER;
         if (dgraph.localvid_is_ghost(outv) == false &&
@@ -321,7 +359,7 @@ class graph_lock {
     else {
       rmi.remote_call(params.srcproc,
                       &graph_lock<VertexData, EdgeData>::partial_lock_completion,
-                      params.src_tag);
+                      (size_t)params.src_tag);
     }
     partiallock_lock.lock();
     partiallock_continuation.erase(ptr);
@@ -344,14 +382,105 @@ class graph_lock {
     size_t numreleased = 0;
     switch(locktype) {
       case scope_range::READ_LOCK:
+#ifdef DISTRIBUTED_LOCK_DEBUG
         logstream(LOG_DEBUG) << "read lock on " << dgraph.local2globalvid[id] << std::endl;
+#endif
         numreleased = locks[id].readlock(&req, released);
         return complete_release(released, numreleased, &req);
       case scope_range::WRITE_LOCK:
+#ifdef DISTRIBUTED_LOCK_DEBUG
         logstream(LOG_DEBUG) << "write lock on " << dgraph.local2globalvid[id] << std::endl;
+#endif
         return locks[id].writelock(&req);
       default:
         return false;
+    }
+  }
+
+  void issue_deferred_unlock(size_t id,
+                           scope_range::lock_type_enum locktype) {
+    deferred_rwlock::request* released = NULL;
+    size_t numreleased = 0;
+    switch(locktype) {
+      case scope_range::READ_LOCK:
+#ifdef DISTRIBUTED_LOCK_DEBUG
+        logstream(LOG_DEBUG) << "read unlock on " << dgraph.local2globalvid[id] << std::endl;
+#endif
+        numreleased = locks[id].rdunlock(released);
+        complete_release(released, numreleased, NULL);
+        break;
+      case scope_range::WRITE_LOCK:
+#ifdef DISTRIBUTED_LOCK_DEBUG
+        logstream(LOG_DEBUG) << "write unlock on " << dgraph.local2globalvid[id] << std::endl;
+#endif
+        numreleased = locks[id].wrunlock(released);
+        complete_release(released, numreleased, NULL);
+        break;
+      default:
+        assert(false);
+    }
+  }
+
+  void partial_unlock(vertex_id_t globalvid, size_t scopetypeint) {
+    scope_range::scope_range_enum scopetype = (scope_range::scope_range_enum)(scopetypeint);
+
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator 
+                              iter = dgraph.global2localvid.find(globalvid);
+    assert(iter != dgraph.global2localvid.end());
+
+    vertex_id_t localvid = iter->second;
+    
+    edge_list inedges =  dgraph.localstore.in_edge_ids(localvid);
+    edge_list outedges = dgraph.localstore.out_edge_ids(localvid);
+
+    size_t inidx = 0;
+    size_t outidx = 0;
+    // quick check for fast path
+    if (adjacent_vertex_lock_type(scopetype) == scope_range::NO_LOCK) {
+      inidx = (vertex_id_t)(-1);
+      outidx = (vertex_id_t)(-1);
+    }
+    bool curunlocked = false;
+    vertex_id_t curv = localvid;
+    
+    vertex_id_t inv  = (inedges.size() > inidx) ? dgraph.localstore.source(inedges[inidx]) : (vertex_id_t)(-1);
+    vertex_id_t outv  = (outedges.size() > outidx) ? dgraph.localstore.target(outedges[outidx]) : (vertex_id_t)(-1);
+
+    // iterate both in order and unlock
+    // include the current vertex in the iteration
+    while (inidx < inedges.size() || outidx < outedges.size()) {
+      if (!curunlocked && curv < inv  && curv < outv) {
+        curunlocked = true;
+        if (dgraph.localvid_is_ghost(curv) == false) {
+          issue_deferred_unlock(curv, central_vertex_lock_type(scopetype));
+        }
+      } 
+      else if (inv < outv) {
+        ++inidx;
+        if (dgraph.localvid_is_ghost(inv) == false) {
+          issue_deferred_unlock(inv, adjacent_vertex_lock_type(scopetype));
+        }
+        inv = (inedges.size() > inidx) ? dgraph.localstore.source(inedges[inidx]) : (vertex_id_t)(-1);
+      } 
+      else if (outv < inv) {
+        ++outidx;
+        if (dgraph.localvid_is_ghost(outv) == false) {
+          issue_deferred_unlock(outv, adjacent_vertex_lock_type(scopetype));
+        }
+        outv = (outedges.size() > outidx) ? dgraph.localstore.target(outedges[outidx]) : (vertex_id_t)(-1);
+      } 
+      else if (inv == outv){
+        ++inidx; ++outidx;
+        if (dgraph.localvid_is_ghost(outv) == false) {
+          issue_deferred_unlock(outv, adjacent_vertex_lock_type(scopetype));
+        }
+        inv  = (inedges.size() > inidx) ? dgraph.localstore.source(inedges[inidx]) : (vertex_id_t)(-1);
+        outv  = (outedges.size() > outidx) ? dgraph.localstore.target(outedges[outidx]) : (vertex_id_t)(-1);
+      }
+    }
+    // just in case we never got around to locking it
+    if (!curunlocked && dgraph.localvid_is_ghost(curv) == false) {
+        issue_deferred_unlock(curv, central_vertex_lock_type(scopetype));
     }
   }
 
@@ -385,7 +514,9 @@ class graph_lock {
     return ret;
   }
 };
-
+#ifdef DISTRIBUTED_LOCK_DEBUG
+  #undef DISTRIBUTED_LOCK_DEBUG
+#endif
 #undef COMPILER_WRITE_BARRIER
 } // namespace graphlab
 #endif
