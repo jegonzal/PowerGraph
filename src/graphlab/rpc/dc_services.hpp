@@ -30,6 +30,10 @@ namespace graphlab {
       gather_receive.resize(rpc.numprocs());
 
     }
+    
+    dc_dist_object<dc_services>& rmi_instance() {
+      return rpc;
+    }
  
     /**
      * tree-reduction based sense-reversing barrier with a branching factor of 

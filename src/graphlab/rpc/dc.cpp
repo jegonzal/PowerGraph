@@ -200,7 +200,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
     // TODO
     logstream(LOG_FATAL) << "Datagram handlers not implemented yet" << std::endl;
   }
-  recv_froms.resize(machines.size());
   // create the handler threads
   // store the threads in the threadgroup
   for (size_t i = 0;i < numhandlerthreads; ++i) {
