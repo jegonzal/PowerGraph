@@ -103,12 +103,15 @@ namespace graphlab {
     pos_opts;
     boost::program_options::variables_map vm;
     
+    bool surpress_graphlab_options;
+    
   public:
     command_line_options(const std::string& desc_str = "GraphLab program.",
                          size_t default_ncpus = 2,
-                         const std::string default_engine = "async",
-                         const std::string default_scope = "edge",
-                         const std::string default_scheduler = "fifo") : desc(desc_str) {
+                         const std::string& default_engine = "async",
+                         const std::string& default_scope = "edge",
+                         const std::string& default_scheduler = "fifo") : 
+      desc(desc_str), surpress_graphlab_options(false) {
       ncpus = default_ncpus;
       engine_type = default_engine;
       scope_type = default_scope;
@@ -118,23 +121,33 @@ namespace graphlab {
       
       desc.add_options()("help", "Print this help message.");
       
-      desc.add_options()("schedhelp",
-                         boost_po::value<std::string>()->implicit_value(""),
-                        "Display help for a particular scheduler.");
+    
+    } // End constructor
 
+    command_line_options(const std::string& desc_str,
+                         bool surpress_graphlab_options) : 
+      desc(desc_str), 
+      surpress_graphlab_options(surpress_graphlab_options) {     
+      // Add documentation for help
+      namespace boost_po = boost::program_options;      
+      desc.add_options()("help", "Print this help message.");
+      
     } // End constructor
 
 
+
     
-    /// Print the same message that is printed when the --help command line argument is provided.
+    /// Print the same message that is printed when the --help command
+    /// line argument is provided.
     inline void print_description() const { std::cout << desc << std::endl; }
 
 
     /**
-    \brief This function should be called AFTER all the options have been seen
-    (including positionals). The parse function reads the standard command line 
-    arguments and fills in the attached variables. If there is an error in the 
-    syntax or parsing fails the parse routine will print the error and return false. 
+    \brief This function should be called AFTER all the options have
+    been seen (including positionals). The parse function reads the
+    standard command line arguments and fills in the attached
+    variables. If there is an error in the syntax or parsing fails the
+    parse routine will print the error and return false.
     */
     bool parse(int argc, char** argv);
 

@@ -42,39 +42,44 @@ namespace graphlab {
     std::string schedulertype(get_scheduler_type());
     std::string metricstype(get_metrics_type());
 
-    // Set the program options
-    desc.add_options()
-      ("ncpus",
-       boost_po::value<size_t>(&(ncpus))->
-       default_value(ncpus),
-       "Number of cpus to use.")
-      ("engine",
-       boost_po::value<std::string>(&(enginetype))->
-       default_value(enginetype),
-       "Options are {async, async_sim, synchronous}")
-      ("affinities",
-       boost_po::value<bool>(&(cpuaffin))->
-       default_value(cpuaffin),
-       "Enable forced assignment of threads to cpus")
-      ("schedyield",
-       boost_po::value<bool>(&(schedyield))->
-       default_value(schedyield),
-       "Enable yielding when threads conflict in the scheduler.")
-      ("scope",
-       boost_po::value<std::string>(&(scopetype))->
-       default_value(scopetype),
-       "Options are {none, vertex, edge, full}")
-      ("metrics",
-       boost_po::value<std::string>(&(metricstype))->
-       default_value(metricstype),
-       "Options are {none, basic, file, html}")
-      ("scheduler",
-       boost_po::value<std::string>(&(schedulertype))->
-       default_value(schedulertype),
-       (std::string("Supported schedulers are: ")
-        + get_scheduler_names_str() +
-        ". Too see options for each scheduler, run the program with the option"
-        " ---schedhelp=[scheduler_name]").c_str());
+    if(!surpress_graphlab_options) {
+      // Set the program options
+      desc.add_options()
+        ("ncpus",
+         boost_po::value<size_t>(&(ncpus))->
+         default_value(ncpus),
+         "Number of cpus to use.")
+        ("engine",
+         boost_po::value<std::string>(&(enginetype))->
+         default_value(enginetype),
+         "Options are {async, async_sim, synchronous}")
+        ("affinities",
+         boost_po::value<bool>(&(cpuaffin))->
+         default_value(cpuaffin),
+         "Enable forced assignment of threads to cpus")
+        ("schedyield",
+         boost_po::value<bool>(&(schedyield))->
+         default_value(schedyield),
+         "Enable yielding when threads conflict in the scheduler.")
+        ("scope",
+         boost_po::value<std::string>(&(scopetype))->
+         default_value(scopetype),
+         "Options are {none, vertex, edge, full}")
+        ("metrics",
+         boost_po::value<std::string>(&(metricstype))->
+         default_value(metricstype),
+         "Options are {none, basic, file, html}")
+        ("schedhelp",
+         boost_po::value<std::string>()->implicit_value(""),
+         "Display help for a particular scheduler.")
+        ("scheduler",
+         boost_po::value<std::string>(&(schedulertype))->
+         default_value(schedulertype),
+         (std::string("Supported schedulers are: ")
+          + get_scheduler_names_str() +
+          ". Too see options for each scheduler, run the program with the option"
+          " ---schedhelp=[scheduler_name]").c_str());
+    }
     // Parse the arguments
     try{
       boost_po::store(boost_po::command_line_parser(argc, argv).
