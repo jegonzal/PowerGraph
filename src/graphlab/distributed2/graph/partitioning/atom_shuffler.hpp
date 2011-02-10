@@ -125,7 +125,6 @@ namespace graphlab {
           ainfo.mutex.unlock();
         } //end of if owning machine
       } //end of for loop
-
       dc.services().barrier();
     } //end of constructor
       
@@ -163,7 +162,7 @@ namespace graphlab {
         assert(ainfo.vdatastream.good());
         oarchive oarc(ainfo.vdatastream);
         oarc << vdata;
-        ainfo.vdatastream.flush();
+        //        ainfo.vdatastream.flush();
       }
       ainfo.mutex.unlock();
     }
@@ -179,9 +178,9 @@ namespace graphlab {
         add_vertex_local(to_atomid, gvid, atomid, vcolor, vdata);
       } else {
         // remote add
-        rmi.remote_request(owning_machine(to_atomid),
-                           &atom_shuffler_type::add_vertex_local,
-                           to_atomid, gvid, atomid, vcolor, vdata);
+        rmi.remote_call(owning_machine(to_atomid),
+                        &atom_shuffler_type::add_vertex_local,
+                        to_atomid, gvid, atomid, vcolor, vdata);
       }
     } // end of add_vertex
 
@@ -200,9 +199,13 @@ namespace graphlab {
       ainfo.atom_file.edge_src_dest().push_back(std::make_pair(source_lvid, 
                                                                target_lvid));
       assert(ainfo.edatastream.good());
-      oarchive oarc(ainfo.edatastream);
-      oarc << edata;
-      ainfo.edatastream.flush();
+      {  // THIS SCOPE IS ABSOLUTELY NECESSARY:
+        // to ensure that the oarchive does not flush outside the
+        // mutex.
+        oarchive oarc(ainfo.edatastream);
+        oarc << edata;      
+      }
+
       assert(ainfo.edatastream.good());
 
       ainfo.mutex.unlock();
@@ -216,9 +219,9 @@ namespace graphlab {
       if(is_local(to_atomid)) {
         add_edge_local(to_atomid, source_gvid, target_gvid, edata);
       } else {
-        rmi.remote_request(owning_machine(to_atomid),
-                           &atom_shuffler_type::add_edge_local,
-                           to_atomid, source_gvid, target_gvid, edata);
+        rmi.remote_call(owning_machine(to_atomid),
+                        &atom_shuffler_type::add_edge_local,
+                        to_atomid, source_gvid, target_gvid, edata);
       }
     } // end of add edge
 
@@ -236,6 +239,7 @@ namespace graphlab {
           { // read all vdata into atom file
             ainfo.vdatastream.flush();
             ainfo.vdatastream.close();
+            assert(!ainfo.vdatastream.is_open());
             std::ifstream fin(ainfo.vdatafn.c_str(), 
                               std::ios::binary | 
                               std::ios::in);
@@ -248,12 +252,13 @@ namespace graphlab {
               iarc >> afile.vdata()[i];                                
             }
             fin.close();
-            fs::path path(ainfo.vdatafn);
-            fs::remove(path);
+//             fs::path path(ainfo.vdatafn);
+//             fs::remove(path);
           } // end of read all vdata
           { // read all edata into atom file
             ainfo.edatastream.flush();
             ainfo.edatastream.close();
+            assert(!ainfo.edatastream.is_open());
             std::ifstream fin(ainfo.edatafn.c_str(), 
                               std::ios::binary | 
                               std::ios::in);
@@ -268,8 +273,8 @@ namespace graphlab {
               afile.edata()[i] = edata;                                
             }
             fin.close();
-            fs::path path(ainfo.edatafn);
-            fs::remove(path);
+//             fs::path path(ainfo.edatafn);
+//             fs::remove(path);
           } // end of read all edata
           // Save the atom
           ainfo.atom_file.write_to_file("file", ainfo.atomfn);
@@ -318,7 +323,7 @@ namespace graphlab {
       std::cout << "Building atom shuffler object. " << std::endl;
       
       // startup distributed control
-      dc_init_param param;
+      dc_init_param param;      
       if ( !init_param_from_env(param) ) {
         std::cout << "Failed to get environment variables" << std::endl;
         assert(false);
@@ -480,7 +485,7 @@ namespace graphlab {
         } // end of read all vdata
       } // end of for loop
       std::cout << "Waiting at barrier " << std::endl;
-      dc.services().comm_barrier();
+      dc.services().comm_barrier();   
       dc.services().barrier();
 
       // Build the actual atom files
