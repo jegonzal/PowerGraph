@@ -29,7 +29,9 @@ namespace graphlab {
   template <typename VertexData, typename EdgeData>
   class atom_file {
   public:
-    atom_file(): iarc(NULL), loadstage(0) {  }
+    
+    atom_file(procid_t atom_id = 0) : 
+      atom_id_(atom_id), iarc(NULL), loadstage(0) {  }
 
     /**
      * Associates this object with a particular atom file
@@ -53,7 +55,7 @@ namespace graphlab {
      */
     void load_id_maps() {
       if (loadstage == 0) {
-        (*iarc) >> globalvids_ >> globaleids_ >> atom_;
+        (*iarc) >> atom_id_ >> globalvids_ >> globaleids_ >> atom_;
         ++loadstage;
       }
     }
@@ -89,7 +91,8 @@ namespace graphlab {
       fout.open(outfilename.c_str());
       assert(fout.good());
       oarchive oarc(fout);
-      oarc << globalvids_ << globaleids_ << atom_ << vcolor_ << edge_src_dest_
+      oarc << atom_id_ << globalvids_ << globaleids_ << atom_ << vcolor_ 
+           << edge_src_dest_
            << vdata_ << edata_;
     }
   
@@ -114,8 +117,8 @@ namespace graphlab {
     ~atom_file() {
       clear();
     }
-  
-  
+    
+    inline const procid_t& atom_id() const { return atom_id_; }
     inline const std::string& protocol() const { return protocol_; }
     inline const std::string& filename() const { return filename_; }
     inline const std::vector<vertex_id_t>& globalvids() const { return globalvids_; }
@@ -126,6 +129,7 @@ namespace graphlab {
     inline const std::vector<VertexData>& vdata() const { return vdata_; }
     inline const std::vector<EdgeData>& edata() const { return edata_; }
 
+    inline procid_t& atom_id() { return atom_id_; }
     inline std::string& protocol() { return protocol_; }
     inline std::string& filename() { return filename_; }
     inline std::vector<vertex_id_t>& globalvids() { return globalvids_; }
@@ -138,6 +142,9 @@ namespace graphlab {
 
 
   private:
+    procid_t atom_id_;
+
+
     std::string protocol_;
     std::string filename_;
   
@@ -146,6 +153,7 @@ namespace graphlab {
     iarchive *iarc;
     size_t loadstage;
   
+
     std::vector<vertex_id_t> globalvids_;
     std::vector<edge_id_t> globaleids_;
     std::vector<procid_t> atom_;
