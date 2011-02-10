@@ -19,6 +19,7 @@ namespace graphlab {
   };
 
   struct atom_index_file {
+
     size_t nverts, nedges, natoms;
     std::vector<atom_file_descriptor> atoms;
 
@@ -30,6 +31,15 @@ namespace graphlab {
 
   std::vector<std::vector<size_t> >
   partition_atoms(const atom_index_file& atomindex, size_t nparts);
+
+
+  /**
+   * This parallel function constructs an atom index by reading all
+   * the atom files stored at path.  This relies on the distributed
+   * comm layer.
+   */ 
+  void build_atom_index_file(const std::string& path);
+
 
 } // end namespace graphlab
 

@@ -44,7 +44,6 @@ namespace graphlab {
     typedef atom_file<VertexData, EdgeData> atom_file_type;
 
     struct atom_info {
-      graphlab::mutex mutex;
       atom_file_type atom_file;
       std::map<vertex_id_t, vertex_id_t> global2local;
       std::string vdatafn;
@@ -60,6 +59,7 @@ namespace graphlab {
       }
     };
 
+
     typedef std::vector< atom_info* > atom_map_type;
 
   private:
@@ -69,20 +69,22 @@ namespace graphlab {
     size_t num_atoms;
     std::string path;
     atom_map_type atomid2info;
+    std::vector<graphlab::mutex> atomid2lock;
 
   public:
     atom_shuffler(distributed_control& dc,
                   const size_t& num_atoms,
-                  const std::string& path) : 
+                  const std::string& path,
+                  const std::string& atom_prefix = "atom_") : 
       rmi(dc, this), num_atoms(num_atoms), path(path),
-      atomid2info(num_atoms, NULL) { 
+      atomid2info(num_atoms, NULL), atomid2lock(num_atoms) { 
       // Initialize the atom files for this machine
       for(procid_t atomid = 0; atomid < num_atoms; ++atomid) {         
+        atomid2lock[atomid].lock();
         // if this is the owning machine setup the map and files
         if(is_local(atomid)) {
           // get the atom info (and create it)
           atom_info& ainfo(get_atom_info(atomid, true));
-          ainfo.mutex.lock();
           { // open vdata temporary storage file
             std::stringstream strm;
             strm << path << "/"
@@ -116,14 +118,16 @@ namespace graphlab {
           { // determine atom filename
             std::stringstream strm;
             strm << path << "/"
-                 << "atom_"
+                 << atom_prefix
                  << std::setw(3) << std::setfill('0')
                  << atomid
-                 << ".bin";
+                 << ".atom";
             ainfo.atomfn = strm.str();
           }
-          ainfo.mutex.unlock();
+          // set the id of the atom_file associated with the atom info
+          ainfo.atom_file.atom_id() = atomid;
         } //end of if owning machine
+        atomid2lock[atomid].unlock();
       } //end of for loop
       dc.services().barrier();
     } //end of constructor
@@ -135,10 +139,12 @@ namespace graphlab {
       rmi.services().barrier();
       // Clear the atom info map
       for(size_t i = 0; i < atomid2info.size(); ++i) {
+        atomid2lock[i].lock();
         if(atomid2info[i] != NULL) {
           delete atomid2info[i];
           atomid2info[i] = NULL;
         }
+        atomid2lock[i].unlock();
       }
     } // end of destructor
       
@@ -149,9 +155,9 @@ namespace graphlab {
                           const vertex_color_type& vcolor,
                           const vertex_data_type& vdata) {
       assert(is_local(to_atomid));
+      atomid2lock[to_atomid].lock();
       // Get the atom info
       atom_info& ainfo(get_atom_info(to_atomid));
-      ainfo.mutex.lock();
       // test to see if the vertex has been added already
       if(ainfo.global2local.find(gvid) == ainfo.global2local.end()) { // first add
         vertex_id_t localvid = ainfo.atom_file.globalvids().size();
@@ -160,11 +166,12 @@ namespace graphlab {
         ainfo.atom_file.atom().push_back(atomid);
         ainfo.global2local[gvid] = localvid;
         assert(ainfo.vdatastream.good());
-        oarchive oarc(ainfo.vdatastream);
-        oarc << vdata;
-        //        ainfo.vdatastream.flush();
+        {
+          oarchive oarc(ainfo.vdatastream);
+          oarc << vdata;
+        }
       }
-      ainfo.mutex.unlock();
+      atomid2lock[to_atomid].unlock();
     }
 
     void add_vertex(const procid_t& to_atomid,
@@ -191,9 +198,9 @@ namespace graphlab {
                         const vertex_id_t& target_gvid,
                         const edge_data_type& edata) {
       assert(is_local(to_atomid));
+      atomid2lock[to_atomid].lock();
       // Get the atom info
       atom_info& ainfo(get_atom_info(to_atomid));
-      ainfo.mutex.lock();
       vertex_id_t source_lvid(ainfo.get_local_vid(source_gvid));
       vertex_id_t target_lvid(ainfo.get_local_vid(target_gvid));        
       ainfo.atom_file.edge_src_dest().push_back(std::make_pair(source_lvid, 
@@ -205,10 +212,8 @@ namespace graphlab {
         oarchive oarc(ainfo.edatastream);
         oarc << edata;      
       }
-
       assert(ainfo.edatastream.good());
-
-      ainfo.mutex.unlock();
+      atomid2lock[to_atomid].unlock();
     } // end of add edge local
 
 
@@ -222,20 +227,124 @@ namespace graphlab {
         rmi.remote_call(owning_machine(to_atomid),
                         &atom_shuffler_type::add_edge_local,
                         to_atomid, source_gvid, target_gvid, edata);
+
       }
     } // end of add edge
+
+
+
+    void load_vertex_data(const std::vector< std::string >& fnames,
+                          const std::vector< procid_t >& vertex2atomid,
+                          const std::vector< vertex_color_type >& vertex2color) {
+      foreach(const std::string fname, fnames) {
+        raw_fragment frag;
+        { // Get the local structure description
+          std::string absfname = path + "/" + fname;
+          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
+          assert(fin.good());
+          graphlab::iarchive iarc(fin);
+          iarc >> frag;
+          fin.close();
+        }
+        { // read all the vdata
+          std::string absfname = path + "/" + frag.vertex_data_filename;
+          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
+          assert(fin.good());
+          graphlab::iarchive iarc(fin);        
+          // Loop through all the structures reading in the vertex data
+          for(vertex_id_t i = 0, vid = frag.begin_vertex; 
+              vid < frag.end_vertex; ++vid, ++i) {
+            assert(vid < vertex2atomid.size());
+            assert(vid < vertex2color.size());
+            vertex_data_type vdata;
+            assert(fin.good());
+            iarc >> vdata;
+            assert(fin.good());
+            // send the vertex data to the owning atoms
+            add_vertex(vertex2atomid[vid],
+                       vid,
+                       vertex2atomid[vid],
+                       vertex2color[vid],
+                       vdata);
+            // Loop over the vertex neighbors and send to neighbor atoms
+            foreach(vertex_id_t neighbor_vid, frag.neighbor_ids[i]) {
+              assert(neighbor_vid < vertex2atomid.size());
+              // if the neighbor is stored in a different atom file then
+              // send the vertex data to the neighbor for ghosting purposes
+              if(vertex2atomid[neighbor_vid] != vertex2atomid[vid]) {
+                // send the vertex data to the owning atoms
+                add_vertex(vertex2atomid[neighbor_vid],
+                           vid,
+                           vertex2atomid[vid],
+                           vertex2color[vid],
+                           vdata);
+              } // end of if neighbor is in different atom
+            }
+          }
+          fin.close();
+        } // end of read all vdata
+      } // end of adding all vertices
+
+
+    } // end of load vertex data
+
+
+
+    void load_edge_data(const std::vector< std::string >& fnames,
+                        const std::vector< procid_t >& vertex2atomid) {    
+      foreach(const std::string fname, fnames) {
+        raw_fragment frag;    
+        { // Get the local structure description
+          std::string absfname = path + "/" + fname;
+          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
+          assert(fin.good());
+          graphlab::iarchive iarc(fin);
+          iarc >> frag;
+          fin.close();
+        }
+
+        { // read all the edge data
+          std::string absfname = path + "/" + frag.edge_data_filename;
+          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
+          assert(fin.good());
+          graphlab::iarchive iarc(fin);        
+          // Loop through all the structures reading in the vertex data
+          for(vertex_id_t i = 0, target = frag.begin_vertex; 
+              target < frag.end_vertex; ++target, ++i) {
+            assert(target < vertex2atomid.size());
+            assert(i < frag.in_neighbor_ids.size());
+            foreach(vertex_id_t source, frag.in_neighbor_ids[i]) {
+              assert(source < vertex2atomid.size());
+              edge_data_type edata;
+              assert(fin.good());
+              iarc >> edata;
+              assert(fin.good());
+              add_edge(vertex2atomid[source],
+                       source, target, edata);            
+              if(vertex2atomid[source] != vertex2atomid[target])
+                add_edge(vertex2atomid[target],
+                         source, target, edata);                       
+            } // end of loop over out neighbors
+          } // end of loop over vertices in file
+          fin.close();
+        } // end of read all vdata
+      } // end of for loop
+
+
+    } // end of load edge data
+
 
 
 
 
 
     void emit_atoms() {
+      namespace fs = boost::filesystem;
       // Loop through each of the atoms managed locally
-      foreach(atom_info*& info_ptr, atomid2info) {
-        namespace fs = boost::filesystem;
-        if(info_ptr != NULL) {
-          atom_info& ainfo(*info_ptr);
-          ainfo.mutex.lock();
+      for(size_t atomid = 0; atomid < atomid2info.size(); ++atomid) {
+        atomid2lock[atomid].lock();
+        if(atomid2info[atomid] != NULL) {
+          atom_info& ainfo(*atomid2info[atomid]);
           { // read all vdata into atom file
             ainfo.vdatastream.flush();
             ainfo.vdatastream.close();
@@ -252,8 +361,8 @@ namespace graphlab {
               iarc >> afile.vdata()[i];                                
             }
             fin.close();
-//             fs::path path(ainfo.vdatafn);
-//             fs::remove(path);
+            fs::path path(ainfo.vdatafn);
+            fs::remove(path);
           } // end of read all vdata
           { // read all edata into atom file
             ainfo.edatastream.flush();
@@ -273,18 +382,20 @@ namespace graphlab {
               afile.edata()[i] = edata;                                
             }
             fin.close();
-//             fs::path path(ainfo.edatafn);
-//             fs::remove(path);
+            fs::path path(ainfo.edatafn);
+            fs::remove(path);
           } // end of read all edata
+
           // Save the atom
           ainfo.atom_file.write_to_file("file", ainfo.atomfn);
-          ainfo.mutex.unlock();
           // Delete the pointer
-          delete info_ptr;
-          info_ptr = NULL;
-
+          assert(atomid2info[atomid] != NULL);
+          delete atomid2info[atomid];
+          atomid2info[atomid] = NULL;
         }
-      }
+        // release lock
+        atomid2lock[atomid].unlock();
+      } // end of for loop
     } // end of emit atoms
     
 
@@ -319,10 +430,8 @@ namespace graphlab {
 
   public:
 
-    static void build_atoms_from_partitioning(const std::string& path) {
-      std::cout << "Building atom shuffler object. " << std::endl;
-      
-      // startup distributed control
+    static void build_atoms_from_partitioning(const std::string& path) {      
+      std::cout << "Initializing distributed communication layer" << std::endl;
       dc_init_param param;      
       if ( !init_param_from_env(param) ) {
         std::cout << "Failed to get environment variables" << std::endl;
@@ -331,13 +440,14 @@ namespace graphlab {
       distributed_control dc(param);
       dc.services().barrier();
     
-    
+      if(dc.procid() == 0) 
+        std::cout << "Loading vertex coloring and partitioning." 
+                  << std::endl;
 
       // load the maps
       vertex_color_type max_color = 0;
       std::vector<vertex_color_type> vertex2color;
       {
-        std::cout << "Loading coloring file" << std::endl;
         std::string absfname = path + "/coloring.txt";
         std::ifstream fin(absfname.c_str());
         while(fin.good()) {
@@ -348,12 +458,17 @@ namespace graphlab {
         }
         fin.close();
       }
-      //size_t num_colors( max_color + 1 );
+      size_t num_colors( max_color + 1 );
+
+
+      if(dc.procid() == 0) 
+        std::cout << "Coloring: " << num_colors
+                  << std::endl;
+
 
       procid_t max_atomid = 0;
       std::vector<procid_t> vertex2atomid;
       {
-        std::cout << "Loading paritioning file" << std::endl;
         std::string absfname = path + "/partitioning.txt";
         std::ifstream fin(absfname.c_str());
         while(fin.good()) {
@@ -365,6 +480,11 @@ namespace graphlab {
         fin.close();
       }
       size_t num_atoms( max_atomid + 1 );
+      if(dc.procid() == 0) 
+        std::cout << "Num atoms: " << num_atoms
+                  << std::endl;
+
+
 
       // get the filenames accessible by this process
       std::vector<std::string> fnames;
@@ -382,114 +502,53 @@ namespace graphlab {
         std::cout << std::endl;
       }
 
+      
+      if(dc.procid() == 0) 
+        std::cout << "Initializing distributed shuffler object.  ";
       // Create the atom shuffler
-      atom_shuffler atom_shuffler(dc, num_atoms, path);
-      std::cout << "Waiting at barrier " << std::endl;
+      atom_shuffler atom_shuffler(dc, 
+                                  num_atoms, 
+                                  path);
+
       dc.services().comm_barrier();
       dc.services().barrier();
+      if(dc.procid() == 0) 
+        std::cout << "Finished." << std::endl;
 
-
-      std::cout << "Adding all vertices: " << std::endl;
-      foreach(const std::string fname, fnames) {
-        raw_fragment frag;
-        { // Get the local structure description
-          std::string absfname = path + "/" + fname;
-          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
-          assert(fin.good());
-          graphlab::iarchive iarc(fin);
-          iarc >> frag;
-          fin.close();
-        }
-        { // read all the vdata
-          std::string absfname = path + "/" + frag.vertex_data_filename;
-          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
-          assert(fin.good());
-          graphlab::iarchive iarc(fin);        
-          // Loop through all the structures reading in the vertex data
-          for(vertex_id_t i = 0, vid = frag.begin_vertex; 
-              vid < frag.end_vertex; ++vid, ++i) {
-            assert(vid < vertex2atomid.size());
-            assert(vid < vertex2color.size());
-            vertex_data_type vdata;
-            assert(fin.good());
-            iarc >> vdata;
-            assert(fin.good());
-            // send the vertex data to the owning atoms
-            atom_shuffler.add_vertex(vertex2atomid[vid],
-                                     vid,
-                                     vertex2atomid[vid],
-                                     vertex2color[vid],
-                                     vdata);
-            // Loop over the vertex neighbors and send to neighbor atoms
-            foreach(vertex_id_t neighbor_vid, frag.neighbor_ids[i]) {
-              assert(neighbor_vid < vertex2atomid.size());
-              // if the neighbor is stored in a different atom file then
-              // send the vertex data to the neighbor for ghosting purposes
-              if(vertex2atomid[neighbor_vid] != vertex2atomid[vid]) {
-                // send the vertex data to the owning atoms
-                atom_shuffler.add_vertex(vertex2atomid[neighbor_vid],
-                                         vid,
-                                         vertex2atomid[vid],
-                                         vertex2color[vid],
-                                         vdata);
-              } // end of if neighbor is in different atom
-            }
-          }
-          fin.close();
-        } // end of read all vdata
-      } // end of adding all vertices
-
-
-      std::cout << "Waiting at barrier " << std::endl;
-      dc.services().comm_barrier();
-      dc.services().barrier();
+      {
+        if(dc.procid() == 0) 
+          std::cout << "Loading all vertex data from graph fragments. ";
+        atom_shuffler.load_vertex_data(fnames, 
+                                       vertex2atomid, 
+                                       vertex2color );
+        dc.services().comm_barrier();
+        dc.services().barrier();
+        if(dc.procid() == 0) 
+          std::cout << "Finished." << std::endl;
+      }
     
-      std::cout << "Adding all edges" << std::endl;
-    
-      foreach(const std::string fname, fnames) {
-        raw_fragment frag;    
-        { // Get the local structure description
-          std::string absfname = path + "/" + fname;
-          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
-          assert(fin.good());
-          graphlab::iarchive iarc(fin);
-          iarc >> frag;
-          fin.close();
-        }
+      {
+        if(dc.procid() == 0) 
+          std::cout << "Loading all edge data from graph fragments. ";        
+        atom_shuffler.load_edge_data(fnames, vertex2atomid);
+        dc.services().comm_barrier();   
+        dc.services().barrier();        
+        if(dc.procid() == 0) 
+          std::cout << "Finished." << std::endl;
+      }
 
-
-        { // read all the edge data
-          std::string absfname = path + "/" + frag.edge_data_filename;
-          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
-          assert(fin.good());
-          graphlab::iarchive iarc(fin);        
-          // Loop through all the structures reading in the vertex data
-          for(vertex_id_t i = 0, target = frag.begin_vertex; 
-              target < frag.end_vertex; ++target, ++i) {
-            assert(target < vertex2atomid.size());
-            assert(i < frag.in_neighbor_ids.size());
-            foreach(vertex_id_t source, frag.in_neighbor_ids[i]) {
-              assert(source < vertex2atomid.size());
-              edge_data_type edata;
-              assert(fin.good());
-              iarc >> edata;
-              assert(fin.good());
-              atom_shuffler.add_edge(vertex2atomid[source],
-                                     source, target, edata);            
-              if(vertex2atomid[source] != vertex2atomid[target])
-                atom_shuffler.add_edge(vertex2atomid[target],
-                                       source, target, edata);                       
-            } // end of loop over out neighbors
-          } // end of loop over vertices in file
-          fin.close();
-        } // end of read all vdata
-      } // end of for loop
-      std::cout << "Waiting at barrier " << std::endl;
-      dc.services().comm_barrier();   
-      dc.services().barrier();
-
-      // Build the actual atom files
-      atom_shuffler.emit_atoms();
+      {
+        if(dc.procid() == 0) 
+          std::cout << "Emitting all atoms. ";
+        // Build the actual atom files
+        atom_shuffler.emit_atoms();
+        dc.services().comm_barrier();   
+        dc.services().barrier();        
+        
+        if(dc.procid() == 0) 
+          std::cout << "Finished." << std::endl;
+      }
+        
 
    
     } // end of graph partition to atom index
