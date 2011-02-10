@@ -31,7 +31,7 @@ This only does non-intrusive calls.
 
 #define NONINTRUSIVE_DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType,typename T, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   F f; \
@@ -48,7 +48,13 @@ void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t s
   oarchive oarc(retstrm); \
   oarc << ret; \
   retstrm.flush(); \
-  dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  if (packet_type_mask & CONTROL_PACKET) { \
+    dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  } \
+  else {  \
+    dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  } \
+  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(); \
 } 
 
 BOOST_PP_REPEAT(6, NONINTRUSIVE_DISPATCH_GENERATOR, _)

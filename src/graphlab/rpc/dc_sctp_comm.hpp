@@ -54,6 +54,11 @@ class dc_sctp_comm:public dc_comm_base {
   
   ~dc_sctp_comm();
   
+  // always true. SCTP can send anywhere
+  inline bool channel_active(size_t target) const {
+    return true;
+  }
+    
   /**
     Returns the number of machines in the network.
     Only valid after call to init();

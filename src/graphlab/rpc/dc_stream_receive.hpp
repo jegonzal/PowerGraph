@@ -37,7 +37,7 @@ class dc_stream_receive: public dc_receive{
    
   /** called by the controller when a function
   call is completed */
-  void function_call_completed() ;
+  void function_call_completed(unsigned char packettype) ;
  private:
   /// the mutex protecting the buffer and the barrier 
   mutex bufferlock;
@@ -58,7 +58,7 @@ class dc_stream_receive: public dc_receive{
   distributed_control* dc;
 
   size_t bytesreceived;
-  size_t callsreceived;
+  atomic<size_t> callsreceived;
   
   /**
     Reads the incoming buffer and processes, dispatching

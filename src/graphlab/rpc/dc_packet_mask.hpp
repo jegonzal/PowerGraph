@@ -25,5 +25,11 @@ namespace graphlab {
   completed evaluation. This is conceptually
   equivalent to a memory barrier. */
   const unsigned char BARRIER = 8; 
+  
+  /**
+    If control packet flag is set, this packet 
+    does not increment any counters.
+  */
+  const unsigned char CONTROL_PACKET = 16; 
 }
 #endif

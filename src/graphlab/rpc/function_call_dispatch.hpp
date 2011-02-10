@@ -55,7 +55,7 @@ avoiding problems with circular references.
 
 #define DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(DISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(DISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   size_t s; iarc >> s; F f = reinterpret_cast<F>(s); \
@@ -102,7 +102,7 @@ void NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, std::istream &strm) {
 
 #define NONINTRUSIVE_DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask,  \
                std::istream &strm) { \
   iarchive iarc(strm); \
   size_t s; iarc >> s; F f = reinterpret_cast<F>(s); \

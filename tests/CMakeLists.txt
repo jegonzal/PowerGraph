@@ -81,6 +81,8 @@ add_executable(example6 example6.cpp)
 add_executable(example7 example7.cpp)
 add_executable(example8 example8.cpp)
 
+add_executable(matched_send_recv_test matched_send_recv_test.cpp)
+
 add_executable(lowrestimertest lowrestimertest.cpp)
 
 add_executable(cachingdhttest cachingdhttest.cpp)

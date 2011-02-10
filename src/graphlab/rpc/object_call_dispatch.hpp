@@ -39,7 +39,7 @@ void NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, std::istream &strm) {
 
 #define OBJECT_NONINTRUSIVE_DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType,typename T, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask,  \
                std::istream &strm) { \
   iarchive iarc(strm); \
   F f; \
@@ -50,6 +50,7 @@ void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source, 
   BOOST_PP_REPEAT(N, GENPARAMS, _)                \
   (obj->*f)(BOOST_PP_ENUM(N,GENARGS ,_)  ); \
   BOOST_PP_REPEAT(N, CHARSTRINGFREE, _)                \
+  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(); \
 } 
 
 BOOST_PP_REPEAT(6, OBJECT_NONINTRUSIVE_DISPATCH_GENERATOR, _)

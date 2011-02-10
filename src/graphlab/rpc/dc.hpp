@@ -13,6 +13,7 @@
 #include <graphlab/rpc/dc_receive.hpp>
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
+#include <graphlab/rpc/dc_dist_object_base.hpp>
 
 #include <graphlab/rpc/is_rpc_call.hpp>
 #include <graphlab/rpc/portable_dispatch.hpp>
@@ -21,6 +22,7 @@
 #include <graphlab/rpc/request_issue.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
+
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
@@ -61,10 +63,12 @@ class distributed_control{
         /**  Each element of the function call queue is a data/len pair */
     struct function_call_block{
       function_call_block() {}
-      function_call_block(procid_t source, 
+      function_call_block(procid_t source, unsigned char packet_type_mask, 
                           char* data, size_t len): 
-                          source(source), data(data), len(len) {}
+                          source(source), packet_type_mask(packet_type_mask), 
+                          data(data), len(len) {}
       procid_t source;
+      unsigned char packet_type_mask;
       char* data;
       size_t len;
     };
@@ -96,6 +100,7 @@ class distributed_control{
   
   /// object registrations;
   std::vector<void*> registered_objects;
+  std::vector<dc_impl::dc_dist_object_base*> registered_rmi_instance;
 
   /// For convenience, we provide a instance of dc_services 
   dc_services* distributed_services;
@@ -104,6 +109,10 @@ class distributed_control{
   procid_t localprocid;
   /// Number of machines
   procid_t localnumprocs;
+  
+  atomic<size_t> global_calls_sent;
+  atomic<size_t> global_calls_received;
+  
   
   /// the callback given to the comms class. Called when data is inbound
   friend void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len);
@@ -122,6 +131,10 @@ class distributed_control{
   volatile inline size_t num_registered_objects() {
     return registered_objects.size();
   }
+  
+  
+  // this stores the temporary results for the blocking send_to and recv_from operations
+  
   
  public:
    
@@ -177,6 +190,7 @@ class distributed_control{
   */
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_call_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::remote_call_issue, FAST_CALL) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call, dc_impl::remote_call_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
@@ -195,6 +209,7 @@ class distributed_control{
    BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL) )
 
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type fast_remote_request, dc_impl::remote_request_issue, FAST_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type control_request, dc_impl::remote_request_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
   
@@ -209,7 +224,7 @@ class distributed_control{
   Immediately calls the function described by the data
   inside the buffer. This should not be called directly.
   */
-  void exec_function_call(procid_t source, std::istream &istrm);
+  void exec_function_call(procid_t source, unsigned char packet_type_mask, std::istream &istrm);
   
   
   
@@ -218,7 +233,8 @@ class distributed_control{
   inside the buffer. This function will take over ownership of 
   the buffer and will free it when done
   */
-  void deferred_function_call(procid_t source, char* buf, size_t len);
+  void deferred_function_call(procid_t source, unsigned char packet_type_mask, 
+                              char* buf, size_t len);
   
 
   /**
@@ -226,6 +242,34 @@ class distributed_control{
   */
   void fcallhandler_loop();
   
+  inline void inc_calls_sent() {
+    global_calls_sent.inc();
+  }
+
+  inline void inc_calls_received() {
+    global_calls_received.inc();
+  }
+
+  inline size_t calls_sent() const {
+    return global_calls_sent.value;
+  }
+
+  size_t calls_received() const {
+    return global_calls_received.value;
+  }
+
+  size_t bytes_sent() const {
+    size_t ret = 0;
+    for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
+    return ret;
+  }  
+  
+  size_t bytes_received() const {
+    size_t ret = 0;
+    for (size_t i = 0;i < receivers.size(); ++i) ret += receivers[i]->bytes_received();
+    return ret;
+  }  
+
   /**
     Instantiates a find_dispatch with the right arguments,
     and store the dispatch function in the hash map.
@@ -254,41 +298,65 @@ class distributed_control{
   }
 
 
-  inline size_t register_object(void* v) {
+  inline size_t register_object(void* v, dc_impl::dc_dist_object_base *rmiinstance) {
     ASSERT_NE(v, (void*)NULL);
     registered_objects.push_back(v);
+    registered_rmi_instance.push_back(rmiinstance);
     return registered_objects.size() - 1;
   }
 
-  
 
   inline void* get_registered_object(size_t id) {
     while(id >= num_registered_objects()) sched_yield();
-//    ASSERT_LT(id, registered_objects.size());
     ASSERT_NE(registered_objects[id], (void*)NULL);
     return registered_objects[id];
   }
-  
+
+  inline dc_impl::dc_dist_object_base* get_rmi_instance(size_t id) {
+    while(id >= num_registered_objects()) sched_yield();
+    ASSERT_NE(registered_rmi_instance[id], (void*)NULL);
+    return registered_rmi_instance[id];
+  }  
   inline void clear_registered_object(size_t id) {
     registered_objects[id] = (void*)NULL;
+    registered_rmi_instance[id] = NULL;
   }
   
   
   dc_services& services();
   
+  /**
+   This comm barrier is not a true "barrier" but is
+   essentially a sequentialization point. It guarantees that
+   all calls from this machine to the target machine performed
+   before the comm_barrier() call are completed before any call
+   sent after the comm barrier() call.
+  */
   void comm_barrier(procid_t targetmachine);
+  
+  /**
+    This is a convenience function which broadcasts a comm_barrier()
+    \note having all machines call the comm barrier does not guarantee
+    that all calls have been processed. Basically 'p' local barriers
+    do not result in a global barrier.
+  */
   void comm_barrier();
+
+
+  
 };
 
 
 
 
-}
+} // namespace graphlab
 
 #define REGISTER_RPC(dc, f) dc.register_rpc<typeof(f)*, f>(std::string(BOOST_PP_STRINGIZE(f))) 
 
 #include <graphlab/rpc/function_arg_types_undef.hpp>
 #include <graphlab/rpc/function_call_dispatch.hpp>
 #include <graphlab/rpc/request_dispatch.hpp>
+#include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/dc_services.hpp>
+
 #endif

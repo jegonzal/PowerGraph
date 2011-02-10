@@ -19,14 +19,14 @@ void dc_buffered_stream_receive::incoming_data(procid_t src,
   bufferlock.lock();
   buffer.write(buf, len);
   recvcond.signal();
-  bytesreceived += len;
   bufferlock.unlock();
 }
   
 /** called by the controller when a function
 call is completed */
-void dc_buffered_stream_receive::function_call_completed() {
+void dc_buffered_stream_receive::function_call_completed(unsigned char packettype) {
   size_t pending = pending_calls.dec();
+  if ((packettype & CONTROL_PACKET) == 0) callsreceived.inc();
   if (barrier && pending == 0) {
     bufferlock.lock();
     barrier = false;
@@ -52,6 +52,11 @@ void dc_buffered_stream_receive::process_buffer() {
     if (size_t(buffer.size()) < sizeof(packet_hdr) + hdr.len) break;
 
     buffer.skip(sizeof(packet_hdr));
+
+    if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
+      bytesreceived += hdr.len;
+    }
+
     if (hdr.packet_type_mask & BARRIER) {
       #ifdef DC_RECEIVE_DEBUG
       logstream(LOG_INFO) << "Comm barrier" << std::endl;
@@ -68,8 +73,8 @@ void dc_buffered_stream_receive::process_buffer() {
       logstream(LOG_INFO) << "Is fast call" << std::endl;
       #endif
       boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
-      ++callsreceived;
-      dc->exec_function_call(hdr.src, strm);
+      dc->exec_function_call(hdr.src, hdr.packet_type_mask, strm);
+      if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) callsreceived.inc();
     }
     else if (hdr.packet_type_mask & STANDARD_CALL) {
       #ifdef DC_RECEIVE_DEBUG
@@ -79,8 +84,7 @@ void dc_buffered_stream_receive::process_buffer() {
       char* tmpbuf = new char[hdr.len];
       buffer.read(tmpbuf, hdr.len);
       pending_calls.inc();
-      ++callsreceived;
-      dc->deferred_function_call(hdr.src, tmpbuf, hdr.len);
+      dc->deferred_function_call(hdr.src,hdr.packet_type_mask, tmpbuf, hdr.len);
     }
   }
 }
@@ -98,7 +102,7 @@ size_t dc_buffered_stream_receive::bytes_received() {
   return bytesreceived;
 }
 size_t dc_buffered_stream_receive::calls_received() {
-  return callsreceived;
+  return callsreceived.value;
 }
 
 void dc_buffered_stream_receive::shutdown() {

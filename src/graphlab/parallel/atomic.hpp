@@ -17,6 +17,12 @@ namespace graphlab {
     T dec() { return __sync_sub_and_fetch(&value, 1);  }
     T inc(T val) { return __sync_add_and_fetch(&value, val);  }
     T dec(T val) { return __sync_sub_and_fetch(&value, val);  }
+    
+    T inc_ret_last() { return __sync_fetch_and_add(&value, 1);  }
+    T dec_ret_last() { return __sync_fetch_and_sub(&value, 1);  }
+    T inc_ret_last(T val) { return __sync_fetch_and_add(&value, val);  }
+    T dec_ret_last(T val) { return __sync_fetch_and_sub(&value, val);  }
+
   };
 
 

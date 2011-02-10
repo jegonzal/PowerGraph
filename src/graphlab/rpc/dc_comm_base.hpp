@@ -57,6 +57,18 @@ class dc_comm_base {
   
   virtual procid_t procid() const = 0;
   
+  /** returns true if the channel to the target
+  machine is truly open. The dc_comm_base specification allows
+  for lazy channels which are not created until it is used.
+  For such implementations, this function should return true
+  if the channel has been created, and false otherwise. Non-lazy
+  implementations should return true all the time.
+  The invariant to ensure is that this function must return true
+  for a target machine ID if a packet has been sent from this machine
+  to the target before this call.
+  */
+  virtual bool channel_active(size_t target) const = 0;
+  
   /**
    Sends the string of length len to the target machine dest.
    Only valid after call to init();
@@ -68,6 +80,7 @@ class dc_comm_base {
              const char* buf1, const size_t len1,
              const char* buf2, const size_t len2) = 0; 
 
+  // not required and not used
   virtual void flush(size_t target) = 0;
 };
 

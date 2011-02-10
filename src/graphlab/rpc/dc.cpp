@@ -30,15 +30,13 @@ void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
 distributed_control::~distributed_control() {
   services().barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
+  size_t bytessent = bytes_sent();
   for (size_t i = 0;i < senders.size(); ++i) {
     senders[i]->shutdown();
     delete senders[i];
   }
-  size_t bytesreceived = 0;
-  size_t callsreceived = 0;
+  size_t bytesreceived = bytes_received();
   for (size_t i = 0;i < receivers.size(); ++i) {
-    bytesreceived += receivers[i]->bytes_received();
-    callsreceived += receivers[i]->calls_received();
     receivers[i]->shutdown();
     delete receivers[i];
   }
@@ -49,11 +47,16 @@ distributed_control::~distributed_control() {
   fcallqueue.stop_blocking();
   fcallhandlers.join();
   delete comm;
+  logstream(LOG_INFO) << "Bytes Sent: " << bytessent << std::endl;
+  logstream(LOG_INFO) << "Calls Sent: " << calls_sent() << std::endl;
   logstream(LOG_INFO) << "Bytes Received: " << bytesreceived << std::endl;
-  logstream(LOG_INFO) << "Calls Received: " << callsreceived << std::endl;
+  logstream(LOG_INFO) << "Calls Received: " << calls_received() << std::endl;
+
 }
   
-void distributed_control::exec_function_call(procid_t source, std::istream &istrm) {
+void distributed_control::exec_function_call(procid_t source, 
+                                            unsigned char packet_type_mask, 
+                                            std::istream &istrm) {
   // extract the dispatch function
   iarchive arc(istrm);
   size_t f; 
@@ -61,7 +64,7 @@ void distributed_control::exec_function_call(procid_t source, std::istream &istr
   // a regular funcion call
   if (f != 0) {
     dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
-    dispatch(*this, source, istrm);
+    dispatch(*this, source, packet_type_mask, istrm);
   }
   else {
     // f is NULL!. This is a portable call. deserialize the function name
@@ -78,7 +81,7 @@ void distributed_control::exec_function_call(procid_t source, std::istream &istr
         return;
       }
       // dispatch
-      iter->second(*this, source, istrm);
+      iter->second(*this, source, packet_type_mask, istrm);
 
     }
     else {
@@ -89,15 +92,17 @@ void distributed_control::exec_function_call(procid_t source, std::istream &istr
         return;
       }
       // dispatch
-      iter->second(*this, source, istrm);
+      iter->second(*this, source, packet_type_mask, istrm);
 
     }
   }
+  if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received();
 } 
  
  
-void distributed_control::deferred_function_call(procid_t source, char* buf, size_t len) {
-  fcallqueue.enqueue(function_call_block(source, buf, len));
+void distributed_control::deferred_function_call(procid_t source, unsigned char packet_type_mask,
+                                                char* buf, size_t len) {
+  fcallqueue.enqueue(function_call_block(source, packet_type_mask, buf, len));
 }
 
 void distributed_control::fcallhandler_loop() {
@@ -111,8 +116,8 @@ void distributed_control::fcallhandler_loop() {
     //create a stream containing all the data
     boost::iostreams::stream<boost::iostreams::array_source> 
                                 istrm(entry.first.data, entry.first.len);
-    exec_function_call(entry.first.source, istrm);
-    receivers[entry.first.source]->function_call_completed();
+    exec_function_call(entry.first.source, entry.first.packet_type_mask, istrm);
+    receivers[entry.first.source]->function_call_completed(entry.first.packet_type_mask);
   }
 }
 
@@ -195,7 +200,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
     // TODO
     logstream(LOG_FATAL) << "Datagram handlers not implemented yet" << std::endl;
   }
-
   // create the handler threads
   // store the threads in the threadgroup
   for (size_t i = 0;i < numhandlerthreads; ++i) {
@@ -223,17 +227,17 @@ dc_services& distributed_control::services() {
 
 void distributed_control::comm_barrier(procid_t targetmachine) {
   ASSERT_LT(targetmachine, numprocs());
-  if (targetmachine != procid()) {
+  if (targetmachine != procid() && senders[targetmachine]->channel_active(targetmachine)) {
     std::stringstream strm;
-    senders[targetmachine]->send_data(targetmachine, BARRIER, strm, 0);
+    senders[targetmachine]->send_data(targetmachine, BARRIER | CONTROL_PACKET, strm, 0);
   }
 }
 
 void distributed_control::comm_barrier() {
   std::stringstream strm;
   for (size_t i = 0;i < senders.size(); ++i) {
-    if (i != procid()) {
-      senders[i]->send_data(i, BARRIER, strm, 0);
+    if (i != procid() && senders[i]->channel_active(i)) {
+      senders[i]->send_data(i, BARRIER | CONTROL_PACKET, strm, 0);
     }
   }
 }

@@ -40,7 +40,7 @@ class dc_buffered_stream_receive: public dc_receive{
    
   /** called by the controller when a function
   call is completed */
-  void function_call_completed() ;
+  void function_call_completed(unsigned char packettype) ;
  private:
   /// pointer to the owner
   distributed_control* dc;
@@ -65,7 +65,7 @@ class dc_buffered_stream_receive: public dc_receive{
   bool done;
 
   size_t bytesreceived;
-  size_t callsreceived;
+  atomic<size_t> callsreceived;
   
   /**
     Reads the incoming buffer and processes, dispatching

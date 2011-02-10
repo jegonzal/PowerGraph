@@ -63,7 +63,7 @@ int main(int argc, char ** argv) {
     }
     std::cout << "100k insertions in " << ti.current_time() << std::endl;
   }
-  
+    services.comm_barrier();
   services.barrier();
   // get rate
   if (dc.procid() == 0) {
@@ -82,5 +82,5 @@ int main(int argc, char ** argv) {
     std::cout << "100k reads in " << ti.current_time() << std::endl;
   }
   services.barrier();
-  
+  testdht.print_stats();
 }

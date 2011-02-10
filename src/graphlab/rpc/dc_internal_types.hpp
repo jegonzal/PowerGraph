@@ -1,8 +1,10 @@
 #ifndef DC_INTERNAL_TYPES_HPP
 #define DC_INTERNAL_TYPES_HPP
-#include <graphlab/rpc/dc_types.hpp>
 #include <boost/function.hpp>
 #include <boost/unordered_map.hpp>
+#include <graphlab/rpc/dc_types.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 namespace graphlab {
 class distributed_control;
 
@@ -14,7 +16,7 @@ typedef void (*comm_recv_callback_type)(void* tag, procid_t src,
                                         const char* buf, size_t len);
 
 /** The type of the local function call dispatcher */
-typedef void (*dispatch_type)(distributed_control& dc, procid_t, std::istream&);
+typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, std::istream&);
 
 typedef boost::unordered_map<std::string, dispatch_type> dispatch_map_type;
 
@@ -46,6 +48,27 @@ inline void charstring_free<char*>(char* &c){
 #define REQUEST_WAIT_METHOD 1
 
 
+/** The data needed to receive the matched send / recvs */
+struct recv_from_struct {
+  std::string data;
+  size_t tag;
+  mutex lock;
+  conditional cond;
+  bool hasdata;
+};
+
+struct terminator_token {
+  terminator_token():calls_sent(0),calls_recv(0),terminate(false) { }
+  terminator_token(size_t sent, size_t recv):calls_sent(sent),
+                          calls_recv(recv),terminate(false) { }
+  size_t calls_sent;
+  size_t calls_recv;
+  bool terminate;
+};
+
+
 }
 }
+
+SERIALIZABLE_POD(graphlab::dc_impl::terminator_token);
 #endif

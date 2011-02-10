@@ -49,7 +49,6 @@ add_library(graphlab_rpc STATIC
   rpc/dc_buffered_stream_receive.cpp
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
-  rpc/dc_services.cpp
   rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp)
 
