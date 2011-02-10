@@ -30,6 +30,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   T* owner;
   atomic<size_t> callsreceived;
   atomic<size_t> callssent;
+  using dc_impl::dc_dist_object_base::recv_froms;
   // make operator= private
   dc_dist_object<T>& operator=(const dc_dist_object<T> &d) {return *this;}
   friend class distributed_control;
@@ -45,6 +46,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  public:
   dc_dist_object(distributed_control &dc_, T* owner):dc_(dc_),owner(owner) {
     obj_id = dc_.register_object(owner, this);
+    recv_froms.resize(dc_.numprocs());
   }
   
   size_t calls_received() const {
@@ -93,6 +95,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return dc_.comm_barrier();
   }
 
+  /**
+    This returns the set of services for the parent DC.
+  */
   inline dc_services& services() {
     return dc_.services();
   }
@@ -150,6 +155,74 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   #undef GENARGS
   
 
+
+
+  /**
+  This is a blocking send_to. It send an object T to the target 
+  machine, but waits for the target machine to call recv_from
+  before returning. Functionally similar to MPI's matched sending/receiving
+  */
+  template <typename U>
+  void send_to(procid_t target, U& t, bool control = false) {
+    std::stringstream strm;
+    oarchive oarc(strm);
+    oarc << t;
+    dc_impl::reply_ret_type rt(REQUEST_WAIT_METHOD);
+    // I shouldn't use a request to block here since 
+    // that will take up a thread on the remote side
+    // so I simulate a request here.
+    size_t rtptr = reinterpret_cast<size_t>(&rt);
+    if (control == false) {
+      inc_calls_sent(); // I have to increment the calls sent/received manually here
+                        // since the matched send/recv calls do not go through the 
+                        // typical object calls.
+      dc_.remote_call(target, dc_impl::obj_block_and_wait_for_recv, 
+                     obj_id, strm.str(), rtptr);
+    }
+    else {
+      dc_.control_call(target, dc_impl::obj_block_and_wait_for_recv, 
+                     obj_id, strm.str(), rtptr);
+    }
+    // wait for reply
+    rt.wait();
+    
+    if (control == false) inc_calls_received();
+  }
+  
+  template <typename U>
+  void recv_from(procid_t source, U& t, bool control = false) {
+    // wait on the condition variable until I have data
+    dc_impl::recv_from_struct &recvstruct = recv_froms[source];
+    recvstruct.lock.lock();
+    while (recvstruct.hasdata == false) {
+      recvstruct.cond.wait(recvstruct.lock);
+    }
+    
+    // got the data. deserialize it
+    std::stringstream strm(recvstruct.data);
+    iarchive iarc(strm);
+    iarc >> t;
+    // clear the data
+    std::string("").swap(recvstruct.data);
+    // remember the tag so we can unlock it before the remote call
+    size_t tag = recvstruct.tag;
+    // clear the has data flag
+    recvstruct.hasdata = false;
+    // unlock
+    recvstruct.lock.unlock();
+    if (control == false) {
+      // remote call to release the sender. Use an empty blob
+      dc_.fast_remote_call(source, reply_increment_counter, tag, dc_impl::blob());
+      // I have to increment the calls sent/received manually here
+      // since the matched send/recv calls do not go through the 
+      // typical object calls.
+      inc_calls_received();
+      inc_calls_sent();
+    }
+    else {
+      dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
+    }
+  }
 };
 
 

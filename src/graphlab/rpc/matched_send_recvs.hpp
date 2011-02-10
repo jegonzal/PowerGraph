@@ -14,6 +14,12 @@ void block_and_wait_for_recv(distributed_control &dc,
                              std::string& str,
                              size_t tag);
 
+void obj_block_and_wait_for_recv(distributed_control &dc,
+                                 procid_t src,
+                                 size_t objid,
+                                 std::string& str,
+                                 size_t tag);
+
 }
 
 };

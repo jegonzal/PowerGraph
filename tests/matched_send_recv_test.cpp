@@ -4,6 +4,34 @@
 #include <graphlab/rpc/dc_services.hpp>
 using namespace graphlab;
 
+class some_object {
+ public:
+  dc_dist_object<some_object> rmi;
+  some_object(distributed_control &dc):rmi(dc, this) { }
+  void test_stuff() {
+    std::string h = "hello";
+    size_t i = 100;
+    if (rmi.procid() == 0) {
+      rmi.send_to(1, h);
+      size_t r;
+      rmi.recv_from(1, r);
+      assert(r == i);
+      rmi.send_to(1, h);
+      rmi.recv_from(1, r);
+      assert(r == i);
+  
+    }
+    else {
+      std::string r;
+      rmi.recv_from(0, r);
+      assert(r == h);
+      rmi.send_to(0, i);
+      rmi.recv_from(0, r);
+      assert(r == h);
+      rmi.send_to(0, i);
+    }
+  }
+};
 
 int main(int argc, char ** argv) {
   /** Initialization */
@@ -17,7 +45,7 @@ int main(int argc, char ** argv) {
   std::string h = "hello";
   size_t i = 100;
   if (dc.procid() == 0) {
-    dc.send_to(1, h);
+    dc.send_to(1, h, true);
     size_t r;
     dc.recv_from(1, r);
     assert(r == i);
@@ -35,5 +63,9 @@ int main(int argc, char ** argv) {
     assert(r == h);
     dc.send_to(0, i);
   }
+  some_object so(dc);
+  so.test_stuff();
+  std::cout << so.rmi.calls_received() << " calls received\n";
+  std::cout << so.rmi.calls_sent() << " calls sent\n";
   dc.services().barrier();
 }

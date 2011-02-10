@@ -364,7 +364,7 @@ class distributed_control{
   before returning. Functionally similar to MPI's matched sending/receiving
   */
   template <typename T>
-  void send_to(procid_t target, T& t) {
+  void send_to(procid_t target, T& t, bool control = false) {
     std::stringstream strm;
     oarchive oarc(strm);
     oarc << t;
@@ -373,12 +373,17 @@ class distributed_control{
     // that will take up a thread on the remote side
     // so I simulate a request here.
     size_t rtptr = reinterpret_cast<size_t>(&rt);
-    remote_call(target, dc_impl::block_and_wait_for_recv, strm.str(), rtptr);
+    if (control == false) {
+      remote_call(target, dc_impl::block_and_wait_for_recv, strm.str(), rtptr);
+    }
+    else {
+      control_call(target, dc_impl::block_and_wait_for_recv, strm.str(), rtptr);
+    }
     rt.wait();
   }
   
   template <typename T>
-  void recv_from(procid_t source, T& t) {
+  void recv_from(procid_t source, T& t, bool control = false) {
     // wait on the condition variable until I have data
     dc_impl::recv_from_struct &recvstruct = recv_froms[source];
     recvstruct.lock.lock();
@@ -398,9 +403,12 @@ class distributed_control{
     // unlock
     recvstruct.lock.unlock();
     // remote call to release the sender. Use an empty blob
-    fast_remote_call(source, reply_increment_counter, tag, dc_impl::blob());
-    
-    
+    if (control == false) {
+      fast_remote_call(source, reply_increment_counter, tag, dc_impl::blob());
+    }
+    else {
+      control_call(source, reply_increment_counter, tag, dc_impl::blob());
+    }
   }
 };
 

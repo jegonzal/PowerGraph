@@ -39,7 +39,7 @@ int main(int argc, char ** argv) {
   machines.push_back("127.0.0.1:10000");
   machines.push_back("127.0.0.1:10001");
 
-  distributed_control dc(machines,"", machineid, 8, SCTP_COMM);
+  distributed_control dc(machines,"", machineid, 8, TCP_COMM);
   
   distributed_vector<std::string> vec(dc);
   dc.services().barrier();
