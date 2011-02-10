@@ -17,8 +17,6 @@ class dc_dist_object_base{
  public:
   virtual void inc_calls_sent() = 0;
   virtual void inc_calls_received() = 0;
-  std::vector<recv_from_struct> recv_froms;
-  
 };
 
 }

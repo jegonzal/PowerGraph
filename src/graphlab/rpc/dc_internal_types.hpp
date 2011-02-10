@@ -1,9 +1,10 @@
 #ifndef DC_INTERNAL_TYPES_HPP
 #define DC_INTERNAL_TYPES_HPP
-#include <graphlab/rpc/dc_types.hpp>
-#include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/function.hpp>
 #include <boost/unordered_map.hpp>
+#include <graphlab/rpc/dc_types.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 namespace graphlab {
 class distributed_control;
 
@@ -56,6 +57,18 @@ struct recv_from_struct {
   bool hasdata;
 };
 
+struct terminator_token {
+  terminator_token():calls_sent(0),calls_recv(0),terminate(false) { }
+  terminator_token(size_t sent, size_t recv):calls_sent(sent),
+                          calls_recv(recv),terminate(false) { }
+  size_t calls_sent;
+  size_t calls_recv;
+  bool terminate;
+};
+
+
 }
 }
+
+SERIALIZABLE_POD(graphlab::dc_impl::terminator_token);
 #endif

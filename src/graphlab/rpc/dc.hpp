@@ -342,34 +342,14 @@ class distributed_control{
   */
   void comm_barrier();
 
-  /**
-  This is a blocking send_to. It send an object T to the target 
-  machine, but waits for the target machine to call recv_from
-  before returning. Functionally similar to MPI's matched sending/receiving
-  */
-  template <typename T>
-  void send_to(procid_t target, T& t, bool control = false);
-  
-  /**
-  A blocking recv_from. Must be matched with a send_to call from the
-  target before both source and target resumes.
-  */
-  template <typename T>
-  void recv_from(procid_t source, T& t, bool control = false);
-  
-  /**
-  When a process leaves this barrier, it is guaranteed that
-   - all processes have called full_barrier()
-   - all remote calls/requested have been evaluated and completed
-  */
-  void full_barrier();
+
   
 };
 
 
 
 
-}
+} // namespace graphlab
 
 #define REGISTER_RPC(dc, f) dc.register_rpc<typeof(f)*, f>(std::string(BOOST_PP_STRINGIZE(f))) 
 
@@ -379,19 +359,4 @@ class distributed_control{
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
-/*
-Implementations of a couple of template functions in DC
-*/
-namespace graphlab {
-template <typename T>
-void distributed_control::send_to(procid_t target, T& t, bool control) {
-  services().rmi_instance().send_to(target, t, control);
-}
-
-template <typename T>
-void distributed_control::recv_from(procid_t source, T& t, bool control) {
-  services().rmi_instance().recv_from(source, t, control);
-}
-
-} // namespace graphlab
 #endif
