@@ -22,21 +22,6 @@ void block_and_wait_for_recv(distributed_control &dc,
 
 
 
-void obj_block_and_wait_for_recv(distributed_control &dc,
-                                 procid_t src,
-                                 size_t objid,
-                                 std::string& str,
-                                 size_t tag) {
-  dc_dist_object_base* rmi = dc.get_rmi_instance(objid);
-  rmi->recv_froms[src].lock.lock();
-  rmi->recv_froms[src].data = str;
-  rmi->recv_froms[src].tag = tag;
-  rmi->recv_froms[src].hasdata = true;
-  rmi->recv_froms[src].cond.signal();
-  rmi->recv_froms[src].lock.unlock();
-}
-
-
 
 }
 }

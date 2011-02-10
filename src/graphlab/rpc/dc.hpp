@@ -344,14 +344,6 @@ class distributed_control{
   void comm_barrier();
   
   /**
-  When a process leaves this barrier, it is guaranteed that
-   - all processes have called full_barrier()
-   - all remote calls/requested have been evaluated and completed
-  */
-  void full_barrier();
-  
-  
-  /**
   Used to manage the set of paired blocking calls.
   Since the calls are blocking, I can only receive a maximum of p of them.
   This is resized in init()
@@ -410,6 +402,14 @@ class distributed_control{
       control_call(source, reply_increment_counter, tag, dc_impl::blob());
     }
   }
+  
+  /**
+  When a process leaves this barrier, it is guaranteed that
+   - all processes have called full_barrier()
+   - all remote calls/requested have been evaluated and completed
+  */
+  void full_barrier();
+  
 };
 
 

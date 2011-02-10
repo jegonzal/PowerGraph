@@ -12,7 +12,7 @@ class some_object {
     std::string h = "hello";
     size_t i = 100;
     if (rmi.procid() == 0) {
-      rmi.send_to(1, h);
+      rmi.send_to(1, h, true);
       size_t r;
       rmi.recv_from(1, r);
       assert(r == i);
@@ -23,7 +23,7 @@ class some_object {
     }
     else {
       std::string r;
-      rmi.recv_from(0, r);
+      rmi.recv_from(0, r, true);
       assert(r == h);
       rmi.send_to(0, i);
       rmi.recv_from(0, r);
@@ -56,7 +56,7 @@ int main(int argc, char ** argv) {
   }
   else {
     std::string r;
-    dc.recv_from(0, r);
+    dc.recv_from(0, r, true);
     assert(r == h);
     dc.send_to(0, i);
     dc.recv_from(0, r);

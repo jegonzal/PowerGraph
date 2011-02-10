@@ -242,14 +242,14 @@ void distributed_control::comm_barrier() {
     }
   }
 }
-/*
+
 void distributed_control::full_barrier() {
   // begin by initiating a regular barrier
-  barrier();
+ // barrier();
   // now all processes have reached this point. We need to begin 
   // accumulating counts for call sent and calls received
   
   
-}*/
+}
 
 }
