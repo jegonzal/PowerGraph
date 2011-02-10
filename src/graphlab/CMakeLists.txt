@@ -51,7 +51,8 @@ add_library(graphlab_rpc STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_services.cpp
   rpc/dc_comm_services.cpp
-  rpc/dc_init_from_env.cpp)
+  rpc/dc_init_from_env.cpp
+  rpc/matched_send_recvs.cpp)
 
 
 IF(ZOLTAN_FOUND)

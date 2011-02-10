@@ -1,6 +1,7 @@
 #ifndef DC_INTERNAL_TYPES_HPP
 #define DC_INTERNAL_TYPES_HPP
 #include <graphlab/rpc/dc_types.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/function.hpp>
 #include <boost/unordered_map.hpp>
 namespace graphlab {
@@ -14,7 +15,7 @@ typedef void (*comm_recv_callback_type)(void* tag, procid_t src,
                                         const char* buf, size_t len);
 
 /** The type of the local function call dispatcher */
-typedef void (*dispatch_type)(distributed_control& dc, procid_t, std::istream&);
+typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, std::istream&);
 
 typedef boost::unordered_map<std::string, dispatch_type> dispatch_map_type;
 
@@ -45,6 +46,15 @@ inline void charstring_free<char*>(char* &c){
 // if 0 uses spin wait
 #define REQUEST_WAIT_METHOD 1
 
+
+/** The data needed to receive the matched send / recvs */
+struct recv_from_struct {
+  std::string data;
+  size_t tag;
+  mutex lock;
+  conditional cond;
+  bool hasdata;
+};
 
 }
 }

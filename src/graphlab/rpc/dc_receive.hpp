@@ -30,9 +30,19 @@ class dc_receive {
    
   /** called by the controller when a function
   call is completed */
-  virtual void function_call_completed() = 0;
+  virtual void function_call_completed(unsigned char packettype) = 0;
 
+  /**
+  Bytes received must be updated before handing off 
+  to the handlers. Bytes received do not count headers.
+  If packet type is marked as CONTROL_PACKET, the packet is not counted
+  */
   virtual size_t bytes_received() = 0;
+  
+  /**
+  Calls received is incremented only after completion
+  of a function handler. Control packets should not be counted.
+  */
   virtual size_t calls_received() = 0;
   
   virtual void shutdown() = 0;

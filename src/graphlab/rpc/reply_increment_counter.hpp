@@ -22,13 +22,16 @@ struct blob {
   
   void save(oarchive& oarc) const {
     oarc << len;
-    serialize(oarc, c, len);
+    if (len > 0) serialize(oarc, c, len);
   }
  void load(iarchive& iarc) {
     if (c) ::free(c);
+    c = NULL;
     iarc >> len;
-    c = (char*) malloc(len);
-    deserialize(iarc, c, len);
+    if (len > 0) {
+      c = (char*) malloc(len);
+      deserialize(iarc, c, len);
+    }
   }
   
   void free() {

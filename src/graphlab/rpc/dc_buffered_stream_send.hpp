@@ -37,6 +37,10 @@ class dc_buffered_stream_send: public dc_send{
   }
   
 
+  inline bool channel_active(procid_t target) const {
+    return comm->channel_active(target);
+  }
+
   /**
    Called by the controller when there is data to send.
    if len is -1, the function has to compute the length by itself,
@@ -59,6 +63,13 @@ class dc_buffered_stream_send: public dc_send{
   
   void shutdown();
   
+  inline size_t bytes_sent() {
+    return bytessent.value;
+  }
+  inline size_t calls_sent() {
+    return callssent.value;
+  }
+
  private:
   /// pointer to the owner
   distributed_control* dc;
@@ -70,6 +81,8 @@ class dc_buffered_stream_send: public dc_send{
 
   thread thr;
   bool done;
+  
+  atomic<size_t> bytessent, callssent;
 };
 
 

@@ -60,7 +60,7 @@ avoiding problems with circular references.
 
 #define DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   size_t s; iarc >> s; F f = reinterpret_cast<F>(s); \
@@ -73,7 +73,12 @@ void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
   oarchive oarc(retstrm); \
   oarc << ret; \
   retstrm.flush(); \
-  dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  if (packet_type_mask & CONTROL_PACKET) { \
+    dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  } \
+  else {  \
+    dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  } \
 } 
 
 BOOST_PP_REPEAT(6, DISPATCH_GENERATOR, _)
@@ -95,7 +100,7 @@ Same as above, but is the non-intrusive version.
 
 #define NONINTRUSIVE_DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   size_t s; iarc >> s; F f = reinterpret_cast<F>(s); \
@@ -108,7 +113,12 @@ void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, 
   oarchive oarc(retstrm); \
   oarc << ret; \
   retstrm.flush(); \
-  dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  if (packet_type_mask & CONTROL_PACKET) { \
+    dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  } \
+  else {  \
+    dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+  } \
 } 
 
 BOOST_PP_REPEAT(6, NONINTRUSIVE_DISPATCH_GENERATOR, _)

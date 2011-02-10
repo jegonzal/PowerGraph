@@ -17,7 +17,7 @@ void dc_services::__parent_to_child_barrier_release(int releaseval) {
   // send the release downwards
   // get my largest child
   for (size_t i = 0;i < numchild; ++i) {
-    rpc.fast_remote_call(childbase + i,
+    rpc.control_call(childbase + i,
                         &dc_services::__parent_to_child_barrier_release,
                         releaseval);
 
@@ -43,9 +43,9 @@ void dc_services::barrier() {
       // call child to parent in parent
       barrier_mut.unlock();
       if (rpc.dc().procid() != 0) {
-        rpc.fast_remote_call(parent, 
-                            &dc_services::__child_to_parent_barrier_trigger,
-                            rpc.dc().procid());
+        rpc.control_call(parent, 
+                         &dc_services::__child_to_parent_barrier_trigger,
+                         rpc.dc().procid());
       }
       break;
     }
@@ -59,9 +59,9 @@ void dc_services::barrier() {
     barrier_release = barrier_val;
 
     for (size_t i = 0;i < numchild; ++i) {
-      rpc.fast_remote_call(childbase + i,
-                          &dc_services::__parent_to_child_barrier_release,
-                          barrier_val);
+      rpc.control_call(childbase + i,
+                       &dc_services::__parent_to_child_barrier_release,
+                       barrier_val);
 
     }
   }

@@ -56,6 +56,10 @@ class dc_tcp_comm:public dc_comm_base {
     close();
   }
   
+  inline bool channel_active(size_t target) const {
+    return (outsocks[target] != -1);
+  }
+
   /**
     Returns the number of machines in the network.
     Only valid after call to init();

@@ -53,6 +53,10 @@ class dht {
     }
   }
   
+  void print_stats() const {
+    std::cerr << rpc.calls_sent() << " calls sent\n";
+    std::cerr << rpc.calls_received() << " calls received\n";
+  }
  private:
   mutable dc_dist_object<dht<KeyType, ValueType> > rpc;
   
