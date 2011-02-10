@@ -181,11 +181,16 @@ void find_local_atom_files(const std::string& pathname,
 
 }
 
-std::pair<procid_t, procid_t>
-make_undirected_edge(procid_t source, procid_t target) {
-  return source < target? 
-    std::make_pair(source, target) : std::make_pair(target, source);
-}
+
+struct atom_file_desc_extra {
+  atom_file_descriptor desc;
+  edge_id_t nlocalverts;
+  edge_id_t ninedges;
+  atom_file_desc_extra() : 
+    nlocalverts(0), ninedges(0) { }
+};
+
+
 
 
 void graphlab::
@@ -198,15 +203,18 @@ build_atom_index_file(const std::string& path) {
     assert(false);
   }
   distributed_control dc(param);
-  dc.services().barrier();
+  dc.services().full_barrier();
   
   // load the vector of filenames
   std::vector<std::string> local_fnames; 
+  size_t num_atoms = 0;
   {
     find_local_atom_files(path, local_fnames);
     // compute the fnames that are used by this machine
     std::vector< std::vector< std::string > > partition_fnames;
     dc.services().gather_partition(local_fnames, partition_fnames);
+    for(size_t i = 0; i < partition_fnames.size(); ++i) 
+      num_atoms += partition_fnames[i].size();
     // update the local fnames      
     local_fnames = partition_fnames[dc.procid()];
     std::cout << "Assigned Names: " << std::endl;
@@ -215,31 +223,79 @@ build_atom_index_file(const std::string& path) {
     std::cout << std::endl;
   }
   
-  typedef std::pair<procid_t, procid_t> edge_type;
-  typedef std::map<edge_type, size_t> counts_map_type;
-  counts_map_type local_counts;
+  dc.services().full_barrier();
+
+
+  std::cout << "Computing atom files: " << std::endl;
+  typedef std::map<procid_t, atom_file_desc_extra> atomid2desc_type;
+  atomid2desc_type atomid2desc;
   {
     // hack: only need the type to read the atom payload which is not
     // needed here
     typedef atom_file<bool, bool> fake_atom_file_type;
     foreach(const std::string& fname, local_fnames) {
+      std::string absfname = path + "/" + fname;
       fake_atom_file_type afile;
-      afile.input_filename("file", fname);
+      afile.input_filename("file", absfname);
       afile.load_id_maps();
       procid_t atom_id = afile.atom_id();
-      // fill in local counts
-      foreach(const procid_t& other_atom_id, afile.atom()) {
-        local_counts[make_undirected_edge(atom_id, other_atom_id)]++;
+      atom_file_desc_extra afd_extra(atomid2desc[atom_id]);
+      atom_file_descriptor& afd(afd_extra.desc);
+      afd.file = absfname;
+      afd.protocol = "file";
+      afd.nverts = afile.globalvids().size();
+      afd.nedges = afile.edge_src_dest().size();      
+      // Compute adjacency counts for adjacent atoms as well as the
+      // number of non ghost (local) vertices
+      std::map<procid_t, size_t> adjatom_count;
+      afd_extra.nlocalverts = 0;
+      foreach(const procid_t& other_atom_id, afile.atom())  {
+        if(other_atom_id == atom_id) ++afd_extra.nlocalverts;
+        adjatom_count[other_atom_id]++;
+      }
+      // count in edges
+      afd_extra.ninedges = 0;
+      typedef std::pair<procid_t, procid_t> edge_pair_type;
+      foreach(const edge_pair_type& edge, afile.edge_src_dest()) {
+        if(edge.second == atom_id) ++afd_extra.ninedges;
+      }
+      // Fill in afd
+      typedef std::pair<procid_t, size_t> count_pair;
+      foreach(const count_pair& pair, adjatom_count) {
+        afd.adjatoms.push_back(pair.first);
+        afd.optional_weight_to_adjatoms.push_back(pair.second);
       }
     } // end of foreach
   } //end of loop over local atoms
   
-  dc.services().barrier();
-  std::vector<counts_map_type> machine_counts;
+  dc.services().full_barrier();
 
-
+  // Gather all the machine counts
+  std::vector<atomid2desc_type> all_descriptors;
+  all_descriptors[dc.procid()] = atomid2desc;
+  dc.services().all_gather(all_descriptors);
   
-  
+  // join the maps to build the atom index file
+  atom_index_file aif;
+  aif.atoms.resize(num_atoms);
+  aif.natoms = num_atoms;
+  aif.nverts = 0;
+  aif.nedges = 0;
+  foreach(const atomid2desc_type& a2d, all_descriptors) {
+    typedef atomid2desc_type::value_type pair_type;
+    foreach(const pair_type& pair, a2d) {
+      procid_t atomid = pair.first;
+      assert(atomid < aif.atoms.size());
+      // check that this atom has not already been added
+      assert(aif.atoms[atomid].protocol.empty());
+      // add the atom
+      aif.atoms[atomid] = pair.second.desc;
+      aif.nverts += pair.second.nlocalverts;
+      aif.nedges += pair.second.ninedges;
+    }
+  }
+  // Write results to file
+  aif.write_to_file("atom_index.txt");
   
 
 } // and of build atom index file

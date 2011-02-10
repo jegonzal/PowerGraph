@@ -249,7 +249,9 @@ namespace graphlab {
     }
     ++numparts;
     std::ofstream fout(idxfilename.c_str());
-    fout << graph.num_vertices() << "\t" << graph.num_edges() << "\t" << numparts << "\n";
+    fout << graph.num_vertices() << "\t" 
+         << graph.num_edges() << "\t" 
+         << numparts << "\n";
   
     for (size_t i = 0; i < numparts; ++i) {
       std::string atomfilename = atombasename + "." + tostr(i);
