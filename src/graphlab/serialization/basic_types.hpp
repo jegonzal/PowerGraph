@@ -74,6 +74,15 @@ struct serialize_impl<ArcType, const char*> {
 };
 
 
+template <typename ArcType, size_t len>
+struct serialize_impl<ArcType, char [len]> {
+  static void exec(ArcType& a, const char s[len] ) { 
+    size_t length = len;
+    serialize_impl<ArcType, size_t>::exec(a, length);
+    a.o->write(reinterpret_cast<const char*>(s), length);
+    DASSERT_FALSE(a.o->fail());
+  }
+};
 
 template <typename ArcType>
 struct serialize_impl<ArcType, char*> {

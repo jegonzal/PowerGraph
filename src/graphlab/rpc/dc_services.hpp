@@ -21,6 +21,10 @@ namespace graphlab {
     dc_dist_object<dc_services>& rmi_instance() {
       return rmi;
     }
+
+    const dc_dist_object<dc_services>& rmi_instance() const {
+      return rmi;
+    }
   
     inline void comm_barrier(procid_t targetmachine) {
       rmi.comm_barrier(targetmachine);
