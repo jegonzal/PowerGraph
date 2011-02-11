@@ -32,7 +32,7 @@ void NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, std::istream &strm) {
 
 #define GENFN(N) BOOST_PP_CAT(NIF, N)
 #define GENFN2(N) BOOST_PP_CAT(f, N)
-  #define GENARGS(Z,N,_) (BOOST_PP_CAT(f, N))
+#define GENARGS(Z,N,_) (BOOST_PP_CAT(f, N))
 #define GENPARAMS(Z,N,_)  BOOST_PP_CAT(T, N) (BOOST_PP_CAT(f, N)) ; iarc >> (BOOST_PP_CAT(f, N)) ;
 #define CHARSTRINGFREE(Z,N,_)  charstring_free(BOOST_PP_CAT(f, N));
 
