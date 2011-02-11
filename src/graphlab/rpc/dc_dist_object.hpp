@@ -28,16 +28,11 @@ must construct the distributed objects in the same order. And, no
 distributed object calls should be make until it is guaranteed that
 all machines have constructed their respective distributed objects.
 
-This class also acts as a single "control unit" spanning multiple machines.
+This class also acts as a single "xontext" spanning multiple machines.
 For instance, the barrier implemented here is fully localized to within 
 a particular instance of this object. That is, multiple instances of the object
 can issue multiple independent barriers.
 The dc_services() object is a thin wrapper around the dc_dist_object.
-The main distributed_control object takes advantage of that to create one
-"global control unit" which is accessible through the distributed_control::services() function.
-Similarly, the global control unit is accessible through the dc_dist_object::services() function
-
-\note Probably should be renamed global_services()
 */
 template <typename T>
 class dc_dist_object : public dc_impl::dc_dist_object_base{
@@ -46,6 +41,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   size_t obj_id;
   size_t control_obj_id;  // object id of this object
   T* owner;
+  bool calltracking;
   atomic<size_t> callsreceived;
   atomic<size_t> callssent;
   // make operator= private
@@ -75,7 +71,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }
 
  public:
-  dc_dist_object(distributed_control &dc_, T* owner):dc_(dc_),owner(owner) {
+  dc_dist_object(distributed_control &dc_, T* owner, bool calltracking = false):
+                                dc_(dc_),owner(owner),calltracking(calltracking) {
     obj_id = dc_.register_object(owner, this);
     control_obj_id = dc_.register_object(this, this);
     
@@ -144,6 +141,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
    all calls from this machine to the target machine performed
    before the comm_barrier() call are completed before any call
    sent after the comm barrier() call.
+   
+    \note This affects the global context
   */
   inline void comm_barrier(procid_t targetmachine) {
     return dc_.comm_barrier(targetmachine);
@@ -153,6 +152,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     \note having all machines call the comm barrier does not guarantee
     that all calls have been processed. Basically 'p' local barriers
     do not result in a global barrier.
+    
+    \note This affects the global context
   */
   inline void comm_barrier() {
     return dc_.comm_barrier();
@@ -160,8 +161,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
   /**
     This returns the set of services for the parent DC.
+    This is deprecated. Use dc() to get access to the global context
   */
-  inline dc_services& services() {
+   __attribute__((__deprecated__)) inline dc_services& services() {
     return dc_.services();
   }
 
@@ -781,8 +783,8 @@ private:
       full_barrier_cond.wait(full_barrier_lock);    
     }
     full_barrier_curid++;
+    full_barrier_lock.unlock();
   }
-
 };
 
 #include <graphlab/macros_undef.hpp>

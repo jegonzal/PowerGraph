@@ -48,7 +48,18 @@ struct dc_init_param{
 
 // forward declaration for dc services
 class dc_services;
+class distributed_control;
 
+/*
+Part of the full barrier implementation. See comment in dc.cpp
+about the Full barrier
+*/
+namespace dc_impl {
+ void release_full_barrier(distributed_control &dc, procid_t proc,
+                                          size_t id);
+ void full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
+                                                    size_t id, size_t r);
+}
 /**
 The primary distributed RPC object.
 The basic operation goes like this:
@@ -107,6 +118,8 @@ class distributed_control{
 
   /// ID of the local machine
   procid_t localprocid;
+
+  
   /// Number of machines
   procid_t localnumprocs;
   
@@ -254,17 +267,17 @@ class distributed_control{
     return global_calls_sent.value;
   }
 
-  size_t calls_received() const {
+  inline size_t calls_received() const {
     return global_calls_received.value;
   }
 
-  size_t bytes_sent() const {
+  inline size_t bytes_sent() const {
     size_t ret = 0;
     for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
     return ret;
   }  
   
-  size_t bytes_received() const {
+  inline size_t bytes_received() const {
     size_t ret = 0;
     for (size_t i = 0;i < receivers.size(); ++i) ret += receivers[i]->bytes_received();
     return ret;
@@ -323,7 +336,11 @@ class distributed_control{
   }
   
   
-  dc_services& services();
+  /**
+  This is depreated. Use the public functions. In particular
+  services().full_barrier() may not work as expected
+  */
+  __attribute__((__deprecated__)) dc_services& services();
   
   /**
    This comm barrier is not a true "barrier" but is
@@ -343,7 +360,56 @@ class distributed_control{
   void comm_barrier();
 
 
+
+
+
+
+  template <typename U>
+  inline void send_to(procid_t target, U& t, bool control = false);
   
+  template <typename U>
+  inline void recv_from(procid_t source, U& t, bool control = false);
+
+  template <typename U>
+  inline void broadcast(U& data, bool originator, bool control = false);
+
+  template <typename U>
+  inline void gather(std::vector<U>& data, procid_t sendto, bool control = false);
+
+  template <typename U>
+  inline void all_gather(std::vector<U>& data, bool control = false);
+
+  template <typename U>
+  inline void gather_partition(const std::vector<U>& local_contribution,
+                        std::vector< std::vector<U> >& ret_partition,
+                        bool control = false);
+  
+
+  void barrier();
+  
+
+
+
+ /*****************************************************************************
+                      Implementation of Full Barrier
+*****************************************************************************/
+  void full_barrier();
+ private:
+  bool full_barrier_released;
+  mutex full_barrier_lock;
+  conditional full_barrier_cond;
+  atomic<size_t> all_recv_count;
+  size_t all_send_count;
+  size_t full_barrier_curid; // to protect against fast repeated calls to full_barrier
+  
+  // used to inform the counter that the full barrier
+  // is in effect and all modifications to the calls_recv
+  // counter will need to lock and signal
+  bool full_barrier_in_effect;
+  friend void dc_impl::release_full_barrier(distributed_control &dc, procid_t proc,
+                                            size_t id);
+  friend void dc_impl::full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
+                                                      size_t id, size_t r);
 };
 
 
@@ -359,4 +425,40 @@ class distributed_control{
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
+namespace graphlab {
+
+template <typename U>
+inline void distributed_control::send_to(procid_t target, U& t, bool control) {
+  distributed_services->send_to(target, t, control);
+}
+
+template <typename U>
+inline void distributed_control::recv_from(procid_t source, U& t, bool control) {
+  distributed_services->recv_from(source, t, control);
+}
+
+template <typename U>
+inline void distributed_control::broadcast(U& data, bool originator, bool control) { 
+  distributed_services->broadcast(data, originator, control);
+}
+
+template <typename U>
+inline void distributed_control::gather(std::vector<U>& data, procid_t sendto, bool control) {
+  distributed_services->gather(data, sendto, control);
+}
+
+template <typename U>
+inline void distributed_control::all_gather(std::vector<U>& data, bool control) {
+  distributed_services->all_gather(data, control);
+}
+
+template <typename U>
+inline void distributed_control::gather_partition(const std::vector<U>& local_contribution,
+                      std::vector< std::vector<U> >& ret_partition,
+                      bool control) {
+  distributed_services->gather_partition(local_contribution, ret_partition, control);
+}
+
+
+}
 #endif

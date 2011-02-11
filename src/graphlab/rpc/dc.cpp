@@ -28,7 +28,7 @@ void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
 }
 
 distributed_control::~distributed_control() {
-  services().barrier();
+  distributed_services->barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   size_t bytessent = bytes_sent();
   for (size_t i = 0;i < senders.size(); ++i) {
@@ -144,6 +144,12 @@ void distributed_control::init(const std::vector<std::string> &machines,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {   
+  //-------- Initialize the full barrier ---------
+  full_barrier_in_effect = false;
+  full_barrier_curid = 0;
+  full_barrier_released = false;
+  //-----------------------------------------------
+  
   REGISTER_RPC((*this), reply_increment_counter);
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
@@ -242,4 +248,127 @@ void distributed_control::comm_barrier() {
   }
 }
 
+void distributed_control::barrier() {
+  distributed_services->barrier();
 }
+
+ /*****************************************************************************
+                      Implementation of Full Barrier
+*****************************************************************************/
+/* It is unfortunate but this is copy paste code from dc_dist_object.hpp
+  I thought for a long time how to implement this without copy pasting and 
+  I can't think of a simple enough solution.
+  
+  Part of the issue is that the "context" concept was not built into to the
+  RPC system to begin with and is currently folded in through the dc_dist_object system.
+  As a result, the global context becomes very hard to define properly.
+  Including a dc_dist_object as a member only resolves the high level contexts
+  such as barrier, broadcast, etc which do not require intrusive access into
+  deeper information about the context. The full barrier however, requires deep
+  information about the context which cannot be resolved easily.
+*/
+
+namespace dc_impl {
+  void release_full_barrier(distributed_control &dc, procid_t proc,
+                            size_t id) {
+    if (id != dc.full_barrier_curid) return;
+    dc.full_barrier_lock.lock();
+    dc.full_barrier_released = true;
+    dc.full_barrier_in_effect = false;
+    dc.full_barrier_cond.signal();
+    dc.full_barrier_lock.unlock();
+  }
+  
+  void full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
+                                                      size_t id, size_t r) {
+      if (id != dc.full_barrier_curid) return;
+    // we want the previous value of the atom
+    // so we can find the first time it crosses
+    // the send counter, and avoid multiple releases
+    size_t prevval = dc.all_recv_count.inc_ret_last(r);
+    if (prevval < dc.all_send_count && prevval + r >= dc.all_send_count) {
+      // release myself
+      release_full_barrier(dc, proc, dc.full_barrier_curid);
+      // release everyone
+      for (size_t i = 0;i < dc.numprocs(); ++i) {
+        if (i != dc.procid()) {
+          dc.control_call(i,
+                         release_full_barrier,
+                         dc.full_barrier_curid);
+        }
+      }
+    }
+  }
+} // namespace dc_impl
+/**
+This barrier ensures globally across all machines that
+all calls issued prior to this barrier are completed before
+returning. This function could return prematurely if
+other threads are still issuing function calls since we
+cannot differentiate between calls issued before the barrier
+and calls issued while the barrier is being evaluated.
+*/
+void distributed_control::full_barrier() {
+  // gather a sum of all the calls issued to machine 0
+  size_t local_num_calls_sent = calls_sent();
+  
+  // tell node 0 how many calls there are
+  std::vector<size_t> all_calls_sent(numprocs());
+  all_calls_sent[procid()] = local_num_calls_sent;
+  gather(all_calls_sent, 0, true);
+  
+  // proc 0 computes the total number of calls sent    
+  all_send_count = 0;
+  all_recv_count.value = 0;
+  if (procid() == 0) {
+    for (size_t i = 0;i < all_calls_sent.size(); ++i) {
+      all_send_count += all_calls_sent[i];
+    }
+  }
+  // issue a barrier to make sure everyone stops here
+  // while node 0 prepares the counters.
+  barrier();
+  // ok. now we basically keep recomunicating with
+  // node 0 the number of calls we have received so far
+  // until node 0 releases the barrier
+  full_barrier_lock.lock();
+  full_barrier_in_effect = true;
+  size_t last_communicated_recv_count = 0;
+  
+  
+  while(full_barrier_released == false) {
+    while (calls_received() != last_communicated_recv_count) {
+      size_t nextval = calls_received();
+      assert(nextval > last_communicated_recv_count);
+      // unlock for a while to issue the RPC call
+      full_barrier_lock.unlock();
+      if (procid() == 0) {
+        dc_impl::full_barrier_add_to_recv(*this, procid(), full_barrier_curid, 
+                                          nextval - last_communicated_recv_count);
+      }
+      else {
+        control_call(0,
+                     &dc_impl::full_barrier_add_to_recv,
+                     full_barrier_curid, 
+                      nextval - last_communicated_recv_count);
+      }
+      last_communicated_recv_count = nextval;
+      full_barrier_lock.lock();
+      // now there could be a race here because I released
+      // the lock to issue the calls.
+      // I need to check again before I let the condition
+      // variable take over
+      // the inner while loop will check the counting case
+      // but I need to check the exterior case
+    }
+    if (full_barrier_released) break;
+    full_barrier_cond.wait(full_barrier_lock);    
+  }
+
+  full_barrier_curid++;
+  full_barrier_lock.unlock();
+}
+
+
+
+} //namespace graphlab

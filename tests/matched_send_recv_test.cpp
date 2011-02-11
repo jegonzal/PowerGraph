@@ -45,28 +45,28 @@ int main(int argc, char ** argv) {
   std::string h = "hello";
   size_t i = 100;
   if (dc.procid() == 0) {
-    dc.services().send_to(1, h, true);
+    dc.send_to(1, h, true);
     size_t r;
-    dc.services().recv_from(1, r);
+    dc.recv_from(1, r);
     assert(r == i);
-    dc.services().send_to(1, h);
-    dc.services().recv_from(1, r);
+    dc.send_to(1, h);
+    dc.recv_from(1, r);
     assert(r == i);
 
   }
   else {
     std::string r;
-    dc.services().recv_from(0, r, true);
+    dc.recv_from(0, r, true);
     assert(r == h);
-    dc.services().send_to(0, i);
-    dc.services().recv_from(0, r);
+    dc.send_to(0, i);
+    dc.recv_from(0, r);
     assert(r == h);
-    dc.services().send_to(0, i);
+    dc.send_to(0, i);
   }
   some_object so(dc);
   so.test_stuff();
-  dc.services().full_barrier();
+  dc.full_barrier();
   std::cout << so.rmi.calls_received() << " calls received\n";
   std::cout << so.rmi.calls_sent() << " calls sent\n";
-  dc.services().barrier();
+  dc.barrier();
 }

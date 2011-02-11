@@ -9,7 +9,7 @@ namespace graphlab {
 
   /**
     A thin wrapper around the dc_dist_object.
-    Provides a non-templated reference to a "control unit"
+    Provides a non-templated reference to a "context"
   */
   class dc_services {
   private:
