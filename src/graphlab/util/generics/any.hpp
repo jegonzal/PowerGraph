@@ -57,19 +57,19 @@ namespace graphlab {
 
     virtual uint64_t get_deserializer_id() const = 0;
 
-    static __any_placeholder* base_load(iarchive &arc);
+    static __any_placeholder* base_load(iarchive_soft_fail &arc);
 
     virtual void deep_op_equal(__any_placeholder* c) = 0;
 
-    void base_save(oarchive &arc) const;
+    void base_save(oarchive_soft_fail &arc) const;
 
-    virtual void load(iarchive &arc) = 0;
-    virtual void save(oarchive &arc) const = 0;
+    virtual void load(iarchive_soft_fail &arc) = 0;
+    virtual void save(oarchive_soft_fail &arc) const = 0;
     virtual std::ostream& print(std::ostream& out) const = 0;
 
   };
 
-  typedef __any_placeholder* (*__any_registration_deserializer_type)(iarchive &arc);
+  typedef __any_placeholder* (*__any_registration_deserializer_type)(iarchive_soft_fail &arc);
   typedef std::map<uint64_t, __any_registration_deserializer_type>
   __any_registration_map_type;
 
@@ -107,17 +107,19 @@ namespace graphlab {
 
     // serialization
     void load(iarchive &arc) {
+      iarchive_soft_fail isoftarc(arc);
       if(content != NULL) delete content;
       bool isempty;
-      arc >> isempty;
+      isoftarc >> isempty;
       if (isempty == false) {
-        content = __any_placeholder::base_load(arc);
+        content = __any_placeholder::base_load(isoftarc);
       }
     }
     void save(oarchive &arc) const {
+      oarchive_soft_fail osoftarc(arc);
       bool isempty = empty();
-      arc << isempty;
-      if (isempty == false) content->base_save(arc);
+      osoftarc << isempty;
+      if (isempty == false) content->base_save(osoftarc);
     }
 
   private:
@@ -149,7 +151,7 @@ namespace graphlab {
         inited = true;
         localid = h;
       }
-      static __any_placeholder* deserialize(iarchive &arc) {
+      static __any_placeholder* deserialize(iarchive_soft_fail &arc) {
         any::holder<T> *newholder = new any::holder<T>(arc);
         return newholder;
       }
@@ -163,7 +165,7 @@ namespace graphlab {
       holder(const ValueType & value)
         : held(value) { }
 
-      holder(iarchive &arc) { arc >> held; }
+      holder(iarchive_soft_fail &arc) { arc >> held; }
 
       static any_registration<ValueType> __registration;
 
@@ -185,11 +187,11 @@ namespace graphlab {
         return __registration.get_deserializer_id();
       }
 
-      void load(iarchive &arc) {
+      void load(iarchive_soft_fail &arc) {
         arc >> held;
       }
 
-      void save(oarchive &arc) const {
+      void save(oarchive_soft_fail &arc) const {
         arc << held;
       }
       
@@ -281,9 +283,10 @@ namespace graphlab {
   template<typename T> uint64_t any::any_registration<T>::localid; 
   //template<typename T> size_t any::any_registration<T>::unused;
 
-}
 
 
+
+} // namespace graphlab
 
 // std::ostream& operator<<(std::ostream& out, const graphlab::any& any);
 

@@ -42,6 +42,15 @@ public:
 };
 
 
+
+class TestClass3{
+public:
+  int i;
+  int j;
+  std::vector<int> k;
+};
+
+
 void is10(const graphlab::any a) {
   ASSERT_EQ(a.as<int>(), 10);
 }
@@ -84,4 +93,7 @@ int main(int argc, char** argv) {
   variant = t2;
   oarc << variant;
   f.close();
+  
+  TestClass3 t3;
+  any tmp = t3;
 }

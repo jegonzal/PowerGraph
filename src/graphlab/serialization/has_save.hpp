@@ -1,6 +1,7 @@
 #ifndef HAS_SAVE_HPP
 #define HAS_SAVE_HPP
 #include <typeinfo>
+
 /**
 Detects if a class has a save function implemented
 */

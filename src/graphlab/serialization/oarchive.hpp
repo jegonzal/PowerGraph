@@ -8,6 +8,8 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/has_save.hpp>
 namespace graphlab {
+
+
 /**
 The output archive object.
 It is just a simple wrapper around a ostream
@@ -23,7 +25,37 @@ class oarchive{
 };
 
 
+class oarchive_soft_fail{
+ public:
+  std::ostream* o;
+
+  oarchive_soft_fail(std::ostream& os)
+    : o(&os) {}
+
+  oarchive_soft_fail(oarchive &oarc):o(oarc.o) {}
+  
+  ~oarchive_soft_fail() { }
+};
+
 namespace archive_detail {
+
+
+template <typename ArcType, typename T>
+struct serialize_hard_or_soft_fail {
+  static void exec(ArcType &o, const T& t) {
+    t.save(o);
+  }
+};
+
+
+template <typename T>
+struct serialize_hard_or_soft_fail<oarchive_soft_fail, T> {
+  static void exec(oarchive_soft_fail &o, const T& t) {
+    oarchive oarc(*(o.o));
+    save_or_fail(oarc, t);
+  }
+};
+
 
 /**
 Implementation of the serializer for different types.
@@ -33,9 +65,10 @@ if T is a class. Fails at runtime otherwise.
 template <typename ArcType, typename T>
 struct serialize_impl {
   static void exec(ArcType &o, const T& t) {
-    save_or_fail(o, t);
+    serialize_hard_or_soft_fail<ArcType, T>::exec(o, t);
   }
 };
+
 
 /**
 Re-dispatch if for some reasons T already has a const
@@ -58,10 +91,29 @@ oarchive& operator<<(oarchive& a, const T& i) {
   return a;
 }
 
+template <typename T>
+oarchive_soft_fail& operator<<(oarchive_soft_fail& a, const T& i) {
+  archive_detail::serialize_impl<oarchive_soft_fail, T>::exec(a, i);
+  return a;
+}
+
+
 /**
 Serializes an arbitrary pointer + length to an archive 
 */
 inline oarchive& serialize(oarchive& a, const void* i,const size_t length) {
+  // save the length
+  operator<<(a,length);
+  a.o->write(reinterpret_cast<const char*>(i), length);
+  assert(!a.o->fail());
+  return a;
+}
+
+
+/**
+Serializes an arbitrary pointer + length to an archive 
+*/
+inline oarchive_soft_fail& serialize(oarchive_soft_fail& a, const void* i,const size_t length) {
   // save the length
   operator<<(a,length);
   a.o->write(reinterpret_cast<const char*>(i), length);
