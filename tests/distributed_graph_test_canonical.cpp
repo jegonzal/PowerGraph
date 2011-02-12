@@ -124,39 +124,39 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
   std::cout << "===================================================" << std::endl;
   std::cout << "Testing Synchronous Vertex sync. " << std::endl;
   set_all_vertices_to_value(dg, VVAL);
-  dc.services().barrier();
+  dc.barrier();
   dg.synchronize_all_vertices();
   check_vertex_values(dg, VVAL);
-  dc.services().barrier();
+  dc.barrier();
 
   ++VVAL;
 
   std::cout << "Testing Asynchronous Vertex sync. " << std::endl;
   set_all_vertices_to_value(dg, VVAL);
-  dc.services().barrier();
+  dc.barrier();
   dg.synchronize_all_vertices(true);
   dg.wait_for_all_async_syncs();
   check_vertex_values(dg, VVAL);
-  dc.services().barrier();
+  dc.barrier();
 
   ++VVAL;
 
   std::cout << "Testing Synchronous Edge sync. " << std::endl;
   set_all_edges_to_value(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
   dg.synchronize_all_edges();
   check_edge_values(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
 
   ++EVAL;
 
   std::cout << "Testing Asynchronous Edge sync. " << std::endl;
   set_all_edges_to_value(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
   dg.synchronize_all_edges(true);
   dg.wait_for_all_async_syncs();
   check_edge_values(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
 
   ++EVAL;
   ++VVAL;
@@ -164,11 +164,11 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
   std::cout << "Testing Synchronous Scope sync. " << std::endl;
   set_all_vertices_to_value(dg, VVAL);
   set_all_edges_to_value(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
   dg.synchronize_all_scopes();
   check_vertex_values(dg, VVAL);
   check_edge_values(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
 
   ++EVAL;
   ++VVAL;
@@ -176,13 +176,54 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
   std::cout << "Testing Asynchronous Scope sync. " << std::endl;
   set_all_vertices_to_value(dg, VVAL);
   set_all_edges_to_value(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
   dg.synchronize_all_scopes(true);
   dg.wait_for_all_async_syncs();
   check_vertex_values(dg, VVAL);
   check_edge_values(dg, EVAL);
-  dc.services().barrier();
+  dc.barrier();
 
+
+
+  ++VVAL;
+  
+  std::cout << "Testing synchronous vertex pushing" << std::endl;
+  set_all_vertices_to_value(dg, VVAL);
+  dg.push_all_owned_vertices_to_replicas();
+  dc.barrier();
+  check_vertex_values(dg, VVAL);
+  dc.barrier();
+  
+  ++VVAL;  
+  
+  std::cout << "Testing asynchronous vertex pushing" << std::endl;
+  set_all_vertices_to_value(dg, VVAL);
+  dg.push_all_owned_vertices_to_replicas(true);
+  dg.wait_for_all_async_pushes();
+  dc.barrier();
+  check_vertex_values(dg, VVAL);
+  dc.barrier();    
+ 
+ 
+ 
+  ++EVAL;
+  
+  std::cout << "Testing synchronous edge pushing" << std::endl;
+  set_all_edges_to_value(dg, EVAL);
+  dg.push_all_owned_edges_to_replicas();
+  dc.barrier();
+  check_edge_values(dg, EVAL);
+  dc.barrier();
+  
+  ++EVAL;  
+  
+  std::cout << "Testing asynchronous edge pushing" << std::endl;
+  set_all_edges_to_value(dg, EVAL);
+  dg.push_all_owned_edges_to_replicas(true);
+  dg.wait_for_all_async_pushes();
+  dc.barrier();
+  check_edge_values(dg, EVAL);
+  dc.barrier();    
 
   std::cout << "Ghost data modified. Test if remote owned data are updated" << std::endl;
   std::cout << "==========================================================" << std::endl;
@@ -194,12 +235,12 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
     set_all_in_boundary(dg, VVAL, EVAL);
     dg.synchronize_all_scopes();
   }
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 1) {
     boundary_has_at_least_one_match(dg, VVAL, EVAL);
     dg.synchronize_all_scopes();
   }
-  dc.services().barrier();
+  dc.barrier();
 
 
   std::cout << "Testing Synchronous Vertex/Edge sync with ghost changes. " << std::endl;
@@ -210,12 +251,12 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
     dg.synchronize_all_vertices();
     dg.synchronize_all_edges();
   }
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     boundary_has_at_least_one_match(dg, VVAL, EVAL);
     dg.synchronize_all_scopes();
   }
-  dc.services().barrier();
+  dc.barrier();
 
 
 
@@ -227,12 +268,12 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
     dg.synchronize_all_scopes(true);
     dg.wait_for_all_async_syncs();
   }
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 1) {
     boundary_has_at_least_one_match(dg, VVAL, EVAL);
     dg.synchronize_all_scopes();
   }
-  dc.services().barrier();
+  dc.barrier();
 
 
   std::cout << "Testing Asynchronous Vertex/Edge sync with ghost changes. " << std::endl;
@@ -244,12 +285,12 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
     dg.synchronize_all_edges(true);
     dg.wait_for_all_async_syncs();
   }
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     boundary_has_at_least_one_match(dg, VVAL, EVAL);
     dg.synchronize_all_scopes();
   }
-  dc.services().barrier();
+  dc.barrier();
 }
 
 int main(int argc, char** argv) {
@@ -266,10 +307,10 @@ int main(int argc, char** argv) {
 
   //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
 //  distributed_control dc(machines, "", machineid, 1, TCP_COMM);
-  dc.services().barrier();
+  dc.barrier();
   distributed_graph<size_t, double> dg(dc, "atomidx_ne.txt");
 
-  dc.services().barrier();
+  dc.barrier();
   std::cout << "Constructed!" << std::endl;
   
   ASSERT_EQ(dg.num_vertices(), 10000);
@@ -319,6 +360,6 @@ int main(int argc, char** argv) {
       ASSERT_EQ(dg.edge_data(e), dg.source(e));
     }
   }
-  dc.services().barrier();
+  dc.full_barrier();
   sync_test(dg, dc);
 }

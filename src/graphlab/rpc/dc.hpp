@@ -260,7 +260,16 @@ class distributed_control{
   }
 
   inline void inc_calls_received() {
-    global_calls_received.inc();
+    if (full_barrier_in_effect == false) {
+      global_calls_received.inc();
+    }
+    else {
+      // use the more costly option
+      full_barrier_lock.lock();
+      global_calls_received.inc();
+      full_barrier_cond.signal();
+      full_barrier_lock.unlock();
+    }
   }
 
   inline size_t calls_sent() const {

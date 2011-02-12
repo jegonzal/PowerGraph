@@ -51,15 +51,24 @@ for a reply to a request
 struct reply_ret_type{
   atomic<size_t> flag;
   blob val;
-  bool usesem;
-  semaphore sem;
-  reply_ret_type(bool usesem):usesem(usesem) { }
+  bool usemutex;
+  mutex mut;
+  conditional cond;
+  reply_ret_type(bool usemutex, size_t retcount = 1):flag(retcount), 
+                                                     usemutex(usemutex) { 
+  }
+  
+  ~reply_ret_type() {
+  }
+
   inline void wait() {
-    if (usesem) {
-      sem.wait();
+    if (usemutex) {
+      mut.lock();
+      while(flag.value != 0) cond.wait(mut);
+      mut.unlock();
     }
     else {
-      while(flag.value == 0) sched_yield();
+      while(flag.value != 0) sched_yield();
     }
   }
 };

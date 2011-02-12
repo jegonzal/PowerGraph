@@ -8,8 +8,8 @@ void reply_increment_counter(distributed_control &dc, procid_t src,
                              size_t ptr, dc_impl::blob ret) {
   dc_impl::reply_ret_type *a = reinterpret_cast<dc_impl::reply_ret_type*>(ptr);
   a->val=ret;
-  a->flag.inc();  
-  if (a->usesem) a->sem.post();
+  size_t retval = a->flag.dec();  
+  if (retval == 0 && a->usemutex) a->cond.signal();
 }
 
 }

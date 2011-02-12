@@ -26,45 +26,41 @@ int main(int argc, char ** argv) {
   //machines.push_back("127.0.0.1:10002");
   assert(machineid < machines.size());
 
-  distributed_control dc(machines,"", machineid, 8, SCTP_COMM);
+  distributed_control dc(machines,"", machineid, 8, TCP_COMM);
   coherent_dht<std::string, std::string> testdht(dc);
   
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     testdht.set("hello", "world");
   }
   else {
     testdht.set("world", "hello");
   }
-  dc.services().comm_barrier();
-  dc.services().barrier();
+  dc.full_barrier();
+
   ASSERT_EQ(testdht.get("hello").second, std::string("world"));
   ASSERT_EQ(testdht.get("world").second, std::string("hello"));
   ASSERT_EQ(testdht.get("hello").second, std::string("world"));
   ASSERT_EQ(testdht.get("world").second, std::string("hello"));
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
-    testdht.set("hello", "pika");
+    testdht.set_synchronous("hello", "pika");
   }
-  dc.services().comm_barrier();
-  dc.services().barrier();
+  dc.barrier();
   ASSERT_EQ(testdht.get("hello").second, std::string("pika"));
   ASSERT_EQ(testdht.get("hello").second, std::string("pika"));
-  dc.services().barrier();
+  dc.barrier();
   
   testdht.subscribe("hello");
   testdht.subscribe("world");
 
-  dc.services().comm_barrier();
-  dc.services().barrier();
-
+  
   if (dc.procid() == 1) {
-    testdht.set("hello", "a");
-    testdht.set("world", "b");
+    testdht.set_synchronous("hello", "a");
+    testdht.set_synchronous("world", "b");
   }
-  dc.services().comm_barrier();
-  dc.services().barrier();
-  sleep(1);
+  dc.barrier();
+
   ASSERT_EQ(testdht.get("hello").second, std::string("a"));
   ASSERT_EQ(testdht.get("world").second, std::string("b"));
   

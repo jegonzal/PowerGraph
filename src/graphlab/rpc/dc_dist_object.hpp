@@ -649,7 +649,7 @@ private:
     }
     
     
-    logger(LOG_INFO, "barrier phase 1 complete");
+    logger(LOG_DEBUG, "barrier phase 1 complete");
     // I am root. send the barrier release downwards
     if (procid() == 0) {
       barrier_release = barrier_val;
@@ -669,7 +669,7 @@ private:
     }
     barrier_mut.unlock();
   
-    logger(LOG_INFO, "barrier phase 2 complete");
+    logger(LOG_DEBUG, "barrier phase 2 complete");
   }
   
   

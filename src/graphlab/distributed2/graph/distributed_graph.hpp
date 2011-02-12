@@ -101,7 +101,9 @@ class distributed_graph {
   distributed_graph(distributed_control &dc, std::string atomidxfile):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
-                              globaleid2owner(dc, 65536){
+                              globaleid2owner(dc, 65536),
+                              pending_async_updates(true, 0),
+                              pending_push_updates(true, 0){
     edge_canonical_numbering = false;
     cur_proc_vector.push_back(rmi.procid());
     
@@ -125,7 +127,7 @@ class distributed_graph {
       }
 
     }
-    dc.services().broadcast(partitions, dc.procid() == 0);
+    rmi.broadcast(partitions, dc.procid() == 0);
     construct_local_fragment(atomindex, partitions, rmi.procid());
   }
 
@@ -433,7 +435,9 @@ class distributed_graph {
     return ghostvertices;
   }
   
-  /// returns a vector of all processors having a replica of this globalvid
+  /** returns a vector of all processors having a replica of this globalvid
+   *  This vector is guaranteed to be in sorted order of processors.
+   */
   const std::vector<procid_t>& localvid_to_replicas(vertex_id_t localvid) const {
     boost::unordered_map<vertex_id_t, std::vector<procid_t> >::const_iterator 
                     iter = localvid2ghostedprocs.find(localvid);
@@ -508,16 +512,14 @@ class distributed_graph {
   }
 
   void vertex_modified(vertex_id_t vid) {
-    // the modified flag only makes sense for ghosts
     if (is_ghost(vid)) {
-      return localstore.set_vertex_modified(global2localvid[vid], true);
+      localstore.set_vertex_modified(global2localvid[vid], true);
     }
   }
 
   void edge_modified(edge_id_t eid) {
-    // the modified flag only makes sense for ghosts
     if (is_ghost(target(eid))) {
-      return localstore.set_edge_modified(global2localeid[eid], true);
+      localstore.set_edge_modified(global2localeid[eid], true);  
     }
   }
 
@@ -858,15 +860,64 @@ class distributed_graph {
   }
 
   
-  // synchronzation aclls
+  // synchronzation calls. These are called from the ghost side
+  // to synchronize against the owner.
+  
+  /**
+ * synchronize the data on vertex with global id vid
+ * vid must be a ghost
+ */
   void synchronize_vertex(vertex_id_t vid, bool async = false);
+  
+  /**
+ * synchronize the data on edge with global id eid
+ * target of edge must be a ghost
+ */
+
   void synchronize_edge(edge_id_t eid, bool async = false);
+  
+  /**
+ * synchronize the entire scope for vertex vid
+ * vid must be owned by the current machine. 
+ * \todo: This function can be optimized to issue all requests simultaneously and 
+ * wait for replies instead of issueing them sequentially.
+ */
   void synchronize_scope(vertex_id_t vid, bool async = false);   
+  
+  /**
+ * Waits for all asynchronous data synchronizations to complete
+ */
   void wait_for_all_async_syncs();
+  /*
+  Synchronize all ghost vertices
+  */
   void synchronize_all_vertices(bool async = false);
+  
+  /*
+  Synchronize all ghost edges
+  */
   void synchronize_all_edges(bool async = false);
+  
+  /*
+  Synchronize all ghost scopes. (does this make sense? Not really).
+  But we have it...
+  
+  */
   void synchronize_all_scopes(bool async = false);
 
+  /* These are called from the owner side to synchronize the 
+     owner against ghosts. Now, this family of functions has several caveats.
+     If the owner's versions is higher than all replicas, this will be fine.
+     
+     But if a ghost has modifications resulting in a version which is higher
+     than this owner's, the ghost will reject the owner's update resulting in
+     an unsynchronized state.
+  */
+  void push_owned_vertex_to_replicas(vertex_id_t vid, bool async = false, bool untracked = false);
+  void push_owned_edge_to_replicas(edge_id_t eid, bool async = false, bool untracked = false);
+  void push_all_owned_vertices_to_replicas(bool async = false, bool untracked = false);
+  void push_all_owned_edges_to_replicas(bool async = false, bool untracked = false);
+  void wait_for_all_async_pushes();
  public:
   
   // extra types
@@ -985,10 +1036,8 @@ class distributed_graph {
    */
   size_t numglobalverts, numglobaledges;
 
-  atomic<size_t> pending_async_updates;
-
-
-  
+  dc_impl::reply_ret_type pending_async_updates;
+  dc_impl::reply_ret_type pending_push_updates;
   
   /**
    * Returns true if the global vid is in the local fragment
@@ -1388,6 +1437,25 @@ class distributed_graph {
   void reply_alot(block_synchronize_request &request);
   void reply_alot2(block_synchronize_request2 &request);
 
+
+  void conditional_update_vertex_data_and_version(
+                        vertex_id_t vid, 
+                        distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore,
+                        procid_t srcproc,
+                        size_t reply);
+
+
+  void conditional_update_edge_data_and_version(
+                           edge_id_t eid, 
+                           distributed_graph<VertexData, EdgeData>::edge_conditional_store &estore,
+                           procid_t srcproc, size_t reply);
+                           
+  void conditional_update_edge_data_and_version2(
+                          vertex_id_t source, 
+                          vertex_id_t target, 
+                          edge_conditional_store &estore,
+                          procid_t srcproc, size_t reply);
+                          
   friend class graph_lock<distributed_graph<VertexData, EdgeData> >;
 
 };

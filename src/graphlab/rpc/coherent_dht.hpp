@@ -127,8 +127,37 @@ class coherent_dht{
     }
   }
   
-
-
+  /**
+  Forces synchronization of this key
+  This operation is synchronous. When this function returns
+  all machines are guarnateed to have the updated value
+  */
+  void set_synchronous(const KeyType& key, const ValueType &newval) {
+    size_t hashvalue = hasher(key);
+    size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+    size_t owningmachine = hashvalue % rpc.dc().numprocs();
+    if (owningmachine == rpc.dc().procid()) {
+      // use the full lock to get the iterator
+      datalock.lock();
+      typename map_type::iterator iter = data.find(key);
+      if (iter == data.end()) {
+        data[key] = newval;
+      }
+      datalock.unlock();
+      // switch to finegrained lock
+      finegrained_lock[compressedhash].lock();
+      if (iter != data.end()) iter->second = newval;
+      update_cache_coherency_set_synchronous(compressedhash, key, newval);
+      finegrained_lock[compressedhash].unlock();
+    }
+    else {
+      rpc.remote_request(owningmachine, 
+                        &coherent_dht<KeyType,ValueType>::set_synchronous, 
+                        key,
+                        newval);
+      update_cache(key, newval);
+    }
+  }
 
   /** Gets the value associated with the key. returns true on success.
    *  get will read from the cache if data is already available in the cache.
@@ -191,6 +220,9 @@ class coherent_dht{
                 rpc.dc().procid());
   }
 
+  void full_barrier() {
+    rpc.full_barrier();
+  }
  private:
 
   mutable dc_dist_object<coherent_dht<KeyType, ValueType> > rpc;
@@ -341,6 +373,43 @@ class coherent_dht{
         }
       }
     }
+  }
+
+  void invalidate_reply(const KeyType &key, 
+                        procid_t source, size_t reply) const {
+    invalidate(key);
+    rpc.dc().remote_call(source, reply_increment_counter,
+                          reply, dc_impl::blob());
+  }
+
+  void update_cache_reply(const KeyType &key, const ValueType &value, 
+                          procid_t source, size_t reply) const {
+    update_cache(key, value);
+    rpc.dc().remote_call(source, reply_increment_counter,
+                          reply, dc_impl::blob());
+  }
+
+  void update_cache_coherency_set_synchronous(size_t compressedhash, 
+                                              const KeyType &key,
+                                              const ValueType &value) {
+    // broadcast invalidate
+    dc_impl::reply_ret_type repret(true, rpc.numprocs() - 1);
+    size_t r = reinterpret_cast<size_t>(&repret); 
+    for (procid_t i = 0;i < rpc.numprocs(); ++i) {
+      if (i != rpc.procid()) {
+        if (subscription[compressedhash].get(i)) {
+          rpc.remote_call(i,
+                          &coherent_dht<KeyType,ValueType>::update_cache_reply, 
+                          key, value,                           
+                          rpc.procid(), r);
+        }
+        else {
+          rpc.remote_call(i, &coherent_dht<KeyType,ValueType>::invalidate_reply, 
+                          key, rpc.procid(), r);
+        }
+      }
+    }
+    repret.wait();
   }
   
   /**
