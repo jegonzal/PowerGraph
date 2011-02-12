@@ -129,14 +129,13 @@ namespace graphlab {
         } //end of if owning machine
         atomid2lock[atomid].unlock();
       } //end of for loop
-      dc.services().barrier();
+      dc.services().full_barrier();
     } //end of constructor
       
 
 
     ~atom_shuffler() {
-      rmi.services().comm_barrier();
-      rmi.services().barrier();
+      rmi.services().full_barrier();
       // Clear the atom info map
       for(size_t i = 0; i < atomid2info.size(); ++i) {
         atomid2lock[i].lock();
@@ -438,7 +437,7 @@ namespace graphlab {
         assert(false);
       }
       distributed_control dc(param);
-      dc.services().barrier();
+      dc.services().full_barrier();
     
       if(dc.procid() == 0) 
         std::cout << "Loading vertex coloring and partitioning." 
@@ -503,47 +502,52 @@ namespace graphlab {
       }
 
       
-      if(dc.procid() == 0) 
+      if(dc.procid() == 0) { 
         std::cout << "Initializing distributed shuffler object.  ";
+        std::cout.flush();
+      }
       // Create the atom shuffler
       atom_shuffler atom_shuffler(dc, 
                                   num_atoms, 
                                   path);
 
-      dc.services().comm_barrier();
-      dc.services().barrier();
+      dc.services().full_barrier();
       if(dc.procid() == 0) 
         std::cout << "Finished." << std::endl;
 
       {
-        if(dc.procid() == 0) 
+        if(dc.procid() == 0) {
           std::cout << "Loading all vertex data from graph fragments. ";
+          std::cout.flush();
+        }
         atom_shuffler.load_vertex_data(fnames, 
                                        vertex2atomid, 
                                        vertex2color );
-        dc.services().comm_barrier();
-        dc.services().barrier();
+        dc.services().full_barrier();
         if(dc.procid() == 0) 
           std::cout << "Finished." << std::endl;
       }
     
       {
-        if(dc.procid() == 0) 
+        if(dc.procid() == 0)  {
           std::cout << "Loading all edge data from graph fragments. ";        
+          std::cout.flush();
+        }
+
         atom_shuffler.load_edge_data(fnames, vertex2atomid);
-        dc.services().comm_barrier();   
-        dc.services().barrier();        
-        if(dc.procid() == 0) 
+        dc.services().full_barrier();   
+        if(dc.procid() == 0)  
           std::cout << "Finished." << std::endl;
       }
 
       {
-        if(dc.procid() == 0) 
+        if(dc.procid() == 0) {
           std::cout << "Emitting all atoms. ";
+          std::cout.flush();
+        }
         // Build the actual atom files
         atom_shuffler.emit_atoms();
-        dc.services().comm_barrier();   
-        dc.services().barrier();        
+        dc.services().full_barrier();   
         
         if(dc.procid() == 0) 
           std::cout << "Finished." << std::endl;
