@@ -188,6 +188,18 @@ struct atom_file_desc_extra {
   edge_id_t ninedges;
   atom_file_desc_extra() : 
     nlocalverts(0), ninedges(0) { }
+    
+  void save(oarchive &oarc) const{
+    oarc << desc
+         << nlocalverts
+         << ninedges;
+  }
+  
+  void load(iarchive &iarc) {
+    iarc >> desc
+         >> nlocalverts
+         >> ninedges;
+  }
 };
 
 

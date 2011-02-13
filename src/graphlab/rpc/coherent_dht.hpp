@@ -9,7 +9,7 @@
 #define COHERENT_DHT_HPP
 #include <boost/unordered_map.hpp>
 #include <boost/intrusive/list.hpp>
-
+#include <boost/function.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/dense_bitset.hpp>
@@ -93,6 +93,46 @@ class coherent_dht{
     cache.clear();
   }
   
+  /**
+  Attaches a modification trigger which is signalled whenever
+  the local cache/storage of any index is updated or invalidated.
+  Only one modification trigger can be attached.
+  The trigger is only signalled after the update/invalidation 
+  is complete.
+  The call is (key, is_in_cache)
+  */
+  void attach_modification_trigger(boost::function<void(const KeyType&, bool)> trigger) {
+    ASSERT_FALSE(has_mod_trigger);
+    has_mod_trigger = true;
+    modification_trigger = trigger;
+  }
+  
+  void detach_modification_trigger() {
+    has_mod_trigger = false;
+  }
+  
+  // acquire a lock on the key.
+  ValueType& begin_critical_section(const KeyType &key) {
+    ASSERT_EQ(owning_machine(key), rpc.procid());
+    // get the compressed hash
+    size_t hashvalue = hasher(key);
+    size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+    // acquire the fine grained lock
+    finegrained_lock[compressedhash].lock();
+    typename map_type::iterator iter = data.find(key);
+    assert(iter != data.end());
+    return iter->second;
+  }
+  
+  // TODO: this is very coase-grained locking
+  void end_critical_section(const KeyType &key) {
+    ASSERT_EQ(owning_machine(key), rpc.procid());
+    // get the compressed hash
+    size_t hashvalue = hasher(key);
+    size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+    // release the fine grained lock
+    finegrained_lock[compressedhash].unlock();
+  }  
   
    /** Sets the key to the value
     * if the key belongs to a remote machine.
@@ -108,15 +148,22 @@ class coherent_dht{
       // use the full lock to get the iterator
       datalock.lock();
       typename map_type::iterator iter = data.find(key);
+      // if the key does not exist, create the key.
       if (iter == data.end()) {
+        finegrained_lock[compressedhash].lock();
         data[key] = newval;
+        finegrained_lock[compressedhash].unlock();
+        datalock.unlock();
       }
-      datalock.unlock();
-      // switch to finegrained lock
-      finegrained_lock[compressedhash].lock();
-      if (iter != data.end()) iter->second = newval;
-      update_cache_coherency_set(compressedhash, key, newval);
-      finegrained_lock[compressedhash].unlock();
+      else {
+        // the key exists! switch to the fine grained lock and set the 
+        // value
+        datalock.unlock();
+        finegrained_lock[compressedhash].lock();
+        iter->second = newval;
+        finegrained_lock[compressedhash].unlock();
+      }
+      push_changes(key, true);
     }
     else {
       rpc.remote_call(owningmachine, 
@@ -140,15 +187,22 @@ class coherent_dht{
       // use the full lock to get the iterator
       datalock.lock();
       typename map_type::iterator iter = data.find(key);
+      // if the key does not exist, create the key.
       if (iter == data.end()) {
+        finegrained_lock[compressedhash].lock();
         data[key] = newval;
+        finegrained_lock[compressedhash].unlock();
+        datalock.unlock();
       }
-      datalock.unlock();
-      // switch to finegrained lock
-      finegrained_lock[compressedhash].lock();
-      if (iter != data.end()) iter->second = newval;
-      update_cache_coherency_set_synchronous(compressedhash, key, newval);
-      finegrained_lock[compressedhash].unlock();
+      else {
+        // the key exists! switch to the fine grained lock and set the 
+        // value
+        datalock.unlock();
+        finegrained_lock[compressedhash].lock();
+        iter->second = newval;
+        finegrained_lock[compressedhash].unlock();
+      }
+      push_changes(key, false);
     }
     else {
       rpc.remote_request(owningmachine, 
@@ -158,6 +212,45 @@ class coherent_dht{
       update_cache(key, newval);
     }
   }
+  
+  /**
+  Push the current value of the key to all machines
+  */
+  void push_changes(const KeyType& key, bool async = false) {
+    size_t hashvalue = hasher(key);
+    size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+    size_t owningmachine = hashvalue % rpc.dc().numprocs();
+
+    if (owningmachine == rpc.procid()) {
+      // local modification trigger,
+      if (has_mod_trigger) modification_trigger(key, true);
+      // switch to finegrained lock
+      finegrained_lock[compressedhash].lock();
+      typename map_type::iterator iter = data.find(key);
+      assert(iter != data.end());
+      if (async) {
+        update_cache_coherency_set(compressedhash, key, iter->second);  
+      }
+      else {
+        update_cache_coherency_set_synchronous(compressedhash, key, iter->second);
+      }
+      finegrained_lock[compressedhash].unlock();
+    }    
+    else {
+      if (async) {
+        rpc.remote_call(owningmachine,
+                        &coherent_dht<KeyType, ValueType>::push_changes,
+                        key,
+                        async);
+      }
+      else {
+        rpc.remote_request(owningmachine,
+                          &coherent_dht<KeyType, ValueType>::push_changes,
+                          key,
+                          async);
+      }
+    }
+  }
 
   /** Gets the value associated with the key. returns true on success.
    *  get will read from the cache if data is already available in the cache.
@@ -165,8 +258,7 @@ class coherent_dht{
    */
   std::pair<bool, ValueType> get(const KeyType &key) const {
     // if this is to my current machine, just get it and don't go to cache
-    size_t hashvalue = hasher(key);
-    size_t owningmachine = hashvalue % rpc.dc().numprocs();
+    procid_t owningmachine = owning_machine(key);
     if (owningmachine == rpc.dc().procid()) return get_non_cached(key);
       
     reqs++;
@@ -192,7 +284,38 @@ class coherent_dht{
       return ret;
     }
   }
-    
+
+  procid_t owning_machine(const KeyType &key) const {
+    size_t hashvalue = hasher(key);
+    size_t owningmachine = hashvalue % rpc.dc().numprocs();
+    return owningmachine;
+  }
+   
+  bool in_cache(const KeyType &key) const {
+    // if this is to my current machine, just get it and don't go to cache
+    procid_t owningmachine = owning_machine(key);
+    if (owningmachine == rpc.dc().procid()) return true;
+    cachelock.lock();
+    // check if it is in the cache
+    typename cache_type::iterator i = cache.find(key);
+    if (i != cache.end()) {
+      cachelock.unlock();
+      return true;
+    }
+    cachelock.unlock();
+    return false;
+  }
+   
+  bool asynchronous_get(const KeyType &key) const {
+    if (in_cache(key)) return true;
+
+    procid_t owningmachine = owning_machine(key);
+    rpc.remote_call(owningmachine,
+                   &coherent_dht<KeyType,ValueType>::asychronous_get_handler,
+                   key,
+                   rpc.procid());
+    return false;
+  }
 
   double cache_miss_rate() {
     return double(misses) / double(reqs);
@@ -209,19 +332,51 @@ class coherent_dht{
     return cache.size();
   }
   
-  void subscribe(const KeyType &key) const{
-    size_t hashvalue = hasher(key);
-    size_t owningmachine = hashvalue % rpc.dc().numprocs();
+  void subscribe(const KeyType &key, bool async = false) const{
+    procid_t owningmachine = owning_machine(key);
     // do not subscribe if this is my machine
     if (owningmachine == rpc.dc().procid()) return;
-    rpc.remote_call(owningmachine,
-                &coherent_dht<KeyType,ValueType>::register_subscription, 
-                key,
-                rpc.dc().procid());
+    if (async) {
+      rpc.remote_call(owningmachine,
+                  &coherent_dht<KeyType,ValueType>::register_subscription, 
+                  key,
+                  rpc.dc().procid());
+    }
+    else {
+      rpc.remote_request(owningmachine,
+                  &coherent_dht<KeyType,ValueType>::register_subscription_synchronous, 
+                  key,
+                  rpc.dc().procid());
+    }
   }
 
   void full_barrier() {
     rpc.full_barrier();
+  }
+  
+  /// Invalidates the cache entry associated with this key
+  void invalidate(const KeyType &key) const{
+    bool haschanges = false;
+    bool isincache = false;
+    cachelock.lock();
+    // is the key I am invalidating in the cache?
+    typename cache_type::iterator i = cache.find(key);
+    if (i != cache.end()) {
+      // drop it from the lru list
+      // if it is frequently accessed, don't invalidate it but subscribe.
+      if (i->second->accesses >= COHERENT_DHT_SUBSCRIBE_IF_ACCESSES_PER_INVALIDATE) {
+        subscribe(key, false);
+        isincache = true;
+        haschanges = true;
+      }
+      else {
+        delete i->second;
+        haschanges = true;
+        cache.erase(i);
+      }
+    }
+    cachelock.unlock();
+    if (haschanges && has_mod_trigger) modification_trigger(key, isincache);
   }
  private:
 
@@ -252,6 +407,8 @@ class coherent_dht{
 
   boost::hash<KeyType> hasher;
   
+  bool has_mod_trigger;
+  boost::function<void(const KeyType&, bool)> modification_trigger;
 
   /** Updates the internal cache with this new value. The cache
    * entry is also moved to the head of the LRU list
@@ -280,6 +437,7 @@ class coherent_dht{
         lruage.push_front(*(i->second));
     }
     cachelock.unlock();
+     if (has_mod_trigger) modification_trigger(key, true);
   }
 
   
@@ -300,33 +458,14 @@ class coherent_dht{
 
 
 
-  /// Invalidates the cache entry associated with this key
-  void invalidate(const KeyType &key) const{
-    cachelock.lock();
-    // is the key I am invalidating in the cache?
-    typename cache_type::iterator i = cache.find(key);
-    if (i != cache.end()) {
-      // drop it from the lru list
-      // if it is frequently accessed, don't invalidate it but subscribe.
-      if (i->second->accesses >= COHERENT_DHT_SUBSCRIBE_IF_ACCESSES_PER_INVALIDATE) {
-        subscribe(key);
-      }
-      else {
-        delete i->second;
-        cache.erase(i);
-      }
-    }
-    cachelock.unlock();
-  }
+
   
   /**
    * Gets the true value of this key
    */
   std::pair<bool, ValueType> get_non_cached(const KeyType &key) const {
     // figure out who owns the key
-    size_t hashvalue = hasher(key);
-    size_t owningmachine = hashvalue % rpc.dc().numprocs();
-    
+    procid_t owningmachine = owning_machine(key);    
     std::pair<bool, ValueType> ret;
     // if I own the key, get it from the map table
     if (owningmachine == rpc.dc().procid()) {
@@ -378,15 +517,19 @@ class coherent_dht{
   void invalidate_reply(const KeyType &key, 
                         procid_t source, size_t reply) const {
     invalidate(key);
-    rpc.dc().remote_call(source, reply_increment_counter,
-                          reply, dc_impl::blob());
+    if (source != procid_t(-1)) {
+      rpc.dc().remote_call(source, reply_increment_counter,
+                            reply, dc_impl::blob());
+    }
   }
 
   void update_cache_reply(const KeyType &key, const ValueType &value, 
                           procid_t source, size_t reply) const {
     update_cache(key, value);
-    rpc.dc().remote_call(source, reply_increment_counter,
-                          reply, dc_impl::blob());
+    if (source != procid_t(-1)) {
+      rpc.dc().remote_call(source, reply_increment_counter,
+                            reply, dc_impl::blob());
+    }
   }
 
   void update_cache_coherency_set_synchronous(size_t compressedhash, 
@@ -412,6 +555,17 @@ class coherent_dht{
     repret.wait();
   }
   
+  void asychronous_get_handler(const KeyType &key, procid_t source) {
+    std::pair<bool, ValueType> ret = get_non_cached(key);
+    if (ret.first) {
+      rpc.remote_call(source,
+                      &coherent_dht<KeyType, ValueType>::update_cache_reply,
+                      key, ret.second,
+                      procid_t(-1),
+                      0);
+    }
+  }
+  
   /**
    * Subscribes the source machine to this key.
    * Naturally this key must exist.
@@ -427,6 +581,23 @@ class coherent_dht{
     rpc.remote_call(source, 
                     &coherent_dht<KeyType,ValueType>::update_cache, 
                     key, val.second);
+  }
+  
+    /**
+   * Subscribes the source machine to this key.
+   * Naturally this key must exist.
+   * We send an update to the source machine upon subscription
+   */
+  void register_subscription_synchronous(const KeyType &key, procid_t source) {
+    size_t hashvalue = hasher(key);
+    size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+    subscription[compressedhash].set_bit(source);
+    
+    std::pair<bool, ValueType> val = get_non_cached(key);
+    ASSERT_TRUE(val.first);
+    rpc.remote_request(source, 
+                        &coherent_dht<KeyType,ValueType>::update_cache, 
+                        key, val.second);
   }
 };
 

@@ -1,7 +1,8 @@
+#include <graphlab/rpc/dc_dist_object.hpp>
 #ifndef GRAPHLAB_DC_SERVICES_HPP
 #define GRAPHLAB_DC_SERVICES_HPP
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/rpc/dc_dist_object.hpp>
+
 
 
 #include <graphlab/macros_def.hpp>

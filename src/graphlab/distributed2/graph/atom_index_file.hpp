@@ -15,7 +15,23 @@ namespace graphlab {
     edge_id_t nedges;
     std::vector<vertex_id_t> adjatoms;
     std::vector<vertex_id_t> optional_weight_to_adjatoms;
-
+    void save(oarchive &oarc) const{
+      oarc << protocol
+           << file
+           << nverts
+           << nedges
+           << adjatoms
+           << optional_weight_to_adjatoms;
+    }
+    
+    void load(iarchive &iarc) {
+      iarc >> protocol
+           >> file
+           >> nverts
+           >> nedges
+           >> adjatoms
+           >> optional_weight_to_adjatoms;
+    }
   };
 
   struct atom_index_file {

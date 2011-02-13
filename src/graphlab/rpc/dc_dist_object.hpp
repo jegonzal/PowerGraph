@@ -1,10 +1,11 @@
+#include <graphlab/rpc/dc.hpp>
+
 #ifndef DC_DIST_OBJECT_HPP
 #define DC_DIST_OBJECT_HPP
 #include <vector>
 #include <string>
 #include <set>
 #include <graphlab/parallel/atomic.hpp>
-#include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_dist_object_base.hpp>
 #include <graphlab/rpc/object_request_issue.hpp>

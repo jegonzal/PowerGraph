@@ -109,7 +109,9 @@ if(MPI_FOUND)
 
 add_library(graphlab_dist2 STATIC
     distributed2/graph/partitioning/raw_fragment.cpp      
-    distributed2/graph/atom_index_file.cpp)
+    distributed2/graph/atom_index_file.cpp
+    distributed2/distributed_glshared.cpp
+    distributed2/distributed_glshared_manager.cpp)
 
 
 
