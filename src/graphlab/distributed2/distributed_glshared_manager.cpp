@@ -12,6 +12,8 @@ distributed_glshared_manager::distributed_glshared_manager(distributed_control &
   dht.attach_modification_trigger(boost::bind(&distributed_glshared_manager::invalidate,
                                               this, _1, _2));
   for (size_t i = 0; i < glsharedobjs.size(); ++i) {
+    logstream(LOG_INFO) << "registered entry " << i << " with type " 
+                        << glsharedobjs[i]->type_name() << std::endl;
     glsharedobjs[i]->manager = this;
     glsharedobjs[i]->id = i;
     objrevmap[glsharedobjs[i]] = i;
@@ -49,6 +51,7 @@ std::string distributed_glshared_manager::exchange(size_t entry,
 }
 
 void distributed_glshared_manager::invalidate(size_t entry, bool incache) {
+//  logstream(LOG_DEBUG) << rmi.procid() << ": " << "invalidate of " << entry << std::endl;
   if (incache) {
     read_synchronize(entry, false);
   }
@@ -63,6 +66,7 @@ Synchronize variable with index i.
 Call
 */
 void distributed_glshared_manager::write_synchronize(size_t entry, bool async) {
+//  logstream(LOG_DEBUG) << rmi.procid() << ": " << "write synchronize on " << entry << " async = " << async << std::endl;
   std::stringstream strm;
   oarchive oarc(strm);
   glsharedobjs[entry]->save(oarc);
@@ -83,6 +87,7 @@ void distributed_glshared_manager::write_synchronize(distributed_glshared_base* 
 
 void distributed_glshared_manager::read_synchronize(size_t entry, 
                                                     bool async) {
+//  logstream(LOG_DEBUG) << rmi.procid() << ": " << "read synchronize on " << entry << " async = " << async << std::endl;
   if (async) {
     bool ret = dht.asynchronous_get(entry);
     if (ret == false) return;

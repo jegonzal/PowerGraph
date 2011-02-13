@@ -4,6 +4,7 @@
 #include <boost/shared_ptr.hpp>
 #include <graphlab/shared_data/glshared.hpp>
 #include <graphlab/util/generics/any.hpp>
+#include <graphlab/parallel/atomic.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 namespace graphlab {
 
@@ -30,9 +31,9 @@ namespace distgl_impl {
 */
 class distributed_glshared_base {
  protected:
-  distributed_glshared_manager* manager;
+  mutable distributed_glshared_manager* manager;
   size_t id;
-  bool invalidated;
+  mutable bool invalidated;
   
   friend class distributed_glshared_manager;
 
@@ -47,6 +48,7 @@ class distributed_glshared_base {
   
   virtual void save(oarchive &oarc) const = 0;
   virtual void load(iarchive &iarc) = 0;
+  virtual const char* type_name() const = 0;
 };
 
 
@@ -91,7 +93,7 @@ private:
   /**
     check if the backend storage has been modified
   */
-  void check_invalidation(bool async = false);
+  void check_invalidation(bool async = false) const;
   
   void issue_modification(bool async = false);
 public:
@@ -108,7 +110,7 @@ public:
 
   /// Returns a copy of the data
   inline T get_val() const{
-    check_invalidation(true);
+    check_invalidation(false);
     return *(*(head));
   }
 
@@ -145,7 +147,7 @@ public:
    *
    */
   inline const_ptr_type get_ptr() const{
-    check_invalidation(true);
+    check_invalidation(false);
     return boost::const_pointer_cast<const T, T>(*head);
   }
 
@@ -201,7 +203,10 @@ public:
     set_lock.lock();
     iarc >> *(*head);
     set_lock.unlock();
-
+  }
+  
+  const char* type_name() const {
+    return typeid(T).name();
   }
 };
 
@@ -214,10 +219,10 @@ public:
 
 namespace graphlab {
 template <typename T>
-void distributed_glshared<T>::check_invalidation(bool async) {
+void distributed_glshared<T>::check_invalidation(bool async) const{
   if (manager) {
     if (atomic_compare_and_swap(invalidated, true, false)) {
-      manager->read_synchronize(async);
+      manager->read_synchronize(id, async);
     }
   }
 }
@@ -245,6 +250,7 @@ void distributed_glshared<T>::exchange(T& t) {
     wait_for_buffer_release();
     T retval = get_val();
     *(*buffer) = t;
+    t = retval;
     exchange_buffer_and_head();
     set_lock.unlock();
   }

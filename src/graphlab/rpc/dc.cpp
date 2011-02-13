@@ -286,7 +286,7 @@ namespace dc_impl {
     // so we can find the first time it crosses
     // the send counter, and avoid multiple releases
     size_t prevval = dc.all_recv_count.inc_ret_last(r);
-    if (prevval < dc.all_send_count && prevval + r >= dc.all_send_count) {
+    if (prevval <= dc.all_send_count && prevval + r >= dc.all_send_count) {
       // release myself
       release_full_barrier(dc, proc, dc.full_barrier_curid);
       // release everyone
@@ -331,10 +331,17 @@ void distributed_control::full_barrier() {
   // ok. now we basically keep recomunicating with
   // node 0 the number of calls we have received so far
   // until node 0 releases the barrier
+  
   full_barrier_lock.lock();
   full_barrier_in_effect = true;
   size_t last_communicated_recv_count = 0;
   
+  // release now if all send count == 0
+  if (procid() == 0 && all_send_count == 0) {  
+    full_barrier_lock.unlock();
+    dc_impl::full_barrier_add_to_recv(*this, 0, full_barrier_curid, 0);
+    full_barrier_lock.lock();
+  }
   
   while(full_barrier_released == false) {
     while (calls_received() != last_communicated_recv_count) {

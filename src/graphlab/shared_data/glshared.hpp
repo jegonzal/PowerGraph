@@ -210,6 +210,7 @@ namespace graphlab {
       wait_for_buffer_release();
       T retval = get_val();
       *(*buffer) = t;
+      t = retval;
       exchange_buffer_and_head();
       set_lock.unlock();
     }

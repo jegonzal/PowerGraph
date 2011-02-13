@@ -705,7 +705,7 @@ private:
     // so we can find the first time it crosses
     // the send counter, and avoid multiple releases
     size_t prevval = all_recv_count.inc_ret_last(r);
-    if (prevval < all_send_count && prevval + r >= all_send_count) {
+    if (prevval <= all_send_count && prevval + r >= all_send_count) {
       // release myself
       release_full_barrier(full_barrier_curid);
       // release everyone
@@ -753,7 +753,13 @@ private:
     full_barrier_lock.lock();
     full_barrier_in_effect = true;
     size_t last_communicated_recv_count = 0;
-    
+
+    if (procid() == 0 && all_send_count == 0) {  
+      full_barrier_lock.unlock();
+      full_barrier_add_to_recv(full_barrier_curid, 0);
+      full_barrier_lock.lock();
+    }
+
     
     while(full_barrier_released == false) {
       while (calls_received() != last_communicated_recv_count) {
