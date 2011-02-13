@@ -182,7 +182,7 @@ namespace graphlab {
       while(s.good()) {
         getline(s, opt, '=');
         if (s.bad() || s.eof()) break;
-        getline(s, value);
+        getline(s, value, ' ');
         if (s.bad()) break;
         add_option_str(trim(opt), trim(value));
       }
