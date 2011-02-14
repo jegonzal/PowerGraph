@@ -20,8 +20,57 @@ namespace dc_impl{
 
 
 /**
-This is the dispatch function for the an object member function call.
-This only does non-intrusive calls.
+This is the dispatch function for the an object request.
+This is similar to the standard request dispatcher, except that the object
+needs to be located using the object id.
+
+template<typename DcType,
+        typename T, 
+        typename F , 
+        typename T0> 
+        void OBJECT_NONINTRUSIVE_REQUESTDISPATCH1 (DcType& dc, 
+                                                    procid_t source, 
+                                                    unsigned char packet_type_mask, 
+                                                    std::istream &strm)
+{
+    iarchive iarc(strm);
+    F f;
+    deserialize(iarc, (char*)(&f), sizeof(F));
+    size_t objid;
+    iarc >> objid;
+    T* obj = reinterpret_cast<T*>(dc.get_registered_object(objid));
+    size_t id;
+    iarc >> id;
+    T0 (f0) ;
+    iarc >> (f0) ;
+    typename function_ret_type<
+          typename boost::remove_const<
+          typename boost::remove_reference<
+          typename boost::function<
+          typename boost::remove_member_pointer<F>::type>::result_type>
+          ::type>::type>::type  
+             ret = mem_function_ret_type<typename boost::remove_const<
+                            typename boost::remove_reference<
+                            typename boost::function<
+                            typename boost::remove_member_pointer<F>::type>::result_type>
+                            ::type>::type>::fcall1 (f, obj , (f0));
+    charstring_free(f0);
+    boost::iostreams::stream<resizing_array_sink> retstrm(128);
+    oarchive oarc(retstrm);
+    oarc << ret;
+    retstrm.flush();
+    if (packet_type_mask & CONTROL_PACKET)
+    {
+        dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+    }
+    else
+    {
+        dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+    } if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received();
+}
+
+
+
 */
 #define GENFN(N) BOOST_PP_CAT(NIF, N)
 #define GENFN2(N) BOOST_PP_CAT(f, N)

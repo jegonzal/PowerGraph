@@ -22,8 +22,9 @@ namespace dc_impl {
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  Essentially each "send call" here must end up being paired with a 
-  corresponding "receive call" on the receiver end.
+  This class performs buffered transmissions.
+  That is, sends are relegated to an internal buffer, which is then
+  passed to the communication classes on another thread.
 */
 
 class dc_buffered_stream_send: public dc_send{

@@ -23,7 +23,7 @@ type to use.
 
 If the return type is void, the find_dispatcher is partially specialized,
 and will instantiate a PORTABLE_DISPATCH function, which will be returned in the operator()
-of the fund_dispatch class.
+of the find_dispatch class.
 
 Otherwise, it instantiates a PORTABLE_REQUESTDISPATCH function which sends back the 
 return value of the function.

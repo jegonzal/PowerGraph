@@ -43,9 +43,13 @@ class coherent_lru_list{
 } // namespace dc_impl
 
 /**
-This implements a processor coherent cache coherent distributed hash table.
-Each machine has a part of the hash table as well as a cache.
-See the get(), set() operations for details.
+This implements a processor consistent cache coherent distributed hash table.
+Each machine has a part of the hash table as well as a cache. The system
+implements automatic cache invalidation as well as automatic cache subscription
+(currently through a rather poor heuristic). 
+This class also implements some functionality which provide more fine-grained 
+control over the invalidation policy, allowing stronger consistency levels to
+be implemented on top of this class.
 */
 template<typename KeyType, typename ValueType>
 class coherent_dht{
@@ -99,19 +103,35 @@ class coherent_dht{
   Only one modification trigger can be attached.
   The trigger is only signalled after the update/invalidation 
   is complete.
-  The call is (key, is_in_cache)
+  The trigger is called with three parameters, the key, the value as well
+  as a boolean flag "is_in_cache". 
+  
+  The "key" is the key of the entry which was just updated/invalidated.
+  The "value" is the current value of the entry. This is only set if is_in_cache is true
+  Note that the call to the trigger is not locked
+  and the "is_in_cache" flag could very well be outdated when the call is issued.
+  The flag should therefore not be treated as "truth" but simply as a hint
+  about the state of the internal cache.
+
   */
-  void attach_modification_trigger(boost::function<void(const KeyType&, bool)> trigger) {
+  void attach_modification_trigger(boost::function<void(const KeyType&, const ValueType&, bool)> trigger) {
     ASSERT_FALSE(has_mod_trigger);
     has_mod_trigger = true;
     modification_trigger = trigger;
   }
   
+  /**
+  Detaches the modification trigger
+  */
   void detach_modification_trigger() {
     has_mod_trigger = false;
   }
   
-  // acquire a lock on the key.
+  /** acquire a lock on the key.
+  The lock should be released using end_critical_section() as 
+  soon as possible. There is no guarantee that the lock on this key
+  is fine-grained.
+  */
   ValueType& begin_critical_section(const KeyType &key) {
     ASSERT_EQ(owning_machine(key), rpc.procid());
     // get the compressed hash
@@ -124,7 +144,9 @@ class coherent_dht{
     return iter->second;
   }
   
-  // TODO: this is very coase-grained locking
+  /**
+    Releases a lock on the key as a acquired by begin_critical_section()
+  */
   void end_critical_section(const KeyType &key) {
     ASSERT_EQ(owning_machine(key), rpc.procid());
     // get the compressed hash
@@ -214,7 +236,9 @@ class coherent_dht{
   }
   
   /**
-  Push the current value of the key to all machines
+  Push the current value of the key to all machines.
+  If async=true, when this call returns, all machines are guaranteed to have
+  the most up to date value of the key.
   */
   void push_changes(const KeyType& key, bool async = false) {
     size_t hashvalue = hasher(key);
@@ -222,11 +246,21 @@ class coherent_dht{
     size_t owningmachine = hashvalue % rpc.dc().numprocs();
 
     if (owningmachine == rpc.procid()) {
+      // get a copy of the data to call the modification trigger with
       // local modification trigger,
-      if (has_mod_trigger) modification_trigger(key, true);
+      if (has_mod_trigger) {
+        finegrained_lock[compressedhash].lock();
+        typename map_type::const_iterator iter = data.find(key);
+        assert(iter != data.end());
+        ValueType v = iter->second;
+        finegrained_lock[compressedhash].unlock();
+
+        modification_trigger(key,v, true);
+      }
       // switch to finegrained lock
       finegrained_lock[compressedhash].lock();
       typename map_type::iterator iter = data.find(key);
+      finegrained_lock[compressedhash].unlock();
       assert(iter != data.end());
       if (async) {
         update_cache_coherency_set(compressedhash, key, iter->second);  
@@ -234,9 +268,9 @@ class coherent_dht{
       else {
         update_cache_coherency_set_synchronous(compressedhash, key, iter->second);
       }
-      finegrained_lock[compressedhash].unlock();
     }    
     else {
+      // key is not on this machine. Get the owning machine to do it
       if (async) {
         rpc.remote_call(owningmachine,
                         &coherent_dht<KeyType, ValueType>::push_changes,
@@ -285,12 +319,18 @@ class coherent_dht{
     }
   }
 
+  /**
+    Returns the machine responsible for storing the key
+  */
   procid_t owning_machine(const KeyType &key) const {
     size_t hashvalue = hasher(key);
     size_t owningmachine = hashvalue % rpc.dc().numprocs();
     return owningmachine;
   }
    
+  /**
+  Returns true of the key is current in the cache
+  */
   bool in_cache(const KeyType &key) const {
     // if this is to my current machine, just get it and don't go to cache
     procid_t owningmachine = owning_machine(key);
@@ -306,6 +346,9 @@ class coherent_dht{
     return false;
   }
    
+  /**
+    Puts out a prefetch request for this key.
+  */
   bool asynchronous_get(const KeyType &key) const {
     if (in_cache(key)) return true;
 
@@ -332,6 +375,11 @@ class coherent_dht{
     return cache.size();
   }
   
+  /**
+  Subscribes to this key. This key will be a permanent entry
+  in the cache and can not be invalidated. Key modifications
+  are automatically sent to this machine.
+  */
   void subscribe(const KeyType &key, bool async = false) const{
     procid_t owningmachine = owning_machine(key);
     // do not subscribe if this is my machine
@@ -366,6 +414,7 @@ class coherent_dht{
       // if it is frequently accessed, don't invalidate it but subscribe.
       if (i->second->accesses >= COHERENT_DHT_SUBSCRIBE_IF_ACCESSES_PER_INVALIDATE) {
         subscribe(key, false);
+        
         isincache = true;
         haschanges = true;
       }
@@ -376,7 +425,24 @@ class coherent_dht{
       }
     }
     cachelock.unlock();
-    if (haschanges && has_mod_trigger) modification_trigger(key, isincache);
+    if (haschanges && has_mod_trigger) {
+      if (isincache == false) {
+        modification_trigger(key, ValueType(), isincache);
+      }
+      else {
+      
+        size_t hashvalue = hasher(key);
+        size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+
+        finegrained_lock[compressedhash].lock();
+        typename map_type::const_iterator iter = data.find(key);
+        assert(iter != data.end());
+        ValueType v = iter->second;
+        finegrained_lock[compressedhash].unlock();
+        
+        modification_trigger(key, v, isincache);
+      }
+    }
   }
  private:
 
@@ -408,7 +474,7 @@ class coherent_dht{
   boost::hash<KeyType> hasher;
   
   bool has_mod_trigger;
-  boost::function<void(const KeyType&, bool)> modification_trigger;
+  boost::function<void(const KeyType&, const ValueType&,  bool)> modification_trigger;
 
   /** Updates the internal cache with this new value. The cache
    * entry is also moved to the head of the LRU list
@@ -437,7 +503,7 @@ class coherent_dht{
         lruage.push_front(*(i->second));
     }
     cachelock.unlock();
-     if (has_mod_trigger) modification_trigger(key, true);
+     if (has_mod_trigger) modification_trigger(key,val, true);
   }
 
   

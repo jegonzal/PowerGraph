@@ -27,20 +27,30 @@ and call the function f with it. This code dispatches to the "intrusive"
 form of a function call (that is the function call must take a distributed_control
 and a "procid_t source" as its first 2 arguments.
 
-For instance, the 1 argument of this will be DISPATCH1:
+For instance, the 1 argument version of this is DISPATCH1:
 
-template<typename DcType, typename F, typename T1> 
-void DISPATCH1(DcType& dc, procid_t source, std::istream &strm) { 
-  iarchive iarc(strm); 
-  size_t s; iarc >> s; F f = reinterpret_cast<F>(s); 
-  F1 f1; iarc >> f1;
-  f(dc, source, f1);
-  charstring_free(f1);
-} 
+template<typename DcType, 
+        typename F , 
+        typename T0> void DISPATCH1 (DcType& dc, 
+                                     procid_t source, 
+                                     unsigned char packet_type_mask, 
+                                     std::istream &strm)
+{
+    iarchive iarc(strm);
+    size_t s;
+    iarc >> s;
+    F f = reinterpret_cast<F>(s);
+    T0 (f0) ;
+    iarc >> (f0) ;
+    f(dc, source , (f0) );
+    charstring_free(f0);
+}
+
 
 charstring_free is a special template function which calls free(f1)
 only if f1 is a character array (char*)
 
+And similarly, the non-intrusive dispatch a little below
 
 Note that the template around DcType is *deliberate*. This prevents this
 function from instantiating the distributed_control until as late as possible, 
@@ -80,14 +90,22 @@ dispatcher. That is, the target function does not need to take
 "distributed_control &dc, procid_t source" as its first 2 arguments.
 
 
-template<typename DcType, typename F, typename T1> 
-void NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, std::istream &strm) { 
-  iarchive iarc(strm); 
-  size_t s; iarc >> s; F f = reinterpret_cast<F>(s); 
-  F1 f1; iarc >> f1;
-  f(f1);
-  charstring_free(f1);
-} 
+template<typename DcType, 
+        typename F , 
+        typename T0> void NONINTRUSIVE_DISPATCH1 (DcType& dc, 
+                                                procid_t source, 
+                                                unsigned char packet_type_mask, 
+                                                std::istream &strm)
+{
+    iarchive iarc(strm);
+    size_t s;
+    iarc >> s;
+    F f = reinterpret_cast<F>(s);
+    T0 (f0) ;
+    iarc >> (f0) ;
+    f( (f0) );
+    charstring_free(f0);
+}
 
 */
 

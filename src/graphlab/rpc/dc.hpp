@@ -183,6 +183,19 @@ class distributed_control{
   
   /**
   This generates the interface functions for the standard calls, basic calls, and fast calls
+  The generated code looks like this:
+  
+  template<typename F , typename T0> void remote_call (procid_t target, F remote_function , const T0 &i0 )
+  {
+    ASSERT_LT(target, senders.size());
+    dc_impl::remote_call_issue1 <F , T0> ::exec(senders[target], 
+                                                STANDARD_CALL, 
+                                                target, 
+                                                remote_function , 
+                                                i0 );                                
+  }
+  The arguments passed to the RPC_INTERFACE_GENERATOR ARE: (interface name, issue processor name, flags)
+
   */
   #define GENARGS(Z,N,_)  BOOST_PP_CAT(const T, N) BOOST_PP_CAT(&i, N)
   #define GENI(Z,N,_) BOOST_PP_CAT(i, N)

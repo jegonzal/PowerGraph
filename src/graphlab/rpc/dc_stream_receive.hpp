@@ -18,7 +18,6 @@ namespace dc_impl {
   The job of the receiver is to take as input a byte stream
   (as received from the socket) and cut it up into meaningful chunks.
   This can be thought of as a receiving end of a multiplexor.
-  This class must also provide the barrier functionaility
 */
 class dc_stream_receive: public dc_receive{
  public:

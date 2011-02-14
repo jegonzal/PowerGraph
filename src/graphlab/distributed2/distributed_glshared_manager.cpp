@@ -10,7 +10,7 @@ distributed_glshared_manager::distributed_glshared_manager(distributed_control &
                   glsharedobjs(distgl_impl::get_global_dist_glshared_registry()),
                   dht(dc){
   dht.attach_modification_trigger(boost::bind(&distributed_glshared_manager::invalidate,
-                                              this, _1, _2));
+                                              this, _1, _2, _3));
   for (size_t i = 0; i < glsharedobjs.size(); ++i) {
     logstream(LOG_INFO) << "registered entry " << i << " with type " 
                         << glsharedobjs[i]->type_name() << std::endl;
@@ -50,10 +50,13 @@ std::string distributed_glshared_manager::exchange(size_t entry,
   return ret;
 }
 
-void distributed_glshared_manager::invalidate(size_t entry, bool incache) {
+void distributed_glshared_manager::invalidate(size_t entry, const std::string &value, bool incache) {
 //  logstream(LOG_DEBUG) << rmi.procid() << ": " << "invalidate of " << entry << std::endl;
   if (incache) {
-    read_synchronize(entry, false);
+//    read_synchronize(entry, false);
+    std::stringstream strm(value);
+    iarchive iarc(strm);
+    glsharedobjs[entry]->load(iarc);
   }
   else {
     glsharedobjs[entry]->invalidated = true;

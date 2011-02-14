@@ -30,6 +30,66 @@ the function call, it will issue an RPC to the function reply_increment_counter 
 The reply_increment_counter function  store the serialized return value in the reply_ret_type, as well
 as perform an atomic increment on the reply_ret_type.
 
+Here is an example of the marshall code for 1 argument
+
+namespace request_issue_detail
+{
+    template <typename BoolType, typename F , typename T0> struct dispatch_selector1
+    {
+        static dispatch_type dispatchfn()
+        {
+            return dc_impl::NONINTRUSIVE_REQUESTDISPATCH1<distributed_control,F , T0 >;
+        }
+    };
+    template <typename F , typename T0> struct dispatch_selector1<boost::mpl::bool_<true>, F , T0>
+    {
+        static dispatch_type dispatchfn()
+        {
+            return dc_impl::REQUESTDISPATCH1<distributed_control,F , T0 >;
+        }
+    };
+}
+
+
+template<typename F , typename T0> class remote_request_issue1
+{
+    public: static typename function_ret_type<
+                  typename boost::remove_const<
+                  typename boost::remove_reference<
+                  typename boost::function<
+                  typename boost::remove_pointer<F>::type>::result_type>
+                  ::type>::type>::type 
+      exec(dc_send* sender, size_t flags, procid_t target, F remote_function , const T0 &i0 )
+    {
+        boost::iostreams::stream<resizing_array_sink> strm(128);
+        oarchive arc(strm);
+        reply_ret_type reply(1);
+        dispatch_type d = request_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
+        arc << reinterpret_cast<size_t>(d);
+        arc << reinterpret_cast<size_t>(remote_function);
+        arc << reinterpret_cast<size_t>(&reply);
+        arc << i0;
+        strm.flush();
+        sender->send_data(target, flags, strm->str, strm->len);
+        reply.wait();
+        boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);
+        iarchive iarc(retstrm);
+        typename function_ret_type<
+              typename boost::remove_const<
+              typename boost::remove_reference<
+              typename boost::function<
+              typename boost::remove_pointer<F>::type>::result_type>
+              ::type>::type>::type result;
+        iarc >> result;
+        reply.val.free();
+        return result;
+    }
+};
+
+
+
+
+
 If the pointer to the dispatcher function is NULL, the next argument
 will contain the name of the function. This is a "portable" call.
 \see portable_issue.hpp

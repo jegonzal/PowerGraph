@@ -29,11 +29,15 @@ must construct the distributed objects in the same order. And, no
 distributed object calls should be make until it is guaranteed that
 all machines have constructed their respective distributed objects.
 
-This class also acts as a single "xontext" spanning multiple machines.
+This class also acts as a single "context" spanning multiple machines.
 For instance, the barrier implemented here is fully localized to within 
 a particular instance of this object. That is, multiple instances of the object
 can issue multiple independent barriers.
 The dc_services() object is a thin wrapper around the dc_dist_object.
+
+This class implements several MPI-like primitive ops such as 
+barrier, gather, broadcast, etc. These operations are not particular optimized
+and can be quite inefficient.
 */
 template <typename T>
 class dc_dist_object : public dc_impl::dc_dist_object_base{
@@ -110,27 +114,32 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
   }
   
+  /// The number of function calls received by this object
   size_t calls_received() const {
     return callsreceived.value;
   }
 
+  /// The number of function calls send from this object
   size_t calls_sent() const {
     return callssent.value;
   }
   
-    
+  /// A reference to the underlying dc
   distributed_control& dc() {
     return dc_;
   }
 
+  /// A reference to the underlying dc
   const distributed_control& dc() const {
     return dc_;
   }
   
+  /// The current process ID
   inline procid_t procid() {
     return dc_.procid();
   }
 
+  /// The number of processes in the distributed program.
   inline procid_t numprocs() {
     return dc_.numprocs();
   }
@@ -170,6 +179,29 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
     /**
   This generates the interface functions for the standard calls, basic calls, and fast calls
+  The function looks like this:
+  
+  template<typename F , typename T0> void remote_call (procid_t target, F remote_function , T0 i0 )
+  {
+      ASSERT_LT(target, dc_.senders.size());
+      if ((STANDARD_CALL & CONTROL_PACKET) == 0) inc_calls_sent();
+      dc_impl::object_call_issue1 <T, F , T0> ::exec(dc_.senders[target], 
+                                                      STANDARD_CALL, 
+                                                      target,obj_id, 
+                                                      remote_function , 
+                                                      i0 );
+  }
+
+  The argument to the RPC_INTERFACE_GENERATOR are:
+    - the name of the rpc call ("remote_call" in the first one)
+    - the name of the issueing processor ("object_call_issue")
+    - The flags to set on the call ("STANDARD_CALL")
+    
+    The call can be issued with
+    rmi.remote_call(target,
+                    &object_type::function_name,
+                    arg1,
+                    arg2...)
   */
   #define GENARGS(Z,N,_)  BOOST_PP_CAT(T, N) BOOST_PP_CAT(i, N)
   #define GENI(Z,N,_) BOOST_PP_CAT(i, N)
@@ -194,6 +226,17 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
+  /**
+  The generation procedure for requests are the same. The only difference is that the function
+  name has to be changed a little to be identify the return type of the function,
+  (typename dc_impl::function_ret_type<FRESULT>) and the issuing processor is object_request_issue.
+  
+    The call can be issued with
+    ret = rmi.remote_request(target,
+                              &object_type::function_name,
+                              arg1,
+                              arg2...)
+  */
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
     BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
@@ -216,8 +259,11 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   #undef RPC_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
   
-  // Now generate the interface functions which allow me to call this dc_dist_object directly
-
+  /** Now generate the interface functions which allow me to call this dc_dist_object directly
+  The internal calls are similar to the ones above. The only difference is that is that instead of
+  'obj_id', the parameter passed to the issue processor is "control_obj_id" which identifies the
+  current RMI class.
+  */
   #define RPC_INTERFACE_GENERATOR(Z,N,FNAME_AND_CALL) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
@@ -228,9 +274,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
           ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
   
-  /**
-  Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
-  */
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_call,dc_impl::object_call_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_fast_call,dc_impl::object_call_issue, FAST_CALL) )
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )

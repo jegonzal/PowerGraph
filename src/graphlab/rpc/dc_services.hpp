@@ -10,7 +10,10 @@ namespace graphlab {
 
   /**
     A thin wrapper around the dc_dist_object.
-    Provides a non-templated reference to a "context"
+    Provides a non-templated reference to a "context".
+    Typically, the context (dc_rmi_object) must be templatized around an owner object.
+    This class, by providing a thin reference to the context functions, 
+    allows a non-templatized context for MPI-like operations
   */
   class dc_services {
   private:

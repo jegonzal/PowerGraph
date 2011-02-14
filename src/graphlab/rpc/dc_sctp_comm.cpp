@@ -85,6 +85,8 @@ void dc_sctp_comm::init(const std::vector<std::string> &machines,
   
   open_listening();
   open_sending();
+  // I have to make sure all machines are up and listening
+  // since if the remote socket is not opened, I will lose packets.
   wait_for_all_machines();
   
 }

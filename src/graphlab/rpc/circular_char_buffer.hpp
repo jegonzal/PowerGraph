@@ -94,6 +94,8 @@ class circular_char_buffer {
   
   /** clears the stream */
   void clear();
+  
+  /** Gets the number of characters in the stream */
   inline std::streamsize size() const {
     return len;
   }

@@ -12,18 +12,33 @@ namespace dc_impl {
 
 
 /**
-This is similar, but generates the non-intrusive version of a 
-dispatcher. That is, the target function does not need to take
-"distributed_control &dc, procid_t source" as its first 2 arguments.
+Object calls.
+This is similar to a regular function call with the only difference that
+it needs to locate the object using dc.get_registered_object(...)
+After the function call, it also needs to increment the call count for the object context.
 
+template<typename DcType,
+        typename T, 
+        typename F , 
+        typename T0> 
+        void OBJECT_NONINTRUSIVE_DISPATCH1 (DcType& dc, 
+                                          procid_t source, 
+                                          unsigned char packet_type_mask, 
+                                          std::istream &strm)
+{
+    iarchive iarc(strm);
+    F f;
+    deserialize(iarc, (char*)(&f), sizeof(F));
+    size_t objid;
+    iarc >> objid;
+    T* obj = reinterpret_cast<T*>(dc.get_registered_object(objid));
+    T0 (f0) ;
+    iarc >> (f0) ;
+    (obj->*f)( (f0) );
+    charstring_free(f0);
+    if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received();
+}
 
-template<typename DcType, typename F, typename T1> 
-void NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, std::istream &strm) { 
-  iarchive iarc(strm); 
-  size_t s; iarc >> s; F f = reinterpret_cast<F>(s); 
-  F1 f1; iarc >> f1;
-  f(f1);
-  charstring_free(f1);
 } 
 
 */

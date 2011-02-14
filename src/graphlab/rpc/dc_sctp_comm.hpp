@@ -17,7 +17,7 @@ namespace graphlab {
 namespace dc_impl {
   
 /**
-TCP implementation of the communications subsystem
+SCTP implementation of the communications subsystem
 */
 class dc_sctp_comm:public dc_comm_base {
  public:

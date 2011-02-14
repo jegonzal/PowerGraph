@@ -25,23 +25,48 @@ and a "procid_t source" as its first 2 arguments.
 
 For instance, the 1 argument of this will be DISPATCH1:
 
-template<typename DcType, typename F, typename T1> 
-void REQUESTDISPATCH1(DcType& dc, procid_t source, std::istream &strm) { 
-  iarchive iarc(strm); 
-  size_t s; iarc >> s; F f = reinterpret_cast<F>(s); 
-  F1 f1; iarc >> f1;
-  size_t id; iarc >> id;      // This is the argument to the source's reply_increment_counter
-  
-  FRESULT ret f(dc, source, f1);
-  charstring_free(f1);
-  
-  // serialize the return into a string and call the source
-  std::stringstream retstrm;  
-  oarchive oarc(retstrm); 
-  oarc << ret;
-  dc.fast_remote_call(source, reply_increment_counter, id, retstrm.str());
+template<typename DcType, 
+    typename F , 
+    typename T0> void REQUESTDISPATCH1 (DcType& dc, 
+                                        procid_t source, 
+                                        unsigned char packet_type_mask, 
+                                        std::istream &strm)
+{
+    iarchive iarc(strm);
+    size_t s;
+    iarc >> s;
+    F f = reinterpret_cast<F>(s);
+    size_t id;
+    iarc >> id;
+    T0 (f0) ;
+    iarc >> (f0) ;
+    typename function_ret_type<
+        typename boost::remove_const<
+        typename boost::remove_reference<
+        typename boost::function<
+        typename boost::remove_pointer<F>::type>
+        ::result_type>::type>::type>::type 
+        ret = function_ret_type<
+                    typename boost::remove_const<
+                    typename boost::remove_reference
+                    <typename boost::function<
+                    typename boost::remove_pointer<F>::type>
+                    ::result_type>::type>::type>::fcall3 (f, dc, source , (f0));
+    charstring_free(f0);
+    boost::iostreams::stream<resizing_array_sink> retstrm(128);
+    oarchive oarc(retstrm);
+    oarc << ret;
+    retstrm.flush();
+    if (packet_type_mask & CONTROL_PACKET)
+    {
+        dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+    }
+    else
+    {
+        dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+    }
+}
 
-} 
 
 charstring_free is a special template function which calls free(f1)
 only if f1 is a character array (char*)

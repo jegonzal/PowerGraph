@@ -21,8 +21,6 @@ namespace dc_impl {
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  Essentially each "send call" here must end up being paired with a 
-  corresponding "receive call" on the receiver end.
 */
 
 class dc_stream_send: public dc_send{

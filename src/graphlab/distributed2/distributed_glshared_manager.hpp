@@ -33,7 +33,7 @@ class distributed_glshared_manager {
   */
   std::string exchange(size_t entry, const std::string &val) ;
   
-  void invalidate(size_t entry, bool incache) ;
+  void invalidate(size_t entry, const std::string& value,bool incache) ;
 
 
   /**

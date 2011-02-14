@@ -41,7 +41,8 @@ class lru_list{
 
 /**
 This implements a limited distributed key -> value map with caching capabilities
-It is up to the user to determine cache invalidation policies.
+It is up to the user to determine cache invalidation policies. User explicitly
+calls the invalidate() function to clear local cache entries
 */
 template<typename KeyType, typename ValueType>
 class caching_dht{
