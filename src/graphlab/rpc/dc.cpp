@@ -287,8 +287,6 @@ namespace dc_impl {
     // the send counter, and avoid multiple releases
     size_t prevval = dc.all_recv_count.inc_ret_last(r);
     if (prevval <= dc.all_send_count && prevval + r >= dc.all_send_count) {
-      // release myself
-      release_full_barrier(dc, proc, dc.full_barrier_curid);
       // release everyone
       for (size_t i = 0;i < dc.numprocs(); ++i) {
         if (i != dc.procid()) {
@@ -297,6 +295,9 @@ namespace dc_impl {
                          dc.full_barrier_curid);
         }
       }
+            // release myself
+     release_full_barrier(dc, proc, dc.full_barrier_curid);
+
     }
   }
 } // namespace dc_impl

@@ -749,8 +749,6 @@ private:
     // the send counter, and avoid multiple releases
     size_t prevval = all_recv_count.inc_ret_last(r);
     if (prevval <= all_send_count && prevval + r >= all_send_count) {
-      // release myself
-      release_full_barrier(full_barrier_curid);
       // release everyone
       for (size_t i = 0;i < numprocs(); ++i) {
         if (i != procid()) {
@@ -759,6 +757,8 @@ private:
                                full_barrier_curid);
         }
       }
+      // release myself
+      release_full_barrier(full_barrier_curid);
     }
   }
  public:  
