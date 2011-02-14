@@ -1,6 +1,8 @@
 #ifndef GRAPHLAB_ATOMIC_HPP
 #define GRAPHLAB_ATOMIC_HPP
 
+#include <stdint.h>
+
 namespace graphlab {
   /**
    * \brief atomic object toolkit
@@ -47,7 +49,9 @@ namespace graphlab {
 
 
   template <>
-  inline bool atomic_compare_and_swap(double& a, const double &oldval, const double &newval) {
+  inline bool atomic_compare_and_swap(double& a, 
+                                      const double &oldval, 
+                                      const double &newval) {
     return __sync_bool_compare_and_swap(reinterpret_cast<uint64_t*>(&a), 
                                         *reinterpret_cast<const uint64_t*>(&oldval), 
                                         *reinterpret_cast<const uint64_t*>(&newval));

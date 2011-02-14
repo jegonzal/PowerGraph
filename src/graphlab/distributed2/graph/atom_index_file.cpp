@@ -159,6 +159,19 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 void find_local_atom_files(const std::string& pathname,
                            std::vector<std::string>& files) {
   namespace fs = boost::filesystem;
