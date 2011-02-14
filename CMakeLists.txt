@@ -7,7 +7,7 @@ ENDIF(APPLE)
 
 project(GraphLab)
 
-
+INCLUDE (CheckLibraryExists) 
 cmake_minimum_required(VERSION 2.4)
 
 if(COMMAND cmake_policy)
@@ -27,9 +27,10 @@ set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 # Make sure testing is enabled
 ENABLE_TESTING()
 
-FIND_LIBRARY(Sctp NAMES sctp)
+
 # Use Python interpreter
 FIND_PACKAGE(PythonInterp)
+
 # Use the Boost libraries
 SET (Boost_USE_STATIC_LIBS TRUE)
 FIND_PACKAGE(Boost 1.39 COMPONENTS 
@@ -122,8 +123,8 @@ ENDIF( )
 
 
 
-
-
+# check for SCTP
+FIND_LIBRARY(Sctp NAMES sctp)
 if(Sctp MATCHES Sctp-NOTFOUND)
   message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
   set(Sctp-FOUND)
@@ -133,6 +134,14 @@ else()
   set(Sctp-FOUND 1)
   set(Sctp-NOTFOUND)
   message(STATUS "libsctp found")
+endif()
+
+
+# check for TCMalloc
+CHECK_LIBRARY_EXISTS(tcmalloc malloc "" TCMALLOC-FOUND)
+if (TCMALLOC-FOUND)
+  message(STATUS "tcmalloc found. Using it everywhere")
+  link_libraries(tcmalloc)
 endif()
 
 
