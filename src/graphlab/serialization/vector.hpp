@@ -27,7 +27,7 @@ namespace archive_detail {
       size_t len;
       deserialize_impl<ArcType, size_t>::exec(a, len);
       vec.clear(); vec.reserve(len);
-      deserialize_iterator<ValueType>(a, std::inserter(vec, vec.end()));
+      deserialize_iterator<ArcType, ValueType>(a, std::inserter(vec, vec.end()));
     }
   };
                                                
