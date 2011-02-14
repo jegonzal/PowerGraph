@@ -42,8 +42,10 @@ namespace graphlab {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
-    template<typename T>
-  bool atomic_compare_and_swap(volatile T& a, const T &oldval, const T &newval) {
+  template<typename T>
+  bool atomic_compare_and_swap(volatile T& a, 
+                               const T &oldval, 
+                               const T &newval) {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
