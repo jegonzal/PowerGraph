@@ -137,11 +137,15 @@ else()
 endif()
 
 
+
+
 # check for TCMalloc
-CHECK_LIBRARY_EXISTS(tcmalloc malloc "" TCMALLOC-FOUND)
+CHECK_LIBRARY_EXISTS("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
 if (TCMALLOC-FOUND)
   message(STATUS "tcmalloc found. Using it everywhere")
   link_libraries(tcmalloc)
+else()
+  message(STATUS "tcmalloc was not found but is optional.")
 endif()
 
 
