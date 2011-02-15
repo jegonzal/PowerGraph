@@ -129,13 +129,13 @@ namespace graphlab {
         } //end of if owning machine
         atomid2lock[atomid].unlock();
       } //end of for loop
-      dc.services().full_barrier();
+      dc.full_barrier();
     } //end of constructor
       
 
 
     ~atom_shuffler() {
-      rmi.services().full_barrier();
+      rmi.full_barrier();
       // Clear the atom info map
       for(size_t i = 0; i < atomid2info.size(); ++i) {
         atomid2lock[i].lock();
@@ -437,7 +437,7 @@ namespace graphlab {
         assert(false);
       }
       distributed_control dc(param);
-      dc.services().full_barrier();
+      dc.full_barrier();
     
       if(dc.procid() == 0) 
         std::cout << "Loading vertex coloring and partitioning." 
@@ -491,7 +491,7 @@ namespace graphlab {
         raw_fragment::list_structure_files(path, fnames);
         // compute the fnames that are used by this machine
         std::vector< std::vector< std::string > > partition_fnames;
-        dc.services().gather_partition(fnames, partition_fnames);
+        dc.gather_partition(fnames, partition_fnames);
 
         // update the local fnames      
         fnames = partition_fnames[dc.procid()];
@@ -511,7 +511,7 @@ namespace graphlab {
                                   num_atoms, 
                                   path);
 
-      dc.services().full_barrier();
+      dc.full_barrier();
       if(dc.procid() == 0) 
         std::cout << "Finished." << std::endl;
 
@@ -523,7 +523,7 @@ namespace graphlab {
         atom_shuffler.load_vertex_data(fnames, 
                                        vertex2atomid, 
                                        vertex2color );
-        dc.services().full_barrier();
+        dc.full_barrier();
         if(dc.procid() == 0) 
           std::cout << "Finished." << std::endl;
       }
@@ -535,7 +535,7 @@ namespace graphlab {
         }
 
         atom_shuffler.load_edge_data(fnames, vertex2atomid);
-        dc.services().full_barrier();   
+        dc.full_barrier();   
         if(dc.procid() == 0)  
           std::cout << "Finished." << std::endl;
       }
@@ -547,7 +547,7 @@ namespace graphlab {
         }
         // Build the actual atom files
         atom_shuffler.emit_atoms();
-        dc.services().full_barrier();   
+        dc.full_barrier();   
         
         if(dc.procid() == 0) 
           std::cout << "Finished." << std::endl;

@@ -171,7 +171,8 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
 
 
 
-
+/** This function computes the collection of local files to be
+    loaded */
 void find_local_atom_files(const std::string& pathname,
                            std::vector<std::string>& files) {
   namespace fs = boost::filesystem;
@@ -193,6 +194,8 @@ void find_local_atom_files(const std::string& pathname,
   std::sort(files.begin(), files.end());
 
 }
+
+
 
 
 struct atom_file_desc_extra {
@@ -228,7 +231,7 @@ build_atom_index_file(const std::string& path) {
     assert(false);
   }
   distributed_control dc(param);
-  dc.services().full_barrier();
+  dc.full_barrier();
   
   // load the vector of filenames
   std::vector<std::string> local_fnames; 
@@ -237,7 +240,7 @@ build_atom_index_file(const std::string& path) {
     find_local_atom_files(path, local_fnames);
     // compute the fnames that are used by this machine
     std::vector< std::vector< std::string > > partition_fnames;
-    dc.services().gather_partition(local_fnames, partition_fnames);
+    dc.gather_partition(local_fnames, partition_fnames);
     for(size_t i = 0; i < partition_fnames.size(); ++i) 
       num_atoms += partition_fnames[i].size();
     // update the local fnames      
@@ -248,7 +251,7 @@ build_atom_index_file(const std::string& path) {
     std::cout << std::endl;
   }
   
-  dc.services().full_barrier();
+  dc.full_barrier();
 
 
   std::cout << "Computing atom files: " << std::endl;
@@ -293,12 +296,12 @@ build_atom_index_file(const std::string& path) {
     } // end of foreach
   } //end of loop over local atoms
   
-  dc.services().full_barrier();
+  dc.full_barrier();
 
   // Gather all the machine counts
   std::vector<atomid2desc_type> all_descriptors;
   all_descriptors[dc.procid()] = atomid2desc;
-  dc.services().all_gather(all_descriptors);
+  dc.all_gather(all_descriptors);
   
   // join the maps to build the atom index file
   atom_index_file aif;
