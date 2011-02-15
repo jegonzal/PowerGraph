@@ -304,27 +304,28 @@ build_atom_index_file(const std::string& path) {
   dc.all_gather(all_descriptors);
   
   // join the maps to build the atom index file
-  atom_index_file aif;
-  aif.atoms.resize(num_atoms);
-  aif.natoms = num_atoms;
-  aif.nverts = 0;
-  aif.nedges = 0;
-  foreach(const atomid2desc_type& a2d, all_descriptors) {
-    typedef atomid2desc_type::value_type pair_type;
-    foreach(const pair_type& pair, a2d) {
-      procid_t atomid = pair.first;
-      assert(atomid < aif.atoms.size());
-      // check that this atom has not already been added
-      assert(aif.atoms[atomid].protocol.empty());
-      // add the atom
-      aif.atoms[atomid] = pair.second.desc;
-      aif.nverts += pair.second.nlocalverts;
-      aif.nedges += pair.second.ninedges;
+  if(dc.is_master_rank()) {
+    atom_index_file aif;
+    aif.atoms.resize(num_atoms);
+    aif.natoms = num_atoms;
+    aif.nverts = 0;
+    aif.nedges = 0;
+    foreach(const atomid2desc_type& a2d, all_descriptors) {
+      typedef atomid2desc_type::value_type pair_type;
+      foreach(const pair_type& pair, a2d) {
+        procid_t atomid = pair.first;
+        assert(atomid < aif.atoms.size());
+        // check that this atom has not already been added
+        assert(aif.atoms[atomid].protocol.empty());
+        // add the atom
+        aif.atoms[atomid] = pair.second.desc;
+        aif.nverts += pair.second.nlocalverts;
+        aif.nedges += pair.second.ninedges;
+      }
     }
+    // Write results to file
+    aif.write_to_file("atom_index.txt");
   }
-  // Write results to file
-  aif.write_to_file("atom_index.txt");
-  
 
 } // and of build atom index file
 
