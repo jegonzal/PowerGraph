@@ -41,8 +41,7 @@ namespace graphlab {
     edge_id_t   num_local_edges;
 
 
-    
-    std::vector< std::vector<vertex_id_t> >      neighbor_ids;
+   
     std::vector< std::vector<vertex_id_t> >      in_neighbor_ids;
    
     raw_fragment() { } 

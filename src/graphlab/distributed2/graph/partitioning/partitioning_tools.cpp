@@ -298,7 +298,7 @@ static void zoltan_edge_list_multi_fun(void* data,
       //      assert(size_t(num_edges[vindex]) == structure.neighbor_ids[i].size());
       assert(size_t(num_edges[vindex]) == frag.in_neighbor_ids[i].size());
       // save all the edges
-      for(vertex_id_t j = 0; j < frag.neighbor_ids[i].size(); ++j, ++eindex) {
+      for(vertex_id_t j = 0; j < frag.in_neighbor_ids[i].size(); ++j, ++eindex) {
         // nbor_global_id[eindex] = structure.neighbor_ids[i][j];
         nbor_global_id[eindex] = frag.in_neighbor_ids[i][j];
         // compute the owning cpuessor

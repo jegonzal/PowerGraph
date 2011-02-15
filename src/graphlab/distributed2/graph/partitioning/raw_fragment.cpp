@@ -63,8 +63,6 @@ raw_fragment::raw_fragment(const std::string& base,
 
   assert(end_vertex >= begin_vertex);
   num_local_verts = end_vertex - begin_vertex;
-
-  neighbor_ids.resize(num_local_verts);
   in_neighbor_ids.resize(num_local_verts);
 
 
@@ -120,13 +118,7 @@ add_edge(const vertex_id_t source, const vertex_id_t target) {
   if(is_inbound) {
     is_inbound = true;
     vertex_id_t local_target(local_id(target));
-    neighbor_ids[local_target].push_back(source);
     in_neighbor_ids[local_target].push_back(source);
-  } 
-  if(is_local(source)) {
-    assert(is_local(source));
-    vertex_id_t local_source(local_id(source));
-    neighbor_ids[local_source].push_back(target);
   } 
   return is_inbound;
 } // end of add edge
@@ -139,13 +131,13 @@ add_edge(const vertex_id_t source, const vertex_id_t target) {
 
 
 void raw_fragment::finalize_adjacency_lists() {
-  for(size_t i = 0; i < neighbor_ids.size(); ++i) {
-    std::vector<vertex_id_t>& vec(neighbor_ids[i]);
-    std::sort(vec.begin(), vec.end());
-    typedef std::vector<vertex_id_t>::iterator iterator;
-    iterator new_end = std::unique(vec.begin(), vec.end());
-    vec.resize(std::distance(vec.begin(), new_end));
-  }
+  // for(size_t i = 0; i < neighbor_ids.size(); ++i) {
+  //   std::vector<vertex_id_t>& vec(neighbor_ids[i]);
+  //   std::sort(vec.begin(), vec.end());
+  //   typedef std::vector<vertex_id_t>::iterator iterator;
+  //   iterator new_end = std::unique(vec.begin(), vec.end());
+  //   vec.resize(std::distance(vec.begin(), new_end));
+  // }
 }
 
 
@@ -195,7 +187,6 @@ save(graphlab::oarchive& oarc) const {
        << num_local_verts
        << num_local_edges
     // Actual structural payload
-       << neighbor_ids
        << in_neighbor_ids;
 }
 
@@ -219,7 +210,6 @@ load(graphlab::iarchive& iarc) {
        >> end_vertex
        >> num_local_verts
        >> num_local_edges
-       >> neighbor_ids
        >> in_neighbor_ids;
 }
 
