@@ -64,7 +64,8 @@ namespace graphlab {
 
     struct fraginfo {
       raw_fragment frag;
-      std::vector< std::set< procid_t > >  neighbor_atoms; 
+      std::vector< std::set< procid_t > >  neighbor_atoms;
+      std::vector< graphlab::mutex > locks;
     };
 
     typedef std::map<vertex_id_t, fraginfo> id2fraginfo_type;
@@ -142,7 +143,9 @@ namespace graphlab {
       assert(finfo.frag.begin_vertex <= vid);
       assert(vid < finfo.frag.end_vertex);
       vertex_id_t localvid = finfo.frag.local_id(vid);
-      finfo.neighbor_atoms[localvid].insert(neighbor_atom);          
+      finfo.locks[localvid].lock();
+      finfo.neighbor_atoms[localvid].insert(neighbor_atom);
+      finfo.locks[localvid].unlock();
     } // end of add atom neighbor local
 
       
