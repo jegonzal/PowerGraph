@@ -319,6 +319,20 @@ namespace graphlab {
      * variable already be registered with the engine.
      */
     virtual void sync_now(glshared_base& shared) { };
+    
+    // Convenience function.
+    static std::string exec_status_as_string(exec_status es) {
+      switch(es) {
+      case EXEC_UNSET: return "engine not run!";
+      case EXEC_FORCED_ABORT: return "forced abort";
+      case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
+      case EXEC_TERM_FUNCTION: return "termination function";
+      case EXEC_TASK_DEPLETION: return "task depletion (natural)";
+      case EXEC_TIMEOUT: return "timeout";
+      };
+      return "unknown";
+    }
+
   };
 
 }

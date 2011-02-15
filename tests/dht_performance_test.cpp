@@ -53,7 +53,7 @@ int main(int argc, char ** argv) {
     ti.start();
     for (size_t i = 0;i < NUMSTRINGS; ++i) {
       testdht.set(data[i].first, data[i].second);
-      if (i % 10 == 0) {
+      if (i % 100 == 0) {
         std::cout << ".";
         std::cout.flush();
       }
@@ -71,7 +71,7 @@ int main(int argc, char ** argv) {
     for (size_t i = 0;i < NUMSTRINGS; ++i) {
       std::pair<bool, std::string> ret = testdht.get(data[i].first);
       assert(ret.first);
-      if (i % 1 == 0) {
+      if (i % 100 == 0) {
         std::cout << ".";
         std::cout.flush();
       }

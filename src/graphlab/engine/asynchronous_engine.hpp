@@ -259,18 +259,7 @@ namespace graphlab {
       default_scope_range = default_scope_range_;
     }
   
-    // Convenience function.
-    std::string exec_status_as_string(exec_status es) {
-      switch(es) {
-      case EXEC_UNSET: return "engine not run!";
-      case EXEC_FORCED_ABORT: return "forced abort";
-      case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
-      case EXEC_TERM_FUNCTION: return "termination function";
-      case EXEC_TASK_DEPLETION: return "task depletion (natural)";
-      case EXEC_TIMEOUT: return "timeout";
-      };
-      return "unknown";
-    }
+    using iengine<Graph>::exec_status_as_string;
 
     /** Execute the engine */
     void start() {

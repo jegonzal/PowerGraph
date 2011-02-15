@@ -14,6 +14,9 @@ distributed_glshared_manager::distributed_glshared_manager(distributed_control &
   for (size_t i = 0; i < glsharedobjs.size(); ++i) {
     logstream(LOG_INFO) << "registered entry " << i << " with type " 
                         << glsharedobjs[i]->type_name() << std::endl;
+    if (glsharedobjs[i]->manager != NULL) {
+      logger(LOG_WARNING, "glshared objects are still attached to a previous manager!");
+    }
     glsharedobjs[i]->manager = this;
     glsharedobjs[i]->id = i;
     objrevmap[glsharedobjs[i]] = i;
@@ -27,6 +30,14 @@ distributed_glshared_manager::distributed_glshared_manager(distributed_control &
   // perform the sets
 }
 
+distributed_glshared_manager::~distributed_glshared_manager() {
+  // detach from the dht
+  dht.detach_modification_trigger();
+  // detach from the glshared objects
+  for (size_t i = 0; i < glsharedobjs.size(); ++i) {
+    glsharedobjs[i]->manager = NULL;
+  }
+}
 /*
 completes an atomic exchange of an entry
 */

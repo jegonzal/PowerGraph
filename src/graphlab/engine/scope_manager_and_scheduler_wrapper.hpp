@@ -129,6 +129,9 @@ namespace graphlab {
     }
   
   public:
+  
+    using iengine<Graph>::exec_status_as_string;
+    
     scope_manager_and_scheduler_wrapper(Graph &graph, size_t ncpus) :
       graph(graph),
       ncpus(ncpus),
