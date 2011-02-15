@@ -35,6 +35,7 @@ distributed_control::~distributed_control() {
     senders[i]->shutdown();
     delete senders[i];
   }
+  comm->close();
   size_t bytesreceived = bytes_received();
   for (size_t i = 0;i < receivers.size(); ++i) {
     receivers[i]->shutdown();
@@ -42,7 +43,6 @@ distributed_control::~distributed_control() {
   }
   senders.clear();
   receivers.clear();
-  comm->close();
   // shutdown function call handlers
   fcallqueue.stop_blocking();
   fcallhandlers.join();
