@@ -16,19 +16,19 @@
 // generate the operator<< call for a whole bunch of integer types
 
 
-#define INT_SERIALIZE(tname) \
-  template <typename ArcType> struct serialize_impl<ArcType, tname>{                   \
-    static void exec(ArcType &a, const tname &i_) {             \
-    int64_t i = i_ ;                                          \
-    char c[10];                                                  \
-    unsigned char len = compress_int(i, c);                   \
-    a.o->write(c + 10 - len, len);            \
-    }                                                         \
-  };                                                          \
-  template <typename ArcType> struct deserialize_impl<ArcType, tname>{                 \
-    static void exec(ArcType &a, tname &t_) {                   \
-    decompress_int<tname>(*(a.i), t_);                              \
-    }                                                         \
+#define INT_SERIALIZE(tname)                                            \
+  template <typename ArcType> struct serialize_impl<ArcType, tname>{    \
+    static void exec(ArcType &a, const tname &i_) {                     \
+      int64_t i = i_ ;                                                  \
+      char c[10];                                                       \
+      unsigned char len = compress_int(i, c);                           \
+      a.o->write(c + 10 - len, len);                                    \
+    }                                                                   \
+  };                                                                    \
+  template <typename ArcType> struct deserialize_impl<ArcType, tname>{  \
+    static void exec(ArcType &a, tname &t_) {                           \
+      decompress_int<tname>(*(a.i), t_);                                \
+    }                                                                   \
   };
 
 
