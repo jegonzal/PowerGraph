@@ -1,3 +1,10 @@
+#include <unistd.h> 
+#include <sys/param.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+
 #include <map>
 #include <sstream>
 
@@ -18,6 +25,46 @@
 #include <graphlab/rpc/dc_services.hpp>
 
 namespace graphlab {
+
+static std::string get_working_dir() {
+#ifdef _GNU_SOURCE
+  char* path = get_current_dir_name();
+  assert(path != NULL);
+  std::string ret = path;
+  free(path);
+#else
+  char path[MAXPATHLEN];
+  assert(getcwd(path, MAXPATHLEN) != NULL);
+  std::string ret = path;
+#endif
+  return ret;
+}
+
+static uint32_t get_local_ip() {
+  uint32_t ip;
+  // code adapted from
+  struct ifaddrs * ifAddrStruct = NULL;
+  getifaddrs(&ifAddrStruct);
+  struct ifaddrs * firstifaddr = ifAddrStruct;
+  ASSERT_NE(ifAddrStruct, NULL);
+  while (ifAddrStruct != NULL) {
+    if (ifAddrStruct->ifa_addr != NULL && 
+        ifAddrStruct->ifa_addr->sa_family == AF_INET) {
+      char* tmpAddrPtr = NULL;
+      // check it is IP4 and not lo0.
+      tmpAddrPtr = (char*)&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
+      ASSERT_NE(tmpAddrPtr, NULL);
+      if (tmpAddrPtr[0] != 127) {
+        memcpy(&ip, tmpAddrPtr, 4);
+        break;
+      }
+      //break;
+    }
+    ifAddrStruct=ifAddrStruct->ifa_next;
+  }
+  freeifaddrs(firstifaddr);
+  return ip;
+}
 
  /**
 Callback function. This function is called whenever data is received
@@ -224,6 +271,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
   // construct the services
   distributed_services = new dc_services(*this);
+  compute_master_ranks();
 }
   
 dc_services& distributed_control::services() {
@@ -250,6 +298,22 @@ void distributed_control::comm_barrier() {
 
 void distributed_control::barrier() {
   distributed_services->barrier();
+}
+
+
+
+void distributed_control::compute_master_ranks() {
+  uint32_t local_ip = get_local_ip();
+  std::string localipandpath = tostr(local_ip) + get_working_dir();
+  std::vector<std::string> ipandpath(numprocs());
+  ipandpath[procid()] = localipandpath;
+  all_gather(ipandpath);
+  for(size_t i = 0; i < ipandpath.size(); ++i) {
+    if(ipandpath[i] == localipandpath) {
+      masterid = i;
+      break;
+    }
+  }
 }
 
  /*****************************************************************************

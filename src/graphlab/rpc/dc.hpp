@@ -145,8 +145,9 @@ class distributed_control{
     return registered_objects.size();
   }
   
-  
-  // this stores the temporary results for the blocking send_to and recv_from operations
+
+  void compute_master_ranks();
+  procid_t masterid;
   
   
  public:
@@ -306,6 +307,23 @@ class distributed_control{
   }  
 
   /**
+    Returns true if this is the process with the lowest ID
+    currently running on this machine in this working directory
+  */
+  inline bool is_master_rank() const {
+    return masterid == procid();
+  }
+
+
+  /**
+    Returns the lowest ID of all the processes
+    currently running on this machine in this working directory
+  */  
+  inline procid_t master_rank() const {
+    return masterid;
+  }
+
+  /**
     Instantiates a find_dispatch with the right arguments,
     and store the dispatch function in the hash map.
   */
@@ -380,7 +398,6 @@ class distributed_control{
     do not result in a global barrier.
   */
   void comm_barrier();
-
 
 
 

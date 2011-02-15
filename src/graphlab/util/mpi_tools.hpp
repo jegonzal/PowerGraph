@@ -27,24 +27,24 @@ namespace graphlab {
 
 
 
-    void init(int& argc, char**& argv) {
+    inline void init(int& argc, char**& argv) {
       int error = MPI_Init(&argc, &argv);
       assert(error == MPI_SUCCESS);
     }
 
-    void finalize() {
+    inline void finalize() {
       int error = MPI_Finalize();
       assert(error == MPI_SUCCESS);
     }
 
-    size_t rank() {
+    inline size_t rank() {
       int mpi_rank(-1);
       MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
       assert(mpi_rank >= 0);
       return size_t(mpi_rank);
     }
 
-    size_t size() {
+    inline size_t size() {
       int mpi_size(-1);
       MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
       assert(mpi_size >= 0);
