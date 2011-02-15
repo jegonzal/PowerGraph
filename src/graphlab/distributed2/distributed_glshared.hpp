@@ -29,7 +29,7 @@ namespace distgl_impl {
  distributed glshared base class. Allows the glshared manager
  to manage it
 */
-class distributed_glshared_base {
+class distributed_glshared_base: public glshared_base {
  protected:
   mutable distributed_glshared_manager* manager;
   size_t id;
@@ -39,12 +39,18 @@ class distributed_glshared_base {
 
  public:
  
-  typedef void(*apply_function_type)(any& current_data, const any& param);
+  typedef glshared_base::apply_function_type apply_function_type;
 
   distributed_glshared_base() : manager(NULL) {
     distgl_impl::register_dist_glshared(this);
     invalidated = true;
   }
+  
+  virtual any get_any() const = 0;
+  virtual void set_any(const any&) = 0;
+  virtual void apply(apply_function_type fun,
+                     const any& srcd) = 0;                       
+  virtual bool is_unique() const = 0;
   
   virtual void save(oarchive &oarc) const = 0;
   virtual void load(iarchive &iarc) = 0;

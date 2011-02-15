@@ -28,6 +28,7 @@ class distributed_glshared_manager {
   
  public:
   distributed_glshared_manager(distributed_control &dc);  
+  ~distributed_glshared_manager();
   /*
   completes an atomic exchange of an entry
   */
