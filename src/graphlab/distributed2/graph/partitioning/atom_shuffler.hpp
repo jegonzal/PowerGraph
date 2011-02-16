@@ -207,9 +207,7 @@ namespace graphlab {
       ainfo.atom_file.edge_src_dest().push_back(std::make_pair(source_lvid, 
                                                                target_lvid));
       assert(ainfo.edatastream.good());
-      {  // THIS SCOPE IS ABSOLUTELY NECESSARY:
-        // to ensure that the oarchive does not flush outside the
-        // mutex.
+      { 
         oarchive oarc(ainfo.edatastream);
         oarc << edata;      
       }
@@ -664,6 +662,7 @@ namespace graphlab {
         assert(false);
       }
       param.initstring = "buffered_send=yes";
+      param.numhandlerthreads = 30;
       distributed_control dc(param);
       dc.full_barrier();      
       if(dc.procid() == 0) { 
