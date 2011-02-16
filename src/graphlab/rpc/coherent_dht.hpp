@@ -492,6 +492,9 @@ class coherent_dht{
   bool has_mod_trigger;
   boost::function<void(const KeyType&, const ValueType&,  bool)> modification_trigger;
 
+  void update_cache_from_remote(const KeyType &key, const ValueType &val) const {
+    return update_cache(key, val);
+  }
   /** Updates the internal cache with this new value. The cache
    * entry is also moved to the head of the LRU list
   */
@@ -587,7 +590,7 @@ class coherent_dht{
       if (i != rpc.dc().procid() && i != except) {
         if (subscription[compressedhash].get(i)) {
           rpc.remote_call(i, 
-                          &coherent_dht<KeyType,ValueType>::update_cache, 
+                          &coherent_dht<KeyType,ValueType>::update_cache_from_remote, 
                           key, value);
         }
         else {
@@ -665,7 +668,7 @@ class coherent_dht{
     std::pair<bool, ValueType> val = get_non_cached(key);
     ASSERT_TRUE(val.first);
     rpc.remote_call(source, 
-                    &coherent_dht<KeyType,ValueType>::update_cache, 
+                    &coherent_dht<KeyType,ValueType>::update_cache_from_remote, 
                     key, val.second);
   }
   
@@ -682,7 +685,7 @@ class coherent_dht{
     std::pair<bool, ValueType> val = get_non_cached(key);
     ASSERT_TRUE(val.first);
     rpc.remote_request(source, 
-                        &coherent_dht<KeyType,ValueType>::update_cache, 
+                        &coherent_dht<KeyType,ValueType>::update_cache_from_remote, 
                         key, val.second);
   }
 };
