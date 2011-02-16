@@ -47,8 +47,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   size_t control_obj_id;  // object id of this object
   T* owner;
   bool calltracking;
-  atomic<size_t> callsreceived;
-  atomic<size_t> callssent;
+  std::vector<atomic<size_t> > callsreceived;
+  std::vector<atomic<size_t> > callssent;
   // make operator= private
   dc_dist_object<T>& operator=(const dc_dist_object<T> &d) {return *this;}
   friend class distributed_control;
@@ -59,28 +59,40 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
  public:
   //internal stuff which should not be used.
-  void inc_calls_received() {
-    if (full_barrier_in_effect == false) {
-      callsreceived.inc();
+  void inc_calls_received(procid_t p) {
+    if (!full_barrier_in_effect) {
+        callsreceived[p].inc();
     }
     else {
-      // use the more costly option
-      full_barrier_lock.lock();
-      callsreceived.inc();
-      full_barrier_cond.signal();
-      full_barrier_lock.unlock();
+      //check the proc I just incremented.
+      // If I just exceeded the required size, I need
+      // to decrement the full barrier counter
+      if (callsreceived[p].inc() == calls_to_receive[p]) {
+        // if it was me who set the bit
+        if (procs_complete.set_bit(p) == false) {
+          // then decrement the incomplete count.
+          // if it was me to decreased it to 0
+          // lock and signal
+          if (num_proc_recvs_incomplete.dec() == 0) {
+            full_barrier_lock.lock();
+            full_barrier_cond.signal();
+            full_barrier_lock.unlock();
+          }
+        }
+      }
     }
   }
-  void inc_calls_sent() {
-    callssent.inc();
+  
+  void inc_calls_sent(procid_t p) {
+    callssent[p].inc();
   }
 
  public:
   dc_dist_object(distributed_control &dc_, T* owner, bool calltracking = false):
                                 dc_(dc_),owner(owner),calltracking(calltracking) {
-    obj_id = dc_.register_object(owner, this);
-    control_obj_id = dc_.register_object(this, this);
-    
+    callssent.resize(dc_.numprocs());
+    callsreceived.resize(dc_.numprocs());
+
     //------ Initialize the matched send/recv ------
     recv_froms.resize(dc_.numprocs());
     
@@ -109,19 +121,30 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
     //-------- Initialize the full barrier ---------
     full_barrier_in_effect = false;
-    full_barrier_curid = 0;
-    full_barrier_released = false;
+    procs_complete.resize(dc_.numprocs());
+    
+    // register
+    obj_id = dc_.register_object(owner, this);
+    control_obj_id = dc_.register_object(this, this);
 
   }
   
   /// The number of function calls received by this object
   size_t calls_received() const {
-    return callsreceived.value;
+    size_t ctr = 0;
+    for (size_t i = 0;i < numprocs(); ++i) {
+      ctr += callsreceived[i].value;
+    }
+    return ctr;
   }
 
   /// The number of function calls send from this object
   size_t calls_sent() const {
-    return callssent.value;
+    size_t ctr = 0;
+    for (size_t i = 0;i < numprocs(); ++i) {
+      ctr += callssent[i].value;
+    }
+    return ctr;
   }
   
   /// A reference to the underlying dc
@@ -184,7 +207,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F , typename T0> void remote_call (procid_t target, F remote_function , T0 i0 )
   {
       ASSERT_LT(target, dc_.senders.size());
-      if ((STANDARD_CALL & CONTROL_PACKET) == 0) inc_calls_sent();
+      if ((STANDARD_CALL & CONTROL_PACKET) == 0) inc_calls_sent(target);
       dc_impl::object_call_issue1 <T, F , T0> ::exec(dc_.senders[target], 
                                                       STANDARD_CALL, 
                                                       target,obj_id, 
@@ -212,7 +235,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
-    if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(); \
+    if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -241,7 +264,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
     BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
-    if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(); \
+    if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -268,7 +291,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
-    if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(); \
+    if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <dc_dist_object<T>, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -283,7 +306,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
     BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
-    if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(); \
+    if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <dc_dist_object<T>, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -353,7 +376,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     // wait for reply
     rt.wait();
     
-    if (control == false) inc_calls_received();
+    if (control == false) inc_calls_received(target);
   }
   
   
@@ -389,7 +412,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
       // since the matched send/recv calls do not go through the 
       // typical object calls. It goes through the DC, but I also want to charge
       // it to this object
-      inc_calls_sent();
+      inc_calls_sent(source);
     }
     else {
       dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
@@ -721,46 +744,21 @@ private:
                       Implementation of Full Barrier
 *****************************************************************************/
  private:
-  bool full_barrier_released;
   mutex full_barrier_lock;
   conditional full_barrier_cond;
-  atomic<size_t> all_recv_count;
-  size_t all_send_count;
-  size_t full_barrier_curid; // to protect against fast repeated calls to full_barrier
-  
+  std::vector<size_t> calls_to_receive;
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv
   // counter will need to lock and signal
   bool full_barrier_in_effect;
   
-  void release_full_barrier(size_t id) {
-    if (id != full_barrier_curid) return;
-    full_barrier_lock.lock();
-    full_barrier_released = true;
-    full_barrier_in_effect = false;
-    full_barrier_cond.signal();
-    full_barrier_lock.unlock();
-  }
-  
-  void full_barrier_add_to_recv(size_t id, size_t r) {
-      if (id != full_barrier_curid) return;
-    // we want the previous value of the atom
-    // so we can find the first time it crosses
-    // the send counter, and avoid multiple releases
-    size_t prevval = all_recv_count.inc_ret_last(r);
-    if (prevval <= all_send_count && prevval + r >= all_send_count) {
-      // release everyone
-      for (size_t i = 0;i < numprocs(); ++i) {
-        if (i != procid()) {
-          internal_control_call(i,
-                               &dc_dist_object<T>::release_full_barrier,
-                               full_barrier_curid);
-        }
-      }
-      // release myself
-      release_full_barrier(full_barrier_curid);
-    }
-  }
+  /** number of 'source' processor counts which have
+  not achieved the right recv count */
+  atomic<size_t> num_proc_recvs_incomplete; 
+                                      
+  /// Marked as 1 if the proc is complete
+  dense_bitset procs_complete;
+
  public:  
   /**
   This barrier ensures globally across all machines that
@@ -771,71 +769,44 @@ private:
   and calls issued while the barrier is being evaluated.
   */
   void full_barrier() {
-    full_barrier_released = false;
     // gather a sum of all the calls issued to machine 0
-    size_t local_num_calls_sent = calls_sent();
+    std::vector<size_t> calls_sent_to_target(numprocs(), 0);
+    for (size_t i = 0;i < numprocs(); ++i) {
+      calls_sent_to_target[i] = callssent[i].value;
+    }
     
     // tell node 0 how many calls there are
-    std::vector<size_t> all_calls_sent(numprocs());
-    all_calls_sent[procid()] = local_num_calls_sent;
-    gather(all_calls_sent, 0, true);
+    std::vector<std::vector<size_t> > all_calls_sent(numprocs());
+    all_calls_sent[procid()] = calls_sent_to_target;
+    all_gather(all_calls_sent, true);
     
-    // proc 0 computes the total number of calls sent    
-    all_send_count = 0;
-    all_recv_count.value = 0;
-    if (procid() == 0) {
-      for (size_t i = 0;i < all_calls_sent.size(); ++i) {
-        all_send_count += all_calls_sent[i];
-      }
+    // get the number of calls I am supposed to receive from each machine
+    calls_to_receive.clear(); calls_to_receive.resize(numprocs(), 0);
+    for (size_t i = 0;i < numprocs(); ++i) {
+      calls_to_receive[i] += all_calls_sent[i][procid()];
+//      std::cout << "Expecting " << calls_to_receive[i] << " calls from " << i << std::endl;
     }
-    // issue a barrier to make sure everyone stops here
-    // while node 0 prepares the counters.
-    barrier();
-    // ok. now we basically keep recomunicating with
-    // node 0 the number of calls we have received so far
-    // until node 0 releases the barrier
-    full_barrier_lock.lock();
+    // clear the counters
+    num_proc_recvs_incomplete.value = numprocs();
+    procs_complete.clear();
+    // activate the full barrier
     full_barrier_in_effect = true;
-    size_t last_communicated_recv_count = 0;
-
-    if (procid() == 0 && all_send_count == 0) {  
-      full_barrier_lock.unlock();
-      full_barrier_add_to_recv(full_barrier_curid, 0);
-      full_barrier_lock.lock();
-    }
-
-    
-    while(full_barrier_released == false) {
-      while (calls_received() != last_communicated_recv_count) {
-        size_t nextval = calls_received();
-        assert(nextval > last_communicated_recv_count);
-        // unlock for a while to issue the RPC call
-        full_barrier_lock.unlock();
-        if (procid() == 0) {
-          full_barrier_add_to_recv(full_barrier_curid, 
-                                   nextval - last_communicated_recv_count);
+    // begin one pass to set all which are already completed
+    for (size_t i = 0;i < numprocs(); ++i) {
+      if (callsreceived[i].value >= calls_to_receive[i]) {
+        if (procs_complete.set_bit(i) == false) {
+          num_proc_recvs_incomplete.dec();
         }
-        else {
-          internal_control_call(0,
-                             &dc_dist_object<T>::full_barrier_add_to_recv,
-                             full_barrier_curid, 
-                             nextval - last_communicated_recv_count);
-        }
-        last_communicated_recv_count = nextval;
-        full_barrier_lock.lock();
-        // now there could be a race here because I released
-        // the lock to issue the calls.
-        // I need to check again before I let the condition
-        // variable take over
-        // the inner while loop will check the counting case
-        // but I need to check the exterior case
       }
-      if (full_barrier_released) break;
-      full_barrier_cond.wait(full_barrier_lock);    
     }
-    full_barrier_curid++;
-    full_barrier_in_effect = false;
+    
+    full_barrier_lock.lock();
+    while (num_proc_recvs_incomplete.value > 0) full_barrier_cond.wait(full_barrier_lock);
     full_barrier_lock.unlock();
+    full_barrier_in_effect = false;
+//     for (size_t i = 0; i < numprocs(); ++i) {
+//       std::cout << "Received " << global_calls_received[i].value << " from " << i << std::endl;
+//     }
   }
 };
 

@@ -357,7 +357,7 @@ void distributed_control::full_barrier() {
   calls_to_receive.clear(); calls_to_receive.resize(numprocs(), 0);
   for (size_t i = 0;i < numprocs(); ++i) {
     calls_to_receive[i] += all_calls_sent[i][procid()];
-    std::cout << "Expecting " << calls_to_receive[i] << " calls from " << i << std::endl;
+//    std::cout << "Expecting " << calls_to_receive[i] << " calls from " << i << std::endl;
   }
   // clear the counters
   num_proc_recvs_incomplete.value = numprocs();
@@ -377,9 +377,9 @@ void distributed_control::full_barrier() {
   while (num_proc_recvs_incomplete.value > 0) full_barrier_cond.wait(full_barrier_lock);
   full_barrier_lock.unlock();
   full_barrier_in_effect = false;
-  for (size_t i = 0; i < numprocs(); ++i) {
-    std::cout << "Received " << global_calls_received[i].value << " from " << i << std::endl;
-  }
+//   for (size_t i = 0; i < numprocs(); ++i) {
+//     std::cout << "Received " << global_calls_received[i].value << " from " << i << std::endl;
+//   }
 }
 
 

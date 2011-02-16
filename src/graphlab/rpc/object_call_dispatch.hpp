@@ -36,7 +36,7 @@ template<typename DcType,
     iarc >> (f0) ;
     (obj->*f)( (f0) );
     charstring_free(f0);
-    if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received();
+    if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source);
 }
 
 } 
@@ -65,7 +65,7 @@ void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source, 
   BOOST_PP_REPEAT(N, GENPARAMS, _)                \
   (obj->*f)(BOOST_PP_ENUM(N,GENARGS ,_)  ); \
   BOOST_PP_REPEAT(N, CHARSTRINGFREE, _)                \
-  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(); \
+  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source); \
 } 
 
 BOOST_PP_REPEAT(6, OBJECT_NONINTRUSIVE_DISPATCH_GENERATOR, _)

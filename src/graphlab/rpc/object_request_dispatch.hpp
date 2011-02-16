@@ -66,7 +66,7 @@ template<typename DcType,
     else
     {
         dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
-    } if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received();
+    } if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source);
 }
 
 
@@ -103,7 +103,7 @@ void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t s
   else {  \
     dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
-  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(); \
+  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source); \
 } 
 
 BOOST_PP_REPEAT(6, NONINTRUSIVE_DISPATCH_GENERATOR, _)

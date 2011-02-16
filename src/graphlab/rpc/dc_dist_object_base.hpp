@@ -15,8 +15,8 @@ use.
 */
 class dc_dist_object_base{
  public:
-  virtual void inc_calls_sent() = 0;
-  virtual void inc_calls_received() = 0;
+  virtual void inc_calls_sent(procid_t source) = 0;
+  virtual void inc_calls_received(procid_t dest) = 0;
 };
 
 }
