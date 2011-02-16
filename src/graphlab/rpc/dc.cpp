@@ -345,12 +345,16 @@ namespace dc_impl {
   
   void full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
                                                       size_t id, size_t r) {
-      if (id != dc.full_barrier_curid) return;
+    if (id != dc.full_barrier_curid) return;
+    // std::cout << "full_barrier_add_to_recv: from " << proc 
+    //           << " +" << r << std::endl;
     // we want the previous value of the atom
     // so we can find the first time it crosses
     // the send counter, and avoid multiple releases
     size_t prevval = dc.all_recv_count.inc_ret_last(r);
     if (prevval <= dc.all_send_count && prevval + r >= dc.all_send_count) {
+      // std::cout << "release full barrier: " << prevval 
+      //           << " + " << r << std::endl;
       // release everyone
       for (size_t i = 0;i < dc.numprocs(); ++i) {
         if (i != dc.procid()) {
@@ -376,7 +380,7 @@ and calls issued while the barrier is being evaluated.
 void distributed_control::full_barrier() {
   // gather a sum of all the calls issued to machine 0
   size_t local_num_calls_sent = calls_sent();
-  
+  full_barrier_released = false;
   // tell node 0 how many calls there are
   std::vector<size_t> all_calls_sent(numprocs());
   all_calls_sent[procid()] = local_num_calls_sent;
@@ -389,6 +393,7 @@ void distributed_control::full_barrier() {
     for (size_t i = 0;i < all_calls_sent.size(); ++i) {
       all_send_count += all_calls_sent[i];
     }
+    //    std::cout << "All Send Count: " << all_send_count << std::endl;
   }
   // issue a barrier to make sure everyone stops here
   // while node 0 prepares the counters.
@@ -436,8 +441,9 @@ void distributed_control::full_barrier() {
     if (full_barrier_released) break;
     full_barrier_cond.wait(full_barrier_lock);    
   }
-
+  //  if(procid() == 0) std::cout << all_recv_count.value << std::endl;
   full_barrier_curid++;
+  full_barrier_in_effect = false;
   full_barrier_lock.unlock();
 }
 

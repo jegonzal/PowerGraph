@@ -771,6 +771,7 @@ private:
   and calls issued while the barrier is being evaluated.
   */
   void full_barrier() {
+    full_barrier_released = false;
     // gather a sum of all the calls issued to machine 0
     size_t local_num_calls_sent = calls_sent();
     
@@ -833,6 +834,7 @@ private:
       full_barrier_cond.wait(full_barrier_lock);    
     }
     full_barrier_curid++;
+    full_barrier_in_effect = false;
     full_barrier_lock.unlock();
   }
 };
