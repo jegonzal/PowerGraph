@@ -13,6 +13,7 @@
 #include <boost/unordered_map.hpp>
 #include <boost/filesystem.hpp>
 
+#include <graphlab/util/timer.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
@@ -76,8 +77,6 @@ namespace graphlab {
 
 
     dc_dist_object< atom_shuffler_type > rmi;
-    std::string path;
-    std::string atom_prefix;
 
     size_t num_colors;
     std::vector<vertex_color_type> vertex2color;
@@ -95,10 +94,7 @@ namespace graphlab {
 
 
   public:
-    atom_shuffler(distributed_control& dc,
-                  const std::string& path,
-                  const std::string& atom_prefix = "atom_") : 
-      rmi(dc, this), path(path), atom_prefix(atom_prefix) { }
+    atom_shuffler(distributed_control& dc) : rmi(dc, this) { }
 
 
 
@@ -120,8 +116,9 @@ namespace graphlab {
     void add_neighbor_atom(const vertex_id_t fragid,
                            const vertex_id_t vid, 
                            const procid_t neighbor_atom) {
+      assert(fragid2proc.find(fragid) != fragid2proc.end());
       procid_t vid_proc = fragid2proc[fragid];
-
+      assert(vid_proc < rmi.numprocs());
       // if v1 is stored locally add the v2 atom to v1
       if(vid_proc == rmi.procid()) {
         add_neighbor_atom_local(fragid, vid, neighbor_atom);
@@ -137,15 +134,18 @@ namespace graphlab {
     void add_neighbor_atom_local(const vertex_id_t fragid,
                                  const vertex_id_t vid, 
                                  const procid_t neighbor_atom) {
+      assert(fragid2proc.find(fragid) != fragid2proc.end());
       assert(fragid2proc[fragid] == rmi.procid());
       assert(id2fraginfo.find(fragid) != id2fraginfo.end());
+      assert(neighbor_atom < num_atoms);
       fraginfo& finfo(id2fraginfo[fragid]);
       assert(finfo.frag.begin_vertex <= vid);
       assert(vid < finfo.frag.end_vertex);
       vertex_id_t localvid = finfo.frag.local_id(vid);
-      finfo.locks[localvid].lock();
-      finfo.neighbor_atoms[localvid].insert(neighbor_atom);
-      finfo.locks[localvid].unlock();
+      assert(localvid < finfo.frag.num_local_verts);
+      finfo.locks.at(localvid).lock();
+      finfo.neighbor_atoms.at(localvid).insert(neighbor_atom);
+      finfo.locks.at(localvid).unlock();
     } // end of add atom neighbor local
 
       
@@ -235,49 +235,79 @@ namespace graphlab {
     
 
 
-    void shuffle() {
+    void shuffle(const std::string& path,
+                 const std::string& atom_path,
+                 const std::string& atom_prefix = "atom_") {
       { // Load the coloring information =============================
         if(rmi.procid() == 0) 
           std::cout << "Loading vertex coloring."
                     << std::endl;      
-        vertex_color_type max_color = 0;
+        size_t max_color(0);
         std::string absfname = path + "/coloring.txt";
         std::ifstream fin(absfname.c_str());
         while(fin.good()) {
-          vertex_color_type vcolor;
+          size_t vcolor;
           fin >> vcolor;
-          max_color = std::max(max_color, vcolor);
-          if(fin.good()) vertex2color.push_back(vcolor);
+          if(fin.good()) {
+            assert(vcolor < 
+                   std::numeric_limits<vertex_color_type>::max());
+            max_color = std::max(max_color, vcolor);
+            vertex2color.push_back(vertex_color_type(vcolor));
+          }
         }
         fin.close();
         num_colors = max_color + 1;
-        if(rmi.procid() == 0) 
+        if(rmi.procid() == 0)  {
           std::cout << "Coloring: " << num_colors
                     << std::endl;
+          
+          // Save the coloring in the shared atom folder
+          absfname = atom_path + "/coloring.txt";
+          std::ofstream fout(absfname.c_str());
+          assert(fout.good());
+          for(size_t i = 0; i < vertex2color.size(); ++i) {
+            fout << size_t(vertex2color[i]) << '\n';
+            assert(fout.good());
+          }
+          fout.close();
+        }
       }
+
+
 
       { // Load the partitioning information =========================
         if(rmi.procid() == 0) 
           std::cout << "Loading partitioning."
                     << std::endl;      
-        procid_t max_atomid = 0;
+        size_t max_atomid(0);
         std::string absfname = path + "/partitioning.txt";
         std::ifstream fin(absfname.c_str());
         while(fin.good()) {
-          procid_t atomid;
+          size_t atomid;
           fin >> atomid;
-          max_atomid = std::max(max_atomid, atomid);
-          if(fin.good()) vertex2atomid.push_back(atomid);
+          if(fin.good()) {
+            assert(atomid < std::numeric_limits<procid_t>::max());
+            max_atomid = std::max(max_atomid, atomid);            
+            vertex2atomid.push_back(procid_t(atomid));
+          }
         }
         fin.close();
         num_atoms = max_atomid + 1;        
-        if(rmi.procid() == 0) 
+        if(rmi.procid() == 0) {
           std::cout << "Num atoms: " << num_atoms
                     << std::endl;      
+          // Save the partitioning in the shared atom folder
+          absfname = atom_path + "/partitioning.txt";
+          std::ofstream fout(absfname.c_str());
+          assert(fout.good());
+          for(size_t i = 0; i < vertex2atomid.size(); ++i) {
+            fout << size_t(vertex2atomid[i]) << '\n';
+            assert(fout.good());
+          }
+          fout.close();
+        }
       }
 
-      atomid2info.resize(num_atoms, NULL);
-      atomid2lock.resize(num_atoms);
  
       { // Determine Local Filenames ==========================================
         if(rmi.procid() == 0) 
@@ -305,8 +335,12 @@ namespace graphlab {
           id2fraginfo[frag.id].frag = frag;
           fin.close();
           id2fraginfo[frag.id].neighbor_atoms.resize(frag.num_local_verts);
+          id2fraginfo[frag.id].locks.resize(frag.num_local_verts);
         }      
       }
+
+      timer ti;
+      ti.start();
 
       { // compute fragid2proc map ==============================================
         if(rmi.procid() == 0) 
@@ -338,15 +372,15 @@ namespace graphlab {
           const raw_fragment& frag(pair.second.frag); 
           for(vertex_id_t i = 0, vid = frag.begin_vertex; 
               vid < frag.end_vertex; ++vid, ++i) {
-            foreach(vertex_id_t neighbor_vid, frag.in_neighbor_ids[i]) {
+            foreach(vertex_id_t neighbor_vid, frag.in_neighbor_ids.at(i)) {
               vertex_id_t neighbor_frag_id = 
                 frag.owning_fragment(neighbor_vid);
               add_neighbor_atom(frag.id, 
                                 vid, 
-                                vertex2atomid[neighbor_vid]);
+                                vertex2atomid.at(neighbor_vid));
               add_neighbor_atom(neighbor_frag_id, 
                                 neighbor_vid, 
-                                vertex2atomid[vid]);
+                                vertex2atomid.at(vid));
             }
           }
         }
@@ -359,6 +393,8 @@ namespace graphlab {
         if(rmi.procid() == 0) 
           std::cout << "Initializing all atom files."
                     << std::endl;
+        atomid2info.resize(num_atoms, NULL);
+        atomid2lock.resize(num_atoms);
         for(procid_t atomid = 0; atomid < num_atoms; ++atomid) {         
           atomid2lock[atomid].lock();
           // if this is the owning machine setup the map and files
@@ -391,7 +427,7 @@ namespace graphlab {
 
             { // determine atom filename
               std::stringstream strm;
-              strm << path << "/"  << atom_prefix
+              strm << atom_path << "/"  << atom_prefix
                  << std::setw(3) << std::setfill('0')
                  << atomid << ".atom";
               ainfo.atomfn = strm.str();
@@ -402,7 +438,7 @@ namespace graphlab {
           atomid2lock[atomid].unlock();
         } //end of for loop
       } // end of initialize atom files for this machine
-    
+          
 
       rmi.full_barrier();
 
@@ -432,8 +468,8 @@ namespace graphlab {
             // send the vertex data to the owning atoms
             add_vertex(vertex2atomid[vid],
                        vid,
-                       vertex2atomid[vid],
-                       vertex2color[vid],
+                       vertex2atomid.at(vid),
+                       vertex2color.at(vid),
                        vdata);
             // Loop over the vertex neighbors and send to neighbor atoms
             foreach(procid_t neighbor_atom, finfo.neighbor_atoms[i]) {
@@ -444,8 +480,8 @@ namespace graphlab {
                 // send the vertex data to the owning atoms
                 add_vertex(neighbor_atom,
                            vid,
-                           vertex2atomid[vid],
-                           vertex2color[vid],
+                           vertex2atomid.at(vid),
+                           vertex2color.at(vid),
                            vdata);
               } // end of if neighbor is in different atom
             } // and of loop over neighbor atoms
@@ -453,7 +489,8 @@ namespace graphlab {
           fin.close();
         } // end of loop over all raw fragments on this machine
       } // end of shuffle the vertex data
-
+      rmi.comm_barrier();
+      rmi.barrier();
 
       rmi.full_barrier();
 
@@ -492,7 +529,18 @@ namespace graphlab {
         } // end of for loop
       } // end of shuffle the edge data
 
-      rmi.full_barrier();
+      std::cout << "Entering final barrier on " << rmi.procid() << std::endl;
+      rmi.comm_barrier();
+      rmi.barrier();
+      rmi.dc().full_barrier();
+
+      std::cout << "Leaving final barrier on " << rmi.procid() << std::endl;
+
+
+      if(rmi.procid() == 0)
+        std::cout << "Finished shuffling in " << ti.current_time() 
+                  << " seconds." << std::endl;
+
 
       { // Emit actual atom files =============================================
         if(rmi.procid() == 0) 
@@ -557,7 +605,7 @@ namespace graphlab {
         } // end of for loop
       } // end of emit atom files
 
-      rmi.full_barrier();
+      rmi.full_barrier();            
 
       if(rmi.procid() == 0) 
         std::cout << "Finished shuffle!"
@@ -584,11 +632,13 @@ namespace graphlab {
     }
       
     atom_info& get_atom_info(procid_t atomid, bool create = false) {
+      assert(is_local(atomid));
       // Check that this is the owning machine and the file has been allocated
       assert(atomid < atomid2info.size());
       if(create) {
         assert(atomid2info[atomid] == NULL);
         atomid2info[atomid] = new atom_info();
+        assert(atomid2info[atomid] != NULL);
       }
       assert(atomid2info[atomid] != NULL);
       return *atomid2info[atomid];
@@ -604,33 +654,29 @@ namespace graphlab {
 
   public:
 
-    static void build_atoms_from_partitioning(const std::string& path) {      
+    static void 
+    build_atoms_from_partitioning(const std::string& path,
+                                  const std::string& atom_path) {      
       std::cout << "Initializing distributed communication layer" << std::endl;
       dc_init_param param;      
       if ( !init_param_from_env(param) ) {
         std::cout << "Failed to get environment variables" << std::endl;
         assert(false);
       }
+      param.initstring = "buffered_send=yes";
       distributed_control dc(param);
-
-      dc.full_barrier();
-
-      
+      dc.full_barrier();      
       if(dc.procid() == 0) { 
         std::cout << "Initializing distributed shuffler object.  ";
         std::cout.flush();
       }
       // Create the atom shuffler
-      atom_shuffler atom_shuffler(dc, path);
-
+      atom_shuffler atom_shuffler(dc);
       dc.full_barrier();
-
-
-      atom_shuffler.shuffle();
-      
+      atom_shuffler.shuffle(path, atom_path);
+      dc.full_barrier();
       if(dc.procid() == 0) 
-        std::cout << "Finished." << std::endl;
-      
+        std::cout << "Finished." << std::endl;      
     } // end of graph partition to atom index
 
 

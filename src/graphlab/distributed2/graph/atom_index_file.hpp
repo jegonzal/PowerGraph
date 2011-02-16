@@ -36,7 +36,7 @@ namespace graphlab {
 
   struct atom_index_file {
 
-    size_t nverts, nedges, natoms;
+    size_t nverts, nedges, ncolors, natoms;
     std::vector<atom_file_descriptor> atoms;
 
     void read_from_file(std::string indexfile);

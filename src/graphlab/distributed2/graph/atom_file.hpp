@@ -55,7 +55,8 @@ namespace graphlab {
      */
     void load_id_maps() {
       if (loadstage == 0) {
-        (*iarc) >> atom_id_ >> globalvids_ >> globaleids_ >> atom_;
+        (*iarc) >> atom_id_ >> globalvids_ >> globaleids_ 
+                >> atom_ >> vcolor_;
         ++loadstage;
       }
     }
@@ -67,7 +68,7 @@ namespace graphlab {
     void load_structure() {
       if (loadstage < 1) load_id_maps();
       if (loadstage == 1) {
-        (*iarc) >> vcolor_ >> edge_src_dest_;
+        (*iarc) >> edge_src_dest_;
         ++loadstage;
       }
     }

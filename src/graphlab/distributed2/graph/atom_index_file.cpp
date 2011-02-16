@@ -27,7 +27,11 @@ void atom_index_file::read_from_file(std::string indexfile) {
   /*
     [nverts] [nedges] [natoms]
   */
-  fin >> nverts >> nedges >> natoms;
+  std::string label;
+  fin >> label >> nverts
+      >> label >> ncolors
+      >> label >> nedges 
+      >> label >> natoms;
   
   
   for (size_t i = 0;i < natoms; ++i) {
@@ -102,7 +106,10 @@ void atom_index_file::write_to_file(std::string outfilename) {
   // write file
   std::ofstream fout(outfilename.c_str());
   assert(fout.good());
-  fout << nverts << " " << nedges << " " << natoms << "\n";
+  fout << "NumVerts:\t" << nverts << "\n" 
+       << "NumEdges:\t" << nedges << "\n" 
+       << "NumColors:\t" << ncolors << "\n" 
+       << "NumAtoms:\t" << natoms << "\n";
   for (size_t i = 0;i < natoms; ++i) {
     fout << atoms[i].nverts << "\t" << atoms[i].nedges << "\t"
          << atoms[i].adjatoms.size() << "\t";
@@ -192,7 +199,6 @@ void find_local_atom_files(const std::string& pathname,
     }
   }
   std::sort(files.begin(), files.end());
-
 }
 
 
@@ -202,19 +208,22 @@ struct atom_file_desc_extra {
   atom_file_descriptor desc;
   edge_id_t nlocalverts;
   edge_id_t ninedges;
+  size_t max_color;
   atom_file_desc_extra() : 
     nlocalverts(0), ninedges(0) { }
     
   void save(oarchive &oarc) const{
     oarc << desc
          << nlocalverts
-         << ninedges;
+         << ninedges
+         << max_color;
   }
   
   void load(iarchive &iarc) {
     iarc >> desc
          >> nlocalverts
-         >> ninedges;
+         >> ninedges
+         >> max_color;
   }
 };
 
@@ -237,14 +246,17 @@ build_atom_index_file(const std::string& path) {
   std::vector<std::string> local_fnames; 
   size_t num_atoms = 0;
   {
+    if(dc.procid() == 0) 
+      std::cout << "Computing local filenames"
+                << std::endl;
     find_local_atom_files(path, local_fnames);
     // compute the fnames that are used by this machine
     std::vector< std::vector< std::string > > partition_fnames;
     dc.gather_partition(local_fnames, partition_fnames);
     for(size_t i = 0; i < partition_fnames.size(); ++i) 
-      num_atoms += partition_fnames[i].size();
+      num_atoms += partition_fnames.at(i).size();
     // update the local fnames      
-    local_fnames = partition_fnames[dc.procid()];
+    local_fnames = partition_fnames.at(dc.procid());
     std::cout << "Assigned Names: " << std::endl;
     foreach(std::string fname, local_fnames) 
       std::cout << "(" << fname << ")" << '\t';
@@ -253,21 +265,23 @@ build_atom_index_file(const std::string& path) {
   
   dc.full_barrier();
 
-
-  std::cout << "Computing atom files: " << std::endl;
   typedef std::map<procid_t, atom_file_desc_extra> atomid2desc_type;
   atomid2desc_type atomid2desc;
   {
-    // hack: only need the type to read the atom payload which is not
-    // needed here
+    if(dc.procid() == 0) 
+      std::cout << "Computing local filenames"
+                << std::endl;
+
+    // hack: only need the type to read the atom header. The body is
+    // not needed here
     typedef atom_file<bool, bool> fake_atom_file_type;
     foreach(const std::string& fname, local_fnames) {
       std::string absfname = path + "/" + fname;
       fake_atom_file_type afile;
       afile.input_filename("file", absfname);
-      afile.load_id_maps();
+      afile.load_structure(); // we do not need to load all
       procid_t atom_id = afile.atom_id();
-      atom_file_desc_extra afd_extra(atomid2desc[atom_id]);
+      atom_file_desc_extra& afd_extra(atomid2desc[atom_id]);
       atom_file_descriptor& afd(afd_extra.desc);
       afd.file = absfname;
       afd.protocol = "file";
@@ -276,10 +290,18 @@ build_atom_index_file(const std::string& path) {
       // Compute adjacency counts for adjacent atoms as well as the
       // number of non ghost (local) vertices
       std::map<procid_t, size_t> adjatom_count;
+      // Compute local vertices as well as update the adjacent atom
+      // count
       afd_extra.nlocalverts = 0;
       foreach(const procid_t& other_atom_id, afile.atom())  {
         if(other_atom_id == atom_id) ++afd_extra.nlocalverts;
         adjatom_count[other_atom_id]++;
+      }
+      // Compute max color
+      afd_extra.max_color = 0;
+      foreach(const vertex_color_type& vcolor, afile.vcolor())  {
+        std::cout << vcolor << '\t';
+        afd_extra.max_color = std::max(afd_extra.max_color, size_t(vcolor));
       }
       // count in edges
       afd_extra.ninedges = 0;
@@ -299,8 +321,8 @@ build_atom_index_file(const std::string& path) {
   dc.full_barrier();
 
   // Gather all the machine counts
-  std::vector<atomid2desc_type> all_descriptors;
-  all_descriptors[dc.procid()] = atomid2desc;
+  std::vector<atomid2desc_type> all_descriptors(dc.numprocs());;
+  all_descriptors.at(dc.procid()) = atomid2desc;
   dc.all_gather(all_descriptors);
   
   // join the maps to build the atom index file
@@ -310,6 +332,7 @@ build_atom_index_file(const std::string& path) {
     aif.natoms = num_atoms;
     aif.nverts = 0;
     aif.nedges = 0;
+    aif.ncolors = 0;
     foreach(const atomid2desc_type& a2d, all_descriptors) {
       typedef atomid2desc_type::value_type pair_type;
       foreach(const pair_type& pair, a2d) {
@@ -321,11 +344,16 @@ build_atom_index_file(const std::string& path) {
         aif.atoms[atomid] = pair.second.desc;
         aif.nverts += pair.second.nlocalverts;
         aif.nedges += pair.second.ninedges;
+        // use ncolors to track the max color;
+        aif.ncolors = std::max(aif.ncolors, pair.second.max_color);
       }
     }
+    // convert max color to actual number of colors
+    aif.ncolors++;
     // Write results to file
-    aif.write_to_file("atom_index.txt");
+    aif.write_to_file(path + "/" + "atom_index.txt");
   }
+  
 
 } // and of build atom index file
 
