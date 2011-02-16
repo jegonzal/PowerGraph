@@ -29,15 +29,20 @@ class dgraph_scope : public iscope<Graph> {
 
   ~dgraph_scope() { }
 
-  void commit() { 
+  void commit_ghosts() { 
     graph_ptr->synchronize_scope(_vertex);
   }
   
-  void commit_async() { 
+  void commit_ghosts_async() { 
     graph_ptr->synchronize_scope(_vertex, true);
   }
 
-
+  void push_owned() {
+  }
+  
+  void push_owned_async() { 
+  }
+  
   void init(Graph* graph, vertex_id_t vertex) {
     base::_graph_ptr = graph;
     base::_vertex = vertex;

@@ -39,11 +39,6 @@ class dc_receive {
   */
   virtual size_t bytes_received() = 0;
   
-  /**
-  Calls received is incremented only after completion
-  of a function handler. Control packets should not be counted.
-  */
-  virtual size_t calls_received() = 0;
   
   virtual void shutdown() = 0;
 };

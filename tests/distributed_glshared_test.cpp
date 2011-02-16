@@ -51,6 +51,7 @@ int main(int argc, char** argv) {
 
   distributed_control dc(param);
   distributed_glshared_manager glmanager(dc);
+  dc.barrier();
   if (dc.procid() == 0) {
     anumber.set(10);
     astring.set("hello");

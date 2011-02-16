@@ -5,6 +5,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/util/blocking_queue.hpp>
+#include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 #include <graphlab/rpc/dc_types.hpp>
@@ -123,8 +124,8 @@ class distributed_control{
   /// Number of machines
   procid_t localnumprocs;
   
-  atomic<size_t> global_calls_sent;
-  atomic<size_t> global_calls_received;
+  std::vector<atomic<size_t> > global_calls_sent;
+  std::vector<atomic<size_t> > global_calls_received;
   
   
   /// the callback given to the comms class. Called when data is inbound
@@ -269,29 +270,50 @@ class distributed_control{
   */
   void fcallhandler_loop();
   
-  inline void inc_calls_sent() {
-    global_calls_sent.inc();
+  inline void inc_calls_sent(procid_t procid) {
+    global_calls_sent[procid].inc();
   }
 
-  inline void inc_calls_received() {
-    if (full_barrier_in_effect == false) {
-      global_calls_received.inc();
+  inline void inc_calls_received(procid_t procid) {
+    
+    if (!full_barrier_in_effect) {
+        global_calls_received[procid].inc();
     }
     else {
-      // use the more costly option
-      full_barrier_lock.lock();
-      global_calls_received.inc();
-      full_barrier_cond.signal();
-      full_barrier_lock.unlock();
+      //check the proc I just incremented.
+      // If I just exceeded the required size, I need
+      // to decrement the full barrier counter
+      if (global_calls_received[procid].inc() == calls_to_receive[procid]) {
+        // if it was me who set the bit
+        if (procs_complete.set_bit(procid) == false) {
+          // then decrement the incomplete count.
+          // if it was me to decreased it to 0
+          // lock and signal
+          if (num_proc_recvs_incomplete.dec() == 0) {
+            full_barrier_lock.lock();
+            full_barrier_cond.signal();
+            full_barrier_lock.unlock();
+          }
+        }
+      }
     }
+
   }
 
   inline size_t calls_sent() const {
-    return global_calls_sent.value;
+    size_t ctr = 0;
+    for (size_t i = 0;i < numprocs(); ++i) {
+      ctr += global_calls_sent[i].value;
+    }
+    return ctr;
   }
 
   inline size_t calls_received() const {
-    return global_calls_received.value;
+    size_t ctr = 0;
+    for (size_t i = 0;i < numprocs(); ++i) {
+      ctr += global_calls_received[i].value;
+    }
+    return ctr;
   }
 
   inline size_t bytes_sent() const {
@@ -434,21 +456,20 @@ class distributed_control{
 *****************************************************************************/
   void full_barrier();
  private:
-  bool full_barrier_released;
   mutex full_barrier_lock;
   conditional full_barrier_cond;
-  atomic<size_t> all_recv_count;
-  size_t all_send_count;
-  size_t full_barrier_curid; // to protect against fast repeated calls to full_barrier
-  
+  std::vector<size_t> calls_to_receive;
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv
   // counter will need to lock and signal
   bool full_barrier_in_effect;
-  friend void dc_impl::release_full_barrier(distributed_control &dc, procid_t proc,
-                                            size_t id);
-  friend void dc_impl::full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
-                                                      size_t id, size_t r);
+  
+  /** number of 'source' processor counts which have
+  not achieved the right recv count */
+  atomic<size_t> num_proc_recvs_incomplete; 
+                                      
+  /// Marked as 1 if the proc is complete
+  dense_bitset procs_complete;
 };
 
 

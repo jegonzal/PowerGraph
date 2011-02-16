@@ -68,28 +68,28 @@ void set_all_in_boundary(distributed_graph<size_t, double> &dg, size_t vvalue, d
   const std::vector<vertex_id_t>& boundvertices = dg.boundary_scopes();
   for (size_t i = 0;i < boundvertices.size(); ++i) {
     dg.vertex_data(boundvertices[i]) = vvalue;
-    dg.vertex_modified(boundvertices[i]);
+    dg.vertex_is_modified(boundvertices[i]);
     dg.increment_vertex_version(boundvertices[i]);
     
     foreach(edge_id_t eid, dg.in_edge_ids(boundvertices[i])) {
       dg.edge_data(eid) = evalue;
-      dg.edge_modified(eid);
+      dg.edge_is_modified(eid);
       dg.increment_edge_version(eid);
       
       vertex_id_t sourcevid = dg.source(eid);
       dg.vertex_data(sourcevid) = vvalue;
-      dg.vertex_modified(sourcevid);
+      dg.vertex_is_modified(sourcevid);
       dg.increment_vertex_version(sourcevid);
     }
     
     foreach(edge_id_t eid, dg.out_edge_ids(boundvertices[i])) {
       dg.edge_data(eid) = evalue;
-      dg.edge_modified(eid);
+      dg.edge_is_modified(eid);
       dg.increment_edge_version(eid);
 
       vertex_id_t targetvid = dg.target(eid);
       dg.vertex_data(targetvid) = vvalue;
-      dg.vertex_modified(targetvid);
+      dg.vertex_is_modified(targetvid);
       dg.increment_vertex_version(targetvid);
     }
   }

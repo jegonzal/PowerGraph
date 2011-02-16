@@ -49,7 +49,7 @@ std::string distributed_glshared_manager::exchange(size_t entry,
     ret = valref;
     valref = val;
     dht.end_critical_section(entry);
-    dht.push_changes(entry, false);
+    dht.push_changes(entry, false, procid_t(-1));
   }
   else {
     ret = rmi.remote_request(dht.owning_machine(entry),

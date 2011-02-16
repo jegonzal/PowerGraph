@@ -59,9 +59,6 @@ class dc_stream_send: public dc_send{
   inline size_t bytes_sent() {
     return bytessent.value;
   }
-  inline size_t calls_sent() {
-    return callssent.value;
-  }
 
  private:
   mutex lock;

@@ -22,7 +22,6 @@ void dc_buffered_stream_send::send_data(procid_t target,
   if (len != size_t(-1)) {
     // build the packet header
     if ((packet_type_mask & CONTROL_PACKET) == 0) {
-      if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) callssent.inc();
       bytessent.inc(len);
     }
     packet_hdr hdr;
@@ -75,8 +74,7 @@ void dc_buffered_stream_send::send_data(procid_t target,
                  char* data, size_t len) {
   if ((packet_type_mask & CONTROL_PACKET) == 0) {
     if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) {
-      dc->inc_calls_sent();
-      callssent.inc();
+      dc->inc_calls_sent(target);
     }
     bytessent.inc(len);
   }

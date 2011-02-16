@@ -67,9 +67,6 @@ class dc_buffered_stream_send: public dc_send{
   inline size_t bytes_sent() {
     return bytessent.value;
   }
-  inline size_t calls_sent() {
-    return callssent.value;
-  }
 
  private:
   /// pointer to the owner
@@ -83,7 +80,7 @@ class dc_buffered_stream_send: public dc_send{
   thread thr;
   bool done;
   
-  atomic<size_t> bytessent, callssent;
+  atomic<size_t> bytessent;
 };
 
 

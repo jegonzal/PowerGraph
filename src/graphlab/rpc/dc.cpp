@@ -143,7 +143,7 @@ void distributed_control::exec_function_call(procid_t source,
 
     }
   }
-  if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received();
+  if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
 } 
  
  
@@ -193,8 +193,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
             dc_comm_type commtype) {   
   //-------- Initialize the full barrier ---------
   full_barrier_in_effect = false;
-  full_barrier_curid = 0;
-  full_barrier_released = false;
+  procs_complete.resize(machines.size());
   //-----------------------------------------------
   
   REGISTER_RPC((*this), reply_increment_counter);
@@ -231,6 +230,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
   else {
     ASSERT_MSG(false, "Unexpected value for comm type");
   }
+  global_calls_sent.resize(machines.size());
+  global_calls_received.resize(machines.size());
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
@@ -332,43 +333,6 @@ void distributed_control::compute_master_ranks() {
   information about the context which cannot be resolved easily.
 */
 
-namespace dc_impl {
-  void release_full_barrier(distributed_control &dc, procid_t proc,
-                            size_t id) {
-    if (id != dc.full_barrier_curid) return;
-    dc.full_barrier_lock.lock();
-    dc.full_barrier_released = true;
-    dc.full_barrier_in_effect = false;
-    dc.full_barrier_cond.signal();
-    dc.full_barrier_lock.unlock();
-  }
-  
-  void full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
-                                                      size_t id, size_t r) {
-    if (id != dc.full_barrier_curid) return;
-    // std::cout << "full_barrier_add_to_recv: from " << proc 
-    //           << " +" << r << std::endl;
-    // we want the previous value of the atom
-    // so we can find the first time it crosses
-    // the send counter, and avoid multiple releases
-    size_t prevval = dc.all_recv_count.inc_ret_last(r);
-    if (prevval <= dc.all_send_count && prevval + r >= dc.all_send_count) {
-      // std::cout << "release full barrier: " << prevval 
-      //           << " + " << r << std::endl;
-      // release everyone
-      for (size_t i = 0;i < dc.numprocs(); ++i) {
-        if (i != dc.procid()) {
-          dc.control_call(i,
-                         release_full_barrier,
-                         dc.full_barrier_curid);
-        }
-      }
-            // release myself
-     release_full_barrier(dc, proc, dc.full_barrier_curid);
-
-    }
-  }
-} // namespace dc_impl
 /**
 This barrier ensures globally across all machines that
 all calls issued prior to this barrier are completed before
@@ -379,72 +343,43 @@ and calls issued while the barrier is being evaluated.
 */
 void distributed_control::full_barrier() {
   // gather a sum of all the calls issued to machine 0
-  size_t local_num_calls_sent = calls_sent();
-  full_barrier_released = false;
-  // tell node 0 how many calls there are
-  std::vector<size_t> all_calls_sent(numprocs());
-  all_calls_sent[procid()] = local_num_calls_sent;
-  gather(all_calls_sent, 0, true);
-  
-  // proc 0 computes the total number of calls sent    
-  all_send_count = 0;
-  all_recv_count.value = 0;
-  if (procid() == 0) {
-    for (size_t i = 0;i < all_calls_sent.size(); ++i) {
-      all_send_count += all_calls_sent[i];
-    }
-    //    std::cout << "All Send Count: " << all_send_count << std::endl;
+  std::vector<size_t> calls_sent_to_target(numprocs(), 0);
+  for (size_t i = 0;i < numprocs(); ++i) {
+    calls_sent_to_target[i] = global_calls_sent[i].value;
   }
-  // issue a barrier to make sure everyone stops here
-  // while node 0 prepares the counters.
-  barrier();
-  // ok. now we basically keep recomunicating with
-  // node 0 the number of calls we have received so far
-  // until node 0 releases the barrier
+  
+  // tell node 0 how many calls there are
+  std::vector<std::vector<size_t> > all_calls_sent(numprocs());
+  all_calls_sent[procid()] = calls_sent_to_target;
+  all_gather(all_calls_sent, true);
+  
+  // get the number of calls I am supposed to receive from each machine
+  calls_to_receive.clear(); calls_to_receive.resize(numprocs(), 0);
+  for (size_t i = 0;i < numprocs(); ++i) {
+    calls_to_receive[i] += all_calls_sent[i][procid()];
+    std::cout << "Expecting " << calls_to_receive[i] << " calls from " << i << std::endl;
+  }
+  // clear the counters
+  num_proc_recvs_incomplete.value = numprocs();
+  procs_complete.clear();
+  // activate the full barrier
+  full_barrier_in_effect = true;
+  // begin one pass to set all which are already completed
+  for (size_t i = 0;i < numprocs(); ++i) {
+    if (global_calls_received[i].value >= calls_to_receive[i]) {
+      if (procs_complete.set_bit(i) == false) {
+        num_proc_recvs_incomplete.dec();
+      }
+    }
+  }
   
   full_barrier_lock.lock();
-  full_barrier_in_effect = true;
-  size_t last_communicated_recv_count = 0;
-  
-  // release now if all send count == 0
-  if (procid() == 0 && all_send_count == 0) {  
-    full_barrier_lock.unlock();
-    dc_impl::full_barrier_add_to_recv(*this, 0, full_barrier_curid, 0);
-    full_barrier_lock.lock();
-  }
-  
-  while(full_barrier_released == false) {
-    while (calls_received() != last_communicated_recv_count) {
-      size_t nextval = calls_received();
-      assert(nextval > last_communicated_recv_count);
-      // unlock for a while to issue the RPC call
-      full_barrier_lock.unlock();
-      if (procid() == 0) {
-        dc_impl::full_barrier_add_to_recv(*this, procid(), full_barrier_curid, 
-                                          nextval - last_communicated_recv_count);
-      }
-      else {
-        control_call(0,
-                     &dc_impl::full_barrier_add_to_recv,
-                     full_barrier_curid, 
-                      nextval - last_communicated_recv_count);
-      }
-      last_communicated_recv_count = nextval;
-      full_barrier_lock.lock();
-      // now there could be a race here because I released
-      // the lock to issue the calls.
-      // I need to check again before I let the condition
-      // variable take over
-      // the inner while loop will check the counting case
-      // but I need to check the exterior case
-    }
-    if (full_barrier_released) break;
-    full_barrier_cond.wait(full_barrier_lock);    
-  }
-  //  if(procid() == 0) std::cout << all_recv_count.value << std::endl;
-  full_barrier_curid++;
-  full_barrier_in_effect = false;
+  while (num_proc_recvs_incomplete.value > 0) full_barrier_cond.wait(full_barrier_lock);
   full_barrier_lock.unlock();
+  full_barrier_in_effect = false;
+  for (size_t i = 0; i < numprocs(); ++i) {
+    std::cout << "Received " << global_calls_received[i].value << " from " << i << std::endl;
+  }
 }
 
 

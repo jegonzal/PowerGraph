@@ -41,13 +41,6 @@ class dc_send{
   */
   virtual size_t bytes_sent() = 0;
   
-  /**
-    Calls sent must be incremented BEFORE the data is transmitted
-    Packets marked CONTROL_PACKET should not be counted
-    otherwise calls should be incremented if
-    the packet type matches either FAST_CALL or STANDARD_CALL
-  */
-  virtual size_t calls_sent() = 0;
 
   /** returns true if the channel to the target
   machine is truly open. The dc_comm_base specification allows

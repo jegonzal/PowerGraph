@@ -26,7 +26,6 @@ void dc_buffered_stream_receive::incoming_data(procid_t src,
 call is completed */
 void dc_buffered_stream_receive::function_call_completed(unsigned char packettype) {
   size_t pending = pending_calls.dec();
-  if ((packettype & CONTROL_PACKET) == 0) callsreceived.inc();
   if (barrier && pending == 0) {
     bufferlock.lock();
     barrier = false;
@@ -74,7 +73,6 @@ void dc_buffered_stream_receive::process_buffer() {
       #endif
       boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
       dc->exec_function_call(hdr.src, hdr.packet_type_mask, strm);
-      if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) callsreceived.inc();
     }
     else if (hdr.packet_type_mask & STANDARD_CALL) {
       #ifdef DC_RECEIVE_DEBUG
@@ -100,9 +98,6 @@ void dc_buffered_stream_receive::receive_loop() {
 
 size_t dc_buffered_stream_receive::bytes_received() {
   return bytesreceived;
-}
-size_t dc_buffered_stream_receive::calls_received() {
-  return callsreceived.value;
 }
 
 void dc_buffered_stream_receive::shutdown() {

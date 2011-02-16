@@ -511,18 +511,21 @@ class distributed_graph {
     localstore.increment_edge_version(global2localeid[eid]);
   }
 
-  void vertex_modified(vertex_id_t vid) {
-    if (is_ghost(vid)) {
-      localstore.set_vertex_modified(global2localvid[vid], true);
-    }
+  void vertex_is_modified(vertex_id_t vid) {
+    localstore.set_vertex_modified(global2localvid[vid], true);
   }
 
-  void edge_modified(edge_id_t eid) {
-    if (is_ghost(target(eid))) {
-      localstore.set_edge_modified(global2localeid[eid], true);  
-    }
+  void edge_is_modified(edge_id_t eid) {
+    localstore.set_edge_modified(global2localeid[eid], true);  
   }
 
+  bool is_vertex_modified(vertex_id_t vid) {
+      return localstore.vertex_modified(global2localvid[vid]);
+  }
+
+  bool is_edge_modified(edge_id_t eid) {
+      return localstore.edge_modified(global2localeid[eid]);
+  }
 
   /**
    * Returns a constant reference to the vertex data on vertex vid
@@ -783,6 +786,11 @@ class distributed_graph {
     }
   }
 
+  size_t num_colors() const {
+    //TODO return the number of colors
+    return 0;
+  }
+
   /**
    * Gets a reference to the color on vertex vid.
    * Assertion failure if vid is not on this machine.
@@ -881,6 +889,8 @@ class distributed_graph {
  * vid must be owned by the current machine. 
  * \todo: This function can be optimized to issue all requests simultaneously and 
  * wait for replies instead of issueing them sequentially.
+ * This function synchronizes all ghost data on this scope
+ * with their owners.
  */
   void synchronize_scope(vertex_id_t vid, bool async = false);   
   
@@ -915,6 +925,7 @@ class distributed_graph {
   */
   void push_owned_vertex_to_replicas(vertex_id_t vid, bool async = false, bool untracked = false);
   void push_owned_edge_to_replicas(edge_id_t eid, bool async = false, bool untracked = false);
+  void push_owned_scope_to_replicas(vertex_id_t vid, bool modified_only, bool clear_modified, bool async = false, bool untracked = false);
   void push_all_owned_vertices_to_replicas(bool async = false, bool untracked = false);
   void push_all_owned_edges_to_replicas(bool async = false, bool untracked = false);
   void wait_for_all_async_pushes();
@@ -976,9 +987,11 @@ class distributed_graph {
            >> srcdest >> edgeversion >> estore;
     }
   };
- private:
+
   /// RMI object
   mutable dc_dist_object<distributed_graph<VertexData, EdgeData> > rmi;
+
+ private:
   
   /** Protects structural modifications of the graph.
    * Modifications to the data store and to the local<->global mappings

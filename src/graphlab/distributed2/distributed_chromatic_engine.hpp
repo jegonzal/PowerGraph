@@ -1,6 +1,8 @@
 #ifndef DISTRIBUTED_CHROMATIC_ENGINE_HPP
 #define DISTRIBUTED_CHROMATIC_ENGINE_HPP
 
+#include <functional>
+
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
@@ -15,19 +17,20 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/distributed2/distributed_glshared_manager.hpp>
+#include <graphlab/distributed2/graph/dgraph_scope.hpp>
 
+#include <graphlab/macros_def.hpp>
 
 namespace graphlab {
 
 #include <graphlab/macros_def.hpp>
 
-template <typename Graph, typename Scheduler>
+template <typename Graph>
 class distributed_chromatic_engine:public iengine<Graph> {
  public:
   typedef iengine<Graph> iengine_base;
   typedef typename iengine_base::update_task_type update_task_type;
   typedef typename iengine_base::update_function_type update_function_type;
-  typedef typename iengine_base::ischeduler_type ischeduler_type;
   typedef typename iengine_base::termination_function_type termination_function_type;
   typedef typename iengine_base::iscope_type iscope_type;
   typedef typename iengine_base::ishared_data_type ishared_data_type;
@@ -36,10 +39,6 @@ class distributed_chromatic_engine:public iengine<Graph> {
   typedef typename iengine_base::sync_function_type sync_function_type;
   typedef typename iengine_base::merge_function_type merge_function_type;
 
-  using base::apply_scheduler_options;
-  using base::release_scheduler_and_scope_manager;
-  using base::get_scheduler;
-  using base::get_scope_manager;
 
  private:
 
@@ -95,6 +94,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
 
   scope_range::scope_range_enum default_scope_range;
  
+  std::vector<std::vector<vertex_id_t> > color_blocks;
     
   struct sync_task {
     sync_function_type sync_fun;
@@ -134,7 +134,8 @@ class distributed_chromatic_engine:public iengine<Graph> {
                             last_check_millis(0),
                             task_budget(0),
                             active(false),
-                            termination_reason(EXEC_UNSET) { }
+                            termination_reason(EXEC_UNSET),
+                            thread_color_barrier(ncpus){ }
   
   void ~distributed_chromatic_engine() {
   }
@@ -248,9 +249,91 @@ class distributed_chromatic_engine:public iengine<Graph> {
     var2synctask[&shared] = sync_tasks.size() - 1;
   }
 
+  
+  void generate_color_blocks() {
+    // construct for each color, the set of vertices as well as the 
+    // number of replicas for that vertex.
+    // the number of replicas - 1 is the amount of communication
+    // we have to perform to synchronize modifications to that vertex
+
+    std::vector<std::pair<vertex_id_t, size_t> > color_block_and_weight;
+    // the list of vertices for each color
+    color_blocks_and_weight.resize(graph.num_colors());
+    size_t numghostv = 0;
+    foreach(vertex_id_t v, graph.owned_vertices()) {
+      color_block_and_weight[graph.get_color(v)].push_back(
+                                    std::make_pair(v, 
+                                    g.globalvid_to_replicas(v)));
+    }
+    color_block.clear();
+    color_block.resize(graph.num_color());
+    // optimize ordering. Sort in descending order
+    // put all those which need a lot of communication in the front
+    // to give communication the maximum amount if time possible.
+    for (size_t i = 0; i < color_block_and_weight.size(); ++i) {
+      std::sort(color_block_and_weight[i].rbegin(),
+                color_block_and_weight[i].rend());
+      // insert the sorted vertices into the final color_block
+      std::transform(color_block_and_weight[i].begin(),
+                     color_block_and_weight[i].end(), 
+                     std::back_inserter(color_block[i]),
+                     __gnu_cxx::select1st<std::pair<vertex_id_t, size_t> >);
+    }
+    
+    
+  }
+  
+  /************  Actual Execution Engine ****************/
+ private:
+
+  atomic<size_t> curidx;
+  barrier thread_color_barrier;
+ public: 
+  void start_thread() {
+    // create the scope
+    dgraph_scope<Graph> scope;
+    // loop over iterations
+    while(1) {
+      // loop over colors    
+      for (size_t c = 0;c < color_block.size(); ++c) {
+        // internal loop over vertices in the color
+        while(1) {
+          // grab a vertex
+          size_t i = curidx.inc_ret_last();  
+          // if index out of scope, we are done with this color. break
+          if (i >= color_block[c].size()) break;
+          // otherwise. run the vertex
+          // create the scope
+          scope.init(&graph, color_block[c][i]);
+          // run the update function
+        }      
+        // wait for all threads to synchronize on this color.
+        thread_color_barrier.wait();
+      }
+    }
+  }
+  
   /** Execute the engine */
   void start() {
-    \\ TODO
+    // generate colors then
+    // wait for everyone to enter start    
+    generate_color_blocks();
+    rmi.barrier();
+    // reset indices
+    curidx.value = 0;
+    
+    // spawn threads
+    thread_group thrgrp; 
+    for (size_t i = 0;i < ncpus; ++i) {
+      size_t aff = use_cpu_affinity ? i : -1;
+      launch_in_new_thread(thrgrp, 
+                         boost::bind(
+                            distributed_chromatic_engine<Graph>::start_thread,
+                            this), aff);
+    }
+    
+    thrgrp.join();              
+    rmi.barrier();
   }
   
   /**
@@ -267,5 +350,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
 };
 
 } // namespace graphlab
+
+#include <graphlab/macros_undef.hpp>
 
 #endif // DISTRIBUTED_CHROMATIC_ENGINE_HPP

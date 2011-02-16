@@ -864,6 +864,40 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_edges_to_replicas(b
   }
 }
 
+
+template <typename VertexData, typename EdgeData>
+void distributed_graph<VertexData, EdgeData>::push_owned_scope_to_replicas(vertex_id_t vid, 
+                                                                            bool onlymodified, 
+                                                                            bool clearmodified, 
+                                                                            bool async,
+                                                                            bool untracked) {
+  if (onlymodified) {
+   if (is_owned(vid)) {
+      vertex_id_t localvid = global2localvid[vid];
+      if (localstore.vertex_modified(localvid)) {
+        localstore.set_vertex_modified(localvid, false);
+        push_owned_vertex_to_replicas(vid, async, untracked);
+        
+      }
+      foreach(edge_id_t eid, in_edge_ids(vid)) {
+      vertex_id_t localeid = global2localeid[eid];
+        if (localstore.edge_modified(localeid)) {
+          localstore.set_edge_modified(localeid, false);
+          push_owned_edge_to_replicas(eid, async, untracked);
+        }
+      }
+    }
+  }
+  else {
+    if (is_owned(vid)) {
+      push_owned_vertex_to_replicas(vid, async, untracked);
+      foreach(edge_id_t eid, in_edge_ids(vid)) {
+        push_owned_edge_to_replicas(eid, async, untracked);
+      }
+    }
+  }
+}
+
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::wait_for_all_async_pushes() {
   pending_push_updates.wait();
