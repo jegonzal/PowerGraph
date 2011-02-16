@@ -19,7 +19,7 @@ void dc_stream_receive::incoming_data(procid_t src,
   bufferlock.lock();
   buffer.write(buf, len);
   bufferlock.unlock();
-  process_buffer();
+  process_buffer(false);
 }
   
 /** called by the controller when a function
@@ -30,13 +30,13 @@ void dc_stream_receive::function_call_completed(unsigned char packettype) {
     bufferlock.lock();
     barrier = false;
     bufferlock.unlock();
-    process_buffer();
+    process_buffer(false);
   }
 }
-void dc_stream_receive::process_buffer() {
+void dc_stream_receive::process_buffer(bool outsidelocked) {
   // if barrier is set. we should not process anything
   if (barrier) return;
-  if (bufferlock.try_lock()) {
+  if (outsidelocked || bufferlock.try_lock()) {
     // only makes sense to process if we at least have
     // a header
     while (size_t(buffer.size()) >= sizeof(packet_hdr)) {
@@ -86,9 +86,45 @@ void dc_stream_receive::process_buffer() {
         dc->deferred_function_call(hdr.src,hdr.packet_type_mask, tmpbuf, hdr.len);
       }
     }
-    bufferlock.unlock();
+    if (!outsidelocked) bufferlock.unlock();
   }
 }
+
+char* dc_stream_receive::get_buffer(size_t& retbuflength) {
+  char* ret;
+  bufferlock.lock();
+  // get a write section
+  retbuflength = buffer.introspective_write(ret);
+  assert(retbuflength > 0);
+  bufferlock.unlock();
+  return ret;
+}
+
+
+char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength, 
+                            size_t& retbuflength) {
+  char* ret;
+  bufferlock.lock();
+  buffer.advance_write(wrotelength);
+
+  process_buffer(true);
+  
+  retbuflength = buffer.introspective_write(ret);
+  // if the writeable section is too small, sqeeze the buffer 
+  // and try again
+  if (retbuflength < 32) {
+    if (buffer.reserved_size() < 20480 && 
+        (buffer.reserved_size() - buffer.size()) < 64) {
+      buffer.reserve(buffer.reserved_size() + 4096);
+    }
+    buffer.squeeze();
+    retbuflength = buffer.introspective_write(ret);
+  }
+  bufferlock.unlock();
+
+  return ret;
+}
+
 
 size_t dc_stream_receive::bytes_received() {
   return bytesreceived;

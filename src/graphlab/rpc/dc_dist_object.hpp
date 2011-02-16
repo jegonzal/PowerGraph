@@ -158,12 +158,12 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }
   
   /// The current process ID
-  inline procid_t procid() {
+  inline procid_t procid() const {
     return dc_.procid();
   }
 
   /// The number of processes in the distributed program.
-  inline procid_t numprocs() {
+  inline procid_t numprocs() const {
     return dc_.numprocs();
   }
 

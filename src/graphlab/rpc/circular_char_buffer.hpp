@@ -84,6 +84,16 @@ class circular_char_buffer {
    */
   std::streamsize introspective_read(char* &s, std::streamsize clen);
   
+  /**
+    Returns a pointer to the next empty region of the buffer.
+    The return value is the maximum contigious length writable.
+    When writes complete, advance_write should be used to integrate the
+    written bytes
+  */
+  std::streamsize introspective_write(char* &s);
+  
+  void advance_write(std::streamsize bytes);
+  
   inline void consistency_check() const {
 /*    ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
     ASSERT_LT(head, bufsize); ASSERT_LE(tail, bufsize);
@@ -98,6 +108,11 @@ class circular_char_buffer {
   /** Gets the number of characters in the stream */
   inline std::streamsize size() const {
     return len;
+  }
+  
+  /** Gets the size of the buffer */
+  inline std::streamsize reserved_size() const {
+    return bufsize;
   }
  private:
    

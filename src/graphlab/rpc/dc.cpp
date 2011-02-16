@@ -264,7 +264,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   // start the machines
   comm->init(machines, options, curmachineid, 
-            dc_recv_callback, this); 
+              receivers); 
   
   // set the local proc values
   localprocid = comm->procid();

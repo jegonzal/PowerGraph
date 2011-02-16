@@ -28,6 +28,30 @@ class dc_receive {
                      const char* buf, 
                      size_t len) = 0;
    
+  /**
+    If direct access support return true, 
+    get buffer and commit buffer should be defined
+  */
+  virtual bool direct_access_support() = 0;
+  
+  /**
+    gets a buffer. The buffer length is returned in retbuflength
+    This will be used for receiving data.
+    If get_buffer() or advance_buffer() is called,
+    incoming_data will never be called.
+  */
+  virtual char* get_buffer(size_t& retbuflength) = 0;
+  
+  /**
+    Commits a buffer obtained using get_buffer.
+    c will be the result of a previous call to get_buffer() or advance_buffer()
+    This function should commit a range of bytes starting of c,
+    up to 'wrotelength' bytes. A new empty buffer should be returned
+    and the size is returned in retbuflength
+  */
+  virtual char* advance_buffer(char* c, size_t wrotelength, 
+                              size_t& retbuflength) = 0;
+  
   /** called by the controller when a function
   call is completed */
   virtual void function_call_completed(unsigned char packettype) = 0;

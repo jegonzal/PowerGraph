@@ -40,12 +40,10 @@ dc_sctp_comm::~dc_sctp_comm() {
 void dc_sctp_comm::init(const std::vector<std::string> &machines,
                        const std::map<std::string,std::string> &initopts,
                        procid_t curmachineid,
-                       comm_recv_callback_type _recvcallback,
-                       void* _tag){
+                       std::vector<dc_receive*> receiver_){
   curid = curmachineid;
-  nprocs = machines.size(),
-  tag = _tag;
-  recvcallback = _recvcallback; 
+  nprocs = machines.size();
+  receiver = receiver_;
 
   // reset the machines_started vector.
   // this is used to implement the low-level barrier
@@ -217,7 +215,7 @@ void dc_sctp_comm::server_handler_loop() {
     #ifdef COMM_DEBUG
     logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << "(" << stream << ","<< flags << ")" << std::endl;
     #endif
-    if (stream == STREAM_ALL) recvcallback(tag, sourceid, c, msglen);
+    if (stream == STREAM_ALL) receiver[sourceid]->incoming_data(sourceid, c, msglen);
     else if (stream == STREAM_CONTROL) handle_control(sourceid, c, msglen);
     else logstream(LOG_FATAL) << "Unexpected stream number\n";
   }

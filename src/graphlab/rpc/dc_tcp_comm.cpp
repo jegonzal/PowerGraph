@@ -26,12 +26,11 @@ namespace dc_impl {
 void dc_tcp_comm::init(const std::vector<std::string> &machines,
                        const std::map<std::string,std::string> &initopts,
                        procid_t curmachineid,
-                       comm_recv_callback_type _recvcallback,
-                       void* _tag){
+                       std::vector<dc_receive*> receiver_){ 
+
   curid = curmachineid;
   nprocs = machines.size(),
-  recvcallback = _recvcallback; 
-  tag = _tag;
+  receiver = receiver_;
   listenthread = NULL;
   // insert machines into the address map
   all_addrs.resize(nprocs);
@@ -314,21 +313,43 @@ void dc_tcp_comm::connect(size_t target) {
 
 
 void dc_tcp_comm::socket_handler::run() {
-  while(1) {
-    char c[10240];
-    
-    int msglen = recv(fd, c, 10240, 0);
-    // if msglen == 0, the scoket is closed
-    if (msglen <= 0) {
-      owner.socks[sourceid] = -1;
-      // self deleting
-      delete this;
-      break;
+  // get a direct pointer to my receiver
+  dc_receive* receiver = owner.receiver[sourceid];
+  
+  if (receiver->direct_access_support()) {
+    // we have direct buffer access!
+    size_t buflength;
+    char *c = receiver->get_buffer(buflength);
+    while(1) {      
+      int msglen = recv(fd, c, buflength, 0);
+      // if msglen == 0, the scoket is closed
+      if (msglen <= 0) {
+        owner.socks[sourceid] = -1;
+        // self deleting
+        delete this;
+        break;
+      }
+      c = receiver->advance_buffer(c, msglen, buflength);
     }
-    #ifdef COMM_DEBUG
-    logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
-    #endif
-    owner.recvcallback(owner.tag, sourceid, c, msglen);
+  }
+  else {
+    // fall back to using my own buffer
+    while(1) {
+      char c[10240];
+      
+      int msglen = recv(fd, c, 10240, 0);
+      // if msglen == 0, the scoket is closed
+      if (msglen <= 0) {
+        owner.socks[sourceid] = -1;
+        // self deleting
+        delete this;
+        break;
+      }
+      #ifdef COMM_DEBUG
+      logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
+      #endif
+      receiver->incoming_data(sourceid, c, msglen);
+    }
   }
 }
 

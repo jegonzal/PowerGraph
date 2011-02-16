@@ -23,6 +23,7 @@ class dc_stream_receive: public dc_receive{
  public:
   
   dc_stream_receive(distributed_control* dc): 
+                  buffer(10240),
                   barrier(false), dc(dc),
                   bytesreceived(0){ }
 
@@ -62,11 +63,22 @@ class dc_stream_receive: public dc_receive{
     Reads the incoming buffer and processes, dispatching
     calls when enough bytes are received
   */
-  void process_buffer() ;
+  void process_buffer(bool outsidelocked) ;
 
   size_t bytes_received();
   
   void shutdown();
+
+  inline bool direct_access_support() {
+    return true;
+  }
+  
+  char* get_buffer(size_t& retbuflength);
+  
+
+  char* advance_buffer(char* c, size_t wrotelength, 
+                              size_t& retbuflength);
+  
 };
 
 

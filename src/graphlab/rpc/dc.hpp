@@ -51,16 +51,7 @@ struct dc_init_param{
 class dc_services;
 class distributed_control;
 
-/*
-Part of the full barrier implementation. See comment in dc.cpp
-about the Full barrier
-*/
-namespace dc_impl {
- void release_full_barrier(distributed_control &dc, procid_t proc,
-                                          size_t id);
- void full_barrier_add_to_recv(distributed_control &dc, procid_t proc,
-                                                    size_t id, size_t r);
-}
+
 /**
 The primary distributed RPC object.
 The basic operation goes like this:

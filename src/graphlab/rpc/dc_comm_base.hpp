@@ -5,7 +5,7 @@
 #include <map>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-
+#include <graphlab/rpc/dc_receive.hpp>
 namespace graphlab {
 namespace dc_impl {  
 
@@ -40,14 +40,12 @@ class dc_comm_base {
    curmachineid: The ID of the current machine. Will be size_t(-1) if this is not available.
                  (Some comm protocols will negotiate this itself.)
    
-   recvcallback: A function pointer to the receiving function. This function will be thread-safe
-   tag: An additional pointer passed to the receiving function.
+   receiver: the receiving object
   */
   virtual void init(const std::vector<std::string> &machines,
             const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
-            comm_recv_callback_type recvcallback,
-            void* tag) = 0;
+            std::vector<dc_receive*> receiver) = 0;
 
   /// Must close all connections when this function is called
   virtual void close() = 0;

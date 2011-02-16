@@ -46,8 +46,7 @@ class dc_sctp_comm:public dc_comm_base {
   void init(const std::vector<std::string> &machines,
             const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
-            comm_recv_callback_type recvcallback,
-            void* tag);
+            std::vector<dc_receive*> receiver);
 
   /** shuts down all sockets and cleans up */
   void close();
@@ -117,6 +116,8 @@ class dc_sctp_comm:public dc_comm_base {
   int sendsock;
   
   void server_handler_loop();
+  
+  std::vector<dc_receive*> receiver;
   
   std::vector<char> machines_started;
   /// waits for all machines to start up

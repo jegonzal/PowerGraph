@@ -21,6 +21,12 @@ namespace dc_impl {
   This receiver performs buffered receives. That is, the incoming data
   is placed in a buffer, which is then processed by a parsing thread, before
   passing off to the actual function call handlers.
+  
+  This defines a buffered receiver. 
+  
+  \note this class is not very useful since process_buffer
+  is not usually a significant overhead. Using buffered receives tend
+  to decrease performance in practice
 */
 class dc_buffered_stream_receive: public dc_receive{
  public:
@@ -79,6 +85,30 @@ class dc_buffered_stream_receive: public dc_receive{
   size_t bytes_received();
   
   void shutdown();
+  
+  
+  /**
+    Not implemented. 
+  */
+  inline bool direct_access_support() {
+    return false;
+  }
+
+  /**
+    Not implemented. 
+  */  
+  inline char* get_buffer(size_t& retbuflength) {
+    return NULL;
+  }
+  
+  /**
+    Not implemented. 
+  */
+  inline char* advance_buffer(char* c, size_t wrotelength, 
+                              size_t& retbuflength) {
+    return NULL;
+  }
+
 };
 
 
