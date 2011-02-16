@@ -130,15 +130,6 @@ add_edge(const vertex_id_t source, const vertex_id_t target) {
 
 
 
-void raw_fragment::finalize_adjacency_lists() {
-  // for(size_t i = 0; i < neighbor_ids.size(); ++i) {
-  //   std::vector<vertex_id_t>& vec(neighbor_ids[i]);
-  //   std::sort(vec.begin(), vec.end());
-  //   typedef std::vector<vertex_id_t>::iterator iterator;
-  //   iterator new_end = std::unique(vec.begin(), vec.end());
-  //   vec.resize(std::distance(vec.begin(), new_end));
-  // }
-}
 
 
 

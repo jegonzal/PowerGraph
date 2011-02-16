@@ -315,7 +315,7 @@ namespace graphlab {
 
 
     uint32_t get_local_ip() {
-      uint32_t ip;
+      uint32_t ip(-1);
       // code adapted from
       struct ifaddrs * ifAddrStruct = NULL;
       getifaddrs(&ifAddrStruct);
