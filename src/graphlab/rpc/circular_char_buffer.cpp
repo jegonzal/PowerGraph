@@ -109,6 +109,44 @@ void circular_char_buffer::squeeze() {
   consistency_check();
 }
 
+
+void circular_char_buffer::align() {
+  // squeeze to a minimum of 4 bytes
+  if (bufsize <= 4) return;
+  // 2 cases
+  // case 1: no loop around
+  // case 2: loop around. Easiest solution is to allocate a new buffer
+  if (tail >= head) {
+    if (head > 0) memmove(buffer, buffer+head, len);
+    head = 0;
+    tail = len;
+  }
+  else {
+    // allocate a new buffer
+    char *newbuf = (char*)malloc(bufsize);
+    // read into this buffer
+    peek(newbuf, len);
+    // free the old buffer
+    free(buffer);
+    buffer = newbuf;
+    head = 0;
+    tail = len;
+  }
+}
+
+bool circular_char_buffer::align_requires_alloc() {
+  // squeeze to a minimum of 4 bytes
+  if (bufsize <= 4) return false;
+  // 2 cases
+  // case 1: no loop around
+  // case 2: loop around. Easiest solution is to allocate a new buffer
+  if (tail >= head) {
+    return false;
+  }
+  else {
+    return true;
+  }
+}
 std::streamsize circular_char_buffer::peek(char* c, 
                                            std::streamsize clen) const {
   std::streamsize readlen = std::min(clen, len);

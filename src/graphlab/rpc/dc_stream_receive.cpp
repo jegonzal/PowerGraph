@@ -112,13 +112,19 @@ char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength,
   retbuflength = buffer.introspective_write(ret);
   // if the writeable section is too small, sqeeze the buffer 
   // and try again
-  if (retbuflength < 32) {
-    if (buffer.reserved_size() < 20480 && 
-        (buffer.reserved_size() - buffer.size()) < 64) {
-      buffer.reserve(buffer.reserved_size() + 4096);
+  if (retbuflength < 1024) {
+    // realign the buffer if it is cheap to do so
+    if (buffer.align_requires_alloc() == false) {
+      buffer.align();
+      retbuflength = buffer.introspective_write(ret);
     }
-    buffer.squeeze();
-    retbuflength = buffer.introspective_write(ret);
+    // try again
+    // if this is still too small
+    if (retbuflength < 1024) {
+      //reserve more capacity
+      buffer.reserve(2 * buffer.reserved_size());
+      retbuflength = buffer.introspective_write(ret);
+    }
   }
   bufferlock.unlock();
 

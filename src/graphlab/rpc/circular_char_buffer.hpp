@@ -60,6 +60,15 @@ class circular_char_buffer {
       the capacity is the same as the length of the buffer */
   void squeeze();
 
+  
+  /** Rotates the buffer so that the head is at index 0.
+      buffer reserved size is preserved*/
+  void align();
+
+
+  /** Returns true if realignment requires a reallocation */
+  bool align_requires_alloc();
+  
   /**
    * Returns a pointer (through s) and a length of the read.
    * This pointer is a direct pointer into the internal buffer 
