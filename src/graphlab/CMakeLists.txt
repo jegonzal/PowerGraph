@@ -55,7 +55,7 @@ add_library(graphlab_rpc STATIC
 
 IF(ZOLTAN_FOUND)
   add_library(graphlab_zoltan
-              distributed2/graph/partitioning/raw_fragment.cpp
+              distributed2/graph/partitioning/adjacency_list.cpp
               distributed2/graph/partitioning/partitioning_tools.cpp)
 #   TARGET_LINK_LIBRARIES(graphlab_zoltan 
 #     ${MPI_LIBRARY} 
@@ -108,7 +108,7 @@ if(MPI_FOUND)
 
 
 add_library(graphlab_dist2 STATIC
-    distributed2/graph/partitioning/raw_fragment.cpp      
+    distributed2/graph/partitioning/adjacency_list.cpp      
     distributed2/graph/atom_index_file.cpp
     distributed2/distributed_glshared.cpp
     distributed2/distributed_glshared_manager.cpp)

@@ -239,6 +239,68 @@ namespace graphlab {
 
 
 
+    /**
+     * called on the root.  must be matched with gather(const T& elem);
+     */
+    template<typename T>
+    void bcast(const size_t& root, T& elem) {
+      // Get the mpi rank and size
+      if(mpi_tools::rank() == root) {
+        // serialize the object
+        graphlab::charstream cstrm(128);              
+        graphlab::oarchive oarc(cstrm); 
+        oarc << elem;
+        cstrm.flush();
+        char* send_buffer = cstrm->c_str();
+        int send_buffer_size = cstrm->size();
+        assert(send_buffer_size >= 0);
+
+        // send the ammount to send
+        int error = MPI_Bcast(&send_buffer_size,  // Send buffer
+                              1,                  // send count
+                              MPI_INT,            // send type
+                              root,               // root rank
+                              MPI_COMM_WORLD);  
+        assert(error == MPI_SUCCESS);
+
+        // send the actual data
+        error = MPI_Bcast(send_buffer,  // Send buffer
+                          send_buffer_size,    // send count
+                          MPI_BYTE,            // send type
+                          root,               // root rank
+                          MPI_COMM_WORLD);  
+        assert(error == MPI_SUCCESS);
+
+      } else { 
+        int recv_buffer_size(-1);
+        // recv the ammount the required buffer size
+        int error = MPI_Bcast(&recv_buffer_size,  // recvbuffer
+                              1,                  // recvcount
+                              MPI_INT,            // recvtype
+                              root,               // root rank
+                              MPI_COMM_WORLD);  
+        assert(error == MPI_SUCCESS);
+        assert(recv_buffer_size >= 0);
+
+        std::vector<char> recv_buffer(recv_buffer_size);
+        error = MPI_Bcast(&(recv_buffer[0]),  // recvbuffer
+                          recv_buffer_size,                  // recvcount
+                          MPI_BYTE,            // recvtype
+                          root,               // root rank
+                          MPI_COMM_WORLD);  
+        assert(error == MPI_SUCCESS);
+        // construct the local element
+        namespace bio = boost::iostreams;
+        typedef bio::stream<bio::array_source> icharstream;
+        icharstream strm(&(recv_buffer[0]), recv_buffer.size());
+        graphlab::iarchive iarc(strm);
+        iarc >> elem;
+
+      }
+    } // end of scatter
+
+
+
     template<typename T>
     void send(const T& elem, const size_t id, const int tag = 0) {
       // Get the mpi rank and size

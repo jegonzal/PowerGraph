@@ -24,7 +24,7 @@
 #include <graphlab/util/stl_util.hpp>
 
 #include <graphlab/distributed2/graph/atom_file.hpp>
-#include <graphlab/distributed2/graph/partitioning/raw_fragment.hpp>
+#include <graphlab/distributed2/graph/partitioning/adjacency_list.hpp>
 
 
 
@@ -63,15 +63,7 @@ namespace graphlab {
 
     typedef std::vector< atom_info* > atom_map_type;    
 
-    struct fraginfo {
-      raw_fragment frag;
-      std::vector< std::set< procid_t > >  neighbor_atoms;
-      std::vector< graphlab::mutex > locks;
-    };
-
-    typedef std::map<vertex_id_t, fraginfo> id2fraginfo_type;
-
-
+        
 
   private:
 
@@ -84,9 +76,11 @@ namespace graphlab {
     size_t num_atoms;
     std::vector<procid_t> vertex2atomid;
 
-    std::vector<std::string> local_fnames;
-    id2fraginfo_type id2fraginfo;
-    std::map<vertex_id_t, vertex_id_t> fragid2proc;
+    
+    adjacency_list alist;
+    std::vector< vertex_id_t > vertex2proc;
+    std::vector< std::set< procid_t > >  neighbor_atoms;
+    std::vector< graphlab::mutex > neighbor_locks;
 
     atom_map_type atomid2info;
     std::vector<graphlab::mutex> atomid2lock;
@@ -113,39 +107,34 @@ namespace graphlab {
 
 
 
-    void add_neighbor_atom(const vertex_id_t fragid,
-                           const vertex_id_t vid, 
+    void add_neighbor_atom(const vertex_id_t vid, 
                            const procid_t neighbor_atom) {
-      assert(fragid2proc.find(fragid) != fragid2proc.end());
-      procid_t vid_proc = fragid2proc[fragid];
-      assert(vid_proc < rmi.numprocs());
-      // if v1 is stored locally add the v2 atom to v1
-      if(vid_proc == rmi.procid()) {
-        add_neighbor_atom_local(fragid, vid, neighbor_atom);
+      // if vid is stored locally
+      if(vertex2proc[vid] == rmi.procid() ) {
+        add_neighbor_atom_local(vid, neighbor_atom);
       } else {
         // remote add
-        rmi.remote_call(vid_proc,
+        rmi.remote_call(vertex2proc[vid],
                         &atom_shuffler_type::add_neighbor_atom_local,
-                        fragid, vid, neighbor_atom);
+                        vid, neighbor_atom);
       }
     } // end of add atom neighbor
 
 
-    void add_neighbor_atom_local(const vertex_id_t fragid,
-                                 const vertex_id_t vid, 
+    void add_neighbor_atom_local(const vertex_id_t vid, 
                                  const procid_t neighbor_atom) {
-      assert(fragid2proc.find(fragid) != fragid2proc.end());
-      assert(fragid2proc[fragid] == rmi.procid());
-      assert(id2fraginfo.find(fragid) != id2fraginfo.end());
+      assert(vid < vertex2proc.size());
+      assert(vertex2proc[vid] == rmi.procid());
       assert(neighbor_atom < num_atoms);
-      fraginfo& finfo(id2fraginfo[fragid]);
-      assert(finfo.frag.begin_vertex <= vid);
-      assert(vid < finfo.frag.end_vertex);
-      vertex_id_t localvid = finfo.frag.local_id(vid);
-      assert(localvid < finfo.frag.num_local_verts);
-      finfo.locks.at(localvid).lock();
-      finfo.neighbor_atoms.at(localvid).insert(neighbor_atom);
-      finfo.locks.at(localvid).unlock();
+      // convert to the local vertex id address
+      assert(alist.global2local.find(vid) != alist.global2local.end());
+      vertex_id_t localvid = alist.global2local[vid];
+
+      assert(localvid < neighbor_atoms.size());
+      assert(localvid < neighbor_locks.size());
+      neighbor_locks[localvid].lock();
+      neighbor_atoms[localvid].insert(neighbor_atom);
+      neighbor_locks[localvid].unlock();
     } // end of add atom neighbor local
 
       
@@ -156,6 +145,7 @@ namespace graphlab {
                           const vertex_color_type& vcolor,
                           const vertex_data_type& vdata) {
       assert(is_local(to_atomid));
+      assert(to_atomid < atomid2lock.size());
       atomid2lock[to_atomid].lock();
       // Get the atom info
       atom_info& ainfo(get_atom_info(to_atomid));
@@ -305,84 +295,95 @@ namespace graphlab {
           fout.close();
         }
       }
+      
 
- 
+      std::vector<std::string> local_fnames;
       { // Determine Local Filenames ==========================================
         if(rmi.procid() == 0) 
           std::cout << "Computing local filenames."
                     << std::endl;    
-        raw_fragment::list_structure_files(path, local_fnames);
+        adjacency_list::list_adjacency_files(path, local_fnames);
         // compute the fnames that are used by this machine
         std::vector< std::vector< std::string > > partition_fnames;
         rmi.gather_partition(local_fnames, partition_fnames);
         // update the local fnames      
         local_fnames = partition_fnames[rmi.procid()];
+     
       }
   
-      { // Load local raw fragments ===========================================
+      { // Load local adjacency lists fragments ===============================
         if(rmi.procid() == 0) 
           std::cout << "Loading local graph structures."
                     << std::endl;
         for(size_t i = 0; i < local_fnames.size(); ++i) {
           std::string absfname = path + "/" + local_fnames[i];
-          std::ifstream fin(absfname.c_str(), std::ios::binary | std::ios::in);
-          assert(fin.good());
-          graphlab::iarchive iarc(fin);
-          raw_fragment frag;
-          iarc >> frag;
-          id2fraginfo[frag.id].frag = frag;
-          fin.close();
-          id2fraginfo[frag.id].neighbor_atoms.resize(frag.num_local_verts);
-          id2fraginfo[frag.id].locks.resize(frag.num_local_verts);
-        }      
+          std::cout << "(" <<  rmi.procid() << " - " 
+                    << local_fnames[i] << ")" << std::endl;
+          alist.load(absfname);
+        }
+        // resize auxiliarary datastructures
+        assert(alist.in_neighbor_ids.size() == alist.local_vertices.size());
+        assert(alist.global2local.size() == alist.local_vertices.size());
+        neighbor_atoms.resize(alist.local_vertices.size());
+        neighbor_locks.resize(alist.local_vertices.size());
       }
+
 
       timer ti;
       ti.start();
 
-      { // compute fragid2proc map ==============================================
+      { // Compute the vertex2proc map ======================================
         if(rmi.procid() == 0) 
-          std::cout << "Computing frag to processor map."
+          std::cout << "Computing vertex to proc map"
                     << std::endl;
-        typedef typename id2fraginfo_type::value_type id2fraginfo_pair_t;
-        foreach(const id2fraginfo_pair_t& pair, id2fraginfo) 
-          fragid2proc[pair.first] = rmi.procid();
-        std::vector< std::map<vertex_id_t, vertex_id_t> > 
-          all_fragid2proc(rmi.numprocs());
-        all_fragid2proc[rmi.procid()] = fragid2proc;
-        rmi.all_gather(all_fragid2proc);
-        for(size_t i = 0; i < all_fragid2proc.size(); ++i) {
-          if(i != rmi.procid()) {
-            fragid2proc.insert(all_fragid2proc[i].begin(), 
-                               all_fragid2proc[i].end());
+        const size_t ROOT_NODE(0);
+        std::vector< std::vector< vertex_id_t > > proc2vertices(rmi.numprocs());
+        proc2vertices[rmi.procid()] = alist.local_vertices;
+        rmi.gather(proc2vertices, ROOT_NODE);
+        // if this is the root node then invert the map
+        if(rmi.procid() == ROOT_NODE) {
+          vertex2proc.resize(vertex2atomid.size(), procid_t(-1));
+          for(size_t i = 0; i < proc2vertices.size(); ++i) {
+            for(size_t j = 0; j < proc2vertices[i].size(); ++j) { 
+              vertex_id_t vid = proc2vertices[i][j];
+              assert(vid < vertex2proc.size());
+              assert(vertex2proc[vid] == procid_t(-1));
+              vertex2proc[vid] = i;
+            }
           }
+          // send the complete map
+          rmi.broadcast(vertex2proc, true);
+        } else {
+          // receive the complete map
+          rmi.broadcast(vertex2proc, false);
         }
-      }    
+        assert(vertex2proc.size() == vertex2atomid.size());
+        // check the final map
+        for(size_t i = 0; i < vertex2proc.size(); ++i) {
+          assert(vertex2proc[i] < rmi.numprocs());
+        }
+      } // end of compute initial vertex2proc map
+
+
       
       rmi.full_barrier();
       
-      { // compute neighbor atoms for all frags ===============================
+      { // compute neighbor atoms for all local vertices ======================
         if(rmi.procid() == 0) 
           std::cout << "Computing atom neighbors for each vertex."
                     << std::endl;
-        typedef typename id2fraginfo_type::value_type id2fraginfo_pair_t;
-        foreach(const id2fraginfo_pair_t& pair, id2fraginfo) {
-          const raw_fragment& frag(pair.second.frag); 
-          for(vertex_id_t i = 0, vid = frag.begin_vertex; 
-              vid < frag.end_vertex; ++vid, ++i) {
-            foreach(vertex_id_t neighbor_vid, frag.in_neighbor_ids.at(i)) {
-              vertex_id_t neighbor_frag_id = 
-                frag.owning_fragment(neighbor_vid);
-              add_neighbor_atom(frag.id, 
-                                vid, 
-                                vertex2atomid.at(neighbor_vid));
-              add_neighbor_atom(neighbor_frag_id, 
-                                neighbor_vid, 
-                                vertex2atomid.at(vid));
-            }
+        for(size_t i = 0; i < alist.in_neighbor_ids.size(); ++i) {
+          assert(i < alist.local_vertices.size());
+          vertex_id_t target = alist.local_vertices[i];
+          assert(target < vertex2atomid.size());
+          for(size_t j = 0; j < alist.in_neighbor_ids[i].size(); ++j) {
+            vertex_id_t source = alist.in_neighbor_ids[i][j];
+            assert(source < vertex2atomid.size());
+            add_neighbor_atom(target, vertex2atomid[source]);
+            add_neighbor_atom(source, vertex2atomid[target]);
           }
         }
-      } // end of compute neighbor atoms for all frags
+      } // end of compute neighbor atoms for all vertices
 
 
       rmi.full_barrier();
@@ -445,48 +446,58 @@ namespace graphlab {
         if(rmi.procid() == 0) 
           std::cout << "Shuffling vertex data."
                     << std::endl;
-        typedef typename id2fraginfo_type::value_type id2fraginfo_pair_t;
-        foreach(const id2fraginfo_pair_t& pair, id2fraginfo) {
-          const fraginfo& finfo(pair.second);
-          std::string absfname = path + "/" + 
-            finfo.frag.vertex_data_filename;
+        size_t localvid(0);
+        for(size_t i = 0; i < local_fnames.size(); ++i) {
+          // get the vertex data filename from the structure filename
+          std::string 
+            vdata_fname(adjacency_list::
+                        change_suffix(local_fnames[i],
+                                      adjacency_list::vdata_suffix));
+          std::string absfname = path + '/' + vdata_fname;
+          std::cout << "(" <<  rmi.procid() << " - " 
+                    << absfname << ")" << std::endl;
+
           std::ifstream fin(absfname.c_str(), 
                             std::ios::binary | std::ios::in);
-          assert(fin.good());
-          graphlab::iarchive iarc(fin);        
-          // Loop through all the structures reading in the vertex data
-          for(vertex_id_t i = 0, vid = finfo.frag.begin_vertex; 
-              vid < finfo.frag.end_vertex; ++vid, ++i) {
-            assert(vid < vertex2atomid.size());
-            assert(vid < vertex2color.size());
+          graphlab::iarchive iarc(fin);
+          fin.peek();
+          while(fin.good()) {
             vertex_data_type vdata;
-            assert(fin.good());
             iarc >> vdata;
             assert(fin.good());
-            // send the vertex data to the owning atoms
+            assert(localvid < alist.local_vertices.size());
+            vertex_id_t vid = alist.local_vertices[localvid];
+            assert(vid < vertex2atomid.size());
+            assert(vid < vertex2color.size());
             add_vertex(vertex2atomid[vid],
                        vid,
-                       vertex2atomid.at(vid),
-                       vertex2color.at(vid),
+                       vertex2atomid[vid],
+                       vertex2color[vid],
                        vdata);
-            // Loop over the vertex neighbors and send to neighbor atoms
-            foreach(procid_t neighbor_atom, finfo.neighbor_atoms[i]) {
+            assert(localvid < neighbor_atoms.size());
+            foreach(procid_t neighbor_atom, neighbor_atoms[localvid]) {
               assert(neighbor_atom < num_atoms);
-              // if the neighbor is stored in a different atom file then
-              // send the vertex data to the neighbor for ghosting purposes
+              // if the neighbor is stored in a different atom file
+              // then send the vertex data to the neighbor for
+              // ghosting purposes
               if(neighbor_atom != vertex2atomid[vid]) {
                 // send the vertex data to the owning atoms
                 add_vertex(neighbor_atom,
                            vid,
-                           vertex2atomid.at(vid),
-                           vertex2color.at(vid),
+                           vertex2atomid[vid],
+                           vertex2color[vid],
                            vdata);
               } // end of if neighbor is in different atom
-            } // and of loop over neighbor atoms
-          } // end of loop over vertices in this frag
+            } // end of loop over neighbors
+            localvid++; // successful add so increment the local vid counter
+            fin.peek();
+          } // end of loop over single vertex data file
           fin.close();
-        } // end of loop over all raw fragments on this machine
+        } // end of loop over all vertex data files
+        assert(localvid == alist.local_vertices.size());        
       } // end of shuffle the vertex data
+
+
       rmi.comm_barrier();
       rmi.barrier();
 
@@ -497,41 +508,50 @@ namespace graphlab {
         if(rmi.procid() == 0) 
           std::cout << "Shuffling edge data."
                     << std::endl;
-        typedef typename id2fraginfo_type::value_type id2fraginfo_pair_t;
-        foreach(const id2fraginfo_pair_t& pair, id2fraginfo) {
-          const raw_fragment& frag(pair.second.frag);       
-          std::string absfname = path + "/" + frag.edge_data_filename;
+        
+        size_t localvid(0);
+        for(size_t i = 0; i < local_fnames.size(); ++i) {
+          // get the vertex data filename from the structure filename
+          std::string 
+            edata_fname(adjacency_list::
+                        change_suffix(local_fnames[i],
+                                      adjacency_list::edata_suffix));
+          std::string absfname = path + '/' + edata_fname;
+          std::cout << "(" <<  rmi.procid() << " - " 
+                    << absfname << ")" << std::endl;
+
           std::ifstream fin(absfname.c_str(), 
                             std::ios::binary | std::ios::in);
+          graphlab::iarchive iarc(fin);
           assert(fin.good());
-          graphlab::iarchive iarc(fin);        
-          // Loop through all the structures reading in the vertex data
-          for(vertex_id_t i = 0, target = frag.begin_vertex; 
-              target < frag.end_vertex; ++target, ++i) {
+          fin.peek();
+          while(fin.good()) {
+            assert(localvid < alist.in_neighbor_ids.size());
+            vertex_id_t target(alist.local_vertices[localvid]);
             assert(target < vertex2atomid.size());
-            assert(i < frag.in_neighbor_ids.size());
-            foreach(vertex_id_t source, frag.in_neighbor_ids[i]) {
+            // try to read in all the neighbors
+            for(size_t j = 0; j < alist.in_neighbor_ids[localvid].size(); ++j) {
+              vertex_id_t source(alist.in_neighbor_ids[localvid][j]);
               assert(source < vertex2atomid.size());
               edge_data_type edata;
-              assert(fin.good());
               iarc >> edata;
               assert(fin.good());
-              add_edge(vertex2atomid[source],
-                       source, target, edata);            
+              add_edge(vertex2atomid[source], source, target, edata);
               if(vertex2atomid[source] != vertex2atomid[target])
-                add_edge(vertex2atomid[target],
-                         source, target, edata);                       
-            } // end of loop over out neighbors
-          } // end of loop over vertices in file
+                add_edge(vertex2atomid[target], source, target, edata); 
+            }
+            localvid++;
+            fin.peek();
+          } // end of while loop
           fin.close();
         } // end of for loop
+        assert(localvid == alist.local_vertices.size());
       } // end of shuffle the edge data
 
       std::cout << "Entering final barrier on " << rmi.procid() << std::endl;
       rmi.comm_barrier();
       rmi.barrier();
       rmi.dc().full_barrier();
-
       std::cout << "Leaving final barrier on " << rmi.procid() << std::endl;
 
 
