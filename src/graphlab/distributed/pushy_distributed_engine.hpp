@@ -159,6 +159,14 @@ namespace graphlab {
       listener->init(this);
     }
     
+    void set_sched_yield(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_sched_yield()");    
+    }
+
+    void set_cpu_affinities(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_cpu_affinities()");    
+    }
+
 
     /**
      * Timeout. Default - no timeout. 

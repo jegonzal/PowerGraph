@@ -233,11 +233,11 @@ namespace graphlab {
     size_t get_ncpus() const { return ncpus; }
 
     //! set sched yield
-    void enable_sched_yield(bool value) {
+    void set_sched_yield(bool value) {
       use_sched_yield = value;
     }
 
-    void enable_cpu_affinities(bool value) {
+    void set_cpu_affinities(bool value) {
       use_cpu_affinity = value;
     }
 

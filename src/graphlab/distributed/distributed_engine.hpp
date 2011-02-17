@@ -385,6 +385,14 @@ namespace graphlab {
     } // end of run_next_task
 
    
+    void set_sched_yield(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_sched_yield()");    
+    }
+
+    void set_cpu_affinities(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_cpu_affinities()");    
+    }
+   
     /** get a reference to the scheduler */
     ischeduler_type& get_scheduler() { return scheduler; }
 

@@ -242,12 +242,12 @@ namespace graphlab {
      * Set whether sched yield should be used when waiting on new
      * jobs
      */
-    virtual void set_sched_yield(bool value) { }
+    virtual void set_sched_yield(bool value) = 0;
 
     /**
      * Set whether cpu affinities should be used.
      */
-    virtual void set_cpu_affinities(bool value) { }
+    virtual void set_cpu_affinities(bool value) = 0;
 
     
     
