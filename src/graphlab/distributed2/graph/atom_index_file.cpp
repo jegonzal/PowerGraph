@@ -28,11 +28,25 @@ void atom_index_file::read_from_file(std::string indexfile) {
     [nverts] [nedges] [natoms]
   */
   std::string label;
-  fin >> label >> nverts
-      >> label >> ncolors
-      >> label >> nedges 
-      >> label >> natoms;
-  
+  size_t val;
+  for (size_t i = 0;i < 4; ++i) {
+    fin >> label >> val;
+    if (trim(label) == "NumVerts:") {
+      nverts = val;
+    }
+    else if (trim(label) == "NumEdges:") {
+      nedges = val;
+    }
+    else if (trim(label) == "NumColors:") {
+      ncolors = val;
+    }
+    else if (trim(label) == "NumAtoms:") {
+      natoms = val;
+    }
+    else {
+      logger(LOG_ERROR, "Unrecognized label in index file: %s", label.c_str());
+    }
+  }
   
   for (size_t i = 0;i < natoms; ++i) {
     //   [atom_nverts] [atom_nedges]  [#adjacent atoms]  

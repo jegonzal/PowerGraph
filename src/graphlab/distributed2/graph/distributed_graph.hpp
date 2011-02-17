@@ -113,6 +113,7 @@ class distributed_graph {
     // store the graph size
     numglobalverts = atomindex.nverts;
     numglobaledges = atomindex.nedges;
+    numcolors = atomindex.ncolors;
     // machine 0 partitions it
     std::vector<std::vector<size_t> > partitions;
     if (dc.procid() == 0) {
@@ -803,8 +804,7 @@ class distributed_graph {
   }
 
   size_t num_colors() const {
-    //TODO return the number of colors
-    return 0;
+    return numcolors;
   }
 
   /**
@@ -1063,7 +1063,7 @@ class distributed_graph {
    * Currently only consistent on machine 0 since machine 0 manages 
    * the allocation of global VIDs and local VIDs.
    */
-  size_t numglobalverts, numglobaledges;
+  size_t numglobalverts, numglobaledges, numcolors;
 
   dc_impl::reply_ret_type pending_async_updates;
   dc_impl::reply_ret_type pending_push_updates;

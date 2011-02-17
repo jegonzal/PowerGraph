@@ -164,8 +164,11 @@ namespace graphlab {
     std::vector<EdgeData> edata_;
   };
 
+}
 
+#include <graphlab/distributed2/graph/atom_index_file.hpp>
 
+namespace graphlab {
   /**
      Converts the partition partid as an atom.
      graph must be colored!
@@ -237,7 +240,7 @@ namespace graphlab {
      are written to atombasename.0, atombasename.1, etc
   */
   template <typename VertexData, typename EdgeData>
-  void graph_partition_to_atomindex(const graph<VertexData, EdgeData> &graph,
+  void graph_partition_to_atomindex(graph<VertexData, EdgeData> &graph,
                                     const std::vector<uint32_t>& vertex2part,
                                     std::string idxfilename,
                                     std::string atombasename,
@@ -249,30 +252,35 @@ namespace graphlab {
       numparts = std::max(numparts, vertex2part[i]);
     }
     ++numparts;
+    atom_index_file idxfile;
     std::ofstream fout(idxfilename.c_str());
-    fout << graph.num_vertices() << "\t" 
-         << graph.num_edges() << "\t" 
-         << numparts << "\n";
-  
+    idxfile.nverts = graph.num_vertices();
+    idxfile.nedges = graph.num_edges();
+    idxfile.natoms = numparts;
+    idxfile.ncolors = graph.compute_coloring();
+    
     for (size_t i = 0; i < numparts; ++i) {
       std::string atomfilename = atombasename + "." + tostr(i);
       atom_file<VertexData, EdgeData> atomfile;
       graph_partition_to_atom(graph, vertex2part, i, atomfile, noglobaleids);
       atomfile.write_to_file("file", atomfilename);
-    
+      
+      atom_file_descriptor desc;
+      desc.protocol = "file";
+      desc.file = atomfilename;
       // get list of adjacent atoms
       std::set<size_t> adjatoms;
       for (size_t v = 0; v < atomfile.atom().size(); ++v) {
         if (atomfile.atom()[v] != i) adjatoms.insert(atomfile.atom()[v]);
       }
-    
-      fout << atomfile.globalvids().size() << "\t" << atomfile.globaleids().size() 
-           << "\t" << adjatoms.size()  << "\t";
       foreach(size_t v, adjatoms) {
-        fout << v << " ";
+        desc.adjatoms.push_back(v);
       }
-      fout << "\t"<<"file://" << atomfilename << "\n";
+      desc.nverts = atomfile.globalvids().size();
+      desc.nedges = atomfile.globaleids().size();
+      idxfile.atoms.push_back(desc);
     }
+    idxfile.write_to_file(idxfilename);
   }
 
 
