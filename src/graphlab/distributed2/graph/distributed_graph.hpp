@@ -396,6 +396,22 @@ class distributed_graph {
     }
   }
 
+  vertex_id_t globalvid_to_localvid(vertex_id_t vid) const {
+    return global2localvid[vid];
+  }
+
+  vertex_id_t globalvid_to_owner(vertex_id_t vid) const {
+    if (vertex_is_local(vid)) {
+      boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
+      if (iter == global2localvid.end()) return false;
+      vertex_id_t localvid = iter->second;
+      return localvid2owner[localvid];
+    }
+    else {
+      return globalvid2owner.get(vid);
+    }
+  }
+
   bool vertex_is_local(vertex_id_t vid) const{
     return global_vid_in_local_fragment(vid);
   }
