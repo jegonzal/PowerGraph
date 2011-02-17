@@ -6,6 +6,7 @@
 #include <boost/bind.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/coherent_dht.hpp>
+#include <graphlab/distributed2/distributed_glshared_base.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {

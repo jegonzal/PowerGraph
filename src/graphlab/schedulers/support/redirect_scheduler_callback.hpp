@@ -10,6 +10,7 @@ namespace graphlab {
   class redirect_scheduler_callback : 
     public icallback<Graph> {
   public:
+    typedef icallback<Graph> base;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -20,7 +21,7 @@ namespace graphlab {
     redirect_scheduler_callback(RedirectToType* redirectobj = NULL) :
       redirectobj(redirectobj) { }
     
-    virtual ~unused_scheduler_callback() {}
+    virtual ~redirect_scheduler_callback() {}
 
     
     void add_task(update_task_type task, double priority) {

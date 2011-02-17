@@ -2,7 +2,9 @@
 #define DISTRIBUTED_CHROMATIC_ENGINE_HPP
 
 #include <functional>
-
+#include <algorithm>
+#include <ext/functional> // for select1st
+#include <boost/bind.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
@@ -15,7 +17,7 @@
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/metrics/metrics.hpp>
-#include <graphlab/scheduler/support/redirect_scheduler_callback.hpp>
+#include <graphlab/schedulers/support/redirect_scheduler_callback.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/distributed2/distributed_glshared_manager.hpp>
@@ -25,7 +27,6 @@
 
 namespace graphlab {
 
-#include <graphlab/macros_def.hpp>
 
 
 /**
@@ -47,13 +48,16 @@ class distributed_chromatic_engine:public iengine<Graph> {
   typedef typename iengine_base::sync_function_type sync_function_type;
   typedef typename iengine_base::merge_function_type merge_function_type;
 
+  // unused
+  typedef imonitor<Graph> imonitor_type;
+
   typedef redirect_scheduler_callback<Graph, 
                                       distributed_chromatic_engine<Graph> > callback_type;
  private:
 
  private:
   // the local rmi instance
-  dc_dist_object<distributed_chromatic_engine<Graph, Scheduler> > rmi;
+  dc_dist_object<distributed_chromatic_engine<Graph> > rmi;
   
   // the graph we are processing
   Graph &graph;
@@ -71,17 +75,22 @@ class distributed_chromatic_engine:public iengine<Graph> {
 
   /** Use schedule yielding when waiting on the scheduler*/
   bool use_sched_yield;
+ 
   
   /** Track the number of updates */
   std::vector<size_t> update_counts;
 
   atomic<size_t> numsyncs;
 
-
+  /** terminators */ 
+  std::vector<termination_function_type> term_functions;
 
   /** The timeout time in millis */
   size_t timeout_millis;
   timer ti;
+  
+  /// Used to identify when the engine is stopped through stop
+  bool force_stop;
   
   /** The total number of tasks that should be executed */
   size_t task_budget;
@@ -89,15 +98,13 @@ class distributed_chromatic_engine:public iengine<Graph> {
   /** If dynamic scheduling is used, the number of scheduled tasks */
   atomic<size_t> num_pending_tasks;
   
-  /** Boolean that determins whether the engine is active */
-  bool active; 
-
+  
   /** The cause of the last termination condition */
   exec_status termination_reason;
 
   scope_range::scope_range_enum default_scope_range;
  
-  std::vector<std::vector<vertex_id_t> > color_blocks;
+  std::vector<std::vector<vertex_id_t> > color_block;
   dense_bitset scheduled_vertices;  // take advantage that local vertices
                                     // are always the first N
   
@@ -127,7 +134,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
   
 
  public:
-  void distributed_chromatic_engine(distributed_control &dc,
+  distributed_chromatic_engine(distributed_control &dc,
                                     Graph& graph,
                                     size_t ncpus = 1):
                             rmi(dc, this),
@@ -138,20 +145,17 @@ class distributed_chromatic_engine:public iengine<Graph> {
                             use_cpu_affinity(false),
                             use_sched_yield(true),
                             update_counts(std::max(ncpus, size_t(1)), 0),
-                            start_time_millis(lowres_time_millis()),
                             timeout_millis(0),
-                            last_check_millis(0),
+                            force_stop(false),
                             task_budget(0),
-                            active(false),
                             termination_reason(EXEC_UNSET),
-                            thread_color_barrier(ncpus),
+                            scheduled_vertices(graph.owned_vertices().size()),
                             update_function(NULL),
-                            max_iterations(0) { 
-    scheduled_vertices.resize(graph.owned_vertices().size());
-    scheduled_vertices.clear();
+                            max_iterations(0),
+                            thread_color_barrier(ncpus){ 
   }
   
-  void ~distributed_chromatic_engine() {
+  ~distributed_chromatic_engine() {
   }
   
   
@@ -199,13 +203,6 @@ class distributed_chromatic_engine:public iengine<Graph> {
     return sum;
   } // end of last_update_count
 
-  /** This function provides an approximation to the last update count.
-   * This is a faster version of last_update_count and may be off
-   by at most (APX_INTERVAL+1)*Nthreads */
-  inline size_t approximate_last_update_count() const {
-    return apx_update_counts.value;
-  }
-
 
   /**
    * Add a terminator to the engine.
@@ -239,22 +236,23 @@ class distributed_chromatic_engine:public iengine<Graph> {
   }
   
 
-
   /**
    * \brief Adds an update task with a particular priority.
    * This function is forwarded to the scheduler.
    */
-  virtual void add_task(update_task_type task, double priority) {
-    if (update_function == NULL) assert update_function == task.function();
+  void add_task(update_task_type task, double priority) {
+    if (update_function != NULL) assert(update_function == task.function());
+    else update_function = task.function();
+    
     if (graph.is_owned(task.vertex())) {
       num_pending_tasks.inc(!
-              scheduled_vertices.set_bit(globalvid_to_localvid(task.vertex())) 
+              scheduled_vertices.set_bit(graph.globalvid_to_localvid(task.vertex())) 
                           );
     }
     else {
-      rmi.remote_call(globalvid_to_owner(task.vertex()),
+      rmi.remote_call(graph.globalvid_to_owner(task.vertex()),
                       &distributed_chromatic_engine<Graph>::add_task,
-                      reinterpret_cast<size_t>(task),
+                      task,
                       priority);
     }
   }
@@ -264,29 +262,36 @@ class distributed_chromatic_engine:public iengine<Graph> {
    * 'vertices', and all with the same update function and priority
    * This function is forwarded to the scheduler.
    */
-  virtual void add_tasks(const std::vector<vertex_id_t>& vertices,
+  void add_tasks(const std::vector<vertex_id_t>& vertices,
                          update_function_type func, double priority) {
-    for (size_t i = 0;i < vertices.size(); +i) {
+    for (size_t i = 0;i < vertices.size(); ++i) {
       add_task(update_task_type(vertices[i], func), priority);
     }
   }
 
+
+  void add_task_to_all_from_remote(size_t func,
+                                  double priority) {
+    add_task_to_all(reinterpret_cast<update_function_type>(func), priority);
+  }
   /**
    * \brief Creates a collection of tasks on all the vertices in the graph,
    * with the same update function and priority
    * This function is forwarded to the scheduler.
    */
-  virtual void add_task_to_all(update_function_type func,
+  void add_task_to_all(update_function_type func,
                                double priority) {
-      scheduled_vertices.fill();
-      num_pending_tasks.value = scheduled_vertices.size();
-      for (size_t i = 0;i < rmi.numprocs(); ++i) {
-        if (i != rmi.procid()) {
-          rmi.remote_call(i,
-                          &distributed_chromatic_engine<Graph>::add_task_to_all,
-                          func,
-                          priority);
-        }
+    if (update_function != NULL) assert(update_function == func);
+    else update_function = func;
+    
+    scheduled_vertices.fill();
+    num_pending_tasks.value = scheduled_vertices.size();
+    for (size_t i = 0;i < rmi.numprocs(); ++i) {
+      if (i != rmi.procid()) {
+        rmi.remote_call(i,
+                        &distributed_chromatic_engine<Graph>::add_task_to_all_from_remote,
+                        reinterpret_cast<size_t>(func),
+                        priority);
       }
     }
   }
@@ -299,7 +304,6 @@ class distributed_chromatic_engine:public iengine<Graph> {
                 merge_function_type merge = NULL,
                 size_t rangelow = 0,
                 size_t rangehigh = -1) {
-    use_fake_shared_data = true;
     sync_task st;
     st.sync_fun = sync;
     st.merge_fun = merge;
@@ -311,7 +315,6 @@ class distributed_chromatic_engine:public iengine<Graph> {
     st.rangehigh = rangehigh;
     st.sharedvariable = dynamic_cast<distributed_glshared_base*>(&shared) ;
     sync_tasks.push_back(st);
-    var2synctask[&shared] = sync_tasks.size() - 1;
   }
 
   
@@ -321,17 +324,17 @@ class distributed_chromatic_engine:public iengine<Graph> {
     // the number of replicas - 1 is the amount of communication
     // we have to perform to synchronize modifications to that vertex
 
-    std::vector<std::pair<vertex_id_t, size_t> > color_block_and_weight;
+    std::vector<std::vector<std::pair<vertex_id_t, size_t> > > color_block_and_weight;
     // the list of vertices for each color
-    color_blocks_and_weight.resize(graph.num_colors());
-    size_t numghostv = 0;
+    color_block_and_weight.resize(graph.num_colors());
+
     foreach(vertex_id_t v, graph.owned_vertices()) {
       color_block_and_weight[graph.get_color(v)].push_back(
                                     std::make_pair(v, 
-                                    g.globalvid_to_replicas(v)));
+                                                  graph.globalvid_to_replicas(v).size()));
     }
     color_block.clear();
-    color_block.resize(graph.num_color());
+    color_block.resize(graph.num_colors());
     // optimize ordering. Sort in descending order
     // put all those which need a lot of communication in the front
     // to give communication the maximum amount if time possible.
@@ -339,10 +342,12 @@ class distributed_chromatic_engine:public iengine<Graph> {
       std::sort(color_block_and_weight[i].rbegin(),
                 color_block_and_weight[i].rend());
       // insert the sorted vertices into the final color_block
+
       std::transform(color_block_and_weight[i].begin(),
                      color_block_and_weight[i].end(), 
                      std::back_inserter(color_block[i]),
-                     __gnu_cxx::select1st<std::pair<vertex_id_t, size_t> >);
+                     __gnu_cxx::select1st<std::pair<vertex_id_t, size_t> >());
+
     }
     
     
@@ -361,17 +366,38 @@ class distributed_chromatic_engine:public iengine<Graph> {
     size_t executed_tasks;
     bool terminator;
     bool timeout;
+    bool force_stop;
     termination_evaluation(): pending_tasks(0),
                               executed_tasks(0),
                               terminator(false),
-                              timeout(false) { }
+                              timeout(false),
+                              force_stop(false) { }
+                              
+    void save(oarchive &oarc) const {
+      oarc << pending_tasks
+           << executed_tasks
+           << terminator
+           << timeout
+           << force_stop;
+    }
+    
+    void load(iarchive &iarc) {
+      iarc >> pending_tasks
+           >> executed_tasks
+           >> terminator
+           >> timeout
+           >> force_stop;
+    }
   };
+  
+  
+  
   void check_global_termination(bool check_dynamic_schedule) {
     std::vector<termination_evaluation> termination_test;
     termination_test.resize(rmi.numprocs());
     
     if (check_dynamic_schedule) {
-      termination_test[rmi.procid()].pending_tasks = pending_tasks.value;
+      termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value;
     }
 
     if (task_budget > 0) {
@@ -380,7 +406,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
       termination_test[rmi.procid()].executed_tasks = numupdates;
     }
     
-    if (timeout_millis > 0 & ti.current_time_millis() > timeout_millis) {
+    if (timeout_millis > 0 && ti.current_time_millis() > timeout_millis) {
       termination_test[rmi.procid()].timeout = true;
     }
     
@@ -390,6 +416,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
         break;
       }
     }
+    termination_test[rmi.procid()].force_stop = force_stop;
     // gather all to 0.
     // machine 0 evaluates termiation
     rmi.gather(termination_test, 0);
@@ -401,6 +428,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
         aggregate.executed_tasks += termination_test[i].executed_tasks;
         aggregate.terminator |= termination_test[i].terminator;
         aggregate.timeout |= termination_test[i].timeout;
+        aggregate.force_stop |= termination_test[i].force_stop;
       }
       
       if (check_dynamic_schedule && aggregate.pending_tasks == 0) {
@@ -415,17 +443,18 @@ class distributed_chromatic_engine:public iengine<Graph> {
       else if (aggregate.terminator) {
         termination_reason = EXEC_TERM_FUNCTION;
       }
+      else if (aggregate.force_stop) {
+        termination_reason = EXEC_FORCED_ABORT;
+      }
     }
     size_t treason = termination_reason;
     rmi.broadcast(treason, 0);
-    termination_reason = treason;
+    termination_reason = exec_status(treason);
   }
  
   void start_thread(size_t threadid) {
     // create the scope
     dgraph_scope<Graph> scope;
-          typename Scheduler::callback_type& scallback =
-                  scheduler->get_callback(cpuid);
                   
 
     // loop over iterations
@@ -450,12 +479,8 @@ class distributed_chromatic_engine:public iengine<Graph> {
             // create the scope
             scope.init(&graph, color_block[c][i]);
             // run the update function
-            task.function()(scope, callback, NULL);
-            graph.push_owned_scope_to_replicas(color_block[c][i],
-                                               true,  // modified only
-                                               true,  // clear modified
-                                               true,  // async
-                                               true);  // untracked
+            update_function(scope, callback, NULL);
+            scope.commit_async_untracked();
             update_counts[threadid]++;
           }
         }      
@@ -468,7 +493,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
       }
       ++iter;
       if (threadid == 0) {
-        test_global_termination(!usestatic);
+        check_global_termination(!usestatic);
       }
       // all threads must wait for 0
       thread_color_barrier.wait();
@@ -482,6 +507,9 @@ class distributed_chromatic_engine:public iengine<Graph> {
     // wait for everyone to enter start    
     generate_color_blocks();
     termination_reason = EXEC_UNSET;
+    force_stop = false;
+    numsyncs.value = 0;
+    std::fill(update_counts.begin(), update_counts.end(), 0);
     rmi.barrier();
     // reset indices
     curidx.value = 0;
@@ -492,7 +520,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
       size_t aff = use_cpu_affinity ? i : -1;
       launch_in_new_thread(thrgrp, 
                          boost::bind(
-                            distributed_chromatic_engine<Graph>::start_thread,
+                            &distributed_chromatic_engine<Graph>::start_thread,
                             this, i), aff);
     }
     
@@ -510,7 +538,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
   }
   
     /** \brief Update the scheduler options.  */
-  virtual void set_scheduler_options(const scheduler_options& opts) {
+  void set_scheduler_options(const scheduler_options& opts) {
     opts.get_int_option("max_iterations", max_iterations);
     any uf;
     if (opts.get_any_option("update_function", uf)) {
@@ -524,7 +552,17 @@ class distributed_chromatic_engine:public iengine<Graph> {
       "default = set on add_task]\n";
   };
 
-  
+  void set_shared_data_manager(ishared_data_manager_type* manager) { 
+    logger(LOG_FATAL, "distributed engine does not support set shared data manager");
+  }
+
+  void stop() {
+    force_stop = true;
+  }
+
+  void register_monitor(imonitor_type* listener) {
+    logger(LOG_FATAL, "distributed engine does not support register monitor");
+  }     
 
 };
 

@@ -398,10 +398,12 @@ class distributed_graph {
   }
 
   vertex_id_t globalvid_to_localvid(vertex_id_t vid) const {
-    return global2localvid[vid];
+    boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
+    assert(iter != global2localvid.end());
+    return iter->second;
   }
 
-  vertex_id_t globalvid_to_owner(vertex_id_t vid) const {
+  procid_t globalvid_to_owner(vertex_id_t vid) const {
     if (vertex_is_local(vid)) {
       boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
       if (iter == global2localvid.end()) return false;
@@ -409,7 +411,9 @@ class distributed_graph {
       return localvid2owner[localvid];
     }
     else {
-      return globalvid2owner.get(vid);
+      std::pair<bool, procid_t> ret = globalvid2owner.get(vid);
+      assert(ret.first);
+      return ret.second;
     }
   }
 
@@ -468,7 +472,7 @@ class distributed_graph {
   
    /// returns a vector of all processors having a replica of this globalvid
   const std::vector<procid_t>& globalvid_to_replicas(vertex_id_t globalvid) const {
-    vertex_id_t localvid = global2localvid[globalvid];
+    vertex_id_t localvid = globalvid_to_localvid(globalvid);
     return localvid_to_replicas(localvid);
   }
   /**
@@ -832,7 +836,7 @@ class distributed_graph {
    */
   vertex_color_type get_color(vertex_id_t vid) const{
     if (global_vid_in_local_fragment(vid)) {
-      return localstore.color(global2localvid[vid]);
+      return localstore.color(globalvid_to_localvid(vid));
     }
     else {
       std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(vid);
