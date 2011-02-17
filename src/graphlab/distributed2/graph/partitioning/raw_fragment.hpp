@@ -62,7 +62,6 @@ namespace graphlab {
 
     bool add_edge(const vertex_id_t source, const vertex_id_t target);   
     
-    void finalize_adjacency_lists();
 
     static void list_structure_files(const std::string& pathname, 
                                       std::vector<std::string>& files);
