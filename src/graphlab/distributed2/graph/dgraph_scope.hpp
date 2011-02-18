@@ -29,19 +29,33 @@ class dgraph_scope : public iscope<Graph> {
 
   ~dgraph_scope() { }
 
-  void commit_ghosts() { 
-    graph_ptr->synchronize_scope(_vertex);
-  }
-  
-  void commit_ghosts_async() { 
-    graph_ptr->synchronize_scope(_vertex, true);
+  void commit() {
+    commit_ghosts(false);
+    push_owned(false, false);
   }
 
-  void push_owned() {
+  void commit_async() {
+    commit_ghosts(true);
+    push_owned(true, false);
   }
   
-  void push_owned_async() { 
+  void commit_async_untracked() {
+    commit_ghosts(true);
+    push_owned(true, true);
   }
+
+  void commit_ghosts(bool async) { 
+    _graph_ptr->synchronize_scope(_vertex, async);
+  }
+  
+
+  void push_owned(bool async, bool untracked) {
+    _graph_ptr->push_owned_scope_to_replicas(true, // modified only 
+                                             true, // clear modified
+                                             async,
+                                             untracked);
+  }
+  
   
   void init(Graph* graph, vertex_id_t vertex) {
     base::_graph_ptr = graph;
@@ -51,7 +65,7 @@ class dgraph_scope : public iscope<Graph> {
 
   vertex_data_type& vertex_data() {
     _graph_ptr->increment_vertex_version(_vertex);
-    _graph_ptr->vertex_modified(_vertex);
+    _graph_ptr->vertex_is_modified(_vertex);
     return (_graph_ptr->vertex_data(_vertex));
   }
 
@@ -75,7 +89,7 @@ class dgraph_scope : public iscope<Graph> {
   
   edge_data_type& edge_data(edge_id_t eid) {
     _graph_ptr->increment_edge_version(eid);
-    _graph_ptr->vertex_modified(eid);
+    _graph_ptr->edge_is_modified(eid);
     return (_graph_ptr->edge_data(eid));
   }
 
@@ -92,7 +106,7 @@ class dgraph_scope : public iscope<Graph> {
 
   vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) {
     _graph_ptr->increment_vertex_version(vertex);
-    _graph_ptr->vertex_modified(vertex);
+    _graph_ptr->vertex_is_modified(vertex);
     return _graph_ptr->vertex_data(vertex);
   }
   
