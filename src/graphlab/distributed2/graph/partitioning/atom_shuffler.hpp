@@ -306,7 +306,7 @@ namespace graphlab {
         if(rmi.procid() == 0) 
           std::cout << "Computing local filenames."
                     << std::endl;    
-        adjacency_list::list_adjacency_files(path, local_fnames);
+        adjacency_list::list_vlist_files(path, local_fnames);
         // compute the fnames that are used by this machine
         std::vector< std::vector< std::string > > partition_fnames;
         rmi.gather_partition(local_fnames, partition_fnames);
@@ -472,10 +472,8 @@ namespace graphlab {
           std::ifstream fin(absfname.c_str(), 
                             std::ios::binary | std::ios::in);
           graphlab::iarchive iarc(fin);
-          fin.peek();
-          while(fin.good()) {
-            vertex_data_type vdata;
-            iarc >> vdata;
+          vertex_data_type vdata;
+          for(iarc >> vdata; fin.good(); iarc >> vdata) {
             assert(fin.good());
             assert(localvid < alist.local_vertices.size());
             vertex_id_t vid = alist.local_vertices[localvid];
@@ -502,7 +500,6 @@ namespace graphlab {
               } // end of if neighbor is in different atom
             } // end of loop over neighbors
             localvid++; // successful add so increment the local vid counter
-            fin.peek();
           } // end of loop over single vertex data file
           fin.close();
         } // end of loop over all vertex data files

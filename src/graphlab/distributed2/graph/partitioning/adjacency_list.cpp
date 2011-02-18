@@ -11,7 +11,8 @@
 using namespace graphlab;
 
 
-const std::string adjacency_list::alist_suffix = ".structure";
+const std::string adjacency_list::elist_suffix = ".elist";
+const std::string adjacency_list::vlist_suffix = ".vlist";
 const std::string adjacency_list::vdata_suffix = ".vdata";
 const std::string adjacency_list::edata_suffix = ".edata";
 
@@ -36,39 +37,90 @@ add_vertex(const vertex_id_t& vid) {
 } // end of add vertex
 
 
+vertex_id_t adjacency_list::
+get_local_vid(const vertex_id_t& vid) const {
+  typedef global2local_type::const_iterator iterator;
+  iterator iter = global2local.find(vid);
+  assert(iter != global2local.end());
+  return iter->second;
+} // end of get local vid
+
+
 void adjacency_list::
-add_edge(const vertex_id_t& source, const vertex_id_t& target) {
-  vertex_id_t target_localvid = add_vertex(target);
+add_edge(const vertex_id_t& source, const vertex_id_t& target,
+         const bool require_target_ownership) {
+  vertex_id_t target_localvid(0);
+  if(require_target_ownership) 
+    target_localvid = get_local_vid(target);
+  else 
+    target_localvid = add_vertex(target);
   in_neighbor_ids.at(target_localvid).push_back(source);
 } // end of add edge
 
 
 void adjacency_list::
 load(const std::string& fname) {
-  std::ifstream fin(fname.c_str());
-  assert(fin.good());
-  while(fin.good()) {
-    size_t source(0);
-    size_t target(0);
-    fin >> source >> target;
-    if(fin.good()) add_edge(source, target);  
+  // be sure to have the vlist fname
+  std::string vlist_fname = change_suffix(fname, vlist_suffix);
+  {
+    std::ifstream fin(vlist_fname.c_str());
+    while(fin.good()) {
+      size_t vid(0);
+      fin >> vid;
+      if(fin.good())
+        add_vertex(vid);
+    }
+    fin.close();
   }
-  fin.close();
+  // be sure to have the elist fname
+  std::string elist_fname = change_suffix(fname, elist_suffix);
+  const bool REQUIRE_HAS_TARGET(true);
+  {
+    std::ifstream fin(elist_fname.c_str());
+    while(fin.good()) {
+      size_t source(0);
+      size_t target(0);
+      fin >> source >> target;
+      if(fin.good()) 
+        add_edge(source, target, REQUIRE_HAS_TARGET);  
+    }
+    fin.close();
+  }
+  assert(local_vertices.size() == in_neighbor_ids.size());
+  assert(local_vertices.size() == global2local.size());
 } // end of load file
 
 
 void adjacency_list::
-save(const std::string& fname) const {
-  std::ofstream fout(fname.c_str());
-  for(size_t i = 0; i < in_neighbor_ids.size(); ++i) {    
-    vertex_id_t target = local_vertices.at(i);
-    for(size_t j = 0; j < in_neighbor_ids[i].size(); ++j) {
-      vertex_id_t source = in_neighbor_ids[i][j];
-      fout << source << '\t' << target << '\n';
-    }
+save(const std::string& fname, const size_t& id) const {
+  assert(local_vertices.size() == in_neighbor_ids.size());
+  assert(local_vertices.size() == global2local.size());
+  {
+    // be sure to have the vlist fname
+    std::string vlist_fname = make_fname(fname, id, vlist_suffix);
+    std::ofstream fout(vlist_fname.c_str());
     assert(fout.good());
+    for(size_t i = 0; i < local_vertices.size(); ++i) {
+      fout << local_vertices[i] << '\n';
+      assert(fout.good());
+    }
+    fout.close();
   }
-  fout.close();  
+  {
+    // be sure to have the elist fname
+    std::string elist_fname = make_fname(fname, id, elist_suffix);
+    std::ofstream fout(elist_fname.c_str());
+    assert(fout.good());
+    for(size_t i = 0; i < in_neighbor_ids.size(); ++i) {
+      vertex_id_t target( local_vertices[i] );
+      for(size_t j = 0; j < in_neighbor_ids[i].size(); ++j) {
+        vertex_id_t source(in_neighbor_ids[i][j]);
+        fout << source << '\t' << target << '\n';
+        assert(fout.good());
+      }
+    }
+    fout.close();
+  }
 } // end of save file
 
 
@@ -138,25 +190,6 @@ make_fname(const std::string& base,
 }
 
 
-std::string adjacency_list::
-make_alist_fname(const std::string& base,
-                 const size_t& id) {
-  return make_fname(base, id, alist_suffix);
-}
-
-std::string adjacency_list::
-make_vdata_fname(const std::string& base,
-                 const size_t& id) {
-  return make_fname(base, id, vdata_suffix);
-}
-
-std::string adjacency_list::
-make_edata_fname(const std::string& base,
-                 const size_t& id) {
-  return make_fname(base, id, edata_suffix);
-}
-
-
 
 std::string adjacency_list::
 change_suffix(const std::string& base,
@@ -171,8 +204,8 @@ change_suffix(const std::string& base,
 
 
 void adjacency_list::
-list_adjacency_files(const std::string& pathname, 
-                     std::vector<std::string>& files) {
+list_vlist_files(const std::string& pathname, 
+                 std::vector<std::string>& files) {
   namespace fs = boost::filesystem;
   fs::path path(pathname);
   assert(fs::exists(path));
@@ -180,13 +213,20 @@ list_adjacency_files(const std::string& pathname,
       iter != end_iter; ++iter) {
     if( ! fs::is_directory(iter->status()) ) {
       std::string filename(iter->path().filename());
-      size_t period_loc = filename.rfind('.');
-      if(period_loc != std::string::npos) {
-        std::string ending(filename.substr(period_loc));
-        if(ending == adjacency_list::alist_suffix) {
-          files.push_back(iter->path().filename());
-        }
+      size_t pos = 
+        filename.size() >= adjacency_list::vlist_suffix.size()?
+        filename.size() - adjacency_list::vlist_suffix.size() : 0;
+      std::string ending(filename.substr(pos));
+      if(ending == adjacency_list::vlist_suffix) {
+        files.push_back(iter->path().filename());
       }
+      // size_t period_loc = filename.rfind('.');
+      // if(period_loc != std::string::npos) {
+      //   std::string ending(filename.substr(period_loc));
+      //   if(ending == adjacency_list::alist_suffix) {
+      //     files.push_back(iter->path().filename());
+      //   }
+      // }
     }
   }
   std::sort(files.begin(), files.end());
