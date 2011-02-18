@@ -65,10 +65,18 @@ struct graph_data {
       mpi_tools::gather(alist.local_vertices, cpu2vertex);
       // Determine the maximum  vertex_id_value
       vertex_id_t maxid(0);
-      for(size_t i = 0; i < cpu2vertex.size(); ++i)
-        for(size_t j = 0; j < cpu2vertex[i].size(); ++j) 
+      size_t vertices(0);
+      for(size_t i = 0; i < cpu2vertex.size(); ++i) {
+        for(size_t j = 0; j < cpu2vertex[i].size(); ++j) { 
+          vertices++;
           maxid = std::max(maxid, cpu2vertex[i][j]);
-      vertex2cpu.resize(maxid+1, -1);
+        }
+      }
+      std::cout << "Vertices:\t" << vertices << std::endl;
+      std::cout << "Maxid:\t" << maxid << std::endl;
+      assert(vertices > 0);
+      assert(vertices == maxid+1);
+      vertex2cpu.resize(vertices, -1);
       // Fill out the map
       for(size_t i = 0; i < cpu2vertex.size(); ++i) {
         for(size_t j = 0; j < cpu2vertex[i].size(); ++j) {

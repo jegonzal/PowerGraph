@@ -11,7 +11,7 @@
 using namespace graphlab;
 
 
-const std::string adjacency_list::alist_suffix = ".alist";
+const std::string adjacency_list::alist_suffix = ".structure";
 const std::string adjacency_list::vdata_suffix = ".vdata";
 const std::string adjacency_list::edata_suffix = ".edata";
 

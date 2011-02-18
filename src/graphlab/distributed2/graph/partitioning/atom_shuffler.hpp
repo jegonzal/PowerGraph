@@ -295,6 +295,10 @@ namespace graphlab {
           fout.close();
         }
       }
+
+      assert(vertex2atomid.size() == vertex2color.size());
+      if(rmi.procid() == 0) 
+        std::cout << "Vertices: " << vertex2color.size() << std::endl;
       
 
       std::vector<std::string> local_fnames;
@@ -317,9 +321,13 @@ namespace graphlab {
                     << std::endl;
         for(size_t i = 0; i < local_fnames.size(); ++i) {
           std::string absfname = path + "/" + local_fnames[i];
-          std::cout << "(" <<  rmi.procid() << " - " 
-                    << local_fnames[i] << ")" << std::endl;
+          // std::cout << "(" <<  rmi.procid() << " - " 
+          //           << local_fnames[i] << ")" << std::endl;
           alist.load(absfname);
+        }
+        // check the vertices in the alists
+        for(size_t i = 0; i < alist.local_vertices.size(); ++i) {
+          assert(alist.local_vertices[i] < vertex2atomid.size());
         }
         // resize auxiliarary datastructures
         assert(alist.in_neighbor_ids.size() == alist.local_vertices.size());
@@ -331,6 +339,8 @@ namespace graphlab {
 
       timer ti;
       ti.start();
+
+      rmi.full_barrier();
 
       { // Compute the vertex2proc map ======================================
         if(rmi.procid() == 0) 
@@ -346,7 +356,9 @@ namespace graphlab {
           for(size_t i = 0; i < proc2vertices.size(); ++i) {
             for(size_t j = 0; j < proc2vertices[i].size(); ++j) { 
               vertex_id_t vid = proc2vertices[i][j];
-              assert(vid < vertex2proc.size());
+              if(vid >= vertex2atomid.size()) 
+                std::cout << "Error!: " << vid << std::endl;
+              assert(vid < vertex2atomid.size());
               assert(vertex2proc[vid] == procid_t(-1));
               vertex2proc[vid] = i;
             }
