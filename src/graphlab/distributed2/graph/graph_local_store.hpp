@@ -308,24 +308,29 @@ namespace dist_graph_impl {
 
     /// Sets the vertex version. Setting the version also clears the modified flag
     void set_vertex_version(vertex_id_t v, uint64_t version) {
+      assert(v < nvertices);
       vertices[v].version = version;
       vertices[v].modified = false;
     }
 
     void increment_vertex_version(vertex_id_t v) {
+      assert(v < nvertices);
       ++vertices[v].version;
     }
 
     uint64_t vertex_version(vertex_id_t v) const{
+      assert(v < nvertices);
       return vertices[v].version;
     }
 
 
     void set_vertex_modified(vertex_id_t v, bool modified) {
+      assert(v < nvertices);
       vertices[v].modified = modified;
     }
 
     bool vertex_modified(vertex_id_t v) const{
+      assert(v < nvertices);
       return vertices[v].modified;
     }
 
@@ -367,23 +372,28 @@ namespace dist_graph_impl {
     }
 
     void set_edge_version(edge_id_t edge_id, uint64_t version) {
+      assert(edge_id < nedges);
       edgedata[edge_id].version = version;
       edgedata[edge_id].modified = false;
     }
 
     void increment_edge_version(edge_id_t edge_id) {
+      assert(edge_id < nedges);
       ++edgedata[edge_id].version;
     }
     
     uint64_t edge_version(edge_id_t edge_id) const{
+      assert(edge_id < nedges);
       return edgedata[edge_id].version;
     }
 
     void set_edge_modified(edge_id_t edge_id, bool modified) {
+      assert(edge_id < nedges);
       edgedata[edge_id].modified = modified;
     }
 
     bool edge_modified(edge_id_t edge_id) const{
+      assert(edge_id < nedges);
       return edgedata[edge_id].modified;
     }
 
@@ -415,12 +425,14 @@ namespace dist_graph_impl {
 
     /** \brief Returns the source vertex of an edge. */
     vertex_id_t source(edge_id_t edge_id) const {
+      assert(edge_id < nedges);
       //      assert(edge_id < nedges);
       return edges[edge_id].source();
     }
 
     /** \brief Returns the destination vertex of an edge. */
     vertex_id_t target(edge_id_t edge_id) const {
+      assert(edge_id < nedges);
       //      assert(edge_id < nedges);
       return edges[edge_id].target();    
     }

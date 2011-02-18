@@ -73,6 +73,8 @@ class coherent_dht{
   /// Constructor. Creates the integer map.
   coherent_dht(distributed_control &dc, 
                          size_t max_cache_size = 1024):rpc(dc, this),data(11) {
+    has_mod_trigger = false;
+                           
     cache.rehash(max_cache_size);
     maxcache = max_cache_size;
     logger(LOG_INFO, "%d Creating distributed_hash_table. Cache Limit = %d", 
@@ -479,7 +481,6 @@ class coherent_dht{
   mutable lru_list_type lruage; /// THe LRU linked list associated with the cache
 
 
-  procid_t numprocs;   /// NUmber of processors
   size_t maxcache;     /// Maximum cache size allowed
 
   mutable size_t reqs;

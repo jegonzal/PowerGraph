@@ -130,8 +130,12 @@ class distributed_graph {
     }
     rmi.broadcast(partitions, dc.procid() == 0);
     construct_local_fragment(atomindex, partitions, rmi.procid());
+    rmi.barrier();
   }
 
+  ~distributed_graph() {
+    rmi.barrier();
+  }
   /**
    * Returns the number of vertices in the graph.
    */
@@ -304,6 +308,48 @@ class distributed_graph {
     }
   }
 
+  std::vector<vertex_id_t> in_vertices(vertex_id_t v) const {
+    if (is_owned(v)) {
+      // switch to localeid
+      vertex_id_t localvid = globalvid_to_localvid(v);
+      //get the local edgelist
+      edge_list elist = localstore.in_edge_ids(localvid);
+     
+      std::vector<vertex_id_t> ret(elist.size());
+      // get the source of each edge and return it. remember to convert back to global
+      for (size_t i = 0;i < elist.size(); ++i) {
+        ret[i] = localvid_to_globalvid(localstore.source(elist[i]));
+      }
+      return ret;
+    }
+    else {
+      return rmi.remote_request(globalvid2owner.get_cached(v).second,
+                                &distributed_graph<VertexData,EdgeData>::in_vertices,
+                                v);
+    }
+  }
+  
+  std::vector<vertex_id_t> out_vertices(vertex_id_t v) const {
+    if (is_owned(v)) {
+      // switch to localeid
+      vertex_id_t localvid = globalvid_to_localvid(v);
+      //get the local edgelist
+      edge_list elist = localstore.out_edge_ids(localvid);
+     
+      std::vector<vertex_id_t> ret(elist.size());
+      // get the source of each edge and return it. remember to convert back to global
+      for (size_t i = 0;i < elist.size(); ++i) {
+        ret[i] = localvid_to_globalvid(localstore.target(elist[i]));
+      }
+      return ret;
+    }
+    else {
+      return rmi.remote_request(globalvid2owner.get_cached(v).second,
+                                &distributed_graph<VertexData,EdgeData>::out_vertices,
+                                v);
+    }
+  }
+
     /** \brief Return the edge ids of the edges arriving at v */
   dgraph_edge_list in_edge_ids(vertex_id_t v) const {
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
@@ -336,6 +382,8 @@ class distributed_graph {
         return ret;
       }
     }
+    assert(!edge_canonical_numbering);
+
     std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(v);
     assert(vidowner.first);
 
@@ -379,9 +427,13 @@ class distributed_graph {
         return ret;
       }
     }
+    
+    // this does not make sense if I have canonical numbering
+    assert(!edge_canonical_numbering);
+    
     std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(v);
     assert(vidowner.first);
-
+    
     return rmi.remote_request(vidowner.second,
                               &distributed_graph<VertexData, EdgeData>::
                               out_edge_id_as_vec,
@@ -403,6 +455,10 @@ class distributed_graph {
     return iter->second;
   }
 
+  vertex_id_t localvid_to_globalvid(vertex_id_t vid) const {
+   return local2globalvid[vid];
+  }
+  
   procid_t globalvid_to_owner(vertex_id_t vid) const {
     if (vertex_is_local(vid)) {
       boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
@@ -660,6 +716,17 @@ class distributed_graph {
     if (targetiter != global2localvid.end()) {
       if (localvid2owner[targetiter->second] == rmi.procid()) {
         edge_data(source, target) = edata;
+        vertex_id_t localsourcevid = global2localvid[source];
+        vertex_id_t localtargetvid = global2localvid[target];
+        // get the localeid
+        // edge must exist. I don't need to check the return of find
+        edge_id_t localeid = localstore.find(localsourcevid, localtargetvid).second;
+        localstore.increment_edge_version(localeid);
+        edge_id_t globaleid = local2globaleid[localeid];
+        push_owned_edge_to_replicas(globaleid,
+                                    async,  // async  
+                                    async); // untracked
+
         return;
       }
     }
@@ -672,7 +739,8 @@ class distributed_graph {
                       set_edge_data_from_pair,
                       source,
                       target,
-                      edata);
+                      edata,
+                      async);
     }
     else {
       rmi.remote_request(vidowner.second,
@@ -680,7 +748,8 @@ class distributed_graph {
                          set_edge_data_from_pair,
                          source,
                          target,
-                         edata);
+                         edata,
+                         async);
     }
   }
 
@@ -699,6 +768,11 @@ class distributed_graph {
       if (localvid2owner[localstore.target(eiditer->second)] == rmi.procid()) {
         // if I do. then I must own the edge.
         edge_data(eid) = edata;
+        increment_edge_version(eid);
+        push_owned_edge_to_replicas(eid, 
+                                    async,  // async  
+                                    async); // untracked
+
         return;
       }
     }
@@ -757,12 +831,18 @@ class distributed_graph {
   void set_vertex_data(vertex_id_t vid, const VertexData vdata){
     if (global_vid_in_local_fragment(vid)) {
       vertex_data(vid) = vdata;
+      // increment version
+      increment_vertex_version(vid);
+      push_owned_vertex_to_replicas(vid, 
+                                    false,  // async  
+                                    false); // untracked
     }
     else {
       std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(vid);
       assert(vidowner.first);
       rmi.remote_request(vidowner.second,
                         &distributed_graph<VertexData,EdgeData>::set_vertex_data,
+                        vid,
                         vdata);
     }
   }
@@ -794,7 +874,12 @@ class distributed_graph {
    */
   void set_vertex_data_async(vertex_id_t vid, const VertexData vdata){
     if (global_vid_in_local_fragment(vid)) {
-      vertex_data(vid) = vdata;
+      vertex_data(vid) = vdata;      
+      increment_vertex_version(vid);
+      push_owned_vertex_to_replicas(vid, 
+                                    true,  // async  
+                                    true); // untracked
+
     }
     else {
       std::pair<bool, procid_t> vidowner = 

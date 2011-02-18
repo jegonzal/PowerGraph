@@ -70,7 +70,7 @@ class dc_stream_receive: public dc_receive{
   void shutdown();
 
   inline bool direct_access_support() {
-    return true;
+    return false;
   }
   
   char* get_buffer(size_t& retbuflength);

@@ -151,7 +151,7 @@ if (printhelp):
 
 if (nmachines == 0 and hostsfile == ''):
   cmd = 'env SPAWNNODES=localhost SPAWNID=0 %s %s' % (prog, opts)
-  p = subprocess.Popen(cmd, shell_popen=True)
+  p = shell_popen(cmd)
   os.waitpid(p.pid, 0)
   exit(0)
 #endif

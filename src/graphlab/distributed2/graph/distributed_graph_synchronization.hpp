@@ -7,7 +7,7 @@
 #include <boost/range/iterator_range.hpp>
 #else
 
-
+//#define DGRAPH_DEBUG
 
 /**
  * synchronize the data on vertex with global id vid
@@ -673,10 +673,14 @@ void distributed_graph<VertexData, EdgeData>::conditional_update_vertex_data_and
                         procid_t srcproc,
                         size_t reply) {
   vertex_id_t localvid = global2localvid[vid];
-//  logger(LOG_DEBUG, "Receiving vertex %d from proc %d. %d vs %d", vid, srcproc, vstore.data.second, localstore.vertex_version(localvid));
+#ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "Receiving vertex " << vid << " from proc " << srcproc << ". " 
+                       << vstore.data.second << " vs " << localstore.vertex_version(localvid) << std::endl;
+#endif
   if (vstore.hasdata && vstore.data.second >= localstore.vertex_version(localvid)) {
     localstore.vertex_data(localvid) = vstore.data.first;
     localstore.set_vertex_version(localvid, vstore.data.second);
+    ASSERT_GE(localstore.vertex_version(localvid), vstore.data.second);
   }
   if (srcproc != procid_t(-1)) {
     rmi.dc().remote_call(srcproc, reply_increment_counter, reply, dc_impl::blob());
@@ -689,7 +693,10 @@ void distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_v
                            distributed_graph<VertexData, EdgeData>::edge_conditional_store &estore,
                            procid_t srcproc, size_t reply) {
   edge_id_t localeid = global2localeid[eid];
-//  logger(LOG_DEBUG, "Receiving edge %d from proc %d. %d vs %d", eid, srcproc, estore.data.second, localstore.edge_version(localeid));
+#ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "Receiving edge " << eid << " from proc " << srcproc << ". " 
+                       << estore.data.second << " vs " << localstore.edge_version(localeid) << std::endl;
+#endif
   if (estore.hasdata && estore.data.second >= localstore.edge_version(localeid)) {
     localstore.edge_data(localeid) = estore.data.first;
     localstore.set_edge_version(localeid, estore.data.second);
@@ -709,6 +716,10 @@ void distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_v
   vertex_id_t localtargetvid = global2localvid[target];
   std::pair<bool, edge_id_t> findret = localstore.find(localsourcevid, localtargetvid);
   assert(findret.first);
+#ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "Receiving edge (" << source << ","<<target << ") from proc " << srcproc << ". " 
+                       << estore.data.second << " vs " << localstore.edge_version(findret.second) << std::endl;
+#endif
   if (estore.hasdata && estore.data.second >= localstore.edge_version(findret.second)) {
     localstore.edge_data(findret.second) = estore.data.first;
     localstore.set_edge_version(findret.second, estore.data.second);
@@ -753,7 +764,9 @@ void distributed_graph<VertexData, EdgeData>::push_owned_vertex_to_replicas(vert
   
  foreach(procid_t proc, replicas) {
     if (proc != rmi.procid()) {
-//      logger(LOG_DEBUG, "Pushing vertex %d to proc %d", vid, proc);
+#ifdef DGRAPH_DEBUG
+      logger(LOG_DEBUG, "Pushing vertex %d to proc %d", vid, proc);
+#endif
       rmi.remote_call(proc,
                       &distributed_graph<VertexData, EdgeData>::conditional_update_vertex_data_and_version,
                       vid,
@@ -827,7 +840,9 @@ void distributed_graph<VertexData, EdgeData>::push_owned_edge_to_replicas(edge_i
   foreach(procid_t proc, iterrange) {
     if (proc != rmi.procid()) {
       if (!edge_canonical_numbering) {
-//      logger(LOG_DEBUG, "Pushing edge %d to proc %d", eid, proc);
+#ifdef DGRAPH_DEBUG
+        logger(LOG_DEBUG, "Pushing edge %d to proc %d", eid, proc);
+#endif
         rmi.remote_call(proc,
                         &distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version,
                         eid,

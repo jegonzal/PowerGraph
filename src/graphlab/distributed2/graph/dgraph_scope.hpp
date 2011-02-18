@@ -50,7 +50,8 @@ class dgraph_scope : public iscope<Graph> {
   
 
   void push_owned(bool async, bool untracked) {
-    _graph_ptr->push_owned_scope_to_replicas(true, // modified only 
+    _graph_ptr->push_owned_scope_to_replicas(_vertex,
+                                             true, // modified only 
                                              true, // clear modified
                                              async,
                                              untracked);

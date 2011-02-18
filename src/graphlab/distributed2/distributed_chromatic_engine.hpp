@@ -30,9 +30,9 @@ namespace graphlab {
 
 
 /**
-All processes must receive the same options. 
-options are NOT synchronized. (i.e. if timeout is set, 
-all processes must and should set the same timeout value, etc)
+All processes must receive the same options at the same time.
+i.e. if set_cpu_affinities is called, all processes mus call it at the same time.
+This is true for all set_* functions.
 */
 template <typename Graph>
 class distributed_chromatic_engine:public iengine<Graph> {
@@ -53,7 +53,8 @@ class distributed_chromatic_engine:public iengine<Graph> {
 
   typedef redirect_scheduler_callback<Graph, 
                                       distributed_chromatic_engine<Graph> > callback_type;
- private:
+  typedef icallback<Graph> icallback_type;
+private:
 
  private:
   // the local rmi instance
@@ -104,7 +105,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
 
   scope_range::scope_range_enum default_scope_range;
  
-  std::vector<std::vector<vertex_id_t> > color_block;
+  std::vector<std::vector<vertex_id_t> > color_block; // set of localvids in each color
   dense_bitset scheduled_vertices;  // take advantage that local vertices
                                     // are always the first N
   
@@ -153,9 +154,11 @@ class distributed_chromatic_engine:public iengine<Graph> {
                             update_function(NULL),
                             max_iterations(0),
                             thread_color_barrier(ncpus){ 
+    rmi.barrier();
   }
   
   ~distributed_chromatic_engine() {
+    rmi.barrier();
   }
   
   
@@ -165,10 +168,12 @@ class distributed_chromatic_engine:public iengine<Graph> {
   //! set sched yield
   void set_sched_yield(bool value) {
     use_sched_yield = value;
+    rmi.barrier();
   }
 
   void set_cpu_affinities(bool value) {
     use_cpu_affinity = value;
+    rmi.barrier();
   }
 
 
@@ -178,6 +183,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
    */
   void set_default_scope(scope_range::scope_range_enum default_scope_range_) {
     default_scope_range = default_scope_range_;
+    rmi.barrier();
   }
   
   using iengine<Graph>::exec_status_as_string;   
@@ -209,6 +215,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
    */
   void add_terminator(termination_function_type term) {
     term_functions.push_back(term);
+    rmi.barrier();
   }
 
 
@@ -217,6 +224,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
    */
   void clear_terminators() {
     term_functions.clear();
+    rmi.barrier();
   }
 
 
@@ -226,13 +234,15 @@ class distributed_chromatic_engine:public iengine<Graph> {
    */
   void set_timeout(size_t timeout_seconds = 0) {
     timeout_millis = timeout_seconds * 1000;
+    rmi.barrier();
   }
   
   /**
    * Task budget - max number of tasks to allow
    */
-  virtual void set_task_budget(size_t max_tasks) {
+  void set_task_budget(size_t max_tasks) {
     task_budget = max_tasks;
+    rmi.barrier();
   }
   
 
@@ -248,6 +258,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
       num_pending_tasks.inc(!
               scheduled_vertices.set_bit(graph.globalvid_to_localvid(task.vertex())) 
                           );
+      std::cout << "add task to " << task.vertex() << std::endl;
     }
     else {
       rmi.remote_call(graph.globalvid_to_owner(task.vertex()),
@@ -272,8 +283,19 @@ class distributed_chromatic_engine:public iengine<Graph> {
 
   void add_task_to_all_from_remote(size_t func,
                                   double priority) {
-    add_task_to_all(reinterpret_cast<update_function_type>(func), priority);
+    add_task_to_all_impl(reinterpret_cast<update_function_type>(func), priority);
   }
+  
+  void add_task_to_all_impl(update_function_type func,
+                            double priority) {
+    if (update_function != NULL) assert(update_function == func);
+    else update_function = func;
+    
+    scheduled_vertices.fill();
+    num_pending_tasks.value = graph.owned_vertices().size();
+
+  }
+ 
   /**
    * \brief Creates a collection of tasks on all the vertices in the graph,
    * with the same update function and priority
@@ -281,11 +303,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
    */
   void add_task_to_all(update_function_type func,
                                double priority) {
-    if (update_function != NULL) assert(update_function == func);
-    else update_function = func;
-    
-    scheduled_vertices.fill();
-    num_pending_tasks.value = scheduled_vertices.size();
+    add_task_to_all_impl(func,priority);
     for (size_t i = 0;i < rmi.numprocs(); ++i) {
       if (i != rmi.procid()) {
         rmi.remote_call(i,
@@ -315,6 +333,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
     st.rangehigh = rangehigh;
     st.sharedvariable = dynamic_cast<distributed_glshared_base*>(&shared) ;
     sync_tasks.push_back(st);
+    rmi.barrier();
   }
 
   
@@ -327,10 +346,10 @@ class distributed_chromatic_engine:public iengine<Graph> {
     std::vector<std::vector<std::pair<vertex_id_t, size_t> > > color_block_and_weight;
     // the list of vertices for each color
     color_block_and_weight.resize(graph.num_colors());
-
+    
     foreach(vertex_id_t v, graph.owned_vertices()) {
       color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(v, 
+                                    std::make_pair(graph.globalvid_to_localvid(v), 
                                                   graph.globalvid_to_replicas(v).size()));
     }
     color_block.clear();
@@ -434,7 +453,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
       if (check_dynamic_schedule && aggregate.pending_tasks == 0) {
         termination_reason = EXEC_TASK_DEPLETION;
       }
-      else if (task_budget > 0 && aggregate.executed_tasks > task_budget) {
+      else if (task_budget > 0 && aggregate.executed_tasks >= task_budget) {
         termination_reason = EXEC_TASK_BUDGET_EXCEEDED;
       }
       else if (timeout_millis > 0 && aggregate.timeout) {
@@ -448,7 +467,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
       }
     }
     size_t treason = termination_reason;
-    rmi.broadcast(treason, 0);
+    rmi.broadcast(treason, rmi.procid() == 0);
     termination_reason = exec_status(treason);
   }
  
@@ -472,12 +491,16 @@ class distributed_chromatic_engine:public iengine<Graph> {
         while(1) {
           // grab a vertex
           size_t i = curidx.inc_ret_last();  
-          if (usestatic || scheduled_vertices.clear_bit(i)) {
-            // if index out of scope, we are done with this color. break
-            if (i >= color_block[c].size()) break;
+          // if index out of scope, we are done with this color. break
+          if (i >= color_block[c].size()) break;
+          // otherwise, get the local and globalvid
+          vertex_id_t localvid = color_block[c][i];
+          vertex_id_t globalvid = graph.localvid_to_globalvid(color_block[c][i]);
+          if (usestatic || scheduled_vertices.clear_bit(localvid)) {
+            if (!usestatic) num_pending_tasks.dec();
             // otherwise. run the vertex
             // create the scope
-            scope.init(&graph, color_block[c][i]);
+            scope.init(&graph, globalvid);
             // run the update function
             update_function(scope, callback, NULL);
             scope.commit_async_untracked();
@@ -503,6 +526,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
   
   /** Execute the engine */
   void start() {
+    assert(update_function != NULL);
     // generate colors then
     // wait for everyone to enter start    
     generate_color_blocks();
@@ -510,7 +534,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
     force_stop = false;
     numsyncs.value = 0;
     std::fill(update_counts.begin(), update_counts.end(), 0);
-    rmi.barrier();
+    rmi.dc().full_barrier();
     // reset indices
     curidx.value = 0;
     ti.start();
@@ -544,6 +568,7 @@ class distributed_chromatic_engine:public iengine<Graph> {
     if (opts.get_any_option("update_function", uf)) {
       update_function = uf.as<update_function_type>();
     }
+    rmi.barrier();
   }
   
   static void print_options_help(std::ostream &out) {
