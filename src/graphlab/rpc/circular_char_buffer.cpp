@@ -278,18 +278,13 @@ std::streamsize circular_char_buffer::introspective_read(char* &s, std::streamsi
 
 std::streamsize circular_char_buffer::introspective_write(char* &s) {
   s = buffer + tail;
-  if (tail > head) {
+  if (tail >= head) {
     // case 1. no looparound. 
-    return bufsize - tail;
-  }
-  else if (tail == head && len == 0) {
-    // case 2. tail == head i.e. buffer could be totally full
-    // or could be completely empty. check len.
     return bufsize - tail;
   }
   else {
     // case 2 looparound
-    return head - tail;
+    return head - tail - 1;
   }
 }
   
@@ -297,6 +292,7 @@ void circular_char_buffer::advance_write(std::streamsize bytes) {
   tail += bytes;
   if (tail >= bufsize) tail -= bufsize;
   len += bytes;
+  consistency_check();
 }
   
 };

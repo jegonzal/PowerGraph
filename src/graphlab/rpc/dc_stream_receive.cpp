@@ -125,6 +125,15 @@ char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength,
       buffer.reserve(2 * buffer.reserved_size());
       retbuflength = buffer.introspective_write(ret);
     }
+    
+    // if still too small
+    if (retbuflength < 1024) {
+      //reserve more capacity
+      buffer.reserve(2 * buffer.reserved_size());
+      retbuflength = buffer.introspective_write(ret);    
+    }
+    // by design of the circular buffer, this is guaranteed to 
+    // free up enough space
   }
   bufferlock.unlock();
 

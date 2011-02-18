@@ -26,14 +26,16 @@ int main(int argc, char ** argv) {
   distributed_control dc(machines,"", machineid);
 
   std::vector<std::string> data(dc.numprocs());
-  data[dc.procid()] = "hello";
+  std::string tempstring;
+  tempstring.resize(10*1024*1024,'a');
+  data[dc.procid()] = tempstring;
 
   // test gather
   std::vector<std::string> test1 = data;
   dc.services().gather(test1, 0);
   if (dc.procid() == 0) {
     for (size_t i = 0;i < test1.size(); ++i) {
-      assert(data[dc.procid()] == "hello");
+      assert(data[dc.procid()] == tempstring);
     }
   }
 
@@ -41,7 +43,7 @@ int main(int argc, char ** argv) {
   test1 = data;
   dc.services().all_gather(test1);
   for (size_t i = 0;i < test1.size(); ++i) {
-    assert(data[dc.procid()] == "hello");
+    assert(data[dc.procid()] == tempstring);
   }
 
   dc.services().barrier();

@@ -130,8 +130,17 @@ class circular_char_buffer {
   }
   
   char* buffer;
-  std::streamsize head;  // points to the head of the queue. Reader reads from here
-  std::streamsize tail;  // points to one past the end of the queue. writer writes to here
+  /** 
+   * points to the head of the queue. 
+   * Reader reads from here
+   */
+  std::streamsize head;  
+  
+  /** 
+   * points to one past the end of the queue. 
+   * writer writes to here. if tail == head, buffer must be empty
+   */
+  std::streamsize tail;  
   std::streamsize bufsize; // current size of the buffer
   std::streamsize len;  // number of bytes stored in the buffer
 };
