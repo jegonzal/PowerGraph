@@ -16,7 +16,8 @@ namespace graphlab {
   struct adjacency_list {
     typedef std::map<vertex_id_t, vertex_id_t> global2local_type;
 
-    static const std::string alist_suffix;
+    static const std::string elist_suffix;
+    static const std::string vlist_suffix;
     static const std::string vdata_suffix;
     static const std::string edata_suffix;
 
@@ -30,14 +31,17 @@ namespace graphlab {
 
     vertex_id_t add_vertex(const vertex_id_t& vid);
 
+    vertex_id_t get_local_vid(const vertex_id_t& gvid) const;
+
     void add_edge(const vertex_id_t& source, 
-                  const vertex_id_t& target);
+                  const vertex_id_t& target,
+                  const bool require_target_ownership = false);
 
 
 
     void load(const std::string& fname);  
 
-    void save(const std::string& fname) const; 
+    void save(const std::string& base, const size_t& id) const; 
 
     void operator+=(const adjacency_list& other);
 
@@ -46,24 +50,12 @@ namespace graphlab {
                const size_t& id,
                const std::string& suffix);
 
-    static std::string 
-    make_alist_fname(const std::string& base,
-                     const size_t& id);
-
-    static std::string 
-    make_vdata_fname(const std::string& base,
-                     const size_t& id);
-
-    static std::string 
-    make_edata_fname(const std::string& base,
-                     const size_t& id);
-
     static std::string
     change_suffix(const std::string& fname,
                   const std::string& new_suffix);
     
-    static void list_adjacency_files(const std::string& pathname, 
-                                     std::vector<std::string>& files);
+    static void list_vlist_files(const std::string& pathname, 
+                                 std::vector<std::string>& files);
     
   };
 

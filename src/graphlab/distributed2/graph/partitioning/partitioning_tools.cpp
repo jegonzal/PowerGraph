@@ -330,7 +330,7 @@ construct_partitioning(int argc, char** argv,
 
   // Load the filenames
   std::vector<std::string> fnames;
-  adjacency_list::list_adjacency_files(path, fnames);
+  adjacency_list::list_vlist_files(path, fnames);
   compute_local_fnames(fnames);
 
   // construct the local graph data
