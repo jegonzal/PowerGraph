@@ -280,7 +280,7 @@ std::streamsize circular_char_buffer::introspective_write(char* &s) {
   s = buffer + tail;
   if (tail >= head) {
     // case 1. no looparound. 
-    return bufsize - tail;
+    return bufsize - tail - (head==0);
   }
   else {
     // case 2 looparound

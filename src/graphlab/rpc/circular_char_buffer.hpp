@@ -104,11 +104,11 @@ class circular_char_buffer {
   void advance_write(std::streamsize bytes);
   
   inline void consistency_check() const {
-/*    ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
+    /* ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
     ASSERT_LT(head, bufsize); ASSERT_LE(tail, bufsize);
     if (tail > head) ASSERT_EQ(tail - head, len);
     else if (head < tail) ASSERT_EQ(head + bufsize - tail, len);
-    else if (head == tail) ASSERT_EQ(len, 0);*/
+    else if (head == tail) ASSERT_EQ(len, 0); */
   }
   
   /** clears the stream */
