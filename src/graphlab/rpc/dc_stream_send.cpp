@@ -17,7 +17,7 @@ void dc_stream_send::send_data(procid_t target,
     }
     // build the packet header
     packet_hdr hdr;
-    memset(&hdr, sizeof(packet_hdr), 0);
+    memset(&hdr, 0, sizeof(packet_hdr));
     hdr.len = len;
     hdr.src = dc->procid(); 
     hdr.packet_type_mask = packet_type_mask;
@@ -67,7 +67,7 @@ void dc_stream_send::send_data(procid_t target,
     bytessent.inc(len);
   }
   packet_hdr hdr;
-  memset(&hdr, sizeof(packet_hdr), 0);
+  memset(&hdr, 0, sizeof(packet_hdr));
   hdr.len = len;
   hdr.src = dc->procid(); 
   hdr.packet_type_mask = packet_type_mask;
