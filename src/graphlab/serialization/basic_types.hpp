@@ -23,6 +23,7 @@
       char c[10];                                                       \
       unsigned char len = compress_int(i, c);                           \
       a.o->write(c + 10 - len, len);                                    \
+      /* a.o->write(c, len);     */                                     \
     }                                                                   \
   };                                                                    \
   template <typename ArcType> struct deserialize_impl<ArcType, tname>{  \

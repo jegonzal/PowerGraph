@@ -32,7 +32,7 @@ inline unsigned char compress_int(uint64_t u, char output[10]) {
                                                 8,8,8,8,8,8,8,
                                                 9,9,9,9,9,9,9};
   unsigned char c = lookuptable[nbits];
-
+  
   switch(c) {
     case 9:
       output[1] = (u & (0x7FLL << 56)) >> 56;
@@ -45,13 +45,13 @@ inline unsigned char compress_int(uint64_t u, char output[10]) {
     case 5:
       output[5] = (u & (0x7FLL << 28)) >> 28;
     case 4:
-      output[6] = (u & (0x7FLL << 21)) >> 21; 
+      output[6] = ((unsigned uint32_t)(u) & (0x7FLL << 21)) >> 21; 
     case 3:
-      output[7] = (u & (0x7FLL << 14)) >> 14;
+      output[7] = ((unsigned uint32_t)(u) & (0x7FLL << 14)) >> 14;
     case 2:
-      output[8] = (u & (0x7FLL << 7)) >> 7;
+      output[8] = ((unsigned short)(u) & (0x7FLL << 7)) >> 7;
     case 1:
-      output[9] = (u & 0x7F) | 0x80; // set the bit in the least significant 
+      output[9] = ((unsigned char)(u) & 0x7F) | 0x80; // set the bit in the least significant 
   }
   
   if (isneg == 0) {
@@ -96,6 +96,120 @@ inline void decompress_int(std::istream &strm, IntType &ret) {
     if (c & 0x80) break;
   };
   if (isneg)  ret = -ret;
+}
+
+
+
+
+
+inline unsigned char compress_int2(uint64_t u, char output[10]) {
+  // if 1st bit of u is set. could be negative,
+  // flip all the bits if it is
+  uint64_t isneg = (int64_t)(u) >> 63;
+  // if first bit of u is set, isneg = -1.......
+  // otherwise isneg = 0....
+  u = (u ^ isneg) - isneg;
+  
+  // get the largest bit
+  char nbits = 0;
+  if (u != 0) nbits = (64 - __builtin_clzll(u));
+  char nbytes = (nbits >> 3) + ((nbits & 7) > 0);
+  char *end = output + nbytes;
+  // set first bit if isnegative
+  char byteisneg = isneg != 0;
+  
+  switch(nbytes) {
+    case 9:
+      *end-- = (u & 255); u = u >> 8;
+    case 8:
+      *end-- = (u & 255); u = u >> 8;
+    case 7:
+      *end-- = (u & 255); u = u >> 8;
+    case 6:
+      *end-- = (u & 255); u = u >> 8;
+    case 5:
+      *end-- = (u & 255); u = u >> 8;
+    case 4:
+      *end-- = (u & 255); u = u >> 8;
+    case 3:
+      *end-- = (u & 255); u = u >> 8;
+    case 2:
+      *end-- = (u & 255); u = u >> 8;
+    case 1:
+      *end-- = (u & 255); u = u >> 8;
+  }
+  (*end) = (char)(nbytes) | (byteisneg << 7);
+  return nbytes + 1;
+}
+
+
+
+template <typename IntType>
+inline void decompress_int2(char* arr, IntType &ret) {
+  // if 1st bit of u is set. could be negative,
+  // flip all the bits if it is
+  uint64_t isneg = ~(uint64_t((arr[0] & 128) != 0) - 1);
+  unsigned char nbytes = arr[0] & 127;
+  
+  ret = (unsigned char)(arr[1]);
+  arr = arr + 2;  
+  
+  switch(nbytes) {
+    case 9:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 8:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 7:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 6:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 5:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 4:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 3:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+    case 2:
+      ret = ret << 8;  ret = ret + (unsigned char)*arr++; 
+  }
+  
+  ret = (ret ^ isneg) - isneg;
+}
+
+
+
+template <typename IntType>
+inline void decompress_int2(std::istream &strm, IntType &ret) {
+  // if 1st bit of u is set. could be negative,
+  // flip all the bits if it is
+  char arr;
+  strm.get(arr);
+  uint64_t isneg = ~(uint64_t((arr & 128) != 0) - 1);
+  unsigned char nbytes = arr & 127;
+  
+  strm.get(arr);
+  ret = (unsigned char)(arr);
+  
+  switch(nbytes) {
+    case 9:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 8:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 7:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 6:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 5:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 4:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 3:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+    case 2:
+      strm.get(arr); ret = ret << 8;  ret = ret + (unsigned char)(arr); 
+  }
+  
+  ret = (ret ^ isneg) - isneg;
 }
 
 }
