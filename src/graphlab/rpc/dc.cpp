@@ -30,26 +30,39 @@ namespace dc_impl {
 bool thrlocal_resizing_array_key_initialized = false;
 pthread_key_t thrlocal_resizing_array_key;
 
-resizing_array_sink& get_thread_local_resizing_array() {
-  resizing_array_sink* curptr = reinterpret_cast<resizing_array_sink*>(
+struct dc_tls_data{
+  resizing_array_sink ras;
+  boost::iostreams::stream<resizing_array_sink_ref> strm;    
+  
+  dc_tls_data(): ras(128),strm(ras){ };
+  ~dc_tls_data() {
+    strm.flush();
+    free(ras.c_str());
+  }
+  
+};
+
+boost::iostreams::stream<resizing_array_sink_ref>& 
+get_thread_local_stream() {
+  dc_tls_data* curptr = reinterpret_cast<dc_tls_data*>(
                         pthread_getspecific(thrlocal_resizing_array_key));
   if (curptr != NULL) {
-    std::cout << "ras get" << std::endl;
-    curptr->clear();
-    return *curptr;
+    curptr->ras.clear();
+    return curptr->strm;
   }
   else {
-    resizing_array_sink* ras = new resizing_array_sink(128);
+    dc_tls_data* ras = new dc_tls_data;
     int err = pthread_setspecific(thrlocal_resizing_array_key, ras);
     ASSERT_EQ(err, 0);
-    std::cout << "ras allocated " << std::endl;
-    return *ras;
+    return ras->strm;
   }
 }
 
 void thrlocal_destructor(void* v){ 
-  resizing_array_sink* s = reinterpret_cast<resizing_array_sink*>(v);
-  if (s != NULL) delete s;
+  dc_tls_data* s = reinterpret_cast<dc_tls_data*>(v);
+  if (s != NULL) {
+    delete s;
+  }
   pthread_setspecific(thrlocal_resizing_array_key, NULL);
 }
 }
@@ -224,7 +237,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
     dc_impl::thrlocal_resizing_array_key_initialized = true;
     int err = pthread_key_create(&dc_impl::thrlocal_resizing_array_key, 
                         dc_impl::thrlocal_destructor);
-    std::cout << "thread local key created" << std::endl;
     ASSERT_EQ(err, 0);
   }
   //-------- Initialize the full barrier ---------

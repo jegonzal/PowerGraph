@@ -67,7 +67,7 @@ struct terminator_token {
   bool terminate;
 };
 
-extern resizing_array_sink& get_thread_local_resizing_array();
+extern boost::iostreams::stream<resizing_array_sink_ref>& get_thread_local_stream();
 
 }
 }
