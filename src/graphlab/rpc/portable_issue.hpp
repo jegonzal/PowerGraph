@@ -26,7 +26,7 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T) > \
   class BOOST_PP_CAT(FNAME_AND_CALL,N)<portable_call<F> BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> { \
    public: \
     static void exec(dc_send* sender, size_t flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
-      boost::iostreams::stream<resizing_array_sink> strm(128);      \
+      boost::iostreams::stream<resizing_array_sink> strm(get_thread_local_resizing_array());      \
       oarchive arc(strm);                           \
       arc << 0;       \
       arc << remote_function.fname;      \
@@ -47,7 +47,7 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T) > \
   class BOOST_PP_CAT(FNAME_AND_CALL,N)<portable_call<F> BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> { \
    public: \
     static typename function_ret_type<FRESULT>::type  exec(dc_send* sender, size_t flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
-    boost::iostreams::stream<resizing_array_sink> strm(128);    \
+    boost::iostreams::stream<resizing_array_sink> strm(get_thread_local_resizing_array());    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
     size_t fn = 0; \

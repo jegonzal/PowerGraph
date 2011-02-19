@@ -44,6 +44,9 @@ namespace graphlab {
       size_t size() const { return len; }
       char* c_str() { return str; }
 
+      void clear() {
+        len = 0;
+      }
 
       char *str;
       size_t len;

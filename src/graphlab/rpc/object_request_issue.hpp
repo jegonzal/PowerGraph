@@ -75,7 +75,7 @@ template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, type
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static typename function_ret_type<FRESULT>::type exec(dc_send* sender, size_t flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    boost::iostreams::stream<resizing_array_sink> strm(128);    \
+    boost::iostreams::stream<resizing_array_sink> strm(get_thread_local_resizing_array());    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
