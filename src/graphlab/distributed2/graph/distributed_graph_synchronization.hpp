@@ -132,6 +132,8 @@ void distributed_graph<VertexData, EdgeData>::synchronize_edge(edge_id_t eid, bo
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid, bool async) {
   ASSERT_FALSE(is_ghost(vid));
+  if (boundaryscopesset.find(vid) == boundaryscopesset.end()) return;
+
   // now this is very annoying. A significant amount of code is identical here.
   // whether with edge canonical numbering on or not. But I cannot refactor it
   // easily because the types are different and I don't really want to introduce
@@ -876,6 +878,8 @@ void distributed_graph<VertexData, EdgeData>::push_owned_scope_to_replicas(verte
                                                                             bool clearmodified, 
                                                                             bool async,
                                                                             bool untracked) {
+  // fast exit if this is not on a boundary
+  if (boundaryscopesset.find(vid) == boundaryscopesset.end()) return;
   if (onlymodified) {
    if (is_owned(vid)) {
       vertex_id_t localvid = global2localvid[vid];
