@@ -1,10 +1,6 @@
 #ifndef GRAPHLAB_MPI_TOOLS
 #define GRAPHLAB_MPI_TOOLS
 
-#include <sys/types.h>
-#include <ifaddrs.h>
-#include <netinet/in.h>
-
 #include <mpi.h>
 
 #include <vector>
@@ -14,6 +10,7 @@
 
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/util/charstream.hpp>
+#include <graphlab/util/net_util.hpp>
 
 
 
@@ -376,47 +373,8 @@ namespace graphlab {
 
 
 
-    uint32_t get_local_ip() {
-      uint32_t ip(-1);
-      // code adapted from
-      struct ifaddrs * ifAddrStruct = NULL;
-      getifaddrs(&ifAddrStruct);
-      struct ifaddrs * firstifaddr = ifAddrStruct;
-      ASSERT_NE(ifAddrStruct, NULL);
-      while (ifAddrStruct != NULL) {
-        if (ifAddrStruct->ifa_addr != NULL && 
-            ifAddrStruct->ifa_addr->sa_family == AF_INET) {
-          char* tmpAddrPtr = NULL;
-          // check it is IP4 and not lo0.
-          tmpAddrPtr = (char*)&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
-          ASSERT_NE(tmpAddrPtr, NULL);
-          if (tmpAddrPtr[0] != 127) {
-            memcpy(&ip, tmpAddrPtr, 4);
-            break;
-          }
-          //break;
-        }
-        ifAddrStruct=ifAddrStruct->ifa_next;
-      }
-      freeifaddrs(firstifaddr);
-      return ip;
-    }
 
-
-
-    void get_master_ranks(std::set<size_t>& master_ranks) {
-      uint32_t local_ip = get_local_ip();
-      std::vector<uint32_t> all_ips;
-      all_gather(local_ip, all_ips);
-      std::set<uint32_t> visited_ips;
-      master_ranks.clear();
-      for(size_t i = 0; i < all_ips.size(); ++i) {
-        if(visited_ips.count(all_ips[i]) == 0) {
-          visited_ips.insert(all_ips[i]);
-          master_ranks.insert(i);
-        }
-      }
-    }
+    void get_master_ranks(std::set<size_t>& master_ranks);
 
 
 

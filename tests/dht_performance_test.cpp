@@ -5,6 +5,7 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
+#include <graphlab/rpc/dc_init_from_mpi.hpp>
     
 #include <graphlab/rpc/dht.hpp>
 #include <graphlab/rpc/portable.hpp>
@@ -24,11 +25,11 @@ std::string randstring(size_t len) {
 }
 
 int main(int argc, char ** argv) {
-  
+  mpi_tools::init(argc, argv);
   global_logger().set_log_level(LOG_INFO);
 
   dc_init_param param;
-  if (init_param_from_env(param) == false) {
+  if (init_param_from_mpi(param) == false) {
     return 0;
   }
   
@@ -80,4 +81,5 @@ int main(int argc, char ** argv) {
   }
   dc.barrier();
   testdht.print_stats();
+  mpi_tools::finalize();
 }

@@ -12,6 +12,7 @@
 #include <boost/bind.hpp>
 
 #include <graphlab/util/stl_util.hpp>
+#include <graphlab/util/net_util.hpp>
 #include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/rpc/dc.hpp>
@@ -80,32 +81,6 @@ static std::string get_working_dir() {
   std::string ret = path;
 #endif
   return ret;
-}
-
-static uint32_t get_local_ip() {
-  uint32_t ip;
-  // code adapted from
-  struct ifaddrs * ifAddrStruct = NULL;
-  getifaddrs(&ifAddrStruct);
-  struct ifaddrs * firstifaddr = ifAddrStruct;
-  ASSERT_NE(ifAddrStruct, NULL);
-  while (ifAddrStruct != NULL) {
-    if (ifAddrStruct->ifa_addr != NULL && 
-        ifAddrStruct->ifa_addr->sa_family == AF_INET) {
-      char* tmpAddrPtr = NULL;
-      // check it is IP4 and not lo0.
-      tmpAddrPtr = (char*)&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
-      ASSERT_NE(tmpAddrPtr, NULL);
-      if (tmpAddrPtr[0] != 127) {
-        memcpy(&ip, tmpAddrPtr, 4);
-        break;
-      }
-      //break;
-    }
-    ifAddrStruct=ifAddrStruct->ifa_next;
-  }
-  freeifaddrs(firstifaddr);
-  return ip;
 }
 
  /**

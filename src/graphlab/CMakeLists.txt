@@ -22,6 +22,10 @@ subdirs(
  jni)
 
 
+if (MPI_FOUND)
+  set(util_mpi_tools util/mpi_tools.cpp)
+endif()
+
 add_library(graphlab_util STATIC
   util/timer.cpp
   util/generics/any.cpp
@@ -30,12 +34,17 @@ add_library(graphlab_util STATIC
   parallel/pthread_tools.cpp
   schedulers/scheduler_list.cpp
   metrics/metrics.cpp
+  util/net_util.cpp
+  ${util_mpi_tools}
 )
 
 
 
 if(Sctp-FOUND)
   set(sctp_source rpc/dc_sctp_comm.cpp)
+endif()
+if (MPI_FOUND)
+  set(rpc_init_from_mpi rpc/dc_init_from_mpi.cpp)
 endif()
   
 add_library(graphlab_rpc STATIC
@@ -50,7 +59,8 @@ add_library(graphlab_rpc STATIC
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
   rpc/dc_comm_services.cpp
-  rpc/dc_init_from_env.cpp)
+  rpc/dc_init_from_env.cpp
+  ${rpc_init_from_mpi})
 
 
 IF(ZOLTAN_FOUND)

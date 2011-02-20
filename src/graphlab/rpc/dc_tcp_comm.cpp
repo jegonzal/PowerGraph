@@ -249,7 +249,7 @@ void dc_tcp_comm::open_listening() {
     ASSERT_TRUE(0);
   }
   logstream(LOG_INFO) << "Proc " << procid() << " listening on " << portnums[curid] << "\n";
-  ASSERT_EQ(0, listen(listensock, 5));
+  ASSERT_EQ(0, listen(listensock, 128));
   // spawn a thread which loops around accept
   listenhandler = new accept_handler(*this, listensock);
   listenthread = new thread(listenhandler);
