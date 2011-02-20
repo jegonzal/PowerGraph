@@ -145,6 +145,8 @@ void add_one_dynamic(iscope_type& scope,
 
 int main(int argc, char** argv) {
   dc_init_param param;
+
+  // if not running in DC environment, make atoms
   if (init_param_from_env(param) == false) {
     generate_atoms(); return 0;
   }
