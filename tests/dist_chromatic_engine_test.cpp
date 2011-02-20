@@ -22,8 +22,8 @@ typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
 
-const size_t NUMV = 10;
-const size_t NUMITERATIONS = 10;
+const size_t NUMV = 10000;
+const size_t NUMITERATIONS = 1000;
 
 void generate_atoms() {
   graph<size_t, double> testgraph;
@@ -52,7 +52,7 @@ void add_one_static(iscope_type& scope,
                     icallback_type& scheduler,
                     ishared_data_type* data_manager) {
   size_t& vdata = scope.vertex_data();
-  logger(LOG_INFO, "eval on %d", scope.vertex());
+  //logger(LOG_INFO, "eval on %d", scope.vertex());
   
   size_t srcvdata , destvdata;
   
@@ -96,7 +96,7 @@ void add_one_dynamic(iscope_type& scope,
                     icallback_type& scheduler,
                     ishared_data_type* data_manager) {
   size_t& vdata = scope.vertex_data();
-  logger(LOG_INFO, "eval on %d", scope.vertex());
+  //logger(LOG_INFO, "eval on %d", scope.vertex());
   
   size_t srcvdata , destvdata;
   
@@ -155,8 +155,9 @@ int main(int argc, char** argv) {
   graph_type dg(dc, "atomidx_ne_chrtest.txt");
 
   std::cout << "Graph Constructed!" << std::endl;
+  std::cout << "Testing Static: " << std::endl;
   // now we make an engine
-  distributed_chromatic_engine<distributed_graph<size_t, double> > engine(dc, dg, 1);
+  distributed_chromatic_engine<distributed_graph<size_t, double> > engine(dc, dg, 2);
   scheduler_options schedopts;
   schedopts.add_option("update_function", add_one_static);
   schedopts.add_option("max_iterations", NUMITERATIONS);
@@ -192,8 +193,9 @@ int main(int argc, char** argv) {
   
   dc.barrier();
   
+  /*******************************************************************/
   
-  
+  std::cout << "Testing Dynamic: " << std::endl;
   // reset graph
   for (size_t i = 0;i < dg.num_vertices(); ++i) {
     dg.set_vertex_data(i, 0);

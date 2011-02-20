@@ -17,7 +17,7 @@ class dgraph_scope : public iscope<Graph> {
   scope_range::scope_range_enum stype;
 
  public:
-  dgraph_scope(): base(NULL, NULL) { }
+  dgraph_scope(): base(NULL, 0) { }
   
   dgraph_scope(Graph* graph_ptr, vertex_id_t vertex,
                 scope_range::scope_range_enum s = scope_range::USE_DEFAULT) :

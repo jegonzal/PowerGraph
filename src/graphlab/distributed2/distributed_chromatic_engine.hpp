@@ -119,10 +119,11 @@ private:
     size_t sync_interval;
     size_t next_time;
     any zero;
-    mutex lock;
     size_t rangelow;
     size_t rangehigh;
     distributed_glshared_base *sharedvariable;
+    any mergeval;
+    std::vector<any> thread_intermediate;
     sync_task() :
       sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
       sync_interval(-1),
@@ -132,6 +133,10 @@ private:
   
   /// A list of all registered sync tasks
   std::vector<sync_task> sync_tasks;
+  
+  /// The list of tasks which are currently being evaluated
+  std::vector<sync_task*> active_sync_tasks;
+  
   
 
  public:
@@ -258,7 +263,7 @@ private:
       num_pending_tasks.inc(!
               scheduled_vertices.set_bit(graph.globalvid_to_localvid(task.vertex())) 
                           );
-      std::cout << "add task to " << task.vertex() << std::endl;
+      //std::cout << "add task to " << task.vertex() << std::endl;
     }
     else {
       rmi.remote_call(graph.globalvid_to_owner(task.vertex()),
@@ -322,6 +327,7 @@ private:
                 merge_function_type merge = NULL,
                 size_t rangelow = 0,
                 size_t rangehigh = -1) {
+    ASSERT_MSG(merge != NULL, "merge is required for the distributed engine");
     sync_task st;
     st.sync_fun = sync;
     st.merge_fun = merge;
@@ -408,10 +414,92 @@ private:
            >> force_stop;
     }
   };
-  
-  
-  
-  void check_global_termination(bool check_dynamic_schedule) {
+
+  /**
+   * Initialize the sync tasks. Called by start()
+   */
+  void init_syncs() {
+    active_sync_tasks.clear();
+    // setup the intermediate values. initialize them to zero
+    for (size_t i = 0;i < sync_tasks.size(); ++i) {
+      sync_tasks[i].thread_intermediate.clear();
+      sync_tasks[i].thread_intermediate.resize(ncpus, sync_tasks[i].zero);
+      // everyone runs at the start even if scheduling interval is 0
+      active_sync_tasks.push_back(&(sync_tasks[i]));
+    }
+  }
+
+  /**
+   * Called whenever a vertex is executed.
+   * Accumulates the available syncs
+   */
+  void eval_syncs(vertex_id_t curvertex, iscope_type& scope, size_t threadid) {
+    // go through all the active sync tasks
+    foreach(sync_task* task, active_sync_tasks) {
+      // if in range, sync!
+      if (task->rangelow <= curvertex && curvertex <= task->rangehigh) {
+        task->sync_fun(scope, task->thread_intermediate[threadid]);
+      }
+    }
+  }
+
+  /** Called at the end of the iteration. Called by all threads after a barrier*/
+  void sync_end_iteration(size_t threadid) {
+    // merge and apply all the syncs. distribute the work among the threads
+    for (size_t curtask = threadid; curtask < active_sync_tasks.size(); curtask += ncpus) {
+      sync_task* task = active_sync_tasks[curtask];
+      task->mergeval = task->thread_intermediate[0];
+      for(size_t i = 1;i < task->thread_intermediate.size(); ++i) {
+        task->merge_fun(task->mergeval, task->thread_intermediate[i]);
+      }
+      // for efficiency, lets merge each sync task to the prefered machine
+    }
+
+    // every machine participates in |active_sync_tasks| gathers
+    
+    for (size_t i = 0;i < active_sync_tasks.size(); ++i) {
+      sync_task* task = active_sync_tasks[i];
+      procid_t target = task->sharedvariable->preferred_machine();
+      std::vector<any> gathervals(rmi.numprocs());
+      gathervals[rmi.procid()] = task->mergeval;
+      rmi.gather(gathervals, target);
+
+      // now if I am target I need to do the final merge and apply
+      if (target == rmi.procid()) {
+        task->mergeval = gathervals[0];
+        for (size_t i = 1; i < gathervals.size(); ++i) {
+          task->merge_fun(task->mergeval, gathervals[i]);
+        }
+        // apply!!!
+        task->sharedvariable->apply(task->apply_fun, task->mergeval);
+      }
+    }
+  }
+
+  /** clears the active sync tasks and figure out what syncs to run next.
+      Called by one thread from each machine after sync_end_iteration */
+  void compute_sync_schedule(size_t num_executed_tasks) {
+    // update the next time variable
+    for (size_t i = 0;i < sync_tasks.size(); ++i) {
+      sync_tasks[i].next_time = num_executed_tasks + sync_tasks[i].sync_interval;
+      // if sync interval of 0, this was the first iteration.
+      // then I just set next time to infinity and it will never be run again
+      if (sync_tasks[i].sync_interval == 0) {
+        sync_tasks[i].next_time = size_t(-1);
+      }
+    }
+    active_sync_tasks.clear();
+    // figure out what to run next
+    for (size_t i = 0;i < sync_tasks.size(); ++i) {
+      if (sync_tasks[i].next_time < num_executed_tasks) {
+        active_sync_tasks.push_back(&(sync_tasks[i]));
+      }
+    }
+  }
+
+  /** Checks all machines for termination and sets the termination reason.
+      Also returns the number of update tasks completed globally */
+  size_t check_global_termination(bool check_dynamic_schedule) {
     std::vector<termination_evaluation> termination_test;
     termination_test.resize(rmi.numprocs());
     
@@ -440,8 +528,8 @@ private:
     // machine 0 evaluates termiation
     rmi.gather(termination_test, 0);
     // used to globally evaluate termination
+    termination_evaluation aggregate;
     if (rmi.procid() == 0) {
-      termination_evaluation aggregate;
       for (size_t i = 0;i < termination_test.size(); ++i) {
         aggregate.pending_tasks += termination_test[i].pending_tasks;
         aggregate.executed_tasks += termination_test[i].executed_tasks;
@@ -467,8 +555,12 @@ private:
       }
     }
     size_t treason = termination_reason;
-    rmi.broadcast(treason, rmi.procid() == 0);
-    termination_reason = exec_status(treason);
+    // note this is OK because only machine 0 will have the right value for
+    // executed_tasks. And everyone is receiving from machine 0
+    std::pair<size_t, size_t> reason_and_task(treason, aggregate.executed_tasks);
+    rmi.broadcast(reason_and_task, rmi.procid() == 0);
+    termination_reason = exec_status(reason_and_task.first);
+    return reason_and_task.second;
   }
  
   void start_thread(size_t threadid) {
@@ -503,24 +595,47 @@ private:
             scope.init(&graph, globalvid);
             // run the update function
             update_function(scope, callback, NULL);
+            // check if there are tasks to run
+            eval_syncs(globalvid, scope, threadid);
             scope.commit_async_untracked();
             update_counts[threadid]++;
           }
-        }      
+          else {
+            // ok this vertex is not scheduled. But if there are syncs
+            // to run I will still need to get the scope
+            scope.init(&graph, globalvid);
+            eval_syncs(globalvid, scope, threadid);
+            scope.commit_async_untracked();
+          }
+        }
         // wait for all threads to synchronize on this color.
         thread_color_barrier.wait();
         curidx.value = 0;
         // full barrier on the color
         // this will complete synchronization of all add tasks as well
-        rmi.dc().full_barrier();
+        if (threadid == 0) {
+          graph.wait_for_all_async_syncs();
+          rmi.dc().full_barrier();
+          //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
+        }
+        thread_color_barrier.wait();
       }
-      ++iter;
+      
+      sync_end_iteration(threadid);
+      thread_color_barrier.wait();
       if (threadid == 0) {
-        check_global_termination(!usestatic);
+        //std::cout << rmi.procid() << ": End of all colors" << std::endl;
+        size_t numtasksdone = check_global_termination(!usestatic);
+        //std::cout << numtasksdone << " tasks done" << std::endl;
+        compute_sync_schedule(numtasksdone);
       }
       // all threads must wait for 0
       thread_color_barrier.wait();
-      if (termination_reason != EXEC_UNSET) break;
+      ++iter;
+      if (termination_reason != EXEC_UNSET) {
+        //std::cout << rmi.procid() << ": Termination Reason: " << termination_reason << std::endl;
+        break;
+      }
     }
   }
   
@@ -574,6 +689,8 @@ private:
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
       engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+      engine_metrics.set("isdynamic", max_iterations == 0, INTEGER);
+      engine_metrics.set("iterations", max_iterations, INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
   

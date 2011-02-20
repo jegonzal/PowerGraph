@@ -5,7 +5,7 @@
 #include <boost/shared_ptr.hpp>
 #include <graphlab/shared_data/glshared.hpp>
 #include <graphlab/util/generics/any.hpp>
-
+#include <graphlab/rpc/dc_types.hpp>
 
 namespace graphlab {
 
@@ -54,6 +54,9 @@ class distributed_glshared_base: public glshared_base {
   virtual void save(oarchive &oarc) const = 0;
   virtual void load(iarchive &iarc) = 0;
   virtual const char* type_name() const = 0;
+
+  // return the machine on which operations perform the fastest
+  virtual procid_t preferred_machine() const = 0;
 };
 
 }

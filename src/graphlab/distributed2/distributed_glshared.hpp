@@ -148,10 +148,7 @@ public:
    * released.
    */
   void apply(apply_function_type fun,
-             const any& srcd) {
-    // TODO: atomicity guarantee requires some cooperation from the
-    //       manager and the DHT
-  }
+             const any& srcd);
   
   void save(oarchive &oarc) const{
     set_lock.lock();
@@ -167,6 +164,9 @@ public:
   const char* type_name() const {
     return typeid(T).name();
   }
+
+  procid_t preferred_machine() const;
+  
 };
 
 
@@ -196,6 +196,9 @@ void distributed_glshared<T>::issue_modification(bool async) {
 
 template<typename T>
 void distributed_glshared<T>::exchange(T& t) {
+    // If I have a manager, I need to do this through the manager to get
+    // atomicity. If not I can just do it locally
+
   if (manager) {
     std::stringstream strm;
     oarchive oarc(strm);
@@ -215,6 +218,32 @@ void distributed_glshared<T>::exchange(T& t) {
   }
 }
 
+template<typename T>
+void distributed_glshared<T>::apply(apply_function_type fun,
+                                    const any& srcd) {
+    if (manager) {
+    // serialize the srcd
+    manager->apply<T>(id, fun, srcd);
+  }
+  else {
+    set_lock.lock();
+    wait_for_buffer_release();
+    any temp = *(*head);
+    fun(temp, srcd);
+    *(*buffer) = temp.as<T>();
+    exchange_buffer_and_head();
+    set_lock.unlock();
+  }
+}
 
+template <typename T>
+procid_t distributed_glshared<T>::preferred_machine() const {
+  if (manager) {
+    return manager->preferred_machine(id);
+  }
+  else {
+    return 0;
+  }
+}
 }
 #endif //GRAPHLAB_DISTRIBUTED_GLSHARED_HPP
