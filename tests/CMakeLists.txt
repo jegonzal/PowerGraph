@@ -103,3 +103,4 @@ add_dist2_executable(dist_chromatic_engine_test dist_chromatic_engine_test.cpp)
 add_zoltan_executable(zoltantest zoltantest.cpp)
 
 
+add_dist2_executable(test_adjacency_list test_adjacency_list.cpp)

@@ -468,6 +468,8 @@ construct_partitioning(int argc, char** argv,
       std::string absfname = path + "/coloring.txt";
       std::ofstream fout(absfname.c_str());
       for(size_t i = 0; i < colors.size(); ++i) {
+        assert(colors[i] >= 1);
+        --colors[i];
         fout << colors[i] << '\n';
       }
       fout.close();

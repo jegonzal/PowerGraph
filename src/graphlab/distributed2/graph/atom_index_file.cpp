@@ -245,7 +245,7 @@ struct atom_file_desc_extra {
 
 
 void graphlab::
-build_atom_index_file(const std::string& path) {
+distributed_build_atom_index_file(const std::string& path) {
   // Create a dc comm layer
   std::cout << "Initializing distributed communication layer" << std::endl;
   dc_init_param param;      
@@ -369,6 +369,87 @@ build_atom_index_file(const std::string& path) {
   }
   
 
+} // and of build atom index file
+
+
+
+
+
+
+
+
+
+
+
+
+void graphlab::
+build_atom_index_file(const std::string& path) {
+  // Create a dc comm layer
+  std::cout << "Initializing distributed communication layer" << std::endl;
+  
+  // load the vector of filenames
+  std::vector<std::string> local_fnames; 
+  
+  std::cout << "Computing local filenames"
+            << std::endl;
+  find_local_atom_files(path, local_fnames);
+  size_t num_atoms = local_fnames.size();
+
+  // Initialize the atom info file
+  atom_index_file aif;
+  aif.atoms.resize(num_atoms);
+  aif.natoms = num_atoms;
+  aif.nverts = 0;
+  aif.nedges = 0;
+  aif.ncolors = 0;
+
+  // hack: only need the type to read the atom header. The body is
+  // not needed here
+  typedef atom_file<bool, bool> fake_atom_file_type;
+  foreach(const std::string& fname, local_fnames) {
+    std::string absfname = path + "/" + fname;
+    fake_atom_file_type afile;
+    afile.input_filename("file", absfname);
+    afile.load_structure(); // we do not need to load all
+    procid_t atom_id = afile.atom_id();
+    atom_file_descriptor& afd(aif.atoms.at(atom_id));
+    afd.file = absfname;
+    afd.protocol = "file";
+    afd.nverts = afile.globalvids().size();
+    afd.nedges = afile.edge_src_dest().size();      
+    // Compute adjacency counts for adjacent atoms as well as the
+    // number of non ghost (local) vertices
+    std::map<procid_t, size_t> adjatom_count;
+    // Compute local vertices as well as update the adjacent atom
+    // count
+    foreach(const procid_t& other_atom_id, afile.atom())  {
+      if(other_atom_id == atom_id) ++aif.nverts;
+      adjatom_count[other_atom_id]++;
+    }
+    // Compute max color
+    foreach(const vertex_color_type& vcolor, afile.vcolor())  {
+      std::cout << vcolor << '\t';
+      aif.ncolors = std::max(aif.ncolors, size_t(vcolor));
+    }
+    // count in edges
+    typedef std::pair<procid_t, procid_t> edge_pair_type;
+    foreach(const edge_pair_type& edge, afile.edge_src_dest()) {
+      vertex_id_t target_vid = edge.second;
+      if(afile.atom().at(target_vid) == atom_id) 
+        ++aif.nedges;
+    }
+    // Fill in afd
+    typedef std::pair<procid_t, size_t> count_pair;
+    foreach(const count_pair& pair, adjatom_count) {
+      afd.adjatoms.push_back(pair.first);
+      afd.optional_weight_to_adjatoms.push_back(pair.second);
+    }
+  } // end of foreach
+   
+  // convert max color to actual number of colors
+  aif.ncolors++;
+  // Write results to file
+  aif.write_to_file(path + "/" + "atom_index.txt");
 } // and of build atom index file
 
 
