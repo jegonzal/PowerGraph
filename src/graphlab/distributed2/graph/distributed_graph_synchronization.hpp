@@ -673,14 +673,15 @@ void distributed_graph<VertexData, EdgeData>::conditional_update_vertex_data_and
                         procid_t srcproc,
                         size_t reply) {
   vertex_id_t localvid = global2localvid[vid];
-#ifdef DGRAPH_DEBUG
-  logstream(LOG_DEBUG) << "Receiving vertex " << vid << " from proc " << srcproc << ". " 
-                       << vstore.data.second << " vs " << localstore.vertex_version(localvid) << std::endl;
-#endif
+  if (vstore.data.second >= localstore.vertex_version(localvid)) assert(vstore.hasdata);
   if (vstore.hasdata && vstore.data.second >= localstore.vertex_version(localvid)) {
     localstore.vertex_data(localvid) = vstore.data.first;
     localstore.set_vertex_version(localvid, vstore.data.second);
     ASSERT_GE(localstore.vertex_version(localvid), vstore.data.second);
+#ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "Receiving vertex " << vid << " from proc " << srcproc << ". "
+                       << vstore.data.second << " vs " << localstore.vertex_version(localvid) << std::endl;
+#endif
   }
   if (srcproc != procid_t(-1)) {
     rmi.dc().remote_call(srcproc, reply_increment_counter, reply, dc_impl::blob());
@@ -716,13 +717,13 @@ void distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_v
   vertex_id_t localtargetvid = global2localvid[target];
   std::pair<bool, edge_id_t> findret = localstore.find(localsourcevid, localtargetvid);
   assert(findret.first);
-#ifdef DGRAPH_DEBUG
-  logstream(LOG_DEBUG) << "Receiving edge (" << source << ","<<target << ") from proc " << srcproc << ". " 
-                       << estore.data.second << " vs " << localstore.edge_version(findret.second) << std::endl;
-#endif
   if (estore.hasdata && estore.data.second >= localstore.edge_version(findret.second)) {
     localstore.edge_data(findret.second) = estore.data.first;
     localstore.set_edge_version(findret.second, estore.data.second);
+#ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "Receiving edge (" << source << ","<<target << ") from proc " << srcproc << ". "
+                       << estore.data.second << " vs " << localstore.edge_version(findret.second) << std::endl;
+#endif
   }
   if (srcproc != procid_t(-1)) {
     rmi.dc().remote_call(srcproc, reply_increment_counter, reply, dc_impl::blob());
@@ -778,6 +779,7 @@ void distributed_graph<VertexData, EdgeData>::push_owned_vertex_to_replicas(vert
   if (async == false && untracked == false)  ret.wait();
 }
 
+
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::push_owned_edge_to_replicas(edge_id_t eid, bool async, bool untracked) {
   edge_id_t localeid = global2localeid[eid];
@@ -788,31 +790,24 @@ void distributed_graph<VertexData, EdgeData>::push_owned_edge_to_replicas(edge_i
   if (!is_owned(globaltarget)) return;
   
   // Now, there are 2 cases. 
-  // Case 1, I own both source and target. 
+  // Case 1, I own both source and target.
+  //         in that case there is nothing to sync. Any other
+  //         machine at most has ghosts of source and target, but will
+  //         not have the end itself
   // Case 2, I own the target, but not the source
-  
-  // we know the maximum number of procs we need to send to. 
-  // So lets just allocate an array on the stack.
-  procid_t replicas[rmi.dc().numprocs()];
-  procid_t* lastptr;  // one past the last proc to send to
-  if (is_owned(globalsource)) {
-    // if I own both ends:
-    // people who have a copy this edge is the intersect of the replicas of the source and target
-    const std::vector<procid_t>& replicas_source = localvid_to_replicas(localstore.source(localeid));
-    const std::vector<procid_t>& replicas_target = localvid_to_replicas(localstore.target(localeid));
+  //         then the only replica is the owner of the source
 
-    lastptr = set_intersection(replicas_source.begin(), replicas_source.end(),
-                      replicas_target.begin(), replicas_target.end(),
-                      replicas);
+  procid_t sendto;
+  
+  if (is_owned(globalsource)) {
+    return;
   }
   else {
     // otherwise, it is the owner of the source
-    replicas[0] = rmi.procid();
-    replicas[1] = localvid2owner[localstore.source(localeid)];
-    lastptr = (replicas + 2);
+    sendto = localvid2owner[localstore.source(localeid)];
   }
-  dc_impl::reply_ret_type ret(true, lastptr - replicas - 1);
-  
+
+  dc_impl::reply_ret_type ret(true, 1);  
   // if async, set the return reply to go to the global pending push updates
   size_t retptr;
   if (async == false) {
@@ -820,7 +815,6 @@ void distributed_graph<VertexData, EdgeData>::push_owned_edge_to_replicas(edge_i
   }
   else {
     retptr = reinterpret_cast<size_t>(&pending_push_updates);
-    pending_push_updates.flag.inc(lastptr - replicas - 1);
   }
   
   /**
@@ -836,30 +830,26 @@ void distributed_graph<VertexData, EdgeData>::push_owned_edge_to_replicas(edge_i
   estore.data.first = localstore.edge_data(localeid);
   estore.data.second = localstore.edge_version(localeid);
   
-  boost::iterator_range<procid_t*> iterrange(replicas, lastptr);
-  foreach(procid_t proc, iterrange) {
-    if (proc != rmi.procid()) {
-      if (!edge_canonical_numbering) {
+
+  if (!edge_canonical_numbering) {
 #ifdef DGRAPH_DEBUG
-        logger(LOG_DEBUG, "Pushing edge %d to proc %d", eid, proc);
+    logger(LOG_DEBUG, "Pushing edge %d to proc %d", eid, sendto);
 #endif
-        rmi.remote_call(proc,
-                        &distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version,
-                        eid,
-                        estore,
-                        srcprocid,
-                        retptr);
-      }
-      else {
-        rmi.remote_call(proc,
-                        &distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version2,
-                        globalsource,
-                        globaltarget,
-                        estore,
-                        srcprocid,
-                        retptr);
-      }
-    }
+    rmi.remote_call(sendto,
+                    &distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version,
+                    eid,
+                    estore,
+                    srcprocid,
+                    retptr);
+  }
+  else {
+    rmi.remote_call(sendto,
+                    &distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version2,
+                    globalsource,
+                    globaltarget,
+                    estore,
+                    srcprocid,
+                    retptr);
   }
   if (async == false && untracked == false)  ret.wait();
 }

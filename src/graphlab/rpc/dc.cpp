@@ -12,6 +12,7 @@
 #include <boost/bind.hpp>
 
 #include <graphlab/util/stl_util.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
@@ -25,6 +26,47 @@
 #include <graphlab/rpc/dc_services.hpp>
 
 namespace graphlab {
+
+namespace dc_impl {
+bool thrlocal_resizing_array_key_initialized = false;
+pthread_key_t thrlocal_resizing_array_key;
+
+struct dc_tls_data{
+  resizing_array_sink ras;
+  boost::iostreams::stream<resizing_array_sink_ref> strm;    
+  
+  dc_tls_data(): ras(128),strm(ras){ };
+  ~dc_tls_data() {
+    strm.flush();
+    free(ras.c_str());
+  }
+  
+};
+
+boost::iostreams::stream<resizing_array_sink_ref>& 
+get_thread_local_stream() {
+  dc_tls_data* curptr = reinterpret_cast<dc_tls_data*>(
+                        pthread_getspecific(thrlocal_resizing_array_key));
+  if (curptr != NULL) {
+    curptr->ras.clear();
+    return curptr->strm;
+  }
+  else {
+    dc_tls_data* ras = new dc_tls_data;
+    int err = pthread_setspecific(thrlocal_resizing_array_key, ras);
+    ASSERT_EQ(err, 0);
+    return ras->strm;
+  }
+}
+
+void thrlocal_destructor(void* v){ 
+  dc_tls_data* s = reinterpret_cast<dc_tls_data*>(v);
+  if (s != NULL) {
+    delete s;
+  }
+  pthread_setspecific(thrlocal_resizing_array_key, NULL);
+}
+}
 
 static std::string get_working_dir() {
 #ifdef _GNU_SOURCE
@@ -191,6 +233,13 @@ void distributed_control::init(const std::vector<std::string> &machines,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {   
+  // initialize thread local storage
+  if (dc_impl::thrlocal_resizing_array_key_initialized == false) {
+    dc_impl::thrlocal_resizing_array_key_initialized = true;
+    int err = pthread_key_create(&dc_impl::thrlocal_resizing_array_key, 
+                        dc_impl::thrlocal_destructor);
+    ASSERT_EQ(err, 0);
+  }
   //-------- Initialize the full barrier ---------
   full_barrier_in_effect = false;
   procs_complete.resize(machines.size());
@@ -382,6 +431,34 @@ void distributed_control::full_barrier() {
 //   }
 }
 
+std::map<std::string, size_t> distributed_control::gather_statistics(){
+    std::map<std::string, size_t> ret;
 
+    std::vector<collected_statistics> stats(numprocs());
+    stats[procid()].callssent = calls_sent();
+    stats[procid()].bytessent = bytes_sent();
+    
+    gather(stats, 0, true);
+    if (procid() == 0) {
+      collected_statistics cs;
+      for (size_t i = 0;i < numprocs(); ++i) {
+        cs.callssent += stats[i].callssent;
+        cs.bytessent += stats[i].bytessent;
+      }
+      ret["total_calls_sent"] = cs.callssent;
+      ret["total_bytes_sent"] = cs.bytessent;
+    }
+    return ret; 
+}
+
+void distributed_control::fill_metrics() {
+  std::map<std::string, size_t> ret = gather_statistics();
+  if (procid() == 0) {
+    metrics& engine_metrics = metrics::create_metrics_instance("RPC", true);
+    engine_metrics.set("nodes", numprocs(), INTEGER);
+    engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
+    engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+  }
+}
 
 } //namespace graphlab

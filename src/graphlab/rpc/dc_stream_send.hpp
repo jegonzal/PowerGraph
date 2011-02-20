@@ -48,9 +48,8 @@ class dc_stream_send: public dc_send{
                  size_t len = size_t(-1));
                  
   /** Another possible interface the controller can
-  call with when there is data to send. The data pointer's
-  ownership is transfered here and is this class's responsibility
-  to free the pointer when done. */
+  call with when there is data to send. The caller has
+  responsibility for freeing the pointer when this call returns*/
   void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len);

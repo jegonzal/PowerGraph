@@ -10,6 +10,7 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/caching_dht.hpp>
 #include <graphlab/util/stl_util.hpp>
+#include <graphlab/metrics/metrics.hpp>
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
 #include <graphlab/distributed2/graph/atom_index_file.hpp>
 #include <graphlab/distributed2/graph/atom_file.hpp>
@@ -1575,7 +1576,27 @@ class distributed_graph {
                           procid_t srcproc, size_t reply);
                           
   friend class graph_lock<distributed_graph<VertexData, EdgeData> >;
-
+ 
+  
+  
+  /***********************************************************************
+   *    End of Synchronization Ops. 
+   *   Start of Miscellenous stuff
+   ***********************************************************************/
+  
+ public: 
+  
+  void fill_metrics() {
+    std::map<std::string, size_t> ret = rmi.gather_statistics();
+      
+    if (rmi.procid() == 0) {
+      metrics& engine_metrics = metrics::create_metrics_instance("distributed_graph", true);
+      engine_metrics.set("num_vertices", num_vertices(), INTEGER);
+      engine_metrics.set("num_edges", num_edges(), INTEGER);
+      engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
+      engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+    } 
+  }
 };
 
 

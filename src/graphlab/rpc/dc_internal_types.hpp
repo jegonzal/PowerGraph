@@ -3,6 +3,7 @@
 #include <boost/function.hpp>
 #include <boost/unordered_map.hpp>
 #include <graphlab/rpc/dc_types.hpp>
+#include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 namespace graphlab {
@@ -66,6 +67,7 @@ struct terminator_token {
   bool terminate;
 };
 
+extern boost::iostreams::stream<resizing_array_sink_ref>& get_thread_local_stream();
 
 }
 }

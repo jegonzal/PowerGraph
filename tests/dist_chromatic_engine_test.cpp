@@ -2,6 +2,9 @@
 #include <vector>
 #include <set>
 #include <algorithm>
+
+#include <graphlab/metrics/reporters/basic_reporter.hpp>
+#include <graphlab/metrics/reporters/file_reporter.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
@@ -19,8 +22,8 @@ typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
 
-const size_t NUMV = 10;
-const size_t NUMITERATIONS = 10;
+const size_t NUMV = 10000;
+const size_t NUMITERATIONS = 1000;
 
 void generate_atoms() {
   graph<size_t, double> testgraph;
@@ -49,7 +52,7 @@ void add_one_static(iscope_type& scope,
                     icallback_type& scheduler,
                     ishared_data_type* data_manager) {
   size_t& vdata = scope.vertex_data();
-  logger(LOG_INFO, "eval on %d", scope.vertex());
+  //logger(LOG_INFO, "eval on %d", scope.vertex());
   
   size_t srcvdata , destvdata;
   
@@ -93,7 +96,7 @@ void add_one_dynamic(iscope_type& scope,
                     icallback_type& scheduler,
                     ishared_data_type* data_manager) {
   size_t& vdata = scope.vertex_data();
-  logger(LOG_INFO, "eval on %d", scope.vertex());
+  //logger(LOG_INFO, "eval on %d", scope.vertex());
   
   size_t srcvdata , destvdata;
   
@@ -142,6 +145,8 @@ void add_one_dynamic(iscope_type& scope,
 
 int main(int argc, char** argv) {
   dc_init_param param;
+
+  // if not running in DC environment, make atoms
   if (init_param_from_env(param) == false) {
     generate_atoms(); return 0;
   }
@@ -152,8 +157,9 @@ int main(int argc, char** argv) {
   graph_type dg(dc, "atomidx_ne_chrtest.txt");
 
   std::cout << "Graph Constructed!" << std::endl;
+  std::cout << "Testing Static: " << std::endl;
   // now we make an engine
-  distributed_chromatic_engine<distributed_graph<size_t, double> > engine(dc, dg, 1);
+  distributed_chromatic_engine<distributed_graph<size_t, double> > engine(dc, dg, 2);
   scheduler_options schedopts;
   schedopts.add_option("update_function", add_one_static);
   schedopts.add_option("max_iterations", NUMITERATIONS);
@@ -189,8 +195,9 @@ int main(int argc, char** argv) {
   
   dc.barrier();
   
+  /*******************************************************************/
   
-  
+  std::cout << "Testing Dynamic: " << std::endl;
   // reset graph
   for (size_t i = 0;i < dg.num_vertices(); ++i) {
     dg.set_vertex_data(i, 0);
@@ -219,5 +226,15 @@ int main(int argc, char** argv) {
     }
     // reset
     ismatch = !ismatch;
+  }
+  
+  dc.fill_metrics();
+  dg.fill_metrics();
+  
+  if (dc.procid() == 0) {
+    basic_reporter reporter;
+    metrics::report_all(reporter);
+    file_reporter freporter("graphlab_metrics.txt");
+    metrics::report_all(freporter);
   }
 }

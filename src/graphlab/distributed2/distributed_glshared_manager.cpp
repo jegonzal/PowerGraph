@@ -61,6 +61,7 @@ std::string distributed_glshared_manager::exchange(size_t entry,
   return ret;
 }
 
+
 void distributed_glshared_manager::invalidate(size_t entry, const std::string &value, bool incache) {
 //  logstream(LOG_DEBUG) << rmi.procid() << ": " << "invalidate of " << entry << std::endl;
   if (incache) {

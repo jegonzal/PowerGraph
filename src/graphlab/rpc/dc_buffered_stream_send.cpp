@@ -25,6 +25,8 @@ void dc_buffered_stream_send::send_data(procid_t target,
       bytessent.inc(len);
     }
     packet_hdr hdr;
+    memset(&hdr, 0, sizeof(packet_hdr));
+  
     hdr.len = len;
     hdr.src = dc->procid(); 
     hdr.packet_type_mask = packet_type_mask;
@@ -66,6 +68,7 @@ void dc_buffered_stream_send::send_data(procid_t target,
       }
     }
     send_data(target, packet_type_mask, data, len);
+    free(data);
   }
 }
 
@@ -81,6 +84,8 @@ void dc_buffered_stream_send::send_data(procid_t target,
 
   // build the packet header
   packet_hdr hdr;
+  memset(&hdr, 0, sizeof(packet_hdr));
+  
   hdr.len = len;
   hdr.src = dc->procid(); 
   hdr.packet_type_mask = packet_type_mask;
@@ -96,8 +101,6 @@ void dc_buffered_stream_send::send_data(procid_t target,
   sendbuf.write(data, len);
   sendcond.signal();
   sendbuflock.unlock();
-  
-  free(data);
 }
 
 void dc_buffered_stream_send::send_loop() {
