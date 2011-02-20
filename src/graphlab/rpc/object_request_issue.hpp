@@ -74,7 +74,7 @@ template<typename T,
 template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static typename function_ret_type<FRESULT>::type exec(dc_send* sender, size_t flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static typename function_ret_type<FRESULT>::type exec(dc_dist_object_base* rmi, dc_send* sender, size_t flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
@@ -86,6 +86,8 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
     sender->send_data(target, flags, strm->c_str(), strm->size());    \
+    if ((flags & CONTROL_PACKET) == 0)                       \
+      rmi->inc_bytes_sent(target, strm->size());           \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);    \
     iarchive iarc(retstrm);  \

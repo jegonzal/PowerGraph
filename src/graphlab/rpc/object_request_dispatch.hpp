@@ -117,8 +117,10 @@ template<typename DcType,
                           id,                                           \
                           blob(retstrm->str, retstrm->len));            \
     }                                                                   \
-    if ((packet_type_mask & CONTROL_PACKET) == 0)                       \
+    if ((packet_type_mask & CONTROL_PACKET) == 0) {                     \
       dc.get_rmi_instance(objid)->inc_calls_received(source);           \
+      dc.get_rmi_instance(objid)->inc_bytes_sent(source, retstrm->len); \
+    }                                                                   \
   } 
 
 

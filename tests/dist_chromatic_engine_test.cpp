@@ -2,6 +2,9 @@
 #include <vector>
 #include <set>
 #include <algorithm>
+
+#include <graphlab/metrics/reporters/basic_reporter.hpp>
+#include <graphlab/metrics/reporters/file_reporter.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
@@ -219,5 +222,15 @@ int main(int argc, char** argv) {
     }
     // reset
     ismatch = !ismatch;
+  }
+  
+  dc.fill_metrics();
+  dg.fill_metrics();
+  
+  if (dc.procid() == 0) {
+    basic_reporter reporter;
+    metrics::report_all(reporter);
+    file_reporter freporter("graphlab_metrics.txt");
+    metrics::report_all(freporter);
   }
 }

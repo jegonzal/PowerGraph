@@ -461,6 +461,29 @@ class distributed_control{
                                       
   /// Marked as 1 if the proc is complete
   dense_bitset procs_complete;
+  
+ /*****************************************************************************
+                      Collection of Statistics
+*****************************************************************************/
+ 
+ private:
+  struct collected_statistics {
+    size_t callssent;
+    size_t bytessent;
+    collected_statistics(): callssent(0), bytessent(0) { }
+    void save(oarchive &oarc) const {
+      oarc << callssent << bytessent;
+    }
+    void load(iarchive &iarc) {
+      iarc >> callssent >> bytessent;
+    }
+  };
+ public:
+  /** Gather RPC statistics. All machines must call 
+   this function at the same time. However, only proc 0 will
+   return values */
+  std::map<std::string, size_t> gather_statistics();
+  void fill_metrics();
 };
 
 

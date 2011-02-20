@@ -489,7 +489,7 @@ private:
       for (size_t c = 0;c < color_block.size(); ++c) {
         // internal loop over vertices in the color
         while(1) {
-          // grab a vertex
+          // grab a vertex  
           size_t i = curidx.inc_ret_last();  
           // if index out of scope, we are done with this color. break
           if (i >= color_block[c].size()) break;
@@ -550,6 +550,37 @@ private:
     
     thrgrp.join();              
     rmi.barrier();
+    
+    
+    // proc 0 gathers all update counts
+    std::vector<size_t> procupdatecounts(rmi.numprocs(), 0);
+    procupdatecounts[rmi.procid()] = last_update_count();
+    rmi.gather(procupdatecounts, 0);
+    
+    // get RMI statistics
+    std::map<std::string, size_t> ret = rmi.gather_statistics();
+
+    if (rmi.procid() == 0) {
+      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
+      engine_metrics.set("runtime", 
+                        ti.current_time(), TIME);
+      for(size_t i = 0; i < procupdatecounts.size(); ++i) {
+        engine_metrics.add("updatecount", 
+                            procupdatecounts[i], INTEGER);
+      }
+      engine_metrics.set("termination_reason", 
+                        exec_status_as_string(termination_reason));
+
+      engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
+      engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
+      engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+      engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
+      engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+  
+    }
+    
+    
+    
   }
   
   /**
@@ -587,8 +618,7 @@ private:
 
   void register_monitor(imonitor_type* listener) {
     logger(LOG_FATAL, "distributed engine does not support register monitor");
-  }     
-
+  }   
 };
 
 } // namespace graphlab

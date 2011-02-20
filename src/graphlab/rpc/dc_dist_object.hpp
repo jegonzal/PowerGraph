@@ -49,6 +49,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   bool calltracking;
   std::vector<atomic<size_t> > callsreceived;
   std::vector<atomic<size_t> > callssent;
+  std::vector<atomic<size_t> > bytessent;
   // make operator= private
   dc_dist_object<T>& operator=(const dc_dist_object<T> &d) {return *this;}
   friend class distributed_control;
@@ -86,13 +87,17 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   void inc_calls_sent(procid_t p) {
     callssent[p].inc();
   }
+  
+  void inc_bytes_sent(procid_t p, size_t bytes) {
+    bytessent[p].inc(bytes);
+  }
 
  public:
   dc_dist_object(distributed_control &dc_, T* owner, bool calltracking = false):
                                 dc_(dc_),owner(owner),calltracking(calltracking) {
     callssent.resize(dc_.numprocs());
     callsreceived.resize(dc_.numprocs());
-
+    bytessent.resize(dc_.numprocs());
     //------ Initialize the matched send/recv ------
     recv_froms.resize(dc_.numprocs());
     
@@ -143,6 +148,14 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     size_t ctr = 0;
     for (size_t i = 0;i < numprocs(); ++i) {
       ctr += callssent[i].value;
+    }
+    return ctr;
+  }
+  
+  size_t bytes_sent() const {
+    size_t ctr = 0;
+    for (size_t i = 0;i < numprocs(); ++i) {
+      ctr += bytessent[i].value;
     }
     return ctr;
   }
@@ -238,7 +251,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
   
   /**
@@ -267,7 +280,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
 
   /**
@@ -294,7 +307,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <dc_dist_object<T>, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
   
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_call,dc_impl::object_call_issue, STANDARD_CALL) )
@@ -309,7 +322,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <dc_dist_object<T>, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
 
   /**
@@ -807,6 +820,43 @@ private:
 //     for (size_t i = 0; i < numprocs(); ++i) {
 //       std::cout << "Received " << global_calls_received[i].value << " from " << i << std::endl;
 //     }
+  }
+  
+ /* --------------------  Implementation of Gather Statistics -----------------*/ 
+ private:
+  struct collected_statistics {
+    size_t callssent;
+    size_t bytessent;
+    collected_statistics(): callssent(0), bytessent(0) { }
+    void save(oarchive &oarc) const {
+      oarc << callssent << bytessent;
+    }
+    void load(iarchive &iarc) {
+      iarc >> callssent >> bytessent;
+    }
+  };
+ public:
+  /** Gather RPC statistics. All machines must call 
+   this function at the same time. However, only proc 0 will
+   return values */
+  std::map<std::string, size_t> gather_statistics() {
+    std::map<std::string, size_t> ret;
+
+    std::vector<collected_statistics> stats(numprocs());
+    stats[procid()].callssent = calls_sent();
+    stats[procid()].bytessent = bytes_sent();
+    
+    gather(stats, 0, true);
+    if (procid() == 0) {
+      collected_statistics cs;
+      for (size_t i = 0;i < numprocs(); ++i) {
+        cs.callssent += stats[i].callssent;
+        cs.bytessent += stats[i].bytessent;
+      }
+      ret["total_calls_sent"] = cs.callssent;
+      ret["total_bytes_sent"] = cs.bytessent;
+    }
+    return ret;
   }
 };
 

@@ -12,6 +12,7 @@
 #include <boost/bind.hpp>
 
 #include <graphlab/util/stl_util.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
@@ -430,6 +431,34 @@ void distributed_control::full_barrier() {
 //   }
 }
 
+std::map<std::string, size_t> distributed_control::gather_statistics(){
+    std::map<std::string, size_t> ret;
 
+    std::vector<collected_statistics> stats(numprocs());
+    stats[procid()].callssent = calls_sent();
+    stats[procid()].bytessent = bytes_sent();
+    
+    gather(stats, 0, true);
+    if (procid() == 0) {
+      collected_statistics cs;
+      for (size_t i = 0;i < numprocs(); ++i) {
+        cs.callssent += stats[i].callssent;
+        cs.bytessent += stats[i].bytessent;
+      }
+      ret["total_calls_sent"] = cs.callssent;
+      ret["total_bytes_sent"] = cs.bytessent;
+    }
+    return ret; 
+}
+
+void distributed_control::fill_metrics() {
+  std::map<std::string, size_t> ret = gather_statistics();
+  if (procid() == 0) {
+    metrics& engine_metrics = metrics::create_metrics_instance("RPC", true);
+    engine_metrics.set("nodes", numprocs(), INTEGER);
+    engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
+    engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+  }
+}
 
 } //namespace graphlab
