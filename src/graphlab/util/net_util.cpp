@@ -23,10 +23,10 @@ std::string get_local_ip_as_str() {
       tmpAddrPtr = (char*)&((struct sockaddr_in *)ifAddrStruct->ifa_addr)->sin_addr;
       ASSERT_NE(tmpAddrPtr, NULL);
       if (tmpAddrPtr[0] != 127) {
-        strm << int(tmpAddrPtr[0]) << "."
-             << int(tmpAddrPtr[1]) << "."
-             << int(tmpAddrPtr[2]) << "."
-             << int(tmpAddrPtr[3]);
+        strm << (int)(unsigned char)(tmpAddrPtr[0]) << "."
+             << (int)(unsigned char)(tmpAddrPtr[1]) << "."
+             << (int)(unsigned char)(tmpAddrPtr[2]) << "."
+             << (int)(unsigned char)(tmpAddrPtr[3]);
         return strm.str();
       }
       //break;
