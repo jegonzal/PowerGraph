@@ -51,6 +51,7 @@ struct graph_data {
   
   graph_data(const std::string& path,
              const std::vector< std::string >& fnames) {
+    std::cout << "Loading " << fnames.size() << " files." << std::endl;
     // load all the adjacency lists
     for(size_t i = 0; i < fnames.size(); ++i) {
       std::string abs_fname(path + "/" + fnames[i]);
@@ -58,11 +59,19 @@ struct graph_data {
       // Merge all the adjacency info
       alist.load(abs_fname);
     }
+    std::cout << "Finished Load!" << std::endl;
     const size_t ROOT_NODE(0);
     // Compute the initial fragmentation
     if(mpi_tools::rank() == ROOT_NODE) {
       std::vector< std::vector<vertex_id_t> > cpu2vertex;
       mpi_tools::gather(alist.local_vertices, cpu2vertex);
+
+      std::cout << "Gather on root info: " << std::endl;
+      for(size_t i = 0; i < cpu2vertex.size(); ++i) {
+        std::cout << "Proc " << i << ": " 
+                  << cpu2vertex[i].size() << std::endl;
+      }
+
       // Determine the maximum  vertex_id_value
       vertex_id_t maxid(0);
       size_t vertices(0);
@@ -76,7 +85,7 @@ struct graph_data {
       std::cout << "Maxid:\t" << maxid << std::endl;
       assert(vertices > 0);
       assert(vertices == maxid+1);
-      vertex2cpu.resize(vertices, -1);
+      vertex2cpu.resize(vertices, vertex_id_t(-1));
       // Fill out the map
       for(size_t i = 0; i < cpu2vertex.size(); ++i) {
         for(size_t j = 0; j < cpu2vertex[i].size(); ++j) {
@@ -95,6 +104,11 @@ struct graph_data {
     // scatter the map to all machines
     mpi_tools::bcast(ROOT_NODE, vertex2cpu);
     nverts = vertex2cpu.size();
+    
+    // A fairly costly ceck of local structures
+    std::cout << "Checking local structures." << std::endl;
+    alist.check_local_structures(nverts);
+    std::cout << "Finished." << std::endl;
   } // end of constructor            
 }; // end of graph_data
 
@@ -220,7 +234,7 @@ void save_partition_results(const size_t num_vertices,
 
 int zoltan_num_obj_fun(void* data, int* ierr) {
   assert(data != NULL);
-  graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
+  const graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
   *ierr = ZOLTAN_OK;  
   return zgdata.alist.local_vertices.size();
 } // end of zoltan_num_obj_fun
@@ -237,7 +251,7 @@ void zoltan_obj_list_fun(void* data,
                          float* obj_wgts,
                          int* ierr) {
   assert(data != NULL);
-  graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
+  const graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
   *ierr = ZOLTAN_OK;
   assert(num_gid_entries == 1);
   assert(num_lid_entries == 0);
@@ -245,7 +259,7 @@ void zoltan_obj_list_fun(void* data,
   assert(obj_wgts == NULL);
 
   for(size_t i = 0; i < zgdata.alist.local_vertices.size(); ++i) {
-    global_ids[i] = zgdata.alist.local_vertices[i];
+    global_ids[i] = zgdata.alist.local_vertices.at(i);
   }
 }
 
@@ -261,7 +275,7 @@ static void zoltan_num_edges_multi_fun(void* data,
                                        int* num_edges, 
                                        int* ierr) {
   assert(data != NULL);
-  graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
+  const graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
   *ierr = ZOLTAN_OK;
   assert(num_gid_entries == 1);
   assert(num_lid_entries == 0);
@@ -271,7 +285,7 @@ static void zoltan_num_edges_multi_fun(void* data,
     assert(i < size_t(num_objs));
     assert(i < zgdata.alist.local_vertices.size());
     assert(global_ids[i] == zgdata.alist.local_vertices[i]);
-    num_edges[i] = zgdata.alist.in_neighbor_ids[i].size();
+    num_edges[i] = zgdata.alist.in_neighbor_ids.at(i).size();
   }
 } 
 
@@ -293,18 +307,21 @@ static void zoltan_edge_list_multi_fun(void* data,
                                        float* ewgts,
                                        int* ierr) {
   assert(data != NULL);
-  graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
+  const graph_data& zgdata(*reinterpret_cast<graph_data*>(data));
   *ierr = ZOLTAN_OK;
   assert(num_gid_entries == 1);
   assert(num_lid_entries == 0);
   assert(local_ids == NULL);
   assert(num_objs >= 0);
-
-  for(size_t i = 0, eindex = 0; i < zgdata.alist.in_neighbor_ids.size(); ++i) {
+  size_t sum_num_edges = 0;
+  size_t eindex = 0;
+  for(size_t i = 0; i < zgdata.alist.in_neighbor_ids.size(); ++i) {
     assert(i < size_t(num_objs));
     assert(i < zgdata.alist.local_vertices.size());
     assert(global_ids[i] == zgdata.alist.local_vertices[i]);
     assert(size_t(num_edges[i]) == zgdata.alist.in_neighbor_ids[i].size());
+    sum_num_edges += num_edges[i];
+    assert(num_edges[i] == zgdata.alist.in_neighbor_ids[i].size());
     for(size_t j = 0; j < zgdata.alist.in_neighbor_ids[i].size(); ++j, ++eindex) {
       vertex_id_t vid = zgdata.alist.in_neighbor_ids[i][j];
       vertex_id_t cpu = zgdata.vertex2cpu[vid];
@@ -313,6 +330,7 @@ static void zoltan_edge_list_multi_fun(void* data,
       nbor_cpus[eindex] = cpu;
     }
   }
+  assert(sum_num_edges == eindex); 
 }
 
 
@@ -360,14 +378,14 @@ construct_partitioning(int argc, char** argv,
   error = zolt.Set_Param("DEBUG_LEVEL", "1");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("IMBALANCE_TOL", "2");
-  assert(error == ZOLTAN_OK);
+  //  error = zolt.Set_Param("IMBALANCE_TOL", "2");
+  //  assert(error == ZOLTAN_OK);
 
 
   error = zolt.Set_Param("GRAPH_SYMMETRIZE", "TRANSPOSE");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("CHECK_GRAPH", "0");
+  error = zolt.Set_Param("CHECK_GRAPH", "2");
   assert(error == ZOLTAN_OK);
 
   error = zolt.Set_Param("GRAPH_BUILD_TYPE", "NORMAL");
@@ -433,12 +451,12 @@ construct_partitioning(int argc, char** argv,
 
 
   // Do coloring on machine zero online
-  {
+  if(false){
     //     error = zolt.Set_Param("COLORING_PROBLEM", "distance-2");
     //     assert(error == ZOLTAN_OK);
     
-    error = zolt.Set_Param("COMM_PATTERN", "A");
-    assert(error == ZOLTAN_OK);
+    // error = zolt.Set_Param("COMM_PATTERN", "A");
+    // assert(error == ZOLTAN_OK);
 
     size_t super_step_size = 
       std::max(size_t(100),
@@ -448,8 +466,8 @@ construct_partitioning(int argc, char** argv,
     std::string super_step_size_str(strm.str());
     
 
-    error = zolt.Set_Param("SUPERSTEP_SIZE", super_step_size_str.c_str());
-    assert(error == ZOLTAN_OK);
+    // error = zolt.Set_Param("SUPERSTEP_SIZE", super_step_size_str.c_str());
+    // assert(error == ZOLTAN_OK);
 
 
     std::set<size_t> master_ranks;
