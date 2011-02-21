@@ -21,6 +21,7 @@ file_logger::file_logger() {
   log_file = "";
   log_to_console = true;
   log_level = LOG_WARNING;
+  pthread_mutex_init(&mut, NULL);
 }
 
 file_logger::~file_logger() {
@@ -28,6 +29,7 @@ file_logger::~file_logger() {
     fout.flush();
     fout.close();
   }
+  pthread_mutex_destroy(&mut);
 }
 
 bool file_logger::set_log_file(std::string file) {

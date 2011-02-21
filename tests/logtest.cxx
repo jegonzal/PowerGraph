@@ -1,3 +1,4 @@
+#define OUTPUTLEVEL LOG_WARNING
 #include <string>
 
 #include <cxxtest/TestSuite.h>
@@ -14,18 +15,19 @@ void test_basic_assertions() {
   //ASSERT_MSG(i>j, "%d not greater than %d", i, j);
   std::string a = "abc";
   std::string b = "cde";
-  ASSERT_EQ(a, b);
+  ASSERT_EQ(a, a);
   
 }
 
 class LogTestSuite: public CxxTest::TestSuite {
  public:
   void test_log() {
+
     global_logger().set_log_level(LOG_INFO);
     global_logger().set_log_file("logtest.logger");
-
     global_logger().set_log_to_console(false);
     logger(LOG_INFO, "this should only be in the file");
+    logstream(LOG_INFO) << "log info again! but with the stream" << std::endl;
 
     global_logger().set_log_to_console(true);
     logger(LOG_WARNING, "you should see this both the console and file");

@@ -132,10 +132,6 @@
 #define ASSERT_FALSE(cond)    EXPECT_FALSE(cond)
 #define ASSERT_STREQ(a, b)    EXPECT_STREQ(a, b)
 
-#define logger(lvl,fmt,...)                 \
-    (global_logger()._log(lvl,__FILE__,     \
-                        __func__ ,__LINE__,fmt,##__VA_ARGS__))
-
 
 #define ASSERT_MSG(condition, fmt, ...)                                 \
   do {                                                                  \

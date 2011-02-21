@@ -16,12 +16,14 @@
  *
  * @author Yucheng Low (ylow)
  */
+
 #ifndef GRAPHLAB_LOG_LOG_HPP
 #define GRAPHLAB_LOG_LOG_HPP
 #include <fstream>
 #include <sstream>
 #include <cassert>
 #include <cstring>
+#include <pthread.h>
 /**
  * \def LOG_FATAL
  *   Used for fatal and probably irrecoverable conditions
@@ -34,6 +36,7 @@
  * \def LOG_DEBUG
  *   Debugging purposes only
  */
+#define LOG_NONE 5
 #define LOG_FATAL 4
 #define LOG_ERROR 3
 #define LOG_WARNING 2
@@ -46,9 +49,10 @@
  * \def LOG_NONE
  *  OUTPUTLEVEL to LOG_NONE to disable logging
  */
-#define LOG_NONE 5
-#define OUTPUTLEVEL LOG_INFO
 
+#ifndef OUTPUTLEVEL
+#define OUTPUTLEVEL LOG_INFO
+#endif
 /// If set, logs to screen will be printed in color
 #define COLOROUTPUT
 
@@ -67,15 +71,17 @@
 #define logbuf(lvl,fmt,...)
 #define logstream
 #else
-#define logger(lvl,fmt,...)                 \
-    (global_logger()._log(lvl,__FILE__,     \
-                        __func__ ,__LINE__,fmt,##__VA_ARGS__))
 
+#define logger(lvl,fmt,...)                 \
+    (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__,fmt,##__VA_ARGS__))
+
+    
 #define logbuf(lvl,buf,len)                 \
-    (global_logger()._log(lvl,__FILE__,     \
+    (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__,     \
                         __func__ ,__LINE__,buf,len))
+
 #define logstream(lvl)                      \
-    global_logger().start_stream(lvl,__FILE__, __func__ ,__LINE__) 
+    (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__) )
 #endif
 
 
@@ -124,16 +130,20 @@ class file_logger{
   
   template <typename T>
   file_logger& operator<<(T a) {
+    pthread_mutex_lock(&mut);
     if (streamactive) streambuffer << a;
+    pthread_mutex_unlock(&mut);
     return *this;
   }
 
   file_logger& operator<<(const char* a) {
     if (streamactive) {
+      pthread_mutex_lock(&mut);
       streambuffer << a;
       if (a[strlen(a)-1] == '\n') {
         stream_flush();
       }
+      pthread_mutex_unlock(&mut);
     }
     return *this;
   }
@@ -142,8 +152,10 @@ class file_logger{
     typedef std::ostream& (*endltype)(std::ostream&);
     if (streamactive) {
       if (endltype(f) == endltype(std::endl)) {
+        pthread_mutex_lock(&mut);
         streambuffer << "\n";
         stream_flush();
+        pthread_mutex_unlock(&mut);
       }
     }
     return *this;
@@ -171,6 +183,7 @@ class file_logger{
   void _log(int loglevel,const char* file,const char* function,
                 int line,const char* fmt, ... );
 
+
   void _logbuf(int loglevel,const char* file,const char* function,
                 int line,  const char* buf, int len);
                 
@@ -184,6 +197,7 @@ class file_logger{
     streambuffer.str("");
   }
  private:
+  pthread_mutex_t mut;
   std::ofstream fout;
   std::string log_file;
   std::stringstream streambuffer;
@@ -197,6 +211,55 @@ class file_logger{
 
 
 file_logger& global_logger();
+
+/**
+Wrapper to generate 0 code if the output level is lower than the log level
+*/
+template <bool dostuff>
+struct log_dispatch {};
+
+template <>
+struct log_dispatch<true> {
+  inline static void exec(int loglevel,const char* file,const char* function,
+                int line,const char* fmt, ... ) {
+  va_list argp;
+	va_start(argp, fmt);
+	global_logger()._log(loglevel, file, function, line, fmt, argp);
+	va_end(argp);
+  }
+};
+
+template <>
+struct log_dispatch<false> {
+  inline static void exec(int loglevel,const char* file,const char* function,
+                int line,const char* fmt, ... ) {}
+};
+
+
+struct null_stream {
+  template<typename T>
+  inline null_stream operator<<(T t) { return null_stream(); }
+  inline null_stream operator<<(const char* a) { return null_stream(); }
+  inline null_stream operator<<(std::ostream& (*f)(std::ostream&)) { return null_stream(); }
+};
+
+
+template <bool dostuff>
+struct log_stream_dispatch {};
+
+template <>
+struct log_stream_dispatch<true> {
+  inline static file_logger& exec(int lineloglevel,const char* file,const char* function, int line) {
+    return global_logger().start_stream(lineloglevel, file, function, line);
+  }
+};
+
+template <>
+struct log_stream_dispatch<false> {
+  inline static null_stream exec(int lineloglevel,const char* file,const char* function, int line) {
+    return null_stream();
+  }
+};
 
 #include <graphlab/logger/assertions.hpp>
 
