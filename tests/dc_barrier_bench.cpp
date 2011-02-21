@@ -28,6 +28,16 @@ int main(int argc, char ** argv) {
 
   ti.start();
   for (size_t i = 0;i < 100000; ++i) {
+    dc.barrier();
+  }
+  if (dc.procid() == 0) {
+    std::cout << "100K barriers in: " << ti.current_time() << std::endl;
+  }
+
+
+
+  ti.start();
+  for (size_t i = 0;i < 100000; ++i) {
     MPI_Barrier(MPI_COMM_WORLD);
   }
   if (dc.procid() == 0) {

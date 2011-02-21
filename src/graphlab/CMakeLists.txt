@@ -38,6 +38,10 @@ add_library(graphlab_util STATIC
   ${util_mpi_tools}
 )
 
+if (MPI_FOUND)
+  target_link_libraries(graphlab_util ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+endif()
+
 
 
 if(Sctp-FOUND)
