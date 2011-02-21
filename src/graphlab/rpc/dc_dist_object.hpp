@@ -12,6 +12,7 @@
 #include <graphlab/rpc/object_call_issue.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
+#include <graphlab/util/charstream.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/macros_def.hpp>
 
@@ -124,7 +125,14 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   
     parent =  (dc_.procid() - 1) / BARRIER_BRANCH_FACTOR   ;
 
+    //-------- Initialize all gather --------------
+    ab_child_barrier_counter.value = 0;
+    ab_barrier_sense = 1;
+    ab_barrier_release = -1;
+
+    
     //-------- Initialize the full barrier ---------
+    
     full_barrier_in_effect = false;
     procs_complete.resize(dc_.numprocs());
     
@@ -568,19 +576,203 @@ private:
   
   }
 
-  /**
-   * data must be of length data[numprocs].
-   * My data is stored in data[dc.procid()]
-   * when function returns, everyone will have the same data vector
-   * where data[i] is the data contributed by machine i.
+/********************************************************************
+             Implementation of all gather
+*********************************************************************/
+
+
+
+ private:
+  // ------- Sense reversing barrier data ----------
+  /// The next value of the barrier. either +1 or -1
+  int ab_barrier_sense;
+  /// When this flag == the current barrier value. The barrier is complete
+  int ab_barrier_release;
+  /** when barrier sense is 1, barrier clears when
+   * child_barrier_counter == numchild. When barrier sense is -1, barrier
+   * clears when child_barrier_counter == 0;
    */
-  template <typename U>
-  void all_gather(std::vector<U>& data, bool control = false) {
-    gather(data, 0, control);
-    broadcast(data, procid() == 0, control);
+  atomic<int> ab_child_barrier_counter;
+  /// condition variable and mutex protecting the barrier variables
+  conditional ab_barrier_cond;
+  mutex ab_barrier_mut;
+  std::string ab_children_data[BARRIER_BRANCH_FACTOR];
+  std::string ab_alldata;
+
+  bool use_control_calls;
+  /**
+    The child calls this function in the parent once the child enters the barrier
+  */
+  void __ab_child_to_parent_barrier_trigger(procid_t source, std::string collect) {
+    ab_barrier_mut.lock();
+    // assert childbase <= source <= childbase + BARRIER_BRANCH_FACTOR
+    ASSERT_GE(source, childbase);
+    ASSERT_LT(source, childbase + BARRIER_BRANCH_FACTOR);
+    ab_children_data[source - childbase] = collect;
+    ab_child_barrier_counter.inc(ab_barrier_sense);
+    ab_barrier_cond.signal();
+    ab_barrier_mut.unlock();
+  }
+
+  /**
+    This is on the downward pass of the barrier. The parent calls this function
+    to release all the children's barriers
+  */
+  void __ab_parent_to_child_barrier_release(int releaseval, std::string allstrings) {
+    // send the release downwards
+    // get my largest child
+    ab_alldata = allstrings;
+    for (size_t i = 0;i < numchild; ++i) {
+      if (use_control_calls) {
+        internal_control_call(childbase + i,
+                              &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
+                              releaseval,
+                              ab_alldata);
+      }
+      else {
+        internal_call(childbase + i,
+                      &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
+                      releaseval,
+                      ab_alldata);
+      }
+    }
+    ab_barrier_mut.lock();
+    ab_barrier_release = releaseval;
+    ab_barrier_cond.signal();
+    ab_barrier_mut.unlock();
   }
 
 
+ public:
+  template <typename U>
+  void all_gather(std::vector<U>& data, bool control = false) {
+    // get the string representation of the data
+    use_control_calls = control;
+    charstream strm(128);
+    oarchive oarc(strm);
+    oarc << data[procid()];
+    strm.flush();
+    // upward message
+    char ab_barrier_val = ab_barrier_sense;
+    ab_barrier_mut.lock();
+    // wait for all children to be done
+    while(1) {
+      if ((ab_barrier_sense == -1 && ab_child_barrier_counter.value == 0) ||
+          (ab_barrier_sense == 1 && ab_child_barrier_counter.value == (int)(numchild))) {
+        // flip the barrier sense
+        ab_barrier_sense = -ab_barrier_sense;
+        // call child to parent in parent
+        ab_barrier_mut.unlock();
+        if (procid() != 0) {
+          // collect all my children data
+          charstream strstrm(128);
+          oarchive oarc2(strstrm);
+          oarc2 << std::string(strm->c_str(), strm->size());
+          for (size_t i = 0;i < numchild; ++i) {
+            strstrm.write(ab_children_data[i].c_str(), ab_children_data[i].length());
+          }
+          strstrm.flush();
+          if (use_control_calls) {
+            internal_control_call(parent,
+                            &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
+                            procid(),
+                            std::string(strstrm->c_str(), strstrm->size()));
+          }
+          else {
+            internal_call(parent,
+                          &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
+                          procid(),
+                          std::string(strstrm->c_str(), strstrm->size()));
+          }
+        }
+        break;
+      }
+      ab_barrier_cond.wait(ab_barrier_mut);
+    }
+
+
+    //logger(LOG_DEBUG, "barrier phase 1 complete");
+    // I am root. send the barrier release downwards
+    if (procid() == 0) {
+      ab_barrier_release = ab_barrier_val;
+      // build the downward data
+      charstream strstrm(128);
+      oarchive oarc2(strstrm);
+      oarc2 << std::string(strm->c_str(), strm->size());
+      for (size_t i = 0;i < numchild; ++i) {
+        strstrm.write(ab_children_data[i].c_str(), ab_children_data[i].length());
+      }
+      strstrm.flush();
+      ab_alldata = std::string(strstrm->c_str(), strstrm->size());
+      for (size_t i = 0;i < numchild; ++i) {
+        internal_control_call(childbase + i,
+                             &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
+                             ab_barrier_val,
+                             ab_alldata);
+
+      }
+    }
+    // wait for the downward message releasing the barrier
+    ab_barrier_mut.lock();
+    while(1) {
+      if (ab_barrier_release == ab_barrier_val) break;
+      ab_barrier_cond.wait(ab_barrier_mut);
+    }
+    // read the collected data and release the lock
+    std::string local_ab_alldata = ab_alldata;
+    ab_barrier_mut.unlock();
+
+    //logger(LOG_DEBUG, "barrier phase 2 complete");
+    // now the data is a DFS search of a heap
+    // I need to unpack it
+    size_t heappos = 0;
+    std::stringstream istrm(local_ab_alldata);
+    iarchive iarc(istrm);
+
+    for (size_t i = 0;i < numprocs(); ++i) {
+      std::string s;
+      iarc >> s;
+
+      std::stringstream strm2(s);
+      iarchive iarc2(strm2);
+      iarc2 >> data[heappos];
+
+      // advance heappos
+      // leftbranch
+      bool lefttraverseblock = false;
+      while (1) {
+        // can we continue going deaper down the left?
+        size_t leftbranch = heappos * BARRIER_BRANCH_FACTOR + 1;
+        if (lefttraverseblock == false && leftbranch < numprocs()) {
+          heappos = leftbranch;
+          break;
+        }
+        // ok. can't go down the left
+        bool this_is_a_right_branch = (((heappos - 1) % BARRIER_BRANCH_FACTOR) == BARRIER_BRANCH_FACTOR - 1);
+        // if we are a left branch, go to sibling
+        if (this_is_a_right_branch == false) {
+          size_t sibling = heappos + 1;
+          if (sibling < numprocs()) {
+            heappos = sibling;
+            break;
+          }
+        }
+
+        // we have finished this subtree, go back up to parent
+        // and block the depth traversal on the next round
+        heappos = (heappos - 1) / BARRIER_BRANCH_FACTOR;
+        lefttraverseblock = true;
+        continue;
+        // go to sibling
+      }
+      
+    }
+  }
+  
+
+
+
+////////////////////////////////////////////////////////////////////////////
 
   /**
    * This function is takes a vector of local elements T which must

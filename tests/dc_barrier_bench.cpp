@@ -18,8 +18,12 @@ int main(int argc, char ** argv) {
   distributed_control dc(param);
   timer ti;
   ti.start();
+  std::vector<std::vector<size_t> > all_calls_sent(dc.numprocs());
+
+
   for (size_t i = 0;i < 100000; ++i) {
-    dc.barrier();
+    all_calls_sent[dc.procid()].resize(dc.numprocs(), rand());
+    dc.all_gather(all_calls_sent, true);    
   }
   if (dc.procid() == 0) {
     std::cout << "100K barriers in: " << ti.current_time() << std::endl;
