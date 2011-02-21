@@ -23,7 +23,7 @@ namespace archive_detail {
   struct deserialize_impl<ArcType, std::map<T,U> > {
   static void exec(ArcType& a, std::map<T,U>& vec){
     vec.clear();
-    deserialize_iterator<std::pair<T,U> >(a, std::inserter(vec,vec.end()));
+    deserialize_iterator<ArcType, std::pair<T,U> >(a, std::inserter(vec,vec.end()));
   }
   };
 

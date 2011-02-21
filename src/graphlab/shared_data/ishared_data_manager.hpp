@@ -12,6 +12,7 @@
 
 namespace graphlab {
 
+   /** \brief \deprecated Use glshared */
   template<typename Graph>
   class ishared_data_manager : 
     public ishared_data<Graph> {

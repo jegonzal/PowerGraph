@@ -1,65 +1,91 @@
-#ifndef DC_SERVICES_HPP
-#define DC_SERVICES_HPP
-#include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/rpc/dc_services_base.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
+#ifndef GRAPHLAB_DC_SERVICES_HPP
+#define GRAPHLAB_DC_SERVICES_HPP
+#include <graphlab/parallel/pthread_tools.hpp>
 
+
+
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
-class dc_services:public dc_services_base {
- private:
-  dc_dist_object<dc_services> rpc;
-  //DC_DIST_OBJECT_ACCESS(dc_services);
-  // barrier flags. 
-  /// The next value of the barrier 
-  char barrier_sense;
-  /// When this flag == the current barrier value. The barrier is complete
-  char barrier_release;
-  /// Set to the current value of the barrier when the child is done
-  char child_barrier[2];
-  /// condition variable and mutex protecting the barrier variables
-  conditional barrier_cond;
-  mutex barrier_mut;
-  procid_t parent;  /// parent node
-  procid_t child[2]; /// children nodes
+
+  /**
+    A thin wrapper around the dc_dist_object.
+    Provides a non-templated reference to a "context".
+    Typically, the context (dc_rmi_object) must be templatized around an owner object.
+    This class, by providing a thin reference to the context functions, 
+    allows a non-templatized context for MPI-like operations
+  */
+  class dc_services {
+  private:
+    dc_dist_object<dc_services> rmi;
   
-  
-  // set the waiting flag
-  void __child_to_parent_barrier_trigger(procid_t source);
-  
-  void __parent_to_child_barrier_release(char releaseval);
-  
- public:
-  dc_services(distributed_control &dc):rpc(dc, this) { 
-    child_barrier[0] = 0; child_barrier[1] = 0;
-    barrier_sense = 1;
-    barrier_release = 0;
+  public:
+    dc_services(distributed_control &dc):rmi(dc, this) {  }
     
-    child[0] = rpc.dc().procid() * 2 + 1;
-    child[1] = rpc.dc().procid() * 2 + 2; 
-    parent =  (rpc.dc().procid() - 1) / 2;
-  }
+    dc_dist_object<dc_services>& rmi_instance() {
+      return rmi;
+    }
+
+    const dc_dist_object<dc_services>& rmi_instance() const {
+      return rmi;
+    }
+  
+    inline void comm_barrier(procid_t targetmachine) {
+      rmi.comm_barrier(targetmachine);
+    }
+  
+    inline void comm_barrier() {
+      rmi.comm_barrier();
+    }
+  
+    template <typename U>
+    inline void send_to(procid_t target, U& t, bool control = false) {
+      rmi.send_to(target, t, control);
+    }
+    
+    template <typename U>
+    inline void recv_from(procid_t source, U& t, bool control = false) {
+      rmi.recv_from(source, t, control);
+    }
+
+    template <typename U>
+    inline void broadcast(U& data, bool originator, bool control = false) { 
+      rmi.broadcast(data, originator, control);
+    }
+
+    template <typename U>
+    inline void gather(std::vector<U>& data, procid_t sendto, bool control = false) {
+      rmi.gather(data, sendto, control);
+    }
+
+    template <typename U>
+    inline void all_gather(std::vector<U>& data, bool control = false) {
+      rmi.all_gather(data, control);
+    }
+
+    template <typename U>
+    inline void gather_partition(const std::vector<U>& local_contribution,
+                          std::vector< std::vector<U> >& ret_partition,
+                          bool control = false) {
+      rmi.gather_partition(local_contribution, ret_partition, control);
+    }
+    
+
+    inline void barrier() {
+      rmi.barrier();
+    }
+    
+    inline void full_barrier() {
+      rmi.full_barrier();
+    }
+  
  
 
-  void barrier();
-  
-  /**
-  This function allows one machine to broadcasts a string of data 
-  to all machines.
-  
-  The originator calls broadcast with data provided in 
-  in 'data' and length len. All other machines must call
-  broadcast with data = NULL. 
-  
-  The originator will then return 'data'. All other machines
-  will return a new pointer, with the length of the string
-  returned in 'len'. The returned pointer must be freed
-  by the caller (with the exception of the originator). 
-  
-  This function is not guaranteed to have barrier-like behavior.
-  That is, broadcast could be implemented in a buffered fashion.
-  */
-  char* broadcast(char* data, size_t &len) { return NULL;};
-};
+  };
 
-}
+
+} // end of namespace graphlab
+
+
+#include <graphlab/macros_undef.hpp>
 #endif

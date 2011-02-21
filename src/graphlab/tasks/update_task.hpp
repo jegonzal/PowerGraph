@@ -3,7 +3,7 @@
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
-
+#include <graphlab/serialization/serialization_includes.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -72,6 +72,18 @@ namespace graphlab {
     size_t hash() const {
       // TODO: this was arbitrarily decided. need something better here
       return vertexid ^ (size_t)(void*)(func);
+    }
+    
+    void save(oarchive &oarc) const {
+      oarc << vertexid;
+      oarc << reinterpret_cast<size_t>(func);
+    }
+    
+    void load(iarchive &iarc)  {
+      iarc >> vertexid;
+      size_t funcptr;
+      iarc >> funcptr;
+      func = reinterpret_cast<update_function_type>(funcptr);
     }
   
   };

@@ -1,21 +1,21 @@
-/* \file inengine.hpp
+/* \file iengine.hpp
    \brief The file containing the iengine description
    
-  This file contains the description of the engine interface.  All
-  graphlab engines (single_threaded, multi_threaded, distributed, ...)
-  should satisfy the functionality described below.
- */
+   This file contains the description of the engine interface.  All
+   graphlab engines (single_threaded, multi_threaded, distributed, ...)
+   should satisfy the functionality described below.
+*/
 
-#ifndef IENGINE_HPP
-#define IENGINE_HPP
+#ifndef GRAPHLAB_IENGINE_HPP
+#define GRAPHLAB_IENGINE_HPP
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/shared_data/ishared_data.hpp>
+#include <graphlab/shared_data/glshared.hpp>
 #include <graphlab/shared_data/ishared_data_manager.hpp>
-
 namespace graphlab {
   
   /**
@@ -27,32 +27,46 @@ namespace graphlab {
    *
    */
   enum exec_status {
-    /** Execution completed successfully due to task depletion */
-    EXEC_TASK_DEPLETION,
 
-    /** 
-     * Execution completed successfully due to termination
-     * function.
-     */
-    EXEC_TERM_FUNCTION,
+    EXEC_UNSET,  /** The default termination reason */
 
-    //! The execution completed after timing out
-    EXEC_TIMEOUT,
+    EXEC_TASK_DEPLETION, /**<Execution completed successfully due to
+                            task depletion */
 
-    /** The execution completed because the maximum number of tasks
-        was exceeded */
-    EXEC_TASK_BUDGET_EXCEEDED,
+    EXEC_TERM_FUNCTION,  /**< Execution completed successfully due to
+                            termination function. */
 
-    /** the engine was stopped by calling force abort */
-    EXEC_FORCED_ABORT
+    EXEC_TIMEOUT,       /**< The execution completed after timing
+                           out */
+
+    EXEC_TASK_BUDGET_EXCEEDED, /**< The execution completed because
+                                  the maximum number of tasks was
+                                  exceeded */
+
+    EXEC_FORCED_ABORT     /**< the engine was stopped by calling force
+                             abort */
   };
+  
+
   
   /**
      \brief The abstract interface of a GraphLab engine.
-     
      The graphlab engine interface describes the core functionality
      provided by all graphlab engines.  The engine is templatized over
      the type of graph.
+     
+     The GraphLab engines are a core element of the GraphLab
+     framework.  The engines are responsible for applying a the update
+     tasks and sync operations to a graph and shared data using the
+     scheduler to determine the update schedule. This class provides a
+     generic interface to interact with engines written to execute on
+     different platforms.
+     
+     While users are free to directly instantiate the engine of their
+     choice we highly recommend the use of the \ref core data
+     structure to manage the creation of engines. Alternatively, users
+     can use the \ref engine_factory static functions to create
+     engines directly from configuration strings.
   */
   template<typename Graph>
   class iengine {
@@ -82,6 +96,13 @@ namespace graphlab {
 
     //! The type of shared data manager
     typedef ishared_data_manager<Graph> ishared_data_manager_type;
+
+    typedef void(*sync_function_type)(iscope_type& scope,
+                                      any& accumulator);
+
+    typedef void(*merge_function_type)(any& merge_dest,
+                                       const any& merge_src);
+
     
     /**
      * The termination function is a function that reads the shared
@@ -103,17 +124,10 @@ namespace graphlab {
     //! get the number of cpus
     virtual size_t get_ncpus() const = 0;
 
-    
-    /**
-     * \brief Get the underlying scheduler.
-     *
-     * This function returns a reference to the scheduler used by the
-     * engine.
-     */
-    virtual ischeduler_type& get_scheduler() = 0;
 
     /**
      * \brief Set the shared data manager
+     * \deprecated Use set_sync and glshared
      *
      * If a shared data is to be available to update functions called
      * by this engine then it must be set here.  The shared data can
@@ -127,24 +141,20 @@ namespace graphlab {
      * \brief Set the default scope range.
      *
      * The default scope range determines the locking extent of an
-     * update function. 
+     * update function. See \ref Scopes for details.
      *
      * \param default_scope_range can take on any of the values
-     * described in scope_range::scope_range_enum.
+     * described in \ref scope_range
      *
-     * \todo make sure this documentation properly references the
-     * enum.
-     * 
      */
     virtual void set_default_scope(scope_range::scope_range_enum default_scope_range) = 0;
     
     /**
      * \brief Start the engine execution.
      *
-     * This <b>blocking</b> function starts the engine and does not
+     * This \b blocking function starts the engine and does not
      * return until either one of the termination conditions evaluate
      * true or the scheduler has no tasks remaining.
-     *
      */
     virtual void start() = 0;
 
@@ -164,7 +174,6 @@ namespace graphlab {
      * \brief Describe the reason for termination.
      *
      * Return the reason for the last termination.
-     *
      */
     virtual exec_status last_exec_status() const = 0;
 
@@ -177,7 +186,6 @@ namespace graphlab {
      * run of this engine.
      * 
      * \return the total number of updates
-     *
      */
     virtual size_t last_update_count() const = 0;
 
@@ -190,7 +198,27 @@ namespace graphlab {
      */
     virtual void register_monitor(imonitor_type* listener) = 0;
     
+    /**
+     * \brief Adds an update task with a particular priority.
+     * This function is forwarded to the scheduler.
+     */
+    virtual void add_task(update_task_type task, double priority) = 0;
 
+    /**
+     * \brief Creates a collection of tasks on all the vertices in
+     * 'vertices', and all with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    virtual void add_tasks(const std::vector<vertex_id_t>& vertices,
+                           update_function_type func, double priority) = 0;
+
+    /**
+     * \brief Creates a collection of tasks on all the vertices in the graph,
+     * with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    virtual void add_task_to_all(update_function_type func,
+                                 double priority) = 0;
     /**
      * \brief associate a termination function with this engine.
      *
@@ -199,6 +227,10 @@ namespace graphlab {
      * takes a constant reference to the shared data and returns a
      * boolean which is true if the engine should terminate execution.
      *
+     * A termination function has the following type:
+     * \code
+     * bool term_fun(const ishared_data_type* shared_data)
+     * \endcode
      */
     virtual void add_terminator(termination_function_type term) = 0;
 
@@ -206,18 +238,23 @@ namespace graphlab {
     virtual void clear_terminators() = 0;
     
 
-    virtual void enable_sched_yield(bool value) { }
+    /**
+     * Set whether sched yield should be used when waiting on new
+     * jobs
+     */
+    virtual void set_sched_yield(bool value) = 0;
 
-    virtual void enable_cpu_affinities(bool value) { }
+    /**
+     * Set whether cpu affinities should be used.
+     */
+    virtual void set_cpu_affinities(bool value) = 0;
 
     
     
     /**
-     *  Timeout. Default - no timeout. The timeout is the total
+     *  \brief The timeout is the total
      *  ammount of time in seconds that the engine may run before
      *  exeuction is automatically terminated.
-     *
-     * \todo Should we continue to support this function. 
      */
     virtual void set_timeout(size_t timeout_secs) = 0;
     
@@ -231,10 +268,70 @@ namespace graphlab {
      * nonzero the engine encurs the cost of an additional atomic
      * operation in the main loop potentially reducing the overall
      * parallel performance.
-     *
-     * \todo Should we continue to support this function?
      */
     virtual void set_task_budget(size_t max_tasks) = 0;
+
+
+    /** \brief Update the scheduler options.  */
+    virtual void set_scheduler_options(const scheduler_options& opts) = 0;
+
+
+
+    /**
+     * Registers a sync with the engine.
+     * The sync will be performed every "interval" updates,
+     * and will perform a reduction over all vertices from rangelow
+     * to rangehigh inclusive.
+     * The merge function may be NULL, in which it will not be used.
+     *
+     * \param shared The shared variable to synchronize
+     * \param sync The reduction function
+     * \param apply The final apply function which writes to the shared value
+     * \param zero The initial zero value passed to the reduction
+     * \param sync_interval Frequency at which the sync is initiated.
+     *                      Corresponds approximately to the number of
+     *                     update function calls before the sync is reevaluated.
+     *                     If 0, the sync will only be evaluated once
+     *                     at engine start,  and will never be evaluated again.
+     *                     Defaults to 0.
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
+     * \param rangelow he lower range of vertex id to start syncing.
+     *                 The range is inclusive. i.e. vertex with id 'rangelow'
+     *                 and vertex with id 'rangehigh' will be included.
+     *                 Defaults to 0.
+     * \param rangehigh The upper range of vertex id to stop syncing.
+     *                  The range is inclusive. i.e. vertex with id 'rangelow'
+     *                  and vertex with id 'rangehigh' will be included.
+     *                  Defaults to infinity.
+     */
+    virtual void set_sync(glshared_base& shared,
+                          sync_function_type sync,
+                          glshared_base::apply_function_type apply,
+                          const any& zero,
+                          size_t sync_interval = 0,
+                          merge_function_type merge = NULL,
+                          size_t rangelow = 0,
+                          size_t rangehigh = -1) { }
+
+    /**
+     * Performs a sync immediately. This function requires that the shared
+     * variable already be registered with the engine.
+     */
+    virtual void sync_now(glshared_base& shared) { };
+    
+    // Convenience function.
+    static std::string exec_status_as_string(exec_status es) {
+      switch(es) {
+      case EXEC_UNSET: return "engine not run!";
+      case EXEC_FORCED_ABORT: return "forced abort";
+      case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
+      case EXEC_TERM_FUNCTION: return "termination function";
+      case EXEC_TASK_DEPLETION: return "task depletion (natural)";
+      case EXEC_TIMEOUT: return "timeout";
+      };
+      return "unknown";
+    }
 
   };
 

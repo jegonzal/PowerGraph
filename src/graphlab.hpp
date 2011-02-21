@@ -1,37 +1,12 @@
-/**
-   \mainpage 
- 
-  \section intro_sec Introduction
- 
-GraphLab is a powerful new system for designing and implementing
-parallel algorithms in machine learning.  While the current version
-1.0 implementation targets multi-core shared memory parallel
-systems we are in the process of implementing a distributed version
-(1.5) and plan to provide support for alternative parallel
-architectures include GPUs.
- 
-The GraphLab abstraction divides a parallel algorithm into three
-key parts:
-<ol>
-  <li> Sparse Data Dependency Graph </li>
-  <li> Local computation </li>
-  <li> Computation Schedule </li>
-</ol>
- 
- 
-\section install_sec Installation
- 
-\subsection step1 Step 1: Opening the box
-   
-  etc...
-*/
 
 
 #ifndef GRAPHLAB_MASTER_INCLUDES
 #define GRAPHLAB_MASTER_INCLUDES
 
 
+
 //
+
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
@@ -46,6 +21,7 @@ key parts:
 #include <graphlab/util/util_includes.hpp>
 
 #include <graphlab/core.hpp>
+
 
 #ifdef GLDISTRIBUTED
 #include <graphlab/distributed/distributed_includes.hpp>
@@ -73,18 +49,41 @@ key parts:
 */
 namespace graphlab {
  
+  /**
+  \brief A types datastructure which provides convenient specializations of all
+  user-facing GraphLab types.
   
+  GraphLab is heavily templatized. The graphlab::types object provides a 
+  convenient way to access the GraphLab classes without requiring excessive 
+  angle brackets (< , >). The GraphLab types object is located in <graphlab.hpp>. 
+  To define a graphlab type object:
+  
+  \code
+  typedef graphlab::graph<vertex_data, edge_data> graph_type;
+  typedef graphlab::types<graph_type> gl;
+  \endcode
+  
+  Now we can use gl::... to access all the available graphlab types. 
+  */
   template<typename Graph>
   struct types {
+    ///  \brief The type of the Graph. 
     typedef Graph graph;
 
+    /** \brief A convenient wrapper object around the commonly used
+    portions of GraphLab.  This is useful for most GraphLab
+    applications. See the \ref graphlab::core object for more details.
+    */
     typedef graphlab::core<typename graph::vertex_data_type,
                            typename graph::edge_data_type> core;
 
     typedef graphlab::command_line_options command_line_options;
     typedef graphlab::engine_options engine_options;
     
+    /// \brief The type of the data stored on each vertex of the Graph. 
     typedef typename graph::vertex_data_type vertex_data_type;
+    
+    /// \brief The type of the data stored on each edge of the Graph.   
     typedef typename graph::edge_data_type   edge_data_type;
     
     typedef graphlab::update_task<graph>        update_task;
@@ -100,20 +99,15 @@ namespace graphlab {
     typedef graphlab::ishared_data_manager<graph> ishared_data_manager;
     typedef graphlab::sync_ops<Graph> sync_ops;
     typedef graphlab::apply_ops<Graph> apply_ops;
+    typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
+    typedef graphlab::glshared_apply_ops glshared_apply_ops;
 
     typedef graphlab::thread_shared_data<graph>  thread_shared_data;
-    
-    typedef graphlab::ivertex_set<graph>         ivertex_set;
-    typedef graphlab::vertex_set<graph>          vset;
-    typedef graphlab::restricted_vertex_set<graph> rvset;
-    typedef typename rvset::selector_function_type  selector_function;
-    typedef typename graphlab::execution_plan<graph> execution_plan;
-    
+
 
 
     template<typename Scheduler, typename ScopeFactory>
     struct engines {
-      typedef graphlab::synchronous_engine<graph> synchronous;
       typedef graphlab::
       asynchronous_engine<graph, Scheduler, ScopeFactory> asynchronous;
       #ifdef GLDISTRIBUTED
@@ -125,24 +119,24 @@ namespace graphlab {
     typedef graphlab::fifo_scheduler<graph> fifo_scheduler;
     typedef graphlab::priority_scheduler<graph> priority_scheduler;
     typedef graphlab::sampling_scheduler<graph> sampling_scheduler;
-    typedef graphlab::splash_scheduler<graph> splash_scheduler;
     typedef graphlab::sweep_scheduler<graph> sweep_scheduler;
     typedef graphlab::multiqueue_fifo_scheduler<graph> multiqueue_fifo_scheduler;
     typedef graphlab::multiqueue_priority_scheduler<graph> multiqueue_priority_scheduler;
-    typedef graphlab::set_scheduler<graph> set_scheduler;
     typedef graphlab::clustered_priority_scheduler<graph> clustered_priority_scheduler;
     typedef graphlab::round_robin_scheduler<graph> round_robin_scheduler;
-    typedef graphlab::colored_scheduler<graph> colored_scheduler;
+    typedef graphlab::chromatic_scheduler<graph> chromatic_scheduler;
     
     
     
     
     
 
-    
+    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::vertex_id_t
     typedef graphlab::vertex_id_t vertex_id_t;
+    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
     typedef graphlab::edge_id_t edge_id_t;
-    typedef graphlab::edge_list edge_list;
+
+    typedef typename graph::edge_list_type edge_list;
     
     typedef graphlab::scheduler_options          scheduler_options;
     typedef graphlab::sched_status               sched_status;
@@ -150,9 +144,10 @@ namespace graphlab {
     typedef graphlab::scope_range scope_range;
 
     typedef graphlab::random  random;
+
+    template <typename T>
+    class glshared:public graphlab::glshared<T> { };
   };
-  
-  // typedef types<blob_graph> blob_types;
 
 }
 

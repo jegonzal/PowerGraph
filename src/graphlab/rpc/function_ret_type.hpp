@@ -4,7 +4,13 @@
 #include <graphlab/rpc/function_arg_types_def.hpp>
 /**
 Promotes a void to int so we can do request type calls on functions
-with no return
+with no return. 
+function_ret_type<void>::type == int
+and 
+function_ret_type<T>::type == T for all other types T
+
+mem_function_ret_type is similar but operates on member functions
+
 */
 namespace graphlab {
 namespace dc_impl {

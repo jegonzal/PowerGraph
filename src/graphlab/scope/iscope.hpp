@@ -53,15 +53,58 @@ namespace graphlab {
    */
   struct scope_range {
     enum scope_range_enum {
-      NULL_CONSISTENCY = 0,    // no locks
-      VERTEX_READ_CONSISTENCY, // read only from self
-      READ_CONSISTENCY,        // read from self and adjacent structures
-      VERTEX_CONSISTENCY,      // write to self. no lock on adjacent
-      EDGE_CONSISTENCY,        // write to self, read from adjacent structures
-      FULL_CONSISTENCY,        // write to self and adjacent structures
+      NULL_CONSISTENCY = 0,    ///< no locks
+      VERTEX_READ_CONSISTENCY, ///< read only from self
+      READ_CONSISTENCY,        ///< read from self and adjacent structures
+      VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
+      EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
+      FULL_CONSISTENCY,        ///< write to self and adjacent structures
       USE_DEFAULT
     };
+    
+    enum lock_type_enum {
+      NO_LOCK = 0,
+      READ_LOCK = 1,
+      WRITE_LOCK = 2
+    };
   };
+
+  inline scope_range::lock_type_enum central_vertex_lock_type(scope_range::scope_range_enum srange) {
+    switch (srange) {
+      case scope_range::NULL_CONSISTENCY:
+        return scope_range::NO_LOCK;
+      case scope_range::VERTEX_READ_CONSISTENCY:
+      case scope_range::READ_CONSISTENCY:
+        return scope_range::READ_LOCK;
+      case scope_range::VERTEX_CONSISTENCY:
+      case scope_range::EDGE_CONSISTENCY:
+      case scope_range::FULL_CONSISTENCY:
+        return scope_range::WRITE_LOCK;
+      default:
+        assert(false);
+        // unreachable
+        return scope_range::NO_LOCK;
+    }
+  }
+
+  inline scope_range::lock_type_enum adjacent_vertex_lock_type(scope_range::scope_range_enum srange) {
+    switch (srange) {
+      case scope_range::NULL_CONSISTENCY:
+      case scope_range::VERTEX_READ_CONSISTENCY:
+      case scope_range::VERTEX_CONSISTENCY:
+        return scope_range::NO_LOCK;
+      case scope_range::READ_CONSISTENCY:
+      case scope_range::EDGE_CONSISTENCY:
+        return scope_range::READ_LOCK;
+      case scope_range::FULL_CONSISTENCY:
+        return scope_range::WRITE_LOCK;
+      default:
+        assert(false);
+        // unreachable
+        return scope_range::NO_LOCK;
+    }
+  }
+
 
   inline bool scope_is_subset_of(scope_range::scope_range_enum A,
                                  scope_range::scope_range_enum B) {
@@ -91,6 +134,9 @@ namespace graphlab {
 
     //! The edge data type associated with the graph
     typedef typename Graph::edge_data_type   edge_data_type;
+
+    //! The edge data type associated with the graph
+    typedef typename Graph::edge_list_type   edge_list_type;
 
 
 
@@ -181,7 +227,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list in_edge_ids() const {
+    edge_list_type in_edge_ids() const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->in_edge_ids(_vertex);
     }
@@ -192,7 +238,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list in_edge_ids(vertex_id_t v) const {
+    edge_list_type in_edge_ids(vertex_id_t v) const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->in_edge_ids(v);
     }
@@ -204,7 +250,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list out_edge_ids() const {
+    edge_list_type out_edge_ids() const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->out_edge_ids(_vertex);
     }
@@ -215,7 +261,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list out_edge_ids(vertex_id_t v) const {
+    edge_list_type out_edge_ids(vertex_id_t v) const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->out_edge_ids(v);
     }

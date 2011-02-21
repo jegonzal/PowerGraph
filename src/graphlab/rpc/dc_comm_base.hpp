@@ -2,9 +2,10 @@
 #define DC_COMM_BASE_HPP
 #include <vector>
 #include <string>
+#include <map>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-
+#include <graphlab/rpc/dc_receive.hpp>
 namespace graphlab {
 namespace dc_impl {  
 
@@ -15,7 +16,7 @@ The base class of all comms implementations
 class dc_comm_base {
  public:
    
-  dc_comm_base() {}
+  dc_comm_base();
   
   virtual size_t capabilities() const  = 0;
   /**
@@ -39,14 +40,12 @@ class dc_comm_base {
    curmachineid: The ID of the current machine. Will be size_t(-1) if this is not available.
                  (Some comm protocols will negotiate this itself.)
    
-   recvcallback: A function pointer to the receiving function. This function will be thread-safe
-   tag: An additional pointer passed to the receiving function.
+   receiver: the receiving object
   */
   virtual void init(const std::vector<std::string> &machines,
-            const std::string &initstring,
+            const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
-            comm_recv_callback_type recvcallback,
-            void* tag) = 0;
+            std::vector<dc_receive*> receiver) = 0;
 
   /// Must close all connections when this function is called
   virtual void close() = 0;
@@ -55,6 +54,18 @@ class dc_comm_base {
   virtual procid_t numprocs() const = 0;
   
   virtual procid_t procid() const = 0;
+  
+  /** returns true if the channel to the target
+  machine is truly open. The dc_comm_base specification allows
+  for lazy channels which are not created until it is used.
+  For such implementations, this function should return true
+  if the channel has been created, and false otherwise. Non-lazy
+  implementations should return true all the time.
+  The invariant to ensure is that this function must return true
+  for a target machine ID if a packet has been sent from this machine
+  to the target before this call.
+  */
+  virtual bool channel_active(size_t target) const = 0;
   
   /**
    Sends the string of length len to the target machine dest.
@@ -67,6 +78,7 @@ class dc_comm_base {
              const char* buf1, const size_t len1,
              const char* buf2, const size_t len2) = 0; 
 
+  // not required and not used
   virtual void flush(size_t target) = 0;
 };
 

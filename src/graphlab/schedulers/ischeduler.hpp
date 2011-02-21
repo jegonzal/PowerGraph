@@ -2,15 +2,15 @@
 #define GRAPHLAB_ISCHEDULER_HPP
 
 #include <vector>
-
-#include <graphlab/engine/iengine.hpp>
+#include <sstream>
+#include <ostream>
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/schedulers/icallback.hpp>
-
+#include <graphlab/schedulers/scheduler_options.hpp>
 
 namespace graphlab {
-        
+  template <typename Graph> class iengine;
   
   /**
    * This is an enumeration for the possible return values for
@@ -18,29 +18,34 @@ namespace graphlab {
    */
   struct sched_status {
     enum status_enum {
-      NEWTASK,      /// The get_next_tasks function returned a new task
-                    /// to be executed
-      WAITING,      /// The get_next_tasks function did not return a new
-                    /// task, but the program should not terminate
-      COMPLETE      /// The get_next_tasks function did not return a new
-                    /// task, and the program should terminate
+      NEWTASK,      /**< The get_next_tasks function returned a new task 
+                        to be executed */
+      EMPTY,         /**< The schedule is empty. */
+      
+      /// Deprecated options. to be phased out. do not use.
+      WAITING,      /// \deprecated
+      COMPLETE      /// \deprecated
     };
   };
   
-  struct scheduler_options {
+ /// \deprecated
+  struct scheduler_options_enum {
     enum options_enum {
-      UPDATE_FUNCTION,
-      SPLASH_SIZE,
-      MAX_ITERATIONS,
-      START_VERTEX,
-      SCHEDULING_FUNCTION,
+      UPDATE_FUNCTION,    /// used by 1-update function schedulers
+      MAX_ITERATIONS,     /// maximum iteration count. Used by round-robin
+      START_VERTEX,       /// vertex to start at. used by round-robin
+      VERTICES_PER_PARTITION,  /// Used by cluster_priority
+      PARTITION_METHOD,        /// Used by cluster_priority
+      SWEEP_PERMUTE,           /// used by sweep scheduler
+      SPLASH_SIZE,             /// used by splash scheduler
       BARRIER,
       DISTRIBUTED_CONTROL
     };
   };
-
+  
 
   /**
+   * \ingroup group_schedulers
    * This describes the interface/concept for the scheduler. The
    * engine will be passed the scheduler type as a template argument,
    * so the scheduler must inherit and satisfy this interface
@@ -59,16 +64,15 @@ namespace graphlab {
     typedef iengine<Graph> iengine_type;
     typedef icallback<Graph> callback_type;
     typedef imonitor<Graph> monitor_type;
-    
+
+    /** Defines the preferred terminator algorithm */
+    typedef char terminator_type;
+    terminator_type terminator;
     /** 
      * Constructor: The scheduler must be provided with the graph, and the 
-     * number of
-     * cpus.  All initialization of the scheduler internal state must
-     * be done here.
+     * number of cpus.  All initialization of the scheduler internal state must
+     * be performed here.
      *
-     *    \note This constructor here does not actually do
-     *     anything. It just exists to force the derived class
-     *     constructors to look like this
      */
     //    ischeduler(iengine_type* engine, Graph& g, size_t ncpus) : monitor(NULL) { }
     ischeduler() : monitor(NULL) {}
@@ -76,19 +80,23 @@ namespace graphlab {
     /// destructor
     virtual ~ischeduler() {};
         
-    /** Called by engine before executing the schedule */
-    virtual void start() {};
+    /** Called by engine before starting the schedule.
+     *  This function will only be called once throughout the lifetime
+     * of the scheduler.
+     */
+    virtual void start() = 0;
 
-    /** Called when the engine stops */
-    virtual void stop() {};
 
-    
-    /// Adds an update task with a particular priority
+    /**
+     * Adds an update task with a particular priority. 
+     * This function may be called at anytime.
+     */
     virtual void add_task(update_task_type task, double priority) = 0;
     
     /** 
      * Creates a collection of tasks on all the vertices in
      * 'vertices', and all with the same update function and priority
+     * This function may be called at anytime.
      */
     virtual void add_tasks(const std::vector<vertex_id_t>& vertices, 
                            update_function_type func, double priority) = 0;
@@ -96,6 +104,7 @@ namespace graphlab {
     /** 
      * Creates a collection of tasks on all the vertices in the graph,
      * with the same update function and priority
+     * This function may be called at anytime.
      */
     virtual void add_task_to_all(update_function_type func, 
                                  double priority) = 0;
@@ -115,11 +124,7 @@ namespace graphlab {
      *  \retval NEWTASK There is an update task in ret_task to be
      *   executed
      * 
-     *  \retval WAITING ret_task is empty. But the engine should wait
-     *  as execution is still not complete
-     *
-     *  \retval COMPLETE ret_task is empty and the engine should
-     *  proceed to terminate
+     *  \retval EMPTY There are no tasks available in the scheduler.
      */
     virtual sched_status::status_enum get_next_task(size_t cpuid, 
                                        update_task_type &ret_task) = 0;
@@ -134,11 +139,21 @@ namespace graphlab {
     /** Installs a listener (done by the engine) */
     virtual void register_monitor(monitor_type* monitor_) { 
       monitor = monitor_;
-    }        
+    }
 
-    virtual void set_option(scheduler_options::options_enum opt, void* value) { };
+    virtual void set_options(const scheduler_options &opts) { };
+
+    static void print_options_help(std::ostream &out) { };
 
 
+    /// UNUSED!!! Only used for temporary backward compatibility with the distributed code
+    virtual void set_option(scheduler_options_enum::options_enum, void*) { };
+    
+    /** Returns a reference to the terminator */
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+    
   protected:
     monitor_type* monitor;
 

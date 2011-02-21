@@ -18,13 +18,14 @@ namespace dc_impl {
   The job of the receiver is to take as input a byte stream
   (as received from the socket) and cut it up into meaningful chunks.
   This can be thought of as a receiving end of a multiplexor.
-  This class must also provide the barrier functionaility
 */
 class dc_stream_receive: public dc_receive{
  public:
   
   dc_stream_receive(distributed_control* dc): 
-                  barrier(false), dc(dc) { }
+                  buffer(10240),
+                  barrier(false), dc(dc),
+                  bytesreceived(0){ }
 
   /**
    Called by the controller when there is data coming
@@ -36,7 +37,7 @@ class dc_stream_receive: public dc_receive{
    
   /** called by the controller when a function
   call is completed */
-  void function_call_completed() ;
+  void function_call_completed(unsigned char packettype) ;
  private:
   /// the mutex protecting the buffer and the barrier 
   mutex bufferlock;
@@ -55,13 +56,29 @@ class dc_stream_receive: public dc_receive{
   
   /// pointer to the owner
   distributed_control* dc;
-  
+
+  size_t bytesreceived;
   
   /**
     Reads the incoming buffer and processes, dispatching
     calls when enough bytes are received
   */
-  void process_buffer() ;
+  void process_buffer(bool outsidelocked) ;
+
+  size_t bytes_received();
+  
+  void shutdown();
+
+  inline bool direct_access_support() {
+    return true;
+  }
+  
+  char* get_buffer(size_t& retbuflength);
+  
+
+  char* advance_buffer(char* c, size_t wrotelength, 
+                              size_t& retbuflength);
+  
 };
 
 

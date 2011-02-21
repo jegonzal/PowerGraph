@@ -10,7 +10,9 @@
 
 namespace graphlab {
   
-
+  /**  \ingroup util_internal
+   *  Implements an atomic dense bitset
+   */
   class dense_bitset {
   public:
     dense_bitset() : array(NULL), len(0), arrlen(0) {

@@ -7,10 +7,9 @@ namespace graphlab {
   
 namespace dc_impl {
 /**
-A set of services which operate directly on the comm layer without
-going through the RPC controller
+A set of low level services which operate directly on the comm layer without
+going through the RPC controller.
 */
-
 class dc_comm_services {
  private:
 

@@ -33,8 +33,6 @@ int main(int argc, char** argv) {
   // write peek read cycle
   cbuf.clear();
   cbuf.squeeze();
-//   boost::iostreams::stream<circular_char_buffer_source> istr(cbuf);
-//   boost::iostreams::stream<circular_char_buffer_sink> ostr(cbuf);
   boost::iostreams::stream<circular_char_buffer_device> strm(cbuf);
   
   for (size_t i = 0; i < 1024; ++i) {
@@ -45,6 +43,20 @@ int main(int argc, char** argv) {
     std::getline(strm, s2);
     // get the \n
     ASSERT_EQ(s2, std::string("hello world"));
+  }
+  
+  // one more time with an introspective write, expand, read cycle
+  for (size_t i = 0;i < 1024; ++i) {
+    char* tmp;
+    size_t s = cbuf.introspective_write(tmp);
+    cbuf.advance_write(s);
+    s = cbuf.introspective_write(tmp);
+    cbuf.advance_write(s < 25?s:25);
+    
+    cbuf.consistency_check();
+    cbuf.reserve(cbuf.reserved_size() + 37);
+    cbuf.align();
+    cbuf.introspective_read(tmp, 31);
   }
  
 }

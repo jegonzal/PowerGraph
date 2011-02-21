@@ -22,7 +22,7 @@
 #include <graphlab/schedulers/support/vertex_task_set.hpp>
 #include <graphlab/schedulers/support/unused_scheduler_callback.hpp>
 #include <graphlab/util/synchronized_circular_queue.hpp>
-#include <graphlab/util/task_count_termination.hpp>
+#include <graphlab/util/controlled_termination.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -32,6 +32,7 @@ namespace graphlab {
 
 
   /**
+     \ingroup group_schedulers
      This class defines a simple First-In-First_Out scheduler
   */
   template<typename Graph>
@@ -45,7 +46,7 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
-
+    typedef controlled_termination terminator_type;
   
   private:
     size_t numvertices; /// Remember the number of vertices in the graph
@@ -54,8 +55,10 @@ namespace graphlab {
     std::vector<update_task_type> task_set;           /// collection of tasks
     atomic<size_t> iterations;           /// Number of complete iterations so far
     size_t maxiterations;               /// maximum number of iterations
-
-    task_count_termination terminator;
+    size_t startvertex;
+    size_t endtask;     /// last vertex to run
+    size_t endvertex;
+    controlled_termination terminator;
 
   public:
     round_robin_scheduler(iengine_type* engine,
@@ -63,7 +66,10 @@ namespace graphlab {
       numvertices(g.num_vertices()),
       callback(engine),
       task_set(numvertices),
-      maxiterations(-1) {
+      maxiterations(0),
+      startvertex(0),
+      endtask(numvertices),
+      endvertex(numvertices){
       cur_task.value = size_t(0);
     }
 
@@ -74,13 +80,15 @@ namespace graphlab {
       return callback;
     }
 
-
+    void start() {
+      cur_task.value = startvertex;
+      endtask = startvertex + maxiterations * numvertices - 1;
+      endvertex = (startvertex + numvertices - 1) % numvertices;
+    };
+    
     void completed_task(size_t cpuid, const update_task_type &task){ };
 
-    void abort(){ terminator.abort(); }
 
-    void restart() { terminator.restart(); }
-	
 
     void set_max_iterations(size_t maxi) {
       maxiterations = maxi;
@@ -113,7 +121,9 @@ namespace graphlab {
   
     void set_start_vertex(size_t v){
       logstream(LOG_INFO) << "Round robin: Starting from " << v << std::endl;
-      cur_task.value = v;
+      
+      startvertex = v;
+
     }
 
  
@@ -121,40 +131,46 @@ namespace graphlab {
     size_t get_iterations() {
       return iterations.value;
     }
- 
-    void set_option(scheduler_options::options_enum opt, void* value) { 
-      if (opt == scheduler_options::MAX_ITERATIONS) {
-        set_max_iterations((size_t)(value));
-      }
-      else if (opt == scheduler_options::START_VERTEX) {
-        set_start_vertex((size_t)(value));
-      }
-      else {
-        logger(LOG_WARNING, 
-               "Round Robin Scheduler was passed an invalid option %d", 
-               opt);
-      }
-    };
 
     /** Get the next element in the queue */
-    sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {
-      if (terminator.is_aborted()) return sched_status::COMPLETE;
-  
-      size_t taskvid = cur_task.inc() - 1; //DB: we want the increment to happen later
-      taskvid = taskvid % numvertices;
-      if (maxiterations != 0) {
-        if (taskvid == numvertices-1) {
-          iterations.inc();
+    sched_status::status_enum get_next_task(size_t cpuid,
+                                            update_task_type &ret_task) {
+      while(1) {
+        size_t oldtaskvid = cur_task.inc() - 1; //DB: we want the increment to happen later
+        size_t taskvid = oldtaskvid % numvertices;
+        if (maxiterations != 0) {
+          
+          if (oldtaskvid > endtask) {
+            terminator.complete();
+            return sched_status::EMPTY;
+          }
+          if (taskvid == endvertex) {
+            iterations.inc();
+          }
         }
-        if (iterations.value >= maxiterations) {
-          return sched_status::COMPLETE;
-        }
+        ret_task = task_set[taskvid];
+        if (ret_task.vertex() == vertex_id_t(-1)) continue;
+        assert(ret_task.vertex() == taskvid);
+        return sched_status::NEWTASK;
       }
-      ret_task = task_set[taskvid]; 
-      assert(ret_task.vertex() == taskvid);
-      return sched_status::NEWTASK;
     }
 
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("max_iterations", maxiterations);
+      opts.get_int_option("start_vertex", startvertex);
+    }
+
+    static void print_options_help(std::ostream &out) {
+      out << "max_iterations = [integer, default = 0]\n";
+      out << "start_vertex = [integer, default = 0]\n";
+    }
+
+    
+    
   };
 
 } // end of namespace graphlab

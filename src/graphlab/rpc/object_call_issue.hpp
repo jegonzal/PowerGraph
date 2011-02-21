@@ -13,7 +13,33 @@
 namespace graphlab{
 namespace dc_impl {
 
+/**
+Marshalls a object function call to a remote machine. This is similar to the regular function call
+with the only difference that the object id needs to be transmitted as well.
+template<typename T, 
+        typename F , 
+        typename T0> class object_call_issue1
+{
+    public: static void exec(dc_send* sender, 
+                            size_t flags, 
+                            procid_t target, 
+                            size_t objid, 
+                            F remote_function , 
+                            const T0 &i0 )
+    {
+        boost::iostreams::stream<resizing_array_sink> strm(128);
+        oarchive arc(strm);
+        dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_DISPATCH1<distributed_control,T,F , T0 >;
+        arc << reinterpret_cast<size_t>(d);
+        serialize(arc, (char*)(&remote_function), sizeof(F));
+        arc << objid;
+        arc << i0;
+        strm.flush();
+        sender->send_data(target,flags , strm->str, strm->len);
+    }
+};
 
+*/
 
 #define GENARGS(Z,N,_)  BOOST_PP_CAT(const T, N) BOOST_PP_CAT(&i, N)
 #define GENI(Z,N,_) BOOST_PP_CAT(i, N)
@@ -29,8 +55,8 @@ by checking if the function is a RPC style call or not.
 template<typename T, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
   public: \
-  static void exec(dc_send* sender, size_t flags, procid_t target, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    boost::iostreams::stream<resizing_array_sink> strm(128);    \
+  static void exec(dc_dist_object_base* rmi, dc_send* sender, size_t flags, procid_t target, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
     arc << reinterpret_cast<size_t>(d);       \
@@ -38,7 +64,9 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     arc << objid;       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
-    sender->send_data(target,flags , strm->str, strm->len);    \
+    sender->send_data(target,flags , strm->c_str(), strm->size());    \
+    if ((flags & CONTROL_PACKET) == 0)                       \
+      rmi->inc_bytes_sent(target, strm->size());           \
   }\
 }; 
 

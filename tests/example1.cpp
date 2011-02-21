@@ -14,15 +14,16 @@ int add_one(int val) {
 
 int main(int argc, char ** argv) {
   /** Initialization */
+  global_logger().set_log_level(LOG_INFO);
   size_t machineid = atoi(argv[1]);
   std::vector<std::string> machines;
   machines.push_back("127.0.0.1:10000");
   machines.push_back("127.0.0.1:10001");
 
-  distributed_control dc(machines,"", machineid,8,SCTP_COMM);
+  distributed_control dc(machines,"", machineid,8,TCP_COMM);
   
   if (dc.procid() == 0) {
-    dc.remote_call(1, print, 10);
+    dc.control_call(1, print, 10);
     std::cout << "5 plus 1 is : " << dc.remote_request(1, add_one, 5) << std::endl;
     std::cout << "11 plus 1 is : " << dc.remote_request(1, add_one, 11) << std::endl;
   }

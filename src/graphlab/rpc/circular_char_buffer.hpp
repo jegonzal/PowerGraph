@@ -60,19 +60,68 @@ class circular_char_buffer {
       the capacity is the same as the length of the buffer */
   void squeeze();
 
+  
+  /** Rotates the buffer so that the head is at index 0.
+      buffer reserved size is preserved*/
+  void align();
 
+
+  /** Returns true if realignment requires a reallocation */
+  bool align_requires_alloc();
+  
+  /**
+   * Returns a pointer (through s) and a length of the read.
+   * This pointer is a direct pointer into the internal buffer 
+   * of this datastructure. The pointer is valid as long as no other operations
+   * are performed on this structure.
+   * The length of the introspective_read may be less than the actual
+   * length of the buffer. Multiple calls to introspective_read may be 
+   * necessary to read all data in the buffer. If the function returns 0,
+   * the buffer is empty.
+   */
+  std::streamsize introspective_read(char* &s);
+  
+  /**
+   * Returns a pointer (through s) and a length of the read.
+   * This pointer is a direct pointer into the internal buffer 
+   * of this datastructure. The pointer is valid as long as no other operations
+   * are performed on this structure.
+   * The length of the introspective_read may be less than the number 
+   * of bytes requested. Multiple calls to introspective_read may be 
+   * necessary to read all data in the buffer. If the function returns 0,
+   * the buffer is empty.
+   */
+  std::streamsize introspective_read(char* &s, std::streamsize clen);
+  
+  /**
+    Returns a pointer to the next empty region of the buffer.
+    The return value is the maximum contigious length writable.
+    When writes complete, advance_write should be used to integrate the
+    written bytes
+  */
+  std::streamsize introspective_write(char* &s);
+  
+  void advance_write(std::streamsize bytes);
+  
   inline void consistency_check() const {
-/*    ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
+    /* ASSERT_GE(head, 0); ASSERT_GE(tail, 0);
     ASSERT_LT(head, bufsize); ASSERT_LE(tail, bufsize);
     if (tail > head) ASSERT_EQ(tail - head, len);
     else if (head < tail) ASSERT_EQ(head + bufsize - tail, len);
-    else if (head == tail) ASSERT_EQ(len, 0);*/
+    else if (head == tail) ASSERT_EQ(len, 0); */
   }
   
   /** clears the stream */
   void clear();
+  
+  /** Gets the number of characters in the stream */
   inline std::streamsize size() const {
     return len;
+  }
+  
+  /** Gets the size of the buffer */
+  inline std::streamsize reserved_size() const {
+    return bufsize;
   }
  private:
    
@@ -81,8 +130,17 @@ class circular_char_buffer {
   }
   
   char* buffer;
-  std::streamsize head;  // points to the head of the queue. Reader reads from here
-  std::streamsize tail;  // points to one past the end of the queue. writer writes to here
+  /** 
+   * points to the head of the queue. 
+   * Reader reads from here
+   */
+  std::streamsize head;  
+  
+  /** 
+   * points to one past the end of the queue. 
+   * writer writes to here. if tail == head, buffer must be empty
+   */
+  std::streamsize tail;  
   std::streamsize bufsize; // current size of the buffer
   std::streamsize len;  // number of bytes stored in the buffer
 };

@@ -15,6 +15,7 @@ namespace graphlab {
 
 
   /**
+   *  \ingroup util_internal
    * This class implements a dense set of fixed maximum size which
    * support quick operations with stack allocation.
    */

@@ -6,13 +6,14 @@
 
 namespace graphlab {
   /**
+   \ingroup util_internal
      simple condition variable based shared termination checker.
-     When a processor decides to go to sleep, it should call 
-     - begin_sleep_critical_section(cpuid), 
+     When a processor finds that it is out of work, it should call
+     - begin_critical_section(cpuid),
      - check the state of the queue.
-     - If the queue has jobs, call cancel_sleep_critical_section().
-     - If the queue has no jobs, then call end_sleep_critical_section(cpuid)
-     - If (end_sleep_critical_section() returns true, the scheduler can terminate.
+     - If the queue has jobs, call cancel_critical_section().
+     - If the queue has no jobs, then call end_critical_section(cpuid)
+     - If (end_critical_section() returns true, the scheduler can terminate.
      Otherwise it must loop again.
   */
   class shared_termination {
@@ -26,29 +27,21 @@ namespace graphlab {
       for (size_t i = 0; i < ncpus; ++i) sleeping[i] = 0;
     }
   
-    void reset() {
-      numactive = sleeping.size();
-      numcpus = sleeping.size();
-      done = false;
-      trying_to_sleep.value = 0;
-      for (size_t i = 0; i < sleeping.size(); ++i) sleeping[i] = 0;
-    }
-  
     ~shared_termination(){ }
   
-    void begin_sleep_critical_section(size_t cpuid) {
+    void begin_critical_section(size_t cpuid) {
       trying_to_sleep.inc();
       sleeping[cpuid] = true;
       m.lock();
     }
 
-    void cancel_sleep_critical_section(size_t cpuid) {
+    void cancel_critical_section(size_t cpuid) {
       m.unlock();
       sleeping[cpuid] = false;
       trying_to_sleep.dec();
     }
 
-    bool end_sleep_critical_section(size_t cpuid) {
+    bool end_critical_section(size_t cpuid) {
       // if done flag is set, quit immediately
       if (done) {
         m.unlock();
@@ -110,6 +103,8 @@ namespace graphlab {
       }
     }
 
+    void completed_job() { }
+    
     size_t num_active() {
       return numactive;
     }

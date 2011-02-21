@@ -26,7 +26,8 @@
 namespace graphlab {
 
 
- 
+  /** \ingroup group_schedulers
+   */
   template<typename Graph>
   class fifo_scheduler: public ischeduler<Graph> {
   public:
@@ -38,7 +39,7 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
-    
+    typedef task_count_termination terminator_type;
     
     
   private:
@@ -57,12 +58,12 @@ namespace graphlab {
     callback_type& get_callback(size_t cpuid) {
       return callbacks[cpuid];
     }
-
+    
+    void start() {};
 
     /** Get the next element in the queue */
-    sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {    
-      if (terminator.finish()) return sched_status::COMPLETE;
-      
+    sched_status::status_enum get_next_task(size_t cpuid,
+                                            update_task_type &ret_task) {    
       bool success(false);
       queue_lock.lock();
       if(!task_queue.empty()) {
@@ -80,7 +81,7 @@ namespace graphlab {
         vertex_tasks.remove(ret_task);
         return sched_status::NEWTASK;
       } else {
-        return sched_status::WAITING;
+        return sched_status::EMPTY;
       }
     } // end of get_next_task
     
@@ -113,21 +114,20 @@ namespace graphlab {
       }
     } // end of add_task_to_all
 
-  
-    void update_state(size_t cpuid,
-                      const std::vector<vertex_id_t> &updated_vertices,
-                      const std::vector<edge_id_t>& updatededges) {};
-
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){}
 
     void completed_task(size_t cpuid, const update_task_type &task) {
       terminator.completed_job();
     }
 
-    void abort() { terminator.abort(); }
- 
-    void restart() { terminator.restart(); }
+    
+    terminator_type& get_terminator() {
+      return terminator;
+    };
+
+
+    void set_options(const scheduler_options &opts) { }
+
+    static void print_options_help(std::ostream &out) { };
 
   private:
     size_t numvertices; /// Remember the number of vertices in the graph
@@ -141,7 +141,7 @@ namespace graphlab {
     // Task set for task pruning
     vertex_task_set<Graph> vertex_tasks;
   
-    task_count_termination terminator;
+    terminator_type terminator;
   }; 
 
 

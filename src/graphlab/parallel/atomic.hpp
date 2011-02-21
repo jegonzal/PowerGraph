@@ -1,6 +1,8 @@
 #ifndef GRAPHLAB_ATOMIC_HPP
 #define GRAPHLAB_ATOMIC_HPP
 
+#include <stdint.h>
+
 namespace graphlab {
   /**
    * \brief atomic object toolkit
@@ -17,6 +19,12 @@ namespace graphlab {
     T dec() { return __sync_sub_and_fetch(&value, 1);  }
     T inc(T val) { return __sync_add_and_fetch(&value, val);  }
     T dec(T val) { return __sync_sub_and_fetch(&value, val);  }
+    
+    T inc_ret_last() { return __sync_fetch_and_add(&value, 1);  }
+    T dec_ret_last() { return __sync_fetch_and_sub(&value, 1);  }
+    T inc_ret_last(T val) { return __sync_fetch_and_add(&value, val);  }
+    T dec_ret_last(T val) { return __sync_fetch_and_sub(&value, val);  }
+
   };
 
 
@@ -34,9 +42,18 @@ namespace graphlab {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
+  template<typename T>
+  bool atomic_compare_and_swap(volatile T& a, 
+                               const T &oldval, 
+                               const T &newval) {
+    return __sync_bool_compare_and_swap(&a, oldval, newval);
+  };
+
 
   template <>
-  inline bool atomic_compare_and_swap(double& a, const double &oldval, const double &newval) {
+  inline bool atomic_compare_and_swap(double& a, 
+                                      const double &oldval, 
+                                      const double &newval) {
     return __sync_bool_compare_and_swap(reinterpret_cast<uint64_t*>(&a), 
                                         *reinterpret_cast<const uint64_t*>(&oldval), 
                                         *reinterpret_cast<const uint64_t*>(&newval));
@@ -52,6 +69,11 @@ namespace graphlab {
   template<typename T>
   void atomic_exchange(T& a, T& b) {
     b =__sync_lock_test_and_set(&a, b);
+  };
+  
+  template<typename T>
+  T fetch_and_store(T& a, const T& newval) {
+    return __sync_lock_test_and_set(&a, newval);
   };
 
 }

@@ -1,0 +1,4 @@
+function set_vertex_data(handle, vertex, vdata) %#eml
+%#EXTERN_VERTEX_STRUCT#%
+eml.ceval('emx_set_vertex_data', handle, vertex, eml.ref(vdata));
+end

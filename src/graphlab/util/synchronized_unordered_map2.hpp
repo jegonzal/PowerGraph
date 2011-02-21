@@ -7,6 +7,7 @@
 
 namespace graphlab {
 /*
+ \ingroup util_internal
 An alternate form of the synchronized unordered map, built around the
 use of critical sections
 */

@@ -21,8 +21,6 @@ namespace dc_impl {
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  Essentially each "send call" here must end up being paired with a 
-  corresponding "receive call" on the receiver end.
 */
 
 class dc_stream_send: public dc_send{
@@ -34,26 +32,10 @@ class dc_stream_send: public dc_send{
   ~dc_stream_send() {
   }
   
-  /**
-    Each element of the send queue is a data/len pair
-  */
-  struct send_block{
-    send_block() { }
-    send_block(procid_t source, procid_t target,
-               unsigned char packet_type_mask, 
-               char* data, size_t len): 
-                        target(target), data(data), len(len) { 
-      hdr.len = len;
-      hdr.src = source;
-      hdr.packet_type_mask = packet_type_mask;
-    }
-    packet_hdr hdr;
-    procid_t target;
-    char* data;
-    size_t len;
-  };
-  
 
+  inline bool channel_active(procid_t target) const {
+    return comm->channel_active(target);
+  }
 
   /**
    Called by the controller when there is data to send.
@@ -66,12 +48,16 @@ class dc_stream_send: public dc_send{
                  size_t len = size_t(-1));
                  
   /** Another possible interface the controller can
-  call with when there is data to send. The data pointer's
-  ownership is transfered here and is this class's responsibility
-  to free the pointer when done. */
+  call with when there is data to send. The caller has
+  responsibility for freeing the pointer when this call returns*/
   void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len);
+
+  void shutdown();
+  inline size_t bytes_sent() {
+    return bytessent.value;
+  }
 
  private:
   mutex lock;
@@ -79,13 +65,10 @@ class dc_stream_send: public dc_send{
   /// pointer to the owner
   distributed_control* dc;
   dc_comm_base *comm;
-
+  atomic<size_t> bytessent, callssent;
 
 };
 
-
-class dc_datagram_send{
-};
 
 
 } // namespace dc_impl

@@ -75,7 +75,9 @@ namespace graphlab {
     args->m_runnable->run();
     //! Delete the arguments 
     delete args;
+    
     //! Properly kill the thread
+    thread_destroy_callback();
     pthread_exit(NULL);
   } // end of invoke
 
@@ -125,8 +127,21 @@ namespace graphlab {
     return 0;
 #endif
   } // end of cpu count
+    
+   /**
+     * Allow defining a callback when thread is destroyed.
+     * This is needed at least from Java JNI, where we have to detach
+     * thread from JVM before it dies.
+     */
+   void (*__thr_callback)()  = NULL;
 
-
+   void thread::thread_destroy_callback() {
+     if (__thr_callback != NULL) __thr_callback();
+   }
+   
+   void thread::set_thread_destroy_callback(void (*callback)()) {
+     __thr_callback = callback;
+   }
 
   
   

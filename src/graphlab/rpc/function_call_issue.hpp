@@ -84,6 +84,65 @@ At the end of the request, the dispatch will perform a fast call to the
 ---------
 
 \see portable_issue.hpp
+
+
+The code below generates the following for different number of arguments. Here, we 
+demonstrate the 1 argument version.
+
+namespace function_call_issue_detail
+{
+    template <typename BoolType, 
+            typename F , 
+            typename T0> struct dispatch_selector1
+    {
+        static dispatch_type dispatchfn()
+        {
+            return dc_impl::NONINTRUSIVE_DISPATCH1<distributed_control,F , T0 >;
+        }
+    };
+    template <typename F , typename T0> struct dispatch_selector1<boost::mpl::bool_<true>, F , T0>
+    {
+        static dispatch_type dispatchfn()
+        {
+            return dc_impl::DISPATCH1<distributed_control,F , T0 >;
+        }
+    };
+}
+
+
+template<typename F , typename T0> class remote_call_issue1
+{
+    public: static void exec(dc_send* sender, 
+                            size_t flags, 
+                            procid_t target, 
+                            F remote_function , 
+                            const T0 &i0 )
+    {
+        boost::iostreams::stream<resizing_array_sink> strm(128);
+        oarchive arc(strm);
+        dispatch_type d = function_call_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
+        arc << reinterpret_cast<size_t>(d);
+        arc << reinterpret_cast<size_t>(remote_function);
+        arc << i0;
+        strm.flush();
+        sender->send_data(target,flags , strm->str, strm->len);
+    }
+};
+
+The basic idea of the code is straightforward.
+The receiving end cannot call the target function (remote_function) directly, since it has 
+no means of understanding how to deserialize or to construct the stack for the remote_function.
+So instead, we generate a "dispatch" function on the receiving side. The dispatch function
+is constructed according to the type information of the remote_function, and therefore knows
+how to deserialize the data, and issue the function call. That is the "dispatch_type".
+
+However, since we defined two families of receiving functions:
+ a non-intrusive version which does not take (dc, procid) as an argument
+ and an intrusive version which does, the dispatch function must therefore be slightly different
+ for each of them. That is what the dispatch_selector class performs.
+ The first template argument of the dispatch_selector family of classes is a boolean flag which
+ denotes whether the function is a non-intrusive call or not. This boolean flag itself
+ is determined using the is_rpc_call<F>::type template.
 */
 
 
@@ -113,14 +172,14 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static void exec(dc_send* sender, size_t flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    boost::iostreams::stream<resizing_array_sink> strm(128);    \
+    boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
-    sender->send_data(target,flags , strm->str, strm->len);    \
+    sender->send_data(target,flags , strm->c_str(), strm->size());    \
   }\
 }; 
 

@@ -15,6 +15,7 @@
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/util/generics/any.hpp>
 #include <graphlab/scope/iscope_factory.hpp>
+#include <graphlab/shared_data/glshared.hpp>
 
 namespace graphlab {
 
@@ -22,6 +23,7 @@ namespace graphlab {
 
   /**
    * \brief The shared data interface
+   * \deprecated Use glshared
    *
    * Often in a graphlab program there is data (constant and mutable)
    * that cannot be directly expressed in the graph.  Typical forms of
@@ -86,6 +88,9 @@ namespace graphlab {
 
     virtual void trigger_sync(size_t index) = 0;
     virtual void trigger_sync_all() = 0;
+    
+    /// TODO: backward compatibility hack
+    virtual void trigger_sync(glshared_base &var) { }
   };
 
 

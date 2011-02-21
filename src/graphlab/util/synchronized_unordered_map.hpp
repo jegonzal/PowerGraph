@@ -5,6 +5,8 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 
 namespace graphlab {
+
+/// \ingroup util_internal
 template <typename Data>
 class synchronized_unordered_map {
  public:

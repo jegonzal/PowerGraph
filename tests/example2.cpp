@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <graphlab/rpc/dc.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 using namespace graphlab;
 
 
@@ -17,13 +18,14 @@ std::vector<int> add_one(std::vector<int> val) {
 
 int main(int argc, char ** argv) {
   /** Initialization */
+  global_logger().set_log_level(LOG_DEBUG);
   size_t machineid = atoi(argv[1]);
   std::vector<std::string> machines;
   machines.push_back("127.0.0.1:10000");
   machines.push_back("127.0.0.1:10001");
 
   distributed_control dc(machines,"", machineid);
-  
+  dc.services().barrier();
   if (dc.procid() == 0) {
     dc.remote_call(1, print, "hello world!");
     /** Create a vector with a few elements */  

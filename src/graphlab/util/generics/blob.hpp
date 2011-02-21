@@ -12,8 +12,9 @@
 
 namespace graphlab {
   /**
-   * blob is the general representation of all information placed on the
-   * graph. 'data' must be exactly 'length' bytes and must be entirely
+   * \deprecated
+   * blob is the general representation of a "block" of information.
+   *. 'data' must be exactly 'length' bytes and must be entirely
    * self contained.  It must not hold references to other memory
    * regions.  That is to say, I should be able read off exactly
    * 'length' bytes from 'data', and send it across a network/write it

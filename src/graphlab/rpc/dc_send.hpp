@@ -28,12 +28,32 @@ class dc_send{
                  std::istream &istrm,
                  size_t len = size_t(-1)) = 0;
   /** Another possible interface the controller can
-  call with when there is data to send. The data pointer's
-  ownership is transfered here and is this class's responsibility
-  to free the pointer when done. */
+  call with when there is data to send. The caller has
+  responsibility for freeing the pointer when this call returns*/
   virtual void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
+
+  /**
+    Bytes sent must be incremented BEFORE the data is transmitted.
+    Packets marked CONTROL_PACKET should not be counted
+  */
+  virtual size_t bytes_sent() = 0;
+  
+
+  /** returns true if the channel to the target
+  machine is truly open. The dc_comm_base specification allows
+  for lazy channels which are not created until it is used.
+  For such implementations, this function should return true
+  if the channel has been created, and false otherwise. Non-lazy
+  implementations should return true all the time.
+  The invariant to ensure is that this function must return true
+  for a target machine ID if a packet has been sent from this machine
+  to the target before this call.
+  */
+  virtual bool channel_active(procid_t target) const = 0;
+
+  virtual void shutdown() = 0;
 
 };
   

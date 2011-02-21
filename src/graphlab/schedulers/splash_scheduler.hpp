@@ -26,7 +26,6 @@
 #include <graphlab/schedulers/support/vertex_task_set.hpp>
 
 #include <graphlab/util/shared_termination.hpp>
-#include <graphlab/util/optimal_termination.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 
 
@@ -34,6 +33,8 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
+   /** \ingroup group_schedulers
+    */
   template<typename Graph>
   class splash_scheduler : 
     public ischeduler<Graph> {
@@ -46,7 +47,7 @@ namespace graphlab {
     typedef typename base::update_function_type update_function_type;
     typedef typename base::callback_type callback_type;
     typedef typename base::monitor_type monitor_type;
-
+    typedef shared_termination terminator_type;
   private:
     using base::monitor;
 
@@ -95,12 +96,12 @@ namespace graphlab {
     void start() {
       // Initialize the splashes
       for(size_t i = 0; i < ncpus; ++i)  rebuild_splash(i);
-      terminator.reset();
     }
     
     //! Adds an update task with a particular priority
     void add_task(update_task_type task, double priority) {
-      assert(task.function() == update_fun);
+      //assert(task.function() == update_fun);
+      if (update_fun == NULL) update_fun = task.function();
       assert(task.vertex() < graph.num_vertices());      
       vertex_id_t vertex = task.vertex();
       // Get the priority queue for the vertex
@@ -138,7 +139,7 @@ namespace graphlab {
 
     
     void add_task_to_all(update_function_type func, double priority) {
-      update_fun = func;      
+      if (update_fun == NULL) update_fun = func;
       for (vertex_id_t vertex = 0; vertex < graph.num_vertices(); 
            ++vertex){
         add_task(update_task_type(vertex, func), priority);
@@ -150,48 +151,6 @@ namespace graphlab {
       return callbacks[cpuid];
     }
 
-    
-
-    sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {
-      // While the scheduler is active
-      while(true) {
-        // Try and get next task for splash
-        sched_status::status_enum ret = next_task_from_splash(cpuid, ret_task);
-        // If we are not waiting then just return
-        if (ret != sched_status::WAITING) {
-          return ret;        
-        } else {
-          // Otherwise enter the shared terminator code
-          terminator.begin_sleep_critical_section(cpuid);
-          // Try once more to get the next task
-          ret = next_task_from_splash(cpuid, ret_task);
-          // If we are waiting then 
-          if (ret != sched_status::WAITING) {
-            // If we are either complete or succeeded then cancel the
-            // critical section and return
-            terminator.cancel_sleep_critical_section(cpuid);
-            return ret;
-          } else {
-            // Otherwise end sleep waiting for either completion
-            // (true) or some new work to become available.
-            if (terminator.end_sleep_critical_section(cpuid)) {
-              return sched_status::COMPLETE;
-            }
-          } 
-        }
-      } // End of while loop
-      // We reach this point only if we are no longer active
-      return sched_status::COMPLETE;
-    }
-
-
-    void scoped_modifications(size_t cpuid, vertex_id_t rootvertex,
-                              const std::vector<edge_id_t>& updatededges){ }
-                       
-    void update_state(size_t cpuid, 
-                      const std::vector<vertex_id_t>& updated_vertices,
-                      const std::vector<edge_id_t>& updatededges) { }
-
     void completed_task(size_t cpuid, const update_task_type &task) { }
 
 
@@ -199,29 +158,58 @@ namespace graphlab {
     void set_update_function(update_function_type fun) { update_fun = fun; }    
     void set_splash_size(size_t size) { splash_size = size; }
 
-    void set_option(scheduler_options::options_enum opt, void* value) { 
-      if (opt == scheduler_options::SPLASH_SIZE) {
-        set_splash_size((size_t)(value));
+    sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task){
+      assert(cpuid < splashes.size());
+      // Loop until we either can't build a splash or we find an element
+      while(true) {
+        if (aborted) return sched_status::EMPTY;
+        // If the splash is depleted then start a new splash
+        if((splash_index[cpuid] >= splashes[cpuid].size()) ) {
+          rebuild_splash(cpuid);
+        }
+        
+        // If we were unable to build a splash return waiting
+        if(splash_index[cpuid] >= splashes[cpuid].size()) return sched_status::EMPTY;
+        
+        // Otherwise loop until we obtian a vertex that is still
+        // schedulable (in the active set) or we run out of vertices
+        while(splash_index[cpuid] < splashes[cpuid].size()) {        
+          vertex_id_t vertex =  splashes[cpuid][ splash_index[cpuid]++ ];
+          // Clear the bit from the active set.  If the bit was        
+          // previously set then we have succeeded and return the
+          // new_task
+          queuelocks[vmap[vertex]].lock();
+          pqueues[vmap[vertex]].remove(vertex);
+          queuelocks[vmap[vertex]].unlock();
+          
+          if( active_set.clear_bit(vertex) ) {            
+            ret_task = update_task_type(vertex, update_fun);
+            if (monitor != NULL)
+              monitor->scheduler_task_scheduled(ret_task, 1.0);            
+            return sched_status::NEWTASK;
+          }
+        }
       }
-      else if (opt == scheduler_options::UPDATE_FUNCTION) {
-        set_update_function((update_function_type)(value));
-      }
-      else {
-        logger(LOG_WARNING, 
-              "Splash Scheduler was passed an invalid option %d", opt);
-      }
-    };
-
-    void abort() { aborted = true; }
-    void restart() { 
-      for (size_t i = 0;i < splashes.size(); ++i) {
-        splashes[i].clear();
-        splash_index[i] = 0;
-      }
-      aborted = false;
     }
 
+    terminator_type& get_terminator() {
+      return terminator;
+    };
 
+    void set_options(const scheduler_options &opts) {
+      opts.get_int_option("splash_size", splash_size);
+      any uf;
+      if (opts.get_any_option("update_function", uf)) {
+        update_fun = uf.as<update_function_type>();
+      }
+    }
+
+    static void print_options_help(std::ostream &out) {
+      out << "splash_size = [integer, default = 100]\n";
+      out << "update_function = [update_function_type,"
+                                 "default = set on add_task_to_all]\n";
+    };
+    
   private:
 
     bool get_top(size_t cpuid, 
@@ -349,39 +337,6 @@ namespace graphlab {
     }
 
     
-    sched_status::status_enum next_task_from_splash(size_t cpuid, update_task_type &ret_task){
-      assert(cpuid < splashes.size());
-      // Loop until we either can't build a splash or we find an element
-      while(true) {
-        if (aborted) return sched_status::WAITING;
-        // If the splash is depleted then start a new splash
-        if((splash_index[cpuid] >= splashes[cpuid].size()) ) {
-          rebuild_splash(cpuid);
-        }
-        
-        // If we were unable to build a splash return waiting
-        if(splash_index[cpuid] >= splashes[cpuid].size()) return sched_status::WAITING;
-        
-        // Otherwise loop until we obtian a vertex that is still
-        // schedulable (in the active set) or we run out of vertices
-        while(splash_index[cpuid] < splashes[cpuid].size()) {        
-          vertex_id_t vertex =  splashes[cpuid][ splash_index[cpuid]++ ];
-          // Clear the bit from the active set.  If the bit was        
-          // previously set then we have succeeded and return the
-          // new_task
-          queuelocks[vmap[vertex]].lock();
-          pqueues[vmap[vertex]].remove(vertex);
-          queuelocks[vmap[vertex]].unlock();
-          
-          if( active_set.clear_bit(vertex) ) {            
-            ret_task = update_task_type(vertex, update_fun);
-            if (monitor != NULL)
-              monitor->scheduler_task_scheduled(ret_task, 1.0);            
-            return sched_status::NEWTASK;
-          }
-        }
-      }
-    }
 
     
 
@@ -412,7 +367,7 @@ namespace graphlab {
     dense_bitset active_set;    
 
     //! Termination assessment object 
-    shared_termination terminator;
+    terminator_type terminator;
     // optimal_termination terminator;
 
 

@@ -1,19 +1,23 @@
 #!/bin/bash
 
+major_version=1
 
 mkdir dist/graphlabapi
 rsync --verbose --recursive --links --times --owner --perms --delete \
-    --exclude=debug --exclude=release --exclude=profile --exclude=.hg \
+    --exclude=debug --exclude=release --exclude=profile --exclude=apps --exclude=.hg \
     --exclude=dist \
     * dist/graphlabapi/.
 
+mkdir dist/graphlabapi/apps
+cp dist/graphlabapi/demoapps/CMakeLists.txt dist/graphlabapi/apps/
 version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
+version="v${major_version}_$version"
 echo "Version: $version"
 
 
 cd dist
 tar -vz \
-    -cf graphlabapi_v${version}.tar.gz \
+    -cf graphlabapi_${version}.tar.gz \
     graphlabapi
     
 

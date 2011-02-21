@@ -6,4 +6,7 @@ debug/*
 release/*
 profile/*
 dist/graphlabapi*
+doc/doxygen/*
 
+extapis/java_jni/dist
+extapis/java_jni/build

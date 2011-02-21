@@ -10,13 +10,18 @@
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/random.hpp>
+#include <graphlab/util/mutable_queue.hpp>
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/iengine.hpp>
+#include <graphlab/engine/fake_shared_data.hpp>
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
+#include <graphlab/shared_data/glshared.hpp>
+#include <graphlab/engine/scope_manager_and_scheduler_wrapper.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -26,29 +31,47 @@ namespace graphlab {
    */
   template<typename Graph, typename Scheduler, typename ScopeFactory>
   class asynchronous_engine : 
-    public iengine<Graph> {
+    public scope_manager_and_scheduler_wrapper<Graph, Scheduler, ScopeFactory> {
 
   public: // Type declerations
     enum execution_type {THREADED, SIMULATED};
-    typedef iengine<Graph> base;
-    typedef typename base::update_task_type update_task_type;
-    typedef typename base::update_function_type update_function_type;
-    typedef typename base::ischeduler_type ischeduler_type;
-    typedef typename base::imonitor_type imonitor_type;
-    typedef typename base::termination_function_type termination_function_type;
-    typedef typename base::iscope_type iscope_type;
-    typedef typename base::ishared_data_type ishared_data_type;
-    typedef typename base::ishared_data_manager_type ishared_data_manager_type;
+
+    typedef scope_manager_and_scheduler_wrapper<Graph, Scheduler, ScopeFactory> base;
+    using base::apply_scheduler_options;
+    using base::release_scheduler_and_scope_manager;
+    using base::get_scheduler;
+    using base::get_scope_manager;
+    
+
+    typedef iengine<Graph> iengine_base;
+    typedef typename iengine_base::update_task_type update_task_type;
+    typedef typename iengine_base::update_function_type update_function_type;
+    typedef typename iengine_base::ischeduler_type ischeduler_type;
+    typedef typename iengine_base::imonitor_type imonitor_type;
+    typedef typename iengine_base::termination_function_type termination_function_type;
+    typedef typename iengine_base::iscope_type iscope_type;
+    typedef typename iengine_base::ishared_data_type ishared_data_type;
+    typedef typename iengine_base::ishared_data_manager_type ishared_data_manager_type;
+    
+    typedef typename iengine_base::sync_function_type sync_function_type;
+    typedef typename iengine_base::merge_function_type merge_function_type;
 
 
     /** The internal worker thread class used for the threaded engine */
     class engine_thread : public runnable {      
       asynchronous_engine* engine;
+      ScopeFactory* scope_manager;
+      Scheduler* scheduler;
       size_t workerid;
     public:
       engine_thread() : engine(NULL), workerid(0) {  }
-      void init(asynchronous_engine* _engine, size_t _workerid) {
+      void init(asynchronous_engine* _engine, 
+                Scheduler* _scheduler, 
+                ScopeFactory* _scope_manager, 
+                size_t _workerid) {
         engine = _engine;
+        scheduler = _scheduler;
+        scope_manager = _scope_manager;
         workerid = _workerid;
       } // End of init      
       void run() {
@@ -56,7 +79,7 @@ namespace graphlab {
         logger(LOG_INFO, "Worker %d started.\n", workerid);        
         /* Start consuming tasks while the engine is active*/
         while(engine->active) {
-          bool executed_task = engine->run_once(workerid);         
+          bool executed_task = engine->run_once(workerid, scheduler, scope_manager);
           // If this was nothing to execute then fail
           if (!executed_task) break;
         }   
@@ -86,21 +109,38 @@ namespace graphlab {
     /** Use schedule yielding when waiting on the scheduler*/
     bool use_sched_yield;
     
-    /** Responsible for managing the update of scopes */
-    ScopeFactory scope_manager;
 
-    /** Responsible for maintaining the schedule over tasks */
-    Scheduler scheduler;
-
+    
     /** Track the number of updates */
     std::vector<size_t> update_counts;
+    
+    /** track an approximation to the number of updates. This 
+        is only updated every (APX_INTERVAL+1) updates per thread.
+        i.e. this can be off by at most (APX_INTERVAL+1)*Nthreads */
+    atomic<size_t> apx_update_counts;
+    
+    /// frequency where apx_update_counts is updated. Must be a power of 2 - 1`
+    static const size_t APX_INTERVAL = 127;
 
+    atomic<size_t> numsyncs;
+    
     /** The monitor which tracks and records engine events */
     imonitor_type* monitor;
 
     /** The share data manager */
     ishared_data_manager_type* shared_data;
 
+    /// for shared data table compatibility 
+    fake_shared_data<asynchronous_engine<Graph,Scheduler,ScopeFactory> > 
+    f_shared_data;
+    
+    bool use_fake_shared_data;    
+    
+    inline ishared_data<Graph>* get_shared_data() {
+      if (use_fake_shared_data) return &f_shared_data;
+      else return shared_data;
+    }
+    
     /** The time in millis that the engine was started */
     size_t start_time_millis;
 
@@ -117,11 +157,45 @@ namespace graphlab {
     std::vector<termination_function_type> term_functions;
 
     /** Boolean that determins whether the engine is active */
-    bool active;
+    bool active; 
 
     /** The cause of the last termination condition */
     exec_status termination_reason;
+
+    scope_range::scope_range_enum default_scope_range;
+
+
     
+      
+    struct sync_task {
+      sync_function_type sync_fun;
+      merge_function_type merge_fun;
+      glshared_base::apply_function_type apply_fun;
+      size_t sync_interval;
+      size_t next_time;
+      any zero;
+      mutex lock;
+      size_t rangelow;
+      size_t rangehigh;
+      glshared_base *sharedvariable;
+      sync_task() :
+        sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
+        sync_interval(-1),
+        next_time(0), rangelow(0), 
+        rangehigh(size_t(-1)), sharedvariable(NULL) { }
+    };
+    
+    /// A list of all registered sync tasks
+    std::vector<sync_task> sync_tasks;
+    
+    /// A map from the shared variable to the sync task
+    std::map<glshared_base*, size_t> var2synctask;
+    /// Sync Tasks ordered by the negative of the next update time. (it is a max-heap)
+    mutable_queue<size_t, int> sync_task_queue;
+    /// the lock protecting the sync_task_queue
+    mutex sync_task_queue_lock;
+    /// The priority of the head of the queue
+    size_t sync_task_queue_next_update;
   public:
 
     /**
@@ -133,48 +207,47 @@ namespace graphlab {
     asynchronous_engine(Graph& graph,
                         size_t ncpus = 1,
                         execution_type exec_type = THREADED) :
+      scope_manager_and_scheduler_wrapper<Graph,
+                                          Scheduler,
+                                          ScopeFactory>(graph,ncpus),
       graph(graph),
       ncpus( std::max(ncpus, size_t(1)) ),
       exec_type(exec_type),
       use_cpu_affinity(false),
       use_sched_yield(true),
-      scope_manager(graph, std::max(ncpus, size_t(1) ) ),
-      scheduler(this, graph, std::max(ncpus, size_t(1)) ),
       update_counts(std::max(ncpus, size_t(1)), 0),
       monitor(NULL),
       shared_data(NULL),
+      f_shared_data(this),
+      use_fake_shared_data(false),
       start_time_millis(lowres_time_millis()),
       timeout_millis(0),
       last_check_millis(0),
       task_budget(0),
-      active(false) { }
+      active(false),
+      termination_reason(EXEC_UNSET) { }
 
+    //    ~asynchronous_engine() { }
 
     //! Get the number of cpus
     size_t get_ncpus() const { return ncpus; }
 
-
-    //! Get the scheduler associated with this engine 
-    ischeduler_type& get_scheduler() { return scheduler; }
-
-    //! set sched yeild
-    void enable_sched_yield(bool value) {
+    //! set sched yield
+    void set_sched_yield(bool value) {
       use_sched_yield = value;
     }
 
-    void enable_cpu_affinities(bool value) {
+    void set_cpu_affinities(bool value) {
       use_cpu_affinity = value;
     }
 
-    
-    //! Set the shared data manager for this engine
+
+    //! Set the shared data manager for this engine. \todo DEPRECATED
     void set_shared_data_manager(ishared_data_manager_type* _shared_data) {
+      logger(LOG_WARNING, 
+             "The use of the shared_data table has been deprecated. "
+             "Please use glshared");
       shared_data = _shared_data;
-      // if the data manager is not null then the scope factory is
-      // passed back
-      if(shared_data != NULL) {
-        shared_data->set_scope_factory(&scope_manager);
-      }
     } // end of set shared data manager
 
 
@@ -182,14 +255,28 @@ namespace graphlab {
      * Set the default scope range.  The scope ranges are defined in
      * iscope.hpp
      */
-    void set_default_scope(scope_range::scope_range_enum default_scope_range) {
-      scope_manager.set_default_scope(default_scope_range);
+    void set_default_scope(scope_range::scope_range_enum default_scope_range_) {
+      default_scope_range = default_scope_range_;
     }
-
+  
+    using iengine<Graph>::exec_status_as_string;
 
     /** Execute the engine */
     void start() {
-      /**
+      // call the scope_manager_and_scheduler_wrapper for the scheduler
+      // and scope manager
+      Scheduler* scheduler = get_scheduler();
+      apply_scheduler_options();
+      scheduler->register_monitor(monitor);
+      ScopeFactory* scope_manager = get_scope_manager();
+
+      scope_manager->set_default_scope(default_scope_range);
+      
+      if (shared_data) shared_data->set_scope_factory(scope_manager);
+      // std::cout << "Scheduler Options:\n";
+      // std::cout << sched_options();
+      
+      /*
        * Prepare data structures for execution:
        * 1) finalize the graph.
        * 2) Reset engine fields
@@ -198,6 +285,8 @@ namespace graphlab {
       graph.finalize();      
       // Clear the update counts
       std::fill(update_counts.begin(), update_counts.end(), 0);
+      apx_update_counts.value = 0;
+      numsyncs.value = 0;
       // Reset timers
       start_time_millis = lowres_time_millis();
       last_check_millis = 0;
@@ -205,24 +294,44 @@ namespace graphlab {
       active = true;  
       // Reset the last exec status 
       termination_reason = EXEC_TASK_DEPLETION;
-      // Ensure that the data manager has the correct scope_factory
-      if(shared_data != NULL) shared_data->set_scope_factory(&scope_manager);
       // Start any scheduler threads (if necessary)
-      scheduler.start();
+      // initialize the local sync queue
+      construct_sync_queue();
+      ensure_all_sync_vars_are_unique();
+      // evaluate all syncs
+      evaluate_sync_queue(scope_manager, 0, 0, sync_tasks.size());
       
-      /**
+      scheduler->start();
+      
+      /*
        * Depending on the execution type call the correct internal
        * start
        */
-      if(exec_type == THREADED) run_threaded();
-      else run_simulated();
+      if(exec_type == THREADED) run_threaded(scheduler, scope_manager);
+      else run_simulated(scheduler, scope_manager);
+
       
-      /**
-       * Run any necessary cleanup
-       */
-      // Allow the scheduler to free any threads
-      scheduler.stop();
-    } // End of start
+      //shared_data->set_scope_factory(NULL);
+      release_scheduler_and_scope_manager();
+      
+
+      
+      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
+
+      // Metrics: update counts
+      for(size_t i = 0; i < update_counts.size(); ++i) {
+        engine_metrics.add("updatecount", 
+                           update_counts[i], INTEGER);
+      }
+      engine_metrics.set("runtime", 
+                         (lowres_time_millis()-start_time_millis)*0.001, TIME);
+      engine_metrics.set("termination_reason", 
+                         exec_status_as_string(termination_reason));
+
+      engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
+      engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
+      engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+    } 
 
 
     /**
@@ -244,10 +353,8 @@ namespace graphlab {
     
     /**
      * This function computes the last update count by adding all the
-     * update counts of the individual threads.  This will lead to a
-     * potential data race when called while the engine is executing.
-     * However, this data race will only produce an overly
-     * conservative estimate.
+     * update counts of the individual threads.  This is an underestimate
+     * if the engine is currently running.
      */
     size_t last_update_count() const {
       size_t sum = 0;
@@ -256,15 +363,19 @@ namespace graphlab {
       return sum;
     } // end of last_update_count
 
-
-
+    /** This function provides an approximation to the last update count.
+     * This is a faster version of last_update_count and may be off
+     by at most (APX_INTERVAL+1)*Nthreads */
+    inline size_t approximate_last_update_count() const {
+      return apx_update_counts.value;
+    }
+    
     /**
      * Register a monitor with this engine.  Currently this engine
      * only supports a single monitor. 
      */
     void register_monitor(imonitor<Graph>* _monitor = NULL) {
       monitor = _monitor;
-      scheduler.register_monitor(monitor);
       if(monitor != NULL) monitor->init(this);
     } // end of register monitor
 
@@ -301,27 +412,88 @@ namespace graphlab {
     }
     
 
+  
+    void set_sync(glshared_base& shared,
+                  sync_function_type sync,
+                  glshared_base::apply_function_type apply,
+                  const any& zero,
+                  size_t sync_interval = 0,
+                  merge_function_type merge = NULL,
+                  size_t rangelow = 0,
+                  size_t rangehigh = -1) {
+      use_fake_shared_data = true;
+      sync_task st;
+      st.sync_fun = sync;
+      st.merge_fun = merge;
+      st.apply_fun = apply;
+      st.sync_interval = sync_interval;
+      st.next_time = 0;
+      st.zero = zero;
+      st.rangelow = rangelow;
+      st.rangehigh = rangehigh;
+      st.sharedvariable = &shared;
+      sync_tasks.push_back(st);
+      var2synctask[&shared] = sync_tasks.size() - 1;
+    }
 
+    /**
+     * Performs a sync immediately. This function requires that the shared
+     * variable already be registered with the engine.
+     * and that the engine is not currently running
+     */
+    void sync_now(glshared_base& shared) {
+      ASSERT_FALSE(active);
+      // makes sure the sync registration exists
+      std::map<glshared_base*, size_t>::iterator iter = var2synctask.find(&shared);
+      ASSERT_TRUE(iter != var2synctask.end());
+      ScopeFactory* local_scope_manager = get_scope_manager();
+      
+      evaluate_sync(iter->second, local_scope_manager, 0);
+      release_scheduler_and_scope_manager();
+    }
+    
+    void sync_soon(glshared_base& shared) {
+      ASSERT_TRUE(active);
+      
+      std::map<glshared_base*, size_t>::iterator iter = var2synctask.find(&shared);
+      ASSERT_TRUE(iter != var2synctask.end());
+      
+      sync_task_queue_lock.lock();
+      sync_task_queue.insert_max(iter->second, 0);
+      sync_task_queue_next_update = 0;
+      sync_task_queue_lock.unlock();
+    }
+    
+    void sync_all_soon() {
+      ASSERT_TRUE(active);
+      sync_task_queue_lock.lock();
+
+      for (size_t i = 0;i < sync_tasks.size(); ++i) {
+        sync_task_queue.insert_max(i, 0);
+      }
+      if (sync_tasks.size() > 0) sync_task_queue_next_update = 0;
+      sync_task_queue_lock.unlock();
+    }
   protected: // internal functions
 
     /**
      * Execute the engine using actual threads
      */
-    void run_threaded() {
+    void run_threaded(Scheduler* scheduler, ScopeFactory* scope_manager) {
       /* Initialize a pool of threads */
       std::vector<engine_thread> workers(ncpus);
       thread_group threads;
       for(size_t i = 0; i < ncpus; ++i) {
         // Initialize the worker
-        workers[i].init(this, i);
+        workers[i].init(this, scheduler, scope_manager, i);
         // Start the worker thread using the thread group with cpu
         // affinity attached (CPU affinity currently only supported in
         // linux) since Mac affinity is set through the NX frameworks
         if(use_cpu_affinity)  {
-	  threads.launch(&(workers[i]), i);
-	} else {
-	  threads.launch(&(workers[i]));        
-	}
+          threads.launch(&(workers[i]), i);
+        } else {
+          threads.launch(&(workers[i]));
+        }
       }
       threads.join();
     } // end of run threaded
@@ -330,7 +502,7 @@ namespace graphlab {
     /**
      * Simulate the use of actual threads.
      */
-    void run_simulated() {
+    void run_simulated(Scheduler* scheduler, ScopeFactory* scope_manager) {
       use_sched_yield = false;
       // repeatedly invoke run once as a random thread
       while(active) {
@@ -340,7 +512,7 @@ namespace graphlab {
           cpuid = random::rand_int(ncpus - 1);
         }
         // Execute the update as that cpu
-        active = run_once(cpuid);
+        active = run_once(cpuid, scheduler, scope_manager);
       }
       // Do any remaining syncs if any
       if(shared_data != NULL) shared_data->signal_all();
@@ -373,7 +545,7 @@ namespace graphlab {
        * If the task budget is greater than zero and the last update
        * count exceeds the task budget then terminate
        */
-      if(task_budget > 0 && task_budget > last_update_count()) {
+      if(task_budget > 0 && last_update_count() > task_budget) {
         termination_reason = EXEC_TASK_BUDGET_EXCEEDED;
         // Deactivate the engine
         return true;
@@ -385,7 +557,7 @@ namespace graphlab {
        * If a shared data manager is not provided then this will fail.
        */
       for (size_t i = 0; i < term_functions.size(); ++i) {
-        if (term_functions[i](shared_data)) {
+        if (term_functions[i](get_shared_data())) {
           termination_reason = EXEC_TERM_FUNCTION;
           return true;
         }
@@ -397,9 +569,15 @@ namespace graphlab {
 
 
 
-    bool run_once(size_t cpuid) {
+    bool run_once(size_t cpuid, 
+                  Scheduler* scheduler, 
+                  ScopeFactory* scope_manager) {
       // Loop until we get a task for recieve a termination signal
-      while(active) {       
+      while(active) {
+        evaluate_sync_queue(scope_manager, 
+                            cpuid, 
+                            approximate_last_update_count(), 
+                            1);
         /**
          * Run any pending syncs and then test all termination
          * conditions.
@@ -420,36 +598,56 @@ namespace graphlab {
          * Get and execute the next task from the scheduler.
          */
         update_task_type task;
-        sched_status::status_enum stat = scheduler.get_next_task(cpuid, task);
-        switch(stat) {
-        case sched_status::WAITING :
-	  if(use_sched_yield) sched_yield();
-          break;
-        case sched_status::COMPLETE :          
-          return false;
-          break;
-        case sched_status::NEWTASK :
+        sched_status::status_enum stat = scheduler->get_next_task(cpuid, task);
+        
+        if (stat == sched_status::EMPTY) {
+          // check the schedule terminator
+          scheduler->get_terminator().begin_critical_section(cpuid);
+          stat = scheduler->get_next_task(cpuid, task);
+          if (stat == sched_status::NEWTASK) {
+            scheduler->get_terminator().cancel_critical_section(cpuid);
+          }
+          else {
+            if (scheduler->get_terminator().end_critical_section(cpuid)) {
+              termination_reason = EXEC_TASK_DEPLETION;
+              active = false;
+              return false;
+            }
+            else {
+              if(use_sched_yield) sched_yield();
+              if (exec_type != SIMULATED) continue;
+              else return true;
+            }
+          }
+        }
+        
+        if (stat == sched_status::NEWTASK) {
           // If the status is new task than we must execute the task
           const vertex_id_t vertex = task.vertex();
           assert(vertex < graph.num_vertices());
           assert(task.function() != NULL);
           // Lock the vertex to ensure that no other processor tries
           // to take it build a scope
-          iscope_type* scope = scope_manager.get_scope(cpuid, vertex);          
+          iscope_type* scope = scope_manager->get_scope(cpuid, vertex);
           assert(scope != NULL);                    
           // get the callback for this cpu
           typename Scheduler::callback_type& scallback =
-            scheduler.get_callback(cpuid);        
+            scheduler->get_callback(cpuid);
           // execute the task
-          task.function()(*scope, scallback, shared_data);
+          
+          task.function()(*scope, scallback, get_shared_data());
           // Commit any changes to the scope
           scope->commit();
           // Release the scope
-          scope_manager.release_scope(scope);
+          scope_manager->release_scope(scope);
           // Mark the task as completed in the scheduler
-          scheduler.completed_task(cpuid, task);
+          scheduler->completed_task(cpuid, task);
           // record the successful execution of the task
+          if ((update_counts[cpuid] & APX_INTERVAL) == APX_INTERVAL) {
+            apx_update_counts.inc(APX_INTERVAL + 1);
+          }
           update_counts[cpuid]++;
+          
           return true;
           break;
         } // end of switch
@@ -458,9 +656,102 @@ namespace graphlab {
       return false;
     } // End of run once
     
-   
-  }; // end of asynchronous engine
 
+    void construct_sync_queue() {
+      sync_task_queue.clear();
+      size_t min_sync_interval = size_t(-1);
+      for (size_t i = 0;i < sync_tasks.size(); ++i) {
+        sync_task_queue.push(i, 0);
+        if (sync_tasks[i].sync_interval > 0) {
+          min_sync_interval = std::min(min_sync_interval, sync_tasks[i].sync_interval);
+        }
+      }
+      if (min_sync_interval < ncpus * APX_INTERVAL) {
+        logger(LOG_WARNING, 
+               "Sync interval is too short."
+               "Engine may not be able to achieve desired Sync frequency");
+      }
+      if (sync_task_queue.size() > 0) sync_task_queue_next_update = 0;
+      else sync_task_queue_next_update = size_t(-1);
+    }
+
+
+  
+    void evaluate_sync(size_t syncid, 
+                       ScopeFactory* scope_manager,
+                       size_t cpuid) {
+      numsyncs.inc();
+      sync_task &sync = sync_tasks[syncid];
+      // # get the range of vertices
+      size_t vmin = sync.rangelow;
+      size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+      
+      //accumulate through all the vertices
+      any accumulator = sync.zero;
+      for (size_t i = vmin; i <= vmax; ++i) {
+        iscope_type* scope = scope_manager->get_scope(cpuid, i);
+        sync.sync_fun(*scope, accumulator);
+        scope->commit();
+        scope_manager->release_scope(scope);
+      }
+      sync.sharedvariable->apply(sync.apply_fun, accumulator);
+    }
+    
+    void ensure_all_sync_vars_are_unique() {
+      for (size_t i = 0;i < sync_tasks.size(); ++i) {
+        ASSERT_MSG(sync_tasks[i].sharedvariable->is_unique(), 
+                   "All shared pointers to synced variables should be released "
+                   "before calling engine start!");
+      }
+    }
+    // evaluate the sync queue. Loop through at most max_sync times.
+    void evaluate_sync_queue(ScopeFactory* scope_manager,
+                             size_t cpuid,
+                             size_t curupdatecount,
+                             size_t max_syncs) {
+      // if the head of the queue is still not ready yet...
+      if (sync_task_queue_next_update > curupdatecount) return;
+      size_t tries = 0;
+      while (tries < max_syncs) {
+        if (sync_task_queue_lock.try_lock() == false) break;
+        ++tries;
+        // check the head again
+        // if head is not ready. unlock and quit
+        if (sync_task_queue.empty())
+          return;
+        if (
+            size_t(-sync_task_queue.top().second) > curupdatecount) {
+          sync_task_queue_next_update = size_t(-sync_task_queue.top().second);
+          sync_task_queue_lock.unlock();
+          return;
+        }
+        // otherwise pop the head
+        std::pair<size_t, size_t> head = sync_task_queue.pop();
+        // update the head tracker
+        if (!sync_task_queue.empty()) {
+          sync_task_queue_next_update = -(sync_task_queue.top().second);
+        }
+        else {
+          sync_task_queue_next_update = size_t(-1);
+        }
+        sync_task_queue_lock.unlock();
+        // evaluate the head
+        evaluate_sync(head.first, scope_manager, cpuid);
+        // put it back if the interval is postive
+        if (sync_tasks[head.first].sync_interval > 0) {
+          sync_task_queue_lock.lock();
+          int next_time(approximate_last_update_count() + 
+                        sync_tasks[head.first].sync_interval);
+          sync_task_queue.insert_max(head.first, -next_time);
+          // update the head tracker
+          sync_task_queue_next_update = -(sync_task_queue.top().second);
+          sync_task_queue_lock.unlock();
+        }
+      }
+    }
+    
+  }; // end of asynchronous engine
+  
 
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

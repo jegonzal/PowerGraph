@@ -114,18 +114,18 @@ namespace graphlab {
     distributed_engine(distributed_control &dc,
                        Graph& g, 
                        size_t local_num_cpus = thread::cpu_count()) :
-            iscope_factory<Graph>(g, local_num_cpus),
-            dc(dc),
-            scheduler(this, dc, g, local_num_cpus),
-            ncpus(local_num_cpus),
-            maximum_backlog(100),
-            task_counts(local_num_cpus,0),
-            worker_works(local_num_cpus,0),
-            max_back_log(0),
-            backlog(0),
-            pending_tasks(131071),
-            graph(g), dlm(dc, g), lock_manager(dc, dlm, g), data_manager(NULL),
-            scoperange(scope_range::USE_DEFAULT){
+      iscope_factory<Graph>(g, local_num_cpus),
+      dc(dc),
+      scheduler(this, dc, g, local_num_cpus),
+      ncpus(local_num_cpus),
+      maximum_backlog(100),
+      task_counts(local_num_cpus,0),
+      worker_works(local_num_cpus,0),
+      max_back_log(0),
+      backlog(0),
+      pending_tasks(131071),
+      graph(g), dlm(dc, g), lock_manager(dc, dlm, g), data_manager(NULL),
+      scoperange(scope_range::USE_DEFAULT){
 
       aborted = false;
       scheduler.register_monitor(NULL);
@@ -142,7 +142,7 @@ namespace graphlab {
       
       /*for (size_t i = 0 ;i < g.my_vertices().size(); ++i) {
         pending_tasks.insert(i, locked_pending_queue_type());
-      }*/
+        }*/
       // create the lockblock
     }
     
@@ -299,7 +299,7 @@ namespace graphlab {
           // Update task counts and "work". Work is indegree+outdegree          
           task_counts[cpuid] = task_counts[cpuid]++;
           worker_works[cpuid] += scope->in_edge_ids().size() +
-                                scope->out_edge_ids().size();
+            scope->out_edge_ids().size();
           
 
           // execute the task
@@ -351,7 +351,7 @@ namespace graphlab {
           pending_tasks.write_critical_section(vertex);
           std::pair<bool, locked_pending_queue_type*> pt = pending_tasks.find(vertex);
           if (pt.first == false) {
-//            logger(LOG_WARNING, "Adding remote task. Performance could be adversely affected");
+            //            logger(LOG_WARNING, "Adding remote task. Performance could be adversely affected");
             // create the task queue
             pt = pending_tasks.insert_with_failure_detect(vertex, locked_pending_queue_type());
           }
@@ -360,7 +360,7 @@ namespace graphlab {
           pending_tasks.release_critical_section(vertex);
           // issue a deferred lock for this task
           lock_manager.block_add_deferred_lock(lock_block_id,
-                                              dist_scope_request(vertex, scoperange));
+                                               dist_scope_request(vertex, scoperange));
           backlog.inc();
         
         }
@@ -371,19 +371,27 @@ namespace graphlab {
       }
       //std::cout << ".";
       //std::cout.flush();
-   /*   else {
-        logger(LOG_INFO, "backlogged");
-      }*/
+      /*   else {
+           logger(LOG_INFO, "backlogged");
+           }*/
    
    
 
-     if (didstuff == false) {
+      if (didstuff == false) {
         //logger(LOG_INFO, "yield");
         sched_yield();
       }
       return true;
     } // end of run_next_task
 
+   
+    void set_sched_yield(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_sched_yield()");    
+    }
+
+    void set_cpu_affinities(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_cpu_affinities()");    
+    }
    
     /** get a reference to the scheduler */
     ischeduler_type& get_scheduler() { return scheduler; }
@@ -397,9 +405,9 @@ namespace graphlab {
       }
     }
 
-//     ishared_data_type* get_shared_data() {
-//       return data_manager;
-//     }
+    //     ishared_data_type* get_shared_data() {
+    //       return data_manager;
+    //     }
 
     void add_terminator(termination_function_type term) {
       term_functions.push_back(term);
@@ -422,7 +430,7 @@ namespace graphlab {
       
       aborted = false;
       /* Timing */
-       _timer.start();
+      _timer.start();
       lasttimercheck = lowres_time_seconds();
       /* Enable scheduler to clean up in restarts */
       dc.barrier();
@@ -466,17 +474,17 @@ namespace graphlab {
 	  
       /// ===== START STATS OUTPUT ===== ///
 
-       /* Output running time into a file (used by benchmark app) */
-       char statsfilename[255];
-       sprintf(statsfilename, ".runstats_%d_%d.R", dc.procid(), dc.numprocs());
-       FILE * F = fopen(statsfilename, "w");
-       fprintf(F, "engine=\"pull\"\nexecution_time=%lf\nncpus=%d\ntaskcount=%ld\nwork=%ld\nresidual=0\nmemory_writes_mb=0\nmemory_reads_mb=0\n", running_time, (int) ncpus,total_counts, total_work);
-       fclose(F);
-       /// ===== END STATS OUTPUT ===== ///
-       distributed_metrics::instance(&dc)->set_value("execution_time", running_time); 
-       distributed_metrics::instance(&dc)->set_value("taskcount", total_counts);
-       distributed_metrics::instance(&dc)->set_value("ncpus", ncpus);
-       dc.report_stats();
+      /* Output running time into a file (used by benchmark app) */
+      char statsfilename[255];
+      sprintf(statsfilename, ".runstats_%d_%d.R", dc.procid(), dc.numprocs());
+      FILE * F = fopen(statsfilename, "w");
+      fprintf(F, "engine=\"pull\"\nexecution_time=%lf\nncpus=%d\ntaskcount=%ld\nwork=%ld\nresidual=0\nmemory_writes_mb=0\nmemory_reads_mb=0\n", running_time, (int) ncpus,total_counts, total_work);
+      fclose(F);
+      /// ===== END STATS OUTPUT ===== ///
+      distributed_metrics::instance(&dc)->set_value("execution_time", running_time); 
+      distributed_metrics::instance(&dc)->set_value("taskcount", total_counts);
+      distributed_metrics::instance(&dc)->set_value("ncpus", ncpus);
+      dc.report_stats();
 
       if (!aborted) {
         termination_cause =  EXEC_TIMEOUT;
@@ -510,7 +518,7 @@ namespace graphlab {
     
 
     /** It is not safe to call get_distributed_scope on a vertex without a lock on the 
-    vertex */
+        vertex */
     scope_type* get_distributed_scope(size_t cpuid,
                                       vertex_id_t vertex) {
       ASSERT_LE(cpuid, scopes.size());
@@ -530,11 +538,42 @@ namespace graphlab {
     }
     
     iscope<Graph>* get_scope(size_t cpuid,
-                            vertex_id_t vertex,
-                            scope_range::scope_range_enum s = scope_range::USE_DEFAULT) {
+                             vertex_id_t vertex,
+                             scope_range::scope_range_enum s = scope_range::USE_DEFAULT) {
       return get_distributed_scope(cpuid, vertex);
     }
 
+
+
+    /////////////////Stuff not implemented ////////////////////////
+    /**
+     * Adds an update task with a particular priority.
+     * This function is forwarded to the scheduler.
+     */
+    void add_task(update_task_type task, double priority) {}
+
+    /**
+     * Creates a collection of tasks on all the vertices in
+     * 'vertices', and all with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    void add_tasks(const std::vector<vertex_id_t>& vertices,
+                   update_function_type func, double priority) {}
+
+    /**
+     * Creates a collection of tasks on all the vertices in the graph,
+     * with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    void add_task_to_all(update_function_type func,
+                         double priority) {};
+
+    scheduler_options unused;
+    void set_scheduler_options(const scheduler_options& opts) { 
+      unused = opts;
+    }
+
+  
   }; // end of distributed_engine
 
   

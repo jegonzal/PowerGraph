@@ -358,6 +358,56 @@ namespace graphlab {
   }
 
 
+  inline std::string trim(const std::string& str) {
+    std::string::size_type pos1 = str.find_first_not_of(" \t");
+    std::string::size_type pos2 = str.find_last_not_of(" \t");
+    return str.substr(pos1 == std::string::npos ? 0 : pos1,
+                      pos2 == std::string::npos ? str.size()-1 : pos2-pos1+1);
+  }
+
+  template<typename T>
+  std::string tostr(const T& t) {
+    std::stringstream strm;
+    strm << t;
+    return strm.str();
+  }
+
+  template<typename T>
+  T fromstr(const std::string& str) {
+    std::stringstream strm(str);
+    T elem; 
+    strm >> elem;
+    assert(!strm.fail());
+    return elem;
+  }
+
+  inline std::vector<std::string> strsplit(const std::string& str, 
+                                           const std::string& splitchars,
+                                           const bool auto_trim = false) {
+    std::vector<std::string> tokens;
+    for(size_t beg = 0, end = 0; end != std::string::npos; beg = end+1) {
+      end = str.find_first_of(splitchars, beg);
+      if(auto_trim) {
+        if(end - beg > 0) {
+          std::string tmp = trim(str.substr(beg, end - beg));
+          if(!tmp.empty()) tokens.push_back(tmp);
+        }
+      } else tokens.push_back(str.substr(beg, end - beg));
+    }
+    return tokens;
+    // size_t pos = 0;
+    // while(1) {
+    //   size_t nextpos = s.find_first_of(splitchars, pos);
+    //   if (nextpos != std::string::npos) {
+    //     ret.push_back(s.substr(pos, nextpos - pos));
+    //     pos = nextpos + 1;
+    //   } else {
+    //     ret.push_back(s.substr(pos));
+    //     break;
+    //   }
+    // }
+    // return ret;
+  }
 }; // end of namespace graphlab
 
 #include <graphlab/macros_undef.hpp>

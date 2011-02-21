@@ -8,7 +8,7 @@ namespace graphlab {
 
 class distributed_control;
 
-
+namespace dc_impl {
 /**
 A wrapper around a char array. This structure 
 is incapable of freeing itself and must be managed externally
@@ -22,13 +22,16 @@ struct blob {
   
   void save(oarchive& oarc) const {
     oarc << len;
-    serialize(oarc, c, len);
+    if (len > 0) serialize(oarc, c, len);
   }
  void load(iarchive& iarc) {
     if (c) ::free(c);
+    c = NULL;
     iarc >> len;
-    c = (char*) malloc(len);
-    deserialize(iarc, c, len);
+    if (len > 0) {
+      c = (char*) malloc(len);
+      deserialize(iarc, c, len);
+    }
   }
   
   void free() {
@@ -48,23 +51,33 @@ for a reply to a request
 struct reply_ret_type{
   atomic<size_t> flag;
   blob val;
-  bool usesem;
-  semaphore sem;
-  reply_ret_type(bool usesem):usesem(usesem) { }
+  bool usemutex;
+  mutex mut;
+  conditional cond;
+  reply_ret_type(bool usemutex, size_t retcount = 1):flag(retcount), 
+                                                     usemutex(usemutex) { 
+  }
+  
+  ~reply_ret_type() {
+  }
+
   inline void wait() {
-    if (usesem) {
-      sem.wait();
+    if (usemutex) {
+      mut.lock();
+      while(flag.value != 0) cond.wait(mut);
+      mut.unlock();
     }
     else {
-      while(flag.value == 0) sched_yield();
+      while(flag.value != 0) sched_yield();
     }
   }
 };
 
+}
 
 
 void reply_increment_counter(distributed_control &dc, procid_t src, 
-                             size_t ptr, blob ret);
+                             size_t ptr, dc_impl::blob ret);
 
 }
 

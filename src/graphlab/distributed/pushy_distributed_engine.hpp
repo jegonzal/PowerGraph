@@ -159,6 +159,14 @@ namespace graphlab {
       listener->init(this);
     }
     
+    void set_sched_yield(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_sched_yield()");    
+    }
+
+    void set_cpu_affinities(bool value) {
+      logger(LOG_INFO, "distributed engine does not support set_cpu_affinities()");    
+    }
+    
 
     /**
      * Timeout. Default - no timeout. 
@@ -459,6 +467,35 @@ namespace graphlab {
       ret.push_back("update_count");
       return ret;
     }
+
+    /////////////////Stuff not implemented ////////////////////////
+    void add_task(update_task_type task, double priority) {}
+
+    /**
+     * Creates a collection of tasks on all the vertices in
+     * 'vertices', and all with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    void add_tasks(const std::vector<vertex_id_t>& vertices,
+                   update_function_type func, double priority) {}
+
+    /**
+     * Creates a collection of tasks on all the vertices in the graph,
+     * with the same update function and priority
+     * This function is forwarded to the scheduler.
+     */
+    void add_task_to_all(update_function_type func,
+                         double priority) {}
+    scheduler_options unused;
+    void set_scheduler_options(const scheduler_options& opts) { 
+      unused = opts;
+    }
+
+
+
+
+
+
   }; // end of pushy_distributed_engine
 
   

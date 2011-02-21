@@ -36,7 +36,7 @@ class dc_tcp_comm:public dc_comm_base {
    attached receiver
    
    machines: a vector of strings where each string is of the form [IP]:[portnumber]
-   initstring: unused
+   initopts: unused
    curmachineid: The ID of the current machine. machines[curmachineid] will be 
                  the listening address of this machine
    
@@ -44,10 +44,9 @@ class dc_tcp_comm:public dc_comm_base {
    tag: An additional pointer passed to the receiving function.
   */
   void init(const std::vector<std::string> &machines,
-            const std::string &initstring,
+            const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
-            comm_recv_callback_type recvcallback,
-            void* tag);
+            std::vector<dc_receive*> receiver);
 
   /** shuts down all sockets and cleans up */
   void close();
@@ -56,6 +55,10 @@ class dc_tcp_comm:public dc_comm_base {
     close();
   }
   
+  inline bool channel_active(size_t target) const {
+    return (outsocks[target] != -1);
+  }
+
   /**
     Returns the number of machines in the network.
     Only valid after call to init();
@@ -135,8 +138,8 @@ class dc_tcp_comm:public dc_comm_base {
   accept_handler* listenhandler;
   thread* listenthread;
   
-  comm_recv_callback_type recvcallback;
-  void* tag;
+  std::vector<dc_receive*> receiver;
+  
   /// socks[i] is the socket to machine i.
   /// There is no socket to the local process ( socks[procid()] is invalid )
   /// If socks[i] == int(-1) then the sock is invalid

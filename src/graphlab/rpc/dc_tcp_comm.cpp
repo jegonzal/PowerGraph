@@ -24,14 +24,13 @@ namespace graphlab {
 namespace dc_impl {
   
 void dc_tcp_comm::init(const std::vector<std::string> &machines,
-                       const std::string &initstring,
+                       const std::map<std::string,std::string> &initopts,
                        procid_t curmachineid,
-                       comm_recv_callback_type _recvcallback,
-                       void* _tag){
+                       std::vector<dc_receive*> receiver_){ 
+
   curid = curmachineid;
   nprocs = machines.size(),
-  recvcallback = _recvcallback; 
-  tag = _tag;
+  receiver = receiver_;
   listenthread = NULL;
   // insert machines into the address map
   all_addrs.resize(nprocs);
@@ -155,7 +154,7 @@ void dc_tcp_comm::send2(size_t target,
     // restructure the msghdr depending on how much was sent
     struct iovec* newiovecptr = data.msg_iov;
     size_t newiovlen = data.msg_iovlen;
-    for (int i = 0;i < data.msg_iovlen; ++i) {
+    for (size_t i = 0;i < (size_t)(data.msg_iovlen); ++i) {
       // amount sent was less than this entry.
       // shift the entry and retry
       if (ret < data.msg_iov[i].iov_len) {
@@ -250,7 +249,7 @@ void dc_tcp_comm::open_listening() {
     ASSERT_TRUE(0);
   }
   logstream(LOG_INFO) << "Proc " << procid() << " listening on " << portnums[curid] << "\n";
-  ASSERT_EQ(0, listen(listensock, 5));
+  ASSERT_EQ(0, listen(listensock, 128));
   // spawn a thread which loops around accept
   listenhandler = new accept_handler(*this, listensock);
   listenthread = new thread(listenhandler);
@@ -284,6 +283,14 @@ void dc_tcp_comm::connect(size_t target) {
         logstream(LOG_WARNING) << "connect " << curid << " to " << target << ": "
                               << strerror(errno) << "\n";
         sleep(1);
+        // posix says that 
+        /* If connect() fails, the state of the socket is unspecified. 
+           Conforming applications should close the file descriptor and 
+           create a new socket before attempting to reconnect. */
+        ::close(newsock);
+        newsock = socket(AF_INET, SOCK_STREAM, 0);
+        set_socket_options(newsock);
+
       }
       else {
         // send my machine id
@@ -306,21 +313,43 @@ void dc_tcp_comm::connect(size_t target) {
 
 
 void dc_tcp_comm::socket_handler::run() {
-  while(1) {
-    char c[10240];
-    
-    int msglen = recv(fd, c, 10240, 0);
-    // if msglen == 0, the scoket is closed
-    if (msglen == 0) {
-      owner.socks[sourceid] = -1;
-      // self deleting
-      delete this;
-      break;
+  // get a direct pointer to my receiver
+  dc_receive* receiver = owner.receiver[sourceid];
+  
+  if (receiver->direct_access_support()) {
+    // we have direct buffer access!
+    size_t buflength;
+    char *c = receiver->get_buffer(buflength);
+    while(1) {      
+      int msglen = recv(fd, c, buflength, 0);
+      // if msglen == 0, the scoket is closed
+      if (msglen <= 0) {
+        owner.socks[sourceid] = -1;
+        // self deleting
+        delete this;
+        break;
+      }
+      c = receiver->advance_buffer(c, msglen, buflength);
     }
-    #ifdef COMM_DEBUG
-    logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
-    #endif
-    owner.recvcallback(owner.tag, sourceid, c, msglen);
+  }
+  else {
+    // fall back to using my own buffer
+    while(1) {
+      char c[10240];
+      
+      int msglen = recv(fd, c, 10240, 0);
+      // if msglen == 0, the scoket is closed
+      if (msglen <= 0) {
+        owner.socks[sourceid] = -1;
+        // self deleting
+        delete this;
+        break;
+      }
+      #ifdef COMM_DEBUG
+      logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
+      #endif
+      receiver->incoming_data(sourceid, c, msglen);
+    }
   }
 }
 

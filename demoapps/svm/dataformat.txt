@@ -1,0 +1,5 @@
+Data format is 
+[Data ID] [Feature Id] [Value]
+
+Data ID begins at 0 and must be sequential
+Feature ID 0 is the class which must be either -1 or 1

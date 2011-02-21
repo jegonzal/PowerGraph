@@ -26,5 +26,9 @@ int main(int argc, char ** argv) {
     dc.remote_call(1, print, 10.5);
     dc.remote_call(1, print, std::string("hello world"));    
   }
-  getchar();
+    
+  int i = dc.procid() == 0 ? 10 : 100;
+  dc.services().broadcast(i, dc.procid() == 0);
+  std::cout << i << std::endl;
+  assert(i == 10);
 }

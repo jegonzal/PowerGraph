@@ -10,9 +10,14 @@ void dc_stream_send::send_data(procid_t target,
                 unsigned char packet_type_mask,
                 std::istream &istrm,
                 size_t len) {
+
   if (len != size_t(-1)) {
+    if ((packet_type_mask & CONTROL_PACKET) == 0) {
+      bytessent.inc(len);
+    }
     // build the packet header
     packet_hdr hdr;
+    memset(&hdr, 0, sizeof(packet_hdr));
     hdr.len = len;
     hdr.src = dc->procid(); 
     hdr.packet_type_mask = packet_type_mask;
@@ -24,6 +29,7 @@ void dc_stream_send::send_data(procid_t target,
     size_t l = 0;
     while(istrm.good()) {
       l = istrm.readsome(cbuffer, 10240);
+      if (l == 0) break;  // end of buffer if readsome returns 0
       comm->send(target, cbuffer, l);
     }
     comm->flush(target);
@@ -47,14 +53,21 @@ void dc_stream_send::send_data(procid_t target,
       }
     }
     send_data(target, packet_type_mask, data, len);
+    free(data);
   }
 }
 
 void dc_stream_send::send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len) {
-  
+  if ((packet_type_mask & CONTROL_PACKET) == 0) {
+    if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) {
+      dc->inc_calls_sent(target);
+    }
+    bytessent.inc(len);
+  }
   packet_hdr hdr;
+  memset(&hdr, 0, sizeof(packet_hdr));
   hdr.len = len;
   hdr.src = dc->procid(); 
   hdr.packet_type_mask = packet_type_mask;
@@ -69,9 +82,9 @@ void dc_stream_send::send_data(procid_t target,
                      data,len);
   comm->flush(target);
   lock.unlock();
-  free(data);
 }
 
+void dc_stream_send::shutdown() { }
 
 } // namespace dc_impl
 } // namespace graphlab

@@ -33,16 +33,16 @@ class distributed_vector {
 
 int main(int argc, char ** argv) {
   /** Initialization */
+  global_logger().set_log_level(LOG_INFO);
   size_t machineid = atoi(argv[1]);
   std::vector<std::string> machines;
   machines.push_back("127.0.0.1:10000");
   machines.push_back("127.0.0.1:10001");
 
-  distributed_control dc(machines,"", machineid);
-  dc_services services(dc);
+  distributed_control dc(machines,"", machineid, 8, TCP_COMM);
   
   distributed_vector<std::string> vec(dc);
-  services.barrier();
+  dc.services().barrier();
   if (dc.procid() == 0) {
     vec.set(10, "set from 0");
     vec.set(11, "set from 0");
@@ -51,11 +51,11 @@ int main(int argc, char ** argv) {
     vec.set(1, "set from 1");
     vec.set(2, "set from 1");
   }
-  services.barrier();
+  dc.services().barrier();
   
   std::cout << vec.get(1) << "\n";  
   std::cout << vec.get(2) << "\n";  
   std::cout << vec.get(10) << "\n";
   std::cout << vec.get(11) << std::endl;
-  services.barrier();
+  dc.services().barrier();
 }

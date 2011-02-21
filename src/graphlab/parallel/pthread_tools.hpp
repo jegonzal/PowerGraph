@@ -12,13 +12,17 @@
 #include <cassert>
 #include <list>
 #include <iostream>
-
 #include <boost/random.hpp>
 #include <boost/function.hpp>
+#include <graphlab/parallel/atomic.hpp>
 #include <graphlab/macros_def.hpp>
 
  #undef _POSIX_SPIN_LOCKS
 #define _POSIX_SPIN_LOCKS -1
+
+
+#define __likely__(x)       __builtin_expect((x),1)
+#define __unlikely__(x)     __builtin_expect((x),0)
 
 
 
@@ -131,6 +135,11 @@ namespace graphlab {
      */
     static void join(thread& other);
     
+    // Called just before thread exits. Can be used
+    // to do special cleanup... (need for Java JNI)
+    static void thread_destroy_callback();
+    static void set_thread_destroy_callback(void (*callback)());
+
       
     /**
      * Return the number processing units (individual cores) on this
@@ -156,7 +165,7 @@ namespace graphlab {
     }; // end of struct
 
 
- 
+    
     
   public:
     
@@ -270,6 +279,9 @@ namespace graphlab {
         std::cout << "pthread_create() returned error " << error << std::endl;
         exit(EXIT_FAILURE);
       }
+      
+      
+      
       // destroy the attribute object
       error = pthread_attr_destroy(&attr);
       assert(!error);
@@ -449,6 +461,7 @@ namespace graphlab {
     }
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
+      if (error) std::cout << "mutex.lock() error: " << error << std::endl;
       assert(!error);
     }
     inline void unlock() const {
@@ -511,6 +524,32 @@ namespace graphlab {
 #define SPINLOCK_SUPPORTED 0
 #endif
 
+  
+  
+  class simple_spinlock {
+  private:
+    // mutable not actually needed
+    mutable volatile char spinner;
+  public:
+    simple_spinlock () {
+      spinner = 0;
+    }
+  
+    inline void lock() const { 
+      while(spinner == 1 || __sync_lock_test_and_set(&spinner, 1));
+    }
+    inline void unlock() const {
+      __sync_synchronize();
+      spinner = 0;
+    }
+    inline bool try_lock() const {
+      return (__sync_lock_test_and_set(&spinner, 1) == 0);
+    }
+    ~simple_spinlock(){
+      assert(spinner == 0);
+    }
+  };
+  
 
   /**
    * \class conditional
@@ -565,6 +604,42 @@ namespace graphlab {
    * \class semaphore
    * Wrapper around pthread's semaphore
    */
+#ifdef __APPLE__
+  class semaphore {
+  private:
+    conditional cond;
+    mutex mut;
+    mutable volatile size_t semvalue;
+    mutable volatile size_t waitercount;
+  public:
+    semaphore() {
+      semvalue = 0;
+      waitercount = 0;
+    }
+    inline void post() const {
+      mut.lock();
+      if (waitercount > 0) {
+        cond.signal();
+      }
+      semvalue++;
+      mut.unlock();
+    }
+    inline void wait() const {
+      mut.lock();
+      waitercount++;
+      while (semvalue == 0) {
+        cond.wait(mut);
+      }
+      waitercount--;
+      semvalue--;
+      mut.unlock();
+    }
+    ~semaphore() {
+      assert(waitercount == 0);
+      assert(semvalue == 0);
+    }
+  }; // End semaphore
+#else
   class semaphore {
   private:
     mutable sem_t  m_sem;
@@ -586,7 +661,7 @@ namespace graphlab {
       assert(!error);
     }
   }; // End semaphore
-
+#endif
   
 
 #define atomic_xadd(P, V) __sync_fetch_and_add((P), (V))
@@ -778,6 +853,7 @@ namespace graphlab {
 
     for (cp = (char*)(addr); cp < end; cp += 64) __builtin_prefetch(cp, 1);
   }
+
 
 
 }; // End Namespace

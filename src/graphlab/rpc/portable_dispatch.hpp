@@ -23,7 +23,7 @@ type to use.
 
 If the return type is void, the find_dispatcher is partially specialized,
 and will instantiate a PORTABLE_DISPATCH function, which will be returned in the operator()
-of the fund_dispatch class.
+of the find_dispatch class.
 
 Otherwise, it instantiates a PORTABLE_REQUESTDISPATCH function which sends back the 
 return value of the function.
@@ -65,7 +65,7 @@ struct find_dispatcher{
 
 #define PORTABLE_DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F, F f  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(PORTABLEDISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(PORTABLEDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   BOOST_PP_REPEAT(N, GENPARAMS, _)                \
@@ -74,7 +74,7 @@ void BOOST_PP_CAT(PORTABLEDISPATCH,N) (DcType& dc, procid_t source,  \
 } \
 \
 template<typename DcType, typename F, F f  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(PORTABLE_REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(PORTABLE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   size_t id; iarc >> id;                        \
@@ -86,11 +86,16 @@ void BOOST_PP_CAT(PORTABLE_REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
   oarchive oarc(retstrm); \
   oarc << ret; \
   retstrm.flush(); \
-  dc.fast_remote_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
+  if (packet_type_mask & CONTROL_PACKET) { \
+    dc.control_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
+  } \
+  else {  \
+    dc.fast_remote_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
+  } \
 } \
 \
 template<typename DcType, typename F, F f  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
                std::istream &strm) { \
   iarchive iarc(strm); \
   BOOST_PP_REPEAT(N, GENPARAMS, _)                \
@@ -99,7 +104,7 @@ void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_DISPATCH,N) (DcType& dc, procid_t source
 } \
 \
 template<typename DcType, typename F, F f  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source,  \
+void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask,  \
                std::istream &strm) { \
   iarchive iarc(strm); \
   size_t id; iarc >> id;                        \
@@ -111,7 +116,12 @@ void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t
   oarchive oarc(retstrm); \
   oarc << ret; \
   retstrm.flush(); \
-  dc.fast_remote_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
+  if (packet_type_mask & CONTROL_PACKET) { \
+    dc.control_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
+  } \
+  else {  \
+    dc.fast_remote_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
+  } \
 } 
 
 

@@ -16,19 +16,20 @@
 // generate the operator<< call for a whole bunch of integer types
 
 
-#define INT_SERIALIZE(tname) \
-  template <typename ArcType> struct serialize_impl<ArcType, tname>{                   \
-    static void exec(ArcType &a, const tname &i_) {             \
-    int64_t i = i_ ;                                          \
-    char c[10];                                                  \
-    unsigned char len = compress_int(i, c);                   \
-    a.o->write(c + 10 - len, len);            \
-    }                                                         \
-  };                                                          \
-  template <typename ArcType> struct deserialize_impl<ArcType, tname>{                 \
-    static void exec(ArcType &a, tname &t_) {                   \
-    decompress_int<tname>(*(a.i), t_);                              \
-    }                                                         \
+#define INT_SERIALIZE(tname)                                            \
+  template <typename ArcType> struct serialize_impl<ArcType, tname>{    \
+    static void exec(ArcType &a, const tname &i_) {                     \
+      int64_t i = i_ ;                                                  \
+      char c[10];                                                       \
+      unsigned char len = compress_int(i, c);                           \
+      a.o->write(c + 10 - len, len);                                    \
+      /* a.o->write(c, len);     */                                     \
+    }                                                                   \
+  };                                                                    \
+  template <typename ArcType> struct deserialize_impl<ArcType, tname>{  \
+    static void exec(ArcType &a, tname &t_) {                           \
+      decompress_int<tname>(*(a.i), t_);                                \
+    }                                                                   \
   };
 
 
@@ -74,6 +75,15 @@ struct serialize_impl<ArcType, const char*> {
 };
 
 
+template <typename ArcType, size_t len>
+struct serialize_impl<ArcType, char [len]> {
+  static void exec(ArcType& a, const char s[len] ) { 
+    size_t length = len;
+    serialize_impl<ArcType, size_t>::exec(a, length);
+    a.o->write(reinterpret_cast<const char*>(s), length);
+    DASSERT_FALSE(a.o->fail());
+  }
+};
 
 template <typename ArcType>
 struct serialize_impl<ArcType, char*> {

@@ -21,7 +21,7 @@ namespace archive_detail {
   struct deserialize_impl<ArcType, std::set<T> > {
   static void exec(ArcType& a, std::set<T>& vec){
     vec.clear();
-    deserialize_iterator<T>(a, std::inserter(vec,vec.end()));
+    deserialize_iterator<ArcType, T>(a, std::inserter(vec,vec.end()));
   }
   };
 

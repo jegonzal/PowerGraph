@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
   oarc << PODIFY(t3);
   testclass3test(PODIFY(t3));
 
-  char *c = "hello world";
+  const char* c = "hello world";
   oarc << c;
   f.close();
 }

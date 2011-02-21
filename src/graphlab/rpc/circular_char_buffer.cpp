@@ -109,6 +109,44 @@ void circular_char_buffer::squeeze() {
   consistency_check();
 }
 
+
+void circular_char_buffer::align() {
+  // squeeze to a minimum of 4 bytes
+  if (bufsize <= 4) return;
+  // 2 cases
+  // case 1: no loop around
+  // case 2: loop around. Easiest solution is to allocate a new buffer
+  if (tail >= head) {
+    if (head > 0) memmove(buffer, buffer+head, len);
+    head = 0;
+    tail = len;
+  }
+  else {
+    // allocate a new buffer
+    char *newbuf = (char*)malloc(bufsize);
+    // read into this buffer
+    peek(newbuf, len);
+    // free the old buffer
+    free(buffer);
+    buffer = newbuf;
+    head = 0;
+    tail = len;
+  }
+}
+
+bool circular_char_buffer::align_requires_alloc() {
+  // squeeze to a minimum of 4 bytes
+  if (bufsize <= 4) return false;
+  // 2 cases
+  // case 1: no loop around
+  // case 2: loop around. Easiest solution is to allocate a new buffer
+  if (tail >= head) {
+    return false;
+  }
+  else {
+    return true;
+  }
+}
 std::streamsize circular_char_buffer::peek(char* c, 
                                            std::streamsize clen) const {
   std::streamsize readlen = std::min(clen, len);
@@ -191,6 +229,70 @@ void circular_char_buffer::clear() {
 
 circular_char_buffer::~circular_char_buffer() {
   free(buffer);
+}
+
+std::streamsize circular_char_buffer::introspective_read(char* &s) {
+  if (len == 0) {
+    s = NULL;
+    return 0;
+  }
+  s = buffer + head;
+  // how much we do read?
+  // we can go up to the end of the buffer, or until a looparound
+  // case 1: no looparound
+  // case 2: looparound
+  std::streamsize readlen = 0;
+  if (tail > head) {
+    readlen = tail - head;
+  }
+  else {
+    readlen = bufsize - head;
+  }
+  skip(readlen);
+  return readlen;
+}
+
+std::streamsize circular_char_buffer::introspective_read(char* &s, std::streamsize clen) {
+  if (len == 0) {
+    s = NULL;
+    return 0;
+  }
+  s = buffer + head;
+  // how much we do read?
+  // we can go up to the end of the buffer, or until a looparound
+  // case 1: no looparound
+  // case 2: looparound
+  std::streamsize readlen = 0;
+  if (tail > head) {
+    readlen = tail - head;
+  }
+  else {
+    readlen = bufsize - head;
+  }
+  if (clen < readlen) readlen = clen;
+
+  skip(readlen);
+  return readlen;
+}
+
+
+std::streamsize circular_char_buffer::introspective_write(char* &s) {
+  s = buffer + tail;
+  if (tail >= head) {
+    // case 1. no looparound. 
+    return bufsize - tail - (head==0);
+  }
+  else {
+    // case 2 looparound
+    return head - tail - 1;
+  }
+}
+  
+void circular_char_buffer::advance_write(std::streamsize bytes) {
+  tail += bytes;
+  if (tail >= bufsize) tail -= bufsize;
+  len += bytes;
+  consistency_check();
 }
   
 };

@@ -21,6 +21,7 @@
 #define float_t float_selector<sizeof(size_t)>::float_type
 namespace graphlab {
   
+  /// \ingroup util_internal
   class fast_multinomial{
     
     // Stuff related to randomness

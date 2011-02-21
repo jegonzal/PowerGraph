@@ -1,0 +1,4 @@
+function set_edge_data(handle, edge, edata) %#eml
+%#EXTERN_EDGE_STRUCT#%
+eml.ceval('emx_set_edge_data', handle, edge, eml.ref(edata));
+end

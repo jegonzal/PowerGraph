@@ -16,27 +16,33 @@
  *
  * @author Yucheng Low (ylow)
  */
+
 #ifndef GRAPHLAB_LOG_LOG_HPP
 #define GRAPHLAB_LOG_LOG_HPP
 #include <fstream>
 #include <sstream>
 #include <cassert>
 #include <cstring>
+#include <cstdarg>
+#include <pthread.h>
 /**
  * \def LOG_FATAL
-    Used for fatal and probably irrecoverable conditions
+ *   Used for fatal and probably irrecoverable conditions
  * \def LOG_ERROR
-    Used for errors which are recoverable within the scope of the function
+ *   Used for errors which are recoverable within the scope of the function
  * \def LOG_WARNING
-    Logs interesting conditions which are probably not fatal
+ *   Logs interesting conditions which are probably not fatal
  * \def LOG_INFO
-    Used for providing general useful information
- *
+ *   Used for providing general useful information
+ * \def LOG_DEBUG
+ *   Debugging purposes only
  */
-#define LOG_FATAL 3
-#define LOG_ERROR 2
-#define LOG_WARNING 1
-#define LOG_INFO 0
+#define LOG_NONE 5
+#define LOG_FATAL 4
+#define LOG_ERROR 3
+#define LOG_WARNING 2
+#define LOG_INFO 1
+#define LOG_DEBUG 0
 
 /**
  * \def OUTPUTLEVEL
@@ -44,9 +50,10 @@
  * \def LOG_NONE
  *  OUTPUTLEVEL to LOG_NONE to disable logging
  */
-#define LOG_NONE 4
-#define OUTPUTLEVEL LOG_INFO
 
+#ifndef OUTPUTLEVEL
+#define OUTPUTLEVEL LOG_DEBUG
+#endif
 /// If set, logs to screen will be printed in color
 #define COLOROUTPUT
 
@@ -65,17 +72,25 @@
 #define logbuf(lvl,fmt,...)
 #define logstream
 #else
-#define logger(lvl,fmt,...)                 \
-    (global_logger()._log(lvl,__FILE__,     \
-                        __func__ ,__LINE__,fmt,##__VA_ARGS__))
 
+#define logger(lvl,fmt,...)                 \
+    (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__,fmt,##__VA_ARGS__))
+
+    
 #define logbuf(lvl,buf,len)                 \
-    (global_logger()._log(lvl,__FILE__,     \
+    (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__,     \
                         __func__ ,__LINE__,buf,len))
+
 #define logstream(lvl)                      \
-    global_logger().start_stream(lvl,__FILE__, __func__ ,__LINE__) 
+    (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__) )
 #endif
 
+namespace logger_impl {
+struct streambuff_tls_entry {
+  std::stringstream streambuffer;
+  bool streamactive;
+};
+}
 
 /**
   logging class.
@@ -122,26 +137,50 @@ class file_logger{
   
   template <typename T>
   file_logger& operator<<(T a) {
-    if (streamactive) streambuffer << a;
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+      bool& streamactive = streambufentry->streamactive;
+
+      if (streamactive) streambuffer << a;
+    }
     return *this;
   }
 
   file_logger& operator<<(const char* a) {
-    if (streamactive) {
-      streambuffer << a;
-      if (a[strlen(a)-1] == '\n') {
-        stream_flush();
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+      bool& streamactive = streambufentry->streamactive;
+
+      if (streamactive) {
+        streambuffer << a;
+        if (a[strlen(a)-1] == '\n') {
+          stream_flush();
+        }
       }
     }
     return *this;
   }
 
   file_logger& operator<<(std::ostream& (*f)(std::ostream&)){
-    typedef std::ostream& (*endltype)(std::ostream&);
-    if (streamactive) {
-      if (endltype(f) == endltype(std::endl)) {
-        streambuffer << "\n";
-        stream_flush();
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+      bool& streamactive = streambufentry->streamactive;
+
+      typedef std::ostream& (*endltype)(std::ostream&);
+      if (streamactive) {
+        if (endltype(f) == endltype(std::endl)) {
+          streambuffer << "\n";
+          stream_flush();
+        }
       }
     }
     return *this;
@@ -159,7 +198,7 @@ class file_logger{
   * logs the message if loglevel>=OUTPUTLEVEL
   * This function should not be used directly. Use logger()
   *
-  * @param loglevel Type of message \see LOG_INFO LOG_WARNING LOG_ERROR LOG_FATAL
+  * @param loglevel Type of message \see LOG_DEBUG LOG_INFO LOG_WARNING LOG_ERROR LOG_FATAL
   * @param file File where the logger call originated
   * @param function Function where the logger call originated
   * @param line Line number where the logger call originated
@@ -167,7 +206,8 @@ class file_logger{
   * @param ... The parameters that match the format string
   */
   void _log(int loglevel,const char* file,const char* function,
-                int line,const char* fmt, ... );
+                int line,const char* fmt, va_list arg );
+
 
   void _logbuf(int loglevel,const char* file,const char* function,
                 int line,  const char* buf, int len);
@@ -175,18 +215,27 @@ class file_logger{
   void _lograw(int loglevel, const char* buf, int len);
 
   void stream_flush() {
-    streambuffer.flush();
-    _lograw(streamloglevel,
-            streambuffer.str().c_str(),
-            streambuffer.str().length());
-    streambuffer.str("");
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+
+      streambuffer.flush();
+      _lograw(streamloglevel,
+              streambuffer.str().c_str(),
+              streambuffer.str().length());
+      streambuffer.str("");
+    }
   }
  private:
   std::ofstream fout;
   std::string log_file;
-  std::stringstream streambuffer;
+  
+  pthread_key_t streambuffkey;
+  
   int streamloglevel;
-  bool streamactive;
+  pthread_mutex_t mut;
   
   bool log_to_console;
   int log_level;
@@ -195,6 +244,55 @@ class file_logger{
 
 
 file_logger& global_logger();
+
+/**
+Wrapper to generate 0 code if the output level is lower than the log level
+*/
+template <bool dostuff>
+struct log_dispatch {};
+
+template <>
+struct log_dispatch<true> {
+  inline static void exec(int loglevel,const char* file,const char* function,
+                int line,const char* fmt, ... ) {
+  va_list argp;
+	va_start(argp, fmt);
+	global_logger()._log(loglevel, file, function, line, fmt, argp);
+	va_end(argp);
+  }
+};
+
+template <>
+struct log_dispatch<false> {
+  inline static void exec(int loglevel,const char* file,const char* function,
+                int line,const char* fmt, ... ) {}
+};
+
+
+struct null_stream {
+  template<typename T>
+  inline null_stream operator<<(T t) { return null_stream(); }
+  inline null_stream operator<<(const char* a) { return null_stream(); }
+  inline null_stream operator<<(std::ostream& (*f)(std::ostream&)) { return null_stream(); }
+};
+
+
+template <bool dostuff>
+struct log_stream_dispatch {};
+
+template <>
+struct log_stream_dispatch<true> {
+  inline static file_logger& exec(int lineloglevel,const char* file,const char* function, int line) {
+    return global_logger().start_stream(lineloglevel, file, function, line);
+  }
+};
+
+template <>
+struct log_stream_dispatch<false> {
+  inline static null_stream exec(int lineloglevel,const char* file,const char* function, int line) {
+    return null_stream();
+  }
+};
 
 #include <graphlab/logger/assertions.hpp>
 

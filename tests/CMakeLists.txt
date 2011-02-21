@@ -1,5 +1,6 @@
 project(tests)
 
+link_libraries(${Boost_LIBRARIES})
 link_libraries(${GraphLab_LIBRARIES})
 
 include_directories( . )
@@ -10,8 +11,8 @@ ADD_CXXTEST(serializetests.cxx)
 ADD_CXXTEST(foreachtest.cxx)
 ADD_CXXTEST(logtest.cxx)
 ADD_CXXTEST(circqueuetest.cxx)
-# ADD_CXXTEST(basictasktests.cxx)
-# ADD_CXXTEST(basicgraphlabintegrationtest.cxx)
+#ADD_CXXTEST(basictasktests.cxx)
+#ADD_CXXTEST(basicgraphlabintegrationtest.cxx)
 ADD_CXXTEST(sampletreetest.cxx)
 # ADD_CXXTEST(set_scheduler_test.cxx)
 ADD_CXXTEST(shared_data_test.cxx)
@@ -23,6 +24,9 @@ ADD_CXXTEST(factor_tests.cxx)
 # ADD_CXXTEST(vertex_set_test.cxx)
 ADD_CXXTEST(dense_bitset_test.cxx)
 ADD_CXXTEST(timertest.cxx)
+ADD_CXXTEST(graphlab_test.cxx)
+ADD_CXXTEST(glshared_test.cxx)
+ADD_CXXTEST(new_shared_data_test.cxx)
 # ADD_CXXTEST(executionplantest.cxx)
 add_executable(programoptions programoptions.cpp)
 # add_executable(test_optimize test_optimize.cpp)
@@ -41,7 +45,6 @@ add_dist_executable(dist_engine_test2 dist_engine_test2.cpp)
 add_dist_executable(dist_engine_test3 dist_engine_test3.cpp)
 add_dist_executable(dist_term_test dist_term_test.cpp)
 add_dist_executable(distributed_shared_data_test distributed_shared_data_test.cpp)
-
 # cuda_add_executable(cuda_test cuda_test.cpp)
 
 # add_executable(itppserialize itppserialize.cpp)
@@ -50,7 +53,7 @@ add_dist_executable(distributed_shared_data_test distributed_shared_data_test.cp
 
 add_executable(partransform partransform.cpp)
 
-add_executable(clopts command_line_options.cpp)
+add_executable(clopts test_command_line_options.cpp)
 
 
 # serialization tests 
@@ -67,7 +70,7 @@ add_executable(dcobjtest dcobjtest.cpp)
 add_executable(is_rpc_call_test is_rpc_call_test.cpp)
 add_executable(dc_barrier_test dc_barrier_test.cpp)
 add_executable(dhttest dhttest.cpp)
-add_executable(dht_performance_test dht_performance_test.cpp)
+add_dist2_executable(dht_performance_test dht_performance_test.cpp)
 
 add_executable(example1 example1.cpp)
 add_executable(example2 example2.cpp)
@@ -78,7 +81,29 @@ add_executable(example6 example6.cpp)
 add_executable(example7 example7.cpp)
 add_executable(example8 example8.cpp)
 
+add_executable(matched_send_recv_test matched_send_recv_test.cpp)
+
 add_executable(lowrestimertest lowrestimertest.cpp)
 
+add_executable(cachingdhttest cachingdhttest.cpp)
+add_executable(coherentdhttest coherentdhttest.cpp)
+add_executable(dc_gather_test dc_gather_test.cpp)
+add_executable(queued_rw_lock_test queued_rw_lock_test.cpp)
+add_executable(deferred_rwlock_test deferred_rwlock_test.cpp)
+add_executable(mmaptest mmaptest.cpp)
+add_executable(bench_mmap bench_mmap.cpp)
+add_executable(net_util_test net_util_test.cpp)
+add_dist2_executable(dc_barrier_bench dc_barrier_bench.cpp)
+add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
+add_dist2_executable(distributed_graph_local_store_test distributed_graph_local_store_test.cpp)
+add_dist2_executable(distributed_graph_test_canonical distributed_graph_test_canonical.cpp)
+add_dist2_executable(graph_lock_test graph_lock_test.cpp)
+add_dist2_executable(distributed_glshared_test distributed_glshared_test.cpp)
+add_dist2_executable(distributed_master_rank_test distributed_master_rank_test.cpp)
+add_dist2_executable(dist_chromatic_engine_test dist_chromatic_engine_test.cpp)
 
+add_zoltan_executable(zoltantest zoltantest.cpp)
+
+
+add_dist2_executable(test_adjacency_list test_adjacency_list.cpp)
 
