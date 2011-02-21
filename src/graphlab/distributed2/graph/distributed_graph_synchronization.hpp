@@ -27,7 +27,7 @@ void distributed_graph<VertexData, EdgeData>::synchronize_vertex(vertex_id_t vid
                             vid,
                             localstore.vertex_version(localvid),
                             out);
-     if (v.hasdata) {
+     if (v.hasdata && v.data.second >= localstore.vertex_version(localvid)) {
         localstore.vertex_data(localvid) = v.data.first;
         localstore.set_vertex_version(localvid, v.data.second);
       }
@@ -566,8 +566,8 @@ template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::update_vertex_data_and_version(
                         vertex_id_t vid, 
                         distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore) {
-  if (vstore.hasdata) {
-    vertex_id_t localvid = global2localvid[vid];
+  vertex_id_t localvid = global2localvid[vid];
+  if (vstore.hasdata && vstore.data.second >= localstore.vertex_version(localvid)) {
     localstore.vertex_data(localvid) = vstore.data.first;
     localstore.set_vertex_version(localvid, vstore.data.second);
   }

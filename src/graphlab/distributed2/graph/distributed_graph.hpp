@@ -830,7 +830,7 @@ class distributed_graph {
    * returning control.
    */
   void set_vertex_data(vertex_id_t vid, const VertexData vdata){
-    if (global_vid_in_local_fragment(vid)) {
+    if (is_owned(vid)) {
       vertex_data(vid) = vdata;
       // increment version
       increment_vertex_version(vid);
@@ -1235,7 +1235,7 @@ class distributed_graph {
     
     // Find only unique occurances of each vertex, by sorting, unique,
     // and resize
-    std::sort(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
+    std::sort(globalvid_notowned_zip.rbegin(), globalvid_notowned_zip.rend());
     std::vector<std::pair<bool, vertex_id_t> >::iterator uviter = 
               std::unique(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
               

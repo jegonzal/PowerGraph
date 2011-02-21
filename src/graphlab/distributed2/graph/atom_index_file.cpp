@@ -210,9 +210,8 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
   // build the atom graph
   // vertex weight is #edges
   // edge weight is 1
-  nparts = 4;
   // I cannot ask for more parts tan atom
-  ASSERT_GE(nparts, atomindex.atoms.size());
+  ASSERT_LE(nparts, atomindex.atoms.size());
   
   graph<size_t, size_t> atomgraph; 
   for (size_t i = 0;i < atomindex.atoms.size(); ++i) {

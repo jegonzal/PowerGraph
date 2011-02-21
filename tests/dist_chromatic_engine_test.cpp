@@ -165,6 +165,7 @@ int main(int argc, char** argv) {
   schedopts.add_option("max_iterations", NUMITERATIONS);
   engine.set_scheduler_options(schedopts);
   engine.start();
+  std::cout << "Static Done.. Checking Graph..." << std::endl;
   //return 0;
   //now go through graph again and do a consistency check.
   // should be alternating between 2 * NUMITERATIONS - 1 and 2 * NUMITERATIONS
@@ -199,6 +200,7 @@ int main(int argc, char** argv) {
   
   std::cout << "Testing Dynamic: " << std::endl;
   // reset graph
+  std::cout << "Resetting Graph..." << std::endl;
   for (size_t i = 0;i < dg.num_vertices(); ++i) {
     dg.set_vertex_data(i, 0);
     foreach(vertex_id_t source, dg.in_vertices(i)) {
@@ -208,7 +210,9 @@ int main(int argc, char** argv) {
       dg.set_edge_data(i, target, 0);
     }
   }
- 
+  dc.full_barrier();
+  dc.full_barrier();
+  std::cout << "Starting Dynamic..." << std::endl;
   schedopts.add_option("update_function", add_one_dynamic);
   schedopts.add_option("max_iterations", 0);
   engine.set_scheduler_options(schedopts);
