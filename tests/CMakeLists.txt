@@ -93,6 +93,7 @@ add_executable(deferred_rwlock_test deferred_rwlock_test.cpp)
 add_executable(mmaptest mmaptest.cpp)
 add_executable(bench_mmap bench_mmap.cpp)
 add_executable(net_util_test net_util_test.cpp)
+add_executable(dc_barrier_bench dc_barrier_bench.cpp)
 add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
 add_dist2_executable(distributed_graph_local_store_test distributed_graph_local_store_test.cpp)
 add_dist2_executable(distributed_graph_test_canonical distributed_graph_test_canonical.cpp)
@@ -105,3 +106,4 @@ add_zoltan_executable(zoltantest zoltantest.cpp)
 
 
 add_dist2_executable(test_adjacency_list test_adjacency_list.cpp)
+
