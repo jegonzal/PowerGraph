@@ -57,6 +57,8 @@ namespace graphlab {
     static void list_vlist_files(const std::string& pathname, 
                                  std::vector<std::string>& files);
     
+    // returns false if local structures are invalid
+    void check_local_structures(size_t nverts) const;
   };
 
 

@@ -236,8 +236,37 @@ list_vlist_files(const std::string& pathname,
 
 
 
+void adjacency_list::
+check_local_structures(size_t nverts) const {
+  assert(in_neighbor_ids.size() < nverts);
+  assert(local_vertices.size() == in_neighbor_ids.size());
+  { // Check local vertices is a set
+    std::set<vertex_id_t> lvids;
+    lvids.insert(local_vertices.begin(), local_vertices.end());
+    assert(lvids.size() == local_vertices.size());
+  }
 
-
+  for(size_t i = 0; i < local_vertices.size(); ++i) {    
+    vertex_id_t vid(local_vertices[i]);
+    assert(vid < nverts);
+    {    // Check Global to local map is valid
+      typedef global2local_type::const_iterator iterator;
+      iterator iter = global2local.find(vid);
+      assert(iter != global2local.end());
+      assert(iter->second == i);
+    }
+    {    // Check that neighbors have valid ids
+      for(size_t j = 0; j < in_neighbor_ids[i].size(); ++j)
+        assert(in_neighbor_ids[i][j] < nverts);
+    }
+    {     // check that neighbors list is a set
+      std::set<vertex_id_t> neighbors;
+      neighbors.insert(in_neighbor_ids[i].begin(), 
+                       in_neighbor_ids[i].end());
+      assert(neighbors.size() == in_neighbor_ids[i].size());
+    }
+  } 
+} // end of check local structures
 
 
 
