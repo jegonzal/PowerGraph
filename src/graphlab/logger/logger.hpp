@@ -23,6 +23,7 @@
 #include <sstream>
 #include <cassert>
 #include <cstring>
+#include <cstdarg>
 #include <pthread.h>
 /**
  * \def LOG_FATAL
@@ -51,7 +52,7 @@
  */
 
 #ifndef OUTPUTLEVEL
-#define OUTPUTLEVEL LOG_INFO
+#define OUTPUTLEVEL LOG_DEBUG
 #endif
 /// If set, logs to screen will be printed in color
 #define COLOROUTPUT
@@ -84,6 +85,12 @@
     (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__) )
 #endif
 
+namespace logger_impl {
+struct streambuff_tls_entry {
+  std::stringstream streambuffer;
+  bool streamactive;
+};
+}
 
 /**
   logging class.
@@ -130,32 +137,50 @@ class file_logger{
   
   template <typename T>
   file_logger& operator<<(T a) {
-    pthread_mutex_lock(&mut);
-    if (streamactive) streambuffer << a;
-    pthread_mutex_unlock(&mut);
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+      bool& streamactive = streambufentry->streamactive;
+
+      if (streamactive) streambuffer << a;
+    }
     return *this;
   }
 
   file_logger& operator<<(const char* a) {
-    if (streamactive) {
-      pthread_mutex_lock(&mut);
-      streambuffer << a;
-      if (a[strlen(a)-1] == '\n') {
-        stream_flush();
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+      bool& streamactive = streambufentry->streamactive;
+
+      if (streamactive) {
+        streambuffer << a;
+        if (a[strlen(a)-1] == '\n') {
+          stream_flush();
+        }
       }
-      pthread_mutex_unlock(&mut);
     }
     return *this;
   }
 
   file_logger& operator<<(std::ostream& (*f)(std::ostream&)){
-    typedef std::ostream& (*endltype)(std::ostream&);
-    if (streamactive) {
-      if (endltype(f) == endltype(std::endl)) {
-        pthread_mutex_lock(&mut);
-        streambuffer << "\n";
-        stream_flush();
-        pthread_mutex_unlock(&mut);
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+      bool& streamactive = streambufentry->streamactive;
+
+      typedef std::ostream& (*endltype)(std::ostream&);
+      if (streamactive) {
+        if (endltype(f) == endltype(std::endl)) {
+          streambuffer << "\n";
+          stream_flush();
+        }
       }
     }
     return *this;
@@ -181,7 +206,7 @@ class file_logger{
   * @param ... The parameters that match the format string
   */
   void _log(int loglevel,const char* file,const char* function,
-                int line,const char* fmt, ... );
+                int line,const char* fmt, va_list arg );
 
 
   void _logbuf(int loglevel,const char* file,const char* function,
@@ -190,19 +215,27 @@ class file_logger{
   void _lograw(int loglevel, const char* buf, int len);
 
   void stream_flush() {
-    streambuffer.flush();
-    _lograw(streamloglevel,
-            streambuffer.str().c_str(),
-            streambuffer.str().length());
-    streambuffer.str("");
+    // get the stream buffer
+    logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                                          pthread_getspecific(streambuffkey));
+    if (streambufentry != NULL) {
+      std::stringstream& streambuffer = streambufentry->streambuffer;
+
+      streambuffer.flush();
+      _lograw(streamloglevel,
+              streambuffer.str().c_str(),
+              streambuffer.str().length());
+      streambuffer.str("");
+    }
   }
  private:
-  pthread_mutex_t mut;
   std::ofstream fout;
   std::string log_file;
-  std::stringstream streambuffer;
+  
+  pthread_key_t streambuffkey;
+  
   int streamloglevel;
-  bool streamactive;
+  pthread_mutex_t mut;
   
   bool log_to_console;
   int log_level;

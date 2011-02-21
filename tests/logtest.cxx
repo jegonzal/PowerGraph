@@ -1,4 +1,3 @@
-#define OUTPUTLEVEL LOG_WARNING
 #include <string>
 
 #include <cxxtest/TestSuite.h>
@@ -27,11 +26,11 @@ class LogTestSuite: public CxxTest::TestSuite {
     global_logger().set_log_file("logtest.logger");
     global_logger().set_log_to_console(false);
     logger(LOG_INFO, "this should only be in the file");
-    logstream(LOG_INFO) << "log info again! but with the stream" << std::endl;
 
     global_logger().set_log_to_console(true);
     logger(LOG_WARNING, "you should see this both the console and file");
-
+    logstream(LOG_INFO) << "log info again! but with the stream" << std::endl;
+    
     global_logger().set_log_file("");
     logger(LOG_ERROR, "this is only in the console");
     logger(LOG_INFO, "console only too");
