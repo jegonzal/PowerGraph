@@ -1,12 +1,14 @@
 #include <fstream>
-
+#include <algorithm>
+#include <vector>
+#include <set>
 
 
 #include <boost/filesystem.hpp>
 
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/stl_util.hpp>
-
+#include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/distributed2/graph/atom_file.hpp>
 #include <graphlab/distributed2/graph/atom_index_file.hpp>
 
@@ -18,7 +20,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-using namespace graphlab;
+namespace graphlab {
   
 void atom_index_file::read_from_file(std::string indexfile) {
   // open file
@@ -146,15 +148,75 @@ size_t unity_function(const size_t &val) {
   return 1;
 }
 
+/**
+ * Takes in a subset of atoms and bisect its atom subgraph using metis
+ */
+std::vector<std::vector<size_t> >
+bisect_atoms_metis(const atom_index_file& atomindex, std::vector<size_t> atomsubset) {
+  // build a graph using only the atomsubset
+  std::set<size_t> atomsubset_set;
+  std::map<size_t, size_t> atomrevmap;
+  std::copy(atomsubset.begin(), atomsubset.end(), std::inserter(atomsubset_set,atomsubset_set.end()));
 
-std::vector<std::vector<size_t> > graphlab::
+  
+  graph<size_t, size_t> atomgraph;
+  // add vertices
+  foreach(size_t i, atomsubset) {
+    atomrevmap[i] = atomgraph.add_vertex(atomindex.atoms[i].nedges + 1);
+  }
+  
+  foreach(size_t i, atomsubset) {
+    for (size_t j = 0; j < atomindex.atoms[i].adjatoms.size(); ++j) {
+      // only add edges which connect within the atomsubset
+      if (atomsubset_set.find(atomindex.atoms[i].adjatoms[j]) != atomsubset_set.end()) {
+        size_t nbr = atomrevmap[atomindex.atoms[i].adjatoms[j]];
+        size_t atomweight = 1;
+        if (atomindex.atoms[i].optional_weight_to_adjatoms.size() != 0) {
+          atomweight = atomindex.atoms[i].optional_weight_to_adjatoms[j];
+        }
+        atomgraph.add_edge(atomrevmap[i], nbr, atomweight);
+        atomgraph.add_edge(nbr, atomrevmap[i], atomweight);
+      }
+    }
+  }
+  std::vector<uint32_t> retpart;
+  atomgraph.metis_weighted_partition(2, retpart,
+                                     identity_function, identity_function, true);
+
+  std::vector<std::vector<size_t> > ret(2);
+  for (size_t i = 0;i < retpart.size(); ++i) {
+    ret[atomsubset[retpart[i]]].push_back(i);
+  }
+  return ret;
+}
+
+
+/**
+ * Takes in a subset of atoms and bisect it down the middle
+ */
+std::vector<std::vector<size_t> > 
+bisect_atoms_heuristic(const atom_index_file& atomindex, std::vector<size_t> atomsubset) {
+  std::vector<std::vector<size_t> > ret(2);
+  for (size_t i = 0;i < atomsubset.size(); ++i) {
+    ret[int(i >= (atomsubset.size() / 2))].push_back(atomsubset[i]);
+  }
+
+  // we could do a simple heuristic refinement here.
+  return ret;
+}
+
+std::vector<std::vector<size_t> > 
 partition_atoms(const atom_index_file& atomindex, size_t nparts) {
   // build the atom graph
   // vertex weight is #edges
   // edge weight is 1
+  nparts = 4;
+  // I cannot ask for more parts tan atom
+  ASSERT_GE(nparts, atomindex.atoms.size());
+  
   graph<size_t, size_t> atomgraph; 
   for (size_t i = 0;i < atomindex.atoms.size(); ++i) {
-    atomgraph.add_vertex(atomindex.atoms[i].nedges);
+    atomgraph.add_vertex(atomindex.atoms[i].nedges + 1);
   }
   for (size_t i = 0;i < atomindex.atoms.size(); ++i) {
     for (size_t j = 0; j < atomindex.atoms[i].adjatoms.size(); ++j) {
@@ -163,17 +225,74 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
         atomweight = atomindex.atoms[i].optional_weight_to_adjatoms[j];
       }
       atomgraph.add_edge(i, atomindex.atoms[i].adjatoms[j], atomweight);
+      atomgraph.add_edge(atomindex.atoms[i].adjatoms[j], i, atomweight);
     }
   }
-  
+  std::cout << atomgraph;
   std::vector<uint32_t> retpart;
   atomgraph.metis_weighted_partition(nparts, retpart,
-                                     unity_function, identity_function);
+                                     identity_function, identity_function, true);
   //atomgraph.metis_partition(nparts, retpart);
   std::vector<std::vector<size_t> > ret;
   ret.resize(nparts);
   for (size_t i = 0;i < retpart.size(); ++i) {
     ret[retpart[i]].push_back(i);
+  }
+  // compute the current weight of each part
+  std::vector<size_t> partweights(nparts, 0);
+  size_t totalweight = 0;
+
+  mutable_queue<size_t, size_t> partition_weights;
+  
+  for (size_t i = 0;i < ret.size(); ++i) {
+    for (size_t j = 0; j < ret[i].size(); ++j) {
+      partweights[i] += atomindex.atoms[ret[i][j]].nedges + 1;
+      totalweight += atomindex.atoms[ret[i][j]].nedges + 1;
+    }
+    partition_weights.push(i, partweights[i]);
+  }
+
+  logstream(LOG_INFO) << "Balance factor (max / avg): " << float(partition_weights.top().second) /
+                                                          (float(totalweight) / nparts) << std::endl;
+
+
+  // ok. the annoying part is that metis might actually give me a
+  // smaller number of partitions.
+  std::vector<size_t> missingparts;
+  for (size_t i = 0;i < ret.size(); ++i) {
+    if (ret[i].size() == 0)  missingparts.push_back(i);
+  }
+
+
+  if (missingparts.size() > 0) {
+    logstream(LOG_WARNING) << "Metis generated only " << nparts - missingparts.size() <<
+                        " when " << nparts << " was requested. Attempting to repartition." << std::endl;
+  }
+
+
+  for (size_t i = 0;i < missingparts.size(); ++i) {
+    // for each missing part, get the "heaviest"
+    // partition and bisect it
+    size_t repartidx = partition_weights.top().first;
+    std::vector<std::vector<size_t> > bisect = bisect_atoms_metis(atomindex, ret[repartidx]);
+    // if any the bisectinos are 0, use the heuristic bisection
+    if (bisect[0].size() == 0 || bisect[1].size() == 0) {
+      bisect = bisect_atoms_heuristic(atomindex, ret[repartidx]);
+    }
+    // assert
+    ASSERT_TRUE(bisect[0].size() != 0 && bisect[1].size() != 0);
+    // update the partitions
+    ret[repartidx] = bisect[0];
+    ret[missingparts[i]] = bisect[1];
+    // update the mutable queue
+    partition_weights.update(repartidx, bisect[0].size());
+    partition_weights.update(missingparts[0], bisect[1].size());
+  }
+
+  if (missingparts.size() > 0) {
+    logstream(LOG_WARNING) << "Repartition successful. New balance factor (max / avg): " << float(partition_weights.top().second) /
+                                                          (float(totalweight) / nparts) << std::endl;
+
   }
   return ret;
 
@@ -244,8 +363,7 @@ struct atom_file_desc_extra {
 
 
 
-void graphlab::
-distributed_build_atom_index_file(const std::string& path) {
+void distributed_build_atom_index_file(const std::string& path) {
   // Create a dc comm layer
   std::cout << "Initializing distributed communication layer" << std::endl;
   dc_init_param param;      
@@ -382,8 +500,7 @@ distributed_build_atom_index_file(const std::string& path) {
 
 
 
-void graphlab::
-build_atom_index_file(const std::string& path) {
+void build_atom_index_file(const std::string& path) {
   // Create a dc comm layer
   std::cout << "Initializing distributed communication layer" << std::endl;
   
@@ -454,7 +571,7 @@ build_atom_index_file(const std::string& path) {
 
 
 
-
+} // namespace graphlab
 
 
 #include <graphlab/macros_undef.hpp>

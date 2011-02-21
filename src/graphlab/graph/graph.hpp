@@ -945,7 +945,8 @@ namespace graphlab {
     void metis_weighted_partition(size_t numparts ,
                                   std::vector<uint32_t>& ret_part,
                                   VertexWeightFunction vfunction,
-                                  EdgeWeightFunction wfunction) {
+                                  EdgeWeightFunction wfunction,
+                                  bool usemetisdefaults = false) {
       if (numparts == 1) {
         ret_part.assign(num_vertices(), 0);
         return;
@@ -1025,6 +1026,7 @@ namespace graphlab {
       options[2]=1;
       options[3]=2;
       options[4]=0;
+      if (usemetisdefaults) options[0] = 0;
       // output argument number of edges cut
       metis::idxtype edgecut = 0;
     
