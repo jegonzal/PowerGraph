@@ -415,7 +415,7 @@ namespace graphlab {
             { // open vdata temporary storage file
               std::stringstream strm;
               strm << path << "/" << "tmp_vdata_"
-                   << std::setw(3) << std::setfill('0')
+                   << std::setw(5) << std::setfill('0')
                    << atomid << ".bin";
               ainfo.vdatafn = strm.str();
               ainfo.vdatastream.open(ainfo.vdatafn.c_str(), 
@@ -427,7 +427,7 @@ namespace graphlab {
             { // open edata temporary storage file
               std::stringstream strm;
               strm << path << "/" << "tmp_edata_"
-                 << std::setw(3) << std::setfill('0')
+                 << std::setw(5) << std::setfill('0')
                  << atomid << ".bin";
               ainfo.edatafn = strm.str();
               ainfo.edatastream.open(ainfo.edatafn.c_str(), 
@@ -439,7 +439,7 @@ namespace graphlab {
             { // determine atom filename
               std::stringstream strm;
               strm << atom_path << "/"  << atom_prefix
-                 << std::setw(3) << std::setfill('0')
+                 << std::setw(5) << std::setfill('0')
                  << atomid << ".atom";
               ainfo.atomfn = strm.str();
             }
