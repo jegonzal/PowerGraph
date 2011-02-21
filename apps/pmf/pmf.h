@@ -8,9 +8,11 @@
 #include <vector>
 
 
-int MAX_ITER=30; //maximal number of iterations to run
-int BURN_IN =20; // burn-in priod
-int D=30;
+int MAX_ITER=10; //maximal number of iterations to run
+int BURN_IN =10; // burn-in priod
+int D=20;
+bool FLOAT=false; //is data in float format
+double LAMBDA=1;//regularization weight
 
 typedef double  sdouble; 
 using namespace itpp;

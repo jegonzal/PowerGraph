@@ -34,7 +34,7 @@ int iiter = 1;//count number of time zero node run
 int M,N,K,L;//training size
 int Le = 0; //test size
 double pU = 10; //regularization for matrix
-double pT = 10;
+double pT = 1;
 double pV = 10;
 double muT = 1;
 double * _ones;
@@ -120,6 +120,8 @@ void init_self_pot(){
     
 /** CONSTRUCTOR **/
 void init_pmf() {
+  if (BPTF)
+	pT=10;
   eDT = itpp::eye(D)*pT;
   _ones = gl_ones(D);
   vones = itpp::ones(D);
@@ -524,7 +526,7 @@ void pmf_update_function(gl_types::iscope &scope,
       
   if (!BPTF){
     t.start();
-    bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT, Q*vals, result);
+    bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*LAMBDA*Q.cols(), Q*vals, result);
     if (debug && scope.vertex() == 0)
       cout<<"Q:"<<Q<<endl;
     //assert(result.size() == D);     
@@ -775,21 +777,25 @@ double calc_obj(double res){
  */
 void start(int argc, char ** argv) {
       
-  
+  command_line_options clopts;
+  clopts.scheduler_type = "round_robin";
+  clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
+  clopts.attach_option("max_iter", &MAX_ITER, MAX_ITER, "maximum allowed iterations (optional).");
+  clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
+  clopts.attach_option("float", &FLOAT, FLOAT, "is data in float format?");
+  clopts.attach_option("D", &D, D, "dmension of weight vector");
+  clopts.attach_option("lambda", &LAMBDA, LAMBDA, "regularization weight");  
+ 
+  assert(clopts.parse(argc-3, argv+3));
   printf("loading data file %s\n", infile.c_str());
   load_pmf_graph(infile.c_str(), &g, false);
 
   printf("loading data file %s\n", (infile+"e").c_str());
   load_pmf_graph((infile+"e").c_str(),&g1, true);
 
-  command_line_options clopts;
-  clopts.scheduler_type = "round_robin";
-  clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
-  clopts.attach_option("max_iter", &MAX_ITER, MAX_ITER, "maximum allowed iterations (optional).");
-  clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
-  clopts.attach_option("D", &D, D, "dmension of weight vector");
-  
-  assert(clopts.parse(argc-3, argv+3));
+  printf("setting regularization weight to %g\n", LAMBDA);
+  pU=pV=LAMBDA;
+ 
   engine = clopts.create_engine(g);
   engine->set_shared_data_manager(&sdm);
 
@@ -972,10 +978,11 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
 
  
   vertex_data vdata;
-  vdata.pvec = ones(D);
-   
+  //vdata.pvec = ones(D);
+
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
+    vdata.pvec = itpp::randu(D)*0.1;
     g->add_vertex(vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
@@ -983,6 +990,7 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
   
   // add N user node (tensor dim 2) 
   for (int i=0; i<N; i++){
+    vdata.pvec = itpp::randu(D)*0.1;
     g->add_vertex(vdata);
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);
@@ -1002,7 +1010,11 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test) {
   }
   
   // read tensor non zero edges from file
-  int val = read_mult_edges<edata2>(f, M+N, g);
+  int val = 0; 
+  if (!FLOAT) 
+	val = read_mult_edges<edata2>(f, M+N, g);
+  else val = read_mult_edges<edata3>(f,M+N,g);
+
   if (!test)
     L = val;
   else Le = val;
@@ -1071,12 +1083,12 @@ int main(int argc,  char *argv[]) {
     std::cout << "PMF <intput file> <weight> <run mode [0-4]>\n";
     return 0;
   }
-  weight = atof(argv[2]);
+  //weight = atof(argv[2]);
    
-  assert(weight>0);
-  printf("setting regularization %e\n", weight);
-  pV = pU = weight;  
-  assert(pV > 0);
+  //assert(weight>0);
+  //printf("setting regularization %e\n", weight);
+  //pV = pU = weight;  
+  //assert(pV > 0);
 
   // select tun mode
   options = atoi(argv[3]);
