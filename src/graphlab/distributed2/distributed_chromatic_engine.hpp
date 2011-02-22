@@ -454,24 +454,28 @@ private:
       }
       // for efficiency, lets merge each sync task to the prefered machine
     }
-
-    // every machine participates in |active_sync_tasks| gathers
     
-    for (size_t i = 0;i < active_sync_tasks.size(); ++i) {
-      sync_task* task = active_sync_tasks[i];
-      procid_t target = task->sharedvariable->preferred_machine();
-      std::vector<any> gathervals(rmi.numprocs());
-      gathervals[rmi.procid()] = task->mergeval;
-      rmi.gather(gathervals, target);
+    thread_color_barrier.wait();
 
-      // now if I am target I need to do the final merge and apply
-      if (target == rmi.procid()) {
-        task->mergeval = gathervals[0];
-        for (size_t i = 1; i < gathervals.size(); ++i) {
-          task->merge_fun(task->mergeval, gathervals[i]);
+    // one thread of each machine participates in |active_sync_tasks| gathers
+    if (threadid == 0) {
+      for (size_t i = 0;i < active_sync_tasks.size(); ++i) {
+        sync_task* task = active_sync_tasks[i];
+        procid_t target = task->sharedvariable->preferred_machine();
+        std::vector<any> gathervals(rmi.numprocs());
+        gathervals[rmi.procid()] = task->mergeval;
+        rmi.gather(gathervals, target);
+
+        // now if I am target I need to do the final merge and apply
+        if (target == rmi.procid()) {
+          task->mergeval = gathervals[0];
+          for (size_t i = 1; i < gathervals.size(); ++i) {
+            task->merge_fun(task->mergeval, gathervals[i]);
+          }
+          // apply!!!
+          task->sharedvariable->apply(task->apply_fun, task->mergeval);
+          numsyncs.inc();
         }
-        // apply!!!
-        task->sharedvariable->apply(task->apply_fun, task->mergeval);
       }
     }
   }
@@ -480,7 +484,7 @@ private:
       Called by one thread from each machine after sync_end_iteration */
   void compute_sync_schedule(size_t num_executed_tasks) {
     // update the next time variable
-    for (size_t i = 0;i < sync_tasks.size(); ++i) {
+    for (size_t i = 0;i < active_sync_tasks.size(); ++i) {
       sync_tasks[i].next_time = num_executed_tasks + sync_tasks[i].sync_interval;
       // if sync interval of 0, this was the first iteration.
       // then I just set next time to infinity and it will never be run again
@@ -507,12 +511,10 @@ private:
       termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value;
     }
 
-    if (task_budget > 0) {
-      size_t numupdates = 0;
-      for (size_t i = 0; i < update_counts.size(); ++i) numupdates += update_counts[i];
-      termination_test[rmi.procid()].executed_tasks = numupdates;
-    }
-    
+    size_t numupdates = 0;
+    for (size_t i = 0; i < update_counts.size(); ++i) numupdates += update_counts[i];
+    termination_test[rmi.procid()].executed_tasks = numupdates;
+  
     if (timeout_millis > 0 && ti.current_time_millis() > timeout_millis) {
       termination_test[rmi.procid()].timeout = true;
     }
@@ -626,6 +628,7 @@ private:
       if (threadid == 0) {
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
         size_t numtasksdone = check_global_termination(!usestatic);
+
         //std::cout << numtasksdone << " tasks done" << std::endl;
         compute_sync_schedule(numtasksdone);
       }
@@ -645,6 +648,7 @@ private:
     // generate colors then
     // wait for everyone to enter start    
     generate_color_blocks();
+    init_syncs();
     termination_reason = EXEC_UNSET;
     force_stop = false;
     numsyncs.value = 0;

@@ -527,8 +527,10 @@ private:
 
  private:
   std::vector<std::string> gather_receive;
-
-  void set_gather_receive(procid_t source, const std::string &s) {
+  atomic<size_t> gatherid;
+  
+  void set_gather_receive(procid_t source, const std::string &s, size_t gid) {
+    while(gatherid.value != gid) sched_yield();
     gather_receive[source] = s;
   }
  public:
@@ -550,13 +552,15 @@ private:
         internal_request(sendto,
                         &dc_dist_object<T>::set_gather_receive,
                         procid(),
-                        strm.str());
+                        strm.str(),
+                        gatherid.value);
       }
       else {
         internal_control_request(sendto,
                                   &dc_dist_object<T>::set_gather_receive,
                                   procid(),
-                                  strm.str());
+                                  strm.str(),
+                                  gatherid.value);
       }
     }
     barrier();
@@ -573,6 +577,7 @@ private:
         }
       }
     }
+    gatherid.inc();
   
   }
 

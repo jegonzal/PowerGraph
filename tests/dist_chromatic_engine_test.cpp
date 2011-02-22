@@ -9,6 +9,8 @@
 #include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
 #include <graphlab/distributed2/distributed_chromatic_engine.hpp>
+#include <graphlab/distributed2/distributed_glshared.hpp>
+#include <graphlab/distributed2/distributed_glshared_manager.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/macros_def.hpp>
 using namespace graphlab;
@@ -22,9 +24,9 @@ typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
 
-const size_t NUMV = 10000;
-const size_t NUMITERATIONS = 1000;
-
+const size_t NUMV = 100;
+const size_t NUMITERATIONS = 100;
+const size_t SYNC_INTERVAL = 100;
 void generate_atoms() {
   graph<size_t, double> testgraph;
   for (size_t v = 0; v < NUMV; ++v) testgraph.add_vertex(0);
@@ -143,6 +145,54 @@ void add_one_dynamic(iscope_type& scope,
 }
 
 
+
+
+
+
+
+struct accumulator_type {
+  double sum;
+  size_t count;
+  accumulator_type() : sum(0), count(0) { } 
+};
+SERIALIZABLE_POD(accumulator_type);
+
+
+void sync_sum_fun(iscope_type& iscope,
+                  any& acc) {
+  acc.as<accumulator_type>().sum += iscope.vertex_data();
+  acc.as<accumulator_type>().count++;
+}
+
+void apply_fun(any& current_data,
+               const any& acc) {
+  current_data.as<double>() =
+    acc.as<accumulator_type>().sum /
+    acc.as<accumulator_type>().count;
+}
+
+
+void merge_fun(any& merge_dest,
+              const any& merge_src) {
+  merge_dest.as<accumulator_type>().sum += merge_src.as<accumulator_type>().sum;
+  merge_dest.as<accumulator_type>().count += merge_src.as<accumulator_type>().count;
+}
+
+
+
+distributed_glshared<double> averagevalue;
+
+
+
+
+
+
+
+
+
+
+
+
 int main(int argc, char** argv) {
   dc_init_param param;
 
@@ -160,12 +210,23 @@ int main(int argc, char** argv) {
   std::cout << "Testing Static: " << std::endl;
   // now we make an engine
   distributed_chromatic_engine<distributed_graph<size_t, double> > engine(dc, dg, 2);
+  averagevalue.set(0.0);
+  engine.set_sync(averagevalue,
+                sync_sum_fun,
+                apply_fun,
+                any(accumulator_type()),
+                SYNC_INTERVAL,
+                merge_fun);
+  
+  
   scheduler_options schedopts;
   schedopts.add_option("update_function", add_one_static);
   schedopts.add_option("max_iterations", NUMITERATIONS);
   engine.set_scheduler_options(schedopts);
   engine.start();
-  std::cout << "Static Done.. Checking Graph..." << std::endl;
+  std::cout << "Static Done.." << std::endl;
+  std::cout << "Synced value: " << averagevalue.get_val() << std::endl;
+  std::cout << "Checking Graph..." << std::endl;
   //return 0;
   //now go through graph again and do a consistency check.
   // should be alternating between 2 * NUMITERATIONS - 1 and 2 * NUMITERATIONS
@@ -200,6 +261,7 @@ int main(int argc, char** argv) {
   
   std::cout << "Testing Dynamic: " << std::endl;
   // reset graph
+  averagevalue.set(0.0);
   std::cout << "Resetting Graph..." << std::endl;
   for (size_t i = 0;i < dg.num_vertices(); ++i) {
     dg.set_vertex_data(i, 0);
@@ -220,6 +282,8 @@ int main(int argc, char** argv) {
   engine.add_task_to_all(add_one_dynamic, 1.0);
   engine.start();
   std::cout << "Done!" << std::endl;
+  std::cout << "Synced value: " << averagevalue.get_val() << std::endl;
+
   ismatch = dg.get_vertex_data(0) == 2 * NUMITERATIONS;
   for (size_t i = 0;i < dg.num_vertices(); ++i) {
     if (ismatch) {

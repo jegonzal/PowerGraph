@@ -58,6 +58,7 @@ private:
 public:
   //! Construct initial shared pointers
   distributed_glshared() {
+    any a(T()); // force instantiation of the serializer
     buffer_and_head_ptr[0].reset(&(buffer_and_head[0]), 
                                  glshared_impl::empty_deleter<T>());
     buffer_and_head_ptr[1].reset(&(buffer_and_head[1]), 
