@@ -3,7 +3,10 @@
 
 
 #include <vector>
+#include <boost/unordered_map.hpp>
+
 #include <graphlab/graph/graph.hpp>
+
 #include <graphlab/serialization/serialization_includes.hpp>
 
 
@@ -14,7 +17,8 @@ namespace graphlab {
 
 
   struct adjacency_list {
-    typedef std::map<vertex_id_t, vertex_id_t> global2local_type;
+    //    typedef std::map<vertex_id_t, vertex_id_t> global2local_type;
+    typedef boost::unordered_map<vertex_id_t, vertex_id_t> global2local_type;
 
     static const std::string elist_suffix;
     static const std::string vlist_suffix;
