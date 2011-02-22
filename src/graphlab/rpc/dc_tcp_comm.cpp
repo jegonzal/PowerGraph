@@ -207,11 +207,11 @@ void dc_tcp_comm::set_socket_options(int fd) {
 }
 
 void dc_tcp_comm::flush(size_t target) {
-//  ASSERT_NE(outsocks[target], -1);
-//  int one = 1;
-//  int zero = 0;
-//  setsockopt(outsocks[target], IPPROTO_TCP, TCP_CORK, &zero, sizeof(zero));
-//  setsockopt(outsocks[target], IPPROTO_TCP, TCP_CORK, &one, sizeof(one));
+/*  ASSERT_NE(outsocks[target], -1);
+  int one = 1;
+  int zero = 0;
+  setsockopt(outsocks[target], IPPROTO_TCP, TCP_CORK, &zero, sizeof(zero));
+  setsockopt(outsocks[target], IPPROTO_TCP, TCP_CORK, &one, sizeof(one)); */
 }
 void dc_tcp_comm::new_socket(int newsock, sockaddr_in* otheraddr, procid_t id) {
   // figure out the address of the incoming connection

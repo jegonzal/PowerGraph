@@ -29,7 +29,9 @@ namespace dc_impl {
 
 class dc_buffered_stream_send: public dc_send{
  public:
-  dc_buffered_stream_send(distributed_control* dc, dc_comm_base *comm): dc(dc), comm(comm), done(false){ 
+  dc_buffered_stream_send(distributed_control* dc, dc_comm_base *comm,
+                          size_t usetimedwait = 0): dc(dc), comm(comm), 
+                                                      done(false), usetimedwait(usetimedwait) { 
     thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send::send_loop, 
                                       this));
   }
@@ -78,7 +80,7 @@ class dc_buffered_stream_send: public dc_send{
 
   thread thr;
   bool done;
-  
+  size_t usetimedwait;
   atomic<size_t> bytessent;
 };
 
