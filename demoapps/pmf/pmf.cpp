@@ -411,6 +411,10 @@ inline void parse_edge(edge_data& edge, vertex_data & pdata, mat & Q, vec & vals
  
   
 int count_edges(edge_list es){
+  
+  if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
+      return es.size();
+
   int cnt = 0; 
   for (int j=0; j< (int)es.size(); j++){
     cnt += g.edge_data(es[j]).medges.size();
@@ -785,6 +789,7 @@ void start(int argc, char ** argv) {
   assert(clopts.parse(argc-3, argv+3));
   printf("loading data file %s\n", infile.c_str());
   load_pmf_graph(infile.c_str(), &glcore.graph(), false, glcore);
+  g=glcore.graph();
 
   printf("loading data file %s\n", (infile+"e").c_str());
   load_pmf_graph((infile+"e").c_str(),&g1, true, glcore);
@@ -977,7 +982,6 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
 
  
   vertex_data vdata;
-  //vdata.pvec = ones(D);
 
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
@@ -1011,8 +1015,8 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
   // read tensor non zero edges from file
   int val = 0; 
   if (!FLOAT) 
-	val = read_mult_edges<edata2>(f, M+N, &glcore.graph());
-  else val = read_mult_edges<edata3>(f,M+N,&glcore.graph());
+	val = read_mult_edges<edata2>(f, M+N, g);
+  else val = read_mult_edges<edata3>(f,M+N, g);
 
   if (!test)
     L = val;
@@ -1047,13 +1051,13 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
   if (!test){
     for (int i=0; i<M+N; i++){
       vertex_data &vdata = g->vertex_data(i);
-      if (i < M)
-        vdata.num_edges = count_edges(g->out_edge_ids(i));
-      else
-        vdata.num_edges = count_edges(g->in_edge_ids(i));
-    }
+        if (i < M)
+          vdata.num_edges = count_edges(g->out_edge_ids(i));
+        else
+          vdata.num_edges = count_edges(g->in_edge_ids(i));
+     }
   }
-   
+ 
   if (!test && tensor && K>1){
     int cnt = 0;
     for (int i=0; i<K; i++){
