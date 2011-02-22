@@ -47,7 +47,7 @@ color_state color_owned_subgraph(graph_type &g) {
       else {
         c = NOT_DONE;
       }
-      g.set_vertex_data(ownedv, smallestcolor);      
+      g.set_vertex_data_async(ownedv, smallestcolor);      
     }
   }
   return c;
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
   std::string path;
   std::string donestring;
   std::string outputfile = "colors.txt";
-  graphlab::command_line_options clopts("Graph Colorizer");
+  graphlab::command_line_options clopts("Graph Colorizer", true);
   
   clopts.attach_option("atomindex", &path, path, "atom index file");
   clopts.attach_option("outputfile", &outputfile, outputfile, "color output file");
@@ -120,8 +120,8 @@ int main(int argc, char** argv) {
     if (dc.procid() == 0) {
       logstream(LOG_INFO) << "Iteration " << iter << std::endl;
     }
-    dg.push_all_owned_vertices_to_replicas(true);
-    dg.wait_for_all_async_pushes();
+    //dg.push_all_owned_vertices_to_replicas(true);
+    dg.rmi.full_barrier();
     if (dc.procid() == 0) {
       logstream(LOG_INFO) << "Synchronized " << iter << std::endl;
     }

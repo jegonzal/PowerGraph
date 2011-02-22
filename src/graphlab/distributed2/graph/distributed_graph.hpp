@@ -887,8 +887,8 @@ class distributed_graph {
         globalvid2owner.get_cached(vid);
       assert(vidowner.first);
       rmi.remote_call(vidowner.second,
-                      &distributed_graph<VertexData,EdgeData>::
-                      set_vertex_data_async,
+                      &distributed_graph<VertexData,EdgeData>::set_vertex_data_async,
+                      vid,
                       vdata);
     }
   }
