@@ -14,7 +14,7 @@ void test_basic_assertions() {
   //ASSERT_MSG(i>j, "%d not greater than %d", i, j);
   std::string a = "abc";
   std::string b = "cde";
-  ASSERT_EQ(a, a);
+  ASSERT_EQ(a, b);
   
 }
 

@@ -49,6 +49,9 @@
 #include <graphlab/logger/logger.hpp>
 
 #include <boost/typeof/typeof.hpp>
+
+void __print_back_trace();
+
 // On some systems (like freebsd), we can't call write() at all in a
 // global constructor, perhaps because errno hasn't been set up.
 // Calling the write syscall is safer (it doesn't set errno), so we
@@ -67,7 +70,7 @@
     if (!(condition)) {                                                 \
       WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
                       sizeof("Check failed: " #condition "\n")-1);      \
-      sleep(1);assert(false);                                            \
+      sleep(1);__print_back_trace();assert(false);                                            \
     }                                                                   \
   } while(0)
 
@@ -80,7 +83,7 @@
       const int err_no = errno;                                         \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ": "    \
                            << strerror(err_no) << "\n";                 \
-      sleep(1);assert(false);                                           \
+      sleep(1);__print_back_trace();assert(false);                                           \
     }                                                                   \
   } while(0)
 
@@ -100,7 +103,7 @@
     if (!((v1) op (typeof(val1))(v2))) {                                \
       logstream(LOG_FATAL) << "Check failed: " << #val1 << #op << #val2 \
                            << "  [" << v1 << #op << v2 << "]\n";        \
-      sleep(1);assert(false);                                           \
+      sleep(1);__print_back_trace();assert(false);                                           \
     }                                                                   \
   } while(0)
 
@@ -138,7 +141,7 @@
     if (!(condition)) {                                                 \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ":\n";  \
       logger(LOG_FATAL, fmt, ##__VA_ARGS__);                            \
-      sleep(1);assert(false);                                            \
+      sleep(1);__print_back_trace();assert(false);                                            \
     }                                                                   \
   } while(0)
 
@@ -171,7 +174,7 @@
     if (!(condition)) {                                                 \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ":\n";  \
       logger(LOG_FATAL, fmt, ##__VA_ARGS__);                            \
-     sleep(1);assert(false);                                            \
+     sleep(1);__print_back_trace();assert(false);                                            \
     }                                                                   \
   } while(0)
 
