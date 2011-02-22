@@ -9,11 +9,11 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <vector>
-#include <cassert>
 #include <list>
 #include <iostream>
 #include <boost/random.hpp>
 #include <boost/function.hpp>
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/macros_def.hpp>
 
@@ -160,7 +160,7 @@ namespace graphlab {
       size_t m_thread_id;
       invoke_args(runnable* r, size_t t) : 
         m_runnable(r), m_thread_id(t) {
-        assert(m_runnable != NULL);
+        ASSERT_TRUE(m_runnable != NULL);
       }
     }; // end of struct
 
@@ -194,11 +194,11 @@ namespace graphlab {
       pthread_attr_t attr;
       int error = 0;
       error = pthread_attr_init(&attr);
-      assert(!error);
+      ASSERT_TRUE(!error);
       error = pthread_attr_setstacksize(&attr, m_stack_size);
-      assert(!error);
+      ASSERT_TRUE(!error);
       error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-      assert(!error);
+      ASSERT_TRUE(!error);
       
 
       // If no runnable object was passed in then this thread will try
@@ -221,7 +221,7 @@ namespace graphlab {
       }
       // destroy the attribute object
       error = pthread_attr_destroy(&attr);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
 
     /**
@@ -237,7 +237,7 @@ namespace graphlab {
       start();
       return;
 #else
-      // At this point we can assert that this is a linux system
+      // At this point we can ASSERT_TRUE that this is a linux system
       if (cpu_id >= cpu_count() && cpu_count() > 0) {
         // definitely invalid cpu_id
         std::cout << "Invalid cpu id passed on thread_ground.launch()" 
@@ -251,11 +251,11 @@ namespace graphlab {
       pthread_attr_t attr;
       int error = 0;
       error = pthread_attr_init(&attr);
-      assert(!error);
+      ASSERT_TRUE(!error);
       error = pthread_attr_setstacksize(&attr, m_stack_size);
-      assert(!error);
+      ASSERT_TRUE(!error);
       error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-      assert(!error);
+      ASSERT_TRUE(!error);
       
       // Set Processor Affinity masks (linux only)
       cpu_set_t cpu_set;
@@ -284,7 +284,7 @@ namespace graphlab {
       
       // destroy the attribute object
       error = pthread_attr_destroy(&attr);
-      assert(!error);
+      ASSERT_TRUE(!error);
 #endif
     } // end of start(size_t cpu_id)
 
@@ -457,23 +457,23 @@ namespace graphlab {
   public:
     mutex() {
       int error = pthread_mutex_init(&m_mut, NULL);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
       if (error) std::cout << "mutex.lock() error: " << error << std::endl;
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void unlock() const {
       int error = pthread_mutex_unlock( &m_mut );
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline bool try_lock() const {
       return pthread_mutex_trylock( &m_mut ) == 0;
     }
     ~mutex(){
       int error = pthread_mutex_destroy( &m_mut );
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     friend class conditional;
   }; // End of Mutex
@@ -497,23 +497,23 @@ namespace graphlab {
   public:
     spinlock () {
       int error = pthread_spin_init(&m_spin, PTHREAD_PROCESS_PRIVATE);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
   
     inline void lock() const { 
       int error = pthread_spin_lock( &m_spin  );
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void unlock() const {
       int error = pthread_spin_unlock( &m_spin );
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline bool try_lock() const {
       return pthread_spin_trylock( &m_spin ) == 0;
     }
     ~spinlock(){
       int error = pthread_spin_destroy( &m_spin );
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     friend class conditional;
   }; // End of spinlock
@@ -546,7 +546,7 @@ namespace graphlab {
       return (__sync_lock_test_and_set(&spinner, 1) == 0);
     }
     ~simple_spinlock(){
-      assert(spinner == 0);
+      ASSERT_TRUE(spinner == 0);
     }
   };
   
@@ -561,11 +561,11 @@ namespace graphlab {
   public:
     conditional() {
       int error = pthread_cond_init(&m_cond, NULL);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void wait(const mutex& mut) const {
       int error = pthread_cond_wait(&m_cond, &mut.m_mut);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline int timedwait(const mutex& mut, int sec) const {
       struct timespec timeout;
@@ -588,15 +588,15 @@ namespace graphlab {
 
     inline void signal() const {
       int error = pthread_cond_signal(&m_cond);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void broadcast() const {
       int error = pthread_cond_broadcast(&m_cond);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     ~conditional() {
       int error = pthread_cond_destroy(&m_cond);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
   }; // End conditional
 
@@ -635,8 +635,8 @@ namespace graphlab {
       mut.unlock();
     }
     ~semaphore() {
-      assert(waitercount == 0);
-      assert(semvalue == 0);
+      ASSERT_TRUE(waitercount == 0);
+      ASSERT_TRUE(semvalue == 0);
     }
   }; // End semaphore
 #else
@@ -646,19 +646,19 @@ namespace graphlab {
   public:
     semaphore() {
       int error = sem_init(&m_sem, 0,0);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void post() const {
       int error = sem_post(&m_sem);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void wait() const {
       int error = sem_wait(&m_sem);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     ~semaphore() {
       int error = sem_destroy(&m_sem);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
   }; // End semaphore
 #endif
@@ -744,23 +744,23 @@ namespace graphlab {
   public:
     rwlock() {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     ~rwlock() {
       int error = pthread_rwlock_destroy(&m_rwlock);
-      assert(!error);
+      ASSERT_TRUE(!error);
     }
     inline void readlock() const {
       pthread_rwlock_rdlock(&m_rwlock);
-      //assert(!error);
+      //ASSERT_TRUE(!error);
     }
     inline void writelock() const {
       pthread_rwlock_wrlock(&m_rwlock);
-      //assert(!error);
+      //ASSERT_TRUE(!error);
     }
     inline void unlock() const {
       pthread_rwlock_unlock(&m_rwlock);
-      //assert(!error);
+      //ASSERT_TRUE(!error);
     }
     inline void rdunlock() const {
       unlock();
