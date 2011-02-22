@@ -646,6 +646,7 @@ private:
  public:
   template <typename U>
   void all_gather(std::vector<U>& data, bool control = false) {
+    if (numprocs() == 1) return;
     // get the string representation of the data
     use_control_calls = control;
     charstream strm(128);

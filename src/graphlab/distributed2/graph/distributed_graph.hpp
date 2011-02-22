@@ -99,7 +99,7 @@ class distributed_graph {
   typedef EdgeData edge_data_type;
   typedef dgraph_edge_list edge_list_type;
   
-  distributed_graph(distributed_control &dc, std::string atomidxfile):
+  distributed_graph(distributed_control &dc, std::string atomidxfile, bool do_not_load_data = false):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
                               globaleid2owner(dc, 65536),
@@ -130,7 +130,7 @@ class distributed_graph {
 
     }
     rmi.broadcast(partitions, dc.procid() == 0);
-    construct_local_fragment(atomindex, partitions, rmi.procid());
+    construct_local_fragment(atomindex, partitions, rmi.procid(), do_not_load_data);
     rmi.barrier();
   }
 
@@ -1185,7 +1185,8 @@ class distributed_graph {
    */
   void construct_local_fragment(const atom_index_file &atomindex,
                                 std::vector<std::vector<size_t> > partitiontoatom,
-                                size_t curpartition) {
+                                size_t curpartition,
+                                bool do_not_load_data) {
     // first make a map mapping atoms to machines
     // we will need this later
     std::vector<procid_t> atom2machine;
@@ -1427,37 +1428,42 @@ class distributed_graph {
       logger(LOG_INFO, "edge canonical numbering used. global eid table not needed");
     }
     
-    logger(LOG_INFO, "Loading data");
-    // done! structure constructed!  now for the data!  load atoms one
-    // at a time, don't keep more than one atom in memor at any one
-    // time
-    for (size_t i = 0;i < atomfiles.size(); ++i) {
-      atomfiles[i]->load_all();
-      for (size_t j = 0; j < atomfiles[i]->vdata().size(); ++j) {
-        // convert from the atom's local vid, to the global vid, then
-        // to the fragment localvi
-        size_t localvid = global2localvid[atomfiles[i]->globalvids()[j]];
-        localstore.vertex_data(localvid) = atomfiles[i]->vdata()[j];
-        localstore.set_vertex_version(localvid, 0);
-      }
-      for (size_t j = 0; j < atomfiles[i]->edata().size(); ++j) {
-        // convert from the atom's local vid, to the global vid, then
-        // to the fragment localvi
-        edge_id_t localeid;
-        if (!edge_canonical_numbering) {
-          localeid = global2localeid[atomfiles[i]->globaleids()[j]];
+    if (do_not_load_data == false) {
+      logger(LOG_INFO, "Loading data");
+      // done! structure constructed!  now for the data!  load atoms one
+      // at a time, don't keep more than one atom in memor at any one
+      // time
+      for (size_t i = 0;i < atomfiles.size(); ++i) {
+        atomfiles[i]->load_all();
+        for (size_t j = 0; j < atomfiles[i]->vdata().size(); ++j) {
+          // convert from the atom's local vid, to the global vid, then
+          // to the fragment localvi
+          size_t localvid = global2localvid[atomfiles[i]->globalvids()[j]];
+          localstore.vertex_data(localvid) = atomfiles[i]->vdata()[j];
+          localstore.set_vertex_version(localvid, 0);
         }
-        else {
-         std::pair<vertex_id_t, vertex_id_t> globaledge = 
-            std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
-                           atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
-          localeid = canonical_numbering[globaledge];     
+        for (size_t j = 0; j < atomfiles[i]->edata().size(); ++j) {
+          // convert from the atom's local vid, to the global vid, then
+          // to the fragment localvi
+          edge_id_t localeid;
+          if (!edge_canonical_numbering) {
+            localeid = global2localeid[atomfiles[i]->globaleids()[j]];
+          }
+          else {
+           std::pair<vertex_id_t, vertex_id_t> globaledge = 
+              std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
+                             atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
+            localeid = canonical_numbering[globaledge];     
+          }
+          localstore.edge_data(localeid) = atomfiles[i]->edata()[j];
+          localstore.set_edge_version(localeid, 0);
         }
-        localstore.edge_data(localeid) = atomfiles[i]->edata()[j];
-        localstore.set_edge_version(localeid, 0);
+        atomfiles[i]->clear();
+        delete atomfiles[i];
       }
-      atomfiles[i]->clear();
-      delete atomfiles[i];
+    }
+    else {
+      localstore.zero_all();
     }
     // flush the store
     logger(LOG_INFO, "Finalize");
