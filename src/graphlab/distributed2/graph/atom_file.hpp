@@ -258,7 +258,7 @@ namespace graphlab {
     idxfile.natoms = numparts;
     idxfile.ncolors = 0;
     for (size_t i = 0;i < graph.num_vertices(); ++i) {
-      idxfile.ncolors = std::max(idxfile.ncolors, graph.get_color(i));
+      idxfile.ncolors = std::max(idxfile.ncolors, graph.color(i));
     }
     
     for (size_t i = 0; i < numparts; ++i) {
