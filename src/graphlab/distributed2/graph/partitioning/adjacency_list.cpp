@@ -5,6 +5,7 @@
 #include <string>
 
 #include <graphlab/distributed2/graph/partitioning/adjacency_list.hpp>
+#include <graphlab/util/random.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -54,12 +55,13 @@ add_edge(const vertex_id_t& source, const vertex_id_t& target,
     target_localvid = get_local_vid(target);
   else 
     target_localvid = add_vertex(target);
+  nedges++;
   in_neighbor_ids.at(target_localvid).push_back(source);
 } // end of add edge
 
 
 void adjacency_list::
-load(const std::string& fname) {
+load(const std::string& fname, const double acceptance_rate) {
   // be sure to have the vlist fname
   std::string vlist_fname = change_suffix(fname, vlist_suffix);
   {
@@ -75,14 +77,22 @@ load(const std::string& fname) {
   // be sure to have the elist fname
   std::string elist_fname = change_suffix(fname, elist_suffix);
   const bool REQUIRE_HAS_TARGET(true);
+  const bool ALWAYS_ACCEPT(acceptance_rate >= 1);
   {
     std::ifstream fin(elist_fname.c_str());
     while(fin.good()) {
       size_t source(0);
       size_t target(0);
       fin >> source >> target;
-      if(fin.good()) 
-        add_edge(source, target, REQUIRE_HAS_TARGET);  
+      if(fin.good()) {
+        if(ALWAYS_ACCEPT) {
+          add_edge(source, target, REQUIRE_HAS_TARGET);  
+        } else {
+          const double rndnumber(random::rand01());
+          if( rndnumber < acceptance_rate )
+            add_edge(source, target, REQUIRE_HAS_TARGET);  
+        }
+      }
     }
     fin.close();
   }
@@ -236,8 +246,37 @@ list_vlist_files(const std::string& pathname,
 
 
 
+void adjacency_list::
+check_local_structures(size_t nverts) const {
+  assert(in_neighbor_ids.size() < nverts);
+  assert(local_vertices.size() == in_neighbor_ids.size());
+  { // Check local vertices is a set
+    std::set<vertex_id_t> lvids;
+    lvids.insert(local_vertices.begin(), local_vertices.end());
+    assert(lvids.size() == local_vertices.size());
+  }
 
-
+  for(size_t i = 0; i < local_vertices.size(); ++i) {    
+    vertex_id_t vid(local_vertices[i]);
+    assert(vid < nverts);
+    {    // Check Global to local map is valid
+      typedef global2local_type::const_iterator iterator;
+      iterator iter = global2local.find(vid);
+      assert(iter != global2local.end());
+      assert(iter->second == i);
+    }
+    {    // Check that neighbors have valid ids
+      for(size_t j = 0; j < in_neighbor_ids[i].size(); ++j)
+        assert(in_neighbor_ids[i][j] < nverts);
+    }
+    {     // check that neighbors list is a set
+      std::set<vertex_id_t> neighbors;
+      neighbors.insert(in_neighbor_ids[i].begin(), 
+                       in_neighbor_ids[i].end());
+      assert(neighbors.size() == in_neighbor_ids[i].size());
+    }
+  } 
+} // end of check local structures
 
 
 

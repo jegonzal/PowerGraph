@@ -11,7 +11,8 @@ namespace graphlab {
     
     void construct_partitioning(int argc, char** argv, 
                                 int numparts,
-                                const std::string& path);
+                                const std::string& path,
+                                const double acceptance_probability);
   };
   
 

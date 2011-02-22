@@ -226,6 +226,101 @@ namespace graphlab {
     void shuffle(const std::string& path,
                  const std::string& atom_path,
                  const std::string& atom_prefix = "atom_") {
+     
+      
+
+      std::vector<std::string> local_fnames;
+      { // Determine Local Filenames ==========================================
+        if(rmi.procid() == 0) 
+          std::cout << "Computing local filenames."
+                    << std::endl;    
+        adjacency_list::list_vlist_files(path, local_fnames);
+        // compute the fnames that are used by this machine
+        std::vector< std::vector< std::string > > partition_fnames;
+        rmi.gather_partition(local_fnames, partition_fnames);
+        // update the local fnames      
+        local_fnames = partition_fnames[rmi.procid()];
+     
+      }
+  
+      { // Load local adjacency lists fragments ===============================
+        if(rmi.procid() == 0) 
+          std::cout << "Loading local graph structures."
+                    << std::endl;
+        for(size_t i = 0; i < local_fnames.size(); ++i) {
+          std::string absfname = path + "/" + local_fnames[i];
+          // std::cout << "(" <<  rmi.procid() << " - " 
+          //           << local_fnames[i] << ")" << std::endl;
+          alist.load(absfname);
+        }
+      }
+
+      size_t nverts(0), nedges(0);
+      {  // compute the total number of vertices and edges
+        std::vector<size_t> gather_count(rmi.numprocs(), 0);
+        gather_count.at(rmi.procid()) = alist.local_vertices.size();
+        rmi.all_gather(gather_count);
+        for(size_t i = 0; i < gather_count.size(); ++i) 
+          nverts += gather_count.at(i);
+        for(size_t i = 0; i < alist.in_neighbor_ids.size(); ++i) 
+          nedges += alist.in_neighbor_ids.at(i).size();
+        gather_count.at(rmi.procid()) = nedges;
+        rmi.all_gather(gather_count);
+        nedges = 0;
+        for(size_t i = 0; i < gather_count.size(); ++i) 
+          nedges += gather_count.at(i);
+        std::cout << "Nvertices: " << nverts << std::endl
+                  << "Nedges:    " << nedges << std::endl;
+      }
+
+
+
+
+
+      { // Load the partitioning information =========================
+        if(rmi.procid() == 0) 
+          std::cout << "Loading partitioning."
+                    << std::endl;      
+        size_t max_atomid(0);
+        std::string absfname = path + "/partitioning.txt";
+        std::ifstream fin(absfname.c_str());
+        if(!fin.good()) { // randomly partition if not possible
+          std::cout << "Using random partitioning." << std::endl;
+          vertex2atomid.resize(nverts, procid_t(-1));
+          for(size_t i = 0; i < vertex2atomid.size(); ++i) { 
+            size_t atomid = (i % 1000);
+            max_atomid = std::max(max_atomid, atomid);            
+            vertex2atomid[i] = atomid;
+          }
+        } else {
+          vertex2atomid.reserve(nverts);
+          while(fin.good()) {
+            size_t atomid;
+            fin >> atomid;
+            if(fin.good()) {
+              assert(atomid < std::numeric_limits<procid_t>::max());
+              max_atomid = std::max(max_atomid, atomid);            
+              vertex2atomid.push_back(procid_t(atomid));
+            }
+          }
+        }
+        fin.close();
+        num_atoms = max_atomid + 1;        
+        if(rmi.procid() == 0) {
+          std::cout << "Num atoms: " << num_atoms
+                    << std::endl;      
+          // Save the partitioning in the shared atom folder
+          absfname = atom_path + "/partitioning.txt";
+          std::ofstream fout(absfname.c_str());
+          assert(fout.good());
+          for(size_t i = 0; i < vertex2atomid.size(); ++i) {
+            fout << size_t(vertex2atomid[i]) << '\n';
+            assert(fout.good());
+          }
+          fout.close();
+        }
+      }
+
       { // Load the coloring information =============================
         if(rmi.procid() == 0) 
           std::cout << "Loading vertex coloring."
@@ -233,6 +328,9 @@ namespace graphlab {
         size_t max_color(0);
         std::string absfname = path + "/coloring.txt";
         std::ifstream fin(absfname.c_str());
+        if(!fin.good()) {// file does not exist 
+          vertex2color.resize(vertex2atomid.size(), 0);
+        }
         while(fin.good()) {
           size_t vcolor;
           fin >> vcolor;
@@ -263,68 +361,8 @@ namespace graphlab {
 
 
 
-      { // Load the partitioning information =========================
-        if(rmi.procid() == 0) 
-          std::cout << "Loading partitioning."
-                    << std::endl;      
-        size_t max_atomid(0);
-        std::string absfname = path + "/partitioning.txt";
-        std::ifstream fin(absfname.c_str());
-        while(fin.good()) {
-          size_t atomid;
-          fin >> atomid;
-          if(fin.good()) {
-            assert(atomid < std::numeric_limits<procid_t>::max());
-            max_atomid = std::max(max_atomid, atomid);            
-            vertex2atomid.push_back(procid_t(atomid));
-          }
-        }
-        fin.close();
-        num_atoms = max_atomid + 1;        
-        if(rmi.procid() == 0) {
-          std::cout << "Num atoms: " << num_atoms
-                    << std::endl;      
-          // Save the partitioning in the shared atom folder
-          absfname = atom_path + "/partitioning.txt";
-          std::ofstream fout(absfname.c_str());
-          assert(fout.good());
-          for(size_t i = 0; i < vertex2atomid.size(); ++i) {
-            fout << size_t(vertex2atomid[i]) << '\n';
-            assert(fout.good());
-          }
-          fout.close();
-        }
-      }
 
-      assert(vertex2atomid.size() == vertex2color.size());
-      if(rmi.procid() == 0) 
-        std::cout << "Vertices: " << vertex2color.size() << std::endl;
-      
-
-      std::vector<std::string> local_fnames;
-      { // Determine Local Filenames ==========================================
-        if(rmi.procid() == 0) 
-          std::cout << "Computing local filenames."
-                    << std::endl;    
-        adjacency_list::list_vlist_files(path, local_fnames);
-        // compute the fnames that are used by this machine
-        std::vector< std::vector< std::string > > partition_fnames;
-        rmi.gather_partition(local_fnames, partition_fnames);
-        // update the local fnames      
-        local_fnames = partition_fnames[rmi.procid()];
-     
-      }
-  
-      { // Load local adjacency lists fragments ===============================
-        if(rmi.procid() == 0) 
-          std::cout << "Loading local graph structures."
-                    << std::endl;
-        for(size_t i = 0; i < local_fnames.size(); ++i) {
-          std::string absfname = path + "/" + local_fnames[i];
-          // std::cout << "(" <<  rmi.procid() << " - " 
-          //           << local_fnames[i] << ")" << std::endl;
-          alist.load(absfname);
-        }
+      {
         // check the vertices in the alists
         for(size_t i = 0; i < alist.local_vertices.size(); ++i) {
           assert(alist.local_vertices[i] < vertex2atomid.size());
@@ -335,6 +373,13 @@ namespace graphlab {
         neighbor_atoms.resize(alist.local_vertices.size());
         neighbor_locks.resize(alist.local_vertices.size());
       }
+
+
+      assert(vertex2atomid.size() == vertex2color.size());
+      if(rmi.procid() == 0) 
+        std::cout << "Vertices: " << vertex2color.size() << std::endl;
+      
+
 
 
       timer ti;
