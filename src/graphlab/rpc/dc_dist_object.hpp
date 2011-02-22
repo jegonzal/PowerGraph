@@ -737,7 +737,8 @@ private:
       std::stringstream strm2(s);
       iarchive iarc2(strm2);
       iarc2 >> data[heappos];
-
+      
+      if (i + 1 == numprocs()) break;
       // advance heappos
       // leftbranch
       bool lefttraverseblock = false;
@@ -761,6 +762,8 @@ private:
 
         // we have finished this subtree, go back up to parent
         // and block the depth traversal on the next round
+        // unless heappos is 0
+
         heappos = (heappos - 1) / BARRIER_BRANCH_FACTOR;
         lefttraverseblock = true;
         continue;
