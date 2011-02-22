@@ -174,6 +174,7 @@ bisect_atoms_metis(const atom_index_file& atomindex, std::vector<size_t> atomsub
         if (atomindex.atoms[i].optional_weight_to_adjatoms.size() != 0) {
           atomweight = atomindex.atoms[i].optional_weight_to_adjatoms[j];
         }
+        if (nbr == atomrevmap[i]) continue;
         atomgraph.add_edge(atomrevmap[i], nbr, atomweight);
         atomgraph.add_edge(nbr, atomrevmap[i], atomweight);
       }
@@ -223,6 +224,7 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
       if (atomindex.atoms[i].optional_weight_to_adjatoms.size() != 0) {
         atomweight = atomindex.atoms[i].optional_weight_to_adjatoms[j];
       }
+      if (atomindex.atoms[i].adjatoms[j] == i) continue;
       atomgraph.add_edge(i, atomindex.atoms[i].adjatoms[j], atomweight);
       atomgraph.add_edge(atomindex.atoms[i].adjatoms[j], i, atomweight);
     }
