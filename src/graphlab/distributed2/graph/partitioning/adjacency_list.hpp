@@ -24,10 +24,11 @@ namespace graphlab {
     std::vector< vertex_id_t >               local_vertices;
     std::vector< std::vector<vertex_id_t> >  in_neighbor_ids;
     global2local_type                        global2local;
+    size_t                                   nedges;
    
     //! Load the structure file from an adjacency list a the given
     //! location
-    adjacency_list(){}
+    adjacency_list() : nedges(0) {}
 
     vertex_id_t add_vertex(const vertex_id_t& vid);
 
@@ -39,7 +40,7 @@ namespace graphlab {
 
 
 
-    void load(const std::string& fname);  
+    void load(const std::string& fname, const double acceptance_rate = 1);  
 
     void save(const std::string& base, const size_t& id) const; 
 
