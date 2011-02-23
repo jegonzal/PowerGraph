@@ -388,21 +388,29 @@ construct_partitioning(int argc, char** argv,
   error = zolt.Set_Param("LB_METHOD", "GRAPH");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("DEBUG_LEVEL", "1");
+  error = zolt.Set_Param("DEBUG_LEVEL", "5");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("IMBALANCE_TOL", "2");
+  error = zolt.Set_Param("IMBALANCE_TOL", "5");
   assert(error == ZOLTAN_OK);
 
 
   error = zolt.Set_Param("GRAPH_SYMMETRIZE", "TRANSPOSE");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("CHECK_GRAPH", "2");
+  error = zolt.Set_Param("CHECK_GRAPH", "0");
   assert(error == ZOLTAN_OK);
 
-  error = zolt.Set_Param("GRAPH_BUILD_TYPE", "NORMAL");
-  //  error = zolt.Set_Param("GRAPH_BUILD_TYPE", "FAST");
+  error = zolt.Set_Param("FINAL_OUTPUT", "1");
+  assert(error == ZOLTAN_OK);
+
+
+  // error = zolt.Set_Param("GRAPH_BUILD_TYPE", "NORMAL");
+  error = zolt.Set_Param("GRAPH_BUILD_TYPE", "FAST");
+  assert(error == ZOLTAN_OK);
+
+
+  error = zolt.Set_Param("REMAP", "0");
   assert(error == ZOLTAN_OK);
 
 
@@ -421,10 +429,19 @@ construct_partitioning(int argc, char** argv,
   // Set the package to parmetis
   // For more details see:
   // http://www.cs.sandia.gov/zoltan/ug_html/ug_alg_parmetis.html
-  error = zolt.Set_Param("GRAPH_PACKAGE", "Parmetis");
+  //  error = zolt.Set_Param("GRAPH_PACKAGE", "Parmetis");
+  error = zolt.Set_Param("GRAPH_PACKAGE", "Scotch");
   assert(error == ZOLTAN_OK);
+
   error = zolt.Set_Param("LB_APPROACH", "PARTITION");
   assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param("PARMETIS_ITR", "100");
+  assert(error == ZOLTAN_OK);
+
+  error = zolt.Set_Param("PARMETIS_OUTPUT_LEVEL", "7");
+  assert(error == ZOLTAN_OK);
+
 
   // http://www.cs.sandia.gov/zoltan/ug_html/ug_alg.html#RETURN_LISTS 
   {
