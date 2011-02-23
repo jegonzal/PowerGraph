@@ -3,8 +3,6 @@
 #include <fstream>
 #include <cmath>
 #include <cstdio>
-//#include <cfloat>
-
 #include <graphlab.hpp>
 
 
@@ -42,7 +40,6 @@ double pU = 10; //regularization for matrix
 double pT = 1;
 double pV = 10;
 double muT = 1;
-double * _ones;
 vec vones; 
 mat eDT; 
 mat dp;
@@ -128,7 +125,6 @@ void init_pmf() {
   if (BPTF)
 	pT=10;
   eDT = itpp::eye(D)*pT;
-  _ones = gl_ones(D);
   vones = itpp::ones(D);
 }
     

@@ -41,18 +41,13 @@ struct edge_data {
   edge_data(){ weight = 0; time = 0; avgprd = 0;}
 };
 
+//containiner for handling multiple edge
 struct multiple_edges{
   std::vector<edge_data> medges;
 };
  
-inline sdouble* gl_ones(int n) {
-		assert(n>0);
-		sdouble * ret = new sdouble[n];
-		for (int i=0; i< n; i++)
-			ret[i] = 1.0;
-		return ret;
-}
 
+/*
 sdouble* ones(int n, sdouble val) {
 	assert(n>0);
 	sdouble * ret = new sdouble[n];
@@ -67,7 +62,7 @@ void ones(double * x, int len){
 void ones(double * x, int len, double val){
 	for (int i=0; i<len; i++)
 		x[i] = val;
-}
+}*/
 
 
 inline double rmse(vec& x1, vec& x2, vec& x3, int len, double val){
