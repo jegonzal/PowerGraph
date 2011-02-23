@@ -19,12 +19,12 @@
 
 */
 
-bool BPTF = true;
+bool BPTF = true; //is this a tensor?
+bool debug = false;
 int options;
 timer gt;
 using namespace itpp;
 using namespace std;
-bool debug = false;
 
 std::vector<edge_id_t> * edges;
 std::string infile;
@@ -70,7 +70,7 @@ typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 gl_types::iengine * engine;
 graph_type *g;
-graph_type g1;
+graph_type test_graph;
 gl_types::thread_shared_data sdm;
 
 
@@ -310,7 +310,7 @@ void sample_T(){
 }
 
 // update function for time nodes
-void T_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler, gl_types::ishared_data* shared_data) {
+void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler, gl_types::ishared_data* shared_data) {
 
   assert(tensor);
 
@@ -412,7 +412,7 @@ int count_edges(edge_list es){
 /***
  * UPDATE FUNCTION
  */
-void pmf_update_function(gl_types::iscope &scope, 
+void user_movie_nodes_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler,
                          gl_types::ishared_data* shared_data) {
     
@@ -553,7 +553,7 @@ void last_iter(){
   double res,res2;
   double rmse = calc_rmse_q(res);
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse(&g1, true, res2));
+  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse(&test_graph, true, res2));
   iiter++;
   if (iiter == BURN_IN && BPTF){
     printf("Finished burn-in period. starting to aggregate samples\n");
@@ -772,22 +772,20 @@ void start(int argc, char ** argv) {
   clopts.attach_option("lambda", &LAMBDA, LAMBDA, "regularization weight");  
  
   gl_types::core glcore;
-  assert(clopts.parse(argc-3, argv+3));
+  assert(clopts.parse(argc-2, argv+2));
+
+  //read the training data
   printf("loading data file %s\n", infile.c_str());
   g=&glcore.graph();
   load_pmf_graph(infile.c_str(), g, false, glcore);
 
+  //read the test data (optional)
   printf("loading data file %s\n", (infile+"e").c_str());
-  load_pmf_graph((infile+"e").c_str(),&g1, true, glcore);
+  load_pmf_graph((infile+"e").c_str(),&test_graph, true, glcore);
 
   printf("setting regularization weight to %g\n", LAMBDA);
   pU=pV=LAMBDA;
-
   glcore.set_engine_options(clopts); 
-
-  //engine = clopts.create_engine(g);
-  //engine->set_shared_data_manager(&sdm);
-  //init_shared_data(glcore,2);
 
   if (tensor)
     dp = GenDiffMat(K)*pT;
@@ -799,17 +797,16 @@ void start(int argc, char ** argv) {
     um.push_back(i);
  
   // add update function for user and movie nodes (tensor dims 1+2) 
-  glcore.add_tasks(um, pmf_update_function, 1);
+  glcore.add_tasks(um, user_movie_nodes_update_function, 1);
   
   std::vector<vertex_id_t> tv;
   if (tensor){
     for (int i=M+N; i< M+N+K; i++)
       tv.push_back(i);
      // add update function for time nodes (tensor dim 3)
-    glcore.add_tasks(tv, T_update_function, 1);
+    glcore.add_tasks(tv, time_node_update_function, 1);
   }
 
-  //((round_robin_scheduler<graph_type>*)&engine->get_scheduler())->set_start_vertex(size_t(0));   
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", BPTF?"BPTF":"PTF_ALS", tensor?"tensor":"matrix", M, N, K, L, D);
   
@@ -822,11 +819,11 @@ void start(int argc, char ** argv) {
 
   double res, res2;
   double rmse =  calc_rmse(g, false, res);
-  printf("complete. Obj=%g, TEST RMSE=%0.4f.\n", calc_obj(res), calc_rmse(&g1, true, res2));
+  printf("complete. Obj=%g, TEST RMSE=%0.4f.\n", calc_obj(res), calc_rmse(&test_graph, true, res2));
 
 
   if (BPTF){
-    sample_alpha(1*L);
+    sample_alpha(L);
     sample_U();
     sample_V();
     if (tensor) 
@@ -842,7 +839,7 @@ void start(int argc, char ** argv) {
 
   // calculate final RMSE
   rmse =  calc_rmse(g, false, res);
-  printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(res),  calc_rmse(&g1, true, res2));
+  printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(res),  calc_rmse(&test_graph, true, res2));
   
 
   /**** POST-PROCESSING *****/
@@ -881,6 +878,10 @@ void start(int argc, char ** argv) {
  output.close();
 }
 
+
+/**
+ * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
+ */
 template<typename edgedata>
 int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
      
@@ -1066,18 +1067,12 @@ int main(int argc,  char *argv[]) {
   infile = argv[1];
 
   if (infile == "" || argc <= 3) {
-    std::cout << "PMF <intput file> <weight> <run mode [0-4]>\n";
+    std::cout << "PMF <intput file> <run mode [0-4]>\n";
     return 0;
   }
-  //weight = atof(argv[2]);
-   
-  //assert(weight>0);
-  //printf("setting regularization %e\n", weight);
-  //pV = pU = weight;  
-  //assert(pV > 0);
-
-  // select tun mode
-  options = atoi(argv[3]);
+  
+   // select tun mode
+  options = atoi(argv[2]);
   printf("setting run mode %d\n", options);
   switch(options){
   case ALS_MATRIX:
