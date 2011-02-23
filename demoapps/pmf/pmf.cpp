@@ -3,8 +3,6 @@
 #include <fstream>
 #include <cmath>
 #include <cstdio>
-//#include <cfloat>
-
 #include <graphlab.hpp>
 
 
@@ -42,7 +40,6 @@ double pU = 10; //regularization for matrix
 double pT = 1;
 double pV = 10;
 double muT = 1;
-double * _ones;
 vec vones; 
 mat eDT; 
 mat dp;
@@ -72,22 +69,12 @@ vertex_data * times = NULL;
 typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 gl_types::iengine * engine;
-graph_type g;
+graph_type *g;
 graph_type g1;
 gl_types::thread_shared_data sdm;
 
 
 const size_t RMSE = 0;
-
-void _zeros(vec & pvec, int d){
-  assert(pvec.size() == d);
-  memset(pvec._data(), 0, sizeof(double)*d);
-}
- 
-void _zeros(mat & pmat, int rows, int cols){
-  assert(pmat.size() == rows*cols);
-  memset(pmat._data(), 0, sizeof(double)*rows*cols);
-} 
 
 
 void init_self_pot(){
@@ -128,7 +115,6 @@ void init_pmf() {
   if (BPTF)
 	pT=10;
   eDT = itpp::eye(D)*pT;
-  _ones = gl_ones(D);
   vones = itpp::ones(D);
 }
     
@@ -177,7 +163,7 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
       cnt = 1;
     }
 
-    const vertex_data * data= &g.vertex_data(i);
+    const vertex_data * data= &g->vertex_data(i);
      
     vec mean = data->pvec;
     Umean += mean;
@@ -348,11 +334,11 @@ double calc_rmse(graph_type * _g, bool test, double & res){
   double RMSE = 0;
   int e = 0;
   for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
-    vertex_data * data = &g.vertex_data(i);
+    vertex_data * data = &g->vertex_data(i);
     foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
          
       multiple_edges & edges = _g->edge_data(iedgeid);
-      vertex_data * pdata = &g.vertex_data(_g->source(iedgeid)); 
+      vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
       for (int j=0; j< (int)edges.medges.size(); j++){       
  
         edge_data & edge = edges.medges[j];
@@ -386,7 +372,7 @@ double calc_rmse_q(double & res){
   res = 0;
   double RMSE = 0;
   for (int i=M; i< M+N; i++){ 
-    const vertex_data * data = &g.vertex_data(i);
+    const vertex_data * data = &g->vertex_data(i);
     RMSE+= data->rmse;
   }
   res = RMSE;
@@ -417,7 +403,7 @@ int count_edges(edge_list es){
 
   int cnt = 0; 
   for (int j=0; j< (int)es.size(); j++){
-    cnt += g.edge_data(es[j]).medges.size();
+    cnt += g->edge_data(es[j]).medges.size();
   }
   return cnt;
 }
@@ -618,7 +604,7 @@ void calc_T(int i){
     }
 
     //find the right edge which matches the current time
-    multiple_edges * medges= &g.edge_data(edge);
+    multiple_edges * medges= &g->edge_data(edge);
     edge_data data;
     for (int j=0; j< (int)medges->medges.size(); j++){
       data = medges->medges[j];
@@ -628,10 +614,10 @@ void calc_T(int i){
 
     assert(data.time == i);
 
-    assert((int)g.target(edge)>= M);
-    assert((int)g.source(edge)< M);
-    vertex_data * v1 = &g.vertex_data(g.target(edge));
-    vertex_data * v2 = &g.vertex_data(g.source(edge));
+    assert((int)g->target(edge)>= M);
+    assert((int)g->source(edge)< M);
+    vertex_data * v1 = &g->vertex_data(g->target(edge));
+    vertex_data * v2 = &g->vertex_data(g->source(edge));
     vec ret = elem_mult(v1->pvec, v2->pvec);
      
     //Q.set_col(k, ret);
@@ -740,12 +726,12 @@ double calc_obj(double res){
   timer t;
   t.start(); 
   for (int i=0; i< M; i++){
-    vertex_data * data = &g.vertex_data(i);
+    vertex_data * data = &g->vertex_data(i);
     sumU += square_sum(data->pvec, D);
   } 
 
   for (int i=M; i< M+N; i++){
-    vertex_data * data = &g.vertex_data(i);
+    vertex_data * data = &g->vertex_data(i);
     sumV += square_sum(data->pvec, D);
   } 
 
@@ -788,8 +774,8 @@ void start(int argc, char ** argv) {
   gl_types::core glcore;
   assert(clopts.parse(argc-3, argv+3));
   printf("loading data file %s\n", infile.c_str());
-  load_pmf_graph(infile.c_str(), &glcore.graph(), false, glcore);
-  g=glcore.graph();
+  g=&glcore.graph();
+  load_pmf_graph(infile.c_str(), g, false, glcore);
 
   printf("loading data file %s\n", (infile+"e").c_str());
   load_pmf_graph((infile+"e").c_str(),&g1, true, glcore);
@@ -835,7 +821,7 @@ void start(int argc, char ** argv) {
   init_pmf();
 
   double res, res2;
-  double rmse =  calc_rmse(&g, false, res);
+  double rmse =  calc_rmse(g, false, res);
   printf("complete. Obj=%g, TEST RMSE=%0.4f.\n", calc_obj(res), calc_rmse(&g1, true, res2));
 
 
@@ -849,13 +835,13 @@ void start(int argc, char ** argv) {
 
   /// Timing
   gt.start();
-  g.finalize();  
+  g->finalize();  
 
   /**** START GRAPHLAB *****/
   glcore.start();
 
   // calculate final RMSE
-  rmse =  calc_rmse(&g, false, res);
+  rmse =  calc_rmse(g, false, res);
   printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(res),  calc_rmse(&g1, true, res2));
   
 
@@ -873,7 +859,7 @@ void start(int argc, char ** argv) {
  mat V = zeros(N,D);
  mat T = zeros(K,D);
  for (int i=0; i< M+N; i++){ //TODO: optimize to start from N?
-    vertex_data * data = &g.vertex_data(i);
+    vertex_data * data = &g->vertex_data(i);
     if (i < M)
      	memcpy(U._data() + i*D, data->pvec._data(), D*sizeof(double));
     else
@@ -985,7 +971,8 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
 
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
-    vdata.pvec = itpp::randu(D)*0.1;
+    
+    vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     g->add_vertex(vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
@@ -993,7 +980,7 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
   
   // add N user node (tensor dim 2) 
   for (int i=0; i<N; i++){
-    vdata.pvec = itpp::randu(D)*0.1;
+    vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     g->add_vertex(vdata);
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);
