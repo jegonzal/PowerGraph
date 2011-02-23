@@ -109,6 +109,8 @@ IF(EXISTS ${ZOLTAN_ROOT} )
     CACHE STRING "Zoltan library lib directory")
   SET(ZOLTAN_LIBS 
     zoltan
+    scotch
+    ptscotch
     parmetis
     metis
     CACHE STRING "Zoltan library include directory")
