@@ -597,6 +597,15 @@ class distributed_graph {
     localstore.set_edge_modified(global2localeid[eid], true);  
   }
 
+  void vertex_clear_modified(vertex_id_t vid) {
+    localstore.set_vertex_modified(global2localvid[vid], false);
+  }
+
+  void edge_clear_modified(edge_id_t eid) {
+    localstore.set_edge_modified(global2localeid[eid], false);  
+  }
+
+
   bool is_vertex_modified(vertex_id_t vid) {
       return localstore.vertex_modified(global2localvid[vid]);
   }

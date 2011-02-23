@@ -15,7 +15,14 @@ class dgraph_scope : public iscope<Graph> {
   using base::_graph_ptr;
   
   scope_range::scope_range_enum stype;
-
+  
+  bool own_modified;    // if current vertex is modified
+  bool owned_outedges_modified; // if owned outedges are modified
+  bool remote_outedges_modified;  // if outgoing edges to remote machines are modified
+  bool inedges_modified;  // if incoming edges into current vertex is modifed
+  bool owned_nbr_vertices_modified;  // if owned neighboring vertices are modified
+  bool remote_nbr_vertices_modified;  // if ghost vertices are modified
+  
  public:
   dgraph_scope(): base(NULL, 0) { }
   
@@ -23,38 +30,74 @@ class dgraph_scope : public iscope<Graph> {
                 scope_range::scope_range_enum s = scope_range::USE_DEFAULT) :
       base(graph_ptr, vertex), stype(s) { }
 
+
   scope_range::scope_range_enum scope_type() const {
     return stype;
   }
 
   ~dgraph_scope() { }
 
-  void commit() {
-    commit_ghosts(false);
-    push_owned(false, false);
+  void reset_tracking() {
+    own_modified = false; 
+    owned_outedges_modified = false; 
+    remote_outedges_modified = false; 
+    inedges_modified = false; 
+    owned_nbr_vertices_modified = false; 
+    remote_nbr_vertices_modified = false; 
   }
 
+  void commit_impl(bool async, bool untracked ) {
+    if (owned_nbr_vertices_modified ||
+        owned_outedges_modified) {
+        push_owned(async, untracked);
+    }
+    else if (own_modified) {
+      push_current_vertex(async, untracked);  
+    }
+    
+    if (remote_outedges_modified ||
+        remote_nbr_vertices_modified || 
+        (inedges_modified && _graph_ptr->globalvid_to_replicas(_vertex).size() > 1) ) {
+      commit_ghosts(async);
+    }
+
+    reset_tracking();
+  }
+
+  void commit() {
+    commit_impl(false, false);
+  }
   void commit_async() {
-    commit_ghosts(true);
-    push_owned(true, false);
+    commit_impl(true, false);
   }
   
   void commit_async_untracked() {
-    commit_ghosts(true);
-    push_owned(true, true);
+    commit_impl(true, true);
   }
-
+  
   void commit_ghosts(bool async) { 
     _graph_ptr->synchronize_scope(_vertex, async);
   }
   
-
+  /**
+  Push all the owned data in the scope
+  */
   void push_owned(bool async, bool untracked) {
     _graph_ptr->push_owned_scope_to_replicas(_vertex,
                                              true, // modified only 
                                              true, // clear modified
                                              async,
                                              untracked);
+  }
+
+  /**
+  Push the current vertex 
+  */
+  void push_current_vertex(bool async, bool untracked) {
+    _graph_ptr->push_owned_vertex_to_replicas(_vertex,
+                                               async,
+                                               untracked);
+    _graph_ptr->vertex_clear_modified(_vertex);
   }
   
   
@@ -65,6 +108,7 @@ class dgraph_scope : public iscope<Graph> {
 
 
   vertex_data_type& vertex_data() {
+    own_modified = true;
     _graph_ptr->increment_vertex_version(_vertex);
     _graph_ptr->vertex_is_modified(_vertex);
     return (_graph_ptr->vertex_data(_vertex));
@@ -89,6 +133,16 @@ class dgraph_scope : public iscope<Graph> {
   }
   
   edge_data_type& edge_data(edge_id_t eid) {
+    vertex_id_t etarget = _graph_ptr->target(eid);
+    if (etarget == _vertex)  {
+      inedges_modified = true;
+    }
+    else if (_graph_ptr->is_owned(etarget) == false){
+      remote_outedges_modified = true;
+    }
+    else {
+      owned_outedges_modified = true;
+    }
     _graph_ptr->increment_edge_version(eid);
     _graph_ptr->edge_is_modified(eid);
     return (_graph_ptr->edge_data(eid));
@@ -106,6 +160,12 @@ class dgraph_scope : public iscope<Graph> {
 
 
   vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) {
+    if (_graph_ptr->is_owned(vertex) == false) {
+      remote_nbr_vertices_modified = true;
+    }
+    else {
+      owned_nbr_vertices_modified = true;
+    }
     _graph_ptr->increment_vertex_version(vertex);
     _graph_ptr->vertex_is_modified(vertex);
     return _graph_ptr->vertex_data(vertex);
