@@ -122,6 +122,7 @@ void BOOST_PP_CAT(PORTABLE_NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t
   else {  \
     dc.fast_remote_call(source, PORTABLE(reply_increment_counter), id, blob(retstrm->str, retstrm->len));\
   } \
+  free(retstrm->str);                                                 \
 } 
 
 

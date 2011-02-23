@@ -256,8 +256,11 @@ namespace graphlab {
     idxfile.nverts = graph.num_vertices();
     idxfile.nedges = graph.num_edges();
     idxfile.natoms = numparts;
-    idxfile.ncolors = graph.compute_coloring();
-    
+    idxfile.ncolors = 0;
+    for (size_t i = 0;i < graph.num_vertices(); ++i) {
+      idxfile.ncolors = std::max<size_t>(idxfile.ncolors, graph.color(i));
+    }
+    idxfile.ncolors++;
     for (size_t i = 0; i < numparts; ++i) {
       std::string atomfilename = atombasename + "." + tostr(i);
       atom_file<VertexData, EdgeData> atomfile;

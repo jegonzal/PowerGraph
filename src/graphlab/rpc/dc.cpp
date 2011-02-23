@@ -225,11 +225,20 @@ void distributed_control::init(const std::vector<std::string> &machines,
   std::map<std::string,std::string> options = parse_options(initstring);
   bool buffered_send = false;
   bool buffered_recv = false;
+  size_t buffered_send_delay = 0;
   if (options["buffered_send"] == "true" || 
     options["buffered_send"] == "1" ||
     options["buffered_send"] == "yes") {
     buffered_send = true;
     std::cerr << "Buffered Send Option is ON." << std::endl;
+  }
+
+  if (options["buffered_send_delay"].length() > 0) {
+    buffered_send_delay = fromstr<size_t>(options["buffered_send_delay"]);
+    std::cerr << "Buffered Send Delay = " << buffered_send_delay << std::endl;
+    if (buffered_send == false) {
+      logstream(LOG_WARNING) << "Buffered send delay send but buffered send is off" << std::endl;
+    }
   }
 
   if (options["buffered_recv"] == "true" ||
@@ -267,7 +276,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
       }
       
       if (buffered_send) {
-        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm));
+        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, buffered_send_delay));
       }
       else{
         senders.push_back(new dc_impl::dc_stream_send(this, comm));

@@ -24,14 +24,17 @@ fi
 # fi
 
 cd $reldir
+rm CMakeCache.txt
 cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$install_directory ../.
 cd ..
 
 cd $debugdir
+rm CMakeCache.txt
 cmake -D CMAKE_BUILD_TYPE=Debug  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
 cd ..
 
 cd $profiledir
+rm CMakeCache.txt
 cmake -D CMAKE_BUILD_TYPE=Release -D COMPILE_PROFILING=1  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
 cd ..
 

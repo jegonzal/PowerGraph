@@ -104,6 +104,7 @@ void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char
   else {  \
     dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
+  free(retstrm->str);                                                 \
 } 
 
 BOOST_PP_REPEAT(6, DISPATCH_GENERATOR, _)
@@ -144,6 +145,7 @@ void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, 
   else {  \
     dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
+  free(retstrm->str);                                                 \
 } 
 
 BOOST_PP_REPEAT(6, NONINTRUSIVE_DISPATCH_GENERATOR, _)

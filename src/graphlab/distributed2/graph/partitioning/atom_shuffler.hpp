@@ -11,12 +11,15 @@
 #include <iomanip>
 
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 #include <boost/filesystem.hpp>
 
 #include <graphlab/util/timer.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
+#include <graphlab/rpc/dc_init_from_mpi.hpp>
+
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/util/dense_bitset.hpp>
@@ -44,17 +47,18 @@ namespace graphlab {
     typedef EdgeData edge_data_type;
     typedef atom_shuffler<VertexData, EdgeData> atom_shuffler_type;
     typedef atom_file<VertexData, EdgeData> atom_file_type;
+    typedef boost::unordered_map<vertex_id_t, vertex_id_t> global2local_type;
 
     struct atom_info {
       atom_file_type atom_file;
-      std::map<vertex_id_t, vertex_id_t> global2local;
+      global2local_type global2local;
       std::string vdatafn;
       std::string edatafn;
       std::string atomfn;
       std::ofstream vdatastream;
       std::ofstream edatastream;        
       vertex_id_t get_local_vid(vertex_id_t gvid) {
-        std::map<vertex_id_t, vertex_id_t>::iterator iter 
+        global2local_type::iterator iter 
           = global2local.find(gvid);
         assert(iter != global2local.end());
         return iter->second;
@@ -79,7 +83,7 @@ namespace graphlab {
     
     adjacency_list alist;
     std::vector< vertex_id_t > vertex2proc;
-    std::vector< std::set< procid_t > >  neighbor_atoms;
+    std::vector< boost::unordered_set< procid_t > >  neighbor_atoms;
     std::vector< graphlab::mutex > neighbor_locks;
 
     atom_map_type atomid2info;
@@ -228,7 +232,6 @@ namespace graphlab {
                  const std::string& atom_prefix = "atom_") {
      
       
-
       std::vector<std::string> local_fnames;
       { // Determine Local Filenames ==========================================
         if(rmi.procid() == 0) 
@@ -240,7 +243,6 @@ namespace graphlab {
         rmi.gather_partition(local_fnames, partition_fnames);
         // update the local fnames      
         local_fnames = partition_fnames[rmi.procid()];
-     
       }
   
       { // Load local adjacency lists fragments ===============================
@@ -249,10 +251,13 @@ namespace graphlab {
                     << std::endl;
         for(size_t i = 0; i < local_fnames.size(); ++i) {
           std::string absfname = path + "/" + local_fnames[i];
-          // std::cout << "(" <<  rmi.procid() << " - " 
-          //           << local_fnames[i] << ")" << std::endl;
+          std::cout << "(" <<  rmi.procid() << " - " 
+                    << local_fnames[i] << ")" << std::endl;
           alist.load(absfname);
         }
+        std::cout << "CPU " << rmi.procid() << " loaded "
+                  << alist.local_vertices.size() << " vertices."
+                  << std::endl;
       }
 
       size_t nverts(0), nedges(0);
@@ -365,7 +370,7 @@ namespace graphlab {
       {
         // check the vertices in the alists
         for(size_t i = 0; i < alist.local_vertices.size(); ++i) {
-          assert(alist.local_vertices[i] < vertex2atomid.size());
+          ASSERT_LT(alist.local_vertices[i], vertex2atomid.size());
         }
         // resize auxiliarary datastructures
         assert(alist.in_neighbor_ids.size() == alist.local_vertices.size());
@@ -688,11 +693,6 @@ namespace graphlab {
       
 
 
-
-
-
-
-
   private: // helper functions
     
     procid_t owning_machine(procid_t atomid) {
@@ -729,14 +729,22 @@ namespace graphlab {
     static void 
     build_atoms_from_partitioning(const std::string& path,
                                   const std::string& atom_path) {      
-      std::cout << "Initializing distributed communication layer" << std::endl;
+      std::cout << "Initializing distributed communication layer "
+                << "using environment variables."  << std::endl;
       dc_init_param param;      
-      if ( !init_param_from_env(param) ) {
-        std::cout << "Failed to get environment variables" << std::endl;
+      // This works with BOTH mpi and rpcexec
+      // if ( !init_param_from_env(param) ) {
+      //   std::cout << "Failed to get environment variables." << std::endl;
+      //   std::cout << "Trying MPI launcher." << std::endl;
+      // } else 
+
+      if( ! init_param_from_mpi(param) ) {
+        std::cout << "Failed MPI laucher!" << std::endl;
         assert(false);
       }
-      param.initstring = "buffered_send=yes";
-      param.numhandlerthreads = 30;
+      param.initstring = "buffered_send=yes, ";
+      param.initstring += "buffered_send_delay=1E9";//nanoseconds 
+      param.numhandlerthreads = 5;
       distributed_control dc(param);
       dc.full_barrier();      
       if(dc.procid() == 0) { 

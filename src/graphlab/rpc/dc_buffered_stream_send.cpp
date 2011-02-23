@@ -99,7 +99,7 @@ void dc_buffered_stream_send::send_data(procid_t target,
   sendbuf.write(reinterpret_cast<char*>(&(bufhead)), sizeof(buffer_head));
   sendbuf.write(reinterpret_cast<char*>(&(hdr)), sizeof(packet_hdr));
   sendbuf.write(data, len);
-  sendcond.signal();
+  if (__builtin_expect(usetimedwait == 0, 1)) sendcond.signal();
   sendbuflock.unlock();
 }
 
@@ -118,7 +118,12 @@ void dc_buffered_stream_send::send_loop() {
         bufhead.len -= len;
       }
     }
-    sendcond.wait(sendbuflock);
+    if (usetimedwait == 0) {
+      sendcond.wait(sendbuflock);
+    }
+    else {
+      sendcond.timedwait_ns(sendbuflock, usetimedwait);
+    }
   }
   sendbuflock.unlock();
 }

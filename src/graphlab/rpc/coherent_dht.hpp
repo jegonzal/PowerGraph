@@ -86,6 +86,7 @@ class coherent_dht{
       subscription[i].resize(dc.numprocs());
       subscription[i].clear();
     }
+    dc.barrier();
   }
 
 
