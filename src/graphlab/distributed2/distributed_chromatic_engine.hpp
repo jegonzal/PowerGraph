@@ -111,6 +111,7 @@ private:
   
   update_function_type update_function;
   size_t max_iterations;
+  double barrier_time;
   
   struct sync_task {
     sync_function_type sync_fun;
@@ -158,6 +159,7 @@ private:
                             scheduled_vertices(graph.owned_vertices().size()),
                             update_function(NULL),
                             max_iterations(0),
+                            barrier_time(0.0),
                             thread_color_barrier(ncpus){ 
     rmi.barrier();
   }
@@ -383,7 +385,6 @@ private:
 
   atomic<size_t> curidx;
   barrier thread_color_barrier;
-
  public: 
  
   struct termination_evaluation{
@@ -568,7 +569,7 @@ private:
   void start_thread(size_t threadid) {
     // create the scope
     dgraph_scope<Graph> scope;
-                  
+    timer ti;
 
     // loop over iterations
     size_t iter = 0;
@@ -616,24 +617,31 @@ private:
         // full barrier on the color
         // this will complete synchronization of all add tasks as well
         if (threadid == 0) {
+          ti.start();
           graph.wait_for_all_async_syncs();
           rmi.dc().full_barrier();
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
+          barrier_time += ti.current_time();
         }
         thread_color_barrier.wait();
+
       }
-      
+
+
       sync_end_iteration(threadid);
       thread_color_barrier.wait();
       if (threadid == 0) {
+        ti.start();
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
         size_t numtasksdone = check_global_termination(!usestatic);
 
         //std::cout << numtasksdone << " tasks done" << std::endl;
         compute_sync_schedule(numtasksdone);
+        barrier_time += ti.current_time();
       }
       // all threads must wait for 0
       thread_color_barrier.wait();
+
       ++iter;
       if (termination_reason != EXEC_UNSET) {
         //std::cout << rmi.procid() << ": Termination Reason: " << termination_reason << std::endl;
@@ -650,6 +658,7 @@ private:
     generate_color_blocks();
     init_syncs();
     termination_reason = EXEC_UNSET;
+    barrier_time = 0.0;
     force_stop = false;
     numsyncs.value = 0;
     std::fill(update_counts.begin(), update_counts.end(), 0);
@@ -670,12 +679,16 @@ private:
     thrgrp.join();              
     rmi.barrier();
     
+
     
     // proc 0 gathers all update counts
     std::vector<size_t> procupdatecounts(rmi.numprocs(), 0);
     procupdatecounts[rmi.procid()] = last_update_count();
     rmi.gather(procupdatecounts, 0);
     
+    std::vector<double> barrier_times(rmi.numprocs(), 0);
+    barrier_times[rmi.procid()] = barrier_time;
+    rmi.gather(barrier_times, 0);
     // get RMI statistics
     std::map<std::string, size_t> ret = rmi.gather_statistics();
 
@@ -687,6 +700,11 @@ private:
         engine_metrics.add("updatecount", 
                             procupdatecounts[i], INTEGER);
       }
+      for(size_t i = 0; i < barrier_times.size(); ++i) {
+        engine_metrics.add("barrier_time", 
+                            barrier_times[i], TIME);
+      }
+
       engine_metrics.set("termination_reason", 
                         exec_status_as_string(termination_reason));
 
