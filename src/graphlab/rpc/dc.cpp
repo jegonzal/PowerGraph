@@ -234,7 +234,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   }
 
   if (options["buffered_send_delay"].length() > 0) {
-    buffered_send_delay = atoi(options["buffered_send_delay"].c_str());
+    buffered_send_delay = fromstr<size_t>(options["buffered_send_delay"]);
     std::cerr << "Buffered Send Delay = " << buffered_send_delay << std::endl;
     if (buffered_send == false) {
       logstream(LOG_WARNING) << "Buffered send delay send but buffered send is off" << std::endl;

@@ -800,15 +800,17 @@ namespace graphlab {
     int called;
     conditional c;
     
+    bool barrier_sense;
+    bool barrier_release;
     // we need the following to protect against spurious wakeups
-    std::vector<unsigned char> waiting;
+  
   public:
     
     barrier(size_t numthreads) {
       needed = numthreads;
       called = 0;
-      waiting.resize(numthreads);
-      std::fill(waiting.begin(), waiting.end(), 0);
+      barrier_sense = false;
+      barrier_release = true;
     }
     
     ~barrier() {}
@@ -817,22 +819,22 @@ namespace graphlab {
     inline void wait() {
       m.lock();
       // set waiting;
-      size_t myid = called;
-      waiting[myid] = 1;
       called++;
-
+      bool listening_on = barrier_sense;
+      
       if (called == needed) {
         // if I have reached the required limit, wait up. Set waiting
         // to 0 to make sure everyone wakes up
 
         called = 0;
+        barrier_release = barrier_sense;
+        barrier_sense = !barrier_sense;
         // clear all waiting
-        std::fill(waiting.begin(), waiting.end(), 0);
         c.broadcast();
       }
       else {
         // while no one has broadcasted, sleep
-        while(waiting[myid]) c.wait(m);
+        while(barrier_release != listening_on) c.wait(m);
       }
       m.unlock();
     }
