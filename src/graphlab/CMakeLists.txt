@@ -36,6 +36,7 @@ add_library(graphlab_util STATIC
   schedulers/scheduler_list.cpp
   metrics/metrics.cpp
   util/net_util.cpp
+  util/safe_circular_char_buffer.cpp
   ${util_mpi_tools}
 )
 
