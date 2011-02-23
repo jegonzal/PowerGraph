@@ -24,11 +24,15 @@ class dgraph_scope : public iscope<Graph> {
   bool remote_nbr_vertices_modified;  // if ghost vertices are modified
   
  public:
-  dgraph_scope(): base(NULL, 0) { }
+  dgraph_scope(): base(NULL, 0) { 
+    reset_tracking();
+  }
   
   dgraph_scope(Graph* graph_ptr, vertex_id_t vertex,
                 scope_range::scope_range_enum s = scope_range::USE_DEFAULT) :
-      base(graph_ptr, vertex), stype(s) { }
+      base(graph_ptr, vertex), stype(s) { 
+    reset_tracking();    
+  }
 
 
   scope_range::scope_range_enum scope_type() const {
@@ -104,6 +108,7 @@ class dgraph_scope : public iscope<Graph> {
   void init(Graph* graph, vertex_id_t vertex) {
     base::_graph_ptr = graph;
     base::_vertex = vertex;
+    reset_tracking();
   }
 
 
