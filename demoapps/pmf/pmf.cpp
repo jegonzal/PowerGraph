@@ -76,16 +76,6 @@ gl_types::thread_shared_data sdm;
 
 const size_t RMSE = 0;
 
-void _zeros(vec & pvec, int d){
-  assert(pvec.size() == d);
-  memset(pvec._data(), 0, sizeof(double)*d);
-}
- 
-void _zeros(mat & pmat, int rows, int cols){
-  assert(pmat.size() == rows*cols);
-  memset(pmat._data(), 0, sizeof(double)*rows*cols);
-} 
-
 
 void init_self_pot(){
   //assert(BPTF);

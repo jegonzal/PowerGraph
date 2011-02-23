@@ -8,6 +8,7 @@
 
  Probabalistic matrix/tensor factorization written Danny Bickson, CMU
 
+See algrithm description and explanation in: Liang Xiong, Xi Chen, Tzu-Kuo Huang, Jeff Schneider, Jaime G. Carbonell, Temporal Collaborative Filtering with Bayesian Probabilistic Tensor Factorization. In Proceedings of SIAM Data Mining, 2010.
 
 */
 #include <vector>
@@ -24,9 +25,9 @@ using namespace itpp;
 
 /** Vertex and edge data types **/
 struct vertex_data {
-  vec pvec;
-  double rmse;
-  int num_edges;
+  vec pvec; //vector of learned values U,V,K
+  double rmse; //root of mean square error
+  int num_edges; //number of edges
   vertex_data(){
     pvec = zeros(D);
     rmse = 0;
@@ -35,8 +36,8 @@ struct vertex_data {
 }; 
 
 struct edge_data {
-  double weight; 
-  double time;
+  double weight;  //observation 
+  double time; //time of observation (for tensor algorithms)
   double avgprd;
   edge_data(){ weight = 0; time = 0; avgprd = 0;}
 };
@@ -46,25 +47,6 @@ struct multiple_edges{
   std::vector<edge_data> medges;
 };
  
-
-/*
-sdouble* ones(int n, sdouble val) {
-	assert(n>0);
-	sdouble * ret = new sdouble[n];
-	for (int i=0; i< n; i++)
-		ret[i] = val;
-	return ret;
-}
-void ones(double * x, int len){
-	for (int i=0; i<len; i++)
-		x[i] = 1.0;
-}
-void ones(double * x, int len, double val){
-	for (int i=0; i<len; i++)
-		x[i] = val;
-}*/
-
-
 inline double rmse(vec& x1, vec& x2, vec& x3, int len, double val){
 
 	double sum = 0;
@@ -115,6 +97,16 @@ inline sdouble square_sum(vec& x, int len){
     return v.rmse;
  }
 
+//faster reset for vectors
+void _zeros(vec & pvec, int d){
+  assert(pvec.size() == d);
+  memset(pvec._data(), 0, sizeof(double)*d);
+}
+ 
+void _zeros(mat & pmat, int rows, int cols){
+  assert(pmat.size() == rows*cols);
+  memset(pmat._data(), 0, sizeof(double)*rows*cols);
+} 
 
 
 //run modes
