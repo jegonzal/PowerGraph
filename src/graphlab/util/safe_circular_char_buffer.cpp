@@ -115,9 +115,9 @@ namespace graphlab {
       while (empty() && !done) cond.wait(mut);
       mut.unlock();    
       iswaiting = false;
-      if (done) return 0;
       ret = introspective_read(s, clen);
       if (ret != 0) return ret;
+      if (done) return 0;
     }
   }
 
