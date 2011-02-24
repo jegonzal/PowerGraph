@@ -66,7 +66,7 @@ void dc_buffered_stream_receive::process_buffer() {
       // ok. we do have incomplete calls. quit processing.
       if (barrier) break;
     }
-    else if (hdr.packet_type_mask & FAST_CALL) {
+    else if ((hdr.packet_type_mask & FAST_CALL) || (hdr.packet_type_mask & REPLY_PACKET)) {
       // if it is a fast call, dispatch the function immediately
       #ifdef DC_RECEIVE_DEBUG
       logstream(LOG_INFO) << "Is fast call" << std::endl;

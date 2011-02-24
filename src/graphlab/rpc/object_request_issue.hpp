@@ -89,7 +89,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, strm->size());           \
     reply.wait(); \
-    boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);    \
+    boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);  \
     iarchive iarc(retstrm);  \
     typename function_ret_type<FRESULT>::type result; \
     iarc >> result;  \

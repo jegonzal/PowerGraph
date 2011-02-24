@@ -64,6 +64,7 @@ add_executable(podtest podtest.cpp)
 add_executable(podtest_loader podtest_loader.cpp)
 
 add_executable(circular_test circular_test.cpp)
+add_executable(safe_circular_test safe_circular_test.cpp)
 add_executable(simple_function_launch simple_function_launch.cpp)
 add_executable(dctest dctest.cpp)
 add_executable(dcobjtest dcobjtest.cpp)

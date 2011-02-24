@@ -135,17 +135,18 @@ int main(int argc, char** argv) {
   std::string outputfile = "parts.txt";
   graphlab::command_line_options clopts("BFS Graph Partitioner", true);
   size_t numparts = 0;
-  
+  size_t roundspersync = 1;
   clopts.attach_option("atomindex", &path, path, "atom index file");
   clopts.attach_option("numparts", &numparts, numparts, "numparts");
   clopts.attach_option("outputfile", &outputfile, outputfile, "color output file");
+  clopts.attach_option("roundspersync", &roundspersync, roundspersync, "rounds per synchronize");
   if( !clopts.parse(argc, argv) ) { 
     std::cout << "Error parsing command line arguments!"
               << std::endl;
     return EXIT_FAILURE;
   }
   assert(numparts > 0);
-
+  assert(roundspersync >= 1);
   mpi_tools::init(argc, argv);
   dc_init_param param;
 
@@ -187,7 +188,10 @@ int main(int argc, char** argv) {
   get_local_count(dg, localpartcounts);
   while(1) {
     iter++;
-    bool c = partition_owned_subgraph(dg, globalpartcounts, localpartcounts);
+    bool c;
+    for (size_t i = 0;i < roundspersync; ++i) {
+      c = partition_owned_subgraph(dg, globalpartcounts, localpartcounts);
+    }
     std::vector<int> vcal(dc.numprocs(), 0);
     vcal[dc.procid()] = c;
     dc.all_gather(vcal);

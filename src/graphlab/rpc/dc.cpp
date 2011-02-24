@@ -22,6 +22,7 @@
 #include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
@@ -169,11 +170,11 @@ void distributed_control::deferred_function_call(procid_t source, unsigned char 
   fcallqueue.enqueue(function_call_block(source, packet_type_mask, buf, len));
 }
 
-void distributed_control::fcallhandler_loop() {
+void distributed_control::fcallhandler_loop(size_t id) {
   // pop an element off the queue
   while(1) {
     std::pair<function_call_block, bool> entry;
-    entry = fcallqueue.dequeue();
+    entry = fcallqueue.dequeue(id);
     // if the queue is empty and we should quit
     if (entry.second == false) return;
     
@@ -183,6 +184,7 @@ void distributed_control::fcallhandler_loop() {
     exec_function_call(entry.first.source, entry.first.packet_type_mask, istrm);
     receivers[entry.first.source]->function_call_completed(entry.first.packet_type_mask);
   }
+  std::cerr << "Handler " << id << " died." << std::endl;
 }
 
 
@@ -225,7 +227,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   std::map<std::string,std::string> options = parse_options(initstring);
   bool buffered_send = false;
   bool buffered_recv = false;
-  size_t buffered_send_delay = 0;
+  bool buffered_queued_send = false;
   if (options["buffered_send"] == "true" || 
     options["buffered_send"] == "1" ||
     options["buffered_send"] == "yes") {
@@ -233,12 +235,15 @@ void distributed_control::init(const std::vector<std::string> &machines,
     std::cerr << "Buffered Send Option is ON." << std::endl;
   }
 
-  if (options["buffered_send_delay"].length() > 0) {
-    buffered_send_delay = fromstr<size_t>(options["buffered_send_delay"]);
-    std::cerr << "Buffered Send Delay = " << buffered_send_delay << std::endl;
-    if (buffered_send == false) {
-      logstream(LOG_WARNING) << "Buffered send delay send but buffered send is off" << std::endl;
+  if (options["buffered_queued_send"] == "true" || 
+    options["buffered_queued_send"] == "1" ||
+    options["buffered_queued_send"] == "yes") {
+    buffered_queued_send = true;
+    if (buffered_send == true) {
+      std::cerr << "buffered_queued_send and buffered_send cannot be on simultaneously" << std::endl;
+      exit(1);
     }
+    std::cerr << "Buffered Queued Send Option is ON." << std::endl;
   }
 
   if (options["buffered_recv"] == "true" ||
@@ -265,6 +270,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   }
   global_calls_sent.resize(machines.size());
   global_calls_received.resize(machines.size());
+  fcallqueue.init(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
@@ -276,10 +282,13 @@ void distributed_control::init(const std::vector<std::string> &machines,
       }
       
       if (buffered_send) {
-        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, buffered_send_delay));
+        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
+      }
+      else if (buffered_queued_send) {
+        senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue(this, comm, i));
       }
       else{
-        senders.push_back(new dc_impl::dc_stream_send(this, comm));
+        senders.push_back(new dc_impl::dc_stream_send(this, comm, i));
       }
     }
   }
@@ -292,7 +301,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   for (size_t i = 0;i < numhandlerthreads; ++i) {
     launch_in_new_thread(fcallhandlers,
                           boost::bind(&distributed_control::fcallhandler_loop, 
-                                      this));
+                                      this, i));
   }
 
   // start the machines

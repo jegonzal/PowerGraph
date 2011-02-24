@@ -1,5 +1,5 @@
-#ifndef DC_STREAM_SEND_HPP
-#define DC_STREAM_SEND_HPP
+#ifndef DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
+#define DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
 #include <iostream>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
@@ -16,21 +16,30 @@ class distributed_control;
 
 namespace dc_impl {
 
+struct expqueue_entry{
+  char* c;
+  size_t len;
+};
+
 /**
   Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
+  This class performs buffered transmissions.
+  That is, sends are relegated to an internal buffer, which is then
+  passed to the communication classes on another thread.
 */
 
-class dc_stream_send: public dc_send{
+class dc_buffered_stream_send_expqueue: public dc_send{
  public:
-  dc_stream_send(distributed_control* dc, dc_comm_base *comm, procid_t target): 
-                                                dc(dc), comm(comm), target(target){ 
- 
+  dc_buffered_stream_send_expqueue(distributed_control* dc, dc_comm_base *comm, procid_t target): dc(dc), 
+                                    comm(comm), target(target), done(false) { 
+    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue::send_loop, 
+                                      this));
   }
   
-  ~dc_stream_send() {
+  ~dc_buffered_stream_send_expqueue() {
   }
   
 
@@ -55,19 +64,35 @@ class dc_stream_send: public dc_send{
                  unsigned char packet_type_mask,
                  char* data, size_t len);
 
+  void send_loop();
+  
+
   void shutdown();
+  
   inline size_t bytes_sent() {
     return bytessent.value;
   }
 
  private:
-  mutex lock;
-  
   /// pointer to the owner
   distributed_control* dc;
   dc_comm_base *comm;
-  atomic<size_t> bytessent, callssent;
   procid_t target;
+
+  blocking_queue<expqueue_entry> sendqueue;
+
+  thread thr;
+  bool done;
+  atomic<size_t> bytessent;
+  
+  
+  // parameters for write combining.
+  // write combining will start if the data size is below the lower threshold
+  // and continue until it reaches the upper threshold
+  static const size_t combine_lower_threshold = 128;
+  static const size_t combine_upper_threshold = 1500;  // 1 packet
+
+  void write_combining_send(expqueue_entry e);
 
 };
 
@@ -75,5 +100,5 @@ class dc_stream_send: public dc_send{
 
 } // namespace dc_impl
 } // namespace graphlab
-#endif
+#endif // DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
 
