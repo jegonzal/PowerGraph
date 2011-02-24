@@ -613,18 +613,24 @@ namespace dist_graph_impl {
     }
     
     void flush() {
-      vertexmmap->sync_all();
-      edgemmap->sync_all();
+      if (do_not_mmap == false) {
+        vertexmmap->sync_all();
+        edgemmap->sync_all();
+      }
     }
     
     void background_flush() {
-      vertexmmap->background_sync_all();
-      edgemmap->background_sync_all();
+      if (do_not_mmap == false) {
+        vertexmmap->background_sync_all();
+        edgemmap->background_sync_all();
+      }
     }
     
     void zero_all() {
-      memset(vertices, 0, sizeof(vdata_store) * nvertices);
-      memset(edgedata, 0, sizeof(edata_store) * nedges);
+      if (do_not_mmap == false) {
+        memset(vertices, 0, sizeof(vdata_store) * nvertices);
+        memset(edgedata, 0, sizeof(edata_store) * nedges);
+      }
     }
     
     void compute_minimal_prefetch() {
@@ -818,6 +824,7 @@ namespace dist_graph_impl {
     void setup_mmap() {
       vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
       edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
+      do_not_mmap = true;
       if (do_not_mmap == false) {
         vertices = (vdata_store*)(vertexmmap->mapped_ptr());
         edgedata = (edata_store*)(edgemmap->mapped_ptr());

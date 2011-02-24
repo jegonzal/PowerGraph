@@ -1373,7 +1373,8 @@ class distributed_graph {
         }
       }
     }
-    
+    logstream(LOG_INFO) << "vid -> Owner DHT set complete" << std::endl;
+    rmi.dc().full_barrier();
     // fill the ownedvertices list
     for (size_t i = 0;i < localvid2owner.size(); ++i) {
       if (localvid2owner[i] == rmi.procid()) {
