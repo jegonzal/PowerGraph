@@ -9,7 +9,7 @@
 
 using namespace graphlab;
 
-const size_t BUFFER_SIZE(1024);
+const size_t BUFFER_SIZE(10000);
 
 struct producer : public runnable {
   size_t id;
@@ -18,10 +18,10 @@ struct producer : public runnable {
   void run() {
     ASSERT_NE(buffer, NULL);
     bytes_written = 0;
-    for(size_t i = 0; i < 100000; ++i) {
-      std::stringstream strm;
-      strm << id << ": " << i << std::endl;
-      std::string string(strm.str());
+    std::string string = "Hello world.  Anyung.";
+    for(size_t i = 0; i < 200000; ++i) {
+      //    std::stringstream strm;
+      //    strm.good();
       const char* body = string.c_str();
       size_t size = string.size();
       while( ! (size_t(buffer->write(body, size)) == size) );
@@ -47,7 +47,8 @@ struct consumer_thread : public thread {
         buffer->blocking_introspective_read(cstr, 100);
       bytes_read += ammount_read;
       std::string str(cstr, ammount_read);
-      //      std::cout << str;
+      std::sort(str.begin(), str.end());
+      
       buffer->advance_head(ammount_read);
       count++;
       if(count % 1000 == 0) 
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
   safe_circular_char_buffer cbuf(BUFFER_SIZE);
 
   // Initialize producers
-  std::vector<producer> producers(128);
+  std::vector<producer> producers(8);
   for(size_t i = 0; i < producers.size(); ++i) {
     producers[i].id = i;
     producers[i].buffer = &cbuf;
