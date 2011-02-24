@@ -22,6 +22,7 @@
 #include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
@@ -225,11 +226,23 @@ void distributed_control::init(const std::vector<std::string> &machines,
   std::map<std::string,std::string> options = parse_options(initstring);
   bool buffered_send = false;
   bool buffered_recv = false;
+  bool buffered_queued_send = false;
   if (options["buffered_send"] == "true" || 
     options["buffered_send"] == "1" ||
     options["buffered_send"] == "yes") {
     buffered_send = true;
     std::cerr << "Buffered Send Option is ON." << std::endl;
+  }
+
+  if (options["buffered_queued_send"] == "true" || 
+    options["buffered_queued_send"] == "1" ||
+    options["buffered_queued_send"] == "yes") {
+    buffered_queued_send = true;
+    if (buffered_send == true) {
+      std::cerr << "buffered_queued_send and buffered_send cannot be on simultaneously" << std::endl;
+      exit(1);
+    }
+    std::cerr << "Buffered Queued Send Option is ON." << std::endl;
   }
 
   if (options["buffered_recv"] == "true" ||
@@ -268,6 +281,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
       
       if (buffered_send) {
         senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
+      }
+      else if (buffered_queued_send) {
+        senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue(this, comm, i));
       }
       else{
         senders.push_back(new dc_impl::dc_stream_send(this, comm, i));

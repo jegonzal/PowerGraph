@@ -112,6 +112,7 @@ private:
   update_function_type update_function;
   size_t max_iterations;
   double barrier_time;
+  size_t num_dist_barriers_called;
   
   struct sync_task {
     sync_function_type sync_fun;
@@ -620,6 +621,7 @@ private:
           ti.start();
           graph.wait_for_all_async_syncs();
           rmi.dc().full_barrier();
+          num_dist_barriers_called++;
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
           barrier_time += ti.current_time();
         }
@@ -661,6 +663,7 @@ private:
     barrier_time = 0.0;
     force_stop = false;
     numsyncs.value = 0;
+    num_dist_barriers_called = 0;
     std::fill(update_counts.begin(), update_counts.end(), 0);
     rmi.dc().full_barrier();
     // reset indices
@@ -707,6 +710,8 @@ private:
 
       engine_metrics.set("termination_reason", 
                         exec_status_as_string(termination_reason));
+      engine_metrics.set("dist_barriers_issued", 
+                        num_dist_barriers_called, INTEGER);
 
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);

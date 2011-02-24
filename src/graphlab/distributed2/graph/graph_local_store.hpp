@@ -56,7 +56,7 @@ namespace dist_graph_impl {
     graph_local_store(): vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
 
     void create_store(size_t create_num_verts, size_t create_num_edges,
-                std::string vertexstorefile, std::string edgestorefile) { 
+                std::string vertexstorefile, std::string edgestorefile, bool do_not_mmap = false):do_not_mmap(do_not_mmap) { 
       nvertices = create_num_verts;
       nedges = create_num_edges;
       
@@ -76,7 +76,13 @@ namespace dist_graph_impl {
       setup_mmap();
       
     }
-
+    
+    ~graph_local_store() {
+      if (do_not_mmap) {
+        free(vertices);
+        free(edgedata);
+      }
+    }
     // METHODS =================================================================>
 
     /**
@@ -726,7 +732,8 @@ namespace dist_graph_impl {
     }
 
     
- 
+    bool do_not_mmap;
+    
     // PRIVATE DATA MEMBERS ===================================================>    
     /** The vertex data is simply a vector of vertex data 
      */
@@ -810,10 +817,14 @@ namespace dist_graph_impl {
     void setup_mmap() {
       vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
       edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
-      vertices = (vdata_store*)(vertexmmap->mapped_ptr());
-      edgedata = (edata_store*)(edgemmap->mapped_ptr());
-      //vertices = (vdata_store*)malloc(sizeof(vdata_store) * nvertices);
-      //edgedata = (edata_store*)malloc(sizeof(edata_store) * nedges);
+      if (do_not_mmap == false) {
+        vertices = (vdata_store*)(vertexmmap->mapped_ptr());
+        edgedata = (edata_store*)(edgemmap->mapped_ptr());
+      }
+      else {
+        vertices = (vdata_store*)malloc(sizeof(vdata_store) * nvertices);
+        edgedata = (edata_store*)malloc(sizeof(edata_store) * nedges);
+      }
     }
 
 

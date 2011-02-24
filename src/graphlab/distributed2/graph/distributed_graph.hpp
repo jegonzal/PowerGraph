@@ -99,7 +99,8 @@ class distributed_graph {
   typedef EdgeData edge_data_type;
   typedef dgraph_edge_list edge_list_type;
   
-  distributed_graph(distributed_control &dc, std::string atomidxfile, bool do_not_load_data = false):
+  distributed_graph(distributed_control &dc, std::string atomidxfile, bool do_not_load_data = false,
+                    bool do_not_mmap = false):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
                               globaleid2owner(dc, 65536),
@@ -130,7 +131,7 @@ class distributed_graph {
 
     }
     rmi.broadcast(partitions, dc.procid() == 0);
-    construct_local_fragment(atomindex, partitions, rmi.procid(), do_not_load_data);
+    construct_local_fragment(atomindex, partitions, rmi.procid(), do_not_load_data, do_not_mmap);
     rmi.barrier();
   }
 
@@ -1195,7 +1196,8 @@ class distributed_graph {
   void construct_local_fragment(const atom_index_file &atomindex,
                                 std::vector<std::vector<size_t> > partitiontoatom,
                                 size_t curpartition,
-                                bool do_not_load_data) {
+                                bool do_not_load_data,
+                                bool do_not_mmap) {
     // first make a map mapping atoms to machines
     // we will need this later
     std::vector<procid_t> atom2machine;
