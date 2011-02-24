@@ -9,6 +9,7 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/caching_dht.hpp>
+#include <graphlab/rpc/lazy_dht.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
@@ -1144,7 +1145,7 @@ class distributed_graph {
    * global_vid -> owner mapping cannot be stored in its entirely locally
    * instead, we store it in a DHT. \see globaleid2owner
    */
-  caching_dht<vertex_id_t, procid_t> globalvid2owner;
+  lazy_dht<vertex_id_t, procid_t> globalvid2owner;
   
   /** To avoid requiring O(E) storage on each maching, the 
    * global_eid -> owner mapping cannot be stored in its entirely locally

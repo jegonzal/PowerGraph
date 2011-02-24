@@ -263,7 +263,7 @@ class distributed_control{
   void fcallhandler_loop(size_t id);
   
   inline void inc_calls_sent(procid_t procid) {
-    ASSERT_FALSE(full_barrier_in_effect);
+//    ASSERT_FALSE(full_barrier_in_effect);
     global_calls_sent[procid].inc();
   }
 
