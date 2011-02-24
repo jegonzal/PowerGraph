@@ -16,25 +16,38 @@ class safe_circular_char_buffer {
 
   ~safe_circular_char_buffer();
   
+  /**
+   * Stops the buffer and signals any blocking calls.
+   */
   void stop_reader();
 
-  std::streamsize size();
+
+  /**
+   * Determine if the buffer is empty
+   */
+  bool empty() const;
+
+
+  /**
+   * Get the total contents currently stored in the buffer.
+   */
+  std::streamsize size() const;
   
   /**
-  Returns 0 if the write doesn't fit
-  */
+   * Returns 0 if the write doesn't fit
+   */
   std::streamsize write(const char* c, std::streamsize clen);
 
 
   /**
-   * Returns a pointer (through s) and a length of the read.
-   * This pointer is a direct pointer into the internal buffer 
-   * of this datastructure. The pointer is valid as long as no other operations
-   * are performed on this structure.
-   * The length of the introspective_read may be less than the number 
-   * of bytes requested. Multiple calls to introspective_read may be 
-   * necessary to read all data in the buffer. If the function returns 0,
-   * the buffer is empty.
+   * Returns a pointer (through s) and a length of the read.  This
+   * pointer is a direct pointer into the internal buffer of this
+   * datastructure. The pointer is valid as long as no other
+   * operations are performed on this structure.  The length of the
+   * introspective_read may be less than the number of bytes
+   * requested. Multiple calls to introspective_read may be necessary
+   * to read all data in the buffer. If the function returns 0, the
+   * buffer is empty.
    */  
   std::streamsize introspective_read(char* &s, std::streamsize clen);
   
@@ -42,7 +55,11 @@ class safe_circular_char_buffer {
   /**
    * Same as introspective read. But blocks until there is something to read
    */
-  std::streamsize blocking_introspective_read(char* &s, std::streamsize clen);
+  std::streamsize blocking_introspective_read(char* &s, 
+                                              std::streamsize clen);
+
+
+  void advance_head(const std::streamsize advance_len);
   
   
  private:
@@ -50,21 +67,20 @@ class safe_circular_char_buffer {
   std::streamsize bufsize; // current size of the buffer
 
   /** 
-   * points to the head of the queue. 
-   * Reader reads from here
+   * points to the head of the queue.  Reader reads from here
    */
   std::streamsize head;  
   
   /** 
-   * points to one past the end of the queue. 
-   * writer writes to here. if tail == head, buffer must be empty
+   * points to one past the end of the queue.  writer writes to
+   * here. if tail == head, buffer must be empty
    */
   std::streamsize tail;  
 
   mutex mut;
   conditional cond;
   
-  bool done;
+  bool done; // Once 
   bool iswaiting;
 };
 
