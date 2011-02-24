@@ -30,15 +30,15 @@ int main(int argc, char ** argv) {
   assert(machineid < machines.size());
 
   distributed_control dc(machines,"", machineid);
-  dc_services services(dc);
   
   if (dc.procid() == 0) {
     dc.remote_call(1, basic_call, 123);
+    dc.remote_request(1, basic_call, 123);
   }
-  services.barrier();
+  dc.barrier();
   std::cout <<"!";
   if (dc.procid() == 0) {
     getchar();
   }
-  services.barrier();
+  dc.barrier();
 }

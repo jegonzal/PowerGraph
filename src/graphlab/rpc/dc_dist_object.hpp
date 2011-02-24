@@ -1046,7 +1046,18 @@ private:
     std::vector<collected_statistics> stats(numprocs());
     stats[procid()].callssent = calls_sent();
     stats[procid()].bytessent = bytes_sent();
-    
+    logstream(LOG_INFO) << procid() << ": calls_sent: ";
+    for (size_t i = 0;i < numprocs(); ++i) {
+      logstream(LOG_INFO) << callssent[i].value << ", ";
+    }
+    logstream(LOG_INFO) << std::endl;
+    logstream(LOG_INFO) << procid() << ": calls_recv: ";
+    for (size_t i = 0;i < numprocs(); ++i) {
+      logstream(LOG_INFO) << callsreceived[i].value << ", ";
+    }
+    logstream(LOG_INFO) << std::endl;
+
+
     gather(stats, 0, true);
     if (procid() == 0) {
       collected_statistics cs;

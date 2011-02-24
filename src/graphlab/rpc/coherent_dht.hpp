@@ -626,7 +626,7 @@ class coherent_dht{
                                               procid_t except = procid_t(-1)) {
     // broadcast invalidate
     dc_impl::reply_ret_type repret(true, rpc.numprocs() - 1);
-    if (except < rpc.numprocs()) repret.flag.dec();
+    if (except < rpc.numprocs() && except != rpc.procid()) repret.flag.dec();
     
     size_t r = reinterpret_cast<size_t>(&repret); 
     for (procid_t i = 0;i < rpc.numprocs(); ++i) {

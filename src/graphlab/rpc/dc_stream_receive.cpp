@@ -67,10 +67,11 @@ void dc_stream_receive::process_buffer(bool outsidelocked) {
         // ok. we do have incomplete calls. quit processing.
         if (barrier) break;
       }
-      else if (hdr.packet_type_mask & FAST_CALL) {
-        // if it is a fast call, dispatch the function immediately
+      else if ((hdr.packet_type_mask & FAST_CALL) || (hdr.packet_type_mask & REPLY_PACKET)) {
+        // if it is a fast call, dispatch the function immediately. replies are also fast tracked
         #ifdef DC_RECEIVE_DEBUG
-        logstream(LOG_INFO) << "Is fast call" << std::endl;
+        if (hdr.packet_type_mask & REPLY_PACKET) logstream(LOG_INFO) << "Is reply" << std::endl;
+        else logstream(LOG_INFO) << "Is fast call" << std::endl;
         #endif
         boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
         dc->exec_function_call(hdr.src,hdr.packet_type_mask, strm);
