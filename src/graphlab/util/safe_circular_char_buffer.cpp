@@ -40,7 +40,6 @@ namespace graphlab {
   
   std::streamsize safe_circular_char_buffer::
   write(const char* c, std::streamsize clen) {
-  
     mut.lock();
     std::streamsize ret = write_unsafe(c, clen);
     if (iswaiting && ret > 0) {
@@ -111,7 +110,7 @@ namespace graphlab {
   std::streamsize safe_circular_char_buffer::
   blocking_introspective_read(char* &s, std::streamsize clen) {
     // try to read
-    size_t ret = introspective_read(s, clen);
+    std::streamsize ret = introspective_read(s, clen);
     if (ret != 0) return ret;  
     // if read failed. acquire the lock and try again
     while(1) {
@@ -120,7 +119,7 @@ namespace graphlab {
       while (empty() && !done) cond.wait(mut);
       iswaiting = false;
       mut.unlock();    
-      ret = introspective_read(s, clen);
+      std::streamsize ret = introspective_read(s, clen);
       if (ret != 0) return ret;
       if (done) return 0;
     }
