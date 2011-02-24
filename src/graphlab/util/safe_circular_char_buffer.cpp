@@ -35,11 +35,21 @@ namespace graphlab {
 
   std::streamsize safe_circular_char_buffer::
   write(const char* c, std::streamsize clen) {
-    // If the char array does not fit simply return
-    if (clen + size() >= bufsize) return 0;
-    //  if (bufsize - size() - 1 < clen) return 0;
   
     mut.lock();
+    std::streamsize ret = write_unsafe(c, clen);
+    if (iswaiting && ret > 0) {
+      cond.signal();
+    }
+    mut.unlock();
+    return ret;
+  } 
+
+  std::streamsize safe_circular_char_buffer::
+  write_unsafe(const char* c, std::streamsize clen) { 
+    // If the char array does not fit simply return
+    if (clen + size() >= bufsize) return 0;
+
     /// Adding c characters to the buffer
     /// 0--------------H...body...T------------->Bufsize
     /// 0--------------H...body...T--(Part A)--->Bufsize
@@ -65,12 +75,8 @@ namespace graphlab {
       tail += secondcopy;
       
     }
-    // If there is anything waiting signal it and free the mutex
-    if (iswaiting) cond.signal();
-    mut.unlock();
     return clen;
-  } // end of write
-
+  }
 
   std::streamsize safe_circular_char_buffer::
   introspective_read(char* &s, std::streamsize clen) {

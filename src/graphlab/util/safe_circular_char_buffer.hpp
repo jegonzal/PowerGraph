@@ -35,8 +35,19 @@ class safe_circular_char_buffer {
   
   /**
    * Returns 0 if the write doesn't fit
+   *
+   * This function acquires the critical section
+   * to perform the write
    */
   std::streamsize write(const char* c, std::streamsize clen);
+
+  /**
+   * Returns 0 if the write doesn't fit
+   *
+   * This does the same as write(), but does not acquire the critical
+   * section. The caller should ensure safety
+   */
+  std::streamsize write_unsafe(const char* c, std::streamsize clen);
 
 
   /**
@@ -48,18 +59,41 @@ class safe_circular_char_buffer {
    * requested. Multiple calls to introspective_read may be necessary
    * to read all data in the buffer. If the function returns 0, the
    * buffer is empty.
+   * 
+   * No locks are acquired on this call.
    */  
   std::streamsize introspective_read(char* &s, std::streamsize clen);
   
   
   /**
    * Same as introspective read. But blocks until there is something to read
+   * This function does not acquire a critical section.
    */
   std::streamsize blocking_introspective_read(char* &s, 
                                               std::streamsize clen);
 
 
   void advance_head(const std::streamsize advance_len);
+  
+  
+  /** When begin critical section returns, it is 
+      guaranteed that no other writer will be touching
+      the tail of the queue */
+  inline void begin_critical_section() {
+    mut.lock();
+  }
+  
+  /** Releases a critical section acquired by begin_critical_section */
+  inline void end_critical_section() {
+    mut.unlock();
+  }
+
+  /** Releases a critical section acquired by begin_critical_section,
+   and signals the reader to begin reading if the reader is blocked */  
+  inline void end_critical_section_with_signal() {
+    cond.signal();
+    mut.unlock();
+  }
   
   
  private:
