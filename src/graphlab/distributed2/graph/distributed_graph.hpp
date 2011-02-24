@@ -1326,7 +1326,8 @@ class distributed_graph {
     size_t nedges_to_create = std::max(canonical_numbering.size(), local2globaleid.size());
     localstore.create_store(local2globalvid.size(), nedges_to_create,
                             "vdata." + tostr(curpartition),
-                            "edata." + tostr(curpartition));
+                            "edata." + tostr(curpartition),
+                            do_not_mmap);
 
     logger(LOG_INFO, "Loading Structure");
     // load the graph structure

@@ -53,10 +53,11 @@ namespace dist_graph_impl {
     /**
      * Build a basic graph
      */
-    graph_local_store(): vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
+    graph_local_store(): do_not_mmap(false), vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
 
     void create_store(size_t create_num_verts, size_t create_num_edges,
-                std::string vertexstorefile, std::string edgestorefile, bool do_not_mmap = false):do_not_mmap(do_not_mmap) { 
+                std::string vertexstorefile, std::string edgestorefile, bool do_not_mmap_ = false) { 
+      do_not_mmap = do_not_mmap_;
       nvertices = create_num_verts;
       nedges = create_num_edges;
       
