@@ -118,8 +118,8 @@ namespace graphlab {
       iswaiting = true;
       mut.lock();
       while (empty() && !done) cond.wait(mut);
-      mut.unlock();    
       iswaiting = false;
+      mut.unlock();    
       ret = introspective_read(s, clen);
       if (ret != 0) return ret;
       if (done) return 0;
