@@ -154,6 +154,7 @@ int main(int argc, char** argv) {
   if (init_param_from_mpi(param) == false) {
     return 0;
   }
+  param.initstring="buffered_send=yes";
   distributed_control dc(param);
 
 
