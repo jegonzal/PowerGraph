@@ -4,96 +4,130 @@
 
 namespace graphlab {
 
-safe_circular_char_buffer::safe_circular_char_buffer(std::streamsize bufsize) 
+  safe_circular_char_buffer::safe_circular_char_buffer(std::streamsize bufsize) 
     :bufsize(bufsize), head(0), tail(0), done(false), iswaiting(false){
-  ASSERT_GT(bufsize, 0);
-  buffer = (char*)malloc(bufsize);
-}
+    ASSERT_GT(bufsize, 0);
+    buffer = (char*)malloc(bufsize);
+  }
 
-safe_circular_char_buffer::~safe_circular_char_buffer() {
-  free(buffer);
-}
+  safe_circular_char_buffer::~safe_circular_char_buffer() {
+    free(buffer);
+  }
 
-void safe_circular_char_buffer::stop_reader() {
-  mut.lock();
-  done = true;
-  cond.signal();
-  mut.unlock();
-}
+  void safe_circular_char_buffer::stop_reader() {
+    mut.lock();
+    done = true;
+    cond.signal();
+    mut.unlock();
+  }
 
-std::streamsize safe_circular_char_buffer::size() {
-  if (tail >= head) return tail - head;
-  else if (head < tail) return head + bufsize - tail;
-  return 0;
-}
+  // Head == tail implies empty
+  bool safe_circular_char_buffer::empty() const {
+    return (head == tail);
+  }
 
-std::streamsize safe_circular_char_buffer::write(const char* c, 
-                                          std::streamsize clen) {
-  if (clen >= bufsize) return 0;
-  // is there enough room in the buffer?
-  if (bufsize - size() - 1 < clen) return 0;
+  std::streamsize safe_circular_char_buffer::size() const {
+    if (tail >= head) return tail - head;
+    else if (head > tail) return head + bufsize - tail;
+    return 0;
+  }
+
+
+  std::streamsize safe_circular_char_buffer::
+  write(const char* c, std::streamsize clen) {
+    // If the char array does not fit simply return
+    if (clen + size() >= bufsize) return 0;
+    //  if (bufsize - size() - 1 < clen) return 0;
   
-  mut.lock();
+    mut.lock();
+    /// Adding c characters to the buffer
+    /// 0--------------H...body...T------------->Bufsize
+    /// 0--------------H...body...T--(Part A)--->Bufsize
+    /// T--(Part B)----H...body....ccccccccccccc>Bufsize
+    /// 0cccccccccccT--H...body....ccccccccccccc>Bufsize
 
-  std::streamsize firstcopy = std::min(clen, bufsize - tail);
-  memcpy(buffer + tail, c, firstcopy);
-  tail += firstcopy;
-  if (tail == bufsize) tail = 0;
-  if (firstcopy == clen) {
+    // First we copy the contents into Part A
+    std::streamsize firstcopy = std::min(clen, bufsize - tail);
+    memcpy(buffer + tail, c, firstcopy);
+    // Move the tail to the end
+    tail += firstcopy;
+    // If tail moved to the end wrap around
+    if (tail == bufsize) tail = 0;
+    // If the copy is not complete
+    if (firstcopy < clen) {
+      // Assert: This only happens on wrape around
+      ASSERT_EQ(tail, 0);
+      // Determine what is left to be coppied
+      std::streamsize secondcopy = clen - firstcopy;
+      ASSERT_GT(secondcopy, 0);
+      // Do the copy and advance the pointer
+      memcpy(buffer, c + firstcopy, secondcopy);    
+      tail += secondcopy;
+      
+    }
+    // If there is anything waiting signal it and free the mutex
     if (iswaiting) cond.signal();
     mut.unlock();
     return clen;
+  } // end of write
+
+
+  std::streamsize safe_circular_char_buffer::
+  introspective_read(char* &s, std::streamsize clen) {
+    ASSERT_GT(clen,0);
+    // early termination check
+    if(empty() || clen == 0) {
+      s = NULL;
+      return 0;
+    }
+    s = buffer + head;
+    // how much we do read?  we can go up to the end of the requested
+    // size or until a looparound
+    // case 1: no looparound  |------H......T----->
+    // case 2: looparound     |...T--H............>
+    std::streamsize available_readlen = 0;
+    const bool loop_around(tail < head);
+    if (loop_around) available_readlen = bufsize - head; 
+    else available_readlen = tail - head; 
+    ASSERT_GE(available_readlen, 0);
+    const std::streamsize actual_readlen =
+      std::min(available_readlen, clen);
+    ASSERT_GT(actual_readlen, 0);
+    return actual_readlen;
   }
+
+
+  std::streamsize safe_circular_char_buffer::
+  blocking_introspective_read(char* &s, std::streamsize clen) {
+    // try to read
+    size_t ret = introspective_read(s, clen);
+    if (ret != 0) return ret;  
+    // if read failed. acquire the lock and try again
+    while(1) {
+      iswaiting = true;
+      mut.lock();
+      while (empty() && !done) cond.wait(mut);
+      mut.unlock();    
+      iswaiting = false;
+      if (done) return 0;
+      ret = introspective_read(s, clen);
+      if (ret != 0) return ret;
+    }
+  }
+
   
-  std::streamsize secondcopy = clen - firstcopy;
-  memcpy(buffer, c + firstcopy, secondcopy);
-  tail += secondcopy;
-  if (iswaiting) cond.signal();
-  mut.unlock();
-  return clen;
-}
-
-std::streamsize safe_circular_char_buffer::introspective_read(char* &s, std::streamsize clen) {
-  s = buffer + head;
-  // how much we do read?
-  // we can go up to the end of the buffer, or until a looparound
-  // case 1: no looparound
-  // case 2: looparound
-  std::streamsize readlen = 0;
-  if (tail >= head) {
-    readlen = tail - head;
-  }
-  else {
-    readlen = bufsize - head;
-  }
-  
-  // skip the readlen
-  head += readlen;
-  if (head >= bufsize) head -= bufsize;
-
-  return readlen;
-}
-
-std::streamsize safe_circular_char_buffer::blocking_introspective_read(char* &s, std::streamsize clen) {
-  // try to read
-  size_t ret = introspective_read(s, clen);
-  if (ret != 0) return ret;
-  
-  // if read failed. acquire the lock and try again
-  while(1) {
-    iswaiting = true;
-    mut.lock();
-    while (head == tail && !done) cond.wait(mut);
-    mut.unlock();    
-    iswaiting = false;
-    if (done) return 0;
-    ret = introspective_read(s, clen);
-    if (ret != 0) return ret;
-  }
-}
+  void safe_circular_char_buffer::
+  advance_head(const std::streamsize advance_len) {
+    ASSERT_GE(advance_len, 0);
+    ASSERT_LE(advance_len, size());
+    // advance the head forward as far as possible
+    head += advance_len;
+    // If head wraps around move head to begginning and then offset
+    if (head >= bufsize) head -= bufsize;    
+  } // end of advance head
 
 
 
-}
+} // end of namespace
 
 

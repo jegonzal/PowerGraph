@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
     wrotebytes += 100;
     while (1) {
       size_t r = cbuf.introspective_read(tmp, 30);
+      cbuf.advance_head(r);
       readbytes += r;
       if (r == 0) break;
     }
