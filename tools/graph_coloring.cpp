@@ -73,10 +73,11 @@ int main(int argc, char** argv) {
   std::string donestring;
   std::string outputfile = "colors.txt";
   graphlab::command_line_options clopts("Graph Colorizer", true);
-  
+  size_t roundspersync = 1; 
   clopts.attach_option("atomindex", &path, path, "atom index file");
   clopts.attach_option("outputfile", &outputfile, outputfile, "color output file");
   clopts.attach_option("donelevel", &donestring, donestring, "\'minimal\' or \'valid\'");
+  clopts.attach_option("roundspersync", &roundspersync, roundspersync, "rounds per synchronize");
   if( !clopts.parse(argc, argv) ) { 
     std::cout << "Error parsing command line arguments!"
               << std::endl;
@@ -97,7 +98,7 @@ int main(int argc, char** argv) {
 
   mpi_tools::init(argc, argv);
   dc_init_param param;
-
+  param.initstring="buffered_send=yes";
   // if not running in DC environment, make atoms
   if (init_param_from_mpi(param) == false) {
     return 0;
@@ -109,6 +110,10 @@ int main(int argc, char** argv) {
   size_t iter = 0;
   while(1) {
     iter++;
+    for (size_t j = 0; j < roundspersync - 1; ++j) {
+      color_state c = color_owned_subgraph(dg);
+    }
+    dc.full_barrier();
     color_state c = color_owned_subgraph(dg);
     size_t cval = (size_t)c;
     std::vector<size_t> vcal(dc.numprocs(), 0);
