@@ -620,6 +620,8 @@ private:
         if (threadid == 0) {
           ti.start();
           graph.wait_for_all_async_syncs();
+          // TODO! If synchronize() calls were made then this barrier is necessary
+    //          rmi.dc().barrier();
           rmi.dc().full_barrier();
           num_dist_barriers_called++;
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;

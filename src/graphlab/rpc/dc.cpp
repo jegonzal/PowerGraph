@@ -170,11 +170,11 @@ void distributed_control::deferred_function_call(procid_t source, unsigned char 
   fcallqueue.enqueue(function_call_block(source, packet_type_mask, buf, len));
 }
 
-void distributed_control::fcallhandler_loop() {
+void distributed_control::fcallhandler_loop(size_t id) {
   // pop an element off the queue
   while(1) {
     std::pair<function_call_block, bool> entry;
-    entry = fcallqueue.dequeue();
+    entry = fcallqueue.dequeue(id);
     // if the queue is empty and we should quit
     if (entry.second == false) return;
     
@@ -184,6 +184,7 @@ void distributed_control::fcallhandler_loop() {
     exec_function_call(entry.first.source, entry.first.packet_type_mask, istrm);
     receivers[entry.first.source]->function_call_completed(entry.first.packet_type_mask);
   }
+  std::cerr << "Handler " << id << " died." << std::endl;
 }
 
 
@@ -269,6 +270,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   }
   global_calls_sent.resize(machines.size());
   global_calls_received.resize(machines.size());
+  fcallqueue.init(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
@@ -299,7 +301,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   for (size_t i = 0;i < numhandlerthreads; ++i) {
     launch_in_new_thread(fcallhandlers,
                           boost::bind(&distributed_control::fcallhandler_loop, 
-                                      this));
+                                      this, i));
   }
 
   // start the machines

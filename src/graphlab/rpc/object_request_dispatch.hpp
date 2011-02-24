@@ -106,6 +106,11 @@ template<typename DcType,
     oarchive oarc(retstrm);                                             \
     oarc << ret;                                                        \
     retstrm.flush();                                                    \
+    if ((packet_type_mask & CONTROL_PACKET) == 0) {                     \
+      dc.get_rmi_instance(objid)->inc_calls_received(source);           \
+      dc.get_rmi_instance(objid)->inc_bytes_sent(source, retstrm->len); \
+    }                                                                   \
+    /*std::cerr << "Request wait on " << id << std::endl ; */           \
     if (packet_type_mask & CONTROL_PACKET) {                            \
       dc.control_call(source,                                           \
                       reply_increment_counter,                          \
@@ -118,10 +123,7 @@ template<typename DcType,
                           blob(retstrm->str, retstrm->len));            \
     }                                                                   \
     free(retstrm->str);                                                 \
-    if ((packet_type_mask & CONTROL_PACKET) == 0) {                     \
-      dc.get_rmi_instance(objid)->inc_calls_received(source);           \
-      dc.get_rmi_instance(objid)->inc_bytes_sent(source, retstrm->len); \
-    }                                                                   \
+    /* std::cerr << "Request received on " << id << std::endl ; */      \
   } 
 
 

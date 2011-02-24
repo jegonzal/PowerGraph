@@ -201,7 +201,8 @@ int main(int argc, char** argv) {
     generate_atoms(); return 0;
   }
   
-  param.initstring = "buffered_send=yes";
+  param.initstring = "";
+  param.numhandlerthreads = 8;
   global_logger().set_log_level(LOG_DEBUG);
   distributed_control dc(param);
 

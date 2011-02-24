@@ -5,6 +5,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/util/blocking_queue.hpp>
+#include <graphlab/util/multi_blocking_queue.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
@@ -94,7 +95,7 @@ class distributed_control{
   thread_group fcallhandlers;
   
   /// a queue of functions to be executed
-  blocking_queue<function_call_block> fcallqueue;
+  multi_blocking_queue<function_call_block> fcallqueue;
   
   /// A map of function name to dispatch function. Used for "portable" calls
   dc_impl::dispatch_map_type portable_dispatch_call_map;
@@ -259,9 +260,10 @@ class distributed_control{
   /**
   This is called by the function handler threads
   */
-  void fcallhandler_loop();
+  void fcallhandler_loop(size_t id);
   
   inline void inc_calls_sent(procid_t procid) {
+    ASSERT_FALSE(full_barrier_in_effect);
     global_calls_sent[procid].inc();
   }
 

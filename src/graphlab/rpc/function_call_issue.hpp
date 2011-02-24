@@ -179,6 +179,9 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     arc << reinterpret_cast<size_t>(remote_function); \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
+    if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(reply_increment_counter)) { \
+      flags |= REPLY_PACKET; \
+    } \
     sender->send_data(target,flags , strm->c_str(), strm->size());    \
   }\
 }; 

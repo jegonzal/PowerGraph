@@ -31,5 +31,7 @@ namespace graphlab {
     does not increment any counters.
   */
   const unsigned char CONTROL_PACKET = 16; 
+  
+  const unsigned char REPLY_PACKET = 32;
 }
 #endif
