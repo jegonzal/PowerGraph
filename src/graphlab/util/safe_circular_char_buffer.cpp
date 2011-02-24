@@ -90,15 +90,17 @@ namespace graphlab {
       s = NULL;
       return 0;
     }
+    const std::streamsize curtail = tail;
+    
     s = buffer + head;
     // how much we do read?  we can go up to the end of the requested
     // size or until a looparound
     // case 1: no looparound  |------H......T----->
     // case 2: looparound     |...T--H............>
     std::streamsize available_readlen = 0;
-    const bool loop_around(tail < head);
+    const bool loop_around(curtail < head);
     if (loop_around) available_readlen = bufsize - head; 
-    else available_readlen = tail - head; 
+    else available_readlen = curtail - head; 
     ASSERT_GE(available_readlen, 0);
     const std::streamsize actual_readlen =
       std::min(available_readlen, clen);
