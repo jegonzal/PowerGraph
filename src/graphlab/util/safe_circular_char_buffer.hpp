@@ -27,11 +27,29 @@ class safe_circular_char_buffer {
    */
   bool empty() const;
 
-
+  inline bool is_done() const { 
+    return done;
+  }
+  
+  inline bool reader_is_blocked() const {
+    return iswaiting;
+  }
   /**
    * Get the total contents currently stored in the buffer.
    */
   std::streamsize size() const;
+
+  /**
+   * Get the amount of free space reamining in the buffer
+   */
+  std::streamsize free_space() const;
+
+  /** Gets the size of the buffer. 
+     \note: The useable space is reserved_size() - 1 */
+  inline std::streamsize reserved_size() const {
+    return bufsize - 1;
+  }
+
   
   /**
    * Returns 0 if the write doesn't fit

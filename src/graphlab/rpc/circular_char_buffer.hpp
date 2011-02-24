@@ -119,7 +119,8 @@ class circular_char_buffer {
     return len;
   }
   
-  /** Gets the size of the buffer */
+  /** Gets the size of the buffer. 
+     \note: The useable space is reserved_size() - 1 */
   inline std::streamsize reserved_size() const {
     return bufsize;
   }

@@ -25,7 +25,8 @@ namespace dc_impl {
 
 class dc_stream_send: public dc_send{
  public:
-  dc_stream_send(distributed_control* dc, dc_comm_base *comm): dc(dc), comm(comm){ 
+  dc_stream_send(distributed_control* dc, dc_comm_base *comm, procid_t target): 
+                                                dc(dc), comm(comm), target(target){ 
  
   }
   
@@ -66,6 +67,7 @@ class dc_stream_send: public dc_send{
   distributed_control* dc;
   dc_comm_base *comm;
   atomic<size_t> bytessent, callssent;
+  procid_t target;
 
 };
 

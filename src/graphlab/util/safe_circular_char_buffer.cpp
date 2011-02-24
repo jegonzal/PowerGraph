@@ -27,12 +27,17 @@ namespace graphlab {
   }
 
   std::streamsize safe_circular_char_buffer::size() const {
-    if (tail >= head) return tail - head;
-    else if (head > tail) return head + bufsize - tail;
+    std::streamsize headval = head;
+    std::streamsize tailval = tail;
+    if (tailval >= headval) return tailval - headval;
+    else if (headval > tailval) return tailval + bufsize - headval;
     return 0;
   }
-
-
+  
+  std::streamsize safe_circular_char_buffer::free_space() const {
+    return bufsize - size() - 1;
+  }
+  
   std::streamsize safe_circular_char_buffer::
   write(const char* c, std::streamsize clen) {
   

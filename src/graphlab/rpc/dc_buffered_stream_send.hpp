@@ -8,7 +8,7 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
 #include <graphlab/rpc/dc_send.hpp>
-#include <graphlab/rpc/circular_char_buffer.hpp>
+#include <graphlab/util/safe_circular_char_buffer.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -29,9 +29,8 @@ namespace dc_impl {
 
 class dc_buffered_stream_send: public dc_send{
  public:
-  dc_buffered_stream_send(distributed_control* dc, dc_comm_base *comm,
-                          size_t usetimedwait = 0): dc(dc), comm(comm), 
-                                                      done(false), usetimedwait(usetimedwait) { 
+  dc_buffered_stream_send(distributed_control* dc, dc_comm_base *comm, procid_t target): dc(dc), 
+                                    comm(comm), target(target), done(false) { 
     thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send::send_loop, 
                                       this));
   }
@@ -73,15 +72,14 @@ class dc_buffered_stream_send: public dc_send{
   /// pointer to the owner
   distributed_control* dc;
   dc_comm_base *comm;
-
-  mutex sendbuflock;
-  circular_char_buffer sendbuf;
-  conditional sendcond;
+  procid_t target;
+  safe_circular_char_buffer sendbuf;
 
   thread thr;
   bool done;
-  size_t usetimedwait;
   atomic<size_t> bytessent;
+  
+  void send_till_empty();
 };
 
 
