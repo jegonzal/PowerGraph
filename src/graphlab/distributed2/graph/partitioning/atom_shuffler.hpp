@@ -113,20 +113,23 @@ namespace graphlab {
 
     void add_neighbor_atom(const vertex_id_t vid, 
                            const procid_t neighbor_atom) {
+
+      const std::string meaningless_text(0,'a');
       // if vid is stored locally
       if(vertex2proc[vid] == rmi.procid() ) {
-        add_neighbor_atom_local(vid, neighbor_atom);
+        add_neighbor_atom_local(vid, neighbor_atom, meaningless_text);
       } else {
         // remote add
         rmi.remote_call(vertex2proc[vid],
                         &atom_shuffler_type::add_neighbor_atom_local,
-                        vid, neighbor_atom);
+                        vid, neighbor_atom, meaningless_text);
       }
     } // end of add atom neighbor
 
 
     void add_neighbor_atom_local(const vertex_id_t vid, 
-                                 const procid_t neighbor_atom) {
+                                 const procid_t neighbor_atom,
+                                 const std::string& meaningless_text) {
       assert(vid < vertex2proc.size());
       assert(vertex2proc[vid] == rmi.procid());
       assert(neighbor_atom < num_atoms);
@@ -154,7 +157,8 @@ namespace graphlab {
       // Get the atom info
       atom_info& ainfo(get_atom_info(to_atomid));
       // test to see if the vertex has been added already
-      if(ainfo.global2local.find(gvid) == ainfo.global2local.end()) { // first add
+      if(ainfo.global2local.find(gvid) == ainfo.global2local.end()) { 
+        // first add
         vertex_id_t localvid = ainfo.atom_file.globalvids().size();
         ainfo.atom_file.globalvids().push_back(gvid);
         ainfo.atom_file.vcolor().push_back(vcolor);
@@ -743,7 +747,6 @@ namespace graphlab {
         assert(false);
       }
       param.initstring = "buffered_send=yes, ";
-      param.initstring += "buffered_send_delay=1E9";//nanoseconds 
       param.numhandlerthreads = 5;
       distributed_control dc(param);
       dc.full_barrier();      
