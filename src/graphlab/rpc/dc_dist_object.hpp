@@ -1021,6 +1021,7 @@ private:
 //     for (size_t i = 0; i < numprocs(); ++i) {
 //       std::cout << "Received " << global_calls_received[i].value << " from " << i << std::endl;
 //     }
+    barrier();
   }
   
  /* --------------------  Implementation of Gather Statistics -----------------*/ 
