@@ -229,7 +229,7 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
       atomgraph.add_edge(atomindex.atoms[i].adjatoms[j], i, atomweight);
     }
   }
-  std::cout << atomgraph;
+//  std::cout << atomgraph;
   std::vector<uint32_t> retpart;
   atomgraph.metis_weighted_partition(nparts, retpart,
                                      identity_function, identity_function, true);
@@ -433,7 +433,6 @@ void distributed_build_atom_index_file(const std::string& path) {
       // Compute max color
       afd_extra.max_color = 0;
       foreach(const vertex_color_type& vcolor, afile.vcolor())  {
-        std::cout << vcolor << '\t';
         afd_extra.max_color = std::max(afd_extra.max_color, size_t(vcolor));
       }
       // count in edges
@@ -546,7 +545,7 @@ void build_atom_index_file(const std::string& path) {
     }
     // Compute max color
     foreach(const vertex_color_type& vcolor, afile.vcolor())  {
-      std::cout << vcolor << '\t';
+//      std::cout << vcolor << '\t';
       aif.ncolors = std::max(aif.ncolors, size_t(vcolor));
     }
     // count in edges

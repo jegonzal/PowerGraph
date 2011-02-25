@@ -41,6 +41,12 @@ class dgraph_scope : public iscope<Graph> {
 
   ~dgraph_scope() { }
 
+  bool ghost_sync_required() const {
+    return remote_outedges_modified ||
+        remote_nbr_vertices_modified || 
+        (inedges_modified && _graph_ptr->globalvid_to_replicas(_vertex).size() > 1) ;
+  }
+  
   void reset_tracking() {
     own_modified = false; 
     owned_outedges_modified = false; 
@@ -59,9 +65,7 @@ class dgraph_scope : public iscope<Graph> {
       push_current_vertex(async, untracked);  
     }
     
-    if (remote_outedges_modified ||
-        remote_nbr_vertices_modified || 
-        (inedges_modified && _graph_ptr->globalvid_to_replicas(_vertex).size() > 1) ) {
+    if (ghost_sync_required()) {
       commit_ghosts(async);
     }
 

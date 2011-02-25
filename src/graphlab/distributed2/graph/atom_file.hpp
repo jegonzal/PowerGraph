@@ -7,6 +7,7 @@
 #include <iomanip>
 
 #include <boost/unordered_map.hpp>
+#include <boost/unordered_set.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
@@ -182,20 +183,19 @@ namespace graphlab {
     // build the ID mappings
     // collect the set of vertices / edges that are within this atom
     // that would be all vertices with this partition ID as well as all neighbors
-    dense_bitset goodvertices(g.num_vertices()), goodedges(g.num_edges());
-
+    boost::unordered_set<vertex_id_t> struct_vertices;
+    boost::unordered_set<edge_id_t>  struct_edges;
     for (size_t v = 0;v < g.num_vertices(); ++v) {
       if (vertex2part[v] == partid) {
-        // add myself and all neighbors
-        goodvertices.set_bit_unsync(v);
         // loop through all the edges
+        struct_vertices.insert(v);
         foreach(edge_id_t eid, g.out_edge_ids(v)) {
-          goodedges.set_bit_unsync(eid);
-          goodvertices.set_bit_unsync(g.target(eid));
+          struct_edges.insert(eid);
+          struct_vertices.insert(g.target(eid));
         }
         foreach(edge_id_t eid, g.in_edge_ids(v)) {
-          goodedges.set_bit_unsync(eid);
-          goodvertices.set_bit_unsync(g.source(eid));
+          struct_edges.insert(eid);
+          struct_vertices.insert(g.source(eid));
         }
   
       }
@@ -204,27 +204,24 @@ namespace graphlab {
     boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid;
     {
       // done. now construct the mappings
-      uint32_t vid;
-      if (goodvertices.first_bit(vid)) {
-        do {
-          global2localvid[vid] = atom.globalvids().size();
-          atom.globalvids().push_back(vid);
-          atom.atom().push_back(vertex2part[vid]);
-          atom.vcolor().push_back(g.color(vid));
-          atom.vdata().push_back(g.vertex_data(vid));
-        } while(goodvertices.next_bit(vid));
+      foreach(vertex_id_t vid, struct_vertices) {
+        global2localvid[vid] = atom.globalvids().size();
+        atom.globalvids().push_back(vid);
+        atom.atom().push_back(vertex2part[vid]);
+        atom.vcolor().push_back(g.color(vid));
+//atom.vdata().push_back(g.vertex_data(vid));
+        if (vertex2part[vid] == partid) atom.vdata().push_back(g.vertex_data(vid));
       }
     }
     {
-      uint32_t eid;
-      if (goodedges.first_bit(eid)) {
-        do {
-          atom.globaleids().push_back(eid);
-          atom.edge_src_dest().push_back(std::make_pair<vertex_id_t,
-                                         vertex_id_t>(global2localvid[g.source(eid)],
-                                                      global2localvid[g.target(eid)]));
-          atom.edata().push_back(g.edge_data(eid));
-        } while(goodedges.next_bit(eid));
+      foreach(edge_id_t eid, struct_edges) {
+        atom.globaleids().push_back(eid);
+        atom.edge_src_dest().push_back(std::make_pair<vertex_id_t,
+                                       vertex_id_t>(global2localvid[g.source(eid)],
+                                                    global2localvid[g.target(eid)]));
+//atom.edata().push_back(g.edge_data(eid));
+        
+        if (vertex2part[g.target(eid)] == partid) atom.edata().push_back(g.edge_data(eid));
       }
     }
     if (noglobaleids) atom.globaleids().clear();

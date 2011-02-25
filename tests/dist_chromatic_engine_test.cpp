@@ -64,7 +64,7 @@ void add_one_static(iscope_type& scope,
     assert(scope.source(edge) == (scope.vertex() + NUMV - 1) % NUMV);
     // sanity check
     double edata = scope.const_edge_data(edge);
-    assert(edata == std::max<size_t>(vdata, srcvdata));
+    ASSERT_EQ(edata, std::max<size_t>(vdata, srcvdata));
   }
  
   //try to read out data
@@ -73,7 +73,7 @@ void add_one_static(iscope_type& scope,
     assert(scope.target(edge) == (scope.vertex() + 1) % NUMV);
     // sanity check
     double edata = scope.const_edge_data(edge);
-    assert(edata == std::max<size_t>(vdata, srcvdata));
+    ASSERT_EQ(edata, std::max<size_t>(vdata, srcvdata));
   }
   
   // consistency check
@@ -194,6 +194,7 @@ distributed_glshared<double> averagevalue;
 
 
 int main(int argc, char** argv) {
+
   dc_init_param param;
 
   // if not running in DC environment, make atoms

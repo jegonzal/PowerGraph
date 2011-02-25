@@ -1329,7 +1329,7 @@ class distributed_graph {
                             "vdata." + tostr(curpartition),
                             "edata." + tostr(curpartition),
                             do_not_mmap);
-
+    localstore.zero_all();
     logger(LOG_INFO, "Loading Structure");
     // load the graph structure
     std::vector<bool> eidloaded(nedges_to_create, false);
@@ -1447,18 +1447,40 @@ class distributed_graph {
       // done! structure constructed!  now for the data!  load atoms one
       // at a time, don't keep more than one atom in memor at any one
       // time
+      // check if the atom set contains ghost data
+      bool hasallghostdata = true; 
       for (size_t i = 0;i < atomfiles.size(); ++i) {
+        bool hasghostdata = (atomfiles[i]->vdata().size() == atomfiles[i]->globalvids().size());
+        hasallghostdata = hasallghostdata && hasghostdata;
+        
         atomfiles[i]->load_all();
-        for (size_t j = 0; j < atomfiles[i]->vdata().size(); ++j) {
+        // does this have all the ghost data?
+        size_t curidx = 0;
+        for (size_t j = 0; j < atomfiles[i]->globalvids().size(); ++j) {
           // convert from the atom's local vid, to the global vid, then
-          // to the fragment localvi
-          size_t localvid = global2localvid[atomfiles[i]->globalvids()[j]];
-          localstore.vertex_data(localvid) = atomfiles[i]->vdata()[j];
-          localstore.set_vertex_version(localvid, 0);
+          // to the fragment localvid
+          vertex_id_t globalvid = atomfiles[i]->globalvids()[j];
+          if (atomfiles[i]->atom()[j] == atoms_in_curpart[i] || hasghostdata) {
+            ASSERT_LT(curidx , atomfiles[i]->vdata().size());
+            size_t localvid = global2localvid[globalvid];
+            localstore.vertex_data(localvid) = atomfiles[i]->vdata()[curidx];
+            localstore.set_vertex_version(localvid, 1);
+            ++curidx;
+          }
+/*          else {
+            size_t localvid = global2localvid[globalvid];
+            ASSERT_EQ(localstore.vertex_version(localvid), 0);
+          }*/
         }
-        for (size_t j = 0; j < atomfiles[i]->edata().size(); ++j) {
+        curidx = 0;
+        
+        hasghostdata = (atomfiles[i]->edata().size() == atomfiles[i]->edge_src_dest().size());
+        hasallghostdata = hasallghostdata && hasghostdata;
+        
+        for (size_t j = 0; j < atomfiles[i]->edge_src_dest().size(); ++j) {
           // convert from the atom's local vid, to the global vid, then
           // to the fragment localvi
+          // do I own this edge?
           edge_id_t localeid;
           if (!edge_canonical_numbering) {
             localeid = global2localeid[atomfiles[i]->globaleids()[j]];
@@ -1469,15 +1491,39 @@ class distributed_graph {
                              atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
             localeid = canonical_numbering[globaledge];     
           }
-          localstore.edge_data(localeid) = atomfiles[i]->edata()[j];
-          localstore.set_edge_version(localeid, 0);
+          vertex_id_t atom_local_target_vid = atomfiles[i]->edge_src_dest()[j].second;
+          if (atomfiles[i]->atom()[atom_local_target_vid] == atoms_in_curpart[i] || hasghostdata) {
+            ASSERT_LT(curidx , atomfiles[i]->edata().size());
+            localstore.edge_data(localeid) = atomfiles[i]->edata()[curidx];
+            localstore.set_edge_version(localeid, 1);
+            ++curidx;
+          }
+   /*       else {
+            ASSERT_EQ(localstore.edge_version(localeid), 0);
+          }*/
+
         }
         atomfiles[i]->clear();
         delete atomfiles[i];
       }
-    }
-    else {
-      localstore.zero_all();
+
+      // check if everyone has all the ghost data
+      std::vector<char> all_gather_hasghostdata(rmi.numprocs(), 0); 
+      all_gather_hasghostdata[rmi.procid()] = hasallghostdata;
+      rmi.all_gather(all_gather_hasghostdata);
+      for (size_t i = 0;i < all_gather_hasghostdata.size(); ++i) {
+        hasallghostdata = hasallghostdata && all_gather_hasghostdata[i];
+      }
+
+      if (hasallghostdata == false) {
+        rmi.barrier();
+        logger(LOG_INFO, "does not have all ghost data: Synchronizing...");
+        // shuffle for all the ghost data
+        push_all_owned_vertices_to_replicas(true, true);
+        push_all_owned_edges_to_replicas(true, true);
+        rmi.dc().full_barrier();
+        logger(LOG_INFO, "Synchronization complete.");
+      }
     }
     // flush the store
     logger(LOG_INFO, "Finalize");

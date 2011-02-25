@@ -627,10 +627,8 @@ namespace dist_graph_impl {
     }
     
     void zero_all() {
-      if (do_not_mmap == false) {
-        memset(vertices, 0, sizeof(vdata_store) * nvertices);
-        memset(edgedata, 0, sizeof(edata_store) * nedges);
-      }
+      memset(vertices, 0, sizeof(vdata_store) * nvertices);
+      memset(edgedata, 0, sizeof(edata_store) * nedges);
     }
     
     void compute_minimal_prefetch() {

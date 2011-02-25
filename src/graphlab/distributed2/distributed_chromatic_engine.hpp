@@ -114,6 +114,8 @@ private:
   double barrier_time;
   size_t num_dist_barriers_called;
   
+  // other optimizations
+  bool const_nbr_vertices, const_edges;
   struct sync_task {
     sync_function_type sync_fun;
     merge_function_type merge_fun;
@@ -161,7 +163,9 @@ private:
                             update_function(NULL),
                             max_iterations(0),
                             barrier_time(0.0),
-                            thread_color_barrier(ncpus){ 
+                            const_nbr_vertices(true),
+                            const_edges(false),
+                            thread_color_barrier(ncpus) { 
     rmi.barrier();
   }
   
@@ -387,7 +391,7 @@ private:
   atomic<size_t> curidx;
   barrier thread_color_barrier;
  public: 
- 
+  
   struct termination_evaluation{
     size_t pending_tasks;
     size_t executed_tasks;
@@ -621,7 +625,9 @@ private:
           ti.start();
           graph.wait_for_all_async_syncs();
           // TODO! If synchronize() calls were made then this barrier is necessary
-    //          rmi.dc().barrier();
+          // but the time needed to figure out if a synchronize call is required 
+          // could be as long as the barrier itself
+          if (const_nbr_vertices == false || const_edges == false)  rmi.dc().barrier();
           rmi.dc().full_barrier();
           num_dist_barriers_called++;
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
@@ -653,6 +659,15 @@ private:
       }
     }
   }
+  
+  void set_const_edges(bool const_edges_ = true) {
+    const_edges = const_edges_;
+  }
+
+  void set_const_nbr_vertices(bool const_nbr_vertices_ = true) {
+    const_nbr_vertices = const_nbr_vertices_;
+  }
+
   
   /** Execute the engine */
   void start() {
