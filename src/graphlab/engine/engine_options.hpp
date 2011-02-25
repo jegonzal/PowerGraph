@@ -36,7 +36,7 @@ namespace graphlab {
    </ul>
    */
   class engine_options {
-  protected:
+  public:
     //! The number of cpus
     size_t ncpus;
     //! The type of engine {async, async_sim, synchronous}
@@ -61,8 +61,7 @@ namespace graphlab {
     bool enable_cpu_affinities;
 
     bool enable_sched_yield;
-
-  public:
+ 
    
     engine_options() :
       ncpus(2),
