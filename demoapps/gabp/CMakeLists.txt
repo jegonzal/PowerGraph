@@ -1,7 +1,7 @@
 project(GraphLab)
 
 
-add_executable(GABP gabp.cpp)
+add_executable(gabp gabp.cpp)
 
 #add_executable(BlockGABP gabp_block.cpp)
 
