@@ -10,7 +10,7 @@
 
 #include <boost/unordered_map.hpp>
 #include <boost/bind.hpp>
-
+//#include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/net_util.hpp>
 #include <graphlab/metrics/metrics.hpp>
@@ -32,6 +32,9 @@ namespace graphlab {
 namespace dc_impl {
 bool thrlocal_resizing_array_key_initialized = false;
 pthread_key_t thrlocal_resizing_array_key;
+
+bool thrlocal_sequentialization_key_initialized = false;
+pthread_key_t thrlocal_sequentialization_key;
 
 struct dc_tls_data{
   resizing_array_sink ras;
@@ -68,6 +71,28 @@ void thrlocal_destructor(void* v){
   }
   pthread_setspecific(thrlocal_resizing_array_key, NULL);
 }
+}
+
+unsigned char distributed_control::set_sequentialization_key(unsigned char newkey) {
+  size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
+  size_t newval = newkey;
+  pthread_setspecific(dc_impl::thrlocal_sequentialization_key, reinterpret_cast<void*>(newval));
+  assert(oldval < 256);
+  return oldval;
+}
+
+unsigned char distributed_control::new_sequentialization_key() {
+  size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
+  size_t newval = (oldval + 1) % 256;
+  pthread_setspecific(dc_impl::thrlocal_sequentialization_key, reinterpret_cast<void*>(newval));
+  assert(oldval < 256);
+  return oldval;
+}
+
+unsigned char distributed_control::get_sequentialization_key() {
+  size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
+  assert(oldval < 256);
+  return oldval;
 }
 
 static std::string get_working_dir() {
@@ -120,8 +145,9 @@ distributed_control::~distributed_control() {
 }
   
 void distributed_control::exec_function_call(procid_t source, 
-                                            unsigned char packet_type_mask, 
+                                            const dc_impl::packet_hdr& hdr, 
                                             std::istream &istrm) {
+  unsigned char packet_type_mask = hdr.packet_type_mask;
   // extract the dispatch function
   iarchive arc(istrm);
   size_t f; 
@@ -165,9 +191,15 @@ void distributed_control::exec_function_call(procid_t source,
 } 
  
  
-void distributed_control::deferred_function_call(procid_t source, unsigned char packet_type_mask,
+void distributed_control::deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr,
                                                 char* buf, size_t len) {
-  fcallqueue.enqueue(function_call_block(source, packet_type_mask, buf, len));
+  if (hdr.sequentialization_key == 0) {
+    fcallqueue.enqueue(function_call_block(source, hdr, buf, len));
+  }
+  else {
+    fcallqueue.enqueue_specific(function_call_block(source, hdr, buf, len), 
+                                hdr.sequentialization_key);
+  }
 }
 
 void distributed_control::fcallhandler_loop(size_t id) {
@@ -181,8 +213,8 @@ void distributed_control::fcallhandler_loop(size_t id) {
     //create a stream containing all the data
     boost::iostreams::stream<boost::iostreams::array_source> 
                                 istrm(entry.first.data, entry.first.len);
-    exec_function_call(entry.first.source, entry.first.packet_type_mask, istrm);
-    receivers[entry.first.source]->function_call_completed(entry.first.packet_type_mask);
+    exec_function_call(entry.first.source, entry.first.hdr, istrm);
+    receivers[entry.first.source]->function_call_completed(entry.first.hdr.packet_type_mask);
   }
   std::cerr << "Handler " << id << " died." << std::endl;
 }
@@ -217,6 +249,13 @@ void distributed_control::init(const std::vector<std::string> &machines,
                         dc_impl::thrlocal_destructor);
     ASSERT_EQ(err, 0);
   }
+  
+  if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
+    dc_impl::thrlocal_sequentialization_key_initialized = true;
+    int err = pthread_key_create(&dc_impl::thrlocal_sequentialization_key, NULL);
+    ASSERT_EQ(err, 0);
+  }
+
   //-------- Initialize the full barrier ---------
   full_barrier_in_effect = false;
   procs_complete.resize(machines.size());

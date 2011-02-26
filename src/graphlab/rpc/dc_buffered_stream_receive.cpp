@@ -72,7 +72,7 @@ void dc_buffered_stream_receive::process_buffer() {
       logstream(LOG_INFO) << "Is fast call" << std::endl;
       #endif
       boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
-      dc->exec_function_call(hdr.src, hdr.packet_type_mask, strm);
+      dc->exec_function_call(hdr.src, hdr, strm);
     }
     else if (hdr.packet_type_mask & STANDARD_CALL) {
       #ifdef DC_RECEIVE_DEBUG
@@ -82,7 +82,7 @@ void dc_buffered_stream_receive::process_buffer() {
       char* tmpbuf = new char[hdr.len];
       buffer.read(tmpbuf, hdr.len);
       pending_calls.inc();
-      dc->deferred_function_call(hdr.src,hdr.packet_type_mask, tmpbuf, hdr.len);
+      dc->deferred_function_call(hdr.src,hdr, tmpbuf, hdr.len);
     }
   }
 }

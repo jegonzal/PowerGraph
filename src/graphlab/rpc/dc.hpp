@@ -67,12 +67,12 @@ class distributed_control{
         /**  Each element of the function call queue is a data/len pair */
     struct function_call_block{
       function_call_block() {}
-      function_call_block(procid_t source, unsigned char packet_type_mask, 
+      function_call_block(procid_t source, const dc_impl::packet_hdr& hdr, 
                           char* data, size_t len): 
-                          source(source), packet_type_mask(packet_type_mask), 
+                          source(source), hdr(hdr), 
                           data(data), len(len) {}
       procid_t source;
-      unsigned char packet_type_mask;
+      dc_impl::packet_hdr hdr;
       char* data;
       size_t len;
     };
@@ -176,6 +176,29 @@ class distributed_control{
   }
   
   /**
+  Sets the sequentialization key to the new value, returning the previous value.
+  User should 
+  oldval = set_sequentialization_key(newval)
+  ...
+  ... do stuff
+  ...
+  set_sequentialization_key(oldval)
+  */
+  static unsigned char set_sequentialization_key(unsigned char newkey);
+  
+  /**
+  Creates a new sequentialization key, returning the old value
+  User should 
+  oldval = new_sequentialization_key()
+  ...
+  ... do stuff
+  ...
+  set_sequentialization_key(oldval)
+  */
+  static unsigned char new_sequentialization_key();
+  static unsigned char get_sequentialization_key();
+  
+  /**
   This generates the interface functions for the standard calls, basic calls, and fast calls
   The generated code looks like this:
   
@@ -244,7 +267,7 @@ class distributed_control{
   Immediately calls the function described by the data
   inside the buffer. This should not be called directly.
   */
-  void exec_function_call(procid_t source, unsigned char packet_type_mask, std::istream &istrm);
+  void exec_function_call(procid_t source, const dc_impl::packet_hdr& hdr, std::istream &istrm);
   
   
   
@@ -253,7 +276,7 @@ class distributed_control{
   inside the buffer. This function will take over ownership of 
   the buffer and will free it when done
   */
-  void deferred_function_call(procid_t source, unsigned char packet_type_mask, 
+  void deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr, 
                               char* buf, size_t len);
   
 

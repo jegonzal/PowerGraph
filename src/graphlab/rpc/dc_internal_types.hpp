@@ -30,6 +30,7 @@ struct packet_hdr {
   uint64_t len; /// length of the packet
   procid_t src; /// source machine
   unsigned char packet_type_mask; /// the types are in dc_packet_mask.hpp
+  unsigned char sequentialization_key;
 };
 
 /** special handling for the only pointer datatype 

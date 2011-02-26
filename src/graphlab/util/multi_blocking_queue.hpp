@@ -69,7 +69,17 @@ namespace graphlab {
       if (queueref.handler_sleeping) queueref.m_conditional.signal();
       queueref.m_mutex.unlock();
     }
-
+    
+    //! Add an element to the blocking queue
+    inline void enqueue_specific(const T& elem, size_t qidx_) {
+      size_t qidx = qidx_ % num_queues;
+      single_queue& queueref = allqueues[qidx];
+      queueref.m_mutex.lock();
+      queueref.m_queue.push_back(elem);
+      queueref.numelem++;
+      if (queueref.handler_sleeping) queueref.m_conditional.signal();
+      queueref.m_mutex.unlock();
+    }
     /**
      * Blocks until an element is available in the queue or an
      * interrupt is invoked on the queue.

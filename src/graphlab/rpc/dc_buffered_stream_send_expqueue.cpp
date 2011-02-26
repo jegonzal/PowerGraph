@@ -60,6 +60,7 @@ void dc_buffered_stream_send_expqueue::send_data(procid_t target,
   
   hdr.len = len;
   hdr.src = dc->procid(); 
+  hdr.sequentialization_key = dc->get_sequentialization_key();
   hdr.packet_type_mask = packet_type_mask;
   
   std::streamsize numbytes_needed = sizeof(packet_hdr) + len;

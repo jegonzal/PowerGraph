@@ -70,6 +70,7 @@ void dc_stream_send::send_data(procid_t target,
   memset(&hdr, 0, sizeof(packet_hdr));
   hdr.len = len;
   hdr.src = dc->procid(); 
+  hdr.sequentialization_key = dc->get_sequentialization_key();
   hdr.packet_type_mask = packet_type_mask;
   lock.lock();
  /* comm->send(target, 
