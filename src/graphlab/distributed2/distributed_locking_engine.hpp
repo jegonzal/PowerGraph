@@ -22,6 +22,7 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/distributed2/distributed_glshared_manager.hpp>
 #include <graphlab/distributed2/graph/dgraph_scope.hpp>
+#include <graphlab/distributed2/graph/graph_lock.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -34,8 +35,8 @@ All processes must receive the same options at the same time.
 i.e. if set_cpu_affinities is called, all processes mus call it at the same time.
 This is true for all set_* functions.
 */
-template <typename Graph>
-class distributed_chromatic_engine:public iengine<Graph> {
+template <typename Graph, typename Scheduler>
+class distributed_locking_engine:public iengine<Graph> {
  public:
   typedef iengine<Graph> iengine_base;
   typedef typename iengine_base::update_task_type update_task_type;
@@ -52,17 +53,18 @@ class distributed_chromatic_engine:public iengine<Graph> {
   typedef imonitor<Graph> imonitor_type;
 
   typedef redirect_scheduler_callback<Graph, 
-                                      distributed_chromatic_engine<Graph> > callback_type;
+                                      distributed_locking_engine<Graph> > callback_type;
   typedef icallback<Graph> icallback_type;
 private:
 
  private:
   // the local rmi instance
-  dc_dist_object<distributed_chromatic_engine<Graph> > rmi;
+  dc_dist_object<distributed_locking_engine<Graph> > rmi;
   
   // the graph we are processing
   Graph &graph;
-  
+
+  // a redirect scheduler call back which 
   callback_type callback;
   
   // The manager will automatically attach to all the glshared variables
@@ -96,26 +98,38 @@ private:
   /** The total number of tasks that should be executed */
   size_t task_budget;
   
-  /** If dynamic scheduling is used, the number of scheduled tasks */
-  atomic<size_t> num_pending_tasks;
-  
+ 
   
   /** The cause of the last termination condition */
   exec_status termination_reason;
 
   scope_range::scope_range_enum default_scope_range;
- 
-  std::vector<std::vector<vertex_id_t> > color_block; // set of localvids in each color
-  dense_bitset scheduled_vertices;  // take advantage that local vertices
-                                    // are always the first N
+
+
+  /**
+   * The set of tasks to have been pulled out of a scheduler
+   * and is awaiting execution.
+   */
+  struct deferred_tasks {
+    spinlock lock;
+    std::deque<update_function_type> updates;
+    bool lockrequested;
+  };
   
-  update_function_type update_function;
-  size_t max_iterations;
+  /**
+   * The set of tasks to have been pulled out of a scheduler
+   * and is awaiting execution.
+   */
+  std::vector<deferred_tasks> vertex_deferred_tasks;
+  atomic<size_t> num_deferred_tasks;
+  size_t max_deferred_tasks;
+  
   double barrier_time;
   size_t num_dist_barriers_called;
   
   // other optimizations
   bool const_nbr_vertices, const_edges;
+  
   struct sync_task {
     sync_function_type sync_fun;
     merge_function_type merge_fun;
@@ -140,11 +154,12 @@ private:
   
   /// The list of tasks which are currently being evaluated
   std::vector<sync_task*> active_sync_tasks;
-  
-  
 
+  Scheduler scheduler;
+  graph_lock<Graph> graphlock;
+  
  public:
-  distributed_chromatic_engine(distributed_control &dc,
+  distributed_locking_engine(distributed_control &dc,
                                     Graph& graph,
                                     size_t ncpus = 1):
                             rmi(dc, this),
@@ -159,17 +174,18 @@ private:
                             force_stop(false),
                             task_budget(0),
                             termination_reason(EXEC_UNSET),
-                            scheduled_vertices(graph.owned_vertices().size()),
-                            update_function(NULL),
-                            max_iterations(0),
+                            vertex_deferred_tasks(graph.owned_vertices().size()),
+                            max_deferred_tasks(-1),
                             barrier_time(0.0),
                             const_nbr_vertices(true),
                             const_edges(false),
+                            scheduler(this, graph, std::max(ncpus, size_t(1))),
+                            graphlock(dc, graph),
                             thread_color_barrier(ncpus) { 
     rmi.barrier();
   }
   
-  ~distributed_chromatic_engine() {
+  ~distributed_locking_engine() {
     rmi.barrier();
   }
   
@@ -263,13 +279,8 @@ private:
    * This function is forwarded to the scheduler.
    */
   void add_task(update_task_type task, double priority) {
-    if (update_function != NULL) assert(update_function == task.function());
-    else update_function = task.function();
-    
     if (graph.is_owned(task.vertex())) {
-      num_pending_tasks.inc(!
-              scheduled_vertices.set_bit(graph.globalvid_to_localvid(task.vertex())) 
-                          );
+      scheduler.add_task(task, priority);
       //std::cout << "add task to " << task.vertex() << std::endl;
     }
     else {
@@ -301,12 +312,7 @@ private:
   
   void add_task_to_all_impl(update_function_type func,
                             double priority) {
-    if (update_function != NULL) assert(update_function == func);
-    else update_function = func;
-    
-    scheduled_vertices.fill();
-    num_pending_tasks.value = graph.owned_vertices().size();
-
+    scheduler.add_task_to_all(func, priority);
   }
  
   /**
@@ -350,42 +356,6 @@ private:
     rmi.barrier();
   }
 
-  
-  void generate_color_blocks() {
-    // construct for each color, the set of vertices as well as the 
-    // number of replicas for that vertex.
-    // the number of replicas - 1 is the amount of communication
-    // we have to perform to synchronize modifications to that vertex
-
-    std::vector<std::vector<std::pair<vertex_id_t, size_t> > > color_block_and_weight;
-    // the list of vertices for each color
-    color_block_and_weight.resize(graph.num_colors());
-    
-    foreach(vertex_id_t v, graph.owned_vertices()) {
-      color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(graph.globalvid_to_localvid(v), 
-                                                  graph.globalvid_to_replicas(v).size()));
-    }
-    color_block.clear();
-    color_block.resize(graph.num_colors());
-    // optimize ordering. Sort in descending order
-    // put all those which need a lot of communication in the front
-    // to give communication the maximum amount if time possible.
-    for (size_t i = 0; i < color_block_and_weight.size(); ++i) {
-      std::sort(color_block_and_weight[i].rbegin(),
-                color_block_and_weight[i].rend());
-      // insert the sorted vertices into the final color_block
-
-      std::transform(color_block_and_weight[i].begin(),
-                     color_block_and_weight[i].end(), 
-                     std::back_inserter(color_block[i]),
-                     __gnu_cxx::select1st<std::pair<vertex_id_t, size_t> >());
-
-    }
-    
-    
-  }
-  
   /************  Actual Execution Engine ****************/
  private:
 
@@ -394,28 +364,24 @@ private:
  public: 
   
   struct termination_evaluation{
-    size_t pending_tasks;
     size_t executed_tasks;
     bool terminator;
     bool timeout;
     bool force_stop;
-    termination_evaluation(): pending_tasks(0),
-                              executed_tasks(0),
+    termination_evaluation(): executed_tasks(0),
                               terminator(false),
                               timeout(false),
                               force_stop(false) { }
                               
     void save(oarchive &oarc) const {
-      oarc << pending_tasks
-           << executed_tasks
+      oarc << executed_tasks
            << terminator
            << timeout
            << force_stop;
     }
     
     void load(iarchive &iarc) {
-      iarc >> pending_tasks
-           >> executed_tasks
+      iarc >> executed_tasks
            >> terminator
            >> timeout
            >> force_stop;
@@ -510,13 +476,10 @@ private:
 
   /** Checks all machines for termination and sets the termination reason.
       Also returns the number of update tasks completed globally */
-  size_t check_global_termination(bool check_dynamic_schedule) {
+  size_t check_global_termination() {
     std::vector<termination_evaluation> termination_test;
     termination_test.resize(rmi.numprocs());
     
-    if (check_dynamic_schedule) {
-      termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value;
-    }
 
     size_t numupdates = 0;
     for (size_t i = 0; i < update_counts.size(); ++i) numupdates += update_counts[i];
@@ -540,16 +503,12 @@ private:
     termination_evaluation aggregate;
     if (rmi.procid() == 0) {
       for (size_t i = 0;i < termination_test.size(); ++i) {
-        aggregate.pending_tasks += termination_test[i].pending_tasks;
         aggregate.executed_tasks += termination_test[i].executed_tasks;
         aggregate.terminator |= termination_test[i].terminator;
         aggregate.timeout |= termination_test[i].timeout;
         aggregate.force_stop |= termination_test[i].force_stop;
       }
       
-      if (check_dynamic_schedule && aggregate.pending_tasks == 0) {
-        termination_reason = EXEC_TASK_DEPLETION;
-      }
       else if (task_budget > 0 && aggregate.executed_tasks >= task_budget) {
         termination_reason = EXEC_TASK_BUDGET_EXCEEDED;
       }
@@ -571,94 +530,18 @@ private:
     termination_reason = exec_status(reason_and_task.first);
     return reason_and_task.second;
   }
- 
+
+
+  /**
+   * Executed by a thread.
+   *  - Begin deferred task
+   *  - 
+   */
   void start_thread(size_t threadid) {
     // create the scope
     dgraph_scope<Graph> scope;
     timer ti;
-
-    // loop over iterations
-    size_t iter = 0;
-    bool usestatic = max_iterations > 0;
-    while(1) {
-      // if max_iterations is defined, quit
-      if (usestatic && iter >= max_iterations) {
-        termination_reason = EXEC_TASK_DEPLETION;
-        break;
-      }
-      // loop over colors    
-      for (size_t c = 0;c < color_block.size(); ++c) {
-        // internal loop over vertices in the color
-        while(1) {
-          // grab a vertex  
-          size_t i = curidx.inc_ret_last();  
-          // if index out of scope, we are done with this color. break
-          if (i >= color_block[c].size()) break;
-          // otherwise, get the local and globalvid
-          vertex_id_t localvid = color_block[c][i];
-          vertex_id_t globalvid = graph.localvid_to_globalvid(color_block[c][i]);
-          if (usestatic || scheduled_vertices.clear_bit(localvid)) {
-            if (!usestatic) num_pending_tasks.dec();
-            // otherwise. run the vertex
-            // create the scope
-            scope.init(&graph, globalvid);
-            // run the update function
-            update_function(scope, callback, NULL);
-            // check if there are tasks to run
-            eval_syncs(globalvid, scope, threadid);
-            scope.commit_async_untracked();
-            update_counts[threadid]++;
-          }
-          else {
-            // ok this vertex is not scheduled. But if there are syncs
-            // to run I will still need to get the scope
-            scope.init(&graph, globalvid);
-            eval_syncs(globalvid, scope, threadid);
-            scope.commit_async_untracked();
-          }
-        }
-        // wait for all threads to synchronize on this color.
-        thread_color_barrier.wait();
-        curidx.value = 0;
-        // full barrier on the color
-        // this will complete synchronization of all add tasks as well
-        if (threadid == 0) {
-          ti.start();
-          graph.wait_for_all_async_syncs();
-          // TODO! If synchronize() calls were made then this barrier is necessary
-          // but the time needed to figure out if a synchronize call is required 
-          // could be as long as the barrier itself
-          if (const_nbr_vertices == false || const_edges == false)  rmi.dc().barrier();
-          rmi.dc().full_barrier();
-          num_dist_barriers_called++;
-          //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
-          barrier_time += ti.current_time();
-        }
-        thread_color_barrier.wait();
-
-      }
-
-
-      sync_end_iteration(threadid);
-      thread_color_barrier.wait();
-      if (threadid == 0) {
-        ti.start();
-        //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        size_t numtasksdone = check_global_termination(!usestatic);
-
-        //std::cout << numtasksdone << " tasks done" << std::endl;
-        compute_sync_schedule(numtasksdone);
-        barrier_time += ti.current_time();
-      }
-      // all threads must wait for 0
-      thread_color_barrier.wait();
-
-      ++iter;
-      if (termination_reason != EXEC_UNSET) {
-        //std::cout << rmi.procid() << ": Termination Reason: " << termination_reason << std::endl;
-        break;
-      }
-    }
+      
   }
   
   void set_const_edges(bool const_edges_ = true) {
@@ -679,6 +562,7 @@ private:
     init_syncs();
     termination_reason = EXEC_UNSET;
     barrier_time = 0.0;
+    num_deferred_tasks.value = 0;
     force_stop = false;
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
@@ -693,7 +577,7 @@ private:
       size_t aff = use_cpu_affinity ? i : -1;
       launch_in_new_thread(thrgrp, 
                          boost::bind(
-                            &distributed_chromatic_engine<Graph>::start_thread,
+                            &distributed_locking_engine<Graph>::start_thread,
                             this, i), aff);
     }
     
@@ -734,8 +618,6 @@ private:
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
       engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
-      engine_metrics.set("isdynamic", max_iterations == 0, INTEGER);
-      engine_metrics.set("iterations", max_iterations, INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
   
@@ -756,18 +638,12 @@ private:
   
     /** \brief Update the scheduler options.  */
   void set_scheduler_options(const scheduler_options& opts) {
-    opts.get_int_option("max_iterations", max_iterations);
-    any uf;
-    if (opts.get_any_option("update_function", uf)) {
-      update_function = uf.as<update_function_type>();
-    }
+    opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
     rmi.barrier();
   }
   
   static void print_options_help(std::ostream &out) {
-    out << "max_iterations = [integer, default = 0]\n";
-    out << "update_function = [update_function_type,"
-      "default = set on add_task]\n";
+    out << "max_deferred_tasks_per_node = [integer, default = unsigned word max]\n";
   };
 
   void set_shared_data_manager(ishared_data_manager_type* manager) { 

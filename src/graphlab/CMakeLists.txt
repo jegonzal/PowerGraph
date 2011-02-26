@@ -67,7 +67,8 @@ add_library(graphlab_rpc STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp
-  ${rpc_init_from_mpi})
+  ${rpc_init_from_mpi}
+  rpc/async_consensus.cpp)
 
 
 IF(ZOLTAN_FOUND)

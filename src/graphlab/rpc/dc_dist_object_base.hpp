@@ -18,6 +18,9 @@ class dc_dist_object_base{
   virtual void inc_calls_sent(procid_t source) = 0;
   virtual void inc_calls_received(procid_t dest) = 0;
   virtual void inc_bytes_sent(procid_t target, size_t bytes) = 0;
+
+  virtual size_t calls_received() const = 0;
+  virtual size_t calls_sent() const = 0;
 };
 
 }
