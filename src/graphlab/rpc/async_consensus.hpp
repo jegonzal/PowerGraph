@@ -16,16 +16,21 @@ namespace graphlab {
 class async_consensus {
  public:
   /// attaches to the "attach" object if provided. if NULL, attaches to the main DC
-  async_consensus(distributed_control &dc, const dc_impl::dc_dist_object_base* attach = NULL);
+  async_consensus(distributed_control &dc, size_t required_threads_in_done = 1,
+                  const dc_impl::dc_dist_object_base* attach = NULL);
 
   /**
    * Done blocks. It only returns if a cancellation
    * or a completion occurs.
-   * Done should be called by at most one thread.
+   * Done may be called by many threads.
    * Returns true if complete.
    * Returns false if cancelled.
    */
   bool done();
+
+  void begin_done_critical_section();
+
+  bool end_done_critical_section(bool done);
 
   /**
    * Cancels a "done" call. done() will immediately return
@@ -34,6 +39,8 @@ class async_consensus {
    * called too frequently
    */
   void cancel();
+
+  void cancel_one();
 
   struct token {
     size_t total_calls_sent;
@@ -55,6 +62,9 @@ class async_consensus {
   size_t last_calls_sent;
   size_t last_calls_received;
 
+  size_t required_threads_in_done;
+  
+  size_t threads_in_done;
   /// set if a thread is waiting in done()
   bool waiting_on_done;
   /// set if a cancellation occurs while a thread is waiting in done()

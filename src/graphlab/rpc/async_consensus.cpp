@@ -2,9 +2,12 @@
 
 namespace graphlab {
 async_consensus::async_consensus(distributed_control &dc,
+                                 size_t required_threads_in_done,
                                 const dc_impl::dc_dist_object_base *attach)
           :rmi(dc, this), attachedobj(attach),
            last_calls_sent(0), last_calls_received(0),
+           required_threads_in_done(required_threads_in_done),
+           threads_in_done(0),
            waiting_on_done(false), cancelled(false),
            complete(false), hastoken(dc.procid() == 0) {
 
@@ -14,17 +17,35 @@ async_consensus::async_consensus(distributed_control &dc,
 }
 
 bool async_consensus::done() {
+  begin_done_critical_section();
+  return end_done_critical_section(true);
+}
+
+void async_consensus::begin_done_critical_section() {
   mut.lock();
-  
+}
+
+bool async_consensus::end_done_critical_section(bool done) {
+  if (!done) {
+    mut.unlock();
+    return false;
+  }
+  size_t curthread = threads_in_done;
+  ++threads_in_done;
+
   while (!complete) {
-    waiting_on_done = true;
-    if (hastoken) pass_the_token();
+    waiting_on_done = threads_in_done > 0;
+    if (threads_in_done == required_threads_in_done) {
+      if (hastoken) pass_the_token();
+    }
     cond.wait(mut);
     // I got woken up!
     // if complete or cancelled, leave now
     if (complete || cancelled) {
-      cancelled = false;
-      waiting_on_done = false;
+      if (curthread == 0) {
+        cancelled = false;
+        waiting_on_done = threads_in_done > 0;
+      }
       break;
     }
     // otherwise this is a spurious wake up.
@@ -33,11 +54,22 @@ bool async_consensus::done() {
   mut.unlock();
   return complete;
 }
-
+  
 void async_consensus::cancel() {
   mut.lock();
   if (waiting_on_done) {
     cancelled = true;
+    threads_in_done = 0;
+    cond.broadcast();
+  }
+  mut.unlock();
+}
+
+void async_consensus::cancel_one() {
+  mut.lock();
+  if (waiting_on_done) {
+    cancelled = true;
+    threads_in_done = 0;
     cond.signal();
   }
   mut.unlock();
@@ -71,7 +103,8 @@ void async_consensus::pass_the_token() {
     }
     // myself
     complete = true;
-    cond.signal();
+    threads_in_done = 0;
+    cond.broadcast();
   }
   else {
     // update the token
@@ -109,7 +142,8 @@ void async_consensus::pass_the_token() {
 void async_consensus::consensus() {
   mut.lock();
   complete = true;
-  cond.signal();
+  threads_in_done = 0;
+  cond.broadcast();
   mut.unlock();
 }
 }
