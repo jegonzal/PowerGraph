@@ -355,9 +355,7 @@ int main(int argc, char** argv) {
     edge_id_t e = alledges[e_];
     
     ASSERT_EQ(dg.get_edge_data(e), dg.source(e));
-    if (dg.edge_is_local(e)) {
-      ASSERT_EQ(dg.edge_data(e), dg.source(e));
-    }
+    ASSERT_EQ(dg.edge_data(e), dg.source(e));
   }
   dc.full_barrier();
   sync_test(dg, dc);

@@ -18,10 +18,6 @@ edge_id_t eid_identity(edge_id_t eid) {
 }
 
 
-edge_id_t eid_transform(const std::vector<edge_id_t> *eid_adapter,
-                        edge_id_t eid) {
-  return (*eid_adapter)[eid];
-}
 
 }
 
@@ -40,22 +36,21 @@ private:
 
   // method 1:
   edge_list elist;
-  const std::vector<edge_id_t> *eid_adapter_ptr;
   // method 2:
   std::vector<edge_id_t> edgeidvec;
-  
   size_t numel;
+  bool useelist;
+  
 public:
 
 
   // an edge list which wraps a regular elist. Method 1.
-  inline dgraph_edge_list(edge_list elist,
-                          const std::vector<edge_id_t> &eid_adapter)
-                              :elist(elist), eid_adapter_ptr(&eid_adapter), numel(elist.size()){ }
+  inline dgraph_edge_list(edge_list elist)
+                              :elist(elist), numel(elist.size()), useelist(true){ }
 
   // an edge list which wraps a vector. Method 2.
   inline dgraph_edge_list(const std::vector<edge_id_t> &edgeidvec) :
-                          eid_adapter_ptr(NULL), edgeidvec(edgeidvec), numel(edgeidvec.size()) { }
+                          edgeidvec(edgeidvec), numel(edgeidvec.size()), useelist(false) { }
 
   /** \brief Get the size of the edge list */
   inline size_t size() const { return numel; }
@@ -68,10 +63,9 @@ public:
 
   /** \brief Returns a pointer to the start of the edge list */
   inline iterator begin() const {
-    if (eid_adapter_ptr != NULL) {
+    if (useelist) {
       return boost::make_transform_iterator(elist.begin(),
-                                               boost::bind(dgraph_elist_impl::eid_transform,
-                                                            eid_adapter_ptr, _1));
+                                            dgraph_elist_impl::eid_identity);
 
     }
     else {
@@ -82,10 +76,9 @@ public:
 
   /** \brief Returns a pointer to the end of the edge list */
   inline iterator end() const {
-    if (eid_adapter_ptr != NULL) {
+    if (useelist) {
       return boost::make_transform_iterator(elist.end(),
-                                             boost::bind(dgraph_elist_impl::eid_transform,
-                                                          eid_adapter_ptr, _1));
+                                             dgraph_elist_impl::eid_identity);
 
     }
     else {

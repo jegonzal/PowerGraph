@@ -104,10 +104,8 @@ class distributed_graph {
                     bool do_not_mmap = false):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
-                              globaleid2owner(dc, 65536),
                               pending_async_updates(true, 0),
                               pending_push_updates(true, 0){
-    edge_canonical_numbering = false;
     cur_proc_vector.push_back(rmi.procid());
     
     // read the atom index.
@@ -202,15 +200,15 @@ class distributed_graph {
     std::pair<bool, edge_id_t> ret;
     // hmm. surprisingly tricky
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator itersource = 
-      global2localvid.find(source);
+          global2localvid.find(source);
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator itertarget = 
-      global2localvid.find(target);
+          global2localvid.find(target);
     // both are local, I can find it
     if (itersource != global2localvid.end() && 
         itertarget != global2localvid.end()) {
       ret = localstore.find(itersource->second, itertarget->second);
       // convert to global edge ids
-      if (ret.first) ret.second = local2globaleid[ret.second];
+      if (ret.first) ret.second = ret.second;
       return ret;
     }
     // if the edge exists, the owner of either the source or target must have it
@@ -225,10 +223,7 @@ class distributed_graph {
       return ret;
     }
     else {
-      return rmi.remote_request(targetowner,
-                                &distributed_graph<VertexData, EdgeData>::find,
-                                source,
-                                target);
+      ASSERT_MSG(false, "edge is not in this fragment. eid not available");
     }
   }
 
@@ -242,73 +237,19 @@ class distributed_graph {
 
   edge_id_t rev_edge_id(edge_id_t eid) const {
     // do I have this edge in the fragment?
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = 
-      global2localeid.find(eid);
-
-    // yup ! then I must have the reverse in my fragment too
-    if (iter != global2localeid.end()) {
-      // get the local store to reverse it, and convert back to global
-      return local2globaleid[localstore.rev_edge_id(iter->second)];
-    }
-    else {
-      ASSERT_MSG(edge_canonical_numbering == false,
-                "Remote edge request impossible due to use of canonical edge numbering");
-      std::pair<bool, procid_t> eidowner = globaleid2owner.get_cached(eid);
-      assert(eidowner.first);
-
-      // I don't have it. Lets ask the owner of the edge
-      return rmi.remote_request(eidowner.second,
-                                &distributed_graph<VertexData, EdgeData>::
-                                rev_edge_id,
-                                eid);
-    }
+    return localstore.rev_edge_id(eid);
   } // end of rev_edge_id
 
 
   /** \brief Returns the source vertex of an edge. */
   vertex_id_t source(edge_id_t eid) const {
     // do I have this edge in the fragment?
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = 
-      global2localeid.find(eid);
-    if (iter != global2localeid.end()) {
-        // yup!
-      return local2globalvid[localstore.source(iter->second)];
-    }
-    else {
-      ASSERT_MSG(edge_canonical_numbering == false,
-                "Remote edge request impossible due to use of canonical edge numbering");
-
-      std::pair<bool, procid_t> eidowner = globaleid2owner.get_cached(eid);
-      assert(eidowner.first);
-
-      // ask the owner
-      return rmi.remote_request(eidowner.second,
-                                &distributed_graph<VertexData, EdgeData>::source,
-                                eid);
-    }
+    return local2globalvid[localstore.source(eid)];
   }
 
   /** \brief Returns the destination vertex of an edge. */
   vertex_id_t target(edge_id_t eid) const {
-    // do I have this edge in the fragment?
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator iter = 
-      global2localeid.find(eid);
-    if (iter != global2localeid.end()) {
-        // yup!
-      return local2globalvid[localstore.target(iter->second)];
-    }
-    else {
-      ASSERT_MSG(edge_canonical_numbering == false,
-                "Remote edge request impossible due to use of canonical edge numbering");
-
-      std::pair<bool, procid_t> eidowner = globaleid2owner.get_cached(eid);
-      assert(eidowner.first);
-
-      // ask the owner
-      return rmi.remote_request(eidowner.second,
-                                &distributed_graph<VertexData, EdgeData>::target,
-                                eid);
-    }
+      return local2globalvid[localstore.target(eid)];
   }
 
   std::vector<vertex_id_t> in_vertices(vertex_id_t v) const {
@@ -362,8 +303,7 @@ class distributed_graph {
     if (iter != global2localvid.end()) {
       vertex_id_t localvid = iter->second;
       if (localvid2owner[localvid]  == rmi.procid()) {
-        return dgraph_edge_list(localstore.in_edge_ids(localvid), 
-                                local2globaleid);
+        return dgraph_edge_list(localstore.in_edge_ids(localvid));
       }
     }
     // ok I need to construct a vector
@@ -379,21 +319,13 @@ class distributed_graph {
     if (iter != global2localvid.end()) {
       vertex_id_t localvid = iter->second;
       if (localvid2owner[localvid]  == rmi.procid()) {
-        foreach(edge_id_t localeid, localstore.in_edge_ids(localvid)) {
-          ret.push_back(local2globaleid[localeid]);
+        foreach(edge_id_t eid, localstore.in_edge_ids(localvid)) {
+          ret.push_back(eid);
         }
         return ret;
       }
     }
-    assert(!edge_canonical_numbering);
-
-    std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(v);
-    assert(vidowner.first);
-
-    return rmi.remote_request(vidowner.second,
-                              &distributed_graph<VertexData, EdgeData>::
-                              in_edge_id_as_vec,
-                              v);
+    ASSERT_MSG(false, "Edge IDs of non-local vertex cannot be obtained");
   } // end of in edges
 
   /** \brief Return the edge ids of the edges leaving at v */
@@ -405,7 +337,7 @@ class distributed_graph {
     if (iter != global2localvid.end()) {
       vertex_id_t localvid = iter->second;
       if (localvid2owner[localvid]  == rmi.procid()) {
-        return dgraph_edge_list(localstore.out_edge_ids(localvid), local2globaleid);
+        return dgraph_edge_list(localstore.out_edge_ids(localvid));
       }
     }
     // ok I need to construct a vector
@@ -424,15 +356,12 @@ class distributed_graph {
     if (iter != global2localvid.end()) {
       vertex_id_t localvid = iter->second;
       if (localvid2owner[localvid]  == rmi.procid()) {
-        foreach(edge_id_t localeid, localstore.out_edge_ids(localvid)) {
-          ret.push_back(local2globaleid[localeid]);
+        foreach(edge_id_t eid, localstore.out_edge_ids(localvid)) {
+          ret.push_back(eid);
         }
         return ret;
       }
     }
-    
-    // this does not make sense if I have canonical numbering
-    assert(!edge_canonical_numbering);
     
     std::pair<bool, procid_t> vidowner = globalvid2owner.get_cached(v);
     assert(vidowner.first);
@@ -480,9 +409,6 @@ class distributed_graph {
     return global_vid_in_local_fragment(vid);
   }
   
-  bool edge_is_local(edge_id_t eid) const{
-    return global_eid_in_local_fragment(eid);
-  }
   
   bool is_ghost(vertex_id_t vid) const{
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = global2localvid.find(vid);
@@ -561,8 +487,7 @@ class distributed_graph {
    * assertion failure if the edge is not within the current fragment
    */
   EdgeData& edge_data(edge_id_t eid) {
-    assert(global_eid_in_local_fragment(eid));
-    return localstore.edge_data(global2localeid[eid]);
+    return localstore.edge_data(eid);
   }
 
   /**
@@ -570,8 +495,7 @@ class distributed_graph {
    * assertion failure if the edge is not within the current fragment
    */
   const EdgeData& edge_data(edge_id_t eid) const{
-    assert(global_eid_in_local_fragment(eid));
-    return localstore.edge_data(global2localeid.find(eid)->second);
+    return localstore.edge_data(eid);
   }
 
   /**
@@ -588,7 +512,7 @@ class distributed_graph {
   }
 
   void increment_edge_version(vertex_id_t eid) {
-    localstore.increment_edge_version(global2localeid[eid]);
+    localstore.increment_edge_version(eid);
   }
 
   void vertex_is_modified(vertex_id_t vid) {
@@ -596,7 +520,7 @@ class distributed_graph {
   }
 
   void edge_is_modified(edge_id_t eid) {
-    localstore.set_edge_modified(global2localeid[eid], true);  
+    localstore.set_edge_modified(eid, true);  
   }
 
   void vertex_clear_modified(vertex_id_t vid) {
@@ -604,7 +528,7 @@ class distributed_graph {
   }
 
   void edge_clear_modified(edge_id_t eid) {
-    localstore.set_edge_modified(global2localeid[eid], false);  
+    localstore.set_edge_modified(eid, false);  
   }
 
 
@@ -613,7 +537,7 @@ class distributed_graph {
   }
 
   bool is_edge_modified(edge_id_t eid) {
-      return localstore.edge_modified(global2localeid[eid]);
+      return localstore.edge_modified(eid);
   }
 
   /**
@@ -656,21 +580,7 @@ class distributed_graph {
    * to a remote machine.
    */
   EdgeData get_edge_data_from_eid(edge_id_t eid) const{
-    if (global_eid_in_local_fragment(eid)) {
-      return edge_data(eid);
-    }
-    else {
-      ASSERT_MSG(edge_canonical_numbering == false,
-                "Remote edge request impossible due to use of canonical edge numbering");
-
-      std::pair<bool, procid_t> eidowner = globaleid2owner.get_cached(eid);
-      assert(eidowner.first);
-
-      return rmi.remote_request(eidowner.second,
-                                &distributed_graph<VertexData,EdgeData>::
-                                get_edge_data_from_eid,
-                                eid);
-    }
+     return edge_data(eid);
   }
 
   /**
@@ -732,10 +642,9 @@ class distributed_graph {
         vertex_id_t localtargetvid = global2localvid[target];
         // get the localeid
         // edge must exist. I don't need to check the return of find
-        edge_id_t localeid = localstore.find(localsourcevid, localtargetvid).second;
-        localstore.increment_edge_version(localeid);
-        edge_id_t globaleid = local2globaleid[localeid];
-        push_owned_edge_to_replicas(globaleid,
+        edge_id_t eid = localstore.find(localsourcevid, localtargetvid).second;
+        localstore.increment_edge_version(eid);
+        push_owned_edge_to_replicas(eid,
                                     async,  // async  
                                     async); // untracked
 
@@ -773,41 +682,20 @@ class distributed_graph {
    */
   void set_edge_data_from_eid(edge_id_t eid, 
                               const EdgeData edata, bool async){
-    boost::unordered_map<edge_id_t, edge_id_t>::const_iterator eiditer = 
-      global2localeid.find(eid);
-    if (eiditer != global2localeid.end()) {
-      // who owns the target of the edge?
-      if (localvid2owner[localstore.target(eiditer->second)] == rmi.procid()) {
-        // if I do. then I must own the edge.
-        edge_data(eid) = edata;
-        increment_edge_version(eid);
-        push_owned_edge_to_replicas(eid, 
-                                    async,  // async  
-                                    async); // untracked
+    if (localvid2owner[localstore.target(eid)] == rmi.procid()) {
+      // if I do. then I must own the edge.
+      edge_data(eid) = edata;
+      increment_edge_version(eid);
+      push_owned_edge_to_replicas(eid, 
+                                  async,  // async  
+                                  async); // untracked
 
-        return;
-      }
+      return;
     }
-    ASSERT_MSG(edge_canonical_numbering == false,
-              "Remote edge request impossible due to use of canonical edge numbering");
+  
+    ASSERT_MSG(false,
+              "Remote edge set impossible due to use of canonical edge numbering");
 
-    std::pair<bool, procid_t> eidowner = globaleid2owner.get_cached(eid);
-    assert(eidowner.first);
-
-    if (async) {
-      rmi.remote_call(eidowner.second,
-                      &distributed_graph<VertexData,EdgeData>::
-                      set_edge_data_from_eid,
-                      eid,
-                      edata);
-    }
-    else {
-      rmi.remote_request(eidowner.second,
-                        &distributed_graph<VertexData,EdgeData>::
-                         set_edge_data_from_eid,
-                        eid,
-                        edata);
-    }
   }
 
   /**
@@ -1067,34 +955,6 @@ class distributed_graph {
   typedef conditional_store<std::pair<EdgeData, uint64_t> >  edge_conditional_store;
 
   
-
-
-  struct block_synchronize_request {
-    std::vector<vertex_id_t> vid;
-    std::vector<uint64_t > vidversion;
-    std::vector<vertex_conditional_store> vstore;
-    std::vector<edge_id_t> eid;
-    std::vector<uint64_t > edgeversion;
-    std::vector<edge_conditional_store> estore;
-    void clear() {
-      vid.clear();
-      vidversion.clear();
-      vstore.clear();
-      eid.clear();
-      edgeversion.clear();
-      estore.clear();
-    }
-    void save(oarchive &oarc) const{
-      oarc << vid << vidversion << vstore
-           << eid << edgeversion << estore;
-    }
-
-    void load(iarchive &iarc) {
-      iarc >> vid >> vidversion >> vstore
-           >> eid >> edgeversion >> estore;
-    }
-  };
-
   struct block_synchronize_request2 {
     std::vector<vertex_id_t> vid;
     std::vector<uint64_t > vidversion;
@@ -1143,9 +1003,7 @@ class distributed_graph {
    */
   boost::unordered_map<vertex_id_t, vertex_id_t> global2localvid;
   std::vector<vertex_id_t> local2globalvid;
-  boost::unordered_map<edge_id_t, edge_id_t> global2localeid;
-  std::vector<edge_id_t> local2globaleid;
-  
+
   /// collection of vertices I own
   std::vector<vertex_id_t> ownedvertices;
 
@@ -1164,13 +1022,6 @@ class distributed_graph {
    * instead, we store it in a DHT. \see globaleid2owner
    */
   lazy_dht<vertex_id_t, procid_t> globalvid2owner;
-  
-  /** To avoid requiring O(E) storage on each maching, the 
-   * global_eid -> owner mapping cannot be stored in its entirely locally
-   * instead, we store it in a DHT \see globalvid2owner
-   */
-  caching_dht<edge_id_t, procid_t> globaleid2owner;
-  bool edge_canonical_numbering;
   
   /** This provides a fast mapping from the local vids in the fragment
    * to its owner. Since this operation is quite frequently needed.
@@ -1197,16 +1048,7 @@ class distributed_graph {
     return global2localvid.find(globalvid) != global2localvid.end();
   }
   
-  /**
-   * Returns true if the global eid is in the local fragment
-   * This is not synchronized. Caller must lock if there is a risk
-   * of the structure changing while this check is performed.
-   */
-  bool global_eid_in_local_fragment(edge_id_t globaleid) const{
-    // easiest way to check is to see if it is in the global2localvid mapping
-    return global2localeid.find(globaleid) != global2localeid.end();
-  }
-  
+
   
   /**
    * From the atoms listed in the atom index file, construct the local store
@@ -1250,10 +1092,6 @@ class distributed_graph {
 
     logger(LOG_INFO, "Generating mappings");
 
-    edge_canonical_numbering = (atomfiles[0]->globaleids().size() == 0);
-    if (edge_canonical_numbering) {
-      logger(LOG_WARNING, "Edge Canonical Numbering used. Edge IDs are only locally valid");
-    }
     // Lets first construct the global/local vid/eid mappings by merging
     // the mappings in each atom
     // cat all the globalvids and globaleids into a single big list
@@ -1291,30 +1129,6 @@ class distributed_graph {
 
 
 
-      // repeat for edges if globaleids are available
-
-    if (!edge_canonical_numbering) {
-      for (size_t i = 0;i < atomfiles.size(); ++i) {
-        std::copy(atomfiles[i]->globaleids().begin(),
-                  atomfiles[i]->globaleids().end(),
-                  std::back_inserter(local2globaleid));
-      }
-      // Find only unique occurances of each edge, by sorting, unique,
-      // and resize
-      std::sort(local2globaleid.begin(), local2globaleid.end());
-      std::vector<edge_id_t>::iterator ueiter =
-        std::unique(local2globaleid.begin(), local2globaleid.end());
-
-      local2globaleid.resize(ueiter - local2globaleid.begin());
-      // shrink to fit and save some memory
-      std::vector<edge_id_t>(local2globaleid).swap(local2globaleid);
-      for (size_t i = 0; i < local2globaleid.size(); ++i) {
-        global2localeid[local2globaleid[i]] = i;
-      }
-    }
-
-
-
 
     logger(LOG_INFO, "Counting Edges");
     size_t nedges_to_create = 0;
@@ -1332,14 +1146,7 @@ class distributed_graph {
       }
     }
     logstream(LOG_INFO) << "Creating " << nedges_to_create << " edges locally." << std::endl;
-    if (edge_canonical_numbering) {
-      // make a fake local2globaleid and global2localeid
-      local2globaleid.resize(nedges_to_create);
-      for (size_t i = 0;i < local2globaleid.size(); ++i) {
-        local2globaleid[i] = i;
-        global2localeid[i] = i;
-      }
-    }
+
 
     
     logger(LOG_INFO, "Creating mmap store");
@@ -1351,7 +1158,6 @@ class distributed_graph {
     localstore.zero_all();
     logger(LOG_INFO, "Loading Structure");
     // load the graph structure
-    std::vector<bool> eidloaded(nedges_to_create, false);
         
     size_t nextedgeid = 0;
     for (size_t i = 0;i < atomfiles.size(); ++i) {
@@ -1361,28 +1167,20 @@ class distributed_graph {
       for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
         // convert from the atom's local eid, to the global eid, then
         // to the fragment localeid
-        edge_id_t localeid;
        std::pair<vertex_id_t, vertex_id_t> globaledge = 
             std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
                            atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
 
-        if (!edge_canonical_numbering) {
-          localeid = global2localeid[atomfiles[i]->globaleids()[j]];
-        }
-        else { 
-          // create the edge ordering the same way I count
-          size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
-          bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
-          newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
-          if (newedge == false) continue;
-          localeid = nextedgeid;
-          nextedgeid++;    
-        }
-        if (eidloaded[localeid] == false) {
-          std::pair<vertex_id_t, vertex_id_t> localedge = global_edge_to_local_edge(globaledge);
-          localstore.add_edge(localeid, localedge.first, localedge.second);
-          eidloaded[localeid] = true;
-        }
+        // create the edge ordering the same way I count
+        size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
+        bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
+        newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
+        if (newedge == false) continue;
+        edge_id_t eid = nextedgeid;
+        nextedgeid++;    
+        
+        std::pair<vertex_id_t, vertex_id_t> localedge = global_edge_to_local_edge(globaledge);
+        localstore.add_edge(eid, localedge.first, localedge.second);
       }
       
       // set the color and localvid2owner mappings
@@ -1456,26 +1254,6 @@ class distributed_graph {
               std::back_inserter(boundaryscopes));
     
     
-    if (!edge_canonical_numbering) {
-      logger(LOG_INFO, "Set up global eid table");
-      // unfortunately, I need one more pass here to set ownership of
-      // all the edgeids I can only do this after all the vid ownerships
-      // are set
-      for (size_t i = 0;i < atomfiles.size(); ++i) {
-        for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
-          edge_id_t globaleid = atomfiles[i]->globaleids()[j];
-          vertex_id_t targetlocalvid = atomfiles[i]->edge_src_dest()[j].second;
-          // do I own it?
-          if (localvid2owner[targetlocalvid] == rmi.procid()) {
-            // then I own this edge
-            globaleid2owner.set(globaleid, rmi.procid());
-          }
-        }
-      }
-    }
-    else {
-      logger(LOG_INFO, "edge canonical numbering used. global eid table not needed");
-    }
     
     if (do_not_load_data == false) {
       logger(LOG_INFO, "Loading data");
@@ -1519,25 +1297,20 @@ class distributed_graph {
           // convert from the atom's local vid, to the global vid, then
           // to the fragment localvi
           // do I own this edge?
-          edge_id_t localeid;
-          if (!edge_canonical_numbering) {
-            localeid = global2localeid[atomfiles[i]->globaleids()[j]];
+          size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
+          bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
+          newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
+          if (newedge == false) {
+            continue;
           }
-          else {
-            size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
-            bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
-            newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
-            if (newedge == false) {
-              continue;
-            }
-            localeid = nextedgeid;
-            nextedgeid++;    
-          }
+          edge_id_t eid = nextedgeid;
+          nextedgeid++;    
+        
           vertex_id_t atom_local_target_vid = atomfiles[i]->edge_src_dest()[j].second;
           if (atomfiles[i]->atom()[atom_local_target_vid] == atoms_in_curpart[i] || hasghostdata) {
             ASSERT_LT(curidx , atomfiles[i]->edata().size());
-            localstore.edge_data(localeid) = atomfiles[i]->edata()[curidx];
-            localstore.set_edge_version(localeid, 1);
+            localstore.edge_data(eid) = atomfiles[i]->edata()[curidx];
+            localstore.set_edge_version(eid, 1);
             ++curidx;
           }
    /*       else {
@@ -1594,10 +1367,6 @@ class distributed_graph {
   vertex_conditional_store get_vertex_if_version_less_than(vertex_id_t vid, 
                                                            uint64_t vertexversion,
                                                            vertex_conditional_store &vdata);
-  
-  edge_conditional_store get_edge_if_version_less_than(edge_id_t eid, 
-                                                       uint64_t edgeversion,
-                                                       edge_conditional_store &edata);
                                                        
   edge_conditional_store get_edge_if_version_less_than2(vertex_id_t source, 
                                                         vertex_id_t target, 
@@ -1609,11 +1378,6 @@ class distributed_graph {
                                              vertex_id_t vid, 
                                              uint64_t vertexversion,
                                              vertex_conditional_store &vdata);
-                                             
-  void async_get_edge_if_version_less_than(procid_t srcproc, 
-                                           edge_id_t eid, 
-                                           uint64_t edgeversion,
-                                           edge_conditional_store &edata);
                                            
   void async_get_edge_if_version_less_than2(procid_t srcproc, 
                                             vertex_id_t source, 
@@ -1664,16 +1428,12 @@ class distributed_graph {
                                     edge_conditional_store &estore);
   
   
-  block_synchronize_request& get_alot(block_synchronize_request &request);
   block_synchronize_request2& get_alot2(block_synchronize_request2 &request);
   
-  void async_get_alot(procid_t srcproc, block_synchronize_request &request);
   void async_get_alot2(procid_t srcproc, block_synchronize_request2 &request);
   
-  void update_alot(block_synchronize_request &request) ;
   void update_alot2(block_synchronize_request2 &request) ;
   
-  void reply_alot(block_synchronize_request &request);
   void reply_alot2(block_synchronize_request2 &request);
 
 
@@ -1684,11 +1444,6 @@ class distributed_graph {
                         size_t reply);
 
 
-  void conditional_update_edge_data_and_version(
-                           edge_id_t eid, 
-                           distributed_graph<VertexData, EdgeData>::edge_conditional_store &estore,
-                           procid_t srcproc, size_t reply);
-                           
   void conditional_update_edge_data_and_version2(
                           vertex_id_t source, 
                           vertex_id_t target, 
