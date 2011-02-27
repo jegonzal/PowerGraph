@@ -231,13 +231,13 @@ else(CROSS_COMPILE_32_BIT MATCHES 1)
   
   # Set the C compiler flags in release mode on 64bit systems
   set(CMAKE_C_FLAGS_RELEASE 
-    "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays ")
+    "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays -fopenmp ")
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
       "-O2 -Wall -g -mfpmath=sse -msse2 -fprefetch-loop-arrays -pg ")
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays ")
+      "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays -fopenmp ")
   endif(COMPILE_PROFILING MATCHES 1)
 
 endif(CROSS_COMPILE_32_BIT MATCHES 1)

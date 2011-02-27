@@ -9,6 +9,7 @@
 #include <fstream>
 #include <algorithm>
 #include <iomanip>
+#include <omp.h>
 
 #include <boost/unordered_map.hpp>
 #include <boost/unordered_set.hpp>
@@ -502,19 +503,86 @@ namespace graphlab {
       
       rmi.full_barrier();
       
+      // { // compute nbr atoms for all local vertices ======================
+      //   if(rmi.procid() == 0) 
+      //     std::cout << "Computing atom nbrs for each vertex."
+      //               << std::endl;
+      //   const size_t nthreads(4);
+      //   std::vector< nbr_shuffler > nshuffler(nthreads);
+      //   thread_group threads;
+      //   for(size_t i = 0; i < nshuffler.size(); ++i) {
+      //     nshuffler[i].init(this, i, nthreads);
+      //     threads.launch(&nshuffler[i]);
+      //   }
+      //   threads.join();                
+      // } // end of compute nbr atoms for all vertices
+
+
       { // compute nbr atoms for all local vertices ======================
         if(rmi.procid() == 0) 
           std::cout << "Computing atom nbrs for each vertex."
                     << std::endl;
+        typedef typename nbr_shuffler::args args;
         const size_t nthreads(4);
-        std::vector< nbr_shuffler > nshuffler(nthreads);
-        thread_group threads;
-        for(size_t i = 0; i < nshuffler.size(); ++i) {
-          nshuffler[i].init(this, i, nthreads);
-          threads.launch(&nshuffler[i]);
+        const size_t OneMB(size_t(1) << 20);
+        const size_t BUFFER_SIZE(OneMB / sizeof(args));
+        std::vector< std::vector<args> > 
+          proc2buffer(nthreads * rmi.numprocs());
+        
+#pragma omp parallel for num_threads(nthreads)
+        for(size_t i = 0; i < alist.in_nbr_ids.size(); ++i) {
+          std::cout << "Index i " << i << std::endl;
+          const int threadid = omp_get_thread_num();
+          const vertex_id_t target(alist.local_vertices.at(i));
+          const procid_t target_proc(vertex2proc.at(target));
+          const procid_t target_atom(vertex2atomid.at(target));
+          const size_t target_idx(target_proc + threadid * rmi.numprocs());
+          for(size_t j = 0; j < alist.in_nbr_ids[i].size(); ++j) {
+            const vertex_id_t source(alist.in_nbr_ids[i][j]);
+            const procid_t source_proc(vertex2proc.at(source));
+            const procid_t source_atom(vertex2atomid.at(source));
+            const size_t source_idx(source_proc + threadid * rmi.numprocs());
+            // add source atom to target
+            if(target_proc == rmi.procid()) {
+              add_nbr_atom_local(target, source_atom);
+            } else {
+              proc2buffer.at(target_idx).push_back(args(target, source_atom));
+              if(proc2buffer.at(target_idx).size() > BUFFER_SIZE) {
+                rmi.remote_call(target_proc,
+                                &atom_shuffler_type::add_nbr_atom_local_vec,
+                                proc2buffer.at(target_idx));
+                proc2buffer.at(target_idx).clear();
+              }             
+            } // end of add source atom to target
+            // add target atom to source
+            if(source_proc == rmi.procid()) {
+              add_nbr_atom_local(source, target_atom);
+            } else {
+              proc2buffer.at(source_idx).push_back(args(source, target_atom));
+              if(proc2buffer.at(source_idx).size() > BUFFER_SIZE) {
+                rmi.remote_call(source_proc,
+                                &atom_shuffler_type::add_nbr_atom_local_vec,
+                                proc2buffer.at(source_idx));
+                proc2buffer.at(source_idx).clear();
+              }             
+            } // end of add target atom to source
+          } // end of for loop
+        } // end of parallel for loop 
+        
+        // Do the extra flush
+#pragma omp parallel for num_threads(nthreads)
+        for(size_t i = 0; i < proc2buffer.size(); ++i) {
+          const procid_t target( i / rmi.numprocs() );
+          if(!proc2buffer[i].empty()) {
+            rmi.remote_call(target,
+                            &atom_shuffler_type::add_nbr_atom_local_vec,
+                            proc2buffer[i]);         
+          }          
         }
-        threads.join();                
+        
+
       } // end of compute nbr atoms for all vertices
+
 
 
       rmi.full_barrier();
