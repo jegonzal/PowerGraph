@@ -19,8 +19,28 @@ namespace graphlab {
       return thread::get_thread_specific_data().rand01();
     }
 
-    static double gaussian_rand() {
-      return thread::get_thread_specific_data().gaussian_rand();
+    /**
+     * Generate a gamma distribution random variable 
+     */
+    static double rand_gamma(double alpha = 1) {
+      return thread::get_thread_specific_data().rand_gamma(alpha);
+    }
+
+
+    /**
+     * Generate a gaussian random variable with zero mean and unit
+     * variance.
+     */
+    static double rand_gaussian() {
+      return thread::get_thread_specific_data().rand_gaussian();
+    }
+
+    /**
+     * This function has been deprecated in favor of the rand_gaussian
+     * name
+     */
+     __attribute__((__deprecated__)) static double gaussian_rand() {
+      return thread::get_thread_specific_data().rand_gaussian();
     }
 
     /**

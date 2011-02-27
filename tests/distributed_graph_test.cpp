@@ -192,7 +192,7 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
   
   std::cout << "Testing asynchronous vertex pushing" << std::endl;
   set_all_vertices_to_value(dg, VVAL);
-  dg.push_all_owned_vertices_to_replicas(true);
+  dg.push_all_owned_vertices_to_replicas();
   dg.wait_for_all_async_pushes();
   dc.barrier();
   check_vertex_values(dg, VVAL);
@@ -213,7 +213,7 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
   
   std::cout << "Testing asynchronous edge pushing" << std::endl;
   set_all_edges_to_value(dg, EVAL);
-  dg.push_all_owned_edges_to_replicas(true);
+  dg.push_all_owned_edges_to_replicas();
   dg.wait_for_all_async_pushes();
   dc.barrier();
   check_edge_values(dg, EVAL);
