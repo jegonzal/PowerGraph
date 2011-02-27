@@ -59,10 +59,16 @@ namespace graphlab {
     /** Return a random number between 0 and 1 */
     double rand01() { return dist_real_type(0,1)(rng_); }
 
-    double gaussian_rand() {
-      return rnggaussian_();
-    }
+    /** Generate a random gaussian */
+    double rand_gaussian() {  return rnggaussian_();  }
 
+
+    /** Generate a gamma distributed random variable */
+    double rand_gamma(double alpha = 1) {
+      boost::gamma_distribution<double> gamma_dist(alpha);
+      return gamma_dist(rng_);
+    }
+    
     /** Seed the random number generator */
     void seed(rand_src_type::result_type value) { rng_.seed(value); }
 
