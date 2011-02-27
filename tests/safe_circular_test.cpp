@@ -9,7 +9,7 @@
 
 using namespace graphlab;
 
-const size_t BUFFER_SIZE(10000);
+const size_t BUFFER_SIZE(50000);
 
 struct producer : public runnable {
   size_t id;
@@ -18,7 +18,7 @@ struct producer : public runnable {
   void run() {
     ASSERT_NE(buffer, NULL);
     bytes_written = 0;
-    std::string string = "Hello world.  Anyung.";
+    std::string string(10,'a');
     for(size_t i = 0; i < 200000; ++i) {
       //    std::stringstream strm;
       //    strm.good();

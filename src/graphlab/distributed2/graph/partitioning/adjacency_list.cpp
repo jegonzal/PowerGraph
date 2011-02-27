@@ -31,7 +31,7 @@ add_vertex(const vertex_id_t& vid) {
   } else {
     vertex_id_t localvid = local_vertices.size();
     local_vertices.push_back(vid);
-    in_neighbor_ids.resize(in_neighbor_ids.size() + 1);
+    in_nbr_ids.resize(in_nbr_ids.size() + 1);
     global2local[vid] = localvid;
     return localvid;
   }  
@@ -56,7 +56,7 @@ add_edge(const vertex_id_t& source, const vertex_id_t& target,
   else 
     target_localvid = add_vertex(target);
   nedges++;
-  in_neighbor_ids.at(target_localvid).push_back(source);
+  in_nbr_ids.at(target_localvid).push_back(source);
 } // end of add edge
 
 
@@ -96,14 +96,14 @@ load(const std::string& fname, const double acceptance_rate) {
     }
     fin.close();
   }
-  assert(local_vertices.size() == in_neighbor_ids.size());
+  assert(local_vertices.size() == in_nbr_ids.size());
   assert(local_vertices.size() == global2local.size());
 } // end of load file
 
 
 void adjacency_list::
 save(const std::string& fname, const size_t& id) const {
-  assert(local_vertices.size() == in_neighbor_ids.size());
+  assert(local_vertices.size() == in_nbr_ids.size());
   assert(local_vertices.size() == global2local.size());
   {
     // be sure to have the vlist fname
@@ -121,10 +121,10 @@ save(const std::string& fname, const size_t& id) const {
     std::string elist_fname = make_fname(fname, id, elist_suffix);
     std::ofstream fout(elist_fname.c_str());
     assert(fout.good());
-    for(size_t i = 0; i < in_neighbor_ids.size(); ++i) {
+    for(size_t i = 0; i < in_nbr_ids.size(); ++i) {
       vertex_id_t target( local_vertices[i] );
-      for(size_t j = 0; j < in_neighbor_ids[i].size(); ++j) {
-        vertex_id_t source(in_neighbor_ids[i][j]);
+      for(size_t j = 0; j < in_nbr_ids[i].size(); ++j) {
+        vertex_id_t source(in_nbr_ids[i][j]);
         fout << source << '\t' << target << '\n';
         assert(fout.good());
       }
@@ -136,10 +136,10 @@ save(const std::string& fname, const size_t& id) const {
 
 void adjacency_list::
 operator+=(const adjacency_list& other) {
-  for(size_t i = 0; i < other.in_neighbor_ids.size(); ++i) {    
+  for(size_t i = 0; i < other.in_nbr_ids.size(); ++i) {    
     vertex_id_t target = other.local_vertices.at(i);
-    for(size_t j = 0; j < other.in_neighbor_ids[i].size(); ++j) {
-      vertex_id_t source = other.in_neighbor_ids[i][j];
+    for(size_t j = 0; j < other.in_nbr_ids[i].size(); ++j) {
+      vertex_id_t source = other.in_nbr_ids[i][j];
       add_edge(source, target);
     }
   }
@@ -149,7 +149,7 @@ operator+=(const adjacency_list& other) {
 
 
 
- // adjacency_list::adjacency_list(const std::string& base,
+// adjacency_list::adjacency_list(const std::string& base,
 //                            vertex_id_t id, 
 //                            vertex_id_t nfragments,
 //                            vertex_id_t nverts,
@@ -189,8 +189,8 @@ operator+=(const adjacency_list& other) {
 
 std::string adjacency_list::
 make_fname(const std::string& base,
-                     const size_t& id,
-                     const std::string& suffix) {
+           const size_t& id,
+           const std::string& suffix) {
   std::stringstream strm;
   strm << base << "_"
        << std::setw(3) << std::setfill('0')
@@ -248,8 +248,8 @@ list_vlist_files(const std::string& pathname,
 
 void adjacency_list::
 check_local_structures(size_t nverts) const {
-  assert(in_neighbor_ids.size() < nverts);
-  assert(local_vertices.size() == in_neighbor_ids.size());
+  assert(in_nbr_ids.size() < nverts);
+  assert(local_vertices.size() == in_nbr_ids.size());
   { // Check local vertices is a set
     std::set<vertex_id_t> lvids;
     lvids.insert(local_vertices.begin(), local_vertices.end());
@@ -265,15 +265,15 @@ check_local_structures(size_t nverts) const {
       assert(iter != global2local.end());
       assert(iter->second == i);
     }
-    {    // Check that neighbors have valid ids
-      for(size_t j = 0; j < in_neighbor_ids[i].size(); ++j)
-        assert(in_neighbor_ids[i][j] < nverts);
+    {    // Check that nbrs have valid ids
+      for(size_t j = 0; j < in_nbr_ids[i].size(); ++j)
+        assert(in_nbr_ids[i][j] < nverts);
     }
-    {     // check that neighbors list is a set
-      std::set<vertex_id_t> neighbors;
-      neighbors.insert(in_neighbor_ids[i].begin(), 
-                       in_neighbor_ids[i].end());
-      assert(neighbors.size() == in_neighbor_ids[i].size());
+    {     // check that nbrs list is a set
+      std::set<vertex_id_t> nbrs;
+      nbrs.insert(in_nbr_ids[i].begin(), 
+                  in_nbr_ids[i].end());
+      assert(nbrs.size() == in_nbr_ids[i].size());
     }
   } 
 } // end of check local structures

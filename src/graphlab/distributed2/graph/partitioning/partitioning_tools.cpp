@@ -293,11 +293,11 @@ static void zoltan_num_edges_multi_fun(void* data,
   assert(num_lid_entries == 0);
   assert(local_ids == NULL);
   assert(num_objs >= 0);
-  for(size_t i = 0; i < zgdata.alist.in_neighbor_ids.size(); ++i) {
+  for(size_t i = 0; i < zgdata.alist.in_nbr_ids.size(); ++i) {
     assert(i < size_t(num_objs));
     assert(i < zgdata.alist.local_vertices.size());
     assert(global_ids[i] == zgdata.alist.local_vertices[i]);
-    num_edges[i] = zgdata.alist.in_neighbor_ids.at(i).size();
+    num_edges[i] = zgdata.alist.in_nbr_ids.at(i).size();
   }
 } 
 
@@ -327,15 +327,15 @@ static void zoltan_edge_list_multi_fun(void* data,
   assert(num_objs >= 0);
   size_t sum_num_edges = 0;
   size_t eindex = 0;
-  for(size_t i = 0; i < zgdata.alist.in_neighbor_ids.size(); ++i) {
+  for(size_t i = 0; i < zgdata.alist.in_nbr_ids.size(); ++i) {
     assert(i < size_t(num_objs));
     assert(i < zgdata.alist.local_vertices.size());
     assert(global_ids[i] == zgdata.alist.local_vertices[i]);
-    assert(size_t(num_edges[i]) == zgdata.alist.in_neighbor_ids[i].size());
+    assert(size_t(num_edges[i]) == zgdata.alist.in_nbr_ids[i].size());
     sum_num_edges += num_edges[i];
-    assert(size_t(num_edges[i]) == zgdata.alist.in_neighbor_ids[i].size());
-    for(size_t j = 0; j < zgdata.alist.in_neighbor_ids[i].size(); ++j, ++eindex) {
-      vertex_id_t vid = zgdata.alist.in_neighbor_ids[i][j];
+    assert(size_t(num_edges[i]) == zgdata.alist.in_nbr_ids[i].size());
+    for(size_t j = 0; j < zgdata.alist.in_nbr_ids[i].size(); ++j, ++eindex) {
+      vertex_id_t vid = zgdata.alist.in_nbr_ids[i][j];
       vertex_id_t cpu = zgdata.vertex2cpu[vid];
       assert(cpu < mpi_tools::size());
       nbor_global_id[eindex] = vid;

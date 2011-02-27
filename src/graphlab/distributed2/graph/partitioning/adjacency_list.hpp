@@ -26,7 +26,7 @@ namespace graphlab {
     static const std::string edata_suffix;
 
     std::vector< vertex_id_t >               local_vertices;
-    std::vector< std::vector<vertex_id_t> >  in_neighbor_ids;
+    std::vector< std::vector<vertex_id_t> >  in_nbr_ids;
     global2local_type                        global2local;
     size_t                                   nedges;
    
