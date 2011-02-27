@@ -86,8 +86,7 @@ namespace graphlab {
       size_t id, nworkers;
       std::vector< std::vector< args > >  proc2buffer;
       atom_shuffler* as;      
-      
-      
+            
       void init(atom_shuffler* ashuffler, 
                 size_t workerid,
                 size_t num_workers) {
@@ -99,8 +98,7 @@ namespace graphlab {
       }
          
       void flush_all() {
-        for(size_t i = 0; i < proc2buffer.size(); ++i)
-          flush(i);
+        for(size_t i = 0; i < proc2buffer.size(); ++i) flush(i);
       }
 
       void flush(const procid_t proc) {
@@ -112,6 +110,8 @@ namespace graphlab {
 
       void add_nbr_atom(const vertex_id_t vid, 
                         const procid_t nbr_atom) {
+        const size_t OneMB(size_t(1) << 20);
+        const size_t buffer_size(OneMB / sizeof(args));
         const procid_t proc(as->vertex2proc[vid]);        
         // if vid is stored locally
         if(proc == as->rmi.procid() ) {
@@ -440,6 +440,8 @@ namespace graphlab {
 
 
       {
+        std::cout << "Checking all local values."
+                  << std::endl;
         // check the vertices in the alists
         for(size_t i = 0; i < alist.local_vertices.size(); ++i) {
           ASSERT_LT(alist.local_vertices[i], vertex2atomid.size());
@@ -449,10 +451,8 @@ namespace graphlab {
         assert(alist.global2local.size() == alist.local_vertices.size());
         nbr_atoms.resize(alist.local_vertices.size());
         nbr_locks.resize(alist.local_vertices.size());
+        assert(vertex2atomid.size() == vertex2color.size());
       }
-
-
-      assert(vertex2atomid.size() == vertex2color.size());
       if(rmi.procid() == 0) 
         std::cout << "Vertices: " << vertex2color.size() << std::endl;
       
@@ -506,14 +506,14 @@ namespace graphlab {
         if(rmi.procid() == 0) 
           std::cout << "Computing atom nbrs for each vertex."
                     << std::endl;
-        const size_t nthreads(10);
+        const size_t nthreads(4);
         std::vector< nbr_shuffler > nshuffler(nthreads);
         thread_group threads;
         for(size_t i = 0; i < nshuffler.size(); ++i) {
           nshuffler[i].init(this, i, nthreads);
           threads.launch(&nshuffler[i]);
         }
-        threads.join();        
+        threads.join();                
       } // end of compute nbr atoms for all vertices
 
 
