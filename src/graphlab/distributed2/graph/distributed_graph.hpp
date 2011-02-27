@@ -1568,13 +1568,13 @@ class distributed_graph {
         push_all_owned_edges_to_replicas();
         rmi.dc().full_barrier();
         logger(LOG_INFO, "edges synchronized.");
-        rmi.dc().fill_metrics();
+/*        rmi.dc().fill_metrics();
         if (rmi.dc().procid() == 0) {
           basic_reporter reporter;
           metrics::report_all(reporter);
           file_reporter freporter("graphlab_metrics.txt");
            metrics::report_all(freporter);
-        }
+        }*/
         logger(LOG_INFO, "Synchronization complete.");
         rmi.dc().barrier();
       }
