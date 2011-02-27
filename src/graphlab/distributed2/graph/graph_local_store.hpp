@@ -291,13 +291,7 @@ namespace dist_graph_impl {
       // in the correct location in the in and out edge lists (which
       // is true if either the lists only contain a single element or
       // the last two elements are in the correct order).
-      finalized = finalized &&
-        ((in_edges[target].size() < 2) ||
-         edge_id_less(*(in_edges[target].end()-2),
-                      *(in_edges[target].end()-1))) &&
-        ((out_edges[source].size() < 2) ||
-         edge_id_less(*(out_edges[source].end()-2),
-                      *(out_edges[source].end()-1)));
+      finalized = false; 
     } // End of add edge
         
     

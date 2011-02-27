@@ -12,7 +12,7 @@ with thread-safe write operations and a single reader
 */
 class safe_circular_char_buffer {
  public:
-  safe_circular_char_buffer(std::streamsize bufsize = 1048576 /*1 MB */);
+  safe_circular_char_buffer(std::streamsize bufsize = 10485760 /*10 MB */);
 
   ~safe_circular_char_buffer();
   
@@ -132,8 +132,8 @@ class safe_circular_char_buffer {
   mutex mut;
   conditional cond;
   
-  bool done; // Once 
-  bool iswaiting;
+  volatile bool done; // Once 
+  volatile bool iswaiting;
 };
 
 }
