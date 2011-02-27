@@ -108,3 +108,4 @@ add_zoltan_executable(zoltantest zoltantest.cpp)
 add_dist2_executable(test_adjacency_list test_adjacency_list.cpp)
 add_dist2_executable(dc_consensus_test dc_consensus_test.cpp)
 
+add_executable(openmp_test openmp_test.cpp)
