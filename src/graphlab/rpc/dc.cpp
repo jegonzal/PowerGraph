@@ -215,6 +215,7 @@ void distributed_control::fcallhandler_loop(size_t id) {
                                 istrm(entry.first.data, entry.first.len);
     exec_function_call(entry.first.source, entry.first.hdr, istrm);
     receivers[entry.first.source]->function_call_completed(entry.first.hdr.packet_type_mask);
+    free(entry.first.data);
   }
   std::cerr << "Handler " << id << " died." << std::endl;
 }
