@@ -14,12 +14,12 @@
 #include <boost/unordered_set.hpp>
 #include <boost/filesystem.hpp>
 
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
-
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/util/dense_bitset.hpp>
@@ -34,7 +34,7 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-
+  
 
   /**
    *  The atom shuffler is a distributed object that behaves like a
@@ -67,7 +67,21 @@ namespace graphlab {
 
     typedef std::vector< atom_info* > atom_map_type;    
 
-        
+
+    struct nbr_args {
+      vertex_id_t vid;
+      procid_t neighbor_atom;
+      nbr_args(const vertex_id_t& vid = 0, 
+               const procid_t& neighbor_atom = 0) :
+        vid(vid), neighbor_atom(neighbor_atom) { }
+      void load(iarchive& iarc) {
+        iarc >> vid >> neighbor_atom;
+      }
+      void save(oarchive& oarc) const {
+        oarc << vid << neighbor_atom;
+      }
+    };    
+
 
   private:
 
@@ -91,6 +105,10 @@ namespace graphlab {
 
 
 
+
+    std::vector< std::vector< nbr_args > > proc2add_nbr_buffer;
+
+
   public:
     atom_shuffler(distributed_control& dc) : rmi(dc, this) { }
 
@@ -110,26 +128,46 @@ namespace graphlab {
     } // end of destructor
 
 
+    void flush_nbr_atoms(const procid_t proc) {
+      ASSERT_LT(proc, proc2add_nbr_buffer.size());
+      rmi.remote_call(proc,
+                      &atom_shuffler_type::add_neighbor_atom_local_vec,
+                      proc2add_nbr_buffer[proc]);
+      proc2add_nbr_buffer[proc].clear();
+    } // flush nbr atoms data
+
+
+
 
     void add_neighbor_atom(const vertex_id_t vid, 
                            const procid_t neighbor_atom) {
 
-      const std::string meaningless_text(0,'a');
       // if vid is stored locally
       if(vertex2proc[vid] == rmi.procid() ) {
-        add_neighbor_atom_local(vid, neighbor_atom, meaningless_text);
+        add_neighbor_atom_local(vid, neighbor_atom);
       } else {
+        const procid_t proc(vertex2proc[vid]);
+        ASSERT_LT(proc, proc2add_nbr_buffer.size());
+        proc2add_nbr_buffer[proc].push_back(nbr_args(vid, neighbor_atom));
+        if(proc2add_nbr_buffer[proc].size() > 10000) {
+          flush_nbr_atoms(proc);
+        }
         // remote add
-        rmi.remote_call(vertex2proc[vid],
-                        &atom_shuffler_type::add_neighbor_atom_local,
-                        vid, neighbor_atom, meaningless_text);
+        // rmi.remote_call(vertex2proc[vid],
+        //                 &atom_shuffler_type::add_neighbor_atom_local,
+        //                 vid, neighbor_atom);
       }
     } // end of add atom neighbor
 
 
+    void add_neighbor_atom_local_vec(const std::vector<nbr_args>& args) {
+      for(size_t i = 0; i < args.size(); ++i)
+        add_neighbor_atom_local(args[i].vid, args[i].neighbor_atom);
+    } // end of add atom neighbor local
+
+
     void add_neighbor_atom_local(const vertex_id_t vid, 
-                                 const procid_t neighbor_atom,
-                                 const std::string& meaningless_text) {
+                                 const procid_t neighbor_atom) {
       assert(vid < vertex2proc.size());
       assert(vertex2proc[vid] == rmi.procid());
       assert(neighbor_atom < num_atoms);
@@ -435,6 +473,7 @@ namespace graphlab {
       rmi.full_barrier();
       
       { // compute neighbor atoms for all local vertices ======================
+        proc2add_nbr_buffer.resize(rmi.numprocs());
         if(rmi.procid() == 0) 
           std::cout << "Computing atom neighbors for each vertex."
                     << std::endl;
@@ -449,6 +488,9 @@ namespace graphlab {
             add_neighbor_atom(source, vertex2atomid[target]);
           }
         }
+        // Extra flush
+        for(size_t i = 0; i < proc2add_nbr_buffer.size(); ++i) 
+          flush_nbr_atoms(i);
       } // end of compute neighbor atoms for all vertices
 
 
@@ -774,33 +816,7 @@ namespace graphlab {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
 
 
@@ -814,6 +830,20 @@ namespace graphlab {
 
 
 }; // end namespace graphlab
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #include <graphlab/macros_undef.hpp>
 
 
