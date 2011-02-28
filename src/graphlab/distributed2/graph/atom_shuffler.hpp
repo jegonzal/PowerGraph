@@ -83,18 +83,21 @@ namespace graphlab {
 
     struct edge_args {
       vertex_id_t source;
+      vertex_color_type source_color;
       vertex_id_t target;
       edge_data_type edata;
       edge_args() : source(-1), target(-1) { }
       edge_args(const vertex_id_t& source,
+                const vertex_color_type& source_color,
                 const vertex_id_t& target,
                 const edge_data_type& edata) :
-        source(source), target(target), edata(edata) { }
+        source(source), source_color(source_color),
+        target(target), edata(edata) { }
       void load(iarchive& iarc) {
-        iarc >> source >> target >> edata;
+        iarc >> source >> source_color >> target >> edata;
       }
       void save(oarchive& oarc) const {
-        oarc << source << target << edata;
+        oarc << source << source_color << target << edata;
       }
     }; // end of struct args
 
@@ -158,7 +161,7 @@ namespace graphlab {
         ainfo.atom_file.vcolor().push_back(vcolor);
         ainfo.atom_file.atom().push_back(atomid);
         ainfo.global2local[gvid] = localvid;
-        info.vdata().push_back(vdata);
+        ainfo.atom_file.vdata().push_back(vdata);
       }
       atomid2lock[atomid].unlock();
     } // end of add vertex local
@@ -187,7 +190,7 @@ namespace graphlab {
       const vertex_id_t target_lvid(ainfo.get_local_vid(target_gvid)); 
       // The source may not be local yet
       if(ainfo.global2local.find(source_gvid) == ainfo.global2local.end()) {
-        const vertex_id_t lvid(ainfo.atom_file.globalids().size());
+        const vertex_id_t lvid(ainfo.atom_file.globalvids().size());
         ainfo.atom_file.globalvids().push_back(source_gvid);
         ainfo.global2local[source_gvid] = lvid;
         ainfo.atom_file.vcolor().push_back(source_vcolor);
@@ -198,7 +201,7 @@ namespace graphlab {
       ainfo.atom_file.edge_src_dest().push_back(std::make_pair(source_lvid, 
                                                                target_lvid));
       ainfo.atom_file.edata().push_back(edata);
-      atomid2lock[to_atomid].unlock();
+      atomid2lock[atomid].unlock();
     } // end of add edge local
 
 
@@ -232,22 +235,22 @@ namespace graphlab {
       procid_t num_atoms(-1);
       { 
         logstream(LOG_INFO) 
-          << "Loading the partitioning file: " << partitioning_fname 
+          << "Loading the partitioning file: " << partition_fname 
           << std::endl;    
-        vertex2atomid.resize(index.nverts);
-        std::ifstream fin(partitioning_fname.c_str());
+        vertex2atomid.resize(aindex.nverts);
+        std::ifstream fin(partition_fname.c_str());
         assert(fin.good());
         procid_t max_atomid(0);
         for(size_t i = 0; i < vertex2atomid.size(); ++i) {
           procid_t atomid(-1);
           fin >> atomid;
-          ASSERT(fin.good());
+          ASSERT_TRUE(fin.good());
           ASSERT_NE(atomid, procid_t(-1));
           max_atomid = std::max(max_atomid, atomid);
           vertex2atomid[i] = atomid;
         }
         fin.close();
-        num_atoms = max_atom + 1;
+        num_atoms = max_atomid + 1;
         logstream(LOG_INFO) 
           << "Num atoms: " << num_atoms  << std::endl;      
       }  
@@ -279,175 +282,126 @@ namespace graphlab {
 
       rmi.full_barrier();
 
-      /// TODO: FINISH SHUFFLE CODE HERE
       { // Shuffle the vertex data ============================================
-        if(rmi.procid() == 0) 
-          std::cout << "Shuffling vertex data."
-                    << std::endl;
-        typedef vertex_args args;
-        const size_t ONE_MB(size_t(1) << 20);
-        const size_t BUFFER_SIZE(ONE_MB / sizeof(args));
-        std::vector< std::vector<args> >  proc2buffer(rmi.numprocs());
-
-        size_t localvid(0);
+        logstream(LOG_INFO) << "Shuffle vertex data." << std::endl;
         for(size_t i = 0; i < local_fnames.size(); ++i) {
-          // get the vertex data filename from the structure filename
-          std::string 
-            vdata_fname(adjacency_list::
-                        change_suffix(local_fnames[i],
-                                      adjacency_list::vdata_suffix));
-          std::string absfname = path + '/' + vdata_fname;
-          std::cout << "(" <<  rmi.procid() << " - " 
-                    << absfname << ")" << std::endl;
-
-          std::ifstream fin(absfname.c_str(), 
-                            std::ios::binary | std::ios::in);
-          graphlab::iarchive iarc(fin);
-          vertex_data_type vdata;
-          for(iarc >> vdata; fin.good(); iarc >> vdata) {
-            ASSERT_LT(localvid, alist.local_vertices.size());
-            const vertex_id_t vid( alist.local_vertices[localvid] );
-            ASSERT_LT(vid, vertex2atomid.size());
-            const procid_t atomid( vertex2atomid[vid] );
+          logstream(LOG_INFO) 
+            << "Loading atom file: " << local_fnames[i] << std::endl;
+          atom_file_type afile;
+          afile.input_filename("file", local_fnames[i]);
+          afile.load_all();
+          ASSERT_LE(afile.vdata().size(), afile.globalvids().size());
+          ASSERT_LE(afile.vdata().size(), afile.vcolor().size());
+          logstream(LOG_INFO) << "Sending vertex data." << std::endl;
+          typedef vertex_args args;
+          const size_t ONE_MB(size_t(1) << 20);
+          const size_t BUFFER_SIZE(ONE_MB / sizeof(args));
+          std::vector< std::vector<args> >  proc2buffer(rmi.numprocs());
+          for(size_t j = 0; j < afile.vdata().size(); ++j) {
+            const vertex_id_t gvid(afile.globalvids()[j]);
+            ASSERT_LT(gvid, vertex2atomid.size());
+            const procid_t atomid( vertex2atomid[gvid] );
+            ASSERT_LT(atomid, num_atoms);
+            const vertex_color_type vcolor(afile.vcolor()[j]);
+            const vertex_data_type& vdata(afile.vdata()[j]);
             if(is_local(atomid)) {
-              add_vertex_local(vid, vdata);
+              add_vertex_local(gvid, vcolor, vdata);
             } else {
               const procid_t owner(owning_machine(atomid));
-              proc2buffer[owner].push_back(args(vid, vdata));
+              proc2buffer[owner].push_back(args(gvid, vcolor, vdata));
               if(proc2buffer[owner].size() > BUFFER_SIZE) {
                 rmi.remote_call(owner, 
                                 &atom_shuffler::add_vertex_local_vec,
                                 proc2buffer[owner]);
                 proc2buffer[owner].clear();
               }
+            } //end of if else
+          } // end of loop over vertex data
+          // Flush buffers
+          for(size_t i = 0; i < proc2buffer.size(); ++i) {
+            if(!proc2buffer[i].empty()) {
+              rmi.remote_call(i,
+                              &atom_shuffler::add_vertex_local_vec,
+                              proc2buffer[i]);
             }
-            localvid++; // successful add so increment the local vid counter
-          } // end of loop over single vertex data file
-          fin.close();
-        } // end of loop over all vertex data files
-        assert(localvid == alist.local_vertices.size());        
-        // Flush buffers
-        for(size_t i = 0; i < proc2buffer.size(); ++i) {
-          if(!proc2buffer[i].empty()) {
-            rmi.remote_call(i,
-                            &atom_shuffler::add_vertex_local_vec,
-                            proc2buffer[i]);
-          }
-        }
-      } // end of shuffle the vertex data
-
-
-      rmi.full_barrier();
-
-
-      { // Shuffle the edge data ==============================================
-        if(rmi.procid() == 0) 
-          std::cout << "Shuffling edge data."
-                    << std::endl;
-        
-        size_t localvid(0);
-        for(size_t i = 0; i < local_fnames.size(); ++i) {
-          // get the vertex data filename from the structure filename
-          std::string 
-            edata_fname(adjacency_list::
-                        change_suffix(local_fnames[i],
-                                      adjacency_list::edata_suffix));
-          std::string absfname = path + '/' + edata_fname;
-          std::cout << "(" <<  rmi.procid() << " - " 
-                    << absfname << ")" << std::endl;
-
-          std::ifstream fin(absfname.c_str(), 
-                            std::ios::binary | std::ios::in);
-          graphlab::iarchive iarc(fin);
-          assert(fin.good());
-          fin.peek();
-          while(fin.good()) {
-            assert(localvid < alist.in_nbr_ids.size());
-            vertex_id_t target(alist.local_vertices[localvid]);
-            assert(target < vertex2atomid.size());
-            // try to read in all the nbrs
-            for(size_t j = 0; j < alist.in_nbr_ids[localvid].size(); ++j) {
-              vertex_id_t source(alist.in_nbr_ids[localvid][j]);
-              assert(source < vertex2atomid.size());
-              edge_data_type edata;
-              iarc >> edata;
-              assert(fin.good());
-              add_edge(vertex2atomid[source], source, target, edata);
-              // if(vertex2atomid[source] != vertex2atomid[target])
-              //   add_edge(vertex2atomid[target], source, target, edata); 
-            }
-            localvid++;
-            fin.peek();
-          } // end of while loop
-          fin.close();
+          } // end of loop over flush buffers
         } // end of for loop
-        assert(localvid == alist.local_vertices.size());
-      } // end of shuffle the edge data
-
-      std::cout << "Entering final barrier on " << rmi.procid() << std::endl;
+      } // end of shuffle vertex data
 
       rmi.full_barrier();
-      std::cout << "Leaving final barrier on " << rmi.procid() << std::endl;
 
+      { // Shuffle the edge data ============================================
+        logstream(LOG_INFO) << "Shuffle edge data." << std::endl;
+        for(size_t i = 0; i < local_fnames.size(); ++i) {
+          logstream(LOG_INFO) 
+            << "Loading atom file: " << local_fnames[i] << std::endl;
+          atom_file_type afile;
+          afile.input_filename("file", local_fnames[i]);
+          afile.load_all();
+          ASSERT_EQ(afile.edata().size(), afile.edge_src_dest().size());
+          logstream(LOG_INFO) << "Sending edge data." << std::endl;
+          typedef edge_args args;
+          const size_t ONE_MB(size_t(1) << 20);
+          const size_t BUFFER_SIZE(ONE_MB / sizeof(args));
+          std::vector< std::vector<args> >  proc2buffer(rmi.numprocs());
+          for(size_t j = 0; j < afile.edata().size(); ++j) {
+            const vertex_id_t source_lvid(afile.edge_src_dest()[j].first);
+            const vertex_id_t target_lvid(afile.edge_src_dest()[j].second);
+            ASSERT_NE(source_lvid, target_lvid);
+            ASSERT_LE(source_lvid, afile.globalvids().size());
+            ASSERT_LE(target_lvid, afile.globalvids().size());
+            ASSERT_LE(source_lvid, afile.vcolor().size());
+            const vertex_id_t source_gvid(afile.globalvids()[source_lvid]);
+            const vertex_color_type source_vcolor(afile.vcolor()[source_lvid]);
+            const vertex_id_t target_gvid(afile.globalvids()[target_lvid]); 
+            ASSERT_LE(target_gvid, vertex2atomid.size());
+            ASSERT_LE(source_gvid, vertex2atomid.size());
+            const procid_t target_atomid( vertex2atomid[target_gvid] );
+            ASSERT_LT(target_atomid, num_atoms);
+            const edge_data_type& edata(afile.edata()[j]);
+            if(is_local(target_atomid)) {
+              add_edge_local(source_gvid, source_vcolor, 
+                             target_gvid, edata);
+            } else {
+              const procid_t owner(owning_machine(target_atomid));
+              proc2buffer[owner].push_back(args(source_gvid, source_vcolor, 
+                                                target_gvid, edata));
+              if(proc2buffer[owner].size() > BUFFER_SIZE) {
+                rmi.remote_call(owner, 
+                                &atom_shuffler::add_edge_local_vec,
+                                proc2buffer[owner]);
+                proc2buffer[owner].clear();
+              }
+            } //end of if else
+          } // end of loop over vertex data
+          // Flush buffers
+          for(size_t i = 0; i < proc2buffer.size(); ++i) {
+            if(!proc2buffer[i].empty()) {
+              rmi.remote_call(i,
+                              &atom_shuffler::add_edge_local_vec,
+                              proc2buffer[i]);
+            }
+          } // end of loop over flush buffers
+        } // end of for loop
+      } // end of shuffle edge data
 
-      if(rmi.procid() == 0)
-        std::cout << "Finished shuffling in " << ti.current_time() 
-                  << " seconds." << std::endl;
+      logstream(LOG_INFO) << "Finished shuffling!" << std::endl;
 
+      rmi.full_barrier();
 
       { // Emit actual atom files =============================================
-        if(rmi.procid() == 0) 
-          std::cout << "Saving atom files."
-                    << std::endl;
-        namespace fs = boost::filesystem;
+        logstream(LOG_INFO) << "Saving atom files." << std::endl;
         // Loop through each of the atoms managed locally
         for(size_t atomid = 0; atomid < atomid2info.size(); ++atomid) {
           atomid2lock[atomid].lock();
           if(atomid2info[atomid] != NULL) {
-            atom_info& ainfo(*atomid2info[atomid]);
-            { // read all vdata into atom file
-              ainfo.vdatastream.flush();
-              ainfo.vdatastream.close();
-              assert(!ainfo.vdatastream.is_open());
-              std::ifstream fin(ainfo.vdatafn.c_str(), 
-                                std::ios::binary | 
-                                std::ios::in);
-              assert(fin.good());
-              iarchive iarc(fin);
-              atom_file_type& afile(ainfo.atom_file);
-              afile.vdata().resize(afile.globalvids().size());
-              for(size_t i = 0; i < afile.vdata().size(); ++i) {
-                assert(fin.good());
-                iarc >> afile.vdata()[i];                                
-              }
-              fin.close();
-              fs::path path(ainfo.vdatafn);
-              fs::remove(path);
-            } // end of read all vdata
-            { // read all edata into atom file
-              ainfo.edatastream.flush();
-              ainfo.edatastream.close();
-              assert(!ainfo.edatastream.is_open());
-              std::ifstream fin(ainfo.edatafn.c_str(), 
-                                std::ios::binary | 
-                                std::ios::in);
-              assert(fin.good());
-              iarchive iarc(fin);
-              atom_file_type& afile(ainfo.atom_file);
-              afile.edata().resize(afile.edge_src_dest().size());
-              for(size_t i = 0; i < afile.edata().size(); ++i) {
-                assert(fin.good());
-                edge_data_type edata;
-                iarc >> edata;
-                afile.edata()[i] = edata;                                
-              }
-              fin.close();
-              fs::path path(ainfo.edatafn);
-              fs::remove(path);
-            } // end of read all edata
-            
-            // Save the atom
-            ainfo.atom_file.write_to_file("file", ainfo.atomfn);
+            atom_info& ainfo(get_atom_info(atomid));
+            const std::string fname(new_atom_path + "/" + 
+                                    ainfo.atom_file.filename());
+            logstream(LOG_INFO) << "Writing final atom file "
+                                << fname << std::endl;
+            ainfo.atom_file.write_to_file(ainfo.atom_file.protocol(),
+                                          fname);
             // Delete the pointer
             assert(atomid2info[atomid] != NULL);
             delete atomid2info[atomid];
@@ -503,36 +457,31 @@ namespace graphlab {
   public:
 
     static void 
-    build_atoms_from_partitioning(const std::string& path,
-                                  const std::string& atom_path) {      
-      std::cout << "Initializing distributed communication layer "
-                << "using environment variables."  << std::endl;
-      dc_init_param param;      
-      // This works with BOTH mpi and rpcexec
-      // if ( !init_param_from_env(param) ) {
-      //   std::cout << "Failed to get environment variables." << std::endl;
-      //   std::cout << "Trying MPI launcher." << std::endl;
-      // } else 
-
+    rebuild_atoms_from_partitioning(const std::string& atom_index_fname,
+                                    const std::string& partition_fname,
+                                    const std::string& new_atom_path,
+                                    const std::string& atom_prefix) {
+      logstream(LOG_INFO) 
+        << "Initializing distributed shuffler object." 
+        << std::endl;        
+      dc_init_param param;         
       if( ! init_param_from_mpi(param) ) {
-        std::cout << "Failed MPI laucher!" << std::endl;
-        assert(false);
+        logstream(LOG_FATAL) 
+          << "Failed MPI laucher!" << std::endl;
       }
       param.initstring = "buffered_send=yes, ";
       param.numhandlerthreads = 5;
       distributed_control dc(param);
       dc.full_barrier();      
-      if(dc.procid() == 0) { 
-        std::cout << "Initializing distributed shuffler object.  ";
-        std::cout.flush();
-      }
       // Create the atom shuffler
       atom_shuffler atom_shuffler(dc);
       dc.full_barrier();
-      atom_shuffler.shuffle(path, atom_path);
+      atom_shuffler.shuffle(atom_index_fname, 
+                            partition_fname,
+                            new_atom_path,
+                            atom_prefix);
       dc.full_barrier();
-      if(dc.procid() == 0) 
-        std::cout << "Finished." << std::endl;      
+      logstream(LOG_INFO) << "Finished." << std::endl;      
     } // end of graph partition to atom index
 
 
