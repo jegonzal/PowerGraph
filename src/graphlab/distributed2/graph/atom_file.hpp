@@ -17,7 +17,7 @@
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/stl_util.hpp>
-#include <graphlab/util/fs_utils.hpp>
+#include <graphlab/util/fs_util.hpp>
 
 //#include <graphlab/distributed2/graph/partitioning/adjacency_list.hpp>
 
