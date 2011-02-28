@@ -46,7 +46,8 @@ namespace graphlab {
       // seek to the padding point and write a byte
       if (pad > 0 && statbuf.st_size < (int)pad) {
         lseek(fd, pad, SEEK_SET);
-        write(fd, " ", 1);
+        const ssize_t error(write(fd, " ", 1));
+        ASSERT_NE(error, ssize_t(-1));        
         ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
         ASSERT_GE(statbuf.st_size, pad);
       }
