@@ -23,6 +23,8 @@
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send_expqueue2.hpp>
+
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
@@ -121,10 +123,17 @@ distributed_control::~distributed_control() {
   distributed_services->barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   size_t bytessent = bytes_sent();
-  for (size_t i = 0;i < senders.size(); ++i) {
-    senders[i]->shutdown();
-    delete senders[i];
+  if (single_sender == false) {
+    for (size_t i = 0;i < senders.size(); ++i) {
+      senders[i]->shutdown();
+      delete senders[i];
+    }
   }
+  else {
+    senders[0]->shutdown();
+    delete senders[0];
+  }
+  
   comm->close();
   size_t bytesreceived = bytes_received();
   for (size_t i = 0;i < receivers.size(); ++i) {
@@ -268,6 +277,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   bool buffered_send = false;
   bool buffered_recv = false;
   bool buffered_queued_send = false;
+  bool buffered_queued_send_single = false;
   if (options["buffered_send"] == "true" || 
     options["buffered_send"] == "1" ||
     options["buffered_send"] == "yes") {
@@ -286,6 +296,17 @@ void distributed_control::init(const std::vector<std::string> &machines,
     std::cerr << "Buffered Queued Send Option is ON." << std::endl;
   }
 
+  if (options["buffered_queued_send_single"] == "true" || 
+    options["buffered_queued_send_single"] == "1" ||
+    options["buffered_queued_send_single"] == "yes") {
+    buffered_queued_send_single = true;
+    if (buffered_send == true || buffered_queued_send == true) {
+      std::cerr << "buffered_queued_send_single and buffered_(queued)_send cannot be on simultaneously" << std::endl;
+      exit(1);
+    }
+    std::cerr << "Buffered Queued Send Single Option is ON." << std::endl;
+  }
+  
   if (options["buffered_recv"] == "true" ||
     options["buffered_recv"] == "1" ||
     options["buffered_recv"] == "yes") {
@@ -322,12 +343,20 @@ void distributed_control::init(const std::vector<std::string> &machines,
       }
       
       if (buffered_send) {
+        single_sender = false;
         senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
       }
       else if (buffered_queued_send) {
+        single_sender = false;
         senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue(this, comm, i));
       }
-      else{
+      else if (buffered_queued_send_single) {
+        single_sender = true;
+        if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue2(this, comm));
+        else senders.push_back(senders[0]);
+      }
+      else {
+        single_sender = false;
         senders.push_back(new dc_impl::dc_stream_send(this, comm, i));
       }
     }
