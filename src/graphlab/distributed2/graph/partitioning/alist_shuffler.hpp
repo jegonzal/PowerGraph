@@ -1,5 +1,5 @@
-#ifndef GRAPHLAB_ATOM_SHUFFLER_HPP
-#define GRAPHLAB_ATOM_SHUFFLER_HPP
+#ifndef GRAPHLAB_ALIST_SHUFFLER_HPP
+#define GRAPHLAB_ALIST_SHUFFLER_HPP
 
 
 
@@ -42,11 +42,11 @@ namespace graphlab {
    *  smart DHT for atom_file construction.
    */
   template <typename VertexData, typename EdgeData>
-  class atom_shuffler {
+  class alist_shuffler {
   public:
     typedef VertexData vertex_data_type;
     typedef EdgeData edge_data_type;
-    typedef atom_shuffler<VertexData, EdgeData> atom_shuffler_type;
+    typedef alist_shuffler<VertexData, EdgeData> alist_shuffler_type;
     typedef atom_file<VertexData, EdgeData> atom_file_type;
     typedef boost::unordered_map<vertex_id_t, vertex_id_t> global2local_type;
 
@@ -104,7 +104,7 @@ namespace graphlab {
 
 
   private:
-    dc_dist_object< atom_shuffler_type > rmi;
+    dc_dist_object< alist_shuffler_type > rmi;
 
     size_t num_colors;
     std::vector<vertex_color_type> vertex2color;
@@ -125,11 +125,11 @@ namespace graphlab {
 
 
   public:
-    atom_shuffler(distributed_control& dc) : rmi(dc, this) { }
+    alist_shuffler(distributed_control& dc) : rmi(dc, this) { }
 
 
 
-    ~atom_shuffler() {
+    ~alist_shuffler() {
       rmi.full_barrier();
       // Clear the atom info map
       for(size_t i = 0; i < atomid2info.size(); ++i) {
@@ -219,7 +219,7 @@ namespace graphlab {
       } else {
         // remote add
         rmi.remote_call(owning_machine(to_atomid),
-                        &atom_shuffler_type::add_vertex_local,
+                        &alist_shuffler_type::add_vertex_local,
                         to_atomid, gvid, atomid, vcolor, vdata);
       }
     } // end of add_vertex
@@ -256,7 +256,7 @@ namespace graphlab {
         add_edge_local(to_atomid, source_gvid, target_gvid, edata);
       } else {
         rmi.remote_call(owning_machine(to_atomid),
-                        &atom_shuffler_type::add_edge_local,
+                        &alist_shuffler_type::add_edge_local,
                         to_atomid, source_gvid, target_gvid, edata);
 
       }
@@ -498,7 +498,7 @@ namespace graphlab {
               proc2buffer.at(target_idx).push_back(args(target, source_atom));
               if(proc2buffer.at(target_idx).size() > BUFFER_SIZE) {
                 rmi.remote_call(target_proc,
-                                &atom_shuffler_type::add_nbr_atom_local_vec,
+                                &alist_shuffler_type::add_nbr_atom_local_vec,
                                 proc2buffer.at(target_idx));
                 proc2buffer.at(target_idx).clear();
               }             
@@ -510,7 +510,7 @@ namespace graphlab {
               proc2buffer.at(source_idx).push_back(args(source, target_atom));
               if(proc2buffer.at(source_idx).size() > BUFFER_SIZE) {
                 rmi.remote_call(source_proc,
-                                &atom_shuffler_type::add_nbr_atom_local_vec,
+                                &alist_shuffler_type::add_nbr_atom_local_vec,
                                 proc2buffer.at(source_idx));
                 proc2buffer.at(source_idx).clear();
               }             
@@ -524,7 +524,7 @@ namespace graphlab {
           const procid_t target( i % rmi.numprocs() );
           if(!proc2buffer[i].empty()) {
             rmi.remote_call(target,
-                            &atom_shuffler_type::add_nbr_atom_local_vec,
+                            &alist_shuffler_type::add_nbr_atom_local_vec,
                             proc2buffer[i]);         
           }          
         }
@@ -624,7 +624,7 @@ namespace graphlab {
               proc2buffer[owner].push_back(args(vid, vdata));
               if(proc2buffer[owner].size() > BUFFER_SIZE) {
                 rmi.remote_call(owner, 
-                                &atom_shuffler::add_vertex_local_vec,
+                                &alist_shuffler::add_vertex_local_vec,
                                 proc2buffer[owner]);
                 proc2buffer[owner].clear();
               }
@@ -638,7 +638,7 @@ namespace graphlab {
         for(size_t i = 0; i < proc2buffer.size(); ++i) {
           if(!proc2buffer[i].empty()) {
             rmi.remote_call(i,
-                            &atom_shuffler::add_vertex_local_vec,
+                            &alist_shuffler::add_vertex_local_vec,
                             proc2buffer[i]);
           }
         }
@@ -835,9 +835,9 @@ namespace graphlab {
         std::cout.flush();
       }
       // Create the atom shuffler
-      atom_shuffler atom_shuffler(dc);
+      alist_shuffler alist_shuffler(dc);
       dc.full_barrier();
-      atom_shuffler.shuffle(path, atom_path);
+      alist_shuffler.shuffle(path, atom_path);
       dc.full_barrier();
       if(dc.procid() == 0) 
         std::cout << "Finished." << std::endl;      
