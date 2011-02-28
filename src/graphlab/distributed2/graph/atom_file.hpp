@@ -463,7 +463,7 @@ namespace graphlab {
       afile.filename() = local_atom_fnames.at(i);
       afile.protocol() = "file";
       // construct the atom filename
-      const std::string fname(atompath + "/" + afile.filename());
+      const std::string fname(path + "/" + afile.filename() +"_tmp");
       logstream(LOG_INFO) << "Saving atom file: " 
                           << fname
                           << std::endl;
@@ -517,19 +517,20 @@ namespace graphlab {
 
     // Build out each atom file
     for(size_t i = 0; i < local_atom_fnames.size(); ++i) {
-      const std::string fname(atompath + "/" + local_atom_fnames[i]);
-      logstream(LOG_INFO) << "Reloading " << fname << std::endl;
+      const std::string tmp_fname(path + "/" + local_atom_fnames[i] + "_tmp");
+      logstream(LOG_INFO) << "Reloading " << tmp_fname << std::endl;
       atom_file_type afile;
-      afile.input_filename("file", fname);
+      afile.input_filename("file", tmp_fname);
       afile.load_all();
       // Update the atom location information
-      for(size_t i = 0; i < afile.globalvids().size(); ++i) {
-        const vertex_id_t gvid(afile.globalvids()[i]);
+      for(size_t j = 0; j < afile.globalvids().size(); ++j) {
+        const vertex_id_t gvid(afile.globalvids()[j]);
         ASSERT_LT(gvid, vid2atomid.size());
         const procid_t atomid(vid2atomid[gvid]);
         ASSERT_NE(atomid, procid_t(-1));
-        afile.atom()[i] = atomid;
+        afile.atom()[j] = atomid;
       }
+      const std::string fname( atompath + "/" + local_atom_fnames[i]);
       // Resave the atom file
       logstream(LOG_INFO) << "Final save of atom file: " 
                           << fname
