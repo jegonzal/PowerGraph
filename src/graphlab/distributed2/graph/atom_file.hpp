@@ -11,17 +11,21 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
+#include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/stl_util.hpp>
+#include <graphlab/util/fs_utils.hpp>
 
-
+#include <graphlab/distributed2/graph/partitioning/adjacency_list.hpp>
 
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
+
+
 
   /**
    * The contents of an atom file.
@@ -32,6 +36,87 @@ namespace graphlab {
     
     atom_file(procid_t atom_id = 0) : 
       atom_id_(atom_id), iarc(NULL), loadstage(0) {  }
+
+
+    atom_file(const std::string& fname) : 
+      filename_(fname), atom_id_(0), iarc(NULL), loadstage(0) {  }
+
+
+
+    template<typename VFunction, typename EFunction>
+    atom_file(const std::string& vdata_fname,
+              const std::string& edata_fname,
+              VFunction vfun, EFunction efun) :
+      atom_id_(0), iarc(NULL), loadstage(0) {
+      std::map<vertex_id_t, vertex_id_t> global2local;
+      { // load all vertex data
+        logstream(LOG_INFO) << "Reading " << vdata_fname 
+                            << std::endl;
+        std::ifstream vdata_fin(vdata_fname.c_str());
+        if(!vdata_fin.good()) 
+          logstream(LOG_FATAL) << "Invalid vdata filename: " 
+                            << vdata_fname << std::endl;
+         vertex_id_t local_vid(0);
+         while(vdata_fin.good()) {           
+          std::string line;
+          std::getline(vdata_fin, line);
+          if(vdata_fin.good()) {
+            VertexData vdata_value;
+            const vertex_id_t vid = vfun(line, vdata_value);
+            globalvids_.push_back(vid);
+            global2local[vid] = local_vid;
+            vdata_.push_back(vdata_value);
+          }
+        }
+      } // end of load all the vertex data
+      { // Load all the edge data
+        logstream(LOG_INFO) << "Reading " << edata_fname 
+                            << std::endl;
+        std::ifstream edata_fin(edata_fname.c_str());
+        if(!edata_fin.good()) 
+          logstream(LOG_FATAL) << "Invalid edata filename: " 
+                            << edata_fname << std::endl;
+        while(edata_fin.good()) {           
+          std::string line;
+          std::getline(edata_fin, line);
+          if(edata_fin.good()) {
+            EdgeData edata_value;
+            const std::pair<vertex_id_t, vertex_id_t> src_dest_pair =
+              efun(line, edata_value);
+            typedef std::map<vertex_id_t, vertex_id_t>::const_iterator 
+              iterator;
+            iterator dest_iter(global2local.find(src_dest_pair.second));
+            if(dest_iter == global2local.end()) 
+              logstream(LOG_FATAL) << "Invalid destination vid "
+                                << src_dest_pair.second 
+                                << " in file " << edata_fname 
+                                << std::endl;
+            const vertex_id_t local_dest_vid(dest_iter->second);
+            
+            iterator src_iter(global2local.find(src_dest_pair.first));
+            vertex_id_t local_src_vid(-1);
+            // if the source was not found then it is a ghost and we
+            // will need to update the globalvid list
+            if(src_iter == global2local.end()) {
+              local_src_vid = globalvids_.size();
+              globalvids_.push_back(src_dest_pair.first);
+              // update the map
+              global2local[src_dest_pair.first] = local_src_vid;              
+            } else local_src_vid = src_iter->second;
+            edata_.push_back(edata_value);
+            edge_src_dest_.push_back(std::make_pair(local_src_vid, 
+                                                    local_dest_vid));            
+          } // end of if statement
+        } // end of while loop
+        edata_fin.close();
+      } // end of load all the edge data
+      ASSERT_EQ(global2local.size(), globalvids_.size());
+      // Cleanup some local data structures
+      vcolor_.resize(globalvids_.size());
+      atom_.resize(globalvids_.size());      
+    } // end of construct atom file from a text file
+
+
 
     /**
      * Associates this object with a particular atom file
@@ -209,7 +294,7 @@ namespace graphlab {
         atom.globalvids().push_back(vid);
         atom.atom().push_back(vertex2part[vid]);
         atom.vcolor().push_back(g.color(vid));
-//atom.vdata().push_back(g.vertex_data(vid));
+        //atom.vdata().push_back(g.vertex_data(vid));
         if (vertex2part[vid] == partid) atom.vdata().push_back(g.vertex_data(vid));
       }
     }
@@ -219,7 +304,7 @@ namespace graphlab {
         atom.edge_src_dest().push_back(std::make_pair<vertex_id_t,
                                        vertex_id_t>(global2localvid[g.source(eid)],
                                                     global2localvid[g.target(eid)]));
-//atom.edata().push_back(g.edge_data(eid));
+        //atom.edata().push_back(g.edge_data(eid));
         
         if (vertex2part[g.target(eid)] == partid) atom.edata().push_back(g.edge_data(eid));
       }
@@ -281,6 +366,151 @@ namespace graphlab {
     }
     idxfile.write_to_file(idxfilename);
   }
+
+
+  
+
+
+  
+  template<typename VertexData, typename EdgeData,
+           typename VFunction, typename EFunction>
+  void generate_atom_files(const std::string& path,
+                           VFunction vfun, EFunction efun) {
+    typedef atom_file<VertexData, EdgeData> atom_file_type;
+    const std::string vdata_suffix(".vdata_txt");
+    const std::string edata_suffix(".edata_txt");
+    dc_init_param param;         
+    if( ! init_param_from_mpi(param) ) {
+      logstream(LOG_FATAL) 
+        << "Failed MPI laucher!" << std::endl;
+    }
+    distributed_control dc(param);
+    dc.full_barrier();      
+    logstream(LOG_INFO) 
+      << "Initializing distributed shuffler object." 
+      << std::endl;    
+
+    // Determine the local vdata files on this machine
+    std::vector<std::string> local_fnames;
+    fs_util::list_files_with_suffix(path, vdata_suffix,
+                                    local_fnames);
+    std::vector< std::vector<std::string> > partition_fnames;
+    dc.gather_partition(local_fnames, partition_fnames);
+    local_fnames = partition_fnames.at(dc.procid());   
+    std::vector< procid_t > local_atomids(local_fnames.size(), 
+                                          procid_t(-1));
+    { // comute local atom ids
+      procid_t starting_atomid(0);
+      for(size_t i = 0; i < dc.procid(); ++i)
+        starting_atomid += partition_fnames.at(i).size();
+      for(size_t i = 0; i < local_fnames.size(); ++i)
+        local_atomids.at(i) = starting_atomid + i;      
+    }
+
+    std::vector< std::string > local_atom_fnames(local_fnames.size());
+    { // compute atom file names
+      for(size_t i = 0; i < local_atom_fnames.size(); ++i) 
+        local_atom_fnames.at(i) =  
+          fs_util::change_suffix(local_fnames[i], ".atom");        
+    }
+
+    
+    typedef std::map<procid_t, std::vector<vertex_id_t> > 
+      atomid2vertexids_type;
+    std::vector< atomid2vertexids_type > gather_vec(dc.numprocs());    
+    atomid2vertexids_type& atomid2vertexids(gather_vec.at(dc.procid()));
+    // Build out each atom file
+    for(size_t i = 0; i < local_fnames.size(); ++i) {
+      const std::string vdata_fname = path + 
+        fs_util::change_suffix(local_fnames[i], vdata_suffix);
+      const std::string edata_fname = path + 
+        fs_util::change_suffix(local_fnames[i], edata_suffix);
+      atom_file_type afile(vdata_fname, edata_fname, vfun, efun);
+      afile.atom_id() = local_atomids[i];
+      { // update the atomid2vertexids map
+        std::vector<vertex_id_t>& 
+          localverts(atomid2vertexids[afile.atom_id()]);
+        localverts.resize(afile.vdata().size());
+        for(size_t j = 0; j < localverts.size(); ++j)
+          localverts[j] = afile.globalvids().at(j);
+      }
+      afile.filename() = local_atom_fnames.at(i);
+      afile.protocol() = "file";
+      // construct the atom filename
+      logstream(LOG_INFO) << "Saving atom file: " 
+                          << path + afile.filename()
+                          << std::endl;
+      afile.write_to_file("file", path + afile.filename() );
+    }
+    
+
+    const size_t ROOT_NODE(0);
+    dc.gather(gather_vec, ROOT_NODE);
+    std::vector<procid_t> vid2atomid;
+    if(dc.procid() == 0) {
+      logstream(LOG_INFO) << "Computing vertex to atom map."  << std::endl;
+      // compute max vertex id
+      vertex_id_t max_vid(0);
+      typedef atomid2vertexids_type::value_type pair_type;
+      for(size_t i = 0; i < gather_vec.size(); ++i) {         
+        foreach(const pair_type& pair, gather_vec[i]) {
+          for(size_t j = 0; j < pair.second.size(); ++j) {
+            max_vid = std::max(max_vid, pair.second[j]);
+          }
+        }
+      }
+      const vertex_id_t nverts(max_vid + 1);
+      logstream(LOG_INFO) << "Num vertices " << nverts << std::endl;
+      // Construct inverse map
+      vid2atomid.resize(nverts, procid_t(-1));
+      // Invert the map
+      for(size_t i = 0; i < gather_vec.size(); ++i) {
+        foreach(const pair_type& pair, gather_vec[i]) {
+          const procid_t atomid(pair.first);
+          for(size_t j = 0; j < pair.second.size(); ++j) {
+            const vertex_id_t vid(pair.second[j]);
+            ASSERT_LT(vid, nverts);
+            ASSERT_EQ(vid2atomid[vid], vertex_id_t(-1));
+            vid2atomid[vid] = atomid;
+          }
+        }
+      }
+      // check all the entries
+      for(size_t i = 0; i < vid2atomid.size(); ++i)
+        ASSERT_NE(vid2atomid[i], procid_t(-1));
+      // broadcast the map to all machines
+      dc.broadcast(vid2atomid, true);
+    } else {
+      dc.broadcast(vid2atomid, false);
+    }
+
+    // Loop through local atom files
+    logstream(LOG_INFO) << "Updating local atoms."  << std::endl;
+    
+
+    // Build out each atom file
+    for(size_t i = 0; i < local_fnames.size(); ++i) {
+      atom_file_type afile(local_fnames[i]);
+      afile.load_all();
+      // Update the atom location information
+      for(size_t i = 0; i < afile.globalvids(); ++i) {
+        const vertex_id_t gvid(afile.globalvids()[i]);
+        ASSERT_LT(gvid, vid2atomid.size());
+        const procid_t atomid(vid2atomid[gvid]);
+        ASSERT_NE(atomid, procid_t(-1));
+        afile.atom()[i] = gvid;
+      }
+      // Resave the atom file
+      logstream(LOG_INFO) << "Final save of atom file: " 
+                          << path + afile.filename()
+                          << std::endl;
+      afile.write_to_file("file", path + afile.filename() );
+    }
+
+    
+
+  } // end of generate atom file
+
 
 
 

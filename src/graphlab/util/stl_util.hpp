@@ -25,6 +25,9 @@
 #include <algorithm>
 #include <iterator>
 #include <sstream>
+#include <iostream>
+#include <iomanip>
+
 
 #include <graphlab/serialization/serialize.hpp>
 #include <graphlab/serialization/set.hpp>
@@ -380,6 +383,27 @@ namespace graphlab {
     assert(!strm.fail());
     return elem;
   }
+
+  
+  inline std::string pad_number(const size_t number,
+                                const size_t npad,
+                                const char pad_value = '0') {
+    std::stringstream strm;
+    strm << std::setw(npad) << std::setfill(pad_value)
+         << number;
+    return strm.str();
+  }
+
+
+  // inline std::string change_suffix(const std::string& fname,
+  //                                  const std::string& new_suffix) {             
+  //   size_t pos = fname.rfind('.');
+  //   assert(pos != std::string::npos); 
+  //   const std::string new_base(fname.substr(0, pos));
+  //   return new_base + new_suffix;
+  // } // end of change_suffix
+
+
 
   inline std::vector<std::string> strsplit(const std::string& str, 
                                            const std::string& splitchars,
