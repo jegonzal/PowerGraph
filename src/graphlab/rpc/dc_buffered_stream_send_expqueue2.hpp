@@ -1,5 +1,5 @@
-#ifndef DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
-#define DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
+#ifndef DC_BUFFERED_STREAM_SEND_EXPQUEUE2_HPP
+#define DC_BUFFERED_STREAM_SEND_EXPQUEUE2_HPP
 #include <iostream>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
@@ -16,7 +16,8 @@ class distributed_control;
 
 namespace dc_impl {
 
-struct expqueue_entry{
+struct expqueue2_entry{
+  procid_t target;
   char* c;
   size_t len;
 };
@@ -31,15 +32,15 @@ struct expqueue_entry{
   passed to the communication classes on another thread.
 */
 
-class dc_buffered_stream_send_expqueue: public dc_send{
+class dc_buffered_stream_send_expqueue2: public dc_send{
  public:
-  dc_buffered_stream_send_expqueue(distributed_control* dc, dc_comm_base *comm, procid_t target): dc(dc), 
-                                    comm(comm), target(target), done(false) { 
-    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue::send_loop, 
+  dc_buffered_stream_send_expqueue2(distributed_control* dc, dc_comm_base *comm): dc(dc), 
+                                    comm(comm), done(false) { 
+    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue2::send_loop, 
                                       this));
   }
   
-  ~dc_buffered_stream_send_expqueue() {
+  ~dc_buffered_stream_send_expqueue2() {
   }
   
 
@@ -77,23 +78,13 @@ class dc_buffered_stream_send_expqueue: public dc_send{
   /// pointer to the owner
   distributed_control* dc;
   dc_comm_base *comm;
-  procid_t target;
 
-  blocking_queue<expqueue_entry> sendqueue;
+  blocking_queue<expqueue2_entry> sendqueue;
 
   thread thr;
   bool done;
   atomic<size_t> bytessent;
   
-  
-  // parameters for write combining.
-  // write combining will start if the data size is below the lower threshold
-  // and continue until it reaches the upper threshold
-  static const size_t combine_lower_threshold = 10240;
-  static const size_t combine_upper_threshold = 65536;  // 1 packet
-
-  void write_combining_send(expqueue_entry e);
-
 };
 
 

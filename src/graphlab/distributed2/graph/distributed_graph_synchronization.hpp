@@ -635,9 +635,14 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_vertices_to_replica
 
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::push_all_owned_edges_to_replicas() {
-  std::vector<block_synchronize_request2> blockpushes(rmi.numprocs()); 
-
-  foreach(vertex_id_t vid, ghost_vertices()) {
+  std::vector<std::vector<block_synchronize_request2> > blockpushes(omp_get_max_threads()); 
+  for (size_t i = 0;i < blockpushes.size(); ++i) blockpushes[i].resize(rmi.numprocs());
+  
+  #pragma omp parallel for
+  for (long i = 0;i < (long)ghostvertices.size(); ++i) {
+    int thrid = omp_get_thread_num();
+    
+    vertex_id_t vid = ghost_vertices()[i];
     vertex_id_t localvid = global2localvid[vid];
     procid_t proc = localvid2owner[localvid];
     foreach(edge_id_t localeid, localstore.out_edge_ids(localvid)) {
@@ -648,24 +653,26 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_edges_to_replicas()
       estore.data.second = localstore.edge_version(localeid);
   
 
-      blockpushes[proc].srcdest.push_back(std::make_pair<vertex_id_t, vertex_id_t>(vid, targetvid));
-      blockpushes[proc].edgeversion.push_back(localstore.edge_version(localeid));
-      blockpushes[proc].estore.push_back(estore);
-      if (blockpushes[proc].srcdest.size() >= 1*1024*1024/sizeof(EdgeData)) {
+      blockpushes[thrid][proc].srcdest.push_back(std::make_pair<vertex_id_t, vertex_id_t>(vid, targetvid));
+      blockpushes[thrid][proc].edgeversion.push_back(localstore.edge_version(localeid));
+      blockpushes[thrid][proc].estore.push_back(estore);
+      if (blockpushes[thrid][proc].srcdest.size() >= 1*1024*1024/sizeof(EdgeData)) {
         rmi.remote_call(proc,
                         &distributed_graph<VertexData, EdgeData>::update_alot2,
-                        blockpushes[proc]);
-        blockpushes[proc].clear();
+                        blockpushes[thrid][proc]);
+        blockpushes[thrid][proc].clear();
       }
     }
   }
-  for(size_t proc = 0; proc < rmi.numprocs(); ++proc) {
-    if (blockpushes[proc].srcdest.size() > 0) {
-      assert(proc != rmi.procid());
-      rmi.remote_call(proc,
-                      &distributed_graph<VertexData, EdgeData>::update_alot2,
-                      blockpushes[proc]);
-      blockpushes[proc].clear();
+  for (size_t i = 0;i < blockpushes.size(); ++i) {
+    for(size_t proc = 0; proc < rmi.numprocs(); ++proc) {
+      if (blockpushes[i][proc].srcdest.size() > 0) {
+        assert(proc != rmi.procid());
+        rmi.remote_call(proc,
+                        &distributed_graph<VertexData, EdgeData>::update_alot2,
+                        blockpushes[i][proc]);
+        blockpushes[i][proc].clear();
+      }
     }
   }
 }

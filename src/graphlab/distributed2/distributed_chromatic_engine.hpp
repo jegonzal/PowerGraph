@@ -357,14 +357,14 @@ private:
     // the number of replicas - 1 is the amount of communication
     // we have to perform to synchronize modifications to that vertex
 
-    std::vector<std::vector<std::pair<vertex_id_t, size_t> > > color_block_and_weight;
+    std::vector<std::vector<std::pair<size_t, vertex_id_t> > > color_block_and_weight;
     // the list of vertices for each color
     color_block_and_weight.resize(graph.num_colors());
     
     foreach(vertex_id_t v, graph.owned_vertices()) {
       color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(graph.globalvid_to_localvid(v), 
-                                                  graph.globalvid_to_replicas(v).size()));
+                                    std::make_pair(graph.globalvid_to_replicas(v).size(), 
+                                              graph.globalvid_to_localvid(v)));
     }
     color_block.clear();
     color_block.resize(graph.num_colors());
@@ -379,7 +379,7 @@ private:
       std::transform(color_block_and_weight[i].begin(),
                      color_block_and_weight[i].end(), 
                      std::back_inserter(color_block[i]),
-                     __gnu_cxx::select1st<std::pair<vertex_id_t, size_t> >());
+                     __gnu_cxx::select2nd<std::pair<size_t, vertex_id_t> >());
 
     }
     
@@ -586,6 +586,7 @@ private:
         termination_reason = EXEC_TASK_DEPLETION;
         break;
       }
+      bool hassynctasks = active_sync_tasks.size() > 0;
       // loop over colors    
       for (size_t c = 0;c < color_block.size(); ++c) {
         // internal loop over vertices in the color
@@ -605,7 +606,7 @@ private:
             // run the update function
             update_function(scope, callback, NULL);
             // check if there are tasks to run
-            eval_syncs(globalvid, scope, threadid);
+            if (hassynctasks) eval_syncs(globalvid, scope, threadid);
             scope.commit_async_untracked();
             update_counts[threadid]++;
           }
@@ -613,7 +614,7 @@ private:
             // ok this vertex is not scheduled. But if there are syncs
             // to run I will still need to get the scope
             scope.init(&graph, globalvid);
-            eval_syncs(globalvid, scope, threadid);
+            if (hassynctasks) eval_syncs(globalvid, scope, threadid);
             scope.commit_async_untracked();
           }
         }
@@ -683,7 +684,10 @@ private:
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
     std::fill(update_counts.begin(), update_counts.end(), 0);
+    // two full barrers to complete flush replies
     rmi.dc().full_barrier();
+    rmi.dc().full_barrier();
+
     // reset indices
     curidx.value = 0;
     ti.start();

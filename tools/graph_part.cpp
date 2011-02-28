@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
   if (init_param_from_mpi(param) == false) {
     return 0;
   }
-  param.initstring="buffered_send=yes";
+  param.initstring="buffered_queued_send=yes";
   distributed_control dc(param);
 
 
@@ -163,8 +163,11 @@ int main(int argc, char** argv) {
   dc.barrier();
   // set all vertex data to -1
   foreach(vertex_id_t ownedv, dg.owned_vertices()) {
-    dg.set_vertex_data(ownedv, uint32_t(-1));
+    dg.vertex_data(ownedv) = uint32_t(-1);
+    dg.vertex_is_modified(ownedv);
+    dg.increment_vertex_version(ownedv);
   }
+  dg.push_all_owned_vertices_to_replicas();
   // synchronize all ghosts
   dg.rmi.full_barrier();
   /// initialization. Select a set of vertices as seeds
@@ -182,6 +185,8 @@ int main(int argc, char** argv) {
   }
   
   dc.full_barrier();
+  dc.full_barrier();
+
 
   std::vector<size_t> localpartcounts(numparts, 0);
   std::vector<size_t> globalpartcounts(numparts, 1);
@@ -189,10 +194,15 @@ int main(int argc, char** argv) {
   get_local_count(dg, localpartcounts);
   while(1) {
     iter++;
-    bool c;
+    bool c = false;
     for (size_t i = 0;i < roundspersync; ++i) {
       c = partition_owned_subgraph(dg, globalpartcounts, localpartcounts);
     }
+    
+    if (dc.procid() == 0) {
+      std::cout << "Check for completion." << std::endl;
+    }
+
     std::vector<int> vcal(dc.numprocs(), 0);
     vcal[dc.procid()] = c;
     dc.all_gather(vcal);
@@ -200,21 +210,111 @@ int main(int argc, char** argv) {
     allgathertarget[dc.procid()] = localpartcounts;
     dc.all_gather(allgathertarget);
     
+    std::vector<size_t>  prevglobalpartcounts = globalpartcounts;
     globalpartcounts = std::vector<size_t>(numparts, 0);
     for (size_t i = 0;i <dc.numprocs(); ++i) {
       for (size_t j = 0; j < numparts; ++j) { 
         globalpartcounts[j] += allgathertarget[i][j]; 
       }
     }
+    
+    bool isdone = check_is_done(vcal);
+    if (isdone) break;
+    
+    
+    size_t changedparts = 0;
+    for (size_t j = 0; j < numparts; ++j) { 
+      changedparts += (globalpartcounts[j] != prevglobalpartcounts[j]);
+    }
     if (dc.procid() == 0) {
-      for (size_t i = 0; i < numparts; ++i) {
+      for (size_t i = 0; i < std::min<size_t>(numparts, 20); ++i) {
         std::cout << globalpartcounts[i] << " ";
       }
       std::cout << std::endl;
     }
+    
+    
+    
+    // if too few partitions changed, we may need to reseed
+    if (changedparts < numparts) {
+      
+      //  partitions are stuck. we need to re-seed a new set of root
+      // we seed everyone who has not changed
+      size_t meanpart = 0;
+      for (size_t i = 0;i < globalpartcounts.size(); ++i) meanpart += globalpartcounts[i];
+      meanpart /= dc.numprocs();
+      std::vector<vertex_id_t> candidateparts;
+      for (size_t i = 0;i < globalpartcounts.size(); ++i) {
+        if (globalpartcounts[i] == prevglobalpartcounts[i] && globalpartcounts[i] < meanpart) {
+          candidateparts.push_back(i);
+        }
+      }
+      if (dc.procid() == 0) {
+        std::cout << "Reseeding " << candidateparts.size() << " partitions" << std::endl;
+      }
+      if (candidateparts.size()  > 0) {
+        std::random_shuffle(candidateparts.begin(), candidateparts.end());
+        
+        std::vector<std::vector<vertex_id_t> > proposals(dc.numprocs());
+        //proposals[dc.procid()].resize(candidateparts.size());
+        //every machine proposes a set of vertices for the candidate parts,
+        // as well as a count of the number of unassigned vertices
+        std::vector<size_t> unassignedvertices(dc.numprocs(), 0);
+        foreach(vertex_id_t ownedv, dg.owned_vertices()) {
+          if (dg.get_vertex_data(ownedv) == uint32_t(-1)) {
+            unassignedvertices[dc.procid()]++;
+            if (proposals[dc.procid()].size() < candidateparts.size()) {
+              proposals[dc.procid()].push_back(ownedv);
+            }
+            else {
+              size_t sel = random::rand_int(candidateparts.size());
+              if (sel < candidateparts.size()) {
+                candidateparts[sel] = ownedv;
+              }
+            }
+          }
+        }
+        dc.all_gather(unassignedvertices, 0);
+        // if there are no unassigned vertices then we are done
+        size_t allunassigned = 0;
+        for (size_t i = 0;i < unassignedvertices.size(); ++i) allunassigned += unassignedvertices[i];
+        if (allunassigned > 0) {
+          
+          dc.gather(proposals, 0);
+          if (dc.procid() == 0) {
+            //processor 0 now has the task of picking one of the proposed vertices
+            for (size_t i = 0;i < candidateparts.size(); ++i) {
+              std::vector<vertex_id_t> proposedvertices;
+              std::vector<size_t> accweight;
+              for (size_t j = 0;j < dc.numprocs(); ++j) {
+                if (proposals[j].size() > i) {
+                  proposedvertices.push_back(proposals[j][i]);
+                  accweight.push_back(unassignedvertices[j]);
+                  if (accweight.size() >= 2) accweight[accweight.size() - 1] += accweight[accweight.size() - 2];
+                }
+              }
+              
+              if (accweight.size() == 0) continue;
+              
+              // pick from proposedvertices with weight weight
+              size_t r = random::rand_int(accweight[accweight.size() - 1] - 1);
+              size_t selv = vertex_id_t(-1);
+              for (size_t j = 0; j < accweight.size(); ++j) {
+                if (r < accweight[j]) {
+                  selv = proposedvertices[j];
+                  break;
+                }
+              }
+              assert(selv != vertex_id_t(-1));
+              dg.set_vertex_data(selv, candidateparts[i]);
+            }
+          }
+          dc.full_barrier();
+          dc.full_barrier(); 
+        }
+      }
+    }
     // check if done
-    bool isdone = check_is_done(vcal);
-    if (isdone) break;
     if (dc.procid() == 0) {
       logstream(LOG_INFO) << "Iteration " << iter << std::endl;
     }
