@@ -38,16 +38,11 @@ namespace graphlab {
       atom_id_(atom_id), iarc(NULL), loadstage(0) {  }
 
 
-    atom_file(const std::string& fname) : 
-      filename_(fname), atom_id_(0), iarc(NULL), loadstage(0) {  }
-
-
 
     template<typename VFunction, typename EFunction>
-    atom_file(const std::string& vdata_fname,
-              const std::string& edata_fname,
-              VFunction vfun, EFunction efun) :
-      atom_id_(0), iarc(NULL), loadstage(0) {
+    void load_from_txt(const std::string& vdata_fname,
+                       const std::string& edata_fname,
+                       VFunction vfun, EFunction efun) {
       std::map<vertex_id_t, vertex_id_t> global2local;
       { // load all vertex data
         logstream(LOG_INFO) << "Reading " << vdata_fname 
@@ -375,6 +370,7 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData,
            typename VFunction, typename EFunction>
   void generate_atom_files(const std::string& path,
+                           const std::string& atompath,
                            VFunction vfun, EFunction efun) {
     typedef atom_file<VertexData, EdgeData> atom_file_type;
     const std::string vdata_suffix(".vdata_txt");
@@ -421,11 +417,12 @@ namespace graphlab {
     atomid2vertexids_type& atomid2vertexids(gather_vec.at(dc.procid()));
     // Build out each atom file
     for(size_t i = 0; i < local_fnames.size(); ++i) {
-      const std::string vdata_fname = path + 
+      const std::string vdata_fname = path + "/" +
         fs_util::change_suffix(local_fnames[i], vdata_suffix);
-      const std::string edata_fname = path + 
+      const std::string edata_fname = path + "/" +
         fs_util::change_suffix(local_fnames[i], edata_suffix);
-      atom_file_type afile(vdata_fname, edata_fname, vfun, efun);
+      atom_file_type afile;
+      afile.load_from_txt(vdata_fname, edata_fname, vfun, efun);
       afile.atom_id() = local_atomids[i];
       { // update the atomid2vertexids map
         std::vector<vertex_id_t>& 
@@ -437,10 +434,11 @@ namespace graphlab {
       afile.filename() = local_atom_fnames.at(i);
       afile.protocol() = "file";
       // construct the atom filename
+      const std::string fname(atompath + "/" + afile.filename());
       logstream(LOG_INFO) << "Saving atom file: " 
-                          << path + afile.filename()
+                          << fname
                           << std::endl;
-      afile.write_to_file("file", path + afile.filename() );
+      afile.write_to_file("file", fname );
     }
     
 
@@ -489,11 +487,14 @@ namespace graphlab {
     
 
     // Build out each atom file
-    for(size_t i = 0; i < local_fnames.size(); ++i) {
-      atom_file_type afile(local_fnames[i]);
+    for(size_t i = 0; i < local_atom_fnames.size(); ++i) {
+      const std::string fname(atompath + "/" + local_atom_fnames[i]);
+      logstream(LOG_INFO) << "Reloading " << fname << std::endl;
+      atom_file_type afile;
+      afile.input_filename("file", fname);
       afile.load_all();
       // Update the atom location information
-      for(size_t i = 0; i < afile.globalvids(); ++i) {
+      for(size_t i = 0; i < afile.globalvids().size(); ++i) {
         const vertex_id_t gvid(afile.globalvids()[i]);
         ASSERT_LT(gvid, vid2atomid.size());
         const procid_t atomid(vid2atomid[gvid]);
@@ -501,10 +502,11 @@ namespace graphlab {
         afile.atom()[i] = gvid;
       }
       // Resave the atom file
+
       logstream(LOG_INFO) << "Final save of atom file: " 
-                          << path + afile.filename()
+                          << fname
                           << std::endl;
-      afile.write_to_file("file", path + afile.filename() );
+      afile.write_to_file("file", fname );
     }
 
     
