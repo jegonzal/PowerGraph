@@ -38,7 +38,7 @@ std::string get_local_ip_as_str() {
 }
 
 uint32_t get_local_ip() {
-  uint32_t ip;
+  uint32_t ip(0);
   // code adapted from
   struct ifaddrs * ifAddrStruct = NULL;
   getifaddrs(&ifAddrStruct);

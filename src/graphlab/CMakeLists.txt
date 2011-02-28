@@ -37,7 +37,7 @@ add_library(graphlab_util STATIC
   metrics/metrics.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
-  util/fs_utils.cpp
+  util/fs_util.cpp
   ${util_mpi_tools}
 )
 

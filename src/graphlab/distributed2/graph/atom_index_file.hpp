@@ -54,14 +54,10 @@ namespace graphlab {
    * the atom files stored at path.  This relies on the distributed
    * comm layer.
    */ 
-  void distributed_build_atom_index_file(const std::string& path);
+  void build_atom_index_file(const std::string& path,
+                             const std::string& aindex_fname);
 
 
-  /**
-   * This parallel function constructs an atom index by reading all
-   * the atom files stored at path.  This is done locally.
-   */ 
-  void build_atom_index_file(const std::string& path);
 
 
 

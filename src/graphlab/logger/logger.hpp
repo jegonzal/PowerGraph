@@ -21,6 +21,7 @@
 #define GRAPHLAB_LOG_LOG_HPP
 #include <fstream>
 #include <sstream>
+#include <cstdlib>
 #include <cassert>
 #include <cstring>
 #include <cstdarg>
@@ -91,6 +92,10 @@ struct streambuff_tls_entry {
   bool streamactive;
 };
 }
+
+
+/** Hack!  This is defined in assertions.cpp */
+void __print_back_trace();
 
 /**
   logging class.
@@ -180,6 +185,10 @@ class file_logger{
         if (endltype(f) == endltype(std::endl)) {
           streambuffer << "\n";
           stream_flush();
+          if(streamloglevel == LOG_FATAL) {
+            __print_back_trace();
+            exit(EXIT_FAILURE);
+          }
         }
       }
     }

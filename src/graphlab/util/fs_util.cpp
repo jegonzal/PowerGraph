@@ -10,7 +10,7 @@
 
 
 
-#include <graphlab/util/fs_utils.hpp>
+#include <graphlab/util/fs_util.hpp>
 
 
 
