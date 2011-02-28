@@ -85,7 +85,55 @@ void distributed_graph<VertexData, EdgeData>::synchronize_edge(edge_id_t eid, bo
   }
 }
 
+template <typename VertexData, typename EdgeData>
+void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid, bool async) {
+  // construct he requests
+  std::map<procid_t, std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> > requests;
+  synchronize_scope_construct_req(vid, requests);
+  
+  if (async) {
+    // if asynchronous, the reply goes to pending_async_updates
+    typename std::map<procid_t, 
+          std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
+    iter = requests.begin();
+    size_t replytarget = reinterpret_cast<size_t>(&pending_async_updates);
+    while(iter != requests.end()) {
+      pending_async_updates.flag.inc();
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::async_get_alot2,
+                      rmi.procid(),
+                      iter->second.first,
+                      replytarget,
+                      0);
+      ++iter;
+    }
+  }
+  else {
+    // otherwise we collect it into a local reply ret tye
+    dc_impl::reply_ret_type reply(true, 0);
+    typename std::map<procid_t, 
+          std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
+    iter = requests.begin();
+    size_t replytarget = reinterpret_cast<size_t>(&reply);
+    while(iter != requests.end()) {
+      reply.flag.inc();
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::async_get_alot2,
+                      rmi.procid(),
+                      iter->second.first,
+                      replytarget,
+                      0);
+      ++iter;
+    }
 
+    reply.wait();
+  }
+  
+  
+  
+  
+  
+}
 
 
 
@@ -96,7 +144,8 @@ void distributed_graph<VertexData, EdgeData>::synchronize_edge(edge_id_t eid, bo
  * wait for replies instead of issueing them sequentially.
  */
 template <typename VertexData, typename EdgeData>
-void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid, bool async) {
+void distributed_graph<VertexData, EdgeData>::synchronize_scope_construct_req(vertex_id_t vid, 
+      std::map<procid_t, std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> > &requests) {
   ASSERT_FALSE(is_ghost(vid));
   if (boundaryscopesset.find(vid) == boundaryscopesset.end()) return;
 
@@ -106,8 +155,7 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid,
   // templates here for something so trivial.
   
     vertex_id_t localvid = global2localvid[vid];
-    std::map<procid_t, 
-            std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> > requests;
+    requests.clear();
     // I should have all the in-edges. but I need the in vertices.
     // need to track the vertices added so I don't add duplicate vertices
     // if the vertex has both in-out edges to this vertex.
@@ -167,38 +215,40 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid,
       req.estore.push_back(es);
     }
   }
-  if (async == false) {
-  
-    typename std::map<procid_t, 
-          std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
-          
-    iter = requests.begin();
-    while(iter != requests.end()) {
-      iter->second.first = rmi.remote_request(iter->first,
-                                        &distributed_graph<VertexData, EdgeData>::get_alot2,
-                                        iter->second.first);
-      // unpack
-      update_alot2(iter->second.first);
-      ++iter;
-    }
-  }
-  else {
-    typename std::map<procid_t, 
-          std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
-    iter = requests.begin();
-    while(iter != requests.end()) {
-      pending_async_updates.flag.inc();
-      rmi.remote_call(iter->first,
-                        &distributed_graph<VertexData, EdgeData>::async_get_alot2,
-                        rmi.procid(),
-                        iter->second.first);
-      ++iter;
-    }
-  }
 }
 
 
 
+template <typename VertexData, typename EdgeData> 
+void distributed_graph<VertexData, EdgeData>::async_synchronize_scope_callback(vertex_id_t vid, 
+                                                boost::function<void (void)> callback){
+  vertex_id_t localvid = global2localvid[vid];
+  ASSERT_TRUE(scope_callbacks[localvid].callback == NULL);
+  ASSERT_TRUE(boundary_scopes_set().find(vid) != boundary_scopes_set().end());
+  // register the callback
+  scope_callbacks[localvid].callback = callback;
+  // construct the requests
+  std::map<procid_t, std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> > requests;
+  synchronize_scope_construct_req(vid, requests);
+  
+  //send the stuff
+  typename std::map<procid_t, 
+        std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
+  iter = requests.begin();
+  
+  while(iter != requests.end()) {
+    scope_callbacks[localvid].counter.inc();
+    // the reply target is 0. see reply_alot2
+    rmi.remote_call(iter->first,
+                    &distributed_graph<VertexData, EdgeData>::async_get_alot2,
+                    rmi.procid(),
+                    iter->second.first,
+                    0,
+                    localvid);
+    ++iter;
+  }
+
+}
 
 /**
  * Waits for all asynchronous data synchronizations to complete
@@ -321,11 +371,15 @@ distributed_graph<VertexData, EdgeData>::get_alot2(
 template <typename VertexData, typename EdgeData> 
 void distributed_graph<VertexData, EdgeData>::async_get_alot2(
                     procid_t srcproc,
-                    distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &request) {
+                    distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &request,
+                    size_t replytarget,
+                    size_t tag) {
   get_alot2(request);
   rmi.remote_call(srcproc,
                   &distributed_graph<VertexData, EdgeData>::reply_alot2,
-                  request);
+                  request,
+                  replytarget, 
+                  tag);
 }
 
 template <typename VertexData, typename EdgeData> 
@@ -392,10 +446,29 @@ void distributed_graph<VertexData, EdgeData>::update_alot2(
 
 template <typename VertexData, typename EdgeData> 
 void distributed_graph<VertexData, EdgeData>::reply_alot2(
-                    distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &request) {
+                    distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &request,
+                    size_t replytarget,
+                    size_t tag) {
   update_alot2(request);
-  reply_increment_counter(rmi.dc(), 0, 
-                          reinterpret_cast<size_t>(&pending_async_updates), dc_impl::blob());
+  
+  // special handling for callbacks
+  if (replytarget != 0)  {
+    reply_increment_counter(rmi.dc(), 0, 
+                          replytarget, dc_impl::blob());  
+  }
+  else {
+    // tag is local vid
+    vertex_id_t localvid = tag;
+    ASSERT_TRUE(scope_callbacks[localvid].callback != NULL);
+    if (scope_callbacks[localvid].counter.dec() == 0) {
+      // make a copy of it and clear the callbacks entry.
+      async_scope_callback tmp = scope_callbacks[localvid];
+      scope_callbacks[localvid].callback = NULL;
+      
+      tmp.callback();
+    }
+  }
+  
 }
 
 

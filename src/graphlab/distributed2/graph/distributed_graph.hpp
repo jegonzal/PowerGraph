@@ -893,6 +893,21 @@ class distributed_graph {
  */
   void synchronize_scope(vertex_id_t vid, bool async = false);   
   
+  void allocate_scope_callbacks() {
+    scope_callbacks.resize(local2globalvid.size());
+    for (size_t i = 0;i < local2globalvid.size(); ++i) {
+      scope_callbacks[i].callback = NULL;
+    }
+  }
+  /**
+  Synchonizes the ghost data of the scope around vid.
+  When done, the callback is issued with the tag as the first argument.
+  Allocate vertex callbacks must be called first. There can be at most one
+  callback associated with any vertex. an assertion failure will be thrown otherwise.
+  vid must be adjacent to a vertex. An assertion will be thrown otherwise.
+  */
+  void async_synchronize_scope_callback(vertex_id_t vid, boost::function<void (void)>);
+
   /**
  * Waits for all asynchronous data synchronizations to complete
  */
@@ -1031,6 +1046,13 @@ class distributed_graph {
 
   dc_impl::reply_ret_type pending_async_updates;
   dc_impl::reply_ret_type pending_push_updates;
+  
+  
+  struct async_scope_callback {
+    atomic<size_t> counter;
+    boost::function<void (void)> callback;
+  };
+  std::vector<async_scope_callback> scope_callbacks;
   
   /**
    * Returns true if the global vid is in the local fragment
@@ -1496,7 +1518,16 @@ class distributed_graph {
     return std::make_pair(iter1->second, iter2->second);
   }
   
-  
+ 
+  /**
+  Constructs the request set for a scope synchronization
+  the request type is a little strange , but it is for efficiency reasons.
+  the second component of the pair can be ignored
+  */
+  void synchronize_scope_construct_req(vertex_id_t vid, std::map<procid_t, 
+            std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> > &requests);   
+ 
+ 
   void update_vertex_data_and_version(vertex_id_t vid,
                                       vertex_conditional_store &estore);
   
@@ -1512,11 +1543,11 @@ class distributed_graph {
   
   block_synchronize_request2& get_alot2(block_synchronize_request2 &request);
   
-  void async_get_alot2(procid_t srcproc, block_synchronize_request2 &request);
+  void async_get_alot2(procid_t srcproc, block_synchronize_request2 &request, size_t replytarget, size_t tag);
   
   void update_alot2(block_synchronize_request2 &request) ;
   
-  void reply_alot2(block_synchronize_request2 &request);
+  void reply_alot2(block_synchronize_request2 &request, size_t replytarget, size_t tag);
 
 
   void conditional_update_vertex_data_and_version(

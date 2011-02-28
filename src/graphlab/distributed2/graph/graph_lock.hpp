@@ -9,6 +9,11 @@
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
 
 namespace graphlab {
+
+namespace gl_impl {
+void graph_lock_callback(size_t ptr, vertex_id_t vid);
+}
+
 // #define COMPILER_WRITE_BARRIER asm volatile("":::"memory")
 #define COMPILER_WRITE_BARRIER
 //#define DISTRIBUTED_LOCK_DEBUG
@@ -34,7 +39,8 @@ template <typename GraphType>
 class graph_lock {
  public:
   graph_lock(distributed_control &dc,
-            GraphType &dgraph):dgraph(dgraph), rmi(dc, this) {
+            GraphType &dgraph, bool synchronize_data = false):dgraph(dgraph), 
+                          rmi(dc, this), synchronize_data(synchronize_data) {
     locks.resize(dgraph.owned_vertices().size());
   }
 
@@ -75,6 +81,12 @@ class graph_lock {
                     scope_range::scope_range_enum scopetype) {
     // check if I need to unlock neighbors
     if (adjacent_vertex_lock_type(scopetype) != scope_range::NO_LOCK) {
+    
+      unsigned char prevkey = rmi.dc().set_sequentialization_key(globalvid % 256);
+      if (synchronize_data) {
+        dgraph.synchronize_scope(globalvid, true);
+      }
+      
       // the complicated case. I need to unlock on my neighbors
       // get all my replicas
       boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator 
@@ -95,6 +107,7 @@ class graph_lock {
                           (size_t)scopetype);
         }
       }
+      rmi.dc().set_sequentialization_key(prevkey);
     }
     else {
       partial_unlock(globalvid, (size_t)scopetype);
@@ -144,7 +157,8 @@ class graph_lock {
   mutex partiallock_lock;
   lazy_deque<partiallock_cont_params> partiallock_continuation;
 
-
+  bool synchronize_data;
+  
   /**
   partial lock request on the sending processor
   Requests a lock on the scope surrounding the vertex globalvid 
@@ -187,6 +201,14 @@ class graph_lock {
     continue_scope_lock(ptr);
   }
 
+  void data_synchronize_reply(typename lazy_deque<scopelock_cont_params>::value_type* ptr) {
+    scopelock_cont_params& params = ptr->first;
+    params.handler(params.globalvid);
+    // finish the continuation by erasing the lazy_deque entry
+    scopelock_lock.lock();
+    scopelock_continuation.erase(ptr);
+    scopelock_lock.unlock();
+  }
   
   void continue_scope_lock(typename lazy_deque<scopelock_cont_params>::value_type* ptr) {
     // for convenience, lets take a reference to the params
@@ -208,12 +230,18 @@ class graph_lock {
                               (size_t)(ptr));
       }
       else {
-        // I am done!
-        params.handler(params.globalvid);
-        // finish the continuation by erasing the lazy_deque entry
-        scopelock_lock.lock();
-        scopelock_continuation.erase(ptr);
-        scopelock_lock.unlock();
+        if (synchronize_data) {
+          dgraph.async_synchronize_scope_callback(ptr->globalvid, 
+                               boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
+        }
+        else {
+          // I am done!
+          params.handler(params.globalvid);
+          // finish the continuation by erasing the lazy_deque entry
+          scopelock_lock.lock();
+          scopelock_continuation.erase(ptr);
+          scopelock_lock.unlock();
+        }
       }
     }
     else {
@@ -229,12 +257,20 @@ class graph_lock {
                              (size_t)(ptr));
       }
       else {
-        // I am done!
-        params.handler(params.globalvid);
         // finish the continuation by erasing the lazy_deque entry
-        scopelock_lock.lock();
-        scopelock_continuation.erase(ptr);
-        scopelock_lock.unlock();
+        // if synchronize data is set, issue one more continuation which
+        // goes to a global fuctnction
+        if (synchronize_data) {
+          dgraph.async_synchronize_scope_callback(ptr->globalvid, 
+                               boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
+        }
+        else {
+          // I am done!
+          params.handler(params.globalvid);
+          scopelock_lock.lock();
+          scopelock_continuation.erase(ptr);
+          scopelock_lock.unlock();
+        }
       }
     }
   }
