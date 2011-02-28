@@ -47,6 +47,7 @@ struct blob {
 Defines a really useful function that performs an atomic
 increment of a flag when called. This is useful for waiting
 for a reply to a request
+TODO: usemutex = false probably does not work
 */
 struct reply_ret_type{
   atomic<size_t> flag;
@@ -55,7 +56,7 @@ struct reply_ret_type{
   mutex mut;
   conditional cond;
   reply_ret_type(bool usemutex, size_t retcount = 1):flag(retcount), 
-                                                     usemutex(usemutex) { 
+                                                     usemutex(true) { 
   }
   
   ~reply_ret_type() {

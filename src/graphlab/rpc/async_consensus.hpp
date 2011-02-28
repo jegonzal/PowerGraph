@@ -65,10 +65,8 @@ class async_consensus {
   size_t required_threads_in_done;
   
   size_t threads_in_done;
-  /// set if a thread is waiting in done()
-  bool waiting_on_done;
   /// set if a cancellation occurs while a thread is waiting in done()
-  bool cancelled;
+  size_t cancelled;
   /// set when everyone is done
   bool complete;
   /// whether I currently have the token

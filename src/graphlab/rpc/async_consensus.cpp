@@ -8,8 +8,7 @@ async_consensus::async_consensus(distributed_control &dc,
            last_calls_sent(0), last_calls_received(0),
            required_threads_in_done(required_threads_in_done),
            threads_in_done(0),
-           waiting_on_done(false), cancelled(false),
-           complete(false), hastoken(dc.procid() == 0) {
+           cancelled(0), complete(false), hastoken(dc.procid() == 0) {
 
   cur_token.total_calls_sent = 0;
   cur_token.total_calls_received = 0;
@@ -30,48 +29,32 @@ bool async_consensus::end_done_critical_section(bool done) {
     mut.unlock();
     return false;
   }
-  size_t curthread = threads_in_done;
   ++threads_in_done;
-
-  while (!complete) {
-    waiting_on_done = threads_in_done > 0;
-    if (threads_in_done == required_threads_in_done) {
-      if (hastoken) pass_the_token();
-    }
-    cond.wait(mut);
-    // I got woken up!
-    // if complete or cancelled, leave now
-    if (complete || cancelled) {
-      if (curthread == 0) {
-        cancelled = false;
-        waiting_on_done = threads_in_done > 0;
-      }
-      break;
-    }
-    // otherwise this is a spurious wake up.
-    // continue waiting
+  // reset the cancelled flag
+  
+  if (threads_in_done == required_threads_in_done && cancelled == 0) {
+    if (hastoken) pass_the_token();
   }
+  if (complete == false && cancelled == 0)  cond.wait(mut);
+  
+  --threads_in_done;
+  if (cancelled > 0) cancelled--;
+
   mut.unlock();
   return complete;
 }
   
 void async_consensus::cancel() {
   mut.lock();
-  if (waiting_on_done) {
-    cancelled = true;
-    threads_in_done = 0;
-    cond.broadcast();
-  }
+  cond.broadcast();
+  cancelled = threads_in_done;
   mut.unlock();
 }
 
 void async_consensus::cancel_one() {
   mut.lock();
-  if (waiting_on_done) {
-    cancelled = true;
-    threads_in_done = 0;
-    cond.signal();
-  }
+  cond.signal();
+  cancelled = std::max<size_t>(threads_in_done, 1);
   mut.unlock();
 }
 
@@ -81,7 +64,7 @@ void async_consensus::receive_the_token(token &tok) {
   hastoken = true;
   cur_token = tok;
   // if I am waiting on done, pass the token.
-  if (waiting_on_done) {
+  if ((threads_in_done == required_threads_in_done) && (cancelled == 0)) {
     pass_the_token();
   }
   mut.unlock();
@@ -101,9 +84,9 @@ void async_consensus::pass_the_token() {
                         &async_consensus::consensus);
       }
     }
-    // myself
+    // set the complete flag
+    // we can't call consensus() since it will deadlock
     complete = true;
-    threads_in_done = 0;
     cond.broadcast();
   }
   else {
@@ -142,7 +125,6 @@ void async_consensus::pass_the_token() {
 void async_consensus::consensus() {
   mut.lock();
   complete = true;
-  threads_in_done = 0;
   cond.broadcast();
   mut.unlock();
 }
