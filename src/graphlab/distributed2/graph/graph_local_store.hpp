@@ -116,33 +116,21 @@ namespace dist_graph_impl {
       edge_id_less_functor less_functor(this);
       
       // Sort all in edges sets
-      foreach(edge_set& eset, in_edges) {
-        std::sort(eset.begin(),
-                  eset.end(),
+      #pragma omp parallel for
+      for (long i = 0; i < (long)in_edges.size(); ++i) {
+        std::sort(in_edges[i].begin(),
+                  in_edges[i].end(),
                   less_functor);
-        //                  boost::bind(&graph::edge_id_less, this, _1, _2) );
-        // Test for duplicate edges
-        if (eset.size() > 1) {
-          for(size_t i = 0; i < eset.size()-1; ++i) {
-            // Duplicate edge test
-            assert(edge_id_less(eset[i], eset[i+1]));
-          }
-        }        
       }
+      
       // Sort all out edges sets
-      foreach(edge_set& eset, out_edges) {
-        std::sort(eset.begin(),
-                  eset.end(),
+      #pragma omp parallel for
+      for (long i = 0; i < (long)out_edges.size(); ++i) {
+        std::sort(out_edges[i].begin(),
+                  out_edges[i].end(),
                   less_functor);
-        //                 boost::bind(&graph::edge_id_less, this, _1, _2) );
-        // Test for dupliate edges
-        if (eset.size() > 1) {
-          for(size_t i = 0; i < eset.size()-1; ++i) {
-            // Duplicate edge test
-            assert(edge_id_less(eset[i], eset[i+1]));
-          }
-        }
       }
+      
       finalized = true;
     } // End of finalize
             
@@ -270,7 +258,7 @@ namespace dist_graph_impl {
       }
 
       if (edge_id >= nedges) {
-        ASSERT_MSG(edge_id < nedges, "Invalid edge ID!");
+        ASSERT_LT(edge_id, nedges);
       }
       if(source == target) {
         logstream(LOG_FATAL) 

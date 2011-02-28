@@ -89,8 +89,8 @@ class dc_buffered_stream_send_expqueue: public dc_send{
   // parameters for write combining.
   // write combining will start if the data size is below the lower threshold
   // and continue until it reaches the upper threshold
-  static const size_t combine_lower_threshold = 128;
-  static const size_t combine_upper_threshold = 1500;  // 1 packet
+  static const size_t combine_lower_threshold = 10240;
+  static const size_t combine_upper_threshold = 65536;  // 1 packet
 
   void write_combining_send(expqueue_entry e);
 
