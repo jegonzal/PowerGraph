@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
   while(1) {
     iter++;
     for (size_t j = 0; j < roundspersync - 1; ++j) {
-      color_state c = color_owned_subgraph(dg);
+      color_owned_subgraph(dg);
     }
     dc.full_barrier();
     color_state c = color_owned_subgraph(dg);

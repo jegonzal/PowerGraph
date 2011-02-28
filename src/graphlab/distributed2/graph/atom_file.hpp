@@ -19,7 +19,7 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/fs_utils.hpp>
 
-#include <graphlab/distributed2/graph/partitioning/adjacency_list.hpp>
+//#include <graphlab/distributed2/graph/partitioning/adjacency_list.hpp>
 
 
 #include <graphlab/macros_def.hpp>
