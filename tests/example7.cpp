@@ -42,7 +42,7 @@ int main(int argc, char ** argv) {
   distributed_control dc(machines,"", machineid, 8, TCP_COMM);
   
   distributed_vector<std::string> vec(dc);
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     vec.set(10, "set from 0");
     vec.set(11, "set from 0");
@@ -51,11 +51,11 @@ int main(int argc, char ** argv) {
     vec.set(1, "set from 1");
     vec.set(2, "set from 1");
   }
-  dc.services().barrier();
+  dc.barrier();
   
   std::cout << vec.get(1) << "\n";  
   std::cout << vec.get(2) << "\n";  
   std::cout << vec.get(10) << "\n";
   std::cout << vec.get(11) << std::endl;
-  dc.services().barrier();
+  dc.barrier();
 }

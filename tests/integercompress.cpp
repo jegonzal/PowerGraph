@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
   for (size_t i = 0;i < 100000; ++i) {
     int32_t u =  rand();
     if (rand() % 2) u = -u;
-    unsigned char len = compress_int2(u, c);
+    compress_int2(u, c);
     int64_t u2;
     decompress_int2(c, u2);
     ASSERT_EQ(u2, u);

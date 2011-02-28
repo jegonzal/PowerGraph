@@ -28,7 +28,7 @@ int main(int argc, char ** argv) {
   }
     
   int i = dc.procid() == 0 ? 10 : 100;
-  dc.services().broadcast(i, dc.procid() == 0);
+  dc.broadcast(i, dc.procid() == 0);
   std::cout << i << std::endl;
   assert(i == 10);
 }

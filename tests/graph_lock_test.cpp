@@ -44,10 +44,10 @@ int main(int argc, char** argv) {
   param.numhandlerthreads = 1;
   //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
   distributed_control dc(param);
-  dc.services().barrier();
+  dc.barrier();
   distributed_graph<size_t, double> dg(dc, "atomidx_ne.txt");
   graph_lock<distributed_graph<size_t, double> > graphlock(dc, dg);
-  dc.services().barrier();
+  dc.barrier();
   std::cout << "Constructed!" << std::endl;
   const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
   assert(localvertices.size() > 0);
@@ -56,6 +56,6 @@ int main(int argc, char** argv) {
   while(firstlockacquired == false) sched_yield();
   graphlock.scope_unlock(localvertices[0], scope_range::EDGE_CONSISTENCY);
   sleep(2);
-  dc.services().barrier();
+  dc.barrier();
 }
 

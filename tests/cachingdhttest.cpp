@@ -29,14 +29,14 @@ int main(int argc, char ** argv) {
   distributed_control dc(machines,"", machineid);
   caching_dht<std::string, std::string> testdht(dc);
   
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     testdht.set("hello", "world");
   }
   else {
     testdht.set("world", "hello");
   }
-  dc.services().barrier();
+  dc.barrier();
   ASSERT_EQ(testdht.get("hello").second, std::string("world"));
   ASSERT_EQ(testdht.get("world").second, std::string("hello"));
   ASSERT_EQ(testdht.get("hello").second, std::string("world"));
@@ -47,17 +47,17 @@ int main(int argc, char ** argv) {
   ASSERT_EQ(testdht.get_cached("world").second, std::string("hello"));
   ASSERT_EQ(testdht.get_cached("hello").second, std::string("world"));
   ASSERT_EQ(testdht.get_cached("world").second, std::string("hello"));
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     testdht.set("hello", "pika");
   }
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 1) {
     ASSERT_EQ(testdht.get_cached("hello").second, std::string("world"));
     testdht.invalidate("hello");
   }
-  dc.services().barrier();
+  dc.barrier();
   ASSERT_EQ(testdht.get_cached("hello").second, std::string("pika"));
   ASSERT_EQ(testdht.get_cached("hello").second, std::string("pika"));
-  dc.services().barrier();
+  dc.barrier();
 }
