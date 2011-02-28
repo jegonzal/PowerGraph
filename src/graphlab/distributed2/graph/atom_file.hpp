@@ -43,6 +43,7 @@ namespace graphlab {
     void load_from_txt(const std::string& vdata_fname,
                        const std::string& edata_fname,
                        VFunction vfun, EFunction efun) {
+      clear();
       std::map<vertex_id_t, vertex_id_t> global2local;
       { // load all vertex data
         logstream(LOG_INFO) << "Reading " << vdata_fname 
@@ -51,13 +52,13 @@ namespace graphlab {
         if(!vdata_fin.good()) 
           logstream(LOG_FATAL) << "Invalid vdata filename: " 
                             << vdata_fname << std::endl;
-         vertex_id_t local_vid(0);
          while(vdata_fin.good()) {           
           std::string line;
           std::getline(vdata_fin, line);
           if(vdata_fin.good()) {
             VertexData vdata_value;
             const vertex_id_t vid = vfun(line, vdata_value);
+            vertex_id_t local_vid(globalvids_.size());
             globalvids_.push_back(vid);
             global2local[vid] = local_vid;
             vdata_.push_back(vdata_value);
@@ -78,27 +79,31 @@ namespace graphlab {
             EdgeData edata_value;
             const std::pair<vertex_id_t, vertex_id_t> src_dest_pair =
               efun(line, edata_value);
+            const vertex_id_t gsrc( src_dest_pair.first );
+            const vertex_id_t gdest( src_dest_pair.second );
+            ASSERT_NE(gsrc, gdest);
             typedef std::map<vertex_id_t, vertex_id_t>::const_iterator 
               iterator;
-            iterator dest_iter(global2local.find(src_dest_pair.second));
+            iterator dest_iter(global2local.find(gdest));
             if(dest_iter == global2local.end()) 
               logstream(LOG_FATAL) << "Invalid destination vid "
-                                << src_dest_pair.second 
+                                << gdest
                                 << " in file " << edata_fname 
                                 << std::endl;
             const vertex_id_t local_dest_vid(dest_iter->second);
             
-            iterator src_iter(global2local.find(src_dest_pair.first));
+            iterator src_iter(global2local.find(gsrc));
             vertex_id_t local_src_vid(-1);
             // if the source was not found then it is a ghost and we
             // will need to update the globalvid list
             if(src_iter == global2local.end()) {
               local_src_vid = globalvids_.size();
-              globalvids_.push_back(src_dest_pair.first);
+              globalvids_.push_back(gsrc);
               // update the map
-              global2local[src_dest_pair.first] = local_src_vid;              
+              global2local[gsrc] = local_src_vid;              
             } else local_src_vid = src_iter->second;
             edata_.push_back(edata_value);
+            ASSERT_NE(local_src_vid, local_dest_vid);
             edge_src_dest_.push_back(std::make_pair(local_src_vid, 
                                                     local_dest_vid));            
           } // end of if statement
@@ -499,10 +504,9 @@ namespace graphlab {
         ASSERT_LT(gvid, vid2atomid.size());
         const procid_t atomid(vid2atomid[gvid]);
         ASSERT_NE(atomid, procid_t(-1));
-        afile.atom()[i] = gvid;
+        afile.atom()[i] = atomid;
       }
       // Resave the atom file
-
       logstream(LOG_INFO) << "Final save of atom file: " 
                           << fname
                           << std::endl;
