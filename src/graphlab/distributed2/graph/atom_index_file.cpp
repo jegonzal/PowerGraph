@@ -186,7 +186,7 @@ bisect_atoms_metis(const atom_index_file& atomindex, std::vector<size_t> atomsub
 
   std::vector<std::vector<size_t> > ret(2);
   for (size_t i = 0;i < retpart.size(); ++i) {
-    ret[atomsubset[retpart[i]]].push_back(i);
+    ret[retpart[i]].push_back(atomsubset[i]);
   }
   return ret;
 }
@@ -278,6 +278,7 @@ partition_atoms(const atom_index_file& atomindex, size_t nparts) {
     std::vector<std::vector<size_t> > bisect = bisect_atoms_metis(atomindex, ret[repartidx]);
     // if any the bisectinos are 0, use the heuristic bisection
     if (bisect[0].size() == 0 || bisect[1].size() == 0) {
+      std::cout << "bisecting: " << repartidx << std::endl;
       bisect = bisect_atoms_heuristic(atomindex, ret[repartidx]);
     }
     // assert

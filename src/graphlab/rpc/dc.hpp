@@ -119,6 +119,7 @@ class distributed_control{
   std::vector<atomic<size_t> > global_calls_sent;
   std::vector<atomic<size_t> > global_calls_received;
   
+  bool single_sender;
   
   /// the callback given to the comms class. Called when data is inbound
   friend void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len);
@@ -333,9 +334,14 @@ class distributed_control{
   }
 
   inline size_t bytes_sent() const {
-    size_t ret = 0;
-    for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
-    return ret;
+    if (single_sender) {
+      return senders[0]->bytes_sent();
+    }
+    else {
+      size_t ret = 0;
+      for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
+      return ret;
+    }
   }  
   
   inline size_t bytes_received() const {

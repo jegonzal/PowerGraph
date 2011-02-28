@@ -84,6 +84,7 @@ class dgraph_scope : public iscope<Graph> {
   }
   
   void commit_ghosts(bool async) { 
+    assert(false);
     _graph_ptr->synchronize_scope(_vertex, async);
   }
   
@@ -91,6 +92,7 @@ class dgraph_scope : public iscope<Graph> {
   Push all the owned data in the scope
   */
   void push_owned(bool async, bool untracked) {
+    assert(false);
     _graph_ptr->push_owned_scope_to_replicas(_vertex,
                                              true, // modified only 
                                              true, // clear modified

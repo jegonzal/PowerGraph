@@ -1124,7 +1124,7 @@ class distributed_graph {
     for (size_t i = 0; i < local2globalvid.size(); ++i) {
       global2localvid[local2globalvid[i]] = i;
     }
-
+    global2localvid.rehash(2 * global2localvid.size());
 
 
 

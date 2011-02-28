@@ -254,8 +254,31 @@ namespace graphlab {
     idxfile.nedges = graph.num_edges();
     idxfile.natoms = numparts;
     idxfile.ncolors = 0;
+    std::vector<std::vector<size_t> > edgeweights(numparts);
+    for (size_t i = 0;i < edgeweights.size(); ++i) edgeweights[i].resize(numparts, 0);
+    
     for (size_t i = 0;i < graph.num_vertices(); ++i) {
       idxfile.ncolors = std::max<size_t>(idxfile.ncolors, graph.color(i));
+      foreach(edge_id_t e, graph.in_edge_ids(i)) {
+        vertex_id_t srcatom = vertex2part[graph.source(e)];
+        vertex_id_t destatom = vertex2part[graph.target(e)];
+        edgeweights[srcatom][destatom]++;
+        edgeweights[destatom][srcatom]++;
+      }
+    }
+    
+    // scale down the max edge weight to about 1000
+    size_t maxedgeweight = 0;
+    for (size_t i = 0; i < numparts; ++i) {
+      for (size_t j = 0;j < numparts; ++j) {
+        maxedgeweight = std::max(maxedgeweight, edgeweights[i][j]);
+      }
+    }
+    
+    for (size_t i = 0; i < numparts; ++i) {
+      for (size_t j = 0;j < numparts; ++j) {
+        edgeweights[i][j] = (size_t)(1000.0 * double(edgeweights[i][j]) / maxedgeweight) + 1;
+      }
     }
     idxfile.ncolors++;
     for (size_t i = 0; i < numparts; ++i) {
@@ -274,6 +297,7 @@ namespace graphlab {
       }
       foreach(size_t v, adjatoms) {
         desc.adjatoms.push_back(v);
+        desc.optional_weight_to_adjatoms.push_back(edgeweights[i][v]);
       }
       desc.nverts = atomfile.globalvids().size();
       desc.nedges = atomfile.globaleids().size();

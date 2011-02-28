@@ -684,7 +684,10 @@ private:
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
     std::fill(update_counts.begin(), update_counts.end(), 0);
+    // two full barrers to complete flush replies
     rmi.dc().full_barrier();
+    rmi.dc().full_barrier();
+
     // reset indices
     curidx.value = 0;
     ti.start();
