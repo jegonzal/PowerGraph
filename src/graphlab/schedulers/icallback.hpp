@@ -38,8 +38,8 @@ namespace graphlab {
      * the given priority.
      */
     void add_task(vertex_id_t vertex,
-                  update_function_type update_fun,
-                  double priority) {
+                   update_function_type update_fun,
+                   double priority = 1.0) {
       update_task_type task(vertex, update_fun);
       add_task(task, priority);
     }
