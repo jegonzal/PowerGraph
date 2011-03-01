@@ -243,7 +243,7 @@ class graph_lock {
       else {
         // if I have to synchronize and if this vid is boundary
         if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
-          unsigned char prevkey = rmi.dc().set_sequentialization_key(globalvid % 256);
+          unsigned char prevkey = rmi.dc().set_sequentialization_key(params.globalvid % 256);
           dgraph.async_synchronize_scope_callback(params.globalvid, 
                                boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
           rmi.dc().set_sequentialization_key(prevkey);
