@@ -802,11 +802,11 @@ namespace dist_graph_impl {
     } // end of binary search 
 
     void setup_mmap() {
-      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
-      edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
- 
+    
       do_not_mmap = true;
       if (do_not_mmap == false) {
+        vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
+        edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
         vertices = (vdata_store*)(vertexmmap->mapped_ptr());
         edgedata = (edata_store*)(edgemmap->mapped_ptr());
       }
