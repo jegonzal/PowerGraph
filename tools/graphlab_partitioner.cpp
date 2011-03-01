@@ -22,7 +22,7 @@ using namespace graphlab;
 #include <graphlab/macros_def.hpp>
 
 /// GLOBAL CONSTANTS
-const size_t MAX_CHANGES(2);
+const size_t MAX_CHANGES(10);
 const size_t MAX_ITERATIONS(1000);
 const size_t SYNC_INTERVAL(100);
 const size_t NUM_COLORS(10);
@@ -56,34 +56,102 @@ struct statistics {
   typedef std::map<procid_t, double> atom2count_type;
 
   atom2count_type atom2count;
-  size_t num_set;
-  statistics() : num_set(0) { }
-
+  size_t num_unset;
+  size_t edge_cut;
+  size_t visited;
+  std::vector<vertex_id_t> nextvset;
+  statistics() : num_unset(0), edge_cut(0), visited(0) { }
+  statistics(size_t num_atoms) : 
+    num_unset(0),  edge_cut(0), visited(0),
+    nextvset(num_atoms, vertex_id_t(-1)) { }
+  
   void operator+=(const iscope_type& iscope) {
+    visited++;
     const vertex_data_type& vdata(iscope.const_vertex_data());
     if(vdata.is_set)  {
       atom2count[vdata.atomid]++;
-      num_set++;
-    }
+      foreach(const edge_id_t eid, iscope.in_edge_ids()) {
+        const vertex_id_t nvid(iscope.source(eid));
+        const vertex_data_type& nvdata = 
+          iscope.const_neighbor_vertex_data(nvid);
+        if(nvdata.is_set && nvdata.atomid != vdata.atomid)
+          edge_cut++;
+      } // end of loop over edges
+    } else {
+      if(num_unset < nextvset.size()) {
+        nextvset[num_unset] = iscope.vertex();
+      } else if( random::rand01() < double(nextvset.size())/num_unset) {
+        nextvset[rand() % nextvset.size()] = iscope.vertex();
+      }
+      num_unset++;
+    } 
   }
   void operator+=(const statistics& other) {
     typedef atom2count_type::value_type pair_type;
+    edge_cut += other.edge_cut;
+    visited += other.visited;
     foreach(const pair_type& pair, other.atom2count)
       atom2count[pair.first] += pair.second;
-    num_set += other.num_set;
+    std::vector<vertex_id_t> this_nextvset(nextvset);
+    const size_t num_atoms(nextvset.size());
+    ASSERT_EQ(other.nextvset.size(), num_atoms);
+    // fill out the rest of this vector
+    size_t i(0), j(0), k(0);
+    while(i <  num_atoms && j < num_unset && k < other.num_unset) {
+      const double accept_prob = 
+        double(other.num_unset - k) / 
+        double((other.num_unset + num_unset) - (j+k));
+      ASSERT_GE(accept_prob, 0);
+      if(random::rand01() < accept_prob) 
+        nextvset[i++] = other.nextvset[k++];
+      else nextvset[i++] = this_nextvset[j++];      
+    }
+    while(i <  num_atoms && j < num_unset) 
+      nextvset[i++] = this_nextvset[j++];      
+    while(i <  num_atoms && k < other.num_unset) 
+      nextvset[i++] = other.nextvset[k++];      
+    num_unset += other.num_unset;
+    for(size_t u = 0; u < nextvset.size() && u < num_unset; ++u) 
+      ASSERT_NE(nextvset[u], vertex_id_t(-1));
   }
+  void print() {
+    std::cout 
+      << "------------------------------------------------------------\n";
+    std::cout << "Visited: " << visited << std::endl;
+    std::cout << "Vertex Bal: " << vertex_balance() << std::endl;
+    std::cout << "Edge cut: " << edge_cut << std::endl;
+    typedef atom2count_type::value_type pair_type;
+    foreach(const pair_type& pair, atom2count) 
+      std::cout << "(" << pair.first << ", " << pair.second << ")  ";
+    std::cout << "\n";
+    std::cout 
+      << "------------------------------------------------------------"
+      << std::endl;      
+  }
+  
+  double vertex_balance() {
+    double max_count(0);
+    typedef atom2count_type::value_type pair_type;
+    foreach(pair_type& pair, atom2count) 
+      max_count = std::max(max_count, pair.second);
+    return max_count * atom2count.size();
+  }
+
   void finalize() {
     double sum(0); 
     typedef atom2count_type::value_type pair_type;
     foreach(pair_type& pair, atom2count) sum += pair.second;
     ASSERT_GT(sum, 0);
     foreach(pair_type& pair, atom2count) pair.second /= sum;   
+    print(); 
   }   
   void load(iarchive& iarc) {
-    iarc >> atom2count >> num_set;
+    iarc >> atom2count >> num_unset >> nextvset 
+         >> edge_cut >> visited;
   }
   void save(oarchive& oarc) const {
-    oarc << atom2count << num_set;
+    oarc << atom2count << num_unset << nextvset
+         << edge_cut << visited;
   }
 };
 
@@ -145,6 +213,12 @@ procid_t find_best_atom(statistics::atom2count_type& local_atom2count,
   }
   return best_atomid;
 } // end of best join atoms
+
+
+
+
+
+
 
 
 void partition_update_function(iscope_type& scope,
@@ -221,6 +295,10 @@ void partition_update_function(iscope_type& scope,
 
 
 
+
+
+
+
 int main(int argc, char** argv) {
   // set the global logger
   global_logger().set_log_level(LOG_INFO);
@@ -288,10 +366,11 @@ int main(int argc, char** argv) {
   engine.set_sync(shared_statistics,
                   statistics_sum_fun,
                   statistics_apply_fun,
-                  any(statistics()), 
+                  any(statistics(num_atoms)), 
                   SYNC_INTERVAL,
                   statistics_merge_fun);
 
+  
   logstream(LOG_INFO) << "Scheduling tasks." << std::endl;  
 
   // Scheduling tasks
@@ -303,15 +382,43 @@ int main(int argc, char** argv) {
       vdata.is_set = true;  
       vdata.is_seed = true;
       graph.set_vertex_data(vid, vdata);
-      logstream(LOG_INFO) << "Adding seed: " << vid;
+      logstream(LOG_INFO) << "Adding seed: " << vid << std::endl;
       engine.add_vtask(vid, partition_update_function);
     }
   }
 
   logstream(LOG_INFO) << "Running partitioner." << std::endl;
-  engine.start();
+  size_t iteration_counter(0);
+  for(; true; iteration_counter++) {
+    std::cout << "Starting iteration: " << iteration_counter
+              << std::endl;        
+    engine.start();
+    statistics stats(shared_statistics.get_val());    
+    std::cout << "Finished iteration: " << iteration_counter
+              << std::endl;      
+    if(stats.num_unset == 0) break;
+    // Gather unset vertices
+    if(dc.procid() == 0) {
+      stats.print();
+      ASSERT_EQ(stats.nextvset.size(), num_atoms);     
+      std::cout << "Num unset: " << stats.num_unset << std::endl;
+      for(size_t i = 0; i < num_atoms && i < stats.num_unset; ++i) {
+        ASSERT_NE(stats.nextvset[i], vertex_id_t(-1));
+        const vertex_id_t vid(stats.nextvset[i]);
+        vertex_data_type vdata;
+        vdata.atomid = i;
+        vdata.is_set = true;  
+        vdata.is_seed = true;
+        graph.set_vertex_data(vid, vdata);
+        logstream(LOG_INFO) << "Adding seed: " << vid << std::endl;
+        engine.add_vtask(vid, partition_update_function);
+      }
+    } // end of if 0
+  } // end of loop for loop
   logstream(LOG_INFO) << "Finished partitioning." << std::endl;
+ 
 
+ 
   logstream(LOG_INFO) << "Gathering partitioning." << std::endl;
 
   typedef std::vector< std::pair<vertex_id_t, procid_t> > vector_of_pairs;
