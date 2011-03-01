@@ -23,7 +23,6 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 #include <graphlab/distributed2/distributed_glshared_manager.hpp>
-#include <graphlab/distributed2/graph/distributed_graph_proxy.hpp>
 #include <graphlab/distributed2/graph/dgraph_scope.hpp>
 #include <graphlab/distributed2/graph/graph_lock.hpp>
 
