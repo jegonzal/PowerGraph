@@ -22,7 +22,7 @@
 
 
 //define sdouble as either float or double as needed
-typedef float sdouble;
+typedef double sdouble;
 
 
 enum constant_offsets {GABP_PRIOR_MEAN_OFFSET = 0, //prior mean (b_i / A_ii)
@@ -253,9 +253,9 @@ bool termination_condition(const gl_types::ishared_data* shared_data) {
   assert(shared_data != NULL);
   double ret = shared_data->atomic_get(RELATIVE_NORM_KEY).as<double>();
 
-  std::cout<<"I was in term"<<std::endl;
+  //std::cout<<"I was in term"<<std::endl;
   if (ret < shared_data->get_constant(THRESHOLD_KEY).as<double>()){
-    std::cout << "Aborting since relative norm is: " << ret << std::endl;
+    //std::cout << "Aborting since relative norm is: " << ret << std::endl;
     return true;
   }
   return false;
@@ -272,7 +272,7 @@ static void apply_func_real(size_t index,
 
   double ret = new_data.as<double>();
   ret = sqrt(ret);
-  std::cout << "Real Norm is: " << ret << std::endl;
+  //std::cout << "Real Norm is: " << ret << std::endl;
   // write the final result into the shared data table
   current_data = ret;
 }
@@ -417,9 +417,6 @@ void gabp_update_function(gl_types::iscope &scope,
                 << std::endl;
     }
 
-    // Not supported
-    // if (residual == NAN) //algo diverged!
-    //   engine->get_scheduler().abort();
   }
 
   // Count the number of iterations
@@ -463,13 +460,6 @@ void load_gabp_graph(const char* filename, graph_type& graph) {
   fclose(f);
 }
 
-
-
-
-
-
-
-
 void load_gabp_graph2(const char* filename, graph_type& graph) {
   printf("Loading %s\n", filename);
   FILE * f = fopen(filename, "r");
@@ -485,10 +475,8 @@ void load_gabp_graph2(const char* filename, graph_type& graph) {
   read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_REAL_OFFSET,n,&graph);
 
-  //double * prec = read_vec(f, n);
   double * prec = read_vec(f, n);
   dispatch_vec(0,n,GABP_PRIOR_PREC_OFFSET, &graph, prec, n, true);
-  //dispatch_vec(0,n+m,GABP_PRIOR_PREC_OFFSET, &graph, 100);
   dispatch_vec(0,n+m,GABP_PREV_MEAN_OFFSET, &graph, 1);
   dispatch_vec(0,n+m,GABP_PREV_PREC_OFFSET, &graph, 1);
   e = read_edges(f, sizeof(edge_data), 0, n+m, &graph);
