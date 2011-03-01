@@ -52,38 +52,58 @@ typedef engine_type::update_task_type update_task_type;
 
 size_t num_atoms(10);
 
+struct statistics {
+  typedef std::map<procid_t, double> atom2count_type;
 
+  atom2count_type atom2count;
+  size_t num_set;
+  statistics() : num_set(0) { }
 
+  void operator+=(const iscope_type& iscope) {
+    const vertex_data_type& vdata(iscope.const_vertex_data());
+    if(vdata.is_set)  {
+      atom2count[vdata.atomid]++;
+      num_set++;
+    }
+  }
+  void operator+=(const statistics& other) {
+    typedef atom2count_type::value_type pair_type;
+    foreach(const pair_type& pair, other.atom2count)
+      atom2count[pair.first] += pair.second;
+    num_set += other.num_set;
+  }
+  void finalize() {
+    double sum(0); 
+    typedef atom2count_type::value_type pair_type;
+    foreach(pair_type& pair, atom2count) sum += pair.second;
+    ASSERT_GT(sum, 0);
+    foreach(pair_type& pair, atom2count) pair.second /= sum;   
+  }   
+  void load(iarchive& iarc) {
+    iarc >> atom2count >> num_set;
+  }
+  void save(oarchive& oarc) const {
+    oarc << atom2count << num_set;
+  }
+};
+
+typedef distributed_glshared<statistics> shared_statistics_type;
 // global data
-typedef std::map<procid_t, double> atom2count_type;
-typedef distributed_glshared<atom2count_type> shared_atom2count_type;
-shared_atom2count_type global_atom2count;
+shared_statistics_type shared_statistics;
+
 // update the counts in the appropriate table
-void atom2count_sum_fun(iscope_type& iscope,
-                  any& acc) {
-  if(iscope.const_vertex_data().is_set) 
-    acc.as<atom2count_type>()[iscope.const_vertex_data().atomid]++;
+void statistics_sum_fun(iscope_type& iscope,  any& acc) {
+  acc.as<statistics>() += iscope;
 }
 // Identity apply
-void atom2count_apply_fun(any& current_data, 
+void statistics_apply_fun(any& current_data, 
                            const any& acc) { 
-  current_data.as<atom2count_type>() = 
-    acc.as<atom2count_type>();
-  atom2count_type& count_map(current_data.as<atom2count_type>());
-  typedef atom2count_type::value_type pair_type;
-  double sum = 0;
-  foreach(pair_type& pair, count_map)  sum += pair.second;
-  ASSERT_GT(sum, 0);
-  foreach(pair_type& pair, count_map) pair.second /= sum;
+  current_data.as<statistics>() = acc.as<statistics>();
+  current_data.as<statistics>().finalize();
 } 
 // Sum the two maps
-void atom2count_merge_fun(any& any_dest,
-                           const any& any_src) {
-  typedef atom2count_type::value_type pair_type;
-  const atom2count_type& src(any_src.as<atom2count_type>());
-  atom2count_type& dest(any_dest.as<atom2count_type>());
-  foreach(const pair_type& pair, src)
-    dest[pair.first] += pair.second;
+void statistics_merge_fun(any& any_dest,  const any& any_src) {
+  any_dest.as<statistics>() += any_src.as<statistics>();
 }
 
 
@@ -95,12 +115,12 @@ void atom2count_merge_fun(any& any_dest,
 
 
 
-procid_t find_best_atom(atom2count_type& local_atom2count,
-                        const atom2count_type& global_atom2count) {
+procid_t find_best_atom(statistics::atom2count_type& local_atom2count,
+                        const statistics::atom2count_type& global_atom2count) {
   double best_score = 0;
   procid_t best_atomid = local_atom2count.begin()->first;
   ASSERT_LT(best_atomid, num_atoms);
-  typedef atom2count_type::value_type pair_type;
+  typedef statistics::atom2count_type::value_type pair_type;
   // normalize the local_atom2count map
   double sum(0);
   foreach(pair_type& pair, local_atom2count) sum += pair.second;
@@ -130,7 +150,7 @@ procid_t find_best_atom(atom2count_type& local_atom2count,
 void partition_update_function(iscope_type& scope,
                                icallback_type& callback,
                                ishared_data_type* unused) {
-  atom2count_type local_atom2count;
+  statistics::atom2count_type local_atom2count;
   // Get the number of neighbor assignments
   foreach(const edge_id_t eid, scope.in_edge_ids()) {
     const vertex_id_t vid(scope.source(eid));
@@ -160,10 +180,10 @@ void partition_update_function(iscope_type& scope,
   if(!vdata.is_seed) {
     ASSERT_GT(local_atom2count.size(), 0);
     // Get the new atomid assignment for this vertex
-    typedef shared_atom2count_type::const_ptr_type shared_ptr_type;
-    shared_ptr_type global_a2c_ptr(global_atom2count.get_ptr());
+    typedef shared_statistics_type::const_ptr_type shared_ptr_type;
+    shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
     const procid_t new_atomid = 
-      find_best_atom(local_atom2count, *global_a2c_ptr);    
+      find_best_atom(local_atom2count, shared_statistics_ptr->atom2count);
 
     if(!vdata.is_set ||
        (vdata.num_changes < MAX_CHANGES && 
@@ -265,12 +285,12 @@ int main(int argc, char** argv) {
   engine.set_scheduler_options(schedopts);
 
   logstream(LOG_INFO) << "Register a sync." << std::endl;
-  engine.set_sync(global_atom2count,
-                  atom2count_sum_fun,
-                  atom2count_apply_fun,
-                  any(atom2count_type()), 
+  engine.set_sync(shared_statistics,
+                  statistics_sum_fun,
+                  statistics_apply_fun,
+                  any(statistics()), 
                   SYNC_INTERVAL,
-                  atom2count_merge_fun);
+                  statistics_merge_fun);
 
   logstream(LOG_INFO) << "Scheduling tasks." << std::endl;  
 
@@ -347,9 +367,9 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
 
     std::cout << "ECounts: ";
-    atom2count_type atom2counts(global_atom2count.get_val());
-    typedef atom2count_type::value_type pair_type;
-    foreach(pair_type pair, atom2counts) 
+    statistics  stats(shared_statistics.get_val());
+    typedef statistics::atom2count_type::value_type pair_type;
+    foreach(pair_type pair, stats.atom2count) 
       std::cout << pair.second  << '\t';
     std::cout << std::endl;
 
