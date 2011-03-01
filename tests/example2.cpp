@@ -25,7 +25,7 @@ int main(int argc, char ** argv) {
   machines.push_back("127.0.0.1:10001");
 
   distributed_control dc(machines,"", machineid);
-  dc.services().barrier();
+  dc.barrier();
   if (dc.procid() == 0) {
     dc.remote_call(1, print, "hello world!");
     /** Create a vector with a few elements */  
