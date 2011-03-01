@@ -35,7 +35,7 @@ i.e. if set_cpu_affinities is called, all processes mus call it at the same time
 This is true for all set_* functions.
 */
 template <typename Graph>
-class distributed_chromatic_engine:public iengine<Graph> {
+class distributed_chromatic_engine : public iengine<Graph> {
  public:
   typedef iengine<Graph> iengine_base;
   typedef typename iengine_base::update_task_type update_task_type;
@@ -54,7 +54,6 @@ class distributed_chromatic_engine:public iengine<Graph> {
   typedef redirect_scheduler_callback<Graph, 
                                       distributed_chromatic_engine<Graph> > callback_type;
   typedef icallback<Graph> icallback_type;
-private:
 
  private:
   // the local rmi instance
@@ -141,6 +140,7 @@ private:
   /// The list of tasks which are currently being evaluated
   std::vector<sync_task*> active_sync_tasks;
   
+
   
 
  public:
@@ -456,9 +456,12 @@ private:
     for (size_t curtask = threadid; curtask < active_sync_tasks.size(); curtask += ncpus) {
       sync_task* task = active_sync_tasks[curtask];
       task->mergeval = task->thread_intermediate[0];
-      for(size_t i = 1;i < task->thread_intermediate.size(); ++i) {
+      for(size_t i = 1; i < task->thread_intermediate.size(); ++i) {
         task->merge_fun(task->mergeval, task->thread_intermediate[i]);
       }
+      // zero out the intermediate
+      task->thread_intermediate.clear();
+      task->thread_intermediate.resize(ncpus, sync_tasks[curtask].zero);
       // for efficiency, lets merge each sync task to the prefered machine
     }
     
