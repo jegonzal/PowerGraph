@@ -205,6 +205,15 @@ namespace graphlab {
     virtual void add_task(update_task_type task, double priority) = 0;
 
     /**
+     * \brief Add an update function to a particular vertex.
+     */
+    virtual void add_vtask(vertex_id_t vid, 
+                          update_function_type fun, 
+                          double priority = 1.0) {
+      add_task(update_task_type(vid, fun),  priority);
+    }
+
+    /**
      * \brief Creates a collection of tasks on all the vertices in
      * 'vertices', and all with the same update function and priority
      * This function is forwarded to the scheduler.
