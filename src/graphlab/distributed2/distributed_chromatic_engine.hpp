@@ -357,9 +357,11 @@ class distributed_chromatic_engine : public iengine<Graph> {
     // the number of replicas - 1 is the amount of communication
     // we have to perform to synchronize modifications to that vertex
 
+
     std::vector<std::vector<std::pair<size_t, vertex_id_t> > > color_block_and_weight;
+    const size_t num_colors(graph.recompute_num_colors());
     // the list of vertices for each color
-    color_block_and_weight.resize(graph.num_colors());
+    color_block_and_weight.resize(num_colors);
     
     foreach(vertex_id_t v, graph.owned_vertices()) {
       color_block_and_weight[graph.get_color(v)].push_back(
@@ -367,7 +369,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
                                               graph.globalvid_to_localvid(v)));
     }
     color_block.clear();
-    color_block.resize(graph.num_colors());
+    color_block.resize(num_colors);
     // optimize ordering. Sort in descending order
     // put all those which need a lot of communication in the front
     // to give communication the maximum amount if time possible.
@@ -375,7 +377,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
       std::sort(color_block_and_weight[i].rbegin(),
                 color_block_and_weight[i].rend());
       // insert the sorted vertices into the final color_block
-
+      
       std::transform(color_block_and_weight[i].begin(),
                      color_block_and_weight[i].end(), 
                      std::back_inserter(color_block[i]),

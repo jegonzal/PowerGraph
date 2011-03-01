@@ -22,18 +22,19 @@ using namespace graphlab;
 #include <graphlab/macros_def.hpp>
 
 /// GLOBAL CONSTANTS
-const size_t MAX_CHANGES(100);
+const size_t MAX_CHANGES(2);
 const size_t MAX_ITERATIONS(1000);
 const size_t SYNC_INTERVAL(100);
-
+const size_t NUM_COLORS(10);
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////// Types ////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 struct vertex_data_type {
   procid_t atomid;
-  size_t     num_changes;
+  procid_t num_changes;
   bool       is_set;
+  bool       is_seed;
 };
 SERIALIZABLE_POD(vertex_data_type);
 struct edge_data_type { };
@@ -51,8 +52,10 @@ typedef engine_type::update_task_type update_task_type;
 
 size_t num_atoms(10);
 
+
+
 // global data
-typedef std::map<procid_t, size_t> atom2count_type;
+typedef std::map<procid_t, double> atom2count_type;
 typedef distributed_glshared<atom2count_type> shared_atom2count_type;
 shared_atom2count_type global_atom2count;
 // update the counts in the appropriate table
@@ -66,12 +69,13 @@ void atom2count_apply_fun(any& current_data,
                            const any& acc) { 
   current_data.as<atom2count_type>() = 
     acc.as<atom2count_type>();
-  const atom2count_type& count_map(acc.as<atom2count_type>());
+  atom2count_type& count_map(current_data.as<atom2count_type>());
   typedef atom2count_type::value_type pair_type;
-  foreach(pair_type pair, count_map) 
-    std::cout << "<" << pair.first << ", " << pair.second << ">\t";
-  std::cout << std::endl;
-}
+  double sum = 0;
+  foreach(pair_type& pair, count_map)  sum += pair.second;
+  ASSERT_GT(sum, 0);
+  foreach(pair_type& pair, count_map) pair.second /= sum;
+} 
 // Sum the two maps
 void atom2count_merge_fun(any& any_dest,
                            const any& any_src) {
@@ -83,36 +87,37 @@ void atom2count_merge_fun(any& any_dest,
 }
 
 
-procid_t find_best_atom(const atom2count_type& local_atom2count,
+
+
+
+
+
+
+
+
+procid_t find_best_atom(atom2count_type& local_atom2count,
                         const atom2count_type& global_atom2count) {
   double best_score = 0;
   procid_t best_atomid = local_atom2count.begin()->first;
   ASSERT_LT(best_atomid, num_atoms);
   typedef atom2count_type::value_type pair_type;
-
-  double local_sum(0), global_sum(0);
-  foreach(const pair_type& pair, local_atom2count) {
-    const procid_t atomid(pair.first);
-    ASSERT_LT(atomid, num_atoms);
-    const size_t local_count(pair.second);
-    ASSERT_GT(local_count, 0);
-    const size_t global_count(safe_get(global_atom2count, atomid, size_t(1)) );
-    ASSERT_GT(global_count, 0);
-    local_sum += local_count;
-    global_sum += global_count;
-  }
-  ASSERT_GT(local_sum, 0);
-  ASSERT_GT(global_sum, 0);
+  // normalize the local_atom2count map
+  double sum(0);
+  foreach(pair_type& pair, local_atom2count) sum += pair.second;
+  ASSERT_GT(sum, 0);
+  foreach(pair_type& pair, local_atom2count) pair.second /= sum;
 
   foreach(const pair_type& pair, local_atom2count) {
     const procid_t atomid(pair.first);
     ASSERT_LT(atomid, num_atoms);
     const double local_count(pair.second);
     ASSERT_GT(local_count, 0);
-    const double global_count(safe_get(global_atom2count, atomid, size_t(1)) );
+    const double global_count(safe_get(global_atom2count, atomid, double(0)) );
+    // auto join
+    if(global_count == 0) { return atomid; }
     ASSERT_GT(global_count, 0);
-    const double score = 
-      (local_count / local_sum) * (global_sum / global_count);
+    // otherwise compute the 
+    const double score = local_count / global_count;
     if(score > best_score)  {
       best_atomid = atomid;
       best_score = score;
@@ -139,22 +144,20 @@ void partition_update_function(iscope_type& scope,
       scope.const_neighbor_vertex_data(vid);
     if(vdata.is_set) ++local_atom2count[vdata.atomid];
   }
+
   // Get the vertex data
   const vertex_data_type& vdata(scope.const_vertex_data());
-  const bool IS_SEED(vdata.is_set && local_atom2count.empty());
 
-  if(IS_SEED)
-    std::cout << "Seed Found" << std::endl;
 
   // If the neighbor change has not reached this machine yet then
   // reschedule self
-  if(!IS_SEED && local_atom2count.empty()) {
+  if(!vdata.is_seed && local_atom2count.empty()) {
     callback.add_task(scope.vertex(), partition_update_function);
     return;
   }
 
   bool changed(false);
-  if(!IS_SEED) {
+  if(!vdata.is_seed) {
     ASSERT_GT(local_atom2count.size(), 0);
     // Get the new atomid assignment for this vertex
     typedef shared_atom2count_type::const_ptr_type shared_ptr_type;
@@ -171,9 +174,9 @@ void partition_update_function(iscope_type& scope,
       vdata.num_changes++;
       changed = true;
     }
-  } // end update assignment
+  } // end update assig
   // Reschedule the neighbors
-  if(changed || IS_SEED) {
+  if(changed || vdata.is_seed) {
     // Schedule all in neighbors
     foreach(const edge_id_t eid, scope.in_edge_ids()) {
       const vertex_id_t vid(scope.source(eid));
@@ -241,6 +244,13 @@ int main(int argc, char** argv) {
   graph_type  graph(dc, aindex, NO_LOAD_DATA);
  
 
+  logstream(LOG_INFO)
+    << "Artificially color the graph" << std::endl;
+  foreach(const vertex_id_t vid, graph.owned_vertices()) {
+    graph.color(vid) =  rand() % NUM_COLORS;
+  }
+
+
   logstream(LOG_INFO)  
     << "Initializing engine with " << clopts.get_ncpus() 
     << " local threads." <<std::endl;
@@ -270,7 +280,8 @@ int main(int argc, char** argv) {
       const vertex_id_t vid(rand() % graph.num_vertices());
       vertex_data_type vdata;
       vdata.atomid = i;
-      vdata.is_set = true;    
+      vdata.is_set = true;  
+      vdata.is_seed = true;
       graph.set_vertex_data(vid, vdata);
       logstream(LOG_INFO) << "Adding seed: " << vid;
       engine.add_vtask(vid, partition_update_function);
@@ -286,9 +297,11 @@ int main(int argc, char** argv) {
   typedef std::vector< std::pair<vertex_id_t, procid_t> > vector_of_pairs;
   std::vector<vector_of_pairs> proc2pairs(dc.numprocs());
   foreach(const vertex_id_t vid, graph.owned_vertices()) {
+    const vertex_data_type& vdata(graph.vertex_data(vid));
+    // Require all vertices to be assinged a class
+    ASSERT_TRUE(vdata.is_set);
     proc2pairs[dc.procid()].
-      push_back(std::make_pair(vid,
-                               graph.vertex_data(vid).atomid));
+      push_back(std::make_pair(vid, vdata.atomid));
   }
   const size_t ROOT_NODE(0);
   dc.gather(proc2pairs, ROOT_NODE);
@@ -296,21 +309,41 @@ int main(int argc, char** argv) {
     // construct final map
     std::vector<procid_t> result(graph.num_vertices());
     std::vector<size_t> counts(num_atoms);
+    std::vector<size_t> vertex2proc(graph.num_vertices());
     for (size_t i = 0; i < dc.numprocs(); ++i) {
       for(size_t j = 0; j < proc2pairs[i].size(); ++j) {
         result.at(proc2pairs[i][j].first) = proc2pairs[i][j].second;
         counts.at(proc2pairs[i][j].second)++;
+        vertex2proc.at(proc2pairs[i][j].first) = i;
       }
     }
-    std::ofstream fout(partfile.c_str());
-    ASSERT_TRUE(fout.good());
-    for(size_t i = 0; i < result.size(); ++i) 
-      fout << result[i] << "\n";    
-    fout.close();
+    {
+      std::ofstream fout(partfile.c_str());
+      ASSERT_TRUE(fout.good());
+      for(size_t i = 0; i < result.size(); ++i) 
+        fout << result[i] << "\n";    
+      fout.close();
+    }
+    {
+      std::string fname = "machine_" + partfile;
+      std::ofstream fout(fname.c_str());
+      ASSERT_TRUE(fout.good());
+      for(size_t i = 0; i < result.size(); ++i) 
+        fout << vertex2proc[i] << "\n";    
+      fout.close();
+    }
+
+    
+    std::cout << "\n\n\n\n" << std::endl 
+              <<  "======================================"
+              << "\n\n" << std::endl;
 
     std::cout << "Counts:  ";
-    for(size_t i = 0; i < counts.size(); ++i) 
+    size_t max_counts(0);
+    for(size_t i = 0; i < counts.size(); ++i) {
       std::cout << counts[i]  << '\t';
+      max_counts = std::max(max_counts, counts[i]);
+    }
     std::cout << std::endl;
 
     std::cout << "ECounts: ";
@@ -319,6 +352,18 @@ int main(int argc, char** argv) {
     foreach(pair_type pair, atom2counts) 
       std::cout << pair.second  << '\t';
     std::cout << std::endl;
+
+    const double imbalance = 
+      double(max_counts) * double(counts.size()) / 
+      double(graph.num_vertices());
+    std::cout << "Imbalance max/average: " << imbalance << std::endl;
+
+    std::cout << "\n\n" << std::endl 
+              <<  "======================================"
+              << "\n\n\n\n" << std::endl;
+
+
+
 
   }
  

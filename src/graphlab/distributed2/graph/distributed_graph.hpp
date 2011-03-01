@@ -786,6 +786,27 @@ class distributed_graph {
     }
   }
 
+
+  /** 
+   * Get (and cache) the number of colors
+   */
+  size_t recompute_num_colors() {
+    vertex_color_type max_color(0);
+    for(size_t i = 0; i < global2localvid.size(); ++i) 
+      max_color = std::max(max_color, localstore.color(global2localvid[i]));
+    std::vector<vertex_color_type> proc2colors(rmi.numprocs());
+    proc2colors[rmi.procid()] = max_color +1;
+    rmi.all_gather(proc2colors);
+    numcolors = 0;
+    for(size_t i = 0; i < proc2colors.size(); ++i)  
+      numcolors += proc2colors[i];
+    return numcolors;
+  }
+
+  /**
+   * This function should only be called after the number of colors
+   * has be computed
+   */
   size_t num_colors() const {
     return numcolors;
   }
@@ -794,7 +815,7 @@ class distributed_graph {
    * Gets a reference to the color on vertex vid.
    * Assertion failure if vid is not on this machine.
    */
-  const vertex_color_type& color(vertex_id_t vid) {
+  vertex_color_type& color(vertex_id_t vid) {
     assert(global_vid_in_local_fragment(vid));
     return localstore.color(global2localvid[vid]);
   }
