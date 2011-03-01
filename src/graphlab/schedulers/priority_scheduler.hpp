@@ -69,8 +69,8 @@ namespace graphlab {
     priority_scheduler(iengine_type* engine,
                        Graph &g, 
                        size_t ncpus) :
-      num_vertices(g.num_vertices()),
-      task_set(g.num_vertices()),
+      num_vertices(g.local_vertices()),
+      task_set(g.local_vertices()),
       callbacks(ncpus, direct_callback<Graph>(this, engine) ) { }
     
 

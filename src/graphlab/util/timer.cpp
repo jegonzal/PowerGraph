@@ -56,6 +56,16 @@ namespace graphlab {
   }
 
 
+  void my_sleep(size_t sleeplen) {
+    fd_set set;
+    struct timeval timeout;
+    FD_ZERO (&set);
+    timeout.tv_sec = sleeplen;
+    timeout.tv_usec = 0;
+    select (FD_SETSIZE, &set, NULL, NULL, &timeout);
+  }
+  
+  
   /**
    * Precision of deciseconds 
    */

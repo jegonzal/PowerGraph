@@ -70,6 +70,9 @@ namespace graphlab {
   //TOOD: Move into timer class namespace (as static functions)
   size_t lowres_time_millis();
 
+  void my_sleep(size_t sleeplen);
+
+
 } // end of graphlab namespace
 
 /** 

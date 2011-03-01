@@ -53,8 +53,8 @@ namespace graphlab {
                                   Graph& g, 
                                   size_t ncpus) : 
       callbacks(ncpus, direct_callback<Graph>(this, engine)), 
-      binary_vertex_tasks(g.num_vertices()) {
-      numvertices = g.num_vertices();
+      binary_vertex_tasks(g.local_vertices()) {
+      numvertices = g.local_vertices();
         
       /* How many queues per cpu. More queues, less contention */
       queues_per_cpu = 2;
