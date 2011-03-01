@@ -163,7 +163,7 @@ namespace graphlab {
     /**
      * Get the number of vertices in the graph
      */
-    size_t num_vertices() {
+    size_t num_vertices() const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->num_vertices();  
     }
@@ -176,7 +176,7 @@ namespace graphlab {
      * vertex of the scope.  The base vertex is the vertex that the
      * update function is being applied to.
      */
-    vertex_id_t vertex() { return _vertex; }
+    vertex_id_t vertex() const { return _vertex; }
 
     /** 
      * \brief edge lookup from source target pair to edge id.
