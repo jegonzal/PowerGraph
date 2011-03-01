@@ -63,6 +63,7 @@ class lazy_dht{
            dc.procid(), maxcache);
     reqs = 0;
     misses = 0;
+    dc.barrier();
   }
 
 

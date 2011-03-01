@@ -458,8 +458,10 @@ class distributed_chromatic_engine : public iengine<Graph> {
     for (size_t curtask = threadid; curtask < active_sync_tasks.size(); curtask += ncpus) {
       sync_task* task = active_sync_tasks[curtask];
       task->mergeval = task->thread_intermediate[0];
+      task->thread_intermediate[0] = task->zero;
       for(size_t i = 1; i < task->thread_intermediate.size(); ++i) {
         task->merge_fun(task->mergeval, task->thread_intermediate[i]);
+        task->thread_intermediate[i] = task->zero;
       }
       // zero out the intermediate
       task->thread_intermediate.clear();

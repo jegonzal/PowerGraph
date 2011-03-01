@@ -18,6 +18,7 @@
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/schedulers/support/redirect_scheduler_callback.hpp>
+#include <graphlab/schedulers/support/binary_vertex_task_set.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
@@ -33,10 +34,10 @@ namespace graphlab {
 
 /**
 All processes must receive the same options at the same time.
-i.e. if set_cpu_affinities is called, all processes mus call it at the same time.
+i.e. if set_cpu_affinities is called, all processges mus call it at the same time.
 This is true for all set_* functions.
 */
-template <typename Graph, typename Scheduler>
+template <typename Graph, typename Scheduler >
 class distributed_locking_engine:public iengine<Graph> {
  public:
   typedef iengine<Graph> iengine_base;
@@ -54,13 +55,13 @@ class distributed_locking_engine:public iengine<Graph> {
   typedef imonitor<Graph> imonitor_type;
 
   typedef redirect_scheduler_callback<Graph, 
-                                      distributed_locking_engine<Graph> > callback_type;
+                                      distributed_locking_engine<Graph, Scheduler> > callback_type;
   typedef icallback<Graph> icallback_type;
 private:
 
  private:
   // the local rmi instance
-  dc_dist_object<distributed_locking_engine<Graph> > rmi;
+  dc_dist_object<distributed_locking_engine<Graph, Scheduler> > rmi;
   
   // the graph we are processing
   Graph &graph;
@@ -112,7 +113,7 @@ private:
    * and is awaiting execution.
    */
   struct deferred_tasks {
-    spinlock lock;
+    mutex lock;
     std::deque<update_function_type> updates;
     bool lockrequested;
   };
@@ -161,6 +162,7 @@ private:
   /// The list of tasks which are currently being evaluated
   std::vector<sync_task*> active_sync_tasks;
 
+  // scheduler keeps a schedule over localvids
   Scheduler scheduler;
   graph_lock<Graph> graphlock;
 
@@ -170,6 +172,8 @@ private:
    */ 
   atomic<size_t> threads_alive;
   
+  binary_vertex_task_set<Graph> binary_vertex_tasks;
+ 
  public:
   distributed_locking_engine(distributed_control &dc,
                                     Graph& graph,
@@ -186,16 +190,20 @@ private:
                             force_stop(false),
                             task_budget(0),
                             termination_reason(EXEC_UNSET),
+                            default_scope_range(scope_range::EDGE_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
                             max_deferred_tasks(-1),
                             ready_vertices(ncpus),
                             barrier_time(0.0),
                             const_nbr_vertices(true),
                             const_edges(false),
-                            consensus(dc, this),
+                            consensus(dc, ncpus),
                             scheduler(this, graph, std::max(ncpus, size_t(1))),
-                            graphlock(dc, graph),
-                            thread_color_barrier(ncpus) { 
+                            graphlock(dc, graph, true),
+                            threads_alive(ncpus),
+                            binary_vertex_tasks(graph.local_vertices()),
+                            reduction_barrier(ncpus) { 
+    graph.allocate_scope_callbacks();
     rmi.barrier();
   }
   
@@ -294,14 +302,19 @@ private:
    */
   void add_task(update_task_type task, double priority) {
     if (graph.is_owned(task.vertex())) {
-      scheduler.add_task(task, priority);
-      if (threads_alive.value < ncpus) {
-        consensus.cancel_one();
+      // translate to local IDs
+      task =  update_task_type(graph.globalvid_to_localvid(task.vertex()), task.function());
+      ASSERT_LT(task.vertex(), vertex_deferred_tasks.size());
+      if (binary_vertex_tasks.add(task)) {
+        scheduler.add_task(task, priority);
+        if (threads_alive.value < ncpus) {
+          consensus.cancel_one();
+        }
       }
     }
     else {
       rmi.remote_call(graph.globalvid_to_owner(task.vertex()),
-                      &distributed_chromatic_engine<Graph>::add_task,
+                      &distributed_locking_engine<Graph, Scheduler>::add_task,
                       task,
                       priority);
     }
@@ -318,6 +331,9 @@ private:
     for (size_t i = 0;i < vertices.size(); ++i) {
       add_task(update_task_type(vertices[i], func), priority);
     }
+    if (threads_alive.value < ncpus) {
+      consensus.cancel();
+    }
   }
 
 
@@ -329,7 +345,15 @@ private:
   void add_task_to_all_impl(update_function_type func,
                             double priority) {
     for (size_t i = 0;i < graph.owned_vertices().size(); ++i) {
-      scheduler.add_task(update_task_type(graph.owned_vertices()[i], func), priority);
+      size_t localvid = graph.globalvid_to_localvid(graph.owned_vertices()[i]);      
+      ASSERT_LT(localvid, vertex_deferred_tasks.size());
+      if (binary_vertex_tasks.add(update_task_type(localvid, func))) {
+        scheduler.add_task(update_task_type(localvid, func), priority);
+      }
+    }
+    if (threads_alive.value < ncpus) {
+      consensus.cancel();
+    }
   }
  
   /**
@@ -343,7 +367,7 @@ private:
     for (size_t i = 0;i < rmi.numprocs(); ++i) {
       if (i != rmi.procid()) {
         rmi.remote_call(i,
-                        &distributed_chromatic_engine<Graph>::add_task_to_all_from_remote,
+                        &distributed_locking_engine<Graph, Scheduler>::add_task_to_all_from_remote,
                         reinterpret_cast<size_t>(func),
                         priority);
       }
@@ -374,10 +398,7 @@ private:
   }
 
   /************  Actual Execution Engine ****************/
- private:
 
-  atomic<size_t> curidx;
-  barrier thread_color_barrier;
  public: 
   
   struct termination_evaluation{
@@ -439,13 +460,16 @@ private:
     for (size_t curtask = threadid; curtask < active_sync_tasks.size(); curtask += ncpus) {
       sync_task* task = active_sync_tasks[curtask];
       task->mergeval = task->thread_intermediate[0];
+      task->thread_intermediate[0] = task->zero;
+   
       for(size_t i = 1;i < task->thread_intermediate.size(); ++i) {
         task->merge_fun(task->mergeval, task->thread_intermediate[i]);
+        task->thread_intermediate[i] = task->zero;
       }
       // for efficiency, lets merge each sync task to the prefered machine
     }
     
-    thread_color_barrier.wait();
+    reduction_barrier.wait();
 
     // one thread of each machine participates in |active_sync_tasks| gathers
     if (threadid == 0) {
@@ -526,7 +550,7 @@ private:
         aggregate.force_stop |= termination_test[i].force_stop;
       }
       
-      else if (task_budget > 0 && aggregate.executed_tasks >= task_budget) {
+      if (task_budget > 0 && aggregate.executed_tasks >= task_budget) {
         termination_reason = EXEC_TASK_BUDGET_EXCEEDED;
       }
       else if (timeout_millis > 0 && aggregate.timeout) {
@@ -548,27 +572,90 @@ private:
     return reason_and_task.second;
   }
 
+  
+  void wake_up_reducer() {
+    reduction_mut.lock();
+    reduction_run = true;
+    reduction_cond.broadcast();
+    reduction_mut.unlock();
+  }
+  
+  mutex reduction_mut;
+  conditional reduction_cond;
+  bool reduction_stop;
+  bool reduction_run;
+  barrier reduction_barrier;
+  void reduction_thread(size_t threadid) {
+    dgraph_scope<Graph> scope;
+
+    while(1) {
+      reduction_mut.lock();
+      while(reduction_stop == false && reduction_run == false) reduction_cond.wait(reduction_mut);
+      if (reduction_stop) {
+        reduction_mut.unlock();
+        break;
+      }
+      reduction_mut.unlock();
+      reduction_barrier.wait();
+      reduction_run = false;
+      if (active_sync_tasks.size() > 0) {
+        //if we get here, we must run a reduction
+        for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
+          vertex_deferred_tasks[i].lock.lock();
+        }
+        if (default_scope_range == scope_range::FULL_CONSISTENCY) {
+          reduction_barrier.wait();
+        }
+        for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
+          scope.init(&graph, graph.owned_vertices()[i]);
+          eval_syncs(graph.owned_vertices()[i], scope, threadid);
+        }
+        reduction_barrier.wait();
+        for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
+          vertex_deferred_tasks[i].lock.unlock();
+        }
+        
+        reduction_barrier.wait();
+
+        sync_end_iteration(threadid);
+      }
+      reduction_barrier.wait();
+      if (threadid == 0) {
+        //std::cout << rmi.procid() << ": End of all colors" << std::endl;
+        size_t numtasksdone = check_global_termination();
+
+        std::cout << numtasksdone << " tasks done" << std::endl;
+        compute_sync_schedule(numtasksdone);
+      }
+    }
+  }
+  
+  
+  
+
   /** Vertex i is ready. put it into the ready vertices set */
   void vertex_is_ready(vertex_id_t v) {
-    
+    //logstream(LOG_DEBUG) << "Enqueue: " << v << std::endl;
+    ready_vertices.enqueue(graph.globalvid_to_localvid(v));
   }
 
-  bool try_to_quit(size_t threadid) {
-    //
+  bool try_to_quit(size_t threadid, sched_status::status_enum& stat, update_task_type &task) {
     threads_alive.dec();
     consensus.begin_done_critical_section();
-    //check the scheduler again
-    sched_status::status_enum stat = scheduler->get_next_task(cpuid, task);
+    stat = scheduler.get_next_task(threadid, task);
     if (stat == sched_status::EMPTY) {
-      return consensus.end_done_critical_section(true);
+      bool ret = consensus.end_done_critical_section(true);
+      threads_alive.inc();
+      return ret;
     }
     else {
       consensus.end_done_critical_section(false);
       threads_alive.inc();
       return false;
     }
-      
   }
+  
+  
   /**
    * Executed by a thread.
    *  - Begin deferred task
@@ -580,42 +667,78 @@ private:
   void start_thread(size_t threadid) {
     // create the scope
     dgraph_scope<Graph> scope;
-    update_task task;
+    update_task_type task;
     
     boost::function<void(vertex_id_t)> handler = boost::bind(&distributed_locking_engine<Graph, Scheduler>::vertex_is_ready, this, _1);
     while(1) {
+      if (termination_reason != EXEC_UNSET) {
+        consensus.force_done();
+        break;
+      }
       // pick up a deferred task 
       if (num_deferred_tasks.value < max_deferred_tasks) {
-        sched_status::status_enum stat = scheduler->get_next_task(cpuid, task);
+        sched_status::status_enum stat = scheduler.get_next_task(threadid, task);
+        // if there is nothing in the queue, and there are no deferred tasks to run
+        // lets try to quit
         if (stat == sched_status::EMPTY && num_deferred_tasks.value == 0) {
-          if (try_to_quit(threadid)) {
-            break;
-          }
+          bool ret = try_to_quit(threadid, stat, task);
+          if (ret == true) break;
+          if (ret == false && stat == sched_status::EMPTY) continue;
         }
-        //
-        num_deferred_tasks.inc();
-        graph_lock.scope_request(task.vertex(), handler, default_scope_range);
+        
+        //if scheduler game me a task
+        if (stat != sched_status::EMPTY) {
+          //added a deffered task
+          num_deferred_tasks.inc();
+          // translate the task back to globalids
+          vertex_id_t globalvid = graph.localvid_to_globalvid(task.vertex());
+  
+          // acquire the lock
+          ASSERT_LT(task.vertex(), vertex_deferred_tasks.size());
+          vertex_deferred_tasks[task.vertex()].lock.lock();
+          // insert the task
+          vertex_deferred_tasks[task.vertex()].updates.push_back(task.function());
+          // if a lock was not requested. request for it
+          if (vertex_deferred_tasks[task.vertex()].lockrequested == false) {
+            vertex_deferred_tasks[task.vertex()].lockrequested = true;
+            graphlock.scope_request(globalvid, handler, default_scope_range);
+          }
+          vertex_deferred_tasks[task.vertex()].lock.unlock();
+        }
       }
 
       // pick up a job to do
       std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
+      
       if (job.second) {
         // lets do it
-        size_t curv = job.first;
+        // curv is a localvid
+        vertex_id_t curv = job.first;
+        vertex_id_t globalvid = graph.localvid_to_globalvid(curv);
+        //logstream(LOG_DEBUG) << "Dequeue: " << globalvid << std::endl;
+
+        ASSERT_LT(curv, vertex_deferred_tasks.size());
+
         vertex_deferred_tasks[curv].lock.lock();
         while (!vertex_deferred_tasks[curv].updates.empty()) {
           update_function_type ut = vertex_deferred_tasks[curv].updates.front();
           vertex_deferred_tasks[curv].updates.pop_front();
-          vertex_deferred_tasks[curv].lock.unlock();
+          //  vertex_deferred_tasks[curv].lock.unlock();
 
-          scope.init(&graph, curv);
+          scope.init(&graph, globalvid);
+          
+          binary_vertex_tasks.remove(update_task_type(curv, ut));
+
           // run the update function
-          update_function(scope, callback, NULL);
-          // check if there are tasks to run
-          scope.commit_async_untracked();
+          ut(scope, callback, NULL);          
+          //vertex_deferred_tasks[curv].lock.lock();
+
           update_counts[threadid]++;
+          num_deferred_tasks.dec();
         }
-        foreach((deferred_tasks& dt vertex_deferred_tasks[job.first]
+        vertex_deferred_tasks[curv].lockrequested = false;
+        graphlock.scope_unlock(globalvid, default_scope_range);
+        vertex_deferred_tasks[curv].lock.unlock();
       }
     }
   }
@@ -631,10 +754,8 @@ private:
   
   /** Execute the engine */
   void start() {
-    assert(update_function != NULL);
     // generate colors then
     // wait for everyone to enter start    
-    generate_color_blocks();
     init_syncs();
     termination_reason = EXEC_UNSET;
     barrier_time = 0.0;
@@ -642,12 +763,13 @@ private:
     force_stop = false;
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
-    threads_alive = ncpus;
+    reduction_stop = false; 
+    reduction_run = false;
+    threads_alive.value = ncpus;
     
     std::fill(update_counts.begin(), update_counts.end(), 0);
     rmi.dc().full_barrier();
     // reset indices
-    curidx.value = 0;
     ti.start();
     // spawn threads
     thread_group thrgrp; 
@@ -655,13 +777,38 @@ private:
       size_t aff = use_cpu_affinity ? i : -1;
       launch_in_new_thread(thrgrp, 
                          boost::bind(
-                            &distributed_locking_engine<Graph>::start_thread,
+                            &distributed_locking_engine<Graph, Scheduler>::start_thread,
                             this, i), aff);
     }
     
-    thrgrp.join();              
+    thread_group thrgrp_reduction; 
+    for (size_t i = 0;i < ncpus; ++i) {
+      size_t aff = use_cpu_affinity ? i : -1;
+      launch_in_new_thread(thrgrp_reduction, 
+                         boost::bind(
+                            &distributed_locking_engine<Graph, Scheduler>::reduction_thread,
+                            this, i), aff);
+    }
+    if (rmi.procid() == 0) {
+      while(consensus.done_noblock() == false) {
+        for (size_t i = 1;i < rmi.numprocs(); ++i) {
+          rmi.remote_call(i,
+                          &distributed_locking_engine<Graph, Scheduler>::wake_up_reducer);
+        }
+        wake_up_reducer();
+        my_sleep(1);
+      }
+    }
+    thrgrp.join();          
+    reduction_mut.lock();
+    reduction_stop = true;
+    reduction_cond.broadcast();
+    reduction_mut.unlock();
+    thrgrp_reduction.join();    
     rmi.barrier();
     
+    if (termination_reason == EXEC_UNSET) termination_reason = EXEC_TASK_DEPLETION;
+
 
     
     // proc 0 gathers all update counts
@@ -702,7 +849,8 @@ private:
     }
     
     
-    
+    threads_alive.value = ncpus;
+
   }
   
   /**

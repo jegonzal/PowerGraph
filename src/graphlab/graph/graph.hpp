@@ -326,8 +326,13 @@ namespace graphlab {
       finalized = true;
     } // End of finalize
             
-    /** \brief Get the number of vetices */
+    /** \brief Get the number of vertices */
     size_t num_vertices() const {
+      return vertices.size();
+    } // end of num vertices
+
+    /** \brief Get the number of vertices local to this machine */
+    size_t local_vertices() const {
       return vertices.size();
     } // end of num vertices
 

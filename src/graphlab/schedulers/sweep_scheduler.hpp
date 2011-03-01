@@ -73,7 +73,7 @@ namespace graphlab {
                     size_t ncpus) : 
       terminator(ncpus) {
       this->g = &g;
-      numvertices = g.num_vertices();
+      numvertices = g.local_vertices();
       num_cpus = ncpus;
       callbacks.resize(num_cpus);
       for(unsigned int i=0; i<num_cpus; i++) {

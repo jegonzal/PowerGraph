@@ -101,6 +101,7 @@ add_dist2_executable(graph_lock_test graph_lock_test.cpp)
 add_dist2_executable(distributed_glshared_test distributed_glshared_test.cpp)
 add_dist2_executable(distributed_master_rank_test distributed_master_rank_test.cpp)
 add_dist2_executable(dist_chromatic_engine_test dist_chromatic_engine_test.cpp)
+add_dist2_executable(dist_locking_engine_test dist_locking_engine_test.cpp)
 
 add_zoltan_executable(zoltantest zoltantest.cpp)
 

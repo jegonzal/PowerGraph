@@ -84,7 +84,6 @@ class dgraph_scope : public iscope<Graph> {
   }
   
   void commit_ghosts(bool async) { 
-    assert(false);
     _graph_ptr->synchronize_scope(_vertex, async);
   }
   
@@ -92,7 +91,6 @@ class dgraph_scope : public iscope<Graph> {
   Push all the owned data in the scope
   */
   void push_owned(bool async, bool untracked) {
-    assert(false);
     _graph_ptr->push_owned_scope_to_replicas(_vertex,
                                              true, // modified only 
                                              true, // clear modified
@@ -120,8 +118,10 @@ class dgraph_scope : public iscope<Graph> {
 
   vertex_data_type& vertex_data() {
     own_modified = true;
-    _graph_ptr->increment_vertex_version(_vertex);
-    _graph_ptr->vertex_is_modified(_vertex);
+    if (_graph_ptr->is_vertex_modified(_vertex) == false) {
+      _graph_ptr->increment_vertex_version(_vertex);
+      _graph_ptr->vertex_is_modified(_vertex);
+    }
     return (_graph_ptr->vertex_data(_vertex));
   }
 
@@ -154,8 +154,10 @@ class dgraph_scope : public iscope<Graph> {
     else {
       owned_outedges_modified = true;
     }
-    _graph_ptr->increment_edge_version(eid);
-    _graph_ptr->edge_is_modified(eid);
+    if (_graph_ptr->is_edge_modified(eid) == false) {
+      _graph_ptr->increment_edge_version(eid);
+      _graph_ptr->edge_is_modified(eid);
+    }
     return (_graph_ptr->edge_data(eid));
   }
 
@@ -177,8 +179,10 @@ class dgraph_scope : public iscope<Graph> {
     else {
       owned_nbr_vertices_modified = true;
     }
-    _graph_ptr->increment_vertex_version(vertex);
-    _graph_ptr->vertex_is_modified(vertex);
+    if (_graph_ptr->is_vertex_modified(vertex) == false) {
+      _graph_ptr->increment_vertex_version(vertex);
+      _graph_ptr->vertex_is_modified(vertex);
+    }
     return _graph_ptr->vertex_data(vertex);
   }
   

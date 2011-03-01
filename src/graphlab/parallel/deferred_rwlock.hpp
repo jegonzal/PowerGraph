@@ -93,6 +93,7 @@ class deferred_rwlock{
     if (head != NULL) {
       if (head->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
         ret = complete_rdlock(released);
+        if (ret == 2) assert(released->next != NULL);
       }
       else {
         writer = true;
