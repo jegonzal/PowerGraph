@@ -560,7 +560,7 @@ void last_iter(){
   }
          
   if (iiter == MAX_ITER){
-    engine->stop();
+    //engine->stop();
   }
   if (BPTF){
     sample_alpha(res);
@@ -819,7 +819,7 @@ void start(int argc, char ** argv) {
 
   double res, res2;
   double rmse =  calc_rmse(g, false, res);
-  printf("complete. Obj=%g, TEST RMSE=%0.4f.\n", calc_obj(res), calc_rmse(&test_graph, true, res2));
+  printf("complete. Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&test_graph, true, res2));
 
 
   if (BPTF){
@@ -839,7 +839,7 @@ void start(int argc, char ** argv) {
 
   // calculate final RMSE
   rmse =  calc_rmse(g, false, res);
-  printf("Final result. Obj=%g, TEST RMSE= %0.4f.\n", calc_obj(res),  calc_rmse(&test_graph, true, res2));
+  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f TEST RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&test_graph, true, res2));
   
 
   /**** POST-PROCESSING *****/
@@ -1066,8 +1066,8 @@ int main(int argc,  char *argv[]) {
 
   infile = argv[1];
 
-  if (infile == "" || argc <= 3) {
-    std::cout << "PMF <intput file> <run mode [0-4]>\n";
+  if (infile == "" || argc <= 2) {
+    std::cout << "PMF <input file> <run mode [0-4]>\n";
     return 0;
   }
   
