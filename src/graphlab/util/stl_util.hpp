@@ -139,7 +139,7 @@ namespace graphlab {
                     const Key& key) {
     typedef typename std::map<Key, T>::const_iterator iterator;
     iterator iter = map.find(key);
-    assert(iter != map.end());
+    ASSERT_TRUE(iter != map.end());
     return iter->second;
   } // end of safe_get
 
@@ -153,12 +153,8 @@ namespace graphlab {
                     const Key& key, const T default_value) {
     typedef typename std::map<Key, T>::const_iterator iterator;
     iterator iter = map.find(key);
-    if (iter == map.end()) {
-      return default_value;
-    }
-    else {
-      return iter->second;
-    }
+    if (iter == map.end())   return default_value;
+    else return iter->second;
   } // end of safe_get
 
   /**
