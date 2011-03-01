@@ -414,7 +414,7 @@ void distributed_graph<VertexData, EdgeData>::update_vertex_data_and_version(
                         vertex_id_t vid, 
                         distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore) {
   vertex_id_t localvid = global2localvid[vid];
-  if (vstore.hasdata && vstore.data.second >= localstore.vertex_version(localvid)) {
+  if (vstore.hasdata) {
     localstore.vertex_data(localvid) = vstore.data.first;
     localstore.set_vertex_version(localvid, vstore.data.second);
   }
@@ -468,7 +468,6 @@ void distributed_graph<VertexData, EdgeData>::reply_alot2(
     ASSERT_TRUE(scope_callbacks[localvid].callback != NULL);
     if (scope_callbacks[localvid].counter.dec() == 0) {
       // make a copy of it and clear the callbacks entry.
-      // since the callback function itself could register as callback again
       boost::function<void (void)> tmp = scope_callbacks[localvid].callback;
       scope_callbacks[localvid].callback = NULL;
       tmp();

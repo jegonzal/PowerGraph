@@ -90,7 +90,7 @@ class graph_lock {
     // check if I need to unlock neighbors
     if (adjacent_vertex_lock_type(scopetype) != scope_range::NO_LOCK) {
     
-      unsigned char prevkey = rmi.dc().set_sequentialization_key(globalvid % 256);
+      unsigned char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
       if (synchronize_data && dgraph.on_boundary(globalvid)) {
         dgraph.synchronize_scope(globalvid, true);
       }
@@ -243,7 +243,7 @@ class graph_lock {
       else {
         // if I have to synchronize and if this vid is boundary
         if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
-          unsigned char prevkey = rmi.dc().set_sequentialization_key(params.globalvid % 256);
+          unsigned char prevkey = rmi.dc().set_sequentialization_key((params.globalvid % 254) + 1);
           dgraph.async_synchronize_scope_callback(params.globalvid, 
                                boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
           rmi.dc().set_sequentialization_key(prevkey);
@@ -275,8 +275,11 @@ class graph_lock {
         // if synchronize data is set, issue one more continuation which
         // goes to a global fuctnction
         if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
+          unsigned char prevkey = rmi.dc().set_sequentialization_key((params.globalvid % 254) + 1);
           dgraph.async_synchronize_scope_callback(params.globalvid, 
                                boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
+          rmi.dc().set_sequentialization_key(prevkey);
+
         }
         else {
           // I am done!

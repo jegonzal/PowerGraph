@@ -26,8 +26,8 @@ typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
 
-const size_t NUMV = 100;
-const size_t NUMITERATIONS = 100;
+const size_t NUMV = 1000;
+const size_t NUMITERATIONS = 1000;
 const size_t SYNC_INTERVAL = 100;
 void generate_atoms() {
   graph<size_t, double> testgraph;
@@ -161,13 +161,13 @@ int main(int argc, char** argv) {
   std::cout << "Testing Static: " << std::endl;
   // now we make an engine
   engine_type engine(dc, dg, 4);
-  /*averagevalue.set(0.0);
+  averagevalue.set(0.0);
   engine.set_sync(averagevalue,
                 sync_sum_fun,
                 apply_fun,
                 any(accumulator_type()),
                 SYNC_INTERVAL,
-                merge_fun);*/
+                merge_fun);
 
   /*******************************************************************/
   
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
   engine.add_task_to_all(add_one_dynamic, 1.0);
   engine.start();
   std::cout << "Done!" << std::endl;
-  //std::cout << "Synced value: " << averagevalue.get_val() << std::endl;
+  std::cout << "Synced value: " << averagevalue.get_val() << std::endl;
 
   
   dc.fill_metrics();

@@ -20,6 +20,13 @@ bool async_consensus::done() {
   return end_done_critical_section(true);
 }
 
+
+void async_consensus::force_done() {
+  begin_done_critical_section();
+  complete = true;
+  end_done_critical_section(true);
+}
+
 void async_consensus::begin_done_critical_section() {
   mut.lock();
 }

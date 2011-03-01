@@ -32,6 +32,12 @@ class async_consensus {
 
   bool end_done_critical_section(bool done);
 
+  void force_done();
+  
+  bool done_noblock() {
+    return complete;
+  }
+
   /**
    * Cancels a "done" call. done() will immediately return
    * false after this. Note that this function is rather costly
