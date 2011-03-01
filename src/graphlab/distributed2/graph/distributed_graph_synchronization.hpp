@@ -97,8 +97,9 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid,
           std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
     iter = requests.begin();
     size_t replytarget = reinterpret_cast<size_t>(&pending_async_updates);
+    pending_async_updates.flag.inc(requests.size());
+
     while(iter != requests.end()) {
-      pending_async_updates.flag.inc();
       rmi.remote_call(iter->first,
                       &distributed_graph<VertexData, EdgeData>::async_get_alot2,
                       rmi.procid(),
@@ -115,8 +116,9 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid,
           std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
     iter = requests.begin();
     size_t replytarget = reinterpret_cast<size_t>(&reply);
+    reply.flag.inc(requests.size());
+
     while(iter != requests.end()) {
-      reply.flag.inc();
       rmi.remote_call(iter->first,
                       &distributed_graph<VertexData, EdgeData>::async_get_alot2,
                       rmi.procid(),
@@ -236,8 +238,10 @@ void distributed_graph<VertexData, EdgeData>::async_synchronize_scope_callback(v
         std::pair<block_synchronize_request2, std::vector<vertex_id_t>::iterator> >::iterator iter;
   iter = requests.begin();
   
+  ASSERT_EQ(scope_callbacks[localvid].counter.value, 0);
+  scope_callbacks[localvid].counter.inc(requests.size());
   while(iter != requests.end()) {
-    scope_callbacks[localvid].counter.inc();
+
     // the reply target is 0. see reply_alot2
     rmi.remote_call(iter->first,
                     &distributed_graph<VertexData, EdgeData>::async_get_alot2,
@@ -247,6 +251,7 @@ void distributed_graph<VertexData, EdgeData>::async_synchronize_scope_callback(v
                     localvid);
     ++iter;
   }
+
 
 }
 
@@ -459,13 +464,14 @@ void distributed_graph<VertexData, EdgeData>::reply_alot2(
   else {
     // tag is local vid
     vertex_id_t localvid = tag;
+
     ASSERT_TRUE(scope_callbacks[localvid].callback != NULL);
     if (scope_callbacks[localvid].counter.dec() == 0) {
       // make a copy of it and clear the callbacks entry.
-      async_scope_callback tmp = scope_callbacks[localvid];
+      // since the callback function itself could register as callback again
+      boost::function<void (void)> tmp = scope_callbacks[localvid].callback;
       scope_callbacks[localvid].callback = NULL;
-      
-      tmp.callback();
+      tmp();
     }
   }
   

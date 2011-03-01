@@ -52,6 +52,10 @@ class graph_lock {
   void scope_request(vertex_id_t globalvid,
                     boost::function<void(vertex_id_t)> handler,
                     scope_range::scope_range_enum scopetype) {
+#ifdef DISTRIBUTED_LOCK_DEBUG
+    logstream(LOG_DEBUG) << "scope request for "<< globalvid << std::endl;
+#endif
+
     // construct the scope lock parameters
     scopelock_cont_params sparams;
     sparams.globalvid = globalvid;
@@ -79,11 +83,15 @@ class graph_lock {
   */
   void scope_unlock(vertex_id_t globalvid,
                     scope_range::scope_range_enum scopetype) {
+#ifdef DISTRIBUTED_LOCK_DEBUG
+    logstream(LOG_DEBUG) << "scope release for "<< globalvid << std::endl;
+#endif
+
     // check if I need to unlock neighbors
     if (adjacent_vertex_lock_type(scopetype) != scope_range::NO_LOCK) {
     
       unsigned char prevkey = rmi.dc().set_sequentialization_key(globalvid % 256);
-      if (synchronize_data) {
+      if (synchronize_data && dgraph.on_boundary(globalvid)) {
         dgraph.synchronize_scope(globalvid, true);
       }
       
@@ -142,7 +150,7 @@ class graph_lock {
   
  private:
   /// The distributed graph we are locking over
-  const GraphType &dgraph;
+  GraphType &dgraph;
   /// The RMI object
   dc_dist_object<graph_lock<GraphType> > rmi;
   
@@ -197,7 +205,10 @@ class graph_lock {
 
   void partial_lock_completion(size_t scope_continuation_ptr) {
     typename lazy_deque<scopelock_cont_params>::value_type* 
-          ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);
+          ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);    
+#ifdef DISTRIBUTED_LOCK_DEBUG    
+    logstream(LOG_DEBUG) << "Receiving successful remote lock of " << ptr->first.globalvid << std::endl;
+#endif
     continue_scope_lock(ptr);
   }
 
@@ -230,9 +241,12 @@ class graph_lock {
                               (size_t)(ptr));
       }
       else {
-        if (synchronize_data) {
-          dgraph.async_synchronize_scope_callback(ptr->globalvid, 
+        // if I have to synchronize and if this vid is boundary
+        if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
+          unsigned char prevkey = rmi.dc().set_sequentialization_key(globalvid % 256);
+          dgraph.async_synchronize_scope_callback(params.globalvid, 
                                boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
+          rmi.dc().set_sequentialization_key(prevkey);
         }
         else {
           // I am done!
@@ -260,8 +274,8 @@ class graph_lock {
         // finish the continuation by erasing the lazy_deque entry
         // if synchronize data is set, issue one more continuation which
         // goes to a global fuctnction
-        if (synchronize_data) {
-          dgraph.async_synchronize_scope_callback(ptr->globalvid, 
+        if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
+          dgraph.async_synchronize_scope_callback(params.globalvid, 
                                boost::bind(&graph_lock<GraphType>::data_synchronize_reply, this, ptr));
         }
         else {
@@ -286,7 +300,7 @@ class graph_lock {
                          size_t src_tag) {
     // construct a partiallock_continuation
 #ifdef DISTRIBUTED_LOCK_DEBUG
-    logstream(LOG_DEBUG) << rmi.procid() << ": p-lock request from "<< srcproc << " : " << globalvid << std::endl;
+  //  logstream(LOG_DEBUG) << rmi.procid() << ": p-lock request from "<< srcproc << " : " << globalvid << std::endl;
 #endif
     partiallock_cont_params plockparams;
     plockparams.srcproc = srcproc;
@@ -398,6 +412,9 @@ class graph_lock {
       partial_lock_completion(params.src_tag);
     }
     else {
+    #ifdef DISTRIBUTED_LOCK_DEBUG
+      logstream(LOG_DEBUG) << "Replying to successful remote lock of " << dgraph.local2globalvid[curv] << std::endl;
+    #endif
       rmi.remote_call(params.srcproc,
                       &graph_lock<GraphType>::partial_lock_completion,
                       (size_t)params.src_tag);
@@ -419,40 +436,44 @@ class graph_lock {
   */
   bool issue_deferred_lock(size_t id, deferred_rwlock::request &req,
                            scope_range::lock_type_enum locktype) {
+    ASSERT_LT(id, locks.size());
     deferred_rwlock::request* released = NULL;
     size_t numreleased = 0;
     switch(locktype) {
       case scope_range::READ_LOCK:
 #ifdef DISTRIBUTED_LOCK_DEBUG
-        logstream(LOG_DEBUG) << "read lock on " << dgraph.local2globalvid[id] << std::endl;
+ //       logstream(LOG_DEBUG) << "read lock on " << dgraph.local2globalvid[id] << std::endl;
 #endif
         numreleased = locks[id].readlock(&req, released);
+
         return complete_release(released, numreleased, &req);
       case scope_range::WRITE_LOCK:
 #ifdef DISTRIBUTED_LOCK_DEBUG
-        logstream(LOG_DEBUG) << "write lock on " << dgraph.local2globalvid[id] << std::endl;
+//        logstream(LOG_DEBUG) << "write lock on " << dgraph.local2globalvid[id] << std::endl;
 #endif
         return locks[id].writelock(&req);
       default:
-        return false;
+        return true;
     }
   }
 
   void issue_deferred_unlock(size_t id,
-                           scope_range::lock_type_enum locktype) {
+                           scope_range::lock_type_enum locktype) {  
+                           
+    ASSERT_LT(id, locks.size());
     deferred_rwlock::request* released = NULL;
     size_t numreleased = 0;
     switch(locktype) {
       case scope_range::READ_LOCK:
 #ifdef DISTRIBUTED_LOCK_DEBUG
-        logstream(LOG_DEBUG) << "read unlock on " << dgraph.local2globalvid[id] << std::endl;
+//        logstream(LOG_DEBUG) << "read unlock on " << dgraph.local2globalvid[id] << std::endl;
 #endif
         numreleased = locks[id].rdunlock(released);
         complete_release(released, numreleased, NULL);
         break;
       case scope_range::WRITE_LOCK:
 #ifdef DISTRIBUTED_LOCK_DEBUG
-        logstream(LOG_DEBUG) << "write unlock on " << dgraph.local2globalvid[id] << std::endl;
+ //       logstream(LOG_DEBUG) << "write unlock on " << dgraph.local2globalvid[id] << std::endl;
 #endif
         numreleased = locks[id].wrunlock(released);
         complete_release(released, numreleased, NULL);
@@ -463,6 +484,10 @@ class graph_lock {
   }
 
   void partial_unlock(vertex_id_t globalvid, size_t scopetypeint) {
+  #ifdef DISTRIBUTED_LOCK_DEBUG
+  //    logstream(LOG_DEBUG) << rmi.procid() << ": p-unlock request for " << globalvid << std::endl;
+  #endif
+
     scope_range::scope_range_enum scopetype = (scope_range::scope_range_enum)(scopetypeint);
 
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator 
@@ -534,11 +559,12 @@ class graph_lock {
     return true.
     Returns false otherwise.
   */
-  bool complete_release(deferred_rwlock::request *released,
+  bool complete_release(deferred_rwlock::request* released,
                         size_t numreleased,
                         deferred_rwlock::request* watch) {
     bool ret = false;
     for (size_t i = 0;i < numreleased; ++i) {
+      deferred_rwlock::request* nextptr = (deferred_rwlock::request*)(released->next);
       if (released == watch) {
         ret = true;
       }
@@ -550,7 +576,7 @@ class graph_lock {
                       realptr = (typename lazy_deque<partiallock_cont_params>::value_type*)(ptr);
         continue_partial_lock(realptr);
       }
-      released = (deferred_rwlock::request*)(released->next);
+      released = nextptr;
     }
     return ret;
   }

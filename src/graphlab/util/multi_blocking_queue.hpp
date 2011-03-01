@@ -110,17 +110,26 @@ namespace graphlab {
       std::pair<T, bool> ret;
       ret.second = false;
       
-      single_queue& queueref = allqueues[id];
-      queueref.m_mutex.lock();
-      
-      if(!queueref.m_queue.empty()) {
-        ret.second = true;  // success
-        ret.first = queueref.m_queue.front();
-        queueref.m_queue.pop_front();
-        queueref.numelem--;
-      } 
-      queueref.m_mutex.unlock();
+      for (size_t i = 0; i < allqueues.size(); ++i) {
+        single_queue& queueref = allqueues[id];
+        if (queueref.numelem > 0) {
+          queueref.m_mutex.lock();
+          
+          if(!queueref.m_queue.empty()) {
+            ret.second = true;  // success
+            ret.first = queueref.m_queue.front();
+            queueref.m_queue.pop_front();
+            queueref.numelem--;
+            queueref.m_mutex.unlock();
+            break;
+          } 
+          queueref.m_mutex.unlock();
+        }
+        id++;
+        if (id == allqueues.size()) id = 0;
+      }
       return ret;
+
     }
 
     //! verify that the queue is not empty
