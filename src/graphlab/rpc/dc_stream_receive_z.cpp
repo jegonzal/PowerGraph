@@ -28,7 +28,7 @@ void dc_stream_receive_z::incoming_data(procid_t src,
   do{
     zstrm.avail_out = 128*1024;
     zstrm.next_out = (Bytef*)zbuffer;
-    ASSERT_EQ(inflate(&zstrm, Z_SYNC_FLUSH), Z_OK);
+    ASSERT_NE(inflate(&zstrm, Z_SYNC_FLUSH), Z_STREAM_ERROR);
     bufferlock.lock();
       GRZOUT[src] += 128*1024 - zstrm.avail_out;
     buffer.write(zbuffer, 128*1024 - zstrm.avail_out);
