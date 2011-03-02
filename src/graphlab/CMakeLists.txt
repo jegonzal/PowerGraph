@@ -53,6 +53,11 @@ endif()
 if (MPI_FOUND)
   set(rpc_init_from_mpi rpc/dc_init_from_mpi.cpp)
 endif()
+
+if (ZLIB_FOUND)
+  set(rpc_compressed rpc/dc_stream_receive_z.cpp
+                      rpc/dc_buffered_stream_send_expqueue_z.cpp)
+endif()
   
 add_library(graphlab_rpc STATIC
   rpc/dc_comm_base.cpp
@@ -70,7 +75,8 @@ add_library(graphlab_rpc STATIC
   rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp
   ${rpc_init_from_mpi}
-  rpc/async_consensus.cpp)
+  rpc/async_consensus.cpp
+  ${rpc_compressed})
 
 
 IF(ZOLTAN_FOUND)

@@ -71,6 +71,10 @@ class dc_tcp_comm:public dc_comm_base {
     return curid;
   }
   
+  inline size_t network_bytes_sent() const {
+    return network_bytessent.value;
+  }
+  
   void flush(size_t target);
   /**
    Sends the string of length len to the target machine dest.
@@ -148,6 +152,9 @@ class dc_tcp_comm:public dc_comm_base {
   std::vector<thread*> handlerthreads;
   
   std::vector<int> outsocks; 
+  
+  atomic<size_t> network_bytessent;
+  
 };
 
 } // namespace dc_impl

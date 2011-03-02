@@ -55,6 +55,7 @@ void dc_tcp_comm::init(const std::vector<std::string> &machines,
     all_addrs[i] = addr;
     portnums[i] = port;
   }
+  network_bytessent = 0;
   open_listening();
 }
 
@@ -112,6 +113,7 @@ void dc_tcp_comm::check_for_out_connection(size_t target) {
 }
   
 void dc_tcp_comm::send(size_t target, const char* buf, size_t len) {
+  network_bytessent.inc(len);
   check_for_out_connection(target);
   #ifdef COMM_DEBUG
   logstream(LOG_INFO) << len << " bytes --> " << target  << std::endl;
@@ -124,6 +126,7 @@ void dc_tcp_comm::send(size_t target, const char* buf, size_t len) {
 void dc_tcp_comm::send2(size_t target, 
                        const char* buf1, const size_t len1,
                        const char* buf2, const size_t len2) {
+  network_bytessent.inc(len1 + len2);
   check_for_out_connection(target);
   struct msghdr data;
   struct iovec vec[2];
