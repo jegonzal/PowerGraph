@@ -346,6 +346,7 @@ void partition_update_function(iscope_type& scope,
       const double score = 
         (double(nbr_a2c[i]) / (nbr_sum + 1)) / 
         (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
+
       if(score > best_score) {
         best_score = score; best_atomid = i;
       }
@@ -356,6 +357,7 @@ void partition_update_function(iscope_type& scope,
       // }
 
     }
+
     // if we failed try again 
     if(best_atomid == procid_t(-1)) {
       callback.add_task(scope.vertex(), partition_update_function); 
@@ -372,6 +374,8 @@ void partition_update_function(iscope_type& scope,
       changed = true;
     }
   } // end update assign
+
+
   // Reschedule the neighbors
   if(changed || vdata.is_seed) {
     // Schedule all in neighbors
@@ -461,14 +465,13 @@ int main(int argc, char** argv) {
   // Initialize global quantites
   NVERTS = graph.num_vertices();
   NEDGES = graph.num_edges();
-
   shared_statistics.set(statistics(NATOMS));
 
-  logstream(LOG_INFO)
-    << "Artificially color the graph" << std::endl;
-  foreach(const vertex_id_t vid, graph.owned_vertices()) {
-    graph.color(vid) =  rand() % NUM_COLORS;
-  }
+  // logstream(LOG_INFO)
+  //   << "Artificially color the graph" << std::endl;
+  // foreach(const vertex_id_t vid, graph.owned_vertices()) {
+  //   graph.color(vid) =  rand() % NUM_COLORS;
+  // }
 
 
   logstream(LOG_INFO)  
