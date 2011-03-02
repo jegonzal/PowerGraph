@@ -344,6 +344,11 @@ class distributed_control{
     }
   }  
   
+  
+  inline size_t network_bytes_sent() const {
+    return comm->network_bytes_sent();
+  }  
+  
   inline size_t bytes_received() const {
     size_t ret = 0;
     for (size_t i = 0;i < receivers.size(); ++i) ret += receivers[i]->bytes_received();
@@ -501,12 +506,13 @@ class distributed_control{
   struct collected_statistics {
     size_t callssent;
     size_t bytessent;
-    collected_statistics(): callssent(0), bytessent(0) { }
+    size_t network_bytessent;
+    collected_statistics(): callssent(0), bytessent(0), network_bytessent(0) { }
     void save(oarchive &oarc) const {
-      oarc << callssent << bytessent;
+      oarc << callssent << bytessent << network_bytessent;
     }
     void load(iarchive &iarc) {
-      iarc >> callssent >> bytessent;
+      iarc >> callssent >> bytessent >> network_bytessent;
     }
   };
  public:

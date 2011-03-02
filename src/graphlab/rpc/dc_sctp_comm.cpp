@@ -100,7 +100,7 @@ void dc_sctp_comm::close() {
 }
 
 void dc_sctp_comm::send(size_t target, const char* buf, size_t len) {
-
+  network_bytessent.inc(len);
   int err = sendtosock(sendsock,target, buf, len, STREAM_ALL);
   ASSERT_EQ(err, 0);
 }

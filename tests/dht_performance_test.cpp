@@ -25,16 +25,17 @@ std::string randstring(size_t len) {
 }
 
 int main(int argc, char ** argv) {
-  mpi_tools::init(argc, argv);
+  //mpi_tools::init(argc, argv);
   global_logger().set_log_level(LOG_INFO);
 
   dc_init_param param;
-  if (init_param_from_mpi(param) == false) {
+  if (init_param_from_env(param) == false) {
     return 0;
   }
   
   global_logger().set_log_level(LOG_DEBUG);
-
+  param.initstring = "compressed=yes";
+//  param.initstring = "buffered_send=yes";
   //distributed_control dc(machines,"buffered_send=yes,buffered_recv=yes", machineid, 8, SCTP_COMM);
   distributed_control dc(param);
   std::cout << "I am machine id " << dc.procid() 
@@ -42,7 +43,7 @@ int main(int argc, char ** argv) {
   dht<std::string, std::string> testdht(dc);
   
   std::vector<std::pair<std::string, std::string> > data;
-  const size_t NUMSTRINGS = 10000;
+  const size_t NUMSTRINGS = 100000;
   // fill rate
   if (dc.procid() == 0) {
     for (size_t i = 0;i < NUMSTRINGS; ++i) {
@@ -81,5 +82,5 @@ int main(int argc, char ** argv) {
   }
   dc.barrier();
   testdht.print_stats();
-  mpi_tools::finalize();
+  //mpi_tools::finalize();
 }

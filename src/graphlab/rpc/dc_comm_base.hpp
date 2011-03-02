@@ -55,6 +55,8 @@ class dc_comm_base {
   
   virtual procid_t procid() const = 0;
   
+  virtual size_t network_bytes_sent() const = 0;
+  
   /** returns true if the channel to the target
   machine is truly open. The dc_comm_base specification allows
   for lazy channels which are not created until it is used.

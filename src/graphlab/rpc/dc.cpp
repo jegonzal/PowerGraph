@@ -25,6 +25,11 @@
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue2.hpp>
 
+#ifdef ZLIB_FOUND
+#include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
+#include <graphlab/rpc/dc_stream_receive_z.hpp>
+#endif
+
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
@@ -145,11 +150,13 @@ distributed_control::~distributed_control() {
   // shutdown function call handlers
   fcallqueue.stop_blocking();
   fcallhandlers.join();
-  delete comm;
   logstream(LOG_INFO) << "Bytes Sent: " << bytessent << std::endl;
   logstream(LOG_INFO) << "Calls Sent: " << calls_sent() << std::endl;
+  logstream(LOG_INFO) << "Network Sent: " << network_bytes_sent() << std::endl;
   logstream(LOG_INFO) << "Bytes Received: " << bytesreceived << std::endl;
   logstream(LOG_INFO) << "Calls Received: " << calls_received() << std::endl;
+  
+  delete comm;
 
 }
   
@@ -278,6 +285,15 @@ void distributed_control::init(const std::vector<std::string> &machines,
   bool buffered_recv = false;
   bool buffered_queued_send = false;
   bool buffered_queued_send_single = false;
+  bool compressed = false;
+
+  if (options["compressed"] == "true" || 
+    options["compressed"] == "1" ||
+    options["compressed"] == "yes") {
+    compressed = true;
+    std::cerr << "Compressed Buffered Queued Send Option is ON." << std::endl;
+  }
+  
   if (options["buffered_send"] == "true" || 
     options["buffered_send"] == "1" ||
     options["buffered_send"] == "yes") {
@@ -335,14 +351,31 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
-      if (buffered_recv) {
+      if (compressed) {
+        #ifdef ZLIB_FOUND
+        receivers.push_back(new dc_impl::dc_stream_receive_z(this));
+        #else
+        logger(LOG_FATAL, "Not compiled with ZLib. Compressed option not available");
+        assert(false);
+        #endif
+      }
+      else if (buffered_recv) {
         receivers.push_back(new dc_impl::dc_buffered_stream_receive(this));
       }
       else {
         receivers.push_back(new dc_impl::dc_stream_receive(this));
       }
-      
-      if (buffered_send) {
+
+      if (compressed) {
+        #ifdef ZLIB_FOUND
+        single_sender = false;
+        senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue_z(this, comm, i));
+        #else
+        logger(LOG_FATAL, "Not compiled with ZLib. Compressed option not available");
+        assert(false);
+        #endif
+      }      
+      else if (buffered_send) {
         single_sender = false;
         senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
       }
@@ -500,16 +533,19 @@ std::map<std::string, size_t> distributed_control::gather_statistics(){
     std::vector<collected_statistics> stats(numprocs());
     stats[procid()].callssent = calls_sent();
     stats[procid()].bytessent = bytes_sent();
-    
+    stats[procid()].network_bytessent = network_bytes_sent();
     gather(stats, 0, true);
     if (procid() == 0) {
       collected_statistics cs;
       for (size_t i = 0;i < numprocs(); ++i) {
         cs.callssent += stats[i].callssent;
         cs.bytessent += stats[i].bytessent;
+        cs.network_bytessent += stats[i].network_bytessent;
+
       }
       ret["total_calls_sent"] = cs.callssent;
       ret["total_bytes_sent"] = cs.bytessent;
+      ret["network_bytes_sent"] = cs.network_bytessent;
     }
     return ret; 
 }
