@@ -218,6 +218,18 @@ struct statistics {
   }
 
 
+  double vertex_imbalance(size_t atomid) const {
+    if(vset == 0) return 0;
+    return double(atom2vcount[atomid] * NATOMS) / double(vset);
+  }
+
+
+  double edge_imbalance(size_t atomid) const {
+    if(eset == 0) return 0;
+    return double(atom2ecount[atomid] * NATOMS) / double(eset);
+  }
+
+
 
   void finalize(size_t old_nchanges) {
     vset = 0; 
@@ -369,14 +381,20 @@ void partition_update_function(iscope_type& scope,
   std::vector<double> prb(NATOMS);
   { // Smooth slightly to fix problems with star graphs
     //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
-    const double SMOOTHING(0);
+    const double SMOOTHING(1.0e-5);
     for(size_t i = 0; i < NATOMS; ++i) 
-      prb[i] =  exp( double(nbr_a2c[i]) / nbr_sum) * nbr_a2c[i];
+      prb[i] = exp(double(nbr_a2c[i]) / nbr_sum) * nbr_a2c[i] + 
+        SMOOTHING;
     //    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes; 
 
     // Zero unbalanced classes
-    for(size_t i - 0; i < NATOMS; ++i) {  
-      
+    for(size_t i = 0; i < NATOMS; ++i) {  
+      if(stats.vertex_imbalance(i) > 5) {
+        if(random::rand01() < 0.25) {
+          prb[i] = 0;
+        }
+        
+      }
     }
 
   }
