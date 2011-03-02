@@ -371,7 +371,7 @@ void partition_update_function(iscope_type& scope,
     const double SMOOTHING(0);
     for(size_t i = 0; i < NATOMS; ++i)
       prb[i] = exp( double(nbr_a2c[i] + SMOOTHING) / nbr_sum );
-    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes;
+    //    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes;
   }
   { // normalize
     double Z = 0;
