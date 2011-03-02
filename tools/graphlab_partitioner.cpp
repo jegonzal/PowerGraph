@@ -23,7 +23,7 @@ using namespace graphlab;
 
 /// GLOBAL CONSTANTS
 const size_t MAX_CHANGES(10);
-const size_t MAX_ITERATIONS(10);
+const size_t MAX_ITERATIONS(2);
 const size_t SYNC_INTERVAL(100);
 const size_t NUM_COLORS(10);
 
@@ -312,14 +312,14 @@ void partition_update_function(iscope_type& scope,
   bool changed(false);
   // Get the vertex data (as a constant)
   const vertex_data_type& vdata(scope.const_vertex_data());
-  if(!vdata.is_seed) {
+  if(!vdata.is_seed && !vdata.is_set) {
     // Get the shared statistics
     typedef shared_statistics_type::const_ptr_type shared_ptr_type;
     shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
     const statistics& stats(*shared_statistics_ptr);
     // Compute the best atomid to join
-    double best_score(-1);
-    procid_t best_atomid(-1);
+    double best_score(0);
+    procid_t best_atomid(random::rand_int(NATOMS-1));
     // if(stats.eset == 0) best_atomid = rand() % NATOMS;
     // else best_atomid = stats.edge_min();    
     //    best_atomid = stats.edge_min();    
@@ -343,12 +343,18 @@ void partition_update_function(iscope_type& scope,
       //   best_score = score; best_atomid = i;
       // }
 
-      const double score = 
-        (double(nbr_a2c[i]) / nbr_sum) / 
-        (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
-      if(score > best_score && new_imbalance < 3) {
+      // const double score = 
+      //   (double(nbr_a2c[i]) / (nbr_sum + 1)) / 
+      //   (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
+      // if(score > best_score) {
+      //   best_score = score; best_atomid = i;
+      // }
+
+      const double score = nbr_a2c[i];
+      if(score > best_score) {
         best_score = score; best_atomid = i;
       }
+
     }
     // if we failed try again 
     if(best_atomid == procid_t(-1)) {
@@ -526,15 +532,16 @@ int main(int argc, char** argv) {
     foreach(const vertex_id_t vid, stats.samples) {
       ASSERT_NE(vid, vertex_id_t(-1));
       if(graph.vertex_is_local(vid)) {
-        vertex_data_type& vdata = graph.vertex_data(vid);
+        vertex_data_type vdata;
         vdata.atomid = rand() % NATOMS;
         vdata.is_set = true;
-        //        vdata.is_seed = true;
-        graph.vertex_is_modified(vid);
-        graph.increment_vertex_version(vid);
+        vdata.is_seed = true;
+        graph.set_vertex_data(vid, vdata);        
         engine.add_vtask(vid, partition_update_function);
       } // end of if 0
     } // end of loop over unset vertices
+    dc.full_barrier();
+
   } // end of for iteration_counter
 
   if(!finished) {
@@ -543,13 +550,15 @@ int main(int argc, char** argv) {
     // do one extra pass
     foreach(const vertex_id_t& vid, graph.owned_vertices()) {
       vertex_data_type& vdata = graph.vertex_data(vid);
-      vdata.atomid = rand() % NATOMS;
-      vdata.is_set = true;
+      if(!vdata.is_set) {
+        vdata.atomid = rand() % NATOMS;
+        vdata.is_set = true;
+        graph.set_vertex_data(vid, vdata);
+        engine.add_vtask(vid, partition_update_function);       
+      }
       //        vdata.is_seed = true;
-      graph.vertex_is_modified(vid);
-      graph.increment_vertex_version(vid);
-      engine.add_vtask(vid, partition_update_function);
-      engine.add_vtask(vid, partition_update_function);       
+      // graph.vertex_is_modified(vid);
+      // graph.increment_vertex_version(vid);
     }
     if(dc.procid() == 0)
       std::cout  << "Running final run." << std::endl;
