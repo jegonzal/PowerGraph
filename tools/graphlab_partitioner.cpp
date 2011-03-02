@@ -22,8 +22,7 @@ using namespace graphlab;
 #include <graphlab/macros_def.hpp>
 
 /// GLOBAL CONSTANTS
-const size_t MAX_CHANGES(100);
-const size_t MAX_ITERATIONS(20);
+const size_t MAX_CHANGES(5);
 const size_t SYNC_INTERVAL(100);
 const size_t NUM_COLORS(10);
 
@@ -52,10 +51,10 @@ typedef ishared_data<graph_type> ishared_data_type;
 typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
-
+size_t NITER(20);
 size_t NVERTS(-1);
 size_t NEDGES(-1);
-size_t NATOMS(-1);
+size_t NATOMS(10);
 // size_t MAX_SAMPLES(-1);
 
 struct statistics {
@@ -72,6 +71,7 @@ struct statistics {
   size_t visited;
   size_t edges_cut;
   size_t nchanges;
+  size_t delta_changes; //single round
 
   // Random sample of unvisited vertices
   std::vector<vertex_id_t> samples;  
@@ -79,7 +79,7 @@ struct statistics {
   statistics(size_t natoms = 0) : 
     atom2vcount(natoms, 0), atom2ecount(natoms, 0),
     vset(0), eset(0), visited(0),
-    edges_cut(0), nchanges(0) { }
+    edges_cut(0), nchanges(0), delta_changes(0) { }
 
   
   void operator+=(const iscope_type& iscope) {
@@ -105,7 +105,7 @@ struct statistics {
       } else if( random::rand01() < double(samples.size())/visited) {
         samples[rand() % samples.size()] = iscope.vertex();
       }
-    }
+    }    
   }
   void operator+=(const statistics& other) {
     // Merge maps
@@ -151,6 +151,7 @@ struct statistics {
       << "Visited:      " << visited << '\n'
       << "Edges Cut:    " << edges_cut << '\n'
       << "Nchanges:     " << nchanges << '\n'
+      << "DeltaChanges: " << delta_changes << '\n'
       << "VBalance:     " << vertex_imbalance() << '\n'
       << "EBalance:     " << edge_imbalance() << '\n'
       << "Counts ------ " << '\n';
@@ -218,7 +219,7 @@ struct statistics {
 
 
 
-  void finalize() {
+  void finalize(size_t old_nchanges) {
     vset = 0; 
     foreach(size_t count, atom2vcount) vset+=count;
     eset = 0;
@@ -226,6 +227,9 @@ struct statistics {
     ASSERT_LE(vset, NVERTS);
     ASSERT_LE(eset, NEDGES);
     ASSERT_EQ(visited, NVERTS);
+    ASSERT_GE(nchanges, old_nchanges);
+    delta_changes = nchanges - old_nchanges;
+    
     print(); 
   }   
   void load(iarchive& iarc) {
@@ -236,7 +240,8 @@ struct statistics {
          >> visited
          >> edges_cut
          >> nchanges
-         >> samples;
+         >> samples
+         >> delta_changes;
   }
   void save(oarchive& oarc) const {
     oarc << atom2vcount 
@@ -246,7 +251,8 @@ struct statistics {
          << visited
          << edges_cut
          << nchanges
-         << samples;
+         << samples
+         << delta_changes;
   }
 };
 
@@ -261,8 +267,10 @@ void statistics_sum_fun(iscope_type& iscope,  any& acc) {
 // Identity apply
 void statistics_apply_fun(any& current_data, 
                            const any& acc) { 
+  size_t old_nchages = current_data.as<statistics>().nchanges;
   current_data.as<statistics>() = acc.as<statistics>();
-  current_data.as<statistics>().finalize();
+  
+  current_data.as<statistics>().finalize(old_nchages);
 } 
 // Sum the two maps
 void statistics_merge_fun(any& any_dest,  const any& any_src) {
@@ -289,9 +297,28 @@ void statistics_merge_fun(any& any_dest,  const any& any_src) {
 void partition_update_function(iscope_type& scope,
                                icallback_type& callback,
                                ishared_data_type* unused) {
-  statistics::atom2count_type nbr_a2c(NATOMS);
-  // Get the number of neighbor assignments ===============================
+  // Base case (NO NEIGHBORS) =============================================
+  if(scope.in_edge_ids().size() == 0 && 
+     scope.out_edge_ids().size() == 0) {
+    if(!scope.const_vertex_data().is_set) {
+      // set id to random value
+      vertex_data_type& vdata(scope.vertex_data());
+      vdata.is_set = true;
+      vdata.num_changes++;
+      vdata.atomid = random::rand_int(NATOMS-1);
+    }
+    return;
+  }
+
+  // Vertex has neighbors =================================================
+  ASSERT_GT(scope.in_edge_ids().size() + 
+            scope.out_edge_ids().size(), 0);
+
+  // Compute distribution of neighbors over atoms
+  statistics::atom2count_type nbr_a2c(NATOMS);  
   size_t nbr_sum(0);
+
+  // Get the number of neighbor assignments ===============================
   foreach(const edge_id_t eid, scope.in_edge_ids()) {
     const vertex_data_type& nbr_vdata = 
       scope.const_neighbor_vertex_data(scope.source(eid));
@@ -308,83 +335,81 @@ void partition_update_function(iscope_type& scope,
       ++nbr_sum;
     }
   }
-  // Determine the new atomid to join (if any) ============================
-  bool changed(false);
+
+  // If no neighbors are set or the vertex is not set just pick a
+  // random value and return
+  if(nbr_sum == 0 && !scope.const_vertex_data().is_set) {
+    // set id to random value
+    vertex_data_type& vdata(scope.vertex_data());
+    vdata.is_set = true;
+    vdata.num_changes++;
+    vdata.atomid = random::rand_int(NATOMS-1);
+    return;
+  }
+  // // If none of my neighbors are assigned reschedule and quit
+  // if(nbr_sum == 0) {
+  //   callback.add_task(scope.vertex(), partition_update_function);
+  //   return;
+  // }
+ 
+ 
+  ASSERT_GT(nbr_sum , 0);
+ 
+  // Compute new assignment ===============================================
   // Get the vertex data (as a constant)
   const vertex_data_type& vdata(scope.const_vertex_data());
-  if(!vdata.is_seed && !vdata.is_set) {
-    // Get the shared statistics
-    typedef shared_statistics_type::const_ptr_type shared_ptr_type;
-    shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
-    const statistics& stats(*shared_statistics_ptr);
-    // Compute the best atomid to join
-    double best_score(0);
-    procid_t best_atomid(random::rand_int(NATOMS-1));
-    // if(stats.eset == 0) best_atomid = rand() % NATOMS;
-    // else best_atomid = stats.edge_min();    
-    //    best_atomid = stats.edge_min();    
-    for(size_t i = 0; i < NATOMS; ++i) {
-      double new_imbalance(0);
-      if(!vdata.is_set)
-        new_imbalance = 
-          double((stats.atom2ecount[i]+scope.in_edge_ids().size()) * NATOMS) 
-          / double(stats.eset + 1 + scope.in_edge_ids().size());   
-      else if(vdata.is_set && vdata.atomid == i) 
-        new_imbalance = 
-          double(stats.atom2ecount[i] * NATOMS) / double(stats.eset + 1);     
-      else 
-        new_imbalance = 
-          double((stats.atom2ecount[i]+scope.in_edge_ids().size()) * NATOMS) 
-          / double(stats.eset + 1);   
+  
+  // Get the shared statistics
+  typedef shared_statistics_type::const_ptr_type shared_ptr_type;
+  shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
+  const statistics& stats(*shared_statistics_ptr);
+  
+  // Compute a random probability table
+  std::vector<double> prb(NATOMS);
+  { // Smooth slightly to fix problems with star graphs
+    //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
+    const double SMOOTHING(0);
+    for(size_t i = 0; i < NATOMS; ++i)
+      prb[i] = exp( double(nbr_a2c[i] + SMOOTHING) / nbr_sum );
+    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes;
+  }
+  { // normalize
+    double Z = 0;
+    foreach(double& d, prb) Z+=d;
+    ASSERT_GT(Z,0);
+    foreach(double& d, prb) d/=Z;
+  }
 
+  // Determine atomid based on probability table
+  size_t atomid(0);
+  { // pick according to probability
+    const double rnd(random::rand01());
+    for(double sum = prb.at(0); rnd > sum; sum += prb.at(++atomid));
+  }
+  ASSERT_LT(atomid, prb.size());
+  ASSERT_GT(prb[atomid], 0);
+  ASSERT_LT(atomid, NATOMS);
 
-      //    const double score = nbr_a2c[i];
-      // if(new_imbalance < 3.0 && score > best_score) {
-      //   best_score = score; best_atomid = i;
-      // }
+  bool changed(false);
+  // Check if change is necessary
+  if(!vdata.is_set || 
+     (vdata.num_changes < NITER &&
+      atomid != vdata.atomid) ) {
+    vertex_data_type& vdata(scope.vertex_data());
+    vdata.atomid = atomid;
+    vdata.is_set = true;
+    vdata.num_changes++;
+    changed = true;
+  }
 
-      const double score = 
-        (double(nbr_a2c[i]) / (nbr_sum + 1)) / 
-        (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
-
-      if(score > best_score) {
-        best_score = score; best_atomid = i;
-      }
-
-      // const double score = nbr_a2c[i];
-      // if(score > best_score) {
-      //   best_score = score; best_atomid = i;
-      // }
-
-    }
-
-    // if we failed try again 
-    if(best_atomid == procid_t(-1)) {
-      callback.add_task(scope.vertex(), partition_update_function); 
-      return;
-    }
-    
-    if(best_atomid != procid_t(-1) &&
-       vdata.num_changes < MAX_CHANGES && 
-       (vdata.atomid != best_atomid || !vdata.is_set ))  {
-      vertex_data_type& vdata(scope.vertex_data());
-      vdata.atomid = best_atomid;
-      vdata.is_set = true;
-      vdata.num_changes++;
-      changed = true;
-    }
-  } // end update assign
-
-
-  // Reschedule the neighbors
-  if(changed || vdata.is_seed) {
+  // Reschedule the neighbors if necessary
+  if(changed) {
     // Schedule all in neighbors
     foreach(const edge_id_t eid, scope.in_edge_ids()) {
       const vertex_id_t vid(scope.source(eid));
       const vertex_data_type& vdata = 
         scope.const_neighbor_vertex_data(vid);
-      if(vdata.num_changes < MAX_CHANGES &&
-         !vdata.is_seed)
+      if(vdata.num_changes < NITER)
         callback.add_task(vid, partition_update_function);
     }
     // Schedule all out neighbors
@@ -392,8 +417,7 @@ void partition_update_function(iscope_type& scope,
       const vertex_id_t vid(scope.target(eid));
       const vertex_data_type& vdata = 
         scope.const_neighbor_vertex_data(vid);
-      if(vdata.num_changes < MAX_CHANGES &&
-         !vdata.is_seed)
+      if(vdata.num_changes < NITER)
         callback.add_task(vid, partition_update_function);
     }
   }
@@ -422,7 +446,7 @@ void partition_update_function(iscope_type& scope,
 
 int main(int argc, char** argv) {
   // set the global logger
-  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
   // Initialize the mpi tools
   graphlab::mpi_tools::init(argc, argv);
@@ -436,6 +460,8 @@ int main(int argc, char** argv) {
                        "The atom index file.");
   clopts.attach_option("nparts", &NATOMS, NATOMS,
                        "The number of parts to create.");
+  clopts.attach_option("niter", &NITER, NITER,
+                       "The number of iterations to run.");
   clopts.attach_option("partfile", &partfile, partfile,
                        "[output] file containing the partitioning.");
   if( !clopts.parse(argc, argv) ) { 
@@ -443,8 +469,9 @@ int main(int argc, char** argv) {
               << std::endl;
     return EXIT_FAILURE;
   }
-  logstream(LOG_INFO) << "Partitioning into " << NATOMS
-                      << " parts." << std::endl;
+  if(graphlab::mpi_tools::rank() == 0)
+    std::cout << "Partitioning into " << NATOMS
+              << " parts." << std::endl;
 
   // Initialize the distributed control plane
   dc_init_param param;
@@ -452,13 +479,13 @@ int main(int argc, char** argv) {
     logstream(LOG_FATAL) 
       << "Failed MPI laucher!" << std::endl; 
   param.initstring = "buffered_queued_send=yes, ";
-  param.numhandlerthreads = 8;
+  param.numhandlerthreads = 4;
   global_logger().set_log_level(LOG_DEBUG);
   distributed_control dc(param);
 
 
-  logstream(LOG_INFO) 
-    << "Loading graph from atom index file: " << aindex << std::endl;
+  if(dc.procid() == 0)
+    std::cout << "Loading graph from atom index file: " << aindex << std::endl;
   const bool NO_LOAD_DATA(true);
   graph_type  graph(dc, aindex, NO_LOAD_DATA);
   
@@ -466,6 +493,14 @@ int main(int argc, char** argv) {
   NVERTS = graph.num_vertices();
   NEDGES = graph.num_edges();
   shared_statistics.set(statistics(NATOMS));
+
+  if(dc.procid() == 0){
+    std::cout << "Graph statistics: " << aindex  << std::endl
+              << "NVerts:   " << NVERTS << std::endl
+              << "NEdges:   " << NEDGES << std::endl
+              << "nparts:   " << NATOMS << std::endl
+              << "niter:    " << NITER << std::endl;
+  }
 
   // logstream(LOG_INFO)
   //   << "Artificially color the graph" << std::endl;
@@ -484,7 +519,7 @@ int main(int argc, char** argv) {
     << "Set the scheduler options." << std::endl;  
   scheduler_options schedopts;
   schedopts.add_option("update_function", partition_update_function);
-  //  schedopts.add_option("max_iterations", MAX_ITERATIONS);
+  //  schedopts.add_option("max_iterations", NITER);
   engine.set_scheduler_options(schedopts);
 
   logstream(LOG_INFO) << "Register a sync." << std::endl;
@@ -495,78 +530,87 @@ int main(int argc, char** argv) {
                   SYNC_INTERVAL,
                   statistics_merge_fun);
 
+
+
   if(dc.procid() == 0) {
     std::cout << "Schedule initial set of vertices" << std::endl;
-    for(size_t i = 0; i < NATOMS; ++i) {
-      const vertex_id_t vid(rand() % graph.num_vertices());
-      vertex_data_type vdata;
-      vdata.atomid = i;
-      vdata.is_set = true;
-      vdata.is_seed = true;
-      graph.set_vertex_data(vid, vdata);
-      engine.add_vtask(vid, partition_update_function);
-    }
+    engine.add_task_to_all(partition_update_function, 1.0);
+    
+    // for(size_t i = 0; i < NATOMS; ++i) {
+    //   const vertex_id_t vid(rand() % graph.num_vertices());
+    //   vertex_data_type vdata;
+    //   vdata.atomid = i;
+    //   vdata.is_set = true;
+    //   vdata.is_seed = true;
+    //   graph.set_vertex_data(vid, vdata);
+    //   engine.add_vtask(vid, partition_update_function);
+    // }
   }
 
 
   // Scheduling tasks
   if(dc.procid() == 0)
     std::cout << "Running partitioner." << std::endl;
-  bool finished(false);
-  for(size_t iteration_counter = 0; 
-        iteration_counter < MAX_ITERATIONS; iteration_counter++) {
-    if(dc.procid() == 0)
-      std::cout << "Starting iteration: " << iteration_counter
-                << std::endl;        
-    engine.start();
-    statistics stats(shared_statistics.get_val());    
-    if(dc.procid() == 0)
-      std::cout << "Finished iteration: " << iteration_counter
-              << std::endl;
+  engine.start();
+  if(dc.procid() == 0)
+    std::cout << "Finished" << std::endl;
+  
+
+  // bool finished(false);
+  // for(size_t iteration_counter = 0; 
+  //       iteration_counter < NITER; iteration_counter++) {
+  //   if(dc.procid() == 0)
+  //     std::cout << "Starting iteration: " << iteration_counter
+  //               << std::endl;        
+  //   engine.start();
+  //   statistics stats(shared_statistics.get_val());    
+  //   if(dc.procid() == 0)
+  //     std::cout << "Finished iteration: " << iteration_counter
+  //             << std::endl;
     
-    if(stats.vset == NVERTS){
-      finished = true;
-      break;
-    }
-    // Gather unset vertices
-    if(dc.procid() == 0) stats.print();
-    ASSERT_LE(stats.samples.size(), NATOMS);     
-    // schedule local vertices
-    foreach(const vertex_id_t vid, stats.samples) {
-      ASSERT_NE(vid, vertex_id_t(-1));
-      if(graph.vertex_is_local(vid)) {
-        vertex_data_type vdata;
-        vdata.atomid = rand() % NATOMS;
-        vdata.is_set = true;
-        vdata.is_seed = true;
-        graph.set_vertex_data(vid, vdata);        
-        engine.add_vtask(vid, partition_update_function);
-      } // end of if 0
-    } // end of loop over unset vertices
-    dc.full_barrier();
+  //   if(stats.vset == NVERTS){
+  //     finished = true;
+  //     break;
+  //   }
+  //   // Gather unset vertices
+  //   if(dc.procid() == 0) stats.print();
+  //   ASSERT_LE(stats.samples.size(), NATOMS);     
+  //   // schedule local vertices
+  //   foreach(const vertex_id_t vid, stats.samples) {
+  //     ASSERT_NE(vid, vertex_id_t(-1));
+  //     if(graph.vertex_is_local(vid)) {
+  //       vertex_data_type vdata;
+  //       vdata.atomid = rand() % NATOMS;
+  //       vdata.is_set = true;
+  //       vdata.is_seed = true;
+  //       graph.set_vertex_data(vid, vdata);        
+  //       engine.add_vtask(vid, partition_update_function);
+  //     } // end of if 0
+  //   } // end of loop over unset vertices
+  //   dc.full_barrier();
 
-  } // end of for iteration_counter
+  // } // end of for iteration_counter
 
-  if(!finished) {
-    if(dc.procid() == 0) 
-      std::cout  << "Running one last iteration. " << std::endl;
-    // do one extra pass
-    foreach(const vertex_id_t& vid, graph.owned_vertices()) {
-      vertex_data_type& vdata = graph.vertex_data(vid);
-      if(!vdata.is_set) {
-        vdata.atomid = rand() % NATOMS;
-        vdata.is_set = true;
-        graph.set_vertex_data(vid, vdata);
-        engine.add_vtask(vid, partition_update_function);       
-      }
-      //        vdata.is_seed = true;
-      // graph.vertex_is_modified(vid);
-      // graph.increment_vertex_version(vid);
-    }
-    if(dc.procid() == 0)
-      std::cout  << "Running final run." << std::endl;
-    engine.start();
-  } // end of if finished
+  // if(!finished) {
+  //   if(dc.procid() == 0) 
+  //     std::cout  << "Running one last iteration. " << std::endl;
+  //   // do one extra pass
+  //   foreach(const vertex_id_t& vid, graph.owned_vertices()) {
+  //     vertex_data_type& vdata = graph.vertex_data(vid);
+  //     if(!vdata.is_set) {
+  //       vdata.atomid = rand() % NATOMS;
+  //       vdata.is_set = true;
+  //       graph.set_vertex_data(vid, vdata);
+  //       engine.add_vtask(vid, partition_update_function);       
+  //     }
+  //     //        vdata.is_seed = true;
+  //     // graph.vertex_is_modified(vid);
+  //     // graph.increment_vertex_version(vid);
+  //   }
+  //   if(dc.procid() == 0)
+  //     std::cout  << "Running final run." << std::endl;
+  //   engine.start();
+  // } // end of if finished
   
 
   if(dc.procid() == 0)
