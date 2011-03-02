@@ -22,8 +22,8 @@ using namespace graphlab;
 #include <graphlab/macros_def.hpp>
 
 /// GLOBAL CONSTANTS
-const size_t MAX_CHANGES(10);
-const size_t MAX_ITERATIONS(2);
+const size_t MAX_CHANGES(100);
+const size_t MAX_ITERATIONS(20);
 const size_t SYNC_INTERVAL(100);
 const size_t NUM_COLORS(10);
 
@@ -343,17 +343,17 @@ void partition_update_function(iscope_type& scope,
       //   best_score = score; best_atomid = i;
       // }
 
-      // const double score = 
-      //   (double(nbr_a2c[i]) / (nbr_sum + 1)) / 
-      //   (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
-      // if(score > best_score) {
-      //   best_score = score; best_atomid = i;
-      // }
-
-      const double score = nbr_a2c[i];
+      const double score = 
+        (double(nbr_a2c[i]) / (nbr_sum + 1)) / 
+        (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
       if(score > best_score) {
         best_score = score; best_atomid = i;
       }
+
+      // const double score = nbr_a2c[i];
+      // if(score > best_score) {
+      //   best_score = score; best_atomid = i;
+      // }
 
     }
     // if we failed try again 
