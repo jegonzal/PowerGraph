@@ -1521,7 +1521,6 @@ class distributed_graph {
     logger(LOG_INFO, "Load complete.");
     rmi.comm_barrier();
     std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
-    std::cout << localstore;
   }
 
   
