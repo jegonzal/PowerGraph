@@ -306,11 +306,11 @@ class distributed_control{
           // then decrement the incomplete count.
           // if it was me to decreased it to 0
           // lock and signal
+          full_barrier_lock.lock();
           if (num_proc_recvs_incomplete.dec() == 0) {
-            full_barrier_lock.lock();
             full_barrier_cond.signal();
-            full_barrier_lock.unlock();
           }
+          full_barrier_lock.unlock();
         }
       }
     }

@@ -75,11 +75,11 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
           // then decrement the incomplete count.
           // if it was me to decreased it to 0
           // lock and signal
+          full_barrier_lock.lock();
           if (num_proc_recvs_incomplete.dec() == 0) {
-            full_barrier_lock.lock();
             full_barrier_cond.signal();
-            full_barrier_lock.unlock();
           }
+          full_barrier_lock.unlock();
         }
       }
     }
@@ -603,8 +603,7 @@ private:
   mutex ab_barrier_mut;
   std::string ab_children_data[BARRIER_BRANCH_FACTOR];
   std::string ab_alldata;
-
-  bool use_control_calls;
+  
   /**
     The child calls this function in the parent once the child enters the barrier
   */
@@ -623,7 +622,9 @@ private:
     This is on the downward pass of the barrier. The parent calls this function
     to release all the children's barriers
   */
-  void __ab_parent_to_child_barrier_release(int releaseval, std::string allstrings) {
+  void __ab_parent_to_child_barrier_release(int releaseval, 
+                                            std::string allstrings,
+                                            int use_control_calls) {
     // send the release downwards
     // get my largest child
     ab_alldata = allstrings;
@@ -632,13 +633,15 @@ private:
         internal_control_call(childbase + i,
                               &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                               releaseval,
-                              ab_alldata);
+                              ab_alldata,
+                              use_control_calls);
       }
       else {
         internal_call(childbase + i,
                       &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                       releaseval,
-                      ab_alldata);
+                      ab_alldata,
+                      use_control_calls);
       }
     }
     ab_barrier_mut.lock();
@@ -653,7 +656,6 @@ private:
   void all_gather(std::vector<U>& data, bool control = false) {
     if (numprocs() == 1) return;
     // get the string representation of the data
-    use_control_calls = control;
     charstream strm(128);
     oarchive oarc(strm);
     oarc << data[procid()];
@@ -678,7 +680,7 @@ private:
             strstrm.write(ab_children_data[i].c_str(), ab_children_data[i].length());
           }
           strstrm.flush();
-          if (use_control_calls) {
+          if (control) {
             internal_control_call(parent,
                             &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
                             procid(),
@@ -714,7 +716,8 @@ private:
         internal_control_call(childbase + i,
                              &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                              ab_barrier_val,
-                             ab_alldata);
+                             ab_alldata,
+                             (int)control);
 
       }
     }

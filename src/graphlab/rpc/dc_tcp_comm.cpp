@@ -332,6 +332,7 @@ void dc_tcp_comm::socket_handler::run() {
         delete this;
         break;
       }
+      owner.network_bytesreceived.inc(msglen);
       c = receiver->advance_buffer(c, msglen, buflength);
     }
   }
@@ -351,6 +352,7 @@ void dc_tcp_comm::socket_handler::run() {
       #ifdef COMM_DEBUG
       logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
       #endif
+      owner.network_bytesreceived.inc(msglen);
       receiver->incoming_data(sourceid, c, msglen);
     }
   }

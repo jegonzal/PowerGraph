@@ -74,6 +74,11 @@ class dc_sctp_comm:public dc_comm_base {
     return network_bytessent.value;
   }
 
+ inline size_t network_bytes_received() const {
+    //TODO
+    return 0;
+  }
+
   void flush(size_t target);
   /**
    Sends the string of length len to the target machine dest.

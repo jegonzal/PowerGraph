@@ -6,8 +6,12 @@
 #include <graphlab/rpc/dc_stream_receive_z.hpp>
 #include <zlib.h>
 //#define DC_RECEIVE_DEBUG
+size_t GRZIN[10] = {0};
+size_t GRZOUT[10] = {0};
+
 namespace graphlab {
 namespace dc_impl {
+
 
 /**
   Called by the controller when there is data coming
@@ -18,16 +22,21 @@ void dc_stream_receive_z::incoming_data(procid_t src,
                     size_t len) {
   zstrm.avail_in = len;
   zstrm.next_in = (Bytef*)buf;
+ 
   compressed_bytesreceived.inc(len); 
-  while(zstrm.avail_in > 0) {
+    GRZIN[src] += len;
+  do{
     zstrm.avail_out = 128*1024;
     zstrm.next_out = (Bytef*)zbuffer;
     ASSERT_EQ(inflate(&zstrm, Z_SYNC_FLUSH), Z_OK);
     bufferlock.lock();
+      GRZOUT[src] += 128*1024 - zstrm.avail_out;
     buffer.write(zbuffer, 128*1024 - zstrm.avail_out);
     bufferlock.unlock();
-    process_buffer(false);
-  }
+  } while(zstrm.avail_out == 0);
+  process_buffer(false);
+
+  //std::cout << dc->procid() << ": From " << src << ": " << zstrm.total_in << " --> " << zstrm.total_out << std::endl; 
 }
   
 /** called by the controller when a function

@@ -9,8 +9,13 @@
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
+extern size_t GRZIN[10];
+extern size_t GRZOUT[10];
+
 namespace graphlab {
 class distributed_control;
+
+
 
 namespace dc_impl {
 

@@ -1149,21 +1149,25 @@ class distributed_graph {
     std::vector<std::pair<bool, vertex_id_t> > globalvid_notowned_zip;
     for (size_t i = 0;i < atomfiles.size(); ++i) {
       for (size_t j = 0;j < atomfiles[i]->globalvids().size(); ++j) {
-        globalvid_notowned_zip.push_back(std::make_pair(atoms_in_curpart_set.get(atomfiles[i]->atom()[j]),
+        globalvid_notowned_zip.push_back(std::make_pair(atom2machine[atomfiles[i]->atom()[j]] != rmi.procid(),
                                                         atomfiles[i]->globalvids()[j]));
       }
     }
     
     // Find only unique occurances of each vertex, by sorting, unique,
     // and resize
-    std::sort(globalvid_notowned_zip.rbegin(), globalvid_notowned_zip.rend());
+    std::sort(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
     std::vector<std::pair<bool, vertex_id_t> >::iterator uviter = 
               std::unique(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
               
     globalvid_notowned_zip.resize(uviter - globalvid_notowned_zip.begin());
+    std::sort(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
+
     local2globalvid.resize(globalvid_notowned_zip.size());
     // copy out info to global2localvid
+    
     for (size_t i = 0; i < globalvid_notowned_zip.size(); ++i) {
+      if (i > 0 && globalvid_notowned_zip[i].first == false) ASSERT_EQ(globalvid_notowned_zip[i-1].first,  false); 
       local2globalvid[i] = globalvid_notowned_zip[i].second;
     } 
     // don't need it anymore. clear the vector
@@ -1290,9 +1294,12 @@ class distributed_graph {
       }
     }
     
-        
+       
     std::cerr << std::endl;
-    
+    // check for contiguousness of localvid
+    for (size_t i = 1; i < local2globalvid.size(); ++i) {
+      if (localvid2owner[i] == rmi.procid()) ASSERT_EQ(localvid2owner[i-1], rmi.procid());
+    }
     logstream(LOG_INFO) << "Local structure creation complete." << std::endl;
     logstream(LOG_INFO) << "vid -> Owner DHT set complete" << std::endl;
     logstream(LOG_INFO) << "Constructing auxiliary datastructures..." << std::endl;

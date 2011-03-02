@@ -4,6 +4,9 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
 
+size_t GSZIN[10] = {0};
+size_t GSZOUT[10] = {0};
+
 namespace graphlab {
 namespace dc_impl {
 
@@ -77,36 +80,23 @@ void dc_buffered_stream_send_expqueue_z::send_data(procid_t target,
 void dc_buffered_stream_send_expqueue_z::send_loop() {
   const size_t chunklen = 128*1024;
   char* chunk = (char*)malloc(chunklen);
+  
   while (1) {
     std::pair<expqueue_z_entry, bool> data = sendqueue.dequeue();
     if (data.second == false) break;
+    GSZIN[target] += data.first.len;
 
-    zstrm.next_out = (Bytef*)chunk;
-    zstrm.avail_out = chunklen;  
-
-    while (data.second == true) { 
-      zstrm.next_in = (Bytef*)data.first.c;
-      zstrm.avail_in = data.first.len;
-
-      bool sqempty = sendqueue.empty();
-      while(zstrm.avail_in > 0) {
-        ASSERT_EQ(deflate(&zstrm, sqempty ? Z_SYNC_FLUSH : Z_NO_FLUSH ), Z_OK);
-
-          // if out of room, send
-        if (zstrm.avail_out < 6) {
-          comm->send(target, chunk, chunklen - zstrm.avail_out);
-          zstrm.next_out = (Bytef*)chunk;
-          zstrm.avail_out = chunklen;    
-        }
-      }
-      free(data.first.c);
-      data = sendqueue.try_dequeue();
-    } 
-    if (zstrm.avail_out < chunklen) {
-      comm->send(target, chunk, chunklen - zstrm.avail_out);
+    zstrm.next_in = (Bytef*)data.first.c;
+    zstrm.avail_in = data.first.len;
+    bool sqempty = sendqueue.empty();
+    do {
       zstrm.next_out = (Bytef*)chunk;
-      zstrm.avail_out = chunklen;    
-    }
+      zstrm.avail_out = chunklen;  
+      ASSERT_EQ(deflate(&zstrm, sqempty ? Z_SYNC_FLUSH : Z_NO_FLUSH ), Z_OK);
+      GSZOUT[target] += chunklen - zstrm.avail_out;
+      comm->send(target, chunk, chunklen - zstrm.avail_out);
+    }while(zstrm.avail_out == 0);
+    free(data.first.c);
   }
   free(chunk);
 }

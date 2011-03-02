@@ -12,6 +12,10 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/logger/logger.hpp>
+
+extern size_t GSZIN[10];
+extern size_t GSZOUT[10];
+
 namespace graphlab {
 class distributed_control;
 
