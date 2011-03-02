@@ -146,15 +146,6 @@ struct statistics {
   void print() {
     std::cout 
       << "------------------------------------------------------------\n"
-      << "Vset:         " << vset << '\n'
-      << "Eset:         " << eset << '\n'
-      << "Visited:      " << visited << '\n'
-      << "Edges Cut:    " << edges_cut << '\n'
-      << "Nchanges:     " << nchanges << '\n'
-      << "DeltaChanges: " << delta_changes << '\n'
-      << "VBalance:     " << vertex_imbalance() << '\n'
-      << "EBalance:     " << edge_imbalance() << '\n'
-      << "Counts ------ " << '\n';
     for(size_t i = 0; i < atom2vcount.size(); ++i) {
       const double VBAL(vertex_prop(i));
       const double EBAL(edge_prop(i));
@@ -173,6 +164,15 @@ struct statistics {
                 << '\n';
     }
     std::cout 
+      << "Vset:         " << vset << '\n'
+      << "Eset:         " << eset << '\n'
+      << "Visited:      " << visited << '\n'
+      << "Edges Cut:    " << edges_cut << '\n'
+      << "Nchanges:     " << nchanges << '\n'
+      << "DeltaChanges: " << delta_changes << '\n'
+      << "VBalance:     " << vertex_imbalance() << '\n'
+      << "EBalance:     " << edge_imbalance() << '\n'
+      << "Counts ------ " << '\n';
       << "------------------------------------------------------------"
       << std::endl;      
   }
@@ -322,14 +322,26 @@ void partition_update_function(iscope_type& scope,
     return;
   }
 
+  // Give an initial assignment
+  if(!scope.const_vertex_data().is_set) {
+    // set id to random value
+    vertex_data_type& vdata(scope.vertex_data());
+    vdata.is_set = true;
+    vdata.num_changes++;
+    vdata.atomid = random::rand_int(NATOMS-1);
+    callback.add_task(scope.vertex(), partition_update_function);
+    return;
+  }
+
   // Vertex has neighbors =================================================
   ASSERT_GT(scope.in_edge_ids().size() + 
             scope.out_edge_ids().size(), 0);
+  ASSERT_GT(scope.const_vertex_data().num_changes, 0);
 
   // Compute distribution of neighbors over atoms
   statistics::atom2count_type nbr_a2c(NATOMS);  
   size_t nbr_sum(0);
-
+  
   // Get the number of neighbor assignments ===============================
   foreach(const edge_id_t eid, scope.in_edge_ids()) {
     const vertex_data_type& nbr_vdata = 
@@ -358,6 +370,8 @@ void partition_update_function(iscope_type& scope,
     vdata.atomid = random::rand_int(NATOMS-1);
     return;
   }
+
+
   // // If none of my neighbors are assigned reschedule and quit
   // if(nbr_sum == 0) {
   //   callback.add_task(scope.vertex(), partition_update_function);
@@ -366,10 +380,14 @@ void partition_update_function(iscope_type& scope,
  
  
   ASSERT_GT(nbr_sum , 0);
+
+
  
   // Compute new assignment ===============================================
   // Get the vertex data (as a constant)
   const vertex_data_type& vdata(scope.const_vertex_data());
+
+  //  if(vdata.is_set){ nbr_a2c[vdata.atomid]++; nbr_sum++; }
   
   // Get the shared statistics
   typedef shared_statistics_type::const_ptr_type shared_ptr_type;
@@ -380,22 +398,43 @@ void partition_update_function(iscope_type& scope,
   // Compute a random probability table
   std::vector<double> prb(NATOMS);
   { // Smooth slightly to fix problems with star graphs
-    //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
-    const double SMOOTHING(1.0e-5);
-    for(size_t i = 0; i < NATOMS; ++i) 
-      prb[i] = exp(double(nbr_a2c[i]) / nbr_sum) * nbr_a2c[i] + 
-        SMOOTHING;
-    //    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes; 
+    // //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
+    // //    const double SMOOTHING(1.0e-5);
+
+    double SMOOTHING = 
+      double(10)/(NATOMS * (scope.in_edge_ids().size() + scope.out_edge_ids().size()));
+
+
+    if (stats.vertex_imbalance(vdata.atomid) > 3) SMOOTHING = 1;
+
+    for(size_t i = 0; i < NATOMS; ++i) {
+      const double T = 1 + double(vdata.num_changes) / 2;
+      const bool has_neighbor( nbr_a2c[i] > 0);
+      prb[i] = exp(T * double(nbr_a2c[i]) / nbr_sum) * has_neighbor + 
+        SMOOTHING;      
+    }
+
+    // const double K1 = 5, K2 = 1;
+    // for(size_t i = 0; i < NATOMS; ++i) {
+    //   const size_t agree = nbr_a2c[i];
+    //   const size_t disagree = nbr_sum - nbr_a2c[i];
+    //   const double T = double(vdata.num_changes) / 10.0;
+    //   prb[i] = exp( (K1 * agree + K2 * disagree ) /  T  );
+     
+    // }
+
 
     // Zero unbalanced classes
     for(size_t i = 0; i < NATOMS; ++i) {  
-      if(stats.vertex_imbalance(i) > 5) {
-        if(random::rand01() < 0.25) {
+      if(stats.vertex_imbalance(i) > 3) {
+        if(random::rand01() < 0.50) {
           prb[i] = 0;
-        }
-        
+        }        
       }
     }
+
+  
+
 
   }
   { // normalize
@@ -409,7 +448,8 @@ void partition_update_function(iscope_type& scope,
   size_t atomid(0);
   { // pick according to probability
     const double rnd(random::rand01());
-    for(double sum = prb.at(0); rnd > sum; sum += prb.at(++atomid));
+    for(double sum = prb.at(0); sum < rnd && atomid < NATOMS; 
+        sum += prb.at(++atomid));
   }
 
   //  atomid = std::max_element(nbr_a2c.begin(), nbr_a2c.end()) - nbr_a2c.begin();
@@ -530,11 +570,11 @@ int main(int argc, char** argv) {
               << "niter:    " << NITER << std::endl;
   }
 
-  // logstream(LOG_INFO)
-  //   << "Artificially color the graph" << std::endl;
-  // foreach(const vertex_id_t vid, graph.owned_vertices()) {
-  //   graph.color(vid) =  rand() % NUM_COLORS;
-  // }
+  logstream(LOG_INFO)
+    << "Artificially color the graph" << std::endl;
+  foreach(const vertex_id_t vid, graph.owned_vertices()) {
+    graph.color(vid) =  rand() % NUM_COLORS;
+  }
 
 
   logstream(LOG_INFO)  
@@ -559,30 +599,34 @@ int main(int argc, char** argv) {
                   statistics_merge_fun);
 
 
-
-  if(dc.procid() == 0) {
-    std::cout << "Schedule initial set of vertices" << std::endl;
-    engine.add_task_to_all(partition_update_function, 1.0);
+  size_t original_niter = NITER;
+  for (size_t i = 0; i < 1; ++i) {
+    if(dc.procid() == 0) {
+      std::cout << "Schedule initial set of vertices" << std::endl;
+      engine.add_task_to_all(partition_update_function, 1.0);
     
-    // for(size_t i = 0; i < NATOMS; ++i) {
-    //   const vertex_id_t vid(rand() % graph.num_vertices());
-    //   vertex_data_type vdata;
-    //   vdata.atomid = i;
-    //   vdata.is_set = true;
-    //   vdata.is_seed = true;
-    //   graph.set_vertex_data(vid, vdata);
-    //   engine.add_vtask(vid, partition_update_function);
-    // }
-  }
+      // for(size_t i = 0; i < NATOMS; ++i) {
+      //   const vertex_id_t vid(rand() % graph.num_vertices());
+      //   vertex_data_type vdata;
+      //   vdata.atomid = i;
+      //   vdata.is_set = true;
+      //   vdata.is_seed = true;
+      //   graph.set_vertex_data(vid, vdata);
+      //   engine.add_vtask(vid, partition_update_function);
+      // }
+    }
 
 
-  // Scheduling tasks
-  if(dc.procid() == 0)
-    std::cout << "Running partitioner." << std::endl;
-  engine.start();
-  if(dc.procid() == 0)
-    std::cout << "Finished" << std::endl;
+    // Scheduling tasks
+    if(dc.procid() == 0)
+      std::cout << "Running partitioner." << std::endl;
+    engine.start();
+    if(dc.procid() == 0)
+      std::cout << "Finished" << std::endl;
   
+
+    NITER += original_niter;
+  }
 
   // bool finished(false);
   // for(size_t iteration_counter = 0; 
