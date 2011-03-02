@@ -360,9 +360,10 @@ void partition_update_function(iscope_type& scope,
   const vertex_data_type& vdata(scope.const_vertex_data());
   
   // Get the shared statistics
-  // typedef shared_statistics_type::const_ptr_type shared_ptr_type;
-  // shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
-  // const statistics& stats(*shared_statistics_ptr);
+  typedef shared_statistics_type::const_ptr_type shared_ptr_type;
+  shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
+  const statistics& stats(*shared_statistics_ptr);
+
   
   // Compute a random probability table
   std::vector<double> prb(NATOMS);
@@ -370,8 +371,14 @@ void partition_update_function(iscope_type& scope,
     //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
     const double SMOOTHING(0);
     for(size_t i = 0; i < NATOMS; ++i) 
-      prb[i] =  nbr_a2c[i] + SMOOTHING;
-    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes;
+      prb[i] =  exp( double(nbr_a2c[i]) / nbr_sum) * nbr_a2c[i];
+    //    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes; 
+
+    // Zero unbalanced classes
+    for(size_t i - 0; i < NATOMS; ++i) {  
+      
+    }
+
   }
   { // normalize
     double Z = 0;
@@ -386,6 +393,9 @@ void partition_update_function(iscope_type& scope,
     const double rnd(random::rand01());
     for(double sum = prb.at(0); rnd > sum; sum += prb.at(++atomid));
   }
+
+  //  atomid = std::max_element(nbr_a2c.begin(), nbr_a2c.end()) - nbr_a2c.begin();
+
   ASSERT_LT(atomid, prb.size());
   ASSERT_GT(prb[atomid], 0);
   ASSERT_LT(atomid, NATOMS);
