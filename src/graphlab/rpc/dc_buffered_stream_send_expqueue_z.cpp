@@ -92,7 +92,7 @@ void dc_buffered_stream_send_expqueue_z::send_loop() {
     do {
       zstrm.next_out = (Bytef*)chunk;
       zstrm.avail_out = chunklen;  
-      ASSERT_EQ(deflate(&zstrm, sqempty ? Z_SYNC_FLUSH : Z_NO_FLUSH ), Z_OK);
+      ASSERT_NE(deflate(&zstrm, sqempty ? Z_SYNC_FLUSH : Z_NO_FLUSH ), Z_STREAM_ERROR);
       GSZOUT[target] += chunklen - zstrm.avail_out;
       comm->send(target, chunk, chunklen - zstrm.avail_out);
     }while(zstrm.avail_out == 0);
