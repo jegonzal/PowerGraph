@@ -23,7 +23,7 @@ using namespace graphlab;
 
 /// GLOBAL CONSTANTS
 const size_t MAX_CHANGES(10);
-const size_t MAX_ITERATIONS(1000);
+const size_t MAX_ITERATIONS(10);
 const size_t SYNC_INTERVAL(100);
 const size_t NUM_COLORS(10);
 
@@ -35,6 +35,9 @@ struct vertex_data_type {
   procid_t num_changes;
   bool       is_set;
   bool       is_seed;
+  vertex_data_type() : 
+    atomid(0), num_changes(0), 
+    is_set(false), is_seed(false) { }
 };
 SERIALIZABLE_POD(vertex_data_type);
 struct edge_data_type { };
@@ -50,108 +53,200 @@ typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
 
-size_t num_atoms(10);
+size_t NVERTS(-1);
+size_t NEDGES(-1);
+size_t NATOMS(-1);
+// size_t MAX_SAMPLES(-1);
 
 struct statistics {
-  typedef std::map<procid_t, double> atom2count_type;
+  typedef std::vector<size_t> atom2count_type;
 
-  atom2count_type atom2count;
-  size_t num_unset;
-  size_t edge_cut;
+  
+  // Counts of vertices assigned to different atoms
+  atom2count_type atom2vcount;
+  // counts of edges assigned to different atoms
+  atom2count_type atom2ecount;
+
+  size_t vset;
+  size_t eset;
   size_t visited;
-  std::vector<vertex_id_t> nextvset;
-  statistics() : num_unset(0), edge_cut(0), visited(0) { }
-  statistics(size_t num_atoms) : 
-    num_unset(0),  edge_cut(0), visited(0),
-    nextvset(num_atoms, vertex_id_t(-1)) { }
+  size_t edges_cut;
+  size_t nchanges;
+
+  // Random sample of unvisited vertices
+  std::vector<vertex_id_t> samples;  
+
+  statistics(size_t natoms = 0) : 
+    atom2vcount(natoms, 0), atom2ecount(natoms, 0),
+    vset(0), eset(0), visited(0),
+    edges_cut(0), nchanges(0) { }
+
   
   void operator+=(const iscope_type& iscope) {
     visited++;
     const vertex_data_type& vdata(iscope.const_vertex_data());
+    nchanges += vdata.num_changes;
     if(vdata.is_set)  {
-      atom2count[vdata.atomid]++;
+      ASSERT_LT(vdata.atomid, NATOMS);
+      // update counts
+      atom2vcount[vdata.atomid]++;
+      atom2ecount[vdata.atomid] += iscope.in_edge_ids().size();
+      // compute edges cut
       foreach(const edge_id_t eid, iscope.in_edge_ids()) {
         const vertex_id_t nvid(iscope.source(eid));
         const vertex_data_type& nvdata = 
           iscope.const_neighbor_vertex_data(nvid);
-        if(nvdata.is_set && nvdata.atomid != vdata.atomid)
-          edge_cut++;
+        if(nvdata.is_set && nvdata.atomid != vdata.atomid) edges_cut++;
       } // end of loop over edges
     } else {
-      if(num_unset < nextvset.size()) {
-        nextvset[num_unset] = iscope.vertex();
-      } else if( random::rand01() < double(nextvset.size())/num_unset) {
-        nextvset[rand() % nextvset.size()] = iscope.vertex();
+      // Update uniform samples
+      if(samples.size() < NATOMS) {
+        samples.push_back(iscope.vertex());
+      } else if( random::rand01() < double(samples.size())/visited) {
+        samples[rand() % samples.size()] = iscope.vertex();
       }
-      num_unset++;
-    } 
+    }
   }
   void operator+=(const statistics& other) {
-    typedef atom2count_type::value_type pair_type;
-    edge_cut += other.edge_cut;
-    visited += other.visited;
-    foreach(const pair_type& pair, other.atom2count)
-      atom2count[pair.first] += pair.second;
-    std::vector<vertex_id_t> this_nextvset(nextvset);
-    const size_t num_atoms(nextvset.size());
-    ASSERT_EQ(other.nextvset.size(), num_atoms);
+    // Merge maps
+    for(size_t i = 0; i < NATOMS; ++i) atom2vcount[i] += other.atom2vcount[i];
+    for(size_t i = 0; i < NATOMS; ++i) atom2ecount[i] += other.atom2ecount[i];
+    // Merge Samples into new samples
+    std::vector<vertex_id_t> new_samples;
     // fill out the rest of this vector
-    size_t i(0), j(0), k(0);
-    while(i <  num_atoms && j < num_unset && k < other.num_unset) {
+    size_t i(0), j(0);
+    while(new_samples.size() < NATOMS && 
+          i < samples.size() && 
+          j < other.samples.size()) {
+      ASSERT_LT(j, other.visited);
+      ASSERT_LT(i, visited);
       const double accept_prob = 
-        double(other.num_unset - k) / 
-        double((other.num_unset + num_unset) - (j+k));
+        double(other.visited - j) / 
+        double(other.visited + visited - double(i+j));
       ASSERT_GE(accept_prob, 0);
       if(random::rand01() < accept_prob) 
-        nextvset[i++] = other.nextvset[k++];
-      else nextvset[i++] = this_nextvset[j++];      
+        new_samples.push_back(other.samples[j++]);
+      else new_samples.push_back(samples[i++]);      
     }
-    while(i <  num_atoms && j < num_unset) 
-      nextvset[i++] = this_nextvset[j++];      
-    while(i <  num_atoms && k < other.num_unset) 
-      nextvset[i++] = other.nextvset[k++];      
-    num_unset += other.num_unset;
-    for(size_t u = 0; u < nextvset.size() && u < num_unset; ++u) 
-      ASSERT_NE(nextvset[u], vertex_id_t(-1));
+    while(new_samples.size() < NATOMS && i < samples.size()) 
+      new_samples.push_back(samples[i++]);      
+    while(new_samples.size() < NATOMS && j < other.samples.size()) 
+      new_samples.push_back(other.samples[j++]);      
+    samples.swap(new_samples);
+
+    // Merge basic counters
+    visited += other.visited;
+    edges_cut += other.edges_cut;
+    nchanges += other.nchanges;
+
+    // check local data structure
+    ASSERT_EQ(atom2vcount.size(), NATOMS);
+    ASSERT_EQ(atom2ecount.size(), NATOMS);
   }
   void print() {
     std::cout 
-      << "------------------------------------------------------------\n";
-    std::cout << "Visited: " << visited << std::endl;
-    std::cout << "Vertex Bal: " << vertex_balance() << std::endl;
-    std::cout << "Edge cut: " << edge_cut << std::endl;
-    typedef atom2count_type::value_type pair_type;
-    foreach(const pair_type& pair, atom2count) 
-      std::cout << "(" << pair.first << ", " << pair.second << ")  ";
-    std::cout << "\n";
+      << "------------------------------------------------------------\n"
+      << "Vset:         " << vset << '\n'
+      << "Eset:         " << eset << '\n'
+      << "Visited:      " << visited << '\n'
+      << "Edges Cut:    " << edges_cut << '\n'
+      << "Nchanges:     " << nchanges << '\n'
+      << "VBalance:     " << vertex_imbalance() << '\n'
+      << "EBalance:     " << edge_imbalance() << '\n'
+      << "Counts ------ " << '\n';
+    for(size_t i = 0; i < atom2vcount.size(); ++i) {
+      const double VBAL(vertex_prop(i));
+      const double EBAL(edge_prop(i));
+      const size_t VSTARS(std::min(size_t(8), 
+                                   size_t(std::ceil(VBAL*NATOMS))));
+      const size_t ESTARS(std::min(size_t(8), 
+                                   size_t(std::ceil(EBAL*NATOMS))));
+      std::cout << std::right << std::setw(5) << i << "|"
+                << std::right << std::setw(10) << atom2vcount[i] << "|"
+                << std::right << std::setw(10) <<  VBAL << "|"
+                << std::left  << std::setw(10) << std::string(VSTARS, '*')
+                << "|"
+                << std::right << std::setw(10) << atom2ecount[i] << "|"
+                << std::right << std::setw(10) << EBAL << "|"
+                << std::left  << std::setw(10) << std::string(ESTARS, '*')
+                << '\n';
+    }
     std::cout 
       << "------------------------------------------------------------"
       << std::endl;      
   }
-  
-  double vertex_balance() {
-    double max_count(0);
-    typedef atom2count_type::value_type pair_type;
-    foreach(pair_type& pair, atom2count) 
-      max_count = std::max(max_count, pair.second);
-    return max_count * atom2count.size();
+  double vertex_prop(size_t i) const {
+    ASSERT_LT(i, NATOMS);
+    ASSERT_LE(vset, NVERTS);
+    if(vset == 0) return 0;
+    return double(atom2vcount[i]) / vset;
+  }
+  double edge_prop(size_t i) const {
+    ASSERT_LT(i, NATOMS);
+    ASSERT_LE(eset, NEDGES);
+    if(eset == 0) return 0;
+    return double(atom2ecount[i]) / eset;
   }
 
+  size_t edge_min() const {
+    return
+      std::min_element(atom2ecount.begin(), atom2ecount.end()) -
+      atom2ecount.begin();
+  }
+  size_t vertex_min() const {
+    return
+      std::min_element(atom2vcount.begin(), atom2vcount.end()) -
+      atom2vcount.begin();
+  }
+
+  double vertex_imbalance() const {
+    if(vset == 0) return 0;
+    const size_t max_ind = 
+      std::max_element(atom2vcount.begin(), atom2vcount.end()) -
+      atom2vcount.begin();
+    return double(atom2vcount[max_ind] * NATOMS) / double(vset);
+  }
+
+
+  double edge_imbalance() const {
+    if(eset == 0) return 0;
+    const size_t max_ind = 
+      std::max_element(atom2ecount.begin(), atom2ecount.end()) -
+      atom2ecount.begin();
+    return double(atom2ecount[max_ind] * NATOMS) / double(eset);
+  }
+
+
+
   void finalize() {
-    double sum(0); 
-    typedef atom2count_type::value_type pair_type;
-    foreach(pair_type& pair, atom2count) sum += pair.second;
-    ASSERT_GT(sum, 0);
-    foreach(pair_type& pair, atom2count) pair.second /= sum;   
+    vset = 0; 
+    foreach(size_t count, atom2vcount) vset+=count;
+    eset = 0;
+    foreach(size_t count, atom2ecount) eset+=count;    
+    ASSERT_LE(vset, NVERTS);
+    ASSERT_LE(eset, NEDGES);
+    ASSERT_EQ(visited, NVERTS);
     print(); 
   }   
   void load(iarchive& iarc) {
-    iarc >> atom2count >> num_unset >> nextvset 
-         >> edge_cut >> visited;
+    iarc >> atom2vcount 
+         >> atom2ecount 
+         >> vset
+         >> eset
+         >> visited
+         >> edges_cut
+         >> nchanges
+         >> samples;
   }
   void save(oarchive& oarc) const {
-    oarc << atom2count << num_unset << nextvset
-         << edge_cut << visited;
+    oarc << atom2vcount 
+         << atom2ecount 
+         << vset
+         << eset
+         << visited
+         << edges_cut
+         << nchanges
+         << samples;
   }
 };
 
@@ -183,36 +278,6 @@ void statistics_merge_fun(any& any_dest,  const any& any_src) {
 
 
 
-procid_t find_best_atom(statistics::atom2count_type& local_atom2count,
-                        const statistics::atom2count_type& global_atom2count) {
-  double best_score = 0;
-  procid_t best_atomid = local_atom2count.begin()->first;
-  ASSERT_LT(best_atomid, num_atoms);
-  typedef statistics::atom2count_type::value_type pair_type;
-  // normalize the local_atom2count map
-  double sum(0);
-  foreach(pair_type& pair, local_atom2count) sum += pair.second;
-  ASSERT_GT(sum, 0);
-  foreach(pair_type& pair, local_atom2count) pair.second /= sum;
-
-  foreach(const pair_type& pair, local_atom2count) {
-    const procid_t atomid(pair.first);
-    ASSERT_LT(atomid, num_atoms);
-    const double local_count(pair.second);
-    ASSERT_GT(local_count, 0);
-    const double global_count(safe_get(global_atom2count, atomid, double(0)) );
-    // auto join
-    if(global_count == 0) { return atomid; }
-    ASSERT_GT(global_count, 0);
-    // otherwise compute the 
-    const double score = local_count / global_count;
-    if(score > best_score)  {
-      best_atomid = atomid;
-      best_score = score;
-    }
-  }
-  return best_atomid;
-} // end of best join atoms
 
 
 
@@ -224,51 +289,68 @@ procid_t find_best_atom(statistics::atom2count_type& local_atom2count,
 void partition_update_function(iscope_type& scope,
                                icallback_type& callback,
                                ishared_data_type* unused) {
-  statistics::atom2count_type local_atom2count;
-  // Get the number of neighbor assignments
+  statistics::atom2count_type nbr_a2c(NATOMS);
+  // Get the number of neighbor assignments ===============================
+  size_t nbr_sum(0);
   foreach(const edge_id_t eid, scope.in_edge_ids()) {
-    const vertex_id_t vid(scope.source(eid));
-    const vertex_data_type& vdata = 
-      scope.const_neighbor_vertex_data(vid);
-    if(vdata.is_set) ++local_atom2count[vdata.atomid];
+    const vertex_data_type& nbr_vdata = 
+      scope.const_neighbor_vertex_data(scope.source(eid));
+    if(nbr_vdata.is_set) { 
+      ++nbr_a2c[nbr_vdata.atomid];
+      ++nbr_sum;
+    }
   }
   foreach(const edge_id_t eid, scope.out_edge_ids()) {
-    const vertex_id_t vid(scope.target(eid));
-    const vertex_data_type& vdata = 
-      scope.const_neighbor_vertex_data(vid);
-    if(vdata.is_set) ++local_atom2count[vdata.atomid];
+    const vertex_data_type& nbr_vdata = 
+      scope.const_neighbor_vertex_data(scope.target(eid));
+    if(nbr_vdata.is_set) { 
+      ++nbr_a2c[nbr_vdata.atomid];
+      ++nbr_sum;
+    }
   }
-
-  // Get the vertex data
-  const vertex_data_type& vdata(scope.const_vertex_data());
-
-
-  // If the neighbor change has not reached this machine yet then
-  // reschedule self
-  if(!vdata.is_seed && local_atom2count.empty()) {
-    callback.add_task(scope.vertex(), partition_update_function);
-    return;
-  }
-
+  // Determine the new atomid to join (if any) ============================
   bool changed(false);
+  // Get the vertex data (as a constant)
+  const vertex_data_type& vdata(scope.const_vertex_data());
   if(!vdata.is_seed) {
-    ASSERT_GT(local_atom2count.size(), 0);
-    // Get the new atomid assignment for this vertex
+    // Get the shared statistics
     typedef shared_statistics_type::const_ptr_type shared_ptr_type;
     shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
-    const procid_t new_atomid = 
-      find_best_atom(local_atom2count, shared_statistics_ptr->atom2count);
+    const statistics& stats(*shared_statistics_ptr);
+    // Compute the best atomid to join
+    double best_score(0);
+    procid_t best_atomid(-1);    
+    for(size_t i = 0; i < NATOMS; ++i) {
+      double new_imbalance(0);
+      if(vdata.is_set && vdata.atomid == i) 
+        new_imbalance = 
+          double(stats.atom2ecount[i] * NATOMS) / double(stats.eset + 1);
+      else 
+        new_imbalance = 
+          double((stats.atom2ecount[i]+scope.in_edge_ids().size()) * NATOMS) 
+          / double(stats.eset + 1);   
 
-    if(!vdata.is_set ||
-       (vdata.num_changes < MAX_CHANGES && 
-        vdata.atomid != new_atomid) ) {
+      const double score = (double(nbr_a2c[i]) / nbr_sum ) /
+        (double(stats.atom2ecount[i]) / (stats.eset+1));
+
+      if(new_imbalance < 5.0 && score > best_score) {
+        best_score = score; best_atomid = i;
+      }
+    }
+    // if we failed to find an atom and the vdata was not yet set
+    if(best_atomid == procid_t(-1) && !vdata.is_set) {
+      best_atomid = stats.edge_min();      
+    }
+    if(best_atomid != procid_t(-1) &&
+       vdata.num_changes < MAX_CHANGES && 
+       (vdata.atomid != best_atomid || !vdata.is_set ))  {
       vertex_data_type& vdata(scope.vertex_data());
-      vdata.atomid = new_atomid;
+      vdata.atomid = best_atomid;
       vdata.is_set = true;
       vdata.num_changes++;
       changed = true;
     }
-  } // end update assig
+  } // end update assign
   // Reschedule the neighbors
   if(changed || vdata.is_seed) {
     // Schedule all in neighbors
@@ -276,7 +358,8 @@ void partition_update_function(iscope_type& scope,
       const vertex_id_t vid(scope.source(eid));
       const vertex_data_type& vdata = 
         scope.const_neighbor_vertex_data(vid);
-      if(vdata.num_changes < MAX_CHANGES) 
+      if(vdata.num_changes < MAX_CHANGES &&
+         !vdata.is_seed)
         callback.add_task(vid, partition_update_function);
     }
     // Schedule all out neighbors
@@ -284,11 +367,24 @@ void partition_update_function(iscope_type& scope,
       const vertex_id_t vid(scope.target(eid));
       const vertex_data_type& vdata = 
         scope.const_neighbor_vertex_data(vid);
-      if(vdata.num_changes < MAX_CHANGES) 
+      if(vdata.num_changes < MAX_CHANGES &&
+         !vdata.is_seed)
         callback.add_task(vid, partition_update_function);
     }
   }
 } // end of partition_update_function
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -313,7 +409,7 @@ int main(int argc, char** argv) {
     clopts("Partition the graph using the GraphLab engine.");
   clopts.attach_option("aindex", &aindex, aindex,
                        "The atom index file.");
-  clopts.attach_option("nparts", &num_atoms, num_atoms,
+  clopts.attach_option("nparts", &NATOMS, NATOMS,
                        "The number of parts to create.");
   clopts.attach_option("partfile", &partfile, partfile,
                        "[output] file containing the partitioning.");
@@ -322,7 +418,7 @@ int main(int argc, char** argv) {
               << std::endl;
     return EXIT_FAILURE;
   }
-  logstream(LOG_INFO) << "Partitioning into " << num_atoms
+  logstream(LOG_INFO) << "Partitioning into " << NATOMS
                       << " parts." << std::endl;
 
   // Initialize the distributed control plane
@@ -340,7 +436,12 @@ int main(int argc, char** argv) {
     << "Loading graph from atom index file: " << aindex << std::endl;
   const bool NO_LOAD_DATA(true);
   graph_type  graph(dc, aindex, NO_LOAD_DATA);
- 
+  
+  // Initialize global quantites
+  NVERTS = graph.num_vertices();
+  NEDGES = graph.num_edges();
+
+  shared_statistics.set(statistics(NATOMS));
 
   logstream(LOG_INFO)
     << "Artificially color the graph" << std::endl;
@@ -366,60 +467,70 @@ int main(int argc, char** argv) {
   engine.set_sync(shared_statistics,
                   statistics_sum_fun,
                   statistics_apply_fun,
-                  any(statistics(num_atoms)), 
+                  any(statistics(NATOMS)), 
                   SYNC_INTERVAL,
                   statistics_merge_fun);
 
-  
-  logstream(LOG_INFO) << "Scheduling tasks." << std::endl;  
-
-  // Scheduling tasks
   if(dc.procid() == 0) {
-    for(size_t i = 0; i < num_atoms; ++i) {
+    std::cout << "Schedule initial set of vertices" << std::endl;
+    for(size_t i = 0; i < NATOMS; ++i) {
       const vertex_id_t vid(rand() % graph.num_vertices());
       vertex_data_type vdata;
       vdata.atomid = i;
-      vdata.is_set = true;  
+      vdata.is_set = true;
       vdata.is_seed = true;
       graph.set_vertex_data(vid, vdata);
-      logstream(LOG_INFO) << "Adding seed: " << vid << std::endl;
       engine.add_vtask(vid, partition_update_function);
     }
   }
 
-  logstream(LOG_INFO) << "Running partitioner." << std::endl;
-  size_t iteration_counter(0);
-  for(; true; iteration_counter++) {
-    std::cout << "Starting iteration: " << iteration_counter
-              << std::endl;        
+
+  // Scheduling tasks
+  if(dc.procid() == 0)
+    std::cout << "Running partitioner." << std::endl;
+  bool finished(false);
+  for(size_t iteration_counter = 0; 
+        iteration_counter < MAX_ITERATIONS; iteration_counter++) {
+    if(dc.procid() == 0)
+      std::cout << "Starting iteration: " << iteration_counter
+                << std::endl;        
     engine.start();
     statistics stats(shared_statistics.get_val());    
-    std::cout << "Finished iteration: " << iteration_counter
-              << std::endl;      
-    if(stats.num_unset == 0) break;
+    if(dc.procid() == 0)
+      std::cout << "Finished iteration: " << iteration_counter
+              << std::endl;
+    
+    if(stats.vset == NVERTS){
+      finished = true;
+      break;
+    }
     // Gather unset vertices
-    if(dc.procid() == 0) {
-      stats.print();
-      ASSERT_EQ(stats.nextvset.size(), num_atoms);     
-      std::cout << "Num unset: " << stats.num_unset << std::endl;
-      for(size_t i = 0; i < num_atoms && i < stats.num_unset; ++i) {
-        ASSERT_NE(stats.nextvset[i], vertex_id_t(-1));
-        const vertex_id_t vid(stats.nextvset[i]);
-        vertex_data_type vdata;
-        vdata.atomid = i;
-        vdata.is_set = true;  
-        vdata.is_seed = true;
-        graph.set_vertex_data(vid, vdata);
-        logstream(LOG_INFO) << "Adding seed: " << vid << std::endl;
+    if(dc.procid() == 0) stats.print();
+    ASSERT_LE(stats.samples.size(), NATOMS);     
+    // schedule local vertices
+    foreach(const procid_t vid, stats.samples) {
+      ASSERT_NE(vid, vertex_id_t(-1));
+      if(graph.vertex_is_local(vid)) {        
         engine.add_vtask(vid, partition_update_function);
-      }
-    } // end of if 0
-  } // end of loop for loop
-  logstream(LOG_INFO) << "Finished partitioning." << std::endl;
- 
+      } // end of if 0
+    } // end of loop over unset vertices
+  } // end of for iteration_counter
 
- 
-  logstream(LOG_INFO) << "Gathering partitioning." << std::endl;
+  if(!finished) {
+    if(dc.procid() == 0) 
+      std::cout  << "Running one last iteration. " << std::endl;
+    // do one extra pass
+    foreach(const vertex_id_t& vid, graph.owned_vertices()) {
+       engine.add_vtask(vid, partition_update_function);       
+    }
+    if(dc.procid() == 0)
+      std::cout  << "Running final run." << std::endl;
+    engine.start();
+  } // end of if finished
+  
+
+  if(dc.procid() == 0)
+    std::cout  << "Gathering partitioning." << std::endl;
 
   typedef std::vector< std::pair<vertex_id_t, procid_t> > vector_of_pairs;
   std::vector<vector_of_pairs> proc2pairs(dc.numprocs());
@@ -435,7 +546,7 @@ int main(int argc, char** argv) {
   if (dc.procid() == ROOT_NODE) {
     // construct final map
     std::vector<procid_t> result(graph.num_vertices());
-    std::vector<size_t> counts(num_atoms);
+    std::vector<size_t> counts(NATOMS);
     std::vector<size_t> vertex2proc(graph.num_vertices());
     for (size_t i = 0; i < dc.numprocs(); ++i) {
       for(size_t j = 0; j < proc2pairs[i].size(); ++j) {
@@ -464,8 +575,9 @@ int main(int argc, char** argv) {
     std::cout << "\n\n\n\n" << std::endl 
               <<  "======================================"
               << "\n\n" << std::endl;
-
-    std::cout << "Counts:  ";
+    statistics  stats(shared_statistics.get_val());
+    stats.print();
+    std::cout << "Totals:  ";
     size_t max_counts(0);
     for(size_t i = 0; i < counts.size(); ++i) {
       std::cout << counts[i]  << '\t';
@@ -473,11 +585,15 @@ int main(int argc, char** argv) {
     }
     std::cout << std::endl;
 
+    std::cout << "VCounts: ";
+    foreach(size_t count, stats.atom2vcount) 
+      std::cout << count  << '\t';
+    std::cout << std::endl;
+
     std::cout << "ECounts: ";
-    statistics  stats(shared_statistics.get_val());
     typedef statistics::atom2count_type::value_type pair_type;
-    foreach(pair_type pair, stats.atom2count) 
-      std::cout << pair.second  << '\t';
+    foreach(size_t count, stats.atom2ecount) 
+      std::cout << count  << '\t';
     std::cout << std::endl;
 
     const double imbalance = 
