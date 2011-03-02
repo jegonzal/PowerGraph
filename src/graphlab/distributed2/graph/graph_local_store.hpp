@@ -53,10 +53,10 @@ namespace dist_graph_impl {
     /**
      * Build a basic graph
      */
-    graph_local_store(): do_not_mmap(false), vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
+    graph_local_store(): do_not_mmap(true), vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
 
     void create_store(size_t create_num_verts, size_t create_num_edges,
-                std::string vertexstorefile, std::string edgestorefile, bool do_not_mmap_ = false) { 
+                std::string vertexstorefile, std::string edgestorefile, bool do_not_mmap_ = true) { 
       do_not_mmap = do_not_mmap_;
       nvertices = create_num_verts;
       nedges = create_num_edges;
@@ -802,10 +802,9 @@ namespace dist_graph_impl {
     } // end of binary search 
 
     void setup_mmap() {
-      vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
-      edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
-      do_not_mmap = true;
       if (do_not_mmap == false) {
+        vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
+        edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
         vertices = (vdata_store*)(vertexmmap->mapped_ptr());
         edgedata = (edata_store*)(edgemmap->mapped_ptr());
       }

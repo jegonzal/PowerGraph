@@ -43,7 +43,7 @@ int main(int argc, char ** argv) {
   dht<std::string, std::string> testdht(dc);
   
   std::vector<std::pair<std::string, std::string> > data;
-  const size_t NUMSTRINGS = 100000;
+  const size_t NUMSTRINGS = 1000;
   // fill rate
   if (dc.procid() == 0) {
     for (size_t i = 0;i < NUMSTRINGS; ++i) {

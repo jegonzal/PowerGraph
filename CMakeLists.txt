@@ -142,6 +142,7 @@ endif()
 CHECK_LIBRARY_EXISTS(z zlibVersion "" ZLIB_FOUND)
 if (ZLIB_FOUND)
   add_definitions(-DZLIB_FOUND)
+  link_libraries(z)
 endif()
 
 # check for TCMalloc

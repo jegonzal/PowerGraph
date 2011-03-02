@@ -102,7 +102,7 @@ class distributed_graph {
   typedef dgraph_edge_list edge_list_type;
   
   distributed_graph(distributed_control &dc, std::string atomidxfile, bool do_not_load_data = false,
-                    bool do_not_mmap = false):
+                    bool do_not_mmap = true):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
                               pending_async_updates(true, 0),

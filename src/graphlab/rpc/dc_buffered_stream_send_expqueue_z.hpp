@@ -40,7 +40,7 @@ class dc_buffered_stream_send_expqueue_z: public dc_send{
     zstrm.zalloc = Z_NULL;
     zstrm.zfree = Z_NULL;
     zstrm.opaque = Z_NULL;
-    ASSERT_TRUE(deflateInit(&zstrm, 6) == Z_OK); // level 6 out of 0-9 compression
+    ASSERT_TRUE(deflateInit(&zstrm, 1) == Z_OK); // level 6 out of 0-9 compression
     thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue_z::send_loop, 
                                       this));
   }
