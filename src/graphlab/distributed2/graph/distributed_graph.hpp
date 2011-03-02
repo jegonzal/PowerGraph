@@ -560,7 +560,7 @@ class distributed_graph {
   EdgeData get_edge_data_from_pair(vertex_id_t source, 
                                    vertex_id_t target) const {
     if (global_vid_in_local_fragment(source) && 
-        global_vid_in_local_fragment(target)) {
+        is_owned(target)) {
       return edge_data(source, target);
     }
     else {
