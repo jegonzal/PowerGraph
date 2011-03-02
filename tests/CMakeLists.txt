@@ -72,7 +72,7 @@ add_executable(is_rpc_call_test is_rpc_call_test.cpp)
 add_executable(dc_barrier_test dc_barrier_test.cpp)
 add_executable(dhttest dhttest.cpp)
 add_dist2_executable(dht_performance_test dht_performance_test.cpp)
-
+target_link_libraries(dht_performance_test z)
 add_executable(example1 example1.cpp)
 add_executable(example2 example2.cpp)
 add_executable(example3 example3.cpp)

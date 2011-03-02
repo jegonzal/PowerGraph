@@ -306,11 +306,11 @@ class distributed_control{
           // then decrement the incomplete count.
           // if it was me to decreased it to 0
           // lock and signal
+          full_barrier_lock.lock();
           if (num_proc_recvs_incomplete.dec() == 0) {
-            full_barrier_lock.lock();
             full_barrier_cond.signal();
-            full_barrier_lock.unlock();
           }
+          full_barrier_lock.unlock();
         }
       }
     }
@@ -342,6 +342,11 @@ class distributed_control{
       for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
       return ret;
     }
+  }  
+  
+  
+  inline size_t network_bytes_sent() const {
+    return comm->network_bytes_sent();
   }  
   
   inline size_t bytes_received() const {
@@ -501,12 +506,13 @@ class distributed_control{
   struct collected_statistics {
     size_t callssent;
     size_t bytessent;
-    collected_statistics(): callssent(0), bytessent(0) { }
+    size_t network_bytessent;
+    collected_statistics(): callssent(0), bytessent(0), network_bytessent(0) { }
     void save(oarchive &oarc) const {
-      oarc << callssent << bytessent;
+      oarc << callssent << bytessent << network_bytessent;
     }
     void load(iarchive &iarc) {
-      iarc >> callssent >> bytessent;
+      iarc >> callssent >> bytessent >> network_bytessent;
     }
   };
  public:

@@ -139,7 +139,11 @@ else()
 endif()
 
 
-
+CHECK_LIBRARY_EXISTS(z zlibVersion "" ZLIB_FOUND)
+if (ZLIB_FOUND)
+  add_definitions(-DZLIB_FOUND)
+  link_libraries(z)
+endif()
 
 # check for TCMalloc
 CHECK_LIBRARY_EXISTS("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
@@ -207,7 +211,7 @@ link_directories(
 
 # Add posix threads on non-windows systems
 if(NOT ${CMAKE_SYSTEM} MATCHES Windows)
-  link_libraries(pthread)   
+  link_libraries(pthread gomp)   
 endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 
 
@@ -219,7 +223,7 @@ endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 
 ### Set the debug flags ----------------------------------------------------->
 # Note: -fkeep-inline-functions significantly slows down the compilation
-set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self -fopenmp -lgomp ") 
+set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self -fopenmp") 
 #-fno-implicit-templates")
 ### Set the release flags --------------------------------------------------->
 if (CROSS_COMPILE_32_BIT MATCHES 1)
@@ -231,13 +235,13 @@ else(CROSS_COMPILE_32_BIT MATCHES 1)
   
   # Set the C compiler flags in release mode on 64bit systems
   set(CMAKE_C_FLAGS_RELEASE 
-    "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays -fopenmp -lgomp ")
+    "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays -fopenmp")
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O2 -Wall -g -mfpmath=sse -msse2 -fprefetch-loop-arrays -pg -fopenmp -lgomp ")
+      "-O2 -Wall -g -mfpmath=sse -msse2 -fprefetch-loop-arrays -pg -fopenmp")
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays -fopenmp -lgomp ")
+      "-O3 -Wall -g -mfpmath=sse -msse2 -funroll-loops -fprefetch-loop-arrays -fopenmp")
   endif(COMPILE_PROFILING MATCHES 1)
 
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
