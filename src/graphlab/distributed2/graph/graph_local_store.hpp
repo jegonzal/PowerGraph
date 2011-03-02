@@ -1,6 +1,7 @@
 #ifndef GRAPH_LOCAL_STORE_HPP
 #define GRAPH_LOCAL_STORE_HPP
 #include <climits>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/mmap_wrapper.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -48,6 +49,7 @@ namespace dist_graph_impl {
       uint64_t version:63;
       bool modified:1;
     };
+    
   public:
 
     /**
@@ -65,6 +67,7 @@ namespace dist_graph_impl {
       in_edges.resize(nvertices);
       out_edges.resize(nvertices);
       vcolors.resize(nvertices);
+      locks.resize(nvertices);
       
       vertex_store_file = vertexstorefile;
       edge_store_file = edgestorefile;
@@ -299,7 +302,6 @@ namespace dist_graph_impl {
     void set_vertex_version(vertex_id_t v, uint64_t version) {
       assert(v < nvertices);
       vertices[v].version = version;
-      vertices[v].modified = false;
     }
 
     void increment_vertex_version(vertex_id_t v) {
@@ -310,6 +312,25 @@ namespace dist_graph_impl {
     uint64_t vertex_version(vertex_id_t v) const{
       assert(v < nvertices);
       return vertices[v].version;
+    }
+
+    void increment_and_update_vertex(vertex_id_t v, VertexData data) {
+      assert(v < nvertices);
+      locks[v].lock();
+      vertices[v].data = data;
+      vertices[v].version++;
+      locks[v].unlock();
+    }
+
+    void conditional_update_vertex(vertex_id_t v, VertexData data, size_t version) {
+      assert(v < nvertices);
+      locks[v].lock();
+      if (vertices[v].version <= version) {
+        vertices[v].data = data;
+        vertices[v].version = version;
+        vertices[v].modified = false;
+      }
+      locks[v].unlock();
     }
 
 
@@ -363,7 +384,6 @@ namespace dist_graph_impl {
     void set_edge_version(edge_id_t edge_id, uint64_t version) {
       assert(edge_id < nedges);
       edgedata[edge_id].version = version;
-      edgedata[edge_id].modified = false;
     }
 
     void increment_edge_version(edge_id_t edge_id) {
@@ -384,6 +404,25 @@ namespace dist_graph_impl {
     bool edge_modified(edge_id_t edge_id) const{
       assert(edge_id < nedges);
       return edgedata[edge_id].modified;
+    }
+
+    void increment_and_update_edge(edge_id_t e, EdgeData data) {
+      assert(e < nedges);
+      locks[target(e)].lock();
+      edgedata[e].data = data;
+      edgedata[e].version++;
+      locks[target(e)].unlock();
+    }
+
+    void conditional_update_edge(edge_id_t e, EdgeData data, size_t version) {
+      assert(e < nedges);
+      locks[target(e)].lock();
+      if (edgedata[e].version <= version) { 
+        edgedata[e].data = data;
+        edgedata[e].version = version;
+        edgedata[e].modified = false;
+      }
+      locks[target(e)].unlock();
     }
 
     size_t& edge_version(vertex_id_t source, vertex_id_t target) {
@@ -751,6 +790,8 @@ namespace dist_graph_impl {
     std::vector<std::vector<std::pair<void*, size_t> > > minimal_prefetch_edge;
     size_t nvertices;
     size_t nedges;
+    
+    std::vector<spinlock> locks;
     
     /** Mark whether the graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve

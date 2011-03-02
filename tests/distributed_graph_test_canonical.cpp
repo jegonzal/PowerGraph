@@ -55,7 +55,7 @@ void set_all_vertices_to_value(distributed_graph<size_t, double> &dg, size_t val
   // ok. now everyone set to zero
   for (size_t i = 0;i < localvertices.size(); ++i) {
     dg.vertex_data(localvertices[i]) = value;
-    dg.increment_vertex_version(localvertices[i]);
+    dg.vertex_is_modified(localvertices[i]);
   }
 }
 
@@ -64,7 +64,7 @@ void set_all_edges_to_value(distributed_graph<size_t, double> &dg, double value)
   for (size_t i = 0;i < localvertices.size(); ++i) {
     foreach(edge_id_t eid, dg.in_edge_ids(localvertices[i])) {
       dg.edge_data(eid) = value;
-      dg.increment_edge_version(eid);
+      dg.edge_is_modified(eid);
     }
   }
 }
@@ -74,28 +74,23 @@ void set_all_in_boundary(distributed_graph<size_t, double> &dg, size_t vvalue, d
   for (size_t i = 0;i < boundvertices.size(); ++i) {
     dg.vertex_data(boundvertices[i]) = vvalue;
     dg.vertex_is_modified(boundvertices[i]);
-    dg.increment_vertex_version(boundvertices[i]);
 
     foreach(edge_id_t eid, dg.in_edge_ids(boundvertices[i])) {
       dg.edge_data(eid) = evalue;
       dg.edge_is_modified(eid);
-      dg.increment_edge_version(eid);
 
       vertex_id_t sourcevid = dg.source(eid);
       dg.vertex_data(sourcevid) = vvalue;
       dg.vertex_is_modified(sourcevid);
-      dg.increment_vertex_version(sourcevid);
     }
 
     foreach(edge_id_t eid, dg.out_edge_ids(boundvertices[i])) {
       dg.edge_data(eid) = evalue;
       dg.edge_is_modified(eid);
-      dg.increment_edge_version(eid);
 
       vertex_id_t targetvid = dg.target(eid);
       dg.vertex_data(targetvid) = vvalue;
       dg.vertex_is_modified(targetvid);
-      dg.increment_vertex_version(targetvid);
     }
   }
 }

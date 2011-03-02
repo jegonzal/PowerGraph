@@ -360,18 +360,18 @@ void partition_update_function(iscope_type& scope,
   const vertex_data_type& vdata(scope.const_vertex_data());
   
   // Get the shared statistics
-  typedef shared_statistics_type::const_ptr_type shared_ptr_type;
-  shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
-  const statistics& stats(*shared_statistics_ptr);
+  // typedef shared_statistics_type::const_ptr_type shared_ptr_type;
+  // shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
+  // const statistics& stats(*shared_statistics_ptr);
   
   // Compute a random probability table
   std::vector<double> prb(NATOMS);
   { // Smooth slightly to fix problems with star graphs
     //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
     const double SMOOTHING(0);
-    for(size_t i = 0; i < NATOMS; ++i)
-      prb[i] = exp( double(nbr_a2c[i] + SMOOTHING) / nbr_sum );
-    //    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes;
+    for(size_t i = 0; i < NATOMS; ++i) 
+      prb[i] =  nbr_a2c[i] + SMOOTHING;
+    if(vdata.is_set) prb[vdata.atomid] += vdata.num_changes;
   }
   { // normalize
     double Z = 0;
