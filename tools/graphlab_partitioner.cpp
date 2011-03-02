@@ -318,29 +318,44 @@ void partition_update_function(iscope_type& scope,
     shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
     const statistics& stats(*shared_statistics_ptr);
     // Compute the best atomid to join
-    double best_score(0);
-    procid_t best_atomid(-1);    
+    double best_score(-1);
+    procid_t best_atomid(-1);
+    // if(stats.eset == 0) best_atomid = rand() % NATOMS;
+    // else best_atomid = stats.edge_min();    
+    //    best_atomid = stats.edge_min();    
     for(size_t i = 0; i < NATOMS; ++i) {
       double new_imbalance(0);
-      if(vdata.is_set && vdata.atomid == i) 
+      if(!vdata.is_set)
         new_imbalance = 
-          double(stats.atom2ecount[i] * NATOMS) / double(stats.eset + 1);
+          double((stats.atom2ecount[i]+scope.in_edge_ids().size()) * NATOMS) 
+          / double(stats.eset + 1 + scope.in_edge_ids().size());   
+      else if(vdata.is_set && vdata.atomid == i) 
+        new_imbalance = 
+          double(stats.atom2ecount[i] * NATOMS) / double(stats.eset + 1);     
       else 
         new_imbalance = 
           double((stats.atom2ecount[i]+scope.in_edge_ids().size()) * NATOMS) 
           / double(stats.eset + 1);   
 
-      const double score = (double(nbr_a2c[i]) / nbr_sum ) /
-        (double(stats.atom2ecount[i]) / (stats.eset+1));
 
-      if(new_imbalance < 5.0 && score > best_score) {
+      //    const double score = nbr_a2c[i];
+      // if(new_imbalance < 3.0 && score > best_score) {
+      //   best_score = score; best_atomid = i;
+      // }
+
+      const double score = 
+        (double(nbr_a2c[i]) / nbr_sum) / 
+        (double(stats.atom2ecount[i]) / (stats.eset + 1)) ;
+      if(score > best_score && new_imbalance < 3) {
         best_score = score; best_atomid = i;
       }
     }
-    // if we failed to find an atom and the vdata was not yet set
-    if(best_atomid == procid_t(-1) && !vdata.is_set) {
-      best_atomid = stats.edge_min();      
+    // if we failed try again 
+    if(best_atomid == procid_t(-1)) {
+      callback.add_task(scope.vertex(), partition_update_function); 
+      return;
     }
+    
     if(best_atomid != procid_t(-1) &&
        vdata.num_changes < MAX_CHANGES && 
        (vdata.atomid != best_atomid || !vdata.is_set ))  {
@@ -508,9 +523,15 @@ int main(int argc, char** argv) {
     if(dc.procid() == 0) stats.print();
     ASSERT_LE(stats.samples.size(), NATOMS);     
     // schedule local vertices
-    foreach(const procid_t vid, stats.samples) {
+    foreach(const vertex_id_t vid, stats.samples) {
       ASSERT_NE(vid, vertex_id_t(-1));
-      if(graph.vertex_is_local(vid)) {        
+      if(graph.vertex_is_local(vid)) {
+        vertex_data_type& vdata = graph.vertex_data(vid);
+        vdata.atomid = rand() % NATOMS;
+        vdata.is_set = true;
+        //        vdata.is_seed = true;
+        graph.vertex_is_modified(vid);
+        graph.increment_vertex_version(vid);
         engine.add_vtask(vid, partition_update_function);
       } // end of if 0
     } // end of loop over unset vertices
@@ -521,7 +542,14 @@ int main(int argc, char** argv) {
       std::cout  << "Running one last iteration. " << std::endl;
     // do one extra pass
     foreach(const vertex_id_t& vid, graph.owned_vertices()) {
-       engine.add_vtask(vid, partition_update_function);       
+      vertex_data_type& vdata = graph.vertex_data(vid);
+      vdata.atomid = rand() % NATOMS;
+      vdata.is_set = true;
+      //        vdata.is_seed = true;
+      graph.vertex_is_modified(vid);
+      graph.increment_vertex_version(vid);
+      engine.add_vtask(vid, partition_update_function);
+      engine.add_vtask(vid, partition_update_function);       
     }
     if(dc.procid() == 0)
       std::cout  << "Running final run." << std::endl;
