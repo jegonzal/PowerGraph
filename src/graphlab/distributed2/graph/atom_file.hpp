@@ -227,6 +227,27 @@ namespace graphlab {
     inline std::vector<EdgeData>& edata() { return edata_; }
 
 
+    void costly_checking() {
+      ASSERT_EQ(globalvids().size(), atom().size());
+      ASSERT_EQ(globalvids().size(), vcolor().size());
+      std::set<vertex_id_t> allgvids;
+      foreach(const vertex_id_t& gvid, globalvids()) {
+        ASSERT_EQ(allgvids.count(gvid), 0);
+        allgvids.insert(gvid);
+      }
+      typedef std::pair<vertex_id_t, vertex_id_t> pair_type;
+      foreach(const pair_type pair, edge_src_dest()) {
+        const vertex_id_t source_lvid = pair.first;
+        const vertex_id_t target_lvid = pair.second;
+        ASSERT_NE(source_lvid, target_lvid);
+        ASSERT_LT(source_lvid, globalvids().size());
+        ASSERT_LT(target_lvid, globalvids().size());
+        ASSERT_TRUE(atom()[source_lvid] == atom_id() ||
+                    atom()[target_lvid] == atom_id());        
+      }
+
+    }
+
   private:
     procid_t atom_id_;
 
