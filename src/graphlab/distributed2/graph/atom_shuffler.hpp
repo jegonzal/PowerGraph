@@ -53,10 +53,20 @@ namespace graphlab {
     struct atom_info {
       atom_file_type atom_file;
       global2local_type global2local;
+      // atom_info(const size_t& atomid) { 
+      //   atom_file.atom_id() = atomid;
+      // }
       vertex_id_t get_local_vid(vertex_id_t gvid) {
         global2local_type::iterator iter 
           = global2local.find(gvid);
-        assert(iter != global2local.end());
+        
+        if(iter == global2local.end()) {
+          logstream(LOG_FATAL) 
+            << "Trying to find vertex " << gvid 
+            << " in atom info for atom id " << atom_file.atom_id()
+            << std::endl;
+          ASSERT_TRUE(iter != global2local.end());
+        }
         return iter->second;
       }
     };
@@ -86,7 +96,8 @@ namespace graphlab {
       vertex_color_type source_color;
       vertex_id_t target;
       edge_data_type edata;
-      edge_args() : source(-1), target(-1) { }
+      edge_args() : source(-1), source_color(-1), 
+                    target(-1) { }
       edge_args(const vertex_id_t& source,
                 const vertex_color_type& source_color,
                 const vertex_id_t& target,
@@ -98,6 +109,24 @@ namespace graphlab {
       }
       void save(oarchive& oarc) const {
         oarc << source << source_color << target << edata;
+      }
+    }; // end of struct args
+
+
+    struct edge_args_bndry {
+      vertex_id_t source;
+      vertex_id_t target;
+      vertex_color_type target_color;
+      edge_args_bndry() : source(-1), target(-1) { }
+      edge_args_bndry(const vertex_id_t& source,
+                      const vertex_id_t& target,
+                      const vertex_color_type& target_color) :
+        source(source), target(target), target_color(target_color) { }
+      void load(iarchive& iarc) {
+        iarc >> source >>  target >> target_color;
+      }
+      void save(oarchive& oarc) const {
+        oarc << source << target << target_color;
       }
     }; // end of struct args
 
@@ -147,6 +176,7 @@ namespace graphlab {
     void add_vertex_local(const vertex_id_t& gvid,
                           const vertex_color_type& vcolor,
                           const vertex_data_type& vdata) {
+
       const procid_t atomid(vertex2atomid.at(gvid));
       ASSERT_TRUE(is_local(atomid));
       ASSERT_LT(atomid, atomid2lock.size());
@@ -180,7 +210,8 @@ namespace graphlab {
                         const vertex_color_type& source_vcolor,
                         const vertex_id_t& target_gvid,
                         const edge_data_type& edata) {
-      const procid_t atomid(vertex2atomid.at(target_gvid));
+      ASSERT_LT(target_gvid, vertex2atomid.size());
+      const procid_t atomid(vertex2atomid[target_gvid]);
       ASSERT_TRUE(is_local(atomid));
       ASSERT_LT(atomid, atomid2lock.size());
       ASSERT_NE(source_gvid, target_gvid);
@@ -206,6 +237,48 @@ namespace graphlab {
 
 
 
+
+
+    void add_bndry_out_edge_vec(const std::vector<edge_args_bndry>& args) {
+      for(size_t i = 0; i < args.size(); ++i) 
+        add_bndry_out_edge_local(args[i].source, args[i].target, 
+                                 args[i].target_color);
+    }// end of add edge local vec
+
+
+
+    void add_bndry_out_edge_local(const vertex_id_t& source_gvid,
+                                  const vertex_id_t& target_gvid,
+                                  const vertex_color_type& target_vcolor) {          
+      ASSERT_NE(source_gvid, target_gvid);
+      ASSERT_LT(source_gvid, vertex2atomid.size());
+      ASSERT_LT(target_gvid, vertex2atomid.size());
+      const procid_t source_atomid(vertex2atomid[source_gvid]);
+      ASSERT_TRUE(is_local(source_atomid));
+      const procid_t target_atomid(vertex2atomid[target_gvid]);
+      ASSERT_LT(source_atomid, atomid2lock.size());
+      // Get the atom info
+      atom_info& ainfo(get_atom_info(source_atomid));
+      ASSERT_EQ(ainfo.atom_file.atom_id(), source_atomid);
+      atomid2lock[source_atomid].lock();
+      const vertex_id_t source_lvid(ainfo.get_local_vid(source_gvid)); 
+      // The target may not be local
+      if(ainfo.global2local.find(target_gvid) == ainfo.global2local.end()) {
+        const vertex_id_t lvid(ainfo.atom_file.globalvids().size());
+        ainfo.atom_file.globalvids().push_back(target_gvid);
+        ainfo.global2local[target_gvid] = lvid;
+        ainfo.atom_file.vcolor().push_back(target_vcolor);
+        ainfo.atom_file.atom().push_back(target_atomid);
+      }
+      const vertex_id_t target_lvid(ainfo.get_local_vid(target_gvid));
+      ASSERT_NE(source_lvid, target_lvid);
+      ainfo.atom_file.edge_src_dest().push_back(std::make_pair(source_lvid, 
+                                                               target_lvid));
+      atomid2lock[source_atomid].unlock();
+    } // end of add edge local
+
+
+
     
 
 
@@ -216,7 +289,8 @@ namespace graphlab {
      
       // Load the atom index file
       atom_index_file aindex; 
-      std::vector<std::string> local_fnames;
+      typedef std::pair<size_t, std::string> intstr_t;
+      std::vector< intstr_t > local_fnames;
       { // Determine Local Filenames ==========================================
         logstream(LOG_INFO) 
           << "Loading atom index file: " << atom_index_fname << std::endl;    
@@ -224,9 +298,9 @@ namespace graphlab {
         ASSERT_GT(aindex.atoms.size(), 0);
         local_fnames.resize(aindex.atoms.size());
         for(size_t i = 0; i < aindex.atoms.size(); ++i)
-          local_fnames[i] = aindex.atoms[i].file;
+          local_fnames[i] = std::make_pair(i, aindex.atoms[i].file);
         // compute the fnames that are used by this machine
-        std::vector< std::vector< std::string > > partition_fnames;
+        std::vector< std::vector< intstr_t > > partition_fnames;
         rmi.gather_partition(local_fnames, partition_fnames);
         // update the local fnames      
         local_fnames = partition_fnames[rmi.procid()];
@@ -282,14 +356,17 @@ namespace graphlab {
 
       rmi.full_barrier();
 
+      std::set<vertex_id_t> allgvids;
       { // Shuffle the vertex data ============================================
         logstream(LOG_INFO) << "Shuffle vertex data." << std::endl;
         for(size_t i = 0; i < local_fnames.size(); ++i) {
           logstream(LOG_INFO) 
-            << "Loading atom file: " << local_fnames[i] << std::endl;
+            << "Loading atom file: " << local_fnames[i].second << std::endl;
           atom_file_type afile;
-          afile.input_filename("file", local_fnames[i]);
+          afile.input_filename("file", local_fnames[i].second);
           afile.load_all();
+          afile.atom_id() = local_fnames[i].first;
+          //          afile.costly_checking();
           ASSERT_LE(afile.vdata().size(), afile.globalvids().size());
           ASSERT_LE(afile.vdata().size(), afile.vcolor().size());
           logstream(LOG_INFO) << "Sending vertex data." << std::endl;
@@ -297,25 +374,31 @@ namespace graphlab {
           const size_t ONE_MB(size_t(1) << 20);
           const size_t BUFFER_SIZE(ONE_MB / sizeof(args));
           std::vector< std::vector<args> >  proc2buffer(rmi.numprocs());
-          for(size_t j = 0; j < afile.vdata().size(); ++j) {
+          for(size_t j = 0, vdata_index=0; 
+              j < afile.globalvids().size(); ++j) {
             const vertex_id_t gvid(afile.globalvids()[j]);
+            const procid_t old_atomid( afile.atom()[j] );
             ASSERT_LT(gvid, vertex2atomid.size());
-            const procid_t atomid( vertex2atomid[gvid] );
-            ASSERT_LT(atomid, num_atoms);
-            const vertex_color_type vcolor(afile.vcolor()[j]);
-            const vertex_data_type& vdata(afile.vdata()[j]);
-            if(is_local(atomid)) {
-              add_vertex_local(gvid, vcolor, vdata);
-            } else {
-              const procid_t owner(owning_machine(atomid));
-              proc2buffer[owner].push_back(args(gvid, vcolor, vdata));
-              if(proc2buffer[owner].size() > BUFFER_SIZE) {
-                rmi.remote_call(owner, 
-                                &atom_shuffler::add_vertex_local_vec,
-                                proc2buffer[owner]);
-                proc2buffer[owner].clear();
-              }
-            } //end of if else
+            const procid_t new_atomid( vertex2atomid[gvid] );
+            ASSERT_LT(old_atomid, num_atoms);
+            if(old_atomid == afile.atom_id()) {
+              ASSERT_LT(j, afile.vcolor().size());
+              const vertex_color_type vcolor(afile.vcolor()[j]);
+              ASSERT_LT(vdata_index, afile.vdata().size());
+              const vertex_data_type& vdata(afile.vdata()[vdata_index++]);
+              if(is_local(new_atomid)) {
+                add_vertex_local(gvid, vcolor, vdata);
+              } else {
+                const procid_t owner(owning_machine(new_atomid));
+                proc2buffer[owner].push_back(args(gvid, vcolor, vdata));
+                if(proc2buffer[owner].size() > BUFFER_SIZE) {
+                  rmi.remote_call(owner, 
+                                  &atom_shuffler::add_vertex_local_vec,
+                                  proc2buffer[owner]);
+                  proc2buffer[owner].clear();
+                }
+              } //end of if else
+            }
           } // end of loop over vertex data
           // Flush buffers
           for(size_t i = 0; i < proc2buffer.size(); ++i) {
@@ -323,6 +406,7 @@ namespace graphlab {
               rmi.remote_call(i,
                               &atom_shuffler::add_vertex_local_vec,
                               proc2buffer[i]);
+              proc2buffer[i].clear();
             }
           } // end of loop over flush buffers
         } // end of for loop
@@ -334,52 +418,102 @@ namespace graphlab {
         logstream(LOG_INFO) << "Shuffle edge data." << std::endl;
         for(size_t i = 0; i < local_fnames.size(); ++i) {
           logstream(LOG_INFO) 
-            << "Loading atom file: " << local_fnames[i] << std::endl;
+            << "Loading atom file: " << local_fnames[i].second << std::endl;
           atom_file_type afile;
-          afile.input_filename("file", local_fnames[i]);
+          afile.input_filename("file", local_fnames[i].second);
           afile.load_all();
-          ASSERT_EQ(afile.edata().size(), afile.edge_src_dest().size());
+          afile.atom_id() = local_fnames[i].first;
           logstream(LOG_INFO) << "Sending edge data." << std::endl;
-          typedef edge_args args;
           const size_t ONE_MB(size_t(1) << 20);
-          const size_t BUFFER_SIZE(ONE_MB / sizeof(args));
-          std::vector< std::vector<args> >  proc2buffer(rmi.numprocs());
-          for(size_t j = 0; j < afile.edata().size(); ++j) {
+          const size_t BNDRY_BUFFER_SIZE(ONE_MB / sizeof(edge_args_bndry));
+          const size_t IN_BUFFER_SIZE(ONE_MB / sizeof(edge_args));
+          std::vector< std::vector<edge_args> > 
+            proc2buffer_in(rmi.numprocs());
+          std::vector< std::vector<edge_args_bndry> > 
+            proc2buffer_bndry(rmi.numprocs());
+          for(size_t j = 0, edata_index = 0; 
+              j < afile.edge_src_dest().size(); ++j) {
             const vertex_id_t source_lvid(afile.edge_src_dest()[j].first);
             const vertex_id_t target_lvid(afile.edge_src_dest()[j].second);
             ASSERT_NE(source_lvid, target_lvid);
+            
+            ASSERT_LT(source_lvid, afile.vcolor().size());
+            ASSERT_LT(target_lvid, afile.vcolor().size());
+            const vertex_color_type source_vcolor(afile.vcolor()[source_lvid]);
+            const vertex_color_type target_vcolor(afile.vcolor()[target_lvid]);
+
+            ASSERT_LT(source_lvid, afile.atom().size());
+            ASSERT_LT(target_lvid, afile.atom().size());
+            const procid_t source_old_atomid(afile.atom()[source_lvid]);
+            const procid_t target_old_atomid(afile.atom()[target_lvid]);
+            ASSERT_TRUE(source_old_atomid == afile.atom_id() || 
+                        target_old_atomid == afile.atom_id());
+            const bool HAVE_EDGE_DATA(target_old_atomid == afile.atom_id());
+
             ASSERT_LE(source_lvid, afile.globalvids().size());
             ASSERT_LE(target_lvid, afile.globalvids().size());
-            ASSERT_LE(source_lvid, afile.vcolor().size());
             const vertex_id_t source_gvid(afile.globalvids()[source_lvid]);
-            const vertex_color_type source_vcolor(afile.vcolor()[source_lvid]);
             const vertex_id_t target_gvid(afile.globalvids()[target_lvid]); 
+
             ASSERT_LE(target_gvid, vertex2atomid.size());
             ASSERT_LE(source_gvid, vertex2atomid.size());
-            const procid_t target_atomid( vertex2atomid[target_gvid] );
+            const procid_t target_atomid( vertex2atomid[target_gvid] );            
+            const procid_t source_atomid( vertex2atomid[source_gvid] );        
+            ASSERT_LT(source_atomid, num_atoms);
             ASSERT_LT(target_atomid, num_atoms);
-            const edge_data_type& edata(afile.edata()[j]);
-            if(is_local(target_atomid)) {
-              add_edge_local(source_gvid, source_vcolor, 
-                             target_gvid, edata);
-            } else {
-              const procid_t owner(owning_machine(target_atomid));
-              proc2buffer[owner].push_back(args(source_gvid, source_vcolor, 
-                                                target_gvid, edata));
-              if(proc2buffer[owner].size() > BUFFER_SIZE) {
-                rmi.remote_call(owner, 
-                                &atom_shuffler::add_edge_local_vec,
-                                proc2buffer[owner]);
-                proc2buffer[owner].clear();
-              }
-            } //end of if else
-          } // end of loop over vertex data
+            
+            // If I have the edge data then I am responsible for sends
+            if(HAVE_EDGE_DATA) {
+              // send the edge data to the target vertex
+              const edge_data_type& edata(afile.edata()[edata_index++]);
+              if(is_local(target_atomid)) {
+                add_edge_local(source_gvid, source_vcolor, 
+                               target_gvid, edata);
+              } else {
+                const procid_t owner(owning_machine(target_atomid));
+                proc2buffer_in[owner].push_back(edge_args(source_gvid, source_vcolor, 
+                                                  target_gvid, edata));
+                if(proc2buffer_in[owner].size() > IN_BUFFER_SIZE) {
+                  rmi.remote_call(owner, 
+                                  &atom_shuffler::add_edge_local_vec,
+                                  proc2buffer_in[owner]);
+                  proc2buffer_in[owner].clear();
+                }
+              } //end of if else
+              // send the out edge to the source vertex
+              if(is_local(source_atomid)) {
+                add_bndry_out_edge_local(source_gvid, 
+                                         target_gvid, 
+                                         target_vcolor);
+              } else {
+                const procid_t owner(owning_machine(source_atomid));
+                proc2buffer_bndry[owner].push_back(edge_args_bndry(source_gvid, 
+                                                      target_gvid, 
+                                                      target_vcolor));
+                if(proc2buffer_bndry[owner].size() > BNDRY_BUFFER_SIZE) {
+                  rmi.remote_call(owner, 
+                                  &atom_shuffler::add_bndry_out_edge_vec,
+                                  proc2buffer_bndry[owner]);
+                  proc2buffer_bndry[owner].clear();
+                }
+              } //end of if else
+            }
+          } // end of loop over edge data
           // Flush buffers
-          for(size_t i = 0; i < proc2buffer.size(); ++i) {
-            if(!proc2buffer[i].empty()) {
+          for(size_t i = 0; i < proc2buffer_in.size(); ++i) {
+            if(!proc2buffer_in[i].empty()) {
               rmi.remote_call(i,
                               &atom_shuffler::add_edge_local_vec,
-                              proc2buffer[i]);
+                              proc2buffer_in[i]);
+            }
+            proc2buffer_in[i].clear();
+          } // end of loop over flush buffers
+          for(size_t i = 0; i < proc2buffer_bndry.size(); ++i) {
+            if(!proc2buffer_bndry[i].empty()) {
+              rmi.remote_call(i,
+                              &atom_shuffler::add_bndry_out_edge_vec,
+                              proc2buffer_bndry[i]);
+              proc2buffer_bndry[i].clear();
             }
           } // end of loop over flush buffers
         } // end of for loop
