@@ -445,12 +445,19 @@ namespace graphlab {
     local_fnames = partition_fnames.at(dc.procid());   
     std::vector< procid_t > local_atomids(local_fnames.size(), 
                                           procid_t(-1));
+
+    std::vector<procid_t> atomid2proc;
     { // comute local atom ids
       procid_t starting_atomid(0);
       for(size_t i = 0; i < dc.procid(); ++i)
         starting_atomid += partition_fnames.at(i).size();
       for(size_t i = 0; i < local_fnames.size(); ++i)
         local_atomids.at(i) = starting_atomid + i;      
+      for(size_t i = 0; i < partition_fnames.size(); ++i) {
+        for(size_t j = 0; j < partition_fnames[i].size(); ++j) {
+          atomid2proc.push_back(i);
+        }
+      }
     }
 
     std::vector< std::string > local_atom_fnames(local_fnames.size());
@@ -460,7 +467,10 @@ namespace graphlab {
           fs_util::change_suffix(local_fnames[i], ".atom");        
     }
 
-    
+    typedef std::pair<vertex_id_t, vertex_id_t> edge_t;
+    typedef std::pair<procid_t, edge_t> atom_edge_t;
+    std::vector< std::vector<atom_edge_t> > proc2out_edges(dc.numprocs());
+
     typedef std::map<procid_t, std::vector<vertex_id_t> > 
       atomid2vertexids_type;
     std::vector< atomid2vertexids_type > gather_vec(dc.numprocs());    
@@ -477,9 +487,20 @@ namespace graphlab {
       { // update the atomid2vertexids map
         std::vector<vertex_id_t>& 
           localverts(atomid2vertexids[afile.atom_id()]);
-        localverts.resize(afile.vdata().size());
+        localverts.resize(afile.globalvids().size());
         for(size_t j = 0; j < localverts.size(); ++j)
           localverts[j] = afile.globalvids().at(j);
+        foreach(const edge_t& edge, afile.src_dest_pair()) {
+          const procid_t atomid(afile.atom()[edge.first]);
+          const vertex_id_t source(afile.globalvids()[edge.first]);
+          const vertex_id_t target(afile.globalvids()[edge.second]);
+          const edge_t global_edge(std::make_pair(source, target));
+          if(atomid != afile.atom_id()) 
+            proc2out_edges[atomid2proc[atomid]].
+              push_back(std::make_pair(atomid, global_edge));
+        }
+
+        
       }
       afile.filename() = local_atom_fnames.at(i);
       afile.protocol() = "file";
@@ -490,7 +511,18 @@ namespace graphlab {
                           << std::endl;
       afile.write_to_file("file", fname );
     }
-    
+
+    std::vector< std::vector<edge_t> > atom2out_edges(atomid2proc.size());
+    {
+      std::vector< std::vector<atom_edge_t> > result;
+      mpi_tools::all2all(atom2out_edges, result);
+      for(size_t i = 0; i < result.size(); ++i) {
+        for(size_t j = 0; j < result[i].size(); ++j) {
+          atom2out_edges[result[i][j].first].push_back(result[i][j].second);
+        }
+      }
+    }
+
 
     const size_t ROOT_NODE(0);
     dc.gather(gather_vec, ROOT_NODE);
@@ -536,6 +568,8 @@ namespace graphlab {
     logstream(LOG_INFO) << "Updating local atoms."  << std::endl;
     
 
+
+
     // Build out each atom file
     for(size_t i = 0; i < local_atom_fnames.size(); ++i) {
       const std::string tmp_fname(path + "/" + local_atom_fnames[i] + "_tmp");
@@ -543,14 +577,32 @@ namespace graphlab {
       atom_file_type afile;
       afile.input_filename("file", tmp_fname);
       afile.load_all();
+      std::map<vertex_id_t, vertex_id_t> global2local;
       // Update the atom location information
       for(size_t j = 0; j < afile.globalvids().size(); ++j) {
         const vertex_id_t gvid(afile.globalvids()[j]);
+        global2local[gvid] = j;
         ASSERT_LT(gvid, vid2atomid.size());
         const procid_t atomid(vid2atomid[gvid]);
         ASSERT_NE(atomid, procid_t(-1));
         afile.atom()[j] = atomid;
       }
+      // Adde the extra edges
+      for(size_t j = 0; j < atom2out_edges[i].size(); ++j) {
+        const edge_t edge(atom2out_edges[i][j]);
+        ASSERT_TRUE(global2local.find(edge.first) != global2local.end());
+        const vertex_id_t source_lvid(global2local[edge.first]);        
+        if(global2local.find(edge.second) == global2local.end()) {
+          const vertex_id_t target_lvid = afile.globalvids();
+          global2local[edge.second] = target_lvid;
+          afile.globalvids().push_back(edge.second);          
+        }
+        const vertex_id_t source_lvid(global2local[edge.second]);
+        afile.src_dest_pair().push_back
+          (std::make_pair(source_lvid, target_lvid));
+
+      }
+
       const std::string fname( atompath + "/" + local_atom_fnames[i]);
       // Resave the atom file
       logstream(LOG_INFO) << "Final save of atom file: " 

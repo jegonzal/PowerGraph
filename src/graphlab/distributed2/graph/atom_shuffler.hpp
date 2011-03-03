@@ -176,7 +176,7 @@ namespace graphlab {
     void add_vertex_local(const vertex_id_t& gvid,
                           const vertex_color_type& vcolor,
                           const vertex_data_type& vdata) {
-      if(gvid == 852031) assert(false);
+
       const procid_t atomid(vertex2atomid.at(gvid));
       ASSERT_TRUE(is_local(atomid));
       ASSERT_LT(atomid, atomid2lock.size());
@@ -366,7 +366,7 @@ namespace graphlab {
           afile.input_filename("file", local_fnames[i].second);
           afile.load_all();
           afile.atom_id() = local_fnames[i].first;
-          afile.costly_checking();
+          //          afile.costly_checking();
           ASSERT_LE(afile.vdata().size(), afile.globalvids().size());
           ASSERT_LE(afile.vdata().size(), afile.vcolor().size());
           logstream(LOG_INFO) << "Sending vertex data." << std::endl;
@@ -374,27 +374,31 @@ namespace graphlab {
           const size_t ONE_MB(size_t(1) << 20);
           const size_t BUFFER_SIZE(ONE_MB / sizeof(args));
           std::vector< std::vector<args> >  proc2buffer(rmi.numprocs());
-          for(size_t j = 0; j < afile.vdata().size(); ++j) {
+          for(size_t j = 0, vdata_index=0; 
+              j < afile.globalvids().size(); ++j) {
             const vertex_id_t gvid(afile.globalvids()[j]);
-            allgvids.insert(gvid);
-            if(gvid==852031) assert(false);
+            const procid_t old_atomid( afile.atom()[j] );
             ASSERT_LT(gvid, vertex2atomid.size());
-            const procid_t atomid( vertex2atomid[gvid] );
-            ASSERT_LT(atomid, num_atoms);
-            const vertex_color_type vcolor(afile.vcolor()[j]);
-            const vertex_data_type& vdata(afile.vdata()[j]);
-            if(is_local(atomid)) {
-              add_vertex_local(gvid, vcolor, vdata);
-            } else {
-              const procid_t owner(owning_machine(atomid));
-              proc2buffer[owner].push_back(args(gvid, vcolor, vdata));
-              if(proc2buffer[owner].size() > BUFFER_SIZE) {
-                rmi.remote_call(owner, 
-                                &atom_shuffler::add_vertex_local_vec,
-                                proc2buffer[owner]);
-                proc2buffer[owner].clear();
-              }
-            } //end of if else
+            const procid_t new_atomid( vertex2atomid[gvid] );
+            ASSERT_LT(old_atomid, num_atoms);
+            if(old_atomid == afile.atom_id()) {
+              ASSERT_LT(j, afile.vcolor().size());
+              const vertex_color_type vcolor(afile.vcolor()[j]);
+              ASSERT_LT(vdata_index, afile.vdata().size());
+              const vertex_data_type& vdata(afile.vdata()[vdata_index++]);
+              if(is_local(new_atomid)) {
+                add_vertex_local(gvid, vcolor, vdata);
+              } else {
+                const procid_t owner(owning_machine(new_atomid));
+                proc2buffer[owner].push_back(args(gvid, vcolor, vdata));
+                if(proc2buffer[owner].size() > BUFFER_SIZE) {
+                  rmi.remote_call(owner, 
+                                  &atom_shuffler::add_vertex_local_vec,
+                                  proc2buffer[owner]);
+                  proc2buffer[owner].clear();
+                }
+              } //end of if else
+            }
           } // end of loop over vertex data
           // Flush buffers
           for(size_t i = 0; i < proc2buffer.size(); ++i) {
