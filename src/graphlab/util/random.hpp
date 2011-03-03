@@ -1,9 +1,11 @@
 #ifndef GRAPHLAB_RANDOM_HPP
 #define GRAPHLAB_RANDOM_HPP
 
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/timer.hpp>
 
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
 
   /**
@@ -36,6 +38,27 @@ namespace graphlab {
     }
 
     /**
+     * Generate a draw from a multinomial.  This function
+     * automatically normalizes as well.
+     */
+    static size_t rand_multi(const std::vector<double>& prb) {
+      ASSERT_GT(prb.size(),0);
+      double sum(0);
+      for(size_t i = 0; i < prb.size(); ++i) {
+        ASSERT_GE(prb[i], 0);
+        sum += prb[i];
+      }
+      ASSERT_GT(sum, 0);
+      const double rnd(rand01());
+      size_t ind = 0;
+      for(double cumsum(prb[ind]/sum); 
+          rnd < (prb[ind]/sum) && ind < prb.size(); 
+          cumsum += (prb[++ind]/sum));
+      return ind;
+    }
+
+
+    /**
      * This function has been deprecated in favor of the rand_gaussian
      * name
      */
@@ -64,6 +87,6 @@ namespace graphlab {
     }
   }; // end of random 
 } // end of graphlab
-
+#include <graphlab/macros_undef.hpp>
 
 #endif
