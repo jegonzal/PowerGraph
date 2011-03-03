@@ -165,7 +165,8 @@ int main(int argc, char** argv) {
   foreach(vertex_id_t ownedv, dg.owned_vertices()) {
     dg.vertex_data(ownedv) = uint32_t(-1);
     dg.vertex_is_modified(ownedv);
-    dg.increment_vertex_version(ownedv);
+    assert(false); // commented out the following deprecated line
+    // dg.increment_vertex_version(ownedv);
   }
   dg.push_all_owned_vertices_to_replicas();
   // synchronize all ghosts

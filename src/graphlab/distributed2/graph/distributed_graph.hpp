@@ -472,6 +472,7 @@ class distributed_graph {
    * assertion failure if the edge is not within the current fragment
    */
   EdgeData& edge_data(vertex_id_t source, vertex_id_t target) {
+    ASSERT_TRUE(global_vid_in_local_fragment(source) && global_vid_in_local_fragment(target));
     return localstore.edge_data(global2localvid.find(source)->second,
                                 global2localvid.find(target)->second);
   }
@@ -481,6 +482,8 @@ class distributed_graph {
    * assertion failure if the edge is not within the current fragment
    */
   const EdgeData& edge_data(vertex_id_t source, vertex_id_t target) const{
+    ASSERT_TRUE(global_vid_in_local_fragment(source) && global_vid_in_local_fragment(target));
+
     return localstore.edge_data(global2localvid.find(source)->second,
                                 global2localvid.find(target)->second);
   }
@@ -506,40 +509,56 @@ class distributed_graph {
    * assertion failure if the vertex is not within the current fragment
    */
   VertexData& vertex_data(vertex_id_t vid) {
+    ASSERT_TRUE(global_vid_in_local_fragment(vid));
     return localstore.vertex_data(global2localvid[vid]);
   }
 
-  void increment_vertex_version(vertex_id_t vid) {
-    localstore.increment_vertex_version(global2localvid[vid]);
+  void __attribute__((__deprecated__)) increment_vertex_version(vertex_id_t vid) {
+   
   }
 
-  void increment_edge_version(vertex_id_t eid) {
-    localstore.increment_edge_version(eid);
+  void __attribute__((__deprecated__)) increment_edge_version(vertex_id_t eid) {
+
   }
 
   void vertex_is_modified(vertex_id_t vid) {
-    localstore.set_vertex_modified(global2localvid[vid], true);
+    ASSERT_TRUE(global_vid_in_local_fragment(vid));
+ // If this is a ghost, this just marks as modified
+    vertex_id_t localvid = global2localvid[vid];
+    if (localvid2owner[localvid] == rmi.procid()) {
+      localstore.increment_vertex_version(localvid);
+    }
+    else {    
+      localstore.set_vertex_modified(localvid, true);
+    }
   }
 
   void edge_is_modified(edge_id_t eid) {
-    localstore.set_edge_modified(eid, true);  
+    // If the edge is a ghost, this just marks as modified
+    vertex_id_t localtargetvid = localstore.target(eid);
+    if (localvid2owner[localtargetvid] == rmi.procid()) {
+      localstore.increment_edge_version(eid);
+    }
+    else {    
+      localstore.set_edge_modified(eid, true);
+    }
   }
 
-  void vertex_clear_modified(vertex_id_t vid) {
-    localstore.set_vertex_modified(global2localvid[vid], false);
+  void __attribute__((__deprecated__)) vertex_clear_modified(vertex_id_t vid) {
+//    localstore.set_vertex_modified(global2localvid[vid], false);
   }
 
-  void edge_clear_modified(edge_id_t eid) {
-    localstore.set_edge_modified(eid, false);  
+  void __attribute__((__deprecated__)) edge_clear_modified(edge_id_t eid) {
+//   localstore.set_edge_modified(eid, false);  
   }
 
 
-  bool is_vertex_modified(vertex_id_t vid) {
-      return localstore.vertex_modified(global2localvid[vid]);
+  bool __attribute__((__deprecated__)) is_vertex_modified(vertex_id_t vid) {
+      return false;
   }
 
-  bool is_edge_modified(edge_id_t eid) {
-      return localstore.edge_modified(eid);
+  bool __attribute__((__deprecated__)) is_edge_modified(edge_id_t eid) {
+      return false;
   }
 
   /**
@@ -560,7 +579,7 @@ class distributed_graph {
   EdgeData get_edge_data_from_pair(vertex_id_t source, 
                                    vertex_id_t target) const {
     if (global_vid_in_local_fragment(source) && 
-        global_vid_in_local_fragment(target)) {
+        is_owned(target)) {
       return edge_data(source, target);
     }
     else {
@@ -645,7 +664,7 @@ class distributed_graph {
         // get the localeid
         // edge must exist. I don't need to check the return of find
         edge_id_t eid = localstore.find(localsourcevid, localtargetvid).second;
-        localstore.increment_edge_version(eid);
+        edge_is_modified(eid);
         push_owned_edge_to_replicas(eid,
                                     async,  // async  
                                     async); // untracked
@@ -687,7 +706,7 @@ class distributed_graph {
     if (localvid2owner[localstore.target(eid)] == rmi.procid()) {
       // if I do. then I must own the edge.
       edge_data(eid) = edata;
-      increment_edge_version(eid);
+      edge_is_modified(eid);
       push_owned_edge_to_replicas(eid, 
                                   async,  // async  
                                   async); // untracked
@@ -734,7 +753,7 @@ class distributed_graph {
     if (is_owned(vid)) {
       vertex_data(vid) = vdata;
       // increment version
-      increment_vertex_version(vid);
+      vertex_is_modified(vid);
       push_owned_vertex_to_replicas(vid, 
                                     false,  // async  
                                     false); // untracked
@@ -777,7 +796,7 @@ class distributed_graph {
   void set_vertex_data_async(vertex_id_t vid, const VertexData vdata){
     if (global_vid_in_local_fragment(vid)) {
       vertex_data(vid) = vdata;      
-      increment_vertex_version(vid);
+      vertex_is_modified(vid);
       push_owned_vertex_to_replicas(vid, 
                                     true,  // async  
                                     true); // untracked
@@ -800,8 +819,9 @@ class distributed_graph {
    */
   size_t recompute_num_colors() {
     vertex_color_type max_color(0);
-    for(size_t i = 0; i < global2localvid.size(); ++i) 
-      max_color = std::max(max_color, localstore.color(global2localvid[i]));
+    for(size_t i = 0; i < localstore.num_vertices(); ++i) {
+      max_color = std::max(max_color, localstore.color(i));
+    }
     std::vector<vertex_color_type> proc2colors(rmi.numprocs());
     proc2colors[rmi.procid()] = max_color +1;
     rmi.all_gather(proc2colors);
@@ -1586,14 +1606,14 @@ class distributed_graph {
   void reply_alot2(block_synchronize_request2 &request, size_t replytarget, size_t tag);
 
 
-  void conditional_update_vertex_data_and_version(
+  void update_vertex_data_and_version_and_reply(
                         vertex_id_t vid, 
                         distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore,
                         procid_t srcproc,
                         size_t reply);
 
 
-  void conditional_update_edge_data_and_version2(
+  void update_edge_data_and_version_and_reply2(
                           vertex_id_t source, 
                           vertex_id_t target, 
                           edge_conditional_store &estore,

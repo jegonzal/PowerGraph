@@ -117,6 +117,80 @@ namespace graphlab {
 
 
 
+    template<typename T>
+    void all2all(const std::vector<T>& send_data, 
+                 std::vector<T>& recv_data) {
+      // Get the mpi rank and size
+      size_t mpi_size(size());
+      ASSERT_EQ(send_data.size(), mpi_size);
+      if(recv_data.size() != mpi_size) recv_data.resize(mpi_size);
+
+      // Serialize the output data and compute buffer sizes
+      graphlab::charstream cstrm(128);
+      graphlab::oarchive oarc(cstrm);
+      std::vector<int> send_buffer_sizes(mpi_size);
+      for(size_t i = 0; i < mpi_size; ++i) {
+        const size_t OLD_SIZE(cstrm->size());
+        oarc << send_data[i];
+        cstrm.flush();
+        const size_t ELEM_SIZE(cstrm->size() - OLD_SIZE);
+        send_buffer_sizes[i] = ELEM_SIZE;        
+      }
+      cstrm.flush();
+      char* send_buffer = cstrm->c_str();
+      std::vector<int> send_offsets(send_buffer_sizes);      
+      int total_send = 0;
+      for(size_t i = 0; i < send_offsets.size(); ++i) { 
+        const int tmp = send_offsets[i];
+        send_offsets[i] = total_send;
+        total_send += tmp;
+      }
+
+      // AlltoAll scatter the buffer sizes
+      std::vector<int> recv_buffer_sizes(mpi_size);    
+      int error = MPI_Alltoall(&(send_buffer_sizes[0]),
+                               1,
+                               MPI_INT,
+                               &(recv_buffer_sizes[0]),
+                               1,
+                               MPI_INT,
+                               MPI_COMM_WORLD);
+      ASSERT_EQ(error, MPI_SUCCESS);
+      
+      // Construct offsets
+      std::vector<int> recv_offsets(recv_buffer_sizes);
+      int total_recv = 0;
+      for(size_t i = 0; i < recv_offsets.size(); ++i){
+        const int tmp = recv_offsets[i]; 
+        recv_offsets[i] = total_recv; 
+        total_recv += tmp;       
+      }
+      // Do the massive send
+      std::vector<char> recv_buffer(total_recv);    
+      error = MPI_Alltoallv(send_buffer,
+                            &(send_buffer_sizes[0]),
+                            &(send_offsets[0]),
+                            MPI_BYTE,
+                            &(recv_buffer[0]),
+                            &(recv_buffer_sizes[0]),
+                            &(recv_offsets[0]),
+                            MPI_BYTE,
+                            MPI_COMM_WORLD);
+      ASSERT_EQ(error, MPI_SUCCESS);
+
+      // Deserialize the result
+      namespace bio = boost::iostreams;
+      typedef bio::stream<bio::array_source> icharstream;
+      icharstream strm(&(recv_buffer[0]), recv_buffer.size());
+      graphlab::iarchive iarc(strm);
+      for(size_t i = 0; i < recv_data.size(); ++i) {
+        iarc >> recv_data[i];
+      }  
+    }
+
+
+
+
 
 
 

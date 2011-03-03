@@ -19,7 +19,10 @@ void distributed_graph<VertexData, EdgeData>::synchronize_vertex(vertex_id_t vid
   if (is_ghost(vid)) {
     vertex_conditional_store out;
     out.hasdata = localstore.vertex_modified(localvid);
-    if (out.hasdata) out.data.first = localstore.vertex_data(localvid);
+    if (out.hasdata) {
+      localstore.set_vertex_modified(localvid, false);
+      out.data.first = localstore.vertex_data(localvid);
+    }
     if (async == false) {
       vertex_conditional_store v;
       v = rmi.remote_request(localvid2owner[localvid],
@@ -27,9 +30,8 @@ void distributed_graph<VertexData, EdgeData>::synchronize_vertex(vertex_id_t vid
                             vid,
                             localstore.vertex_version(localvid),
                             out);
-     if (v.hasdata && v.data.second >= localstore.vertex_version(localvid)) {
-        localstore.vertex_data(localvid) = v.data.first;
-        localstore.set_vertex_version(localvid, v.data.second);
+     if (v.hasdata) {
+        update_vertex_data_and_version(vid, v);
       }
     }
     else {
@@ -59,7 +61,10 @@ void distributed_graph<VertexData, EdgeData>::synchronize_edge(edge_id_t eid, bo
 
     edge_conditional_store out;
     out.hasdata = localstore.edge_modified(eid);
-    if (out.hasdata) out.data.first = localstore.edge_data(eid);
+    if (out.hasdata) {
+      localstore.set_edge_modified(eid, false);
+      out.data.first = localstore.edge_data(eid);
+    }
     if (async == false) {
       edge_conditional_store e = rmi.remote_request(localvid2owner[localtargetvid],
                                                     &distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than2,
@@ -68,8 +73,7 @@ void distributed_graph<VertexData, EdgeData>::synchronize_edge(edge_id_t eid, bo
                                                     localstore.edge_version(eid),
                                                     out);
       if (e.hasdata) {
-        localstore.edge_data(eid) = e.data.first;
-        localstore.set_edge_version(eid, e.data.second);
+        update_edge_data_and_version2(sourcevid, targetvid, e);
       }
     }
     else {
@@ -176,7 +180,7 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope_construct_req(ve
       if (vs.hasdata) {
         localstore.set_vertex_modified(localsourcevid, false);
         vs.data.first = localstore.vertex_data(localsourcevid);
-        vs.data.second = 0; // unused
+        vs.data.second = localstore.vertex_version(localsourcevid);
       }
       requests[sourceowner].second=req.vid.end();
       req.vstore.push_back(vs);
@@ -199,7 +203,7 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope_construct_req(ve
         if (vs.hasdata) {
           localstore.set_vertex_modified(localtargetvid, false);
           vs.data.first = localstore.vertex_data(localtargetvid);
-          vs.data.second = 0; // unused
+          vs.data.second = localstore.vertex_version(localtargetvid);
         }
         req.vstore.push_back(vs);
       }
@@ -212,7 +216,7 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope_construct_req(ve
       if (es.hasdata) {
         localstore.set_edge_modified(localouteid, false);
         es.data.first = localstore.edge_data(localouteid);
-        es.data.second = 0;
+        es.data.second = localstore.edge_version(localouteid);
       }
       req.estore.push_back(es);
     }
@@ -273,19 +277,28 @@ distributed_graph<VertexData, EdgeData>::get_vertex_if_version_less_than(vertex_
   vertex_conditional_store ret;
   size_t localvid = global2localvid[vid];
   uint64_t local_vertex_version = localstore.vertex_version(localvid);
-
-  //logstream(LOG_DEBUG) << "get vertex: " << vid << ":" << vertexversion << " vs " << local_vertex_version << std::endl;
+  // Now I must the the owner of this vertex
+  ASSERT_EQ(localvid2owner[localvid], rmi.procid());
+  #ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "get vertex: " << vid << ":" << vertexversion << " vs " << local_vertex_version << ". " << vdata.hasdata << std::endl;
+  #endif
+  ret.hasdata = false;
   
-  if (local_vertex_version  >= vertexversion) {
+  if (local_vertex_version  > vertexversion) {
+    // send if I have a later version
     ret.hasdata = true;
     ret.data.first = localstore.vertex_data(localvid);
     ret.data.second = local_vertex_version;
   }
-  else if (local_vertex_version < vertexversion) {
-    assert(vdata.hasdata);
-    localstore.vertex_data(localvid) = vdata.data.first;
-    localstore.set_vertex_version(localvid, vertexversion);
-    ret.hasdata = false;
+  else if (local_vertex_version == vertexversion) {
+    // if version is the same and there is data, store and increment the version    
+    if (vdata.hasdata) {
+      localstore.increment_and_update_vertex(localvid, vdata.data.first);
+    }
+  }
+  else {
+    logstream(LOG_FATAL) << "Remote node attempted to update vertex " 
+                        << vid << " with a newer version than the owner" << std::endl;
   }
   return ret;
 }
@@ -307,18 +320,24 @@ distributed_graph<VertexData, EdgeData>::get_edge_if_version_less_than2(vertex_i
   edge_id_t localeid = findret.second;
   
   uint64_t  local_edge_version = localstore.edge_version(localeid);
-
-  //logstream(LOG_DEBUG) << "get edge2: " << "(" << localsource << "->" << localtarget << ")" << ":" << edgeversion << " vs " << local_edge_version << std::endl;
-  if (local_edge_version >= edgeversion) {
+  ret.hasdata = false;
+  #ifdef DGRAPH_DEBUG
+  
+  logstream(LOG_DEBUG) << "get edge2: " << "(" << source << "->" << target << ")" << ":" << edgeversion << " vs " << local_edge_version << ". " << edata.hasdata << std::endl;
+  #endif
+  if (local_edge_version > edgeversion) {
     ret.hasdata = true;
     ret.data.first = localstore.edge_data(localeid);
     ret.data.second = local_edge_version;
   }
-  else if (local_edge_version < edgeversion) {
-    assert(edata.hasdata);
-    localstore.edge_data(localeid) = edata.data.first;
-    localstore.set_edge_version(localeid, edgeversion);
-    ret.hasdata = false;
+  else if (local_edge_version == edgeversion) {
+    if (edata.hasdata) {
+      localstore.increment_and_update_edge(localeid, edata.data.first);
+    }
+  }
+  else {
+    logstream(LOG_FATAL) << "Remote node attempted to update edge (" 
+                        << source <<  ", " << target << ") with a newer version than the owner" << std::endl;
   }
   return ret;
 }
@@ -391,7 +410,7 @@ template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::reply_vertex_data_and_version(
                         vertex_id_t vid, 
                         distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore) {
-  update_vertex_data_and_version(vid, vstore);
+  if (vstore.hasdata) update_vertex_data_and_version(vid, vstore);
   // the dc and procid are meaningless. Just pass something
   reply_increment_counter(rmi.dc(), 0, 
                           reinterpret_cast<size_t>(&pending_async_updates), dc_impl::blob());
@@ -402,11 +421,12 @@ void distributed_graph<VertexData, EdgeData>::reply_edge_data_and_version2(
                   vertex_id_t source, 
                   vertex_id_t target, 
                   distributed_graph<VertexData, EdgeData>::edge_conditional_store &estore) {
-  update_edge_data_and_version2(source, target, estore);
+  if (estore.hasdata) update_edge_data_and_version2(source, target, estore);
   reply_increment_counter(rmi.dc(), 0, 
                           reinterpret_cast<size_t>(&pending_async_updates), dc_impl::blob());
 
 }
+
 
 
 template <typename VertexData, typename EdgeData> 
@@ -414,10 +434,13 @@ void distributed_graph<VertexData, EdgeData>::update_vertex_data_and_version(
                         vertex_id_t vid, 
                         distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore) {
   vertex_id_t localvid = global2localvid[vid];
-  if (vstore.hasdata) {
-    localstore.vertex_data(localvid) = vstore.data.first;
-    localstore.set_vertex_version(localvid, vstore.data.second);
-  }
+  // this must be a ghost
+  ASSERT_NE(localvid2owner[localvid], rmi.procid());
+#ifdef DGRAPH_DEBUG
+  logstream(LOG_DEBUG) << "Receiving vertex " << vid << "(" << localvid << ")  "  << ". "
+                       << vstore.data.second << " vs " << localstore.vertex_version(localvid) << std::endl;
+#endif
+  localstore.conditional_update_vertex(localvid, vstore.data.first, vstore.data.second);
 }
 
 template <typename VertexData, typename EdgeData> 
@@ -428,10 +451,16 @@ void distributed_graph<VertexData, EdgeData>::update_edge_data_and_version2(
   if (estore.hasdata) {
     vertex_id_t localsourcevid = global2localvid[source];
     vertex_id_t localtargetvid = global2localvid[target];
+    ASSERT_NE(localvid2owner[localtargetvid], rmi.procid());
     std::pair<bool, edge_id_t> findret = localstore.find(localsourcevid, localtargetvid);
+    
     assert(findret.first);
-    localstore.edge_data(findret.second) = estore.data.first;
-    localstore.set_edge_version(findret.second, estore.data.second);
+    #ifdef DGRAPH_DEBUG
+    logstream(LOG_DEBUG) << "Receiving edge (" << source << ","<<target << ")  " << ". "
+                       << estore.data.second << " vs " << localstore.edge_version(findret.second) << std::endl;
+    #endif
+
+    localstore.conditional_update_edge(findret.second, estore.data.first, estore.data.second);
   }
 }
 
@@ -472,8 +501,7 @@ void distributed_graph<VertexData, EdgeData>::reply_alot2(
       scope_callbacks[localvid].callback = NULL;
       tmp();
     }
-  }
-  
+  } 
 }
 
 
@@ -503,49 +531,26 @@ void distributed_graph<VertexData, EdgeData>::synchronize_all_scopes(bool async)
 
 
 template <typename VertexData, typename EdgeData> 
-void distributed_graph<VertexData, EdgeData>::conditional_update_vertex_data_and_version(
+void distributed_graph<VertexData, EdgeData>::update_vertex_data_and_version_and_reply(
                         vertex_id_t vid, 
                         distributed_graph<VertexData, EdgeData>::vertex_conditional_store &vstore,
                         procid_t srcproc,
                         size_t reply) {
-  vertex_id_t localvid = global2localvid[vid];
-  if (vstore.data.second >= localstore.vertex_version(localvid)) assert(vstore.hasdata);
- #ifdef DGRAPH_DEBUG
-  logstream(LOG_DEBUG) << "Receiving vertex " << vid << "(" << localvid << ") from proc " << srcproc << ". "
-                       << vstore.data.second << " vs " << localstore.vertex_version(localvid) << std::endl;
-#endif
-  if (vstore.hasdata && vstore.data.second >= localstore.vertex_version(localvid)) {
-    localstore.vertex_data(localvid) = vstore.data.first;
-    localstore.set_vertex_version(localvid, vstore.data.second);
-    ASSERT_GE(localstore.vertex_version(localvid), vstore.data.second);
-  }
+                        
+  update_vertex_data_and_version(vid, vstore);
+
   if (srcproc != procid_t(-1)) {
     rmi.dc().remote_call(srcproc, reply_increment_counter, reply, dc_impl::blob());
   }
 }
 
 template <typename VertexData, typename EdgeData> 
-void distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version2(
+void distributed_graph<VertexData, EdgeData>::update_edge_data_and_version_and_reply2(
                           vertex_id_t source, 
                           vertex_id_t target, 
                           distributed_graph<VertexData, EdgeData>::edge_conditional_store &estore,
                           procid_t srcproc, size_t reply) {
-  vertex_id_t localsourcevid = global2localvid[source];
-  vertex_id_t localtargetvid = global2localvid[target];
-  std::pair<bool, edge_id_t> findret = localstore.find(localsourcevid, localtargetvid);
-  if (findret.first == false) {
-    logstream(LOG_FATAL) << "Receiving edge I do not recognize: (" << source << ","<<target << ") from proc " << srcproc << std::endl;
-    ASSERT_TRUE(findret.first);
-  }
-#ifdef DGRAPH_DEBUG
-  logstream(LOG_DEBUG) << "Receiving edge (" << source << ","<<target << ") from proc " << srcproc << ". "
-                       << estore.data.second << " vs " << localstore.edge_version(findret.second) << std::endl;
-#endif
-
-  if (estore.hasdata && estore.data.second >= localstore.edge_version(findret.second)) {
-    localstore.edge_data(findret.second) = estore.data.first;
-    localstore.set_edge_version(findret.second, estore.data.second);
-  }
+  update_edge_data_and_version2(source, target, estore);
   if (srcproc != procid_t(-1)) {
     rmi.dc().remote_call(srcproc, reply_increment_counter, reply, dc_impl::blob());
   }
@@ -590,7 +595,7 @@ void distributed_graph<VertexData, EdgeData>::push_owned_vertex_to_replicas(vert
       logger(LOG_DEBUG, "Pushing vertex %d to proc %d", vid, proc);
 #endif
       rmi.remote_call(proc,
-                      &distributed_graph<VertexData, EdgeData>::conditional_update_vertex_data_and_version,
+                      &distributed_graph<VertexData, EdgeData>::update_vertex_data_and_version_and_reply,
                       vid,
                       vstore,
                       srcprocid,
@@ -654,7 +659,7 @@ void distributed_graph<VertexData, EdgeData>::push_owned_edge_to_replicas(edge_i
   logstream(LOG_DEBUG) << "Pushing edge (" << globalsource << ", " << globaltarget << ") to proc " << sendto << std::endl;
 #endif
   rmi.remote_call(sendto,
-                  &distributed_graph<VertexData, EdgeData>::conditional_update_edge_data_and_version2,
+                  &distributed_graph<VertexData, EdgeData>::update_edge_data_and_version_and_reply2,
                   globalsource,
                   globaltarget,
                   estore,
@@ -716,6 +721,7 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_edges_to_replicas()
   std::vector<std::vector<block_synchronize_request2> > blockpushes(omp_get_max_threads()); 
   for (size_t i = 0;i < blockpushes.size(); ++i) blockpushes[i].resize(rmi.numprocs());
   
+  
   #pragma omp parallel for
   for (long i = 0;i < (long)ghostvertices.size(); ++i) {
     int thrid = omp_get_thread_num();
@@ -764,7 +770,7 @@ void distributed_graph<VertexData, EdgeData>::push_owned_scope_to_replicas(verte
                                                                             bool untracked) {
   // fast exit if this is not on a boundary
   if (boundaryscopesset.find(vid) == boundaryscopesset.end()) return;
-  if (onlymodified) {
+  if (0) {
    if (is_owned(vid)) {
       vertex_id_t localvid = global2localvid[vid];
       if (localstore.vertex_modified(localvid)) {
