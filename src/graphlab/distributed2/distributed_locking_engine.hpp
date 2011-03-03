@@ -1,5 +1,5 @@
-#ifndef DISTRIBUTED_CHROMATIC_ENGINE_HPP
-#define DISTRIBUTED_CHROMATIC_ENGINE_HPP
+#ifndef DISTRIBUTED_LOCKING_ENGINE_HPP
+#define DISTRIBUTED_LOCKING_ENGINE_HPP
 
 #include <functional>
 #include <algorithm>
@@ -624,7 +624,7 @@ private:
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
         size_t numtasksdone = check_global_termination();
 
-        std::cout << numtasksdone << " tasks done" << std::endl;
+        //std::cout << numtasksdone << " tasks done" << std::endl;
         compute_sync_schedule(numtasksdone);
       }
     }
@@ -889,4 +889,4 @@ private:
 
 #include <graphlab/macros_undef.hpp>
 
-#endif // DISTRIBUTED_CHROMATIC_ENGINE_HPP
+#endif // DISTRIBUTED_LOCKING_ENGINE_HPP
