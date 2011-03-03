@@ -145,7 +145,7 @@ struct statistics {
   }
   void print() {
     std::cout 
-      << "------------------------------------------------------------\n"
+      << "------------------------------------------------------------\n";
     for(size_t i = 0; i < atom2vcount.size(); ++i) {
       const double VBAL(vertex_prop(i));
       const double EBAL(edge_prop(i));
@@ -172,7 +172,7 @@ struct statistics {
       << "DeltaChanges: " << delta_changes << '\n'
       << "VBalance:     " << vertex_imbalance() << '\n'
       << "EBalance:     " << edge_imbalance() << '\n'
-      << "Counts ------ " << '\n';
+      << "Counts ------ " << '\n'
       << "------------------------------------------------------------"
       << std::endl;      
   }
@@ -401,33 +401,36 @@ void partition_update_function(iscope_type& scope,
     // //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
     // //    const double SMOOTHING(1.0e-5);
 
-    double SMOOTHING = 
-      double(10)/(NATOMS * (scope.in_edge_ids().size() + scope.out_edge_ids().size()));
+    // double SMOOTHING = 
+    //   double(10)/(NATOMS * (scope.in_edge_ids().size() + scope.out_edge_ids().size()));
 
 
-    if (stats.vertex_imbalance(vdata.atomid) > 3) SMOOTHING = 1;
-
+    // if (stats.vertex_imbalance(vdata.atomid) > 3) SMOOTHING = 1;
+    double SMOOTHING = 1E-5;
     for(size_t i = 0; i < NATOMS; ++i) {
-      const double T = 1 + double(vdata.num_changes) / 2;
-      const bool has_neighbor( nbr_a2c[i] > 0);
-      prb[i] = exp(T * double(nbr_a2c[i]) / nbr_sum) * has_neighbor + 
+      // const double T = 1 + double(vdata.num_changes) / 2;
+      
+      //const bool has_neighbor( nbr_a2c[i] > 0);
+      const double has_neighbor( nbr_a2c[i]);
+      prb[i] = exp(5*double(nbr_a2c[i]) / nbr_sum) * has_neighbor + 
         SMOOTHING;      
     }
 
     // const double K1 = 5, K2 = 1;
+    
     // for(size_t i = 0; i < NATOMS; ++i) {
     //   const size_t agree = nbr_a2c[i];
     //   const size_t disagree = nbr_sum - nbr_a2c[i];
-    //   const double T = double(vdata.num_changes) / 10.0;
-    //   prb[i] = exp( (K1 * agree + K2 * disagree ) /  T  );
-     
+    //         const double T = double(vdata.num_changes) / 10.0;
+    //   if (K1 * agree + K2 * disagree / T > 100 ) prb[i] = 1E100;
+    //     else prb[i] = exp( (K1 * agree + K2 * disagree ) / T  );     
     // }
 
 
     // Zero unbalanced classes
     for(size_t i = 0; i < NATOMS; ++i) {  
-      if(stats.vertex_imbalance(i) > 3) {
-        if(random::rand01() < 0.50) {
+      if(stats.vertex_imbalance(i) > 5) {
+        if(random::rand01() < 0.25) {
           prb[i] = 0;
         }        
       }
