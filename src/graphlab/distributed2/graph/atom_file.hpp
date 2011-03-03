@@ -490,7 +490,7 @@ namespace graphlab {
         localverts.resize(afile.globalvids().size());
         for(size_t j = 0; j < localverts.size(); ++j)
           localverts[j] = afile.globalvids().at(j);
-        foreach(const edge_t& edge, afile.src_dest_pair()) {
+        foreach(const edge_t& edge, afile.edge_src_dest()) {
           const procid_t atomid(afile.atom()[edge.first]);
           const vertex_id_t source(afile.globalvids()[edge.first]);
           const vertex_id_t target(afile.globalvids()[edge.second]);
@@ -515,7 +515,7 @@ namespace graphlab {
     std::vector< std::vector<edge_t> > atom2out_edges(atomid2proc.size());
     {
       std::vector< std::vector<atom_edge_t> > result;
-      mpi_tools::all2all(atom2out_edges, result);
+      mpi_tools::all2all(proc2out_edges, result);
       for(size_t i = 0; i < result.size(); ++i) {
         for(size_t j = 0; j < result[i].size(); ++j) {
           atom2out_edges[result[i][j].first].push_back(result[i][j].second);
@@ -593,12 +593,12 @@ namespace graphlab {
         ASSERT_TRUE(global2local.find(edge.first) != global2local.end());
         const vertex_id_t source_lvid(global2local[edge.first]);        
         if(global2local.find(edge.second) == global2local.end()) {
-          const vertex_id_t target_lvid = afile.globalvids();
+          const vertex_id_t target_lvid = afile.globalvids().size();
           global2local[edge.second] = target_lvid;
           afile.globalvids().push_back(edge.second);          
         }
-        const vertex_id_t source_lvid(global2local[edge.second]);
-        afile.src_dest_pair().push_back
+        const vertex_id_t target_lvid(global2local[edge.second]);
+        afile.edge_src_dest().push_back
           (std::make_pair(source_lvid, target_lvid));
 
       }
