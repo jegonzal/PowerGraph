@@ -579,7 +579,7 @@ class distributed_graph {
   EdgeData get_edge_data_from_pair(vertex_id_t source, 
                                    vertex_id_t target) const {
     if (global_vid_in_local_fragment(source) && 
-        global_vid_in_local_fragment(target)) {
+        is_owned(target)) {
       return edge_data(source, target);
     }
     else {
@@ -1509,6 +1509,13 @@ class distributed_graph {
         }*/
         logger(LOG_INFO, "Synchronization complete.");
         rmi.dc().barrier();
+        logger(LOG_INFO, "Performing data verification.");
+        for (size_t i = 0;i < localstore.num_vertices(); ++i) {
+          ASSERT_EQ(localstore.vertex_version(i), 1);
+        }
+        for (size_t i = 0;i < localstore.num_edges(); ++i) {
+          ASSERT_EQ(localstore.edge_version(i), 1);
+        }
       }
     }
     // flush the store
@@ -1521,6 +1528,7 @@ class distributed_graph {
     logger(LOG_INFO, "Load complete.");
     rmi.comm_barrier();
     std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
+    
   }
 
   
