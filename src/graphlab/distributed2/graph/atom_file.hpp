@@ -265,6 +265,7 @@ namespace graphlab {
                                atom_file<VertexData, EdgeData> &atom,
                                bool noglobaleids = false) {
     atom.clear();
+    atom.atom_id() = partid;
     // build the ID mappings
     // collect the set of vertices / edges that are within this atom
     // that would be all vertices with this partition ID as well as all neighbors
