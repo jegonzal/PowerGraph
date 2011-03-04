@@ -1,7 +1,7 @@
-#ifndef DC_STREAM_RECEIVE_Z_HPP
-#define DC_STREAM_RECEIVE_Z_HPP
+#ifndef DC_STREAM_RECEIVE_LZ_HPP
+#define DC_STREAM_RECEIVE_LZ_HPP
 #include <boost/type_traits/is_base_of.hpp>
-#include <zlib.h>
+#include <graphlab/extern/quicklz/quicklz.hpp>
 #include <graphlab/rpc/circular_char_buffer.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_types.hpp>
@@ -23,20 +23,22 @@ namespace dc_impl {
   (as received from the socket) and cut it up into meaningful chunks.
   This can be thought of as a receiving end of a multiplexor.
 */
-class dc_stream_receive_z: public dc_receive{
+class dc_stream_receive_lz: public dc_receive{
  public:
   
-  dc_stream_receive_z(distributed_control* dc): 
+  dc_stream_receive_lz(distributed_control* dc): 
                   buffer(10240),
                   barrier(false), dc(dc),
                   bytesreceived(0){ 
-    zstrm.zalloc = Z_NULL;
-    zstrm.zfree = Z_NULL;
-    zstrm.opaque = Z_NULL;
-    zstrm.avail_in = 0;
-    zstrm.next_in = Z_NULL;
-    ASSERT_TRUE(inflateInit(&zstrm) == Z_OK);   
-    zbuffer = (char*)malloc(128*1024);
+    state_decompress = (qlz_state_decompress *)malloc(sizeof(qlz_state_decompress));
+    zbuffer = (char*)malloc(128*1024 + 400);
+    decompbuffer = (char*)malloc(128*1024);
+  }
+  
+  ~dc_stream_receive_lz() {
+    free(state_decompress);
+    free(zbuffer);
+    free(decompbuffer);
   }
 
   /**
@@ -92,8 +94,11 @@ class dc_stream_receive_z: public dc_receive{
   char* advance_buffer(char* c, size_t wrotelength, 
                               size_t& retbuflength);
                               
-  z_stream zstrm;
+	qlz_state_decompress *state_decompress;
   char* zbuffer;
+  size_t zbufferoffset;
+
+  char* decompbuffer;
   
 };
 

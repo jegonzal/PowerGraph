@@ -314,6 +314,10 @@ namespace graphlab {
       return mgraph.num_vertices();
     }
 
+    size_t local_vertices() const {
+      return num_vertices();
+    }
+
     /** Get the number of edges */
     size_t num_edges() const {
       DASSERT_MSG(false, "Querying edge count on distributed graph not allowed.");

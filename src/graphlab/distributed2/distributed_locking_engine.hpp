@@ -1,5 +1,5 @@
-#ifndef DISTRIBUTED_CHROMATIC_ENGINE_HPP
-#define DISTRIBUTED_CHROMATIC_ENGINE_HPP
+#ifndef DISTRIBUTED_LOCKING_ENGINE_HPP
+#define DISTRIBUTED_LOCKING_ENGINE_HPP
 
 #include <functional>
 #include <algorithm>
@@ -106,6 +106,7 @@ private:
   exec_status termination_reason;
 
   scope_range::scope_range_enum default_scope_range;
+  scope_range::scope_range_enum sync_scope_range;
 
 
   /**
@@ -191,6 +192,7 @@ private:
                             task_budget(0),
                             termination_reason(EXEC_UNSET),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
+                            sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
                             max_deferred_tasks(-1),
                             ready_vertices(ncpus),
@@ -233,6 +235,15 @@ private:
    */
   void set_default_scope(scope_range::scope_range_enum default_scope_range_) {
     default_scope_range = default_scope_range_;
+    rmi.barrier();
+  }
+  
+  /**
+   * Set the default scope range.  The scope ranges are defined in
+   * iscope.hpp
+   */
+  void set_sync_scope_range(scope_range::scope_range_enum sync_scope_range_) {
+    sync_scope_range = sync_scope_range_;
     rmi.barrier();
   }
   
@@ -603,8 +614,13 @@ private:
         for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
           vertex_deferred_tasks[i].lock.lock();
         }
-        if (default_scope_range == scope_range::FULL_CONSISTENCY) {
-          reduction_barrier.wait();
+        if (sync_scope_range == scope_range::EDGE_CONSISTENCY) {
+          graph.synchronize_all_edges(true);
+          graph.wait_for_all_async_syncs();
+        }
+        else if (sync_scope_range == scope_range::FULL_CONSISTENCY) {
+          graph.synchronize_all_scopes(true);
+          graph.wait_for_all_async_syncs();
         }
         for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
           scope.init(&graph, graph.owned_vertices()[i]);
@@ -624,7 +640,7 @@ private:
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
         size_t numtasksdone = check_global_termination();
 
-        std::cout << numtasksdone << " tasks done" << std::endl;
+        //std::cout << numtasksdone << " tasks done" << std::endl;
         compute_sync_schedule(numtasksdone);
       }
     }
@@ -756,6 +772,10 @@ private:
   void start() {
     // generate colors then
     // wait for everyone to enter start    
+    if (sync_scope_range == scope_range::FULL_CONSISTENCY &&
+        sync_scope_range == scope_range::EDGE_CONSISTENCY) {
+      logstream(LOG_WARNING) << "Currently sync operations which require edge or full consistency incurs massive synchronization penalties" << std::endl;
+    }
     init_syncs();
     termination_reason = EXEC_UNSET;
     barrier_time = 0.0;
@@ -889,4 +909,4 @@ private:
 
 #include <graphlab/macros_undef.hpp>
 
-#endif // DISTRIBUTED_CHROMATIC_ENGINE_HPP
+#endif // DISTRIBUTED_LOCKING_ENGINE_HPP

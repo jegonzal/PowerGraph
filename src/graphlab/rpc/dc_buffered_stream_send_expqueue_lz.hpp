@@ -1,10 +1,10 @@
-#ifndef DC_BUFFERED_STREAM_SEND_EXPQUEUE_Z_HPP
-#define DC_BUFFERED_STREAM_SEND_EXPQUEUE_Z_HPP
+#ifndef DC_BUFFERED_STREAM_SEND_EXPQUEUE_LZ_HPP
+#define DC_BUFFERED_STREAM_SEND_EXPQUEUE_LZ_HPP
 #include <iostream>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <boost/type_traits/is_base_of.hpp>
-#include <zlib.h>
+#include <graphlab/extern/quicklz/quicklz.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
@@ -13,13 +13,12 @@
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/logger/logger.hpp>
 
-
 namespace graphlab {
 class distributed_control;
 
 namespace dc_impl {
 
-struct expqueue_z_entry{
+struct expqueue_lz_entry{
   char* c;
   size_t len;
 };
@@ -34,20 +33,20 @@ struct expqueue_z_entry{
   passed to the communication classes on another thread.
 */
 
-class dc_buffered_stream_send_expqueue_z: public dc_send{
+class dc_buffered_stream_send_expqueue_lz: public dc_send{
  public:
-  dc_buffered_stream_send_expqueue_z(distributed_control* dc, dc_comm_base *comm, procid_t target, bool zlib = false): dc(dc), 
+  dc_buffered_stream_send_expqueue_lz(distributed_control* dc, dc_comm_base *comm, procid_t target, bool zlib = false): dc(dc), 
                                     comm(comm), target(target), done(false) { 
   
-    zstrm.zalloc = Z_NULL;
-    zstrm.zfree = Z_NULL;
-    zstrm.opaque = Z_NULL;
-    ASSERT_TRUE(deflateInit(&zstrm, 1) == Z_OK); // level 6 out of 0-9 compression
-    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue_z::send_loop, 
+    state_compress = (qlz_state_compress *)malloc(sizeof(qlz_state_compress));
+	  memset(state_compress, 0, sizeof(qlz_state_compress)); 
+	
+    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue_lz::send_loop, 
                                       this));
   }
   
-  ~dc_buffered_stream_send_expqueue_z() {
+  ~dc_buffered_stream_send_expqueue_lz() {
+    free(state_compress);
   }
   
 
@@ -87,13 +86,13 @@ class dc_buffered_stream_send_expqueue_z: public dc_send{
   dc_comm_base *comm;
   procid_t target;
 
-  blocking_queue<expqueue_z_entry> sendqueue;
+  blocking_queue<expqueue_lz_entry> sendqueue;
 
   thread thr;
   bool done;
   atomic<size_t> bytessent;
-  
-  z_stream zstrm;
+
+  qlz_state_compress* state_compress;
 
 };
 
@@ -101,5 +100,5 @@ class dc_buffered_stream_send_expqueue_z: public dc_send{
 
 } // namespace dc_impl
 } // namespace graphlab
-#endif // DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
+#endif // DC_BUFFERED_STREAM_SEND_EXPQUEUE_LZ_HPP
 

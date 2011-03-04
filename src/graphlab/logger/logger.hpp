@@ -187,7 +187,8 @@ class file_logger{
           stream_flush();
           if(streamloglevel == LOG_FATAL) {
             __print_back_trace();
-            exit(EXIT_FAILURE);
+            assert(false);
+            // exit(EXIT_FAILURE);
           }
         }
       }
