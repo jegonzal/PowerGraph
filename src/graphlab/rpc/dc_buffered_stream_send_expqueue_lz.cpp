@@ -2,13 +2,12 @@
 #include <boost/iostreams/stream.hpp>
 
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
-
+#include <graphlab/rpc/dc_buffered_stream_send_expqueue_lz.hpp>
 
 namespace graphlab {
 namespace dc_impl {
 
-void dc_buffered_stream_send_expqueue_z::send_data(procid_t target_, 
+void dc_buffered_stream_send_expqueue_lz::send_data(procid_t target_, 
                 unsigned char packet_type_mask,
                 std::istream &istrm,
                 size_t len) {
@@ -45,7 +44,7 @@ void dc_buffered_stream_send_expqueue_z::send_data(procid_t target_,
   }
 }
 
-void dc_buffered_stream_send_expqueue_z::send_data(procid_t target, 
+void dc_buffered_stream_send_expqueue_lz::send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len) {
   if ((packet_type_mask & CONTROL_PACKET) == 0) {
@@ -65,7 +64,7 @@ void dc_buffered_stream_send_expqueue_z::send_data(procid_t target,
   hdr.packet_type_mask = packet_type_mask;
   
   std::streamsize numbytes_needed = sizeof(packet_hdr) + len;
-  expqueue_z_entry eentry;
+  expqueue_lz_entry eentry;
   eentry.len = numbytes_needed;
   eentry.c = (char*)malloc(numbytes_needed);
   memcpy(eentry.c, &hdr, sizeof(packet_hdr));
@@ -75,29 +74,27 @@ void dc_buffered_stream_send_expqueue_z::send_data(procid_t target,
 
 
 
-void dc_buffered_stream_send_expqueue_z::send_loop() {
-  const size_t chunklen = 128*1024;
+void dc_buffered_stream_send_expqueue_lz::send_loop() {
+  const size_t chunklen = 128*1024 + 400;
   char* chunk = (char*)malloc(chunklen);
   
   while (1) {
-    std::pair<expqueue_z_entry, bool> data = sendqueue.dequeue();
+    std::pair<expqueue_lz_entry, bool> data = sendqueue.dequeue();
     if (data.second == false) break;
-
-    zstrm.next_in = (Bytef*)data.first.c;
-    zstrm.avail_in = data.first.len;
-    bool sqempty = sendqueue.empty();
-    do {
-      zstrm.next_out = (Bytef*)chunk;
-      zstrm.avail_out = chunklen;  
-      ASSERT_NE(deflate(&zstrm, sqempty ? Z_SYNC_FLUSH : Z_NO_FLUSH ), Z_STREAM_ERROR);
-      comm->send(target, chunk, chunklen - zstrm.avail_out);
-    }while(zstrm.avail_out == 0);
+    size_t offset = 0;
+    while (data.first.len > 0) {
+      size_t blocksize = std::min<size_t>(data.first.len, 128 * 1024);
+      size_t len = qlz_compress(data.first.c + offset, chunk, blocksize, state_compress);
+      data.first.len -= blocksize;
+      offset += blocksize;
+      comm->send(target, chunk, len);
+    }
     free(data.first.c);
   }
   free(chunk);
 }
 
-void dc_buffered_stream_send_expqueue_z::shutdown() {
+void dc_buffered_stream_send_expqueue_lz::shutdown() {
   sendqueue.stop_blocking();
   thr.join();
 }

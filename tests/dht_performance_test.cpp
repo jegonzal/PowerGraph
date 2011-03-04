@@ -16,7 +16,7 @@ using namespace graphlab;
 std::string randstring(size_t len) {
   std::string str;
   str.resize(len);
-  const char *charset="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890,.";
+  const char *charset="ab";
   size_t charsetlen = 64;
   for (size_t i = 0;i < len; ++i) {
     str[i] = charset[rand()  % charsetlen];
