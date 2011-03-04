@@ -1,3 +1,3 @@
 project(GraphLab)
 
-subdirs(metis bitmagic)
+subdirs(metis bitmagic quicklz)

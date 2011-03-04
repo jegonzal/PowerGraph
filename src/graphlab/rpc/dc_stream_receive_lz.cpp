@@ -3,33 +3,68 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/dc_stream_receive_z.hpp>
-#include <zlib.h>
+#include <graphlab/rpc/dc_stream_receive_lz.hpp>
+
 //#define DC_RECEIVE_DEBUG
 
 namespace graphlab {
 namespace dc_impl {
 
 
+
 /**
   Called by the controller when there is data coming
   from the source
 */
-void dc_stream_receive_z::incoming_data(procid_t src, 
+void dc_stream_receive_lz::incoming_data(procid_t src, 
                     const char* buf, 
                     size_t len) {
-  zstrm.avail_in = len;
-  zstrm.next_in = (Bytef*)buf;
- 
-  compressed_bytesreceived.inc(len); 
+  const size_t MAXBUFLEN = 128*1024 + 400;
   do{
-    zstrm.avail_out = 128*1024;
-    zstrm.next_out = (Bytef*)zbuffer;
-    ASSERT_NE(inflate(&zstrm, Z_SYNC_FLUSH), Z_STREAM_ERROR);
-    bufferlock.lock();
-    buffer.write(zbuffer, 128*1024 - zstrm.avail_out);
-    bufferlock.unlock();
-  } while(zstrm.avail_out == 0);
+    // copy into zbuffer if the offset is small.
+    // since the zbuffer block is at least 9 bytes, if the 
+    // current buffer is smaller than 9, it must be the beginning of the
+    // next block. make sure we get 9 bytes first
+    if (zbufferoffset < 9) {
+      size_t copylen = std::min(9 - zbufferoffset, len);
+      memcpy(zbuffer + zbufferoffset, buf, copylen);
+      zbufferoffset += copylen;
+      buf += copylen;
+      len -= copylen;
+      // if we still don't have enough data, we are done. quit
+      if (zbufferoffset < 9) {
+        ASSERT_EQ(len, 0);
+        break;
+      }
+    }
+    // we must have at least 9 bytes here
+    //inspect the header
+    size_t bodylen = qlz_size_compressed(zbuffer);
+    ASSERT_LT(bodylen, MAXBUFLEN);
+    // make sure the buffer contains the entire body
+    if (zbufferoffset < bodylen) {
+      size_t copylen = std::min((bodylen - zbufferoffset), len);
+      memcpy(zbuffer + zbufferoffset, buf, copylen);
+      zbufferoffset += copylen;
+      buf += copylen;
+      len -= copylen;
+    }    
+    // do we have enough data?
+    if (bodylen <= zbufferoffset) {
+      //yes!
+      // decompress!
+      size_t bytesout = qlz_decompress(zbuffer, decompbuffer, state_decompress);
+      buffer.write(decompbuffer, bytesout);
+      zbufferoffset -= bodylen;
+      // by design, we only copied barely enough into the buffer.
+      ASSERT_EQ(zbufferoffset, 0);
+    }
+    else {
+      // insufficient data to decompress
+      // wait for more. len MUST be zero at this point
+      ASSERT_EQ(len, 0);
+    }
+  } while(len > 0);
   process_buffer(false);
 
   //std::cout << dc->procid() << ": From " << src << ": " << zstrm.total_in << " --> " << zstrm.total_out << std::endl; 
@@ -37,7 +72,7 @@ void dc_stream_receive_z::incoming_data(procid_t src,
   
 /** called by the controller when a function
 call is completed */
-void dc_stream_receive_z::function_call_completed(unsigned char packettype) {
+void dc_stream_receive_lz::function_call_completed(unsigned char packettype) {
   size_t pending = pending_calls.dec();
   if (barrier && pending == 0) {
     bufferlock.lock();
@@ -46,7 +81,7 @@ void dc_stream_receive_z::function_call_completed(unsigned char packettype) {
     process_buffer(false);
   }
 }
-void dc_stream_receive_z::process_buffer(bool outsidelocked) {
+void dc_stream_receive_lz::process_buffer(bool outsidelocked) {
   // if barrier is set. we should not process anything
   if (barrier) return;
   if (outsidelocked || bufferlock.try_lock()) {
@@ -104,7 +139,7 @@ void dc_stream_receive_z::process_buffer(bool outsidelocked) {
   }
 }
 
-char* dc_stream_receive_z::get_buffer(size_t& retbuflength) {
+char* dc_stream_receive_lz::get_buffer(size_t& retbuflength) {
   char* ret;
   bufferlock.lock();
   // get a write section
@@ -115,7 +150,7 @@ char* dc_stream_receive_z::get_buffer(size_t& retbuflength) {
 }
 
 
-char* dc_stream_receive_z::advance_buffer(char* c, size_t wrotelength, 
+char* dc_stream_receive_lz::advance_buffer(char* c, size_t wrotelength, 
                             size_t& retbuflength) {
   char* ret;
   bufferlock.lock();
@@ -155,11 +190,11 @@ char* dc_stream_receive_z::advance_buffer(char* c, size_t wrotelength,
 }
 
 
-size_t dc_stream_receive_z::bytes_received() {
+size_t dc_stream_receive_lz::bytes_received() {
   return bytesreceived;
 }
   
-void dc_stream_receive_z::shutdown() { }
+void dc_stream_receive_lz::shutdown() { }
 
 } // namespace dc_impl
 } // namespace graphlab
