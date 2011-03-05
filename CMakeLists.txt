@@ -145,6 +145,24 @@ if (ZLIB_FOUND)
   link_libraries(z)
 endif()
 
+
+# check for itpp
+include(CheckCXXSourceCompiles)
+
+set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES "itpp")
+CHECK_CXX_SOURCE_COMPILES("#include <itpp/itbase.h>\nint main(int argc ,char** argv) { itpp::vec v; return 0; }" ITPP-FOUND)
+set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
+if (ITPP-FOUND)
+  link_libraries(itpp)
+  message(STATUS "ITPP found. Now we can make beautiful matrices together.")
+else()
+  message(STATUS "Bummer, ITPP was not found but we don't need it anyways.")
+endif()
+
+
+
+
 # check for TCMalloc
 CHECK_LIBRARY_EXISTS("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
 if (TCMALLOC-FOUND)
