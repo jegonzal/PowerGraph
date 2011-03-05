@@ -95,6 +95,8 @@ class distributed_chromatic_engine : public iengine<Graph> {
   /** The total number of tasks that should be executed */
   size_t task_budget;
   
+  size_t randomize_schedule;
+  
   /** If dynamic scheduling is used, the number of scheduled tasks */
   atomic<size_t> num_pending_tasks;
   
@@ -158,6 +160,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
                             timeout_millis(0),
                             force_stop(false),
                             task_budget(0),
+                            randomize_schedule(0),
                             termination_reason(EXEC_UNSET),
                             scheduled_vertices(graph.owned_vertices().size()),
                             update_function(NULL),
@@ -370,21 +373,29 @@ class distributed_chromatic_engine : public iengine<Graph> {
     }
     color_block.clear();
     color_block.resize(num_colors);
-    // optimize ordering. Sort in descending order
-    // put all those which need a lot of communication in the front
-    // to give communication the maximum amount if time possible.
-    for (size_t i = 0; i < color_block_and_weight.size(); ++i) {
-      std::sort(color_block_and_weight[i].rbegin(),
-                color_block_and_weight[i].rend());
-      // insert the sorted vertices into the final color_block
-      
-      std::transform(color_block_and_weight[i].begin(),
-                     color_block_and_weight[i].end(), 
-                     std::back_inserter(color_block[i]),
-                     __gnu_cxx::select2nd<std::pair<size_t, vertex_id_t> >());
-
+    if (randomize_schedule) {
+      for (size_t i = 0; i < color_block_and_weight.size(); ++i) {
+         std::random_shuffle(color_block_and_weight[i].begin(),
+                            color_block_and_weight[i].end());
+      }
     }
-    
+    else {
+      // optimize ordering. Sort in descending order
+      // put all those which need a lot of communication in the front
+      // to give communication the maximum amount if time possible.
+      for (size_t i = 0; i < color_block_and_weight.size(); ++i) {
+        std::sort(color_block_and_weight[i].rbegin(),
+                  color_block_and_weight[i].rend());
+      }
+    }
+
+    // insert the sorted vertices into the final color_block
+    for (size_t i = 0;i < color_block_and_weight.size(); ++i ) {  
+      std::transform(color_block_and_weight[i].begin(),
+                    color_block_and_weight[i].end(), 
+                    std::back_inserter(color_block[i]),
+                    __gnu_cxx::select2nd<std::pair<size_t, vertex_id_t> >());
+    }
     
   }
   
@@ -768,12 +779,21 @@ class distributed_chromatic_engine : public iengine<Graph> {
     /** \brief Update the scheduler options.  */
   void set_scheduler_options(const scheduler_options& opts) {
     opts.get_int_option("max_iterations", max_iterations);
+    opts.get_int_option("randomize_schedule", randomize_schedule);
+
     any uf;
     if (opts.get_any_option("update_function", uf)) {
       update_function = uf.as<update_function_type>();
     }
     rmi.barrier();
   }
+  
+  void set_randomize_schedule(bool randomize_schedule_) {
+    randomize_schedule = randomize_schedule_;
+    rmi.barrier();
+  }
+
+  
   
   static void print_options_help(std::ostream &out) {
     out << "max_iterations = [integer, default = 0]\n";

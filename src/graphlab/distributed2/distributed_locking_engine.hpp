@@ -640,8 +640,15 @@ private:
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
         size_t numtasksdone = check_global_termination();
 
-        //std::cout << numtasksdone << " tasks done" << std::endl;
+        
         compute_sync_schedule(numtasksdone);
+        
+        // if I am thread 0 on processor 0, I need to wake up the
+        // the main thread which is waiting on a timer
+        if (rmi.procid() == 0) {
+          std::cout << numtasksdone << " tasks done" << std::endl;
+          reduction_complete_signal();
+        }
       }
     }
   }
@@ -768,6 +775,21 @@ private:
   }
 
   
+  /*
+  These variables protect the reduction completion 
+  flag on processor 0
+  */
+  mutex reduction_started_mut;
+  conditional reduction_started_cond;
+  bool proc0_reduction_started;
+  
+  void reduction_complete_signal() {
+    reduction_started_mut.lock();
+    proc0_reduction_started = false;
+    reduction_started_cond.signal();
+    reduction_started_mut.unlock();
+  }
+  
   /** Execute the engine */
   void start() {
     // generate colors then
@@ -786,7 +808,7 @@ private:
     reduction_stop = false; 
     reduction_run = false;
     threads_alive.value = ncpus;
-    
+    proc0_reduction_started = false;
     std::fill(update_counts.begin(), update_counts.end(), 0);
     rmi.dc().full_barrier();
     // reset indices
@@ -811,11 +833,18 @@ private:
     }
     if (rmi.procid() == 0) {
       while(consensus.done_noblock() == false) {
+        reduction_started_mut.lock();
+        proc0_reduction_started = true;
+        reduction_started_mut.unlock();
         for (size_t i = 1;i < rmi.numprocs(); ++i) {
           rmi.remote_call(i,
                           &distributed_locking_engine<Graph, Scheduler>::wake_up_reducer);
         }
         wake_up_reducer();
+        
+        reduction_started_mut.lock();
+        while (proc0_reduction_started) reduction_started_cond.wait(reduction_started_mut);
+        reduction_started_mut.unlock();
         my_sleep(1);
       }
     }

@@ -404,7 +404,7 @@ class distributed_graph {
       return localvid2owner[localvid];
     }
     else {
-      std::pair<bool, procid_t> ret = globalvid2owner.get(vid);
+      std::pair<bool, procid_t> ret = globalvid2owner.get_cached(vid);
       assert(ret.first);
       return ret.second;
     }
