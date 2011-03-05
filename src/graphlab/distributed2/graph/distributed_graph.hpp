@@ -404,7 +404,7 @@ class distributed_graph {
       return localvid2owner[localvid];
     }
     else {
-      std::pair<bool, procid_t> ret = globalvid2owner.get(vid);
+      std::pair<bool, procid_t> ret = globalvid2owner.get_cached(vid);
       assert(ret.first);
       return ret.second;
     }
@@ -914,6 +914,41 @@ class distributed_graph {
                             color);
     }
   }
+
+  /**
+  Collects all the vertex data onto one machine.
+  The target machine will be returned a vector containing all the vertex data
+  while all machines will returned an empty vector.
+  All machines must call this function together and must have the same
+  value for 'targetmachine'
+  \warning This is only useful when the graph is small enough that
+  all the vertex data fits in memory.
+  
+  TODO: implement collect_vertex_subset() and also a version of this
+  which can be called only from one machine.
+  */
+  std::vector<VertexData> collect_vertices(procid_t targetmachine) {
+    std::vector<VertexData> ret;
+    typename std::vector<std::map<vertex_id_t, VertexData> > gather(rmi.numprocs());
+    foreach(vertex_id_t vid, owned_vertices()) {
+      gather[rmi.procid()][vid]  = vertex_data(vid);
+    }
+    
+    rmi.gather(gather, targetmachine);
+    
+    if (rmi.procid() == 0) {
+      ret.resize(num_vertices());
+      for (size_t i = 0;i < gather.size(); ++i) {
+        typename std::map<vertex_id_t, VertexData>::const_iterator iter = gather[i].begin();
+        while (iter != gather[i].end()) {
+          ret[iter->first] = iter->second;
+          ++iter;
+        }
+      }
+    }
+    return ret;
+  }
+
 
   
   // synchronzation calls. These are called from the ghost side

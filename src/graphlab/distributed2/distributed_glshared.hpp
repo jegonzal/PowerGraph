@@ -27,28 +27,11 @@ public:
 
 private:
   // two instances of the data
-  T buffer_and_head[2];
-
-  // shared pointers to the data
-  boost::shared_ptr<T> buffer_and_head_ptr[2];
-
-  // a pointer to the shared pointer which contains the write target
-  boost::shared_ptr<T>* buffer;
-  // a pointer to the shared pointer which contains the read target
-  boost::shared_ptr<T>* head;
-
+  T head;
+  ptr_type ptr;
   // A lock used to sequentialize multiple writes
-  mutex set_lock;
+  rwlock lock;
 
-  // Waits until all references to the buffer are released
-  inline void wait_for_buffer_release() {
-    while(!(buffer->unique())) sched_yield();
-  }
-
-  // Performs an atomic exchange of the head and buffer pointers
-  inline void exchange_buffer_and_head() {
-    atomic_exchange(buffer, head);
-  }
   /**
     check if the backend storage has been modified
   */
@@ -59,19 +42,16 @@ public:
   //! Construct initial shared pointers
   distributed_glshared() {
     any a(T()); // force instantiation of the serializer
-    buffer_and_head_ptr[0].reset(&(buffer_and_head[0]), 
-                                 glshared_impl::empty_deleter<T>());
-    buffer_and_head_ptr[1].reset(&(buffer_and_head[1]), 
-                                 glshared_impl::empty_deleter<T>());
-    buffer = &(buffer_and_head_ptr[0]);
-    head = &(buffer_and_head_ptr[1]);
+    ptr.reset(&head, glshared_impl::empty_deleter<T>());
   }
 
 
   /// Returns a copy of the data
   inline T get_val() const{
-    check_invalidation(false);
-    return *(*(head));
+    lock.readlock();
+    T ret = head;
+    lock.rdunlock();
+    return ret;
   }
 
   /**
@@ -86,7 +66,7 @@ public:
    * variable.
    */
   bool is_unique() const {
-    return buffer->unique() && head->unique();
+    return true;
   }
 
   /**
@@ -106,9 +86,8 @@ public:
    *
    *
    */
-  inline const_ptr_type get_ptr() const{
-    check_invalidation(false);
-    return boost::const_pointer_cast<const T, T>(*head);
+  inline __attribute((__deprecated__)) const_ptr_type get_ptr() const{
+    return ptr;
   }
 
   /**
@@ -117,11 +96,9 @@ public:
    * pointers to this variable which are never released.
    */
   void set(const T& t) {
-    set_lock.lock();
-    wait_for_buffer_release();
-    *(*buffer) = t;
-    exchange_buffer_and_head();
-    set_lock.unlock();
+    lock.writelock();
+    head = t;
+    lock.wrunlock();
     issue_modification(true);
   }
 
@@ -152,14 +129,14 @@ public:
              const any& srcd);
   
   void save(oarchive &oarc) const{
-    set_lock.lock();
-    oarc << *(*head);
-    set_lock.unlock();
+    lock.readlock();
+    oarc << head;
+    lock.rdunlock();
   }
   void load(iarchive &iarc) {
-    set_lock.lock();
-    iarc >> *(*head);
-    set_lock.unlock();
+    lock.writelock();
+    iarc >> head;
+    lock.wrunlock();
   }
   
   const char* type_name() const {
@@ -209,31 +186,27 @@ void distributed_glshared<T>::exchange(T& t) {
     iarc >> t;
   }
   else {
-    set_lock.lock();
-    wait_for_buffer_release();
+    lock.writelock();
     T retval = get_val();
-    *(*buffer) = t;
+    head = t;
     t = retval;
-    exchange_buffer_and_head();
-    set_lock.unlock();
+    lock.wrunlock();
   }
 }
 
 template<typename T>
 void distributed_glshared<T>::apply(apply_function_type fun,
                                     const any& srcd) {
-    if (manager) {
+  if (manager) {
     // serialize the srcd
     manager->apply<T>(id, fun, srcd);
   }
   else {
-    set_lock.lock();
-    wait_for_buffer_release();
-    any temp = *(*head);
+    lock.writelock();
+    any temp = head;
     fun(temp, srcd);
-    *(*buffer) = temp.as<T>();
-    exchange_buffer_and_head();
-    set_lock.unlock();
+    head = temp.as<T>();
+    lock.writelock();
   }
 }
 

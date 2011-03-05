@@ -66,7 +66,7 @@ namespace graphlab {
     /** Generate a gamma distributed random variable */
     double rand_gamma(double alpha = 1) {
       boost::gamma_distribution<double> gamma_dist(alpha);
-      return gamma_dist(rng_);
+      return gamma_dist(rng_real_);
     }
     
     /** Seed the random number generator */

@@ -100,7 +100,8 @@ private:
   /** The total number of tasks that should be executed */
   size_t task_budget;
   
- 
+  bool strength_reduction;
+  size_t weak_color;
   
   /** The cause of the last termination condition */
   exec_status termination_reason;
@@ -174,6 +175,8 @@ private:
   atomic<size_t> threads_alive;
   
   binary_vertex_task_set<Graph> binary_vertex_tasks;
+  
+  size_t numtasksdone;
  
  public:
   distributed_locking_engine(distributed_control &dc,
@@ -190,6 +193,8 @@ private:
                             timeout_millis(0),
                             force_stop(false),
                             task_budget(0),
+                            strength_reduction(false),
+                            weak_color(0),
                             termination_reason(EXEC_UNSET),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
@@ -638,10 +643,17 @@ private:
       reduction_barrier.wait();
       if (threadid == 0) {
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        size_t numtasksdone = check_global_termination();
+        numtasksdone = check_global_termination();
 
-        //std::cout << numtasksdone << " tasks done" << std::endl;
+        
         compute_sync_schedule(numtasksdone);
+        
+        // if I am thread 0 on processor 0, I need to wake up the
+        // the main thread which is waiting on a timer
+        if (rmi.procid() == 0) {
+          std::cout << numtasksdone << " tasks done" << std::endl;
+          reduction_complete_signal();
+        }
       }
     }
   }
@@ -717,12 +729,16 @@ private:
           // if a lock was not requested. request for it
           if (vertex_deferred_tasks[task.vertex()].lockrequested == false) {
             vertex_deferred_tasks[task.vertex()].lockrequested = true;
-            graphlock.scope_request(globalvid, handler, default_scope_range);
+            if (strength_reduction == false || graph.color(globalvid) != weak_color) {
+              graphlock.scope_request(globalvid, handler, default_scope_range);
+            }
+            else {
+              graphlock.scope_request(globalvid, handler, scope_range::VERTEX_CONSISTENCY);
+            }
           }
           vertex_deferred_tasks[task.vertex()].lock.unlock();
         }
       }
-
       // pick up a job to do
       std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
       
@@ -753,8 +769,17 @@ private:
           num_deferred_tasks.dec();
         }
         vertex_deferred_tasks[curv].lockrequested = false;
-        graphlock.scope_unlock(globalvid, default_scope_range);
+        
+        if (strength_reduction == false || graph.color(globalvid) != weak_color) {
+          graphlock.scope_unlock(globalvid, default_scope_range);
+        }
+        else {
+          graphlock.scope_unlock(globalvid, scope_range::VERTEX_CONSISTENCY);
+        }
         vertex_deferred_tasks[curv].lock.unlock();
+      }
+      else {
+        sched_yield();
       }
     }
   }
@@ -767,6 +792,21 @@ private:
     const_nbr_vertices = const_nbr_vertices_;
   }
 
+  
+  /*
+  These variables protect the reduction completion 
+  flag on processor 0
+  */
+  mutex reduction_started_mut;
+  conditional reduction_started_cond;
+  bool proc0_reduction_started;
+  
+  void reduction_complete_signal() {
+    reduction_started_mut.lock();
+    proc0_reduction_started = false;
+    reduction_started_cond.signal();
+    reduction_started_mut.unlock();
+  }
   
   /** Execute the engine */
   void start() {
@@ -783,10 +823,11 @@ private:
     force_stop = false;
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
+    numtasksdone = 0;
     reduction_stop = false; 
     reduction_run = false;
     threads_alive.value = ncpus;
-    
+    proc0_reduction_started = false;
     std::fill(update_counts.begin(), update_counts.end(), 0);
     rmi.dc().full_barrier();
     // reset indices
@@ -809,14 +850,26 @@ private:
                             &distributed_locking_engine<Graph, Scheduler>::reduction_thread,
                             this, i), aff);
     }
+    
+    std::map<double, size_t> upspertime;
+    timer ti;
+    ti.start();
     if (rmi.procid() == 0) {
       while(consensus.done_noblock() == false) {
+        reduction_started_mut.lock();
+        proc0_reduction_started = true;
+        reduction_started_mut.unlock();
         for (size_t i = 1;i < rmi.numprocs(); ++i) {
           rmi.remote_call(i,
                           &distributed_locking_engine<Graph, Scheduler>::wake_up_reducer);
         }
         wake_up_reducer();
-        my_sleep(1);
+        
+        reduction_started_mut.lock();
+        while (proc0_reduction_started) reduction_started_cond.wait(reduction_started_mut);
+        upspertime[ti.current_time()] = numtasksdone;
+        reduction_started_mut.unlock();
+        sleep(1);
       }
     }
     thrgrp.join();          
@@ -855,6 +908,15 @@ private:
                             barrier_times[i], TIME);
       }
 
+      std::map<double, size_t>::const_iterator iter = upspertime.begin();
+      while(iter != upspertime.end()) {
+        engine_metrics.add("snapshot_time", 
+                            iter->first, TIME);
+        engine_metrics.add("snapshot_ups", 
+                            iter->second, INTEGER);
+        ++iter;
+      }
+
       engine_metrics.set("termination_reason", 
                         exec_status_as_string(termination_reason));
       engine_metrics.set("dist_barriers_issued", 
@@ -885,6 +947,19 @@ private:
     /** \brief Update the scheduler options.  */
   void set_scheduler_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
+    rmi.barrier();
+  }
+  
+  void set_strength_reduction(bool strength_reduction_) {
+    strength_reduction = strength_reduction_;
+    // TODO: More intelligent picking of the color to weaken
+    weak_color = 0;
+    rmi.barrier();
+  }
+  
+  
+  void set_max_deferred(size_t max_deferred) {
+    max_deferred_tasks = max_deferred;
     rmi.barrier();
   }
   
