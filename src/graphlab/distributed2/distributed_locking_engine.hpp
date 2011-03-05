@@ -100,7 +100,8 @@ private:
   /** The total number of tasks that should be executed */
   size_t task_budget;
   
- 
+  bool strength_reduction;
+  size_t weak_color;
   
   /** The cause of the last termination condition */
   exec_status termination_reason;
@@ -190,6 +191,8 @@ private:
                             timeout_millis(0),
                             force_stop(false),
                             task_budget(0),
+                            strength_reduction(false),
+                            weak_color(0),
                             termination_reason(EXEC_UNSET),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
@@ -724,12 +727,16 @@ private:
           // if a lock was not requested. request for it
           if (vertex_deferred_tasks[task.vertex()].lockrequested == false) {
             vertex_deferred_tasks[task.vertex()].lockrequested = true;
-            graphlock.scope_request(globalvid, handler, default_scope_range);
+            if (strength_reduction == false || graph.color(globalvid) != weak_color) {
+              graphlock.scope_request(globalvid, handler, default_scope_range);
+            }
+            else {
+              graphlock.scope_request(globalvid, handler, scope_range::VERTEX_CONSISTENCY);
+            }
           }
           vertex_deferred_tasks[task.vertex()].lock.unlock();
         }
       }
-
       // pick up a job to do
       std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
       
@@ -760,8 +767,17 @@ private:
           num_deferred_tasks.dec();
         }
         vertex_deferred_tasks[curv].lockrequested = false;
-        graphlock.scope_unlock(globalvid, default_scope_range);
+        
+        if (strength_reduction == false || graph.color(globalvid) != weak_color) {
+          graphlock.scope_unlock(globalvid, default_scope_range);
+        }
+        else {
+          graphlock.scope_unlock(globalvid, scope_range::VERTEX_CONSISTENCY);
+        }
         vertex_deferred_tasks[curv].lock.unlock();
+      }
+      else {
+        sched_yield();
       }
     }
   }
@@ -845,7 +861,7 @@ private:
         reduction_started_mut.lock();
         while (proc0_reduction_started) reduction_started_cond.wait(reduction_started_mut);
         reduction_started_mut.unlock();
-        my_sleep(1);
+        sleep(1);
       }
     }
     thrgrp.join();          
@@ -914,6 +930,19 @@ private:
     /** \brief Update the scheduler options.  */
   void set_scheduler_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
+    rmi.barrier();
+  }
+  
+  void set_strength_reduction(bool strength_reduction_) {
+    strength_reduction = strength_reduction_;
+    // TODO: More intelligent picking of the color to weaken
+    weak_color = 0;
+    rmi.barrier();
+  }
+  
+  
+  void set_max_deferred(size_t max_deferred) {
+    max_deferred_tasks = max_deferred;
     rmi.barrier();
   }
   
