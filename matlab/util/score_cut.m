@@ -10,7 +10,7 @@ vCut = full(sum(...
 
 % For each processor compute the work and communication done by tha
 % processor
-for i = unique(cut(:))';
+parfor i = unique(cut(:))';
    score.work(i) = sum( wV(cut == i) );
    score.ework(i) = sum( sum(wE(cut == i,:)) );
    score.comm(i) = sum( vCut(cut == i) );

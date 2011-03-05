@@ -281,7 +281,7 @@ namespace graphlab {
   */
   template <typename VertexData, typename EdgeData>
   void graph_partition_to_atom(const graph<VertexData, EdgeData> &g, 
-                               const std::vector<uint32_t>& vertex2part,
+                               const std::vector<vertex_id_t>& vertex2part,
                                uint32_t partid,
                                atom_file<VertexData, EdgeData> &atom,
                                bool noglobaleids = false) {
