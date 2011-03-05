@@ -175,6 +175,8 @@ private:
   atomic<size_t> threads_alive;
   
   binary_vertex_task_set<Graph> binary_vertex_tasks;
+  
+  size_t numtasksdone;
  
  public:
   distributed_locking_engine(distributed_control &dc,
@@ -641,7 +643,7 @@ private:
       reduction_barrier.wait();
       if (threadid == 0) {
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        size_t numtasksdone = check_global_termination();
+        numtasksdone = check_global_termination();
 
         
         compute_sync_schedule(numtasksdone);
@@ -821,6 +823,7 @@ private:
     force_stop = false;
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
+    numtasksdone = 0;
     reduction_stop = false; 
     reduction_run = false;
     threads_alive.value = ncpus;
@@ -847,6 +850,10 @@ private:
                             &distributed_locking_engine<Graph, Scheduler>::reduction_thread,
                             this, i), aff);
     }
+    
+    std::map<double, size_t> upspertime;
+    timer ti;
+    ti.start();
     if (rmi.procid() == 0) {
       while(consensus.done_noblock() == false) {
         reduction_started_mut.lock();
@@ -860,6 +867,7 @@ private:
         
         reduction_started_mut.lock();
         while (proc0_reduction_started) reduction_started_cond.wait(reduction_started_mut);
+        upspertime[ti.current_time()] = numtasksdone;
         reduction_started_mut.unlock();
         sleep(1);
       }
@@ -898,6 +906,15 @@ private:
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         engine_metrics.add("barrier_time", 
                             barrier_times[i], TIME);
+      }
+
+      std::map<double, size_t>::const_iterator iter = upspertime.begin();
+      while(iter != upspertime.end()) {
+        engine_metrics.add("snapshot_time", 
+                            iter->first, TIME);
+        engine_metrics.add("snapshot_ups", 
+                            iter->second, INTEGER);
+        ++iter;
       }
 
       engine_metrics.set("termination_reason", 
