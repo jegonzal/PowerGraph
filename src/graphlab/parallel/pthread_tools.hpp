@@ -44,16 +44,14 @@ namespace graphlab {
     typedef boost::uniform_real<double> dist_real_type;
     typedef boost::normal_distribution<double> dist_gaussian_type;
     typedef boost::uniform_int<size_t> dist_int_type;
-    typedef boost::gamma_distribution<double> dist_gamma_type;
-
+    
   public:
  
     thread_specific_data(size_t thread_id) :
       thread_id_(thread_id),
       rng_(thread_id + rand()),
       rnggaussian_(rng_, gaussian_dist_),
-      rng_real_(rng_, real_dist_),
-      rnggamma_(rng_, gamma_dist_) {}
+      rng_real_(rng_, real_dist_) {}
 
     /** Get the id of the thread */
     size_t thread_id() const { return thread_id_; }
@@ -67,8 +65,8 @@ namespace graphlab {
 
     /** Generate a gamma distributed random variable */
     double rand_gamma(double alpha = 1) {
-      rnggamma_.distribution() = dist_gamma_type(alpha);
-      return rnggamma_();
+      boost::gamma_distribution<double> gamma_dist(alpha);
+      return gamma_dist(rng_real_);
     }
     
     /** Seed the random number generator */
@@ -93,10 +91,6 @@ namespace graphlab {
     // gaussians
     dist_real_type real_dist_;
     boost::variate_generator<rand_src_type, dist_real_type> rng_real_;
-    
-    dist_gamma_type gamma_dist_;
-    boost::variate_generator<rand_src_type, dist_gamma_type> rnggamma_;
-
   }; // end of thread specific data
 
   
