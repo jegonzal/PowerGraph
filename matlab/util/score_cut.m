@@ -12,11 +12,16 @@ vCut = full(sum(...
 % processor
 for i = unique(cut(:))';
    score.work(i) = sum( wV(cut == i) );
+   score.ework(i) = sum( sum(wE(cut == i,:)) );
    score.comm(i) = sum( vCut(cut == i) );
 end
 
-score.cost = sum(score.comm);
+
+score.cost = sum(vCut(:)); %sum(score.comm);
 score.bal = max(score.work) * p / sum(wV);
+
+
+score.ebal = max(score.ework) * p / sum(wE(:));
 
 % score.value = max(score.work) + sum(vCut);
 end

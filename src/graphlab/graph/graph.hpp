@@ -769,7 +769,7 @@ namespace graphlab {
      * \param numparts The number of parts to partition into
      * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
      */
-    void random_partition(size_t nparts, std::vector<uint32_t>& vertex2part) {
+    void random_partition(size_t nparts, std::vector<vertex_id_t>& vertex2part) {
       vertex2part.resize(num_vertices());
       for (size_t i = 0;i < num_vertices(); ++i) {
         vertex2part[i] = i % nparts;
@@ -800,16 +800,16 @@ namespace graphlab {
      *
      *   http://www.select.cs.cmu.edu/code
      */
-    void metis_partition(size_t numparts , std::vector<uint32_t>& ret_part) {
+    void metis_partition(size_t numparts , std::vector<vertex_id_t>& ret_part) {
       if (numparts == 1) {
         ret_part.assign(num_vertices(), 0);
         return;
       }
       // Determine parameters needed to construct the partitioning
-      metis::idxtype numverts = static_cast<int>(num_vertices());
+      metis::idxtype numverts(num_vertices());
       assert(numverts > 0);
       // Compute the number of edges 
-      int numedges = static_cast<int>(num_edges());
+      metis::idxtype numedges(num_edges());
 
       // allocate metis data structures
       metis::idxtype* vweight = new metis::idxtype[numverts];
@@ -957,10 +957,10 @@ namespace graphlab {
         return;
       }
       // Determine parameters needed to construct the partitioning
-      metis::idxtype numverts = static_cast<int>(num_vertices());
+      metis::idxtype numverts(num_vertices());
       assert(numverts > 0);
       // Compute the number of edges 
-      int numedges = static_cast<int>(num_edges());
+      metis::idxtype numedges (num_edges());
 
       // allocate metis data structures
       metis::idxtype* vweight = new metis::idxtype[numverts];
