@@ -806,10 +806,10 @@ namespace graphlab {
         return;
       }
       // Determine parameters needed to construct the partitioning
-      metis::idxtype numverts = static_cast<int>(num_vertices());
+      metis::idxtype numverts(num_vertices());
       assert(numverts > 0);
       // Compute the number of edges 
-      int numedges = static_cast<int>(num_edges());
+      metis::idxtype numedges(num_edges());
 
       // allocate metis data structures
       metis::idxtype* vweight = new metis::idxtype[numverts];
@@ -957,10 +957,10 @@ namespace graphlab {
         return;
       }
       // Determine parameters needed to construct the partitioning
-      metis::idxtype numverts = static_cast<int>(num_vertices());
+      metis::idxtype numverts(num_vertices());
       assert(numverts > 0);
       // Compute the number of edges 
-      int numedges = static_cast<int>(num_edges());
+      metis::idxtype numedges (num_edges());
 
       // allocate metis data structures
       metis::idxtype* vweight = new metis::idxtype[numverts];
