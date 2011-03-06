@@ -431,16 +431,15 @@ void partition_update_function(iscope_type& scope,
   }
 
   // Determine atomid based on probability table
-  size_t atomid(0);
-  { // pick according to probability
-    double Z = 0;
-    foreach(const double& d, prb) Z+=d;
-    ASSERT_GT(Z,0);
-    const double rnd(random::rand01());
-    for(double sum = prb.at(0)/Z; sum < rnd && atomid < NATOMS; 
-        sum += prb.at(++atomid)/Z);
-  }
-
+  const  size_t atomid(random::rand_multi(prb));
+  // { // pick according to probability
+  //   double Z = 0;
+  //   foreach(const double& d, prb) Z+=d;
+  //   ASSERT_GT(Z,0);
+  //   const double rnd(random::rand01());
+  //   for(double sum = prb.at(0)/Z; sum < rnd && atomid < NATOMS; 
+  //       sum += prb.at(++atomid)/Z);
+  // }
   //  atomid = std::max_element(nbr_a2c.begin(), nbr_a2c.end()) - nbr_a2c.begin();
 
   ASSERT_LT(atomid, prb.size());
