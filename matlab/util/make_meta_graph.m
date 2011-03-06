@@ -8,9 +8,9 @@ cutv = cut(v);
 parts = unique(cut(:));
 meta_eW = zeros(max(cut));
 
-[weights, edges] = group([cutu, cutv, cutw], [1,2],[3]);
-weights = cellfun(@sum, weights);
-meta_eW = sparse(edges(:,1), edges(:,2), weights, max(parts), max(parts));
+[eweights, edges] = group([cutu, cutv, cutw], [1,2],[3]);
+eweights = cellfun(@sum, eweights);
+meta_eW = sparse(edges(:,1), edges(:,2), eweights, max(parts), max(parts));
 meta_eW = full(meta_eW);
 
 % for ui = parts';
@@ -22,7 +22,9 @@ meta_eW = full(meta_eW);
 %   end
 % end
 
-meta_vW = 0;
+[vweights, parts] = group([cut, vW], 1, 2);
+meta_vW = zeros(max(parts), 1);
+meta_vW(parts) = cellfun(@sum, vweights);
 
 
 
