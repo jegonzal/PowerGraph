@@ -43,6 +43,9 @@ namespace graphlab {
      */
     static size_t rand_multi(const std::vector<double>& prb) {
       ASSERT_GT(prb.size(),0);
+      if (prb.size() == 1) {
+	return 0;
+      }
       double sum(0);
       for(size_t i = 0; i < prb.size(); ++i) {
         ASSERT_GE(prb[i], 0);
@@ -52,7 +55,7 @@ namespace graphlab {
       const double rnd(rand01());
       size_t ind = 0;
       for(double cumsum(prb[ind]/sum); 
-          rnd < (prb[ind]/sum) && ind < prb.size(); 
+          rnd > cumsum && (ind+1) < prb.size(); 
           cumsum += (prb[++ind]/sum));
       return ind;
     }
