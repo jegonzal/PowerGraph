@@ -401,19 +401,15 @@ void partition_update_function(iscope_type& scope,
     // //    const double SMOOTHING(1.0/(NATOMS * NATOMS));
     // //    const double SMOOTHING(1.0e-5);
 
-    // double SMOOTHING = 
-    //   double(10)/(NATOMS * (scope.in_edge_ids().size() + scope.out_edge_ids().size()));
+    // laplace smoothing
+    double SMOOTHING(double(1) / NATOMS);
 
-
-    // if (stats.vertex_imbalance(vdata.atomid) > 3) SMOOTHING = 1;
-    double SMOOTHING = 1E-5;
     for(size_t i = 0; i < NATOMS; ++i) {
-      // const double T = 1 + double(vdata.num_changes) / 2;
-      
-      //const bool has_neighbor( nbr_a2c[i] > 0);
-      const double has_neighbor( nbr_a2c[i]);
-      prb[i] = exp(5*double(nbr_a2c[i]) / nbr_sum) * has_neighbor + 
-        SMOOTHING;      
+      // const double T = 1 + double(vdata.num_changes) / 2;      
+      const bool has_neighbor( nbr_a2c[i] > 0);
+      //      const double has_neighbor( nbr_a2c[i]);
+      prb[i] = exp(2 * double( nbr_a2c[i] ) / nbr_sum) * has_neighbor +
+        SMOOTHING;
     }
 
     // const double K1 = 5, K2 = 1;
@@ -426,33 +422,23 @@ void partition_update_function(iscope_type& scope,
     //     else prb[i] = exp( (K1 * agree + K2 * disagree ) / T  );     
     // }
 
-
     // Zero unbalanced classes
     for(size_t i = 0; i < NATOMS; ++i) {  
-      if(stats.vertex_imbalance(i) > 5) {
-        if(random::rand01() < 0.25) {
-          prb[i] = 0;
-        }        
-      }
+      if(stats.vertex_imbalance(i) > 2 && 
+         random::rand01() < 0.25 )   prb[i] = 0;             
     }
 
-  
-
-
-  }
-  { // normalize
-    double Z = 0;
-    foreach(double& d, prb) Z+=d;
-    ASSERT_GT(Z,0);
-    foreach(double& d, prb) d/=Z;
   }
 
   // Determine atomid based on probability table
   size_t atomid(0);
   { // pick according to probability
+    double Z = 0;
+    foreach(const double& d, prb) Z+=d;
+    ASSERT_GT(Z,0);
     const double rnd(random::rand01());
-    for(double sum = prb.at(0); sum < rnd && atomid < NATOMS; 
-        sum += prb.at(++atomid));
+    for(double sum = prb.at(0)/Z; sum < rnd && atomid < NATOMS; 
+        sum += prb.at(++atomid)/Z);
   }
 
   //  atomid = std::max_element(nbr_a2c.begin(), nbr_a2c.end()) - nbr_a2c.begin();
