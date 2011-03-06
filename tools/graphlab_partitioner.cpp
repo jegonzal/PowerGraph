@@ -722,7 +722,7 @@ int main(int argc, char** argv) {
       fout.close();
     }
     {
-      std::string fname = "machine_" + partfile;
+      std::string fname =  partfile + "_machine";
       std::ofstream fout(fname.c_str());
       ASSERT_TRUE(fout.good());
       for(size_t i = 0; i < result.size(); ++i) 

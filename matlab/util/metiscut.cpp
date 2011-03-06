@@ -41,10 +41,13 @@ struct metis_graph {
   metis_graph(size_t n, size_t m) : 
     n(n), m(m), xadj(NULL), adjncy(NULL), 
     vweight(NULL), eweight(NULL) {
+    // mexPrintf("Allocating data structures for %d vertices and %d edges\n",
+    //           n, m);
+    // mexEvalString("drawnow");
     xadj = new metis::idxtype[n + 1];
-    adjncy = new metis::idxtype[2 * m];
+    adjncy = new metis::idxtype[m];
     vweight = new metis::idxtype[n];
-    eweight = new metis::idxtype[2 * m];
+    eweight = new metis::idxtype[m];
   }
 
   void destroy() {
@@ -93,10 +96,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   metis::idxtype nverts = std::max(mxGetM(matlab_vW), 
                                    mxGetN(matlab_vW));
   
-  //  mexPrintf("Number of verts = %d\n", nverts);
+  // mexPrintf("Number of verts = %d\n", nverts);
+  // mexEvalString("drawnow");
 
   // Get the number of edges (half the number of nonzero entries in E
-  metis::idxtype nedges = mxGetNzmax(matlab_eW) / 2;
+  metis::idxtype nedges = mxGetNzmax(matlab_eW) ;
   //  mexPrintf("Number of edges = %d\n", nedges);
 
   // Get a pointer to the vertex weights
@@ -106,11 +110,16 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   mwIndex* jc = mxGetJc(matlab_eW);
   mwIndex* ir = mxGetIr(matlab_eW);
   double* pr  = mxGetPr(matlab_eW);
+
+  mexPrintf("Running allocator\n");
+  mexEvalString("drawnow");
   
   //  mexPrintf("Loading Metis Graph struct\n");
   // construct a metis data structure 
   metis_graph g(nverts, nedges);
 
+  mexPrintf("Filling in data structures\n");
+  mexEvalString("drawnow");
   // construct teh arguments to metis
   for(int i = 0; i <= nverts; ++i) {
     g.xadj[i] = static_cast<metis::idxtype>(jc[i]);
@@ -122,7 +131,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     if(g.vweight[i] < 0) mexErrMsgTxt("Negative weight!");
   }
   
-  for(int i = 0; i < 2*nedges; ++i) {
+  for(int i = 0; i < nedges; ++i) {
     g.adjncy[i] = static_cast<metis::idxtype>(ir[i]);
     if(g.adjncy[i] < 0) mexErrMsgTxt("Negative index!");
     g.eweight[i] = static_cast<metis::idxtype>(round(pr[i]) + 1);
@@ -149,7 +158,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   //  mexPrintf("Number of parts: %d\n", nparts);
 
   // Options array (only care about first element if first element is zero
-  metis::idxtype options[5]; options[0] = 0;
+  metis::idxtype options[5]; 
+  options[0] = 1; 
+  options[1] = 3; 
+  options[2] = 1;
+  options[3] = 1;
+  options[4] = 0;
 
   // output argument number of edges cut
   metis::idxtype edgecut = 0;
@@ -157,7 +171,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // output argument the array of assignments
   metis::idxtype* part = new metis::idxtype[nverts];
 
-
+  // mexPrintf("Running Partitioner\n");
+  // mexEvalString("drawnow");
   // Cut the graph
 #ifdef KMETIS
 //  mexPrintf("Calling kmetis\n");
@@ -190,7 +205,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // Destroy metis graph memory blocks
   g.destroy();
 
-//  mexPrintf("Processing Results.\n");
+  //  mexPrintf("Processing Results.\n");
+  //  mexEvalString("drawnow");
 
   // load the results
   mxArray* output = mxCreateDoubleMatrix(nverts, 1, mxREAL);
