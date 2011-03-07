@@ -211,7 +211,7 @@ private:
                             binary_vertex_tasks(graph.local_vertices()),
                             reduction_barrier(ncpus) { 
     graph.allocate_scope_callbacks();
-    rmi.barrier();
+    dc.barrier();
   }
   
   ~distributed_locking_engine() {

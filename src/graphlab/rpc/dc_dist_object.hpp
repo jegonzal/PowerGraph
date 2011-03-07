@@ -139,7 +139,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     // register
     obj_id = dc_.register_object(owner, this);
     control_obj_id = dc_.register_object(this, this);
-
+    dc_.barrier();
   }
   
   /// The number of function calls received by this object
