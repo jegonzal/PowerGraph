@@ -58,6 +58,16 @@ namespace graphlab {
         case STRING:
           fprintf(f, "%s.%s=%s\n", ident.c_str(), it->first.c_str(), it->second.stringval.c_str());                                
           break;
+        case VECTOR:
+          fprintf(f, "%s.%s.values=",  ident.c_str(), it->first.c_str());
+          for(int j=0; j<ent.v.size()-1; j++) fprintf(f, "%lf,", ent.v[j]);
+          fprintf(f, "%lf\n", ent.v[ent.v.size()-1]);
+          fprintf(f, "%s.%s=%lf\n", ident.c_str(), it->first.c_str(),  (ent.value));
+          fprintf(f, "%s.%s.count=%d\n", ident.c_str(), it->first.c_str(), ent.count);
+          fprintf(f, "%s.%s.min=%lf\n", ident.c_str(), it->first.c_str(),  (ent.minvalue));
+          fprintf(f, "%s.%s.max=%lf\n", ident.c_str(), it->first.c_str(),  (ent.maxvalue));
+          fprintf(f, "%s.%s.avg=%lf\n", ident.c_str(), it->first.c_str(), ent.cumvalue/ent.count);
+          break;
         }
       }
                 

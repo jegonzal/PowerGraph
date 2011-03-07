@@ -44,7 +44,7 @@ namespace graphlab {
                 
                 
                 // First write numeral, then timings, then string entries
-                for(int round=0; round<3; round++) { 
+                for(int round=0; round<4; round++) { 
                     std::map<std::string, metrics_entry>::iterator it;
                     int c = 0;
                     fprintf(f, "<!-- Round %d -->\n", round);
@@ -100,6 +100,11 @@ namespace graphlab {
                                     fprintf(f, "</tr>");
                                 }
                                 
+                                break;
+                            case VECTOR:
+                                if (round == 3) {
+                                    // TODO
+                                }
                                 break;
                         }
                     }

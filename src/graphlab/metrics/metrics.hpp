@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstring>
 #include <map>
+#include <vector>
 
 #include <graphlab/util/timer.hpp> 
 #include <graphlab/parallel/pthread_tools.hpp> 
@@ -18,7 +19,7 @@ namespace graphlab {
 
   class imetrics_reporter;
     
-  enum metrictype {REAL, INTEGER, TIME, STRING};
+  enum metrictype {REAL, INTEGER, TIME, STRING, VECTOR};
     
   // Data structure for storing metric entries
   // NOTE: This data structure is not very optimal, should
@@ -32,6 +33,7 @@ namespace graphlab {
     double maxvalue;
     metrictype valtype;
     std::string stringval;
+    std::vector<double> v;
     timer _timer;
         
     metrics_entry() {} 
@@ -62,11 +64,14 @@ namespace graphlab {
         maxvalue = std::max(v,maxvalue);
       }
     }
-    void add(double v) {
-      adj(v);
-      value += v;
-      cumvalue += v;
+    
+    
+    void add(double x) {
+      adj(x);
+      value += x;
+      cumvalue += x;
       count++;
+      if (valtype == VECTOR) v.push_back(x);
     }
     void set(double v) {
       adj(v);
@@ -113,6 +118,16 @@ namespace graphlab {
         entries[key].add(value);
       }
       safelock.unlock();
+    }
+    
+    void add_vector(std::string key, double value) {
+       safelock.lock();
+       if (entries.count(key) == 0) {
+         entries[key] = metrics_entry(value, VECTOR);
+       } else {
+         entries[key].add(value);
+       }
+       safelock.unlock(); 
     }
         
     void set(std::string key, size_t value) {

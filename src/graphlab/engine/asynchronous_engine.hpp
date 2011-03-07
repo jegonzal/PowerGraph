@@ -322,6 +322,7 @@ namespace graphlab {
       for(size_t i = 0; i < update_counts.size(); ++i) {
         engine_metrics.add("updatecount", 
                            update_counts[i], INTEGER);
+        engine_metrics.add_vector("updatecount_vector", update_counts[i]);
       }
       engine_metrics.set("runtime", 
                          (lowres_time_millis()-start_time_millis)*0.001, TIME);
