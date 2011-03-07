@@ -229,11 +229,11 @@ namespace graphlab {
    
     However, this invariant is very expensive to maintain during graph
     consruction.  Therefore, the Graph datastructure allows the
-    invariant to be violated during
-    graph::add_vertex() or graph::add_edge(). A final call to the member function
-    graph::finalize() is needed after graph construction
-    to restore the invariant.  The engine routines will defensively
-    call graph::finalize() it is not first called by the user.
+    invariant to be violated during graph::add_vertex() or
+    graph::add_edge(). A final call to the member function
+    graph::finalize() is needed after graph construction to restore
+    the invariant.  The engine routines will defensively call
+    graph::finalize() it is not first called by the user.
    */
   template<typename VertexData, typename EdgeData>
   class graph {
