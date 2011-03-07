@@ -211,7 +211,7 @@ private:
                             binary_vertex_tasks(graph.local_vertices()),
                             reduction_barrier(ncpus) { 
     graph.allocate_scope_callbacks();
-    rmi.barrier();
+    dc.barrier();
   }
   
   ~distributed_locking_engine() {
@@ -382,14 +382,6 @@ private:
   void add_task_to_all(update_function_type func,
                                double priority) {
     add_task_to_all_impl(func,priority);
-    for (size_t i = 0;i < rmi.numprocs(); ++i) {
-      if (i != rmi.procid()) {
-        rmi.remote_call(i,
-                        &distributed_locking_engine<Graph, Scheduler>::add_task_to_all_from_remote,
-                        reinterpret_cast<size_t>(func),
-                        priority);
-      }
-    }
   }
 
   void set_sync(glshared_base& shared,
