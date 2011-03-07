@@ -912,13 +912,10 @@ private:
 
       std::map<double, size_t>::const_iterator iter = upspertime.begin();
       while(iter != upspertime.end()) {
-        engine_metrics.add("snapshot_time", 
-                            iter->first, TIME);
-        engine_metrics.add("snapshot_ups", 
-                            iter->second, INTEGER);
+        engine_metrics.add_vector("updatecount_vector_t", iter->first);
+        engine_metrics.add_vector("updatecount_vector_v", iter->second);        
         ++iter;
       }
-
       engine_metrics.set("termination_reason", 
                         exec_status_as_string(termination_reason));
       engine_metrics.set("dist_barriers_issued", 
