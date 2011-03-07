@@ -9,6 +9,7 @@
 #ifndef GRAPHLAB_BASICGRAPH_HPP
 #define GRAPHLAB_BASICGRAPH_HPP
 
+#include <omp.h>
 #include <cassert>
 #include <cmath>
 
@@ -17,6 +18,7 @@
 #include <vector>
 #include <set>
 #include <map>
+
 
 #include <queue>
 #include <algorithm>
@@ -29,6 +31,7 @@
 
 
 #include <graphlab/logger/logger.hpp>
+#include <graphlab/logger/assertions.hpp>
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
@@ -289,37 +292,52 @@ namespace graphlab {
     void finalize() {    
       // check to see if the graph is already finalized
       if(finalized) return;
-
-      // Assert that the graph is not finalized 
       typedef std::vector< edge_id_t > edge_set;
-
-      edge_id_less_functor less_functor(this);
-      
+      edge_id_less_functor less_functor(this);      
       // Sort all in edges sets
-      foreach(edge_set& eset, in_edges) {
+      //      foreach(edge_set& eset, in_edges) {
+#pragma omp parallel for
+      for(size_t i = 0; i < in_edges.size(); ++i) {
+        edge_set& eset(in_edges[i]);
+        // Sort the edge vector
         std::sort(eset.begin(),
                   eset.end(),
                   less_functor);
-        //                  boost::bind(&graph::edge_id_less, this, _1, _2) );
         // Test for duplicate edges
         if (eset.size() > 1) {
-          for(size_t i = 0; i < eset.size()-1; ++i) {
+          for(size_t j = 0; j < eset.size()-1; ++j) {
             // Duplicate edge test
-            assert(edge_id_less(eset[i], eset[i+1]));
+            if(!edge_id_less(eset[j], eset[j+1])) {
+              logstream(LOG_FATAL)
+                << "Duplicate edge "
+                << "(" << source(eset[j]) << ", " << target(eset[j]) << ") "
+                << "found!  GraphLab does not support graphs "
+                << "with duplicate edges." << std::endl;
+            }
           }
-        }        
-      }
+        }  
+      } // end of for loop
+
+
       // Sort all out edges sets
-      foreach(edge_set& eset, out_edges) {
+      //      foreach(edge_set& eset, out_edges) {
+#pragma omp parallel for
+      for(size_t i = 0; i < out_edges.size(); ++i) {
+        edge_set& eset(out_edges[i]);
         std::sort(eset.begin(),
                   eset.end(),
                   less_functor);
-        //                 boost::bind(&graph::edge_id_less, this, _1, _2) );
         // Test for dupliate edges
         if (eset.size() > 1) {
-          for(size_t i = 0; i < eset.size()-1; ++i) {
+          for(size_t j = 0; j < eset.size()-1; ++j) {
             // Duplicate edge test
-            assert(edge_id_less(eset[i], eset[i+1]));
+            if(!edge_id_less(eset[j], eset[j+1])) {
+              logstream(LOG_FATAL)
+                << "Duplicate edge "
+                << "(" << source(eset[j]) << ", " << target(eset[j]) << ") "
+                << "found!  GraphLab does not support graphs "
+                << "with duplicate edges." << std::endl;
+            }
           }
         }
       }
