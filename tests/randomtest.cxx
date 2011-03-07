@@ -6,10 +6,22 @@
 #include <iostream>
 #include <vector>
 #include <boost/random.hpp>
-#include <util/timer.hpp>
-#include <parallel/pthread_tools.hpp>
+
+#include <graphlab.hpp>
+
 
 using namespace graphlab;
+
+typedef size_t vertex_data_type;
+typedef size_t edge_data_type;
+typedef graphlab::core<vertex_data_type, edge_data_type> core_type;
+static void update_function(core_type::types::iscope& scope,
+                            core_type::types::icallback& callback,
+                            core_type::types::ishared_data* shared_data) {
+  
+  std::cout << scope.vertex() << ": " << random::rand01() << std::endl;
+}
+
 
 class RandomTestSuite: public CxxTest::TestSuite {
   size_t iterations;
@@ -123,6 +135,28 @@ class RandomTestSuite: public CxxTest::TestSuite {
     std::cout << "Total Value:  " << sum <<  std::endl;    
   }
 
+
+ 
+  
+  
+  void test_engine() {
+    core_type core;
+    core.graph().add_vertex(vertex_data_type(1));
+    core.graph().add_vertex(vertex_data_type(2));
+    core.graph().add_edge(0,1, edge_data_type(1));
+    core.graph().add_edge(1,0, edge_data_type(2));
+    core.graph().compute_coloring();
+    core.set_scheduler_type("chromatic");
+    core.set_scope_type("none");
+    core.set_ncpus(4);
+    core.sched_options().add_option("update_function", update_function);
+    for(size_t i = 0; i < 3; ++i) {
+      core.sched_options().add_option("max_iterations", 2*(i+1));
+      std::cout << "--------------------------------" << std::endl;
+      core.start();
+    }
+
+  }
 
   
   

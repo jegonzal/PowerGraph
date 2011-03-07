@@ -23,9 +23,7 @@ namespace graphlab {
     void begin_critical_section(size_t cpuid) { }
     void cancel_critical_section(size_t cpuid)  { }
 
-    bool end_critical_section(size_t cpuid) {
-      return quit;
-    }
+    bool end_critical_section(size_t cpuid) { return quit;  }
 
     void new_job() { }
 
@@ -33,9 +31,9 @@ namespace graphlab {
 
     void completed_job() { }
 
-    void complete() {
-      quit = true;
-    }
+    void complete() { quit = true; }
+
+    void reset() { quit = false; }
   };
 
 }

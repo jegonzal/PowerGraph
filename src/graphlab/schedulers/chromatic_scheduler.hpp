@@ -71,6 +71,7 @@ namespace graphlab {
         std::cout << "No update function provided!" << std::endl;
       }
       assert(update_function != NULL);
+      color.value = 0;
       // Initialize the cpu indexs
       for(size_t i = 0; i < cpu_index.size(); ++i) {
         cpu_index[i] = i;
@@ -79,6 +80,8 @@ namespace graphlab {
       }
       // Set waiting to zero
       waiting.value = 0;
+      // REset the control termination
+      terminator.reset();
     }
 
 
