@@ -360,8 +360,10 @@ private:
   
   void add_task_to_all_impl(update_function_type func,
                             double priority) {
-    for (size_t i = 0;i < graph.owned_vertices().size(); ++i) {
-      size_t localvid = graph.globalvid_to_localvid(graph.owned_vertices()[i]);      
+   std::vector<vertex_id_t> perm = graph.owned_vertices();
+   std::random_shuffle(perm.begin(), perm.end()); 
+   for (size_t i = 0;i < perm.size(); ++i) {
+      size_t localvid = graph.globalvid_to_localvid(perm[i]);      
       ASSERT_LT(localvid, vertex_deferred_tasks.size());
       if (binary_vertex_tasks.add(update_task_type(localvid, func))) {
         scheduler.add_task(update_task_type(localvid, func), priority);
