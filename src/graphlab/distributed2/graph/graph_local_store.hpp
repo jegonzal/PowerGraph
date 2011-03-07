@@ -843,6 +843,7 @@ namespace dist_graph_impl {
     } // end of binary search 
 
     void setup_mmap() {
+ 
       if (do_not_mmap == false) {
         vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
         edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
@@ -853,7 +854,7 @@ namespace dist_graph_impl {
         vertices = (vdata_store*)malloc(sizeof(vdata_store) * nvertices);
         edgedata = (edata_store*)malloc(sizeof(edata_store) * nedges);
       }
-    }
+     }
 
 
     std::pair<void*, size_t> merge_targets(std::pair<void*, size_t> lower,
