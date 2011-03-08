@@ -118,6 +118,9 @@ private:
     mutex lock;
     std::deque<update_function_type> updates;
     bool lockrequested;
+    deferred_tasks() {
+      lockrequested = false;
+    }
   };
   
   /**
