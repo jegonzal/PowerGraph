@@ -574,6 +574,7 @@ void distributed_control::fill_metrics() {
     engine_metrics.set("nodes", numprocs(), INTEGER);
     engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
     engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+    total_bytes_sent = ret["total_bytes_sent"];
   }
 }
 

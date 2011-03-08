@@ -450,7 +450,11 @@ class distributed_control{
 
 
 
-
+// Temp hack.
+  long long int total_bytes_sent;
+  long long int get_total_bytes_sent() {
+     return total_bytes_sent;
+  }
 
   template <typename U>
   inline void send_to(procid_t target, U& t, bool control = false);

@@ -739,13 +739,17 @@ class distributed_chromatic_engine : public iengine<Graph> {
       metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
       engine_metrics.set("runtime", 
                         ti.current_time(), TIME);
+      total_update_count = 0;
       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
         engine_metrics.add("updatecount", 
                             procupdatecounts[i], INTEGER);
+        total_update_count +=  procupdatecounts[i];
       }
+      total_barrier_time = 0;
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         engine_metrics.add("barrier_time", 
                             barrier_times[i], TIME);
+        total_barrier_time += barrier_times[i];
       }
 
       engine_metrics.set("termination_reason", 
@@ -760,7 +764,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
       engine_metrics.set("iterations", max_iterations, INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
-  
+      total_bytes_sent = ret["total_bytes_sent"];
     }
     
     
@@ -812,6 +816,23 @@ class distributed_chromatic_engine : public iengine<Graph> {
   void register_monitor(imonitor_type* listener) {
     logger(LOG_FATAL, "distributed engine does not support register monitor");
   }   
+  
+  // Temp hack.
+  size_t total_update_count;
+  
+  size_t get_tasks_done() const {
+    return  total_update_count;
+  }
+  
+  double total_barrier_time;
+  double get_barrier_time() const {
+      return total_barrier_time;
+  }
+  
+  long long int total_bytes_sent;
+  long long int get_total_bytes_sent() {
+     return total_bytes_sent;
+  }
 };
 
 } // namespace graphlab

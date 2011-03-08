@@ -925,7 +925,7 @@ private:
       engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
-  
+      total_bytes_sent = ret["total_bytes_sent"];
     }
     
     
@@ -976,6 +976,13 @@ private:
   void register_monitor(imonitor_type* listener) {
     logger(LOG_FATAL, "distributed engine does not support register monitor");
   }   
+  
+  
+  // Temp hack.
+  long long int total_bytes_sent;
+  long long int get_total_bytes_sent() {
+     return total_bytes_sent;
+  }
 };
 
 } // namespace graphlab
