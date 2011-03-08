@@ -333,6 +333,9 @@ void dc_tcp_comm::socket_handler::run() {
         break;
       }
       owner.network_bytesreceived.inc(msglen);
+      #ifdef COMM_DEBUG
+      logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
+      #endif
       c = receiver->advance_buffer(c, msglen, buflength);
     }
   }

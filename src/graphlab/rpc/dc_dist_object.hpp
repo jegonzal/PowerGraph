@@ -380,6 +380,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     std::stringstream strm;
     oarchive oarc(strm);
     oarc << t;
+    strm.flush();
     dc_impl::reply_ret_type rt(REQUEST_WAIT_METHOD);
     // I shouldn't use a request to block here since 
     // that will take up a thread on the remote side
@@ -485,6 +486,7 @@ private:
       std::stringstream strm;
       oarchive oarc(strm);
       oarc << data;
+      strem.flush();
       broadcast_receive = strm.str();
       if (control == false) {
         for (size_t i = 0;i < numprocs(); ++i) {
@@ -547,6 +549,7 @@ private:
       std::stringstream strm( std::ios::out | std::ios::binary );
       oarchive oarc(strm);
       oarc << data[procid()];
+      strm.flush();
       if (control == false) {
         internal_request(sendto,
                         &dc_dist_object<T>::set_gather_receive,
