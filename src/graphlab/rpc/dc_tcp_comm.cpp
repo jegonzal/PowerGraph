@@ -145,7 +145,7 @@ void dc_tcp_comm::send2(size_t target,
   
  
   #ifdef COMM_DEBUG
-  logstream(LOG_INFO) << len << " bytes --> " << target  << std::endl;
+  logstream(LOG_INFO) << len1 << " " << len2 << " bytes --> " << target  << std::endl;
   #endif
   // amount of data to transmit
   size_t dataleft = len1 + len2;
@@ -333,6 +333,10 @@ void dc_tcp_comm::socket_handler::run() {
         break;
       }
       owner.network_bytesreceived.inc(msglen);
+      #ifdef COMM_DEBUG
+      logstream(LOG_INFO) << msglen << " bytes <-- " << sourceid  << std::endl;
+      #endif
+      
       c = receiver->advance_buffer(c, msglen, buflength);
     }
   }
