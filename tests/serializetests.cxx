@@ -6,15 +6,13 @@
 
 #include <cxxtest/TestSuite.h>
 
+#include <boost/unordered_set.hpp>
+#include <boost/unordered_map.hpp>
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 
 
-#include <graphlab/serialization/serialize.hpp>
-#include <graphlab/serialization/vector.hpp>
-#include <graphlab/serialization/map.hpp>
-#include <graphlab/serialization/list.hpp>
-#include <graphlab/serialization/set.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 
 
 using namespace graphlab;
@@ -281,6 +279,48 @@ public:
     }
 
   }
+  
+  void test_boost_unordered_map(void) {
+    boost::unordered_map<std::string, size_t> m;
+    m["hello"] = 1;
+    m["world"] = 2;
+    std::ofstream f;
+    f.open("test.bin",std::fstream::binary);
+    oarchive a(f);
+    a << m;
+    f.close();
 
+    boost::unordered_map<std::string, size_t> m2;
+    std::ifstream g;
+    iarchive b(g);
+    g.open("test.bin",std::fstream::binary);
+    b >> m2;
+    g.close();
+
+    TS_ASSERT_EQUALS(m["hello"], m2["hello"]);
+    TS_ASSERT_EQUALS(m["world"], m2["world"]);
+  }
+
+
+  void test_boost_unordered_set(void) {
+    boost::unordered_set<std::string> m;
+    m.insert("hello");
+    m.insert("world");
+    std::ofstream f;
+    f.open("test.bin",std::fstream::binary);
+    oarchive a(f);
+    a << m;
+    f.close();
+
+    boost::unordered_set<std::string> m2;
+    std::ifstream g;
+    iarchive b(g);
+    g.open("test.bin",std::fstream::binary);
+    b >> m2;
+    g.close();
+
+    TS_ASSERT(m2.find("hello") != m2.end());
+    TS_ASSERT(m2.find("world") != m2.end());
+  }
 };
 

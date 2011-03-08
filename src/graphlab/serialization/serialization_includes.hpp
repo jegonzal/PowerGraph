@@ -5,5 +5,7 @@
 #include <graphlab/serialization/set.hpp>
 #include <graphlab/serialization/vector.hpp>
 #include <graphlab/serialization/map.hpp>
+#include <graphlab/serialization/unordered_map.hpp>
+#include <graphlab/serialization/unordered_set.hpp>
 #include <graphlab/serialization/serializable_pod.hpp>
 #include <graphlab/serialization/unsupported_serialize.hpp>
