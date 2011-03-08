@@ -798,6 +798,10 @@ private:
   conditional reduction_started_cond;
   bool proc0_reduction_started;
   
+  size_t get_tasks_done() const {
+    return numtasksdone;
+  }
+  
   void reduction_complete_signal() {
     reduction_started_mut.lock();
     proc0_reduction_started = false;
