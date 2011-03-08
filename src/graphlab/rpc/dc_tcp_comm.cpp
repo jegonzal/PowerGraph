@@ -18,7 +18,7 @@
 #include <graphlab/rpc/dc_tcp_comm.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 
-//#define COMM_DEBUG
+#define COMM_DEBUG
 namespace graphlab {
  
 namespace dc_impl {
