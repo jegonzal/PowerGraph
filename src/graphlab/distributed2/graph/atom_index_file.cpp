@@ -235,11 +235,19 @@ namespace graphlab {
         atomgraph.add_edge(atomindex.atoms[i].adjatoms[j], i, atomweight);
       }
     }
-    //  std::cout << atomgraph;
-    std::vector<uint32_t> retpart;
-    atomgraph.metis_weighted_partition(nparts, retpart,
-                                       identity_function, identity_function, true);
-    //atomgraph.metis_partition(nparts, retpart);
+    
+    std::vector<uint32_t> retpart; 
+    if (atomgraph.num_edges() >= atomgraph.num_vertices() * atomgraph.num_vertices() / 4) {
+      logstream(LOG_WARNING) << "high atom edge density. Using random partition" << std::endl;
+      atomgraph.random_partition(nparts, retpart);
+    
+    }
+    else {
+      //  std::cout << atomgraph;
+      atomgraph.metis_weighted_partition(nparts, retpart,
+                                         identity_function, identity_function, true);
+      //atomgraph.metis_partition(nparts, retpart);
+    }
     std::vector<std::vector<size_t> > ret;
     ret.resize(nparts);
     for (size_t i = 0;i < retpart.size(); ++i) {
