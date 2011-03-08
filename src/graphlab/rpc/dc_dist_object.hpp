@@ -486,7 +486,7 @@ private:
       std::stringstream strm;
       oarchive oarc(strm);
       oarc << data;
-      strem.flush();
+      strm.flush();
       broadcast_receive = strm.str();
       if (control == false) {
         for (size_t i = 0;i < numprocs(); ++i) {
