@@ -432,6 +432,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
   // construct the services
   distributed_services = new dc_services(*this);
+  sleep(3);
   compute_master_ranks();
 }
   
