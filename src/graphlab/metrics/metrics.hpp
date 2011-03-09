@@ -45,6 +45,7 @@ namespace graphlab {
       valtype = _valtype;
       cumvalue = value;
       count = 1;
+      if (valtype == VECTOR) v.push_back(firstvalue);
     };
     metrics_entry(std::string svalue) {
       valtype = STRING;

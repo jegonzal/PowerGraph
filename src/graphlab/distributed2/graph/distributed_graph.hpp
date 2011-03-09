@@ -1675,13 +1675,27 @@ class distributed_graph {
   
   void fill_metrics() {
     std::map<std::string, size_t> ret = rmi.gather_statistics();
-      
+    
+    std::vector<size_t> procpartitionsize(rmi.numprocs(), 0);
+    std::vector<size_t> procghosts(rmi.numprocs(), 0);
+    procpartitionsize[rmi.procid()] = local_vertices();
+    procghosts[rmi.procid()] = ghost_vertices().size();
+    
+    rmi.gather(procpartitionsize, 0);
+    rmi.gather(procghosts, 0);
+    
     if (rmi.procid() == 0) {
       metrics& engine_metrics = metrics::create_metrics_instance("distributed_graph", true);
       engine_metrics.set("num_vertices", num_vertices(), INTEGER);
       engine_metrics.set("num_edges", num_edges(), INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+      
+     for(int i=0; i<rmi.numprocs(); i++) {
+        engine_metrics.add_vector("local_part_size", procpartitionsize[i]);
+        engine_metrics.add_vector("ghosts_size", procghosts[i]);
+        
+     }
     } 
   }
 };
