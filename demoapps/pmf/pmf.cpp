@@ -424,7 +424,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
  
   
   /* CALCULATE new value */
-  if (debug&& (scope.vertex() == 0 || (int)scope.vertex() == M-1 || (int)scope.vertex() == M || (int)scope.vertex() == M+N-1)){
+  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1) || ((int)scope.vertex() == 93712))){
     printf("entering %s node  %u \n", (((int)scope.vertex() < M) ? "movie":"user"), (int)scope.vertex());   
     debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , vdata.pvec, D);
   }
@@ -487,7 +487,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         edge_data& edge = medges.medges[j];
         parse_edge(edge, pdata, Q, vals, i); 
      
-        if (debug && ((int)scope.vertex() == M || (int)scope.vertex() == M+N-1) && (i==0 || i == numedges-1))
+        if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
         i++;
@@ -514,8 +514,6 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   if (!BPTF){
     t.start();
     bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*LAMBDA*Q.cols(), Q*vals, result);
-    if (debug && scope.vertex() == 0)
-      cout<<"Q:"<<Q<<endl;
     //assert(result.size() == D);     
     assert(ret);
     counter[3] += t.current_time();
@@ -537,8 +535,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     counter[9] += t.current_time();
   }
 
-  if (debug && ((int)scope.vertex() < 2 || (int)scope.vertex() == M-1 || (int)scope.vertex() == M || (int)scope.vertex() == M+N-1)){
-    std::cout <<(BPTF?"BPTF":"ALS")<<" Q: " << Q << " result: " << result << " edges: " << i << std::endl;
+  if (debug && (((int)scope.vertex()  == 0) || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
+    std::cout <<(BPTF?"BPTF":"ALS")<<" Q: " << Q << std::endl<<" result: " << result << " edges: " << numedges << std::endl;
   }
       
   vdata.pvec =  result;
@@ -838,7 +836,7 @@ void start(int argc, char ** argv) {
   glcore.start();
 
   // calculate final RMSE
-  rmse =  calc_rmse(g, false, res);
+  rmse =  calc_rmse_q(res);
   printf("Final result. Obj=%g, TRAIN RMSE= %0.4f TEST RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&test_graph, true, res2));
   
 
