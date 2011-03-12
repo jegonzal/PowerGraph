@@ -1565,8 +1565,10 @@ class distributed_graph {
     localstore.finalize();
     logger(LOG_INFO, "Flush");
     localstore.flush();
- //   logger(LOG_INFO, "Prefetch computation");
- //   localstore.compute_minimal_prefetch();
+    if (do_not_mmap == false) {
+      logger(LOG_INFO, "Prefetch computation"); 
+      localstore.compute_minimal_prefetch();
+    }
     logger(LOG_INFO, "Load complete.");
     rmi.comm_barrier();
     std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
