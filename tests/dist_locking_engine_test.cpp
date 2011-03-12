@@ -31,6 +31,7 @@ const size_t NUMITERATIONS = 1000;
 const size_t SYNC_INTERVAL = 100;
 void generate_atoms() {
   graph<size_t, double> testgraph;
+  
   for (size_t v = 0; v < NUMV; ++v) testgraph.add_vertex(0);
   for (size_t i = 0;i < NUMV - 1; ++i) {
     testgraph.add_edge(i, i+1, 0);
@@ -154,7 +155,7 @@ int main(int argc, char** argv) {
   param.numhandlerthreads = 8;
   global_logger().set_log_level(LOG_DEBUG);
   distributed_control dc(param);
-
+  
   graph_type dg(dc, "atomidx_ne_locktest.txt");
 
   std::cout << "Graph Constructed!" << std::endl;
@@ -168,7 +169,7 @@ int main(int argc, char** argv) {
                 any(accumulator_type()),
                 SYNC_INTERVAL,
                 merge_fun);
-
+  
   /*******************************************************************/
   
   std::cout << "Testing Dynamic: " << std::endl;

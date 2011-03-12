@@ -213,6 +213,16 @@ namespace graphlab {
   }
 
   std::vector<std::vector<size_t> > 
+  partition_atoms_sliced(const atom_index_file& atomindex, size_t nparts) {
+    std::vector<std::vector<size_t> > ret;
+    ret.resize(nparts);
+    for (size_t i = 0;i < atomindex.atoms.size(); ++i) {
+      ret[i % nparts].push_back(i);
+    }
+    return ret;
+  }
+
+  std::vector<std::vector<size_t> > 
   partition_atoms(const atom_index_file& atomindex, size_t nparts) {
     // build the atom graph
     // vertex weight is #edges

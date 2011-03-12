@@ -43,7 +43,8 @@ namespace graphlab {
     void write_to_file(std::string outfilename);
   };
 
-
+  std::vector<std::vector<size_t> > 
+  partition_atoms_sliced(const atom_index_file& atomindex, size_t nparts);
 
   std::vector<std::vector<size_t> >
   partition_atoms(const atom_index_file& atomindex, size_t nparts);

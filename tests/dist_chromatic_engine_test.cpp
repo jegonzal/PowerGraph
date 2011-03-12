@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
   distributed_control dc(param);
 
   graph_type dg(dc, "atomidx_ne_chrtest.txt");
-
+  
   std::cout << "Graph Constructed!" << std::endl;
   std::cout << "Testing Static: " << std::endl;
   // now we make an engine

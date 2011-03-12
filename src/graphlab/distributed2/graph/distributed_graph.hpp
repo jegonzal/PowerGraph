@@ -101,8 +101,10 @@ class distributed_graph {
   typedef EdgeData edge_data_type;
   typedef dgraph_edge_list edge_list_type;
   
-  distributed_graph(distributed_control &dc, std::string atomidxfile, bool do_not_load_data = false,
-                    bool do_not_mmap = true):
+  distributed_graph(distributed_control &dc, std::string atomidxfile, 
+                    bool do_not_load_data = false,
+                    bool do_not_mmap = true,
+                    bool sliced_partitioning = false):
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
                               pending_async_updates(true, 0),
@@ -119,7 +121,12 @@ class distributed_graph {
     // machine 0 partitions it
     std::vector<std::vector<size_t> > partitions;
     if (dc.procid() == 0) {
-      partitions = partition_atoms(atomindex, dc.numprocs());
+      if (sliced_partitioning == false) {
+        partitions = partition_atoms(atomindex, dc.numprocs());
+      }
+      else {
+        partitions = partition_atoms_sliced(atomindex, dc.numprocs());
+      }
 
       for (size_t i = 0;i < partitions.size(); ++i) {
         logstream(LOG_DEBUG) << i << ":";
