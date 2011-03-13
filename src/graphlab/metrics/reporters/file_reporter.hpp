@@ -60,7 +60,7 @@ namespace graphlab {
           break;
         case VECTOR:
           fprintf(f, "%s.%s.values=",  ident.c_str(), it->first.c_str());
-          for(int j=0; j<ent.v.size()-1; j++) fprintf(f, "%lf,", ent.v[j]);
+          for(size_t j=0; j<ent.v.size()-1; j++) fprintf(f, "%lf,", ent.v[j]);
           fprintf(f, "%lf\n", ent.v[ent.v.size()-1]);
           fprintf(f, "%s.%s=%lf\n", ident.c_str(), it->first.c_str(),  (ent.value));
           fprintf(f, "%s.%s.count=%d\n", ident.c_str(), it->first.c_str(), ent.count);

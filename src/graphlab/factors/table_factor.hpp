@@ -1017,7 +1017,7 @@ namespace graphlab {
       assert(args() == other.args());  
       double sum = 0;
       for(size_t i = 0; i < args().size(); ++i) {
-        sum += std::abs(exp(other.logP(i)) - exp(logP(i)));
+        sum += fabs(exp(other.logP(i)) - exp(logP(i)));
       }
       return sum / args().size();
     }
@@ -1028,7 +1028,7 @@ namespace graphlab {
       assert(args() == other.args());
       double sum = 0; 
       for(size_t i = 0; i < args().size(); ++i) {
-        sum += std::abs(other.logP(i) - logP(i));
+        sum += fabs(other.logP(i) - logP(i));
       }
       return sum / args().size();
     }
@@ -1089,7 +1089,7 @@ namespace graphlab {
       assert(num_vars() == 2);
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        int diff = std::abs( int(asg.asg(0)) - int(asg.asg(1)) );
+        int diff = abs( int(asg.asg(0)) - int(asg.asg(1)) );
         if( diff > 0) logP(asg.linear_index()) = -lambda;
         else logP(asg.linear_index()) = 0;
       }
@@ -1101,7 +1101,7 @@ namespace graphlab {
       assert(num_vars() == 2);
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        int diff = std::abs( int(asg.asg_at(0)) - int(asg.asg_at(1)) );
+        int diff = abs( int(asg.asg_at(0)) - int(asg.asg_at(1)) );
         logP(asg.linear_index()) = -diff * lambda;
       }
     } // end of set_as_laplace
