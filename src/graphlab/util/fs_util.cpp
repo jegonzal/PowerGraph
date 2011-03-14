@@ -24,13 +24,13 @@ list_files_with_suffix(const std::string& pathname,
   for(fs::directory_iterator iter( path ), end_iter; 
       iter != end_iter; ++iter) {
     if( ! fs::is_directory(iter->status()) ) {
-      std::string filename(iter->path().filename());
+      std::string filename(iter->path().filename().string());
       size_t pos = 
         filename.size() >= suffix.size()?
         filename.size() - suffix.size() : 0;
       std::string ending(filename.substr(pos));
       if(ending == suffix) {
-        files.push_back(iter->path().filename());
+        files.push_back(iter->path().filename().string());
       }
     }
   }
