@@ -21,6 +21,7 @@
 
 bool BPTF = true; //is this a tensor?
 bool debug = false;
+bool ZERO = false; //support edges with zero weight
 int options;
 timer gt;
 using namespace itpp;
@@ -324,49 +325,50 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
   else last_iter();
 }
 
-//calculate RMSE
-double calc_rmse(graph_type * _g, bool test, double & res){
+   //calculate RMSE
+   double calc_rmse(graph_type * _g, bool test, double & res){
 
-  if (test && Le == 0)
-    return NAN;
-   
-  res = 0;
-  double RMSE = 0;
-  int e = 0;
-  for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
-    vertex_data * data = &g->vertex_data(i);
-    foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         
-      multiple_edges & edges = _g->edge_data(iedgeid);
-      vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
-      for (int j=0; j< (int)edges.medges.size(); j++){       
- 
-        edge_data & edge = edges.medges[j];
-        assert(edge.weight != 0);
-        double sum = 0; 
-        double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-        assert(sum != 0);         
-        if (BPTF && iiter > BURN_IN)
-          edge.avgprd += sum;
+     if (test && Le == 0)
+       return NAN;
+      
+     res = 0;
+     double RMSE = 0;
+     int e = 0;
+     for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
+       vertex_data * data = &g->vertex_data(i);
+       foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
+            
+         multiple_edges & edges = _g->edge_data(iedgeid);
+         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
+         for (int j=0; j< (int)edges.medges.size(); j++){       
+    
+           edge_data & edge = edges.medges[j];
+           if (!ZERO)
+           	assert(edge.weight != 0);
+           double sum = 0; 
+           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
+           assert(sum != 0);         
+           if (BPTF && iiter > BURN_IN)
+             edge.avgprd += sum;
 
-        if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
-          cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
-        //assert(add<25 && add>= 0);
-       
-        if (BPTF && iiter > BURN_IN){
-          add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
-        }
-         
-        RMSE+= add;
-        e++;
-      }
-    }
-  }
-  res = RMSE;
-  assert(e == (test?Le:L));
-  return sqrt(RMSE/(double)e);
+           if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
+             cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
+           //assert(add<25 && add>= 0);
+          
+           if (BPTF && iiter > BURN_IN){
+             add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+           }
+            
+           RMSE+= add;
+           e++;
+         }
+       }
+     }
+     res = RMSE;
+     assert(e == (test?Le:L));
+     return sqrt(RMSE/(double)e);
 
-}
+   }
 double calc_rmse_q(double & res){
 
   res = 0;
@@ -381,8 +383,9 @@ double calc_rmse_q(double & res){
 
 
 inline void parse_edge(edge_data& edge, vertex_data & pdata, mat & Q, vec & vals, int i){
-        
-  assert(edge.weight != 0);
+      
+  if (!ZERO)  
+  	assert(edge.weight != 0);
 
   if (tensor){
     dot2(pdata.pvec,  times[(int)edge.time].pvec, Q, i, D);  
@@ -493,7 +496,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         i++;
         double sum;     
         double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-        assert(sum != 0);
+        //assert(sum != 0);
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += sum;        
           trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
@@ -768,6 +771,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("float", &FLOAT, FLOAT, "is data in float format?");
   clopts.attach_option("D", &D, D, "dmension of weight vector");
   clopts.attach_option("lambda", &LAMBDA, LAMBDA, "regularization weight");  
+  clopts.attach_option("zero", &ZERO, ZERO, "support zero edges");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -906,7 +910,8 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
     for (int i=0; i<rc; i++){
       multiple_edges edges;
       edge_data edge;
-      assert(ed[i].weight != 0); // && ed[i].weight <= 5);
+      if (!ZERO)
+	 assert(ed[i].weight != 0); // && ed[i].weight <= 5);
       assert((int)ed[i].from >= 1 && (int)ed[i].from <= nodes);
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
@@ -965,6 +970,7 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
   assert(K>=1);
   assert(M>=1 && N>=1); 
 
+  printf("Matrix size is: %d %d %d\n", M, N, K);
  
   vertex_data vdata;
 
@@ -1024,7 +1030,8 @@ void load_pmf_graph(const char* filename, graph_type * g, bool test,gl_types::co
 
       for (int j=0; j< (int)tedges->medges.size(); j++){
         edge_data * data= &tedges->medges[j];
-        assert(data->weight != 0);  
+	if (!ZERO)
+        	assert(data->weight != 0);  
         assert(data->time < K);
   
         if (K > 1 && !test && tensor)
