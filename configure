@@ -1,9 +1,8 @@
 #!/bin/bash
 function print_help {
-  echo "Usage: ./configure [--skip_bootstrap] [--force_cmake_install] [--force_boost_install] [--prefix=PREFIX]"
+  echo "Usage: ./configure [--bootstrap] [--force_cmake_install] [--force_boost_install] [--prefix=PREFIX]"
   echo
-  echo "      --skip_bootstrap        The bootstrap script installs CMake/Boost if they are not detected."
-  echo "                              This option skips the bootstrap script"
+  echo "      --bootstrap        bootstrap will install CMake/Boost if they are not detected."
   echo
   echo "      --force_cmake_install   This forces a CMake installation even if CMake is detected."
   echo
@@ -23,7 +22,7 @@ function unknown_option {
 while [ $# -gt 0 ]
   do case $1 in
     --help)             print_help ;;
-    --skip_bootstrap)  skip_bootstrap=1 ;;
+    --bootstrap)  bootstrap=1 ;;
     --force_cmake_install)    force_cmake_install=1 ;;
     --force_boost_install)    force_boost_install=1 ;;
     --prefix=*) prefix=${1##--prefix} ;;
@@ -32,7 +31,11 @@ while [ $# -gt 0 ]
   shift
 done
 
-if [ -z $skip_bootstrap ]; then
+# reset the configure.deps
+
+echo "CMAKE='cmake'" > configure.deps
+
+if [ ! -z $bootstrap ]; then
   source ./bootstrap.sh 
 fi
 
