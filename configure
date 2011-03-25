@@ -37,8 +37,9 @@ while [ $# -gt 0 ]
 done
 
 # reset the configure.deps
-
-echo "CMAKE='cmake'" > configure.deps
+if [ ! -f configure.deps ]; then
+  echo "CMAKE='cmake'" > configure.deps
+fi
 
 if [ ! -z $bootstrap ]; then
   source ./bootstrap.sh 

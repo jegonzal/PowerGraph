@@ -59,17 +59,17 @@ else
       # cd into the extracted directory and install
       cd cmake-*
       ./configure --prefix=$installprefix
-      make
+      make -j2
       make install
       cd ..
 
       # make a link back to the deps directory
       ln -s $installprefix/bin/cmake cmake
+      cmakecmd=$installprefix/bin/cmake
     else
       echo " cmake detected in the graphlabapi/deps directory."
+      cmakecmd=$installprefix/bin/cmake
     fi
-    # rebuild the ./configure.deps script
-    echo "CMAKE=$installprefix/cmake" > ../configure.deps
   else
     echo "cmake detected in $cmake_pos. Skipping cmake installation."
   fi
