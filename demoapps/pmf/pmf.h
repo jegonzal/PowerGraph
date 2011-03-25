@@ -109,13 +109,28 @@ void _zeros(mat & pmat, int rows, int cols){
 } 
 
 
+enum testtype{
+    TRAINING = 0,
+    VALIDATION = 1,
+    TEST = 2
+};
+
+const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
 //run modes
-#define ALS_MATRIX 0  //alternating least squares for matrix factorization
+
+enum runmodes{
+   ALS_MATRIX = 0,
+   BPTF_MATRIX = 1,
+   BPTF_TENSOR = 2,
+   BPTF_TENSOR_MULT = 3,
+   ALS_TENSOR_MULT = 4
+};
+/*#define ALS_MATRIX 0  //alternating least squares for matrix factorization
 #define BPTF_MATRIX 1 //baysian matrix factorization
 #define BPTF_TENSOR 2 //bayesian tensor factorization
 #define BPTF_TENSOR_MULT 3 //bayesian tensor factorization, with support for multiple edges between pair of ndoes
 #define ALS_TENSOR_MULT 4
-
-
+*/
+const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
 #endif
 
