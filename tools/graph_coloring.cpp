@@ -7,6 +7,7 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
+#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/util/command_line_options.hpp>

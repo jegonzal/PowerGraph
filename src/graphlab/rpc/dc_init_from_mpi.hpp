@@ -1,7 +1,6 @@
 #ifndef GRAPHLAB_DC_INIT_FROM_MPI_HPP
 #define GRAPHLAB_DC_INIT_FROM_MPI_HPP
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/util/mpi_tools.hpp>
 namespace graphlab {
   /** initializes parameters from MPI. Returns true on success
       MPI must be initialized before calling this funciton */

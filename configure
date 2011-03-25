@@ -1,7 +1,60 @@
 #!/bin/bash
+function print_help {
+  echo "Usage: ./configure [--bootstrap] [--force_cmake_install]"
+  echo "                   [--force_boost_install] [--prefix=PREFIX]"
+  echo "                   [--experimental]"
+  echo
+  echo "      --bootstrap        bootstrap will install CMake/Boost if they are not detected."
+  echo
+  echo "      --force_cmake_install   This forces a CMake installation even if CMake is detected."
+  echo
+  echo "      --force_boost_install   This forces a Boost installation even if Boost is detected."
+  echo
+  echo "      --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
+  echo 
+  echo "      --experimental          Turns on undocumented experimental distributed capabilities. "
+  echo
+  exit 1
+}
 
+function unknown_option {
+  echo "Unrecognized option: $1"
+  echo "To get help, run ./configure --help"
+  exit 1
+}
+  
+while [ $# -gt 0 ]
+  do case $1 in
+    --help)             print_help ;;
+    --bootstrap)  bootstrap=1 ;;
+    --force_cmake_install)    force_cmake_install=1 ;;
+    --force_boost_install)    force_boost_install=1 ;;
+    --prefix=*) prefix=${1##--prefix} ;;
+    --experimental) experimental=1 ;;
+    *) unknown_option $1 ;;
+  esac
+  shift
+done
 
-install_directory="/usr/local"
+# reset the configure.deps
+
+echo "CMAKE='cmake'" > configure.deps
+
+if [ ! -z $bootstrap ]; then
+  source ./bootstrap.sh 
+fi
+
+source configure.deps
+
+if [ -z prefix ]; then
+  install_directory="/usr/local"
+else
+  install_directory=$prefix
+fi
+
+if [ ! -z $BOOST_ROOT ]; then
+  echo "BOOST_ROOT=$BOOST_ROOT"
+fi
 
 reldir="./release"
 debugdir="./debug"
@@ -23,19 +76,24 @@ fi
 #    mkdir $matlabdir
 # fi
 
+envopts="BOOST_ROOT=$BOOST_ROOT"
+if [ ! -z $experimental ]; then
+  envopts="$envopts EXPERIMENTAL=$experimental"
+fi
+
 cd $reldir
 rm CMakeCache.txt
-cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$install_directory ../.
+env $envopts $CMAKE -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$install_directory ../.
 cd ..
 
 cd $debugdir
 rm CMakeCache.txt
-cmake -D CMAKE_BUILD_TYPE=Debug  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
+env $envopts $CMAKE -D CMAKE_BUILD_TYPE=Debug  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
 cd ..
 
 cd $profiledir
 rm CMakeCache.txt
-cmake -D CMAKE_BUILD_TYPE=Release -D COMPILE_PROFILING=1  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
+env $envopts $CMAKE -D CMAKE_BUILD_TYPE=Release -D COMPILE_PROFILING=1  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
 cd ..
 
 # cd $matlabdir

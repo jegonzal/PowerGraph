@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <graphlab/rpc/dc.hpp>
+#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 using namespace graphlab;

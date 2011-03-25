@@ -9,7 +9,6 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/fs_util.hpp>
-#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/distributed2/graph/atom_file.hpp>
 #include <graphlab/distributed2/graph/atom_index_file.hpp>

@@ -92,7 +92,7 @@
 #  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 #
 OPTION(Boost_USE_MULTITHREADED 
-  "Use the multithreaded versions of the Boost libraries" ON)
+  "Use the multithreaded versions of the Boost libraries" OFF)
 
 if (Boost_FIND_VERSION_EXACT)
   if (Boost_FIND_VERSION_PATCH)
