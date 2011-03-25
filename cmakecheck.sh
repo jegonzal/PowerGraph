@@ -1,4 +1,21 @@
 #!/bin/bash
+
+function download_file {
+  # detect wget
+  echo "Downloading $2 from $1 ..."
+  wgetcmd=`which wget`
+  if [ -z $wgetcmd ] ; then
+    curlcmd=`which curl`
+    if [ -z $curlcmd ] ; then
+      echo "Unable to find either curl or wget! Cannot proceed with automatic install."
+      exit 1
+    fi
+    curl $1 -o $2
+  else
+    wget $1 -O $2
+  fi
+}
+
 if [ -z $IN_BOOTSTRAP ]; then
   echo "This script should not be run directly."
 else 
@@ -24,7 +41,7 @@ else
 
       # get the cmake software page
       rm -f software.html
-      wget "http://www.cmake.org/cmake/resources/software.html" -O software.html
+      download_file "http://www.cmake.org/cmake/resources/software.html" software.html
       # look for the first tar.gz I can download
       cmakedownload=`grep -m 1 -o -e "href=\"http://www\\.cmake.*\\.tar\\.gz\"" software.html | grep -o -e "http.*\\.tar\\.gz"`
       if [ -z "$cmakedownload" ] ; then
@@ -32,7 +49,7 @@ else
         exit 1
       fi
       rm -f cmake.tar.gz
-      wget $cmakedownload -O cmake.tar.gz
+      download_file $cmakedownload cmake.tar.gz
       tar -xzvf cmake.tar.gz
 
       # cd into the extracted directory and install
