@@ -4,7 +4,8 @@ major_version=1
 
 mkdir dist/graphlabapi
 rsync --verbose --recursive --links --times --owner --perms --delete \
-    --exclude=debug --exclude=release --exclude=profile --exclude=apps --exclude=.hg \
+    --exclude=debug --exclude=release --exclude=profile --exclude=apps \
+    --exclude=.hg --exclude=doc/doxygen --exclude=matlab --exclude=extapis \
     --exclude=dist \
     * dist/graphlabapi/.
 
