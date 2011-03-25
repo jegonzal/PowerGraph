@@ -22,9 +22,16 @@ else
   cmakecmd="cmake"
   # use which to look for a cmake in the path
   cmake_pos=`which $cmakecmd`
-  if [ -z "$cmake_pos" ] ; then
+  if [ ! -z $force_cmake_install ] ; then
+    echo "1"
+  fi
+  if [ ! -z $force_cmake_install ] || [ -z "$cmake_pos" ] ; then
+    # get the current path and remember it. This will be the installation directory
+    installprefix=$PWD
+
     # check for cmake in the current directory
-    if [ -z `find . -maxdepth 1 -name cmake` ] ; then
+
+    if [ ! -z $force_cmake_install ] || [ ! -f "cmake" ] ; then
       echo " ==================== CMake Not Found ! ==================== "
       echo
       echo "This script will now proceed to download CMake and set it up in"
@@ -35,9 +42,6 @@ else
       echo "or press Ctrl-C to break and install CMake yourself."
       read
       echo "Looking for latest version of CMake..."
-
-      # get the current path and remember it. This will be the installation directory
-      installprefix=$PWD
 
       # get the cmake software page
       rm -f software.html
