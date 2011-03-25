@@ -92,7 +92,7 @@ else
       echo "Boost failed to build for unknown reasons. Installation cannot proceed."
       exit 1
     fi
-    echo "Installing Boost..."
+    echo "Installing Boost...This could take a little while..."
     ./bjam install
     cd ..
     # set BOOST_ROOT
