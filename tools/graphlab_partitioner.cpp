@@ -9,6 +9,7 @@
 
 #include <graphlab.hpp>
 #include <graphlab/rpc/dc.hpp>
+#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/logger/logger.hpp>

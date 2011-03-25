@@ -50,9 +50,6 @@ endif()
 if(Sctp-FOUND)
   set(sctp_source rpc/dc_sctp_comm.cpp)
 endif()
-if (MPI_FOUND)
-  set(rpc_init_from_mpi rpc/dc_init_from_mpi.cpp)
-endif()
 
 if (ZLIB_FOUND)
   set(rpc_compressed rpc/dc_stream_receive_z.cpp
@@ -74,7 +71,7 @@ add_library(graphlab_rpc STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp
-  ${rpc_init_from_mpi}
+  rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
   ${rpc_compressed}
   rpc/dc_buffered_stream_send_expqueue_lz.cpp

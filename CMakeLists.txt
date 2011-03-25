@@ -18,6 +18,13 @@ endif(COMMAND cmake_policy)
 # cmake_policy(SET CMP0014 OLD)
 
 
+if(NOT $ENV{EXPERIMENTAL} STREQUAL "")
+  set(EXPERIMENTAL $ENV{EXPERIMENTAL} CACHE BOOL "Turns on experimental capabilities")
+else()
+  set(EXPERIMENTAL 0 CACHE BOOL "Turns on experimental capabilities")
+endif()
+
+
 
 
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
@@ -68,14 +75,6 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
 
-find_package(MPICH2)
-IF(MPI_FOUND)
-  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-ELSE(MPI_FOUND)
-  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-ENDIF(MPI_FOUND)
-
-
 
 
 
@@ -94,6 +93,16 @@ ENDIF( )
 
 
 
+# EXPERIMENTAL (distributed) Capabilities
+IF(EXPERIMENTAL)
+find_package(MPICH2)
+
+IF(MPI_FOUND)
+  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+  add_definitions(-DHASMPI)
+ELSE(MPI_FOUND)
+  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+ENDIF(MPI_FOUND)
 
 
 #Find zoltan library
@@ -123,20 +132,26 @@ ELSE( )
   message(STATUS "Zoltan library was NOT found at " ${ZOLTAN_ROOT})
 ENDIF( )
 
-
-
 # check for SCTP
-FIND_LIBRARY(Sctp NAMES sctp)
-if(Sctp MATCHES Sctp-NOTFOUND)
-  message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
+  FIND_LIBRARY(Sctp NAMES sctp)
+  if(Sctp MATCHES Sctp-NOTFOUND)
+    message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
+    set(Sctp-FOUND)
+    set(Sctp-NOTFOUND 1)
+  else()
+    add_definitions(-DHAS_SCTP)
+    set(Sctp-FOUND 1)
+    set(Sctp-NOTFOUND)
+    message(STATUS "libsctp found")
+  endif()
+
+
+
+else()
   set(Sctp-FOUND)
   set(Sctp-NOTFOUND 1)
-else()
-  add_definitions(-DHAS_SCTP)
-  set(Sctp-FOUND 1)
-  set(Sctp-NOTFOUND)
-  message(STATUS "libsctp found")
 endif()
+
 
 
 CHECK_LIBRARY_EXISTS(z zlibVersion "" ZLIB_FOUND)
@@ -155,9 +170,9 @@ CHECK_CXX_SOURCE_COMPILES("#include <itpp/itbase.h>\nint main(int argc ,char** a
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 if (ITPP-FOUND)
   link_libraries(itpp)
-  message(STATUS "ITPP found. Now we can make beautiful matrices together.")
+  message(STATUS "ITPP found.")
 else()
-  message(STATUS "Bummer, ITPP was not found but we don't need it anyways.")
+  message(STATUS "ITPP was not found")
 endif()
 
 
@@ -343,7 +358,9 @@ MACRO(add_dist_executable NAME)
     #    add_definitions(-DGLDISTRIBUTED)
 
   ELSE(MPI_FOUND)
+    if(EXPERIMENTAL)   
     message(STATUS "Not Building " ${NAME} " since mpi was not found.")
+    endif()
   ENDIF(MPI_FOUND)
 ENDMACRO(add_dist_executable)
 
@@ -364,7 +381,9 @@ MACRO(add_dist2_executable NAME)
     #    add_definitions(-DGLDISTRIBUTED)
 
   ELSE(MPI_FOUND)
+    if(EXPERIMENTAL)   
     message(STATUS "Not Building " ${NAME} " since mpi was not found.")
+    endif()
   ENDIF(MPI_FOUND)
 ENDMACRO(add_dist2_executable)
 
@@ -380,8 +399,9 @@ MACRO(add_zoltan_executable NAME)
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} )
   ELSE( )
-    message(STATUS "Not Building " ${NAME} 
-      " because zoltan was not found")
+    if(EXPERIMENTAL)   
+    message(STATUS "Not Building " ${NAME} " because zoltan was not found")
+    endif()
   ENDIF( )
 ENDMACRO(add_zoltan_executable)
 
@@ -395,6 +415,18 @@ MACRO(dist_target_link_libraries NAME)
     TARGET_LINK_LIBRARIES(${NAME} ${ARGN})
   ENDIF(MPI_FOUND)
 ENDMACRO(dist_target_link_libraries)
+
+MACRO(dist2_target_link_libraries NAME)
+  IF(MPI_FOUND)
+    TARGET_LINK_LIBRARIES(${NAME} ${ARGN})
+  ENDIF(MPI_FOUND)
+ENDMACRO(dist2_target_link_libraries)
+
+MACRO(dist2_set_target_properties NAME)
+  IF(MPI_FOUND)
+    set_target_properties(${NAME} ${ARGN})
+  ENDIF(MPI_FOUND)
+ENDMACRO(dist2_set_target_properties)
 
 
 
