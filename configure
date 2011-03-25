@@ -29,7 +29,7 @@ while [ $# -gt 0 ]
     --bootstrap)  bootstrap=1 ;;
     --force_cmake_install)    force_cmake_install=1 ;;
     --force_boost_install)    force_boost_install=1 ;;
-    --prefix=*) prefix=${1##--prefix} ;;
+    --prefix=*) prefix=${1##--prefix=} ;;
     --experimental) experimental=1 ;;
     *) unknown_option $1 ;;
   esac

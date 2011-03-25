@@ -512,6 +512,10 @@ INSTALL(DIRECTORY src/
   )
 
 
+
+
+INSTALL(CODE "execute_process(COMMAND ./install_deps.sh ${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})")
+
 # Install target graphlab moved to after definition
 
 

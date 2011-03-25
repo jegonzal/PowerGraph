@@ -174,7 +174,7 @@ INSTALL(DIRECTORY matlab/
 
 INSTALL(FILES matlab/get_mex_params.sh
         DESTINATION include/graphlab/matlab
-        PERMISSIONS OWNER_WRITE WORLD_READ WORLD_EXECUTE)
+        PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
 
 
 target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})
