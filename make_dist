@@ -6,7 +6,7 @@ mkdir dist/graphlabapi
 rsync --verbose --recursive --links --times --owner --perms --delete \
     --exclude=debug --exclude=release --exclude=profile --exclude=apps \
     --exclude=.hg --exclude=doc/doxygen --exclude=matlab --exclude=extapis \
-    --exclude=dist \
+    --exclude=dist --exclude=deps --exclude=*~ --exclude=*.orig \
     * dist/graphlabapi/.
 
 mkdir dist/graphlabapi/apps
