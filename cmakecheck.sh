@@ -1,9 +1,9 @@
 #!/bin/bash
-# use whereis to look for a cmake in the path
 if [ -z $IN_BOOTSTRAP ]; then
   echo "This script should not be run directly."
 else 
   cmakecmd="cmake"
+  # use which to look for a cmake in the path
   cmake_pos=`which $cmakecmd`
   if [ -z "$cmake_pos" ] ; then
     # check for cmake in the current directory
