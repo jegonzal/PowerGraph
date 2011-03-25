@@ -33,7 +33,7 @@ if [ ! -z $BOOST_ROOT ] && [ $BOOST_ROOT == $PWD/deps ]; then
    done
    if [ $skipinstall -eq 0 ]; then
     echo "Continuing Boost install"
-    $installprefix=$1
+    installprefix=$1
     source ./boostinstall.sh
    else
     echo "Skipping Boost install"
