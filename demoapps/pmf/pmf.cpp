@@ -585,7 +585,11 @@ void calc_T(int i){
 
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
+  if (ZERO && edges[i].size() == 0)
+	return;
+
   assert(edges[i].size() > 0);
+
   if (debug && (i==0 || i == K-1))
     printf("node %d with Q size: %d %d\n", i, (int)edges[i].size(), (int)D);
 
@@ -930,7 +934,7 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
-      edge.time = (int)((ed[i].time - 1.0)/scaling);
+      edge.time = (int)((ed[i].time -1)/scaling);
  
       std::pair<bool, edge_id_t> ret;
       if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT){//no support for specific edge returning on different times
@@ -984,7 +988,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   assert(K>=1);
   assert(M>=1 && N>=1); 
 
-  K/=scaling;
+  K=ceil(K/scaling);
 
   //if (data_type==TRAINING)
   printf("Matrix size is: %d %d %d\n", M, N, K);
@@ -1041,20 +1045,20 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   //verify edges
   for (int i=M; i < M+N; i++){
     foreach(graphlab::edge_id_t eid, g->in_edge_ids(i)){          
-      multiple_edges * tedges= &g->edge_data(eid);
+      multiple_edges & tedges= g->edge_data(eid);
       int from = g->source(eid);
       int to = g->target(eid);
       assert(from < M);
       assert(to >= M && to < M+N);
 
-      for (int j=0; j< (int)tedges->medges.size(); j++){
-        edge_data * data= &tedges->medges[j];
+      for (int j=0; j< (int)tedges.medges.size(); j++){
+        edge_data & data= tedges.medges[j];
 	if (!ZERO)
-        	assert(data->weight != 0);  
-        assert(data->time < K);
+        	assert(data.weight != 0);  
+        assert(data.time < K);
   
         if (K > 1 && data_type==TRAINING && tensor)
-          edges[(int)data->time].push_back(eid);
+          edges[(int)data.time].push_back(eid);
       }
     }
   }
@@ -1155,22 +1159,24 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 
 
      for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
-       vertex_data * data = &g->vertex_data(i);
+       vertex_data & data = g->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
             
          multiple_edges & edges = _g->edge_data(iedgeid);
-         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
+         vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
          for (int j=0; j< (int)edges.medges.size(); j++){       
     
            edge_data & edge = edges.medges[j];
            if (!ZERO)
            	assert(edge.weight != 0);
-           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
+
+           prediction = 0;
+           double add = rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
            if (BPTF && iiter > BURN_IN)
              edge.avgprd += prediction;
 
            if (debug && (i== M || i == M+N-1) && (lineNum == 0 || lineNum == Lt))
-             cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
+             cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
            //assert(add<25 && add>= 0);
           
            if (BPTF && iiter > BURN_IN){
