@@ -33,18 +33,45 @@ struct vertex_data {
     rmse = 0;
     num_edges = 0;
   }
-}; 
+
+
+  void save(graphlab::oarchive& archive) const {  
+    serialize(archive, pvec._data(), sizeof(double)*D); 
+    archive << rmse << num_edges; 
+  }  
+   
+  void load(graphlab::iarchive& archive) {  
+    deserialize(archive, pvec._data(), sizeof(double)*D); 
+    archive >> rmse >> num_edges;  
+  }
+};
 
 struct edge_data {
   double weight;  //observation 
   double time; //time of observation (for tensor algorithms)
   double avgprd;
   edge_data(){ weight = 0; time = 0; avgprd = 0;}
+
+ void save(graphlab::oarchive& archive) const {  
+    archive << weight << time << avgprd;; 
+  }  
+   
+  void load(graphlab::iarchive& archive) {  
+    archive >> weight >> time >> avgprd;  
+  }
 };
 
 //containiner for handling multiple edge
 struct multiple_edges{
   std::vector<edge_data> medges;
+ void save(graphlab::oarchive& archive) const {  
+       archive << medges; 
+  }  
+   
+  void load(graphlab::iarchive& archive) {  
+    for (int i=0; i< medges.size(); i++)
+    	archive >> medges;  
+  }
 };
  
 inline double rmse(vec& x1, vec& x2, vec& x3, int len, double val){
