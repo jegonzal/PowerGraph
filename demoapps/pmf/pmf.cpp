@@ -5,7 +5,6 @@
 #include <cstdio>
 #include <graphlab.hpp>
 
-
 #include "pmf.h"
 #include "vecutils.hpp"
 #include "itppvecutils.hpp"
@@ -29,6 +28,10 @@ using namespace std;
 double scaling = 1;
 std::vector<edge_id_t> * edges;
 std::string infile;
+bool loadfactors = false;
+bool savefactors = true;
+bool loadgraph = false;
+bool savegraph = false;
 
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
@@ -585,7 +588,11 @@ void calc_T(int i){
 
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
+  if (ZERO && edges[i].size() == 0)
+	return;
+
   assert(edges[i].size() > 0);
+
   if (debug && (i==0 || i == K-1))
     printf("node %d with Q size: %d %d\n", i, (int)edges[i].size(), (int)D);
 
@@ -759,7 +766,65 @@ double calc_obj(double res){
   return obj;
 }
 
+void export_uvt_to_file(){
+ //saving output to file 
+ mat U = zeros(M,D);
+ mat V = zeros(N,D);
+ mat T = zeros(K,D);
+ for (int i=0; i< M+N; i++){ 
+    vertex_data & data = g->vertex_data(i);
+    if (i < M)
+     	memcpy(U._data() + i*D, data.pvec._data(), D*sizeof(double));
+    else
+     	memcpy(V._data() + (i-M)*D, data.pvec._data(), D*sizeof(double));
+ }
 
+ if (tensor){ 
+    for (int i=0; i<K; i++){
+     	memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
+    }
+ } 
+
+ char dfile[256] = {0};
+ sprintf(dfile,"%s%d.out",infile.c_str(), D);
+ it_file output(dfile);
+ output << Name("U") << U;
+ output << Name("V") << V;
+  if (tensor){
+    output << Name("T") << T;
+ }
+ output.close();
+}
+
+void import_uvt_from_file(){
+
+ mat U,V,T;
+ char dfile[256] = {0};
+ sprintf(dfile,"%s%d.out",infile.c_str(), D);
+ printf("Loading factors U,V,T from file\n");
+ it_file input(dfile);
+ input >> Name("U") >> U;
+ input >> Name("V") >> V;
+  if (tensor){
+    input >> Name("T") >> T;
+ }
+ input.close();
+ //saving output to file 
+ for (int i=0; i< M+N; i++){ 
+    vertex_data & data = g->vertex_data(i);
+    if (i < M)
+     	memcpy( data.pvec._data(),U._data() + i*D, D*sizeof(double));
+    else
+     	memcpy(data.pvec._data(),V._data() + (i-M)*D,  D*sizeof(double));
+ }
+
+ if (tensor){ 
+    for (int i=0; i<K; i++){
+     	memcpy(times[i].pvec._data(), T._data() + i*D, D*sizeof(double));
+    }
+ } 
+ 
+}
 
 
  
@@ -778,24 +843,53 @@ void start(int argc, char ** argv) {
   clopts.attach_option("lambda", &LAMBDA, LAMBDA, "regularization weight");  
   clopts.attach_option("zero", &ZERO, ZERO, "support zero edges");  
   clopts.attach_option("scaling", &scaling, scaling, "time scaling factor (optional)");  
+  clopts.attach_option("savegraph", &savegraph, savegraph, "save graphs to file");  
+  clopts.attach_option("loadgraph", &loadgraph, loadgraph, "load graphs to file");  
+  clopts.attach_option("savefactors", &savefactors, savefactors, "save factors to file");  
+  clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
 
   //read the training data
   printf("loading data file %s\n", infile.c_str());
-  g=&glcore.graph();
-  load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
+  if (!loadgraph){
+    g=&glcore.graph();
+    load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
 
   //read the vlidation data (optional)
-  printf("loading data file %s\n", (infile+"e").c_str());
-  load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION, glcore);
+    printf("loading data file %s\n", (infile+"e").c_str());
+    load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION, glcore);
 
   //read the test data (optional)
-  printf("loading data file %s\n", (infile+"t").c_str());
-  load_pmf_graph((infile+"t").c_str(),&test_graph, TEST, glcore);
+    printf("loading data file %s\n", (infile+"t").c_str());
+    load_pmf_graph((infile+"t").c_str(),&test_graph, TEST, glcore);
 
 
+    if (savegraph){
+	printf("Saving .graph files\n");
+        g->save(infile + ".graph");
+        if (validation_graph.num_vertices() != 0)
+		validation_graph.save(infile + "e.graph");
+        if (test_graph.num_vertices() != 0)
+		test_graph.save(infile + "t.graph");
+   
+        printf("Done!\n");
+	exit(0);
+    }
+
+  } else {
+
+    printf("Loading graph from file\n");
+    g->load(infile + ".graph");
+    validation_graph.load(infile + "e.graph");
+    test_graph.load(infile + "t.graph");
+  }
+  
+
+  if (loadfactors){
+     import_uvt_from_file();
+  }
 
   printf("setting regularization weight to %g\n", LAMBDA);
   pU=pV=LAMBDA;
@@ -867,31 +961,7 @@ void start(int argc, char ** argv) {
     printf("Counters are: %d) %g\n",i, counter[i]); 
    }
 
- //saving output to file 
- mat U = zeros(M,D);
- mat V = zeros(N,D);
- mat T = zeros(K,D);
- for (int i=0; i< M+N; i++){ //TODO: optimize to start from N?
-    vertex_data * data = &g->vertex_data(i);
-    if (i < M)
-     	memcpy(U._data() + i*D, data->pvec._data(), D*sizeof(double));
-    else
-     	memcpy(V._data() + (i-M)*D, data->pvec._data(), D*sizeof(double));
- }
-
- if (tensor){ 
-    for (int i=0; i<K; i++){
-     	memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
-    }
- } 
- 
- it_file output(infile + ".out");
- output << Name("U") << U;
- output << Name("V") << V;
-  if (tensor){
-    output << Name("T") << T;
- }
- output.close();
+  export_uvt_to_file();
 }
 
 
@@ -930,7 +1000,7 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
-      edge.time = (int)((ed[i].time - 1.0)/scaling);
+      edge.time = (int)((ed[i].time -1)/scaling);
  
       std::pair<bool, edge_id_t> ret;
       if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT){//no support for specific edge returning on different times
@@ -984,7 +1054,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   assert(K>=1);
   assert(M>=1 && N>=1); 
 
-  K/=scaling;
+  K=ceil(K/scaling);
 
   //if (data_type==TRAINING)
   printf("Matrix size is: %d %d %d\n", M, N, K);
@@ -1041,20 +1111,20 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   //verify edges
   for (int i=M; i < M+N; i++){
     foreach(graphlab::edge_id_t eid, g->in_edge_ids(i)){          
-      multiple_edges * tedges= &g->edge_data(eid);
+      multiple_edges & tedges= g->edge_data(eid);
       int from = g->source(eid);
       int to = g->target(eid);
       assert(from < M);
       assert(to >= M && to < M+N);
 
-      for (int j=0; j< (int)tedges->medges.size(); j++){
-        edge_data * data= &tedges->medges[j];
+      for (int j=0; j< (int)tedges.medges.size(); j++){
+        edge_data & data= tedges.medges[j];
 	if (!ZERO)
-        	assert(data->weight != 0);  
-        assert(data->time < K);
+        	assert(data.weight != 0);  
+        assert(data.time < K);
   
         if (K > 1 && data_type==TRAINING && tensor)
-          edges[(int)data->time].push_back(eid);
+          edges[(int)data.time].push_back(eid);
       }
     }
   }
@@ -1155,22 +1225,24 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 
 
      for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
-       vertex_data * data = &g->vertex_data(i);
+       vertex_data & data = g->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
             
          multiple_edges & edges = _g->edge_data(iedgeid);
-         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
+         vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
          for (int j=0; j< (int)edges.medges.size(); j++){       
     
            edge_data & edge = edges.medges[j];
            if (!ZERO)
            	assert(edge.weight != 0);
-           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
+
+           prediction = 0;
+           double add = rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
            if (BPTF && iiter > BURN_IN)
              edge.avgprd += prediction;
 
            if (debug && (i== M || i == M+N-1) && (lineNum == 0 || lineNum == Lt))
-             cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
+             cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
            //assert(add<25 && add>= 0);
           
            if (BPTF && iiter > BURN_IN){
