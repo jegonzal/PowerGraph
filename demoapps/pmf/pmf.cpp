@@ -5,9 +5,9 @@
 #include <cstdio>
 #include <graphlab.hpp>
 
+#include "itppvecutils.hpp"
 #include "pmf.h"
 #include "vecutils.hpp"
-#include "itppvecutils.hpp"
 #include "prob.hpp"
 
 #include <graphlab/macros_def.hpp>
@@ -35,6 +35,39 @@ bool savegraph = false;
 
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
+
+/*namespace graphlab{
+template<>
+oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
+  arc << vec.length();
+  serialize(arc, vec._data(), sizeof(double)*vec.length());
+  return arc;
+}
+template<>
+oarchive& operator<< <itpp::Mat<double> > (oarchive& arc, const itpp::Mat<double> &mat) {
+  arc << mat.rows() << mat.cols();
+  serialize(arc, mat._data(), sizeof(double)*mat._datasize());  
+  return arc;
+}
+
+template<>
+iarchive& operator>> <itpp::Vec<double> > (iarchive& arc, itpp::Vec<double> &vec) {
+  size_t vlength;
+  arc >> vlength;
+  vec.set_size(vlength);
+  deserialize(arc, vec._data(), sizeof(double)*vec.length());
+  return arc;
+}
+
+template<>
+iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat) {
+  size_t rows, cols;
+  arc >> rows >> cols;
+  mat.set_size(rows,cols);
+  deserialize(arc, mat._data(), sizeof(double)*mat._datasize());   
+  return arc;
+}
+}*/
 
 
 /* Variables for PMF */
@@ -74,7 +107,7 @@ vertex_data * times = NULL;
 typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 gl_types::iengine * engine;
-graph_type *g;
+graph_type* g;
 graph_type validation_graph;
 graph_type test_graph;
 gl_types::thread_shared_data sdm;
@@ -377,6 +410,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
    }
 double calc_rmse_q(double & res){
 
+  timer t; t.start();
   res = 0;
   double RMSE = 0;
   for (int i=M; i< M+N; i++){ 
@@ -384,7 +418,9 @@ double calc_rmse_q(double & res){
     RMSE+= data->rmse;
   }
   res = RMSE;
+  counter[2] += t.current_time();
   return sqrt(RMSE/(double)L);
+
 }
 
 
@@ -456,13 +492,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   assert(numedges > 0);
 
   timer t;
-  t.start(); 
   mat Q(D,numedges);
   vec vals(numedges);
-  counter[0] += t.current_time();
 
   int i=0;
 
+  t.start(); 
   if ((int)scope.vertex() < M){
     
     //MOVIE NODES
@@ -516,7 +551,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   }
   assert(i == numedges);
-     
+  counter[0] += t.current_time();
 
   vec result;
       
@@ -532,11 +567,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     t.start();
     mat iAi_;
     bool ret =inv(((int)scope.vertex() < M? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
-    counter[10]+= t.current_time();
     assert(ret);
     t.start();
     vec mui_ =  iAi_*((((int)scope.vertex() < M)? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
-    counter[11]+= t.current_time();
+    counter[10]+= t.current_time();
        
     t.start();
     result = mvnrndex(mui_, iAi_, D); 
@@ -570,11 +604,14 @@ void last_iter(){
     //engine->stop();
   }
   if (BPTF){
+    timer t;
+    t.start();
     sample_alpha(res);
     sample_U();
     sample_V();
     if (tensor) 
       sample_T();
+    counter[1] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
 	export_kdd_format(&test_graph, false);
    }
@@ -600,15 +637,13 @@ void calc_T(int i){
   int batchSize = 100;
   mat Q(batchSize, D); 
   vec vals(batchSize);
-  timer t;
-  t.start();
   mat QQ(D,D);
   _zeros(QQ,D,D);
   vec RQ(D);
   _zeros(RQ,D);
-  counter[4] += t.current_time();
   int cnt =0;
 
+  timer t; t.start();
   foreach (edge_id_t edge, edges[i]){
     if (k % batchSize == 0){
       Q.zeros();
@@ -634,7 +669,6 @@ void calc_T(int i){
     vec ret = elem_mult(v1->pvec, v2->pvec);
      
     //Q.set_col(k, ret);
-    t.start(); 
     for (int s=0; s<D; s++)
       Q(k%batchSize,s)=ret(s);
     if (debug && (i==0 || i == K-1) && (k == 0 || k == (int)edges[i].size() - 1))
@@ -649,9 +683,9 @@ void calc_T(int i){
       RQ += transpose(Q)*vals;
       assert(QQ.rows() == D && QQ.cols() == D);
     }
-    counter[5] += t.current_time();
     cnt++;
   }
+  counter[5] += t.current_time();
 
 
   if (debug && (i == 0 ||i== K-1 )){
@@ -868,22 +902,28 @@ void start(int argc, char ** argv) {
 
     if (savegraph){
 	printf("Saving .graph files\n");
-        g->save(infile + ".graph");
-        if (validation_graph.num_vertices() != 0)
-		validation_graph.save(infile + "e.graph");
-        if (test_graph.num_vertices() != 0)
-		test_graph.save(infile + "t.graph");
-   
+	char filename[256];
+        sprintf(filename, "%s%d.graph", infile.c_str(), D);
+        std::ofstream fout(filename, std::fstream::binary);
+        graphlab::oarchive oarc(fout);
+	oarc << M << N << K << L << Le << Lt << D;
+        oarc << *g << validation_graph << test_graph;
         printf("Done!\n");
+        fout.close();
 	exit(0);
     }
 
   } else {
-
+    char filename[256];
+    sprintf(filename, "%s%d.graph", infile.c_str(), D);
+    std::ifstream fin(filename, std::fstream::binary);
+    graphlab::iarchive iarc(fin);
+    iarc >> M >> N >> K >> L >> Le >> Lt >> D;
     printf("Loading graph from file\n");
-    g->load(infile + ".graph");
-    validation_graph.load(infile + "e.graph");
-    test_graph.load(infile + "t.graph");
+    iarc >> glcore.graph() >> validation_graph >> test_graph;
+    g=&glcore.graph();
+    printf("Matrix size is: %dx %dx %d D=%d\n", M, N, K, D);   
+    printf("Creating %d edges...\n", L);
   }
   
 
@@ -957,8 +997,8 @@ void start(int argc, char ** argv) {
   printf("Finished in %lf \n", runtime);
       
   //timing counters
-  for (int i=0; i<20; i++){
-    printf("Counters are: %d) %g\n",i, counter[i]); 
+  for (int i=0; i<11; i++){
+    printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
   export_uvt_to_file();
@@ -1237,7 +1277,7 @@ void export_kdd_format(graph_type * _g, bool dosave) {
            	assert(edge.weight != 0);
 
            prediction = 0;
-           double add = rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
+           rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
            if (BPTF && iiter > BURN_IN)
              edge.avgprd += prediction;
 

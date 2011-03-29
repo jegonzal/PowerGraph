@@ -36,13 +36,13 @@ struct vertex_data {
 
 
   void save(graphlab::oarchive& archive) const {  
-    serialize(archive, pvec._data(), sizeof(double)*D); 
+    archive << pvec;
     archive << rmse << num_edges; 
   }  
    
   void load(graphlab::iarchive& archive) {  
-    deserialize(archive, pvec._data(), sizeof(double)*D); 
-    archive >> rmse >> num_edges;  
+     archive >> pvec;
+     archive >> rmse >> num_edges;  
   }
 };
 
@@ -69,8 +69,7 @@ struct multiple_edges{
   }  
    
   void load(graphlab::iarchive& archive) {  
-    for (int i=0; i< medges.size(); i++)
-    	archive >> medges;  
+      archive >> medges;  
   }
 };
  
@@ -159,5 +158,21 @@ enum runmodes{
 #define ALS_TENSOR_MULT 4
 */
 const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
+
+
+enum countervals{
+   EDGE_TRAVERSAL=0,
+   BPTF_SAMPLE_STEP=1,
+   CALC_RMSE_Q=2,
+   ALS_LEAST_SQUARES=3,
+   BPTF_TIME_EDGES=5,
+   BPTF_LEAST_SQUARES=6,
+   CALC_OBJ = 7,
+   BPTF_MVN_RNDEX=9,
+   BPTF_LEAST_SQUARES2=10, 
+};
+
+const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", "NA", \
+  "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "NA", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
 #endif
 
