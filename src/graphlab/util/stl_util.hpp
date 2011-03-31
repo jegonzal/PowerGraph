@@ -111,6 +111,9 @@ namespace graphlab {
     return std::includes(a.begin(), a.end(), b.begin(), b.end());
   }
 
+  /** 
+   * Returns true if $a \subseteq b$
+   */
   template <typename T>
   bool is_subset(const std::set<T>& a, const std::set<T>& b) {
     return includes(b, a);
