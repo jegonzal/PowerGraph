@@ -73,7 +73,7 @@ struct multiple_edges{
   }
 };
  
-inline double rmse(vec& x1, vec& x2, vec& x3, int len, double val){
+inline double rmse(const vec& x1, const vec& x2, vec& x3, int len, double val){
 
 	double sum = 0;
 	for (int i=0; i< len; i++)
@@ -83,7 +83,7 @@ inline double rmse(vec& x1, vec& x2, vec& x3, int len, double val){
 	return sum;
 }
       
-inline double rmse(vec& x1, vec& x2, int len, double val, double & sum){
+inline double rmse(const vec& x1, const vec& x2, int len, double val, double & sum){
 	
 	sum = 0;
 	double ret = 0;
@@ -95,7 +95,7 @@ inline double rmse(vec& x1, vec& x2, int len, double val, double & sum){
 	return pow(sum - val, 2);
 }
 
-inline double rmse(vec& x1, vec& x2, vec *x3, int len, double val, double &sum){
+inline double rmse(const vec& x1, const vec& x2, const vec *x3, int len, double val, double &sum){
 	if (x3 == NULL) //matrix	
 		return rmse(x1,x2,len,val,sum);
 
@@ -111,7 +111,7 @@ inline double rmse(vec& x1, vec& x2, vec *x3, int len, double val, double &sum){
 	return pow(sum - val, 2);
 }
 
-inline sdouble square_sum(vec& x, int len){
+inline sdouble square_sum(const vec& x, int len){
 	sdouble xs = 0.0;
 	for(int i=0; i<len; i++) {
 		xs += x[i] * x[i];

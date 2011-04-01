@@ -32,6 +32,7 @@ bool loadfactors = false;
 bool savefactors = true;
 bool loadgraph = false;
 bool savegraph = false;
+bool stats = false;
 
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
@@ -162,6 +163,7 @@ void calc_T(int id);
 double calc_obj(double res);
 void last_iter();
 void export_kdd_format(graph_type * _g, bool dosave);
+void calc_stats(testtype type);
 
 void sample_alpha(double res2){
   
@@ -385,7 +387,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
            	assert(edge.weight != 0);
            double sum = 0; 
            double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-           if (!ZERO)
+           //if (!ZERO)
 	   assert(sum != 0);         
            if (BPTF && iiter > BURN_IN)
              edge.avgprd += sum;
@@ -424,7 +426,7 @@ double calc_rmse_q(double & res){
 }
 
 
-inline void parse_edge(edge_data& edge, vertex_data & pdata, mat & Q, vec & vals, int i){
+inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i){
       
   if (!ZERO)  
   	assert(edge.weight != 0);
@@ -500,11 +502,11 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   t.start(); 
   if ((int)scope.vertex() < M){
     
-    //MOVIE NODES
+    //USER NODES
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
       multiple_edges &medges =scope.edge_data(oedgeid);
-      vertex_data  pdata = scope.neighbor_vertex_data(scope.target(oedgeid)); 
+      const vertex_data  & pdata = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
 	   
       for (int j=0; j< (int)medges.medges.size(); j++){
         edge_data& edge = medges.medges[j];
@@ -522,10 +524,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   else {
 
 
-    //USER NODES
+    //MOVIE NODES
     foreach(edge_id_t iedgeid, ins) {
 
-      vertex_data  pdata = scope.neighbor_vertex_data(scope.source(iedgeid)); 
+      const vertex_data & pdata = scope.const_neighbor_vertex_data(scope.source(iedgeid)); 
       multiple_edges & medges =scope.edge_data(iedgeid);
       for (int j=0; j< (int)medges.medges.size(); j++){
         edge_data& edge = medges.medges[j];
@@ -537,7 +539,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         i++;
         double sum;     
         double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-        //assert(sum != 0);
+        assert(sum != 0);
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += sum;        
           trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
@@ -881,6 +883,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("loadgraph", &loadgraph, loadgraph, "load graphs to file");  
   clopts.attach_option("savefactors", &savefactors, savefactors, "save factors to file");  
   clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
+  clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -929,6 +932,14 @@ void start(int argc, char ** argv) {
 
   if (loadfactors){
      import_uvt_from_file();
+  }
+
+
+  if (stats){
+    calc_stats(TRAINING);
+    calc_stats(VALIDATION);
+    calc_stats(TEST);
+    exit(0);
   }
 
   printf("setting regularization weight to %g\n", LAMBDA);
@@ -1238,6 +1249,95 @@ int main(int argc,  char *argv[]) {
   start(argc, argv);
 }
 
+
+void calc_stats(testtype type){
+   graph_type * gr = NULL;
+   switch(type){
+	case TRAINING: gr = g; break;
+	case VALIDATION: gr = &validation_graph; break;
+	case TEST: gr = &test_graph; break;
+   }
+
+   if (gr->num_vertices() == 0){
+	printf("%s is missing, skipping data\n", testtypename[type]);
+        return;
+   } 
+
+   if (tensor && type == TRAINING){
+	int firsttimeused=-1;
+	int lasttimeused=-1;
+	for (int i=0; i<K; i++){
+		if (edges[i].size() > 0)
+		   firsttimeused = i;
+	}
+	for (int i=K-1; i>=0; i--){
+		if (edges[i].size() > 0)
+		   lasttimeused = i;
+
+	}
+	printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
+  }	
+
+  double avgval=-1, minval=1e100, maxval=-1e100;
+  double avgtime=-1, mintime=1e100, maxtime=-1e100;
+  double minV=1e100, maxV=-1e100, minU=1e100, maxU=-1e100;
+  int moviewithoutedges = 0;
+  int userwithoutedges = 0;
+  int numedges = 0;
+  for (int i=M; i< M+N; i++){ 
+    const vertex_data * data = &gr->vertex_data(i);
+         if (itpp::min(data->pvec) < minU)
+		minU = itpp::min(data->pvec);
+	 if (itpp::max(data->pvec) > maxU)
+		maxU = itpp::max(data->pvec);
+	if (gr->in_edge_ids(i).size() == 0)
+	moviewithoutedges++;
+    foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
+            
+         multiple_edges & edges = gr->edge_data(iedgeid);
+         vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
+     for (int j=0; j< (int)edges.medges.size(); j++){     
+		numedges++;
+		edge_data & data = edges.medges[j];
+		avgval += data.weight;
+		avgtime += data.time;
+		if (data.weight<minval)
+		   minval=data.weight;
+		if (data.time <mintime)
+		   mintime = data.time;
+		if (data.weight>maxval)
+		   maxval=data.weight;
+		if (data.time > maxtime)
+		   maxtime =data.time;
+	        
+	 }  
+	
+     }
+ }
+  for (int i=0; i< M; i++){ 
+    const vertex_data * data = &gr->vertex_data(i);
+    if (itpp::min(data->pvec) < minV)
+	minV = itpp::min(data->pvec);
+	if (itpp::max(data->pvec) > maxV)
+		maxV = itpp::max(data->pvec);
+	 
+    if (gr->out_edge_ids(i).size() == 0)
+	userwithoutedges++;
+ }
+ 
+ avgval /= numedges;
+ avgtime /= numedges; 
+ printf("%s Avg matrix value %g min val %g max value %g\n", testtypename[type],avgval, minval, maxval);
+ printf("%s Avg time value %g min val %g max value %g\n", testtypename[type], avgtime, mintime, maxtime);
+ printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
+ printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
+
+ switch(type){
+ 	case TRAINING: assert(numedges==L); break;
+	case VALIDATION: assert(numedges==Le); break;
+	case TEST: assert(numedges==Lt); break;
+ }
+ }
 
 //
 //The input prediction file should contain 6005940 lines, corresponding
