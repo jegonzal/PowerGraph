@@ -15,7 +15,6 @@ namespace graphlab {
 
 
   /**
-   *  \ingroup util_internal
    * This class implements a dense set of fixed maximum size which
    * support quick operations with stack allocation.
    */
@@ -27,10 +26,16 @@ namespace graphlab {
     typedef const T* const_iterator; 
 
   public:
-    // empty set
+    //! Construct an empty set
     fast_set() : nelems(0) { }
+
+    //! Create a stack set with just one element
     fast_set(const T& elem) : nelems(1) { values[0] = elem; }
     
+    /**
+     * Create a stack from an std set by adding each element one at a
+     * time
+     */
     template<typename OtherT>
     fast_set(const std::set<OtherT>& other) : nelems(other.size()) { 
       assert(nelems <= MAX_DIM);
@@ -38,36 +43,54 @@ namespace graphlab {
       foreach(const OtherT& elem, other) values[index++] = elem;
     }
 
+    //! Get the begin iterator
+    inline T* begin() { return values; }
 
-    T* begin() { return values; }
-    T* end() { return values + nelems; }
+    //! get the end iterator
+    inline T* end() { return values + nelems; }
 
+    //! Get the begin iterator
     const T* begin() const { return values; }
+
+    //! Get the end iterator
     const T* end() const { return values + nelems; }
 
+    //! get the size of the set
     inline size_t size() const { return nelems; }
 
+    //! determine if there are any elements in the set
     bool empty() const { return size() == 0; }
 
-
+    
+    //! test whether the set contains the given element
     bool contains(const T& elem) const {
       for(size_t i = 0; i < nelems; ++i) 
         if(values[i] == elem) return true;
       return false;
     }
 
+    //! test whether the set contains the given set of element
+    bool contains(const fast_set& other) const {
+      return (*this - other).empty();
+    }
 
 
+    /**
+     * Test if this set is contained in other.  If so this returns
+     * true. 
+     */
     bool operator<=(const fast_set& other) const {
       return (*this - other).empty();
     }
 
-  
+
+    //! insert an element into this set
     void insert(const T& elem) {
       *this += elem;
     }
 
 
+    //! insert a range of elements into this set
     void insert(const T* begin, const T* end) {
       size_t other_size = end - begin;  
       assert(other_size <= MAX_DIM);
@@ -81,12 +104,11 @@ namespace graphlab {
     }
 
 
-    void erase(const T& elem) {
-      *this -= elem;
-    }
+    //! remove an element from the set
+    void erase(const T& elem) { *this -= elem; }
     
 
-
+    //! get the element at a particular location
     const T& operator[](size_t index) const {
       assert(index < nelems);
       return values[index];
@@ -95,7 +117,7 @@ namespace graphlab {
 
     
 
-
+    //! Take the union of two sets
     inline fast_set operator+(const fast_set& other) const {
       fast_set result;
       size_t i = 0, j = 0;
@@ -123,12 +145,14 @@ namespace graphlab {
     }
 
 
+    //! Add the other set to this set
     inline fast_set& operator+=(const fast_set& other) {
       *this = *this + other;
       return *this;
     }
 
 
+    //! Add an element to this set
     inline fast_set& operator+=(const T& elem) {
       // Find where elem should be inserted
       size_t index = 0;
@@ -153,6 +177,7 @@ namespace graphlab {
 
 
 
+    //! Remove the other set from this set
     fast_set& operator-=(const fast_set& other) {
       if(other.size() == 0) return *this;    
       // Backup the old nelems and reset nelems
@@ -168,13 +193,14 @@ namespace graphlab {
       return *this;
     }
 
+    //! subtract the right set form the left set
     fast_set operator-(const fast_set& other) const {
       fast_set result = *this;
       result -= other;
       return result;
     }
 
-
+    //! Take the intersection of two sets
     fast_set operator*(const fast_set& other) const {
       fast_set result; 
       for(size_t i = 0, j = 0;
@@ -187,12 +213,13 @@ namespace graphlab {
       return result;
     }
 
-
+    //! Take the intersection of two sets
     fast_set operator*=(const fast_set& other)  {
       *this = *this * other;
       return *this;
     }
 
+    //! Load the set form file
     void load(iarchive& arc) {
       arc >> nelems;
       assert(nelems <= MAX_DIM);
@@ -202,19 +229,15 @@ namespace graphlab {
       }
     }
     
+    //! Save the set to file
     void save(oarchive& arc) const {
       arc << nelems;
       for(size_t i = 0; i < nelems; ++i) arc << values[i];
     }
-
-
- 
   private:
     size_t nelems;
     T values[MAX_DIM];
-
   }; // end of fast_set
-
 }; // end of graphlab namespace
 
 template<size_t MAX_DIM, typename T>
