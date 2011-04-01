@@ -391,9 +391,7 @@ void partition_update_function(iscope_type& scope,
   //  if(vdata.is_set){ nbr_a2c[vdata.atomid]++; nbr_sum++; }
   
   // Get the shared statistics
-  typedef shared_statistics_type::const_ptr_type shared_ptr_type;
-  shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
-  const statistics& stats(*shared_statistics_ptr);
+  const statistics stats(shared_statistics.get_val());
 
   
   // Compute a random probability table
