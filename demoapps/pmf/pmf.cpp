@@ -989,7 +989,7 @@ void start(int argc, char ** argv) {
   rmse =  calc_rmse_q(res);
   printf("Final result. Obj=%g, TRAIN RMSE= %0.4f TEST RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
   
-  if (infile == "kddcup")
+  if (infile == "kddcup" || infile == "kddcup2")
   	export_kdd_format(&test_graph, true);
 
   /**** POST-PROCESSING *****/
@@ -998,7 +998,8 @@ void start(int argc, char ** argv) {
       
   //timing counters
   for (int i=0; i<11; i++){
-    printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
+    if (counter[i] > 0)
+    	printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
   export_uvt_to_file();
@@ -1248,13 +1249,15 @@ int main(int argc,  char *argv[]) {
 
 void export_kdd_format(graph_type * _g, bool dosave) {
 
+        bool debugkdd = true;
         assert(_g != NULL);
         if (!dosave)
 		assert(BPTF);	
 
 	FILE * outFp = NULL;
         if (dosave){
-		outFp = fopen((infile+"t.kdd.out").c_str(), "wb");
+                printf("Exporting KDD cup test graph: %s\n", (infile+"t.kdd.out").c_str());
+		outFp = fopen((infile+"t.kdd.out").c_str(), "w");
 		assert(outFp);
 	}
 	const int ExpectedTestSize = 6005940;
@@ -1271,7 +1274,7 @@ void export_kdd_format(graph_type * _g, bool dosave) {
          multiple_edges & edges = _g->edge_data(iedgeid);
          vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
          for (int j=0; j< (int)edges.medges.size(); j++){       
-    
+   	   assert(j==0); 
            edge_data & edge = edges.medges[j];
            if (!ZERO)
            	assert(edge.weight != 0);
@@ -1281,15 +1284,19 @@ void export_kdd_format(graph_type * _g, bool dosave) {
            if (BPTF && iiter > BURN_IN)
              edge.avgprd += prediction;
 
-           if (debug && (i== M || i == M+N-1) && (lineNum == 0 || lineNum == Lt))
-             cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
+           if (debugkdd && (i== M || i == M+N-1))
+             cout<<lineNum<<") prediction:"<<prediction<<endl; 
            //assert(add<25 && add>= 0);
           
            if (BPTF && iiter > BURN_IN){
              //add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
               prediction = (edge.avgprd / (iiter - BURN_IN));
            }
-            
+           
+           if (prediction<0)
+		prediction=0;
+	   else if (prediction>100)
+		prediction=100; 
           unsigned char roundScore = (unsigned char)(2.55*prediction+0.5); 
           if (dosave)
 	  	fwrite(&roundScore,1,1,outFp);
