@@ -26,6 +26,7 @@ timer gt;
 using namespace itpp;
 using namespace std;
 double scaling = 1;
+double truncating =0;
 std::vector<edge_id_t> * edges;
 std::string infile;
 bool loadfactors = false;
@@ -387,7 +388,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
            	assert(edge.weight != 0);
            double sum = 0; 
            double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-           //if (!ZERO)
+           if (!ZERO)
 	   assert(sum != 0);         
            if (BPTF && iiter > BURN_IN)
              edge.avgprd += sum;
@@ -539,7 +540,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         i++;
         double sum;     
         double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-        assert(sum != 0);
+        //assert(sum != 0);
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += sum;        
           trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
@@ -608,7 +609,8 @@ void last_iter(){
   if (BPTF){
     timer t;
     t.start();
-    sample_alpha(res);
+    if (iiter > BURN_IN)
+    	sample_alpha(res);
     sample_U();
     sample_V();
     if (tensor) 
@@ -879,11 +881,13 @@ void start(int argc, char ** argv) {
   clopts.attach_option("lambda", &LAMBDA, LAMBDA, "regularization weight");  
   clopts.attach_option("zero", &ZERO, ZERO, "support zero edges");  
   clopts.attach_option("scaling", &scaling, scaling, "time scaling factor (optional)");  
+  clopts.attach_option("truncating", &truncating, truncating, "time truncation factor (optional)");  
   clopts.attach_option("savegraph", &savegraph, savegraph, "save graphs to file");  
   clopts.attach_option("loadgraph", &loadgraph, loadgraph, "load graphs to file");  
   clopts.attach_option("savefactors", &savefactors, savefactors, "save factors to file");  
   clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
+  clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -1052,7 +1056,7 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
-      edge.time = (int)((ed[i].time -1)/scaling);
+      edge.time = (int)((ed[i].time -1-truncating)/scaling);
  
       std::pair<bool, edge_id_t> ret;
       if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT){//no support for specific edge returning on different times
@@ -1106,7 +1110,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   assert(K>=1);
   assert(M>=1 && N>=1); 
 
-  K=ceil(K/scaling);
+  K=ceil((K-truncating)/scaling);
 
   //if (data_type==TRAINING)
   printf("Matrix size is: %d %d %d\n", M, N, K);
@@ -1367,12 +1371,12 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 	double sumPreds=0;
 
 
-     for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
+     for (int i=0; i< M; i++){ //TODO: optimize to start from N?
        vertex_data & data = g->vertex_data(i);
-       foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
+       foreach(edge_id_t iedgeid, _g->out_edge_ids(i)) {
             
          multiple_edges & edges = _g->edge_data(iedgeid);
-         vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
+         vertex_data & pdata = g->vertex_data(_g->target(iedgeid)); 
          for (int j=0; j< (int)edges.medges.size(); j++){       
    	   assert(j==0); 
            edge_data & edge = edges.medges[j];
