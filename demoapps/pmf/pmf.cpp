@@ -34,10 +34,9 @@ bool savefactors = true;
 bool loadgraph = false;
 bool savegraph = false;
 bool stats = false;
-
+bool regnormal = false; //regular normalization
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
-
 /*namespace graphlab{
 template<>
 oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
@@ -560,7 +559,11 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
       
   if (!BPTF){
     t.start();
-    bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*LAMBDA*Q.cols(), Q*vals, result);
+    double regularization = LAMBDA;
+    if (!regnormal)
+	regularization*= Q.cols();
+
+    bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
     //assert(result.size() == D);     
     assert(ret);
     counter[3] += t.current_time();
@@ -888,6 +891,9 @@ void start(int argc, char ** argv) {
   clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
+  clopts.attach_option("regnormal", &regnormal, regnormal, "regular normalization? ");  
+  clopts.attach_option("minVal", &minVal, minVal, "min allowed value ");  
+  clopts.attach_option("maxVal", &maxVal, maxVal, "max allowed value ");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -986,7 +992,8 @@ void start(int argc, char ** argv) {
 
 
   if (BPTF){
-    sample_alpha(L);
+    if (alpha == 0)
+    	sample_alpha(L);
     sample_U();
     sample_V();
     if (tensor) 

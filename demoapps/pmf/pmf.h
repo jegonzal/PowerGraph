@@ -19,6 +19,10 @@ int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
 int D=20;         //number of features
 bool FLOAT=false; //is data in float format
 double LAMBDA=1;//regularization weight
+double minVal = 1e100;
+double maxVal = 1e100;
+
+
 
 typedef double  sdouble; 
 using namespace itpp;
@@ -78,7 +82,11 @@ inline double rmse(const vec& x1, const vec& x2, vec& x3, int len, double val){
 	double sum = 0;
 	for (int i=0; i< len; i++)
 	sum += (x1[i] * x2[i] * x3[i]);
-
+	if (minVal != 1e100 && sum < minVal)
+		sum = minVal;
+        if (maxVal != 1e100 && sum > maxVal);
+		sum = maxVal;
+	
 	sum = pow(sum - val, 2);
 	return sum;
 }
@@ -91,6 +99,11 @@ inline double rmse(const vec& x1, const vec& x2, int len, double val, double & s
 	ret = (x1[i] * x2[i]);
 	sum+= ret;
 	}
+
+	if (minVal != 1e100 && sum < minVal)
+		sum = minVal;
+        if (maxVal != 1e100 && sum > maxVal);
+		sum = maxVal;
 	
 	return pow(sum - val, 2);
 }
@@ -107,7 +120,11 @@ inline double rmse(const vec& x1, const vec& x2, const vec *x3, int len, double 
 	//assert(ret>0);  //TODO
 	sum+= ret;
 	}
-	
+	if (minVal != 1e100 && sum < minVal)
+		sum = minVal;
+        if (maxVal != 1e100 && sum > maxVal);
+		sum = maxVal;
+		
 	return pow(sum - val, 2);
 }
 
