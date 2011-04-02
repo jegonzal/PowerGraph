@@ -99,6 +99,8 @@ void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc);
  */
 void edgepot_apply(graphlab::any& result,  const graphlab::any& acc);
 
+void edgepot_merge(graphlab::any& result,  const graphlab::any& acc);
+
 // Command Line Parsing =======================================================>
 
 struct options {
@@ -330,16 +332,19 @@ int main(int argc, char** argv) {
 
   graphlab::binary_factor zero;
   zero.resize(colors,colors);
+  zero.set_as_agreement(0);
   core.set_sync(sh_edgepot,
                 edgepot_sync,
                 edgepot_apply,
                 zero,
-                10000);
+                rows*cols,
+                edgepot_merge);
   graphlab::binary_factor oldedgepot = sh_edgepot.get_val();
   graphlab::timer ti;
   ti.start();
   // loop it a few times
   for (size_t i = 0;i < 10; ++i) {
+    std::cout << "restart " << i << "\n";
     // Add the bp update to all vertices
     core.add_task_to_all(bp_update, 100.0);
     // Start the engine
@@ -532,7 +537,16 @@ void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc) {
   }
 }
 
+void edgepot_merge(graphlab::any& result,  const graphlab::any& acc) {
+  graphlab::binary_factor& res = result.as<graphlab::binary_factor>();
+  const graphlab::binary_factor& a = acc.as<graphlab::binary_factor>();
 
+  for (size_t i = 0;i < res.arity1(); ++i) {
+    for (size_t j = 0;j < res.arity2(); ++j) {
+      res.logP(i,j) += a.logP(i,j);
+    }
+  }
+}
 
 void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
   // IPF update
@@ -550,7 +564,7 @@ void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
       double newval = 
         ipfdamping * log((truecounts.logP(i,j)+100) / 
                          (curcounts.logP(i,j)+100)) + 
-        res.logP(i,j);
+        (1 - ipfdamping) * res.logP(i,j);
       if (std::fabs(res.logP(i,j) - newval) >= 1E-2) {
         res.logP(i,j) = newval;
       }

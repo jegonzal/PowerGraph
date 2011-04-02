@@ -164,9 +164,20 @@ namespace graphlab {
 
     scope_range::scope_range_enum default_scope_range;
 
-
+    barrier sync_barrier;
+    std::vector<any> sync_accumulators;
     
-      
+    /**
+     This mutex/condition pair is used to protect against
+     the situation where termination is set, but there are threads waiting inside
+     the barrier in sync(). We protect against this by manually constructing a barrier
+     using a mutex/condition pair
+    */
+    mutex terminate_all_syncs_mutex;
+    size_t terminate_all_syncs;
+    size_t threads_entering_sync;
+    conditional terminate_all_syncs_cond;
+    
     struct sync_task {
       sync_function_type sync_fun;
       merge_function_type merge_fun;
@@ -192,10 +203,12 @@ namespace graphlab {
     std::map<glshared_base*, size_t> var2synctask;
     /// Sync Tasks ordered by the negative of the next update time. (it is a max-heap)
     mutable_queue<size_t, int> sync_task_queue;
+    std::pair<size_t, int> sync_task_queue_head;
     /// the lock protecting the sync_task_queue
     mutex sync_task_queue_lock;
     /// The priority of the head of the queue
     size_t sync_task_queue_next_update;
+    
   public:
 
     /**
@@ -225,7 +238,11 @@ namespace graphlab {
       last_check_millis(0),
       task_budget(0),
       active(false),
-      termination_reason(EXEC_UNSET) { }
+      termination_reason(EXEC_UNSET),
+      default_scope_range(scope_range::EDGE_CONSISTENCY),
+      sync_barrier(exec_type == THREADED ? ncpus : 1),
+      sync_accumulators(exec_type == THREADED ? ncpus : 1),
+      threads_entering_sync(0){ }
 
     //    ~asynchronous_engine() { }
 
@@ -287,6 +304,7 @@ namespace graphlab {
       std::fill(update_counts.begin(), update_counts.end(), 0);
       apx_update_counts.value = 0;
       numsyncs.value = 0;
+      terminate_all_syncs = 0;
       // Reset timers
       start_time_millis = lowres_time_millis();
       last_check_millis = 0;
@@ -299,8 +317,6 @@ namespace graphlab {
       construct_sync_queue();
       ensure_all_sync_vars_are_unique();
       // evaluate all syncs
-      evaluate_sync_queue(scope_manager, 0, 0, sync_tasks.size());
-      
       scheduler->start();
       
       /*
@@ -435,6 +451,10 @@ namespace graphlab {
       st.sharedvariable = &shared;
       sync_tasks.push_back(st);
       var2synctask[&shared] = sync_tasks.size() - 1;
+      if (merge == NULL) {
+        logger(LOG_WARNING, 
+                "Syncs without a merge function defined are not parallelized and may be slow on large graphs.");
+      }
     }
 
     /**
@@ -577,19 +597,22 @@ namespace graphlab {
       while(active) {
         evaluate_sync_queue(scope_manager, 
                             cpuid, 
-                            approximate_last_update_count(), 
-                            1);
+                            approximate_last_update_count());
         /**
          * Run any pending syncs and then test all termination
          * conditions.
          */
-        if (last_check_millis < lowres_time_millis()) {
+        if (last_check_millis < lowres_time_millis() || terminate_all_syncs) {
           last_check_millis = lowres_time_millis();
           // If a data manager is available try and run any pending
           // synchronizations.
           if(shared_data != NULL) shared_data->signal_all();
           // Check all termination conditions
           if(satisfies_termination_condition()) {
+            terminate_all_syncs_mutex.lock();
+            terminate_all_syncs = 1;
+            terminate_all_syncs_cond.broadcast();
+            terminate_all_syncs_mutex.unlock();
             active = false;
             return false;
           }
@@ -697,6 +720,104 @@ namespace graphlab {
       }
       sync.sharedvariable->apply(sync.apply_fun, accumulator);
     }
+
+
+    void parallel_evaluate_sync(size_t syncid, 
+                                 ScopeFactory* scope_manager,
+                                 size_t cpuid) {
+      // use the terminate sync as a barrier
+      terminate_all_syncs_mutex.lock();
+      // check if termination is set. If it is, we can quit immediately
+      if (terminate_all_syncs) {
+        terminate_all_syncs_mutex.unlock(); 
+        return;
+      }
+      // set the barrier condition. Wait for processes to enter the sync
+      threads_entering_sync++;
+      if (threads_entering_sync == (exec_type == THREADED ? ncpus : 1)) {
+        threads_entering_sync = 0;
+        terminate_all_syncs_cond.broadcast();
+      }
+      else {
+        while(threads_entering_sync > 0 && !terminate_all_syncs) {
+          terminate_all_syncs_cond.wait(terminate_all_syncs_mutex);
+        }
+      }
+      terminate_all_syncs_mutex.unlock();
+      // at this point either all threads have entered the sync, or 
+      // terminate all syncs is set by another process.
+      // If terminate_all_syncs is set that means that at least one thread
+      // is out of the sync. Note that there cannot be a race between the unlock
+      // above and this if below.
+      if (terminate_all_syncs) return;
+      
+      if (exec_type == THREADED && sync_tasks[syncid].merge_fun != NULL) {
+        // Threaded engine and we have a merge function 
+        // we can do a parallel reduction
+        if (cpuid == 0) {
+          numsyncs.inc();
+        }
+        // wait for all threads to get here
+        sync_task &sync = sync_tasks[syncid];
+
+
+        // yes we do have a merge function
+        // lets do a parallel reduction
+        
+        // # get the range of vertices
+        size_t vmin = sync.rangelow;
+        size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+        // slice the range into ncpus
+        size_t nverts = vmax - vmin;
+        // get my true range
+        size_t v_mymin = vmin + (nverts * cpuid) / ncpus;
+        size_t v_mymax = vmin + (nverts * (cpuid + 1)) / ncpus;
+        
+        //accumulate through all the vertices
+        any& accumulator = sync_accumulators[cpuid];
+        accumulator = sync.zero;
+        for (size_t i = v_mymin; i < v_mymax; ++i) {
+          iscope_type* scope = scope_manager->get_scope(cpuid, i);
+          sync.sync_fun(*scope, accumulator);
+          scope->commit();
+          scope_manager->release_scope(scope);
+        }
+        sync_barrier.wait();
+        // merge. Currently done only on one CPU
+        // we could conceivably do a tree merge.
+        // TODO: Tree merge
+        if (cpuid == 0) {
+          any& mergeresult = sync_accumulators[0];
+          for (size_t i = 1; i < sync_accumulators.size(); ++i) {
+            sync.merge_fun(mergeresult, sync_accumulators[i]);
+          }
+          sync.sharedvariable->apply(sync.apply_fun, accumulator);
+        }
+      }
+      else {
+        // simulated engine, or no merge function.
+        // we have to do the sync sequentially
+        if (exec_type == SIMULATED || cpuid == 0) {
+          numsyncs.inc();
+          sync_task &sync = sync_tasks[syncid];
+          // # get the range of vertices
+          size_t vmin = sync.rangelow;
+          size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+          
+          //accumulate through all the vertices
+          any accumulator = sync.zero;
+          for (size_t i = vmin; i <= vmax; ++i) {
+            iscope_type* scope = scope_manager->get_scope(cpuid, i);
+            sync.sync_fun(*scope, accumulator);
+            scope->commit();
+            scope_manager->release_scope(scope);
+          }
+          sync.sharedvariable->apply(sync.apply_fun, accumulator);
+        }
+      }
+      sync_barrier.wait();
+    }
+
     
     void ensure_all_sync_vars_are_unique() {
       for (size_t i = 0;i < sync_tasks.size(); ++i) {
@@ -708,46 +829,58 @@ namespace graphlab {
     // evaluate the sync queue. Loop through at most max_sync times.
     void evaluate_sync_queue(ScopeFactory* scope_manager,
                              size_t cpuid,
-                             size_t curupdatecount,
-                             size_t max_syncs) {
+                             size_t curupdatecount) {
+      bool is_cpu0 = (exec_type == THREADED && cpuid == 0) || exec_type == SIMULATED;
       // if the head of the queue is still not ready yet...
-      if (sync_task_queue_next_update > curupdatecount) return;
-      size_t tries = 0;
-      while (tries < max_syncs) {
-        if (sync_task_queue_lock.try_lock() == false) break;
-        ++tries;
-        // check the head again
-        // if head is not ready. unlock and quit
-        if (sync_task_queue.empty())
+      while (sync_task_queue_next_update <= curupdatecount) {
+        // wait for all threads to reach here.
+        sync_barrier.wait();
+        bool hastask = !sync_task_queue.empty() && 
+                      (size_t)(-(sync_task_queue.top().second)) <= curupdatecount;
+                      
+        sync_barrier.wait();
+        // no task to do. Return
+        if (hastask == false) {
+          // cpu 0 updates the head tracker
+          if (is_cpu0) {
+            if (!sync_task_queue.empty()) {
+              sync_task_queue_next_update = -(sync_task_queue.top().second);
+            }
+            else {
+              sync_task_queue_next_update = size_t(-1);
+            }
+          }
+          sync_barrier.wait();
           return;
-        if (
-            size_t(-sync_task_queue.top().second) > curupdatecount) {
-          sync_task_queue_next_update = size_t(-sync_task_queue.top().second);
-          sync_task_queue_lock.unlock();
-          return;
         }
-        // otherwise pop the head
-        std::pair<size_t, size_t> head = sync_task_queue.pop();
-        // update the head tracker
-        if (!sync_task_queue.empty()) {
-          sync_task_queue_next_update = -(sync_task_queue.top().second);
+        
+        // we hae a task to do!
+        // CPU 0 extracts the job.
+        if (is_cpu0) {
+          sync_task_queue_head = sync_task_queue.pop();
         }
-        else {
-          sync_task_queue_next_update = size_t(-1);
-        }
-        sync_task_queue_lock.unlock();
-        // evaluate the head
-        evaluate_sync(head.first, scope_manager, cpuid);
-        // put it back if the interval is postive
-        if (sync_tasks[head.first].sync_interval > 0) {
-          sync_task_queue_lock.lock();
-          int next_time(approximate_last_update_count() + 
-                        sync_tasks[head.first].sync_interval);
-          sync_task_queue.insert_max(head.first, -next_time);
+        sync_barrier.wait();
+        // go for it. Evaluate the extracted task
+        parallel_evaluate_sync(sync_task_queue_head.first, scope_manager, cpuid);
+        if (terminate_all_syncs) return;
+
+        if (is_cpu0) {
+          // put it back if the interval is postive
+          if (sync_tasks[sync_task_queue_head.first].sync_interval > 0) {
+            int next_time(approximate_last_update_count() + 
+                          sync_tasks[sync_task_queue_head.first].sync_interval);
+            sync_task_queue.insert_max(sync_task_queue_head.first, -next_time);
+          }
+          
           // update the head tracker
-          sync_task_queue_next_update = -(sync_task_queue.top().second);
-          sync_task_queue_lock.unlock();
+          if (!sync_task_queue.empty()) {
+            sync_task_queue_next_update = -(sync_task_queue.top().second);
+          }
+          else {
+            sync_task_queue_next_update = size_t(-1);
+          }
         }
+        sync_barrier.wait();
       }
     }
     
