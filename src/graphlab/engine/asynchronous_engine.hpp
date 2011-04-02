@@ -713,7 +713,8 @@ namespace graphlab {
       //accumulate through all the vertices
       any accumulator = sync.zero;
       for (size_t i = vmin; i <= vmax; ++i) {
-        iscope_type* scope = scope_manager->get_scope(cpuid, i);
+        iscope_type* scope = scope_manager->get_scope(cpuid, i,
+                                            scope_range::NULL_CONSISTENCY);
         sync.sync_fun(*scope, accumulator);
         scope->commit();
         scope_manager->release_scope(scope);
@@ -777,7 +778,8 @@ namespace graphlab {
         any& accumulator = sync_accumulators[cpuid];
         accumulator = sync.zero;
         for (size_t i = v_mymin; i < v_mymax; ++i) {
-          iscope_type* scope = scope_manager->get_scope(cpuid, i);
+          iscope_type* scope = scope_manager->get_scope(cpuid, i, 
+                                          scope_range::NULL_CONSISTENCY);
           sync.sync_fun(*scope, accumulator);
           scope->commit();
           scope_manager->release_scope(scope);
@@ -807,8 +809,8 @@ namespace graphlab {
           //accumulate through all the vertices
           any accumulator = sync.zero;
           for (size_t i = vmin; i <= vmax; ++i) {
-            iscope_type* scope = scope_manager->get_scope(cpuid, i);
-            sync.sync_fun(*scope, accumulator);
+            iscope_type* scope = scope_manager->get_scope(cpuid, i,
+                                          scope_range::NULL_CONSISTENCY);
             scope->commit();
             scope_manager->release_scope(scope);
           }
