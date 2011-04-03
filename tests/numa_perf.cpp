@@ -9,7 +9,26 @@ std::ofstream fout;
 std::vector<void*> mems;
 graphlab::barrier *bar;
 
-#define CACHE_LINE_SIZE 64*1024
+#define CACHE_LINE_SIZE 32*1024
+
+
+inline void prefetch_range_2(void *addr, size_t len) {
+  char *cp;
+  char *end = (char*)(addr) + len;
+
+  for (cp = (char*)(addr); cp < end; cp += CACHE_LINE_SIZE) {
+    __builtin_prefetch(cp, 0); 
+  }
+}
+
+inline void prefetch_range_write_2(void *addr, size_t len) {
+  char *cp;
+  char *end = (char*)(addr) + len;
+
+  for (cp = (char*)(addr); cp < end; cp += CACHE_LINE_SIZE) {
+    __builtin_prefetch(cp, 1);
+  }
+}
 
 void cache_flush(void* _start, void* _end) {
   char* start = (char*)_start;
@@ -55,7 +74,7 @@ double read_mem_seq_prefetch(void* m, size_t len, size_t prefetchlen) {
   ti.start();
 
   for (size_t p = 0; p < numprefetch; ++p) {
-    prefetch_range(&(readsource[i]), prefetchlen);
+    prefetch_range_2(&(readsource[i]), prefetchlen);
     size_t nextidx = i + idx_per_prefetch;
     for (;i < nextidx; ++i) {
       readtarget[i] = readsource[i];
@@ -105,7 +124,7 @@ double write_mem_seq_prefetch(void* m, size_t len, size_t prefetchlen) {
   ti.start();
 
   for (size_t p = 0; p < numprefetch; ++p) {
-    prefetch_range_write((WordType*)&(readsource[i]), prefetchlen);
+    prefetch_range_write_2((WordType*)&(readsource[i]), prefetchlen);
     size_t nextidx = i + idx_per_prefetch;
     for (;i < nextidx; ++i) {
       readtarget[i] = readsource[i];
@@ -155,7 +174,7 @@ void test_thread(size_t numthreads, size_t thrid, size_t memlen) {
     bar->wait();
   }
 
-  if (thrid == 0) std::cout << "Running all pairs test (Word size, Prefetch 64KB)...\n";
+  if (thrid == 0) std::cout << "Running all pairs test (Word size, Prefetch 64K)...\n";
   for (size_t p = 0; p < numthreads; ++p) {
     if (thrid == p) {
       std::cout << "Processor " << p << ":" << std::endl;
@@ -181,8 +200,6 @@ void test_thread(size_t numthreads, size_t thrid, size_t memlen) {
       runtest<uint32_t>(memlen, 0, 0, true, pflen[pf]);
       runtest<uint64_t>(memlen, 0, 0, false, pflen[pf]);
       runtest<uint64_t>(memlen, 0, 0, true, pflen[pf]);
-      runtest<double>(memlen, 0, 0, false, pflen[pf]);
-      runtest<double>(memlen, 0, 0, true, pflen[pf]);
     }
     
     std::cout << "P0 to P1, varying Word Size, Varying Prefetch...\n";
@@ -196,8 +213,7 @@ void test_thread(size_t numthreads, size_t thrid, size_t memlen) {
       runtest<uint32_t>(memlen, 0, 1, true, pflen[pf]);
       runtest<uint64_t>(memlen, 0, 1, false, pflen[pf]);
       runtest<uint64_t>(memlen, 0, 1, true, pflen[pf]);
-      runtest<double>(memlen, 0, 1, false, pflen[pf]);
-      runtest<double>(memlen, 0, 1, true, pflen[pf]);      }
+      }
     }
   }
 
@@ -222,5 +238,5 @@ int main(int argc, char **argv) {
                         i);
   }
   grp.join();
-
+  fout.close();
 }
