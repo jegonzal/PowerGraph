@@ -9,7 +9,7 @@ std::ofstream fout;
 std::vector<void*> mems;
 graphlab::barrier *bar;
 
-#define CACHE_LINE_SIZE 32*1024
+#define CACHE_LINE_SIZE 64
 
 
 inline void prefetch_range_2(void *addr, size_t len) {
@@ -44,46 +44,17 @@ double read_mem_seq(void* m, size_t len) {
   cache_flush(m, (char*)m + len);
   size_t numreads = len / sizeof(WordType);
   // allocate a target
-  volatile WordType* readtarget = (volatile WordType*)malloc(len);
-  memset((WordType*)readtarget, 1, len);
+  volatile WordType readtarget;
   WordType* readsource = (WordType*)m;
   timer ti;
   ti.start();
   for (size_t i = 0;i < numreads; ++i) {
-    readtarget[i] = readsource[i];
+    readtarget = readsource[i];
   }
   double rt = ti.current_time();
-  free((WordType*)readtarget);
   return rt;
 }
 
-
-// plen should divide len
-template <typename WordType>
-double read_mem_seq_prefetch(void* m, size_t len, size_t prefetchlen) {
-  cache_flush(m, (char*)m + len);
-  size_t numprefetch = len / prefetchlen;
-  size_t idx_per_prefetch = prefetchlen / sizeof(WordType);
-  
-  volatile WordType* readtarget = (volatile WordType*)malloc(len);
-  memset((WordType*)readtarget, 2, len);
-  WordType* readsource = (WordType*)m;
-
-  size_t i = 0;
-  timer ti;
-  ti.start();
-
-  for (size_t p = 0; p < numprefetch; ++p) {
-    prefetch_range_2(&(readsource[i]), prefetchlen);
-    size_t nextidx = i + idx_per_prefetch;
-    for (;i < nextidx; ++i) {
-      readtarget[i] = readsource[i];
-    }
-  }
-  double rt = ti.current_time();
-  free((void*)(WordType*)readtarget);
-  return rt;
-}
 
 
 template <typename WordType>
@@ -91,8 +62,7 @@ double write_mem_seq(void* m, size_t len) {
   cache_flush(m, (char*)m + len);
   size_t numreads = len / sizeof(WordType);
   // allocate a target
-  volatile WordType* readsource = (volatile WordType*)malloc(len);
-  memset((WordType*)readsource, 3, len);
+  volatile WordType readsource;
   
   WordType* readtarget = (WordType*)m;
 
@@ -100,38 +70,57 @@ double write_mem_seq(void* m, size_t len) {
   ti.start();
 
   for (size_t i = 0;i < numreads; ++i) {
-    readtarget[i] = readsource[i];
+    readtarget[i] = readsource;
   }
   double rt = ti.current_time();
-  free((void*)(WordType*)readsource);
+  return rt;
+}
+
+// plen should divide len
+template <typename WordType>
+double read_mem_seq_prefetch(void* m, size_t len, size_t prefetchgap) {
+  cache_flush(m, (char*)m + len);
+  size_t numreads = len / sizeof(WordType);
+ 
+  volatile WordType readtarget;
+  WordType* readsource = (WordType*)m;
+
+  size_t i = 0;
+  timer ti;
+  ti.start();
+  for (i = 0;i < numreads - prefetchgap; ++i) {
+    __builtin_prefetch(&(readsource[i+prefetchgap]), 0); 
+    readtarget = readsource[i];
+  }
+  for (;i < numreads; ++i) {
+    readtarget = readsource[i];
+  }
+ 
+  double rt = ti.current_time();
   return rt;
 }
 
 
 // plen should divide len
 template <typename WordType>
-double write_mem_seq_prefetch(void* m, size_t len, size_t prefetchlen) {
+double write_mem_seq_prefetch(void* m, size_t len, size_t prefetchgap) {
   cache_flush(m, (char*)m + len);
-  size_t numprefetch = len / prefetchlen;
-  size_t idx_per_prefetch = prefetchlen / sizeof(WordType);
-  
-  volatile WordType* readsource = (volatile WordType*)malloc(len);
-  memset((WordType*)readsource, 4, len);
+  size_t numreads = len / sizeof(WordType);
+ 
+  volatile WordType readsource;
   WordType* readtarget = (WordType*)m;
   
   size_t i = 0;
   timer ti;
   ti.start();
-
-  for (size_t p = 0; p < numprefetch; ++p) {
-    prefetch_range_write_2((WordType*)&(readsource[i]), prefetchlen);
-    size_t nextidx = i + idx_per_prefetch;
-    for (;i < nextidx; ++i) {
-      readtarget[i] = readsource[i];
-    }
+  for (i = 0;i < numreads - prefetchgap; ++i) {
+    __builtin_prefetch(&(readtarget[i+prefetchgap]), 1); 
+    readtarget[i] = readsource;
+  }
+  for (;i < numreads; ++i) {
+    readtarget[i] = readsource;
   }
   double rt = ti.current_time();
-  free((WordType*)readsource);
   return rt;
 }
 
@@ -179,40 +168,37 @@ void test_thread(size_t numthreads, size_t thrid, size_t memlen) {
     if (thrid == p) {
       std::cout << "Processor " << p << ":" << std::endl;
       for (size_t i = 0;i < numthreads; ++i) {
-        runtest<size_t>(memlen, p, i, false, 64 * 1024);
-        runtest<size_t>(memlen, p, i, true, 64 * 1024);
+        runtest<size_t>(memlen, p, i, false, 64);
+        runtest<size_t>(memlen, p, i, true, 64);
       }
     }
     bar->wait();
   }
 
   if (thrid == 0) {
-    std::cout << "P0 to P0, varying Word Size, Varying Prefetch...\n";
-    size_t pflen[] = {0, 32, 64, 128, 256, 1024, 2 * 1024, 4* 1024, 8 * 1024, 16 * 1024, 32 * 1024, 64 * 1024, 
-                      128 * 1024, 256 * 1024, 512 * 1024, 1024 * 1024};
-    size_t numpf = sizeof(pflen) / sizeof(size_t);
-    for (size_t pf = 0; pf < numpf; ++pf) {
-      runtest<char>(memlen, 0, 0, false, pflen[pf]);
-      runtest<char>(memlen, 0, 0, true, pflen[pf]);
-      runtest<uint16_t>(memlen, 0, 0, false, pflen[pf]);
-      runtest<uint16_t>(memlen, 0, 0, true, pflen[pf]);
-      runtest<uint32_t>(memlen, 0, 0, false, pflen[pf]);
-      runtest<uint32_t>(memlen, 0, 0, true, pflen[pf]);
-      runtest<uint64_t>(memlen, 0, 0, false, pflen[pf]);
-      runtest<uint64_t>(memlen, 0, 0, true, pflen[pf]);
+    std::cout << "P0 to P0, varying Word Size, Varying Prefetch Gap...\n";
+    for (size_t pf = 0; pf <= 128; pf+=8) {
+      runtest<char>(memlen, 0, 0, false, pf);
+      runtest<char>(memlen, 0, 0, true, pf);
+      runtest<uint16_t>(memlen, 0, 0, false, pf);
+      runtest<uint16_t>(memlen, 0, 0, true, pf);
+      runtest<uint32_t>(memlen, 0, 0, false, pf);
+      runtest<uint32_t>(memlen, 0, 0, true, pf);
+      runtest<uint64_t>(memlen, 0, 0, false, pf);
+      runtest<uint64_t>(memlen, 0, 0, true, pf);
     }
     
     std::cout << "P0 to P1, varying Word Size, Varying Prefetch...\n";
     if (numthreads > 1) {
-      for (size_t pf = 0; pf < numpf; ++pf) {
-      runtest<char>(memlen, 0, 1, false, pflen[pf]);
-      runtest<char>(memlen, 0, 1, true, pflen[pf]);
-      runtest<uint16_t>(memlen, 0, 1, false, pflen[pf]);
-      runtest<uint16_t>(memlen, 0, 1, true, pflen[pf]);
-      runtest<uint32_t>(memlen, 0, 1, false, pflen[pf]);
-      runtest<uint32_t>(memlen, 0, 1, true, pflen[pf]);
-      runtest<uint64_t>(memlen, 0, 1, false, pflen[pf]);
-      runtest<uint64_t>(memlen, 0, 1, true, pflen[pf]);
+      for (size_t pf = 0; pf <= 128; pf+=8) {
+      runtest<char>(memlen, 0, 1, false, pf);
+      runtest<char>(memlen, 0, 1, true, pf);
+      runtest<uint16_t>(memlen, 0, 1, false, pf);
+      runtest<uint16_t>(memlen, 0, 1, true, pf);
+      runtest<uint32_t>(memlen, 0, 1, false, pf);
+      runtest<uint32_t>(memlen, 0, 1, true, pf);
+      runtest<uint64_t>(memlen, 0, 1, false, pf);
+      runtest<uint64_t>(memlen, 0, 1, true, pf);
       }
     }
   }
