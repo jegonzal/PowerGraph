@@ -87,7 +87,8 @@ struct multiple_edges{
       archive >> medges;  
   }
 };
-      
+ 
+//methods to compute the Root mean square error (RMSE)     
 inline double rmse(const vec& x1, const vec& x2, int len, double val, double & sum){
 	sum = dot(x1, x2);	
 	return pow(sum - val, 2);

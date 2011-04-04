@@ -42,36 +42,6 @@ iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat
   deserialize(arc, mat._data(), sizeof(double)*mat._datasize());   
   return arc;
 }
-/*
-template<>
-graphlab::oarchive& operator<< <QQR> (graphlab::oarchive&, const QQR &data) {
-  // TODO
-}
-
-template<>
-graphlab::iarchive& operator>> <QQR> (graphlab::iarchive&, QQR &data) {
-  // TODO
-}
-template<>
-graphlab::oarchive& operator<< <mult_QQR> (graphlab::oarchive&, const mult_QQR &data) {
-  // TODO
-}
-
-template<>
-graphlab::iarchive& operator>> <mult_QQR> (graphlab::iarchive&, mult_QQR &data) {
-  // TODO
-}
-template<>
-graphlab::oarchive& operator<< <mult_vec> (graphlab::oarchive&, const mult_vec &data) {
-  // TODO
-}
-
-template<>
-graphlab::iarchive& operator>> <mult_vec> (graphlab::iarchive&, mult_vec &data) {
-  // TODO
-}
-*/
-
 
 
 };
