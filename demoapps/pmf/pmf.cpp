@@ -3,12 +3,13 @@
 #include <fstream>
 #include <cmath>
 #include <cstdio>
-#include <graphlab.hpp>
 
+#include "graphlab.hpp"
 #include "itppvecutils.hpp"
 #include "pmf.h"
-#include "vecutils.hpp"
+//include "vecutils.hpp"
 #include "prob.hpp"
+//#include "graphlab/util/timer.hpp"
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -18,7 +19,9 @@
 
 */
 
-bool BPTF = true; //is this a tensor?
+using namespace graphlab;
+bool BPTF = true; //is this a BPTF algo?
+bool tensor = true;
 bool debug = false;
 bool ZERO = false; //support edges with zero weight
 runmodes options;
@@ -37,39 +40,6 @@ bool stats = false;
 bool regnormal = false; //regular normalization
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
-/*namespace graphlab{
-template<>
-oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
-  arc << vec.length();
-  serialize(arc, vec._data(), sizeof(double)*vec.length());
-  return arc;
-}
-template<>
-oarchive& operator<< <itpp::Mat<double> > (oarchive& arc, const itpp::Mat<double> &mat) {
-  arc << mat.rows() << mat.cols();
-  serialize(arc, mat._data(), sizeof(double)*mat._datasize());  
-  return arc;
-}
-
-template<>
-iarchive& operator>> <itpp::Vec<double> > (iarchive& arc, itpp::Vec<double> &vec) {
-  size_t vlength;
-  arc >> vlength;
-  vec.set_size(vlength);
-  deserialize(arc, vec._data(), sizeof(double)*vec.length());
-  return arc;
-}
-
-template<>
-iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat) {
-  size_t rows, cols;
-  arc >> rows >> cols;
-  mat.set_size(rows,cols);
-  deserialize(arc, mat._data(), sizeof(double)*mat._datasize());   
-  return arc;
-}
-}*/
-
 
 /* Variables for PMF */
 int M,N,K,L;//training size
@@ -100,7 +70,6 @@ mat iW0T;
 mat A_U, A_V, A_T;
 vec mu_U, mu_V, mu_T;
 
-bool tensor = true;
 double counter[20];
 
 vertex_data * times = NULL;
@@ -112,6 +81,10 @@ graph_type* g;
 graph_type validation_graph;
 graph_type test_graph;
 gl_types::thread_shared_data sdm;
+
+#ifndef _min
+#define _min(a,b) (a>b)?b:a
+#endif
 
 
 const size_t RMSE = 0;
@@ -191,16 +164,14 @@ void sample_alpha(double res2){
 mat calc_MMT(int start_pos, int end_pos, vec &Umean){
 
   int batchSize = 1000;
-  mat U(batchSize,D);
-  _zeros(U, batchSize, D);
-  mat MMT(D,D);
-  _zeros(MMT, D,D);
+  mat U = zeros(batchSize,D);
+  mat MMT = zeros(D,D);
   int cnt = 0;
   timer t;
 
   for (int i=start_pos; i< end_pos; i++){
     if ((i-start_pos) % batchSize == 0){
-      _zeros(U, batchSize, D);
+      U=zeros(batchSize, D);
       cnt = 1;
     }
 
@@ -558,6 +529,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vec result;
       
   if (!BPTF){
+    //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
     t.start();
     double regularization = LAMBDA;
     if (!regnormal)
@@ -569,6 +541,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     counter[3] += t.current_time();
   }
   else {
+    //COMPUTE LEAST SQUARES (BPTF)
     assert(Q.rows() == D);
     t.start();
     mat iAi_;
@@ -588,7 +561,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     std::cout <<(BPTF?"BPTF":"ALS")<<" Q: " << Q << std::endl<<" result: " << result << " edges: " << numedges << std::endl;
   }
       
+  //store new result
   vdata.pvec =  result;
+
+  //calc post round tasks
   if (!tensor && (int)scope.vertex() == M+N-1)
     last_iter();
 
@@ -644,10 +620,8 @@ void calc_T(int i){
   int batchSize = 100;
   mat Q(batchSize, D); 
   vec vals(batchSize);
-  mat QQ(D,D);
-  _zeros(QQ,D,D);
-  vec RQ(D);
-  _zeros(RQ,D);
+  mat QQ = zeros(D,D);
+  vec RQ = zeros(D);
   int cnt =0;
 
   timer t; t.start();
@@ -773,27 +747,26 @@ void calc_T(int i){
 
 }
 
-
+// CALCULATE OBJECTIVE VALUE
 double calc_obj(double res){
    
   double sumU = 0, sumV = 0, sumT = 0;
   timer t;
   t.start(); 
   for (int i=0; i< M; i++){
-    vertex_data * data = &g->vertex_data(i);
-    sumU += square_sum(data->pvec, D);
+    const vertex_data * data = &g->vertex_data(i);
+    sumU += sum_sqr(data->pvec);
   } 
 
   for (int i=M; i< M+N; i++){
-    vertex_data * data = &g->vertex_data(i);
-    sumV += square_sum(data->pvec, D);
+    const vertex_data * data = &g->vertex_data(i);
+    sumV += sum_sqr(data->pvec);
   } 
 
 
   mat T;
   if (tensor){
-    T = mat(D,K);
-    _zeros(T,D,K);
+    T = zeros(D,K);
     for (int i=0; i<K; i++){
       vec tmp = times[i].pvec;
       sumT += pow(norm(tmp - vones, 2),2);
@@ -807,6 +780,8 @@ double calc_obj(double res){
   return obj;
 }
 
+
+//SAVE FACTORS TO FILE
 void export_uvt_to_file(){
  //saving output to file 
  mat U = zeros(M,D);
@@ -837,6 +812,7 @@ void export_uvt_to_file(){
  output.close();
 }
 
+//LOAD FACTORS FROM FILE
 void import_uvt_from_file(){
 
  mat U,V,T;
@@ -892,8 +868,6 @@ void start(int argc, char ** argv) {
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
   clopts.attach_option("regnormal", &regnormal, regnormal, "regular normalization? ");  
-  clopts.attach_option("minVal", &minVal, minVal, "min allowed value ");  
-  clopts.attach_option("maxVal", &maxVal, maxVal, "max allowed value ");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -1050,7 +1024,7 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
   edgedata* ed = new edgedata[200000];
   int edgecount_in_file = e;
   while(true){
-    //memset(ed, 0, 200000*sizeof(edata3));
+    //memset(ed, 0, 200000*sizeof(edge_float));
     rc = (int)fread(ed, sizeof(edgedata), _min(200000, edgecount_in_file - total), f);
     total += rc;
 
@@ -1157,8 +1131,8 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   // read tensor non zero edges from file
   int val = 0; 
   if (!FLOAT) 
-	val = read_mult_edges<edata2>(f, M+N, g);
-  else val = read_mult_edges<edata3>(f,M+N, g);
+	val = read_mult_edges<edge_double>(f, M+N, g);
+  else val = read_mult_edges<edge_float>(f,M+N, g);
 
   switch(data_type){
 	case TRAINING: L= val; break;
@@ -1256,11 +1230,11 @@ int main(int argc,  char *argv[]) {
     assert(0);
   }
 
-  logger(LOG_INFO,(BPTF?"BPTF starting\n": "PMF starting\n"));
+  logger(LOG_INFO, "%s starting\n",runmodesname[options]);
   start(argc, argv);
 }
 
-
+// CALC SOME STATISTICS ABOUT MATRIX / TENSOR 
 void calc_stats(testtype type){
    graph_type * gr = NULL;
    switch(type){
@@ -1408,7 +1382,7 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 		prediction=0;
 	   else if (prediction>100)
 		prediction=100; 
-          unsigned char roundScore = (unsigned char)(2.55*prediction+0.5); 
+          unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
           if (dosave)
 	  	fwrite(&roundScore,1,1,outFp);
 	  sumPreds += prediction;
@@ -1417,9 +1391,6 @@ void export_kdd_format(graph_type * _g, bool dosave) {
           }
        }
      }
-     //res = RMSE;
-     //assert(e == (test?Le:L));
-     //return sqrt(RMSE/(double)e);
 
    assert(lineNum==ExpectedTestSize);  
   if (dosave){

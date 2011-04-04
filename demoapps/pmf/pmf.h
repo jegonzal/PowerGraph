@@ -19,12 +19,23 @@ int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
 int D=20;         //number of features
 bool FLOAT=false; //is data in float format
 double LAMBDA=1;//regularization weight
-double minVal = 1e100;
-double maxVal = 1e100;
+
+//starts for holding edge data in file
+struct edge_double{
+  int from;
+  int to;
+  double time;
+  double weight;
+};
+struct edge_float{
+  float from;
+  float to;
+  float time;
+  float weight;
+};
 
 
-
-typedef double  sdouble; 
+//typedef double  sdouble; 
 using namespace itpp;
 
 /** Vertex and edge data types **/
@@ -76,35 +87,9 @@ struct multiple_edges{
       archive >> medges;  
   }
 };
- 
-inline double rmse(const vec& x1, const vec& x2, vec& x3, int len, double val){
-
-	double sum = 0;
-	for (int i=0; i< len; i++)
-	sum += (x1[i] * x2[i] * x3[i]);
-	if (minVal != 1e100 && sum < minVal)
-		sum = minVal;
-        if (maxVal != 1e100 && sum > maxVal);
-		sum = maxVal;
-	
-	sum = pow(sum - val, 2);
-	return sum;
-}
       
 inline double rmse(const vec& x1, const vec& x2, int len, double val, double & sum){
-	
-	sum = 0;
-	double ret = 0;
-	for (int i=0; i< len; i++){
-	ret = (x1[i] * x2[i]);
-	sum+= ret;
-	}
-
-	if (minVal != 1e100 && sum < minVal)
-		sum = minVal;
-        if (maxVal != 1e100 && sum > maxVal);
-		sum = maxVal;
-	
+	sum = dot(x1, x2);	
 	return pow(sum - val, 2);
 }
 
@@ -112,46 +97,21 @@ inline double rmse(const vec& x1, const vec& x2, const vec *x3, int len, double 
 	if (x3 == NULL) //matrix	
 		return rmse(x1,x2,len,val,sum);
 
-	//assert(val>=0 && val <= 5);
 	sum = 0;
 	double ret = 0;
 	for (int i=0; i< len; i++){
 	ret = (x1[i] * x2[i] * x3->get(i));
-	//assert(ret>0);  //TODO
 	sum+= ret;
 	}
-	if (minVal != 1e100 && sum < minVal)
-		sum = minVal;
-        if (maxVal != 1e100 && sum > maxVal);
-		sum = maxVal;
-		
 	return pow(sum - val, 2);
-}
-
-inline sdouble square_sum(const vec& x, int len){
-	sdouble xs = 0.0;
-	for(int i=0; i<len; i++) {
-		xs += x[i] * x[i];
-	}
-	return  xs;
 }
 
  double get_rmse(const vertex_data & v){
     return v.rmse;
  }
 
-//faster reset for vectors
-void _zeros(vec & pvec, int d){
-  assert(pvec.size() == d);
-  memset(pvec._data(), 0, sizeof(double)*d);
-}
- 
-void _zeros(mat & pmat, int rows, int cols){
-  assert(pmat.size() == rows*cols);
-  memset(pmat._data(), 0, sizeof(double)*rows*cols);
-} 
 
-
+//data file types
 enum testtype{
     TRAINING = 0,
     VALIDATION = 1,
@@ -168,12 +128,7 @@ enum runmodes{
    BPTF_TENSOR_MULT = 3,
    ALS_TENSOR_MULT = 4
 };
-/*#define ALS_MATRIX 0  //alternating least squares for matrix factorization
-#define BPTF_MATRIX 1 //baysian matrix factorization
-#define BPTF_TENSOR 2 //bayesian tensor factorization
-#define BPTF_TENSOR_MULT 3 //bayesian tensor factorization, with support for multiple edges between pair of ndoes
-#define ALS_TENSOR_MULT 4
-*/
+
 const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
 
 
