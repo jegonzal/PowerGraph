@@ -448,7 +448,8 @@ namespace graphlab {
                             boost::function<void (void)> f, 
                             size_t cpuid = size_t(-1)) {
     runnable* r = new simple_function_thread(f);
-    thrgroup.launch(r);
+    if (cpuid != size_t(-1)) thrgroup.launch(r, cpuid);
+    else thrgroup.launch(r);
   }
   /**
    * \class mutex 
