@@ -174,7 +174,7 @@ namespace graphlab {
 
     //! Uniformly sample a new index value
     void uniform_sample() {
-      set_index( random::rand_int(size() - 1)  );
+      set_index( random::fast_uniform(size_t(0), size() - 1)  );
     }
     
     //! Get the index of this discrete_assignment

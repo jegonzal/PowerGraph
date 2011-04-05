@@ -412,7 +412,7 @@ namespace graphlab {
     inline assignment_type sample() const {
       assert(size() > 0);
       // This factor must be normalized
-      double t = random::rand01();
+      const double t = random::rand01();
       assert( t >= 0 && t < 1);
       double sum = 0;
       for(assignment_type asg = args().begin(); 
@@ -421,12 +421,12 @@ namespace graphlab {
         if(t <= sum) return asg;
         assert(sum < 1);
       }
+      // Unreachable
       std::cout << "{";
       for(size_t i = 0; i < num_vars(); ++i) {
         std::cout << args().var(i).id() << " ";
       }
       std::cout << "}"  << std::endl;
-      // Unreachable
       assert(false);
     }
     

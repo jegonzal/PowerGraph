@@ -318,7 +318,7 @@ void partition_update_function(iscope_type& scope,
       vertex_data_type& vdata(scope.vertex_data());
       vdata.is_set = true;
       vdata.num_changes++;
-      vdata.atomid = random::rand_int(NATOMS-1);
+      vdata.atomid = random::uniform<procid_t>(0, NATOMS-1);
     }
     return;
   }
@@ -329,7 +329,7 @@ void partition_update_function(iscope_type& scope,
     vertex_data_type& vdata(scope.vertex_data());
     vdata.is_set = true;
     vdata.num_changes++;
-    vdata.atomid = random::rand_int(NATOMS-1);
+    vdata.atomid = random::uniform<procid_t>(0, NATOMS-1);
     callback.add_task(scope.vertex(), partition_update_function);
     return;
   }
@@ -368,7 +368,7 @@ void partition_update_function(iscope_type& scope,
     vertex_data_type& vdata(scope.vertex_data());
     vdata.is_set = true;
     vdata.num_changes++;
-    vdata.atomid = random::rand_int(NATOMS-1);
+    vdata.atomid = random::uniform<procid_t>(0, NATOMS-1);
     return;
   }
 
@@ -430,7 +430,7 @@ void partition_update_function(iscope_type& scope,
   }
 
   // Determine atomid based on probability table
-  const  size_t atomid(random::rand_multi(prb));
+  const  size_t atomid(random::multinomial(prb));
   // { // pick according to probability
   //   double Z = 0;
   //   foreach(const double& d, prb) Z+=d;

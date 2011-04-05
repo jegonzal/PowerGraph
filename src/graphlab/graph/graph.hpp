@@ -38,7 +38,7 @@
 
 #include <graphlab/extern/metis/metis.hpp>
 
-
+#include <graphlab/util/random.hpp>
 
 
 
@@ -794,7 +794,7 @@ namespace graphlab {
       for (size_t i = 0;i < num_vertices(); ++i) {
         vertex2part[i] = i % nparts;
       }
-      std::random_shuffle(vertex2part.begin(), vertex2part.end());
+      random::shuffle(vertex2part.begin(), vertex2part.end());
     }
 
 

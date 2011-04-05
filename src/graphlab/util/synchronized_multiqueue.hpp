@@ -54,8 +54,8 @@ namespace graphlab {
         push(item, 0);
         return;
       }
-      size_t r1 = random::rand_int(numqueues-1);
-      size_t r2 = random::rand_int(numqueues-2);
+      size_t r1 = random::uniform<size_t>(0, numqueues-1);
+      size_t r2 = random::uniform<size_t>(0, numqueues-2);
       if (r2 >= r1) ++r2;
       size_t queuehint = (queue[r1].size() < queue[r2].size()) ? r1 : r2;
       push(item, queuehint);

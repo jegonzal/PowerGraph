@@ -11,7 +11,6 @@
 #include <vector>
 #include <list>
 #include <iostream>
-#include <boost/random.hpp>
 #include <boost/function.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
@@ -33,65 +32,6 @@
 namespace graphlab {
 
 
-  /**
-   * This class contains the data unique to each thread. All threads
-   * are gauranteed to have an associated graphlab thread_specific
-   * data.
-   */  
-  class thread_specific_data {
-    // typedef boost::lagged_fibonacci607 rand_real_src_type;
-    typedef boost::mt11213b rand_src_type;
-    typedef boost::uniform_real<double> dist_real_type;
-    typedef boost::normal_distribution<double> dist_gaussian_type;
-    typedef boost::uniform_int<size_t> dist_int_type;
-    
-  public:
- 
-    thread_specific_data(size_t thread_id) :
-      thread_id_(thread_id),
-      rng_(thread_id + rand()),
-      rnggaussian_(rng_, gaussian_dist_),
-      rng_real_(rng_, real_dist_) {}
-
-    /** Get the id of the thread */
-    size_t thread_id() const { return thread_id_; }
-    
-    /** Return a random number between 0 and 1 */
-    double rand01() { return dist_real_type(0,1)(rng_); }
-
-    /** Generate a random gaussian */
-    double rand_gaussian() {  return rnggaussian_();  }
-
-
-    /** Generate a gamma distributed random variable */
-    double rand_gamma(double alpha = 1) {
-      boost::gamma_distribution<double> gamma_dist(alpha);
-      return gamma_dist(rng_real_);
-    }
-    
-    /** Seed the random number generator */
-    void seed(rand_src_type::result_type value) { rng_.seed(value); }
-
-    /** Seed the random number generator with the default seed */
-    void seed() { rng_.seed(); }
-    
-    /** Retrun a random integer between 0 and max (including max) */
-    size_t rand_int(size_t max) {
-      dist_int_type dist(0, max);
-      return dist(rng_);
-    }
-
-  private:
-    size_t thread_id_;
-    rand_src_type rng_;
-    // gaussians
-    dist_gaussian_type gaussian_dist_;
-    boost::variate_generator<rand_src_type, dist_gaussian_type> rnggaussian_;
-
-    // gaussians
-    dist_real_type real_dist_;
-    boost::variate_generator<rand_src_type, dist_real_type> rng_real_;
-  }; // end of thread specific data
 
   
    
@@ -120,17 +60,32 @@ namespace graphlab {
   class thread : public runnable {
   public:
 
+    /**
+     * This class contains the data unique to each thread. All threads
+     * are gauranteed to have an associated graphlab thread_specific
+     * data.
+     */  
+    class tls_data {
+    public:
+      inline tls_data(size_t thread_id) : thread_id_(thread_id) { }
+      inline size_t thread_id() { return thread_id_; }
+    private:
+      size_t thread_id_;
+    }; // end of thread specific data
+
+
+
     /// Static helper routines
     // ===============================================================
 
     /**
      * Get the thread specific data associated with this thread
      */
-    static thread_specific_data& get_thread_specific_data();
+    static tls_data& get_tls_data();
       
     /** Get the id of the calling thread.  This will typically be the
         index in the thread group. Between 0 to ncpus. */
-    static size_t thread_id();
+    static inline size_t thread_id() { return get_tls_data().thread_id(); }
     
 
     

@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0 ; i < numparts; ++i) {
       vertex_id_t v;
       do {
-        v = graphlab::random::rand_int(dg.num_vertices() - 1);
+        v = graphlab::random::uniform<vertex_id_t>(0, dg.num_vertices() - 1);
       }while(seeds.find(v) != seeds.end());
       seeds.insert(v);
       dg.set_vertex_data(v, i);
@@ -269,7 +269,7 @@ int main(int argc, char** argv) {
               proposals[dc.procid()].push_back(ownedv);
             }
             else {
-              size_t sel = random::rand_int(candidateparts.size());
+              size_t sel = random::uniform<size_t>(0, candidateparts.size() - 1);
               if (sel < candidateparts.size()) {
                 candidateparts[sel] = ownedv;
               }
@@ -299,7 +299,8 @@ int main(int argc, char** argv) {
               if (accweight.size() == 0) continue;
               
               // pick from proposedvertices with weight weight
-              size_t r = random::rand_int(accweight[accweight.size() - 1] - 1);
+              size_t r = 
+                random::uniform<size_t>(0, accweight[accweight.size() - 1] - 1);
               size_t selv = vertex_id_t(-1);
               for (size_t j = 0; j < accweight.size(); ++j) {
                 if (r < accweight[j]) {

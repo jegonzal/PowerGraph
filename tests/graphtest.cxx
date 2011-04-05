@@ -103,6 +103,8 @@ public:
                                
 
   void test_finalize() {
+    namespace random = graphlab::random;
+
     typedef graph<char, char> graph_type;
     typedef types< graph_type > gl;
     size_t num_verts = 100000;
@@ -123,7 +125,7 @@ public:
         std::set<gl::vertex_id_t> neighbors;
         
         for(size_t j = 0; j < degree; ++j) {
-          size_t neighbor = gl::random::rand_int(num_verts - 1);
+          size_t neighbor = random::uniform<size_t>(0, num_verts - 1);
           if(neighbors.insert(neighbor).second)
             graph.add_edge(i, neighbor);
         }

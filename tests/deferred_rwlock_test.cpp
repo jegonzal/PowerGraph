@@ -1,10 +1,14 @@
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/util/timer.hpp>
+
 #include <graphlab/parallel/queued_rwlock.hpp>
 #include <graphlab/parallel/deferred_rwlock.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/random.hpp>
 #include <vector>
 #include <queue>
+
+
 using namespace graphlab;
 
 #define NUM_LOCKS 1000
@@ -75,8 +79,8 @@ void f(void) {
   randsign.resize(NUM_RAND);
   deferred_rwlock::request testreqs[NUM_RAND];
     for (size_t j = 0;j < NUM_RAND; ++j) {
-      randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
-      randsign[j] = graphlab::random::rand_int(READ_PROP);
+      randlocks[j] = graphlab::random::uniform(int(0), NUM_LOCKS - 1);
+      randsign[j] = graphlab::random::uniform<char>(0, READ_PROP);
     }
 for (size_t i = 0;i < NUM_ITER; ++i) {
     bar1.wait();
@@ -128,8 +132,8 @@ void f2(void) {
   randlocks.resize(NUM_RAND);
   randsign.resize(NUM_RAND);
   for (size_t j = 0;j < NUM_RAND; ++j) {
-    randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
-    randsign[j] = graphlab::random::rand_int(READ_PROP);
+    randlocks[j] = graphlab::random::uniform<size_t>(0, NUM_LOCKS - 1);
+    randsign[j] = graphlab::random::uniform<char>(0, READ_PROP);
   }
     
   for (size_t i = 0;i < NUM_ITER; ++i) {
@@ -162,8 +166,8 @@ void f3(void) {
   randsign.resize(NUM_RAND);
   queued_rw_lock::request req[NUM_LOCKS];
   for (size_t j = 0;j < NUM_RAND; ++j) {
-    randlocks[j] = graphlab::random::rand_int(NUM_LOCKS - 1);
-    randsign[j] = graphlab::random::rand_int(READ_PROP);
+    randlocks[j] = graphlab::random::uniform<size_t>(0, NUM_LOCKS - 1);
+    randsign[j] = graphlab::random::uniform<size_t>(0, READ_PROP);
   }
   
   for (size_t i = 0;i < NUM_ITER; ++i) {

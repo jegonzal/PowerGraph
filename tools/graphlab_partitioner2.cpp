@@ -318,14 +318,12 @@ void partition_update_function(iscope_type& scope,
       vertex_data_type& vdata(scope.vertex_data());
       vdata.is_set = true;
       vdata.num_changes++;
-      vdata.atomid = random::rand_int(NATOMS-1);
+      vdata.atomid = random::uniform<procid_t>(0, NATOMS-1);
     }
     return;
   }
   
-  typedef shared_statistics_type::const_ptr_type shared_ptr_type;
-  shared_ptr_type shared_statistics_ptr(shared_statistics.get_ptr());
-  const statistics& stats(*shared_statistics_ptr);
+  const statistics stats(shared_statistics.get_val());
 
 
   if(!scope.const_vertex_data().is_set) {
@@ -460,15 +458,15 @@ void partition_update_function(iscope_type& scope,
       
       foreach(const edge_id_t eid, scope.in_edge_ids()) {
         const vertex_id_t vid(scope.source(eid));
-        const vertex_data_type& vdata = 
-          scope.const_neighbor_vertex_data(vid);
+        // const vertex_data_type& vdata = 
+        //   scope.const_neighbor_vertex_data(vid);
         callback.add_task(vid, partition_update_function);
       }
       // Schedule all out neighbors
       foreach(const edge_id_t eid, scope.out_edge_ids()) {
         const vertex_id_t vid(scope.target(eid));
-        const vertex_data_type& vdata = 
-          scope.const_neighbor_vertex_data(vid);
+        // const vertex_data_type& vdata = 
+        //   scope.const_neighbor_vertex_data(vid);
         callback.add_task(vid, partition_update_function);
       }
   }
@@ -590,7 +588,7 @@ int main(int argc, char** argv) {
   for (size_t i = 0 ; i < NATOMS; ++i) {
     vertex_id_t v;
     do {
-      v = graphlab::random::rand_int(graph.num_vertices() - 1);
+      v = graphlab::random::uniform<vertex_id_t>(0, graph.num_vertices() - 1);
     }while(seeds.find(v) != seeds.end());
     seeds.insert(v);
     vertex_data_type vdata;

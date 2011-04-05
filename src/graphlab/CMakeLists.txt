@@ -33,6 +33,7 @@ add_library(graphlab_util STATIC
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
+  util/random.cpp
   schedulers/scheduler_list.cpp
   metrics/metrics.cpp
   util/net_util.cpp
