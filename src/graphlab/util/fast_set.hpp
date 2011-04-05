@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <set>
+#include <iterator>
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
@@ -23,7 +24,13 @@ namespace graphlab {
   public: // typedefs
     typedef T value_type;
     typedef T* iterator;
-    typedef const T* const_iterator; 
+    typedef const T* const_iterator;
+    enum sizes {max_dim_type = MAX_DIM };
+
+
+    template< size_t T1, size_t T2 >
+    struct max_type { enum max_value { value = T1 < T2? T2 : T1 }; };
+
 
   public:
     //! Construct an empty set
@@ -38,16 +45,31 @@ namespace graphlab {
      */
     template<typename OtherT>
     fast_set(const std::set<OtherT>& other) : nelems(other.size()) { 
-      assert(nelems <= MAX_DIM);
+      ASSERT_LE(nelems, MAX_DIM);
       size_t index = 0;
       foreach(const OtherT& elem, other) values[index++] = elem;
     }
+
+
+    /**
+     * Create a stack from an std set by adding each element one at a
+     * time
+     */
+    template<size_t OtherSize>
+    fast_set(const fast_set<OtherSize, T>& other) : nelems(other.size()) { 
+      ASSERT_LE(nelems, MAX_DIM);
+      size_t index = 0;
+      for(const T* elem = other.begin(); elem != other.end(); ++elem) 
+        values[index++] = *elem;
+    }
+
 
     //! Get the begin iterator
     inline T* begin() { return values; }
 
     //! get the end iterator
     inline T* end() { return values + nelems; }
+
 
     //! Get the begin iterator
     const T* begin() const { return values; }
@@ -64,14 +86,14 @@ namespace graphlab {
     
     //! test whether the set contains the given element
     bool contains(const T& elem) const {
-      for(size_t i = 0; i < nelems; ++i) 
-        if(values[i] == elem) return true;
-      return false;
+      return std::binary_search(begin(), end(), elem);
     }
 
     //! test whether the set contains the given set of element
-    bool contains(const fast_set& other) const {
-      return (*this - other).empty();
+    template<size_t OtherDim>
+    bool contains(const fast_set<OtherDim, T>& other) const {
+      return std::includes(begin(), end(), 
+                           other.begin(), other.end());
     }
 
 
@@ -79,9 +101,17 @@ namespace graphlab {
      * Test if this set is contained in other.  If so this returns
      * true. 
      */
-    bool operator<=(const fast_set& other) const {
-      return (*this - other).empty();
+    template<size_t OtherDim>
+    bool operator<=(const fast_set<OtherDim, T>& other) const {
+      return contains(other);
     }
+
+    template<size_t OtherDim>
+    bool operator==(const fast_set<OtherDim, T>& other) const {
+      if(size() != other.size()) return false;
+      return std::equal(begin(), end(), other.begin());
+    }
+
 
 
     //! insert an element into this set
@@ -92,14 +122,19 @@ namespace graphlab {
 
     //! insert a range of elements into this set
     void insert(const T* begin, const T* end) {
-      size_t other_size = end - begin;  
-      assert(other_size <= MAX_DIM);
+      // Ensure that other size is not negative
+      ASSERT_LE(begin, end);
+      // Ensure that the other set has an appropriate size
+      const size_t other_size = end - begin;  
+      ASSERT_LE(other_size, MAX_DIM);
+      // Construct a temporary fast set representing the range
       fast_set other;
-      other.nelems = other_size;
       for(size_t i = 0; i < other_size; ++i) {
-        other.values[i] = begin[i];
-        if(i > 0) assert(other.values[i] > other.values[i-1]);
+        other[i] = begin[i];
+        // Ensure that the other set is sorted
+        if(i+1 < other_size) ASSERT_LT(begin[i], begin[i+1]);
       }
+      // Insert it into this fast set using the + operation
       *this += other;
     }
 
@@ -110,67 +145,82 @@ namespace graphlab {
 
     //! get the element at a particular location
     const T& operator[](size_t index) const {
-      assert(index < nelems);
+      ASSERT_LT(index, nelems);
       return values[index];
     }
 
 
     
 
+    // //! Take the union of two sets
+    // inline fast_set operator+(const fast_set& other) const {
+    //   fast_set result;
+    //   size_t i = 0, j = 0;
+    //   while(i < size() && j < other.size()) {
+    //     assert(result.nelems < MAX_DIM);
+    //     if(values[i] < other.values[j])  // This comes first
+    //       result.values[result.nelems++] = values[i++];
+    //     else if (values[i] > other.values[j])  // other comes first
+    //       result.values[result.nelems++] = other.values[j++];
+    //     else {  // both are same
+    //       result.values[result.nelems++] = values[i++]; j++;
+    //     }
+    //   }
+    //   // finish writing this
+    //   while(i < size()) {
+    //     assert(result.nelems < MAX_DIM);
+    //     result.values[result.nelems++] = values[i++];
+    //   }
+    //   // finish writing other
+    //   while(j < other.size()) {
+    //     assert(result.nelems < MAX_DIM);
+    //     result.values[result.nelems++] = other.values[j++];
+    //   }
+    //   return result;
+    // }
+
     //! Take the union of two sets
-    inline fast_set operator+(const fast_set& other) const {
-      fast_set result;
-      size_t i = 0, j = 0;
-      while(i < size() && j < other.size()) {
-        assert(result.nelems < MAX_DIM);
-        if(values[i] < other.values[j])  // This comes first
-          result.values[result.nelems++] = values[i++];
-        else if (values[i] > other.values[j])  // other comes first
-          result.values[result.nelems++] = other.values[j++];
-        else {  // both are same
-          result.values[result.nelems++] = values[i++]; j++;
-        }
-      }
-      // finish writing this
-      while(i < size()) {
-        assert(result.nelems < MAX_DIM);
-        result.values[result.nelems++] = values[i++];
-      }
-      // finish writing other
-      while(j < other.size()) {
-        assert(result.nelems < MAX_DIM);
-        result.values[result.nelems++] = other.values[j++];
-      }
+    template<size_t OtherDim>
+    inline fast_set< max_type<OtherDim, MAX_DIM>::value, T > 
+    operator+(const fast_set<OtherDim, T>& other) const {
+      typedef fast_set< max_type<OtherDim, MAX_DIM>::value, T>
+        result_type;
+      result_type result;
+      const T* new_end = 
+        std::set_union(begin(), end(),
+                       other.begin(), other.end(),
+                       safe_iterator(result.begin(), 
+                                     result.absolute_end())).begin;
+      result.nelems = new_end - result.begin();
+      ASSERT_LE(result.nelems, result_type::max_dim_type);
       return result;
     }
 
 
     //! Add the other set to this set
-    inline fast_set& operator+=(const fast_set& other) {
+    template<size_t OtherDim>
+    inline fast_set& operator+=(const fast_set<OtherDim, T>& other) {
       *this = *this + other;
       return *this;
     }
 
 
-    //! Add an element to this set
+    //! Add an element to this set. This is "optimized" since it is
+    //! used frequently
     inline fast_set& operator+=(const T& elem) {
-      // Find where elem should be inserted
-      size_t index = 0;
-      for(; index < nelems && values[index] < elem; ++index);      
-      assert(index < MAX_DIM);
-
+      // // Find where elem should be inserted
+      // size_t index = 0;
+      // for(; index < nelems && values[index] < elem; ++index);      
+      T* ptr(std::lower_bound(begin(), end(), elem));     
       // if the element already exists return
-      if(index < nelems && values[index] == elem) return *this;
-
+      if(ptr != end() && !(elem < *ptr) ) return *this;
       // otherwise the element does not exist so add it at the current
       // location and increment the number of elements
-      T tmp = elem;
-      nelems++;
-      assert(nelems <= MAX_DIM);
+      T tmp(elem); nelems++; // advances end
+      ASSERT_LE(nelems, MAX_DIM);
       // Insert the element at index swapping out the rest of the
       // array
-      for(size_t i = index; i < nelems; ++i) 
-        std::swap(values[i], tmp);      
+      for(; ptr < end(); ++ptr) std::swap(*ptr, tmp);      
       // Finished return
       return *this;
     }
@@ -237,6 +287,41 @@ namespace graphlab {
   private:
     size_t nelems;
     T values[MAX_DIM];
+
+                     
+    //! get the end iterator to the complete range
+    inline T* absolute_end() { return values + MAX_DIM; }
+
+
+    struct safe_iterator : 
+      public std::iterator<std::input_iterator_tag, T>  {
+      T* begin;
+      const T* end;
+      safe_iterator(const safe_iterator& other) :
+        begin(other.begin), end(other.end) { }
+      safe_iterator(T* begin, const T* end) : 
+        begin(begin), end(end) {
+        ASSERT_NE(begin, NULL);
+        ASSERT_NE(end, NULL);
+        ASSERT_LE(begin, end);
+      }
+      inline safe_iterator& operator++() { ++begin; return *this; }
+      inline safe_iterator& operator++(int) {
+        safe_iterator tmp(*this); operator++(); return tmp;
+      }
+      inline bool operator==(const safe_iterator& other) {
+        ASSERT_EQ(end, other.end);
+        return begin == other.begin;
+      }
+      inline bool operator!=(const safe_iterator& other) {
+        return !operator==(other);
+      }
+      int& operator*() { ASSERT_LT(begin, end); return *begin; }
+    };
+
+
+    
+
   }; // end of fast_set
 }; // end of graphlab namespace
 
