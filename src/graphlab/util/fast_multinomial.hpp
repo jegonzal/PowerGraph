@@ -23,15 +23,6 @@ namespace graphlab {
   
   /// \ingroup util_internal
   class fast_multinomial{
-    
-    // Stuff related to randomness
-    typedef boost::lagged_fibonacci607 random_source;
-    //typedef boost::minstd_rand0 random_source;
-    typedef boost::uniform_01<random_source> distribution_type;
-    std::vector<random_source> rngs;
-    std::vector<distribution_type> distributions;
-    
-
     //! First leaf index
     size_t first_leaf_index;
 
@@ -118,7 +109,6 @@ namespace graphlab {
     /// Returns the index of a leaf sampled proportionate to its
     /// priority.  Returns false on failure
     bool try_sample(size_t& asg, size_t cpuid) {
-      assert(cpuid < distributions.size());
       size_t loc = 0;
       while ( !is_leaf(loc) ) {
         // get the left and right priorities
@@ -131,7 +121,7 @@ namespace graphlab {
         else {
           // pick from a bernoulli trial
           float_t childsum = left_p + right_p;   
-          float_t rndnumber = distributions[cpuid]();
+          float_t rndnumber = random::uniform<float_t>(0,1);
           if((childsum * rndnumber)  < left_p)
             loc = left_child(loc);
           else
@@ -195,14 +185,13 @@ namespace graphlab {
     /** initialize a fast multinomail */
     fast_multinomial(size_t num_asg,
                      size_t ncpus) : 
-      rngs(ncpus),
       first_leaf_index(0),
       num_asg(num_asg) {
-      // initialize the generators
-      for(size_t i = 0; i < rngs.size(); ++i) {
-        rngs[i].seed(rand());
-        distributions.push_back(distribution_type(rngs[i]));
-      }
+      // // initialize the generators
+      // for(size_t i = 0; i < rngs.size(); ++i) {
+      //   rngs[i].seed(rand());
+      //   distributions.push_back(distribution_type(rngs[i]));
+      // }
       // Determine the size of the tree
       first_leaf_index = next_powerof2(num_asg) - 1;
       size_t tree_size = first_leaf_index + next_powerof2(num_asg);

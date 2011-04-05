@@ -277,7 +277,7 @@ namespace graphlab {
       // The edges that are shuffled each round
       std::vector<edge_id_t> shuffled_edges;
       graph.in_edge_ids(root).fill_vector(shuffled_edges);
-      std::random_shuffle(shuffled_edges.begin(), shuffled_edges.end());
+      random::shuffle(shuffled_edges.begin(), shuffled_edges.end());
       foreach(edge_id_t ineid, shuffled_edges) {
         vertex_id_t neighbor = graph.source(ineid);
         bfs_queue.push( neighbor );
@@ -306,7 +306,7 @@ namespace graphlab {
         splash.push_back(vertex);
         splash_work += vertex_work;
         graph.in_edge_ids(vertex).fill_vector(shuffled_edges);
-        std::random_shuffle(shuffled_edges.begin(), shuffled_edges.end());
+        random::shuffle(shuffled_edges.begin(), shuffled_edges.end());
         foreach(edge_id_t eid, shuffled_edges) {
           vertex_id_t neighbor = graph.source(eid);
           // if the neighbor has not been visited then add to the

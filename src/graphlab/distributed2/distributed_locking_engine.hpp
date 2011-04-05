@@ -364,7 +364,7 @@ private:
   void add_task_to_all_impl(update_function_type func,
                             double priority) {
    std::vector<vertex_id_t> perm = graph.owned_vertices();
-   std::random_shuffle(perm.begin(), perm.end()); 
+   random::shuffle(perm);
    for (size_t i = 0;i < perm.size(); ++i) {
       size_t localvid = graph.globalvid_to_localvid(perm[i]);      
       ASSERT_LT(localvid, vertex_deferred_tasks.size());

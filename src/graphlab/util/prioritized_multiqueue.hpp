@@ -73,7 +73,7 @@ namespace graphlab {
   private:
    
     static inline size_t rand_int(size_t q) {
-      double v = thread::rand01();
+      double v = random::rand01();
       size_t r = *reinterpret_cast<size_t*>(&v); 
       return (r >> 8) % q;
     }

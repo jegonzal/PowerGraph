@@ -143,7 +143,7 @@ namespace graphlab {
     typedef graphlab::partition_method           partition_method;
     typedef graphlab::scope_range scope_range;
 
-    typedef graphlab::random  random;
+    // typedef graphlab::random  random;
 
     template <typename T>
     class glshared:public graphlab::glshared<T> { };

@@ -342,7 +342,7 @@ namespace graphlab {
       // repeatedly invoke run once as a random thread
       while(active) {
         // Pick a random cpu to run as
-        size_t cpuid = rand() % ncpus;
+        size_t cpuid = random::uniform<size_t>(0, ncpus-1);
         // Execute the update as that cpu
         active = run_once(cpuid);
       }

@@ -22,7 +22,7 @@ double random_writetest(char* c) {
   size_t numrand = passes * msize / WSIZE;
   randpos.resize(numrand);
   for (size_t i = 0;i < numrand; ++i) {
-    randpos[i] = graphlab::random::rand_int(msize - WSIZE - 1);
+    randpos[i] = graphlab::random::uniform(size_t(0), msize - WSIZE - 1);
   }
   
   
@@ -89,7 +89,7 @@ double sustained_random_writetest(char* c, double time) {
   size_t numrand = msize / WSIZE;
   randpos.resize(numrand);
   for (size_t i = 0;i < numrand; ++i) {
-    randpos[i] = graphlab::random::rand_int(msize - WSIZE - 1);
+    randpos[i] = graphlab::random::uniform(size_t(0), msize - WSIZE - 1);
   }
   
   

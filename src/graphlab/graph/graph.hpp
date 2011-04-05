@@ -38,7 +38,7 @@
 
 #include <graphlab/extern/metis/metis.hpp>
 
-
+#include <graphlab/util/random.hpp>
 
 
 
@@ -264,7 +264,7 @@ namespace graphlab {
       in_edges(nverts), out_edges(nverts), vcolors(nverts),
       finalized(true),changeid(0) { }
 
-    graph(const graph<VertexData, EdgeData> &g) { (*this) = g; }
+    graph(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
 
@@ -289,9 +289,11 @@ namespace graphlab {
      * This is also automatically invoked by the engine at
      * start.
      */
-    void finalize() {    
+    void finalize() {   
+      //      std::cout << "considering finalize" << std::endl;
       // check to see if the graph is already finalized
       if(finalized) return;
+      //      std::cout << "Finalizing" << std::endl;
       typedef std::vector< edge_id_t > edge_set;
       edge_id_less_functor less_functor(this);      
       // Sort all in edges sets
@@ -792,7 +794,7 @@ namespace graphlab {
       for (size_t i = 0;i < num_vertices(); ++i) {
         vertex2part[i] = i % nparts;
       }
-      std::random_shuffle(vertex2part.begin(), vertex2part.end());
+      random::shuffle(vertex2part.begin(), vertex2part.end());
     }
 
 

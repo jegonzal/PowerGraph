@@ -33,6 +33,7 @@ add_library(graphlab_util STATIC
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
+  util/random.cpp
   schedulers/scheduler_list.cpp
   metrics/metrics.cpp
   util/net_util.cpp
@@ -98,6 +99,7 @@ target_link_libraries(graphlab_rpc graphlab_util quicklz)
 
 add_library(graphlab STATIC
   factors/table_factor.cpp
+  factors/discrete_variable.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   schedulers/scheduler_options.cpp)

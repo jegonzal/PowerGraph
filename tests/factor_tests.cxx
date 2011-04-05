@@ -21,13 +21,13 @@ public:
 
   void test_variables() {
     std::cout << "Test Variables" << std::endl;
-    variable v1(1, 3);
+    discrete_variable v1(1, 3);
     std::cout << v1 << std::endl;
 
-    variable v2(2, 4);
+    discrete_variable v2(2, 4);
     std::cout << v2 << std::endl;
   
-    variable v3(3, 2);
+    discrete_variable v3(3, 2);
     std::cout << v3 << std::endl;
 
     TS_ASSERT_EQUALS( v1, v1 );
@@ -40,17 +40,17 @@ public:
   void test_domain() {
     std::cout << "Test domain" << std::endl;
     const size_t max_dim = 5;
-    typedef domain<max_dim> domain_type;
+    typedef discrete_domain<max_dim> domain_type;
     
-    variable v1(1, 3);
-    variable v2(2, 4);
-    variable v3(3, 2);
-    variable v4(4, 2);
+    discrete_variable v1(1, 3);
+    discrete_variable v2(2, 4);
+    discrete_variable v3(3, 2);
+    discrete_variable v4(4, 2);
     domain_type dom0;
     domain_type dom1(v1);
     domain_type dom2(v1,v3);
     domain_type dom3(v1,v2,v3);
-    std::vector<variable> vec;
+    std::vector<discrete_variable> vec;
     vec.push_back(v3); vec.push_back(v1); vec.push_back(v2);
     domain_type dom4(vec);
     TS_ASSERT_EQUALS(dom3, dom4);
@@ -75,10 +75,10 @@ public:
   void test_assignment() {
     std::cout << "Test domain: " << std::endl;
     const size_t max_dim = 5;
-    typedef domain<max_dim> domain_type;
-    typedef assignment<max_dim> assignment_type;
+    typedef discrete_domain<max_dim> domain_type;
+    typedef discrete_assignment<max_dim> assignment_type;
     
-    variable v1(1,11), v2(2,10), v3(3,8), v4(4,3), v5(5,2);
+    discrete_variable v1(1,11), v2(2,10), v3(3,8), v4(4,3), v5(5,2);
     domain_type dom(v1,v2,v3);
     domain_type sub_dom(v1,v3);
     size_t i = 0;
@@ -94,7 +94,7 @@ public:
       TS_ASSERT_EQUALS(val[1], asg.asg(2));
       TS_ASSERT_EQUALS(val[2], asg.asg(3));
       for(size_t j = 0; j < 3; ++j) {
-        if(val[j] < dom.var(j).arity - 1) {
+        if(val[j] < dom.var(j).size() - 1) {
           val[j]++;
           break;
         } else val[j] = 0;
@@ -141,7 +141,7 @@ public:
     typedef factor_type::assignment_type assignment_type;
 
     
-    variable v1(1,3), v2(2,2), v3(3,2), v4(4,3), v5(5,2);
+    discrete_variable v1(1,3), v2(2,2), v3(3,2), v4(4,3), v5(5,2);
     domain_type dom(v1,v2,v3);
 
     // Create a factor over the domain

@@ -179,7 +179,7 @@ void update_function(gl::iscope& scope,
   // between 0 and 1. rand_int(max) provides a random integer between
   // 0 and max inclusive
   bool new_color =
-    gl::random::rand01() < (double(num_red_neighbors) / num_neighbors);
+    graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
   
   // Determine if the coin was deterministic probability 1 or 0 of
   // landing red
@@ -231,7 +231,7 @@ void init_graph(graph_type& g,
     // create the vertex data, randomizing the color
     vertex_data vdata;
     vdata.numflips = 0;
-    if (gl::random::rand_int(1) == 1)  vdata.color = true;
+    if (graphlab::random::bernoulli())  vdata.color = true;
     else vdata.color = false;
     // create the vertex
     g.add_vertex(vdata);

@@ -4,12 +4,12 @@
 namespace graphlab { 
 
   // Some magic to ensure that keys are created at program startup =========>
-  void destroy_thread_specific_data(void* ptr);
+  void destroy_tls_data(void* ptr);
   struct thread_keys {
     pthread_key_t GRAPHLAB_TSD_ID;
     thread_keys() : GRAPHLAB_TSD_ID(0) { 
       pthread_key_create(&GRAPHLAB_TSD_ID,
-                         destroy_thread_specific_data);
+                         destroy_tls_data);
     }
   };
   static const thread_keys keys;
@@ -22,12 +22,12 @@ namespace graphlab {
   /**
    * Create thread specific data
    */
-  thread_specific_data* create_thread_specific_data(size_t thread_id = 0) {
+  thread::tls_data* create_tls_data(size_t thread_id = 0) {
     // Require that the data not yet exist
     assert(pthread_getspecific(keys.GRAPHLAB_TSD_ID) == NULL);
     // Create the data
-    thread_specific_data* data =
-      new thread_specific_data(thread_id);
+    thread::tls_data* data =
+      new thread::tls_data(thread_id);
     assert(data != NULL);
     // Set the data
     pthread_setspecific(keys.GRAPHLAB_TSD_ID, data);
@@ -40,13 +40,13 @@ namespace graphlab {
    * thread specific data has been associated with the thread than it
    * is created.
    */
-  thread_specific_data& thread::get_thread_specific_data() {
+  thread::tls_data& thread::get_tls_data() {
     // get the tsd
-    thread_specific_data* tsd =
-      reinterpret_cast<thread_specific_data*>
+    tls_data* tsd =
+      reinterpret_cast<tls_data*>
       (pthread_getspecific(keys.GRAPHLAB_TSD_ID));
     // If no tsd be has been associated, create one
-    if(tsd == NULL) tsd = create_thread_specific_data();
+    if(tsd == NULL) tsd = create_tls_data();
     assert(tsd != NULL);
     return *tsd;
   } // end of get thread specific data
@@ -55,9 +55,9 @@ namespace graphlab {
   /**
    * Create thread specific data
    */
-  void destroy_thread_specific_data(void* ptr) {
-    thread_specific_data* tsd =
-      reinterpret_cast<thread_specific_data*>(ptr);
+  void destroy_tls_data(void* ptr) {
+    thread::tls_data* tsd =
+      reinterpret_cast<thread::tls_data*>(ptr);
     if(tsd != NULL) {
       delete tsd;
     }
@@ -70,7 +70,7 @@ namespace graphlab {
   void* thread::invoke(void *_args) {
     invoke_args* args = static_cast<invoke_args*>(_args);
     // Create the graphlab thread specific data
-    create_thread_specific_data(args->m_thread_id);    
+    create_tls_data(args->m_thread_id);    
     //! Run the users thread code
     args->m_runnable->run();
     //! Delete the arguments 
@@ -82,11 +82,6 @@ namespace graphlab {
   } // end of invoke
 
   
-  /** Get the id of the calling thread.  This will typically be the
-      index in the thread group. Between 0 to ncpus. */
-  size_t thread::thread_id() {
-    return get_thread_specific_data().thread_id();
-  }
 
   
 
@@ -146,41 +141,4 @@ namespace graphlab {
   
   
 }
-
-
-
-
-// void create_generators(int seed_value) {
-//   //! create a random number generator for the thread
-//   if(pthread_getspecific(keys.RAND_SRC_ID) == NULL) {
-//     thread::rand_src_type* rand_gen = 
-//       new thread::rand_src_type((int)seed_value);
-//     // rand_gen->engine().seed((int)seed_value);
-//     pthread_setspecific(keys.RAND_SRC_ID, rand_gen);
-//   }
-//   if(pthread_getspecific(keys.RAND01_ID) == NULL) {
-//     thread::rand_src_type* rand_gen = 
-//       reinterpret_cast<thread::rand_src_type*>
-//       (pthread_getspecific(keys.RAND_SRC_ID));
-//     assert(rand_gen != NULL);
-//     rand_01_type* rand01 = new rand_01_type(*rand_gen, dist_01_type(0,1));
-//     pthread_setspecific(keys.RAND01_ID, rand01);
-//   }
-// }
-
-// void create_generators() {
-//   //! create a random number generator for the thread
-//   if(pthread_getspecific(keys.RAND_SRC_ID) == NULL) {
-//     thread::rand_src_type* rand_gen = new thread::rand_src_type();
-//     pthread_setspecific(keys.RAND_SRC_ID, rand_gen);
-//   }
-//   if(pthread_getspecific(keys.RAND01_ID) == NULL) {
-//     thread::rand_src_type* rand_gen = 
-//       reinterpret_cast<thread::rand_src_type*>
-//       (pthread_getspecific(keys.RAND_SRC_ID));
-//     assert(rand_gen != NULL);
-//     rand_01_type* rand01 = new rand_01_type(*rand_gen, dist_01_type(0,1));
-//     pthread_setspecific(keys.RAND01_ID, rand01);
-//   }
-// }
 

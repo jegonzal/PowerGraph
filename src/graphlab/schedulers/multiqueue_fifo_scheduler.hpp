@@ -158,9 +158,11 @@ namespace graphlab {
 
 //         size_t r1 = random::rand_int(num_queues - 1);
 //         size_t r2 = random::rand_int(num_queues - 1);
-        size_t prod = random::rand_int(num_queues * num_queues - 1);
-        size_t r1 = prod / num_queues;
-        size_t r2 = prod % num_queues;
+        // TODO: this can easily be done with some bit operations on the 
+        const size_t prod = 
+          random::fast_uniform(size_t(0), num_queues * num_queues - 1);
+        const size_t r1 = prod / num_queues;
+        const size_t r2 = prod % num_queues;
 
         size_t qidx = 
           (task_queues[r1].size() < task_queues[r2].size()) ? r1 : r2;

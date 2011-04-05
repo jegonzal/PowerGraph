@@ -57,7 +57,9 @@ namespace graphlab {
     
     //! Add an element to the blocking queue
     inline void enqueue(const T& elem) {
-      size_t prod = random::rand_int(num_queues * num_queues - 1);
+      // TODO: this can easily be done with some bit operations on the 
+      const size_t prod = 
+        random::fast_uniform<size_t>(0, num_queues * num_queues - 1);
       size_t r1 = prod / num_queues;
       size_t r2 = prod % num_queues;
       size_t qidx = 

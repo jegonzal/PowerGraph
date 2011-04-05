@@ -375,7 +375,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
     color_block.resize(num_colors);
     if (randomize_schedule) {
       for (size_t i = 0; i < color_block_and_weight.size(); ++i) {
-         std::random_shuffle(color_block_and_weight[i].begin(),
+        random::shuffle(color_block_and_weight[i].begin(),
                             color_block_and_weight[i].end());
       }
     }

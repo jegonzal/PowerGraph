@@ -67,7 +67,7 @@ namespace graphlab {
       for(int i=0; i<dc.numprocs(); i++) {
         receiverlist.push_back(i);
       }
-      std::random_shuffle(receiverlist.begin(), receiverlist.end());
+      random::shuffle(receiverlist.begin(), receiverlist.end());
       logger(LOG_INFO, "%d: initialized distributed graph", myprocid);
     }
 
@@ -190,7 +190,7 @@ namespace graphlab {
       for(int i=0; i<dcontrol->numprocs(); i++) {
         receiverlist.push_back((i+dcontrol->procid())%dcontrol->numprocs());
       }
-      std::random_shuffle(receiverlist.begin(), receiverlist.end());
+      random::shuffle(receiverlist.begin(), receiverlist.end());
 
       
       // Compute checksum of vertex ownerships
