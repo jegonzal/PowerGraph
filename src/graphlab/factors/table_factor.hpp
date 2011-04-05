@@ -33,6 +33,7 @@
 #include <graphlab/factors/discrete_variable.hpp>
 #include <graphlab/factors/discrete_domain.hpp>
 #include <graphlab/factors/discrete_assignment.hpp>
+#include <graphlab/factors/fast_discrete_assignment.hpp>
 
 
 
@@ -307,6 +308,36 @@ namespace graphlab {
 
    
     //! this(x) = sum_y joint(x,y) 
+//     inline void marginalize(const table_factor& joint) {
+//       // No need to marginalize
+//       if(args() == joint.args()) {
+//         // Just copy and return
+//         *this = joint;
+//         return;
+//       }
+//       // Compute the domain to remove
+//       domain_type ydom = joint.args() - args();
+//       assert(ydom.num_vars() > 0);
+//       
+//       // Loop over x
+//       for(assignment_type xasg = args().begin(); 
+//           xasg < args().end(); ++xasg) {
+//         double sum = 0;
+//         for(assignment_type yasg = ydom.begin(); 
+//             yasg < ydom.end(); ++yasg) {
+//           assignment_type joint_asg = xasg & yasg;
+//           sum += exp(joint.logP(joint_asg.linear_index()));
+//         }
+//         assert( !std::isinf(sum) );
+//         assert( !std::isnan(sum) );
+//         assert(sum >= 0.0);
+//         if(sum == 0) logP(xasg.linear_index()) = -MAX_DOUBLE;
+//         else logP(xasg.linear_index()) = log(sum);
+//       }
+//     }
+
+   
+    //! this(x) = sum_y joint(x,y) 
     inline void marginalize(const table_factor& joint) {
       // No need to marginalize
       if(args() == joint.args()) {
@@ -318,14 +349,20 @@ namespace graphlab {
       domain_type ydom = joint.args() - args();
       assert(ydom.num_vars() > 0);
       
+      fast_discrete_assignment<MAX_DIM> fastyasg(joint.args());
+      fastyasg.transpose_to_start(ydom);
+      // count the number of elements in ydom
+      size_t numel = 1;
+      for (size_t i = 0;i < ydom.num_vars(); ++i) {
+        numel *= ydom.var(i).size();
+      }
       // Loop over x
       for(assignment_type xasg = args().begin(); 
           xasg < args().end(); ++xasg) {
         double sum = 0;
-        for(assignment_type yasg = ydom.begin(); 
-            yasg < ydom.end(); ++yasg) {
-          assignment_type joint_asg = xasg & yasg;
-          sum += exp(joint.logP(joint_asg.linear_index()));
+        for(size_t i = 0;i < numel; ++i) {
+          sum += exp(joint.logP(fastyasg.linear_index()));
+          ++fastyasg;
         }
         assert( !std::isinf(sum) );
         assert( !std::isnan(sum) );
@@ -334,7 +371,6 @@ namespace graphlab {
         else logP(xasg.linear_index()) = log(sum);
       }
     }
-
     //! This = other * damping + this * (1-damping) 
     inline void damp(const table_factor& other, double damping) {
       // This factor must be over the same dimensions as the other
