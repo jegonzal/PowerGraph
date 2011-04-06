@@ -217,51 +217,32 @@ public:
       TS_ASSERT_EQUALS(factor5.logP(i), factor4.logP(i));
     }
 
+    factor.logP(0) +=2;
+    factor.logP(2) +=3;
+    factor.logP(4) +=4;
+    factor.logP(6) +=1;
+
+    factor_type counts(factor.args());
+    factor.normalize();
+    size_t num_samples = 10000000;
+    for(size_t i = 0; i < num_samples; ++i) {
+      assignment_type asg = factor.sample();
+      ++counts.logP(asg);
+    }
+    sum = 0;
+    for(size_t i = 0; i < counts.size(); ++i)
+      sum += counts.logP(i);
+    for(size_t i = 0; i < counts.size(); ++i) {
+      counts.logP(i) = std::log( counts.logP(i) / sum );
+    }
+    std::cout << "True Factor: " << factor << std::endl;
+    std::cout << "Sampled: " << counts << std::endl;
+    for(size_t i = 0; i < counts.size(); ++i) {
+      TS_ASSERT_LESS_THAN(std::abs(factor.logP(i) -
+                                   counts.logP(i)) , 1E-2);
+    }
+
   }
-
-
-  // void test_table_factor_sample() {
-  //   const size_t max_dim = 5;
-  //   typedef graphlab::table_factor<max_dim> factor_type;
-  //   typedef factor_type::domain_type domain_type;
-  //   typedef factor_type::assignment_type assignment_type;
-  //   discrete_variable v1(1, 3);
-  //   discrete_variable v2(2, 4);
-  //   discrete_variable v3(3, 2);
-
-  //   domain_type dom(v1,v2,v3);
-  //   // Create a factor over the domain
-  //   factor_type factor(dom);
-  //   factor.uniform();
-
-  //   factor.logP(0) +=2;
-  //   factor.logP(2) +=3;
-  //   factor.logP(4) +=4;
-  //   factor.logP(6) +=1;
-
-  //   factor_type counts(factor.args());
-  //   factor.normalize();
-  //   size_t num_samples = 10000000;
-  //   for(size_t i = 0; i < num_samples; ++i) {
-  //     assignment_type asg = factor.sample();
-  //     ++counts.logP(asg);
-  //   }
-  //   double sum = 0;
-  //   for(size_t i = 0; i < counts.size(); ++i)
-  //     sum += counts.logP(i);
-  //   for(size_t i = 0; i < counts.size(); ++i) {
-  //     counts.logP(i) = std::log( counts.logP(i) / sum );
-  //   }
-  //   std::cout << "True Factor: " << factor << std::endl;
-  //   std::cout << "Sampled: " << counts << std::endl;
-  //   for(size_t i = 0; i < counts.size(); ++i) {
-  //     TS_ASSERT_LESS_THAN(std::abs(factor.logP(i) -
-  //                                  counts.logP(i)) , 1E-2);
-  //   }
-
-  // }
-
-
 
   void test_unary_binary_factors() {
 
@@ -285,49 +266,71 @@ public:
     std::cout << b << std::endl;
     std::cout << bin << std::endl;
   }
-
-
-  void test_factor_speed() {
-    const size_t max_dim = 16;
-    typedef graphlab::table_factor<max_dim> factor_type;
-    typedef factor_type::domain_type domain_type;
-    typedef factor_type::assignment_type assignment_type;
-    
-    discrete_variable v1(1, 3);
-    discrete_variable v2(2, 4);
-    discrete_variable v3(3, 2);
-    discrete_variable v4(4, 7);
-    discrete_variable v5(5, 5);
-    
-
-    const domain_type big_dom = domain_type(v1) + v2 + v3 + v4 + v5;
-    // Create a factor over the domain
-    factor_type factor(big_dom);
-    factor.uniform();
-    const size_t max_iterations = 10000;
-    timer time;
-
-
-    time.start();
-    for(size_t i = 0; i < max_iterations; ++i) {
-      factor *= factor;
+  
+  void test_bench_marginalize() {
+    // create variables
+    std::vector<discrete_variable> v(5);
+    for (size_t i = 0;i < 5; ++i) {
+      v[i].id() = i;
+      v[i].size() = 3;
     }
-    std::cout << "factor *= factor:    " 
-              << time.current_time() << std::endl;
-
-
-    const domain_type small_dom = domain_type(v1) + v2 + v3;
-    factor_type small_factor(small_dom);
-    small_factor.uniform();
-
-    time.start();
-    for(size_t i = 0; i < max_iterations; ++i) {
-      factor *= small_factor;
+    // create base domain
+    discrete_domain<5> alldomain(v);
+    table_factor<5> joint(alldomain);
+    joint.uniform();
+    // create test marginalization domains
+    std::vector<table_factor<5> > testfactors;
+    for (size_t i = 0;i < 5; ++i) {
+      for (size_t j = i + 1; j < 5; ++j) {
+        testfactors.push_back(table_factor<5>(discrete_domain<5>(v[i],v[j])));
+      }
     }
-    std::cout << "factor *= small_factor:    " 
-              << time.current_time() << std::endl;
     
- 
+    timer ti;
+    ti.start();
+    
+    for (size_t i = 0;i < 10000; ++i) {
+      for (size_t j = 0; j < testfactors.size(); ++j) {
+        testfactors[j].marginalize(joint);
+      }
+    }
+    std::cout << 10000 * testfactors.size() 
+              << " marginalize ops of 3^5 --> 3^2 done in " 
+                 << ti.current_time() << " seconds" << std::endl;
   }
-
+  
+  
+  void test_bench_condition() {
+    // create variables
+    std::vector<discrete_variable> v(5);
+    for (size_t i = 0;i < 5; ++i) {
+      v[i].id() = i;
+      v[i].size() = 3;
+    }
+    // create base domain
+    discrete_domain<5> alldomain(v);
+    table_factor<5> joint(alldomain);
+    joint.uniform();
+    // create test marginalization assignments
+    std::vector<discrete_assignment<5> > testasg;
+    std::vector<table_factor<5> > testfactors;
+    for (size_t i = 0;i < 5; ++i) {
+      for (size_t j = i + 1; j < 5; ++j) {
+        testasg.push_back(discrete_assignment<5>(v[i], j % 3,v[j], i % 3));
+        testfactors.push_back(table_factor<5>(alldomain - testasg.rbegin()->args()));
+      }
+    }
+    
+    timer ti;
+    ti.start();
+    
+    for (size_t i = 0;i < 1000000; ++i) {
+      for (size_t j = 0; j < testasg.size(); ++j) {
+        testfactors[j].condition(joint, testasg[j]);
+      }
+    }
+    std::cout << 1000000 * testfactors.size() 
+              << " condition ops of 3^5 --> 3^3 done in " 
+                 << ti.current_time() << " seconds" << std::endl;
+  }
 };

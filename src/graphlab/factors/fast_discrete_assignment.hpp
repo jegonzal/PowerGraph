@@ -1,8 +1,6 @@
 #ifndef GRAPHLAB_FAST_DISCRETE_ASSIGNMENT
 #define GRAPHLAB_FAST_DISCRETE_ASSIGNMENT
-#include <set>
-#include <boost/tuple/tuple.hpp>
-#include <boost/tuple/tuple_comparison.hpp>
+
 #include <graphlab/factors/discrete_variable.hpp>
 #include <graphlab/factors/discrete_domain.hpp>
 #include <graphlab/factors/discrete_assignment.hpp>
@@ -21,10 +19,9 @@ namespace graphlab {
   class fast_discrete_assignment {
     
   public:
-    //! Construct an empty fast_discrete_assignment
-    fast_discrete_assignment() : _num_vars(0), _index(0) { }  
 
     fast_discrete_assignment(const discrete_domain<MAX_DIM>& args) { 
+      transposed = false;
       _num_vars = args.num_vars();
       _index = 0;
       for (size_t i = 0;i < _num_vars; ++i) {
@@ -39,7 +36,8 @@ namespace graphlab {
     }
 
     //! Construct a fast_discrete_assignment from a discrete_assignment
-    fast_discrete_assignment(discrete_assignment<MAX_DIM>& asg) : _index(asg._index) { 
+    fast_discrete_assignment(const discrete_assignment<MAX_DIM>& asg) : _index(asg.linear_index()) { 
+      transposed = false;
       _num_vars = asg.args().num_vars();
       for (size_t i = 0;i < _num_vars; ++i) {
         _vars[i] = asg.args().var(i);
@@ -114,44 +112,37 @@ namespace graphlab {
       _index = -1;
     }
 
-    //! Makes the sub_domain the first set of variables to be incremented over
+    /** Makes the sub_domain the first set of variables to be incremented over
+     * Can only be called once
+     */
     void transpose_to_start(const discrete_domain<MAX_DIM>& sub_domain) {
-      // v is a tuple (not_in_sub_domain,  variableID, variable position in _vars)
-      std::set<boost::tuple<bool, discrete_variable::id_type, size_t> > v;
-      for (size_t i = 0;i < sub_domain.num_vars(); ++i) {
-        // I do not know the variable position in the _vars yet. Lets make it -1 for now
-        v.insert(boost::make_tuple(false, sub_domain.var(i).id(), (size_t)-1));
-      }
+      ASSERT_FALSE(transposed);
+      transposed = true;
       
+      size_t reorder_map[MAX_DIM];
+      size_t cursubdomain_idx = 0;
+      size_t remainder_idx = sub_domain.num_vars();
       for (size_t i = 0;i < num_vars(); ++i) {
-        boost::tuple<bool, discrete_variable::id_type, size_t> p = boost::make_tuple(false, _vars[i].id(), (size_t)-1);
-        // see if it is in the subdomain
-        if (v.find(p) == v.end()) {
-          // no it is not
-          p.get<0>() = true;
-          p.get<2>() = i;
-          v.insert(p);
+        if (cursubdomain_idx < sub_domain.num_vars() && 
+          _vars[i].id() == sub_domain.var(cursubdomain_idx).id()) {
+          reorder_map[cursubdomain_idx] = i;
+          ++cursubdomain_idx;
         }
         else {
-          v.erase(p);
-          p.get<2>() = i;
-          v.insert(p);
+          reorder_map[remainder_idx] = i;
+          ++remainder_idx;
         }
       }
-      // create the new variable ordering and the new increment ordering
-      std::set<boost::tuple<bool, discrete_variable::id_type, size_t> >::const_iterator i = v.begin();
       //move the asg around
+
       
       uint16_t newasgs[MAX_DIM];
       size_t newincrement_step[MAX_DIM]; 
       discrete_variable newvars[MAX_DIM];
-      size_t j = 0;
-      while(i != v.end()) {
-        const boost::tuple<bool, discrete_variable::id_type, size_t>& curelem = *i;
-        newincrement_step[j] = _increment_step[curelem.get<2>()];
-        newasgs[j] = _asgs[curelem.get<2>()];
-        newvars[j] = _vars[curelem.get<2>()];
-        ++i; ++j;
+      for (size_t i = 0;i < num_vars() ; ++i) {
+        newincrement_step[i] = _increment_step[reorder_map[i]];
+        newasgs[i] = _asgs[reorder_map[i]];
+        newvars[i] = _vars[reorder_map[i]];
       }
       // copyback
       for (size_t i = 0;i < num_vars(); ++i) {
@@ -202,7 +193,7 @@ namespace graphlab {
     discrete_variable _vars[MAX_DIM]; // actual ordering of the assignments
     size_t _increment_step[MAX_DIM]; //increment ordering according to _vars
     uint16_t _asgs[MAX_DIM];  // assignments with respect to _vars
-    
+    bool transposed;
   };
 
 
