@@ -20,10 +20,14 @@ namespace graphlab {
    * This class implements a dense set of fixed maximum size which
    * support quick operations with stack allocation.
    */
-  template<size_t MAX_DIM, typename T>
+  template<size_t MAX_DIM, typename T, typename Less = std::less<T> >
   class small_set {
   public: // typedefs
     typedef T value_type;
+    typedef T& reference;
+    typedef const T& const_reference;
+    typedef ptrdiff_t difference_type;
+    typedef size_t size_type;
     typedef T* iterator;
     typedef const T* const_iterator;
     enum sizes {max_dim_type = MAX_DIM };
@@ -73,16 +77,16 @@ namespace graphlab {
 
 
     //! Get the begin iterator
-    const T* begin() const { return values; }
+    inline const T* begin() const { return values; }
 
     //! Get the end iterator
-    const T* end() const { return values + nelems; }
+    inline const T* end() const { return values + nelems; }
 
     //! get the size of the set
     inline size_t size() const { return nelems; }
 
     //! determine if there are any elements in the set
-    bool empty() const { return size() == 0; }
+    inline bool empty() const { return size() == 0; }
 
     
     //! test whether the set contains the given element
@@ -116,13 +120,13 @@ namespace graphlab {
 
 
     //! insert an element into this set
-    void insert(const T& elem) {
+    inline void insert(const T& elem) {
       *this += elem;
     }
 
 
     //! insert a range of elements into this set
-    void insert(const T* begin, const T* end) {
+    inline void insert(const T* begin, const T* end) {
       // Ensure that other size is not negative
       ASSERT_LE(begin, end);
       // Ensure that the other set has an appropriate size
@@ -145,7 +149,7 @@ namespace graphlab {
     
 
     //! get the element at a particular location
-    const T& operator[](size_t index) const {
+    virtual const T& operator[](size_t index) const {
       ASSERT_LT(index, nelems);
       return values[index];
     }
@@ -237,43 +241,56 @@ namespace graphlab {
 
 
     //! Remove the other set from this set
-    small_set& operator-=(const small_set& other) {
-      if(other.size() == 0) return *this;    
-      // Backup the old nelems and reset nelems
-      size_t old_nelems = size(); nelems = 0;
-      for(size_t i = 0, j = 0; i < old_nelems; ++i ) {
-        // advance the other index
-        for( ; j < other.size() && values[i] > other.values[j]; ++j);
-        // otherwise check equality or move forward
-        if(j >= other.size() || (values[i] != other.values[j])) 
-          values[nelems++] = values[i];
-      }
-      assert(nelems <= MAX_DIM);
+    template<size_t OtherDim>
+    small_set& operator-=(const small_set<OtherDim, T>& other) {
+      // if(other.size() == 0) return *this;    
+      // // Backup the old nelems and reset nelems
+      // size_t old_nelems = size(); nelems = 0;
+      // for(size_t i = 0, j = 0; i < old_nelems; ++i ) {
+      //   // advance the other index
+      //   for( ; j < other.size() && values[i] > other.values[j]; ++j);
+      //   // otherwise check equality or move forward
+      //   if(j >= other.size() || (values[i] != other.values[j])) 
+      //     values[nelems++] = values[i];
+      // }
+      // ASSERT_LE(nelems, MAX_DIM);
+      *this = *this - other;
       return *this;
     }
 
     //! subtract the right set form the left set
-    small_set operator-(const small_set& other) const {
-      small_set result = *this;
-      result -= other;
+    template<size_t OtherDim>
+    small_set operator-(const small_set<OtherDim, T>& other) const {
+      // small_set result = *this;
+      // result -= other;
+      small_set result;
+      T* const new_end =
+        std::set_difference(begin(), end(), 
+                            other.begin(), other.end(),
+                            safe_iterator(result.begin(),
+                                          result.absolute_end())).begin;
+      result.nelems = new_end - result.begin();
+      ASSERT_LE(result.nelems, MAX_DIM);
       return result;
     }
 
     //! Take the intersection of two sets
-    small_set operator*(const small_set& other) const {
-      small_set result; 
-      for(size_t i = 0, j = 0;
-          i < size() && j < other.size(); ) {
-        if(values[i] == other.values[j]) {
-          result.values[result.nelems++] = values[i++]; j++;
-        } else if(values[i] < other.values[j]) i++; else j++;    
-      }
-      assert(result.nelems <= MAX_DIM);
+    template<size_t OtherDim>
+    small_set operator*(const small_set<OtherDim, T>& other) const {
+      small_set result;
+      const T* new_end = 
+        std::set_intersection(begin(), end(), 
+                              other.begin(), other.end(),
+                              safe_iterator(result.begin(), 
+                                            result.absolute_end())).begin;
+      result.nelems = new_end - result.end();
+      ASSERT_LE(result.nelems, MAX_DIM);
       return result;
     }
 
     //! Take the intersection of two sets
-    small_set operator*=(const small_set& other)  {
+    template<size_t OtherDim>
+    small_set operator*=(const small_set<OtherDim, T>& other)  {
       *this = *this * other;
       return *this;
     }

@@ -60,6 +60,105 @@ public:
   }
 
 
+
+  void test_intersection() {
+    std::cout << std::endl;
+    std::cout << "Testing set union" << std::endl;
+
+    typedef small_set<10, int> set_type;
+    typedef small_set<5, int> small_set_type;
+    small_set<0, int> empty_set;
+    small_set<10, int> set1;
+    small_set<10, int> set2;
+    set1 += set_type(1) + small_set_type(3) + set_type(2) + empty_set;
+    set1.insert(8);
+    // do some intersections
+    set1 *= set1;
+    set1 = set1 * set1;
+    std::set<int> true_set1;
+    true_set1.insert(1);
+    true_set1.insert(2);
+    true_set1.insert(3);
+    true_set1.insert(8);
+    ASSERT_EQ(set_type(true_set1), set1);
+    std::cout << "set1: " << set1 << std::endl;
+    
+    set2 += set_type(2) + small_set_type(5) + small_set_type(3) + set_type(7);
+    set2.insert(0);
+    set2 += 4;
+
+    std::set<int> true_set2;
+    true_set2.insert(0);
+    true_set2.insert(2);
+    true_set2.insert(5);
+    true_set2.insert(3);
+    true_set2.insert(7);
+    true_set2.insert(4);
+    ASSERT_EQ(set_type(true_set2), set2);    
+    std::cout << "set2: " << set2 << std::endl;
+
+    small_set<7, int> set3 = set1 * set2;
+    std::set<int> true_set3 = set_intersect(true_set1, true_set2);
+    ASSERT_EQ(set_type(true_set3), set3);
+    std::cout << "set3 = set1 * set2: " << set3 << std::endl;
+    std::cout << "set3 * set3: " << (set3  + set3) << std::endl;
+    ASSERT_EQ(set_type(true_set3), (set3 + set3));    
+  }
+
+
+  void test_difference() {
+    std::cout << std::endl;
+    std::cout << "Testing set diff" << std::endl;
+
+    typedef small_set<10, int> set_type;
+    typedef small_set<5, int> small_set_type;
+    small_set<0, int> empty_set;
+    small_set<10, int> set1;
+    small_set<10, int> set2;
+    set1 += set_type(1) + small_set_type(3) + set_type(2) + empty_set;
+    set1.insert(8);
+    // do some intersections
+    ASSERT_EQ(empty_set, set1 - set1);
+    ASSERT_EQ(empty_set, empty_set - empty_set);
+    empty_set = (empty_set - set1);
+    ASSERT_EQ(empty_set, empty_set - set1);
+    ASSERT_EQ(set1, set1 - empty_set);
+    std::set<int> true_set1;
+    true_set1.insert(1);
+    true_set1.insert(2);
+    true_set1.insert(3);
+    true_set1.insert(8);
+    ASSERT_EQ(set_type(true_set1), set1);
+    std::cout << "set1: " << set1 << std::endl;
+    set2 += set_type(2) + small_set_type(5) + small_set_type(3) + set_type(7);
+    set2.insert(0);
+    set2 += 4;
+    std::set<int> true_set2;
+    true_set2.insert(0);
+    true_set2.insert(2);
+    true_set2.insert(5);
+    true_set2.insert(3);
+    true_set2.insert(7);
+    true_set2.insert(4);
+    ASSERT_EQ(set_type(set_difference(true_set1, true_set2)),
+              set1 - set2);
+    ASSERT_EQ(set_type(set_difference(true_set2, true_set1)),
+              set2 - set1);
+  }
+
+
+  void test_range_iteration() {
+    typedef std::pair<int, std::string> pair_type;
+    typedef small_set<20, pair_type > set_type;
+    set_type set = 
+      set_type(std::make_pair(1, "hello")) + 
+      set_type(std::make_pair(2, "world"));
+    foreach(const pair_type& value, set) {
+      std::cout << value.first << value.second << ", ";
+    }
+    std::cout << std::endl;
+  }
+
   void test_union_speed() {
     typedef small_set<20, int> set_type;
     typedef std::set<int> true_set_type;

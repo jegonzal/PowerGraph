@@ -114,3 +114,4 @@ add_dist2_executable(mpi_tests mpi_tests.cpp)
 add_executable(numa_perf numa_perf.cpp)
 
 ADD_CXXTEST(test_small_set.cxx)
+ADD_CXXTEST(test_small_map.cxx)
