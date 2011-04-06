@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include <boost/unordered_map.hpp>
+#include <boost/bind.hpp>
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
@@ -47,7 +48,7 @@ namespace graphlab {
   private:
     
     /** The internal worker thread class */
-    class task_worker : public runnable {      
+    class task_worker {      
       distributed_engine<Graph, DistributedScheduler>* engine;
       size_t workerid;
 
@@ -446,7 +447,7 @@ namespace graphlab {
         // Start the worker thread using the thread group with cpu
         // affinity attached (CPU affinity currently only supported in
         // linux) since Mac affinity is set through the NX frameworks
-        threads.launch(&(workers[i]));
+        threads.launch(boost::bind(&task_worker::run, &(workers[i])));
       }
       /* Wait for all threads to return */
       logger(LOG_INFO, "Wait until finished...");

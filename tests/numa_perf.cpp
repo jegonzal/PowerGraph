@@ -219,9 +219,7 @@ int main(int argc, char **argv) {
   fout.open("log.txt");
   thread_group grp;
   for (size_t i = 0; i < numthreads; ++i) {
-    launch_in_new_thread(grp,
-                        boost::bind(test_thread, numthreads, i, testlen), 
-                        i);
+    grp.launch(boost::bind(test_thread, numthreads, i, testlen), i);
   }
   grp.join();
   fout.close();

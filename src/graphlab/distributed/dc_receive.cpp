@@ -20,7 +20,8 @@
 namespace graphlab {
 // background messaging thread
 
-void distributed_control::message_dispatch_thread::run() {
+void distributed_control::message_dispatch_thread::run(distributed_control *dc_) {
+  distributed_control &dc = *dc_;
   logger(LOG_INFO, "message thread started");
   while(1) {
     std::pair<dispatch_req_data, bool> ret = dc.dispatch_requests.dequeue();

@@ -713,8 +713,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
     thread_group thrgrp; 
     for (size_t i = 0;i < ncpus; ++i) {
       size_t aff = use_cpu_affinity ? i : -1;
-      launch_in_new_thread(thrgrp, 
-                         boost::bind(
+      thrgrp.launch(boost::bind(
                             &distributed_chromatic_engine<Graph>::start_thread,
                             this, i), aff);
     }

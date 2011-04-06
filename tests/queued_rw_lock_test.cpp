@@ -151,7 +151,7 @@ int main(int argc, char** argv) {
     counter.resize(100000, 0);
     size_t nthreads = 4;
     for (size_t i = 0;i < nthreads ; ++i) {
-      launch_in_new_thread(group, fn2);
+      group.launch(fn2);
     }
     group.join();
     ASSERT_TRUE(gqueue.empty());

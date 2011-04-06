@@ -14,6 +14,7 @@
 #include <map>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/bind.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
@@ -230,8 +231,8 @@ void dc_tcp_comm::new_socket(int newsock, sockaddr_in* otheraddr, procid_t id) {
   
   handlers[id] = new socket_handler(*this, newsock, id);
   if (handlerthreads[id] != NULL) delete handlerthreads[id];
-  handlerthreads[id] = new thread(handlers[id]);
-  handlerthreads[id]->start();
+  handlerthreads[id] = new thread();
+  handlerthreads[id]->launch(boost::bind(&socket_handler::run, handlers[id]));
 }
 
 
@@ -255,8 +256,8 @@ void dc_tcp_comm::open_listening() {
   ASSERT_EQ(0, listen(listensock, 128));
   // spawn a thread which loops around accept
   listenhandler = new accept_handler(*this, listensock);
-  listenthread = new thread(listenhandler);
-  listenthread->start();
+  listenthread = new thread();
+  listenthread->launch(boost::bind(&accept_handler::run, listenhandler));
 }
 
 

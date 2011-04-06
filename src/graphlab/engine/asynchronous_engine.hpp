@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cassert>
 #include <algorithm>
-
+#include <boost/bind.hpp>
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
@@ -58,7 +58,7 @@ namespace graphlab {
 
 
     /** The internal worker thread class used for the threaded engine */
-    class engine_thread : public runnable {      
+    class engine_thread {      
       asynchronous_engine* engine;
       ScopeFactory* scope_manager;
       Scheduler* scheduler;
@@ -511,9 +511,9 @@ namespace graphlab {
         // affinity attached (CPU affinity currently only supported in
         // linux) since Mac affinity is set through the NX frameworks
         if(use_cpu_affinity)  {
-          threads.launch(&(workers[i]), i);
+          threads.launch(boost::bind(&engine_thread::run, &(workers[i])), i);
         } else {
-          threads.launch(&(workers[i]));
+          threads.launch(boost::bind(&engine_thread::run, &(workers[i])));
         }
       }
       threads.join();

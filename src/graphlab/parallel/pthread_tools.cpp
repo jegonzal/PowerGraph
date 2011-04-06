@@ -1,6 +1,7 @@
-
-
 #include <graphlab/parallel/pthread_tools.hpp>
+
+#include <graphlab/macros_def.hpp>
+
 namespace graphlab { 
 
   // Some magic to ensure that keys are created at program startup =========>
@@ -15,8 +16,9 @@ namespace graphlab {
   static const thread_keys keys;
   // END MAGIC =============================================================>
 
-
-  
+// -----------------------------------------------------------------
+//                 Thread Object Static Members 
+// -----------------------------------------------------------------
   
 
   /**
@@ -66,13 +68,13 @@ namespace graphlab {
  
 
 
-  //! Little helper function used to launch runnable objects      
+  //! Little helper function used to launch threads
   void* thread::invoke(void *_args) {
-    invoke_args* args = static_cast<invoke_args*>(_args);
+    thread::invoke_args* args = static_cast<thread::invoke_args*>(_args);
     // Create the graphlab thread specific data
     create_tls_data(args->m_thread_id);    
     //! Run the users thread code
-    args->m_runnable->run();
+    args->spawn_routine();
     //! Delete the arguments 
     delete args;
     
@@ -138,7 +140,126 @@ namespace graphlab {
      __thr_callback = callback;
    }
 
+
+// -----------------------------------------------------------------
+//                 Thread Object Public Members 
+// -----------------------------------------------------------------
+
   
+  void thread::launch(const boost::function<void (void)> &spawn_routine) {
+    ASSERT_FALSE(thread_started);
+    // fill in the thread attributes
+    pthread_attr_t attr;
+    int error = 0;
+    error = pthread_attr_init(&attr);
+    ASSERT_TRUE(!error);
+    error = pthread_attr_setstacksize(&attr, m_stack_size);
+    ASSERT_TRUE(!error);
+    error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    ASSERT_TRUE(!error);
+    
+
+
+    error = pthread_create(&m_p_thread, 
+                            &attr, 
+                            invoke,  
+                            static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)) );
+    thread_started = true;
+    if(error) {
+      std::cout << "Major error in thread_group.launch (pthread_create). Error: " << error << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    // destroy the attribute object
+    error = pthread_attr_destroy(&attr);
+    ASSERT_TRUE(!error);
+  }
   
+  void thread::launch(const boost::function<void (void)> &spawn_routine, size_t cpu_id){
+      // if this is not a linux based system simply invoke start and
+      // return;
+#ifndef __linux__
+      launch(spawn_routine);
+      return;
+#else
+      ASSERT_FALSE(thread_started);
+      if (cpu_id >= cpu_count() && cpu_count() > 0) {
+        // definitely invalid cpu_id
+        std::cout << "Invalid cpu id passed on thread_ground.launch()" 
+                  << std::endl;
+        std::cout << "CPU " << cpu_id + 1 << " requested, but only " 
+                  << cpu_count() << " CPUs available" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      
+      // fill in the thread attributes
+      pthread_attr_t attr;
+      int error = 0;
+      error = pthread_attr_init(&attr);
+      ASSERT_TRUE(!error);
+      error = pthread_attr_setstacksize(&attr, m_stack_size);
+      ASSERT_TRUE(!error);
+      error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+      ASSERT_TRUE(!error);
+      
+      // Set Processor Affinity masks (linux only)
+      cpu_set_t cpu_set;
+      CPU_ZERO(&cpu_set);
+      CPU_SET(cpu_id % CPU_SETSIZE, &cpu_set);
+      pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
+
+      // Launch the thread
+      error = pthread_create(&m_p_thread, 
+                             &attr, 
+                             invoke,
+                             static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)) );
+      thread_started = true;
+      if(error) {
+        std::cout << "Major error in thread_group.launch" << std::endl;
+        std::cout << "pthread_create() returned error " << error << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      
+      
+      
+      // destroy the attribute object
+      error = pthread_attr_destroy(&attr);
+      ASSERT_TRUE(!error);
+#endif
+    }
+    
+// -----------------------------------------------------------------
+//                 Thread Group Object Public Members 
+// -----------------------------------------------------------------
+
+  void thread_group::launch(const boost::function<void (void)> &spawn_function) {
+    // Create a thread object
+    thread local_thread(m_thread_counter++);
+    local_thread.launch(spawn_function);
+    // keep a local copy of the thread
+    m_threads.push_back(local_thread);
+  } 
+
+
+  void thread_group::launch(const boost::function<void (void)> &spawn_function, 
+                            size_t cpu_id) {
+    // Create a thread object
+    thread local_thread(m_thread_counter++);
+    local_thread.launch(spawn_function, cpu_id);
+    // keep a local copy of the thread
+    m_threads.push_back(local_thread);
+  }
+  
+  void thread_group::join() {
+    while(!m_threads.empty()) {
+      m_threads.front().join(); // Join the first thread
+      m_threads.pop_front(); // remove the first element
+    }
+  }
+
+  void thread_group::signalall(int sig) {
+    foreach (thread& t, m_threads) {
+      pthread_kill(t.pthreadid(), sig);
+    }
+  }
 }
 

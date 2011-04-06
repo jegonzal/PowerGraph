@@ -65,7 +65,7 @@ static void update_function(core_type::types::iscope& scope,
 
 
 
-class thread_worker : public runnable {
+class thread_worker {
 public:
   std::vector<int> values;
   void run() {
@@ -126,7 +126,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
       workers[i].values.resize(num_iterations);
     thread_group threads;
     for(size_t i = 0; i < workers.size(); ++i) {
-      threads.launch(&(workers[i]));
+      threads.launch(boost::bind(&thread_worker::run, &(workers[i])));
     }
     threads.join();
     for(size_t i = 0; i < workers.size(); ++i) {
