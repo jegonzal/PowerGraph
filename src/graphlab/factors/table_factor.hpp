@@ -278,34 +278,73 @@ namespace graphlab {
     
 
     //! this(x) = other(x, y = asg) 
+//     inline void condition(const table_factor& other,
+//                           const assignment_type& asg) {
+//       assert(args() == other.args() - asg.args());
+//       for(assignment_type xasg = args().begin(); 
+//           xasg < args().end(); ++xasg) {
+//         assignment_type joint = xasg & asg;
+//         assert(joint.args() == other.args());
+//         logP(xasg.linear_index()) = other.logP(joint.linear_index());        
+//       }
+//     }
+
+    //! this(x) = other(x, y = asg) 
     inline void condition(const table_factor& other,
                           const assignment_type& asg) {
       assert(args() == other.args() - asg.args());
+      
+      // create a fast assignment starting from the '0' assignment
+      // of args() and the conditioning assignment of asg
+      fast_discrete_assignment<MAX_DIM> fastyasg(args().begin() & asg);
+      // transpose the remaining assignments to the start
+      fastyasg.transpose_to_start(args());
+      
       for(assignment_type xasg = args().begin(); 
           xasg < args().end(); ++xasg) {
-        assignment_type joint = xasg & asg;
-        assert(joint.args() == other.args());
-        logP(xasg.linear_index()) = other.logP(joint.linear_index());        
+        logP(xasg.linear_index()) = other.logP(fastyasg.linear_index());        
+        ++fastyasg;
       }
     }
+
+
+
+//     inline void times_condition(const table_factor& other,
+//                                 const assignment_type& asg) {
+//       //      assert(args() == other.args() - asg.args());
+//       if(asg.num_vars() == 0) {
+//         *this *= other;
+//       } else {
+//         for(assignment_type xasg = args().begin(); 
+//             xasg < args().end(); ++xasg) {
+//           assignment_type joint = xasg & asg;
+//           assert(joint.args() == other.args());
+//           logP(xasg.linear_index()) += other.logP(joint.linear_index());        
+//         }
+//       }
+//     }
 
 
     //! this(x) = this(x) other(x, y = asg) 
     inline void times_condition(const table_factor& other,
                                 const assignment_type& asg) {
       //      assert(args() == other.args() - asg.args());
+      
+      // create a fast assignment starting from the '0' assignment
+      // of args() and the conditioning assignment of asg
+      fast_discrete_assignment<MAX_DIM> fastyasg(args().begin() & asg);
+      // transpose the remaining assignments to the start
+      fastyasg.transpose_to_start(args());
       if(asg.num_vars() == 0) {
         *this *= other;
       } else {
         for(assignment_type xasg = args().begin(); 
             xasg < args().end(); ++xasg) {
-          assignment_type joint = xasg & asg;
-          assert(joint.args() == other.args());
-          logP(xasg.linear_index()) += other.logP(joint.linear_index());        
+          logP(xasg.linear_index()) += other.logP(fastyasg.linear_index());        
+          ++fastyasg;
         }
       }
     }
-
    
     //! this(x) = sum_y joint(x,y) 
 //     inline void marginalize(const table_factor& joint) {
@@ -371,6 +410,8 @@ namespace graphlab {
         else logP(xasg.linear_index()) = log(sum);
       }
     }
+    
+
     //! This = other * damping + this * (1-damping) 
     inline void damp(const table_factor& other, double damping) {
       // This factor must be over the same dimensions as the other

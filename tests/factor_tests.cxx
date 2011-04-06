@@ -266,4 +266,71 @@ public:
     std::cout << b << std::endl;
     std::cout << bin << std::endl;
   }
+  
+  void test_bench_marginalize() {
+    // create variables
+    std::vector<discrete_variable> v(5);
+    for (size_t i = 0;i < 5; ++i) {
+      v[i].id() = i;
+      v[i].size() = 3;
+    }
+    // create base domain
+    discrete_domain<5> alldomain(v);
+    table_factor<5> joint(alldomain);
+    joint.uniform();
+    // create test marginalization domains
+    std::vector<table_factor<5> > testfactors;
+    for (size_t i = 0;i < 5; ++i) {
+      for (size_t j = i + 1; j < 5; ++j) {
+        testfactors.push_back(table_factor<5>(discrete_domain<5>(v[i],v[j])));
+      }
+    }
+    
+    timer ti;
+    ti.start();
+    
+    for (size_t i = 0;i < 10000; ++i) {
+      for (size_t j = 0; j < testfactors.size(); ++j) {
+        testfactors[j].marginalize(joint);
+      }
+    }
+    std::cout << 10000 * testfactors.size() 
+              << " marginalize ops of 3^5 --> 3^2 done in " 
+                 << ti.current_time() << " seconds" << std::endl;
+  }
+  
+  
+  void test_bench_condition() {
+    // create variables
+    std::vector<discrete_variable> v(5);
+    for (size_t i = 0;i < 5; ++i) {
+      v[i].id() = i;
+      v[i].size() = 3;
+    }
+    // create base domain
+    discrete_domain<5> alldomain(v);
+    table_factor<5> joint(alldomain);
+    joint.uniform();
+    // create test marginalization assignments
+    std::vector<discrete_assignment<5> > testasg;
+    std::vector<table_factor<5> > testfactors;
+    for (size_t i = 0;i < 5; ++i) {
+      for (size_t j = i + 1; j < 5; ++j) {
+        testasg.push_back(discrete_assignment<5>(v[i], j % 3,v[j], i % 3));
+        testfactors.push_back(table_factor<5>(alldomain - testasg.rbegin()->args()));
+      }
+    }
+    
+    timer ti;
+    ti.start();
+    
+    for (size_t i = 0;i < 1000000; ++i) {
+      for (size_t j = 0; j < testasg.size(); ++j) {
+        testfactors[j].condition(joint, testasg[j]);
+      }
+    }
+    std::cout << 1000000 * testfactors.size() 
+              << " condition ops of 3^5 --> 3^3 done in " 
+                 << ti.current_time() << " seconds" << std::endl;
+  }
 };
