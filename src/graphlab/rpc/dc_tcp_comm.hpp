@@ -91,7 +91,7 @@ class dc_tcp_comm:public dc_comm_base {
              const char* buf1, const size_t len1,
              const char* buf2, const size_t len2); 
   // receiving socket handler
-  class socket_handler:public runnable {
+  class socket_handler {
    public:
     dc_tcp_comm &owner;
     int fd;
@@ -102,7 +102,7 @@ class dc_tcp_comm:public dc_comm_base {
   };
   
   // listening socket handler
-  class accept_handler:public runnable {
+  class accept_handler {
    public:
     dc_tcp_comm &owner;
     int listensock;

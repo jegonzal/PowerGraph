@@ -837,8 +837,7 @@ private:
     thread_group thrgrp; 
     for (size_t i = 0;i < ncpus; ++i) {
       size_t aff = use_cpu_affinity ? i : -1;
-      launch_in_new_thread(thrgrp, 
-                         boost::bind(
+      thrgrp.launch(boost::bind(
                             &distributed_locking_engine<Graph, Scheduler>::start_thread,
                             this, i), aff);
     }
@@ -846,8 +845,7 @@ private:
     thread_group thrgrp_reduction; 
     for (size_t i = 0;i < ncpus; ++i) {
       size_t aff = use_cpu_affinity ? i : -1;
-      launch_in_new_thread(thrgrp_reduction, 
-                         boost::bind(
+      thrgrp_reduction.launch(boost::bind(
                             &distributed_locking_engine<Graph, Scheduler>::reduction_thread,
                             this, i), aff);
     }

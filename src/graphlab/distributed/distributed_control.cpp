@@ -1,3 +1,4 @@
+#include <boost/bind.hpp>
 #include <graphlab/distributed/distributed_control.hpp>
 #include <graphlab/distributed/metrics/distributed_metrics.hpp>
 #include <sys/socket.h>
@@ -52,7 +53,7 @@ distributed_control::distributed_control(int *pargc, char*** pargv) {
 
   connect_udt();
   send_thread = new background_send_thread(*this);
-  send_thread->start();
+  send_thread_thread.launch(boost::bind(&background_send_thread::run, send_thread));
   dc_singleton_ptr = this;
   terminator = new distributed_terminator(*this);
   terminator->set_use_control_packets(true);
@@ -73,7 +74,7 @@ distributed_control::~distributed_control() {
   mpi_barrier();
   // kill the send thread
   send_requests.stop_blocking();
-  send_thread->join();
+  send_thread_thread.join();
   logstream(LOG_INFO) << "Total Bytes Transmitted: " << send_thread->bytes_sent << std::endl;
   delete send_thread;
 
@@ -81,8 +82,7 @@ distributed_control::~distributed_control() {
   // kill the message handling thread
   dispatch_requests.stop_blocking();
   for (size_t i = 0; i < dispatch_thread.size(); ++i) {
-    dispatch_thread[i]->join();
-    delete dispatch_thread[i];
+    dispatch_thread[i].join();
   }
   
   delete [] all_addrs;
@@ -101,8 +101,7 @@ void distributed_control::init_message_processing(size_t nummsgthreads) {
   // begin message processing threads
   dispatch_thread.resize(nummsgthreads);
   for (size_t i = 0; i < nummsgthreads; ++i) {
-    dispatch_thread[i] = new message_dispatch_thread(*this);
-    dispatch_thread[i]->start();
+    dispatch_thread[i].launch(boost::bind(&message_dispatch_thread::run, this));
   }
   
   // begin socket receive threads 
@@ -111,7 +110,7 @@ void distributed_control::init_message_processing(size_t nummsgthreads) {
   for (size_t i = 0;i < numrecvthreads ; ++i) {
     procs[i].done = &done;
     procs[i].dc = this;
-    procthreads.launch(&(procs[i]));
+    procthreads.launch(boost::bind(&messageproc_thread::run, &(procs[i])));
   }
   mpi_barrier();
 }

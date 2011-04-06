@@ -95,11 +95,10 @@ class graph_lock_manager{
     };
     
     
-    class lock_send_request_thread:public thread {
+    class lock_send_request_thread{
       graph_lock_manager<Graph> &owner;
      public: 
-      lock_send_request_thread(graph_lock_manager<Graph> &glm):thread(NULL, 0), 
-                                                               owner(glm) { }
+      lock_send_request_thread(graph_lock_manager<Graph> &glm): owner(glm) { }
       void run() {
         logger(LOG_INFO, "background locking thread started");
         while(1) {
@@ -109,11 +108,10 @@ class graph_lock_manager{
         }
       }
     };
-    class background_unlock_thread:public thread {
+    class background_unlock_thread{
       graph_lock_manager<Graph> &owner;
      public: 
-      background_unlock_thread(graph_lock_manager<Graph> &glm):thread(NULL, 0), 
-                                                               owner(glm) { }
+      background_unlock_thread(graph_lock_manager<Graph> &glm): owner(glm) { }
       void run() {
         logger(LOG_INFO, "background unlocking thread started");
         while(1) {
@@ -148,6 +146,8 @@ class graph_lock_manager{
     blocking_queue<size_t> unlock_requests;
     lock_send_request_thread *locking_thread;
     background_unlock_thread *unlocking_thread;
+    thread locking_thread_thread;
+    thread unlocking_thread_thread;
     std::vector<mutex> referencecounter_locks;
     synchronized_unordered_map2<std::set<size_t> > vertex2reqids;  // only hold parent requests
     
@@ -173,13 +173,14 @@ class graph_lock_manager{
     referencecounter_locks.resize(131071);  //2^17 - 1
     graph_lock_manager_target = this;
     locking_thread = new lock_send_request_thread(*this);
-    locking_thread->start();
+    locking_thread_thread.launch(boost::bind(&lock_send_request_thread::run, locking_thread));
+
     dirtyvertices.resize(graph.num_vertices());
     dirtyvertices.clear();
     dirtyedges.resize(graph.num_local_edges());
     dirtyedges.clear();
     unlocking_thread = new background_unlock_thread(*this);
-    unlocking_thread->start();
+    unlocking_thread_thread.launch(boost::bind(&background_unlock_thread::run, unlocking_thread));
     caching = false;
     dlm.set_caching(caching);
     const_edges = false;
@@ -267,9 +268,9 @@ class graph_lock_manager{
   }
   ~graph_lock_manager() {
     progress_requests.stop_blocking();
-    locking_thread->join();
+    locking_thread_thread.join();
     unlock_requests.stop_blocking();
-    unlocking_thread->join();
+    unlocking_thread_thread.join();
     delete locking_thread;
     delete unlocking_thread;
   }

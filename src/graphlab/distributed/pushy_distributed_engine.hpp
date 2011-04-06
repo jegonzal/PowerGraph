@@ -371,7 +371,7 @@ namespace graphlab {
         // Start the worker thread using the thread group with cpu
         // affinity attached (CPU affinity currently only supported in
         // linux) since Mac affinity is set through the NX frameworks
-        threads.launch(&(workers[i]));
+        threads.launch(boost::bind(&task_worker::run, &(workers[i])));
         if (listener != NULL)
           listener->engine_worker_starts(i);
       }

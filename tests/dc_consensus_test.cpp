@@ -74,10 +74,9 @@ class simple_engine_test {
   void start_thread() {
     thread_group thrgrp; 
     for (size_t i = 0;i < 4; ++i) {
-      launch_in_new_thread(thrgrp, 
-                         boost::bind(
+      thrgrp.launch(boost::bind(
                             &simple_engine_test::thread,
-                            this), -1);
+                            this));
     }
     
     thrgrp.join();
