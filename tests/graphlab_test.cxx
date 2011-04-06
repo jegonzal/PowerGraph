@@ -187,6 +187,7 @@ public:
     }
   }
 
+
   void test_round_robin(void) {
     global_logger().set_log_level(LOG_WARNING);
     global_logger().set_log_to_console(true);
@@ -231,7 +232,7 @@ public:
           for (size_t iter = 1;iter < 4; ++iter) {
             gl::core glcore;
             glcore.set_engine_type(engine_types[e]);
-            glcore.set_scheduler_type("colored");
+            glcore.set_scheduler_type("chromatic");
             glcore.set_scope_type(scope_types[c]);
             glcore.set_ncpus(n);
             

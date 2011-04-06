@@ -1,11 +1,12 @@
 
+#include <boost/shared_ptr.hpp>
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/metrics/imetrics_reporter.hpp>
 
 
-using namespace graphlab;
-
-static std::map<std::string, metrics *> metricsmap; 
+namespace graphlab {
+  
+static std::map<std::string, boost::shared_ptr<metrics> > metricsmap;
 
 /* USE THIS TO CREATE A NEW METRICS INSTANCE */
 
@@ -21,11 +22,11 @@ metrics & metrics::create_metrics_instance(std::string name, bool create_always_
     mlock.lock();
     if (metricsmap.count(name) == 0) {
         m = new metrics(name, name);
-        metricsmap[name] = m;
+        metricsmap[name].reset(m);
     } else if (create_always_new) {
         int n = 1;
         // Count how many metrics instances with same name are created
-        std::map<std::string, metrics *>::iterator miter;
+        std::map<std::string, boost::shared_ptr<metrics> >::iterator miter;
         for(miter = metricsmap.begin(); miter != metricsmap.end(); ++miter) {
             if (miter->second->ident == name) n++;
         }
@@ -33,9 +34,9 @@ metrics & metrics::create_metrics_instance(std::string name, bool create_always_
         sprintf(cc, "%s:%d", name.c_str(), n);
         std::string ident = std::string(cc);
         m = new metrics(name, ident);
-        metricsmap[ident] = m;
+        metricsmap[ident].reset(m);
     } else {
-        m = metricsmap[name];
+        m = metricsmap[name].get();
     }
     mlock.unlock();
     return *m;
@@ -50,7 +51,7 @@ metrics & metrics::create_metrics_instance(std::string name) {
   * them to report.
   */
 void metrics::report_all(imetrics_reporter & reporter) {
-   std::map<std::string, metrics *>::iterator miter;
+   std::map<std::string, boost::shared_ptr<metrics> >::iterator miter;
    for(miter = metricsmap.begin(); miter != metricsmap.end(); ++miter) {
       miter->second->report(reporter);
    }
@@ -59,4 +60,9 @@ void metrics::report_all(imetrics_reporter & reporter) {
 void metrics::report(imetrics_reporter & reporter) {
     reporter.do_report(this->name, this->ident, entries);
 }
-        
+
+void metrics::clear_all_metrics_instances() {
+  metricsmap.clear();
+}
+
+}
