@@ -36,7 +36,8 @@ namespace graphlab {
     }
 
     //! Construct a fast_discrete_assignment from a discrete_assignment
-    fast_discrete_assignment(const discrete_assignment<MAX_DIM>& asg) : _index(asg.linear_index()) { 
+    fast_discrete_assignment(const discrete_assignment<MAX_DIM>& asg) : 
+      _index(asg.linear_index()) { 
       transposed = false;
       _num_vars = asg.args().num_vars();
       for (size_t i = 0;i < _num_vars; ++i) {

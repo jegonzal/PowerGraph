@@ -179,6 +179,14 @@ namespace graphlab {
     //   return result;
     // }
 
+
+    //! Take the union of two sets
+    inline fast_set operator+(const T& elem) const {
+      fast_set result(*this);
+      return result += elem;
+    }
+
+
     //! Take the union of two sets
     template<size_t OtherDim>
     inline fast_set< max_type<OtherDim, MAX_DIM>::value, T > 
@@ -316,12 +324,8 @@ namespace graphlab {
       inline bool operator!=(const safe_iterator& other) {
         return !operator==(other);
       }
-      int& operator*() { ASSERT_LT(begin, end); return *begin; }
-    };
-
-
-    
-
+      T& operator*() { ASSERT_LT(begin, end); return *begin; }
+    };   
   }; // end of fast_set
 }; // end of graphlab namespace
 
