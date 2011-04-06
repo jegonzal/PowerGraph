@@ -185,6 +185,7 @@ public:
         }
       }
     }
+    graphlab::metrics::clear_all_metrics_instances();
   }
 
 
@@ -215,6 +216,7 @@ public:
         }
       }
     }
+    graphlab::metrics::clear_all_metrics_instances();
   }
 
 
@@ -247,5 +249,6 @@ public:
         }
       }
     }
+    graphlab::metrics::clear_all_metrics_instances();
   }
 };
