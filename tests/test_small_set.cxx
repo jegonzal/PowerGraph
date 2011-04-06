@@ -7,12 +7,12 @@
 #include <cxxtest/TestSuite.h>
 
 #include <graphlab.hpp>
-#include <graphlab/util/fast_set.hpp>
+#include <graphlab/util/small_set.hpp>
 
 using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
-class test_fast_set : public CxxTest::TestSuite {
+class test_small_set : public CxxTest::TestSuite {
 public:
 
   
@@ -20,11 +20,11 @@ public:
     std::cout << std::endl;
     std::cout << "Testing set union" << std::endl;
 
-    typedef fast_set<10, int> set_type;
-    typedef fast_set<5, int> small_set_type;
-    fast_set<0, int> empty_set;
-    fast_set<10, int> set1;
-    fast_set<10, int> set2;
+    typedef small_set<10, int> set_type;
+    typedef small_set<5, int> small_set_type;
+    small_set<0, int> empty_set;
+    small_set<10, int> set1;
+    small_set<10, int> set2;
     set1 += set_type(1) + small_set_type(3) + set_type(2) + empty_set;
     set1 += 1;
     set1 += 3;
@@ -51,7 +51,7 @@ public:
     ASSERT_EQ(set_type(true_set2), set2);    
     std::cout << "set2: " << set2 << std::endl;
 
-    fast_set<7, int> set3 = set1 + set2;
+    small_set<7, int> set3 = set1 + set2;
     std::set<int> true_set3 = set_union(true_set1, true_set2);
     ASSERT_EQ(set_type(true_set3), set3);
     std::cout << "set3 = set1 + set2: " << set3 << std::endl;
@@ -61,7 +61,7 @@ public:
 
 
   void test_union_speed() {
-    typedef fast_set<20, int> set_type;
+    typedef small_set<20, int> set_type;
     typedef std::set<int> true_set_type;
     typedef boost::unordered_set<int> boost_set_type;
     size_t max_iter = 1000000;
@@ -94,7 +94,7 @@ public:
     for(size_t i = 0; i < max_iter; ++i) {
       set3 = set1 + set2;
     }
-    std::cout << "fast set time: " << time.current_time() << std::endl;
+    std::cout << "small set time: " << time.current_time() << std::endl;
 
 
     boost_set_type boost_set3;

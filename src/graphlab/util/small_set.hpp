@@ -1,10 +1,11 @@
-#ifndef GRAPHLAB_FAST_SET_HPP
-#define GRAPHLAB_FAST_SET_HPP
+#ifndef GRAPHLAB_SMALL_SET_HPP
+#define GRAPHLAB_SMALL_SET_HPP
 
 
 #include <iostream>
 #include <set>
 #include <iterator>
+#include <algorithm>
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
@@ -20,7 +21,7 @@ namespace graphlab {
    * support quick operations with stack allocation.
    */
   template<size_t MAX_DIM, typename T>
-  class fast_set {
+  class small_set {
   public: // typedefs
     typedef T value_type;
     typedef T* iterator;
@@ -34,17 +35,17 @@ namespace graphlab {
 
   public:
     //! Construct an empty set
-    fast_set() : nelems(0) { }
+    small_set() : nelems(0) { }
 
     //! Create a stack set with just one element
-    fast_set(const T& elem) : nelems(1) { values[0] = elem; }
+    small_set(const T& elem) : nelems(1) { values[0] = elem; }
     
     /**
      * Create a stack from an std set by adding each element one at a
      * time
      */
     template<typename OtherT>
-    fast_set(const std::set<OtherT>& other) : nelems(other.size()) { 
+    small_set(const std::set<OtherT>& other) : nelems(other.size()) { 
       ASSERT_LE(nelems, MAX_DIM);
       size_t index = 0;
       foreach(const OtherT& elem, other) values[index++] = elem;
@@ -56,7 +57,7 @@ namespace graphlab {
      * time
      */
     template<size_t OtherSize>
-    fast_set(const fast_set<OtherSize, T>& other) : nelems(other.size()) { 
+    small_set(const small_set<OtherSize, T>& other) : nelems(other.size()) { 
       ASSERT_LE(nelems, MAX_DIM);
       size_t index = 0;
       for(const T* elem = other.begin(); elem != other.end(); ++elem) 
@@ -91,7 +92,7 @@ namespace graphlab {
 
     //! test whether the set contains the given set of element
     template<size_t OtherDim>
-    bool contains(const fast_set<OtherDim, T>& other) const {
+    bool contains(const small_set<OtherDim, T>& other) const {
       return std::includes(begin(), end(), 
                            other.begin(), other.end());
     }
@@ -102,12 +103,12 @@ namespace graphlab {
      * true. 
      */
     template<size_t OtherDim>
-    bool operator<=(const fast_set<OtherDim, T>& other) const {
+    bool operator<=(const small_set<OtherDim, T>& other) const {
       return contains(other);
     }
 
     template<size_t OtherDim>
-    bool operator==(const fast_set<OtherDim, T>& other) const {
+    bool operator==(const small_set<OtherDim, T>& other) const {
       if(size() != other.size()) return false;
       return std::equal(begin(), end(), other.begin());
     }
@@ -127,14 +128,14 @@ namespace graphlab {
       // Ensure that the other set has an appropriate size
       const size_t other_size = end - begin;  
       ASSERT_LE(other_size, MAX_DIM);
-      // Construct a temporary fast set representing the range
-      fast_set other;
+      // Construct a temporary small set representing the range
+      small_set other;
       for(size_t i = 0; i < other_size; ++i) {
         other[i] = begin[i];
         // Ensure that the other set is sorted
         if(i+1 < other_size) ASSERT_LT(begin[i], begin[i+1]);
       }
-      // Insert it into this fast set using the + operation
+      // Insert it into this small set using the + operation
       *this += other;
     }
 
@@ -153,8 +154,8 @@ namespace graphlab {
     
 
     // //! Take the union of two sets
-    // inline fast_set operator+(const fast_set& other) const {
-    //   fast_set result;
+    // inline small_set operator+(const small_set& other) const {
+    //   small_set result;
     //   size_t i = 0, j = 0;
     //   while(i < size() && j < other.size()) {
     //     assert(result.nelems < MAX_DIM);
@@ -181,17 +182,17 @@ namespace graphlab {
 
 
     //! Take the union of two sets
-    inline fast_set operator+(const T& elem) const {
-      fast_set result(*this);
+    inline small_set operator+(const T& elem) const {
+      small_set result(*this);
       return result += elem;
     }
 
 
     //! Take the union of two sets
     template<size_t OtherDim>
-    inline fast_set< max_type<OtherDim, MAX_DIM>::value, T > 
-    operator+(const fast_set<OtherDim, T>& other) const {
-      typedef fast_set< max_type<OtherDim, MAX_DIM>::value, T>
+    inline small_set< max_type<OtherDim, MAX_DIM>::value, T > 
+    operator+(const small_set<OtherDim, T>& other) const {
+      typedef small_set< max_type<OtherDim, MAX_DIM>::value, T>
         result_type;
       result_type result;
       const T* new_end = 
@@ -207,7 +208,7 @@ namespace graphlab {
 
     //! Add the other set to this set
     template<size_t OtherDim>
-    inline fast_set& operator+=(const fast_set<OtherDim, T>& other) {
+    inline small_set& operator+=(const small_set<OtherDim, T>& other) {
       *this = *this + other;
       return *this;
     }
@@ -215,7 +216,7 @@ namespace graphlab {
 
     //! Add an element to this set. This is "optimized" since it is
     //! used frequently
-    inline fast_set& operator+=(const T& elem) {
+    inline small_set& operator+=(const T& elem) {
       // // Find where elem should be inserted
       // size_t index = 0;
       // for(; index < nelems && values[index] < elem; ++index);      
@@ -236,7 +237,7 @@ namespace graphlab {
 
 
     //! Remove the other set from this set
-    fast_set& operator-=(const fast_set& other) {
+    small_set& operator-=(const small_set& other) {
       if(other.size() == 0) return *this;    
       // Backup the old nelems and reset nelems
       size_t old_nelems = size(); nelems = 0;
@@ -252,15 +253,15 @@ namespace graphlab {
     }
 
     //! subtract the right set form the left set
-    fast_set operator-(const fast_set& other) const {
-      fast_set result = *this;
+    small_set operator-(const small_set& other) const {
+      small_set result = *this;
       result -= other;
       return result;
     }
 
     //! Take the intersection of two sets
-    fast_set operator*(const fast_set& other) const {
-      fast_set result; 
+    small_set operator*(const small_set& other) const {
+      small_set result; 
       for(size_t i = 0, j = 0;
           i < size() && j < other.size(); ) {
         if(values[i] == other.values[j]) {
@@ -272,7 +273,7 @@ namespace graphlab {
     }
 
     //! Take the intersection of two sets
-    fast_set operator*=(const fast_set& other)  {
+    small_set operator*=(const small_set& other)  {
       *this = *this * other;
       return *this;
     }
@@ -326,12 +327,12 @@ namespace graphlab {
       }
       T& operator*() { ASSERT_LT(begin, end); return *begin; }
     };   
-  }; // end of fast_set
+  }; // end of small_set
 }; // end of graphlab namespace
 
 template<size_t MAX_DIM, typename T>
 std::ostream&
-operator<<(std::ostream& out, const graphlab::fast_set<MAX_DIM, T>& set) {
+operator<<(std::ostream& out, const graphlab::small_set<MAX_DIM, T>& set) {
   out << "{";
   for(size_t i = 0; i < set.size(); ++i) {
     out << set[i];
