@@ -48,7 +48,7 @@ namespace graphlab {
   private:
     
     /** The internal worker thread class */
-    class task_worker : public runnable {      
+    class task_worker  {      
       pushy_distributed_engine* engine;
       size_t workerid;
     public:
