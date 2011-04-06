@@ -217,32 +217,51 @@ public:
       TS_ASSERT_EQUALS(factor5.logP(i), factor4.logP(i));
     }
 
-    factor.logP(0) +=2;
-    factor.logP(2) +=3;
-    factor.logP(4) +=4;
-    factor.logP(6) +=1;
-
-    factor_type counts(factor.args());
-    factor.normalize();
-    size_t num_samples = 10000000;
-    for(size_t i = 0; i < num_samples; ++i) {
-      assignment_type asg = factor.sample();
-      ++counts.logP(asg);
-    }
-    sum = 0;
-    for(size_t i = 0; i < counts.size(); ++i)
-      sum += counts.logP(i);
-    for(size_t i = 0; i < counts.size(); ++i) {
-      counts.logP(i) = std::log( counts.logP(i) / sum );
-    }
-    std::cout << "True Factor: " << factor << std::endl;
-    std::cout << "Sampled: " << counts << std::endl;
-    for(size_t i = 0; i < counts.size(); ++i) {
-      TS_ASSERT_LESS_THAN(std::abs(factor.logP(i) -
-                                   counts.logP(i)) , 1E-2);
-    }
-
   }
+
+
+  // void test_table_factor_sample() {
+  //   const size_t max_dim = 5;
+  //   typedef graphlab::table_factor<max_dim> factor_type;
+  //   typedef factor_type::domain_type domain_type;
+  //   typedef factor_type::assignment_type assignment_type;
+  //   discrete_variable v1(1, 3);
+  //   discrete_variable v2(2, 4);
+  //   discrete_variable v3(3, 2);
+
+  //   domain_type dom(v1,v2,v3);
+  //   // Create a factor over the domain
+  //   factor_type factor(dom);
+  //   factor.uniform();
+
+  //   factor.logP(0) +=2;
+  //   factor.logP(2) +=3;
+  //   factor.logP(4) +=4;
+  //   factor.logP(6) +=1;
+
+  //   factor_type counts(factor.args());
+  //   factor.normalize();
+  //   size_t num_samples = 10000000;
+  //   for(size_t i = 0; i < num_samples; ++i) {
+  //     assignment_type asg = factor.sample();
+  //     ++counts.logP(asg);
+  //   }
+  //   double sum = 0;
+  //   for(size_t i = 0; i < counts.size(); ++i)
+  //     sum += counts.logP(i);
+  //   for(size_t i = 0; i < counts.size(); ++i) {
+  //     counts.logP(i) = std::log( counts.logP(i) / sum );
+  //   }
+  //   std::cout << "True Factor: " << factor << std::endl;
+  //   std::cout << "Sampled: " << counts << std::endl;
+  //   for(size_t i = 0; i < counts.size(); ++i) {
+  //     TS_ASSERT_LESS_THAN(std::abs(factor.logP(i) -
+  //                                  counts.logP(i)) , 1E-2);
+  //   }
+
+  // }
+
+
 
   void test_unary_binary_factors() {
 
@@ -266,4 +285,49 @@ public:
     std::cout << b << std::endl;
     std::cout << bin << std::endl;
   }
+
+
+  void test_factor_speed() {
+    const size_t max_dim = 16;
+    typedef graphlab::table_factor<max_dim> factor_type;
+    typedef factor_type::domain_type domain_type;
+    typedef factor_type::assignment_type assignment_type;
+    
+    discrete_variable v1(1, 3);
+    discrete_variable v2(2, 4);
+    discrete_variable v3(3, 2);
+    discrete_variable v4(4, 7);
+    discrete_variable v5(5, 5);
+    
+
+    const domain_type big_dom = domain_type(v1) + v2 + v3 + v4 + v5;
+    // Create a factor over the domain
+    factor_type factor(big_dom);
+    factor.uniform();
+    const size_t max_iterations = 10000;
+    timer time;
+
+
+    time.start();
+    for(size_t i = 0; i < max_iterations; ++i) {
+      factor *= factor;
+    }
+    std::cout << "factor *= factor:    " 
+              << time.current_time() << std::endl;
+
+
+    const domain_type small_dom = domain_type(v1) + v2 + v3;
+    factor_type small_factor(small_dom);
+    small_factor.uniform();
+
+    time.start();
+    for(size_t i = 0; i < max_iterations; ++i) {
+      factor *= small_factor;
+    }
+    std::cout << "factor *= small_factor:    " 
+              << time.current_time() << std::endl;
+    
+ 
+  }
+
 };
