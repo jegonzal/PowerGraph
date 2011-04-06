@@ -341,30 +341,6 @@ MACRO(EXEC file prog)
     )
 ENDMACRO(EXEC)
 
-
-MACRO(add_dist_executable NAME)
-  IF(MPI_FOUND)
-    ADD_EXECUTABLE(${NAME} ${ARGN})
-    TARGET_LINK_LIBRARIES(${NAME} 
-      graphlab_dist 
-      ${MPI_LIBRARY} 
-      ${MPI_EXTRA_LIBRARY} 
-      graphlab)
-
-    SET_SOURCE_FILES_PROPERTIES( ${ARGN}
-      PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED" )
-    # set_property(TARGET ${NAME} APPEND PROPERTY 
-    #   COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
-    #    add_definitions(-DGLDISTRIBUTED)
-
-  ELSE(MPI_FOUND)
-    if(EXPERIMENTAL)   
-    message(STATUS "Not Building " ${NAME} " since mpi was not found.")
-    endif()
-  ENDIF(MPI_FOUND)
-ENDMACRO(add_dist_executable)
-
-
 MACRO(add_dist2_executable NAME)
   IF(MPI_FOUND)
     ADD_EXECUTABLE(${NAME} ${ARGN})
@@ -406,15 +382,6 @@ MACRO(add_zoltan_executable NAME)
 ENDMACRO(add_zoltan_executable)
 
 
-
-
-
-
-MACRO(dist_target_link_libraries NAME)
-  IF(MPI_FOUND)
-    TARGET_LINK_LIBRARIES(${NAME} ${ARGN})
-  ENDIF(MPI_FOUND)
-ENDMACRO(dist_target_link_libraries)
 
 MACRO(dist2_target_link_libraries NAME)
   IF(MPI_FOUND)
