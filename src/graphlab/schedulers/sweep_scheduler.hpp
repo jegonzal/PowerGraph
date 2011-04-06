@@ -75,10 +75,7 @@ namespace graphlab {
       this->g = &g;
       numvertices = g.local_vertices();
       num_cpus = ncpus;
-      callbacks.resize(num_cpus);
-      for(unsigned int i=0; i<num_cpus; i++) {
-        callbacks[i] = new direct_callback<Graph>(this, engine);
-      }
+      callbacks.resize(num_cpus, direct_callback<Graph>(this, engine));
       // pad to guarantee not go over boundary
       vreserve = LS_MAX_UPDATEFUNCTIONS * (numvertices + 8 - numvertices%8); 
       vrcpu = vreserve * ncpus;
@@ -202,7 +199,7 @@ namespace graphlab {
           
     
     callback_type& get_callback(size_t cpuid) {
-      return *(callbacks[cpuid]);
+      return callbacks[cpuid];
     }
     
     void add_tasks(const std::vector<vertex_id_t> &vertices,
@@ -280,7 +277,7 @@ namespace graphlab {
     shared_termination terminator;
     size_t numvertices;
     size_t num_cpus;
-    std::vector< direct_callback<Graph>* > callbacks;
+    std::vector< direct_callback<Graph> > callbacks;
     Graph* g;
     bool permute_vertices;
   }; 

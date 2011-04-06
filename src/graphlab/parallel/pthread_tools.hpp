@@ -14,7 +14,6 @@
 #include <boost/function.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
-#include <graphlab/macros_def.hpp>
 
  #undef _POSIX_SPIN_LOCKS
 #define _POSIX_SPIN_LOCKS -1
@@ -31,39 +30,18 @@
  */
 namespace graphlab {
 
-
-
-  
-   
   /**
-   * \class runnable Base class for defining a threaded function call.
-   * A pointer to an instance of this class is passed to
-   * thread_group. When the thread starts the run() function will be
-   * called.
+   * \class thread 
+   * A collection of routines for starting and managing threads.
+   * 
    */
-  class runnable {
-  public:
-    //! The function that is executed when the thread starts 
-    virtual void run() = 0;
-    virtual ~runnable() {};
-  };
-
-   
-  
-  
-  /**
-   * \class thread is a basic thread which is runnable but also has
-   * the ability to be started atomically by invoking start. To use
-   * this class simply extend it, implement the runnable method and 
-   * and invoke the start method.
-   */
-  class thread : public runnable {
+  class thread {
   public:
 
     /**
      * This class contains the data unique to each thread. All threads
      * are gauranteed to have an associated graphlab thread_specific
-     * data.
+     * data. The thread object is copyable. 
      */  
     class tls_data {
     public:
@@ -111,35 +89,26 @@ namespace graphlab {
 
   private:
     
-    //! Little helper function used to launch runnable objects      
+    struct invoke_args{
+      size_t m_thread_id;
+      boost::function<void(void)> spawn_routine;   
+      invoke_args(size_t m_thread_id, const boost::function<void(void)> &spawn_routine)
+          : m_thread_id(m_thread_id), spawn_routine(spawn_routine) { };
+    };
+    
+    //! Little helper function used to launch threads
     static void* invoke(void *_args);   
 
-    /** Struct containing arguments to the invoke method which
-        actually runs the thread */
-    struct invoke_args {
-      runnable* m_runnable;
-      size_t m_thread_id;
-      invoke_args(runnable* r, size_t t) : 
-        m_runnable(r), m_thread_id(t) {
-        ASSERT_TRUE(m_runnable != NULL);
-      }
-    }; // end of struct
-
-
-    
-    
   public:
     
     /**
-     * Creates a thread that either runs the passed in runnable object
-     * or otherwise invokes itself.
+     * Creates a thread with a user-defined associated thread ID
      */
-    thread(runnable* obj = NULL, size_t thread_id = 0) : 
+    inline thread(size_t thread_id = 0) : 
       m_stack_size(0), 
       m_p_thread(0),
       m_thread_id(thread_id),
-      m_runnable(obj),
-      m_active(false) {
+      thread_started(false) {
       // Calculate the stack size in in bytes;
       const int BYTES_PER_MB = 1048576; 
       const int DEFAULT_SIZE_IN_MB = 8;
@@ -147,113 +116,24 @@ namespace graphlab {
     }
 
     /**
-     * execute this function to spawn a new thread running the run
-     * routine provided by runnable:
+     * execute this function to spawn a new thread running spawn_function
+     * routine 
      */
-    void start() {
-      // fill in the thread attributes
-      pthread_attr_t attr;
-      int error = 0;
-      error = pthread_attr_init(&attr);
-      ASSERT_TRUE(!error);
-      error = pthread_attr_setstacksize(&attr, m_stack_size);
-      ASSERT_TRUE(!error);
-      error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-      ASSERT_TRUE(!error);
-      
-
-      // If no runnable object was passed in then this thread will try
-      // and run itself.
-      if(m_runnable == NULL) m_runnable = this;
-
-    
-      // Launch the thread.  Effectively this creates a new thread
-      // which calls the invoke function passing in a pointer to a
-      // runnable object
-      invoke_args* args = new invoke_args(m_runnable, m_thread_id);
-      error = pthread_create(&m_p_thread, 
-                             &attr, 
-                             invoke,  
-                             static_cast<void*>(args) );
-      m_active = true;
-      if(error) {
-        std::cout << "Major error in thread_group.launch (pthread_create). Error: " << error << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      // destroy the attribute object
-      error = pthread_attr_destroy(&attr);
-      ASSERT_TRUE(!error);
-    }
+    void launch(const boost::function<void (void)> &spawn_routine);
 
     /**
-     * Same as start() except that you can specify a CPU on which to
+     * Same as launch() except that you can specify a CPU on which to
      * run the thread.  This only currently supported in Linux and if
      * invoked on a non Linux based system this will be equivalent to
      * start().
      */
-    void start(size_t cpu_id){
-      // if this is not a linux based system simply invoke start and
-      // return;
-#ifndef __linux__
-      start();
-      return;
-#else
-      // At this point we can ASSERT_TRUE that this is a linux system
-      if (cpu_id >= cpu_count() && cpu_count() > 0) {
-        // definitely invalid cpu_id
-        std::cout << "Invalid cpu id passed on thread_ground.launch()" 
-                  << std::endl;
-        std::cout << "CPU " << cpu_id + 1 << " requested, but only " 
-                  << cpu_count() << " CPUs available" << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      
-      // fill in the thread attributes
-      pthread_attr_t attr;
-      int error = 0;
-      error = pthread_attr_init(&attr);
-      ASSERT_TRUE(!error);
-      error = pthread_attr_setstacksize(&attr, m_stack_size);
-      ASSERT_TRUE(!error);
-      error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-      ASSERT_TRUE(!error);
-      
-      // Set Processor Affinity masks (linux only)
-      cpu_set_t cpu_set;
-      CPU_ZERO(&cpu_set);
-      CPU_SET(cpu_id % CPU_SETSIZE, &cpu_set);
-      pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
-
-      // If no runnable object was passed in then this thread will try
-      // and run itself.
-      if(m_runnable == NULL) m_runnable = this;
-      
-      // Launch the thread
-      invoke_args* args = new invoke_args(m_runnable, m_thread_id);
-      error = pthread_create(&m_p_thread, 
-                             &attr, 
-                             invoke,
-                             static_cast<void*>(args) );
-      m_active = true;
-      if(error) {
-        std::cout << "Major error in thread_group.launch" << std::endl;
-        std::cout << "pthread_create() returned error " << error << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      
-      
-      
-      // destroy the attribute object
-      error = pthread_attr_destroy(&attr);
-      ASSERT_TRUE(!error);
-#endif
-    } // end of start(size_t cpu_id)
+     void launch(const boost::function<void (void)> &spawn_routine, size_t cpu_id);
 
 
     /**
      * Join the calling thread with this thread.
      */
-    void join() {
+    inline void join() {
       if(this == NULL) {
         std::cout << "Failure on join()" << std::endl;
         exit(EXIT_FAILURE);
@@ -261,22 +141,13 @@ namespace graphlab {
       join(*this);
     }
 
-    bool active() const { return m_active; }
-
-
-    /**
-     * Default run routine is abstract and should be implemented by a
-     * child class.
-     */
-    virtual void run() {
-      std::cout << "Function run() is not implemented." << std::endl;
-      exit(EXIT_FAILURE);
+    inline bool active() const {
+      return thread_started;
     }
-
     
-    virtual ~thread() {  }
+    inline ~thread() {  }
 
-    virtual pthread_t pthreadid() {
+    inline pthread_t pthreadid() {
       return m_p_thread;
     }
   private:
@@ -290,16 +161,8 @@ namespace graphlab {
     
     //! the threads id
     size_t m_thread_id;
-
-    /**
-     * The object this thread runs.  This object must stay in scope
-     * for the duration of this thread
-     */
-    runnable* m_runnable;
-
-    //! whether or not the thread is active (not currently used)
-    bool m_active;
-
+    
+    bool thread_started;
     
   }; // End of class thread
 
@@ -311,7 +174,7 @@ namespace graphlab {
    * \class thread_group Manages a collection of threads
    */
   class thread_group {
-    std::list< thread > m_threads;
+    std::list<thread> m_threads;
     size_t m_thread_counter;
   public:
     /** 
@@ -320,92 +183,39 @@ namespace graphlab {
     thread_group() : m_thread_counter(0) { }
 
     /** 
-     * Launch a single thread which calls r->run() No CPU affinity is
+     * Launch a single thread which calls spawn_function No CPU affinity is
      * set so which core it runs on is up to the OS Scheduler
      */
-    void launch(runnable* r) {
-      if(r == NULL) {
-        std::cout << "Launching a NULL pointer." << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      // Create a thread object
-      thread local_thread(r, m_thread_counter++);
-      local_thread.start();
-      // keep a local copy of the thread
-      m_threads.push_back(local_thread);
-    } // end of launch
+    void launch(const boost::function<void (void)> &spawn_function);
 
     /**
-     * Launch a single thread which calls r->run() Also sets CPU
+     * Launch a single thread which calls spawn_function Also sets CPU
      *  Affinity
      */
-    void launch(runnable* r, size_t cpu_id) {
-      if(r == NULL) {
-        std::cout << "Launching a NULL pointer." << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      // Create a thread object
-      thread local_thread(r, m_thread_counter++);
-      local_thread.start(cpu_id);
-      // keep a local copy of the thread
-      m_threads.push_back(local_thread);
-    } // end of launch
+    void launch(const boost::function<void (void)> &spawn_function, size_t cpu_id);
 
     //! Waits for all threads to complete execution
-    void join() {
-      while(!m_threads.empty()) {
-        m_threads.front().join(); // Join the first thread
-        m_threads.pop_front(); // remove the first element
-      }
-    }
-    void signalall(int sig) {
-      foreach (thread& t, m_threads) {
-        pthread_kill(t.pthreadid(), sig);
-      }
-    }
+    void join();
+    
+    void signalall(int sig);
+    
     //! Destructor. Waits for all threads to complete execution
-    ~thread_group(){ join(); }
+    inline ~thread_group(){ join(); }
 
   }; // End of thread group
 
 
-  /**
-  This provides runnable for a simple function.
-  This should not be used directly, due to its self-deleting nature.
-  Use the launch_in_new_thread() functions
-  */
-  class simple_function_thread : public runnable {
-   public:
-    simple_function_thread(boost::function<void (void)> f):f(f) { };
-
-    inline void run() {
-      f();
-      delete this;
-    }
-    
-   private:
-    boost::function<void (void)> f;  
-  };
-  
-
-  inline thread launch_in_new_thread(boost::function<void (void)> f, 
+  /// Runs f in a new thread. convenience function for creating a new thread quickly.
+  inline thread launch_in_new_thread(const boost::function<void (void)> &f, 
                                size_t cpuid = size_t(-1)) {
-    runnable* r = new simple_function_thread(f);
-    thread thr(r);
-    if (cpuid != size_t(-1)) thr.start(cpuid);
-    else thr.start();
-    
+    thread thr;
+    if (cpuid != size_t(-1)) thr.launch(f, cpuid);
+    else thr.launch(f);
     return thr;
   }
 
  
-  inline void launch_in_new_thread(thread_group &thrgroup,
-                            boost::function<void (void)> f, 
-                            size_t cpuid = size_t(-1)) {
-    runnable* r = new simple_function_thread(f);
-    if (cpuid != size_t(-1)) thrgroup.launch(r, cpuid);
-    else thrgroup.launch(r);
-  }
+
   /**
    * \class mutex 
    * 
@@ -821,5 +631,5 @@ namespace graphlab {
 
 
 }; // End Namespace
-#include <graphlab/macros_undef.hpp>
+
 #endif

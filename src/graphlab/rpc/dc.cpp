@@ -417,8 +417,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the handler threads
   // store the threads in the threadgroup
   for (size_t i = 0;i < numhandlerthreads; ++i) {
-    launch_in_new_thread(fcallhandlers,
-                          boost::bind(&distributed_control::fcallhandler_loop, 
+    fcallhandlers.launch(boost::bind(&distributed_control::fcallhandler_loop, 
                                       this, i));
   }
 

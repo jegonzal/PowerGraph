@@ -258,7 +258,7 @@ int main(int argc, char** argv) {
   timer ti;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
-    launch_in_new_thread(group, f);
+    group.launch(f);
   }
   group.join();
   ASSERT_EQ(numacquired.value, (size_t)(nthreads) * NUM_RAND * NUM_ITER);
@@ -269,7 +269,7 @@ int main(int argc, char** argv) {
   thread_group group2;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
-    launch_in_new_thread(group2, f2);
+    group2.launch(f2);
   }
   group2.join();
   std::cout << nthreads * NUM_RAND * NUM_ITER 
@@ -279,7 +279,7 @@ int main(int argc, char** argv) {
   thread_group group3;
   ti.start();
   for (size_t i = 0;i < nthreads ; ++i) {
-    launch_in_new_thread(group3, f3);
+    group3.launch(f3);
   }
   group3.join();
   std::cout << (size_t)nthreads * NUM_RAND * NUM_ITER 

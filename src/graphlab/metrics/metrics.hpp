@@ -177,8 +177,7 @@ namespace graphlab {
         
     void report(imetrics_reporter & reporter);
         
-        
-        
+
   public:
         
     /* USE THIS TO CREATE A NEW METRICS INSTANCE */
@@ -191,7 +190,7 @@ namespace graphlab {
      */
     static metrics & create_metrics_instance(std::string name, bool create_always_new);
     static metrics & create_metrics_instance(std::string name);
-
+    static void clear_all_metrics_instances();
     static void report_all(imetrics_reporter & reporter);
   };
 

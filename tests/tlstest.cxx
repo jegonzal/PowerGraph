@@ -1,5 +1,6 @@
 #include <vector>
 #include <algorithm>
+#include <boost/bind.hpp>
 
 
 #include <cxxtest/TestSuite.h>
@@ -11,7 +12,7 @@
 using namespace graphlab;
 
 
-class worker : public runnable {
+class worker {
 public:
   std::vector<size_t>* bits;
   void run() {
@@ -37,7 +38,7 @@ class TLSTestSuite : public CxxTest::TestSuite {
       for (size_t i = 0; i < num_workers; ++i) {
         std::cout <<      graphlab::random::rand01() << std::endl;
         workers[i].bits = &bits;
-        g.launch(&workers[i]);
+        g.launch(boost::bind(&worker::run, &workers[i]));
       }
       g.join();
       size_t total = 0;

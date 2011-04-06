@@ -1,7 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-
+#include <boost/bind.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/safe_circular_char_buffer.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -11,7 +11,7 @@ using namespace graphlab;
 
 const size_t BUFFER_SIZE(50000);
 
-struct producer : public runnable {
+struct producer  {
   size_t id;
   safe_circular_char_buffer* buffer;
   size_t bytes_written;
@@ -31,7 +31,7 @@ struct producer : public runnable {
   }
 };
 
-struct consumer_thread : public thread {
+struct consumer_thread  {
   safe_circular_char_buffer* buffer;
   bool running;
   size_t bytes_read;
@@ -71,19 +71,19 @@ int main(int argc, char** argv) {
   // Launch all the producers
   thread_group threads;
   for(size_t i = 0; i < producers.size(); ++i) {
-    threads.launch(&producers[i]);
+    threads.launch(boost::bind(&producer::run, &producers[i]));
   }
   
   // Launch the consumer;
   consumer_thread consumer;
   consumer.buffer = &cbuf;
   consumer.running = true;
-  consumer.start();
+  thread consumerthr = launch_in_new_thread(boost::bind(&consumer_thread::run, &consumer));
   
   threads.join();
   cbuf.stop_reader();
   consumer.running = false;
-  consumer.join();
+  consumerthr.join();
 
   std::cout << "Finished. Comparing:" << std::endl;
 

@@ -409,7 +409,7 @@ class distributed_control {
   };
   std::vector<recv_buffer> buffer;
 
-  class messageproc_thread :public runnable {
+  class messageproc_thread {
   public:
     size_t* done;
     distributed_control *dc;
@@ -434,7 +434,7 @@ class distributed_control {
   };
 
   
-  class background_send_thread:public thread {
+  class background_send_thread {
     distributed_control &dc;
    public: 
     size_t bytes_sent;
@@ -455,11 +455,9 @@ class distributed_control {
     size_t len;
   };
 
-  class message_dispatch_thread:public thread {
-    distributed_control &dc;
-   public: 
-    message_dispatch_thread(distributed_control &dc):dc(dc) { }
-    void run();
+  class message_dispatch_thread {
+  public:
+    static void run(distributed_control *dc);
   };
 
  private:
@@ -490,10 +488,11 @@ class distributed_control {
    
   // background sending
   background_send_thread *send_thread;
+  thread send_thread_thread;
   blocking_queue<send_req_data> send_requests;
   
   // background receiving
-  std::vector<message_dispatch_thread*> dispatch_thread;
+  std::vector<thread> dispatch_thread;
   blocking_queue<dispatch_req_data> dispatch_requests;
 
   atomic<size_t> msgsent;
