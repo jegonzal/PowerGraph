@@ -4,7 +4,6 @@ project(GraphLab)
 
 
 subdirs(
- distributed
  engine
  extern
  graph
@@ -112,26 +111,6 @@ endif()
 target_link_libraries(graphlab graphlab_metis graphlab_rpc graphlab_util)
 
 
-
-if(MPI_FOUND)
-   add_library(graphlab_dist STATIC
-     distributed/distributed_control.cpp
-     distributed/dc_send.cpp
-     distributed/dc_receive.cpp
-     distributed/dc_internal.cpp
-     distributed/distributed_hash_table.cpp
-     distributed/distributed_terminator.cpp
-     distributed/metrics/distributed_metrics.cpp
-)
-
- TARGET_LINK_LIBRARIES(graphlab_dist ${MPI_LIBRARY}
-  ${MPI_EXTRA_LIBRARY})
-
-   TARGET_LINK_LIBRARIES(graphlab_dist ${MPI_LIBRARY}
-     ${MPI_EXTRA_LIBRARY} )
-   set_property(TARGET graphlab_dist 
-     APPEND PROPERTY COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
- endif(MPI_FOUND)
 
 
 add_library(graphlab_dist2 STATIC
