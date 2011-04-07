@@ -1,5 +1,5 @@
 #include <graphlab/parallel/pthread_tools.hpp>
-
+#include <boost/bind.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab { 
@@ -70,17 +70,23 @@ namespace graphlab {
 
   //! Little helper function used to launch threads
   void* thread::invoke(void *_args) {
+    void* retval = NULL;
     thread::invoke_args* args = static_cast<thread::invoke_args*>(_args);
     // Create the graphlab thread specific data
     create_tls_data(args->m_thread_id);    
     //! Run the users thread code
-    args->spawn_routine();
+    try {
+      args->spawn_routine();
+    }
+    catch (const char* msg) {
+      retval = (void*)msg;
+    }
     //! Delete the arguments 
     delete args;
     
     //! Properly kill the thread
     thread_destroy_callback();
-    pthread_exit(NULL);
+    return retval;
   } // end of invoke
 
   
@@ -93,11 +99,16 @@ namespace graphlab {
    * routine until the other thread complets it run.
    */
   void thread::join(thread& other) {
-    void *status;
+    void *status = NULL;
     // joint the first element
     int error = 0;
-    if(other.active())
+    if(other.active()) {
       error = pthread_join( other.m_p_thread, &status);
+      if (status != NULL) {
+        const char* strstatus = (const char*) status;
+        throw strstatus;
+      }
+    }
     if(error) {
       std::cout << "Major error in join" << std::endl;
       std::cout << "pthread_join() returned error " << error << std::endl;
@@ -158,12 +169,12 @@ namespace graphlab {
     error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
     ASSERT_TRUE(!error);
     
-
-
+    
     error = pthread_create(&m_p_thread, 
                             &attr, 
                             invoke,  
                             static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)) );
+
     thread_started = true;
     if(error) {
       std::cout << "Major error in thread_group.launch (pthread_create). Error: " << error << std::endl;
@@ -207,11 +218,12 @@ namespace graphlab {
       CPU_SET(cpu_id % CPU_SETSIZE, &cpu_set);
       pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
 
+          
       // Launch the thread
       error = pthread_create(&m_p_thread, 
                              &attr, 
                              invoke,
-                             static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)) );
+                             static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)));
       thread_started = true;
       if(error) {
         std::cout << "Major error in thread_group.launch" << std::endl;
@@ -226,17 +238,39 @@ namespace graphlab {
       ASSERT_TRUE(!error);
 #endif
     }
-    
-// -----------------------------------------------------------------
-//                 Thread Group Object Public Members 
-// -----------------------------------------------------------------
+      
+  // -----------------------------------------------------------------
+  //                 Thread Group Object Public Members 
+  // -----------------------------------------------------------------
+  // thread group exception forwarding is a little more complicated
+  // because it has to be able to catch it on a bunch of threads
+
+  void thread_group::invoke(boost::function<void (void)> spawn_function,
+                        thread_group *group) {
+    const char* retval = NULL;
+    try {
+      spawn_function();
+    }
+    catch (const char* c) {
+      // signal the thread group to join this thread
+      retval = c;
+    }
+      group->mut.lock();
+      group->joinqueue.push(std::make_pair(pthread_self(), retval));
+      group->cond.signal();
+      group->mut.unlock();
+
+  }
+                        
 
   void thread_group::launch(const boost::function<void (void)> &spawn_function) {
-    // Create a thread object
+    // Create a thread object and launch it. 
+    // We do not need to keep a copy of the thread around
     thread local_thread(m_thread_counter++);
-    local_thread.launch(spawn_function);
-    // keep a local copy of the thread
-    m_threads.push_back(local_thread);
+    mut.lock();
+    threads_running++;
+    mut.unlock();
+    local_thread.launch(boost::bind(thread_group::invoke, spawn_function, this));
   } 
 
 
@@ -244,22 +278,36 @@ namespace graphlab {
                             size_t cpu_id) {
     // Create a thread object
     thread local_thread(m_thread_counter++);
-    local_thread.launch(spawn_function, cpu_id);
-    // keep a local copy of the thread
-    m_threads.push_back(local_thread);
-  }
-  
-  void thread_group::join() {
-    while(!m_threads.empty()) {
-      m_threads.front().join(); // Join the first thread
-      m_threads.pop_front(); // remove the first element
-    }
+    mut.lock();
+    threads_running++;
+    mut.unlock();
+    local_thread.launch(boost::bind(thread_group::invoke, spawn_function, this), cpu_id);
   }
 
-  void thread_group::signalall(int sig) {
-    foreach (thread& t, m_threads) {
-      pthread_kill(t.pthreadid(), sig);
+  void thread_group::join() {
+    mut.lock();
+    while(threads_running > 0) {
+      // if no threads are joining. wait
+      if (joinqueue.empty()) cond.wait(mut);
+      // a thread is joining
+      std::pair<pthread_t, const char*> joining_thread = joinqueue.front();
+      joinqueue.pop();
+      threads_running--;
+      
+      // unlock here since I might be in join for a little while
+      mut.unlock();
+      void *unusedstatus = NULL;
+      pthread_join(joining_thread.first, &unusedstatus);
+      // if there is a return value
+      // throw it. It is safe to throw here since I have the mutex unlocked.
+      if (joining_thread.second) {
+        throw(joining_thread.second);
+      }
+      mut.lock();
     }
+    mut.unlock();
   }
+
+
 }
 

@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <vector>
 #include <list>
+#include <queue>
 #include <iostream>
 #include <boost/function.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -29,192 +30,6 @@
  * \file pthread_tools.hpp A collection of utilities for threading
  */
 namespace graphlab {
-
-  /**
-   * \class thread 
-   * A collection of routines for starting and managing threads.
-   * 
-   */
-  class thread {
-  public:
-
-    /**
-     * This class contains the data unique to each thread. All threads
-     * are gauranteed to have an associated graphlab thread_specific
-     * data. The thread object is copyable. 
-     */  
-    class tls_data {
-    public:
-      inline tls_data(size_t thread_id) : thread_id_(thread_id) { }
-      inline size_t thread_id() { return thread_id_; }
-    private:
-      size_t thread_id_;
-    }; // end of thread specific data
-
-
-
-    /// Static helper routines
-    // ===============================================================
-
-    /**
-     * Get the thread specific data associated with this thread
-     */
-    static tls_data& get_tls_data();
-      
-    /** Get the id of the calling thread.  This will typically be the
-        index in the thread group. Between 0 to ncpus. */
-    static inline size_t thread_id() { return get_tls_data().thread_id(); }
-    
-
-    
-    /**
-     * This static method joins the invoking thread with the other
-     * thread object.  This thread will not return from the join
-     * routine until the other thread complets it run.
-     */
-    static void join(thread& other);
-    
-    // Called just before thread exits. Can be used
-    // to do special cleanup... (need for Java JNI)
-    static void thread_destroy_callback();
-    static void set_thread_destroy_callback(void (*callback)());
-
-      
-    /**
-     * Return the number processing units (individual cores) on this
-     * system
-     */
-    static size_t cpu_count();
-
-
-  private:
-    
-    struct invoke_args{
-      size_t m_thread_id;
-      boost::function<void(void)> spawn_routine;   
-      invoke_args(size_t m_thread_id, const boost::function<void(void)> &spawn_routine)
-          : m_thread_id(m_thread_id), spawn_routine(spawn_routine) { };
-    };
-    
-    //! Little helper function used to launch threads
-    static void* invoke(void *_args);   
-
-  public:
-    
-    /**
-     * Creates a thread with a user-defined associated thread ID
-     */
-    inline thread(size_t thread_id = 0) : 
-      m_stack_size(0), 
-      m_p_thread(0),
-      m_thread_id(thread_id),
-      thread_started(false) {
-      // Calculate the stack size in in bytes;
-      const int BYTES_PER_MB = 1048576; 
-      const int DEFAULT_SIZE_IN_MB = 8;
-      m_stack_size = DEFAULT_SIZE_IN_MB * BYTES_PER_MB;
-    }
-
-    /**
-     * execute this function to spawn a new thread running spawn_function
-     * routine 
-     */
-    void launch(const boost::function<void (void)> &spawn_routine);
-
-    /**
-     * Same as launch() except that you can specify a CPU on which to
-     * run the thread.  This only currently supported in Linux and if
-     * invoked on a non Linux based system this will be equivalent to
-     * start().
-     */
-     void launch(const boost::function<void (void)> &spawn_routine, size_t cpu_id);
-
-
-    /**
-     * Join the calling thread with this thread.
-     */
-    inline void join() {
-      if(this == NULL) {
-        std::cout << "Failure on join()" << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      join(*this);
-    }
-
-    inline bool active() const {
-      return thread_started;
-    }
-    
-    inline ~thread() {  }
-
-    inline pthread_t pthreadid() {
-      return m_p_thread;
-    }
-  private:
-    
-    
-    //! The size of the internal stack for this thread
-    size_t m_stack_size;
-    
-    //! The internal pthread object
-    pthread_t m_p_thread;
-    
-    //! the threads id
-    size_t m_thread_id;
-    
-    bool thread_started;
-    
-  }; // End of class thread
-
-  
-
-
-
-  /**
-   * \class thread_group Manages a collection of threads
-   */
-  class thread_group {
-    std::list<thread> m_threads;
-    size_t m_thread_counter;
-  public:
-    /** 
-     * Initializes a thread group. 
-     */
-    thread_group() : m_thread_counter(0) { }
-
-    /** 
-     * Launch a single thread which calls spawn_function No CPU affinity is
-     * set so which core it runs on is up to the OS Scheduler
-     */
-    void launch(const boost::function<void (void)> &spawn_function);
-
-    /**
-     * Launch a single thread which calls spawn_function Also sets CPU
-     *  Affinity
-     */
-    void launch(const boost::function<void (void)> &spawn_function, size_t cpu_id);
-
-    //! Waits for all threads to complete execution
-    void join();
-    
-    void signalall(int sig);
-    
-    //! Destructor. Waits for all threads to complete execution
-    inline ~thread_group(){ join(); }
-
-  }; // End of thread group
-
-
-  /// Runs f in a new thread. convenience function for creating a new thread quickly.
-  inline thread launch_in_new_thread(const boost::function<void (void)> &f, 
-                               size_t cpuid = size_t(-1)) {
-    thread thr;
-    if (cpuid != size_t(-1)) thr.launch(f, cpuid);
-    else thr.launch(f);
-    return thr;
-  }
-
- 
 
   /**
    * \class mutex 
@@ -626,6 +441,207 @@ namespace graphlab {
     char *end = (char*)(addr) + len;
 
     for (cp = (char*)(addr); cp < end; cp += 64) __builtin_prefetch(cp, 1);
+  }
+
+
+
+
+
+
+
+
+
+  /**
+   * \class thread 
+   * A collection of routines for starting and managing threads.
+   * 
+   */
+  class thread {
+  public:
+
+    /**
+     * This class contains the data unique to each thread. All threads
+     * are gauranteed to have an associated graphlab thread_specific
+     * data. The thread object is copyable. 
+     */  
+    class tls_data {
+    public:
+      inline tls_data(size_t thread_id) : thread_id_(thread_id) { }
+      inline size_t thread_id() { return thread_id_; }
+    private:
+      size_t thread_id_;
+    }; // end of thread specific data
+
+
+
+    /// Static helper routines
+    // ===============================================================
+
+    /**
+     * Get the thread specific data associated with this thread
+     */
+    static tls_data& get_tls_data();
+      
+    /** Get the id of the calling thread.  This will typically be the
+        index in the thread group. Between 0 to ncpus. */
+    static inline size_t thread_id() { return get_tls_data().thread_id(); }
+    
+
+    
+    /**
+     * This static method joins the invoking thread with the other
+     * thread object.  This thread will not return from the join
+     * routine until the other thread complets it run.
+     */
+    static void join(thread& other);
+    
+    // Called just before thread exits. Can be used
+    // to do special cleanup... (need for Java JNI)
+    static void thread_destroy_callback();
+    static void set_thread_destroy_callback(void (*callback)());
+
+      
+    /**
+     * Return the number processing units (individual cores) on this
+     * system
+     */
+    static size_t cpu_count();
+
+
+  private:
+    
+    struct invoke_args{
+      size_t m_thread_id;
+      boost::function<void(void)> spawn_routine;   
+      invoke_args(size_t m_thread_id, const boost::function<void(void)> &spawn_routine)
+          : m_thread_id(m_thread_id), spawn_routine(spawn_routine) { };
+    };
+    
+    //! Little helper function used to launch threads
+    static void* invoke(void *_args);   
+  
+  public:
+    
+    /**
+     * Creates a thread with a user-defined associated thread ID
+     */
+    inline thread(size_t thread_id = 0) : 
+      m_stack_size(0), 
+      m_p_thread(0),
+      m_thread_id(thread_id),
+      thread_started(false){
+      // Calculate the stack size in in bytes;
+      const int BYTES_PER_MB = 1048576; 
+      const int DEFAULT_SIZE_IN_MB = 8;
+      m_stack_size = DEFAULT_SIZE_IN_MB * BYTES_PER_MB;
+    }
+
+    /**
+     * execute this function to spawn a new thread running spawn_function
+     * routine 
+     */
+    void launch(const boost::function<void (void)> &spawn_routine);
+
+    /**
+     * Same as launch() except that you can specify a CPU on which to
+     * run the thread.  This only currently supported in Linux and if
+     * invoked on a non Linux based system this will be equivalent to
+     * start().
+     */
+     void launch(const boost::function<void (void)> &spawn_routine, size_t cpu_id);
+
+
+    /**
+     * Join the calling thread with this thread.
+     */
+    inline void join() {
+      if(this == NULL) {
+        std::cout << "Failure on join()" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      join(*this);
+    }
+
+    inline bool active() const {
+      return thread_started;
+    }
+    
+    inline ~thread() {  }
+
+    inline pthread_t pthreadid() {
+      return m_p_thread;
+    }
+  private:
+    
+    
+    //! The size of the internal stack for this thread
+    size_t m_stack_size;
+    
+    //! The internal pthread object
+    pthread_t m_p_thread;
+    
+    //! the threads id
+    size_t m_thread_id;
+    
+    bool thread_started;
+  }; // End of class thread
+
+  
+
+
+
+  /**
+   * \class thread_group Manages a collection of threads
+   * This class is not copyable
+   */
+  class thread_group {
+   private:
+    size_t m_thread_counter;
+    size_t threads_running;
+    mutex mut;
+    conditional cond;
+    std::queue<std::pair<pthread_t, const char*> > joinqueue;
+    // not implemented
+    thread_group& operator=(const thread_group &thrgrp);
+    thread_group(const thread_group&);
+    static void invoke(boost::function<void (void)> spawn_function, thread_group *group);
+   public:
+    /** 
+     * Initializes a thread group. 
+     */
+    thread_group() : m_thread_counter(0), threads_running(0) { }
+
+    /** 
+     * Launch a single thread which calls spawn_function No CPU affinity is
+     * set so which core it runs on is up to the OS Scheduler
+     */
+    void launch(const boost::function<void (void)> &spawn_function);
+
+    /**
+     * Launch a single thread which calls spawn_function Also sets CPU
+     *  Affinity
+     */
+    void launch(const boost::function<void (void)> &spawn_function, size_t cpu_id);
+
+    //! Waits for all threads to complete execution
+    void join();
+    
+    inline size_t running_threads() {
+      return threads_running;
+    }
+    //! Destructor. Waits for all threads to complete execution
+    inline ~thread_group(){ join(); }
+
+  }; // End of thread group
+
+
+  /// Runs f in a new thread. convenience function for creating a new thread quickly.
+  inline thread launch_in_new_thread(const boost::function<void (void)> &f, 
+                               size_t cpuid = size_t(-1)) {
+    thread thr;
+    if (cpuid != size_t(-1)) thr.launch(f, cpuid);
+    else thr.launch(f);
+    return thr;
   }
 
 
