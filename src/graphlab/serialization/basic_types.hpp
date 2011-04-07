@@ -17,7 +17,7 @@
 
 
 #define INT_SERIALIZE(tname)                                            \
-  template <typename ArcType> struct serialize_impl<ArcType, tname>{    \
+  template <typename ArcType> struct serialize_impl<ArcType, tname, false>{    \
     static void exec(ArcType &a, const tname &i_) {                     \
       int64_t i = i_ ;                                                  \
       char c[10];                                                       \
@@ -26,7 +26,7 @@
       /* a.o->write(c, len);     */                                     \
     }                                                                   \
   };                                                                    \
-  template <typename ArcType> struct deserialize_impl<ArcType, tname>{  \
+  template <typename ArcType> struct deserialize_impl<ArcType, tname, false>{  \
     static void exec(ArcType &a, tname &t_) {                           \
       decompress_int<tname>(*(a.i), t_);                                \
     }                                                                   \
@@ -39,13 +39,6 @@ namespace graphlab {
 class oarchive;
 class iarchive;
 }
-
-
-SERIALIZABLE_POD(char);
-SERIALIZABLE_POD(bool);
-SERIALIZABLE_POD(unsigned char);
-SERIALIZABLE_POD(double);
-SERIALIZABLE_POD(float);
 
 
 namespace graphlab {
@@ -63,12 +56,12 @@ INT_SERIALIZE(unsigned long long);
 
 /********Serialization and deserialiation of char* **************/
 template <typename ArcType>
-struct serialize_impl<ArcType, const char*> {
+struct serialize_impl<ArcType, const char*, false> {
   static void exec(ArcType &a, const char* const &s) {
     // save the length
     // ++ for the \0
     size_t length = strlen(s); length++;
-    serialize_impl<ArcType, size_t>::exec(a, length);
+    serialize_impl<ArcType, size_t, false>::exec(a, length);
     a.o->write(reinterpret_cast<const char*>(s), length);
     DASSERT_FALSE(a.o->fail());
   }
@@ -76,33 +69,33 @@ struct serialize_impl<ArcType, const char*> {
 
 
 template <typename ArcType, size_t len>
-struct serialize_impl<ArcType, char [len]> {
+struct serialize_impl<ArcType, char [len], false> {
   static void exec(ArcType& a, const char s[len] ) { 
     size_t length = len;
-    serialize_impl<ArcType, size_t>::exec(a, length);
+    serialize_impl<ArcType, size_t, false>::exec(a, length);
     a.o->write(reinterpret_cast<const char*>(s), length);
     DASSERT_FALSE(a.o->fail());
   }
 };
 
 template <typename ArcType>
-struct serialize_impl<ArcType, char*> {
+struct serialize_impl<ArcType, char*, false> {
   static void exec(ArcType &a, char* const &s) {
     // save the length
     // ++ for the \0
     size_t length = strlen(s); length++;
-    serialize_impl<ArcType, size_t>::exec(a, length);
+    serialize_impl<ArcType, size_t, false>::exec(a, length);
     a.o->write(reinterpret_cast<const char*>(s), length);
     DASSERT_FALSE(a.o->fail());
   }
 };
 
 template <typename ArcType>
-struct deserialize_impl<ArcType, char*> {
+struct deserialize_impl<ArcType, char*, false> {
   static void exec(ArcType& a, char*& s) {
     // Save the length and check if lengths match
     size_t length;
-    deserialize_impl<ArcType, size_t>::exec(a, length);
+    deserialize_impl<ArcType, size_t, false>::exec(a, length);
     s = new char[length];
     //operator>> the rest
     a.i->read(reinterpret_cast<char*>(s), length);
@@ -111,10 +104,10 @@ struct deserialize_impl<ArcType, char*> {
 };
   
 template <typename ArcType, size_t len>
-struct deserialize_impl<ArcType, char [len]> {
+struct deserialize_impl<ArcType, char [len], false> {
   static void exec(ArcType& a, char s[len]) { 
     size_t length;
-    deserialize_impl<ArcType, size_t>::exec(a, length);
+    deserialize_impl<ArcType, size_t, false>::exec(a, length);
     ASSERT_LE(length, len);
     a.i->read(reinterpret_cast<char*>(s), length);
     DASSERT_FALSE(a.i->fail());
@@ -125,10 +118,10 @@ struct deserialize_impl<ArcType, char [len]> {
 
 /********Serialization and deserialiation of strings **************/
 template <typename ArcType>
-struct serialize_impl<ArcType, std::string> {
+struct serialize_impl<ArcType, std::string, false> {
   static void exec(ArcType &a, const std::string& s) {
     size_t length = s.length();
-    serialize_impl<ArcType, size_t>::exec(a, length);
+    serialize_impl<ArcType, size_t, false>::exec(a, length);
     a.o->write(reinterpret_cast<const char*>(s.c_str()), length);
     DASSERT_FALSE(a.o->fail());
   }
@@ -136,11 +129,11 @@ struct serialize_impl<ArcType, std::string> {
 
 
 template <typename ArcType>
-struct deserialize_impl<ArcType, std::string> {
+struct deserialize_impl<ArcType, std::string, false> {
   static void exec(ArcType &a, std::string &s) {
       //read the length
     size_t length;
-    deserialize_impl<ArcType, size_t>::exec(a, length);
+    deserialize_impl<ArcType, size_t, false>::exec(a, length);
     //resize the string and read the characters
     s.resize(length);
     a.i->read(const_cast<char*>(s.c_str()), length);
@@ -153,20 +146,20 @@ struct deserialize_impl<ArcType, std::string> {
 
 /********Serialization and deserialiation of strings **************/
 template <typename ArcType, typename T, typename U>
-struct serialize_impl<ArcType, std::pair<T, U> > {
+struct serialize_impl<ArcType, std::pair<T, U>, false > {
   static void exec(ArcType &a, const std::pair<T, U> &s) {
-    serialize_impl<ArcType, T>::exec(a, s.first);
-    serialize_impl<ArcType, U>::exec(a, s.second);
+    serialize_impl<ArcType, T, gl_is_pod<T>::value >::exec(a, s.first);
+    serialize_impl<ArcType, U, gl_is_pod<U>::value >::exec(a, s.second);
   }
 };
 
 
 
 template <typename ArcType, typename T, typename U>
-struct deserialize_impl<ArcType, std::pair<T, U> > {
+struct deserialize_impl<ArcType, std::pair<T, U>, false > {
   static void exec(ArcType &a, std::pair<T, U> &s) {
-    deserialize_impl<ArcType, T>::exec(a, s.first);
-    deserialize_impl<ArcType, U>::exec(a, s.second);
+    deserialize_impl<ArcType, T, gl_is_pod<T>::value >::exec(a, s.first);
+    deserialize_impl<ArcType, U, gl_is_pod<U>::value >::exec(a, s.second);
   }
 };
 

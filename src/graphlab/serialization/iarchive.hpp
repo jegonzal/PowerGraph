@@ -1,9 +1,15 @@
+#ifndef GRAPHLAB_SERIALIZE_HPP
+#include <graphlab/serialization/serialize.hpp>
+
+#else
+
+
 #ifndef GRAPHLAB_IARCHIVE_HPP
 #define GRAPHLAB_IARCHIVE_HPP
 
 #include <iostream>
-#include <boost/mpl/identity.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/is_pod.hpp>
 #include <graphlab/serialization/has_load.hpp>
 namespace graphlab {
 
@@ -38,6 +44,7 @@ class iarchive_soft_fail{
 
 namespace archive_detail {
 
+/// called by the regular archive The regular archive will do a hard fail
 template <typename ArcType, typename T>
 struct deserialize_hard_or_soft_fail {
   static void exec(ArcType &i, T& t) {
@@ -45,7 +52,7 @@ struct deserialize_hard_or_soft_fail {
   }
 };
 
-
+/// called by the soft fail archive 
 template <typename T>
 struct deserialize_hard_or_soft_fail<iarchive_soft_fail, T> {
   static void exec(iarchive_soft_fail &i, T& t) {
@@ -54,18 +61,27 @@ struct deserialize_hard_or_soft_fail<iarchive_soft_fail, T> {
   }
 };
 
+
 /**
-Implementation of the serializer for different types.
-This is the catch-all and is used to call the .load function
-if T is a class. Fails at runtime otherwise.
+Implementation of the deserializer for different types.
+This is the catch-all. If it gets here, it must be a non-POD and is a class.
+We therefore call the .save function.
+Here we pick between the archive types using serialize_hard_or_soft_fail
 */
-template <typename ArcType, typename T>
+template <typename ArcType, typename T, bool IsPOD>
 struct deserialize_impl {
   static void exec(ArcType &i, T& t) {
     deserialize_hard_or_soft_fail<ArcType, T>::exec(i, t);
   }
 };
 
+// catch if type is a POD
+template <typename ArcType, typename T>
+struct deserialize_impl<ArcType, T, true>{
+  static void exec(ArcType &a, T &t) {
+    a.i->read(reinterpret_cast<char*>(&t), sizeof(T));
+  }
+};
 
 } //namespace archive_detail
 
@@ -74,7 +90,7 @@ Allows Use of the "stream" syntax for serialization
 */
 template <typename T>
 iarchive& operator>>(iarchive& a, T &i) {
-  archive_detail::deserialize_impl<iarchive, T>::exec(a, i);
+  archive_detail::deserialize_impl<iarchive, T, gl_is_pod<T>::value >::exec(a, i);
   return a;
 }
 
@@ -85,7 +101,7 @@ Allows Use of the "stream" syntax for serialization
 */
 template <typename T>
 iarchive_soft_fail& operator>>(iarchive_soft_fail& a, T &i) {
-  archive_detail::deserialize_impl<iarchive_soft_fail, T>::exec(a, i);
+  archive_detail::deserialize_impl<iarchive_soft_fail, T, gl_is_pod<T>::value >::exec(a, i);
   return a;
 }
 
@@ -134,7 +150,7 @@ See unsupported_serialize for an example
 */
 #define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval) \
   namespace graphlab{ namespace archive_detail {  \
-  template <typename ArcType> struct deserialize_impl<ArcType, tname>{     \
+  template <typename ArcType> struct deserialize_impl<ArcType, tname, false>{     \
     static void exec(ArcType& arc, tname & tval) {             
 
 #define END_OUT_OF_PLACE_LOAD() } }; } }
@@ -144,5 +160,7 @@ See unsupported_serialize for an example
 
 } // namespace graphlab
 
-#include <graphlab/serialization/basic_types.hpp>
+
 #endif 
+
+#endif

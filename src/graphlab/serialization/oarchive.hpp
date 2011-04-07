@@ -1,11 +1,16 @@
+// This file should not be included directly. use serialize.hpp
+#ifndef GRAPHLAB_SERIALIZE_HPP
+#include <graphlab/serialization/serialize.hpp>
+
+#else
+
 #ifndef GRAPHLAB_OARCHIVE_HPP
 #define GRAPHLAB_OARCHIVE_HPP
 
 #include <iostream>
 #include <string>
-#include <boost/mpl/identity.hpp>
-#include <boost/mpl/assert.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/is_pod.hpp>
 #include <graphlab/serialization/has_save.hpp>
 namespace graphlab {
 
@@ -39,7 +44,7 @@ class oarchive_soft_fail{
 
 namespace archive_detail {
 
-
+/// called by the regular archive The regular archive will do a hard fail
 template <typename ArcType, typename T>
 struct serialize_hard_or_soft_fail {
   static void exec(ArcType &o, const T& t) {
@@ -47,7 +52,7 @@ struct serialize_hard_or_soft_fail {
   }
 };
 
-
+/// called by the soft fail archive 
 template <typename T>
 struct serialize_hard_or_soft_fail<oarchive_soft_fail, T> {
   static void exec(oarchive_soft_fail &o, const T& t) {
@@ -59,24 +64,32 @@ struct serialize_hard_or_soft_fail<oarchive_soft_fail, T> {
 
 /**
 Implementation of the serializer for different types.
-This is the catch-all and is used to call the .save function
-if T is a class. Fails at runtime otherwise.
+This is the catch-all. If it gets here, it must be a non-POD and is a class.
+We therefore call the .save function.
+Here we pick between the archive types using serialize_hard_or_soft_fail
 */
-template <typename ArcType, typename T>
+template <typename ArcType, typename T, bool IsPOD>
 struct serialize_impl {
   static void exec(ArcType &o, const T& t) {
     serialize_hard_or_soft_fail<ArcType, T>::exec(o, t);
   }
 };
 
+/** Catch if type is a POD */
+template <typename ArcType, typename T>
+struct serialize_impl<ArcType, T, true> {
+  static void exec(ArcType &a, const T& t) {
+    a.o->write(reinterpret_cast<const char*>(&t), sizeof(T));
+  }
+};
 
 /**
 Re-dispatch if for some reasons T already has a const
 */
-template <typename ArcType, typename T>
-struct serialize_impl<ArcType, const T> {
+template <typename ArcType, typename T, bool IsPOD>
+struct serialize_impl<ArcType, const T, IsPOD> {
   static void exec(ArcType &o, const T& t) {
-    serialize_impl<ArcType, T>::exec(o, t);
+    serialize_impl<ArcType, T, IsPOD>::exec(o, t);
   }
 };
 }// archive_detail
@@ -87,13 +100,13 @@ Allows Use of the "stream" syntax for serialization
 */
 template <typename T>
 oarchive& operator<<(oarchive& a, const T& i) {
-  archive_detail::serialize_impl<oarchive, T>::exec(a, i);
+  archive_detail::serialize_impl<oarchive, T, gl_is_pod<T>::value >::exec(a, i);
   return a;
 }
 
 template <typename T>
 oarchive_soft_fail& operator<<(oarchive_soft_fail& a, const T& i) {
-  archive_detail::serialize_impl<oarchive_soft_fail, T>::exec(a, i);
+  archive_detail::serialize_impl<oarchive_soft_fail, T, gl_is_pod<T>::value >::exec(a, i);
   return a;
 }
 
@@ -136,10 +149,12 @@ See unsupported_serialize for an example
 */
 #define BEGIN_OUT_OF_PLACE_SAVE(arc, tname, tval) \
   namespace graphlab{ namespace archive_detail {  \
-  template <typename ArcType> struct serialize_impl<ArcType, tname> {     \
+  template <typename ArcType> struct serialize_impl<ArcType, tname, false> {     \
     static void exec(ArcType& arc, const tname & tval) {
 
 #define END_OUT_OF_PLACE_SAVE() } }; } }
 
-#include <graphlab/serialization/basic_types.hpp>
+
 #endif  
+
+#endif
