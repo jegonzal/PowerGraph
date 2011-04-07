@@ -36,6 +36,11 @@ namespace graphlab {
     template< size_t T1, size_t T2 >
     struct max_type { enum max_value { value = T1 < T2? T2 : T1 }; };
 
+    struct Equals { 
+      inline bool operator()(const T& a, const T& b) const {
+        return !Less()(a,b) && !Less()(b,a);
+      }
+    }; // end of equals
 
   public:
     //! Construct an empty set
@@ -61,7 +66,8 @@ namespace graphlab {
      * time
      */
     template<size_t OtherSize>
-    small_set(const small_set<OtherSize, T>& other) : nelems(other.size()) { 
+    small_set(const small_set<OtherSize, T, Less>& other) : 
+      nelems(other.size()) { 
       ASSERT_LE(nelems, MAX_DIM);
       size_t index = 0;
       for(const T* elem = other.begin(); elem != other.end(); ++elem) 
@@ -91,14 +97,14 @@ namespace graphlab {
     
     //! test whether the set contains the given element
     bool contains(const T& elem) const {
-      return std::binary_search(begin(), end(), elem);
+      return std::binary_search(begin(), end(), elem, Less());
     }
 
     //! test whether the set contains the given set of element
     template<size_t OtherDim>
-    bool contains(const small_set<OtherDim, T>& other) const {
+    bool contains(const small_set<OtherDim, T, Less>& other) const {
       return std::includes(begin(), end(), 
-                           other.begin(), other.end());
+                           other.begin(), other.end(), Less());
     }
 
 
@@ -107,14 +113,14 @@ namespace graphlab {
      * true. 
      */
     template<size_t OtherDim>
-    bool operator<=(const small_set<OtherDim, T>& other) const {
+    bool operator<=(const small_set<OtherDim, T, Less>& other) const {
       return contains(other);
     }
 
     template<size_t OtherDim>
-    bool operator==(const small_set<OtherDim, T>& other) const {
+    bool operator==(const small_set<OtherDim, T, Less>& other) const {
       if(size() != other.size()) return false;
-      return std::equal(begin(), end(), other.begin());
+      return std::equal(begin(), end(), other.begin(), Equals());
     }
 
 
@@ -194,16 +200,17 @@ namespace graphlab {
 
     //! Take the union of two sets
     template<size_t OtherDim>
-    inline small_set< max_type<OtherDim, MAX_DIM>::value, T > 
-    operator+(const small_set<OtherDim, T>& other) const {
-      typedef small_set< max_type<OtherDim, MAX_DIM>::value, T>
+    inline small_set< max_type<OtherDim, MAX_DIM>::value, T, Less> 
+    operator+(const small_set<OtherDim, T, Less>& other) const {
+      typedef small_set< max_type<OtherDim, MAX_DIM>::value, T, Less>
         result_type;
       result_type result;
       const T* new_end = 
         std::set_union(begin(), end(),
                        other.begin(), other.end(),
                        safe_iterator(result.begin(), 
-                                     result.absolute_end())).begin;
+                                     result.absolute_end()),
+                       Less()).begin;
       result.nelems = new_end - result.begin();
       ASSERT_LE(result.nelems, result_type::max_dim_type);
       return result;
@@ -212,7 +219,7 @@ namespace graphlab {
 
     //! Add the other set to this set
     template<size_t OtherDim>
-    inline small_set& operator+=(const small_set<OtherDim, T>& other) {
+    inline small_set& operator+=(const small_set<OtherDim, T, Less>& other) {
       *this = *this + other;
       return *this;
     }
@@ -224,7 +231,7 @@ namespace graphlab {
       // // Find where elem should be inserted
       // size_t index = 0;
       // for(; index < nelems && values[index] < elem; ++index);      
-      T* ptr(std::lower_bound(begin(), end(), elem));     
+      T* ptr(std::lower_bound(begin(), end(), elem, Less()));     
       // if the element already exists return
       if(ptr != end() && !(elem < *ptr) ) return *this;
       // otherwise the element does not exist so add it at the current
@@ -242,7 +249,7 @@ namespace graphlab {
 
     //! Remove the other set from this set
     template<size_t OtherDim>
-    small_set& operator-=(const small_set<OtherDim, T>& other) {
+    small_set& operator-=(const small_set<OtherDim, T, Less>& other) {
       // if(other.size() == 0) return *this;    
       // // Backup the old nelems and reset nelems
       // size_t old_nelems = size(); nelems = 0;
@@ -260,7 +267,7 @@ namespace graphlab {
 
     //! subtract the right set form the left set
     template<size_t OtherDim>
-    small_set operator-(const small_set<OtherDim, T>& other) const {
+    small_set operator-(const small_set<OtherDim, T, Less>& other) const {
       // small_set result = *this;
       // result -= other;
       small_set result;
@@ -268,7 +275,8 @@ namespace graphlab {
         std::set_difference(begin(), end(), 
                             other.begin(), other.end(),
                             safe_iterator(result.begin(),
-                                          result.absolute_end())).begin;
+                                          result.absolute_end()),
+                            Less()).begin;
       result.nelems = new_end - result.begin();
       ASSERT_LE(result.nelems, MAX_DIM);
       return result;
@@ -276,13 +284,14 @@ namespace graphlab {
 
     //! Take the intersection of two sets
     template<size_t OtherDim>
-    small_set operator*(const small_set<OtherDim, T>& other) const {
+    small_set operator*(const small_set<OtherDim, T, Less>& other) const {
       small_set result;
       const T* new_end = 
         std::set_intersection(begin(), end(), 
                               other.begin(), other.end(),
                               safe_iterator(result.begin(), 
-                                            result.absolute_end())).begin;
+                                            result.absolute_end()),
+                              Less()).begin;
       result.nelems = new_end - result.end();
       ASSERT_LE(result.nelems, MAX_DIM);
       return result;
@@ -290,7 +299,7 @@ namespace graphlab {
 
     //! Take the intersection of two sets
     template<size_t OtherDim>
-    small_set operator*=(const small_set<OtherDim, T>& other)  {
+    small_set operator*=(const small_set<OtherDim, T, Less>& other)  {
       *this = *this * other;
       return *this;
     }
