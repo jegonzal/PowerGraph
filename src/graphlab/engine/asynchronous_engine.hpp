@@ -160,6 +160,7 @@ namespace graphlab {
     bool active; 
 
     /** The cause of the last termination condition */
+    const char* exception_message;
     exec_status termination_reason;
 
     scope_range::scope_range_enum default_scope_range;
@@ -238,6 +239,7 @@ namespace graphlab {
       last_check_millis(0),
       task_budget(0),
       active(false),
+      exception_message(NULL),
       termination_reason(EXEC_UNSET),
       default_scope_range(scope_range::EDGE_CONSISTENCY),
       sync_barrier(exec_type == THREADED ? ncpus : 1),
@@ -311,6 +313,7 @@ namespace graphlab {
       // Reset active flag
       active = true;  
       // Reset the last exec status 
+      exception_message = NULL;
       termination_reason = EXEC_TASK_DEPLETION;
       // Start any scheduler threads (if necessary)
       // initialize the local sync queue
@@ -348,6 +351,11 @@ namespace graphlab {
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
       engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+      
+      // ok. if death was due to an exception, rethrow
+      if (termination_reason == EXEC_EXCEPTION) {
+        throw(exception_message);
+      }
     } 
 
 
@@ -516,7 +524,18 @@ namespace graphlab {
           threads.launch(boost::bind(&engine_thread::run, &(workers[i])));
         }
       }
-      threads.join();
+      while (threads.running_threads() > 0) {
+        try {
+          threads.join();
+        }
+        catch(const char* c) {
+          logstream(LOG_ERROR) << "Exception Caught: " << c << std::endl;
+          // killall the running threads
+          exception_message = c;
+          termination_reason = EXEC_EXCEPTION;
+          active = false;
+        }
+      }
     } // end of run threaded
 
 
