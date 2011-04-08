@@ -29,8 +29,6 @@
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
 #include <graphlab/rpc/dc_stream_receive_z.hpp>
 #endif
-#include <graphlab/rpc/dc_buffered_stream_send_expqueue_lz.hpp>
-#include <graphlab/rpc/dc_stream_receive_lz.hpp>
 
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
@@ -288,7 +286,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   bool buffered_queued_send = false;
   bool buffered_queued_send_single = false;
   bool compressed = false;
-  bool compressed_qlz = false;
   if (options["compressed"] == "true" || 
     options["compressed"] == "1" ||
     options["compressed"] == "yes") {
@@ -299,8 +296,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
   if (options["compressed_qlz"] == "true" || 
     options["compressed_qlz"] == "1" ||
     options["compressed_qlz"] == "yes") {
-    compressed_qlz = true;
-    std::cerr << "QuickLZ Compressed Buffered Queued Send Option is ON." << std::endl;
+    compressed = true;
+    std::cerr << "QuickLZ Deprecated. Using LZ if available." << std::endl;
   }
   
   if (options["buffered_send"] == "true" || 
@@ -360,10 +357,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (size_t i = 0; i < machines.size(); ++i) {
-      if (compressed_qlz) {
-       receivers.push_back(new dc_impl::dc_stream_receive_lz(this));
-      }
-      else if (compressed) {
+      if (compressed) {
         #ifdef ZLIB_FOUND
         receivers.push_back(new dc_impl::dc_stream_receive_z(this));
         #else
@@ -377,12 +371,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
       else {
         receivers.push_back(new dc_impl::dc_stream_receive(this));
       }
-
-      if (compressed_qlz) {
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue_lz(this, comm, i));
-      }      
-      else if (compressed) {
+  
+      if (compressed) {
         #ifdef ZLIB_FOUND
         single_sender = false;
         senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue_z(this, comm, i));
