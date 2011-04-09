@@ -1,3 +1,3 @@
 project(GraphLab)
 
-add_executable(pagerank pagerank.cpp)
+add_graphlab_executable(pagerank pagerank.cpp)

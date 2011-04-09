@@ -341,6 +341,17 @@ MACRO(EXEC file prog)
     )
 ENDMACRO(EXEC)
 
+
+MACRO(add_graphlab_executable NAME)
+  ADD_EXECUTABLE(${NAME} ${ARGN})
+  TARGET_LINK_LIBRARIES(${NAME} ${Boost_LIBRARIES})
+  TARGET_LINK_LIBRARIES(${NAME} ${GraphLab_LIBRARIES})
+ENDMACRO(add_graphlab_executable)
+
+
+
+
+
 MACRO(add_dist2_executable NAME)
   IF(MPI_FOUND)
     ADD_EXECUTABLE(${NAME} ${ARGN})
@@ -362,6 +373,10 @@ MACRO(add_dist2_executable NAME)
     endif()
   ENDIF(MPI_FOUND)
 ENDMACRO(add_dist2_executable)
+
+
+
+
 
 
 MACRO(add_zoltan_executable NAME)

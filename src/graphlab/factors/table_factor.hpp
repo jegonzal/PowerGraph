@@ -505,6 +505,7 @@ namespace graphlab {
       }
       std::cout << "}"  << std::endl;
       assert(false);
+      return assignment_type();
     }
     
     void set_as_agreement(double lambda) {

@@ -1,4 +1,4 @@
 project(GraphLab)
 
 # Shared memory CoEM for multiclass inference
-add_executable(coem  multicoemapp.cpp)
+add_graphlab_executable(coem  multicoemapp.cpp)

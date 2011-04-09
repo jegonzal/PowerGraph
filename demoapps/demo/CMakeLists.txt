@@ -1,3 +1,3 @@
 project(GraphLab)
 
-add_executable(demo demo.cpp)
+add_graphlab_executable(demo demo.cpp)
