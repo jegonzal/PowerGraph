@@ -73,9 +73,7 @@ add_library(graphlab_rpc STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
-  ${rpc_compressed}
-  rpc/dc_buffered_stream_send_expqueue_lz.cpp
-  rpc/dc_stream_receive_lz.cpp)
+  ${rpc_compressed})
 
 
 IF(ZOLTAN_FOUND)
@@ -93,7 +91,7 @@ if(Sctp-FOUND)
   set_property(TARGET graphlab_rpc APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
 endif()
 
-target_link_libraries(graphlab_rpc graphlab_util quicklz)
+target_link_libraries(graphlab_rpc graphlab_util)
 
 
 add_library(graphlab STATIC

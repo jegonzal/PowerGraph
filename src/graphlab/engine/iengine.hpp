@@ -43,8 +43,10 @@ namespace graphlab {
                                   the maximum number of tasks was
                                   exceeded */
 
-    EXEC_FORCED_ABORT     /**< the engine was stopped by calling force
+    EXEC_FORCED_ABORT,     /**< the engine was stopped by calling force
                              abort */
+                             
+    EXEC_EXCEPTION        /**< the engine was stopped by an exception */
   };
   
 
@@ -338,6 +340,7 @@ namespace graphlab {
       case EXEC_TERM_FUNCTION: return "termination function";
       case EXEC_TASK_DEPLETION: return "task depletion (natural)";
       case EXEC_TIMEOUT: return "timeout";
+      case EXEC_EXCEPTION: return "exception";
       };
       return "unknown";
     }

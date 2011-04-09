@@ -68,7 +68,7 @@ void __print_back_trace();
     if (__builtin_expect(!(condition), 0)) {                            \
       WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
                       sizeof("Check failed: " #condition "\n")-1);      \
-      sleep(1);__print_back_trace();throw("assertion failure");         \
+      __print_back_trace();throw("assertion failure");         \
     }                                                                   \
   } while(0)
 
@@ -80,7 +80,7 @@ void __print_back_trace();
       const int err_no = errno;                                         \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ": "    \
                            << strerror(err_no) << "\n";                 \
-      sleep(1);__print_back_trace();throw("assertion failure");         \
+      __print_back_trace();throw("assertion failure");         \
     }                                                                   \
   } while(0)
 
@@ -99,7 +99,7 @@ void __print_back_trace();
     if (__builtin_expect(!((v1) op (typeof(val1))(v2)), 0)) {           \
       logstream(LOG_FATAL) << "Check failed: " << #val1 << #op << #val2 \
                            << "  [" << v1 << #op << v2 << "]\n";        \
-      sleep(1);__print_back_trace();throw("assertion failure");         \
+      __print_back_trace();throw("assertion failure");         \
     }                                                                   \
   } while(0)
 
@@ -137,7 +137,7 @@ void __print_back_trace();
     if (__builtin_expect(!(condition), 0)) {                            \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ":\n";  \
       logger(LOG_FATAL, fmt, ##__VA_ARGS__);                            \
-      sleep(1);__print_back_trace();throw("assertion failure");         \
+      __print_back_trace();throw("assertion failure");         \
     }                                                                   \
   } while(0)
 
@@ -170,7 +170,7 @@ void __print_back_trace();
     if (__builtin_expect(!(condition), 0)) {                            \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ":\n";  \
       logger(LOG_FATAL, fmt, ##__VA_ARGS__);                            \
-     sleep(1);__print_back_trace();throw("assertion failure");          \
+     __print_back_trace();throw("assertion failure");          \
     }                                                                   \
   } while(0)
 

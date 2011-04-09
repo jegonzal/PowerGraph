@@ -1,5 +1,6 @@
 #include <iostream>
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/logger/assertions.hpp>
 #include <boost/bind.hpp>
 
 using namespace graphlab;
@@ -9,6 +10,11 @@ void test() {
 
 void test_print(size_t s) {
   std::cout << s << std::endl;
+}
+
+
+void thread_assert_false() {
+  ASSERT_TRUE(false);
 }
 
 int main(int argc, char** argv) {
@@ -30,4 +36,32 @@ int main(int argc, char** argv) {
     thrgroup.launch(boost::bind(test_print, i));
   }
   thrgroup.join();
+  std::cout << "threads test ok" << std::endl;
+  
+  thread thr3;
+  thr3.launch(thread_assert_false);
+  try {
+    thr3.join();
+  }
+  catch(const char* c) {
+    std::cout << "Exception " << c << " forwarded successfully!" << std::endl;
+  }
+  
+  
+  for (size_t i = 0;i < 10; ++i) {
+    thrgroup.launch(thread_assert_false);
+  }
+  
+  size_t numcaught = 0;
+  while (thrgroup.running_threads() > 0) {
+    try {
+      thrgroup.join();
+    }
+    catch (const char* c){
+      std::cout << "Exception " << c << " forwarded successfully!" << std::endl;
+      numcaught++;
+    }
+  }
+  std::cout << "Caught " << numcaught << " exceptions!" << std::endl;
+  ASSERT_EQ(numcaught, 10);
 }
