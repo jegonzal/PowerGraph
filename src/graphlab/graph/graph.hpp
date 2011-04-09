@@ -299,7 +299,7 @@ namespace graphlab {
       // Sort all in edges sets
       //      foreach(edge_set& eset, in_edges) {
 #pragma omp parallel for
-      for(size_t i = 0; i < in_edges.size(); ++i) {
+      for(ssize_t i = 0; i < ssize_t(in_edges.size()); ++i) {
         edge_set& eset(in_edges[i]);
         // Sort the edge vector
         std::sort(eset.begin(),
@@ -324,7 +324,7 @@ namespace graphlab {
       // Sort all out edges sets
       //      foreach(edge_set& eset, out_edges) {
 #pragma omp parallel for
-      for(size_t i = 0; i < out_edges.size(); ++i) {
+      for(ssize_t i = 0; i < ssize_t(out_edges.size()); ++i) {
         edge_set& eset(out_edges[i]);
         std::sort(eset.begin(),
                   eset.end(),

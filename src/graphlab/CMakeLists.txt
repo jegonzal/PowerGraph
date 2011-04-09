@@ -95,7 +95,6 @@ target_link_libraries(graphlab_rpc graphlab_util)
 
 
 add_library(graphlab STATIC
-  factors/table_factor.cpp
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp

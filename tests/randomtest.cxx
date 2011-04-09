@@ -21,12 +21,12 @@ void uniform_speed(const size_t max_iter) {
   timer ti;
   ti.start();
   for(size_t i = 0; i < max_iter; ++i) {
-    sum += random::uniform<NumType>(0, 10);
+    sum += graphlab::random::uniform<NumType>(0, 10);
   }
   double slow_time = ti.current_time();
   ti.start();
   for(size_t i = 0; i < max_iter; ++i) {
-    sum += random::fast_uniform<NumType>(0, 10);
+    sum += graphlab::random::fast_uniform<NumType>(0, 10);
   }
   double fast_time = ti.current_time();
   std::cout << slow_time << ", " << fast_time << std::endl; 
@@ -113,13 +113,13 @@ class RandomTestSuite: public CxxTest::TestSuite {
   void test_random_number_generators() {
     std::cout << std::endl;
     std::cout << "beginning seed" << std::endl;
-    random::seed();
-    random::time_seed();
-    random::nondet_seed();
-    random::seed(12345);
+    namespace random = graphlab::random;
+    graphlab::random::seed();
+    graphlab::random::time_seed();
+    graphlab::random::nondet_seed();
+    graphlab::random::seed(12345);
     std::cout << "finished" << std::endl;
 
-    namespace random = graphlab::random;
     const size_t num_iterations(20);
     std::vector<thread_worker> workers(10);
     for(size_t i = 0; i < workers.size(); ++i) 
@@ -182,6 +182,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
 
 
   void test_speed() {
+    namespace random = graphlab::random;
     std::cout << "speed test run: " << std::endl;
     const size_t MAX_ITER(10000000);
     std::cout << "size_t:   "; 
