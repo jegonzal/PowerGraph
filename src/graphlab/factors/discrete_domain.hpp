@@ -1,7 +1,7 @@
 #ifndef GRAPHLAB_DISCRETE_DOMAIN
 #define GRAPHLAB_DISCRETE_DOMAIN
 
-
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/factors/discrete_variable.hpp>
 
 
@@ -230,13 +230,11 @@ namespace graphlab {
 
     //! test whether two discrete_domains are equal
     bool operator==(const discrete_domain& other) const {
-      bool equal = num_vars() == other.num_vars();
-      for(size_t i = 0; equal && i < num_vars(); ++i) {
-        equal = equal && var(i) == other.var(i);
-        if(!equal) return false;
+      if( num_vars() != other.num_vars() ) return false;  
+      for(size_t i = 0; i < num_vars(); ++i) {
+        if(var(i) != other.var(i)) return false;
       }
-      if(equal) ASSERT_EQ(size(), other.size());
-      return equal;
+      return true;
     }
     
     //!  test whether two discrete_domains are not equal

@@ -105,4 +105,4 @@ ADD_CXXTEST(test_small_set.cxx)
 ADD_CXXTEST(test_small_map.cxx)
 
 
-# add_executable(factor_tests2 factor_tests2.cpp)
+add_executable(factor_tests2 factor_tests2.cpp)

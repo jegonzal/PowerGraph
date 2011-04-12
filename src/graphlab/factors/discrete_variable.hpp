@@ -7,6 +7,8 @@
  */
 
 #include <iostream>
+
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {
