@@ -7,9 +7,7 @@
 #include "graphlab.hpp"
 #include "itppvecutils.hpp"
 #include "pmf.h"
-//include "vecutils.hpp"
 #include "prob.hpp"
-//#include "graphlab/util/timer.hpp"
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -38,11 +36,12 @@ bool loadgraph = false;
 bool savegraph = false;
 bool stats = false;
 bool regnormal = false; //regular normalization
+bool aggregatevalidation = false;
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
 
 /* Variables for PMF */
-int M,N,K,L;//training size
+int M,N,K,L;//training size: users, movies, times, number of edges
 int Le = 0; //validation size
 int Lt = 0;//test size
 double pU = 10; //regularization for matrix
@@ -138,6 +137,9 @@ void last_iter();
 void export_kdd_format(graph_type * _g, bool dosave);
 void calc_stats(testtype type);
 
+/**
+ * sample the noise level (PMF/BPTF only)
+ */
 void sample_alpha(double res2){
   
   if (debug)
@@ -868,6 +870,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
   clopts.attach_option("regnormal", &regnormal, regnormal, "regular normalization? ");  
+  clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -1006,7 +1009,7 @@ void start(int argc, char ** argv) {
  * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
  */
 template<typename edgedata>
-int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
+int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool symmetry = false){
      
   //typedef typename graph::edge_data_type edge_data;
   bool * flags = NULL;
@@ -1044,20 +1047,22 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
         ret.first = false;
       }
       else if (flags[(int)ed[i].from-1] == true && flags[(int)ed[i].to-1] == true){
-        ret = g->find((int)ed[i].from-1, (int)ed[i].to-1);
+        ret = _g->find((int)ed[i].from-1, (int)ed[i].to-1);
       }
       else ret.first = false;
 
       if (ret.first == false){
         edges.medges.push_back(edge); 
-        g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
+        _g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
+        if (type == VALIDATION && aggregatevalidation)//add validation edges into training dataset as well
+          g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
         if (options == BPTF_TENSOR_MULT || options == ALS_TENSOR_MULT){
           flags[(int)ed[i].from-1] = true;
           flags[(int)ed[i].to-1] = true;
         }
       }
       else {
-        g->edge_data(ret.second).medges.push_back(edge);
+        _g->edge_data(ret.second).medges.push_back(edge);
       }
     } 
     printf(".");
@@ -1072,9 +1077,17 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
   return e;
 }
 
-
+void count_all_edges(graph_type * _g){
+    for (int i=0; i<M+N; i++){
+        vertex_data &vdata = _g->vertex_data(i);
+        if (i < M)
+          vdata.num_edges = count_edges(_g->out_edge_ids(i));
+        else
+          vdata.num_edges = count_edges(_g->in_edge_ids(i));
+     }
+}
 /* function that reads the tensor from file */
-void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_types::core & glcore) {
+void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl_types::core & glcore) {
 
   printf("Loading %s %s\n", filename, testtypename[data_type]);
   FILE * f = fopen(filename, "r");
@@ -1102,7 +1115,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   for (int i=0; i<M; i++){
     
     vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
-    g->add_vertex(vdata);
+    _g->add_vertex(vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
   }
@@ -1110,7 +1123,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   // add N user node (tensor dim 2) 
   for (int i=0; i<N; i++){
     vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
-    g->add_vertex(vdata);
+    _g->add_vertex(vdata);
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);
   }
@@ -1122,7 +1135,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
     //add T time node (tensor dim 3)
     for (int i=0; i<K; i++){
       times[i].pvec =tones;
-      g->add_vertex(times[i]);
+      _g->add_vertex(times[i]);
       if (debug && (i <= 5 || i == K-1))
         debug_print_vec("T: ", times[i].pvec, D);
     }
@@ -1131,26 +1144,32 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   // read tensor non zero edges from file
   int val = 0; 
   if (!FLOAT) 
-	val = read_mult_edges<edge_double>(f, M+N, g);
-  else val = read_mult_edges<edge_float>(f,M+N, g);
+	val = read_mult_edges<edge_double>(f, M+N, data_type, _g);
+  else val = read_mult_edges<edge_float>(f,M+N, data_type, _g);
 
   switch(data_type){
-	case TRAINING: L= val; break;
-        case VALIDATION: Le = val; break; 
-        case TEST: Lt = val; break;
+	case TRAINING: 
+		L= val; 
+		break;
+        case VALIDATION: 
+		Le = val; 
+		if (aggregatevalidation)
+			L+=  Le; //add edges of validation dataset into the training data set as well.
+		break; 
+        case TEST: 
+		Lt = val; 
+		break;
   }  
 
   if (data_type==TRAINING && tensor && K>1) 
     edges = new std::vector<edge_id_t>[K]();
 
-        
-
   //verify edges
   for (int i=M; i < M+N; i++){
-    foreach(graphlab::edge_id_t eid, g->in_edge_ids(i)){          
-      multiple_edges & tedges= g->edge_data(eid);
-      int from = g->source(eid);
-      int to = g->target(eid);
+    foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
+      multiple_edges & tedges= _g->edge_data(eid);
+      int from = _g->source(eid);
+      int to = _g->target(eid);
       assert(from < M);
       assert(to >= M && to < M+N);
 
@@ -1166,17 +1185,13 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
     }
   }
   
- //verify that the correct number of edges where added into the graph 
-  if (data_type == TRAINING){
-    for (int i=0; i<M+N; i++){
-      vertex_data &vdata = g->vertex_data(i);
-        if (i < M)
-          vdata.num_edges = count_edges(g->out_edge_ids(i));
-        else
-          vdata.num_edges = count_edges(g->in_edge_ids(i));
-     }
+ //store number of edges for each node 
+ if (data_type == TRAINING || (aggregatevalidation && data_type == VALIDATION)){
+ 	count_all_edges(g);
   }
+
  
+  //verify correct number of edges encourntered
   if (data_type==TRAINING && tensor && K>1){
     int cnt = 0;
     for (int i=0; i<K; i++){
