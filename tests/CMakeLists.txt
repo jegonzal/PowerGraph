@@ -103,3 +103,6 @@ add_executable(numa_perf numa_perf.cpp)
 
 ADD_CXXTEST(test_small_set.cxx)
 ADD_CXXTEST(test_small_map.cxx)
+
+
+add_executable(factor_tests2 factor_tests2.cpp)

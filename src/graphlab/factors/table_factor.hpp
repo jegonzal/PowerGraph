@@ -65,16 +65,19 @@ namespace graphlab {
     typedef discrete_domain<MAX_DIM>     domain_type;
     typedef discrete_assignment<MAX_DIM> assignment_type;
     
+
+    /** Construct an empty table factor */
     table_factor() { }
     
+    /** Construct a table factor over the given domain */
     table_factor(const domain_type& dom) :
-      _args(dom), _data(dom.size()) { 
-      //      uniform();
-    }
+      _args(dom), _data(dom.size()) {  }
 
+    /** Construct a copy */
     table_factor(const table_factor& other) :
       _args(other._args), _data(other._data) { }
 
+    /** Standard assignment operator */
     table_factor& operator=(const table_factor& other) {
       _args = other._args;
       _data = other._data;
@@ -84,7 +87,6 @@ namespace graphlab {
     void set_args(const domain_type& args) {
       _args = args;
       _data.resize(args.size());
-      //      uniform();
     }
     
     const domain_type& args() const {
@@ -92,25 +94,27 @@ namespace graphlab {
     }
 
     const double& logP(size_t index) const {
-      assert(index < _args.size());
+      ASSERT_LT(index, _data.size());
       return _data[index];
     }
     
     double& logP(size_t index) {
-      assert(index < _args.size());
+      ASSERT_LT(index, _data.size());
       return _data[index];
     }
 
     const double& logP(const assignment_type& asg) const {
       if(asg.args() == args()) {
         // if the assignment index matches
-        size_t index = asg.linear_index();
-        assert(index < _data.size());
+        const size_t index(asg.linear_index());
+        ASSERT_LT(index, _data.size());
         return _data[index];
       } else {
         // Restrict the assignment to this domain
-        assignment_type sub_asg = asg.restrict(_args);
-        return _data[sub_asg.linear_index()];
+        const assignment_type sub_asg = asg.restrict(_args);
+        const size_t index(sub_asg.linear_index());
+        ASSERT_LT(index, _data.size());
+        return _data[index];
       }
     }
     
@@ -118,12 +122,14 @@ namespace graphlab {
     double& logP(const assignment_type& asg) {
       if(asg.args() == args()) {
         // if the assignment index matches
-        size_t index = asg.linear_index();
-        assert(index < _data.size());
+        const size_t index(asg.linear_index());
+        ASSERT_LT(index, _data.size());
         return _data[index];
       } else {
         // Restrict the assignment to this domain
-        assignment_type sub_asg = asg.restrict(_args);
+        const assignment_type sub_asg = asg.restrict(_args);
+        const size_t index(sub_asg.linear_index());
+        ASSERT_LT(index, _data.size());
         return _data[sub_asg.linear_index()];
       }
     } // end of logP
@@ -151,44 +157,68 @@ namespace graphlab {
       std::fill(_data.begin(), _data.end(), value);
     } 
 
-
     
     //! ensure that sum_x this(x) = 1 
     void normalize() {
       // Compute the max value
       double max_value = logP(0);
-      for(size_t asg = 0; asg < size(); ++asg) 
-        max_value = std::max(max_value, logP(asg));
-      // assert( !std::isinf(max_value) );
-      // assert( !std::isnan(max_value) );
+      for(size_t i = 0; i < _data.size(); ++i) 
+        max_value = std::max(max_value, _data[i] );
       // scale and compute normalizing constant
       double Z = 0.0;
-      for(size_t asg = 0; asg < size(); ++asg) {
-        logP(asg) -= max_value;
-        Z += exp(logP(asg));
-      }
+      for(size_t i = 0; i < _data.size(); ++i)
+        Z += exp( _data[i] -= max_value );
       // assert( !std::isinf(Z) );
       // assert( !std::isnan(Z) );
       // assert( Z > 0.0);
-      double logZ = log(Z);
-      assert( !std::isinf(logZ) );
-      assert( !std::isnan(logZ) );
+      const double logZ(log(Z));
+      ASSERT_FALSE( std::isinf(logZ) );
+      ASSERT_FALSE( std::isnan(logZ) );
       // Normalize
-      for(size_t asg = 0; asg < size(); ++asg) {
-        logP(asg) -= logZ;
-        if(logP(asg) < LOG_EPSILON) logP(asg) = -MAX_DOUBLE;
-      }
+      for(size_t i = 0; i < _data.size(); ++i) _data[i] -= logZ;
     } // End of normalize
     
 
+    /** 
+     * Ensure that the largest value in log form is zero.  This
+     * prevents overflows on normalization. 
+     */
+    void shift_normalize() {
+      // Compute the max value
+      double max_value = logP(0);
+      for(size_t i = 0; i < _data.size(); ++i) 
+        max_value = std::max(max_value, _data[i]);
+      for(size_t i = 0; i < _data.size(); ++i) _data[i] -= max_value;
+    }
+
+
+    /**
+     * Return false if any of the entries are not finite 
+     */
+    bool is_finite() { 
+      for(size_t i = 0; i < _data.size(); ++i) {
+        const bool is_inf( std::isinf( _data[i] ) );
+        const bool is_nan( std::isnan( _data[i] ) );
+        if( __builtin_expect( is_inf || is_nan, 0) ) return false;
+      }
+      return true;
+    }
+
+
     //! this(x) += other(x);
     inline table_factor& operator+=(const table_factor& other) {
-      for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
-        logP(asg.linear_index()) =
-          log( exp(logP(asg.linear_index())) + exp(other.logP(asg)) );
-        //        assert(logP(asg.linear_index()) <= LOG_MAX_DOUBLE);
-        //  assert( !std::isinf( logP(asg.linear_index()) ) );
-        //  assert( !std::isnan( logP(asg.linear_index()) ) );
+      if(args() == other.args()) {
+        ASSERT_EQ(_data.size(), other._data.size());
+        // More verctorizable version
+        for(size_t i = 0; i < _data.size(); ++i) 
+          _data[i] = log( exp(_data[i]) + exp(other._data[i]) );
+      } else { 
+        for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
+          logP(asg.linear_index()) =
+            log( exp(logP(asg.linear_index())) + exp(other.logP(asg)) );
+          // ASSERT_FALSE(std::isinf( logP(asg.linear_index()) ));
+          // ASSERT_FALSE(std::isnan( logP(asg.linear_index()) ));
+        }
       }
       return *this;
     }
@@ -197,14 +227,16 @@ namespace graphlab {
 
     //! this(x) *= other(x);
     inline table_factor& operator*=(const table_factor& other) {
-      for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
-        logP(asg.linear_index()) += other.logP(asg);
-        if(std::isinf( logP(asg.linear_index()) ) ||
-           std::isnan( logP(asg.linear_index()) ) ) {
-          logP(asg.linear_index()) = -MAX_DOUBLE;
-        } 
-        // assert( !std::isinf( logP(asg.linear_index()) ) );
-        // assert( !std::isnan( logP(asg.linear_index()) ) );
+      if(args() == other.args()) {
+        ASSERT_EQ(_data.size(), other._data.size());
+        // More verctorizable version
+        for(size_t i = 0; i < _data.size(); ++i) _data[i] += other._data[i];
+      } else {
+        for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
+          logP(asg.linear_index()) += other.logP(asg); 
+          // ASSERT_FALSE(std::isinf( logP(asg.linear_index()) ));
+          // ASSERT_FALSE(std::isnan( logP(asg.linear_index()) ));
+        }
       }
       return *this;
     }
@@ -217,10 +249,16 @@ namespace graphlab {
 
     //! this(x) /= other(x);
     inline table_factor& operator/=(const table_factor& other) {
-      for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
-        logP(asg.linear_index()) -= other.logP(asg);
-        assert( !std::isinf( logP(asg.linear_index()) ) );
-        assert( !std::isnan( logP(asg.linear_index()) ) );
+      if(args() == other.args()) {
+        ASSERT_EQ(_data.size(), other._data.size());
+         // More verctorizable version
+        for(size_t i = 0; i < _data.size(); ++i) _data[i] -= other._data[i];
+      } else { 
+        for(assignment_type asg = args().begin(); asg < args().end(); ++asg) {
+          logP(asg.linear_index()) -= other.logP(asg);
+          // ASSERT_FALSE(std::isinf( logP(asg.linear_index()) ));
+          // ASSERT_FALSE(std::isnan( logP(asg.linear_index()) ));
+        }
       }
       return *this;
     }
@@ -237,7 +275,7 @@ namespace graphlab {
     inline void convolve(const table_factor& joint,
                          const table_factor& other) {
       // ensure that both factors have the same domain
-      assert(args() + other.args() == joint.args());
+      ASSERT_EQ(args() + other.args(), joint.args());
       // Initialize the factor to zero so we can use it as an
       // accumulator
       uniform(0);
@@ -245,16 +283,16 @@ namespace graphlab {
           asg < joint.args().end(); ++asg) {
         const double value =
           exp(joint.logP(asg.linear_index()) + other.logP(asg));
-        assert( !std::isinf(value) );
-        assert( !std::isnan(value) );
+        ASSERT_FALSE(std::isinf( value ));
+        ASSERT_FALSE(std::isnan( value ));
         logP(asg) += value;
       }
 
       for(size_t i = 0; i < _data.size(); ++i) {
         double& sum = _data[i];
-        assert(sum >= 0.0);
+        ASSERT_GE(sum, 0.0);
         if(sum == 0) sum = -MAX_DOUBLE;
-        else sum = std::log(sum);
+        else sum = log(sum);
       }
       
       // // ensure that both factors have the same domain
@@ -289,10 +327,13 @@ namespace graphlab {
 //       }
 //     }
 
+
+
+
     //! this(x) = other(x, y = asg) 
     inline void condition(const table_factor& other,
                           const assignment_type& asg) {
-      assert(args() == other.args() - asg.args());
+      ASSERT_EQ(args(), other.args() - asg.args());
       
       // create a fast assignment starting from the '0' assignment
       // of args() and the conditioning assignment of asg
@@ -386,7 +427,7 @@ namespace graphlab {
       }
       // Compute the domain to remove
       domain_type ydom = joint.args() - args();
-      assert(ydom.num_vars() > 0);
+      ASSERT_GT(ydom.num_vars(), 0);
       
       fast_discrete_assignment<MAX_DIM> fastyasg(joint.args());
       fastyasg.transpose_to_start(ydom);
@@ -403,9 +444,9 @@ namespace graphlab {
           sum += exp(joint.logP(fastyasg.linear_index()));
           ++fastyasg;
         }
-        assert( !std::isinf(sum) );
-        assert( !std::isnan(sum) );
-        assert(sum >= 0.0);
+        ASSERT_FALSE( std::isinf(sum) );
+        ASSERT_FALSE( std::isnan(sum) );
+        ASSERT_GE(sum, 0.0);
         if(sum == 0) logP(xasg.linear_index()) = -MAX_DOUBLE;
         else logP(xasg.linear_index()) = log(sum);
       }
@@ -416,18 +457,18 @@ namespace graphlab {
     inline void damp(const table_factor& other, double damping) {
       // This factor must be over the same dimensions as the other
       // factor
-      assert(args() == other.args());  
       if(damping == 0) return;
-      assert(damping >= 0.0);
-      assert(damping < 1.0);
+      ASSERT_EQ(args(), other.args());  
+      ASSERT_GT(damping, 0.0);
+      ASSERT_LT(damping, 1.0);
       for(size_t i = 0; i < args().size(); ++i) {
         double val = damping * exp(other.logP(i)) + 
           (1-damping) * exp(logP(i));
-        assert(val >= 0);
+        ASSERT_GE(val, 0);
         if(val == 0) logP(i) = -MAX_DOUBLE;
         else logP(i) = log(val);
-        assert( !std::isinf(logP(i)) );
-        assert( !std::isnan(logP(i)) );
+        ASSERT_FALSE( std::isinf(logP(i)) );
+        ASSERT_FALSE( std::isnan(logP(i)) );
       }
     }
 
@@ -436,7 +477,7 @@ namespace graphlab {
     inline double l1_diff(const table_factor& other) const {
       // This factor must be over the same dimensions as the other
       // factor
-      assert(args() == other.args());  
+      ASSERT_EQ(args(), other.args());  
       double sum = 0;
       for(size_t i = 0; i < args().size(); ++i) {
         sum += fabs(exp(other.logP(i)) - exp(logP(i)));
@@ -447,7 +488,7 @@ namespace graphlab {
 
     //! compute the l1 norm in log space
     inline double l1_logdiff(const table_factor& other) const {
-      assert(args() == other.args());
+      ASSERT_EQ(args(), other.args());
       double sum = 0; 
       for(size_t i = 0; i < args().size(); ++i) {
         sum += fabs(other.logP(i) - logP(i));
@@ -469,13 +510,16 @@ namespace graphlab {
       return max_asg;
     }
 
+    /**
+     * Compute the expectation of the table factor
+     */
     inline void expectation(std::vector<double>& values) const {
       values.clear();
       values.resize(num_vars(), 0);
       double sum = 0;
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        double scale = exp(logP(asg.linear_index()));
+        const double scale = exp(logP(asg.linear_index()));
         sum += scale;
         for(size_t i = 0; i < num_vars(); ++i) {
           values[i] += asg.asg_at(i) * scale;
@@ -483,36 +527,37 @@ namespace graphlab {
       }
       // Rescale for normalization
       for(size_t i = 0; i < num_vars(); ++i)  values[i] /= sum;
-    }
+    } // end of expectation
 
 
+    /**
+     * Draw a sample from the table factor
+     */
     inline assignment_type sample() const {
-      assert(size() > 0);
+      ASSERT_GT(size(), 0);
       // This factor must be normalized
       const double t = random::rand01();
-      assert( t >= 0 && t < 1);
+      ASSERT_GE( t, 0 );
+      ASSERT_LT( t, 1 );
       double sum = 0;
-      for(assignment_type asg = args().begin(); 
-          asg < args().end(); ++asg) {
-        sum += exp(logP(asg.linear_index()));
-        if(t <= sum) return asg;
-        assert(sum < 1);
+      for(size_t i = 0; i < _data.size(); ++i) {
+        sum += exp(  logP(i)  );
+        if(t <= sum) return assignment_type(args(), i) ;
+        ASSERT_LT(sum, 1);
       }
       // Unreachable
-      std::cout << "{";
-      for(size_t i = 0; i < num_vars(); ++i) {
-        std::cout << args().var(i).id() << " ";
-      }
-      std::cout << "}"  << std::endl;
-      assert(false);
+      throw("Invalid state reached in sample()");
       return assignment_type();
-    }
+    } // end of sample
     
+    /**
+     * Construct a binary agreement factor
+     */
     void set_as_agreement(double lambda) {
-      assert(num_vars() == 2);
+      ASSERT_EQ(num_vars(), 2);
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        int diff = abs( int(asg.asg(0)) - int(asg.asg(1)) );
+        const int diff = abs( int(asg.asg(0)) - int(asg.asg(1)) );
         if( diff > 0) logP(asg.linear_index()) = -lambda;
         else logP(asg.linear_index()) = 0;
       }
@@ -521,10 +566,10 @@ namespace graphlab {
 
 
     void set_as_laplace(double lambda) {
-      assert(num_vars() == 2);
+      ASSERT_EQ(num_vars(), 2);
       for(assignment_type asg = args().begin(); 
           asg < args().end(); ++asg) {
-        int diff = abs( int(asg.asg_at(0)) - int(asg.asg_at(1)) );
+        const int diff = abs( int(asg.asg_at(0)) - int(asg.asg_at(1)) );
         logP(asg.linear_index()) = -diff * lambda;
       }
     } // end of set_as_laplace
