@@ -68,19 +68,20 @@ void __print_back_trace();
     if (__builtin_expect(!(condition), 0)) {                            \
       WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
                       sizeof("Check failed: " #condition "\n")-1);      \
-      __print_back_trace();throw("assertion failure");         \
+      __print_back_trace();throw("assertion failure");                  \
     }                                                                   \
   } while(0)
 
 
-// This prints errno as well. 
+// This prints errno as well.  errno is the posix defined last error
+// number. See errno.h
 #define PCHECK(condition)                                               \
   do {                                                                  \
     if (__builtin_expect(!(condition), 0)) {                            \
-      const int err_no = errno;                                         \
+      const int _PCHECK_err_no_ = errno;                                \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ": "    \
                            << strerror(err_no) << "\n";                 \
-      __print_back_trace();throw("assertion failure");         \
+      __print_back_trace();throw("assertion failure");                  \
     }                                                                   \
   } while(0)
 
@@ -90,16 +91,20 @@ void __print_back_trace();
 // WARNING: These don't compile correctly if one of the arguments is a pointer
 // and the other is NULL. To work around this, simply static_cast NULL to the
 // type of the desired pointer.
-
-
 #define CHECK_OP(op, val1, val2)                                        \
   do {                                                                  \
-    typeof(val1) v1 = val1;                                             \
-    typeof(val2) v2 = (typeof(val2))val2;                               \
-    if (__builtin_expect(!((v1) op (typeof(val1))(v2)), 0)) {           \
-      logstream(LOG_FATAL) << "Check failed: " << #val1 << #op << #val2 \
-                           << "  [" << v1 << #op << v2 << "]\n";        \
-      __print_back_trace();throw("assertion failure");         \
+    const typeof(val1) _CHECK_OP_v1_ = val1;                            \
+    const typeof(val2) _CHECK_OP_v2_ = (typeof(val2))val2;              \
+    if (__builtin_expect(!((_CHECK_OP_v1_) op                           \
+                           (typeof(val1))(_CHECK_OP_v2_)), 0)) {        \
+      logstream(LOG_FATAL) << "Check failed: "                          \
+                           << #val1 << #op << #val2                     \
+                           << "  ["                                     \
+                           << _CHECK_OP_v1_                             \
+                           << ' ' << #op << ' '                         \
+                           << _CHECK_OP_v2_ << "]\n";                   \
+      __print_back_trace();                                             \
+      throw("assertion failure");                                       \
     }                                                                   \
   } while(0)
 
@@ -137,7 +142,8 @@ void __print_back_trace();
     if (__builtin_expect(!(condition), 0)) {                            \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ":\n";  \
       logger(LOG_FATAL, fmt, ##__VA_ARGS__);                            \
-      __print_back_trace();throw("assertion failure");         \
+      __print_back_trace();                                             \
+      throw("assertion failure");                                       \
     }                                                                   \
   } while(0)
 
@@ -170,7 +176,8 @@ void __print_back_trace();
     if (__builtin_expect(!(condition), 0)) {                            \
       logstream(LOG_FATAL) << "Check failed: " << #condition << ":\n";  \
       logger(LOG_FATAL, fmt, ##__VA_ARGS__);                            \
-     __print_back_trace();throw("assertion failure");          \
+      __print_back_trace();                                             \
+      throw("assertion failure");                                       \
     }                                                                   \
   } while(0)
 

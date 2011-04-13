@@ -7,6 +7,8 @@
  */
 
 #include <iostream>
+
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {
@@ -18,6 +20,7 @@ namespace graphlab {
     typedef uint32_t id_type;
     //! the type used to index the variable assignments
     typedef uint32_t index_type;
+
     /** construct a discrte variable with a given id and number of
         assignments */
     inline discrete_variable(id_type id = 0, index_type nasgs = 0) : 
