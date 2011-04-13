@@ -14,7 +14,7 @@
 #include <graphlab/macros_def.hpp>
 /**
 
- Probabalistic matrix/tensor factorization written Danny Bickson, CMU
+   Probabalistic matrix/tensor factorization written Danny Bickson, CMU
 
 
 */
@@ -126,7 +126,7 @@ void init_self_pot(){
 /** CONSTRUCTOR **/
 void init_pmf() {
   if (BPTF)
-	pT=10;
+    pT=10;
   eDT = itpp::eye(D)*pT;
   vones = itpp::ones(D);
 }
@@ -141,7 +141,7 @@ void calc_stats(testtype type);
 void sample_alpha(double res2){
   
   if (debug)
-  printf("res is %g\n", res2); 
+    printf("res is %g\n", res2); 
   
   double res = res2;
   assert(BPTF);
@@ -336,51 +336,51 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
   else last_iter();
 }
 
-   //calculate RMSE
-   double calc_rmse(graph_type * _g, bool test, double & res){
+//calculate RMSE
+double calc_rmse(graph_type * _g, bool test, double & res){
 
-     if (test && Le == 0)
-       return NAN;
+  if (test && Le == 0)
+    return NAN;
       
-     res = 0;
-     double RMSE = 0;
-     int e = 0;
-     for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
-       vertex_data * data = &g->vertex_data(i);
-       foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
+  res = 0;
+  double RMSE = 0;
+  int e = 0;
+  for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
+    vertex_data * data = &g->vertex_data(i);
+    foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
             
-         multiple_edges & edges = _g->edge_data(iedgeid);
-         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
-         for (int j=0; j< (int)edges.medges.size(); j++){       
+      multiple_edges & edges = _g->edge_data(iedgeid);
+      vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
+      for (int j=0; j< (int)edges.medges.size(); j++){       
     
-           edge_data & edge = edges.medges[j];
-           if (!ZERO)
-           	assert(edge.weight != 0);
-           double sum = 0; 
-           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
-           if (!ZERO)
-	   assert(sum != 0);         
-           if (BPTF && iiter > BURN_IN)
-             edge.avgprd += sum;
+        edge_data & edge = edges.medges[j];
+        if (!ZERO)
+          assert(edge.weight != 0);
+        double sum = 0; 
+        double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
+        if (!ZERO)
+          assert(sum != 0);         
+        if (BPTF && iiter > BURN_IN)
+          edge.avgprd += sum;
 
-           if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
-             cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
-           //assert(add<25 && add>= 0);
+        if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
+          cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
+        //assert(add<25 && add>= 0);
           
-           if (BPTF && iiter > BURN_IN){
-             add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
-           }
+        if (BPTF && iiter > BURN_IN){
+          add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+        }
             
-           RMSE+= add;
-           e++;
-         }
-       }
-     }
-     res = RMSE;
-     assert(e == (test?Le:L));
-     return sqrt(RMSE/(double)e);
+        RMSE+= add;
+        e++;
+      }
+    }
+  }
+  res = RMSE;
+  assert(e == (test?Le:L));
+  return sqrt(RMSE/(double)e);
 
-   }
+}
 double calc_rmse_q(double & res){
 
   timer t; t.start();
@@ -400,7 +400,7 @@ double calc_rmse_q(double & res){
 inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i){
       
   if (!ZERO)  
-  	assert(edge.weight != 0);
+    assert(edge.weight != 0);
 
   if (tensor){
     dot2(pdata.pvec,  times[(int)edge.time].pvec, Q, i, D);  
@@ -417,7 +417,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
 int count_edges(edge_list es){
   
   if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
-      return es.size();
+    return es.size();
 
   int cnt = 0; 
   for (int j=0; j< (int)es.size(); j++){
@@ -431,8 +431,8 @@ int count_edges(edge_list es){
  * UPDATE FUNCTION
  */
 void user_movie_nodes_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler,
-                         gl_types::ishared_data* shared_data) {
+                                      gl_types::icallback &scheduler,
+                                      gl_types::ishared_data* shared_data) {
     
 
   //bool debug = false;
@@ -533,7 +533,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     t.start();
     double regularization = LAMBDA;
     if (!regnormal)
-	regularization*= Q.cols();
+      regularization*= Q.cols();
 
     bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
     //assert(result.size() == D);     
@@ -589,15 +589,15 @@ void last_iter(){
     timer t;
     t.start();
     if (iiter > BURN_IN)
-    	sample_alpha(res);
+      sample_alpha(res);
     sample_U();
     sample_V();
     if (tensor) 
       sample_T();
     counter[1] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
-	export_kdd_format(&test_graph, false);
-   }
+      export_kdd_format(&test_graph, false);
+  }
 }
 
 
@@ -609,7 +609,7 @@ void calc_T(int i){
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
   if (ZERO && edges[i].size() == 0)
-	return;
+    return;
 
   assert(edges[i].size() > 0);
 
@@ -783,63 +783,63 @@ double calc_obj(double res){
 
 //SAVE FACTORS TO FILE
 void export_uvt_to_file(){
- //saving output to file 
- mat U = zeros(M,D);
- mat V = zeros(N,D);
- mat T = zeros(K,D);
- for (int i=0; i< M+N; i++){ 
+  //saving output to file 
+  mat U = zeros(M,D);
+  mat V = zeros(N,D);
+  mat T = zeros(K,D);
+  for (int i=0; i< M+N; i++){ 
     vertex_data & data = g->vertex_data(i);
     if (i < M)
-     	memcpy(U._data() + i*D, data.pvec._data(), D*sizeof(double));
+      memcpy(U._data() + i*D, data.pvec._data(), D*sizeof(double));
     else
-     	memcpy(V._data() + (i-M)*D, data.pvec._data(), D*sizeof(double));
- }
+      memcpy(V._data() + (i-M)*D, data.pvec._data(), D*sizeof(double));
+  }
 
- if (tensor){ 
+  if (tensor){ 
     for (int i=0; i<K; i++){
-     	memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
+      memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
     }
- } 
+  } 
 
- char dfile[256] = {0};
- sprintf(dfile,"%s%d.out",infile.c_str(), D);
- it_file output(dfile);
- output << Name("U") << U;
- output << Name("V") << V;
+  char dfile[256] = {0};
+  sprintf(dfile,"%s%d.out",infile.c_str(), D);
+  it_file output(dfile);
+  output << Name("U") << U;
+  output << Name("V") << V;
   if (tensor){
     output << Name("T") << T;
- }
- output.close();
+  }
+  output.close();
 }
 
 //LOAD FACTORS FROM FILE
 void import_uvt_from_file(){
 
- mat U,V,T;
- char dfile[256] = {0};
- sprintf(dfile,"%s%d.out",infile.c_str(), D);
- printf("Loading factors U,V,T from file\n");
- it_file input(dfile);
- input >> Name("U") >> U;
- input >> Name("V") >> V;
+  mat U,V,T;
+  char dfile[256] = {0};
+  sprintf(dfile,"%s%d.out",infile.c_str(), D);
+  printf("Loading factors U,V,T from file\n");
+  it_file input(dfile);
+  input >> Name("U") >> U;
+  input >> Name("V") >> V;
   if (tensor){
     input >> Name("T") >> T;
- }
- input.close();
- //saving output to file 
- for (int i=0; i< M+N; i++){ 
+  }
+  input.close();
+  //saving output to file 
+  for (int i=0; i< M+N; i++){ 
     vertex_data & data = g->vertex_data(i);
     if (i < M)
-     	memcpy( data.pvec._data(),U._data() + i*D, D*sizeof(double));
+      memcpy( data.pvec._data(),U._data() + i*D, D*sizeof(double));
     else
-     	memcpy(data.pvec._data(),V._data() + (i-M)*D,  D*sizeof(double));
- }
+      memcpy(data.pvec._data(),V._data() + (i-M)*D,  D*sizeof(double));
+  }
 
- if (tensor){ 
+  if (tensor){ 
     for (int i=0; i<K; i++){
-     	memcpy(times[i].pvec._data(), T._data() + i*D, D*sizeof(double));
+      memcpy(times[i].pvec._data(), T._data() + i*D, D*sizeof(double));
     }
- } 
+  } 
  
 }
 
@@ -878,26 +878,26 @@ void start(int argc, char ** argv) {
     g=&glcore.graph();
     load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
 
-  //read the vlidation data (optional)
+    //read the vlidation data (optional)
     printf("loading data file %s\n", (infile+"e").c_str());
     load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION, glcore);
 
-  //read the test data (optional)
+    //read the test data (optional)
     printf("loading data file %s\n", (infile+"t").c_str());
     load_pmf_graph((infile+"t").c_str(),&test_graph, TEST, glcore);
 
 
     if (savegraph){
-	printf("Saving .graph files\n");
-	char filename[256];
-        sprintf(filename, "%s%d.graph", infile.c_str(), D);
-        std::ofstream fout(filename, std::fstream::binary);
-        graphlab::oarchive oarc(fout);
-	oarc << M << N << K << L << Le << Lt << D;
-        oarc << *g << validation_graph << test_graph;
-        printf("Done!\n");
-        fout.close();
-	exit(0);
+      printf("Saving .graph files\n");
+      char filename[256];
+      sprintf(filename, "%s%d.graph", infile.c_str(), D);
+      std::ofstream fout(filename, std::fstream::binary);
+      graphlab::oarchive oarc(fout);
+      oarc << M << N << K << L << Le << Lt << D;
+      oarc << *g << validation_graph << test_graph;
+      printf("Done!\n");
+      fout.close();
+      exit(0);
     }
 
   } else {
@@ -915,7 +915,7 @@ void start(int argc, char ** argv) {
   
 
   if (loadfactors){
-     import_uvt_from_file();
+    import_uvt_from_file();
   }
 
 
@@ -946,7 +946,7 @@ void start(int argc, char ** argv) {
   if (tensor){
     for (int i=M+N; i< M+N+K; i++)
       tv.push_back(i);
-     // add update function for time nodes (tensor dim 3)
+    // add update function for time nodes (tensor dim 3)
     glcore.add_tasks(tv, time_node_update_function, 1);
   }
 
@@ -967,7 +967,7 @@ void start(int argc, char ** argv) {
 
   if (BPTF){
     if (alpha == 0)
-    	sample_alpha(L);
+      sample_alpha(L);
     sample_U();
     sample_V();
     if (tensor) 
@@ -986,7 +986,7 @@ void start(int argc, char ** argv) {
   printf("Final result. Obj=%g, TRAIN RMSE= %0.4f TEST RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
   
   if (infile == "kddcup" || infile == "kddcup2")
-  	export_kdd_format(&test_graph, true);
+    export_kdd_format(&test_graph, true);
 
   /**** POST-PROCESSING *****/
   double runtime = gt.current_time();
@@ -995,8 +995,8 @@ void start(int argc, char ** argv) {
   //timing counters
   for (int i=0; i<11; i++){
     if (counter[i] > 0)
-    	printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
-   }
+      printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
+  }
 
   export_uvt_to_file();
 }
@@ -1032,7 +1032,7 @@ int read_mult_edges(FILE * f, int nodes, graph_type * g, bool symmetry = false){
       multiple_edges edges;
       edge_data edge;
       if (!ZERO)
-	 assert(ed[i].weight != 0); // && ed[i].weight <= 5);
+        assert(ed[i].weight != 0); // && ed[i].weight <= 5);
       assert((int)ed[i].from >= 1 && (int)ed[i].from <= nodes);
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
@@ -1131,13 +1131,13 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
   // read tensor non zero edges from file
   int val = 0; 
   if (!FLOAT) 
-	val = read_mult_edges<edge_double>(f, M+N, g);
+    val = read_mult_edges<edge_double>(f, M+N, g);
   else val = read_mult_edges<edge_float>(f,M+N, g);
 
   switch(data_type){
-	case TRAINING: L= val; break;
-        case VALIDATION: Le = val; break; 
-        case TEST: Lt = val; break;
+  case TRAINING: L= val; break;
+  case VALIDATION: Le = val; break; 
+  case TEST: Lt = val; break;
   }  
 
   if (data_type==TRAINING && tensor && K>1) 
@@ -1157,7 +1157,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
       for (int j=0; j< (int)tedges.medges.size(); j++){
         edge_data & data= tedges.medges[j];
 	if (!ZERO)
-        	assert(data.weight != 0);  
+          assert(data.weight != 0);  
         assert(data.time < K);
   
         if (K > 1 && data_type==TRAINING && tensor)
@@ -1166,15 +1166,15 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype data_type,gl_
     }
   }
   
- //verify that the correct number of edges where added into the graph 
+  //verify that the correct number of edges where added into the graph 
   if (data_type == TRAINING){
     for (int i=0; i<M+N; i++){
       vertex_data &vdata = g->vertex_data(i);
-        if (i < M)
-          vdata.num_edges = count_edges(g->out_edge_ids(i));
-        else
-          vdata.num_edges = count_edges(g->in_edge_ids(i));
-     }
+      if (i < M)
+        vdata.num_edges = count_edges(g->out_edge_ids(i));
+      else
+        vdata.num_edges = count_edges(g->in_edge_ids(i));
+    }
   }
  
   if (data_type==TRAINING && tensor && K>1){
@@ -1202,7 +1202,7 @@ int main(int argc,  char *argv[]) {
     return 0;
   }
   
-   // select tun mode
+  // select tun mode
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
   switch(options){
@@ -1222,7 +1222,7 @@ int main(int argc,  char *argv[]) {
   case BPTF_TENSOR_MULT:
     tensor = true; BPTF = true;
     break;
-   // tensor factorization
+    // tensor factorization
   case ALS_TENSOR_MULT:
     tensor = true; BPTF = false;
     break;
@@ -1236,31 +1236,31 @@ int main(int argc,  char *argv[]) {
 
 // CALC SOME STATISTICS ABOUT MATRIX / TENSOR 
 void calc_stats(testtype type){
-   graph_type * gr = NULL;
-   switch(type){
-	case TRAINING: gr = g; break;
-	case VALIDATION: gr = &validation_graph; break;
-	case TEST: gr = &test_graph; break;
-   }
+  graph_type * gr = NULL;
+  switch(type){
+  case TRAINING: gr = g; break;
+  case VALIDATION: gr = &validation_graph; break;
+  case TEST: gr = &test_graph; break;
+  }
 
-   if (gr->num_vertices() == 0){
-	printf("%s is missing, skipping data\n", testtypename[type]);
-        return;
-   } 
+  if (gr->num_vertices() == 0){
+    printf("%s is missing, skipping data\n", testtypename[type]);
+    return;
+  } 
 
-   if (tensor && type == TRAINING){
-	int firsttimeused=-1;
-	int lasttimeused=-1;
-	for (int i=0; i<K; i++){
-		if (edges[i].size() > 0)
-		   firsttimeused = i;
-	}
-	for (int i=K-1; i>=0; i--){
-		if (edges[i].size() > 0)
-		   lasttimeused = i;
+  if (tensor && type == TRAINING){
+    int firsttimeused=-1;
+    int lasttimeused=-1;
+    for (int i=0; i<K; i++){
+      if (edges[i].size() > 0)
+        firsttimeused = i;
+    }
+    for (int i=K-1; i>=0; i--){
+      if (edges[i].size() > 0)
+        lasttimeused = i;
 
-	}
-	printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
+    }
+    printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
   }	
 
   double avgval=-1, minval=1e100, maxval=-1e100;
@@ -1271,58 +1271,58 @@ void calc_stats(testtype type){
   int numedges = 0;
   for (int i=M; i< M+N; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
-         if (itpp::min(data->pvec) < minU)
-		minU = itpp::min(data->pvec);
-	 if (itpp::max(data->pvec) > maxU)
-		maxU = itpp::max(data->pvec);
-	if (gr->in_edge_ids(i).size() == 0)
-	moviewithoutedges++;
+    if (itpp::min(data->pvec) < minU)
+      minU = itpp::min(data->pvec);
+    if (itpp::max(data->pvec) > maxU)
+      maxU = itpp::max(data->pvec);
+    if (gr->in_edge_ids(i).size() == 0)
+      moviewithoutedges++;
     foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
             
-         multiple_edges & edges = gr->edge_data(iedgeid);
-         vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
-     for (int j=0; j< (int)edges.medges.size(); j++){     
-		numedges++;
-		edge_data & data = edges.medges[j];
-		avgval += data.weight;
-		avgtime += data.time;
-		if (data.weight<minval)
-		   minval=data.weight;
-		if (data.time <mintime)
-		   mintime = data.time;
-		if (data.weight>maxval)
-		   maxval=data.weight;
-		if (data.time > maxtime)
-		   maxtime =data.time;
+      multiple_edges & edges = gr->edge_data(iedgeid);
+      vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
+      for (int j=0; j< (int)edges.medges.size(); j++){     
+        numedges++;
+        edge_data & data = edges.medges[j];
+        avgval += data.weight;
+        avgtime += data.time;
+        if (data.weight<minval)
+          minval=data.weight;
+        if (data.time <mintime)
+          mintime = data.time;
+        if (data.weight>maxval)
+          maxval=data.weight;
+        if (data.time > maxtime)
+          maxtime =data.time;
 	        
-	 }  
+      }  
 	
-     }
- }
+    }
+  }
   for (int i=0; i< M; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
     if (itpp::min(data->pvec) < minV)
-	minV = itpp::min(data->pvec);
-	if (itpp::max(data->pvec) > maxV)
-		maxV = itpp::max(data->pvec);
+      minV = itpp::min(data->pvec);
+    if (itpp::max(data->pvec) > maxV)
+      maxV = itpp::max(data->pvec);
 	 
     if (gr->out_edge_ids(i).size() == 0)
-	userwithoutedges++;
- }
+      userwithoutedges++;
+  }
  
- avgval /= numedges;
- avgtime /= numedges; 
- printf("%s Avg matrix value %g min val %g max value %g\n", testtypename[type],avgval, minval, maxval);
- printf("%s Avg time value %g min val %g max value %g\n", testtypename[type], avgtime, mintime, maxtime);
- printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
- printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
+  avgval /= numedges;
+  avgtime /= numedges; 
+  printf("%s Avg matrix value %g min val %g max value %g\n", testtypename[type],avgval, minval, maxval);
+  printf("%s Avg time value %g min val %g max value %g\n", testtypename[type], avgtime, mintime, maxtime);
+  printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
+  printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
 
- switch(type){
- 	case TRAINING: assert(numedges==L); break;
-	case VALIDATION: assert(numedges==Le); break;
-	case TEST: assert(numedges==Lt); break;
- }
- }
+  switch(type){
+  case TRAINING: assert(numedges==L); break;
+  case VALIDATION: assert(numedges==Le); break;
+  case TEST: assert(numedges==Lt); break;
+  }
+}
 
 //
 //The input prediction file should contain 6005940 lines, corresponding
@@ -1334,65 +1334,65 @@ void calc_stats(testtype type){
 
 void export_kdd_format(graph_type * _g, bool dosave) {
 
-        bool debugkdd = true;
-        assert(_g != NULL);
-        if (!dosave)
-		assert(BPTF);	
+  bool debugkdd = true;
+  assert(_g != NULL);
+  if (!dosave)
+    assert(BPTF);	
 
-	FILE * outFp = NULL;
-        if (dosave){
-                printf("Exporting KDD cup test graph: %s\n", (infile+"t.kdd.out").c_str());
-		outFp = fopen((infile+"t.kdd.out").c_str(), "w");
-		assert(outFp);
-	}
-	const int ExpectedTestSize = 6005940;
+  FILE * outFp = NULL;
+  if (dosave){
+    printf("Exporting KDD cup test graph: %s\n", (infile+"t.kdd.out").c_str());
+    outFp = fopen((infile+"t.kdd.out").c_str(), "w");
+    assert(outFp);
+  }
+  const int ExpectedTestSize = 6005940;
 
-	int lineNum = 0;
-	double prediction;
-	double sumPreds=0;
+  int lineNum = 0;
+  double prediction;
+  double sumPreds=0;
 
 
-     for (int i=0; i< M; i++){ //TODO: optimize to start from N?
-       vertex_data & data = g->vertex_data(i);
-       foreach(edge_id_t iedgeid, _g->out_edge_ids(i)) {
+  for (int i=0; i< M; i++){ //TODO: optimize to start from N?
+    vertex_data & data = g->vertex_data(i);
+    foreach(edge_id_t iedgeid, _g->out_edge_ids(i)) {
             
-         multiple_edges & edges = _g->edge_data(iedgeid);
-         vertex_data & pdata = g->vertex_data(_g->target(iedgeid)); 
-         for (int j=0; j< (int)edges.medges.size(); j++){       
-   	   assert(j==0); 
-           edge_data & edge = edges.medges[j];
-           if (!ZERO)
-           	assert(edge.weight != 0);
+      multiple_edges & edges = _g->edge_data(iedgeid);
+      vertex_data & pdata = g->vertex_data(_g->target(iedgeid)); 
+      for (int j=0; j< (int)edges.medges.size(); j++){       
+        assert(j==0); 
+        edge_data & edge = edges.medges[j];
+        if (!ZERO)
+          assert(edge.weight != 0);
 
-           prediction = 0;
-           rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
-           if (BPTF && iiter > BURN_IN)
-             edge.avgprd += prediction;
+        prediction = 0;
+        rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
+        if (BPTF && iiter > BURN_IN)
+          edge.avgprd += prediction;
 
-           if (debugkdd && (i== M || i == M+N-1))
-             cout<<lineNum<<") prediction:"<<prediction<<endl; 
-           //assert(add<25 && add>= 0);
+        if (debugkdd && (i== M || i == M+N-1))
+          cout<<lineNum<<") prediction:"<<prediction<<endl; 
+        //assert(add<25 && add>= 0);
           
-           if (BPTF && iiter > BURN_IN){
-             //add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
-              prediction = (edge.avgprd / (iiter - BURN_IN));
-           }
+        if (BPTF && iiter > BURN_IN){
+          //add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+          prediction = (edge.avgprd / (iiter - BURN_IN));
+        }
            
-           if (prediction<0)
-		prediction=0;
-	   else if (prediction>100)
-		prediction=100; 
-          unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
-          if (dosave)
-	  	fwrite(&roundScore,1,1,outFp);
-	  sumPreds += prediction;
+        if (prediction<0)
+          prediction=0;
+        else if (prediction>100)
+          prediction=100; 
+        unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
+        if (dosave)
+          fwrite(&roundScore,1,1,outFp);
+        sumPreds += prediction;
 
- 	  lineNum++; 
-          }
-       }
-     }
+        lineNum++; 
+      }
+    }
+  }
 
-   assert(lineNum==ExpectedTestSize);  
+  assert(lineNum==ExpectedTestSize);  
   if (dosave){
     fclose(outFp);
     fprintf(stderr, "**Completed successfully (mean prediction: %lf)**\n",sumPreds/ExpectedTestSize);
