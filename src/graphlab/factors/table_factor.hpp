@@ -46,9 +46,9 @@ namespace graphlab {
 
 
 
-  static const double EPSILON = std::numeric_limits<double>::min();
-  static const double LOG_EPSILON = log(EPSILON);
-  static const double MAX_DOUBLE =  std::numeric_limits<double>::max();
+  // static const double EPSILON = std::numeric_limits<double>::min();
+  // static const double LOG_EPSILON = log(EPSILON);
+  // static const double MAX_DOUBLE =  std::numeric_limits<double>::max();
   //  static const double LOG_MAX_DOUBLE = std::log(MAX_DOUBLE);
 
 
@@ -291,7 +291,7 @@ namespace graphlab {
       for(size_t i = 0; i < _data.size(); ++i) {
         double& sum = _data[i];
         ASSERT_GE(sum, 0.0);
-        if(sum == 0) sum = -MAX_DOUBLE;
+        if(sum == 0) sum = -std::numeric_limits<double>::max();
         else sum = log(sum);
       }
       
@@ -309,7 +309,7 @@ namespace graphlab {
       //   assert( !std::isinf(sum) );
       //   assert( !std::isnan(sum) );
       //   assert(sum >= 0.0);
-      //   if(sum == 0) logP(xasg.linear_index()) = -MAX_DOUBLE;
+      //   if(sum == 0) logP(xasg.linear_index()) = -std::numeric_limits<double>::max();
       //   else logP(xasg.linear_index()) = std::log(sum);
       // }
     }
@@ -411,7 +411,8 @@ namespace graphlab {
 //         assert( !std::isinf(sum) );
 //         assert( !std::isnan(sum) );
 //         assert(sum >= 0.0);
-//         if(sum == 0) logP(xasg.linear_index()) = -MAX_DOUBLE;
+//         if(sum == 0) 
+//           logP(xasg.linear_index()) = -std::numeric_limits<double>::max();
 //         else logP(xasg.linear_index()) = log(sum);
 //       }
 //     }
@@ -447,7 +448,8 @@ namespace graphlab {
         ASSERT_FALSE( std::isinf(sum) );
         ASSERT_FALSE( std::isnan(sum) );
         ASSERT_GE(sum, 0.0);
-        if(sum == 0) logP(xasg.linear_index()) = -MAX_DOUBLE;
+        if(sum == 0) 
+          logP(xasg.linear_index()) = -std::numeric_limits<double>::max();
         else logP(xasg.linear_index()) = log(sum);
       }
     }
@@ -465,7 +467,7 @@ namespace graphlab {
         double val = damping * exp(other.logP(i)) + 
           (1-damping) * exp(logP(i));
         ASSERT_GE(val, 0);
-        if(val == 0) logP(i) = -MAX_DOUBLE;
+        if(val == 0) logP(i) = -std::numeric_limits<double>::max();
         else logP(i) = log(val);
         ASSERT_FALSE( std::isinf(logP(i)) );
         ASSERT_FALSE( std::isnan(logP(i)) );
