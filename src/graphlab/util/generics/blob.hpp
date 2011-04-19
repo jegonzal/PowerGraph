@@ -1,5 +1,5 @@
-#ifndef GRAPHDATA_HPP
-#define GRAPHDATA_HPP
+#ifndef GRAPHLAB_BLOB_HPP
+#define GRAPHLAB_BLOB_HPP
 
 #include <cstring>
 #include <cstdlib>

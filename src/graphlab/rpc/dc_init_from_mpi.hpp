@@ -8,3 +8,5 @@ namespace graphlab {
 }
 
 #endif // GRAPHLAB_DC_INIT_FROM_MPI_HPP
+
+
