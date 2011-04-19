@@ -47,7 +47,7 @@ namespace graphlab {
     inline std::pair<T, bool> dequeue() {
 
       m_mutex.lock();
-      T elem;
+      T elem = T();
       bool success = false;
       // Wait while the queue is empty and this queue is alive
       while(m_queue.empty() && m_alive) {
