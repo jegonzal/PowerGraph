@@ -155,8 +155,8 @@ cd     The core contains the
      *  \li \b "html" Outputs to a html file graphlab_metrics.html
      */
     void set_metrics_type(const std::string& metrics_type) {
-      bool success = meopts.set_metrics_type(metrics_type);
-      ASSERT_TRUE(success);
+      bool metrics_set_success = meopts.set_metrics_type(metrics_type);
+      ASSERT_TRUE(metrics_set_success);
     }
 
     /**
@@ -187,8 +187,8 @@ cd     The core contains the
      * created.
      */
     typename types::iengine& engine() { 
-      bool success = auto_build_engine();
-      ASSERT_TRUE(success);
+      bool engine_build_success = auto_build_engine();
+      ASSERT_TRUE(engine_build_success);
       return *mengine; 
     }
 

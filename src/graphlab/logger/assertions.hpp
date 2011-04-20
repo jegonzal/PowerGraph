@@ -66,8 +66,8 @@ void __print_back_trace();
 #define CHECK(condition)                                                \
   do {                                                                  \
     if (__builtin_expect(!(condition), 0)) {                            \
-      WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
-                      sizeof("Check failed: " #condition "\n")-1);      \
+      logstream(LOG_ERROR)                                              \
+        << "Check failed: " << #condition  << std::endl;                \
       __print_back_trace();                                             \
       throw("assertion failure");                                       \
     }                                                                   \
@@ -82,7 +82,7 @@ void __print_back_trace();
       const int _PCHECK_err_no_ = errno;                                \
       logstream(LOG_ERROR)                                              \
         << "Check failed: " << #condition << ": "                       \
-        << strerror(err_no) << "\n";                                    \
+        << strerror(err_no) << std::endl;                               \
       __print_back_trace();                                             \
       throw("assertion failure");                                       \
     }                                                                   \
@@ -100,13 +100,13 @@ void __print_back_trace();
     const typeof(val2) _CHECK_OP_v2_ = (typeof(val2))val2;              \
     if (__builtin_expect(!((_CHECK_OP_v1_) op                           \
                            (typeof(val1))(_CHECK_OP_v2_)), 0)) {        \
-      logstream(LOG_ERROR)                                      \
+      logstream(LOG_ERROR)                                              \
         << "Check failed: "                                             \
         << #val1 << #op << #val2                                        \
         << "  ["                                                        \
         << _CHECK_OP_v1_                                                \
         << ' ' << #op << ' '                                            \
-        << _CHECK_OP_v2_ << "]\n";                                      \
+        << _CHECK_OP_v2_ << "]" << std::endl;                           \
       __print_back_trace();                                             \
       throw("assertion failure");                                       \
     }                                                                   \
