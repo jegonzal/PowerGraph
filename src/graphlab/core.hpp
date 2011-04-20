@@ -101,7 +101,7 @@ cd     The core contains the
     void set_scheduler_type(const std::string& scheduler_type) {
       check_engine_modification();
       bool success = meopts.set_scheduler_type(scheduler_type);
-      assert(success);
+      ASSERT_TRUE(success);
       destroy_engine();
     }
 
@@ -123,7 +123,7 @@ cd     The core contains the
     void set_scope_type(const std::string& scope_type) {
       check_engine_modification();
       bool success = meopts.set_scope_type(scope_type);
-      assert(success);
+      ASSERT_TRUE(success);
       destroy_engine();
     }
 
@@ -143,20 +143,20 @@ cd     The core contains the
     void set_engine_type(const std::string& engine_type) {
       check_engine_modification();
       bool success = meopts.set_engine_type(engine_type);
-      assert(success);
+      ASSERT_TRUE(success);
       destroy_engine();
     }
     
     /**
      * \brief Sets the output format of any recorded metrics
-     *
+     *  \li \b "none" No reporting
      *  \li \b "basic" Outputs to screen
      *  \li \b "file" Outputs to a text file graphlab_metrics.txt
      *  \li \b "html" Outputs to a html file graphlab_metrics.html
      */
     void set_metrics_type(const std::string& metrics_type) {
       bool success = meopts.set_metrics_type(metrics_type);
-      assert(success);
+      ASSERT_TRUE(success);
     }
 
     /**
@@ -188,7 +188,7 @@ cd     The core contains the
      */
     typename types::iengine& engine() { 
       bool success = auto_build_engine();
-      assert(success);
+      ASSERT_TRUE(success);
       return *mengine; 
     }
 
@@ -225,7 +225,7 @@ cd     The core contains the
      */
     bool rebuild_engine() {
       destroy_engine();
-      assert(mengine == NULL);
+      ASSERT_EQ(mengine, NULL);
       return auto_build_engine();
     }
 
@@ -267,7 +267,7 @@ cd     The core contains the
       check_engine_modification();
       command_line_options clopts;
       bool success = clopts.parse(argc, argv);
-      assert(success);
+      ASSERT_TRUE(success);
       return set_engine_options(clopts);
     }
 
@@ -278,8 +278,8 @@ cd     The core contains the
      */
     double start() {
       bool success = auto_build_engine();
-      assert(success);
-      assert(mengine != NULL);
+      ASSERT_TRUE(success);
+      ASSERT_NE(mengine, NULL);
       // merge in options from command line and other manually set options
       mengine->set_scheduler_options( meopts.get_scheduler_options() );
       graphlab::timer ti;
@@ -453,7 +453,7 @@ cd     The core contains the
     /** Save the core to a file */
     void save(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
-      assert(fout.good());
+      ASSERT_TRUE(fout.good());
       oarchive oarc(fout);
       oarc << *this;
       fout.close();
@@ -470,7 +470,7 @@ cd     The core contains the
     /** Load the core from a file. */
     void load(const std::string& filename) {
       std::ifstream fin(filename.c_str());
-      assert(fin.good());
+      ASSERT_TRUE(fin.good());
       iarchive iarc(fin);
       iarc >> *this;
       fin.close();
