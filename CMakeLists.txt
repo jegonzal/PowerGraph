@@ -9,8 +9,8 @@ ENDIF(APPLE)
 # # later releases of ubuntu
   # SET(CMAKE_C_COMPILER "llvm-gcc")	
   # SET(CMAKE_CXX_COMPILER "llvm-c++")
-SET(CMAKE_C_COMPILER "gcc-4.2")	
-SET(CMAKE_CXX_COMPILER "g++-4.2")
+# SET(CMAKE_C_COMPILER "gcc-4.2")	
+# SET(CMAKE_CXX_COMPILER "g++-4.2")
 
 
 
