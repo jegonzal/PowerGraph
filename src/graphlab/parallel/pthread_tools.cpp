@@ -288,7 +288,7 @@ namespace graphlab {
     mut.lock();
     while(threads_running > 0) {
       // if no threads are joining. wait
-      if (joinqueue.empty()) cond.wait(mut);
+      while (joinqueue.empty()) cond.wait(mut);      
       // a thread is joining
       std::pair<pthread_t, const char*> joining_thread = joinqueue.front();
       joinqueue.pop();
