@@ -2,6 +2,7 @@
 #define GRAPHLAB_GLSHARED_CONST_HPP
 
 
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/generics/any.hpp>
 
 
@@ -45,7 +46,7 @@ namespace graphlab {
      * by a single thread.
      */
     void set(const T& c) { 
-      assert(!finalized);
+      ASSERT_FALSE(finalized);
       content = c; 
       finalized = true;
     }
@@ -54,7 +55,7 @@ namespace graphlab {
      * Get the constant.
      */
     const T& get() const { 
-      assert(finalized);
+      ASSERT_TRUE(finalized);
       return content; 
     }
   };

@@ -1,5 +1,5 @@
-#ifndef GLSHARED_HPP
-#define GLSHARED_HPP
+#ifndef GRAPHLAB_GLSHARED_HPP
+#define GRAPHLAB_GLSHARED_HPP
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
 #include <boost/type_traits/function_traits.hpp>
@@ -252,5 +252,5 @@ namespace graphlab {
     applyfn(d.as<T>(), param);
   }
 
-}
+} 
 #endif
