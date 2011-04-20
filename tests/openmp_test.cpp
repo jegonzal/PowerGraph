@@ -9,7 +9,7 @@ struct S {
   T pika;
   void test(const T& t) {
 #pragma omp parallel for
-    for(size_t i = 0;i < 100; ++i) {
+    for(int i = 0;i < 100; ++i) {
       pika = 10;
       for (size_t j = 0; j < 100000000; ++j) {
         volatile double g = 1000000.0;

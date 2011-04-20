@@ -1,5 +1,5 @@
-#ifndef SYNCHRONIZED_UNORDERED_MAP
-#define SYNCHRONIZED_UNORDERED_MAP
+#ifndef GRAPHLAB_SYNCHRONIZED_UNORDERED_MAP
+#define GRAPHLAB_SYNCHRONIZED_UNORDERED_MAP
 #include <vector>
 #include <boost/unordered_map.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -113,3 +113,4 @@ class synchronized_unordered_map {
 };
 }
 #endif
+
