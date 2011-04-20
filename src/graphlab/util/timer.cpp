@@ -20,8 +20,8 @@ namespace graphlab {
       tout_val.it_interval.tv_usec = 0;
       tout_val.it_value.tv_sec = 0;
       tout_val.it_value.tv_usec = 50000;
-      setitimer(ITIMER_REAL, &tout_val,0);
       signal(SIGALRM,alarm_wakeup); /* set the Alarm signal capture */    
+      setitimer(ITIMER_REAL, &tout_val,0);
       ti.start();
     }
     size_t ctr; 
