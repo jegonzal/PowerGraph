@@ -786,7 +786,7 @@ namespace graphlab {
         
         // # get the range of vertices
         size_t vmin = sync.rangelow;
-        size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+        size_t vmax = std::min(sync.rangehigh, graph.num_vertices());
         // slice the range into ncpus
         size_t nverts = vmax - vmin;
         // get my true range
