@@ -85,6 +85,7 @@ cd     The core contains the
         report_metrics();
       }
       destroy_engine(); 
+      delete reporter;
     } 
        
     /// \brief Get a modifiable reference to the graph associated with this core
