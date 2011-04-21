@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
   logger(LOG_INFO, "PageRank starting\n");
 
   // Metrics  
-  graphlab::metrics &  app_metrics = graphlab::metrics::create_metrics_instance("app::pagerank");
+  graphlab::metrics app_metrics("app::pagerank");
 
   // Setup the parser
   graphlab::command_line_options
@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
       core.graph().vertex_data(i).value / sum;
   }
   app_metrics.stop_time("normalize");
-  
+  app_metrics.report(core.get_reporter());
   // Schedule all vertices to run pagerank update on the
   // first round.
   core.add_task_to_all(pagerank_update, 100.0);

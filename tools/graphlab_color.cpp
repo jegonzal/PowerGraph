@@ -196,7 +196,8 @@ int main(int argc, char** argv) {
   
   if(dc.procid() == 0) {
     basic_reporter reporter;
-    metrics::report_all(reporter);
+    dc.report_metrics(reporter);
+    graph.report_metrics(reporter);
   } 
   
   logstream(LOG_INFO) << "Finished " << dc.procid() << std::endl;

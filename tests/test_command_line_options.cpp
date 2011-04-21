@@ -190,7 +190,7 @@ int main(int argc, char** argv) {
   logger(LOG_INFO, "PageRank starting\n");
 
   // Metrics  
-  graphlab::metrics &  app_metrics = graphlab::metrics::create_metrics_instance("app::pagerank");
+  graphlab::metrics app_metrics("app::pagerank");
 
   // Setup the parser
   graphlab::command_line_options
@@ -279,7 +279,7 @@ int main(int argc, char** argv) {
     std::cout << "Page " << vid << " pagerank = " <<
       core.graph().vertex_data(vid).value / norm << '\n';
   }
-  
+  app_metrics.report(core.get_reporter());
 	  
   return EXIT_SUCCESS;
 } // End of main

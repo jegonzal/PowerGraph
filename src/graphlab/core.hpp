@@ -14,6 +14,7 @@
 
 
 #include <graphlab/metrics/metrics.hpp>
+#include <graphlab/metrics/reporters/null_reporter.hpp>
 #include <graphlab/metrics/reporters/basic_reporter.hpp>
 #include <graphlab/metrics/reporters/file_reporter.hpp>
 #include <graphlab/metrics/reporters/html_reporter.hpp>
@@ -73,16 +74,17 @@ cd     The core contains the
     core() : 
       mengine(NULL),
       engine_has_been_modified(false), 
-      shared_data_used(false) { }
+      shared_data_used(false),
+      coremetrics("core"), reporter(new null_reporter) { }
 
 
     ~core() { 
-      destroy_engine(); 
       if (meopts.get_metrics_type() != "none") {        
         // Write options to metrics
         fill_metrics();
         report_metrics();
       }
+      destroy_engine(); 
     } 
        
     /// \brief Get a modifiable reference to the graph associated with this core
@@ -157,6 +159,17 @@ cd     The core contains the
     void set_metrics_type(const std::string& metrics_type) {
       bool metrics_set_success = meopts.set_metrics_type(metrics_type);
       ASSERT_TRUE(metrics_set_success);
+      
+      delete reporter;
+      if (meopts.get_metrics_type() == "file") {
+        reporter = new file_reporter("graphlab_metrics.txt");
+      } else if (meopts.get_metrics_type() == "html") {
+        reporter = new  html_reporter("graphlab_metrics.html");
+      } else if (meopts.get_metrics_type() == "basic") {
+        reporter = new basic_reporter;
+      } else {
+        reporter = new null_reporter;
+      }
     }
 
     /**
@@ -235,6 +248,21 @@ cd     The core contains the
     void set_engine_options(const engine_options& opts) {
       check_engine_modification();
       meopts = opts;
+      
+      delete reporter;
+      if (meopts.get_metrics_type() == "file") {
+        reporter = new file_reporter("graphlab_metrics.txt");
+      } else if (meopts.get_metrics_type() == "html") {
+        reporter = new  html_reporter("graphlab_metrics.html");
+      } else if (meopts.get_metrics_type() == "basic") {
+        reporter = new basic_reporter;
+      } else {
+        reporter = new null_reporter;
+      }
+    }
+
+    imetrics_reporter& get_reporter() {
+      return *reporter;
     }
 
     /**
@@ -341,7 +369,6 @@ cd     The core contains the
      * TODO: DOCUMENT
      */
     void fill_metrics() {
-      metrics& coremetrics = metrics::create_metrics_instance("core", true);
       coremetrics.set("ncpus", meopts.get_ncpus());
       coremetrics.set("engine", meopts.get_engine_type());
       coremetrics.set("scope", meopts.get_scope_type());
@@ -350,23 +377,18 @@ cd     The core contains the
       coremetrics.set("schedyield", meopts.get_sched_yield() ? "true" : "false");
       coremetrics.set("compile_flags", meopts.get_compile_flags());
     }
-    
+
+    void reset_metrics() {
+      coremetrics.clear();
+      engine().reset_metrics();
+    }
+      
     /**
        \brief Outputs the recorded metrics
     */
     void report_metrics() {
-      if (meopts.get_metrics_type() == "basic") { 
-        // Metrics dump: basic 
-        basic_reporter reporter;
-        metrics::report_all(reporter); 
-      } else if (meopts.get_metrics_type() == "file") { 
-        // Metrics dump: file
-        file_reporter freporter("graphlab_metrics.txt");
-        metrics::report_all(freporter);
-      } else if (meopts.get_metrics_type() == "html") {
-        html_reporter hreporter("graphlab_metrics.html");
-        metrics::report_all(hreporter);
-      }
+      coremetrics.report(get_reporter());
+      engine().report_metrics(get_reporter());
     }
     
     /**
@@ -501,7 +523,9 @@ cd     The core contains the
      */
     bool engine_has_been_modified;
     bool shared_data_used;
-      
+    metrics coremetrics;
+
+    imetrics_reporter* reporter;
   };
 
 }

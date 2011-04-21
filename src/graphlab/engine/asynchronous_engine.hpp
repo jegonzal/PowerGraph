@@ -209,7 +209,9 @@ namespace graphlab {
     mutex sync_task_queue_lock;
     /// The priority of the head of the queue
     size_t sync_task_queue_next_update;
-    
+
+    /// Metrics logging
+    metrics engine_metrics, scheduler_metrics;
   public:
 
     /**
@@ -244,7 +246,8 @@ namespace graphlab {
       default_scope_range(scope_range::EDGE_CONSISTENCY),
       sync_barrier(exec_type == THREADED ? ncpus : 1),
       sync_accumulators(exec_type == THREADED ? ncpus : 1),
-      threads_entering_sync(0){ }
+      threads_entering_sync(0),
+      engine_metrics("engine"){ }
 
     //    ~asynchronous_engine() { }
 
@@ -329,21 +332,21 @@ namespace graphlab {
       if(exec_type == THREADED) run_threaded(scheduler, scope_manager);
       else run_simulated(scheduler, scope_manager);
 
-      
+      scheduler_metrics = scheduler->get_metrics();
       //shared_data->set_scope_factory(NULL);
       release_scheduler_and_scope_manager();
       
 
       
-      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
+      
 
       // Metrics: update counts
       for(size_t i = 0; i < update_counts.size(); ++i) {
         engine_metrics.add("updatecount", 
                            update_counts[i], INTEGER);
-        engine_metrics.add_vector("updatecount_vector", update_counts[i]);
+        engine_metrics.add_vector_entry("updatecount_vector", i, update_counts[i]);
       }
-      engine_metrics.set("runtime", 
+      engine_metrics.add("runtime",
                          (lowres_time_millis()-start_time_millis)*0.001, TIME);
       engine_metrics.set("termination_reason", 
                          exec_status_as_string(termination_reason));
@@ -367,7 +370,23 @@ namespace graphlab {
       active = false;
     }
     
+    metrics get_metrics() {
+      return engine_metrics;
+    }
 
+
+    void reset_metrics() {
+      engine_metrics.clear();
+      // do a deeper clear of the scheduler metrics
+      // otherwise dump metrics still output a metrics block
+      scheduler_metrics = metrics();
+    }
+
+    void report_metrics(imetrics_reporter &reporter) {
+      engine_metrics.report(reporter);
+      scheduler_metrics.report(reporter);
+    }
+    
     /**
      * Return the reason why the engine last terminated
      */

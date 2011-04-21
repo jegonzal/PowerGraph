@@ -258,7 +258,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
             const std::string &initstring,
             procid_t curmachineid,
             size_t numhandlerthreads,
-            dc_comm_type commtype) {   
+            dc_comm_type commtype) {
+  rpc_metrics = metrics("RPC");
+  
   // initialize thread local storage
   if (dc_impl::thrlocal_resizing_array_key_initialized == false) {
     dc_impl::thrlocal_resizing_array_key_initialized = true;
@@ -546,8 +548,10 @@ std::map<std::string, size_t> distributed_control::gather_statistics(){
       for (size_t i = 0;i < numprocs(); ++i) {
         cs.callssent += stats[i].callssent;
         cs.bytessent += stats[i].bytessent;
+        rpc_metrics.set_vector_entry("calls_sent", i, stats[i].callssent);
+        rpc_metrics.set_vector_entry("bytes_sent", i, stats[i].bytessent);
+        rpc_metrics.set_vector_entry("network_bytes_sent", i, stats[i].network_bytessent);
         cs.network_bytessent += stats[i].network_bytessent;
-
       }
       ret["total_calls_sent"] = cs.callssent;
       ret["total_bytes_sent"] = cs.bytessent;
@@ -559,12 +563,12 @@ std::map<std::string, size_t> distributed_control::gather_statistics(){
 void distributed_control::fill_metrics() {
   std::map<std::string, size_t> ret = gather_statistics();
   if (procid() == 0) {
-    metrics& engine_metrics = metrics::create_metrics_instance("RPC", true);
-    engine_metrics.set("nodes", numprocs(), INTEGER);
-    engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
-    engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
-    total_bytes_sent = ret["total_bytes_sent"];
+    rpc_metrics.set("nodes", numprocs(), INTEGER);
+    rpc_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
+    rpc_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+    rpc_metrics.set("total_network_bytes_sent", ret["network_bytes_sent"], INTEGER);
   }
+  total_bytes_sent = ret["total_bytes_sent"];
 }
 
 } //namespace graphlab

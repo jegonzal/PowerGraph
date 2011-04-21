@@ -8,6 +8,7 @@
 #include <graphlab/util/multi_blocking_queue.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
@@ -143,6 +144,7 @@ class distributed_control{
   void compute_master_ranks();
   procid_t masterid;
   
+  metrics rpc_metrics;
   
  public:
    
@@ -524,7 +526,30 @@ class distributed_control{
    this function at the same time. However, only proc 0 will
    return values */
   std::map<std::string, size_t> gather_statistics();
+
+  /** Fills metrics information. All machines must call this
+   * function simultaneously. Only proc 0 will have metrics
+   */
   void fill_metrics();
+
+  /** returns metrics information collected by fill_metrics
+   *  Only proc 0 will have metrics
+   */
+  inline metrics get_metrics() {
+    return rpc_metrics;
+  }
+
+  inline void reset_metrics() {
+    logstream(LOG_WARNING) << "Metrics cannot be reset on distributed control" << std::endl;
+  }
+  
+  /** Dumps the metric information to a reporter
+   * Only proc 0 will have metrics
+   */
+  inline void report_metrics(imetrics_reporter &reporter) {
+    rpc_metrics.report(reporter);
+  }
+
 };
 
 

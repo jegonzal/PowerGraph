@@ -58,7 +58,8 @@ namespace graphlab {
                               Graph& g, 
                               size_t ncpus) : 
       callbacks(ncpus, direct_callback<Graph>(this, engine)), 
-      binary_vertex_tasks(g.local_vertices()), prunecounter(ncpus, 0) {
+      binary_vertex_tasks(g.local_vertices()), prunecounter(ncpus, 0),
+      sched_metrics("multiqueue_fifo") {
       numvertices = g.local_vertices();
         
       /* How many queues per cpu. More queues, less contention */
@@ -77,8 +78,6 @@ namespace graphlab {
 
   
     ~multiqueue_fifo_scheduler() {
-        metrics & sched_metrics = metrics::create_metrics_instance("multiqueue_fifo", true);
-        for(unsigned int i=0; i<prunecounter.size(); i++) sched_metrics.add("pruned", prunecounter[i], INTEGER); 
     }
 
     callback_type& get_callback(size_t cpuid) {
@@ -224,8 +223,17 @@ namespace graphlab {
 
     void set_options(const scheduler_options &opts) { }
 
-    static void print_options_help(std::ostream &out) { };
-    
+    metrics get_metrics() {
+      for(unsigned int i=0; i<prunecounter.size(); i++) sched_metrics.add("pruned", prunecounter[i], INTEGER); 
+      return sched_metrics;
+    }
+
+    void reset_metrics() {
+      for(unsigned int i=0; i<prunecounter.size(); i++) prunecounter[i] = 0;
+      sched_metrics.clear();
+    }
+
+
   private:
     size_t numvertices; /// Remember the number of vertices in the graph
   
@@ -248,6 +256,8 @@ namespace graphlab {
         
     // Keep track of how many tasks were pruned.
     std::vector<size_t> prunecounter;
+
+    metrics sched_metrics;
   }; 
 
 

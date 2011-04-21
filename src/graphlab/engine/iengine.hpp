@@ -12,6 +12,7 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
+#include <graphlab/metrics/metrics.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/shared_data/ishared_data.hpp>
 #include <graphlab/shared_data/glshared.hpp>
@@ -345,6 +346,36 @@ namespace graphlab {
       return "unknown";
     }
 
+    /**
+     * Return the metrics information logged by the engine.
+     * \see dump_metrics reset_metrics
+     */
+    virtual metrics get_metrics() {
+      return metrics();
+    }
+
+    /**
+     * Clears all logged metrics
+     * \see dump_metrics get_metrics
+     */
+    virtual void reset_metrics() { }
+    
+    /**
+     * Writes out the metrics information logged by the engine
+     * and all subordinate classes.
+     *
+     * Engine writers should note that for dump_metrics() to work,
+     * the engine only has to implement get_metrics()
+     * and reset_metrics(). Default behavior is to report the metrics
+     * returned by get_metrics() and call reset_metrics().
+     * This behavior may be overridden by implementing this function.
+     * 
+     * \see get_metrics reset_metrics
+     */
+    virtual void report_metrics(imetrics_reporter &reporter) {
+      get_metrics().report(reporter);
+    }
+    
   };
 
 }

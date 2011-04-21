@@ -180,7 +180,8 @@ private:
   binary_vertex_task_set<Graph> binary_vertex_tasks;
   
   size_t numtasksdone;
- 
+
+  metrics engine_metrics;
  public:
   distributed_locking_engine(distributed_control &dc,
                                     Graph& graph,
@@ -212,6 +213,7 @@ private:
                             graphlock(dc, graph, true),
                             threads_alive(ncpus),
                             binary_vertex_tasks(graph.local_vertices()),
+                            engine_metrics("engine"),
                             reduction_barrier(ncpus) { 
     graph.allocate_scope_callbacks();
     dc.barrier();
@@ -895,32 +897,29 @@ private:
     std::map<std::string, size_t> ret = rmi.gather_statistics();
 
     if (rmi.procid() == 0) {
-      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
-      engine_metrics.set("runtime", 
+      engine_metrics.add("runtime",
                         ti.current_time(), TIME);
       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
-        engine_metrics.add("updatecount", 
-                            procupdatecounts[i], INTEGER);
+        engine_metrics.add_vector_entry("updatecount", i,  procupdatecounts[i]);
       }
       for(size_t i = 0; i < barrier_times.size(); ++i) {
-        engine_metrics.add("barrier_time", 
-                            barrier_times[i], TIME);
+        engine_metrics.add_vector_entry("barrier_time", i, barrier_times[i]);
       }
 
       std::map<double, size_t>::const_iterator iter = upspertime.begin();
       while(iter != upspertime.end()) {
-        engine_metrics.add_vector("updatecount_vector_t", iter->first);
-        engine_metrics.add_vector("updatecount_vector_v", iter->second);        
+        engine_metrics.add_to_vector("updatecount_vector_t", iter->first);
+        engine_metrics.add_to_vector("updatecount_vector_v", iter->second);        
         ++iter;
       }
       engine_metrics.set("termination_reason", 
                         exec_status_as_string(termination_reason));
-      engine_metrics.set("dist_barriers_issued", 
+      engine_metrics.add("dist_barriers_issued",
                         num_dist_barriers_called, INTEGER);
 
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
-      engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+      engine_metrics.add("num_syncs", numsyncs.value, INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
       total_bytes_sent = ret["total_bytes_sent"];
@@ -981,6 +980,17 @@ private:
   long long int get_total_bytes_sent() {
      return total_bytes_sent;
   }
+
+
+  metrics get_metrics() {
+    return engine_metrics;
+  }
+
+
+  void reset_metrics() {
+    engine_metrics.clear();
+  }
+
 };
 
 } // namespace graphlab
