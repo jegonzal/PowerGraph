@@ -128,8 +128,7 @@ void make_toy_graph(pagerank_graph& graph);
  * The Page rank update function
  */
 void pagerank_update(gl_types::iscope &scope,
-                     gl_types::icallback &scheduler,
-                     gl_types::ishared_data* shared_data) {
+                     gl_types::icallback &scheduler) {
   
   
                      

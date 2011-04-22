@@ -15,7 +15,6 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/fake_shared_data.hpp>
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
@@ -50,8 +49,6 @@ namespace graphlab {
     typedef typename iengine_base::imonitor_type imonitor_type;
     typedef typename iengine_base::termination_function_type termination_function_type;
     typedef typename iengine_base::iscope_type iscope_type;
-    typedef typename iengine_base::ishared_data_type ishared_data_type;
-    typedef typename iengine_base::ishared_data_manager_type ishared_data_manager_type;
     
     typedef typename iengine_base::sync_function_type sync_function_type;
     typedef typename iengine_base::merge_function_type merge_function_type;
@@ -83,9 +80,6 @@ namespace graphlab {
           // If this was nothing to execute then fail
           if (!executed_task) break;
         }   
-        // // Do any remaining syncs if any
-        if(engine->shared_data != NULL)
-          engine->shared_data->signal_all();
         logger(LOG_INFO, "Worker %d finished.\n", workerid);
       }      
     }; // end of task worker
@@ -127,19 +121,6 @@ namespace graphlab {
     /** The monitor which tracks and records engine events */
     imonitor_type* monitor;
 
-    /** The share data manager */
-    ishared_data_manager_type* shared_data;
-
-    /// for shared data table compatibility 
-    fake_shared_data<asynchronous_engine<Graph,Scheduler,ScopeFactory> > 
-    f_shared_data;
-    
-    bool use_fake_shared_data;    
-    
-    inline ishared_data<Graph>* get_shared_data() {
-      if (use_fake_shared_data) return &f_shared_data;
-      else return shared_data;
-    }
     
     /** The time in millis that the engine was started */
     size_t start_time_millis;
@@ -233,9 +214,6 @@ namespace graphlab {
       use_sched_yield(true),
       update_counts(std::max(ncpus, size_t(1)), 0),
       monitor(NULL),
-      shared_data(NULL),
-      f_shared_data(this),
-      use_fake_shared_data(false),
       start_time_millis(lowres_time_millis()),
       timeout_millis(0),
       last_check_millis(0),
@@ -264,14 +242,6 @@ namespace graphlab {
     }
 
 
-    //! Set the shared data manager for this engine. \todo DEPRECATED
-    void set_shared_data_manager(ishared_data_manager_type* _shared_data) {
-      logger(LOG_WARNING, 
-             "The use of the shared_data table has been deprecated. "
-             "Please use glshared");
-      shared_data = _shared_data;
-    } // end of set shared data manager
-
 
     /**
      * Set the default scope range.  The scope ranges are defined in
@@ -294,7 +264,6 @@ namespace graphlab {
 
       scope_manager->set_default_scope(default_scope_range);
       
-      if (shared_data) shared_data->set_scope_factory(scope_manager);
       // std::cout << "Scheduler Options:\n";
       // std::cout << sched_options();
       
@@ -333,7 +302,6 @@ namespace graphlab {
       else run_simulated(scheduler, scope_manager);
 
       scheduler_metrics = scheduler->get_metrics();
-      //shared_data->set_scope_factory(NULL);
       release_scheduler_and_scope_manager();
       
 
@@ -465,7 +433,6 @@ namespace graphlab {
                   merge_function_type merge = NULL,
                   size_t rangelow = 0,
                   size_t rangehigh = -1) {
-      use_fake_shared_data = true;
       sync_task st;
       st.sync_fun = sync;
       st.merge_fun = merge;
@@ -573,8 +540,6 @@ namespace graphlab {
         // Execute the update as that cpu
         active = run_once(cpuid, scheduler, scope_manager);
       }
-      // Do any remaining syncs if any
-      if(shared_data != NULL) shared_data->signal_all();
     } // end of run simulated
 
     
@@ -616,7 +581,7 @@ namespace graphlab {
        * If a shared data manager is not provided then this will fail.
        */
       for (size_t i = 0; i < term_functions.size(); ++i) {
-        if (term_functions[i](get_shared_data())) {
+        if (term_functions[i]()) {
           termination_reason = EXEC_TERM_FUNCTION;
           return true;
         }
@@ -642,9 +607,6 @@ namespace graphlab {
          */
         if (last_check_millis < lowres_time_millis() || terminate_all_syncs) {
           last_check_millis = lowres_time_millis();
-          // If a data manager is available try and run any pending
-          // synchronizations.
-          if(shared_data != NULL) shared_data->signal_all();
           // Check all termination conditions
           if(satisfies_termination_condition()) {
             terminate_all_syncs_mutex.lock();
@@ -693,11 +655,11 @@ namespace graphlab {
           iscope_type* scope = scope_manager->get_scope(cpuid, vertex);
           assert(scope != NULL);                    
           // get the callback for this cpu
-          typename Scheduler::callback_type& scallback =
-            scheduler->get_callback(cpuid);
+          typename Scheduler::callback_type& scallback = 
+                                      scheduler->get_callback(cpuid);
           // execute the task
           
-          task.function()(*scope, scallback, get_shared_data());
+          task.function()(*scope, scallback);
           // Commit any changes to the scope
           scope->commit();
           // Release the scope

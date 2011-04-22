@@ -47,7 +47,6 @@ typedef distributed_locking_engine< graph_type, multiqueue_fifo_scheduler<graph_
 //typedef distributed_chromatic_engine< graph_type > engine_type;
 typedef engine_type::iscope_type iscope_type;
 typedef engine_type::icallback_type icallback_type;
-typedef ishared_data<graph_type> ishared_data_type;
 typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
@@ -66,8 +65,7 @@ typedef engine_type::update_task_type update_task_type;
 
 
 void color_update_function(iscope_type& scope,
-                          icallback_type& callback,
-                          ishared_data_type* unused) {
+                          icallback_type& callback) {
   vertex_color_type curcolor = scope.const_vertex_data();
   dense_bitset db(4096);
   db.fill();

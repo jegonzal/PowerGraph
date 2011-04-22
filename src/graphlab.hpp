@@ -95,14 +95,9 @@ namespace graphlab {
     typedef graphlab::iengine<graph>             iengine;
     typedef graphlab::imonitor<graph>            imonitor;
 
-    typedef graphlab::ishared_data<graph>        ishared_data;
-    typedef graphlab::ishared_data_manager<graph> ishared_data_manager;
-    typedef graphlab::sync_ops<Graph> sync_ops;
-    typedef graphlab::apply_ops<Graph> apply_ops;
     typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
     typedef graphlab::glshared_apply_ops glshared_apply_ops;
-
-    typedef graphlab::thread_shared_data<graph>  thread_shared_data;
+    typedef graphlab::glshared_merge_ops glshared_merge_ops;
 
 
 
@@ -147,6 +142,9 @@ namespace graphlab {
 
     template <typename T>
     class glshared:public graphlab::glshared<T> { };
+    
+    template <typename T>
+    class glshared_const:public graphlab::glshared_const<T> { };
   };
 
 }

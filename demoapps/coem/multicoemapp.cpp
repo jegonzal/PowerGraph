@@ -52,12 +52,6 @@ float INITIAL_NP_VALUE = 0.0f;
 
 #define TEXT_LENGTH 64
 
-// Shared data keys.
-const size_t PARAM_M  = 1;
-const size_t NUM_CATS = 2;
-const size_t NUM_NPS  = 3;
-const size_t NUM_CTX  = 4;
-
 bool ROUNDROBIN = false;
  
 // tfidc is a modified weight formula for Co-EM (see Justin
@@ -130,7 +124,10 @@ bool prune_edges;
   
 // Hack for speeding up
 std::vector<vertex_id_t> ** vertex_lookups;
- 
+glshared_const<float> PARAM_M;
+glshared_const<size_t> NUM_NPS;
+glshared_const<size_t> NUM_CTX;
+glshared_const<size_t> NUM_CATS;
 
 // Forward declarations
 void loadCategories();
@@ -146,18 +143,17 @@ void output_results(gl_types::core& core);
 
 /// ====== UPDATE FUNCTION ======= ///
 void coem_update_function(gl_types::iscope& scope, 
-                          gl_types::icallback& scheduler,
-                          gl_types::ishared_data* shared_data) {
+                          gl_types::icallback& scheduler) {
                           
   /* A optimization. Use thred-local lookup-table for faster computation. */
   std::vector<vertex_id_t> vlookup = *vertex_lookups[thread::thread_id()];
   vlookup.clear();
    
   /* Get shared vars. These are just constants. */
-  float param_m = shared_data->get_constant(PARAM_M).as<float>();
-  size_t num_nps = shared_data->get_constant(NUM_NPS).as<size_t>();
-  size_t num_ctxs = shared_data->get_constant(NUM_CTX).as<size_t>();
-  size_t num_cats = shared_data->get_constant(NUM_CATS).as<size_t>();
+  float param_m = PARAM_M.get();
+  size_t num_nps = NUM_NPS.get();
+  size_t num_ctxs = NUM_CTX.get();
+  size_t num_cats = NUM_CATS.get();
    
   /* Get vertex data */
   vertex_data& vdata =   scope.vertex_data();
@@ -409,7 +405,7 @@ void prepare(gl_types::core& core) {
   // Set register shared data
   /* M is used for "smoothing" */
   float m = 0.01;
-  core.shared_data().set_constant(PARAM_M, float(m));
+  PARAM_M.set(m);
   
   /*** Count NPs and CONTEXTs, add SEEDS as initial tasks */
   size_t n = core.graph().num_vertices();
@@ -473,10 +469,11 @@ void prepare(gl_types::core& core) {
   std::cout << "Num of initial tasks: " << ntasks << std::endl;
   std::cout << "Contexts: " << num_contexts << " nps: " << num_nps << std::endl;
   
-  core.shared_data().set_constant(NUM_CTX, size_t(num_contexts));
-  core.shared_data().set_constant(NUM_NPS, size_t(num_nps));
+  NUM_CTX.set(num_contexts);
+  NUM_NPS.set(num_nps);
+
   int numcats = categories.size();
-  core.shared_data().set_constant(NUM_CATS, size_t(numcats));
+  NUM_CATS.set(numcats);
 }
 
 

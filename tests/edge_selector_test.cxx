@@ -28,8 +28,7 @@ struct MyVertexData {
 
 
 void MultiplyFunction(iscope &scope,
-                      ischeduler_callback &scheduler,
-                      const shared_data_manager &data_manager) {
+                      ischeduler_callback &scheduler) {
   MyVertexData* d = (MyVertexData*)scope.vertex_blob().mutable_data();
   logger(LOG_INFO, "Run scope vertex %d with vertex data: %f", scope.vertex(),
                                                                d->val);

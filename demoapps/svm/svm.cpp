@@ -87,15 +87,12 @@ const double BOUND = 1E-5;
 double C = 1.0;
 
 void dat_update_function(gl_types::iscope &scope,
-                         gl_types::icallback &scheduler,
-                         gl_types::ishared_data* shared_data);
+                         gl_types::icallback &scheduler);
 void w_update_function(gl_types::iscope &scope,
-                       gl_types::icallback &scheduler,
-                       gl_types::ishared_data* shared_data);
+                       gl_types::icallback &scheduler);
 
                        
-bool primal_terminator(const gl_types::ishared_data* shared_data) {
-  assert(shared_data != NULL);
+bool primal_terminator() {
   double stepsize = STEPSIZE.get_val();
   double l1gradient = TOTALGRADIENT.get_val();
   size_t numdim = NUMDAT.get_val();
@@ -106,8 +103,7 @@ bool primal_terminator(const gl_types::ishared_data* shared_data) {
 
 /// ====== UPDATE FUNCTION ======= ///
 void dat_update_function(gl_types::iscope &scope,
-                         gl_types::icallback &scheduler,
-                         gl_types::ishared_data* shared_data) {
+                         gl_types::icallback &scheduler) {
   
   size_t numdat = NUMDAT.get_val();
   dat_vertex_data& thisvertex = scope.vertex_data().dat;
@@ -149,8 +145,7 @@ void dat_update_function(gl_types::iscope &scope,
 }
 
 void w_update_function(gl_types::iscope &scope,
-                       gl_types::icallback &scheduler,
-                       gl_types::ishared_data* shared_data) {
+                       gl_types::icallback &scheduler) {
   // compute the local gradient
   // am I b?
   feat_vertex_data& thisvertex = scope.vertex_data().feat;

@@ -86,8 +86,7 @@ bool binary_factor_equal(const graphlab::binary_factor &a,
  * the graphlab update_function interface.  
  */
 void bp_update(gl_types::iscope& scope, 
-               gl_types::icallback& scheduler,
-               gl_types::ishared_data* shared_data);
+               gl_types::icallback& scheduler);
                
 /**
  * The edge potential sync simply counts the belief across the edges
@@ -393,13 +392,9 @@ int main(int argc, char** argv) {
 // Implementations
 // ============================================================>
 void bp_update(gl_types::iscope& scope, 
-               gl_types::icallback& scheduler,
-               gl_types::ishared_data* shared_data) {
+               gl_types::icallback& scheduler) {
   //  std::cout << scope.vertex();;
   //  std::getchar();
-  assert(shared_data != NULL);
-
-  // Get the shared data
   double bound = sh_bound.get_val();
   double damping = sh_damping.get_val();
 

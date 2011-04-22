@@ -58,6 +58,15 @@ namespace graphlab {
       ASSERT_TRUE(finalized);
       return content; 
     }
+    
+    /**
+     * Get the constant. Same as get().
+     * Provided to get some semblance of interface similarity with glshared
+     */
+    const T& get_val() const { 
+      ASSERT_TRUE(finalized);
+      return content; 
+    }
   };
 
 

@@ -137,12 +137,9 @@ There are other methods for terminating execution, such as registering a
 termination evaluator with the engine, but we are not going to describe
 that here.
 
-\param shared_data
-Deprecated
 */
 void update_function(gl::iscope& scope,
-                     gl::icallback& scheduler,
-                     gl::ishared_data* shared_data) {
+                     gl::icallback& scheduler) {
   //scope.vertex_data allows me to grab a reference to the vertex data
   // on the graph
   vertex_data& curvdata = scope.vertex_data();
@@ -363,7 +360,7 @@ size_t get_flip(const vertex_data &v) {
 }
 
 /**
-  Here we create the shared data table
+  Here we create the shared data values
 */
 void init_shared_data(gl::core &core, size_t dim) {
   // the number of vertices is a constant and is just dim * dim

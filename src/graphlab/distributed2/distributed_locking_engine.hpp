@@ -45,8 +45,6 @@ class distributed_locking_engine:public iengine<Graph> {
   typedef typename iengine_base::update_function_type update_function_type;
   typedef typename iengine_base::termination_function_type termination_function_type;
   typedef typename iengine_base::iscope_type iscope_type;
-  typedef typename iengine_base::ishared_data_type ishared_data_type;
-  typedef typename iengine_base::ishared_data_manager_type ishared_data_manager_type;
   
   typedef typename iengine_base::sync_function_type sync_function_type;
   typedef typename iengine_base::merge_function_type merge_function_type;
@@ -546,7 +544,7 @@ private:
     }
     
     for (size_t i = rmi.procid(); i < term_functions.size(); i += rmi.numprocs()) {
-      if (term_functions[i](NULL)) {
+      if (term_functions[i]()) {
         termination_test[rmi.procid()].terminator = true;
         break;
       }
@@ -761,7 +759,7 @@ private:
           binary_vertex_tasks.remove(update_task_type(curv, ut));
 
           // run the update function
-          ut(scope, callback, NULL);          
+          ut(scope, callback);          
           //vertex_deferred_tasks[curv].lock.lock();
 
           update_counts[threadid]++;
@@ -962,9 +960,6 @@ private:
     out << "max_deferred_tasks_per_node = [integer, default = unsigned word max]\n";
   };
 
-  void set_shared_data_manager(ishared_data_manager_type* manager) { 
-    logger(LOG_FATAL, "distributed engine does not support set shared data manager");
-  }
 
   void stop() {
     force_stop = true;

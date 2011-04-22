@@ -34,8 +34,7 @@ void uniform_speed(const size_t max_iter) {
 
 
 static void update_function(core_type::types::iscope& scope,
-                            core_type::types::icallback& callback,
-                            core_type::types::ishared_data* shared_data) {
+                            core_type::types::icallback& callback) {
   namespace random = graphlab::random;
 
   scope.vertex_data() += 

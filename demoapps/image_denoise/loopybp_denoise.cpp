@@ -77,8 +77,7 @@ void construct_graph(image& img,
  * the graphlab update_function interface.  
  */
 void bp_update(gl_types::iscope& scope, 
-               gl_types::icallback& scheduler,
-               gl_types::ishared_data* shared_data);
+               gl_types::icallback& scheduler);
                
 
 // Command Line Parsing =======================================================>
@@ -303,8 +302,7 @@ int main(int argc, char** argv) {
 // Implementations
 // ============================================================>
 void bp_update(gl_types::iscope& scope, 
-               gl_types::icallback& scheduler,
-               gl_types::ishared_data* shared_data) {
+               gl_types::icallback& scheduler) {
   //  std::cout << scope.vertex();;
   //  std::getchar();
 

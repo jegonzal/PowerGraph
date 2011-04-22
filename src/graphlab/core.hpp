@@ -74,7 +74,6 @@ cd     The core contains the
     core() : 
       mengine(NULL),
       engine_has_been_modified(false), 
-      shared_data_used(false),
       coremetrics("core"), reporter(new null_reporter) { }
 
 
@@ -178,7 +177,6 @@ cd     The core contains the
     */
     void reset() {
       engine_has_been_modified = false;
-      shared_data_used = false;
       destroy_engine();
     }
     
@@ -207,30 +205,6 @@ cd     The core contains the
     }
 
 
-
-    /**
-     * \deprecated {Do not use. Use \ref glshared }
-     * \brief Get a reference to the shared data manager associated with this core.
-     */
-    typename types::ishared_data_manager& shared_data() {
-      if (shared_data_used == false) {
-        if (mengine != NULL) {
-          mengine->set_shared_data_manager(&mshared_data);
-        }
-        shared_data_used = true;
-      }
-      return mshared_data;
-    }
-
-    
-    /**
-     * \deprecated {Do not use. Use \ref glshared }
-     * \brief Get a const reference to the shared data associated with this
-     * core.
-     */
-    const typename types::ishared_data_manager& shared_data() const {
-      return mshared_data;
-    }
 
 
     /**
@@ -454,7 +428,6 @@ cd     The core contains the
         // create the engine
         mengine = engine_factory::new_engine(meopts, mgraph);
         if(mengine == NULL) return false;
-        if (shared_data_used) mengine->set_shared_data_manager(&mshared_data);
       }
       // scheduler options is one parameter that is allowed
       // to change without rebuilding the engine
@@ -485,7 +458,6 @@ cd     The core contains the
     /** Save the core to an archive */
     void save(oarchive& arc) const {
       arc << mgraph
-          << mshared_data
           << meopts;
     } // end of save
 
@@ -503,7 +475,6 @@ cd     The core contains the
     /** Load the core from an archive. */
     void load(iarchive& arc) {
       arc >> mgraph
-          >> mshared_data
           >> meopts;
     } // end of load
 
@@ -516,14 +487,12 @@ cd     The core contains the
     
     // graph and data objects
     typename types::graph mgraph;
-    typename types::thread_shared_data mshared_data;    
     engine_options meopts;
     typename types::iengine *mengine;
     /** For error tracking. Once engine has been modified, any scheduler/
      * engine parameter modifications will reset the modifications
      */
     bool engine_has_been_modified;
-    bool shared_data_used;
     metrics coremetrics;
 
     imetrics_reporter* reporter;

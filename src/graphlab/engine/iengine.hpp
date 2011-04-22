@@ -14,9 +14,7 @@
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/shared_data/ishared_data.hpp>
 #include <graphlab/shared_data/glshared.hpp>
-#include <graphlab/shared_data/ishared_data_manager.hpp>
 namespace graphlab {
   
   /**
@@ -83,7 +81,7 @@ namespace graphlab {
 
     //! The type of update function
     typedef typename update_task_type::update_function_type 
-    update_function_type;
+                                               update_function_type;
 
     //! The type of scheduler
     typedef ischeduler<Graph> ischeduler_type;
@@ -93,12 +91,6 @@ namespace graphlab {
 
     //! The type of scope 
     typedef iscope<Graph> iscope_type;
-
-    //! The type of ishared_data
-    typedef ishared_data<Graph> ishared_data_type;
-
-    //! The type of shared data manager
-    typedef ishared_data_manager<Graph> ishared_data_manager_type;
 
     typedef void(*sync_function_type)(iscope_type& scope,
                                       any& accumulator);
@@ -116,9 +108,8 @@ namespace graphlab {
      * termination functions are executed frequently and cannot
      * directly contribut to the computation, they should return
      * quickly.
-     *
      */
-    typedef bool (*termination_function_type) (const ishared_data_type* manager);
+    typedef bool (*termination_function_type) ();
     
 
     //! Virtual destructor required for inheritance 
@@ -126,18 +117,6 @@ namespace graphlab {
 
     //! get the number of cpus
     virtual size_t get_ncpus() const = 0;
-
-
-    /**
-     * \brief Set the shared data manager
-     * \deprecated Use set_sync and glshared
-     *
-     * If a shared data is to be available to update functions called
-     * by this engine then it must be set here.  The shared data can
-     * be set to NULL in which case a null pointer will be passed to
-     * the update functions.
-     */
-    virtual void set_shared_data_manager(ishared_data_manager_type* manager) = 0;
 
 
     /**

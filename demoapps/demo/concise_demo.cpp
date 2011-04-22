@@ -14,8 +14,7 @@ typedef graphlab::types<graph_type> gl;
 
 
 void update_function(gl::iscope& scope,
-                     gl::icallback& scheduler,
-                     gl::ishared_data* shared_data) {
+                     gl::icallback& scheduler) {
   vertex_data& curvdata = scope.vertex_data();
 
 

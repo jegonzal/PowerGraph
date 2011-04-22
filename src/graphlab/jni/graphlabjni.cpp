@@ -46,38 +46,32 @@ void detach_from_JVM() {
 
 void jni_update_wrapper(gl_types::iscope &scope,
 			gl_types::icallback &scheduler,
-			gl_types::ishared_data* shared_data,
 			jint functionid);
 
 void jni_update_0(gl_types::iscope &scope,
-		  gl_types::icallback &scheduler,
-		  gl_types::ishared_data* shared_data) {
-  jni_update_wrapper(scope, scheduler, shared_data, 0);                  
+		  gl_types::icallback &scheduler) {
+  jni_update_wrapper(scope, scheduler, 0);                  
 }
 
 void jni_update_1(gl_types::iscope &scope,
-		  gl_types::icallback &scheduler,
-		  gl_types::ishared_data* shared_data) {
-  jni_update_wrapper(scope, scheduler, shared_data, 1);                  
+		  gl_types::icallback &scheduler) {
+  jni_update_wrapper(scope, scheduler, 1);                  
 }
  
 void jni_update_2(gl_types::iscope &scope,
-		  gl_types::icallback &scheduler,
-		  gl_types::ishared_data* shared_data) {
-  jni_update_wrapper(scope, scheduler, shared_data, 2);                  
+		  gl_types::icallback &scheduler) {
+  jni_update_wrapper(scope, scheduler, 2);                  
 }
  
 void jni_update_3(gl_types::iscope &scope,
-		  gl_types::icallback &scheduler,
-		  gl_types::ishared_data* shared_data) {
-  jni_update_wrapper(scope, scheduler, shared_data, 3);                  
+		  gl_types::icallback &scheduler) {
+  jni_update_wrapper(scope, scheduler,  3);                  
 }
  
  
 void jni_update_4(gl_types::iscope &scope,
-		  gl_types::icallback &scheduler,
-		  gl_types::ishared_data* shared_data) {
-  jni_update_wrapper(scope, scheduler, shared_data, 4);                  
+		  gl_types::icallback &scheduler) {
+  jni_update_wrapper(scope, scheduler,  4);                  
 }
 
 gl_types::update_function functions[5] = 
@@ -88,7 +82,6 @@ gl_types::update_function functions[5] =
  */
 void jni_update_wrapper(gl_types::iscope &scope,
 			gl_types::icallback &scheduler,
-			gl_types::ishared_data* shared_data,
 			jint functionid) {
   jint vertexid = scope.vertex();        
   int threadid = graphlab::thread::thread_id();

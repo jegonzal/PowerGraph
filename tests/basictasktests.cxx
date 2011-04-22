@@ -19,8 +19,7 @@ using namespace graphlab;
 int count = 0;
 
 void very_dummy_update(iscope &scope,
-                       ischeduler_callback &scheduler,
-                       const shared_data_manager &data_manager) {
+                       ischeduler_callback &scheduler) {
     count++;
   }
 
