@@ -75,6 +75,13 @@ cd     The core contains the
       mengine(NULL),
       engine_has_been_modified(false), 
       coremetrics("core"), reporter(new null_reporter) { }
+  private:
+    //! Core is not copyable
+    core(const core& other);
+    //! Core is not copyable
+    core& operator=(const core& other);
+
+  public:
 
 
     ~core() { 
