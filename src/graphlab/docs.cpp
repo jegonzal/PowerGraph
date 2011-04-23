@@ -32,7 +32,7 @@
   \li \ref graphlab::iengine
   \li \ref Scopes
   \li \ref Schedulers
-  \li \ref shared_data Shared Data
+  \li \ref shared_data
   \li \ref graphlab::command_line_options
   \li \ref Serialization
 
@@ -252,13 +252,13 @@ The fifo scheduler executes tasks in the classical first in
 We have a custom serialization scheme which is designed for performance rather than 
 compatibility. It does not perform type checking, It does not perform pointer tracking, 
 and has only limited support across platforms. It has been tested, and should be compatible 
-across x86 platforms (integer width is normalized).
+across x86 platforms.
 
 There are two serialization classes graphlab::oarchive and graphlab::iarchive. The former 
 does output, while the latter does input. To include all serialization headers,
 #include <graphlab/serialization/serialization_includes.hpp>.
 
-\ssection sec_basic_serialize Basic serialize/deserialize
+\section sec_basic_serialize Basic serialize/deserialize
 
 To serialize data to disk, you just create an output archive, and associate it with a file stream.
 
@@ -319,19 +319,41 @@ class TestClass{
 After which, the standard stream operators as described in the previous section 
 will work fine. STL containers of TestClass will work as well.
 
-\section sec:serialize_caveats Minor Caveats
+\section sec_serialize_pod POD (Plain Old Data) types
+POD types are data types which occupy a contiguous region in memory. For instance, basic types 
+(double, int, etc), or structs which contains only basic types. Such types can be copied or
+replicated using a simple mem-copy operation and is a great candidate for acceleration during
+serialization / deserialization.
 
-For various useability reasons, the following code will always compile, 
-irregardless if the variable some_variable is serializable or not.
+Unfortunately, there is not a simple way to detect or test if any given type is POD or not.
+C++ TR1 defines an is_pod feature, but this feature is yet implemented in some compilers.
+We therefore defined our own gl_is_pod<...> feature which allows the user to explicitly
+express that a particular type is a POD type. gl_is_pod can be further extended in the future
+when compilers provide better support for std::is_pod.
 
+To use gl_is_pod, we consider the following Coordinate struct. 
 \code
-graphlab::oarchive oarc(fout);
-oarc << some_variable;
+struct Coordinate{
+  int x, y, z;
+};
 \endcode
 
-It will however fault with an assertion failure at runtime. This 
-issue may be fixed in the future. In the meantime, the user should make sure 
-to test all serialization code carefully.
+This struct can be defined to be a POD type using an accelerated serializer by defining:
+
+\code
+namespace graphlab {
+  struct gl_is_pod<Coordinate> {
+    BOOST_STATIC_CONSTANT(bool, value = true);
+  };
+}
+\endcode
+
+Now, Coordinate variables, or even vector<Coordinate> variables will serialize/deserialize faster,
+making use of direct mem-copies. 
+
+A caveat of this fast serialization mechanism is that the resulting archive may not be cross platform
+since it forces a particular length for the integers inside the struct. There may also be issues 
+using the same archive between compilers or different alignment options. 
 
 \endpage
 
@@ -503,6 +525,7 @@ Modifications to current_data will be reflected in future accesses
 to l2norm_value.
 
 
+
 A sync is created using the \ref graphlab::iengine::set_sync() member function of the engine
 or the core \ref graphlab::core::set_sync()
 (the core simply forwards the call to the engine it contains).
@@ -531,15 +554,15 @@ Computes the maximum value of all the vertices using the accessor function to re
 A collection of apply function are also provided.
 
 \li \ref graphlab::glshared_apply_ops::identity<AccumulationType>
-Stores the accumulated value to the shared data entry
+Stores the accumulated value to the shared variable.
 \li \ref graphlab::glshared_apply_ops::identity_print<AccumulationType>
 Stores the accumulated value to the shared data entry and writes it to screen
 \li \ref graphlab::glshared_apply_ops::increment<AccumulationType>
-Adds the final accumulated value to the associated shared data table entry.
+Adds the final accumulated value to the associated shared variable.
 \li \ref graphlab::glshared_apply_ops::decrement<AccumulationType>
-Subtracts the final accumulated value from the associated shared data table entry.
+Subtracts the final accumulated value from the associated shared variable.
 \li \ref graphlab::glshared_apply_ops::sqrt<AccumulationType>
-Stores the square root of the accumulated value to the shared data entry
+Stores the square root of the accumulated value to the shared variable.
 For instance, the following code will create a sync which behaves exactly the same way as the example above:
 
 \code
@@ -548,11 +571,64 @@ double accessor(const double& v) {
 }
 
 shared_data.set_sync(l2norm_value, 
-                     gl::sync_ops::l2sum<double, accessor>,
-                     gl::apply_ops::sqrt<double>,
+                     gl::glshared_sync_ops::l2sum<double, accessor>,
+                     gl::glshared_apply_ops::sqrt<double>,
                      double(0.0), 
                      100);
 \endcode
 
+\subsection sec_sync_merge Merge 
+
+The Sync operation as described cannot be parallelized.
+To permit parallelism, an additional \b merge function which combines partial synced results
+must be defined. 
+
+If a merge function is defined, the set of vertices will be partitioned into a collection
+of disjoint sets. The sync function is then performed on each set in parallel, producing
+a number of partial results. These partial results are then combined with the merge function.
+Finally, the apply function is executed on the final result and written to the shared variable.
+
+For instance, in the earlier sync example where the L2 Norm of the graph vertex data is computed,
+intermediate results can be combined using:
+
+\code
+static void sum_merge(any& dest,
+                const any& src) {
+  dest.as<double>() += src.as<double>();
+}
+\endcode
+
+The set Sync call must similarly be updated
+
+\code
+core.set_sync(l2norm_value,       // shared variable
+              squared_sum_sync,   // sync function
+              square_root_apply,  // apply function
+              double(0.0),        // initial sync value
+              100,                // sync frequency
+              sum_merge);         // merge function
+\endcode
+
+Similarly, a collection of common Merges are provided in gl::glshared_merge_ops
+
+\li \ref graphlab::glshared_merge_ops::sum<AccumulationType>
+Sums the intermediate results.
+\li \ref graphlab::glshared_merge_ops::l1sum<AccumulationType>
+Sums the absolute value of the intermediate results.
+\li \ref graphlab::glshared_merge_ops::l2sum<AccumulationType>
+Sums the squared value of the intermediate results.
+\li \ref graphlab::glshared_merge_ops::max<AccumulationType>
+Returns the max of the intermediate results
+
+Example:
+\code
+shared_data.set_sync(l2norm_value, 
+                     gl::glshared_sync_ops::l2sum<double, accessor>,
+                     gl::glshared_apply_ops::sqrt<double>,
+                     double(0.0), 
+                     100,
+                     gl::glshared_merge_ops::sum<double>);
+
+\endcode
 \endpage
 */
