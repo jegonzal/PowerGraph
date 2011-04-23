@@ -453,7 +453,9 @@ namespace graphlab {
       return edge_id(target, source);
     } // end of rev_edge_id
 
+    void numa_reserve(size_t numvertices, size_t numedges) {
     
+    }
     /** 
      * \brief Creates a vertex containing the vertex data and returns the id
      * of the new vertex id. Vertex ids are assigned in increasing order with

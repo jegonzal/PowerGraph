@@ -11,15 +11,13 @@ namespace graphlab {
 
 
   /**
-   * A constant shared data entry.  
-   * 
-   * glshared_const<datatype> variable; 
+   * \brief A constant shared data entry.  
    *
    * The glshared_const<datatype> container is used to store constants
-   * that are to be accessed by update functions.  The glshared_const
-   * serves the purpose of automatically managing the physical
-   * placement of constants in the NUMA and cluster setting but should
-   * be used in all settings for portability.
+   * that are to be accessed by update functions.  This interface
+   * should be used instead of just creating regular global variables
+   * as this behavior can be further optimized in distributed and NUMA 
+   * settings
    *
    */
   template <typename T>

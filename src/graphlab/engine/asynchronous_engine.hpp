@@ -424,8 +424,42 @@ namespace graphlab {
     }
     
 
-  
-    void set_sync(glshared_base& shared,
+    /**
+     * \brief Registers a sync with the engine.
+     *
+     * Registers a sync with the engine.
+     * The sync will be performed approximately every "interval" updates,
+     * and will perform a reduction over all vertices from rangelow
+     * to rangehigh inclusive.
+     * The merge function may be NULL, in which it will not be used.
+     * However, it is highly recommended to provide a merge function since
+     * this allow the sync operation to be parallelized.
+     *
+      * The sync operation is guaranteed to be strictly sequentially consistent
+     * with all other execution.
+     *
+     * \param shared The shared variable to synchronize
+     * \param sync The reduction function
+     * \param apply The final apply function which writes to the shared value
+     * \param zero The initial zero value passed to the reduction
+     * \param sync_interval Frequency at which the sync is initiated.
+     *                      Corresponds approximately to the number of
+     *                     update function calls before the sync is reevaluated.
+     *                     If 0, the sync will only be evaluated once
+     *                     at engine start,  and will never be evaluated again.
+     *                     Defaults to 0.
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
+     * \param rangelow he lower range of vertex id to start syncing.
+     *                 The range is inclusive. i.e. vertex with id 'rangelow'
+     *                 and vertex with id 'rangehigh' will be included.
+     *                 Defaults to 0.
+     * \param rangehigh The upper range of vertex id to stop syncing.
+     *                  The range is inclusive. i.e. vertex with id 'rangelow'
+     *                  and vertex with id 'rangehigh' will be included.
+     *                  Defaults to infinity.
+     */
+     void set_sync(glshared_base& shared,
                   sync_function_type sync,
                   glshared_base::apply_function_type apply,
                   const any& zero,
@@ -454,7 +488,8 @@ namespace graphlab {
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
-     * and that the engine is not currently running
+     * and that the engine is not currently running. 
+     * \todo This sync currently does not evaluate in parallel. 
      */
     void sync_now(glshared_base& shared) {
       ASSERT_FALSE(active);
@@ -467,6 +502,13 @@ namespace graphlab {
       release_scheduler_and_scope_manager();
     }
     
+
+    /**
+     * Do not use. 
+     *  When called during engine execution, will synchronize
+     * the provided shared variable as soon as possible.
+     * \todo Provide access to this from the update functions
+     */
     void sync_soon(glshared_base& shared) {
       ASSERT_TRUE(active);
       
@@ -479,6 +521,12 @@ namespace graphlab {
       sync_task_queue_lock.unlock();
     }
     
+    /**
+     * Do not use.
+     * when called during engine execution, will synchronize
+     * all shared variable as soon as possible.
+     * \todo Provide access to this from the update functions
+     */
     void sync_all_soon() {
       ASSERT_TRUE(active);
       sync_task_queue_lock.lock();

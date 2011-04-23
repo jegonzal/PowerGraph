@@ -50,7 +50,7 @@
 
 #include <boost/typeof/typeof.hpp>
 
-void __print_back_trace();
+extern void __print_back_trace();
 
 // On some systems (like freebsd), we can't call write() at all in a
 // global constructor, perhaps because errno hasn't been set up.

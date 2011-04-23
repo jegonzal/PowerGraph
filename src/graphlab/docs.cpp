@@ -2,7 +2,7 @@
 /**
 \defgroup group_schedulers Schedulers
 \defgroup util_internal Internal Utility Classes
-
+\defgroup group_rpc GraphLab RPC
 
 \mainpage 
    
