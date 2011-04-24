@@ -11,13 +11,13 @@
 
 
 
-#include "../../factorized_model.hpp"
-#include "../../mrf.hpp"
-#include "../../global_variables.hpp"
-#include "../../junction_tree.hpp"
+#include "../factorized_model.hpp"
+#include "../mrf.hpp"
+#include "../global_variables.hpp"
+#include "../junction_tree.hpp"
 
-#include "../../chromatic_sampler.hpp"
-#include "../../jt_splash_sampler.hpp"
+#include "../chromatic_sampler.hpp"
+#include "../jt_splash_sampler.hpp"
 
 
 
