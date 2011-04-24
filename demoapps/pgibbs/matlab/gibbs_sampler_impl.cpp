@@ -10,19 +10,18 @@
 #include <graphlab.hpp>
 
 
-// Image reading/writing code
-#include "../util.hpp"
-#include "../factorized_model.hpp"
-#include "../mrf.hpp"
-#include "../global_variables.hpp"
-#include "../junction_tree.hpp"
 
-#include "../chromatic_sampler.hpp"
-#include "../jt_splash_sampler.hpp"
+#include "../../factorized_model.hpp"
+#include "../../mrf.hpp"
+#include "../../global_variables.hpp"
+#include "../../junction_tree.hpp"
 
+#include "../../chromatic_sampler.hpp"
+#include "../../jt_splash_sampler.hpp"
 
 
-#include "matlab_wrapper.hpp"
+
+#include "matwrap.hpp"
 
 using namespace std;
 
@@ -54,7 +53,7 @@ struct options {
   bool priorities;
   size_t ncpus_per_splash;
 
-  options(matlab_wrapper args =  matlab_wrapper(NULL)) :
+  options(matwrap args =  matwrap(NULL)) :
     alg_type(CHROMATIC),  nsamples(10), nskip(10), 
     // tskip(5), 
     ncpus(2),
@@ -65,7 +64,7 @@ struct options {
     safe_assert(args.is_struct(), 
                 "Additional arguments must be in a struct");
     { // parse the sampler algorithm type
-      matlab_wrapper arg(args.get_field("alg_type"));
+      matwrap arg(args.get_field("alg_type"));
       if(!arg.is_null()) {
         const size_t str_len(255);
         char sampler_type_c_str[str_len];
@@ -83,56 +82,56 @@ struct options {
       }
     } // end of parse field name
     { // parse the number of samples
-      matlab_wrapper arg(args.get_field("nsamples"));
+      matwrap arg(args.get_field("nsamples"));
       if(!arg.is_null()) {
         nsamples = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name
     { // parse the number of skipped samples
-      matlab_wrapper arg(args.get_field("nskip"));
+      matwrap arg(args.get_field("nskip"));
       if(!arg.is_null()) {
         nskip = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name
     // { // parse the number of skipped samples
-    //   matlab_wrapper arg(args.get_field("tskip"));
+    //   matwrap arg(args.get_field("tskip"));
     //   if(!arg.is_null()) {
     //     tskip = arg.get_double_array()[0];    
     //   }
     // } // end of parse field name                        
     { // parse the number of cpus
-      matlab_wrapper arg(args.get_field("ncpus"));
+      matwrap arg(args.get_field("ncpus"));
       if(!arg.is_null()) {
         ncpus = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name
     // { // parse the number of trees
-    //   matlab_wrapper arg(args.get_field("ntrees"));
+    //   matwrap arg(args.get_field("ntrees"));
     //   if(!arg.is_null()) {
     //     ntrees = size_t(arg.get_double_array()[0]);    
     //   }
     // } // end of parse field name
     { // parse the treewidth
-      matlab_wrapper arg(args.get_field("treewidth"));
+      matwrap arg(args.get_field("treewidth"));
       if(!arg.is_null()) {
         treewidth = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name
     { // parse the treeheight
-      matlab_wrapper arg(args.get_field("treeheight"));
+      matwrap arg(args.get_field("treeheight"));
       if(!arg.is_null()) {
         treeheight = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name
 
     { // parse the priorities
-      matlab_wrapper arg(args.get_field("prioritized"));
+      matwrap arg(args.get_field("prioritized"));
       if(!arg.is_null()) {
         priorities = bool(arg.get_double_array()[0]);    
       }
     } // end of parse field name                         
     { // parse the ncpus_per_splash
-      matlab_wrapper arg(args.get_field("npcus_per_splash"));
+      matwrap arg(args.get_field("npcus_per_splash"));
       if(!arg.is_null()) {
         ncpus_per_splash = size_t(arg.get_double_array()[0]);    
       }
@@ -177,7 +176,7 @@ struct options {
  * Build a graphlab table factor from the matlab table factor
  */
 void add_factor(factorized_model& model,
-                matlab_wrapper matlab_factor) {                
+                matwrap matlab_factor) {                
   if(matlab_factor.is_null()) {
     mexErrMsgTxt("Null factor argument to build factor!\n");    
   }
@@ -195,8 +194,8 @@ void add_factor(factorized_model& model,
   safe_assert(logP_field_id >= 0, "No field named logP in factor struct!");
 
   // Load the members from the factor
-  matlab_wrapper variables = matlab_factor.get_field(vars_field_id);
-  matlab_wrapper logP = matlab_factor.get_field(logP_field_id);
+  matwrap variables = matlab_factor.get_field(vars_field_id);
+  matwrap logP = matlab_factor.get_field(logP_field_id);
 
   // Check the fields 
   safe_assert(variables.is_uint32(), "Variables are not uint32t");
@@ -236,7 +235,7 @@ void add_factor(factorized_model& model,
 }
 
 
-void build_factorized_model(factorized_model& model, matlab_wrapper factors) {
+void build_factorized_model(factorized_model& model, matwrap factors) {
   const size_t num_factors(factors.size());
   model.reserve(num_factors);
   // Load all the factors
@@ -255,15 +254,15 @@ void build_factorized_model(factorized_model& model, matlab_wrapper factors) {
 // Code for sample collection
 struct result_collector {
   size_t sample_id;
-  matlab_wrapper samples;
-  matlab_wrapper beliefs;
-  matlab_wrapper nsamples; 
-  matlab_wrapper nchanges; 
+  matwrap samples;
+  matwrap beliefs;
+  matwrap nsamples; 
+  matwrap nchanges; 
  
-  result_collector(matlab_wrapper samples = NULL, 
-                   matlab_wrapper beliefs = NULL,
-                   matlab_wrapper nsamples = NULL,
-                   matlab_wrapper nchanges = NULL) :
+  result_collector(matwrap samples = NULL, 
+                   matwrap beliefs = NULL,
+                   matwrap nsamples = NULL,
+                   matwrap nchanges = NULL) :
     sample_id(0), samples(samples), beliefs(beliefs), 
     nsamples(nsamples), nchanges(nchanges)  { }
 };
@@ -282,7 +281,7 @@ void collector_sync(mrf_gl::iscope& scope,
   }
   if(!collector.beliefs.is_null() && 
      sample_id < collector.beliefs.cols()) {
-    matlab_wrapper blf(collector.beliefs.
+    matwrap blf(collector.beliefs.
                        get_cell_index2d(vdata.variable.id(), sample_id));
     double sum = 0;
     for(size_t i = 0; i < vdata.variable.size(); ++i) {
@@ -404,14 +403,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     prhs[0] = mxCreateNumericMatrix(1,1, mxUINT32_CLASS, mxREAL);
     prhs[1] = mxCreateNumericMatrix(1,1, mxUINT32_CLASS, mxREAL);
     prhs[2] = mxCreateNumericMatrix(1,1, mxUINT32_CLASS, mxREAL);
-    matlab_wrapper(prhs[0]).get_data<uint32_t>()[0] = 
+    matwrap(prhs[0]).get_data<uint32_t>()[0] = 
       std::numeric_limits<uint32_t>::max();
-    matlab_wrapper(prhs[1]).get_data<uint32_t>()[0] = 1;
-    matlab_wrapper(prhs[2]).get_data<uint32_t>()[0] = 2;
+    matwrap(prhs[1]).get_data<uint32_t>()[0] = 1;
+    matwrap(prhs[2]).get_data<uint32_t>()[0] = 2;
     prhs[3] = mxCreateString("uint32");
     mexCallMATLAB(1, plhs, 4, prhs, "randi");
     const size_t seed_value = 
-      matlab_wrapper(plhs[0]).get_data<size_t>()[0];
+      matwrap(plhs[0]).get_data<size_t>()[0];
     //    std::cout << "Seed value: " << seed_value << std::endl;
     mxDestroyArray(plhs[0]);
     mxDestroyArray(prhs[0]); 
@@ -423,7 +422,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 
   // Get first argument the cell array of factors
-  const matlab_wrapper matlab_factors(const_cast<mxArray*>(prhs[0]));
+  const matwrap matlab_factors(const_cast<mxArray*>(prhs[0]));
   if(matlab_factors.is_null()) { 
     mexErrMsgTxt("No factors provided!\n"); 
   }
@@ -466,10 +465,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 
   // allocate the return matrix for samples
-  matlab_wrapper matlab_samples;
+  matwrap matlab_samples;
   if(nlhs > 0) {
     matlab_samples = 
-      matlab_wrapper::create_matrix(model.variables().size(),
+      matwrap::create_matrix(model.variables().size(),
                                     opts.nsamples);
     plhs[0] = matlab_samples.array;
     safe_assert(!matlab_samples.is_null(), 
@@ -485,10 +484,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 
   // allocate the return cell array for beliefs
-  matlab_wrapper matlab_beliefs;
+  matwrap matlab_beliefs;
   if(nlhs > 1) {
     matlab_beliefs = 
-      matlab_wrapper::create_cell(model.variables().size(),
+      matwrap::create_cell(model.variables().size(),
                                   opts.nsamples);
     plhs[1] = matlab_beliefs.array;
     safe_assert(!matlab_beliefs.is_null(), 
@@ -500,8 +499,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
       const mrf_vertex_data& vdata = 
         mrf_core.graph().vertex_data(i);      
       for(size_t j = 0; j < opts.nsamples; ++j) {
-        matlab_wrapper blf = 
-          matlab_wrapper::create_matrix(vdata.variable.size(),
+        matwrap blf = 
+          matwrap::create_matrix(vdata.variable.size(),
                                         1);
         safe_assert(!blf.is_null(), "Unable to allocate beliefs");
         matlab_beliefs.set_cell_index2d(i, j, blf);
@@ -510,10 +509,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   }
 
   // allocate the return matrix for nsamples
-  matlab_wrapper matlab_nsamples;
+  matwrap matlab_nsamples;
   if(nlhs > 2) {
     matlab_nsamples = 
-      matlab_wrapper::create_matrix(model.variables().size(),
+      matwrap::create_matrix(model.variables().size(),
                                     opts.nsamples);
     plhs[2] = matlab_nsamples.array;
     safe_assert(!matlab_nsamples.is_null(), 
@@ -528,10 +527,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   }
 
   // allocate the return matrix for nsamples
-  matlab_wrapper matlab_nchanges;
+  matwrap matlab_nchanges;
   if(nlhs > 3) {
     matlab_nchanges = 
-      matlab_wrapper::create_matrix(model.variables().size(),
+      matwrap::create_matrix(model.variables().size(),
                                     opts.nsamples);
     plhs[3] = matlab_nchanges.array;
     safe_assert(!matlab_nchanges.is_null(), 

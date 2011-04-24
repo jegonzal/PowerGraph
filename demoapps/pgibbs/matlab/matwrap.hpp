@@ -1,5 +1,5 @@
-#ifndef MATLAB_WRAPPER
-#define MATLAB_WRAPPER
+#ifndef MATWRAP
+#define MATWRAP
 
 #include <cstring>
 #include <cstdio>
@@ -26,17 +26,17 @@ void flush_screen() {
 /**
  * A convenient wrapper around mxArray objects
  */
-struct matlab_wrapper {
+struct matwrap {
 
   mxArray* array;
   
-  matlab_wrapper(mxArray* array = NULL) : array(array) {  }
+  matwrap(mxArray* array = NULL) : array(array) {  }
 
 
 
   bool is_null() const { return array == NULL; }
 
-  matlab_wrapper get_property(const char* property) const { 
+  matwrap get_property(const char* property) const { 
     safe_assert(array != NULL, "dereferenced null mxArray");
     mxArray* result(mxGetProperty(array, 0, property));
     if(result == NULL) {
@@ -44,7 +44,7 @@ struct matlab_wrapper {
       sprintf(buffer, "Invalid property %s\n", property);
       mexErrMsgTxt(buffer);
     }
-    return matlab_wrapper(result);
+    return matwrap(result);
   } // end of get property
 
   
@@ -65,18 +65,18 @@ struct matlab_wrapper {
 
 
   void set_cell_index2d(const size_t i, const size_t j,
-                        matlab_wrapper contents) {
+                        matwrap contents) {
     safe_assert(array != NULL, "dereferenced null mxArray");
     mxSetCell(array, i + j*rows(), contents.array);    
   }
 
-  matlab_wrapper get_cell_index2d(const size_t i, const size_t j) {
+  matwrap get_cell_index2d(const size_t i, const size_t j) {
     safe_assert(array != NULL, "dereferenced null mxArray");
     return mxGetCell(array, i + j*rows());
   }
 
 
-  matlab_wrapper get_field(const char* fieldname) const {
+  matwrap get_field(const char* fieldname) const {
     safe_assert(is_struct(),
                 "Attempted to access field of a non-struct element.");
     return mxGetField(array,0,fieldname);
@@ -84,7 +84,7 @@ struct matlab_wrapper {
 
   int get_number_of_fields() const { return  mxGetNumberOfFields(array); }
 
-  matlab_wrapper get_field(const int field_id) const {
+  matwrap get_field(const int field_id) const {
     safe_assert(is_struct(),
                 "Attempted to access field of a non-struct element.");
     safe_assert(field_id < get_number_of_fields(), "Invalid field id!");
@@ -114,7 +114,7 @@ struct matlab_wrapper {
     return mxGetNumberOfElements(array);
   }
 
-  matlab_wrapper get_cell(size_t index) const {
+  matwrap get_cell(size_t index) const {
     safe_assert(array != NULL, "dereferenced null mxArray");
     safe_assert(mxGetClassID(array) == mxCELL_CLASS,
                 "Attempted to access a cell in a non-cell array.");
@@ -186,12 +186,12 @@ struct matlab_wrapper {
 
 
 
-  static matlab_wrapper create_matrix(size_t m, size_t n) {
-    return matlab_wrapper(mxCreateDoubleMatrix(m, n, mxREAL));
+  static matwrap create_matrix(size_t m, size_t n) {
+    return matwrap(mxCreateDoubleMatrix(m, n, mxREAL));
   }
 
-  static matlab_wrapper create_cell(size_t m, size_t n) {
-    return matlab_wrapper(mxCreateCellMatrix(m, n));
+  static matwrap create_cell(size_t m, size_t n) {
+    return matwrap(mxCreateCellMatrix(m, n));
   }
 
 
