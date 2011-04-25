@@ -388,10 +388,11 @@ void run_jt_splash_sampler(mrf_gl::core& core,
 
 
 /**
- * The arguments to this function are as follows:
- *
- *   prhs[0]: an cell array of factors
- *   prhs[2]: string of either "CHROMATIC"
+ * See parallel_gibbs.m for identical arguments
+ * 
+ *   [samples, nupdates, nchanges, marginals] = ...
+ *     gibbs_sampler(factors, options); 
+ * 
  */
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   safe_assert(nrhs > 0, 
@@ -483,13 +484,50 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   }
 
 
+  // allocate the return matrix for nsamples
+  matwrap matlab_nsamples;
+  if(nlhs > 1) {
+    matlab_nsamples = 
+      matwrap::create_matrix(model.variables().size(),
+                                    opts.nsamples);
+    plhs[1] = matlab_nsamples.array;
+    safe_assert(!matlab_nsamples.is_null(), 
+                "Error initializing return nsamples");
+  }
+  if( !matlab_nsamples.is_null() ) {
+    double* entries(matlab_nsamples.get_double_array());
+     const size_t num_entries(matlab_nsamples.size());
+    for(size_t i = 0; i < num_entries; ++i) {
+      entries[i] = std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+
+  // allocate the return matrix for nsamples
+  matwrap matlab_nchanges;
+  if(nlhs > 2) {
+    matlab_nchanges = 
+      matwrap::create_matrix(model.variables().size(),
+                                    opts.nsamples);
+    plhs[2] = matlab_nchanges.array;
+    safe_assert(!matlab_nchanges.is_null(), 
+                "Error initializing return nchanges");
+  }
+  if( !matlab_nchanges.is_null() ) {
+    double* entries(matlab_nchanges.get_double_array());
+     const size_t num_entries(matlab_nchanges.size());
+    for(size_t i = 0; i < num_entries; ++i) {
+      entries[i] = std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+
+
   // allocate the return cell array for beliefs
   matwrap matlab_beliefs;
-  if(nlhs > 1) {
+  if(nlhs > 3) {
     matlab_beliefs = 
       matwrap::create_cell(model.variables().size(),
                                   opts.nsamples);
-    plhs[1] = matlab_beliefs.array;
+    plhs[3] = matlab_beliefs.array;
     safe_assert(!matlab_beliefs.is_null(), 
                 "Error initializing return beliefs");
   }
@@ -508,41 +546,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
   }
 
-  // allocate the return matrix for nsamples
-  matwrap matlab_nsamples;
-  if(nlhs > 2) {
-    matlab_nsamples = 
-      matwrap::create_matrix(model.variables().size(),
-                                    opts.nsamples);
-    plhs[2] = matlab_nsamples.array;
-    safe_assert(!matlab_nsamples.is_null(), 
-                "Error initializing return nsamples");
-  }
-  if( !matlab_nsamples.is_null() ) {
-    double* entries(matlab_nsamples.get_double_array());
-     const size_t num_entries(matlab_nsamples.size());
-    for(size_t i = 0; i < num_entries; ++i) {
-      entries[i] = std::numeric_limits<double>::quiet_NaN();
-    }
-  }
-
-  // allocate the return matrix for nsamples
-  matwrap matlab_nchanges;
-  if(nlhs > 3) {
-    matlab_nchanges = 
-      matwrap::create_matrix(model.variables().size(),
-                                    opts.nsamples);
-    plhs[3] = matlab_nchanges.array;
-    safe_assert(!matlab_nchanges.is_null(), 
-                "Error initializing return nchanges");
-  }
-  if( !matlab_nchanges.is_null() ) {
-    double* entries(matlab_nchanges.get_double_array());
-     const size_t num_entries(matlab_nchanges.size());
-    for(size_t i = 0; i < num_entries; ++i) {
-      entries[i] = std::numeric_limits<double>::quiet_NaN();
-    }
-  }
 
 
 
@@ -569,13 +572,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 
 
-
   if(opts.alg_type == options::CHROMATIC) {
     run_chromatic_sampler(mrf_core, opts);
   } else if( opts.alg_type == options::SPLASH) {
     run_jt_splash_sampler(mrf_core, opts);
   } else {
-    std::cout << "Invalid algorithm type." << std::endl;
+    mexErrMsgTxt("Invalid algorithm type.\n");
   }
 
 
