@@ -50,6 +50,7 @@ struct options {
   //  size_t ntrees;
   size_t treewidth;
   size_t treeheight;
+  size_t treesize;
   bool priorities;
   bool save_alchemy;
   size_t ncpus_per_splash;
@@ -59,7 +60,9 @@ struct options {
     // tskip(5), 
     ncpus(2),
     // ntrees(ncpus),
-    treewidth(3), treeheight(std::numeric_limits<size_t>::max()), 
+    treewidth(3), 
+    treeheight(std::numeric_limits<size_t>::max()), 
+    treesize(std::numeric_limits<size_t>::max()), 
     priorities(false),  
     save_alchemy(false),
     ncpus_per_splash(1) {
@@ -126,9 +129,14 @@ struct options {
         treeheight = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name
-
+    { // parse the treeheight
+      matwrap arg(args.get_field("treesize"));
+      if(!arg.is_null()) {
+        treeheight = size_t(arg.get_double_array()[0]);    
+      }
+    } // end of parse field name
     { // parse the priorities
-      matwrap arg(args.get_field("prioritized"));
+      matwrap arg(args.get_field("priorities"));
       if(!arg.is_null()) {
         priorities = bool(arg.get_double_array()[0]);    
       }
@@ -366,6 +374,7 @@ void run_jt_splash_sampler(mrf_gl::core& core,
   settings.ntrees           = opts.ncpus;
   settings.max_tree_width   = opts.treewidth;
   settings.max_tree_height  = opts.treeheight;
+  settings.max_tree_size    = opts.treesize;
   settings.priorities       = opts.priorities;
   settings.subthreads       = opts.ncpus_per_splash;
 

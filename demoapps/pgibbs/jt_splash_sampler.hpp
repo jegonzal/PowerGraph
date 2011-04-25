@@ -39,6 +39,7 @@ struct splash_settings {
   size_t max_tree_width;
   size_t max_factor_size;
   bool   priorities;
+  size_t vanish_updates; 
   size_t subthreads;
 
   splash_settings() : 
@@ -48,6 +49,7 @@ struct splash_settings {
     max_tree_width(2),
     max_factor_size(std::numeric_limits<size_t>::max()),
     priorities(false),
+    vanish_updates(10),
     subthreads(1) { }
 };
 

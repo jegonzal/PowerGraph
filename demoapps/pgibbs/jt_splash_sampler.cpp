@@ -57,7 +57,8 @@ void run_jtsplash_sampler(mrf_graph_type& mrf_graph,
               << "treeheight:    " << settings.max_tree_height << std::endl
               << "factorsize:    " << settings.max_factor_size << std::endl
               << "subthreads:    " << settings.subthreads << std::endl
-              << "priorities:    " << settings.priorities << std::endl;   
+              << "priorities:    " << settings.priorities << std::endl   
+              << "vanish:        " << settings.vanish_updates << std::endl;   
 
 
     graphlab::timer timer;
@@ -587,7 +588,8 @@ double jt_worker::score_vertex(vertex_id_t vid) {
   mrf_graph_type& mrf(scope_factory_ptr->get_graph());
   mrf_vertex_data& vdata = mrf.vertex_data(vid);
 
-  if (vdata.nsamples < 100 || vdata.tree_info.priority < 0) {
+  if (vdata.nsamples < settings.vanish_updates || 
+      vdata.tree_info.priority < 0) {
     vdata.tree_info.priority = score_vertex_log_odds(vid); 
   }
   return vdata.tree_info.priority;
