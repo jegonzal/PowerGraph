@@ -51,6 +51,7 @@ struct options {
   size_t treewidth;
   size_t treeheight;
   bool priorities;
+  bool save_alchemy;
   size_t ncpus_per_splash;
 
   options(matwrap args =  matwrap(NULL)) :
@@ -59,7 +60,9 @@ struct options {
     ncpus(2),
     // ntrees(ncpus),
     treewidth(3), treeheight(std::numeric_limits<size_t>::max()), 
-    priorities(false),  ncpus_per_splash(1) {
+    priorities(false),  
+    save_alchemy(false),
+    ncpus_per_splash(1) {
     if(args.is_null()) return;
     safe_assert(args.is_struct(), 
                 "Additional arguments must be in a struct");
@@ -136,6 +139,13 @@ struct options {
         ncpus_per_splash = size_t(arg.get_double_array()[0]);    
       }
     } // end of parse field name                         
+    { // parse the ncpus_per_splash
+      matwrap arg(args.get_field("save_alchemy"));
+      if(!arg.is_null()) {
+        save_alchemy = bool(arg.get_double_array()[0]);    
+      }
+    } // end of parse field name                         
+
   } // end of constructor
 
   void print() {
@@ -442,7 +452,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   build_factorized_model(model, matlab_factors);
   std::cout << "Finished Loading Factors" << std::endl;
   flush_screen();
-  model.save_alchemy("problem.alchemy");
+  if(opts.save_alchemy) {
+    std::cout << "Saving Alchemy file \"problem.alchemy\"" << std::endl;
+    model.save_alchemy("problem.alchemy");
+  }
+
   // mexPrintf("Finished Saving Alchemy File\n");
 
   // Set the global factors
