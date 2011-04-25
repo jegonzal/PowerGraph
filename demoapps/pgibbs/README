@@ -1,6 +1,20 @@
-The pgibbs folder contains ongoing research into parallel Gibbs
-sampling algorithms.  For questions please contact me at
-jegonzal@cs.cmu.edu.
+The pgibbs folder contains the implementations of the parallel Gibbs
+samplers described in:
+
+  Parallel Gibbs Sampling: From Colored Fields to Think Junction Trees
+   by Joseph Gonzalez, Yucheng Low, Arthur Gretton, and Carlos Guestrin
+
+Because the sampler.cpp is currently taylored to the Alchemy
+intermediate factor format we recommend using the precompiled matlab
+binaries in the matlab folder.  The matlab interface uses a very
+simple discrete factorized model representation.
+
+However for those interested in understanding the code better here is
+a brief synopsis of the files:
+
+  sampler.cpp:  
+
+For questions please contact jegonzal@cs.cmu.edu.
 
 Thanks,
 Joey
