@@ -16,6 +16,7 @@
 namespace graphlab {
 
   /**
+   * \ingroup random
    * A collection of thread safe random number routines.  Each thread
    * is assigned its own generator however assigning a seed affects
    * all current and future generators.
@@ -263,32 +264,38 @@ namespace graphlab {
 
 
     /**
+     * \ingroup random
      * Seed all generators using the default seed
      */
     void seed();
 
     /**
+     * \ingroup random
      * Seed all generators using an integer
      */
     void seed(size_t seed_value);
 
     /**
+     * \ingroup random
      * Seed all generators using a nondeterministic source
      */
     void nondet_seed();
 
     /**
+     * \ingroup random
      * Seed all generators using the current time in microseconds
      */
     void time_seed();
     
 
     /**
+     * \ingroup random
      * Get the local generator
      */
     generator& get_source();
 
     /**
+     * \ingroup random
      * Generate a random number in the uniform real with range [min,
      * max) or [min, max] if the number type is discrete.
      */
@@ -298,6 +305,7 @@ namespace graphlab {
     } // end of uniform
     
     /**
+     * \ingroup random
      * Generate a random number in the uniform real with range [min,
      * max) or [min, max] if the number type is discrete.
      */
@@ -307,17 +315,20 @@ namespace graphlab {
     } // end of fast_uniform
     
     /**
+     * \ingroup random
      * Generate a random number between 0 and 1
      */
     inline double rand01() { return uniform<double>(0, 1); }
 
     /**
+     * \ingroup random
      * Simulates the standard rand function as defined in cstdlib
      */
     inline int rand() { return fast_uniform(0, RAND_MAX); }
 
 
     /**
+     * \ingroup random
      * Generate a random number from a gamma distribution.
      */
     inline double gamma(const double alpha = double(1)) {
@@ -327,6 +338,7 @@ namespace graphlab {
 
 
     /**
+     * \ingroup random
      * Generate a gaussian random variable with zero mean and unit
      * variance.
      */
@@ -336,6 +348,7 @@ namespace graphlab {
     }
 
     /**
+     * \ingroup random
      * Draw a sample from a bernoulli distribution
      */
     inline bool bernoulli(const double p = double(0.5)) {
@@ -343,6 +356,7 @@ namespace graphlab {
     }
 
     /**
+     * \ingroup random
      * Draw a sample form a bernoulli distribution using the faster generator
      */
     inline bool fast_bernoulli(const double p = double(0.5)) {
@@ -350,6 +364,7 @@ namespace graphlab {
     }
 
     /**
+     * \ingroup random
      * Generate a draw from a multinomial.  This function
      * automatically normalizes as well.
      */
@@ -359,6 +374,7 @@ namespace graphlab {
 
 
     /** 
+     * \ingroup random
      * Shuffle a standard vector
      */ 
     template<typename T>
@@ -367,6 +383,7 @@ namespace graphlab {
     }
 
     /** 
+     * \ingroup random
      * Shuffle a range using the begin and end iterators
      */ 
     template<typename Iterator>

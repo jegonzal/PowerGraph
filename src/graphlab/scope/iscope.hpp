@@ -52,6 +52,7 @@ namespace graphlab {
  
    */
   struct scope_range {
+    /// \brief scope types
     enum scope_range_enum {
       NULL_CONSISTENCY = 0,    ///< no locks
       VERTEX_READ_CONSISTENCY, ///< read only from self

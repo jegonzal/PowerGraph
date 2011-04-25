@@ -7,6 +7,7 @@
 namespace graphlab {
 
 /**
+\ingroup util
 A non-resizing circular char buffer
 with thread-safe write operations and a single reader 
 */

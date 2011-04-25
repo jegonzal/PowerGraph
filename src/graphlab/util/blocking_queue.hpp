@@ -11,7 +11,7 @@
 namespace graphlab {
 
    /** 
-    * \ingroup util_internal
+    * \ingroup util
     * \brief Implements a blocking queue useful for producer/consumer models
     */
   template<typename T>
@@ -41,8 +41,8 @@ namespace graphlab {
     }
 
     /**
-     * Blocks until an element is available in the queue or an
-     * interrupt is invoked on the queue.
+     * Blocks until an element is available in the queue 
+     * or until stop_blocking() is called.
      */
     inline std::pair<T, bool> dequeue() {
 
@@ -67,6 +67,10 @@ namespace graphlab {
       return std::make_pair(elem, success);
     }
 
+    /**
+    * Returns an element if the queue has an entry.
+    * returns [item, false] otherwise.
+    */
     inline std::pair<T, bool> try_dequeue() {
       m_mutex.lock();
       T elem = T();
@@ -87,7 +91,7 @@ namespace graphlab {
       return std::make_pair(elem, true);
     }
 
-    //! verify that the queue is not empty
+    //! Returns true if the queue is empty
     inline bool empty() { 
       m_mutex.lock();
       bool res = m_queue.empty();
@@ -95,6 +99,10 @@ namespace graphlab {
       return res;
     }
 
+    /** Wakes up all threads waiting on the queue whether 
+        or not an element is available. Once this function is called,
+        the blocking queue is essentially destroyed and can no longer be used.
+    */
     inline void stop_blocking() {
       m_mutex.lock();
       m_alive = false;
@@ -103,7 +111,7 @@ namespace graphlab {
       m_mutex.unlock();
     }
     
-    //! get the size of the queue
+    //! get the current size of the queue
     inline size_t size() {
       m_mutex.lock();
       size_t size = m_queue.size();
@@ -112,7 +120,9 @@ namespace graphlab {
     }
 
     /**
-     * This function will block until the queue becomes empty
+     * The conceptual "reverse" of dequeue().
+     * This function will block until the queue becomes empty, or 
+     * until stop_blocking() is called.
      * Returns true on success
      * Returns false if the queue is no longer alove
     */

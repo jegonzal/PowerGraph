@@ -134,12 +134,16 @@ namespace graphlab {
 
     }
 
-    //! verify that the queue is not empty
+    //! Return true if queue 'id' is empty
     inline bool empty(size_t id) { 
       single_queue& queueref = allqueues[id];
       return queueref.numelem == 0;
     }
 
+    /** Wakes up all threads waiting on the queue whether 
+        or not an element is available. Once this function is called,
+        the blocking queue is essentially destroyed and can no longer be used.
+    */
     inline void stop_blocking() {
 
       for (size_t i = 0; i < allqueues.size(); ++i) {

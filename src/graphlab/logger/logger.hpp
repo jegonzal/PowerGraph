@@ -213,7 +213,7 @@ class file_logger{
   * @param function Function where the logger call originated
   * @param line Line number where the logger call originated
   * @param fmt printf format string
-  * @param ... The parameters that match the format string
+  * @param arg var args. The parameters that match the format string
   */
   void _log(int loglevel,const char* file,const char* function,
                 int line,const char* fmt, va_list arg );

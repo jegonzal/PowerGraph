@@ -68,7 +68,7 @@ namespace graphlab {
                     <a href="http://glaros.dtc.umn.edu/gkhome/views/metis"> METIS</a>
                     graph partitioning package. <b>A modified version of METIS is
                     included with GraphLab, so contact us if you encounter any
-                    issues.*/
+                    issues.</b>*/
       PARTITION_BFS, /**< Partitions the graph using Breadth First Searches. A random
                     root vertex is selected and inserted into the first
                     partition. Additional vertices are inserted into the partition
@@ -254,9 +254,7 @@ namespace graphlab {
     graph() : finalized(true),changeid(0) {  }
 
     /**
-     * \BUG: Should not reserve but instead directly create vertices.
-     * Create a graph with space allocated for num_vertices and
-     * num_edges.
+     * Create a graph with nverts vertices.
      */
     graph(size_t nverts) : 
       vertices(nverts),
@@ -757,8 +755,8 @@ namespace graphlab {
      * each part. Equivalent to calling partition() with the 
      * partition_method::PARTITION_EDGE_NUM parameter.
      *
-     * \param numparts The number of parts to partition into
-     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      */
     void edge_num_partition(size_t nparts, 
 			    std::vector<uint32_t>& vertex2part){
@@ -788,8 +786,8 @@ namespace graphlab {
      * Equivalent to calling partition() with the 
      * partition_method::PARTITION_RANDOM parameter
      *
-     * \param numparts The number of parts to partition into
-     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      */
     void random_partition(size_t nparts, std::vector<vertex_id_t>& vertex2part) {
       vertex2part.resize(num_vertices());
@@ -947,9 +945,12 @@ namespace graphlab {
      * \param vfunction A function of the type size_t (*)(const VertexData &v)
      *                  This function takes in the data on a vertex, and 
      *                  returns the weight of the vertex
-     * \param efunction A function of the type size_t (*)(const EdgeData &e)
+     * \param wfunction A function of the type size_t (*)(const EdgeData &e)
      *                  This function takes in the data on an edge, and 
      *                  returns the weight of the edge
+     * \param usemetisdefaults If set to true, uses Metis default parameter set.
+     *                         defaults to false.
+     *                         
      *
      * Use a modified version of the METIS library to partition the
      * graph using user provided edge and vertex weight functions.
@@ -1105,8 +1106,8 @@ namespace graphlab {
      * Equivalent to calling partition() with the 
      * partition_method::PARTITION_EDGE_NUM paramter
      *
-     * \param numparts The number of parts to partition into
-     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      *
      * The algorithm works by picking up a random vertex and performing a breadth
      * first search until the number of vertices touched is |V|/nparts.
@@ -1198,9 +1199,9 @@ namespace graphlab {
     /**
      * builds a topological_sort of the graph returning it in topsort. 
      * 
-     * \param[out] Resultant topological sort of the graph vertices.
+     * \param[out] topsort Resultant topological sort of the graph vertices.
      *
-     * sortable will return false if graph is not acyclic.
+     * function will return false if graph is not acyclic.
      */
     bool topological_sort(std::vector<vertex_id_t>& topsort) const {
       topsort.clear();

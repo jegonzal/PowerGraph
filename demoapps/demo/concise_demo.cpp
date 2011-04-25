@@ -1,7 +1,7 @@
 #include <iostream>
 #include <graphlab.hpp>
 
-struct vertex_data: public graphlab::unsupported_serialize {
+struct vertex_data {
   size_t numflips;
   bool color;     // black == FALSE, red == TRUE,
 };
@@ -88,7 +88,7 @@ void init_graph(graph_type& g,
 }
 
 
-gl::glshared<size_t> NUM_VERTICES;
+gl::glshared_const<size_t> NUM_VERTICES;
 gl::glshared<double> RED_PROPORTION;
 gl::glshared<size_t> NUM_FLIPS;
 
@@ -99,8 +99,8 @@ void reduce_red_proportion(gl::iscope& scope,
   if (scope.vertex_data().color) accumulator.as<double>() += 1.0;
 }
 
-void apply_red_proportion(double& current_data,
-                                 const graphlab::any& new_data) {
+void apply_red_proportion(graphlab::any& current_data, 
+                          const graphlab::any& new_data) {
   size_t numvertices = NUM_VERTICES.get_val();
 
   double numred = new_data.as<double>();
@@ -109,10 +109,13 @@ void apply_red_proportion(double& current_data,
   // here we can output something as a progress monitor
   std::cout << "Red Proportion: " << proportion << std::endl;
   // write the final result into the shared data table
-  current_data = (double)proportion;
+  current_data.as<double>() = proportion;
 }
 
-
+void merge_red_proportion(graphlab::any& target, 
+                          const graphlab::any& source) {
+  target.as<double>() += source.as<double>();
+}
 
 size_t get_flip(const vertex_data &v) {
   return v.numflips;
@@ -125,16 +128,18 @@ void init_shared_data(gl::core &core, size_t dim) {
 
   core.set_sync(RED_PROPORTION,       // The value we are syncing
                 reduce_red_proportion, // the reduce function
-                graphlab::apply_adapter<double, apply_red_proportion>,  // the apply function
+                apply_red_proportion,  // the apply function
                 double(0),             // the initial value for the fold/reduce
-                128);                    // syncing frequency.in #updates
+                128,                   // syncing frequency.in #updates
+                merge_red_proportion); // merge function
 
 
   core.set_sync(NUM_FLIPS,  
                gl::glshared_sync_ops::sum<size_t, get_flip>,
                gl::glshared_apply_ops::identity<size_t>,
                size_t(0),
-               128);
+               128,
+               gl::glshared_merge_ops::sum<size_t>);
 }
 
 

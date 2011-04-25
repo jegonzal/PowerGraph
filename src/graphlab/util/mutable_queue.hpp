@@ -56,7 +56,7 @@ namespace graphlab {
    * @see Boost's mutable_queue in boost/pending/mutable_queue.hpp
    * @todo Add a comparator
    *
-   * \ingroup datastructure
+   * \ingroup util
    */
   template <typename T, typename Priority, 
             typename Compare = std::less<T> >

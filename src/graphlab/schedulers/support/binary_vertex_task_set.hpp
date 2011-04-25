@@ -3,7 +3,7 @@
 
 
 /**
-  * \file  Simple task set that only keeps record of whether 
+  * \Simple task set that only keeps record of whether 
   *  function was scheduled for given vertex.
   **/
 

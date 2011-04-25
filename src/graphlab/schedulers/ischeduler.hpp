@@ -18,6 +18,7 @@ namespace graphlab {
    * get_next_tasks
    */
   struct sched_status {
+    /// \brief the possible scheduler status.
     enum status_enum {
       NEWTASK,      /**< The get_next_tasks function returned a new task 
                         to be executed */
@@ -31,6 +32,7 @@ namespace graphlab {
   
  /// \deprecated
   struct scheduler_options_enum {
+    /// \deprecated
     enum options_enum {
       UPDATE_FUNCTION,    /// used by 1-update function schedulers
       MAX_ITERATIONS,     /// maximum iteration count. Used by round-robin

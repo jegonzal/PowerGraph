@@ -11,7 +11,6 @@
 #include <graphlab.hpp>
 
 #include <graphlab/macros_def.hpp>
-// #include <graphlab/metrics/metrics.hpp>
 
 
 // Constants for the algorithm. Better way would be to

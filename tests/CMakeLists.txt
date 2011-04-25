@@ -101,9 +101,3 @@ add_executable(numa_perf numa_perf.cpp)
 add_graphlab_executable(factor_tests2 factor_tests2.cpp)
 ADD_CXXTEST(test_small_set.cxx)
 ADD_CXXTEST(test_small_map.cxx)
-<<<<<<< local
-=======
-
-
-
->>>>>>> other

@@ -66,7 +66,9 @@ namespace graphlab {
      While users are free to directly instantiate the engine of their
      choice we highly recommend the use of the \ref core data
      structure to manage the creation of engines. Alternatively, users
-     can use the \ref engine_factory static functions to create
+     can use the 
+     \ref gl_new_engine "graphlab::engine_factory::new_engine"
+     static functions to create
      engines directly from configuration strings.
   */
   template<typename Graph>
