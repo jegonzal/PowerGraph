@@ -39,8 +39,7 @@ options.nsamples = 1000;
 options.nskip = 100;
 options.ncpus = 1;
 
-[samples, beliefs, nsamples, nchanges] = ...
-    sampler(factors, options);
+samples = gibbs_sampler(factors, options);
 
 P_est = zeros(var_sizes);
 for i = 1:options.nsamples
@@ -56,12 +55,10 @@ disp(['Chromatic error: ', num2str(max(error(:)))]);
 %% run the sampler
 options.alg_type = 'SPLASH';
 options.nsamples = 1000;
-options.nskip = 10;
+options.nskip = 100;
 options.ncpus = 1;
 options.treewidth=5;
-clear('samples', 'beliefs', 'nsamples', 'nchanges');
-[samples, beliefs, nsamples, nchanges] = ...
-    sampler(factors, options);
+samples = gibbs_sampler(factors, options);
 
 
 P_est = zeros(var_sizes);

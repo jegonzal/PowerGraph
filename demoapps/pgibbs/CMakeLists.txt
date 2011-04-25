@@ -27,8 +27,17 @@ add_library(pgibbs_pic STATIC
     global_variables.cpp
     )
 
-# target_link_libraries(pgibbs_pic graphlab_pic graphlab_util_pic)
-# target_link_libraries(pgibbs graphlab graphlab_util)
+target_link_libraries(pgibbs_pic 
+  graphlab_pic 
+  graphlab_util_pic
+  graphlab_metis_pic
+  graphlab_GKlib_pic)
+
+target_link_libraries(pgibbs 
+  graphlab 
+  graphlab_util
+  graphlab_metis_pic
+  graphlab_GKlib_pic)
 
 get_property(pgibbs_flags TARGET pgibbs PROPERTY COMPILE_FLAGS)
 set_target_properties(pgibbs_pic

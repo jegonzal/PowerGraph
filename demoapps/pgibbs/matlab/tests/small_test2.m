@@ -1,12 +1,12 @@
 clear;
 RandStream.setDefaultStream(RandStream.create('mt19937ar', 'seed', 5849))
 
-
+% Construct strong agreement potentials
 nstates = 5;
 var_sizes = ones(1,5)*nstates;
 tbl = log(eye(nstates) + 0.001);
-% lambda=2;
-% tbl = -lambda*boxdist(repmat(1:nstates,5,1));
+
+% Construct a set of factors
 factors{1} = table_factor([1,2], tbl);
 factors{2} = table_factor([1,3], tbl);
 factors{3} = table_factor([1,4], tbl);
@@ -36,8 +36,7 @@ options.nsamples = 1000;
 options.nskip = 100;
 options.ncpus = 1;
 
-[samples, beliefs, nsamples, nchanges] = ...
-    sampler(factors, options);
+samples =  gibbs_sampler(factors, options);
 
 P_est = zeros(var_sizes);
 for i = 1:options.nsamples
@@ -56,9 +55,8 @@ options.nsamples = 1000;
 options.nskip = 10;
 options.ncpus = 1;
 options.treewidth=5;
-clear('samples', 'beliefs', 'nsamples', 'nchanges');
-[samples, beliefs, nsamples, nchanges] = ...
-    sampler(factors, options);
+
+samples = gibbs_sampler(factors, options);
 
 
 P_est = zeros(var_sizes);

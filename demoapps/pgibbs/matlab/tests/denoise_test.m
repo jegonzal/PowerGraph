@@ -6,25 +6,31 @@ states = 5;
 lambdaSmooth = 1.5; % Laplace smoothing parameter
 noiseP = 0.3; % proportion of randomly sampled values
 [factors, img, noisy_img] = ...
-   make_grid_model(rows, cols, states, lambdaSmooth, noiseP);
-
-%% Call the mex interface
-compile_all; rehash;
-disp('Now you can  run experiment');
+  make_grid_model(rows, cols, states, lambdaSmooth, noiseP);
 
 %%
-%options.alg_type = 'CHROMATIC';
-options.alg_type = 'SPLASH';
-options.nsamples = 2;
-options.nskip = 3;
-options.ncpus = 8;
+options.alg_type = 'CHROMATIC';
+options.nsamples = 50;
+options.nskip = 10;
+options.ncpus = 4;
 disp('---------------');
-[samples, blfs, nsamples, nchanges] = ...
-  sampler(factors, options);
+[samples, nupdates, nchanges, marginals] = ...
+  gibbs_sampler(factors, options);
 
 %% Take the last set of beliefs and compute the exected value
+for i = 1:options.nsamples
+  %   pred_img = reshape(cellfun(@(x) (1:length(x)) * x, marginals(:,i)), ...
+  %     rows, cols);
+  pred_img = reshape(arrayfun(@(x) (1:length(x)) * x, samples(:,i)), ...
+    rows, cols);
+  
+  figure(1);subplot(1,3,3); colormap('gray');
+  imagesc(pred_img); title(['Sample Image ', num2str(i)]);
+end
 
-pred_img = reshape(cellfun(@(x) (1:length(x)) * x, blfs(:,end)), ...
+%% Render the final marginal expectations
+
+pred_img = reshape(cellfun(@(x) (1:length(x)) * x, marginals(:,i)), ...
   rows, cols);
-figure(1);subplot(1,3,3); colormap('gray');
+figure(2); colormap('gray');
 imagesc(pred_img); title('Expected Pixel Marginals');

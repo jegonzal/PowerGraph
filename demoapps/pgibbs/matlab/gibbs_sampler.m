@@ -72,14 +72,14 @@
 % which can be compiled by running compile_gibbs_sampler.m.
 %
 function [samples, nupdates, nchanges, marginals] = ...
-      gibbs_sampler(factors, options, checkargs)    
+      gibbs_sampler(factors, options)    
 
   %% Check the arguments
-  if(~strcmp(class(factors), 'cell'))
+  if(~iscell(factors))
     error('The factors argument must be a cell array of table_factors');
   end
   % Define default options
-  if(~exist('options'))
+  if(~exist('options', 'var'))
     options.alg_type = 'CHROMATIC';
   end
   if(~isfield(options, 'alg_type'))
@@ -159,7 +159,7 @@ function [samples, nupdates, nchanges, marginals] = ...
               dims(ind(errorind)), ...
               i);
       end
-      var_sizes(factors{i}.variables(~ind)) = dims(~ind);
+      var_sizes(factors{i}.vars(~ind)) = dims(~ind);
     end
     unset_vars = find(var_sizes(:) == 0);
     if(~isempty(unset_vars)) 
@@ -169,6 +169,20 @@ function [samples, nupdates, nchanges, marginals] = ...
   end
   
   %% Call the sampler
-  
+  if(nargout() <= 1)
+    samples = gibbs_sampler_impl(factors, options);
+  elseif(nargout() == 2)
+    [samples, nupdates] = gibbs_sampler_impl(factors, options);
+  elseif(nargout() == 3)
+    [samples, nupdates, nchanges] = ...
+      gibbs_sampler_impl(factors, options);
+  elseif(nargout() == 4)
+    [samples, nupdates, nchanges, marginals] = ...
+      gibbs_sampler_impl(factors, options);
+  end
 
 end
+    
+    
+    
+    
