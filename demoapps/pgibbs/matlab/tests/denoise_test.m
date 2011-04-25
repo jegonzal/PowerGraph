@@ -17,7 +17,6 @@ disp('Now you can  run experiment');
 options.alg_type = 'SPLASH';
 options.nsamples = 2;
 options.nskip = 3;
-options.tskip = 5;
 options.ncpus = 8;
 disp('---------------');
 [samples, blfs, nsamples, nchanges] = ...
