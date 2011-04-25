@@ -52,6 +52,11 @@
 %        the number of processors.
 %    * treewidth: [Default: 3] The treewidth of the junction trees
 %        constructed using the Splash sampler.
+%    * treeheight: [Default: maxint] The largest height of a tree
+%    * treesize: [Default: maxint] The largest possible size of a
+%        tree
+%    * priorities: [Default: false] Use priorities when
+%       constructing the splash trees
 %    * checkargs: [Default: True] Determines if the arguments are
 %        checked before calling the C++ code.  While we do additional
 %        argument checking withing the C++ code it is often easier to
@@ -97,8 +102,17 @@ function [samples, nupdates, nchanges, marginals] = ...
   if(~isfield(options, 'treewidth'))
     options.treewidth = 3;
   end
+  if(~isfield(options, 'treeheight'))
+    options.treeheight = maxint();
+  end
+  if(~isfield(options, 'priorities'))
+    options.priorities = false;
+  end
   if(~isfield(options, 'checkargs'))
     options.checkargs = true;
+  end
+  if(~isfield(options, 'save_alchemy'))
+    options.save_alchemy = false;
   end
 
 
