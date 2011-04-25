@@ -98,9 +98,6 @@ add_executable(openmp_test openmp_test.cpp)
 
 add_dist2_executable(mpi_tests mpi_tests.cpp)
 add_executable(numa_perf numa_perf.cpp)
-
+#  add_graphlab_executable(factor_tests2 factor_tests2.cpp)
 ADD_CXXTEST(test_small_set.cxx)
 ADD_CXXTEST(test_small_map.cxx)
-
-
-

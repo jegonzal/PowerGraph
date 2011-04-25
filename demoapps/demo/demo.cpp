@@ -59,21 +59,9 @@ basic datatypes as well as standard STL containers. If the STL
 container contains non-basic datatypes (such as a struct), save/load
 functions must be written for the datatype.
 */
-struct vertex_data: public graphlab::unsupported_serialize {
+struct vertex_data {
   size_t numflips;
   bool color;     // black == FALSE, red == TRUE,
-  // If we wanted to be able to save the graph to a file we would
-  // include the following functions and remove
-  // graphlab::unsupported_serialize
-  
-  /*
-    void save(oarchive& archive) const {
-      archive << numflips << color;
-    }
-    void load(iarchive& archive) {
-      archive >> numflips >> color;
-    }
-  */
 };
 
 
@@ -281,7 +269,7 @@ void init_graph(graph_type& g,
 */
 
 
-gl::glshared<size_t> NUM_VERTICES;
+gl::glshared_const<size_t> NUM_VERTICES;
 gl::glshared<double> RED_PROPORTION;
 gl::glshared<size_t> NUM_FLIPS;
 
@@ -330,8 +318,8 @@ We divide the accumulated value by the number of vertices
 
 \param new_data The result of the reduce operation on all the vertices.
 */       
-void apply_red_proportion(double& current_data,
-                                 const graphlab::any& new_data) {
+void apply_red_proportion(graphlab::any& current_data, 
+                          const graphlab::any& new_data) {
   // get the number of vertices from the constant section of the shared data
   size_t numvertices = NUM_VERTICES.get_val();
 
@@ -342,7 +330,17 @@ void apply_red_proportion(double& current_data,
   // here we can output something as a progress monitor
   std::cout << "Red Proportion: " << proportion << std::endl;
   // write the final result into the shared data table
-  current_data = (double)proportion;
+  current_data.as<double>() = proportion;
+}
+
+
+/**
+ This is the merge function for the RED_PROPORTION sync
+ Since it is just a sum, intermediate results simply add`
+*/
+void merge_red_proportion(graphlab::any& target, 
+                          const graphlab::any& source) {
+  target.as<double>() += source.as<double>();
 }
 
 
@@ -377,9 +375,11 @@ void init_shared_data(gl::core &core, size_t dim) {
 
   core.set_sync(RED_PROPORTION,       // The value we are syncing
                 reduce_red_proportion, // the reduce function
-                graphlab::apply_adapter<double, apply_red_proportion>,  // the apply function
+                apply_red_proportion,  // the apply function
                 double(0),             // the initial value for the fold/reduce
-                128);                    // syncing frequency.in #updates
+                128,                   // syncing frequency.in #updates
+                merge_red_proportion); // merge function
+
 
 
   // for the number of flips counter, we will demonstrate
@@ -387,18 +387,23 @@ void init_shared_data(gl::core &core, size_t dim) {
   // we will use set_sync as usual, but using something different for the
   // reduce and apply functions
 
-  // sync_ops::sum<size_t, get_flip> is a predefined reduce operation
+  // glshared_sync_ops::sum<size_t, get_flip> is a predefined reduce operation
   // which sums over all the result of running get_flip() on all the vertex
   // data. The first template field (size_t) is the type of the accumulator.
 
-  // apply_ops::identity<size_t> is the identity apply which directly
+  // glshared_apply_ops::identity<size_t> is the identity apply which directly
   // writes the result of the reduction into the shared data table entry.
   // The template field (size_t) is the type of the entry.
+  
+  // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
+
   core.set_sync(NUM_FLIPS,  
                gl::glshared_sync_ops::sum<size_t, get_flip>,
                gl::glshared_apply_ops::identity<size_t>,
                size_t(0),
-               128);
+               128,
+               gl::glshared_merge_ops::sum<size_t>);
+
 }
 
 

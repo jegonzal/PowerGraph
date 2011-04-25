@@ -17,7 +17,8 @@ namespace graphlab {
 
   /**
      The output archive object.
-     It is just a simple wrapper around a ostream
+     It is just a simple wrapper around a ostream. All the action
+     takes place in serialize_impl
   */
   class oarchive{
   public:

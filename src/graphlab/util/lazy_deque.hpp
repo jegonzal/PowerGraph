@@ -23,8 +23,6 @@ lazily (by marking) and a free list is is used to manage "insert-anywhere"
 \note This is at the moment very incomplete.
       I will complete it if there is demand for it.
 */
-
-
 template <typename T>
 class lazy_deque {
  public:

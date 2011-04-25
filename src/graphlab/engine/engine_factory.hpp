@@ -1,4 +1,3 @@
-
 #ifndef GRAPHLAB_ENGINE_FACTORY_HPP
 #define GRAPHLAB_ENGINE_FACTORY_HPP
 
@@ -28,9 +27,8 @@ namespace graphlab {
   
   
   /**
-   * Class helper for constructing graphlab engines.
+   *  helper for constructing graphlab engines.
    **/
-  
   namespace engine_factory {
 
     template<typename Graph, typename Scheduler, typename ScopeFactory>
@@ -93,6 +91,9 @@ namespace graphlab {
     
 
 
+    /**
+     * Allocate an engine given engine options.
+     */
     template<typename Graph>
     iengine<Graph>* new_engine(const engine_options& eopts,
                                Graph& _graph) {
@@ -142,15 +143,16 @@ namespace graphlab {
      * Allocate an engine given the strings for the engine type, scope
      * factory, and scheduler.
      *
-     * engine       = {async, async_sim, synchronous}
-     * scope        = {none, vertex, edge, full}
-     * scheduler    = {synchronous, fifo, priority, sampling,
+     * \param engine  Type of engine to construct. {async, async_sim, synchronous}
+     * \param scope    Type of scope to use.  {none, vertex, edge, full}
+     * \param scheduler Type of scheduler to use synchronous, fifo, priority, sampling,
      *                 sweep, multiqueue_fifo, multiqueue_priority,
      *                 clustered_priority({metis, bfs, random}, verts. per part)
      *                 round_robin, chromatic}
      * 
      * Note that the caller is responsible for freeing the
      * corresponding engine
+     * \anchor gl_new_engine
      */
     template<typename Graph>
     iengine<Graph>* new_engine(const std::string& engine_type,

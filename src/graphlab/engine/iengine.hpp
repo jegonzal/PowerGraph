@@ -66,7 +66,9 @@ namespace graphlab {
      While users are free to directly instantiate the engine of their
      choice we highly recommend the use of the \ref core data
      structure to manage the creation of engines. Alternatively, users
-     can use the \ref engine_factory static functions to create
+     can use the 
+     \ref gl_new_engine "graphlab::engine_factory::new_engine"
+     static functions to create
      engines directly from configuration strings.
   */
   template<typename Graph>
@@ -269,11 +271,18 @@ namespace graphlab {
 
 
     /**
+     * \brief Registers a sync with the engine.
+     *
      * Registers a sync with the engine.
-     * The sync will be performed every "interval" updates,
+     * The sync will be performed approximately every "interval" updates,
      * and will perform a reduction over all vertices from rangelow
      * to rangehigh inclusive.
      * The merge function may be NULL, in which it will not be used.
+     * However, it is highly recommended to provide a merge function since
+     * this allow the sync operation to be parallelized.
+     *
+      * The sync operation is guaranteed to be strictly sequentially consistent
+     * with all other execution.
      *
      * \param shared The shared variable to synchronize
      * \param sync The reduction function
