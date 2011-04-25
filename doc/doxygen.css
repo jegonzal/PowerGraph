@@ -2,22 +2,23 @@
 
 body, table, div, p, dl {
 	font-family: Lucida Grande, Verdana, Geneva, Arial, sans-serif;
-	font-size: 12px;
+	font-size: 14px;
 }
 
 /* @group Heading Levels */
 
 h1 {
-	font-size: 250%;
+	font-size: 20;
 }
 
 h2 {
-	font-size: 180%;
+	font-size: 20;
     border-bottom: 3px solid;
 }
 
 h3 {
-	font-size: 150%;
+	font-size: 16;
+    border-bottom: 1px solid;
 }
 
 dt {
