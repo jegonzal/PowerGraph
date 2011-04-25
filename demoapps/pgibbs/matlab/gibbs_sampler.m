@@ -103,10 +103,16 @@ function [samples, nupdates, nchanges, marginals] = ...
     options.treewidth = 3;
   end
   if(~isfield(options, 'treeheight'))
-    options.treeheight = maxint();
+    options.treeheight = double(intmax());
+  end
+  if(~isfield(options, 'treesize'))
+    options.treesize = double(intmax());
   end
   if(~isfield(options, 'priorities'))
     options.priorities = false;
+  end
+  if(~isfield(options, 'vanish'))
+    options.vanish = 10;
   end
   if(~isfield(options, 'checkargs'))
     options.checkargs = true;
@@ -115,6 +121,13 @@ function [samples, nupdates, nchanges, marginals] = ...
     options.save_alchemy = false;
   end
 
+  options.treewidth = double(options.treewidth);
+  if(options.treewidth > 32) 
+     error('Treewidth must be less than 32');
+  end
+  if(options.treewidth < 1) 
+     error('Treewidth must be at least 1');
+  end
 
   if(options.checkargs) 
     max_var = 0;

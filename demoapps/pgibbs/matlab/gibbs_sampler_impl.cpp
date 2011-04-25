@@ -52,6 +52,7 @@ struct options {
   size_t treeheight;
   size_t treesize;
   bool priorities;
+  size_t vanish;
   bool save_alchemy;
   size_t ncpus_per_splash;
 
@@ -64,6 +65,7 @@ struct options {
     treeheight(std::numeric_limits<size_t>::max()), 
     treesize(std::numeric_limits<size_t>::max()), 
     priorities(false),  
+    vanish(10),
     save_alchemy(false),
     ncpus_per_splash(1) {
     if(args.is_null()) return;
@@ -128,12 +130,14 @@ struct options {
       if(!arg.is_null()) {
         treeheight = size_t(arg.get_double_array()[0]);    
       }
+      ASSERT_GT(treeheight, 0);
     } // end of parse field name
-    { // parse the treeheight
+    { // parse the treesize
       matwrap arg(args.get_field("treesize"));
       if(!arg.is_null()) {
-        treeheight = size_t(arg.get_double_array()[0]);    
+        treesize = size_t(arg.get_double_array()[0]);    
       }
+      ASSERT_GT(treesize, 0);
     } // end of parse field name
     { // parse the priorities
       matwrap arg(args.get_field("priorities"));
@@ -141,6 +145,12 @@ struct options {
         priorities = bool(arg.get_double_array()[0]);    
       }
     } // end of parse field name                         
+    { // parse the vanish
+      matwrap arg(args.get_field("vanish"));
+      if(!arg.is_null()) {
+        vanish = size_t(arg.get_double_array()[0]);    
+      }
+    } // end of parse field name
     { // parse the ncpus_per_splash
       matwrap arg(args.get_field("npcus_per_splash"));
       if(!arg.is_null()) {
