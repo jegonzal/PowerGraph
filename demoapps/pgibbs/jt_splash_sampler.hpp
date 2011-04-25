@@ -27,7 +27,11 @@
 #include "junction_tree.hpp"
 
 
-
+/**
+ * The settings for the jt_splash_sampler.  Originally these formed a
+ * long list of arguments but since the order can easily introduce
+ * bugs we switched to a struct.
+ */
 struct splash_settings {
   size_t ntrees;
   size_t max_tree_size;
@@ -65,7 +69,13 @@ void run_jtsplash_sampler(mrf_graph_type& mrf_graph,
 
 
 
-//! used to calibrate and sample a junctiont ree
+/**
+ * This fairly complex update function assembles the clique factors by
+ * conditioning on variables not in the tree.  Then it computes
+ * messages at each clique to calibrate the junction tree.  Finally,
+ * using the messages and the conditioned parents, it samples each
+ * clique constructing new assignments to each variable.
+ */
 void jtree_sample_update(jtree_gl::iscope& scope,
                          jtree_gl::icallback& callback);
 
@@ -93,7 +103,14 @@ struct termination_condition {
 //! Predecleration 
 class jt_worker;
 
-
+/**
+ * The jt_splash_sampler implements the junction tree based Gibbs
+ * sampler defined in:
+ *
+ *  Parallel Gibbs Sampling: From Colored Fields to Think Junction Trees
+ *   by Joseph Gonzalez, Yucheng Low, Arthur Gretton, and Carlos Guestrin
+ *  
+ */
 class jt_splash_sampler {
 public:
   typedef graphlab::general_scope_factory<mrf_graph_type>
@@ -110,14 +127,31 @@ public:
   ~jt_splash_sampler();
 
 
-
+  /**
+   * Get the number of times the splash sampler collided on a root.
+   * This minor race event can lead to wasted cpu cycles but does not
+   * affect the quality of the samples.
+   */
   size_t total_collisions() const;
+
+  /**
+   * Get the total number of trees constructed on the last run
+   */
   size_t total_trees() const;
+
+  /**
+   * Get the total number of single variable updates on the last run.
+   */
   size_t total_samples() const;
 
-  
+  /** Run the splash sampler for a fixed number of seconds */
   void sample_seconds(float runtime_secs);
+  /** Run the splash sampler for a fixed number of trees */
   void sample_trees(size_t total_trees);
+  /**  
+   * Run the splash sampler for a fixed number of single variable *
+   * updates
+   */
   void sample_updates(size_t total_updates);
 private:
   void run();
