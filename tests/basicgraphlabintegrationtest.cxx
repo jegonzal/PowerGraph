@@ -20,8 +20,7 @@ struct MyEdgeData {
 typedef graphlab::types<MyVertexData, MyEdgeData> gl_types;
 
 void MultiplyFunction(gl_types::iscope& scope,
-                      gl_types::icallback& scheduler,
-                      gl_types::ishared_data* data_manager) {
+                      gl_types::icallback& scheduler) {
   MyVertexData& vdata = scope.vertex_data();
   double curval = vdata.DBLVAL;
   logger(LOG_INFO, 

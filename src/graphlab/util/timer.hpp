@@ -8,8 +8,9 @@
 
 namespace graphlab {
   /**
-   *   \class timer A simple class that can be used for
-   *   benchmarking/timing up to microsecond resolution.
+   * \ingroup util  
+   * A simple class that can be used for
+   * benchmarking/timing up to microsecond resolution.
    */
   class timer {
   private:
@@ -36,24 +37,31 @@ namespace graphlab {
        return answer;
     }
 
+    /**
+     Like current_time but returns in milliseconds
+    */
     double current_time_millis() const {
       return current_time() * 1000;      
     }
 
     /**
-     * Get the time of day in seconds.  This is useful for
-     * initializing random number generators with high precision.
+     * Get the number of seconds (as a floating point value)
+     * since the Unix Epoch.
      */
     static double sec_of_day() {
       timeval current_time;
       gettimeofday(&current_time, NULL);
       double answer = 
         current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6;
-      std::cout << current_time.tv_sec << std::endl;
-      std::cout << current_time.tv_usec << std::endl;
+//      std::cout << current_time.tv_sec << std::endl;
+//      std::cout << current_time.tv_usec << std::endl;
       return answer;
     }
 
+    /**
+     * Returns only the micro-second component of the 
+     * time since the Unix Epoch.
+     */
     static size_t usec_of_day() {
       timeval current_time;
       gettimeofday(&current_time, NULL);
@@ -64,12 +72,22 @@ namespace graphlab {
 
 
   }; // end of Timer
-
-  //TOOD: Move into timer class namespace (as static functions)
+  
+  /**
+   Returns the time since program start.
+   This value is only updated once every 100ms.
+  */
   float lowres_time_seconds();
-  //TOOD: Move into timer class namespace (as static functions)
+  
+  /**
+   Returns the number of milliseconds time since program start.
+   This value is only updated once every 100ms.
+  */
   size_t lowres_time_millis();
-
+  
+  /**
+  Sleeps for sleeplen seconds
+  */
   void my_sleep(size_t sleeplen);
 
 

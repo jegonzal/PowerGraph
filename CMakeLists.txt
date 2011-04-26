@@ -4,6 +4,16 @@ IF(APPLE)
   SET(CMAKE_CXX_COMPILER "c++-4.2")
 ENDIF(APPLE)
 
+## Unfortunately this does not work since llvm does not seem to support openmp
+# # Build using the llvm compiler which provides gcc-4.2 support on
+# # later releases of ubuntu
+  # SET(CMAKE_C_COMPILER "llvm-gcc")	
+  # SET(CMAKE_CXX_COMPILER "llvm-c++")
+# SET(CMAKE_C_COMPILER "gcc-4.2")	
+# SET(CMAKE_CXX_COMPILER "g++-4.2")
+
+
+
 
 project(GraphLab)
 

@@ -33,20 +33,7 @@ enum constant_offsets {GABP_PRIOR_MEAN_OFFSET = 0, //prior mean (b_i / A_ii)
                        GABP_PREV_MEAN_OFFSET = 5,// mean value from previous round (for convergence detection)
                        GABP_PREV_PREC_OFFSET = 6}; // precision value from previous round (for convergence detection)
 
-/**
- * The are used to track atomic elements in the shared data manager.
- */
-enum shared_data_keys {
-  REAL_NORM_KEY,
-  RELATIVE_NORM_KEY,
-  ITERATION_KEY,
-  THRESHOLD_KEY,
-  SUPPORT_NULL_VARIANCE_KEY,
-  ROUND_ROBIN_KEY,
-  FINISH_KEY,
-  DEBUG_KEY,
-  MAX_ITER_KEY
-};
+
 
 
 /** Vertex and edge data types **/
@@ -79,6 +66,16 @@ struct edge_data {
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
+
+gl_types::glshared<double> REAL_NORM_KEY;
+gl_types::glshared<double> RELATIVE_NORM_KEY;
+gl_types::glshared<size_t> ITERATION_KEY;
+gl_types::glshared_const<double> THRESHOLD_KEY;
+gl_types::glshared_const<bool> SUPPORT_NULL_VARIANCE_KEY;
+gl_types::glshared_const<bool> ROUND_ROBIN_KEY;
+gl_types::glshared_const<bool> FINISH_KEY;
+gl_types::glshared_const<bool> DEBUG_KEY;
+gl_types::glshared_const<size_t> MAX_ITER_KEY;
 //read node data from file and add the nodes into the graph.
 #define BUFSIZE 500000
 template<typename graph>
@@ -249,12 +246,11 @@ double get_relative_norm(const vertex_data& v){
 /**
  * Engine terminates when this returns true
  */
-bool termination_condition(const gl_types::ishared_data* shared_data) {
-  assert(shared_data != NULL);
-  double ret = shared_data->atomic_get(RELATIVE_NORM_KEY).as<double>();
+bool termination_condition() {
+  double ret = RELATIVE_NORM_KEY.get_val();
 
   //std::cout<<"I was in term"<<std::endl;
-  if (ret < shared_data->get_constant(THRESHOLD_KEY).as<double>()){
+  if (ret < THRESHOLD_KEY.get()){
     //std::cout << "Aborting since relative norm is: " << ret << std::endl;
     return true;
   }
@@ -265,9 +261,7 @@ bool termination_condition(const gl_types::ishared_data* shared_data) {
 /*
  * aggregate norm of real answer and the current solution
  */
-static void apply_func_real(size_t index,
-                            const gl_types::ishared_data& shared_data,
-                            graphlab::any& current_data,
+static void apply_func_real(graphlab::any& current_data,
                             const graphlab::any& new_data) {
 
   double ret = new_data.as<double>();
@@ -281,9 +275,7 @@ static void apply_func_real(size_t index,
  * aggregate norm of difference in messages
  */
 
-static void apply_func_relative(size_t index,
-                                const gl_types::ishared_data& shared_data,
-                                graphlab::any& current_data,
+static void apply_func_relative(graphlab::any& current_data,
                                 const graphlab::any& new_data) {
 
   double ret = new_data.as<double>();
@@ -301,8 +293,7 @@ static void apply_func_relative(size_t index,
  * \todo briefly describe what this function is doing?
  */
 void gabp_update_function(gl_types::iscope &scope,
-                          gl_types::icallback &scheduler,
-                          gl_types::ishared_data* shared_data) {
+                          gl_types::icallback &scheduler) {
 
 
   /* GET current vertex data */
@@ -310,18 +301,11 @@ void gabp_update_function(gl_types::iscope &scope,
   graphlab::edge_list inedgeid = scope.in_edge_ids();
   graphlab::edge_list outedgeid = scope.out_edge_ids();
 
-  // Get entries from shared data
-  assert(shared_data != NULL);
-  const double& threshold =
-    shared_data->get_constant(THRESHOLD_KEY).as<double>();
-  const bool& support_null_variance  =
-    shared_data->get_constant(SUPPORT_NULL_VARIANCE_KEY).as<bool>();
-  const bool& round_robin =
-    shared_data->get_constant(ROUND_ROBIN_KEY).as<bool>();
-  const bool& finish =
-    shared_data->get_constant(FINISH_KEY).as<bool>();
-  const bool& debug =
-    shared_data->get_constant(DEBUG_KEY).as<bool>();
+  const double& threshold = THRESHOLD_KEY.get();
+  const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get();
+  const bool& round_robin = ROUND_ROBIN_KEY.get();
+  const bool& finish = FINISH_KEY.get();
+  const bool& debug = DEBUG_KEY.get();
 
 
 
@@ -421,11 +405,11 @@ void gabp_update_function(gl_types::iscope &scope,
 
   // Count the number of iterations
   if (scope.vertex() == 0) {
-    shared_data->atomic_apply(ITERATION_KEY,
-                              gl_types::apply_ops::increment<size_t>,
-                              size_t(1));
-    size_t iter = shared_data->get_constant(MAX_ITER_KEY).as<size_t>();
-    if (iter > 0 && shared_data->get(ITERATION_KEY).as<size_t>() > iter){
+    ITERATION_KEY.apply(gl_types::glshared_apply_ops::increment<size_t>,
+                                size_t(1));
+
+    size_t iter = MAX_ITER_KEY.get_val();
+    if (iter > 0 && ITERATION_KEY.get_val() > iter){
         std::cout<<"Aborting since max iterations exceeded!"<<std::endl;
         scheduler.force_abort();
     }
@@ -549,30 +533,26 @@ int main(int argc,  char *argv[]) {
 
   // Initialize the shared data --------------------------------------
   // Set syncs
-  core.shared_data().set_sync(REAL_NORM_KEY,
-                              gl_types::sync_ops::sum<double, get_real_norm>,
-                              apply_func_real,
-                              double(0),  100);
-  core.shared_data().set_sync(RELATIVE_NORM_KEY,
-                              gl_types::sync_ops::sum<double, get_relative_norm>,
-                              apply_func_relative,
-                              double(0),  100);
+  core.set_sync(REAL_NORM_KEY,
+                gl_types::glshared_sync_ops::sum<double, get_real_norm>,
+                apply_func_real,
+                double(0),  100,
+                gl_types::glshared_merge_ops::sum<double>);
+  
+  core.set_sync(RELATIVE_NORM_KEY,
+                gl_types::glshared_sync_ops::sum<double, get_relative_norm>,
+                apply_func_relative,
+                double(0),  100,
+                gl_types::glshared_merge_ops::sum<double>);
   // Create an atomic entry to track iterations (as necessary)
-  core.shared_data().create_atomic(ITERATION_KEY,
-                                   graphlab::any(size_t(0)));
+  ITERATION_KEY.set(0);
   // Set all cosntants
-  core.shared_data().set_constant(THRESHOLD_KEY,
-                                  graphlab::any(threshold));
-  core.shared_data().set_constant(SUPPORT_NULL_VARIANCE_KEY,
-                                  graphlab::any(support_null_variance));
-  core.shared_data().set_constant(ROUND_ROBIN_KEY,
-                                  graphlab::any(round_robin));
-  core.shared_data().set_constant(FINISH_KEY,
-                                  graphlab::any(finish));
-  core.shared_data().set_constant(DEBUG_KEY,
-                                  graphlab::any(debug));
-  core.shared_data().set_constant(MAX_ITER_KEY,
-                                  graphlab::any(iter));
+  THRESHOLD_KEY.set(threshold);
+  SUPPORT_NULL_VARIANCE_KEY.set(support_null_variance);
+  ROUND_ROBIN_KEY.set(round_robin);
+  FINISH_KEY.set(finish);
+  DEBUG_KEY.set(debug);
+  MAX_ITER_KEY.set(iter);
 
 
 
@@ -601,7 +581,7 @@ int main(int argc,  char *argv[]) {
      precs[i] = vdata.cur_prec;
   }
   std::cout << "gabp converged to an accuracy of "
-            << diff << " after " << core.shared_data().get(ITERATION_KEY).as<size_t>() << std::endl;
+            << diff << " after " << ITERATION_KEY.get_val() << std::endl;
 
    FILE * f = fopen((datafile+".out").c_str(), "w");
    assert(f!= NULL);

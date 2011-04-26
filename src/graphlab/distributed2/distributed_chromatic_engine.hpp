@@ -42,8 +42,6 @@ class distributed_chromatic_engine : public iengine<Graph> {
   typedef typename iengine_base::update_function_type update_function_type;
   typedef typename iengine_base::termination_function_type termination_function_type;
   typedef typename iengine_base::iscope_type iscope_type;
-  typedef typename iengine_base::ishared_data_type ishared_data_type;
-  typedef typename iengine_base::ishared_data_manager_type ishared_data_manager_type;
   
   typedef typename iengine_base::sync_function_type sync_function_type;
   typedef typename iengine_base::merge_function_type merge_function_type;
@@ -143,7 +141,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
   std::vector<sync_task*> active_sync_tasks;
   
 
-  
+  metrics engine_metrics;  
 
  public:
   distributed_chromatic_engine(distributed_control &dc,
@@ -168,7 +166,8 @@ class distributed_chromatic_engine : public iengine<Graph> {
                             barrier_time(0.0),
                             const_nbr_vertices(true),
                             const_edges(false),
-                            thread_color_barrier(ncpus) { 
+                            engine_metrics("engine"),
+                            thread_color_barrier(ncpus){ 
     rmi.barrier();
   }
   
@@ -545,7 +544,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
     }
     
     for (size_t i = rmi.procid(); i < term_functions.size(); i += rmi.numprocs()) {
-      if (term_functions[i](NULL)) {
+      if (term_functions[i]()) {
         termination_test[rmi.procid()].terminator = true;
         break;
       }
@@ -622,7 +621,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
             // create the scope
             scope.init(&graph, globalvid);
             // run the update function
-            update_function(scope, callback, NULL);
+            update_function(scope, callback);
             // check if there are tasks to run
             if (hassynctasks) eval_syncs(globalvid, scope, threadid);
             scope.commit_async_untracked();
@@ -735,32 +734,29 @@ class distributed_chromatic_engine : public iengine<Graph> {
     std::map<std::string, size_t> ret = rmi.gather_statistics();
 
     if (rmi.procid() == 0) {
-      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
-      engine_metrics.set("runtime", 
+      engine_metrics.add("runtime",
                         ti.current_time(), TIME);
       total_update_count = 0;
       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
-        engine_metrics.add("updatecount", 
-                            procupdatecounts[i], INTEGER);
+        engine_metrics.add_vector_entry("updatecount", i, procupdatecounts[i]);
         total_update_count +=  procupdatecounts[i];
       }
       total_barrier_time = 0;
       for(size_t i = 0; i < barrier_times.size(); ++i) {
-        engine_metrics.add("barrier_time", 
-                            barrier_times[i], TIME);
+        engine_metrics.add_vector_entry("barrier_time", i, barrier_times[i]);
         total_barrier_time += barrier_times[i];
       }
 
       engine_metrics.set("termination_reason", 
                         exec_status_as_string(termination_reason));
-      engine_metrics.set("dist_barriers_issued", 
+      engine_metrics.add("dist_barriers_issued",
                         num_dist_barriers_called, INTEGER);
 
       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
-      engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+      engine_metrics.add("num_syncs", numsyncs.value, INTEGER);
       engine_metrics.set("isdynamic", max_iterations == 0, INTEGER);
-      engine_metrics.set("iterations", max_iterations, INTEGER);
+      engine_metrics.add("iterations", max_iterations, INTEGER);
       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
       total_bytes_sent = ret["total_bytes_sent"];
@@ -804,9 +800,6 @@ class distributed_chromatic_engine : public iengine<Graph> {
       "default = set on add_task]\n";
   };
 
-  void set_shared_data_manager(ishared_data_manager_type* manager) { 
-    logger(LOG_FATAL, "distributed engine does not support set shared data manager");
-  }
 
   void stop() {
     force_stop = true;
@@ -832,6 +825,16 @@ class distributed_chromatic_engine : public iengine<Graph> {
   long long int get_total_bytes_sent() {
      return total_bytes_sent;
   }
+
+  metrics get_metrics() {
+    return engine_metrics;
+  }
+
+
+  void reset_metrics() {
+    engine_metrics.clear();
+  }
+
 };
 
 } // namespace graphlab

@@ -114,7 +114,17 @@ namespace graphlab {
      */
     template<size_t OtherDim>
     bool operator<=(const small_set<OtherDim, T, Less>& other) const {
-      return contains(other);
+      return other.contains(*this);
+    }
+
+
+    /**
+     * Test if this set is contained in other.  If so this returns
+     * true. 
+     */
+    template<size_t OtherDim>
+    bool operator<(const small_set<OtherDim, T, Less>& other) const {
+      return other.contains(*this) && size() < other.size();
     }
 
     template<size_t OtherDim>

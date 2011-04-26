@@ -21,7 +21,6 @@ typedef multiqueue_fifo_scheduler<graph_type> scheduler_type;
 typedef distributed_locking_engine<distributed_graph<size_t, double>, scheduler_type > engine_type;
 typedef engine_type::iscope_type iscope_type;
 typedef engine_type::icallback_type icallback_type;
-typedef ishared_data<graph_type> ishared_data_type;
 typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
@@ -47,8 +46,7 @@ void generate_atoms() {
 
 
 void add_one_dynamic(iscope_type& scope,
-                    icallback_type& scheduler,
-                    ishared_data_type* data_manager) {
+                    icallback_type& scheduler) {
   size_t& vdata = scope.vertex_data();
   //logger(LOG_INFO, "eval on %d", scope.vertex());
   
@@ -161,7 +159,7 @@ int main(int argc, char** argv) {
   std::cout << "Graph Constructed!" << std::endl;
   std::cout << "Testing Static: " << std::endl;
   // now we make an engine
-  engine_type engine(dc, dg, 4);
+  engine_type engine(dc, dg, 2);
   averagevalue.set(0.0);
   engine.set_sync(averagevalue,
                 sync_sum_fun,
@@ -200,8 +198,12 @@ int main(int argc, char** argv) {
   
   if (dc.procid() == 0) {
     basic_reporter reporter;
-    metrics::report_all(reporter);
+    dc.report_metrics(reporter);
+    dg.report_metrics(reporter);
+    engine.report_metrics(reporter);
     file_reporter freporter("graphlab_metrics.txt");
-    metrics::report_all(freporter);
+    dc.report_metrics(freporter);
+    dg.report_metrics(freporter);
+    engine.report_metrics(freporter);
   }
 }

@@ -1,44 +1,4 @@
-// this file contains the additional docs.  
 /**
-\defgroup group_schedulers Schedulers
-\defgroup util_internal Internal Utility Classes
-
-
-\mainpage 
-   
-   \section intro_sec Introduction
-   
-   GraphLab is a powerful new system for designing and implementing
-   parallel algorithms in machine learning.  While the current targets
-   multi-core shared memory parallel systems we are in the process of
-   implementing a distributed version and plan to provide support for
-   alternative parallel architectures include GPUs in the near future.
- 
-   For a more user friendly tour of GraphLab and its features visit
-   the site: <a href="http://www.graphlab.ml.cmu.edu/details.html">
-   http://www.graphlab.ml.cmu.edu/details.html </a>
-    Those more interested in learning about the abstraction should read
-   the <a href="http://www.select.cs.cmu.edu/publications/scripts/papers.cgi?Low+al:uai10graphlab">
-   GraphLab paper </a>.
-
-  The key pages of interest are:
-  \li The \ref graphlab::graph data structure. \n
-    The Graph data-structured defined in <graphlab/graph/graph.hpp> 
-    represents a directed graph container and is used extensively throughout GraphLab. 
-  \li The \ref graphlab::core data structure. \n
-    This provides a convenient wrapper around most of Graphlab.
-  \li \ref graphlab::types \n
-    This provides typedefs for all shared memory GraphLab types.
-  \li \ref graphlab::iengine
-  \li \ref Scopes
-  \li \ref Schedulers
-  \li \ref shared_data Shared Data
-  \li \ref graphlab::command_line_options
-  \li \ref Serialization
-
-\endpage
-
-
 \page Scopes Scopes
     The \b scope of a vertex is the data on the vertex, the data
     on all adjacent edges as well as data on all adjacent vertices. An
@@ -54,9 +14,9 @@
     GraphLab therefore provides the concept of a \b consistency
     class which expresses both the level of protection provided, as
     well as the amount of parallelism available. The consistency
-    type can be selected through the \ref iengine::set_default_scope()
-    function in the \ref engine, or the
-    ref core::set_scope_type() function in the \ref core .
+    type can be selected through the \ref graphlab::iengine::set_default_scope()
+    function in the \ref graphlab::iengine, or the
+    ref graphlab::core::set_scope_type() function in the \ref graphlab::core .
     
     There are three basic types of scopes (as well a number of
     undocumented ones which you probably should not use).
@@ -70,16 +30,16 @@
       This is implemented by acquiring a write lock on all vertices
       in the scope.
      \li <b> Edge Consistency </b>
-      <dd>This scope type guarantees safe read/write access 
+      This scope type guarantees safe read/write access 
       to the current vertex as well as adjacent edges. In addition,
       you can also read (but not write) data on adjacent vertices safely.
       This is implemented by acquiring a write lock on the current
       vertex, and a read lock on all adjacent vertices. 
     \li <b> Vertex Consistency </b>
-      <dd>This scope type guarantees only safe read/write access 
+      This scope type guarantees only safe read/write access 
       to the current vertex. This is implemented by acquiring a write
       lock on the current vertex. 
-\endpage
+
 
 
 \page Schedulers Schedulers
@@ -95,8 +55,8 @@ can be passed through the command line using the option \n
 <tt> --scheduler schedtype[key=value,key=value...] </tt> \n
 Help about the schedulers can also be obtained from the <tt> --schedhelp </tt>
 option.
-\li <b> \ref core::sched_options() </b>
-If the \ref core object is used, the scheduler options can be set using
+\li <b> \ref graphlab::core::sched_options() </b>
+If the \ref graphlab::core object is used, the scheduler options can be set using
 the core::sched_options() function by calling
 <tt> core.sched_options().add_option("optionname", VALUE) </tt>
 where VALUE can be any type. (sched_options will cast to the right type as
@@ -112,7 +72,7 @@ needed automatically).
 
       The chromatic scheduler supports only a single update function and
       applies it in sweeps over the graph.  The chromatic reads the
-      color of each vertex from the \ref graph::color()
+      color of each vertex from the \ref graphlab::graph::color()
       function.  The scheduler then executes all vertices of the same
       color before proceeding to the next color.  Within a color,
       processors may execute update functions on multiple vertices
@@ -123,7 +83,7 @@ needed automatically).
       The color scheduler can be used to obtain a Gauss-Seidel
       parallel execution of a sequential algorithm by first computing
       a coloring of the underlying model
-      using \ref graph::compute_coloring().  As long as the
+      using \ref graphlab::graph::compute_coloring().  As long as the
       update function does not \b modify the data on neighboring
       vertices, the parallel execution will be identical to all
       sequential executions in which the vertices are updated in order
@@ -154,7 +114,7 @@ needed automatically).
 
 \section sec_dynamic_schedulers Dynamic Schedulers 
   
-    The dynamic schedulers rely on the \ref icallback in the
+    The dynamic schedulers rely on the \ref graphlab::icallback in the
     update functions to receive new tasks (and potentially task
     priorities).  These tasks are then incorporated into the execution
     schedule.  These schedulers are called dynamic schedulers because
@@ -209,7 +169,7 @@ The fifo scheduler executes tasks in the classical first in
 
       Options:
      \li \b "partition_method" [string: metis/random/bfs, default=metis]
-         Sets the partition method to use. See \ref partition_method
+         Sets the partition method to use. See \ref graphlab::partition_method
          for details about each partitioning method
      \li "vertices_per_partition" [integer, default = 100]
          Number of vertices in each partition
@@ -244,7 +204,7 @@ The fifo scheduler executes tasks in the classical first in
       the update function will be set to the update function provided on 
       the most recent call to add_task_to_all(). 
 
-\endpage
+
 
 
 
@@ -252,13 +212,13 @@ The fifo scheduler executes tasks in the classical first in
 We have a custom serialization scheme which is designed for performance rather than 
 compatibility. It does not perform type checking, It does not perform pointer tracking, 
 and has only limited support across platforms. It has been tested, and should be compatible 
-across x86 platforms (integer width is normalized).
+across x86 platforms.
 
 There are two serialization classes graphlab::oarchive and graphlab::iarchive. The former 
 does output, while the latter does input. To include all serialization headers,
 #include <graphlab/serialization/serialization_includes.hpp>.
 
-\ssection sec_basic_serialize Basic serialize/deserialize
+\section sec_basic_serialize Basic serialize/deserialize
 
 To serialize data to disk, you just create an output archive, and associate it with a file stream.
 
@@ -319,22 +279,46 @@ class TestClass{
 After which, the standard stream operators as described in the previous section 
 will work fine. STL containers of TestClass will work as well.
 
-\section sec:serialize_caveats Minor Caveats
+\section sec_serialize_pod POD (Plain Old Data) types
+POD types are data types which occupy a contiguous region in memory. For instance, basic types 
+(double, int, etc), or structs which contains only basic types. Such types can be copied or
+replicated using a simple mem-copy operation and is a great candidate for acceleration during
+serialization / deserialization.
 
-For various useability reasons, the following code will always compile, 
-irregardless if the variable some_variable is serializable or not.
+Unfortunately, there is not a simple way to detect or test if any given type is POD or not.
+C++ TR1 defines an is_pod feature, but this feature is yet implemented in some compilers.
+We therefore defined our own gl_is_pod<...> feature which allows the user to explicitly
+express that a particular type is a POD type. gl_is_pod can be further extended in the future
+when compilers provide better support for std::is_pod.
 
+To use gl_is_pod, we consider the following Coordinate struct. 
 \code
-graphlab::oarchive oarc(fout);
-oarc << some_variable;
+struct Coordinate{
+  int x, y, z;
+};
 \endcode
 
-It will however fault with an assertion failure at runtime. This 
-issue may be fixed in the future. In the meantime, the user should make sure 
-to test all serialization code carefully.
+This struct can be defined to be a POD type using an accelerated serializer by defining:
 
-\endpage
+\code
+namespace graphlab {
+  struct gl_is_pod<Coordinate> {
+    BOOST_STATIC_CONSTANT(bool, value = true);
+  };
+}
+\endcode
 
+Now, Coordinate variables, or even vector<Coordinate> variables will serialize/deserialize faster,
+making use of direct mem-copies. 
+
+A caveat of this fast serialization mechanism is that the resulting archive may not be cross platform
+since it forces a particular length for the integers inside the struct. There may also be issues 
+using the same archive between compilers or different alignment options. 
+
+
+\section sec_serialization_any Any
+graphlab::any is a variant type derived from Boost Any, but extended to support the GraphLab
+serialization system. See graphlab::any for details.
 
 
 
@@ -352,6 +336,8 @@ global variables. They are mainly used to provide two capabilities:
     However, the abstraction provided here extends to the distributed memory case.
 \li <b> Sync </b>
   A fold/reduction framework which performs background accumulation of all vertex data.
+
+The \ref detailed_example "detailed example" provides a good description of how this is used. 
   
 \section shared_Data_gsv Globally Shared Variables
 
@@ -503,6 +489,7 @@ Modifications to current_data will be reflected in future accesses
 to l2norm_value.
 
 
+
 A sync is created using the \ref graphlab::iengine::set_sync() member function of the engine
 or the core \ref graphlab::core::set_sync()
 (the core simply forwards the call to the engine it contains).
@@ -520,26 +507,26 @@ AccumulationType accessor(const vertex_data& v);
 
 Then you can make use of the following sync functions:
 
-\li \ref graphlab::glshared_sync_ops::sum<AccumulationType, accessor>
+\li \ref graphlab::glshared_sync_ops::sum
 Adds the value on each vertex using the accessor function to read the vertex data.
-\li \ref graphlab::glshared_sync_ops::l1sum<AccumulationType, accessor>
+\li \ref graphlab::glshared_sync_ops::l1_sum
 Adds the absolute value of each vertex using the accessor function to read the vertex data.
-\li \ref graphlab::glshared_sync_ops::l2sum<AccumulationType, accessor>
+\li \ref graphlab::glshared_sync_ops::l2_sum
 Adds the squared value of each vertex using the accessor function to read the vertex data.
-\li \ref graphlab::glshared_sync_ops::max<AccumulationType, accessor>
+\li \ref graphlab::glshared_sync_ops::max
 Computes the maximum value of all the vertices using the accessor function to read the vertex data.
 A collection of apply function are also provided.
 
-\li \ref graphlab::glshared_apply_ops::identity<AccumulationType>
-Stores the accumulated value to the shared data entry
-\li \ref graphlab::glshared_apply_ops::identity_print<AccumulationType>
+\li \ref graphlab::glshared_apply_ops::identity
+Stores the accumulated value to the shared variable.
+\li \ref graphlab::glshared_apply_ops::identity_print
 Stores the accumulated value to the shared data entry and writes it to screen
-\li \ref graphlab::glshared_apply_ops::increment<AccumulationType>
-Adds the final accumulated value to the associated shared data table entry.
-\li \ref graphlab::glshared_apply_ops::decrement<AccumulationType>
-Subtracts the final accumulated value from the associated shared data table entry.
-\li \ref graphlab::glshared_apply_ops::sqrt<AccumulationType>
-Stores the square root of the accumulated value to the shared data entry
+\li \ref graphlab::glshared_apply_ops::increment
+Adds the final accumulated value to the associated shared variable.
+\li \ref graphlab::glshared_apply_ops::decrement
+Subtracts the final accumulated value from the associated shared variable.
+\li \ref graphlab::glshared_apply_ops::sqrt
+Stores the square root of the accumulated value to the shared variable.
 For instance, the following code will create a sync which behaves exactly the same way as the example above:
 
 \code
@@ -548,11 +535,64 @@ double accessor(const double& v) {
 }
 
 shared_data.set_sync(l2norm_value, 
-                     gl::sync_ops::l2sum<double, accessor>,
-                     gl::apply_ops::sqrt<double>,
+                     gl::glshared_sync_ops::l2sum<double, accessor>,
+                     gl::glshared_apply_ops::sqrt<double>,
                      double(0.0), 
                      100);
 \endcode
 
-\endpage
+\subsection sec_sync_merge Merge 
+
+The Sync operation as described cannot be parallelized.
+To permit parallelism, an additional \b merge function which combines partial synced results
+must be defined. 
+
+If a merge function is defined, the set of vertices will be partitioned into a collection
+of disjoint sets. The sync function is then performed on each set in parallel, producing
+a number of partial results. These partial results are then combined with the merge function.
+Finally, the apply function is executed on the final result and written to the shared variable.
+
+For instance, in the earlier sync example where the L2 Norm of the graph vertex data is computed,
+intermediate results can be combined using:
+
+\code
+static void sum_merge(any& dest,
+                const any& src) {
+  dest.as<double>() += src.as<double>();
+}
+\endcode
+
+The set Sync call must similarly be updated
+
+\code
+core.set_sync(l2norm_value,       // shared variable
+              squared_sum_sync,   // sync function
+              square_root_apply,  // apply function
+              double(0.0),        // initial sync value
+              100,                // sync frequency
+              sum_merge);         // merge function
+\endcode
+
+Similarly, a collection of common Merges are provided in gl::glshared_merge_ops
+
+\li \ref graphlab::glshared_merge_ops::sum
+Sums the intermediate results.
+\li \ref graphlab::glshared_merge_ops::l1_sum
+Sums the absolute value of the intermediate results.
+\li \ref graphlab::glshared_merge_ops::l2_sum
+Sums the squared value of the intermediate results.
+\li \ref graphlab::glshared_merge_ops::max
+Returns the max of the intermediate results
+
+Example:
+\code
+shared_data.set_sync(l2norm_value, 
+                     gl::glshared_sync_ops::l2sum<double, accessor>,
+                     gl::glshared_apply_ops::sqrt<double>,
+                     double(0.0), 
+                     100,
+                     gl::glshared_merge_ops::sum<double>);
+
+\endcode
+
 */

@@ -38,6 +38,9 @@ add_library(graphlab_util STATIC
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
+  factors/discrete_variable.cpp
+  factors/binary_factor.cpp
+  factors/unary_factor.cpp
   ${util_mpi_tools}
 )
 
@@ -95,9 +98,6 @@ target_link_libraries(graphlab_rpc graphlab_util)
 
 
 add_library(graphlab STATIC
-  factors/discrete_variable.cpp
-  factors/binary_factor.cpp
-  factors/unary_factor.cpp
   schedulers/scheduler_options.cpp)
   
 

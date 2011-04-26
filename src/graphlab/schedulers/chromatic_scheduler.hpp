@@ -3,6 +3,7 @@
 
 #include <vector>
 
+#include <graphlab/logger/assertions.hpp>
 
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
@@ -55,7 +56,7 @@ namespace graphlab {
       update_function(NULL) {
       color.value = 0;
       // Verify the coloring
-      assert(graph.valid_coloring());
+      ASSERT_TRUE(graph.valid_coloring());
       // Initialize the chromatic blocks
       for(size_t i = 0; i < graph.num_vertices(); ++i) {
         graphlab::vertex_color_type color = graph.color(i);

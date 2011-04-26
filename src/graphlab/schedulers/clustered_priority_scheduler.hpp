@@ -1,6 +1,3 @@
-/**
-  * \file Clustered priority scheduler.
-  **/
 #ifndef GRAPHLAB_CLUSTERED_PRIORITY_SCHEDULER_HPP
 #define GRAPHLAB_CLUSTERED_PRIORITY_SCHEDULER_HPP
 

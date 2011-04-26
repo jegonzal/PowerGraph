@@ -19,8 +19,7 @@ typedef graphlab::types<graph_type> gl;
 
 
 void update_function(gl::iscope& scope,
-                     gl::icallback& scheduler,
-                     gl::ishared_data* shared_data) {
+                     gl::icallback& scheduler) {
   vertex_data& curvdata = scope.vertex_data();
   curvdata.ucount += 1;
   curvdata.val += 1;
@@ -185,7 +184,7 @@ public:
         }
       }
     }
-    graphlab::metrics::clear_all_metrics_instances();
+
   }
 
 
@@ -216,7 +215,7 @@ public:
         }
       }
     }
-    graphlab::metrics::clear_all_metrics_instances();
+
   }
 
 
@@ -249,6 +248,6 @@ public:
         }
       }
     }
-    graphlab::metrics::clear_all_metrics_instances();
+
   }
 };

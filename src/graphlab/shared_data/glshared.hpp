@@ -1,5 +1,5 @@
-#ifndef GLSHARED_HPP
-#define GLSHARED_HPP
+#ifndef GRAPHLAB_GLSHARED_HPP
+#define GRAPHLAB_GLSHARED_HPP
 #include <boost/shared_ptr.hpp>
 #include <boost/function.hpp>
 #include <boost/type_traits/function_traits.hpp>
@@ -69,10 +69,20 @@ namespace graphlab {
 
 
   /**
-   * A shared data entry.  
-
-   * glshared<datatype> variable; This is implemented using two shared
-   * pointers to two instances of the data. The two shared pointers
+   * \brief A shared data entry.  
+   *
+   * glshared<datatype> variable; 
+   * will create a shared variable of the defined datatype.
+   * The accessor functions get_val(), get_ptr() and set() can be used
+   * to access the data in parallel. An RCU mechanism is used to ensure
+   * consistency of the stored data. 
+   * The variable can be registered with a GraphLab
+   * engine to provide global aggregate information of a graph during
+   * GraphLab execution. \see asynchronous_engine::set_sync
+   *
+   * This is implemented using an RCU
+   * scheme where two shared pointers are created to 
+   * two instances of the data. The two shared pointers
    * are called the "head" and the "buffer".  All reads are performed
    * using the head, and all writes are made to the buffer. Since
    * readers can hold references to the data (using a shared pointer),
@@ -151,7 +161,8 @@ namespace graphlab {
   
     /**
      * Returns true if there are no other active references to this
-     * variable.
+     * variable. This should not be used to test for exclusive access,
+     * and is meant for internal use.
      */
     bool is_unique() const {
       return buffer->unique() && head->unique();
@@ -201,8 +212,9 @@ namespace graphlab {
     }
   
     /** 
-     * Exchanges the data with 't'. This operation is atomic This
-     * operation could stall forever if there are active shared
+     * Exchanges the data with 't'. This operation performs the
+     * exchange atomically and could therefore stall
+     * forever if there are active shared
      * pointers to this variable which are never released.
      */
     void exchange(T& t) {
@@ -218,7 +230,8 @@ namespace graphlab {
 
     /**
      * apply's a function to this variable passing an additional
-     * parameter.  This operation could stall forever if there are
+     * parameter. This operation tries to perform the modification atomically
+     * and could stall forever if there are
      * active shared pointers to this variable which are never
      * released.
      */
@@ -252,5 +265,5 @@ namespace graphlab {
     applyfn(d.as<T>(), param);
   }
 
-}
+} 
 #endif

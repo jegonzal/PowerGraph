@@ -8,6 +8,7 @@
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/schedulers/icallback.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
+#include <graphlab/metrics/metrics.hpp>
 
 namespace graphlab {
   template <typename Graph> class iengine;
@@ -17,6 +18,7 @@ namespace graphlab {
    * get_next_tasks
    */
   struct sched_status {
+    /// \brief the possible scheduler status.
     enum status_enum {
       NEWTASK,      /**< The get_next_tasks function returned a new task 
                         to be executed */
@@ -30,6 +32,7 @@ namespace graphlab {
   
  /// \deprecated
   struct scheduler_options_enum {
+    /// \deprecated
     enum options_enum {
       UPDATE_FUNCTION,    /// used by 1-update function schedulers
       MAX_ITERATIONS,     /// maximum iteration count. Used by round-robin
@@ -153,7 +156,38 @@ namespace graphlab {
     terminator_type& get_terminator() {
       return terminator;
     };
+
+    /**
+     * Return the metrics information logged by the engine.
+     * \see dump_metrics reset_metrics
+     */
+    virtual metrics get_metrics() {
+      return metrics();
+    }
+
+    /**
+     * Clears all logged metrics
+     * \see dump_metrics get_metrics
+     */
+    virtual void reset_metrics() { }
     
+    /**
+     * Writes out the metrics information logged by the engine
+     * and all subordinate classes.
+     *
+     * Scheduler writers should note that for dump_metrics() to work,
+     * the scheduler only has to implement get_metrics()
+     * and reset_metrics(). Default behavior is to report the metrics
+     * returned by get_metrics() and call reset_metrics().
+     * This behavior may be overridden by implementing this function.
+     *
+     * \see get_metrics reset_metrics
+     */
+    virtual void report_metrics(imetrics_reporter &reporter) {
+      get_metrics().report(reporter);
+    }
+
+
   protected:
     monitor_type* monitor;
 

@@ -6,11 +6,10 @@
  *
  */
 
-#ifndef GRAPHLAB_BASICGRAPH_HPP
-#define GRAPHLAB_BASICGRAPH_HPP
+#ifndef GRAPHLAB_GRAPH_HPP
+#define GRAPHLAB_GRAPH_HPP
 
 #include <omp.h>
-#include <cassert>
 #include <cmath>
 
 #include <string>
@@ -69,7 +68,7 @@ namespace graphlab {
                     <a href="http://glaros.dtc.umn.edu/gkhome/views/metis"> METIS</a>
                     graph partitioning package. <b>A modified version of METIS is
                     included with GraphLab, so contact us if you encounter any
-                    issues.*/
+                    issues.</b>*/
       PARTITION_BFS, /**< Partitions the graph using Breadth First Searches. A random
                     root vertex is selected and inserted into the first
                     partition. Additional vertices are inserted into the partition
@@ -153,7 +152,7 @@ namespace graphlab {
 
     /** \brief Get the ith edge in the edge list */
     edge_id_t operator[](size_t i) const {
-      assert(i < size());
+      ASSERT_LT(i,  size());
       return *(begin_ptr + i);
     }
 
@@ -255,9 +254,7 @@ namespace graphlab {
     graph() : finalized(true),changeid(0) {  }
 
     /**
-     * \BUG: Should not reserve but instead directly create vertices.
-     * Create a graph with space allocated for num_vertices and
-     * num_edges.
+     * Create a graph with nverts vertices.
      */
     graph(size_t nverts) : 
       vertices(nverts),
@@ -364,13 +361,13 @@ namespace graphlab {
 
     /** \brief Get the number of in edges of a particular vertex */
     size_t num_in_neighbors(vertex_id_t v) const {
-      assert(v < vertices.size());
+      ASSERT_LT(v, vertices.size());
       return in_edges[v].size();
     } // end of num vertices
     
     /** \brief Get the number of out edges of a particular vertex */
     size_t num_out_neighbors(vertex_id_t v) const  {
-      assert(v < vertices.size());
+      ASSERT_LT(v, vertices.size());
       return out_edges[v].size();
     } // end of num vertices
 
@@ -380,8 +377,8 @@ namespace graphlab {
     edge is found, the edge ID is returned in the second element of the pair. */
     std::pair<bool, edge_id_t>
     find(vertex_id_t source, vertex_id_t target) const {
-      assert(source < in_edges.size());
-      assert(target < out_edges.size());
+      ASSERT_LT(source, in_edges.size());
+      ASSERT_LT(target, out_edges.size());
       // Check the base case that the souce or target have no edges
       if (in_edges[target].size() == 0 ||
           out_edges[source].size() == 0) {
@@ -411,7 +408,7 @@ namespace graphlab {
         if(in_edges[target].size() < out_edges[source].size()) {
           // linear search the in_edges at the target 
           foreach(edge_id_t eid, in_edges[target]) {
-            assert(eid < edges.size());
+            ASSERT_LT(eid, edges.size());
             if(edges[eid].source() == source 
                && edges[eid].target() == target) {
               return std::make_pair(true, eid);
@@ -421,7 +418,7 @@ namespace graphlab {
         } else { // fewer out edges at the source
           // linear search the out_edges at the source
           foreach(edge_id_t eid, out_edges[source]) {
-            assert(eid < edges.size());
+            ASSERT_LT(eid, edges.size());
             if(edges[eid].source() == source 
                && edges[eid].target() == target) {
               return std::make_pair(true, eid);
@@ -439,8 +436,8 @@ namespace graphlab {
     edge_id_t edge_id(vertex_id_t source, vertex_id_t target) const {
       std::pair<bool, edge_id_t> res = find(source, target);
       // The edge must exist
-      assert(res.first);
-      assert(res.second < edges.size());
+      ASSERT_TRUE(res.first);
+      ASSERT_LT(res.second, edges.size());
       return res.second;
     } // end of edge_id
 
@@ -448,13 +445,15 @@ namespace graphlab {
     /** \brief Returns the edge ID of the edge going in the opposite direction. 
         Assertion failure if such an edge is not found.  */
     edge_id_t rev_edge_id(edge_id_t eid) const {
-      assert(eid < edges.size());
+      ASSERT_LT(eid, edges.size());
       vertex_id_t source = edges[eid].source();
       vertex_id_t target = edges[eid].target();    
       return edge_id(target, source);
     } // end of rev_edge_id
 
+    void numa_reserve(size_t numvertices, size_t numedges) {
     
+    }
     /** 
      * \brief Creates a vertex containing the vertex data and returns the id
      * of the new vertex id. Vertex ids are assigned in increasing order with
@@ -475,7 +474,7 @@ namespace graphlab {
      * fail if resizing down.
      */
     void resize(size_t num_vertices ) {
-      assert(num_vertices >= vertices.size());
+      ASSERT_GE(num_vertices, vertices.size());
       vertices.resize(num_vertices);
       // Resize edge maps
       out_edges.resize(vertices.size());
@@ -537,75 +536,76 @@ namespace graphlab {
     
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_t v) {
-      assert(v < vertices.size());
+      ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
     const VertexData& vertex_data(vertex_id_t v) const {
-      assert(v < vertices.size());
+      ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_t source, vertex_id_t target) {
-      assert(source < vertices.size());
-      assert(target < vertices.size());
+      ASSERT_LT(source, vertices.size());
+      ASSERT_LT(target, vertices.size());
       std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
-      assert(ans.first);
+      ASSERT_TRUE(ans.first);
       // the edge id should be valid!
-      assert(ans.second < edges.size());
+      ASSERT_LT(ans.second, edges.size());
       return edges[ans.second].data();
     } // end of edge_data(u,v)
     
-    /** \brief Returns a constant reference to the data stored on the edge source->target */
+    /** \brief Returns a constant reference to the data stored on the
+        edge source->target */
     const EdgeData& edge_data(vertex_id_t source, vertex_id_t target) const {
-      assert(source < vertices.size());
-      assert(target < vertices.size());
+      ASSERT_LT(source, vertices.size());
+      ASSERT_LT(target, vertices.size());
       std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
-      assert(ans.first);
+      ASSERT_TRUE(ans.first);
       // the edge id should be valid!
-      assert(ans.second < edges.size());
+      ASSERT_LT(ans.second, edges.size());
       return edges[ans.second].data();
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_id_t edge_id) { 
-      assert(edge_id < edges.size());
+      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].data();
     }
     
     /** \brief Returns a constant reference to the data stored on the edge e */
     const EdgeData& edge_data(edge_id_t edge_id) const {
-      assert(edge_id < edges.size());
+      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].data();
     }
 
     /** \brief Returns the source vertex of an edge. */
     vertex_id_t source(edge_id_t edge_id) const {
-      //      assert(edge_id < edges.size());
+      //      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].source();
     }
 
     /** \brief Returns the destination vertex of an edge. */
     vertex_id_t target(edge_id_t edge_id) const {
-      //      assert(edge_id < edges.size());
+      //      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].target();    
     }
     
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_t vertex) const {
-      assert(vertex < vertices.size());
+      ASSERT_LT(vertex, vertices.size());
       return vcolors[vertex];
     }
 
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     vertex_color_type& color(vertex_id_t vertex) {
-      assert(vertex < vertices.size());
+      ASSERT_LT(vertex, vertices.size());
       return vcolors[vertex];
     }
 
@@ -644,7 +644,7 @@ namespace graphlab {
           if(vertex_color != neighbor_color) break;
           else vertex_color++;
           // Ensure no wrap around
-          assert(vertex_color != 0);                
+          ASSERT_NE(vertex_color, 0);                
         }
         max_color = std::max(max_color, size_t(vertex_color) );
       }
@@ -674,13 +674,13 @@ namespace graphlab {
     
     /** \brief Return the edge ids of the edges arriving at v */
     edge_list in_edge_ids(vertex_id_t v) const {
-      assert(v < in_edges.size());
+      ASSERT_LT(v, in_edges.size());
       return edge_list(in_edges[v]);
     } // end of in edges    
 
     /** \brief Return the edge ids of the edges leaving at v */
     edge_list out_edge_ids(vertex_id_t v) const {
-      assert(v < out_edges.size());
+      ASSERT_LT(v, out_edges.size());
       return edge_list(out_edges[v]);
     } // end of out edges
     
@@ -742,10 +742,10 @@ namespace graphlab {
      */
     void save_adjacency(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
-      assert(fout.good());
+      ASSERT_TRUE(fout.good());
       for(size_t i = 0; i < edges.size(); ++i) {
         fout << edges[i].source() << ", " << edges[i].target() << "\n";
-        assert(fout.good());
+        ASSERT_TRUE(fout.good());
       }          
       fout.close();
     }
@@ -755,8 +755,8 @@ namespace graphlab {
      * each part. Equivalent to calling partition() with the 
      * partition_method::PARTITION_EDGE_NUM parameter.
      *
-     * \param numparts The number of parts to partition into
-     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      */
     void edge_num_partition(size_t nparts, 
 			    std::vector<uint32_t>& vertex2part){
@@ -786,8 +786,8 @@ namespace graphlab {
      * Equivalent to calling partition() with the 
      * partition_method::PARTITION_RANDOM parameter
      *
-     * \param numparts The number of parts to partition into
-     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      */
     void random_partition(size_t nparts, std::vector<vertex_id_t>& vertex2part) {
       vertex2part.resize(num_vertices());
@@ -827,24 +827,24 @@ namespace graphlab {
       }
       // Determine parameters needed to construct the partitioning
       metis::idxtype numverts(num_vertices());
-      assert(numverts > 0);
+      ASSERT_GT(numverts, 0);
       // Compute the number of edges 
       metis::idxtype numedges(num_edges());
 
       // allocate metis data structures
       metis::idxtype* vweight = new metis::idxtype[numverts];
-      assert(vweight != NULL);    
+      ASSERT_NE(vweight, NULL);    
       metis::idxtype* xadj = new metis::idxtype[numverts + 1];
-      assert(xadj != NULL);
+      ASSERT_NE(xadj, NULL);
       metis::idxtype* adjacency = new metis::idxtype[2 * numedges];
-      assert(adjacency != NULL);
+      ASSERT_NE(adjacency, NULL);
       metis::idxtype* eweight = NULL;
       //       if(weighted) {
       //         eweight = new idxtype[numedges];
       //         assert(eweigth != NULL);
       //       }
       metis::idxtype* res = new metis::idxtype[numverts];   
-      assert(res != NULL);
+      ASSERT_NE(res, NULL);
 
       // Pass through vertices filling in the metis data structures
       size_t offset = 0;
@@ -866,9 +866,9 @@ namespace graphlab {
         foreach(vertex_id_t vid, neighbors) {
           if (vid == u) continue;
           adjacency[offset] = vid;
-          assert(adjacency[offset] >= 0);
+          ASSERT_GE(adjacency[offset], 0);
           offset++;
-          assert(offset >= 0);
+          ASSERT_GE(offset, 0);
         }
     
       } // end of data structure creation
@@ -929,7 +929,7 @@ namespace graphlab {
       // Resize the partition
       ret_part.resize(num_vertices());
       // process the final results
-      assert(res != NULL);
+      ASSERT_NE(res, NULL);
       for(vertex_id_t v = 0; v < num_vertices(); ++v) {
         ret_part[v] = res[v];
       }    
@@ -945,9 +945,12 @@ namespace graphlab {
      * \param vfunction A function of the type size_t (*)(const VertexData &v)
      *                  This function takes in the data on a vertex, and 
      *                  returns the weight of the vertex
-     * \param efunction A function of the type size_t (*)(const EdgeData &e)
+     * \param wfunction A function of the type size_t (*)(const EdgeData &e)
      *                  This function takes in the data on an edge, and 
      *                  returns the weight of the edge
+     * \param usemetisdefaults If set to true, uses Metis default parameter set.
+     *                         defaults to false.
+     *                         
      *
      * Use a modified version of the METIS library to partition the
      * graph using user provided edge and vertex weight functions.
@@ -978,23 +981,23 @@ namespace graphlab {
       }
       // Determine parameters needed to construct the partitioning
       metis::idxtype numverts(num_vertices());
-      assert(numverts > 0);
+      ASSERT_GT(numverts, 0);
       // Compute the number of edges 
       metis::idxtype numedges (num_edges());
 
       // allocate metis data structures
       metis::idxtype* vweight = new metis::idxtype[numverts];
-      assert(vweight != NULL);
+      ASSERT_NE(vweight, NULL);
       metis::idxtype* xadj = new metis::idxtype[numverts + 1];
-      assert(xadj != NULL);
+      ASSERT_NE(xadj, NULL);
       metis::idxtype* adjacency = new metis::idxtype[2 * numedges];
-      assert(adjacency != NULL);
+      ASSERT_NE(adjacency, NULL);
       metis::idxtype* eweight = NULL;
       eweight = new metis::idxtype[ 2 * numedges];
-      assert(eweight != NULL);
+      ASSERT_NE(eweight, NULL);
       
       metis::idxtype* res = new metis::idxtype[numverts];   
-      assert(res != NULL);
+      ASSERT_NE(res, NULL);
 
       // Pass through vertices filling in the metis data structures
       size_t offset = 0;
@@ -1020,9 +1023,9 @@ namespace graphlab {
           if (vid == u) continue;
           adjacency[offset] = vid;
           eweight[offset] = nbrtoweight[vid];
-          assert(adjacency[offset] >= 0);
+          ASSERT_GE(adjacency[offset], 0);
           offset++;
-          assert(offset >= 0);
+          ASSERT_GE(offset, 0);
         }
     
       } // end of data structure creation
@@ -1090,7 +1093,7 @@ namespace graphlab {
       // Resize the partition
       ret_part.resize(num_vertices());
       // process the final results
-      assert(res != NULL);
+      ASSERT_NE(res, NULL);
       for(vertex_id_t v = 0; v < num_vertices(); ++v) {
         ret_part[v] = res[v];
       }    
@@ -1103,8 +1106,8 @@ namespace graphlab {
      * Equivalent to calling partition() with the 
      * partition_method::PARTITION_EDGE_NUM paramter
      *
-     * \param numparts The number of parts to partition into
-     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      *
      * The algorithm works by picking up a random vertex and performing a breadth
      * first search until the number of vertices touched is |V|/nparts.
@@ -1134,10 +1137,10 @@ namespace graphlab {
             queue.push_front(*unassigned.begin());
             visited.insert(*unassigned.begin());
           }
-          assert(!queue.empty());
+          ASSERT_FALSE(queue.empty());
           // Pop the first element off the queue 
           vertex_id_t v = queue.front(); queue.pop_front();
-          assert(partid < nparts);
+          ASSERT_LT(partid, nparts);
           // Add the element to the task
           vertex2part[v] = partid;
           ++curpartsize;
@@ -1196,9 +1199,9 @@ namespace graphlab {
     /**
      * builds a topological_sort of the graph returning it in topsort. 
      * 
-     * \param[out] Resultant topological sort of the graph vertices.
+     * \param[out] topsort Resultant topological sort of the graph vertices.
      *
-     * sortable will return false if graph is not acyclic.
+     * function will return false if graph is not acyclic.
      */
     bool topological_sort(std::vector<vertex_id_t>& topsort) const {
       topsort.clear();
@@ -1289,8 +1292,8 @@ namespace graphlab {
      * edge
      */
     inline bool edge_id_less(edge_id_t a, edge_id_t b) const {
-      assert(a < edges.size());
-      assert(b < edges.size());
+      //      ASSERT_LT(a, edges.size());
+      //      ASSERT_LT(b, edges.size());
       return edges[a] < edges[b];
     }
 
@@ -1326,18 +1329,19 @@ namespace graphlab {
     /**
      * This function tries to find the edge in the vector.  If it
      * fails it returns size_t(-1)
+     * TODO: switch to stl binary search
      */
     size_t binary_search(const std::vector<edge_id_t>& vec,
                          vertex_id_t source, vertex_id_t target) const {
       // Ensure that the graph is finalized before calling this function
       //      finalize();
-      assert(finalized);
+      ASSERT_TRUE(finalized);
       // Compare to the middle of the list
       size_t first = 0;
       size_t last = vec.size() - 1;
       while(first <= last) {
         size_t mid = (first+last)/2;
-        assert(mid < vec.size());
+        ASSERT_LT(mid, vec.size());
         vertex_id_t mid_source = edges[vec[mid]].source();
         vertex_id_t mid_target = edges[vec[mid]].target();
         // Edge found
@@ -1350,7 +1354,7 @@ namespace graphlab {
         // otherwise search further
         if(std::make_pair(source, target) <
            std::make_pair(mid_source, mid_target) ) {
-          assert(mid > 0);
+          ASSERT_GT(mid, 0);
           // Search left
           last = mid - 1;
         } else {

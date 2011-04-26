@@ -52,3 +52,4 @@ int main(int argc, char** argv) {
   std::cout << "b=" << opt.b << "\n";
   std::cout << "c=" << opt.c << "\n";
 }
+

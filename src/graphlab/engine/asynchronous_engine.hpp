@@ -15,7 +15,6 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/fake_shared_data.hpp>
 #include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
@@ -50,8 +49,6 @@ namespace graphlab {
     typedef typename iengine_base::imonitor_type imonitor_type;
     typedef typename iengine_base::termination_function_type termination_function_type;
     typedef typename iengine_base::iscope_type iscope_type;
-    typedef typename iengine_base::ishared_data_type ishared_data_type;
-    typedef typename iengine_base::ishared_data_manager_type ishared_data_manager_type;
     
     typedef typename iengine_base::sync_function_type sync_function_type;
     typedef typename iengine_base::merge_function_type merge_function_type;
@@ -83,9 +80,6 @@ namespace graphlab {
           // If this was nothing to execute then fail
           if (!executed_task) break;
         }   
-        // // Do any remaining syncs if any
-        if(engine->shared_data != NULL)
-          engine->shared_data->signal_all();
         logger(LOG_INFO, "Worker %d finished.\n", workerid);
       }      
     }; // end of task worker
@@ -127,19 +121,6 @@ namespace graphlab {
     /** The monitor which tracks and records engine events */
     imonitor_type* monitor;
 
-    /** The share data manager */
-    ishared_data_manager_type* shared_data;
-
-    /// for shared data table compatibility 
-    fake_shared_data<asynchronous_engine<Graph,Scheduler,ScopeFactory> > 
-    f_shared_data;
-    
-    bool use_fake_shared_data;    
-    
-    inline ishared_data<Graph>* get_shared_data() {
-      if (use_fake_shared_data) return &f_shared_data;
-      else return shared_data;
-    }
     
     /** The time in millis that the engine was started */
     size_t start_time_millis;
@@ -209,7 +190,9 @@ namespace graphlab {
     mutex sync_task_queue_lock;
     /// The priority of the head of the queue
     size_t sync_task_queue_next_update;
-    
+
+    /// Metrics logging
+    metrics engine_metrics, scheduler_metrics;
   public:
 
     /**
@@ -231,9 +214,6 @@ namespace graphlab {
       use_sched_yield(true),
       update_counts(std::max(ncpus, size_t(1)), 0),
       monitor(NULL),
-      shared_data(NULL),
-      f_shared_data(this),
-      use_fake_shared_data(false),
       start_time_millis(lowres_time_millis()),
       timeout_millis(0),
       last_check_millis(0),
@@ -244,7 +224,8 @@ namespace graphlab {
       default_scope_range(scope_range::EDGE_CONSISTENCY),
       sync_barrier(exec_type == THREADED ? ncpus : 1),
       sync_accumulators(exec_type == THREADED ? ncpus : 1),
-      threads_entering_sync(0){ }
+      threads_entering_sync(0),
+      engine_metrics("engine"){ }
 
     //    ~asynchronous_engine() { }
 
@@ -260,14 +241,6 @@ namespace graphlab {
       use_cpu_affinity = value;
     }
 
-
-    //! Set the shared data manager for this engine. \todo DEPRECATED
-    void set_shared_data_manager(ishared_data_manager_type* _shared_data) {
-      logger(LOG_WARNING, 
-             "The use of the shared_data table has been deprecated. "
-             "Please use glshared");
-      shared_data = _shared_data;
-    } // end of set shared data manager
 
 
     /**
@@ -291,7 +264,6 @@ namespace graphlab {
 
       scope_manager->set_default_scope(default_scope_range);
       
-      if (shared_data) shared_data->set_scope_factory(scope_manager);
       // std::cout << "Scheduler Options:\n";
       // std::cout << sched_options();
       
@@ -329,21 +301,20 @@ namespace graphlab {
       if(exec_type == THREADED) run_threaded(scheduler, scope_manager);
       else run_simulated(scheduler, scope_manager);
 
-      
-      //shared_data->set_scope_factory(NULL);
+      scheduler_metrics = scheduler->get_metrics();
       release_scheduler_and_scope_manager();
       
 
       
-      metrics& engine_metrics = metrics::create_metrics_instance("engine", true);
+      
 
       // Metrics: update counts
       for(size_t i = 0; i < update_counts.size(); ++i) {
         engine_metrics.add("updatecount", 
                            update_counts[i], INTEGER);
-        engine_metrics.add_vector("updatecount_vector", update_counts[i]);
+        engine_metrics.add_vector_entry("updatecount_vector", i, update_counts[i]);
       }
-      engine_metrics.set("runtime", 
+      engine_metrics.add("runtime",
                          (lowres_time_millis()-start_time_millis)*0.001, TIME);
       engine_metrics.set("termination_reason", 
                          exec_status_as_string(termination_reason));
@@ -367,7 +338,23 @@ namespace graphlab {
       active = false;
     }
     
+    metrics get_metrics() {
+      return engine_metrics;
+    }
 
+
+    void reset_metrics() {
+      engine_metrics.clear();
+      // do a deeper clear of the scheduler metrics
+      // otherwise dump metrics still output a metrics block
+      scheduler_metrics = metrics();
+    }
+
+    void report_metrics(imetrics_reporter &reporter) {
+      engine_metrics.report(reporter);
+      scheduler_metrics.report(reporter);
+    }
+    
     /**
      * Return the reason why the engine last terminated
      */
@@ -437,8 +424,42 @@ namespace graphlab {
     }
     
 
-  
-    void set_sync(glshared_base& shared,
+    /**
+     * \brief Registers a sync with the engine.
+     *
+     * Registers a sync with the engine.
+     * The sync will be performed approximately every "interval" updates,
+     * and will perform a reduction over all vertices from rangelow
+     * to rangehigh inclusive.
+     * The merge function may be NULL, in which it will not be used.
+     * However, it is highly recommended to provide a merge function since
+     * this allow the sync operation to be parallelized.
+     *
+      * The sync operation is guaranteed to be strictly sequentially consistent
+     * with all other execution.
+     *
+     * \param shared The shared variable to synchronize
+     * \param sync The reduction function
+     * \param apply The final apply function which writes to the shared value
+     * \param zero The initial zero value passed to the reduction
+     * \param sync_interval Frequency at which the sync is initiated.
+     *                      Corresponds approximately to the number of
+     *                     update function calls before the sync is reevaluated.
+     *                     If 0, the sync will only be evaluated once
+     *                     at engine start,  and will never be evaluated again.
+     *                     Defaults to 0.
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
+     * \param rangelow he lower range of vertex id to start syncing.
+     *                 The range is inclusive. i.e. vertex with id 'rangelow'
+     *                 and vertex with id 'rangehigh' will be included.
+     *                 Defaults to 0.
+     * \param rangehigh The upper range of vertex id to stop syncing.
+     *                  The range is inclusive. i.e. vertex with id 'rangelow'
+     *                  and vertex with id 'rangehigh' will be included.
+     *                  Defaults to infinity.
+     */
+     void set_sync(glshared_base& shared,
                   sync_function_type sync,
                   glshared_base::apply_function_type apply,
                   const any& zero,
@@ -446,7 +467,6 @@ namespace graphlab {
                   merge_function_type merge = NULL,
                   size_t rangelow = 0,
                   size_t rangehigh = -1) {
-      use_fake_shared_data = true;
       sync_task st;
       st.sync_fun = sync;
       st.merge_fun = merge;
@@ -468,7 +488,8 @@ namespace graphlab {
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
-     * and that the engine is not currently running
+     * and that the engine is not currently running. 
+     * \todo This sync currently does not evaluate in parallel. 
      */
     void sync_now(glshared_base& shared) {
       ASSERT_FALSE(active);
@@ -481,6 +502,13 @@ namespace graphlab {
       release_scheduler_and_scope_manager();
     }
     
+
+    /**
+     * Do not use. 
+     *  When called during engine execution, will synchronize
+     * the provided shared variable as soon as possible.
+     * \todo Provide access to this from the update functions
+     */
     void sync_soon(glshared_base& shared) {
       ASSERT_TRUE(active);
       
@@ -493,6 +521,12 @@ namespace graphlab {
       sync_task_queue_lock.unlock();
     }
     
+    /**
+     * Do not use.
+     * when called during engine execution, will synchronize
+     * all shared variable as soon as possible.
+     * \todo Provide access to this from the update functions
+     */
     void sync_all_soon() {
       ASSERT_TRUE(active);
       sync_task_queue_lock.lock();
@@ -554,8 +588,6 @@ namespace graphlab {
         // Execute the update as that cpu
         active = run_once(cpuid, scheduler, scope_manager);
       }
-      // Do any remaining syncs if any
-      if(shared_data != NULL) shared_data->signal_all();
     } // end of run simulated
 
     
@@ -597,7 +629,7 @@ namespace graphlab {
        * If a shared data manager is not provided then this will fail.
        */
       for (size_t i = 0; i < term_functions.size(); ++i) {
-        if (term_functions[i](get_shared_data())) {
+        if (term_functions[i]()) {
           termination_reason = EXEC_TERM_FUNCTION;
           return true;
         }
@@ -623,9 +655,6 @@ namespace graphlab {
          */
         if (last_check_millis < lowres_time_millis() || terminate_all_syncs) {
           last_check_millis = lowres_time_millis();
-          // If a data manager is available try and run any pending
-          // synchronizations.
-          if(shared_data != NULL) shared_data->signal_all();
           // Check all termination conditions
           if(satisfies_termination_condition()) {
             terminate_all_syncs_mutex.lock();
@@ -674,11 +703,11 @@ namespace graphlab {
           iscope_type* scope = scope_manager->get_scope(cpuid, vertex);
           assert(scope != NULL);                    
           // get the callback for this cpu
-          typename Scheduler::callback_type& scallback =
-            scheduler->get_callback(cpuid);
+          typename Scheduler::callback_type& scallback = 
+                                      scheduler->get_callback(cpuid);
           // execute the task
           
-          task.function()(*scope, scallback, get_shared_data());
+          task.function()(*scope, scallback);
           // Commit any changes to the scope
           scope->commit();
           // Release the scope
@@ -786,7 +815,7 @@ namespace graphlab {
         
         // # get the range of vertices
         size_t vmin = sync.rangelow;
-        size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+        size_t vmax = std::min(sync.rangehigh, graph.num_vertices());
         // slice the range into ncpus
         size_t nverts = vmax - vmin;
         // get my true range

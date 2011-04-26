@@ -10,19 +10,23 @@
 
 namespace graphlab {
   
-  /**  \ingroup util_internal
+  /**  \ingroup util
    *  Implements an atomic dense bitset
    */
   class dense_bitset {
   public:
+
+    /// Constructs a bitset of 0 length
     dense_bitset() : array(NULL), len(0), arrlen(0) {
     }
 
+    /// Constructs a bitset with 'size' bits. All bits will be cleared.
     dense_bitset(size_t size) : array(NULL), len(size) {
       resize(size);
       clear();
     }
 
+    /// Make a copy of the bitset db
     dense_bitset(const dense_bitset &db) {
       array = NULL;
       len = 0;
@@ -30,8 +34,10 @@ namespace graphlab {
       *this = db;
     }
     
+    /// destructor
     ~dense_bitset() {free(array);}
   
+    /// Make a copy of the bitset db
     inline dense_bitset& operator=(const dense_bitset& db) {
       resize(db.size());
       len = db.len;
@@ -40,6 +46,10 @@ namespace graphlab {
       return *this;
     }
   
+    /** Resizes the current bitset to hold n bits.
+    Existing bits will not be changed. If the array size is increased,
+    the value of the new bits are undefined
+    */
     inline void resize(size_t n) {
       len = n;
       //need len bits
@@ -47,24 +57,29 @@ namespace graphlab {
       array = (size_t*)realloc(array, sizeof(size_t) * arrlen);
     }
   
+    /// Sets all bits to 0
     inline void clear() {
       for (size_t i = 0;i < arrlen; ++i) array[i] = 0;
     }
-
+    
+    /// Sets all bits to 1
     inline void fill() {
       for (size_t i = 0;i < arrlen; ++i) array[i] = -1;
     }
 
+    /// Prefetches the word containing the bit b
     inline void prefetch(uint32_t b) const{
       __builtin_prefetch(&(array[b / (8 * sizeof(size_t))]));
     }
+    
+    /// Returns the value of the bit b
     inline bool get(uint32_t b) const{
       uint32_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos] & (size_t(1) << size_t(bitpos));
     }
 
-    //! Set the bit returning the old value
+    //! Atomically sets the bit at position b to true returning the old value
     inline bool set_bit(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -73,7 +88,10 @@ namespace graphlab {
       return __sync_fetch_and_or(array + arrpos, mask) & mask;
     }
     
-    //! Set the bit returning the old value
+    /** Set the bit at position b to true returning the old value.
+        Unlike set_bit(), this uses a non-atomic set which is faster,
+        but is unsafe if accessed by multiple threads.
+    */
     inline bool set_bit_unsync(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -84,20 +102,23 @@ namespace graphlab {
       return ret;
     }
 
-    //! Set the state of the bit returning the old value
+    //! Atomically sets the state of the bit to the new value returning the old value
     inline bool set(uint32_t b, bool value) {
       if (value) return set_bit(b);
       else return clear_bit(b);
     }
 
-    //! Set the state of the bit returning the old value
+    /** Set the state of the bit returning the old value.
+      This version uses a non-atomic set which is faster, but
+      is unsafe if accessed by multiple threads.
+    */
     inline bool set_unsync(uint32_t b, bool value) {
       if (value) return set_bit_unsync(b);
       else return clear_bit_unsync(b);
     }
 
 
-    //! Clear the bit returning the old value
+    //! Atomically set the bit at b to false returning the old value
     inline bool clear_bit(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -107,6 +128,10 @@ namespace graphlab {
       return __sync_fetch_and_and(array + arrpos, clear_mask) & test_mask;
     }
 
+    /** Clears the state of the bit returning the old value.
+      This version uses a non-atomic set which is faster, but
+      is unsafe if accessed by multiple threads.
+    */
     inline bool clear_bit_unsync(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -118,6 +143,10 @@ namespace graphlab {
       return ret;
     }
 
+    /** Returns true with b containing the position of the 
+        first bit set to true.
+        If such a bit does not exist, this function returns false.
+    */
     inline bool first_bit(uint32_t &b) {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
@@ -128,6 +157,10 @@ namespace graphlab {
       return false;
     }
 
+    /** Where b is a bit index, this function will return in b,
+        the position of the next bit set to true, and return true.
+        If all bits after b are false, this function returns false.
+    */
     inline bool next_bit(uint32_t &b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -150,15 +183,18 @@ namespace graphlab {
       return false;
     }
 
+    ///  Returns the number of bits in this bitset
     inline size_t size() const {
       return len;
     }
     
+    /// Serializes this bitset to an archive
     inline void save(oarchive& oarc) const {
       oarc <<len << arrlen;
       if (arrlen > 0) serialize(oarc, array, arrlen*sizeof(size_t));
     }
 
+    /// Deserializes this bitset from an archive
     inline void load(iarchive& iarc) {
       if (array != NULL) free(array);
       array = NULL;
@@ -217,45 +253,54 @@ namespace graphlab {
 
   
   
-  
+  /**
+  Like bitset, but of a fixed length as defined by the template parameter
+  */
   template <int len>
   class fixed_dense_bitset {
   public:
+    /// Constructs a bitset of 0 length
     fixed_dense_bitset() {
       clear();
     }
     
+   /// Make a copy of the bitset db
     fixed_dense_bitset(const fixed_dense_bitset &db) {
       *this = db;
     }
     
+    /// destructor
     ~fixed_dense_bitset() {}
   
+    /// Make a copy of the bitset db
     inline fixed_dense_bitset& operator=(const fixed_dense_bitset& db) {
       memcpy(array, db.array, sizeof(size_t) * arrlen);
       return *this;
     }
   
-  
+    /// Sets all bits to 0
     inline void clear() {
       for (size_t i = 0;i < arrlen; ++i) array[i] = 0;
     }
-
+    
+    /// Sets all bits to 1
     inline void fill() {
       for (size_t i = 0;i < arrlen; ++i) array[i] = -1;
     }
 
+    /// Prefetches the word containing the bit b
     inline void prefetch(uint32_t b) const{
       __builtin_prefetch(&(array[b / (8 * sizeof(size_t))]));
     }
     
+    /// Returns the value of the bit b
     inline bool get(uint32_t b) const{
       uint32_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos] & (size_t(1) << size_t(bitpos));
     }
 
-    //! Set the bit returning the old value
+    //! Atomically sets the bit at b to true returning the old value
     inline bool set_bit(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -264,7 +309,10 @@ namespace graphlab {
       return __sync_fetch_and_or(array + arrpos, mask) & mask;
     }
     
-    //! Set the bit returning the old value
+    /** Set the bit at position b to true returning the old value.
+        Unlike set_bit(), this uses a non-atomic set which is faster,
+        but is unsafe if accessed by multiple threads.
+    */
     inline bool set_bit_unsync(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -275,20 +323,26 @@ namespace graphlab {
       return ret;
     }
 
-    //! Set the state of the bit returning the old value
+    /** Set the state of the bit returning the old value.
+      This version uses a non-atomic set which is faster, but
+      is unsafe if accessed by multiple threads.
+    */
     inline bool set(uint32_t b, bool value) {
       if (value) return set_bit(b);
       else return clear_bit(b);
     }
 
-    //! Set the state of the bit returning the old value
+    /** Set the state of the bit returning the old value.
+      This version uses a non-atomic set which is faster, but
+      is unsafe if accessed by multiple threads.
+    */
     inline bool set_unsync(uint32_t b, bool value) {
       if (value) return set_bit_unsync(b);
       else return clear_bit_unsync(b);
     }
 
 
-    //! Clear the bit returning the old value
+    //! Atomically set the bit at b to false returning the old value
     inline bool clear_bit(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -298,6 +352,10 @@ namespace graphlab {
       return __sync_fetch_and_and(array + arrpos, clear_mask) & test_mask;
     }
 
+    /** Clears the state of the bit returning the old value.
+      This version uses a non-atomic set which is faster, but
+      is unsafe if accessed by multiple threads.
+    */
     inline bool clear_bit_unsync(uint32_t b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -309,6 +367,10 @@ namespace graphlab {
       return ret;
     }
 
+    /** Returns true with b containing the position of the 
+        first bit set to true.
+        If such a bit does not exist, this function returns false.
+    */
     inline bool first_bit(uint32_t &b) {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
@@ -319,6 +381,10 @@ namespace graphlab {
       return false;
     }
 
+    /** Where b is a bit index, this function will return in b,
+        the position of the next bit set to true, and return true.
+        If all bits after b are false, this function returns false.
+    */
     inline bool next_bit(uint32_t &b) {
       // use CAS to set the bit
       uint32_t arrpos, bitpos;
@@ -340,16 +406,19 @@ namespace graphlab {
       }
       return false;
     }
-
+    
+    ///  Returns the number of bits in this bitset
     inline size_t size() const {
       return len;
     }
     
+    /// Serializes this bitset to an archive
     inline void save(oarchive& oarc) const {
       oarc <<len << arrlen;
       if (arrlen > 0) serialize(oarc, array, arrlen*sizeof(size_t));
     }
 
+    /// Deserializes this bitset from an archive
     inline void load(iarchive& iarc) {
       if (array != NULL) free(array);
       array = NULL;

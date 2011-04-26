@@ -15,7 +15,6 @@ ADD_CXXTEST(circqueuetest.cxx)
 #ADD_CXXTEST(basicgraphlabintegrationtest.cxx)
 ADD_CXXTEST(sampletreetest.cxx)
 # ADD_CXXTEST(set_scheduler_test.cxx)
-ADD_CXXTEST(shared_data_test.cxx)
 ADD_CXXTEST(tlstest.cxx)
 ADD_CXXTEST(factor_tests.cxx)
 # ADD_CXXTEST(fastmultinomialtest.cxx)
@@ -39,7 +38,6 @@ add_executable(coretest coretest.cpp)
 #target_link_libraries(itppserialize  itpp)
 
 
-add_executable(partransform partransform.cpp)
 
 add_executable(clopts test_command_line_options.cpp)
 
@@ -100,6 +98,6 @@ add_executable(openmp_test openmp_test.cpp)
 
 add_dist2_executable(mpi_tests mpi_tests.cpp)
 add_executable(numa_perf numa_perf.cpp)
-
+#  add_graphlab_executable(factor_tests2 factor_tests2.cpp)
 ADD_CXXTEST(test_small_set.cxx)
 ADD_CXXTEST(test_small_map.cxx)

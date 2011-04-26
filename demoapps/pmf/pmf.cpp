@@ -79,7 +79,6 @@ gl_types::iengine * engine;
 graph_type* g;
 graph_type validation_graph;
 graph_type test_graph;
-gl_types::thread_shared_data sdm;
 
 #ifndef _min
 #define _min(a,b) (a>b)?b:a
@@ -324,7 +323,7 @@ void sample_T(){
 }
 
 // update function for time nodes
-void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler, gl_types::ishared_data* shared_data) {
+void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler) {
 
   assert(tensor);
 
@@ -433,8 +432,7 @@ int count_edges(edge_list es){
  * UPDATE FUNCTION
  */
 void user_movie_nodes_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler,
-                         gl_types::ishared_data* shared_data) {
+			 gl_types::icallback &scheduler) {
     
 
   //bool debug = false;

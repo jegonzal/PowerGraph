@@ -5,9 +5,9 @@
 #define GRAPHLAB_PRIORITY_SCHEDULER_HPP
 
 #include <cmath>
-#include <cassert>
 #include <queue>
 
+#include <graphlab/logger/assertions.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/util/mutable_queue.hpp>
@@ -97,7 +97,7 @@ namespace graphlab {
         // with that vertex
         double priority = 0; 
         bool success = task_set.pop(vertex, ret_task, priority);
-        assert(success); 
+        ASSERT_TRUE(success); 
 
         // Update the priority queue with the new value for the vertex
         update_task_type new_top_task;

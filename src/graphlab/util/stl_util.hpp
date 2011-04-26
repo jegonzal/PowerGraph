@@ -125,7 +125,6 @@ namespace graphlab {
   }
   
   //! Writes a human representation of the set to the supplied stream.
-  //! \relates set
   template <typename T>
   std::ostream& operator<<(std::ostream& out, const std::set<T>& s) {
     return print_range(out, s, '{', ' ', '}');
@@ -336,7 +335,6 @@ namespace graphlab {
   }
   
   //! Creates an identity map (a map from elements to themselves)
-  //! \relates map
   template <typename Key>
   std::map<Key, Key> make_identity_map(const std::set<Key>& keys) {
     std::map<Key, Key> m;
@@ -346,7 +344,6 @@ namespace graphlab {
   }
 
   //! Writes a map to the supplied stream.
-  //! \relates map
   template <typename Key, typename T>
   std::ostream& operator<<(std::ostream& out, const std::map<Key, T>& m) {
     out << "{";
@@ -359,7 +356,9 @@ namespace graphlab {
     return out;
   }
 
-
+  /** Removes white space (space and tabs) from the beginning and end of str,
+      returning the resultant string
+  */
   inline std::string trim(const std::string& str) {
     std::string::size_type pos1 = str.find_first_not_of(" \t");
     std::string::size_type pos2 = str.find_last_not_of(" \t");
@@ -367,6 +366,9 @@ namespace graphlab {
                       pos2 == std::string::npos ? str.size()-1 : pos2-pos1+1);
   }
 
+  /**
+  * Convenience function for using std streams to convert anything to a string
+  */
   template<typename T>
   std::string tostr(const T& t) {
     std::stringstream strm;
@@ -374,6 +376,9 @@ namespace graphlab {
     return strm.str();
   }
 
+  /**
+  * Convenience function for using std streams to convert a string to anything
+  */
   template<typename T>
   T fromstr(const std::string& str) {
     std::stringstream strm(str);
@@ -383,7 +388,10 @@ namespace graphlab {
     return elem;
   }
 
-  
+  /**
+  Returns a string representation of the number,
+  padded to 'npad' characters using the pad_value character
+  */
   inline std::string pad_number(const size_t number,
                                 const size_t npad,
                                 const char pad_value = '0') {
@@ -403,7 +411,11 @@ namespace graphlab {
   // } // end of change_suffix
 
 
-
+  /**
+  Using splitchars as delimiters, splits the string into a vector of strings.
+  if auto_trim is true, trim() is called on all the extracted strings
+  before returning.
+  */
   inline std::vector<std::string> strsplit(const std::string& str, 
                                            const std::string& splitchars,
                                            const bool auto_trim = false) {

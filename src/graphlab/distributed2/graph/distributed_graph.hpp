@@ -108,7 +108,8 @@ class distributed_graph {
                               rmi(dc, this),
                               globalvid2owner(dc, 65536),
                               pending_async_updates(true, 0),
-                              pending_push_updates(true, 0){
+                              pending_push_updates(true, 0),
+                              graph_metrics("distributed_graph"){
     cur_proc_vector.push_back(rmi.procid());
     
     // read the atom index.
@@ -1144,7 +1145,8 @@ class distributed_graph {
     boost::function<void (void)> callback;
   };
   std::vector<async_scope_callback> scope_callbacks;
-  
+
+  metrics graph_metrics;
   /**
    * Returns true if the global vid is in the local fragment
    * This is not synchronized. Caller must lock if there is a risk
@@ -1542,13 +1544,7 @@ class distributed_graph {
         push_all_owned_edges_to_replicas();
         rmi.dc().full_barrier();
         logger(LOG_INFO, "edges synchronized.");
-/*        rmi.dc().fill_metrics();
-        if (rmi.dc().procid() == 0) {
-          basic_reporter reporter;
-          metrics::report_all(reporter);
-          file_reporter freporter("graphlab_metrics.txt");
-           metrics::report_all(freporter);
-        }*/
+
         logger(LOG_INFO, "Synchronization complete.");
         rmi.dc().barrier();
         logger(LOG_INFO, "Performing data verification.");
@@ -1694,19 +1690,34 @@ class distributed_graph {
     rmi.gather(procghosts, 0);
     
     if (rmi.procid() == 0) {
-      metrics& engine_metrics = metrics::create_metrics_instance("distributed_graph", true);
-      engine_metrics.set("num_vertices", num_vertices(), INTEGER);
-      engine_metrics.set("num_edges", num_edges(), INTEGER);
-      engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
-      engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
+      graph_metrics.set("num_vertices", num_vertices(), INTEGER);
+      graph_metrics.set("num_edges", num_edges(), INTEGER);
+      graph_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
+      graph_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
       
      for(int i=0; i<rmi.numprocs(); i++) {
-        engine_metrics.add_vector("local_part_size", procpartitionsize[i]);
-        engine_metrics.add_vector("ghosts_size", procghosts[i]);
+        graph_metrics.set_vector_entry("local_part_size", i, procpartitionsize[i]);
+        graph_metrics.set_vector_entry("ghosts_size", i, procghosts[i]);
         
      }
     } 
   }
+
+  metrics get_metrics() {
+      return graph_metrics;
+    }
+
+
+  void reset_metrics() {
+    graph_metrics.clear();
+  }
+
+  void report_metrics(imetrics_reporter &reporter) {
+    graph_metrics.report(reporter);
+  }
+
+
+  
 };
 
 

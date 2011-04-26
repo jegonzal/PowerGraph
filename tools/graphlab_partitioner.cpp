@@ -48,7 +48,6 @@ typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
 typedef distributed_chromatic_engine< graph_type > engine_type;
 typedef engine_type::iscope_type iscope_type;
 typedef engine_type::icallback_type icallback_type;
-typedef ishared_data<graph_type> ishared_data_type;
 typedef engine_type::icallback_type icallback_type;
 typedef engine_type::update_task_type update_task_type;
 
@@ -308,8 +307,7 @@ void statistics_merge_fun(any& any_dest,  const any& any_src) {
 
 
 void partition_update_function(iscope_type& scope,
-                               icallback_type& callback,
-                               ishared_data_type* unused) {
+                               icallback_type& callback) {
   // Base case (NO NEIGHBORS) =============================================
   if(scope.in_edge_ids().size() == 0 && 
      scope.out_edge_ids().size() == 0) {
@@ -760,7 +758,8 @@ int main(int argc, char** argv) {
   
   if(dc.procid() == ROOT_NODE) {
     basic_reporter reporter;
-    metrics::report_all(reporter);
+    dc.report_metrics(reporter);
+    graph.report_metrics(reporter);
   } 
   
   logstream(LOG_INFO) << "Finished " << dc.procid() << std::endl;

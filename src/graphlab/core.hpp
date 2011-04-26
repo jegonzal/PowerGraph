@@ -14,6 +14,7 @@
 
 
 #include <graphlab/metrics/metrics.hpp>
+#include <graphlab/metrics/reporters/null_reporter.hpp>
 #include <graphlab/metrics/reporters/basic_reporter.hpp>
 #include <graphlab/metrics/reporters/file_reporter.hpp>
 #include <graphlab/metrics/reporters/html_reporter.hpp>
@@ -73,16 +74,24 @@ cd     The core contains the
     core() : 
       mengine(NULL),
       engine_has_been_modified(false), 
-      shared_data_used(false) { }
+      coremetrics("core"), reporter(new null_reporter) { }
+  private:
+    //! Core is not copyable
+    core(const core& other);
+    //! Core is not copyable
+    core& operator=(const core& other);
+
+  public:
 
 
     ~core() { 
-      destroy_engine(); 
       if (meopts.get_metrics_type() != "none") {        
         // Write options to metrics
         fill_metrics();
         report_metrics();
       }
+      destroy_engine(); 
+      delete reporter;
     } 
        
     /// \brief Get a modifiable reference to the graph associated with this core
@@ -101,7 +110,7 @@ cd     The core contains the
     void set_scheduler_type(const std::string& scheduler_type) {
       check_engine_modification();
       bool success = meopts.set_scheduler_type(scheduler_type);
-      assert(success);
+      ASSERT_TRUE(success);
       destroy_engine();
     }
 
@@ -123,7 +132,7 @@ cd     The core contains the
     void set_scope_type(const std::string& scope_type) {
       check_engine_modification();
       bool success = meopts.set_scope_type(scope_type);
-      assert(success);
+      ASSERT_TRUE(success);
       destroy_engine();
     }
 
@@ -143,20 +152,31 @@ cd     The core contains the
     void set_engine_type(const std::string& engine_type) {
       check_engine_modification();
       bool success = meopts.set_engine_type(engine_type);
-      assert(success);
+      ASSERT_TRUE(success);
       destroy_engine();
     }
     
     /**
      * \brief Sets the output format of any recorded metrics
-     *
+     *  \li \b "none" No reporting
      *  \li \b "basic" Outputs to screen
      *  \li \b "file" Outputs to a text file graphlab_metrics.txt
      *  \li \b "html" Outputs to a html file graphlab_metrics.html
      */
     void set_metrics_type(const std::string& metrics_type) {
-      bool success = meopts.set_metrics_type(metrics_type);
-      assert(success);
+      bool metrics_set_success = meopts.set_metrics_type(metrics_type);
+      ASSERT_TRUE(metrics_set_success);
+      
+      delete reporter;
+      if (meopts.get_metrics_type() == "file") {
+        reporter = new file_reporter("graphlab_metrics.txt");
+      } else if (meopts.get_metrics_type() == "html") {
+        reporter = new  html_reporter("graphlab_metrics.html");
+      } else if (meopts.get_metrics_type() == "basic") {
+        reporter = new basic_reporter;
+      } else {
+        reporter = new null_reporter;
+      }
     }
 
     /**
@@ -164,7 +184,6 @@ cd     The core contains the
     */
     void reset() {
       engine_has_been_modified = false;
-      shared_data_used = false;
       destroy_engine();
     }
     
@@ -187,36 +206,12 @@ cd     The core contains the
      * created.
      */
     typename types::iengine& engine() { 
-      bool success = auto_build_engine();
-      assert(success);
+      bool engine_build_success = auto_build_engine();
+      ASSERT_TRUE(engine_build_success);
       return *mengine; 
     }
 
 
-
-    /**
-     * \deprecated {Do not use. Use \ref glshared }
-     * \brief Get a reference to the shared data manager associated with this core.
-     */
-    typename types::ishared_data_manager& shared_data() {
-      if (shared_data_used == false) {
-        if (mengine != NULL) {
-          mengine->set_shared_data_manager(&mshared_data);
-        }
-        shared_data_used = true;
-      }
-      return mshared_data;
-    }
-
-    
-    /**
-     * \deprecated {Do not use. Use \ref glshared }
-     * \brief Get a const reference to the shared data associated with this
-     * core.
-     */
-    const typename types::ishared_data_manager& shared_data() const {
-      return mshared_data;
-    }
 
 
     /**
@@ -225,7 +220,7 @@ cd     The core contains the
      */
     bool rebuild_engine() {
       destroy_engine();
-      assert(mengine == NULL);
+      ASSERT_EQ(mengine, NULL);
       return auto_build_engine();
     }
 
@@ -235,6 +230,21 @@ cd     The core contains the
     void set_engine_options(const engine_options& opts) {
       check_engine_modification();
       meopts = opts;
+      
+      delete reporter;
+      if (meopts.get_metrics_type() == "file") {
+        reporter = new file_reporter("graphlab_metrics.txt");
+      } else if (meopts.get_metrics_type() == "html") {
+        reporter = new  html_reporter("graphlab_metrics.html");
+      } else if (meopts.get_metrics_type() == "basic") {
+        reporter = new basic_reporter;
+      } else {
+        reporter = new null_reporter;
+      }
+    }
+
+    imetrics_reporter& get_reporter() {
+      return *reporter;
     }
 
     /**
@@ -267,7 +277,7 @@ cd     The core contains the
       check_engine_modification();
       command_line_options clopts;
       bool success = clopts.parse(argc, argv);
-      assert(success);
+      ASSERT_TRUE(success);
       return set_engine_options(clopts);
     }
 
@@ -278,8 +288,8 @@ cd     The core contains the
      */
     double start() {
       bool success = auto_build_engine();
-      assert(success);
-      assert(mengine != NULL);
+      ASSERT_TRUE(success);
+      ASSERT_NE(mengine, NULL);
       // merge in options from command line and other manually set options
       mengine->set_scheduler_options( meopts.get_scheduler_options() );
       graphlab::timer ti;
@@ -337,11 +347,7 @@ cd     The core contains the
       else return mengine->last_update_count();
     }
     
-    /**
-     * TODO: DOCUMENT
-     */
     void fill_metrics() {
-      metrics& coremetrics = metrics::create_metrics_instance("core", true);
       coremetrics.set("ncpus", meopts.get_ncpus());
       coremetrics.set("engine", meopts.get_engine_type());
       coremetrics.set("scope", meopts.get_scope_type());
@@ -350,33 +356,33 @@ cd     The core contains the
       coremetrics.set("schedyield", meopts.get_sched_yield() ? "true" : "false");
       coremetrics.set("compile_flags", meopts.get_compile_flags());
     }
-    
+
+    void reset_metrics() {
+      coremetrics.clear();
+      engine().reset_metrics();
+    }
+      
     /**
        \brief Outputs the recorded metrics
     */
     void report_metrics() {
-      if (meopts.get_metrics_type() == "basic") { 
-        // Metrics dump: basic 
-        basic_reporter reporter;
-        metrics::report_all(reporter); 
-      } else if (meopts.get_metrics_type() == "file") { 
-        // Metrics dump: file
-        file_reporter freporter("graphlab_metrics.txt");
-        metrics::report_all(freporter);
-      } else if (meopts.get_metrics_type() == "html") {
-        html_reporter hreporter("graphlab_metrics.html");
-        metrics::report_all(hreporter);
-      }
+      coremetrics.report(get_reporter());
+      engine().report_metrics(get_reporter());
     }
     
     /**
      * \brief Registers a sync with the engine.
      *
      * Registers a sync with the engine.
-     * The sync will be performed every "interval" updates,
+     * The sync will be performed approximately every "interval" updates,
      * and will perform a reduction over all vertices from rangelow
      * to rangehigh inclusive.
      * The merge function may be NULL, in which it will not be used.
+     * However, it is highly recommended to provide a merge function since
+     * this allow the sync operation to be parallelized.
+     *
+     * The sync operation is guaranteed to be strictly sequentially consistent
+     * with all other execution.
      *
      * \param shared The shared variable to synchronize
      * \param sync The reduction function
@@ -431,7 +437,6 @@ cd     The core contains the
         // create the engine
         mengine = engine_factory::new_engine(meopts, mgraph);
         if(mengine == NULL) return false;
-        if (shared_data_used) mengine->set_shared_data_manager(&mshared_data);
       }
       // scheduler options is one parameter that is allowed
       // to change without rebuilding the engine
@@ -453,7 +458,7 @@ cd     The core contains the
     /** Save the core to a file */
     void save(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
-      assert(fout.good());
+      ASSERT_TRUE(fout.good());
       oarchive oarc(fout);
       oarc << *this;
       fout.close();
@@ -462,7 +467,6 @@ cd     The core contains the
     /** Save the core to an archive */
     void save(oarchive& arc) const {
       arc << mgraph
-          << mshared_data
           << meopts;
     } // end of save
 
@@ -470,7 +474,7 @@ cd     The core contains the
     /** Load the core from a file. */
     void load(const std::string& filename) {
       std::ifstream fin(filename.c_str());
-      assert(fin.good());
+      ASSERT_TRUE(fin.good());
       iarchive iarc(fin);
       iarc >> *this;
       fin.close();
@@ -480,7 +484,6 @@ cd     The core contains the
     /** Load the core from an archive. */
     void load(iarchive& arc) {
       arc >> mgraph
-          >> mshared_data
           >> meopts;
     } // end of load
 
@@ -493,15 +496,15 @@ cd     The core contains the
     
     // graph and data objects
     typename types::graph mgraph;
-    typename types::thread_shared_data mshared_data;    
     engine_options meopts;
     typename types::iengine *mengine;
     /** For error tracking. Once engine has been modified, any scheduler/
      * engine parameter modifications will reset the modifications
      */
     bool engine_has_been_modified;
-    bool shared_data_used;
-      
+    metrics coremetrics;
+
+    imetrics_reporter* reporter;
   };
 
 }

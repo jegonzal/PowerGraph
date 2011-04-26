@@ -12,10 +12,9 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
+#include <graphlab/metrics/metrics.hpp>
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/shared_data/ishared_data.hpp>
 #include <graphlab/shared_data/glshared.hpp>
-#include <graphlab/shared_data/ishared_data_manager.hpp>
 namespace graphlab {
   
   /**
@@ -67,7 +66,9 @@ namespace graphlab {
      While users are free to directly instantiate the engine of their
      choice we highly recommend the use of the \ref core data
      structure to manage the creation of engines. Alternatively, users
-     can use the \ref engine_factory static functions to create
+     can use the 
+     \ref gl_new_engine "graphlab::engine_factory::new_engine"
+     static functions to create
      engines directly from configuration strings.
   */
   template<typename Graph>
@@ -82,7 +83,7 @@ namespace graphlab {
 
     //! The type of update function
     typedef typename update_task_type::update_function_type 
-    update_function_type;
+                                               update_function_type;
 
     //! The type of scheduler
     typedef ischeduler<Graph> ischeduler_type;
@@ -92,12 +93,6 @@ namespace graphlab {
 
     //! The type of scope 
     typedef iscope<Graph> iscope_type;
-
-    //! The type of ishared_data
-    typedef ishared_data<Graph> ishared_data_type;
-
-    //! The type of shared data manager
-    typedef ishared_data_manager<Graph> ishared_data_manager_type;
 
     typedef void(*sync_function_type)(iscope_type& scope,
                                       any& accumulator);
@@ -115,9 +110,8 @@ namespace graphlab {
      * termination functions are executed frequently and cannot
      * directly contribut to the computation, they should return
      * quickly.
-     *
      */
-    typedef bool (*termination_function_type) (const ishared_data_type* manager);
+    typedef bool (*termination_function_type) ();
     
 
     //! Virtual destructor required for inheritance 
@@ -125,18 +119,6 @@ namespace graphlab {
 
     //! get the number of cpus
     virtual size_t get_ncpus() const = 0;
-
-
-    /**
-     * \brief Set the shared data manager
-     * \deprecated Use set_sync and glshared
-     *
-     * If a shared data is to be available to update functions called
-     * by this engine then it must be set here.  The shared data can
-     * be set to NULL in which case a null pointer will be passed to
-     * the update functions.
-     */
-    virtual void set_shared_data_manager(ishared_data_manager_type* manager) = 0;
 
 
     /**
@@ -289,11 +271,18 @@ namespace graphlab {
 
 
     /**
+     * \brief Registers a sync with the engine.
+     *
      * Registers a sync with the engine.
-     * The sync will be performed every "interval" updates,
+     * The sync will be performed approximately every "interval" updates,
      * and will perform a reduction over all vertices from rangelow
      * to rangehigh inclusive.
      * The merge function may be NULL, in which it will not be used.
+     * However, it is highly recommended to provide a merge function since
+     * this allow the sync operation to be parallelized.
+     *
+      * The sync operation is guaranteed to be strictly sequentially consistent
+     * with all other execution.
      *
      * \param shared The shared variable to synchronize
      * \param sync The reduction function
@@ -345,6 +334,36 @@ namespace graphlab {
       return "unknown";
     }
 
+    /**
+     * Return the metrics information logged by the engine.
+     * \see dump_metrics reset_metrics
+     */
+    virtual metrics get_metrics() {
+      return metrics();
+    }
+
+    /**
+     * Clears all logged metrics
+     * \see dump_metrics get_metrics
+     */
+    virtual void reset_metrics() { }
+    
+    /**
+     * Writes out the metrics information logged by the engine
+     * and all subordinate classes.
+     *
+     * Engine writers should note that for dump_metrics() to work,
+     * the engine only has to implement get_metrics()
+     * and reset_metrics(). Default behavior is to report the metrics
+     * returned by get_metrics() and call reset_metrics().
+     * This behavior may be overridden by implementing this function.
+     * 
+     * \see get_metrics reset_metrics
+     */
+    virtual void report_metrics(imetrics_reporter &reporter) {
+      get_metrics().report(reporter);
+    }
+    
   };
 
 }

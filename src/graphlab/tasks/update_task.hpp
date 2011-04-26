@@ -23,8 +23,7 @@ namespace graphlab {
 
     /// This is the standard vertex update function
     typedef void(*update_function_type)(iscope_type& scope,
-                                        callback_type& scheduler,
-                                        ishared_data_type* sdm);
+                                        callback_type& callback);
 
 
     struct  hash_functor {

@@ -193,6 +193,10 @@ namespace graphlab {
       return;
 #else
       ASSERT_FALSE(thread_started);
+      if (cpu_id  == size_t(-1)) {
+        launch(spawn_routine);
+        return;
+      }
       if (cpu_id >= cpu_count() && cpu_count() > 0) {
         // definitely invalid cpu_id
         std::cout << "Invalid cpu id passed on thread_ground.launch()" 
@@ -276,6 +280,10 @@ namespace graphlab {
 
   void thread_group::launch(const boost::function<void (void)> &spawn_function, 
                             size_t cpu_id) {
+    if (cpu_id == size_t(-1)) {
+      launch(spawn_function);
+      return;
+    }
     // Create a thread object
     thread local_thread(m_thread_counter++);
     mut.lock();
@@ -288,7 +296,7 @@ namespace graphlab {
     mut.lock();
     while(threads_running > 0) {
       // if no threads are joining. wait
-      if (joinqueue.empty()) cond.wait(mut);
+      while (joinqueue.empty()) cond.wait(mut);      
       // a thread is joining
       std::pair<pthread_t, const char*> joining_thread = joinqueue.front();
       joinqueue.pop();

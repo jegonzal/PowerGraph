@@ -11,7 +11,10 @@
 
 
 namespace boost {
-  
+  /**
+    \ingroup util
+    Converts a vector of any stream output-able type to a string
+  */
   template<typename T>
   std::string graphlab_vec_to_string(const std::vector<T>& vec) {
     std::stringstream strm;
@@ -23,15 +26,43 @@ namespace boost {
     strm << "}";
     return strm.str();
   }
-  
+  /**
+   \ingroup util
+   Provides lexical cast from vector<size_t> to string.
+   Converts a vector of 1,2,3 to the string "{1, 2, 3}"
+  */
   template<>
   std::string lexical_cast<std::string>(const std::vector<size_t>& vec);
+  
+  /**
+   \ingroup util
+   Provides lexical cast from vector<int> to string.
+   Converts a vector of 1,2,3 to the string "{1, 2, 3}"
+  */  
   template<>
   std::string lexical_cast< std::string>(const std::vector<int>& vec);
+  
+  /**
+   \ingroup util
+   Provides lexical cast from vector<double> to string.
+   Converts a vector of 1.1,2.2,3.3 to the string "{1.1, 2.2, 3.3}"
+  */
   template<>
   std::string lexical_cast< std::string >(const std::vector<double>& vec);
+  
+  /**
+   \ingroup util
+   Provides lexical cast from vector<float> to string.
+   Converts a vector of 1.1,2.2,3.3 to the string "{1.1, 2.2, 3.3}"
+  */
   template<>
   std::string lexical_cast< std::string>(const std::vector<float>& vec);
+  
+  /**
+   \ingroup util
+   Provides lexical cast from vector<string> to string.
+   Converts a vector of "hello", "world" to the string "{hello, world}"
+  */
   template<>
   std::string lexical_cast< std::string>(const std::vector<std::string>& vec);
 
@@ -40,6 +71,7 @@ namespace boost {
 
 namespace graphlab {
   /**
+  \ingroup util
   Because of the many engine options GraphLab has relatively
   sophisticated command line parsing tools. However we have found that
   many of our ML applications had poorly written command line parsing
@@ -173,7 +205,7 @@ namespace graphlab {
                     point to a memory block that will exist when parse
                     is invoked.
                     
-    \param desc Used to describe the option when --help 
+    \param description Used to describe the option when --help 
           is called or when print_description is invoked.
     */
     template<typename T>
@@ -209,7 +241,7 @@ namespace graphlab {
                          user does not provide this parameter on the
                          command line.
 
-    \param desc Used to describe the option when --help 
+    \param description Used to describe the option when --help 
           is called or when print_description is invoked.
     */
     template<typename T>

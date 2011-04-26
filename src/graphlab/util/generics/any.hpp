@@ -75,12 +75,89 @@ namespace graphlab {
 
   __any_registration_map_type& __get_registration_map();
 
-
+  /**
+   A generic "variant" object obtained from Boost::Any and modified
+   to be serializable. A variable of type "any" can store any datatype 
+   (even dynamically changeable at runtime), but the caveat is that you must
+   know the exact stored type to be able to extract the data safely.
+   
+   To serialize/deserialize the any, regular serialization procedures apply.
+   However, since a statically initialized type registration system is used to 
+   identify the type of the deserialized object, so the user must pay attention
+   to a couple of minor issues.
+   
+   On serialization: 
+   
+   \li \b a) If an any contains a serializable type, the any can be serialized.
+   \li \b b) If an any contains an unserializable type, the serialization will fail at runtime.
+   
+   On deserialization:
+   
+   \li \b c) An empty any can be constructed with no type information and it can be
+             deserialized from an archive. 
+   \li \b d) However, the deserialization will fail at runtime if the true type of the any
+             is never accessed / instantiated anywhere in the code.
+             
+   Condition \b d) is particular unusual so I will illustrate with an example.
+   
+   Given a simple user struct:
+   \code
+   struct UserStruct {
+     int i;
+     void save (graphlab::oarchive& oarc) const {
+       oarc << i;
+     }
+     void load (graphlab::iarchive& iarc) {
+       iarc << i;
+     }
+   }
+  \endcode
+  
+   If an any object contains the struct, it will be serializable.
+   
+   \code
+   UserStruct us;
+   us.i = 10;
+   any a = us;
+   // output file
+   std::ofstream fout("test.bin");
+   graphlab::oarchive oarc(fout);
+   oarc << a;    // write the any
+   \endcode
+   
+   To deserialize, I will open an input archive and stream into an any.
+   
+   \code
+   // open input 
+   std::ifstream fin("test.bin");
+   graphlab::iarchive iarc(fin);
+   // create an any and read it
+   any a;
+   iarc >> a; 
+   \endcode
+   
+   Now, unusually, the above code will fail, while the following code
+   will succeed
+   
+   \code
+   // open input 
+   std::ifstream fin("test.bin");
+   graphlab::iarchive iarc(fin);
+   // create an any and read it
+   any a;
+   iarc >> a; 
+   std::cout << a.as<UserStruct>().i;
+   \endcode
+   
+   The <tt> a.as<UserStruct>() </tt> forces the instantiation of static functions
+   which allow the any deserialization to identify the UserStruct type.
+  */
   class any {
   public: // structors
-
+    /// default constructor. Creates an empty any
     any() : content(NULL) { }
 
+    /// Creates an any which stores the value
     template<typename ValueType>
     any(const ValueType & value)
       : content(new holder<ValueType>(value)) {
@@ -97,15 +174,17 @@ namespace graphlab {
 
   public: // queries
 
+    /// Returns true if the object does not contain any stored data
     bool empty() const {
       return content == NULL;
     }
 
+    /// Returns the type information of the stored data.
     const std::type_info & type() const {
       return empty() ? typeid(void) : content->type();
     }
 
-    // serialization
+    /// loads the any from a file.
     void load(iarchive &arc) {
       iarchive_soft_fail isoftarc(arc);
       if(content != NULL) delete content;
@@ -115,6 +194,8 @@ namespace graphlab {
         content = __any_placeholder::base_load(isoftarc);
       }
     }
+    
+    /// Saves the any to a file. Caveats apply. See the main any docs.
     void save(oarchive &arc) const {
       oarchive_soft_fail osoftarc(arc);
       bool isempty = empty();
@@ -212,7 +293,7 @@ namespace graphlab {
   
 
   public:
-    // reading functions
+    /// Extracts a reference to the contents of the any as a type of ValueType
     template<typename ValueType>
     ValueType& as() {
       // force instantiation of the registration template (without running the constructor)
@@ -222,6 +303,7 @@ namespace graphlab {
       return static_cast<any::holder<ValueType> *>(content)->held;
     }
 
+    /// Extracts a constant reference to the contents of the any as a type of ValueType
     template<typename ValueType>
     inline const ValueType& as() const{
       // force instantiation of the registration template (without running the constructor)
@@ -231,7 +313,7 @@ namespace graphlab {
       return static_cast<any::holder<ValueType> *>(content)->held;
     }
 
-    // modifiers
+    /// Exchanges the contents of two any's
     any& swap(any & rhs) {
       std::swap(content, rhs.content);
       return *this;
@@ -298,3 +380,4 @@ namespace graphlab {
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #endif
+

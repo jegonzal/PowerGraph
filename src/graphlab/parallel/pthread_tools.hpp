@@ -26,35 +26,35 @@
 
 
 
-/**
- * \file pthread_tools.hpp A collection of utilities for threading
- */
 namespace graphlab {
 
   /**
-   * \class mutex 
-   * 
-   * Wrapper around pthread's mutex On single core systems mutex
-   * should be used.  On multicore systems, spinlock should be used.
+   * \ingroup util
+   *
+   * Simple wrapper around pthread's mutex.
    */
   class mutex {
   private:
     // mutable not actually needed
     mutable pthread_mutex_t m_mut;
   public:
+    /// constructs a mutex
     mutex() {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
+    /// Acquires a lock on the mutex
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
       if (error) std::cout << "mutex.lock() error: " << error << std::endl;
       ASSERT_TRUE(!error);
     }
+    /// Releases a lock on the mutex
     inline void unlock() const {
       int error = pthread_mutex_unlock( &m_mut );
       ASSERT_TRUE(!error);
     }
+    /// Non-blocking attempt to acquire a lock on the mutex
     inline bool try_lock() const {
       return pthread_mutex_trylock( &m_mut ) == 0;
     }
@@ -66,35 +66,32 @@ namespace graphlab {
   }; // End of Mutex
 
 #if _POSIX_SPIN_LOCKS >= 0
-  // We should change this to use a test for posix_spin_locks eventually
-  
-  // #ifdef __linux__
   /**
-   * \class spinlock
-   * 
-   * Wrapper around pthread's spinlock On single core systems mutex
-   * should be used.  On multicore systems, spinlock should be used.
-   * If pthread_spinlock is not available, the spinlock will be
-   * typedefed to a mutex
+   * \ingroup util
+   *
+   * Wrapper around pthread's spinlock.
    */
   class spinlock {
   private:
     // mutable not actually needed
     mutable pthread_spinlock_t m_spin;
   public:
+    /// constructs a spinlock
     spinlock () {
       int error = pthread_spin_init(&m_spin, PTHREAD_PROCESS_PRIVATE);
       ASSERT_TRUE(!error);
     }
-  
+    /// Acquires a lock on the spinlock
     inline void lock() const { 
       int error = pthread_spin_lock( &m_spin  );
       ASSERT_TRUE(!error);
     }
+    /// Releases a lock on the spinlock
     inline void unlock() const {
       int error = pthread_spin_unlock( &m_spin );
       ASSERT_TRUE(!error);
     }
+    /// Non-blocking attempt to acquire a lock on the spinlock
     inline bool try_lock() const {
       return pthread_spin_trylock( &m_spin ) == 0;
     }
@@ -112,23 +109,30 @@ namespace graphlab {
 #endif
 
   
-  
+  /**
+   * \ingroup util
+   *If pthread spinlock is not implemented, 
+   * this provides a simple alternate spin lock implementation.
+   */
   class simple_spinlock {
   private:
     // mutable not actually needed
     mutable volatile char spinner;
   public:
+    /// constructs a spinlock
     simple_spinlock () {
       spinner = 0;
     }
-  
+    /// Acquires a lock on the spinlock
     inline void lock() const { 
       while(spinner == 1 || __sync_lock_test_and_set(&spinner, 1));
     }
+    /// Releases a lock on the spinlock
     inline void unlock() const {
       __sync_synchronize();
       spinner = 0;
     }
+    /// Non-blocking attempt to acquire a lock on the spinlock
     inline bool try_lock() const {
       return (__sync_lock_test_and_set(&spinner, 1) == 0);
     }
@@ -139,7 +143,7 @@ namespace graphlab {
   
 
   /**
-   * \class conditional
+   * \ingroup util
    * Wrapper around pthread's condition variable
    */
   class conditional {
@@ -150,10 +154,12 @@ namespace graphlab {
       int error = pthread_cond_init(&m_cond, NULL);
       ASSERT_TRUE(!error);
     }
+    /// Waits on condition. The mutex must already be acquired. Caller must be careful about spurious wakes.
     inline void wait(const mutex& mut) const {
       int error = pthread_cond_wait(&m_cond, &mut.m_mut);
       ASSERT_TRUE(!error);
     }
+    /// Like wait() but with a time limit of "sec" seconds
     inline int timedwait(const mutex& mut, int sec) const {
       struct timespec timeout;
       struct timeval tv;
@@ -163,6 +169,7 @@ namespace graphlab {
       timeout.tv_sec = tv.tv_sec + sec;
       return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
     }
+    /// Like wait() but with a time limit of "ns" nanoseconds
     inline int timedwait_ns(const mutex& mut, int ns) const {
       struct timespec timeout;
       struct timeval tv;
@@ -172,11 +179,12 @@ namespace graphlab {
       timeout.tv_sec = tv.tv_sec + (tv.tv_usec * 1000 + ns >= 1000000000);
       return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
     }
-
+    /// Signals one waiting thread to wake up
     inline void signal() const {
       int error = pthread_cond_signal(&m_cond);
       ASSERT_TRUE(!error);
     }
+    /// Wakes up all waiting threads
     inline void broadcast() const {
       int error = pthread_cond_broadcast(&m_cond);
       ASSERT_TRUE(!error);
@@ -187,11 +195,11 @@ namespace graphlab {
     }
   }; // End conditional
 
-  /**
-   * \class semaphore
-   * Wrapper around pthread's semaphore
-   */
+
 #ifdef __APPLE__
+  /**
+   * Custom implementation of a semaphore.
+   */
   class semaphore {
   private:
     conditional cond;
@@ -227,6 +235,9 @@ namespace graphlab {
     }
   }; // End semaphore
 #else
+  /**
+   * Wrapper around pthread's semaphore
+   */
   class semaphore {
   private:
     mutable sem_t  m_sem;
@@ -363,22 +374,25 @@ namespace graphlab {
    */
 #ifdef __linux__
   /**
-   * \class barrier
+   * \ingroup util
    * Wrapper around pthread's barrier
    */
   class barrier {
   private:
     mutable pthread_barrier_t m_barrier;
   public:
+    /// Construct a barrier which will only fall when numthreads enter
     barrier(size_t numthreads) { pthread_barrier_init(&m_barrier, NULL, numthreads); }
     ~barrier() { pthread_barrier_destroy(&m_barrier); }
+    /// Wait on the barrier until numthreads has called wait
     inline void wait() const { pthread_barrier_wait(&m_barrier); }
   };
 
 #else
   /**
-   * \class barrier
-   * Wrapper around pthread's barrier
+   * \ingroup util
+   * In some systems, pthread_barrier is not available.
+   * This is a simple sense-reversing barrier implementation
    */
   class barrier {
   private:
@@ -392,7 +406,7 @@ namespace graphlab {
     // we need the following to protect against spurious wakeups
   
   public:
-    
+    /// Construct a barrier which will only fall when numthreads enter
     barrier(size_t numthreads) {
       needed = numthreads;
       called = 0;
@@ -402,7 +416,7 @@ namespace graphlab {
     
     ~barrier() {}
     
-    
+    /// Wait on the barrier until numthreads has called wait
     inline void wait() {
       m.lock();
       // set waiting;
@@ -452,9 +466,14 @@ namespace graphlab {
 
 
   /**
-   * \class thread 
-   * A collection of routines for starting and managing threads.
-   * 
+   * \ingroup util
+   * A collection of routines for creating and managing threads.
+   *
+   * The thread object performs limited exception forwarding.
+   * exception throws within a thread of type const char* will be caught
+   * and forwarded to the join() function.
+   * If the call to join() is wrapped by a try-catch block, the exception
+   * will be caught safely and thread cleanup will be completed properly.
    */
   class thread {
   public:
@@ -553,6 +572,8 @@ namespace graphlab {
 
     /**
      * Join the calling thread with this thread.
+     * const char* exceptions
+     * thrown by the thread is forwarded to the join() function.
      */
     inline void join() {
       if(this == NULL) {
@@ -562,12 +583,14 @@ namespace graphlab {
       join(*this);
     }
 
+    /// Returns true if the thread is still running
     inline bool active() const {
       return thread_started;
     }
     
     inline ~thread() {  }
 
+    /// Returns the pthread thread id
     inline pthread_t pthreadid() {
       return m_p_thread;
     }
@@ -591,8 +614,17 @@ namespace graphlab {
 
 
   /**
-   * \class thread_group Manages a collection of threads
-   * This class is not copyable
+   * \ingroup util
+   * Manages a collection of threads.
+   *
+   * The thread_group object performs limited exception forwarding.
+   * exception throws within a thread of type const char* will be caught
+   * and forwarded to the join() function.
+   * If the call to join() is wrapped by a try-catch block, the exception
+   * will be caught safely and thread cleanup will be completed properly.
+   *
+   * If multiple threads are running in the thread-group, the master should
+   * test if running_threads() is > 0, and retry the join().
    */
   class thread_group {
    private:
@@ -623,9 +655,12 @@ namespace graphlab {
      */
     void launch(const boost::function<void (void)> &spawn_function, size_t cpu_id);
 
-    //! Waits for all threads to complete execution
+    /** Waits for all threads to complete execution. const char* exceptions
+    thrown by threads are forwarded to the join() function.
+    */
     void join();
     
+    /// Returns the number of running threads.
     inline size_t running_threads() {
       return threads_running;
     }

@@ -73,7 +73,21 @@ namespace graphlab {
     };
 
   }; // end of impl;
-
+  
+  
+  /**
+   * \ingroup util
+   * A stream object which stores all streamed output in memory.
+   * It can be used like any other stream object.
+   * For instance:
+   * \code
+   *  charstream cstrm;
+   *  cstrm << 123 << 10.0 << "hello world" << std::endl;
+   * \endcode
+   *
+   * stream->size() will return the current length of output
+   * and stream->c_str() will return a mutable pointer to the string.
+   */
   typedef boost::iostreams::stream< charstream_impl::resizing_array_sink<true> > 
   charstream;
 
