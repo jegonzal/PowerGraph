@@ -792,24 +792,27 @@ void export_uvt_to_file(){
  for (int i=0; i< M+N; i++){ 
     vertex_data & data = g->vertex_data(i);
     if (i < M)
-     	memcpy(U._data() + i*D, data.pvec._data(), D*sizeof(double));
+	U.set_row(i, data.pvec);
+      	//memcpy(U._data() + i*D, data.pvec._data(), D*sizeof(double));
     else
-     	memcpy(V._data() + (i-M)*D, data.pvec._data(), D*sizeof(double));
+	V.set_row(i-M, data.pvec);
+     	//memcpy(V._data() + (i-M)*D, data.pvec._data(), D*sizeof(double));
  }
 
  if (tensor){ 
     for (int i=0; i<K; i++){
-     	memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
+     	T.set_row(i, times[i].pvec);
+	//memcpy(T._data() + i*D, times[i].pvec._data(), D*sizeof(double));
     }
  } 
 
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",infile.c_str(), D);
  it_file output(dfile);
- output << Name("U") << U;
- output << Name("V") << V;
+ output << Name("User") << U;
+ output << Name("Movie") << V;
   if (tensor){
-    output << Name("T") << T;
+    output << Name("Time") << T;
  }
  output.close();
 }
@@ -1098,12 +1101,20 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 
   assert(f!= NULL);
 
-  fread(&M,1,4,f);//movies
-  fread(&N,1,4,f);//users/
-  fread(&K,1,4,f);//time
-  assert(K>=1);
-  assert(M>=1 && N>=1); 
+  int _M,_N,_K;
+  fread(&_M,1,4,f);//movies
+  fread(&_N,1,4,f);//users/
+  fread(&_K,1,4,f);//time
+  assert(_K>=1);
+  assert(_M>=1 && _N>=1); 
+  if (data_type != TRAINING && M != _M)
+	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << M << " in training file" << std::endl;
+  if (data_type != TRAINING && N != _N)
+	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << M << " in training file" << std::endl;
+  if (data_type != TRAINING && K != _K)
+	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in training file" << std::endl;
 
+  M=_M; N= _N; K= _K;
   K=ceil((K-truncating)/scaling);
 
   //if (data_type==TRAINING)
@@ -1407,7 +1418,10 @@ void export_kdd_format(graph_type * _g, bool dosave) {
        }
      }
 
-   assert(lineNum==ExpectedTestSize);  
+   assert(lineNum==Lt); 
+   if (lineNum!= ExpectedTestSize)
+	logstream(LOG_WARNING) << "KDD test data has wrong length." << " current length is: " << Lt << " correct length " << ExpectedTestSize << std::endl;
+ 
   if (dosave){
     fclose(outFp);
     fprintf(stderr, "**Completed successfully (mean prediction: %lf)**\n",sumPreds/ExpectedTestSize);
