@@ -1097,7 +1097,10 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
     return;
   }
 
-  assert(f!= NULL);
+  if(data_type==TRAINING && f== NULL){
+	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
+	exit(1);
+  }
 
   int _M,_N,_K;
   fread(&_M,1,4,f);//movies
@@ -1219,13 +1222,11 @@ int main(int argc,  char *argv[]) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
-  infile = argv[1];
-
-  if (infile == "" || argc <= 2) {
-    std::cout << "PMF <input file> <run mode [0-4]>\n";
-    return 0;
-  }
-  
+  if (argc < 3){
+       logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n";  
+       exit(1);
+   }
+   
    // select tun mode
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
