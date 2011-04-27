@@ -1228,6 +1228,7 @@ int main(int argc,  char *argv[]) {
    }
    
    // select tun mode
+  infile = argv[1];
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
   switch(options){
