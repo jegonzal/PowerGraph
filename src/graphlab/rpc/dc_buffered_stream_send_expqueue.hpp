@@ -22,13 +22,22 @@ struct expqueue_entry{
 };
 
 /**
-  Sender for the dc class.
+   \ingroup rpc
+Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  This class performs buffered transmissions.
-  That is, sends are relegated to an internal buffer, which is then
-  passed to the communication classes on another thread.
+  This class performs buffered transmissions using an blocking 
+  queue with one call per queue entry.
+  A seperate thread is used to transmit queue entries. Rudimentary
+  write combining is used to decrease transmission overhead.
+  This is typically the best performing sender.
+  
+  This can be enabled by passing "buffered_queued_send=yes"
+  in the distributed control initstring.
+  
+  dc_buffered_stream_send_expqueue2 is similar, but does not perform write combining.
+  
 */
 
 class dc_buffered_stream_send_expqueue: public dc_send{

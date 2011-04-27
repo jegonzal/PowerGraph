@@ -7,6 +7,7 @@ namespace graphlab {
 namespace dc_impl {
 
 /**
+\ingroup rpc
 Base class of the data sending class.
 This class forms the sending side of a "multiplexer"
 send_data() will be called with a packet mask as well as a
@@ -53,6 +54,10 @@ class dc_send{
   */
   virtual bool channel_active(procid_t target) const = 0;
 
+  /**
+   * Last call sent to any instance of dc_send.
+   * If the sender multithreads, the sending thread must shut down.
+   */
   virtual void shutdown() = 0;
 
 };

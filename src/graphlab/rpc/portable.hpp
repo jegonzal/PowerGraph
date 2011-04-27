@@ -9,11 +9,10 @@
 namespace graphlab {
   
 /**
+\ingroup rpc
 Defines a simple macro called PORTABLE which is used to wrap
 a function name when issuing a portable call. 
-*/
-
-  
+*/  
 #define PORTABLE(f) graphlab::portable_call<typeof(f)*>(BOOST_PP_STRINGIZE(f)) 
 
 template <typename F>
@@ -27,18 +26,19 @@ struct portable_call{
 } // makespace graphlab
 
 /**
+\ingroup rpc
 Make the portable call have the right return type
 */
 namespace boost {
 template <typename F>
 struct function_traits<graphlab::portable_call<F> > {
-  typedef FRESULT result_type;
+  typedef __GLRPC_FRESULT result_type;
 };
 
 
 template <typename F>
 struct function<graphlab::portable_call<F> > {
-  typedef FRESULT result_type;
+  typedef __GLRPC_FRESULT result_type;
 };
 
 }

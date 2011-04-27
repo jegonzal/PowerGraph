@@ -12,13 +12,17 @@ namespace dc_impl {
 
 
 /**
-Object calls.
+\ingroup rpc
+\file
+\internal
+This is an internal function and should not be used directly
 
-This is similar to a regular function call with the only difference
+This is similar to a regular function call in function_call_dispatch.hpp
+with the only difference
 that it needs to locate the object using dc.get_registered_object(...)
 After the function call, it also needs to increment the call count for
 the object context.
-
+\code
 template<typename DcType,
         typename T, 
         typename F , 
@@ -43,12 +47,12 @@ template<typename DcType,
 }
 
 } 
-
+\endcode
 */
 
 
 
-#define GENFN(N) BOOST_PP_CAT(NIF, N)
+#define GENFN(N) BOOST_PP_CAT(__GLRPC_NIF, N)
 #define GENFN2(N) BOOST_PP_CAT(f, N)
 #define GENARGS(Z,N,_) (BOOST_PP_CAT(f, N))
 

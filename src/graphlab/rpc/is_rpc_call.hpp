@@ -15,6 +15,8 @@
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
 /**
+\ingroup rpc
+\file
 An RPC-aware call is a function of the form:
 ... fn(distributed_control& dc, procid_t source....)
 The code here checks for that.
@@ -26,22 +28,24 @@ namespace dc_impl {
 
 namespace is_rpc_call_detail {
 /**
+\ingroup rpc
 Whether the function has less than or equal to 2 arguments
 */
 template <typename F>
 struct less_than_2_args {
-  typedef typename boost::mpl::bool_<FARITY < 2 >::type type;  
+  typedef typename boost::mpl::bool_<__GLRPC_FARITY < 2 >::type type;  
 };
 
 
 /**
+\ingroup rpc
 Now, arg1_type and arg_2 type may not exist in function_traits if the 
 number of arguments is < 2. I will need to wrap it to make it safe
 */
 template <typename F, size_t nargs>
 struct get_args{
- typedef NIF0 arg1_type;
- typedef NIF1 arg2_type;
+ typedef __GLRPC_NIF0 arg1_type;
+ typedef __GLRPC_NIF1 arg2_type;
 };
 
 // if 0 args. then make both void
@@ -54,7 +58,7 @@ struct get_args<F, 0>{
 // if 1 arg then make just make arg2 void
 template <typename F>
 struct get_args<F, 1>{
- typedef NIF0 arg1_type;
+ typedef __GLRPC_NIF0 arg1_type;
  typedef void arg2_type;
 };
 
@@ -62,16 +66,22 @@ struct get_args<F, 1>{
 
 template <typename F>
 struct check_first_arg {
-  typedef typename boost::is_same<typename get_args<F,FARITY>::arg1_type, distributed_control>::type type;  
+  typedef typename boost::is_same<typename get_args<F,__GLRPC_FARITY>::arg1_type, distributed_control>::type type;  
 };
 
 template <typename F>
 struct check_second_arg {
-  typedef typename boost::is_integral<typename get_args<F,FARITY>::arg2_type>::type type;  
+  typedef typename boost::is_integral<typename get_args<F,__GLRPC_FARITY>::arg2_type>::type type;  
 };
 
 
 }
+
+/**
+ * \ingroup rpc
+ * ::type is true if F is an RPC call interface.
+ * \tparam F the function to test
+ */
 template <typename F>
 struct is_rpc_call {
   typedef typename boost::mpl::if_< typename is_rpc_call_detail::less_than_2_args<F>::type,
@@ -100,11 +110,11 @@ BOOST_PP_REPEAT(6, BLOCK_VAR_ARGS, _)
 #define GEN_GET_USER_ARG(Z,N,_)  \
 template <typename F, typename BoolType>  \
 struct BOOST_PP_CAT(get_cleaned_rpc_or_basic_arg, N) { \
-  typedef BOOST_PP_CAT(NIF, N) arg_type;  \
+  typedef BOOST_PP_CAT(__GLRPC_NIF, N) arg_type;  \
 };  \
 template <typename F> \
 struct BOOST_PP_CAT(get_cleaned_rpc_or_basic_arg, N) <F,  boost::mpl::bool_<true> > {  \
-  typedef BOOST_PP_CAT(F, N) arg_type;  \
+  typedef BOOST_PP_CAT(__GLRPC_F, N) arg_type;  \
 };  \
 template <typename F>   \
 struct BOOST_PP_CAT(get_cleaned_user_arg, N) {  \

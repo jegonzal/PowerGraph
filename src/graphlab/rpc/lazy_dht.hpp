@@ -19,6 +19,7 @@
 namespace graphlab {
 
 /**
+\ingroup rpc
 This implements a distributed key -> value map with caching capabilities.
 It is up to the user to determine cache invalidation policies. User explicitly
 calls the invalidate() function to clear local cache entries.

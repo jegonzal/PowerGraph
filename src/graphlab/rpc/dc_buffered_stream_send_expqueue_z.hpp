@@ -25,13 +25,15 @@ struct expqueue_z_entry{
 };
 
 /**
+   \ingroup rpc
   Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  This class performs buffered transmissions.
-  That is, sends are relegated to an internal buffer, which is then
-  passed to the communication classes on another thread.
+  This class performs compressed ZLib transmissions and is the matching
+  sender for dc_stream_receive_z.
+
+  \ref dc_stream_receive_z
 */
 
 class dc_buffered_stream_send_expqueue_z: public dc_send{

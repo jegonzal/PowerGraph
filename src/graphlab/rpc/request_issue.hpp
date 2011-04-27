@@ -16,22 +16,35 @@ namespace graphlab {
 namespace dc_impl {
 
 /**
+\ingroup rpc
+\file
+\internal
+This is an internal function and should not be used directly.
+
+This is an internal function and should not be used directly.
 A request is an RPC which is performed "synchronously". The return value of the
 function is returned.
 
 The format of the RPC request is in the form of an archive and is as follows
-arc << [pointer to target machine's dispatcher function]
-arc << [pointer to the actual function to call]
-arc << [An "ID" that uniquely identifies this request]
-arc << arg1 << arg2 << arg3 ...
 
-The ID here is a pointer to a reply_ret_type datastructure. When the remote machien completes
+The format of a "request" packet is in the form of an archive and is as follows
+
+\li (dispatch_type*) -- pointer to target machine's dispatcher function
+\li (void*)          -- pointer to target function
+\li size_t           -- return ID
+\li fn::arg1_type    -- target function's 1st argument
+\li fn::arg2_type    -- target function's 2nd argument
+\li  ...
+\li fn::argN_type    -- target function's Nth argument
+
+
+The ID here is a pointer to a reply_ret_type datastructure. When the remote machine completes
 the function call, it will issue an RPC to the function reply_increment_counter on the originating machine.
 The reply_increment_counter function  store the serialized return value in the reply_ret_type, as well
 as perform an atomic increment on the reply_ret_type.
 
 Here is an example of the marshall code for 1 argument
-
+\code
 namespace request_issue_detail
 {
     template <typename BoolType, typename F , typename T0> struct dispatch_selector1
@@ -86,9 +99,7 @@ template<typename F , typename T0> class remote_request_issue1
     }
 };
 
-
-
-
+\endcode
 
 If the pointer to the dispatcher function is NULL, the next argument
 will contain the name of the function. This is a "portable" call.
@@ -118,7 +129,7 @@ struct BOOST_PP_CAT(dispatch_selector, N)<boost::mpl::bool_<true>, F BOOST_PP_CO
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static typename function_ret_type<FRESULT>::type exec(dc_send* sender, size_t flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_send* sender, size_t flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
@@ -132,7 +143,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);    \
     iarchive iarc(retstrm);  \
-    typename function_ret_type<FRESULT>::type result; \
+    typename function_ret_type<__GLRPC_FRESULT>::type result; \
     iarc >> result;  \
     reply.val.free(); \
     return result;  \

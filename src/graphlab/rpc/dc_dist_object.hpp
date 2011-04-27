@@ -23,6 +23,7 @@ namespace graphlab {
 
 
 /**
+\ingroup rpc
 Provides capabilities for distributed objects Your class should either
 inherit this, or instantiate it before any distributed object call.
 The requirement for using the distributed object is that all machines
@@ -60,7 +61,10 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
 
  public:
-  //internal stuff which should not be used.
+  /**
+   * 
+   * \internal
+   */
   void inc_calls_received(procid_t p) {
     if (!full_barrier_in_effect) {
         callsreceived[p].inc();
@@ -220,10 +224,10 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return dc_.services();
   }
 
-    /**
+    /*
   This generates the interface functions for the standard calls, basic calls, and fast calls
   The function looks like this:
-  
+  \code
   template<typename F , typename T0> void remote_call (procid_t target, F remote_function , T0 i0 )
   {
       ASSERT_LT(target, dc_.senders.size());
@@ -245,6 +249,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
                     &object_type::function_name,
                     arg1,
                     arg2...)
+  \endcode
   */
   #define GENARGS(Z,N,_)  BOOST_PP_CAT(T, N) BOOST_PP_CAT(i, N)
   #define GENI(Z,N,_) BOOST_PP_CAT(i, N)
@@ -261,7 +266,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
           ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
   
-  /**
+  /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
@@ -269,16 +274,18 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
-  /**
+  /*
   The generation procedure for requests are the same. The only difference is that the function
   name has to be changed a little to be identify the return type of the function,
-  (typename dc_impl::function_ret_type<FRESULT>) and the issuing processor is object_request_issue.
+  (typename dc_impl::function_ret_type<__GLRPC_FRESULT>) and the issuing processor is object_request_issue.
   
     The call can be issued with
+    \code
     ret = rmi.remote_request(target,
                               &object_type::function_name,
                               arg1,
                               arg2...)
+    \endcode
   */
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
@@ -293,16 +300,16 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   /**
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type fast_remote_request, dc_impl::object_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::object_request_issue, FAST_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
 
   #undef RPC_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
   
-  /** Now generate the interface functions which allow me to call this dc_dist_object directly
+  /* Now generate the interface functions which allow me to call this dc_dist_object directly
   The internal calls are similar to the ones above. The only difference is that is that instead of
   'obj_id', the parameter passed to the issue processor is "control_obj_id" which identifies the
   current RMI class.
@@ -332,12 +339,12 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
           ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
 
-  /**
+  /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type internal_request, dc_impl::object_request_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type internal_fast_request, dc_impl::object_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type internal_control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_request, dc_impl::object_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_fast_request, dc_impl::object_request_issue, FAST_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
   #undef RPC_INTERFACE_GENERATOR
@@ -654,6 +661,14 @@ private:
 
 
  public:
+   
+  /**
+   * Each machine creates a vector 'data' with size equivalent to the number of machines.
+   * Each machine then fills the entry data[procid()] with information that it 
+   * wishes to communicate.
+   * After calling all_gather(), all machines will return with identical
+   * vectors 'data', where data[i] contains the information machine i stored.
+   */
   template <typename U>
   void all_gather(std::vector<U>& data, bool control = false) {
     if (numprocs() == 1) return;
@@ -910,8 +925,12 @@ private:
 
  public:
   /**
-  A local barrier on this object
-  */
+    A regular barrier equivalent to MPI_Barrier.
+    A thread machine entering this barrier will wait until one thread on each 
+    machines enter this barrier.
+    
+    \see full_barrier
+    */
   void barrier() {
     // upward message
     char barrier_val = barrier_sense;      
@@ -986,6 +1005,12 @@ private:
   other threads are still issuing function calls since we
   cannot differentiate between calls issued before the barrier
   and calls issued while the barrier is being evaluated.
+  
+  Therefore, when used in a multithreaded scenario, the user must ensure
+  that all other threads which may perform operations using this object
+  are stopped before the full barrier is initated.
+  
+  \see barrier
   */
   void full_barrier() {
     // gather a sum of all the calls issued to machine 0

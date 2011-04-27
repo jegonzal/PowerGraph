@@ -6,6 +6,10 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 namespace graphlab {
 
+/**
+ * \ingroup rpc
+ * Implements a very rudimentary distributed key value store.
+  */
 template <typename KeyType, typename ValueType>
 class dht { 
  public:
@@ -13,6 +17,11 @@ class dht {
   
   dht(distributed_control &dc): rpc(dc, this) { }
   
+  /**
+   * gets the value associated with a key.
+   * Returns (true, Value) if the entry is available.
+   * Returns (false, undefined) otherwise.
+   */
   std::pair<bool, ValueType> get(const KeyType &key) const {
     // who owns the data?
     size_t hashvalue = hasher(key);
@@ -35,7 +44,9 @@ class dht {
     return retval;
   }
   
-  
+  /**
+   * Sets the newval to be the value associated with the key
+   */
   void set(const KeyType &key, const ValueType &newval) {  
     // who owns the data?
     size_t hashvalue = hasher(key);

@@ -10,6 +10,11 @@ namespace graphlab {
 namespace dc_impl {
 
 /**
+\ingroup rpc
+\file
+\internal
+This is an internal function and should not be used directly
+
 A "call" is an RPC which is performed asynchronously.
 There are 2 types of calls. A "basic" call calls a standard C/C++ function
 and does not require the function to be modified.
@@ -18,7 +23,6 @@ to be "distributed_control &dc, procid_t source".
 
 A "dispatch" is a wrapper function on the receiving side of an RPC
 which decodes the packet and performs the function call.
-
 
 This scary looking piece of code is actually quite straightforward.
 Given  function F, as well as input types T1 ... Tn
@@ -29,6 +33,7 @@ and a "procid_t source" as its first 2 arguments.
 
 For instance, the 1 argument version of this is DISPATCH1:
 
+\code
 template<typename DcType, 
         typename F , 
         typename T0> void DISPATCH1 (DcType& dc, 
@@ -45,7 +50,7 @@ template<typename DcType,
     f(dc, source , (f0) );
     charstring_free(f0);
 }
-
+\endcode
 
 charstring_free is a special template function which calls free(f1)
 only if f1 is a character array (char*)
@@ -57,7 +62,7 @@ function from instantiating the distributed_control until as late as possible,
 avoiding problems with circular references.
 */
 
-#define GENFN(N) BOOST_PP_CAT(F, N)
+#define GENFN(N) BOOST_PP_CAT(__GLRPC_F, N)
 #define GENFN2(N) BOOST_PP_CAT(f, N)
 #define GENARGS(Z,N,_)  (BOOST_PP_CAT(f, N))
 #define GENPARAMS(Z,N,_)  BOOST_PP_CAT(T, N) (BOOST_PP_CAT(f, N)) ; iarc >> (BOOST_PP_CAT(f, N)) ;
@@ -111,7 +116,7 @@ template<typename DcType,
 
 
 
-#define GENFN(N) BOOST_PP_CAT(NIF, N)
+#define GENFN(N) BOOST_PP_CAT(__GLRPC_NIF, N)
 #define GENFN2(N) BOOST_PP_CAT(f, N)
 #define GENARGS(Z,N,_) (BOOST_PP_CAT(f, N))
 #define GENPARAMS(Z,N,_)  BOOST_PP_CAT(T, N) (BOOST_PP_CAT(f, N)) ; iarc >> (BOOST_PP_CAT(f, N)) ;

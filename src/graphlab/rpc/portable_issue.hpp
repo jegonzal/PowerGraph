@@ -12,8 +12,45 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
+\ingroup rpc
+ \file
+ \internal
+ This is an internal function and should not be used directly
+ 
 This is a partial specialization of the remote_call_issue classes
 described in function_call_issue.hpp and request_issue.hpp to handle the portable calls
+A portable call permits function calls across different binaries, but required
+registration.
+
+Portable Call Formats
+=====================
+The format of a "portable call" packet is in the form of an archive and is as follows
+
+\li size_t(NULL)     -- NULL. Corresponds to the dispatch_type* in the native call
+\li  std::string      -- name of the function to call
+\li  char(0)          -- flag that this is a call
+\li  fn::arg1_type    -- target function's 1st argument
+\li  fn::arg2_type    -- target function's 2nd argument
+\li ...
+\li  fn::argN_type    -- target function's Nth argument
+
+Unlike the native call, argument casting is performed by the caller. The caller is
+required to know the type of the function (At least through a function prototype)
+---------
+The format of a "portable request" packet is in the form of an archive and is as follows
+\li  size_t(NULL)     -- NULL. Corresponds to the dispatch_type* in the native call
+\li  std::string      -- name of the function to call
+\li  char(1)          -- flag that this is a request
+\li  fn::arg1_type    -- target function's 1st argument
+\li  fn::arg2_type    -- target function's 2nd argument
+\li   ...
+\li  fn::argN_type    -- target function's Nth argument
+
+Unlike the native call, argument casting is performed by the caller. The caller is
+required to know the type of the function (At least through a function prototype)
+At the end of the request, the dispatch will perform a fast call to the
+ reply_increment_counter on the source machine passing the ID as an argument.
+ The return data is passed using the actual result type of the function.
 
 \see function_call_issue.hpp
 */
@@ -46,7 +83,7 @@ BOOST_PP_REPEAT(6, PORTABLE_CALL_ISSUE_GENERATOR, remote_call_issue)
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T) > \
   class BOOST_PP_CAT(FNAME_AND_CALL,N)<portable_call<F> BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> { \
    public: \
-    static typename function_ret_type<FRESULT>::type  exec(dc_send* sender, size_t flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
+    static typename function_ret_type<__GLRPC_FRESULT>::type  exec(dc_send* sender, size_t flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
@@ -61,7 +98,7 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T) > \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);    \
     iarchive iarc(retstrm);  \
-    typename function_ret_type<FRESULT>::type  result; \
+    typename function_ret_type<__GLRPC_FRESULT>::type  result; \
     iarc >> result;  \
     reply.val.free(); \
     return result;  \

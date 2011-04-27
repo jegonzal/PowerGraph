@@ -18,10 +18,16 @@ class distributed_control;
 namespace dc_impl {
 
 /**
-  Receiver processor for the dc class.
+  \ingroup rpc
+  ZLib Compressed receiver processor for the dc class.
   The job of the receiver is to take as input a byte stream
   (as received from the socket) and cut it up into meaningful chunks.
   This can be thought of as a receiving end of a multiplexor.
+  
+  This implements a matching receiver for the ZLib compressed sender
+  dc_stream_send_z. ZLib required to compile this.
+  
+  \see dc_buffered_stream_send_expqueue_z
 */
 class dc_stream_receive_z: public dc_receive{
  public:

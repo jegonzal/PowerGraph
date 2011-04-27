@@ -20,10 +20,18 @@ namespace dc_impl{
 
 
 /**
-This is the dispatch function for the an object request.
-This is similar to the standard request dispatcher, except that the object
-needs to be located using the object id.
+\ingroup rpc
+\file
+\internal
+This is an internal function and should not be used directly
 
+This is the dispatch function for the an object request.
+This is similar to the standard request dispatcher in request_dispatch.hpp
+except that the object needs to be located using the object id.
+After the function call, it also needs to increment the call count for
+the object context.
+
+\code
 template<typename DcType,
         typename T, 
         typename F , 
@@ -68,11 +76,11 @@ template<typename DcType,
         dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
     } if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source);
 }
-
+\endcode
 
 
 */
-#define GENFN(N) BOOST_PP_CAT(NIF, N)
+#define GENFN(N) BOOST_PP_CAT(__GLRPC_NIF, N)
 #define GENFN2(N) BOOST_PP_CAT(f, N)
 #define GENNIARGS(Z,N,_) (BOOST_PP_CAT(f, N))
 
@@ -98,8 +106,8 @@ template<typename DcType,
     T* obj = reinterpret_cast<T*>(dc.get_registered_object(objid));     \
     size_t id; iarc >> id;                                              \
     BOOST_PP_REPEAT(N, GENPARAMS, _);                                   \
-    typename function_ret_type<FRESULT>::type ret =                     \
-      mem_function_ret_type<FRESULT>::BOOST_PP_CAT(fcall, N)            \
+    typename function_ret_type<__GLRPC_FRESULT>::type ret =                     \
+      mem_function_ret_type<__GLRPC_FRESULT>::BOOST_PP_CAT(fcall, N)            \
       (f, obj BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENNIARGS ,_));      \
     BOOST_PP_REPEAT(N, CHARSTRINGFREE, _);                              \
     boost::iostreams::stream<resizing_array_sink> retstrm(128);         \

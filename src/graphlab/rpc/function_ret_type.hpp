@@ -2,24 +2,26 @@
 #define FUNCTION_RETURN_TYPE_HPP
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
-/**
-Promotes a void to int so we can do request type calls on functions
-with no return. 
-function_ret_type<void>::type == int
-and 
-function_ret_type<T>::type == T for all other types T
-
-mem_function_ret_type is similar but operates on member functions
-
-*/
 namespace graphlab {
 namespace dc_impl {
 
+  
+/**
+\ingroup rpc
+\internal
+This struct performs two duties.
+Firstly, it provides a consistent interface through a function called ::fcallN<F>
+to complete a function call with a variable number of arguments.
+Next, it provides the type of the return value of the function in ::type.
+If the return type is void, it is promoted to an int. This makes the output
+type of the function call be always serializable, simplifying the implementation
+of "requests".
+*/
 template <typename RetType>
 struct function_ret_type {
   typedef RetType type;
   
-  #define GENARGS(Z,N,_)  BOOST_PP_CAT(R, N)  BOOST_PP_CAT(i, N)
+  #define GENARGS(Z,N,_)  BOOST_PP_CAT(__GLRPC_R, N)  BOOST_PP_CAT(i, N)
  
   #define FCALL(Z, N, _) \
   template <typename F> \
@@ -38,7 +40,7 @@ template <>
 struct function_ret_type<void> {
   typedef size_t type;
   
-  #define GENARGS(Z,N,_)  BOOST_PP_CAT(R, N) BOOST_PP_CAT(i, N)
+  #define GENARGS(Z,N,_)  BOOST_PP_CAT(__GLRPC_R, N) BOOST_PP_CAT(i, N)
  
   #define FCALL(Z, N, _) \
   template <typename F> \
@@ -64,12 +66,20 @@ struct function_ret_type<void> {
 namespace graphlab {
 namespace dc_impl {
 
-
+/**
+This struct performs two duties.
+Firstly, it provides a consistent interface through a function called ::fcallN<F>
+to complete a \b member function call with a variable number of arguments.
+Next, it provides the type of the return value of the function in ::type.
+If the return type is void, it is promoted to an int. This makes the output
+type of the function call be always serializable, simplifying the implementation
+of "requests".
+*/
 template <typename RetType>
 struct mem_function_ret_type {
   typedef RetType type;
   
-  #define GENARGS(Z,N,_)  BOOST_PP_CAT(R, N)  BOOST_PP_CAT(i, N)
+  #define GENARGS(Z,N,_)  BOOST_PP_CAT(__GLRPC_R, N)  BOOST_PP_CAT(i, N)
  
   #define FCALL(Z, N, _) \
   template <typename F, typename T> \
@@ -88,7 +98,7 @@ template <>
 struct mem_function_ret_type<void> {
   typedef size_t type;
   
-  #define GENARGS(Z,N,_)  BOOST_PP_CAT(R, N) BOOST_PP_CAT(i, N)
+  #define GENARGS(Z,N,_)  BOOST_PP_CAT(__GLRPC_R, N) BOOST_PP_CAT(i, N)
  
   #define FCALL(Z, N, _) \
   template <typename F, typename T> \

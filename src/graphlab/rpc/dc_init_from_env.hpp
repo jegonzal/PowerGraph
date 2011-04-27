@@ -2,7 +2,9 @@
 #define GRAPHLAB_DC_INIT_FROM_ENV_HPP
 #include <graphlab/rpc/dc.hpp>
 namespace graphlab {
-  // returns true if environment available, false otherwise
+  /** 
+   * \ingroup rpc
+   * initializes parameters from environment. Returns true on success */
   bool init_param_from_env(dc_init_param& param);
 }
 

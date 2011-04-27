@@ -14,10 +14,13 @@ class distributed_control;
 namespace dc_impl {
 
 /**
+  \ingroup rpc
   Receiver processor for the dc class.
   The job of the receiver is to take as input a byte stream
   (as received from the socket) and cut it up into meaningful chunks.
   This can be thought of as a receiving end of a multiplexor.
+  
+  This is the default unbuffered receiver.
 */
 class dc_stream_receive: public dc_receive{
  public:

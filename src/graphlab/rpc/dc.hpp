@@ -251,11 +251,11 @@ class distributed_control{
   /**
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
- // BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::remote_request_issue, 0) )
-   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL) )
+ // BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, 0) )
+   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL) )
 
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type fast_remote_request, dc_impl::remote_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<FRESULT>::type control_request, dc_impl::remote_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::remote_request_issue, FAST_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::remote_request_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
   
@@ -382,7 +382,7 @@ class distributed_control{
   void register_rpc(std::string c) {
     portable_dispatch_request_map[c] = (dc_impl::dispatch_type)
               dc_impl::portable_detail::find_dispatcher<F,        // function type
-                              FRESULT,                            // result
+                              __GLRPC_FRESULT,                            // result
                               boost::function_traits<               
                                     typename boost::remove_pointer<F>::type
                                                     >::arity ,   // number of arguments
@@ -392,7 +392,7 @@ class distributed_control{
                               
     portable_dispatch_call_map[c] = (dc_impl::dispatch_type)
               dc_impl::portable_detail::find_dispatcher<F,        // function type
-                              FRESULT,                            // result
+                              __GLRPC_FRESULT,                            // result
                               boost::function_traits<               
                                     typename boost::remove_pointer<F>::type
                                                     >::arity ,   // number of arguments
