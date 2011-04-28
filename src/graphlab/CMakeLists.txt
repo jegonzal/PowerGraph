@@ -5,7 +5,6 @@ project(GraphLab)
 
 subdirs(
  engine
- extern
  graph
  gpu
  monitoring
@@ -20,7 +19,7 @@ subdirs(
  metrics
  jni)
 
-
+include(metisextern.cmake)
 
 #build graphlab_zoltan if available
 IF(ZOLTAN_FOUND)
@@ -50,6 +49,7 @@ if (MPI_FOUND)
 endif()
 
 add_library(graphlab STATIC
+  ${metis_sources}
   schedulers/scheduler_options.cpp
   util/timer.cpp
   util/generics/any.cpp
@@ -86,7 +86,7 @@ add_library(graphlab STATIC
   ${rpc_compressed}
 )
 
-target_link_libraries(graphlab graphlab_metis graphlab_GKlib ${Boost_LIBRARIES})
+target_link_libraries(graphlab ${Boost_LIBRARIES})
 
 if (MPI_FOUND)
 target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})

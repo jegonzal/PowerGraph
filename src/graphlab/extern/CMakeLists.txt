@@ -1,3 +1,0 @@
-project(GraphLab)
-
-subdirs(metis)
