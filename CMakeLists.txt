@@ -104,7 +104,6 @@ ENDIF( )
 
 
 # EXPERIMENTAL (distributed) Capabilities
-IF(EXPERIMENTAL)
 find_package(MPICH2)
 
 IF(MPI_FOUND)
@@ -115,6 +114,7 @@ ELSE(MPI_FOUND)
 ENDIF(MPI_FOUND)
 
 
+IF(EXPERIMENTAL)
 #Find zoltan library
 SET(ZOLTAN_ROOT "/usr/local/glzoltan" CACHE STRING 
   "The path to zoltan/include and zoltan/lib")
