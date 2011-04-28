@@ -62,9 +62,9 @@ struct vertex_data {
 };
 
 struct edge_data {
-  double weight;  //observation 
-  double time; //time of observation (for tensor algorithms)
-  double avgprd;
+  float  weight;  //observation 
+  float  time; //time of observation (for tensor algorithms)
+  float avgprd;
   edge_data(){ weight = 0; time = 0; avgprd = 0;}
 
  void save(graphlab::oarchive& archive) const {  

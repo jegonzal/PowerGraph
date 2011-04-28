@@ -39,6 +39,8 @@ bool regnormal = false; //regular normalization
 bool aggregatevalidation = false;
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
+double scalerating = 0; //scale the rating by dividing to the scalerating factor (optional)
+int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
 
 /* Variables for PMF */
 int M,N,K,L;//training size: users, movies, times, number of edges
@@ -871,6 +873,8 @@ void start(int argc, char ** argv) {
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
   clopts.attach_option("regnormal", &regnormal, regnormal, "regular normalization? ");  
+  clopts.attach_option("scalerating", &scalerating, scalerating, "scale rating value ");  
+  clopts.attach_option("delayalpha", &delayalpha, delayalpha, "start sampling alpha the delayalpha round ");  
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
  
   gl_types::core glcore;
@@ -970,7 +974,7 @@ void start(int argc, char ** argv) {
 
 
   if (BPTF){
-    if (alpha == 0)
+    if (delayalpha > iiter)
     	sample_alpha(L);
     sample_U();
     sample_V();
@@ -1041,6 +1045,8 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
+      if (scalerating)
+	edge.weight /= scalerating;
       edge.time = (int)((ed[i].time -1-truncating)/scaling);
  
       std::pair<bool, edge_id_t> ret;
