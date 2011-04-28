@@ -10,7 +10,6 @@ gibbs_sampler_impl: gibbs_sampler_impl.cpp matwrap.hpp
 	-L../../../release/demoapps/pgibbs \
 	-lpgibbs_pic \
 	-lgraphlab_pic \
-	-lgraphlab_metis_pic -lgraphlab_GKlib_pic \
 	-lgomp	
 
 
