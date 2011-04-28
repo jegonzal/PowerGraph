@@ -20,9 +20,9 @@ namespace dc_impl{
 
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
 \file
-\internal
+
 This is an internal function and should not be used directly
 
 This is the dispatch function for the an object request.

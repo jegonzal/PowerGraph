@@ -16,10 +16,10 @@ namespace graphlab {
   */
   std::string get_local_ip_as_str();
   /** \ingroup util 
-   * Find a free tcp port. Note that this does not bind the port
-   * so there is technically a race between calling this function and 
-   * actually acquiring the port */
-  size_t get_free_tcp_port();
+   * Find a free tcp port and binds it. Caller must release the port.
+   * Returns a pair of [port, socket handle]
+   */
+  std::pair<size_t, int> get_free_tcp_port();
 };
 
 #endif

@@ -14,9 +14,9 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
 \file
-\internal
+
 This is an internal function and should not be used directly
 
 A "call" is an RPC which is performed asynchronously.
@@ -29,8 +29,8 @@ An "issue" is a wrapper function on the sending side of an RPC
 which encodes the packet and transmits it to the other side. 
 (I realized later this is called a "Marshaller")
 
-Native Call Formats
-===================
+Native Call Formats \n
+=================== \n
 The format of a "call" packet is in the form of an archive and is as follows
 
 \li (dispatch_type*) -- pointer to target machine's dispatcher function

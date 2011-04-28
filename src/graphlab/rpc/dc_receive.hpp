@@ -7,7 +7,7 @@ namespace graphlab {
 namespace dc_impl {
   
 /**
-\ingroup rpc
+\ingroup rpc_internal
 Base class of the data receiving class.
 This class forms the receiving side of a "multiplexer"
 Data entering from a single socket will be passed to this

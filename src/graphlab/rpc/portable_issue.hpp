@@ -12,9 +12,9 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
  \file
- \internal
+ 
  This is an internal function and should not be used directly
  
 This is a partial specialization of the remote_call_issue classes
@@ -22,8 +22,8 @@ described in function_call_issue.hpp and request_issue.hpp to handle the portabl
 A portable call permits function calls across different binaries, but required
 registration.
 
-Portable Call Formats
-=====================
+Portable Call Formats \n
+===================== \n
 The format of a "portable call" packet is in the form of an archive and is as follows
 
 \li size_t(NULL)     -- NULL. Corresponds to the dispatch_type* in the native call
@@ -36,7 +36,8 @@ The format of a "portable call" packet is in the form of an archive and is as fo
 
 Unlike the native call, argument casting is performed by the caller. The caller is
 required to know the type of the function (At least through a function prototype)
----------
+
+---------\n
 The format of a "portable request" packet is in the form of an archive and is as follows
 \li  size_t(NULL)     -- NULL. Corresponds to the dispatch_type* in the native call
 \li  std::string      -- name of the function to call

@@ -61,10 +61,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
 
  public:
-  /**
-   * 
-   * \internal
-   */
+  /// Should not be used by the user
   void inc_calls_received(procid_t p) {
     if (!full_barrier_in_effect) {
         callsreceived[p].inc();
@@ -89,10 +86,12 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     }
   }
   
+  /// Should not be used by the user
   void inc_calls_sent(procid_t p) {
     callssent[p].inc();
   }
   
+  /// Should not be used by the user
   void inc_bytes_sent(procid_t p, size_t bytes) {
     bytessent[p].inc(bytes);
   }
@@ -543,6 +542,8 @@ private:
   }
  public:
   /**
+   * Collects information contributed by each machine onto 
+   * one machine.
    * data must be of length data[numprocs].
    * My data is stored in data[dc.procid()].
    * when function returns, machine sendto will have the complete vector
@@ -926,8 +927,9 @@ private:
  public:
   /**
     A regular barrier equivalent to MPI_Barrier.
-    A thread machine entering this barrier will wait until one thread on each 
-    machines enter this barrier.
+    A machine entering this barrier will wait until every machine 
+    reaches this barrier before continuing. Only one thread from each machine
+    should call the barrier.
     
     \see full_barrier
     */
@@ -999,13 +1001,14 @@ private:
 
  public:  
   /**
-  This barrier ensures globally across all machines that
-  all calls issued prior to this barrier are completed before
-  returning. This function could return prematurely if
+  Similar to the barrier(), but provides additional guarantees that 
+  all RMI calls issued prior to this barrier are completed before
+  returning. 
+  
+  \note This function could return prematurely if
   other threads are still issuing function calls since we
   cannot differentiate between calls issued before the barrier
   and calls issued while the barrier is being evaluated.
-  
   Therefore, when used in a multithreaded scenario, the user must ensure
   that all other threads which may perform operations using this object
   are stopped before the full barrier is initated.

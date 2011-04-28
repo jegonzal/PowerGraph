@@ -15,7 +15,7 @@
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
 \file
 An RPC-aware call is a function of the form:
 ... fn(distributed_control& dc, procid_t source....)
@@ -28,7 +28,7 @@ namespace dc_impl {
 
 namespace is_rpc_call_detail {
 /**
-\ingroup rpc
+\ingroup rpc_internal
 Whether the function has less than or equal to 2 arguments
 */
 template <typename F>
@@ -38,7 +38,7 @@ struct less_than_2_args {
 
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
 Now, arg1_type and arg_2 type may not exist in function_traits if the 
 number of arguments is < 2. I will need to wrap it to make it safe
 */
@@ -78,7 +78,7 @@ struct check_second_arg {
 }
 
 /**
- * \ingroup rpc
+ * \ingroup rpc_internal
  * ::type is true if F is an RPC call interface.
  * \tparam F the function to test
  */

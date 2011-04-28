@@ -4,6 +4,7 @@
 \defgroup util_internal Internal Utility Classes
 \defgroup util GraphLab Utility Classes and Functions
 \defgroup rpc GraphLab RPC
+\defgroup rpc_internal GraphLab RPC Internal
 \defgroup random Random Number Generators
 \mainpage 
    

@@ -17,7 +17,7 @@ namespace graphlab {
 namespace dc_impl {
   
 /**
-\ingroup rpc
+\ingroup rpc_internal
 SCTP implementation of the communications subsystem
 This is experimental
 */

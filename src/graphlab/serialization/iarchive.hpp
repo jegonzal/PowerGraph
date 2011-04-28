@@ -14,13 +14,13 @@
 namespace graphlab {
 
   /**
-     The input archive object.
-     It is just a simple wrapper around a istream
-  */
+   * The input archive object.
+   * It is just a simple wrapper around a istream 
+   */
   class iarchive {
   public:
     std::istream* i;
-
+    /// constructor. Takes a generic std::istream object
     iarchive(std::istream& is)
       :i(&is) { }
       
@@ -28,7 +28,13 @@ namespace graphlab {
   };
 
 
-
+  /**
+   * An alternate input archive object. 
+   * When this object is used to deserialize an object,
+   * and the object does not support serialization,
+   * failure will only occur at runtime.
+   * \see iarchive
+   */
   class iarchive_soft_fail{
   public:
     std::istream *i;

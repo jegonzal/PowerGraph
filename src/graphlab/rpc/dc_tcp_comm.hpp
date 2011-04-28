@@ -17,8 +17,7 @@ namespace graphlab {
 namespace dc_impl {
   
 /**
- \ingroup rpc
- \internal
+ \ingroup rpc_internal
 TCP implementation of the communications subsystem.
 Provides a single object interface to sending/receiving data streams to
 a collection of machines.
@@ -142,8 +141,10 @@ class dc_tcp_comm:public dc_comm_base {
   /// called when listener receives an incoming socket request
   void new_socket(int newsock, sockaddr_in* otheraddr, procid_t remotemachineid);
   
-  /// opens the listening sock and spawns a thread to listen on it
-  void open_listening();
+  /** opens the listening sock and spawns a thread to listen on it.
+   * Uses sockhandle if non-zero
+   */
+  void open_listening(int sockhandle = 0);
   
   
   /// constructs a connection to the target machine

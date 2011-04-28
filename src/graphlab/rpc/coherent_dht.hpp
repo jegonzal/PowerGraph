@@ -1,10 +1,3 @@
-/*
-  \author Yucheng Low (ylow)
-  An implementation of a distributed integer -> integer map with caching
-  capabilities. 
-
-*/
-
 #ifndef COHERENT_DHT_HPP
 #define COHERENT_DHT_HPP
 #include <boost/unordered_map.hpp>
@@ -21,7 +14,9 @@ namespace dc_impl {
 #define COHERENT_DHT_COMPRESSED_HASH 32768
 #define COHERENT_DHT_SUBSCRIBE_IF_ACCESSES_PER_INVALIDATE 10
 /**
-  A cache entry. Boost intrusive is used to provide the LRU capabilities here
+ * \ingroup rpc_internal
+  A cache entry for the coherent_dht. 
+  Boost intrusive is used to provide the LRU capabilities here
 */
 template<typename KeyType, typename ValueType>
 class coherent_lru_list{
@@ -43,6 +38,7 @@ class coherent_lru_list{
 } // namespace dc_impl
 
 /**
+ * \ingroup rpc
 This implements a processor consistent cache coherent distributed hash table.
 Each machine has a part of the hash table as well as a cache. The system
 implements automatic cache invalidation as well as automatic cache subscription
@@ -379,17 +375,19 @@ class coherent_dht{
     return false;
   }
 
+  /// Returns the number of misses divided by the number of requests
   double cache_miss_rate() {
     return double(misses) / double(reqs);
   }
-
+  /// Returns the number of requests 
   size_t num_gets() const {
     return reqs;
   }
+  /// Returns the number of cache misses
   size_t num_misses() const {
     return misses;
   }
-
+  /// Returns the current size of the cache
   size_t cache_size() const {
     return cache.size();
   }

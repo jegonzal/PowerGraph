@@ -63,7 +63,7 @@ uint32_t get_local_ip() {
   return ip;
 }
 
-size_t get_free_tcp_port() {
+std::pair<size_t, int> get_free_tcp_port() {
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   // uninteresting boiler plate. Set the port number and socket type
   sockaddr_in my_addr;
@@ -82,8 +82,7 @@ size_t get_free_tcp_port() {
     logger(LOG_FATAL, "Failed to get port information about bound socket");
   }
   size_t freeport = ntohs(((sockaddr_in*)(&addr))->sin_port);
-  close(sock);
-  return freeport;
+  return std::make_pair<size_t, int>(freeport, sock);
 }
 
 } // namespace graphlab

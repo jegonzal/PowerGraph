@@ -12,9 +12,8 @@
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
 \file
-\internal
 This is an internal function and should not be used directly.
 
 The portable calls work in a slightly different way as the regular RPC system.

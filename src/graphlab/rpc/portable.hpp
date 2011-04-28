@@ -26,7 +26,7 @@ struct portable_call{
 } // makespace graphlab
 
 /**
-\ingroup rpc
+\ingroup rpc_internal
 Make the portable call have the right return type
 */
 namespace boost {

@@ -22,9 +22,9 @@ namespace dc_impl {
 
   
 /**
-\ingroup rpc
+\ingroup rpc_internal
 \file
-\internal
+
 This is an internal function and should not be used directly
 
 This is the marshall function for the an object member function call.
