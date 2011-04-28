@@ -3,7 +3,8 @@
 \defgroup group_schedulers Schedulers
 \defgroup util_internal Internal Utility Classes
 \defgroup util GraphLab Utility Classes and Functions
-\defgroup group_rpc GraphLab RPC
+\defgroup rpc GraphLab RPC
+\defgroup rpc_internal GraphLab RPC Internal
 \defgroup random Random Number Generators
 \mainpage 
    
@@ -46,4 +47,7 @@
   The GraphLab library also has a collection of \ref util "parallel utility classes and functions"
   which may be useful.
 
+  Additionally, GraphLab also has a nice RPC implementation (which we use
+  in the distributed implementation which is not yet available)
+  \li \ref RPC "GraphLab RPC"
 */

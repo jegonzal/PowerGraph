@@ -14,8 +14,15 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
-Marshalls a object function call to a remote machine. This is similar to the regular function call
+\ingroup rpc_internal
+\file
+ This is an internal function and should not be used directly
+
+Marshalls a object function call to a remote machine. 
+This is similar to the regular function call in function_call_issue.hpp
 with the only difference that the object id needs to be transmitted as well.
+
+\code
 template<typename T, 
         typename F , 
         typename T0> class object_call_issue1
@@ -38,7 +45,7 @@ template<typename T,
         sender->send_data(target,flags , strm->str, strm->len);
     }
 };
-
+\endcode
 */
 
 #define GENARGS(Z,N,_)  BOOST_PP_CAT(const T, N) BOOST_PP_CAT(&i, N)

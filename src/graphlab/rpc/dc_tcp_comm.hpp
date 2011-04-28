@@ -17,7 +17,10 @@ namespace graphlab {
 namespace dc_impl {
   
 /**
-TCP implementation of the communications subsystem
+ \ingroup rpc_internal
+TCP implementation of the communications subsystem.
+Provides a single object interface to sending/receiving data streams to
+a collection of machines.
 */
 class dc_tcp_comm:public dc_comm_base {
  public:
@@ -61,25 +64,37 @@ class dc_tcp_comm:public dc_comm_base {
 
   /**
     Returns the number of machines in the network.
-    Only valid after call to init();
+    Only valid after call to init()
   */
   inline procid_t numprocs() const {
     return nprocs;
   }
   
+  /**
+   * Returns the current machine ID.
+   * Only valid after call to init()
+   */
   inline procid_t procid() const {
     return curid;
   }
   
+  /**
+   * Returns the total number of bytes sent
+   */
   inline size_t network_bytes_sent() const {
     return network_bytessent.value;
   }
-  
+
+  /**
+   * Returns the total number of bytes received
+   */
   inline size_t network_bytes_received() const {
     return network_bytesreceived.value;
   }
  
+  /// Flushes the TCP stream. \note Not Implemented.
   void flush(size_t target);
+  
   /**
    Sends the string of length len to the target machine dest.
    Only valid after call to init();
@@ -87,9 +102,17 @@ class dc_tcp_comm:public dc_comm_base {
   */
   void send(size_t target, const char* buf, size_t len);
   
+  /**
+   * Sends two buffers one after another to the target machine. 
+   * Receiver will receive both buf1 and buf2 consecutively.
+   * For instance, buf1 could contain a packet header, while buf2 could
+   * contain the packet contents.
+   */
   void send2(size_t target, 
              const char* buf1, const size_t len1,
              const char* buf2, const size_t len2); 
+  
+  
   // receiving socket handler
   class socket_handler {
    public:
@@ -112,24 +135,27 @@ class dc_tcp_comm:public dc_comm_base {
   };
   
  private:
- 
+  /// Sets TCP_NO_DELAY on the socket passed in fd
   void set_socket_options(int fd);
 
-  // called when listener receives an incoming socket request
+  /// called when listener receives an incoming socket request
   void new_socket(int newsock, sockaddr_in* otheraddr, procid_t remotemachineid);
   
-  // opens the listening sock and spawns a thread to listen on it
-  void open_listening();
+  /** opens the listening sock and spawns a thread to listen on it.
+   * Uses sockhandle if non-zero
+   */
+  void open_listening(int sockhandle = 0);
   
   
-  // constructs a connection to the target machine
+  /// constructs a connection to the target machine
   void connect(size_t target);
 
-  // wrapper around the standard send. but loops till the buffer is all sent
+  /// wrapper around the standard send. but loops till the buffer is all sent
   int sendtosock(int sockfd, const char* buf, size_t len);
   
-  // checks for the existance of an outgoing connectino to the target
-  // if none exists, it will create one
+  /** checks for the existance of an outgoing connectino to the target
+   if none exists, it will create one
+     */
   void check_for_out_connection(size_t target);
   
   /// all_addrs[i] will contain the IP address of machine i

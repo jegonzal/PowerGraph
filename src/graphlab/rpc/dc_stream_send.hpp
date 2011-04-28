@@ -17,10 +17,12 @@ class distributed_control;
 namespace dc_impl {
 
 /**
+  \ingroup rpc
   Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
+  This implements a default non-buffering sender.
 */
 
 class dc_stream_send: public dc_send{
@@ -33,7 +35,9 @@ class dc_stream_send: public dc_send{
   ~dc_stream_send() {
   }
   
-
+  /**
+   * Returns true if the communication channel to the target is open
+   */
   inline bool channel_active(procid_t target) const {
     return comm->channel_active(target);
   }
@@ -54,8 +58,12 @@ class dc_stream_send: public dc_send{
   void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len);
-
+  /**
+   * Stops the sender. Behavior of any send_data calls after shutdown() is undefined
+   */
   void shutdown();
+  
+  /// Returns the number of bytes transmitted
   inline size_t bytes_sent() {
     return bytessent.value;
   }

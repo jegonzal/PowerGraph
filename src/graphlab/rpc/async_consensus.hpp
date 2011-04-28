@@ -10,8 +10,57 @@
 
 namespace graphlab {
   /**
-   * This implements a distributed consensus algorithm attached on an
-   * object
+   * \ingroup rpc
+   * This implements a distributed consensus algorithm which waits
+   * for global completion of all computation/RPC events on a given object.
+   * The use case is as follows:
+   * 
+   * A collection of threads on a collection of distributed machines, each
+   * running the following
+   * 
+   * \code
+   * while (work to be done) {
+   *    Do_stuff
+   * }
+   * \endcode
+   * 
+   * However, <tt>Do_stuff</tt> will include RPC calls which may introduce
+   * work to other threads/machines.
+   * Figuring out when termination is possible is complex. For instance RPC calls 
+   * could be in-flight and not yet received. This async_consensus class 
+   * implements a solution built around the algorithm in
+   * <i>Misra, J.: Detecting Termination of Distributed Computations Using Markers, SIGOPS, 1983</i>
+   * extended to handle the mixed parallelism (distributed with threading) case.
+   * 
+   * The main loop of the user has to be modified to:
+   * 
+   * \code
+   * done = false;
+   * while (!done) {
+   *    Do_stuff
+   *    // if locally, I see that there is no work to be done
+   *    // we begin the consensus checking
+   *    if (no work to be done) {
+   *      // begin the critical section and try again
+   *      consensus.begin_done_critical_section();
+   *      // if still no work to be done
+   *      if (no work to be done) {
+   *        done = consensus.end_done_critical_section(true);
+   *      }
+   *      else {
+   *        consensus.end_done_critical_section();
+   *      }
+   *    }
+   * }
+   * 
+   * \endcode
+   * 
+   * Additionally, incoming RPC calls which create work must ensure there are
+   * active threads which are capable of processing the work. An easy solution 
+   * will be to simply consensus.cancel_one(). Other more optimized solutions
+   * include keeping a counter of the number of active threads, and only calling
+   * cancel() or cancel_one() if all threads are asleep. (Note that the optimized
+   * solution does require some care to ensure dead-lock free execution).
    */
   class async_consensus {
   public:
@@ -28,24 +77,43 @@ namespace graphlab {
      */
     bool done();
 
+    /**
+     * A thread enters the critical section by calling
+     * this function. after which it should check its termination 
+     * condition locally, before calling end_done_critical_section
+     */
     void begin_done_critical_section();
 
+    /**
+     * end_done_critical_section() closes the critical section.
+     * 
+     * If done is set, it is equivalent to calling done() within the
+     * critical section, and the thread will block. 
+     * It will then returns true if global consensus is achieved, or will
+     * return false if cancelled.
+     * 
+     * If done is not set, the thread will close the critical section
+     * and return immediately
+     */
     bool end_done_critical_section(bool done);
 
+    /**
+     * Forces the consensus to be set
+     */
     void force_done();
   
-    bool done_noblock() {
+    /** A non-blocking done() call. Returns true if consensus is achieved
+     * and false otherwise.
+     */
+    inline bool done_noblock() {
       return complete;
     }
 
-    /**
-     * Cancels a "done" call. done() will immediately return
-     * false after this. Note that this function is rather costly
-     * and could "serialize" your execution so it should not be
-     * called too frequently
-     */
+    
+    /// Wakes up all local threads waiting in done()
     void cancel();
 
+    /// Wakes up one thread waiting in done()
     void cancel_one();
 
     struct token {

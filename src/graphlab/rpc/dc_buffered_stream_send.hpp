@@ -18,13 +18,17 @@ class distributed_control;
 namespace dc_impl {
 
 /**
-  Sender for the dc class.
+   \ingroup rpc
+Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
   This class performs buffered transmissions.
-  That is, sends are relegated to an internal buffer, which is then
+  That is, sends are relegated to an internal circular buffer, which is then
   passed to the communication classes on another thread.
+
+  This implements a buffered sender and can be enabled by passing "buffered_send=yes"
+  in the distributed control initstring.
 */
 
 class dc_buffered_stream_send: public dc_send{

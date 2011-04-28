@@ -22,12 +22,17 @@ namespace dc_impl {
 
   
 /**
+\ingroup rpc_internal
+\file
+
+This is an internal function and should not be used directly
+
 This is the marshall function for the an object member function call.
-This is very similar to the standard function request issue, with the only difference
-that an object id has to be transmitted
+This is very similar to the standard function request issue in request_issue.hpp
+, with the only difference that an object id has to be transmitted
 
 An annoyingly long sequence of type manipulations are needed to identify the return type.
-
+\code
 template<typename T,
         typename F , 
         typename T0> class object_request_issue1
@@ -66,7 +71,7 @@ template<typename T,
         return result;
     }
 };
-
+\endcode
 
 
 */
@@ -74,7 +79,7 @@ template<typename T,
 template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static typename function_ret_type<FRESULT>::type exec(dc_dist_object_base* rmi, dc_send* sender, size_t flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_dist_object_base* rmi, dc_send* sender, size_t flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
@@ -91,16 +96,13 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);  \
     iarchive iarc(retstrm);  \
-    typename function_ret_type<FRESULT>::type result; \
+    typename function_ret_type<__GLRPC_FRESULT>::type result; \
     iarc >> result;  \
     reply.val.free(); \
     return result;  \
   }\
 };
 
-/**
-Generates a function call issue. 3rd argument is the issue name
-*/
 BOOST_PP_REPEAT(6, REMOTE_REQUEST_ISSUE_GENERATOR,  object_request_issue )
 
 

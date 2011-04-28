@@ -57,7 +57,14 @@ void dc_tcp_comm::init(const std::vector<std::string> &machines,
     portnums[i] = port;
   }
   network_bytessent = 0;
-  open_listening();
+  // if sock handle is set
+  std::map<std::string, std::string>::const_iterator iter = initopts.find("__sockhandle__");
+  if (iter != initopts.end()) {
+    open_listening(atoi(iter->second.c_str()));
+  }
+  else {
+    open_listening();
+  }
 }
 
 void dc_tcp_comm::close() {
@@ -237,20 +244,25 @@ void dc_tcp_comm::new_socket(int newsock, sockaddr_in* otheraddr, procid_t id) {
 
 
 
-void dc_tcp_comm::open_listening() {
+void dc_tcp_comm::open_listening(int sockhandle) {
   // open listening socket
-  listensock = socket(AF_INET, SOCK_STREAM, 0);
-  // uninteresting boiler plate. Set the port number and socket type
-  sockaddr_in my_addr;
-  my_addr.sin_family = AF_INET;
-  my_addr.sin_port = htons(portnums[curid]);
-  my_addr.sin_addr.s_addr = INADDR_ANY;
-  memset(&(my_addr.sin_zero), '\0', 8);
-  logstream(LOG_INFO) << "Proc " << procid() << " Bind on " << portnums[curid] << "\n";
-  if (bind(listensock, (sockaddr*)&my_addr, sizeof(my_addr)) < 0)
-  {
-    logstream(LOG_FATAL) << "bind: " << strerror(errno) << "\n";
-    ASSERT_TRUE(0);
+  if (sockhandle == 0) {
+    listensock = socket(AF_INET, SOCK_STREAM, 0);
+    // uninteresting boiler plate. Set the port number and socket type
+    sockaddr_in my_addr;
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_port = htons(portnums[curid]);
+    my_addr.sin_addr.s_addr = INADDR_ANY;
+    memset(&(my_addr.sin_zero), '\0', 8);
+    logstream(LOG_INFO) << "Proc " << procid() << " Bind on " << portnums[curid] << "\n";
+    if (bind(listensock, (sockaddr*)&my_addr, sizeof(my_addr)) < 0)
+    {
+      logstream(LOG_FATAL) << "bind: " << strerror(errno) << "\n";
+      ASSERT_TRUE(0);
+    }
+  }
+  else {
+    listensock = sockhandle;
   }
   logstream(LOG_INFO) << "Proc " << procid() << " listening on " << portnums[curid] << "\n";
   ASSERT_EQ(0, listen(listensock, 128));

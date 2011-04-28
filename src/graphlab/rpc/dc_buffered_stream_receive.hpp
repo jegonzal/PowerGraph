@@ -14,7 +14,8 @@ class distributed_control;
 namespace dc_impl {
 
 /**
-  Receiver processor for the dc class.
+   \ingroup rpc
+Receiver processor for the dc class.
   The job of the receiver is to take as input a byte stream
   (as received from the socket) and cut it up into meaningful chunks.
   This can be thought of as a receiving end of a multiplexor.
@@ -22,7 +23,8 @@ namespace dc_impl {
   is placed in a buffer, which is then processed by a parsing thread, before
   passing off to the actual function call handlers.
   
-  This defines a buffered receiver. 
+  This implements a buffered receiver and can be enabled by passing "buffered_recv=yes"
+  in the distributed control initstring.
   
   \note this class is not very useful since process_buffer
   is not usually a significant overhead. Using buffered receives tend

@@ -11,12 +11,18 @@ class distributed_control;
 
 namespace dc_impl {  
 
-/** The type of the callback function used by the communications
+/** 
+ * \ingroup rpc_internal
+ * 
+ * The type of the callback function used by the communications
 classes when data is received*/
 typedef void (*comm_recv_callback_type)(void* tag, procid_t src, 
                                         const char* buf, size_t len);
 
-/** The type of the local function call dispatcher */
+/** 
+ * \ingroup rpc_internal
+ * 
+ * The type of the local function call dispatcher */
 typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, std::istream&);
 
 typedef boost::unordered_map<std::string, dispatch_type> dispatch_map_type;
@@ -25,7 +31,10 @@ typedef boost::unordered_map<std::string, dispatch_type> dispatch_map_type;
 const size_t COMM_STREAM = 1;
 const size_t COMM_DATAGRAM = 0;
 
-/** The header form of each packet */
+/** 
+ * \ingroup rpc_internal
+ * 
+ * The header form of each packet */
 struct packet_hdr {
   uint64_t len; /// length of the packet
   procid_t src; /// source machine
@@ -33,7 +42,10 @@ struct packet_hdr {
   unsigned char sequentialization_key;
 };
 
-/** special handling for the only pointer datatype 
+/** 
+ * \ingroup rpc_internal
+ * 
+ * special handling for the only pointer datatype 
 we natively support serialization for. Basically,
 we must delete it. if charstring_free is called on a
 char*, it will be deleted. Otherwise it will not do anything*/
@@ -50,7 +62,11 @@ inline void charstring_free<char*>(char* &c){
 #define REQUEST_WAIT_METHOD 1
 
 
-/** The data needed to receive the matched send / recvs */
+/** 
+ * \ingroup rpc_internal
+ * 
+ * 
+ * The data needed to receive the matched send / recvs */
 struct recv_from_struct {
   std::string data;
   size_t tag;
@@ -59,6 +75,11 @@ struct recv_from_struct {
   bool hasdata;
 };
 
+/**
+ * \ingroup rpc_internal
+ * 
+ * Used for termination detection
+ */
 struct terminator_token {
   terminator_token():calls_sent(0),calls_recv(0),terminate(false) { }
   terminator_token(size_t sent, size_t recv):calls_sent(sent),

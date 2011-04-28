@@ -19,7 +19,9 @@ namespace graphlab {
 
 namespace dc_impl {
 /**
-  A cache entry. Boost intrusive is used to provide the LRU capabilities here
+ * \ingroup rpc_internal
+  A cache entry for the caching_dht. 
+  Boost intrusive is used to provide the LRU capabilities here
 */
 template<typename KeyType, typename ValueType>
 class lru_list{
@@ -40,6 +42,7 @@ class lru_list{
 } // namespace dc_impl
 
 /**
+ * \ingroup rpc
 This implements a limited distributed key -> value map with caching capabilities
 It is up to the user to determine cache invalidation policies. User explicitly
 calls the invalidate() function to clear local cache entries

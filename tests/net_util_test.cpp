@@ -9,7 +9,7 @@ using namespace graphlab;
 int main(int argc, char** argv) {
   std::cout << "local IP: " << get_local_ip() << std::endl;
   std::cout << "local IP str: " << get_local_ip_as_str() << std::endl;
-  size_t port = get_free_tcp_port();
+  size_t port = get_free_tcp_port().first;
   std::cout << "A free port: " << port << std::endl;
   // try to bind on the port   
   int sock = socket(AF_INET, SOCK_STREAM, 0);

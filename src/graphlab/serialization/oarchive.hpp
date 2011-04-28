@@ -12,25 +12,31 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/is_pod.hpp>
 #include <graphlab/serialization/has_save.hpp>
+
 namespace graphlab {
 
 
   /**
-     The output archive object.
-     It is just a simple wrapper around a ostream. All the action
-     takes place in serialize_impl
-  */
+   *  The output archive object.
+   *  It is just a simple wrapper around a ostream. 
+   */
   class oarchive{
   public:
     std::ostream* o;
-
+    /// constructor. Takes a generic std::ostream object
     oarchive(std::ostream& os)
       : o(&os) {}
 
     ~oarchive() { }
   };
 
-
+/**
+   * An alternate output archive object. 
+   * When this object is used to serialize an object,
+   * and the object does not support serialization,
+   * failure will only occur at runtime.
+   * \see oarchive
+   */
   class oarchive_soft_fail{
   public:
     std::ostream* o;

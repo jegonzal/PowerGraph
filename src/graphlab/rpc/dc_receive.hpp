@@ -7,6 +7,7 @@ namespace graphlab {
 namespace dc_impl {
   
 /**
+\ingroup rpc_internal
 Base class of the data receiving class.
 This class forms the receiving side of a "multiplexer"
 Data entering from a single socket will be passed to this
@@ -64,6 +65,10 @@ class dc_receive {
   virtual size_t bytes_received() = 0;
   
   
+  /**
+   * Last call sent to any instance of dc_receive.
+   * If the sender multithreads, the sending thread must shut down.
+   */
   virtual void shutdown() = 0;
 };
 

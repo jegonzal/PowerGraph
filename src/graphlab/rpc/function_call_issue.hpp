@@ -14,6 +14,11 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
+\ingroup rpc_internal
+\file
+
+This is an internal function and should not be used directly
+
 A "call" is an RPC which is performed asynchronously.
 There are 2 types of calls. A "basic" call calls a standard C/C++ function
 and does not require the function to be modified.
@@ -24,71 +29,26 @@ An "issue" is a wrapper function on the sending side of an RPC
 which encodes the packet and transmits it to the other side. 
 (I realized later this is called a "Marshaller")
 
-Native Call Formats
-===================
+Native Call Formats \n
+=================== \n
 The format of a "call" packet is in the form of an archive and is as follows
- (dispatch_type*) -- pointer to target machine's dispatcher function
- (void*)          -- pointer to target function
- fn::arg1_type    -- target function's 1st argument
- fn::arg2_type    -- target function's 2nd argument
-  ...
- fn::argN_type    -- target function's Nth argument
+
+\li (dispatch_type*) -- pointer to target machine's dispatcher function
+\li (void*)          -- pointer to target function
+\li fn::arg1_type    -- target function's 1st argument
+\li fn::arg2_type    -- target function's 2nd argument
+\li  ...
+\li fn::argN_type    -- target function's Nth argument
 
 Argument casting is deferred to as late as possible. So the data type of
 arguments are the data types that the caller use to call the function. 
-A dispatcher function will be insantiated with the input types, which will
+A dispatcher function will be instantiated with the input types, which will
 then perform the type cast.
- ---------
-The format of a "request" packet is in the form of an archive and is as follows
- (dispatch_type*) -- pointer to target machine's dispatcher function
- (void*)          -- pointer to target function
- size_t           -- return ID
- fn::arg1_type    -- target function's 1st argument
- fn::arg2_type    -- target function's 2nd argument
-  ...
- fn::argN_type    -- target function's Nth argument
-
- At the end of the request, the dispatch will perform a fast call to the
- reply_increment_counter on the source machine passing the ID as an argument.
- The return data is passed using the actual result type of the function.
- 
-Portable Call Formats
-=====================
-The format of a "portable call" packet is in the form of an archive and is as follows
- size_t(NULL)     -- NULL. Corresponds to the dispatch_type* in the native call
- std::string      -- name of the function to call
- char(0)          -- flag that this is a call
- fn::arg1_type    -- target function's 1st argument
- fn::arg2_type    -- target function's 2nd argument
-  ...
- fn::argN_type    -- target function's Nth argument
-
-Unlike the native call, argument casting is performed by the caller. The caller is
-required to know the type of the function (At least through a function prototype)
----------
-The format of a "portable request" packet is in the form of an archive and is as follows
- size_t(NULL)     -- NULL. Corresponds to the dispatch_type* in the native call
- std::string      -- name of the function to call
- char(1)          -- flag that this is a request
- fn::arg1_type    -- target function's 1st argument
- fn::arg2_type    -- target function's 2nd argument
-  ...
- fn::argN_type    -- target function's Nth argument
-
-Unlike the native call, argument casting is performed by the caller. The caller is
-required to know the type of the function (At least through a function prototype)
-At the end of the request, the dispatch will perform a fast call to the
- reply_increment_counter on the source machine passing the ID as an argument.
- The return data is passed using the actual result type of the function.
- 
----------
-
-\see portable_issue.hpp
 
 
 The code below generates the following for different number of arguments. Here, we 
 demonstrate the 1 argument version.
-
+\code
 namespace function_call_issue_detail
 {
     template <typename BoolType, 
@@ -128,6 +88,8 @@ template<typename F , typename T0> class remote_call_issue1
         sender->send_data(target,flags , strm->str, strm->len);
     }
 };
+
+\endcode
 
 The basic idea of the code is straightforward.
 The receiving end cannot call the target function (remote_function) directly, since it has 
