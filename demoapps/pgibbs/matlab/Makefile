@@ -9,7 +9,9 @@ gibbs_sampler_impl: gibbs_sampler_impl.cpp matwrap.hpp
 	-L../../../release/src/graphlab/extern/metis/libmetis \
 	-L../../../release/demoapps/pgibbs \
 	-lpgibbs_pic \
-	-lgraphlab_pic -lgomp	
+	-lgraphlab_pic \
+	-lgraphlab_metis_pic -lgraphlab_GKlib_pic \
+	-lgomp	
 
 
 
