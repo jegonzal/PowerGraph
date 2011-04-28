@@ -21,11 +21,36 @@ subdirs(
  jni)
 
 
+
+#build graphlab_zoltan if available
+IF(ZOLTAN_FOUND)
+  add_library(graphlab_zoltan
+              distributed2/graph/partitioning/adjacency_list.cpp
+              distributed2/graph/partitioning/partitioning_tools.cpp)
+#   TARGET_LINK_LIBRARIES(graphlab_zoltan 
+#     ${MPI_LIBRARY} 
+#     ${MPI_EXTRA_LIBRARY}
+#     ${ZOLTAN_LIBS})
+ENDIF()
+
+
+
+#build the graphlab library
+if(Sctp-FOUND)
+  set(sctp_source rpc/dc_sctp_comm.cpp)
+endif()
+
+if (ZLIB_FOUND)
+  set(rpc_compressed rpc/dc_stream_receive_z.cpp
+                      rpc/dc_buffered_stream_send_expqueue_z.cpp)
+endif()
+
 if (MPI_FOUND)
   set(util_mpi_tools util/mpi_tools.cpp)
 endif()
 
-add_library(graphlab_util STATIC
+add_library(graphlab STATIC
+  schedulers/scheduler_options.cpp
   util/timer.cpp
   util/generics/any.cpp
   util/command_line_options.cpp
@@ -42,24 +67,6 @@ add_library(graphlab_util STATIC
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   ${util_mpi_tools}
-)
-
-if (MPI_FOUND)
-  target_link_libraries(graphlab_util ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-endif()
-
-
-
-if(Sctp-FOUND)
-  set(sctp_source rpc/dc_sctp_comm.cpp)
-endif()
-
-if (ZLIB_FOUND)
-  set(rpc_compressed rpc/dc_stream_receive_z.cpp
-                      rpc/dc_buffered_stream_send_expqueue_z.cpp)
-endif()
-  
-add_library(graphlab_rpc STATIC
   rpc/dc_comm_base.cpp
   rpc/dc_tcp_comm.cpp
   ${sctp_source}
@@ -76,40 +83,24 @@ add_library(graphlab_rpc STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
-  ${rpc_compressed})
+  ${rpc_compressed}
+)
 
+target_link_libraries(graphlab graphlab_metis graphlab_GKlib ${Boost_LIBRARIES})
 
-IF(ZOLTAN_FOUND)
-  add_library(graphlab_zoltan
-              distributed2/graph/partitioning/adjacency_list.cpp
-              distributed2/graph/partitioning/partitioning_tools.cpp)
-#   TARGET_LINK_LIBRARIES(graphlab_zoltan 
-#     ${MPI_LIBRARY} 
-#     ${MPI_EXTRA_LIBRARY}
-#     ${ZOLTAN_LIBS})
-ENDIF()
+if (MPI_FOUND)
+target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+endif()
 
 
 if(Sctp-FOUND)
-  set_property(TARGET graphlab_rpc APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
+  set_property(TARGET graphlab APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
+  target_link_libraries(graphlab sctp)
 endif()
 
-target_link_libraries(graphlab_rpc graphlab_util)
 
 
-add_library(graphlab STATIC
-  schedulers/scheduler_options.cpp)
-  
-
-if(Sctp-FOUND)
-  target_link_libraries(graphlab_rpc sctp)
-endif()
-
-target_link_libraries(graphlab graphlab_metis graphlab_rpc graphlab_util)
-
-
-
-
+#build distributed graphlab
 add_library(graphlab_dist2 STATIC
     distributed2/graph/partitioning/adjacency_list.cpp      
     distributed2/graph/atom_index_file.cpp
@@ -117,20 +108,7 @@ add_library(graphlab_dist2 STATIC
     distributed2/distributed_glshared_manager.cpp)
 
 
-
-target_link_libraries(graphlab ${Boost_LIBRARIES})
-target_link_libraries(graphlab_util ${Boost_LIBRARIES})
-
-
-
-# PIC versions of the graphlab libraries
-get_target_property(graphlab_util_sources graphlab_util SOURCES)
-get_property(graphlab_util_flags TARGET graphlab_util PROPERTY COMPILE_FLAGS)
-add_library(graphlab_util_pic STATIC ${graphlab_util_sources})
-set_target_properties(graphlab_util_pic PROPERTIES 
-                      COMPILE_FLAGS "${graphlab_util_flags} -fPIC")
-
-
+#build PIC versions of everything
 
 get_target_property(graphlab_sources graphlab SOURCES)
 get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
@@ -140,9 +118,7 @@ set_target_properties(graphlab_pic PROPERTIES
 
 INSTALL(TARGETS 
   graphlab 
-  graphlab_util 
-  graphlab_pic 
-  graphlab_util_pic ARCHIVE DESTINATION lib)
+  graphlab_pic ARCHIVE DESTINATION lib)
 
 INSTALL(DIRECTORY matlab/  
   DESTINATION include/graphlab/matlab
@@ -156,4 +132,3 @@ INSTALL(FILES matlab/get_mex_params.sh
 
 
 target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})
-target_link_libraries(graphlab_util_pic ${Boost_SHARED_LIBRARIES})
