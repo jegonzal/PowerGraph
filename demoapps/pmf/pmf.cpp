@@ -1308,7 +1308,7 @@ int main(int argc,  char *argv[]) {
     // MCMC tensor factorization
   case BPTF_TENSOR:
     tensor = true; BPTF = true;
-    break;
+   break;
     //MCMC matrix factorization
   case BPTF_MATRIX:
     tensor = false; BPTF = true;
@@ -1326,7 +1326,16 @@ int main(int argc,  char *argv[]) {
   }
 
   logger(LOG_INFO, "%s starting\n",runmodesname[options]);
-  start(argc, argv);
+#ifdef GL_NO_MCMC
+  if (BPTF)
+    logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag and recompile\n";
+#endif
+#ifdef GL_NO_MULT_EDGES
+  if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT)
+    logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag and recompile\n";
+#endif  
+
+   start(argc, argv);
 }
 
 // CALC SOME STATISTICS ABOUT MATRIX / TENSOR 
