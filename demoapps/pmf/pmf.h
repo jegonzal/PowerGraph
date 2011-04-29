@@ -12,7 +12,8 @@ See algrithm description and explanation in: Liang Xiong, Xi Chen, Tzu-Kuo Huang
 
 */
 #include <vector>
-
+#define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
+#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
 
 int MAX_ITER=10; //maximal number of iterations to run
 int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
@@ -63,16 +64,34 @@ struct vertex_data {
 
 struct edge_data {
   float  weight;  //observation 
+#ifndef GL_NO_MULT_EDGES
   float  time; //time of observation (for tensor algorithms)
+#else
+  short time;
+#endif
+#ifndef GL_NO_MCMC  
   float avgprd;
-  edge_data(){ weight = 0; time = 0; avgprd = 0;}
+#endif
+  edge_data(){ 
+	weight = 0; 
+	time = 0; 
+#ifndef GL_NO_MCMC
+	avgprd = 0;
+#endif
+}
 
  void save(graphlab::oarchive& archive) const {  
-    archive << weight << time << avgprd;; 
+    archive << weight << time; 
+#ifndef GL_NO_MCMC	
+	archive<< avgprd;; 
+#endif
   }  
    
   void load(graphlab::iarchive& archive) {  
-    archive >> weight >> time >> avgprd;  
+    archive >> weight >> time;
+#ifndef GL_NO_MCMC
+     archive >> avgprd; 
+#endif 
   }
 };
 
