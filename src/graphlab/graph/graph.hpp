@@ -26,6 +26,7 @@
 
 
 #include <boost/bind.hpp>
+#include <boost/unordered_set.hpp>
 
 
 
@@ -627,24 +628,27 @@ namespace graphlab {
       std::sort(permutation.begin(), permutation.end());
       // Recolor
       size_t max_color = 0;
-      std::set<vertex_color_type> neighbor_colors;
+      boost::unordered_set<vertex_color_type> neighbor_colors;
       for(size_t i = 0; i < permutation.size(); ++i) {
         neighbor_colors.clear();
         const vertex_id_t& vid = permutation[i].second;
-        edge_list in_edges = in_edge_ids(vid);
         // Get the neighbor colors
-        foreach(edge_id_t eid, in_edges){
+        foreach(edge_id_t eid, in_edge_ids(vid)){
           const vertex_id_t& neighbor_vid = source(eid);
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
+        foreach(edge_id_t eid, out_edge_ids(vid)){
+          const vertex_id_t& neighbor_vid = target(eid);
+          const vertex_color_type& neighbor_color = color(neighbor_vid);
+          neighbor_colors.insert(neighbor_color);
+        }
+
         // Find the lowest free color
         vertex_color_type& vertex_color = color(vid);
-        foreach(vertex_color_type neighbor_color, neighbor_colors) {
-          if(vertex_color != neighbor_color) break;
-          else vertex_color++;
-          // Ensure no wrap around
-          ASSERT_NE(vertex_color, 0);                
+        vertex_color = 0;
+        while (neighbor_colors.find(vertex_color) != neighbor_colors.end()) {
+          vertex_color++;
         }
         max_color = std::max(max_color, size_t(vertex_color) );
       }
