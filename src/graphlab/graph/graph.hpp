@@ -628,7 +628,7 @@ namespace graphlab {
       std::sort(permutation.begin(), permutation.end());
       // Recolor
       size_t max_color = 0;
-      boost::unordered_set<vertex_color_type> neighbor_colors;
+      std::set<vertex_color_type> neighbor_colors;
       for(size_t i = 0; i < permutation.size(); ++i) {
         neighbor_colors.clear();
         const vertex_id_t& vid = permutation[i].second;
@@ -644,13 +644,16 @@ namespace graphlab {
           neighbor_colors.insert(neighbor_color);
         }
 
-        // Find the lowest free color
         vertex_color_type& vertex_color = color(vid);
         vertex_color = 0;
-        while (neighbor_colors.find(vertex_color) != neighbor_colors.end()) {
-          vertex_color++;
+        foreach(vertex_color_type neighbor_color, neighbor_colors) {
+          if(vertex_color != neighbor_color) break;
+          else vertex_color++;
+          // Ensure no wrap around
+          ASSERT_NE(vertex_color, 0);                
         }
         max_color = std::max(max_color, size_t(vertex_color) );
+
       }
       // Return the NUMBER of colors
       return max_color + 1;           
