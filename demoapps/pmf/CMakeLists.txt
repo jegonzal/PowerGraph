@@ -4,6 +4,9 @@ project(GraphLab)
 
 if (ITPP-FOUND)
   add_graphlab_executable(pmf pmf.cpp)
+
+  # test files
+    add_graphlab_executable(itdiff itdiff.cpp)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest
     ${CMAKE_CURRENT_BINARY_DIR}/smalltest COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smallteste
