@@ -1,0 +1,48 @@
+Graphlab 1.0
+==================================================================
+Designing and implementing efficient and provably correct parallel 
+machine learning (ML) algorithms can be very challenging. Existing 
+high-level parallel abstractions like MapReduce are often insufficiently 
+expressive while low-level tools like MPI and Pthreads leave ML experts 
+repeatedly solving the same design challenges. By targeting common 
+patterns in ML, we developed GraphLab, which improves upon abstractions 
+like MapReduce by compactly expressing asynchronous iterative algorithms 
+with sparse computational dependencies while ensuring data consistency 
+and achieving a high degree of parallel performance.
+
+For more details on the GraphLab see: http://graphlab.ml.cmu.edu
+
+Compilation
+==================================================================
+If you already have CMake and Boost available, you can just run 
+1a: ./configure
+
+Otherwise, autodetect, install and build boost and CMake.
+1b: ./configure --bootstrap 
+
+
+The configure script will create three subdirectories
+debug/
+release/
+profile/
+With different configuration profiles.
+
+cd into any of the subdirectories and run "make" will compile the entire 
+GraphLab library + demoapps + unit tests. "make install" will install the
+graphlab library.
+
+
+Running Unit Tests
+==================================================================
+# switch into any of the build subdirectories
+1:  cd debug/ or cd release/ or cd profile/
+
+# cd into the tests directory
+2:  cd tests/
+
+# run the test script 
+3:  ./runtest.sh
+
+If you encounter any failures, please send us an email.
+
+
