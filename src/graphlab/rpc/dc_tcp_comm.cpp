@@ -26,6 +26,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <ifaddrs.h>
 #include <poll.h>
 
+#include <limits>
 #include <vector>
 #include <string>
 #include <map>
@@ -47,7 +48,8 @@ void dc_tcp_comm::init(const std::vector<std::string> &machines,
                        std::vector<dc_receive*> receiver_){ 
 
   curid = curmachineid;
-  nprocs = machines.size(),
+  ASSERT_LT(machines.size(), std::numeric_limits<procid_t>::max());
+  nprocs = (procid_t)(machines.size());
   receiver = receiver_;
   listenthread = NULL;
   // insert machines into the address map
@@ -71,7 +73,8 @@ void dc_tcp_comm::init(const std::vector<std::string> &machines,
     uint32_t addr = *reinterpret_cast<uint32_t*>(ent->h_addr_list[0]);
     
     all_addrs[i] = addr;
-    portnums[i] = port;
+    ASSERT_LT(port, 65536);
+    portnums[i] = (uint16_t)(port);
   }
   network_bytessent = 0;
   // if sock handle is set
@@ -212,7 +215,7 @@ void dc_tcp_comm::send2(size_t target,
 int dc_tcp_comm::sendtosock(int sockfd, const char* buf, size_t len) {
   size_t numsent = 0;
   while (numsent < len) {
-    int ret = ::send(sockfd, buf + numsent, len - numsent, 0);
+    ssize_t ret = ::send(sockfd, buf + numsent, len - numsent, 0);
     if (ret < 0) {
       logstream(LOG_ERROR) << "send error: " << strerror(errno) << std::endl;
       return errno;
@@ -253,7 +256,7 @@ void dc_tcp_comm::new_socket(int newsock, sockaddr_in* otheraddr, procid_t id) {
   logstream(LOG_INFO) << "Proc " << procid() << " accepted connection "
                         << "from machine " << id << std::endl;
   
-  handlers[id] = new socket_handler(*this, newsock, id);
+  handlers[id] = new socket_handler(*this, newsock, (procid_t)id);
   if (handlerthreads[id] != NULL) delete handlerthreads[id];
   handlerthreads[id] = new thread();
   handlerthreads[id]->launch(boost::bind(&socket_handler::run, handlers[id]));
@@ -354,7 +357,7 @@ void dc_tcp_comm::socket_handler::run() {
     size_t buflength;
     char *c = receiver->get_buffer(buflength);
     while(1) {      
-      int msglen = recv(fd, c, buflength, 0);
+      ssize_t msglen = recv(fd, c, buflength, 0);
       // if msglen == 0, the scoket is closed
       if (msglen <= 0) {
         owner.socks[sourceid] = -1;
@@ -374,7 +377,7 @@ void dc_tcp_comm::socket_handler::run() {
     while(1) {
       char c[10240];
       
-      int msglen = recv(fd, c, 10240, 0);
+      ssize_t msglen = recv(fd, c, 10240, 0);
       // if msglen == 0, the scoket is closed
       if (msglen <= 0) {
         owner.socks[sourceid] = -1;
@@ -415,7 +418,7 @@ void dc_tcp_comm::accept_handler::run() {
       owner.set_socket_options(newsock);
       // before accepting the socket, get the machine number
       procid_t remotemachineid = (procid_t)(-1);
-      int msglen = 0;
+      ssize_t msglen = 0;
       while(msglen != sizeof(procid_t)) {
         msglen += recv(newsock, (char*)(&remotemachineid)+msglen, sizeof(procid_t) - msglen, 0);
       }

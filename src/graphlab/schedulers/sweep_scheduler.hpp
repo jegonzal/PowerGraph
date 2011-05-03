@@ -90,7 +90,7 @@ namespace graphlab {
                     size_t ncpus) : 
       terminator(ncpus) {
       this->g = &g;
-      numvertices = g.local_vertices();
+      numvertices = (vertex_id_t)(g.local_vertices());
       num_cpus = ncpus;
       callbacks.resize(num_cpus, direct_callback<Graph>(this, engine));
       // pad to guarantee not go over boundary
@@ -130,21 +130,21 @@ namespace graphlab {
       
       if (lastidx >= numvertices) lastidx = cpuid;
             
-      unsigned int nvp = numvertices + num_cpus;
-      for(unsigned int i=0; i<nvp; i+=num_cpus) {
+      size_t nvp = numvertices + num_cpus;
+      for(size_t i = 0; i<nvp; i+=num_cpus) {
        
-        vertex_id_t vid = lastidx;
+        vertex_id_t vid = (vertex_id_t)lastidx;
         assert(vid%num_cpus == cpuid);
         assert(vid >= 0 && vid < numvertices);
         
-        for(int col=last_col[cpuid]; col<num_of_updatefunctions; col++) {
+        for(int col = last_col[cpuid]; col<num_of_updatefunctions; col++) {
           if (dirty_vertices[GETIDX(col,cpuid,vid)]) {
             dirty_vertices[GETIDX(col,cpuid,vid)] = 0;
             ret_task = update_task_type(INTERNAL_TO_VID(vid), updatefuncs[col]);
             if (col < num_of_updatefunctions-1) {
               // Maybe more functions left scheduled for this vertex
               last_index[cpuid] = lastidx;
-              last_col[cpuid] = col+1;
+              last_col[cpuid] = (uint8_t)(col+1);
             } else {
               // Was last update function, move to next vertex
               last_index[cpuid] = (lastidx+num_cpus);
@@ -167,18 +167,18 @@ namespace graphlab {
 
 
     uint8_t get_update_func_id(update_function_type upf) {
-      for(int i=0; i<num_of_updatefunctions; i++ ){
+      for(uint8_t i=0; i<num_of_updatefunctions; i++ ){
         if (updatefuncs[i] == upf) return i;
       }
       // Ok not found, have to make it 
       updflock.lock();
       // Check once more
-      for(int i=0; i<num_of_updatefunctions; i++ ){
+      for(uint8_t i=0; i<num_of_updatefunctions; i++ ){
         if (updatefuncs[i] == upf) return i;
       }
       assert(num_of_updatefunctions < LS_MAX_UPDATEFUNCTIONS);
       updatefuncs[num_of_updatefunctions] = upf;
-      int newid = num_of_updatefunctions;
+      uint8_t newid = num_of_updatefunctions;
       num_of_updatefunctions++;
       updflock.unlock();
       return newid;
@@ -292,7 +292,7 @@ namespace graphlab {
     update_function_type* updatefuncs;
     spinlock updflock;
     shared_termination terminator;
-    size_t numvertices;
+    vertex_id_t numvertices;
     size_t num_cpus;
     std::vector< direct_callback<Graph> > callbacks;
     Graph* g;

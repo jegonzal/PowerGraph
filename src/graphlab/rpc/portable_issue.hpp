@@ -80,7 +80,7 @@ At the end of the request, the dispatch will perform a fast call to the
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T) > \
   class BOOST_PP_CAT(FNAME_AND_CALL,N)<portable_call<F> BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> { \
    public: \
-    static void exec(dc_send* sender, size_t flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
+    static void exec(dc_send* sender, unsigned char flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
       oarchive arc(strm);                           \
       arc << 0;       \
@@ -101,7 +101,7 @@ BOOST_PP_REPEAT(6, PORTABLE_CALL_ISSUE_GENERATOR, remote_call_issue)
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T) > \
   class BOOST_PP_CAT(FNAME_AND_CALL,N)<portable_call<F> BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> { \
    public: \
-    static typename function_ret_type<__GLRPC_FRESULT>::type  exec(dc_send* sender, size_t flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
+    static typename function_ret_type<__GLRPC_FRESULT>::type  exec(dc_send* sender, unsigned char flags, procid_t target, portable_call<F> remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_)  ) {   \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \

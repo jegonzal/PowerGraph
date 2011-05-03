@@ -23,7 +23,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 namespace graphlab {
   
 circular_char_buffer::circular_char_buffer(std::streamsize initial) {
-  initial = std::max<size_t>(initial, 4);
+  initial = std::max<size_t>((size_t)initial, 4);
   // allocate something to start with
   buffer = (char*)malloc(initial);
   head = 0;
@@ -80,7 +80,7 @@ void circular_char_buffer::reserve(std::streamsize s) {
   }
   else {
     // how much excess space do we have now?
-    size_t excess = s - bufsize;
+    size_t excess = (size_t)s - bufsize;
     // move up to excess bytes to the end 
     size_t movebytes = std::min<size_t>(tail, excess);
     memcpy(buffer + bufsize, buffer, movebytes); 

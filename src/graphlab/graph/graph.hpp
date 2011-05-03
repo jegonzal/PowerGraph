@@ -166,7 +166,7 @@ namespace graphlab {
       begin_ptr(begin_ptr),  end_ptr(begin_ptr + len) { }
 
     /** \brief Get the size of the edge list */
-    size_t size() const { return end_ptr - begin_ptr; }
+    size_t size() const { return (size_t)(end_ptr - begin_ptr); }
 
     /** \brief Get the ith edge in the edge list */
     edge_id_t operator[](size_t i) const {
@@ -483,7 +483,7 @@ namespace graphlab {
       out_edges.resize(vertices.size());
       in_edges.resize(vertices.size());
       vcolors.resize(vertices.size());
-      return vertices.size() - 1;
+      return (vertex_id_t)vertices.size() - 1;
     } // End of add vertex;
 
 
@@ -532,7 +532,7 @@ namespace graphlab {
       edges.push_back( edge( source, target, edata ) );
 
       // Add the edge id to in and out edge maps
-      edge_id_t edge_id = edges.size() - 1;
+      edge_id_t edge_id = (edge_id_t)edges.size() - 1;
       in_edges[target].push_back(edge_id);
       out_edges[source].push_back(edge_id);
 
@@ -783,7 +783,7 @@ namespace graphlab {
      * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
      */
     void edge_num_partition(size_t nparts, 
-			    std::vector<uint32_t>& vertex2part){
+			    std::vector<vertex_id_t>& vertex2part){
       vertex2part.resize(num_vertices());
       size_t e = 2 * num_edges();
       size_t edge_per_part = e / nparts;
@@ -792,9 +792,9 @@ namespace graphlab {
       std::vector<size_t> parts;
       parts.resize(nparts, 0);
       
-      for (size_t i = 0; i< num_vertices(); i++){
-        int ne = out_edge_ids(i).size() + in_edge_ids(i).size();
-        vertex2part[i] = curpart;
+      for (vertex_id_t i = 0; i< num_vertices(); i++){
+        uint32_t ne = (uint32_t)(out_edge_ids(i).size() + in_edge_ids(i).size());
+        vertex2part[i] = (uint32_t)curpart;
         parts[curpart]+= ne;
            
         if (parts[curpart] >= edge_per_part  && curpart < nparts-1){
@@ -815,8 +815,8 @@ namespace graphlab {
      */
     void random_partition(size_t nparts, std::vector<vertex_id_t>& vertex2part) {
       vertex2part.resize(num_vertices());
-      for (size_t i = 0;i < num_vertices(); ++i) {
-        vertex2part[i] = i % nparts;
+      for (vertex_id_t i = 0;i < num_vertices(); ++i) {
+        vertex2part[i] = (vertex_id_t)(i % nparts);
       }
       random::shuffle(vertex2part.begin(), vertex2part.end());
     }
@@ -880,7 +880,7 @@ namespace graphlab {
         xadj[u] = offset;
         // Fill the the adjacency data
       
-        std::set<size_t> neighbors;
+        std::set<vertex_id_t> neighbors;
         foreach(edge_id_t eid, out_edge_ids(u)) {
           neighbors.insert(target(eid));
         }
@@ -955,7 +955,7 @@ namespace graphlab {
       // process the final results
       ASSERT_NE(res, NULL);
       for(vertex_id_t v = 0; v < num_vertices(); ++v) {
-        ret_part[v] = res[v];
+        ret_part[v] = (vertex_id_t)res[v];
       }    
       // Delete the result array
       if(res != NULL) delete [] res;
@@ -995,7 +995,7 @@ namespace graphlab {
      */
     template <typename EdgeWeightFunction, typename VertexWeightFunction>
     void metis_weighted_partition(size_t numparts ,
-                                  std::vector<uint32_t>& ret_part,
+                                  std::vector<vertex_id_t>& ret_part,
                                   VertexWeightFunction vfunction,
                                   EdgeWeightFunction wfunction,
                                   bool usemetisdefaults = false) {
@@ -1138,7 +1138,7 @@ namespace graphlab {
      * This will then be assigned as the first partition. This procedure repeats
      * until all partitions are filled.
      */
-    void bfs_partition(size_t nparts, std::vector<uint32_t> &vertex2part) {
+    void bfs_partition(size_t nparts, std::vector<vertex_id_t> &vertex2part) {
       // create a list of all unassigned variables
       std::set<vertex_id_t> unassigned;
       vertex2part.resize(num_vertices());
@@ -1147,7 +1147,7 @@ namespace graphlab {
         unassigned.insert(v);
       }
       // Compute the partition size
-      size_t maxpartsize = (size_t)(std::ceil(double(unassigned.size()) / nparts));
+      size_t maxpartsize = (size_t)(std::ceil(double(unassigned.size()) / (double)nparts));
       size_t partid = 0;
       while(!unassigned.empty()) {  
         std::list<vertex_id_t> queue;    // Breadth first queue 
@@ -1166,7 +1166,7 @@ namespace graphlab {
           vertex_id_t v = queue.front(); queue.pop_front();
           ASSERT_LT(partid, nparts);
           // Add the element to the task
-          vertex2part[v] = partid;
+          vertex2part[v] = (uint32_t)partid;
           ++curpartsize;
           // Remove the vertex from the set of unassigned vertices
           unassigned.erase(v); 

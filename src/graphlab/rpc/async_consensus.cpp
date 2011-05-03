@@ -29,7 +29,7 @@ namespace graphlab {
 
     cur_token.total_calls_sent = 0;
     cur_token.total_calls_received = 0;
-    cur_token.last_change = rmi.numprocs() - 1;
+    cur_token.last_change = (procid_t)(rmi.numprocs() - 1);
   }
 
   bool async_consensus::done() {
@@ -103,7 +103,7 @@ namespace graphlab {
         cur_token.total_calls_received == cur_token.total_calls_sent) {
       // we have completed a loop around!
       // broadcast a completion
-      for (size_t i = 0;i < rmi.numprocs(); ++i) {
+      for (procid_t i = 0;i < rmi.numprocs(); ++i) {
         if (i != rmi.procid()) {
           rmi.control_call(i,
                            &async_consensus::consensus);
@@ -141,7 +141,7 @@ namespace graphlab {
       last_calls_received = callsrecv;
       // send it along.
       hastoken = false;
-      rmi.control_call((rmi.procid() + 1) % rmi.numprocs(),
+      rmi.control_call((procid_t)((rmi.procid() + 1) % rmi.numprocs()),
                        &async_consensus::receive_the_token,
                        cur_token);
     }

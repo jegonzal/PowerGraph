@@ -428,8 +428,8 @@ cd     The core contains the
                   const any& zero,
                   size_t sync_interval = 0,
                   typename types::iengine::merge_function_type merge = NULL,
-                  size_t rangelow = 0,
-                  size_t rangehigh = -1) { 
+                  vertex_id_t rangelow = 0,
+                  vertex_id_t rangehigh = -1) { 
       engine_has_been_modified = true;
       engine().set_sync(shared, sync, apply, zero, 
                         sync_interval, merge, rangelow, rangehigh);

@@ -49,7 +49,7 @@ namespace graphlab {
       double answer = 
        // (current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6) -
        // (start_time_.tv_sec + ((double)start_time_.tv_usec)/1.0E6);
-        (current_time.tv_sec - start_time_.tv_sec) + 
+        (double)(current_time.tv_sec - start_time_.tv_sec) + 
         ((double)(current_time.tv_usec - start_time_.tv_usec))/1.0E6;
        return answer;
     }
@@ -69,7 +69,7 @@ namespace graphlab {
       timeval current_time;
       gettimeofday(&current_time, NULL);
       double answer = 
-        current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6;
+        (double)current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6;
 //      std::cout << current_time.tv_sec << std::endl;
 //      std::cout << current_time.tv_usec << std::endl;
       return answer;
@@ -83,7 +83,7 @@ namespace graphlab {
       timeval current_time;
       gettimeofday(&current_time, NULL);
       size_t answer = 
-        current_time.tv_sec * 1E6 + current_time.tv_usec;
+        (size_t)current_time.tv_sec * 1000000 + (size_t)current_time.tv_usec;
       return answer;
     }
 

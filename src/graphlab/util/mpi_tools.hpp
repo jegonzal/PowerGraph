@@ -82,7 +82,7 @@ namespace graphlab {
       oarc << elem;
       cstrm.flush();
       char* send_buffer = cstrm->c_str();
-      int send_buffer_size = cstrm->size();
+      int send_buffer_size = (int)cstrm->size();
       assert(send_buffer_size >= 0);
 
       // compute the sizes

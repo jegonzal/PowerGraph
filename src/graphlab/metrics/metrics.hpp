@@ -44,7 +44,7 @@ namespace graphlab {
   // of course use inheritance. But for this purpose,
   // it works fine as the number of metrics entry is small.
   struct metrics_entry {
-    int count;
+    size_t count;
     double value;
     double minvalue;
     double cumvalue;
@@ -183,7 +183,7 @@ namespace graphlab {
     }
     
     inline void set(std::string key, size_t value) {
-      set(key, value, INTEGER);
+      set(key, (double)value, INTEGER);
     }
         
     inline void set(std::string key, double value, metrictype type = REAL) {
@@ -193,6 +193,15 @@ namespace graphlab {
         entries[key].set(value);
       }
     }
+    
+    inline void set_integer(std::string key, size_t value) {
+      if (entries.count(key) == 0) {
+        entries[key] = metrics_entry((double)value, INTEGER);
+      } else {
+        entries[key].set((double)value);
+      }
+    }
+    
     inline void set(std::string key, std::string s) {
       if (entries.count(key) == 0) {
         entries[key] = metrics_entry(s);
@@ -201,6 +210,10 @@ namespace graphlab {
       }
     }
 
+    inline void set_vector_entry_integer(std::string key, size_t idx, size_t value) {
+      set_vector_entry(key, idx, (double)(value));
+    }
+    
     inline void set_vector_entry(std::string key, size_t idx, double value) {
       if (entries.count(key) == 0) {
         entries[key] = metrics_entry(VECTOR);

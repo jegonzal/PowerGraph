@@ -110,7 +110,7 @@ namespace graphlab {
       size_t outidx = 0;
 
       bool curlocked = false;
-      size_t numv = graph.num_vertices();
+      vertex_id_t numv = (vertex_id_t)(graph.num_vertices());
       vertex_id_t curv = scope->vertex();
       vertex_id_t inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
       vertex_id_t outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
@@ -155,7 +155,7 @@ namespace graphlab {
       size_t outidx = 0;
 
       bool curlocked = false;
-      size_t numv = graph.num_vertices();
+      vertex_id_t numv = (vertex_id_t)(graph.num_vertices());
       vertex_id_t curv = scope->vertex();
       vertex_id_t inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
       vertex_id_t outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
@@ -223,7 +223,7 @@ namespace graphlab {
       size_t outidx = 0;
 
       bool curlocked = false;
-      size_t numv = graph.num_vertices();
+      vertex_id_t numv = (vertex_id_t)(graph.num_vertices());
       vertex_id_t curv = scope->vertex();
       vertex_id_t inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
       vertex_id_t outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;

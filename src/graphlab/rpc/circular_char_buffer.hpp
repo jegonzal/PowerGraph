@@ -182,8 +182,8 @@ struct circular_char_buffer_source {
   inline std::streamsize optimal_buffer_size() const { return 0; }
 
   inline std::streamsize read(char* s, std::streamsize n) {
-    if ((size_t)(n) > maxlen) n = maxlen;
-    maxlen -= n;
+    if ((size_t)(n) > maxlen) n = (std::streamsize)maxlen;
+    maxlen -= (size_t)n;
     if (n == 0) return -1;
     else return buf.read(s, n);
   }

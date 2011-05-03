@@ -135,8 +135,8 @@ class dc_tcp_comm:public dc_comm_base {
    public:
     dc_tcp_comm &owner;
     int fd;
-    size_t sourceid;
-    socket_handler(dc_tcp_comm& owner, int fd, size_t id):owner(owner), fd(fd), sourceid(id) {}
+    procid_t sourceid;
+    socket_handler(dc_tcp_comm& owner, int fd, procid_t id):owner(owner), fd(fd), sourceid(id) {}
     
     void run();
   };
@@ -178,7 +178,7 @@ class dc_tcp_comm:public dc_comm_base {
   /// all_addrs[i] will contain the IP address of machine i
   std::vector<uint32_t> all_addrs;
   std::map<uint32_t, procid_t> addr2id;
-  std::vector<uint32_t> portnums;
+  std::vector<uint16_t> portnums;
 
   
   procid_t curid; 

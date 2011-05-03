@@ -93,7 +93,7 @@ namespace graphlab {
     
     
     int num_of_buffered_tasks() {
-      return tasks.size();
+      return (int)tasks.size();
     }
     
     

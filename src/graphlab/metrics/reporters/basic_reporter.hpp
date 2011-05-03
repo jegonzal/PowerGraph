@@ -55,7 +55,7 @@ namespace graphlab {
               if (ent.count > 1) {
                 std::cout << ent.value << "\t(count: " << ent.count <<  ", min: " << ent.minvalue <<
                   ", max: " << ent.maxvalue << ", avg: " 
-                          << ent.cumvalue/ent.count << ")" << std::endl;
+                          << ent.cumvalue/(double)ent.count << ")" << std::endl;
               } else {
                 std::cout << ent.value << std::endl;
               }
@@ -68,7 +68,7 @@ namespace graphlab {
               if (ent.count>1) {
                 std::cout << ent.value << "s\t (count: " << ent.count << ", min: " << ent.minvalue <<
                   "s, " << "max: " << ent.maxvalue << ", avg: " 
-                          << ent.cumvalue/ent.count << "s)" << std::endl;
+                          << ent.cumvalue/(double)ent.count << "s)" << std::endl;
               } else {
                 std::cout << ent.value << " s" << std::endl;
               }
@@ -88,7 +88,7 @@ namespace graphlab {
               if (ent.count > 1) {
                 std::cout << ent.value << "\t(count: " << ent.count <<  ", min: " << ent.minvalue <<
                   ", max: " << ent.maxvalue << ", avg: " 
-                          << ent.cumvalue/ent.count << ")" << std::endl;
+                          << ent.cumvalue/(double)ent.count << ")" << std::endl;
               } else {
                 std::cout << ent.value << std::endl;
               }

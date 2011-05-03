@@ -101,7 +101,7 @@ void dc_buffered_stream_send_expqueue_z::send_loop() {
     if (data.second == false) break;
 
     zstrm.next_in = (Bytef*)data.first.c;
-    zstrm.avail_in = data.first.len;
+    zstrm.avail_in = (uInt)data.first.len;
     bool sqempty = sendqueue.empty();
     do {
       zstrm.next_out = (Bytef*)chunk;

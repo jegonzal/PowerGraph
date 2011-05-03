@@ -75,7 +75,7 @@ namespace graphlab {
         
     uint32_t& var() { return _var;  }
     const uint32_t& var() const { return _var; }
-    uint16_t arity() const { return _data.size(); }
+    uint16_t arity() const { return (uint16_t)_data.size(); }
 
     inline double& logP(size_t asg) {
       assert(asg < arity()); return _data[asg];
@@ -91,7 +91,7 @@ namespace graphlab {
     // }
 
     inline void uniform(double value = 0) {
-      for(size_t asg = 0; asg < arity(); ++asg) logP(asg) = value;
+      for(uint16_t asg = 0; asg < arity(); ++asg) logP(asg) = value;
     }
 
 
@@ -100,20 +100,20 @@ namespace graphlab {
       assert(arity() > 0);
       // Compute the max value
       double max_value = logP(0);
-      for(size_t asg = 0; asg < arity(); ++asg) 
+      for(uint16_t asg = 0; asg < arity(); ++asg) 
         max_value = std::max(max_value, logP(asg));
       assert( !std::isinf(max_value) );
       assert( !std::isnan(max_value) );
       // scale and compute normalizing constant
       double Z = 0.0;
-      for(size_t asg = 0; asg < arity(); ++asg) 
+      for(uint16_t asg = 0; asg < arity(); ++asg) 
         Z += std::exp(logP(asg) -= max_value);
       assert( !std::isinf(Z) );
       assert( !std::isnan(Z) );
       assert( Z > 0.0);
       double logZ = std::log(Z);
       // Normalize
-      for(size_t asg = 0; asg < arity(); ++asg)
+      for(uint16_t asg = 0; asg < arity(); ++asg)
         logP(asg) -= logZ;
     } // End of normalize
 
@@ -121,14 +121,14 @@ namespace graphlab {
     /** this(x) *= other(x); */
     inline void times(const unary_factor& other) {
       assert(arity() == other.arity());
-      for(size_t asg = 0; asg < arity(); ++asg)
+      for(uint16_t asg = 0; asg < arity(); ++asg)
         logP(asg) += other.logP(asg);
     } // end multiply
 
     /** this(x) += other(x); */
     inline void plus(const unary_factor& other) {
       assert(arity() == other.arity());
-      for(size_t asg = 0; asg < arity(); ++asg)
+      for(uint16_t asg = 0; asg < arity(); ++asg)
         logP(asg) = log(exp(logP(asg)) + exp(other.logP(asg)));
     } // end plus
 
@@ -136,7 +136,7 @@ namespace graphlab {
     /** this(x) /= other(x); */
     inline void divide(const unary_factor& other) {
       assert(arity() == other.arity());
-      for(size_t asg = 0; asg < arity(); ++asg)
+      for(uint16_t asg = 0; asg < arity(); ++asg)
         logP(asg) -= other.logP(asg);
     } // end of divide
   
@@ -144,9 +144,9 @@ namespace graphlab {
     inline void convolve(const binary_factor& bin_fact,
                          const unary_factor& other) {
       // Compute C(x) = Sum_y A(x,y) B(y)
-      for(size_t x = 0; x < arity(); ++x) {
+      for(uint16_t x = 0; x < arity(); ++x) {
         double sum = 0.0;
-        for(size_t y = 0; y < other.arity(); ++y) {          
+        for(uint16_t y = 0; y < other.arity(); ++y) {          
           sum += std::exp(bin_fact.logP(var(), x, other.var(), y) +
                           other.logP(y));
         }
@@ -159,10 +159,10 @@ namespace graphlab {
   
     /** this(x) = this(x) * fact(x, asg) */
     inline void condition(const binary_factor& bin_fact,
-                          size_t asg) {
-      size_t other_var =
+                          uint16_t asg) {
+      uint32_t other_var =
         var() != bin_fact.var1()? bin_fact.var1() : bin_fact.var2();
-      for(size_t x = 0; x < arity(); ++x) 
+      for(uint16_t x = 0; x < arity(); ++x) 
         logP(x) += bin_fact.logP(var(), x, other_var, asg);    
     } // end of condition
   
@@ -173,7 +173,7 @@ namespace graphlab {
       if(damping == 0) return;
       assert(damping >= 0.0);
       assert(damping < 1.0);
-      for(size_t asg = 0; asg < arity(); ++asg) 
+      for(uint16_t asg = 0; asg < arity(); ++asg) 
         logP(asg) = std::log(damping * std::exp(other.logP(asg)) + 
                              (1.0 - damping) * std::exp(logP(asg)));  
     } // end of damp
@@ -183,7 +183,7 @@ namespace graphlab {
     inline double residual(const unary_factor& other) const {  
       assert(arity() == other.arity());
       double residual = 0;
-      for(size_t asg = 0; asg < arity(); ++asg) 
+      for(uint16_t asg = 0; asg < arity(); ++asg) 
         residual += std::abs(std::exp(logP(asg)) - 
                              std::exp(other.logP(asg)));
       return residual / arity();
@@ -194,7 +194,7 @@ namespace graphlab {
     inline size_t max_asg() const {  
       size_t max_asg = 0;
       double max_value = logP(0);
-      for(size_t asg = 0; asg < arity(); ++asg) { 
+      for(uint16_t asg = 0; asg < arity(); ++asg) { 
         if(logP(asg) > max_value) {
           max_value = logP(asg);
           max_asg = asg;
@@ -207,7 +207,7 @@ namespace graphlab {
     inline double expectation() const {  
       double sum = 0;
       double s2 = 0;
-      for(size_t asg = 0; asg < arity(); ++asg)  {
+      for(uint16_t asg = 0; asg < arity(); ++asg)  {
         sum += asg * std::exp(logP(asg));       
         s2 += std::exp(logP(asg));       
       }
@@ -223,7 +223,7 @@ namespace graphlab {
       assert( t >= 0);
       assert(t < 1);
       double sum = 0.0;
-      for(size_t asg = 0; asg < arity(); ++asg) {
+      for(uint16_t asg = 0; asg < arity(); ++asg) {
         sum += exp(logP(asg));
         if(t <= sum) return asg;
         assert(sum < 1);

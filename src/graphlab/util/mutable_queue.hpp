@@ -334,7 +334,7 @@ namespace graphlab {
     //! An element of the heap.
     typedef typename std::pair<size_t, Priority> heap_element;
 
-    typedef uint32_t index_type;
+    typedef size_t index_type;
 
   protected:
 
@@ -499,7 +499,7 @@ namespace graphlab {
       if(!contains(item))
         push(item, priority);
       else {
-        double effective_priority = std::max(get(item), priority);
+        Priority effective_priority = std::max(get(item), priority);
         update(item, effective_priority);
       }
     }

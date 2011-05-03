@@ -184,7 +184,7 @@ void file_logger::_logbuf(int lineloglevel,const char* file,const char* function
                                   messages[lineloglevel],file,function,line);
       _lograw(lineloglevel,str, byteswritten);
       _lograw(lineloglevel,buf, len);
-      _lograw(lineloglevel,newline, strlen(newline));
+      _lograw(lineloglevel,newline, (int)strlen(newline));
     }
   }
 }

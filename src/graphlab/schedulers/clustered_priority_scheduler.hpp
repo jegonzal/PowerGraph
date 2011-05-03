@@ -82,8 +82,8 @@ namespace graphlab {
     /** The lock on the priority queue */
     spinlock queuelock; 
     
-    std::vector<std::vector<uint32_t> > id2vertex;
-    std::vector<uint32_t> vertex2id;
+    std::vector<std::vector<vertex_id_t> > id2vertex;
+    std::vector<vertex_id_t> vertex2id;
 
     /** The vertex task set which maintains the tasks at each
         vertex */
@@ -135,7 +135,7 @@ namespace graphlab {
       logger(LOG_INFO, "Partition took %f seconds", ti.current_time());
       
       id2vertex.resize(numclusters);
-      for (size_t i = 0 ;i < g.num_vertices(); ++i) {
+      for (vertex_id_t i = 0 ;i < g.num_vertices(); ++i) {
         id2vertex[vertex2id[i]].push_back(i);
       }
       for (size_t i = 0;i < numclusters; ++i) {
@@ -257,7 +257,7 @@ namespace graphlab {
         //demote it to the bottom
         //full the states
         task_queue.update(t.first, 0);
-        curstate.clusterid = t.first;
+        curstate.clusterid = (int)t.first;
         curstate.cluster_offset = 0;
         curstate.update_function_list = 0;
         curstate.vertex = 0;
@@ -282,7 +282,7 @@ namespace graphlab {
         std::max(cpu_state[tid].buffered_priority_updates[clusterid], 
                  priority);
       // set the bit so we know which cluster has changed
-      cpu_state[tid].hasbuffer.set_bit(clusterid);
+      cpu_state[tid].hasbuffer.set_bit((uint32_t)clusterid);
       cpu_state[tid].buffered_task_creations.push_back(task);
     } // end of add_task
     

@@ -24,7 +24,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 void __print_back_trace() {
   const size_t array_size(1024);
   void *array[array_size];
-  size_t size;
+  int size;
   
   size = backtrace(array, array_size);
   backtrace_symbols_fd(array, size, STDERR_FILENO);

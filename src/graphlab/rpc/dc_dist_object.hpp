@@ -140,10 +140,10 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     else {
       size_t maxchild = std::min<size_t>(dc_.numprocs(), 
                                          childbase + BARRIER_BRANCH_FACTOR);
-      numchild = maxchild - childbase;
+      numchild = (procid_t)(maxchild - childbase);
     }
   
-    parent =  (dc_.procid() - 1) / BARRIER_BRANCH_FACTOR   ;
+    parent =  (procid_t)((dc_.procid() - 1) / BARRIER_BRANCH_FACTOR)   ;
 
     //-------- Initialize all gather --------------
     ab_child_barrier_counter.value = 0;
@@ -655,16 +655,16 @@ private:
     // send the release downwards
     // get my largest child
     ab_alldata = allstrings;
-    for (size_t i = 0;i < numchild; ++i) {
+    for (procid_t i = 0;i < numchild; ++i) {
       if (use_control_calls) {
-        internal_control_call(childbase + i,
+        internal_control_call((procid_t)(childbase + i),
                               &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                               releaseval,
                               ab_alldata,
                               use_control_calls);
       }
       else {
-        internal_call(childbase + i,
+        internal_call((procid_t)(childbase + i),
                       &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                       releaseval,
                       ab_alldata,
@@ -696,7 +696,7 @@ private:
     oarc << data[procid()];
     strm.flush();
     // upward message
-    char ab_barrier_val = ab_barrier_sense;
+    int ab_barrier_val = ab_barrier_sense;
     ab_barrier_mut.lock();
     // wait for all children to be done
     while(1) {
@@ -711,7 +711,7 @@ private:
           charstream strstrm(128);
           oarchive oarc2(strstrm);
           oarc2 << std::string(strm->c_str(), strm->size());
-          for (size_t i = 0;i < numchild; ++i) {
+          for (procid_t i = 0;i < numchild; ++i) {
             strstrm.write(ab_children_data[i].c_str(), ab_children_data[i].length());
           }
           strstrm.flush();
@@ -742,13 +742,13 @@ private:
       charstream strstrm(128);
       oarchive oarc2(strstrm);
       oarc2 << std::string(strm->c_str(), strm->size());
-      for (size_t i = 0;i < numchild; ++i) {
+      for (procid_t i = 0;i < numchild; ++i) {
         strstrm.write(ab_children_data[i].c_str(), ab_children_data[i].length());
       }
       strstrm.flush();
       ab_alldata = std::string(strstrm->c_str(), strstrm->size());
-      for (size_t i = 0;i < numchild; ++i) {
-        internal_control_call(childbase + i,
+      for (procid_t i = 0;i < numchild; ++i) {
+        internal_control_call((procid_t)(childbase + i),
                              &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                              ab_barrier_val,
                              ab_alldata,
@@ -901,9 +901,9 @@ private:
   /// condition variable and mutex protecting the barrier variables
   conditional barrier_cond;
   mutex barrier_mut;
-  size_t parent;  /// parent node
+  procid_t parent;  /// parent node
   size_t childbase; /// id of my first child
-  size_t numchild;  /// number of children
+  procid_t numchild;  /// number of children
 
 
 
@@ -928,8 +928,8 @@ private:
   void __parent_to_child_barrier_release(int releaseval) {
     // send the release downwards
     // get my largest child
-    for (size_t i = 0;i < numchild; ++i) {
-      internal_control_call(childbase + i,
+    for (procid_t i = 0;i < numchild; ++i) {
+      internal_control_call((procid_t)(childbase + i),
                             &dc_dist_object<T>::__parent_to_child_barrier_release,
                             releaseval);
   
@@ -952,7 +952,7 @@ private:
     */
   void barrier() {
     // upward message
-    char barrier_val = barrier_sense;      
+    int barrier_val = barrier_sense;      
     barrier_mut.lock();
     // wait for all children to be done
     while(1) {
@@ -978,8 +978,8 @@ private:
     if (procid() == 0) {
       barrier_release = barrier_val;
   
-      for (size_t i = 0;i < numchild; ++i) {
-        internal_control_call(childbase + i,
+      for (procid_t i = 0;i < numchild; ++i) {
+        internal_control_call((procid_t)(childbase + i),
                              &dc_dist_object<T>::__parent_to_child_barrier_release,
                              barrier_val);
       
@@ -1058,7 +1058,7 @@ private:
     // begin one pass to set all which are already completed
     for (size_t i = 0;i < numprocs(); ++i) {
       if (callsreceived[i].value >= calls_to_receive[i]) {
-        if (procs_complete.set_bit(i) == false) {
+        if (procs_complete.set_bit((uint32_t)i) == false) {
           num_proc_recvs_incomplete.dec();
         }
       }

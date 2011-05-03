@@ -89,7 +89,7 @@ template<typename F , typename T0> class remote_request_issue1
                   typename boost::function<
                   typename boost::remove_pointer<F>::type>::result_type>
                   ::type>::type>::type 
-      exec(dc_send* sender, size_t flags, procid_t target, F remote_function , const T0 &i0 )
+      exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function , const T0 &i0 )
     {
         boost::iostreams::stream<resizing_array_sink> strm(128);
         oarchive arc(strm);
@@ -146,7 +146,7 @@ struct BOOST_PP_CAT(dispatch_selector, N)<boost::mpl::bool_<true>, F BOOST_PP_CO
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_send* sender, size_t flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \

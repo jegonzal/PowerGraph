@@ -20,7 +20,8 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #define GRAPHLAB_FILE_REPORTER
 
 #include <graphlab/metrics/imetrics_reporter.hpp>
- 
+#include <fstream>
+#include <boost/format.hpp>
 
 /**
  * Simple metrics reporter that dumps metrics to
@@ -34,22 +35,23 @@ namespace graphlab {
     file_reporter() {}
         
     std::string filename;
-    FILE * f;
+    std::ofstream fout;
   public:
             
         
     file_reporter(std::string fname) : filename(fname) {
       // Create new file
-      f = fopen(fname.c_str(), "w");
-      assert(f != NULL);
+      fout.open(fname.c_str());
+      ASSERT_TRUE(fout.good());
     }
             
     virtual void do_report(std::string name, std::string ident, 
                            std::map<std::string, metrics_entry> & entries) {
       if (ident != name) {
-        fprintf(f, "[%s:%s]\n", name.c_str(), ident.c_str());
+        
+        fout << boost::format("[%1%:%2%]\n") % name.c_str() % ident.c_str();
       } else {
-        fprintf(f, "[%s]\n", name.c_str());
+        fout << boost::format("[%1%]\n") % name.c_str();
       }
       std::map<std::string, metrics_entry>::iterator it;
                     
@@ -58,37 +60,36 @@ namespace graphlab {
         switch(ent.valtype) {
         case INTEGER:
                             
-          fprintf(f, "%s.%s=%ld\n", ident.c_str(), it->first.c_str(), (long int) (ent.value));
-          fprintf(f, "%s.%s.count=%d\n", ident.c_str(), it->first.c_str(), ent.count);
-          fprintf(f, "%s.%s.min=%ld\n", ident.c_str(), it->first.c_str(), (long int) (ent.minvalue));
-          fprintf(f, "%s.%s.max=%ld\n", ident.c_str(), it->first.c_str(), (long int) (ent.maxvalue));
-          fprintf(f, "%s.%s.avg=%lf\n", ident.c_str(), it->first.c_str(), ent.cumvalue/ent.count);
+          fout << boost::format("%1%.%2%=%3%\n") % ident.c_str() % it->first.c_str() % (long int) (ent.value);
+          fout << boost::format("%1%.%2%.count=%3%\n") % ident.c_str() % it->first.c_str() % ent.count;
+          fout << boost::format("%1%.%2%.min=%3%\n") % ident.c_str() % it->first.c_str() % (long int) (ent.minvalue);
+          fout << boost::format("%1%.%2%.max=%3%\n") % ident.c_str() % it->first.c_str() % (long int) (ent.maxvalue);
+          fout << boost::format("%1%.%2%.avg=%3%\n") % ident.c_str() % it->first.c_str() % (ent.cumvalue/(double)ent.count);
           break;
         case REAL:
         case TIME:
-          fprintf(f, "%s.%s=%lf\n", ident.c_str(), it->first.c_str(),  (ent.value));
-          fprintf(f, "%s.%s.count=%d\n", ident.c_str(), it->first.c_str(), ent.count);
-          fprintf(f, "%s.%s.min=%lf\n", ident.c_str(), it->first.c_str(),  (ent.minvalue));
-          fprintf(f, "%s.%s.max=%lf\n", ident.c_str(), it->first.c_str(),  (ent.maxvalue));
-          fprintf(f, "%s.%s.avg=%lf\n", ident.c_str(), it->first.c_str(), ent.cumvalue/ent.count);
+          fout << boost::format("%1%.%2%=%3%\n") % ident.c_str() % it->first.c_str() % (ent.value);
+          fout << boost::format("%1%.%2%.count=%3%\n") % ident.c_str() % it->first.c_str() % ent.count;
+          fout << boost::format("%1%.%2%.min=%3%\n") % ident.c_str() % it->first.c_str() %  (ent.minvalue);
+          fout << boost::format("%1%.%2%.max=%3%\n") % ident.c_str() % it->first.c_str() %  (ent.maxvalue);
+          fout << boost::format("%1%.%2%.avg=%3%\n") % ident.c_str() % it->first.c_str() % (ent.cumvalue/(double)ent.count);
           break;
         case STRING:
-          fprintf(f, "%s.%s=%s\n", ident.c_str(), it->first.c_str(), it->second.stringval.c_str());                                
+          fout << boost::format("%1%.%2%=%3%\n") % ident.c_str() % it->first.c_str() % it->second.stringval.c_str();                                
           break;
         case VECTOR:
-          fprintf(f, "%s.%s.values=",  ident.c_str(), it->first.c_str());
-          for(size_t j=0; j<ent.v.size()-1; j++) fprintf(f, "%lf,", ent.v[j]);
-          fprintf(f, "%lf\n", ent.v[ent.v.size()-1]);
-          fprintf(f, "%s.%s=%lf\n", ident.c_str(), it->first.c_str(),  (ent.value));
-          fprintf(f, "%s.%s.count=%d\n", ident.c_str(), it->first.c_str(), ent.count);
-          fprintf(f, "%s.%s.min=%lf\n", ident.c_str(), it->first.c_str(),  (ent.minvalue));
-          fprintf(f, "%s.%s.max=%lf\n", ident.c_str(), it->first.c_str(),  (ent.maxvalue));
-          fprintf(f, "%s.%s.avg=%lf\n", ident.c_str(), it->first.c_str(), ent.cumvalue/ent.count);
+          fout << boost::format("%1%.%2%.values=") %  ident.c_str() % it->first.c_str();
+          for(size_t j=0; j<ent.v.size()-1; j++) fout << boost::format("%1%,") % ent.v[j];
+          fout << boost::format("%1%\n") % ent.v[ent.v.size()-1];
+          fout << boost::format("%1%.%2%=%3%\n") % ident.c_str() % it->first.c_str() %  (ent.value);
+          fout << boost::format("%1%.%2%.count=%3%\n") % ident.c_str() % it->first.c_str() % ent.count;
+          fout << boost::format("%1%.%2%.min=%3%\n") % ident.c_str() % it->first.c_str() %  (ent.minvalue);
+          fout << boost::format("%1%.%2%.max=%3%\n") % ident.c_str() % it->first.c_str() %  (ent.maxvalue);
+          fout << boost::format("%1%.%2%.avg=%3%\n") % ident.c_str() % it->first.c_str() % (ent.cumvalue/(double)ent.count);
           break;
         }
       }
-                
-      fflush(f);
+      fout.flush();
     };
         
   };

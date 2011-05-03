@@ -56,8 +56,8 @@ namespace graphlab {
   public:
     
     binary_factor(uint32_t var1 = 0,
-                  uint32_t arity1 = 0,
-                  uint16_t var2 = 0,
+                  uint16_t arity1 = 0,
+                  uint32_t var2 = 0,
                   uint16_t arity2 = 0) :
       _var1(var1), _arity1(arity1), _var2(var2), _arity2(arity2),
       _data(arity1 * arity2) { }
@@ -143,32 +143,32 @@ namespace graphlab {
       assert(arity2() > 0);
       // Compute the max value
       double max_value = logP(0,0);
-      for(size_t asg1 = 0; asg1 < arity1(); ++asg1) 
-        for(size_t asg2 = 0; asg2 < arity2(); ++asg2)  
+      for(uint16_t asg1 = 0; asg1 < arity1(); ++asg1) 
+        for(uint16_t asg2 = 0; asg2 < arity2(); ++asg2)  
           max_value = std::max(max_value, 
                                logP(asg1, asg2));
       assert( !std::isinf(max_value) );
       assert( !std::isnan(max_value) );
       // scale and compute normalizing constant
       double Z = 0.0;
-      for(size_t asg1 = 0; asg1 < arity1(); ++asg1) 
-        for(size_t asg2 = 0; asg2 < arity2(); ++asg2)  
+      for(uint16_t asg1 = 0; asg1 < arity1(); ++asg1) 
+        for(uint16_t asg2 = 0; asg2 < arity2(); ++asg2)  
           Z += std::exp(logP(asg1, asg2) -= max_value);
       assert( !std::isinf(Z) );
       assert( !std::isnan(Z) );
       assert( Z > 0.0);
       double logZ = std::log(Z);
       // Normalize
-      for(size_t asg1 = 0; asg1 < arity1(); ++asg1) 
-        for(size_t asg2 = 0; asg2 < arity2(); ++asg2)  
+      for(uint16_t asg1 = 0; asg1 < arity1(); ++asg1) 
+        for(uint16_t asg2 = 0; asg2 < arity2(); ++asg2)  
           logP(asg1, asg2) -= logZ;
     } // End of normalize
 
   
   
     void set_as_agreement(double lambda) {
-      for(size_t i = 0; i < arity1(); ++i) { 
-        for(size_t j = 0; j < arity2(); ++j) { 
+      for(uint16_t i = 0; i < arity1(); ++i) { 
+        for(uint16_t j = 0; j < arity2(); ++j) { 
           if( i != j) logP(i,j) = -lambda;
           else logP(i,j) = 0;
         }
@@ -176,8 +176,8 @@ namespace graphlab {
     } // end of set_as_agreement
   
     void set_as_laplace(double lambda) {
-      for(size_t i = 0; i < arity1(); ++i) { 
-        for(size_t j = 0; j < arity2(); ++j) { 
+      for(uint16_t i = 0; i < arity1(); ++i) { 
+        for(uint16_t j = 0; j < arity2(); ++j) { 
           logP(i,j) = -std::abs(double(i) - double(j)) * lambda;
         }
       }
@@ -190,10 +190,10 @@ namespace graphlab {
      */
     double mk_derivative() const {
       double max_value = -std::numeric_limits<double>::max();
-      for(size_t a = 0; a < arity1(); ++a) {
-        for(size_t b = 0; b < arity2(); ++b) {
-          for(size_t x = 0; x < arity1(); ++x) {
-            for(size_t y = 0; y < arity2(); ++y) {
+      for(uint16_t a = 0; a < arity1(); ++a) {
+        for(uint16_t b = 0; b < arity2(); ++b) {
+          for(uint16_t x = 0; x < arity1(); ++x) {
+            for(uint16_t y = 0; y < arity2(); ++y) {
               if(a != x && b != y) {
                 double value =
                   (logP(a,b) + logP(x,y) - (logP(x,b) + logP(a,y)))/4.0;
@@ -222,8 +222,8 @@ namespace graphlab {
           << arity1() << "}, " 
           << ", v_ " << var2() << " in {1..." 
           << arity2() << "})" << std::endl;
-      for(size_t i = 0; i < arity1(); ++i) {
-        for(size_t j = 0; j < arity2(); ++j) {
+      for(uint16_t i = 0; i < arity1(); ++i) {
+        for(uint16_t j = 0; j < arity2(); ++j) {
           out << std::exp(logP(i,j)) << " ";
         }
         out << std::endl;

@@ -185,8 +185,8 @@ namespace graphlab {
       size_t next_time;
       any zero;
       mutex lock;
-      size_t rangelow;
-      size_t rangehigh;
+      vertex_id_t rangelow;
+      vertex_id_t rangehigh;
       glshared_base *sharedvariable;
       sync_task() :
         sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
@@ -328,17 +328,17 @@ namespace graphlab {
       // Metrics: update counts
       for(size_t i = 0; i < update_counts.size(); ++i) {
         engine_metrics.add("updatecount", 
-                           update_counts[i], INTEGER);
-        engine_metrics.add_vector_entry("updatecount_vector", i, update_counts[i]);
+                           (double)update_counts[i], INTEGER);
+        engine_metrics.add_vector_entry("updatecount_vector", i, (double)update_counts[i]);
       }
       engine_metrics.add("runtime",
-                         (lowres_time_millis()-start_time_millis)*0.001, TIME);
+                         ((double)lowres_time_millis()-(double)start_time_millis)*0.001, TIME);
       engine_metrics.set("termination_reason", 
                          exec_status_as_string(termination_reason));
 
-      engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
-      engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
-      engine_metrics.set("num_syncs", numsyncs.value, INTEGER);
+      engine_metrics.set_integer("num_vertices", graph.num_vertices());
+      engine_metrics.set_integer("num_edges", graph.num_edges());
+      engine_metrics.set_integer("num_syncs", numsyncs.value);
       
       // ok. if death was due to an exception, rethrow
       if (termination_reason == EXEC_EXCEPTION) {
@@ -482,8 +482,8 @@ namespace graphlab {
                   const any& zero,
                   size_t sync_interval = 0,
                   merge_function_type merge = NULL,
-                  size_t rangelow = 0,
-                  size_t rangehigh = -1) {
+                  vertex_id_t rangelow = 0,
+                  vertex_id_t rangehigh = -1) {
       sync_task st;
       st.sync_fun = sync;
       st.merge_fun = merge;
@@ -600,7 +600,7 @@ namespace graphlab {
         // Pick a random cpu to run as
         uint32_t cpuid = 0;
         if(ncpus > 1) {
-          cpuid = random::fast_uniform<uint32_t>(0, ncpus - 1);
+          cpuid = random::fast_uniform<uint32_t>(0, (uint32_t)(ncpus - 1));
         }
         // Execute the update as that cpu
         active = run_once(cpuid, scheduler, scope_manager);
@@ -772,12 +772,12 @@ namespace graphlab {
       numsyncs.inc();
       sync_task &sync = sync_tasks[syncid];
       // # get the range of vertices
-      size_t vmin = sync.rangelow;
-      size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+      vertex_id_t vmin = sync.rangelow;
+      vertex_id_t vmax = std::min(sync.rangehigh, (vertex_id_t)(graph.num_vertices() - 1));
       
       //accumulate through all the vertices
       any accumulator = sync.zero;
-      for (size_t i = vmin; i <= vmax; ++i) {
+      for (vertex_id_t i = vmin; i <= vmax; ++i) {
         iscope_type* scope = scope_manager->get_scope(cpuid, i,
                                             scope_range::NULL_CONSISTENCY);
         sync.sync_fun(*scope, accumulator);
@@ -831,18 +831,18 @@ namespace graphlab {
         // lets do a parallel reduction
         
         // # get the range of vertices
-        size_t vmin = sync.rangelow;
-        size_t vmax = std::min(sync.rangehigh, graph.num_vertices());
+        vertex_id_t vmin = sync.rangelow;
+        vertex_id_t vmax = std::min(sync.rangehigh, (vertex_id_t)graph.num_vertices());
         // slice the range into ncpus
-        size_t nverts = vmax - vmin;
+        vertex_id_t nverts = vmax - vmin;
         // get my true range
-        size_t v_mymin = vmin + (nverts * cpuid) / ncpus;
-        size_t v_mymax = vmin + (nverts * (cpuid + 1)) / ncpus;
+        vertex_id_t v_mymin = (vertex_id_t)(vmin + (nverts * cpuid) / ncpus);
+        vertex_id_t v_mymax = (vertex_id_t)(vmin + (nverts * (cpuid + 1)) / ncpus);
         
         //accumulate through all the vertices
         any& accumulator = sync_accumulators[cpuid];
         accumulator = sync.zero;
-        for (size_t i = v_mymin; i < v_mymax; ++i) {
+        for (vertex_id_t i = v_mymin; i < v_mymax; ++i) {
           iscope_type* scope = scope_manager->get_scope(cpuid, i, 
                                           scope_range::NULL_CONSISTENCY);
           sync.sync_fun(*scope, accumulator);
@@ -868,12 +868,12 @@ namespace graphlab {
           numsyncs.inc();
           sync_task &sync = sync_tasks[syncid];
           // # get the range of vertices
-          size_t vmin = sync.rangelow;
-          size_t vmax = std::min(sync.rangehigh, graph.num_vertices() - 1);
+          vertex_id_t vmin = sync.rangelow;
+          vertex_id_t vmax = (vertex_id_t)(std::min(sync.rangehigh, (vertex_id_t)(graph.num_vertices() - 1)));
           
           //accumulate through all the vertices
           any accumulator = sync.zero;
-          for (size_t i = vmin; i <= vmax; ++i) {
+          for (vertex_id_t i = vmin; i <= vmax; ++i) {
             iscope_type* scope = scope_manager->get_scope(cpuid, i,
                                           scope_range::NULL_CONSISTENCY);
             scope->commit();
@@ -934,8 +934,8 @@ namespace graphlab {
         if (is_cpu0) {
           // put it back if the interval is postive
           if (sync_tasks[sync_task_queue_head.first].sync_interval > 0) {
-            int next_time(approximate_last_update_count() + 
-                          sync_tasks[sync_task_queue_head.first].sync_interval);
+            int next_time((int)(approximate_last_update_count() + 
+                          sync_tasks[sync_task_queue_head.first].sync_interval));
             sync_task_queue.insert_max(sync_task_queue_head.first, -next_time);
           }
           

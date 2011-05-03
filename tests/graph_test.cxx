@@ -48,7 +48,7 @@ public:
     g.clear();
     // Add the vertices
     TS_TRACE("Checking Add Vertex");
-    for(size_t i = 0; i < N; ++i) {     
+    for(vertex_id_t i = 0; i < N; ++i) {     
       verts[i].bias = i; 
       verts[i].sum = 0;
       g.add_vertex(verts[i]);
@@ -61,10 +61,10 @@ public:
     }
     // Make a ring
     TS_TRACE("Checking Add Edge");
-    for(size_t i = 0; i < N; ++i) {
+    for(vertex_id_t i = 0; i < N; ++i) {
       edges[i].weight = i * i;
       edges[i].sum = 0;
-      size_t j = (i+1) % N;
+      vertex_id_t j = (i+1) % N;
       g.add_edge(i, j, edges[i]);
       g.finalize();
       edge_data& edata = g.edge_data(i,j);
@@ -81,10 +81,10 @@ public:
 
     // Make a ring
     TS_TRACE("Checking Add Edge Again with bi directed edges");
-    for(size_t i = 0; i < N; ++i) {
+    for(vertex_id_t i = 0; i < N; ++i) {
       edges[i].weight = i * i;
       edges[i].sum = 0;
-      size_t j = (i+1) % N;
+      vertex_id_t j = (i+1) % N;
       g.add_edge(i, j, edges[i]);
       g.add_edge(j, i, edges[i]);
     }   
@@ -100,11 +100,11 @@ public:
     TS_TRACE("Constructing random graph");
     gl::graph graph(num_verts);
     // create a random graph
-    for(size_t i = 0; i < num_verts; ++i) {
+    for(vertex_id_t i = 0; i < num_verts; ++i) {
       std::set<gl::vertex_id_t> neighbors;
       
       for(size_t j = 0; j < degree; ++j) {
-        size_t neighbor = graphlab::random::uniform<size_t>(0, num_verts - 1);
+        vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
         if(neighbor != i && neighbors.insert(neighbor).second) graph.add_edge(i, neighbor);
       }
     }
@@ -112,7 +112,7 @@ public:
     TS_TRACE("Testing Coloring");
     graph.compute_coloring();
     
-    for(size_t i = 0; i < num_verts; ++i) {
+    for(vertex_id_t i = 0; i < num_verts; ++i) {
       foreach(edge_id_t e, graph.in_edge_ids(i)) {
         TS_ASSERT_DIFFERS(graph.color(graph.source(e)), graph.color(i));
       }
@@ -131,10 +131,10 @@ public:
     
     for (size_t i = 0;i < dim; ++i) {
       for (size_t j = 0;j < dim - 1; ++j) {
-        g.add_edge(dim * i + j, dim * i + j + 1, char(1));
-        g.add_edge(dim * i + j + 1, dim * i + j, char(1));
-        g.add_edge(dim * j + i, dim * (j + 1) + i, char(1));
-        g.add_edge(dim * (j + 1) + i, dim * j + i, char(1));
+        g.add_edge((vertex_id_t)(dim * i + j), (vertex_id_t)(dim * i + j + 1), char(1));
+        g.add_edge((vertex_id_t)(dim * i + j + 1), (vertex_id_t)(dim * i + j), char(1));
+        g.add_edge((vertex_id_t)(dim * j + i), (vertex_id_t)(dim * (j + 1) + i), char(1));
+        g.add_edge((vertex_id_t)(dim * (j + 1) + i), (vertex_id_t)(dim * j + i), char(1));
       }
     }
     g.finalize();    

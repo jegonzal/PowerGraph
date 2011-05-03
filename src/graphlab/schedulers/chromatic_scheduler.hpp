@@ -75,7 +75,7 @@ namespace graphlab {
       // Verify the coloring
       ASSERT_TRUE(graph.valid_coloring());
       // Initialize the chromatic blocks
-      for(size_t i = 0; i < graph.num_vertices(); ++i) {
+      for(vertex_id_t i = 0; i < graph.num_vertices(); ++i) {
         graphlab::vertex_color_type color = graph.color(i);
         if( color >= color_blocks.size() ) color_blocks.resize(color + 1);
         color_blocks[color].push_back(i);        

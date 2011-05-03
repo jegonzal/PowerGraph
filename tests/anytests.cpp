@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
   t2.i = 1;
   t2.j = 2;
   t2.l.z = 3;
-  for (size_t i = 0;i < 10; ++i) {
+  for (int i = 0;i < 10; ++i) {
     t2.k.push_back(i);
   }
   variant = t2;

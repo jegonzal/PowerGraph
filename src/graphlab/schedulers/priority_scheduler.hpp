@@ -65,7 +65,7 @@ namespace graphlab {
     size_t num_vertices;  
     
     /** The queue over vertices */
-    mutable_queue<size_t, double> task_queue;
+    mutable_queue<vertex_id_t, double> task_queue;
 
     /** The lock on the priority queue */
     spinlock queuelock; 

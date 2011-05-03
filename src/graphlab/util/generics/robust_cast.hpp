@@ -35,7 +35,7 @@ namespace graphlab {
   typename boost::enable_if_c<boost::is_convertible<Source, Target>::value, 
                               Target>::type
                               robust_cast(const Source &h) {
-    return h;
+    return (Target)h;
   }
 }
 

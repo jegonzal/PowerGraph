@@ -102,7 +102,7 @@ unsigned char distributed_control::set_sequentialization_key(unsigned char newke
   size_t newval = newkey;
   pthread_setspecific(dc_impl::thrlocal_sequentialization_key, reinterpret_cast<void*>(newval));
   assert(oldval < 256);
-  return oldval;
+  return (unsigned char)oldval;
 }
 
 unsigned char distributed_control::new_sequentialization_key() {
@@ -110,13 +110,13 @@ unsigned char distributed_control::new_sequentialization_key() {
   size_t newval = (oldval + 1) % 256;
   pthread_setspecific(dc_impl::thrlocal_sequentialization_key, reinterpret_cast<void*>(newval));
   assert(oldval < 256);
-  return oldval;
+  return (unsigned char)oldval;
 }
 
 unsigned char distributed_control::get_sequentialization_key() {
   size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
   assert(oldval < 256);
-  return oldval;
+  return (unsigned char)oldval;
 }
 
 static std::string get_working_dir() {
@@ -375,7 +375,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   fcallqueue.init(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
-    for (size_t i = 0; i < machines.size(); ++i) {
+    for (procid_t i = 0; i < machines.size(); ++i) {
       if (compressed) {
         #ifdef ZLIB_FOUND
         receivers.push_back(new dc_impl::dc_stream_receive_z(this));
@@ -459,7 +459,7 @@ void distributed_control::comm_barrier(procid_t targetmachine) {
 
 void distributed_control::comm_barrier() {
   std::stringstream strm;
-  for (size_t i = 0;i < senders.size(); ++i) {
+  for (procid_t i = 0;i < senders.size(); ++i) {
     if (i != procid() && senders[i]->channel_active(i)) {
       senders[i]->send_data(i, BARRIER | CONTROL_PACKET, strm, 0);
     }
@@ -478,7 +478,7 @@ void distributed_control::compute_master_ranks() {
   std::vector<std::string> ipandpath(numprocs());
   ipandpath[procid()] = localipandpath;
   all_gather(ipandpath);
-  for(size_t i = 0; i < ipandpath.size(); ++i) {
+  for(procid_t i = 0; i < ipandpath.size(); ++i) {
     if(ipandpath[i] == localipandpath) {
       masterid = i;
       break;
@@ -534,7 +534,7 @@ void distributed_control::full_barrier() {
   // activate the full barrier
   full_barrier_in_effect = true;
   // begin one pass to set all which are already completed
-  for (size_t i = 0;i < numprocs(); ++i) {
+  for (procid_t i = 0;i < numprocs(); ++i) {
     if (global_calls_received[i].value >= calls_to_receive[i]) {
       if (procs_complete.set_bit(i) == false) {
         num_proc_recvs_incomplete.dec();
@@ -565,9 +565,9 @@ std::map<std::string, size_t> distributed_control::gather_statistics(){
       for (size_t i = 0;i < numprocs(); ++i) {
         cs.callssent += stats[i].callssent;
         cs.bytessent += stats[i].bytessent;
-        rpc_metrics.set_vector_entry("calls_sent", i, stats[i].callssent);
-        rpc_metrics.set_vector_entry("bytes_sent", i, stats[i].bytessent);
-        rpc_metrics.set_vector_entry("network_bytes_sent", i, stats[i].network_bytessent);
+        rpc_metrics.set_vector_entry_integer("calls_sent", i, stats[i].callssent);
+        rpc_metrics.set_vector_entry_integer("bytes_sent", i, stats[i].bytessent);
+        rpc_metrics.set_vector_entry_integer("network_bytes_sent", i, stats[i].network_bytessent);
         cs.network_bytessent += stats[i].network_bytessent;
       }
       ret["total_calls_sent"] = cs.callssent;
@@ -580,10 +580,10 @@ std::map<std::string, size_t> distributed_control::gather_statistics(){
 void distributed_control::fill_metrics() {
   std::map<std::string, size_t> ret = gather_statistics();
   if (procid() == 0) {
-    rpc_metrics.set("nodes", numprocs(), INTEGER);
-    rpc_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
-    rpc_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
-    rpc_metrics.set("total_network_bytes_sent", ret["network_bytes_sent"], INTEGER);
+    rpc_metrics.set_integer("nodes", numprocs());
+    rpc_metrics.set_integer("total_calls_sent", ret["total_calls_sent"]);
+    rpc_metrics.set_integer("total_bytes_sent", ret["total_bytes_sent"]);
+    rpc_metrics.set_integer("total_network_bytes_sent", ret["network_bytes_sent"]);
   }
   total_bytes_sent = ret["total_bytes_sent"];
 }

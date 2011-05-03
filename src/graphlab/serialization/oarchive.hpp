@@ -141,7 +141,7 @@ namespace graphlab {
   inline oarchive& serialize(oarchive& a, const void* i,const size_t length) {
     // save the length
     operator<<(a,length);
-    a.o->write(reinterpret_cast<const char*>(i), length);
+    a.o->write(reinterpret_cast<const char*>(i), (std::streamsize)length);
     assert(!a.o->fail());
     return a;
   }
@@ -153,7 +153,7 @@ namespace graphlab {
   inline oarchive_soft_fail& serialize(oarchive_soft_fail& a, const void* i,const size_t length) {
     // save the length
     operator<<(a,length);
-    a.o->write(reinterpret_cast<const char*>(i), length);
+    a.o->write(reinterpret_cast<const char*>(i), (std::streamsize)length);
     assert(!a.o->fail());
     return a;
   }

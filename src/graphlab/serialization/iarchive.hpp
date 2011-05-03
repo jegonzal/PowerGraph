@@ -139,7 +139,7 @@ namespace graphlab {
     ASSERT_EQ(length, length2);
 
     //operator>> the rest
-    a.i->read(reinterpret_cast<char*>(i), length);
+    a.i->read(reinterpret_cast<char*>(i), (std::streamsize)length);
     assert(!a.i->fail());
     return a;
   }
@@ -156,7 +156,7 @@ namespace graphlab {
     ASSERT_EQ(length, length2);
 
     //operator>> the rest
-    a.i->read(reinterpret_cast<char*>(i), length);
+    a.i->read(reinterpret_cast<char*>(i), (std::streamsize)length);
     assert(!a.i->fail());
     return a;
   }

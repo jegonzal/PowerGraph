@@ -57,9 +57,9 @@ class dc_comm_services {
     barrier_sense = 1;
     barrier_release = 0;
     
-    child[0] = comm->procid() * 2 + 1;
-    child[1] = comm->procid() * 2 + 2; 
-    parent =  (comm->procid() - 1) / 2;
+    child[0] = (procid_t)(comm->procid() * 2 + 1);
+    child[1] = (procid_t)(comm->procid() * 2 + 2); 
+    parent =  (procid_t)((comm->procid() - 1) / 2);
   }
  
 

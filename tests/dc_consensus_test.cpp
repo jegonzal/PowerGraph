@@ -34,7 +34,7 @@ class simple_engine_test {
         add_task_local(i - 1);
       }
       else {
-        rmi.remote_call((rmi.procid() + 1) % rmi.numprocs(),
+        rmi.remote_call((procid_t)((rmi.procid() + 1) % rmi.numprocs()),
                     &simple_engine_test::add_task_local,
                     i - 1);
       }

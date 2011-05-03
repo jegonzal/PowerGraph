@@ -24,7 +24,7 @@ namespace graphlab {
   safe_circular_char_buffer::safe_circular_char_buffer(std::streamsize bufsize) 
     :bufsize(bufsize), head(0), tail(0), done(false), iswaiting(false){
     ASSERT_GT(bufsize, 0);
-    buffer = (char*)malloc(bufsize);
+    buffer = (char*)malloc((size_t)bufsize);
   }
 
   safe_circular_char_buffer::~safe_circular_char_buffer() {
@@ -79,7 +79,7 @@ namespace graphlab {
 
     // First we copy the contents into Part A
     std::streamsize firstcopy = std::min(clen, bufsize - tail);
-    memcpy(buffer + tail, c, firstcopy);
+    memcpy(buffer + tail, c, (size_t)firstcopy);
     // Move the tail to the end
     tail += firstcopy;
     // If tail moved to the end wrap around
@@ -92,7 +92,7 @@ namespace graphlab {
       std::streamsize secondcopy = clen - firstcopy;
       ASSERT_GT(secondcopy, 0);
       // Do the copy and advance the pointer
-      memcpy(buffer, c + firstcopy, secondcopy);    
+      memcpy(buffer, c + firstcopy, (size_t)secondcopy);    
       tail += secondcopy;
       
     }

@@ -194,7 +194,7 @@ namespace graphlab {
      * Look at the top task associated with the vertex.  If there are
      * no associated tasks then return false;
      */
-    bool top(size_t vertex_id,
+    bool top(vertex_id_t vertex_id,
              update_task_type& ret_task,
              double& ret_priority) {
       assert(vertex_id < locks.size());
@@ -224,7 +224,7 @@ namespace graphlab {
     /**
      * Get the top priority for a vertex
      */
-    double top_priority(size_t vertex_id) {
+    double top_priority(vertex_id_t vertex_id) {
       assert(vertex_id < locks.size());
       double priority(0);
       // grab the lock on the vertex
@@ -245,7 +245,7 @@ namespace graphlab {
     /**
      * Get the top priority for a vertex
      */
-    double total_priority(size_t vertex_id) {
+    double total_priority(vertex_id_t vertex_id) {
       assert(vertex_id < locks.size());
       double priority(0);
       // grab the lock on the vertex
@@ -268,7 +268,7 @@ namespace graphlab {
      * Look at the top task associated with the vertex.  If there are
      * no associated tasks then return false;
      */
-    bool pop(size_t vertex_id,
+    bool pop(vertex_id_t vertex_id,
              update_task_type& ret_task,
              double& ret_priority) {
       assert(vertex_id < locks.size());

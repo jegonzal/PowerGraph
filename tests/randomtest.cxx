@@ -21,12 +21,12 @@ void uniform_speed(const size_t max_iter) {
   timer ti;
   ti.start();
   for(size_t i = 0; i < max_iter; ++i) {
-    sum += graphlab::random::uniform<NumType>(0, 10);
+    sum += (NumType)(graphlab::random::uniform<NumType>(0, 10));
   }
   double slow_time = ti.current_time();
   ti.start();
   for(size_t i = 0; i < max_iter; ++i) {
-    sum += graphlab::random::fast_uniform<NumType>(0, 10);
+    sum += (NumType)(graphlab::random::fast_uniform<NumType>(0, 10));
   }
   double fast_time = ti.current_time();
   std::cout << slow_time << ", " << fast_time << std::endl; 
@@ -38,26 +38,26 @@ static void update_function(core_type::types::iscope& scope,
   namespace random = graphlab::random;
 
   scope.vertex_data() += 
-    random::uniform<int>(0,9) +
-    random::fast_uniform<int>(0,9) +
-    random::uniform<char>(0, 2) +
-    random::fast_uniform<char>(0, 2) +
-    random::uniform<uint32_t>(0, 5) +
-    random::fast_uniform<uint32_t>(0, 5) +
-    random::rand() % 10 +
-    random::uniform<size_t>(0,9) +
-    random::fast_uniform<size_t>(0, 10) +
-    random::uniform<double>(0,1) +
-    random::fast_uniform<double>(0,1) +
-    random::uniform<float>(0,1) +
-    random::fast_uniform<float>(0,1) +
-    random::gamma() +
-    random::gaussian();
+    (double)random::uniform<int>(0,9) +
+    (double)random::fast_uniform<int>(0,9) +
+    (double)random::uniform<char>(0, 2) +
+    (double)random::fast_uniform<char>(0, 2) +
+    (double)random::uniform<uint32_t>(0, 5) +
+    (double)random::fast_uniform<uint32_t>(0, 5) +
+    (double)(random::rand() % 10) +
+    (double)random::uniform<size_t>(0,9) +
+    (double)random::fast_uniform<size_t>(0, 10) +
+    (double)random::uniform<double>(0,1) +
+    (double)random::fast_uniform<double>(0,1) +
+    (double)random::uniform<float>(0,1) +
+    (double)random::fast_uniform<float>(0,1) +
+    (double)random::gamma() +
+    (double)random::gaussian();
   std::vector<double> weights(5);
   for(size_t i = 0; i < weights.size(); ++i) {
     weights[i] = random::uniform<double>(0,1);
   }
-  scope.vertex_data() += random::multinomial(weights);                 
+  scope.vertex_data() += (double)random::multinomial(weights);                 
 
 }
 
@@ -145,7 +145,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     core_type core;
     for(size_t i = 0; i < 32; ++i) 
       core.graph().add_vertex(vertex_data_type(0));
-    for(size_t i = 0; i+1 < core.graph().num_vertices(); ++i) {
+    for(vertex_id_t i = 0; i+1 < core.graph().num_vertices(); ++i) {
       core.graph().add_edge(i, i+1, edge_data_type(1));
       core.graph().add_edge(i+1, i, edge_data_type(2));
     }
@@ -158,7 +158,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
       core.sched_options().add_option("max_iterations", 2);
       std::cout << "--------------------------------" << std::endl;
       core.start();
-      for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
+      for(vertex_id_t i = 0; i < core.graph().num_vertices(); ++i) {
         std::cout << core.graph().vertex_data(i) << "\t";
       }
       std::cout << std::endl;
@@ -169,7 +169,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     namespace random = graphlab::random;
     random::nondet_seed();
     std::vector<int> numbers(6);
-    for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = i + 1;
+    for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = (int)i + 1;
     for(size_t j = 0; j < 10; ++j) {
       // shuffle the numbers
       random::shuffle(numbers);
@@ -209,7 +209,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     
     std::cout << "shuffle:  "; 
     std::vector<int> numbers(6);
-    for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = i + 1;
+    for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = (int)i + 1;
     time.start();
     for(size_t j = 0; j < MAX_ITER/numbers.size(); ++j) {
       // shuffle the numbers

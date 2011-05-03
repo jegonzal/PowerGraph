@@ -36,11 +36,10 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #define INT_SERIALIZE(tname)                                            \
   template <typename ArcType> struct serialize_impl<ArcType, tname, false>{ \
     static void exec(ArcType &a, const tname &i_) {                     \
-      int64_t i = i_ ;                                                  \
+      uint64_t i = (uint64_t)(i_) ;                                     \
       char c[10];                                                       \
       unsigned char len = compress_int(i, c);                           \
-      a.o->write(c + 10 - len, len);                                    \
-      /* a.o->write(c, len);     */                                     \
+      a.o->write(c + 10 - len, (std::streamsize)len);                   \
     }                                                                   \
   };                                                                    \
   template <typename ArcType> struct deserialize_impl<ArcType, tname, false>{ \
@@ -139,7 +138,7 @@ namespace graphlab {
       static void exec(ArcType &a, const std::string& s) {
         size_t length = s.length();
         serialize_impl<ArcType, size_t, false>::exec(a, length);
-        a.o->write(reinterpret_cast<const char*>(s.c_str()), length);
+        a.o->write(reinterpret_cast<const char*>(s.c_str()), (std::streamsize)length);
         DASSERT_FALSE(a.o->fail());
       }
     };
@@ -153,7 +152,7 @@ namespace graphlab {
         deserialize_impl<ArcType, size_t, false>::exec(a, length);
         //resize the string and read the characters
         s.resize(length);
-        a.i->read(const_cast<char*>(s.c_str()), length);
+        a.i->read(const_cast<char*>(s.c_str()), (std::streamsize)length);
         DASSERT_FALSE(a.i->fail());
       }
     };

@@ -309,7 +309,7 @@ namespace graphlab {
     }
     inline void writelock() const {
       unsigned me = atomic_xadd(&l.u, (1<<16));
-      unsigned char val = me >> 16;
+      unsigned char val = (unsigned char)(me >> 16);
     
       while (val != l.s.write) sched_yield();
       writing = true;
@@ -328,7 +328,7 @@ namespace graphlab {
 
     inline void readlock() const {
       unsigned me = atomic_xadd(&l.u, (1<<16));
-      unsigned char val = me >> 16;
+      unsigned char val = (unsigned char)(me >> 16);
     
       while (val != l.s.read) sched_yield();
       l.s.read++;
@@ -399,7 +399,7 @@ namespace graphlab {
     mutable pthread_barrier_t m_barrier;
   public:
     /// Construct a barrier which will only fall when numthreads enter
-    barrier(size_t numthreads) { pthread_barrier_init(&m_barrier, NULL, numthreads); }
+    barrier(size_t numthreads) { pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }
     ~barrier() { pthread_barrier_destroy(&m_barrier); }
     /// Wait on the barrier until numthreads has called wait
     inline void wait() const { pthread_barrier_wait(&m_barrier); }

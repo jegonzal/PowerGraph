@@ -103,10 +103,12 @@ namespace graphlab {
     
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {
-      size_t vertex_id = -1;
+      vertex_id_t vertex_id = (vertex_id_t)(-1);
+      size_t drawnsample = (size_t)(-1);
       // Try and draw a sample (select a vertex)
-      while(multinomial.sample(vertex_id, cpuid)) {
-        assert(vertex_id < num_vertices);
+      while(multinomial.sample(drawnsample , cpuid)) {      
+        assert(drawnsample < num_vertices);
+        vertex_id = (vertex_id_t)drawnsample;
         double ret_priority = 0.0;
         bool success = false;
         // Grab the lock for that vertex

@@ -81,7 +81,7 @@ namespace graphlab {
     
     /// Sets all bits to 1
     inline void fill() {
-      for (size_t i = 0;i < arrlen; ++i) array[i] = -1;
+      for (size_t i = 0;i < arrlen; ++i) array[i] = (size_t)-1;
     }
 
     /// Prefetches the word containing the bit b
@@ -167,7 +167,7 @@ namespace graphlab {
     inline bool first_bit(uint32_t &b) {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
-          b = i * (sizeof(size_t) * 8) + first_bit_in_block(array[i]);
+          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
           return true;
         }
       }
@@ -185,14 +185,14 @@ namespace graphlab {
       //try to find the next bit in this block
       bitpos = next_bit_in_block(bitpos, array[arrpos]);
       if (bitpos != 0) {
-        b = arrpos * (sizeof(size_t) * 8) + bitpos;
+        b = (uint32_t)(arrpos * (sizeof(size_t) * 8)) + bitpos;
         return true;
       }
       else {
         // we have to loop through the rest of the array
         for (size_t i = arrpos + 1; i < arrlen; ++i) {
           if (array[i]) {
-            b = i * (sizeof(size_t) * 8) + first_bit_in_block(array[i]);
+            b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
             return true;
           }
         }
@@ -245,19 +245,19 @@ namespace graphlab {
     }
   
     // returns 0 on failure
-    inline size_t next_bit_in_block(const uint32_t& b, const size_t& block) {
+    inline uint32_t next_bit_in_block(const uint32_t& b, const size_t& block) {
       // use CAS to set the bit
       size_t belowselectedbit = size_t(-1) - (((size_t(1) << b) - 1)|(size_t(1)<<b));
       size_t x = block & belowselectedbit ;
       if (x == 0) return 0;
-      else return __builtin_ctzl(x);
+      else return (uint32_t)__builtin_ctzl(x);
     }
 
     // returns 0 on failure
-    inline size_t first_bit_in_block(const size_t& block) {
+    inline uint32_t first_bit_in_block(const size_t& block) {
       // use CAS to set the bit
       if (block == 0) return 0;
-      else return __builtin_ctzl(block);
+      else return (uint32_t)__builtin_ctzl(block);
     }
 
     size_t* array;
@@ -391,7 +391,7 @@ namespace graphlab {
     inline bool first_bit(uint32_t &b) {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
-          b = i * (sizeof(size_t) * 8) + first_bit_in_block(array[i]);
+          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
           return true;
         }
       }
@@ -409,14 +409,14 @@ namespace graphlab {
       //try to find the next bit in this block
       bitpos = next_bit_in_block(bitpos, array[arrpos]);
       if (bitpos != 0) {
-        b = arrpos * (sizeof(size_t) * 8) + bitpos;
+        b = (uint32_t)(arrpos * (sizeof(size_t) * 8)) + bitpos;
         return true;
       }
       else {
         // we have to loop through the rest of the array
         for (size_t i = arrpos + 1; i < arrlen; ++i) {
           if (array[i]) {
-            b = i * (sizeof(size_t) * 8) + first_bit_in_block(array[i]);
+            b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
             return true;
           }
         }
@@ -473,19 +473,19 @@ namespace graphlab {
   
 
     // returns 0 on failure
-    inline size_t next_bit_in_block(const uint32_t &b, const size_t &block) {
+    inline uint32_t next_bit_in_block(const uint32_t &b, const size_t &block) {
       // use CAS to set the bit
       size_t belowselectedbit = size_t(-1) - (((size_t(1) << b) - 1)|(size_t(1)<<b));
       size_t x = block & belowselectedbit ;
       if (x == 0) return 0;
-      else return __builtin_ctzl(x);
+      else return (uint32_t)__builtin_ctzl(x);
     }
 
     // returns 0 on failure
-    inline size_t first_bit_in_block(const size_t &block) {
+    inline uint32_t first_bit_in_block(const size_t &block) {
       // use CAS to set the bit
       if (block == 0) return 0;
-      else return __builtin_ctzl(block);
+      else return (uint32_t)__builtin_ctzl(block);
     }
 
     static const size_t arrlen;

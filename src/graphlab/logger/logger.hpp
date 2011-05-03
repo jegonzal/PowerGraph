@@ -251,7 +251,7 @@ class file_logger{
       streambuffer.flush();
       _lograw(streamloglevel,
               streambuffer.str().c_str(),
-              streambuffer.str().length());
+              (int)(streambuffer.str().length()));
       streambuffer.str("");
     }
   }

@@ -77,7 +77,7 @@ namespace graphlab {
     fd_set set;
     struct timeval timeout;
     FD_ZERO (&set);
-    timeout.tv_sec = sleeplen;
+    timeout.tv_sec = (time_t)sleeplen;
     timeout.tv_usec = 0;
     select (FD_SETSIZE, &set, NULL, NULL, &timeout);
   }

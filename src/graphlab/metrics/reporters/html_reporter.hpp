@@ -81,7 +81,7 @@ namespace graphlab {
                                         fprintf(f, "<td>%ld</td>\n", (long int) ent.count);
                                         fprintf(f, "<td>%ld</td>\n", (long int) ent.minvalue);
                                         fprintf(f, "<td>%ld</td>\n", (long int) ent.maxvalue);
-                                        fprintf(f, "<td>%.3lf</td>\n",  ent.cumvalue/ent.count);
+                                        fprintf(f, "<td>%.3lf</td>\n",  ent.cumvalue/(double)ent.count);
                                      } else fprintf(f, "<td colspan=4>&nbsp;</td>");
                                      fprintf(f, "</tr>");
                                 }
@@ -104,7 +104,7 @@ namespace graphlab {
                                         fprintf(f, "<td>%ld</td>\n", (long int) ent.count);
                                         fprintf(f, "<td>%.3lf</td>\n",  ent.minvalue);
                                         fprintf(f, "<td>%.3lf</td>\n",  ent.maxvalue);
-                                        fprintf(f, "<td>%.3lf</td>\n",  ent.cumvalue/ent.count);
+                                        fprintf(f, "<td>%.3lf</td>\n",  ent.cumvalue/(double)ent.count);
                                     } else fprintf(f, "<td colspan=4>&nbsp;</td>");
                                     fprintf(f, "</tr>");
                                 } 

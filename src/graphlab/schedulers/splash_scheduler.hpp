@@ -99,8 +99,8 @@ namespace graphlab {
       callbacks(ncpus, direct_callback<Graph>(this, engine) ) {
       aborted = false;
       // Initialize the vertex map      
-      for(size_t i = 0; i < vmap.size(); ++i) {
-        vmap[i] = (i % pqueues.size());
+      for(vertex_id_t i = 0; i < vmap.size(); ++i) {
+        vmap[i] = (vertex_id_t)(i % pqueues.size());
       }
       // Do an extra shuffle
       // std::random_shuffle(vmap.begin(), vmap.end());
@@ -242,7 +242,7 @@ namespace graphlab {
         if(!pqueues[index].empty()) {
           // There is a top element in the task queue so we remove it
           // and take ownership
-          ret_vertex = pqueues[index].top().first;
+          ret_vertex = (vertex_id_t)(pqueues[index].top().first);
           ret_priority = pqueues[index].top().second;
           pqueues[index].pop();
           queuelocks[index].unlock();
@@ -373,7 +373,7 @@ namespace graphlab {
     //! The locks for each queue
     std::vector< mutex >    queuelocks;
     //! The vertex max which maps each vertex to one of the queue
-    std::vector< uint32_t >       vmap;
+    std::vector<vertex_id_t>       vmap;
     
     //! The active splashes
     std::vector< splash_type > splashes;    

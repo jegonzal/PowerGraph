@@ -35,7 +35,7 @@ namespace dc_impl {
 void dc_stream_receive_z::incoming_data(procid_t src, 
                     const char* buf, 
                     size_t len) {
-  zstrm.avail_in = len;
+  zstrm.avail_in = (uInt)len;
   zstrm.next_in = (Bytef*)buf;
  
   compressed_bytesreceived.inc(len); 

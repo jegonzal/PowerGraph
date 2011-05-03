@@ -241,7 +241,7 @@ namespace graphlab {
     void set_options(const scheduler_options &opts) { }
 
     metrics get_metrics() {
-      for(unsigned int i=0; i<prunecounter.size(); i++) sched_metrics.add("pruned", prunecounter[i], INTEGER); 
+      for(unsigned int i=0; i<prunecounter.size(); i++) sched_metrics.add("pruned", (double)prunecounter[i], INTEGER); 
       return sched_metrics;
     }
 
