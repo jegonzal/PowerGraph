@@ -1,5 +1,21 @@
-Graphlab 1.0
-==================================================================
+
+                         Graphlab
+                         --------
+
+=======
+License
+=======
+
+GraphLab is free software licensed under the GNU Lesser General Public 
+License. See the files COPYING and COPYING.LESSER for details.
+
+The GraphLab source distribution contains a modified version of METIS
+which is under a different license. See the file 
+src/graphlab/extern/metis/LICENSE for further details.
+
+============
+Introduction
+============
 Designing and implementing efficient and provably correct parallel 
 machine learning (ML) algorithms can be very challenging. Existing 
 high-level parallel abstractions like MapReduce are often insufficiently 
@@ -12,8 +28,12 @@ and achieving a high degree of parallel performance.
 
 For more details on the GraphLab see: http://graphlab.ml.cmu.edu
 
+
+===========
 Compilation
-==================================================================
+===========
+GraphLab has two dependencies: CMake and Boost.
+
 If you already have CMake and Boost available, you can just run 
 1a: ./configure
 
@@ -32,8 +52,9 @@ GraphLab library + demoapps + unit tests. "make install" will install the
 graphlab library.
 
 
+==================
 Running Unit Tests
-==================================================================
+==================
 # switch into any of the build subdirectories
 1:  cd debug/ or cd release/ or cd profile/
 
@@ -46,3 +67,89 @@ Running Unit Tests
 If you encounter any failures, please send us an email.
 
 
+=====================
+Writing Your Own Apps
+=====================
+There are two ways to write your own apps.
+1: To work in the GraphLab source tree,
+or
+2: Install and link against Graphlab
+
+1: Working in the GraphLab Source Tree
+---------------------------------------
+This is the best option if you just want to try using GraphLab quickly. GraphLab
+uses the fairly sophisticated CMake build system enabling you to quickly create
+a c++ project without having to write complicated Makefiles. 
+
+1: Create your own sub-directory in the apps/ directory
+   for example apps/my_app
+   
+2: Create a CMakeLists.txt in apps/my_app containing the following lines:
+
+  project(GraphLab) 
+  add_executable(my_app [List of cpp files space seperated]) 
+  target_link_libraries(my_app [Additional libraries space seperated])
+
+  Substituting the right values into the square brackets. For instance:
+
+  project(GraphLab) 
+  add_executable(my_app my_app.cpp) 
+  target_link_libraries(my_app tcmalloc)
+
+  If you have no additional libraries, you can comment out the 
+  target_link_libraries line by prepending it with a # character.
+
+3: Running ./configure --bootstrap in the base of the source tree will then
+create a debug/ release/ and profile/ directory with different build 
+configurations.
+
+4: Running "make" in any of the build directories will compile your program
+in the apps/my_app directory.
+
+
+
+2: Installing and Linking Against GraphLab
+-------------------------------------------
+Run the ./configure --bootstrap script to create the build directories. You can
+change the default installation location (currently /usr/local) using the
+--prefix option. For more options see ./configure
+
+Once you have run the configure script change directories to release/ and then
+run make and then make install . This will install the following:
+
+  include/graphlab.hpp
+      The primary GraphLab header 
+  include/graphlab/...
+      The folder containing the headers for the rest of the GraphLab library 
+  lib/libgraphlab.a
+      The main GraphLab binary 
+    
+Once you have installed GraphLab you can compile your program by running:
+
+  g++ hello_world.cpp -lboost_program_options -lgraphlab 
+  
+  
+Known Installation Issues
+=========================
+
+Boost configuration
+--------------------
+If running ./configure fails because of Boost libraries are not found, you might
+need to declare environment variable BOOST_ROOT which points to the installation
+directory of Boost. You can do this using:
+
+env BOOST_ROOT=[location of boost installation] ./configure --bootstrap
+
+Alternatively, you can try using our automatic dependency installing tools by
+running
+
+./configure --bootstrap
+
+Please let us know if you have trouble configuring GraphLab on your system.
+
+Mac OS X
+--------
+on Mac OS X, you also need to include Boost libraries in the list of
+dynamic libraries defined in environment variable DYLD_LIBRARY_PATH. Here is an
+example:
+declare -x DYLD_LIBRARY_PATH=":${BOOST_ROOT}/stage/lib:${DYLD_LIBRARY_PATH}" 
