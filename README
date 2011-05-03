@@ -13,6 +13,9 @@ The GraphLab source distribution contains a modified version of METIS
 which is under a different license. See the file 
 src/graphlab/extern/metis/LICENSE for further details.
 
+For more information, contact Yucheng Low at ylow@cs.cmu.edu or 
+Joseph Gonzalez at jegonzal@cs.cmu.edu .
+
 ============
 Introduction
 ============
@@ -26,7 +29,8 @@ like MapReduce by compactly expressing asynchronous iterative algorithms
 with sparse computational dependencies while ensuring data consistency 
 and achieving a high degree of parallel performance.
 
-For more details on the GraphLab see: http://graphlab.ml.cmu.edu
+For more details on the GraphLab see http://graphlab.ml.cmu.edu
+
 
 
 ===========
