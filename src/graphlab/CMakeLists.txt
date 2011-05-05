@@ -63,6 +63,7 @@ add_library(graphlab STATIC
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
+  util/md5.cpp
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp
