@@ -1,4 +1,3 @@
-
 // #define NDEBUG
 #include <fstream>
 #include <cmath>
@@ -634,12 +633,11 @@ void last_iter(){
 void calc_T(int i){
 
   assert(tensor);
-  //bool debug = false;
-
+ 
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
   if (ZERO && edges[i].size() == 0)
-	return;
+	  return;
 
   assert(edges[i].size() > 0);
 
@@ -682,14 +680,12 @@ void calc_T(int i){
     vertex_data * v2 = &g->vertex_data(g->source(edge));
     vec ret = elem_mult(v1->pvec, v2->pvec);
      
-    //Q.set_col(k, ret);
     for (int s=0; s<D; s++)
       Q(k%batchSize,s)=ret(s);
     if (debug && (i==0 || i == K-1) && (k == 0 || k == (int)edges[i].size() - 1))
       std::cout<<" clmn "<<k<< " vec: " << ret<<std::endl;
 
     vals[k%batchSize] = data.weight;
-    //assert(data->weight >=1 && data->weight <= 5);
     k++;
 
     if ((cnt  == batchSize) || (cnt < batchSize && k == (int)edges[i].size()-1)){
@@ -1131,6 +1127,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
   return e;
 }
 
+//go over all ratings and count how ratings for each node (user/movie)
 void count_all_edges(graph_type * _g){
     for (int i=0; i<M+N; i++){
         vertex_data &vdata = _g->vertex_data(i);
@@ -1300,7 +1297,7 @@ int main(int argc,  char *argv[]) {
        exit(1);
    }
    
-   // select tun mode
+   // select run mode (type of algorithm)
   infile = argv[1];
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
@@ -1334,6 +1331,7 @@ int main(int argc,  char *argv[]) {
   if (BPTF)
     logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag and recompile\n";
 #endif
+
 #ifdef GL_NO_MULT_EDGES
   if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT)
     logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag and recompile\n";
@@ -1342,13 +1340,13 @@ int main(int argc,  char *argv[]) {
    start(argc, argv);
 }
 
-// CALC SOME STATISTICS ABOUT MATRIX / TENSOR 
+// calc statistics about matrix/tensor and exit  
 void calc_stats(testtype type){
    graph_type * gr = NULL;
    switch(type){
-	case TRAINING: gr = g; break;
-	case VALIDATION: gr = &validation_graph; break;
-	case TEST: gr = &test_graph; break;
+	   case TRAINING: gr = g; break;
+	   case VALIDATION: gr = &validation_graph; break;
+	    case TEST: gr = &test_graph; break;
    }
 
    if (gr->num_vertices() == 0){
@@ -1431,10 +1429,11 @@ void calc_stats(testtype type){
  printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
  printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
 
+ //verify we did not miss any ratings
  switch(type){
  	case TRAINING: assert(numedges==L); break;
-	case VALIDATION: assert(numedges==Le); break;
-	case TEST: assert(numedges==Lt); break;
+	 case VALIDATION: assert(numedges==Le); break;
+	 case TEST: assert(numedges==Lt); break;
  }
  }
 
