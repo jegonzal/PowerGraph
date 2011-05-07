@@ -30,9 +30,8 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/rpc/lazy_dht.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/metrics/metrics.hpp>
+#include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
-#include <graphlab/distributed2/graph/atom_index_file.hpp>
-#include <graphlab/distributed2/graph/atom_file.hpp>
 #include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
 #include <graphlab/logger/assertions.hpp>
 
@@ -118,7 +117,7 @@ class distributed_graph {
   typedef EdgeData edge_data_type;
   typedef dgraph_edge_list edge_list_type;
   
-  distributed_graph(distributed_control &dc, std::string atomidxfile, 
+  distributed_graph(distributed_control &dc, std::string fbasename, 
                     bool do_not_load_data = false,
                     bool do_not_mmap = true,
                     bool sliced_partitioning = false):
@@ -128,10 +127,15 @@ class distributed_graph {
                               pending_push_updates(true, 0),
                               graph_metrics("distributed_graph"){
     cur_proc_vector.push_back(rmi.procid());
+    // open the atom
+    disk_atom atom(fbasename + "." + tostr(dc.procid()), dc.procid());
+    // get the set of neighbors
+    std::vector<std::set<uint16_t> > atom_adjacency(dc.numprocs());
+    atom_adjacency[dc.procid()] = atom.enumerate_adjacent_atoms();
+    atom_adjacency[dc.procid()] = adj.erase(dc.procid());
+    // collect the adjacency information
+    rmi.gather(atom_adjacency, 0);
     
-    // read the atom index.
-    atom_index_file atomindex;
-    atomindex.read_from_file(atomidxfile);
     // store the graph size
     numglobalverts = atomindex.nverts;
     numglobaledges = atomindex.nedges;

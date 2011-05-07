@@ -54,6 +54,7 @@ add_library(graphlab STATIC
   util/timer.cpp
   util/generics/any.cpp
   util/command_line_options.cpp
+  graph/disk_atom.cpp
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
