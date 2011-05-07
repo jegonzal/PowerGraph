@@ -6,6 +6,11 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {
+  
+/**
+ * A 128 bit numeric type. This type is a union of a 16-byte character array (bytes),
+ * and struct of two 64-bit integers (ints.high and ints.low).
+ */
 union gl_uint128_t {
   struct {
     uint64_t high;
@@ -15,12 +20,21 @@ union gl_uint128_t {
   
   gl_uint128_t() { }
   
+  /**
+   * Constructs a 128-bit type from a 64-bit value.
+   * It simply clears the "high" 64 bits of the 128-bit integer, and sets
+   * the low 64-bits to the input
+   */
   explicit gl_uint128_t(uint64_t val) {
     ints.high = 0;
     ints.low = val;
   }
 };
 
+/**
+ * Sets all 128bits of the the gl_uint128_t to 'true'.
+ * Or the 128-bit integer representation of "-1"
+ */
 inline gl_uint128_t fill_128b() {
   gl_uint128_t i;
   i.ints.high = (uint64_t)(-1);
@@ -28,6 +42,9 @@ inline gl_uint128_t fill_128b() {
   return i;
 }
 
+/**
+ * Prints the 128-bit integer as hexadecimal
+ */
 inline std::ostream& operator<<(std::ostream& out, const gl_uint128_t &val) {
   static char hexchar[17] = "0123456789abcdef";
   

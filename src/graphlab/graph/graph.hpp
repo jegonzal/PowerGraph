@@ -708,6 +708,25 @@ namespace graphlab {
       return edge_list(out_edges[v]);
     } // end of out edges
     
+    /** \brief Get the set of in vertices of vertex v */
+    std::vector<vertex_id_t> in_vertices(vertex_id_t v) const {
+      std::vector<vertex_id_t> ret;
+      foreach(edge_id_t eid, in_edges[v]) {
+        ret.push_back(edges[eid].source());
+      }
+      return ret;
+    }
+    
+    /** \brief Get the set of out vertices of vertex v */
+    std::vector<vertex_id_t> out_vertices(vertex_id_t v) const {
+      std::vector<vertex_id_t> ret;
+      foreach(edge_id_t eid, out_edges[v]) {
+        ret.push_back(edges[eid].target());
+      }
+      return ret;
+    }
+    
+    
     /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {
       return changeid;

@@ -4,6 +4,9 @@
 #include <graphlab/util/uint128.hpp>
 
 namespace graphlab {
+  /**
+   * Computes the MD5 hash of a string
+   */
   gl_uint128_t MD5(std::string str);
 }
 

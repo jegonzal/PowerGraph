@@ -93,6 +93,8 @@ public:
 
 
   void test_finalize_and_colors() {
+    timer ti;
+    ti.start();
     typedef graph<char, char> graph_type;
     typedef types< graph_type > gl;
     size_t num_verts = 10000;
@@ -109,6 +111,7 @@ public:
       }
     }
     graph.finalize();
+    std::cerr << num_verts << " * " << degree << " edges created in " << ti.current_time() << " s" << std::endl;
     TS_TRACE("Testing Coloring");
     graph.compute_coloring();
     
