@@ -9,6 +9,7 @@ function test_for_boost {
   # make a main which does nothing
   echo -e "\nint main(int argc, char** argv){ return 0; }\n" >> boost_tester.cpp
   # try to compile it. Use BOOST_ROOT if available
+  rm -f a.out
   if [ -z $BOOST_ROOT ] ; then
     echo "BOOST_ROOT not defined. Probing in usual directories..."
     g++ -L/usr/local/lib -I/usr/local/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp

@@ -20,6 +20,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <string>
 #include <vector>
+#include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
 
 namespace graphlab {
@@ -31,7 +32,7 @@ namespace graphlab {
     vertex_id_t nverts;
     edge_id_t nedges;
     std::vector<vertex_id_t> adjatoms;
-    std::vector<vertex_id_t> optional_weight_to_adjatoms;
+    std::vector<size_t> optional_weight_to_adjatoms;
     void save(oarchive &oarc) const{
       oarc << protocol
            << file
@@ -51,6 +52,12 @@ namespace graphlab {
     }
   };
 
+  /**
+  The atom index file is a file describing the locations and adjacency
+  structure of a collection of atom files. It can be generated from
+  a list of atom files using the disk_graph. The atom index file is stored
+  as text for human readability.
+  */
   struct atom_index_file {
 
     size_t nverts, nedges, ncolors, natoms;
@@ -65,19 +72,6 @@ namespace graphlab {
 
   std::vector<std::vector<size_t> >
   partition_atoms(const atom_index_file& atomindex, size_t nparts);
-
-
-  /**
-   * This parallel function constructs an atom index by reading all
-   * the atom files stored at path.  This relies on the distributed
-   * comm layer.
-   */ 
-  void build_atom_index_file(const std::string& path,
-                             const std::string& aindex_fname);
-
-
-
-
 
 
 } // end namespace graphlab

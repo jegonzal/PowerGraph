@@ -5,6 +5,7 @@
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/disk_atom.hpp>
+#include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -18,10 +19,12 @@ template<typename VertexData, typename EdgeData>
 class disk_graph {
  public:
   /**
-    * Create or open a graph using files
-    * fbasename.0 , fbasename.1, etc till fbasename.[numfiles-1]
-    * If a graph was created with N files, it must be opened 
-    * with numfiles = N or behavior can be unpredictable
+    * Creates or opens a disk graph with base name 'fbasename' using 
+    * 'numfiles' of atoms. The atoms will be named fbasename.0, fbasename.1
+    * fbasename.2, etc. An atom index file will be created in fbasename.idx.
+    * This is useful when either creating a new
+    * disk graph, or to open a disk graph without an atom index.
+    * 
     */
   disk_graph(std::string fbasename, size_t numfiles){  
     atoms.resize(numfiles);
@@ -32,10 +35,41 @@ class disk_graph {
       numv.value += atoms[i]->num_local_vertices();
       nume.value += atoms[i]->num_local_edges();
     }
+    indexfile = fbasename + ".idx";
+    ncolors = (uint32_t)(-1);
   }
   
   
-  disk_graph<VertexData, EdgeData>&  operator=(const graph<VertexData, EdgeData> &g) {
+    
+  /**
+    * Create or open a graph using 'atomindex' as the disk graph index file.
+    * If the file 'atomindex' does not exist, an assertion failure will be issued
+    * Use the other constructor to create a new disk graph.
+    */    
+  disk_graph(std::string atomindex) {
+    indexfile = atomindex;
+    
+    atom_index_file idxfile;
+    idxfile.read_from_file(atomindex);
+
+    ncolors = idxfile.ncolors;
+
+    atoms.resize(idxfile.atoms.size());
+    numv.value = 0;
+    nume.value = 0;
+
+    for (size_t i = 0;i < idxfile.atoms.size(); ++i) {
+      ASSERT_EQ(idxfile.atoms[i].protocol, "file");
+      atoms[i] = new disk_atom(idxfile.atoms[i].file, i);
+      numv.value += atoms[i]->num_local_vertices();
+      nume.value += atoms[i]->num_local_edges();      
+    }
+    ASSERT_EQ(numv.value, idxfile.nverts);
+    ASSERT_EQ(nume.value, idxfile.nedges);
+  }
+  
+  
+  disk_graph<VertexData, EdgeData>& operator=(const graph<VertexData, EdgeData> &g) {
     clear();
     size_t nv = g.num_vertices();
     #pragma omp parallel for 
@@ -90,7 +124,37 @@ class disk_graph {
   }
   
   void finalize() { 
-    // nothing to finalize
+    // synchronize all atoms
+    for (size_t i = 0;i < atoms.size(); ++i) {
+      atoms[i]->synchronize();
+    }
+    // compute ncolors if missing
+    if (ncolors == (uint32_t)(-1)) {
+      ncolors = 0;
+      for (size_t i = 0;i < atoms.size(); ++i) {
+        ncolors = std::max(ncolors, atoms[i]->max_color());
+      }
+      ++ncolors;
+    }
+    // generate an atom index file
+    atom_index_file idx;
+    idx.nverts = num_vertices();
+    idx.nedges = num_edges();
+    idx.natoms = atoms.size();
+    idx.ncolors = ncolors;
+    idx.atoms.resize(atoms.size());
+    for (size_t i = 0;i < atoms.size(); ++i) {
+      idx.atoms[i].protocol = "file";
+      idx.atoms[i].file = atoms[i]->get_filename();
+      std::map<uint16_t, uint32_t> adj = atoms[i]->enumerate_adjacent_atoms();
+      std::map<uint16_t, uint32_t>::iterator iter = adj.begin();
+      while (iter != adj.end()) {
+        idx.atoms[i].adjatoms.push_back(iter->first);
+        idx.atoms[i].optional_weight_to_adjatoms.push_back(iter->second);
+        ++iter;
+      }
+    }
+    idx.write_to_file(indexfile);
   }
   
   /** \brief Get the number of vertices */
@@ -242,7 +306,7 @@ class disk_graph {
     std::pair<vertex_id_t, vertex_id_t> vidrange = collection_range[collectionname];
     
     #pragma omp parallel for 
-    for (vertex_id_t vid = vidrange.first; vid < vidrange.second; ++vid) {
+    for (int vid = (int)vidrange.first; vid < (int)vidrange.second; ++vid) {
       uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
       ASSERT_NE(owner, (uint16_t)(-1));
       VertexData vdata;
@@ -262,6 +326,7 @@ class disk_graph {
     uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
     ASSERT_NE(owner, (uint16_t)(-1));
     atoms[owner]->set_color(vid, color);
+    ncolors = (uint32_t)(-1); // reset ncolors. we will need to recompute it on save
   }
 
   /** \brief Returns the vertex color of a vertex.
@@ -269,7 +334,13 @@ class disk_graph {
   vertex_color_type get_color(vertex_id_t vid) {
     uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
     ASSERT_NE(owner, (uint16_t)(-1));
-    return atoms[owner]->get_color(vid);
+    uint32_t vc = atoms[owner]->get_color(vid);
+    // color is not set in the file! return 0
+    if (vc == (uint32_t)(-1)) {
+      return 0; 
+    }
+    else return vc;
+    
   }
 
 
@@ -278,7 +349,7 @@ class disk_graph {
   size_t compute_coloring() {
     // Reset the colors
     #pragma omp parallel for
-    for(vertex_id_t v = 0; v < num_vertices(); ++v) set_color(v, 0);
+    for(int v = 0; v < (int)num_vertices(); ++v) set_color(v, 0);
     
     // Recolor
     size_t max_color = 0;
@@ -307,6 +378,7 @@ class disk_graph {
     }
     // Return the NUMBER of colors
     propagate_coloring();
+    ncolors = max_color + 1;
     return max_color + 1;     
   }
   
@@ -365,9 +437,12 @@ class disk_graph {
   
   std::map<std::string, std::pair<vertex_id_t, vertex_id_t> > collection_range;
   
+  std::string indexfile;
+  uint32_t ncolors; // this is (-1) if it is not set
+  
   void propagate_coloring() {
     #pragma omp parallel for
-    for (size_t i = 0;i < atoms.size(); ++i) {
+    for (int i = 0;i < (int)atoms.size(); ++i) {
       foreach(vertex_id_t vid, atoms[i]->enumerate_vertices()) {
         uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
         if (owner != i) {

@@ -1,4 +1,5 @@
 #include <sstream>
+#include <map>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -10,7 +11,7 @@
 namespace graphlab {
 
 disk_atom::disk_atom(std::string filename, 
-                            uint16_t atomid):atomid(atomid) {
+                            uint16_t atomid):atomid(atomid),filename(filename) {
   db.tune_buckets(1000 * 1000);
 #if __LP64__
   db.tune_map(256 * 1024 * 1024); // 256MB
@@ -28,7 +29,12 @@ disk_atom::disk_atom(std::string filename,
 
 
 disk_atom::~disk_atom() {
-  // before we close the file, we update the linked list
+  synchronize();
+  db.close();
+}
+
+void disk_atom::synchronize() {
+  // update the linked list
   db.set("head_vid", 7, (char*)&head_vid, sizeof(head_vid));
   db.set("tail_vid", 7, (char*)&tail_vid, sizeof(tail_vid));
   db.set("numv", 4, (char*)&numv.value, sizeof(numv.value));
@@ -36,12 +42,14 @@ disk_atom::~disk_atom() {
   db.set("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value));
   db.set("numlocale", 9, (char*)&numlocale.value, sizeof(numlocale.value));
   db.synchronize();
-  db.close();
 }
-
 
 void disk_atom::add_vertex(vertex_id_t vid, uint16_t owner) {
   if (!add_vertex_skip(vid, owner)) {
+    std::stringstream strm;
+    oarchive oarc(strm);    
+    oarc << owner;
+    strm.flush();
     db.set("v"+id_to_str(vid), strm.str());
   }
 }
@@ -112,14 +120,26 @@ std::vector<vertex_id_t> disk_atom::enumerate_vertices() {
 }
 
 
+bool disk_atom::get_vertex(vertex_id_t vid, uint16_t &owner) {
+  std::string val;
+  if (db.get("v"+id_to_str(vid), &val) == false) return false;
+  
+  boost::iostreams::stream<boost::iostreams::array_source> 
+                              istrm(val.c_str(), val.length());   
+  iarchive iarc(istrm);
+  iarc >> owner;
+  return true;
+}
+
+
 std::map<uint16_t, uint32_t> disk_atom::enumerate_adjacent_atoms() {
-  std::set<uint16_t, uint32_t> ret;
+  std::map<uint16_t, uint32_t> ret;
   if (head_vid == (uint64_t)(-1)) return ret;
   else {
     uint64_t curvid = head_vid;
     while(1) {
       uint16_t owner;
-      get_vertex(curvid, owner);
+      get_vertex((vertex_id_t)curvid, owner);
       if (owner != atomid) ret[owner]++;
       std::string next_key = "ll" + id_to_str(curvid);
       if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
@@ -130,6 +150,25 @@ std::map<uint16_t, uint32_t> disk_atom::enumerate_adjacent_atoms() {
   return ret;
 }
 
+uint32_t disk_atom::max_color() {
+  uint32_t mcolor = 0;
+  if (head_vid == (uint64_t)(-1)) return mcolor;
+  else {
+    uint64_t curvid = head_vid;
+    while(1) {
+
+      uint32_t c = get_color(curvid);
+      if (c != (uint32_t)(-1)) {
+        mcolor = std::max(mcolor, c);
+      }
+      std::string next_key = "ll" + id_to_str(curvid);
+      if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
+        break;
+      }
+    }
+  }
+  return mcolor;
+}
 
 
 std::vector<vertex_id_t> disk_atom::get_in_vertices(vertex_id_t vid) {

@@ -112,6 +112,7 @@ public:
       g.add_edge(i, j, edges[i]);
       g.add_edge(j, i, edges[i]);
     }   
+    g.finalize();
   }
 
   void test_diskgraph_structure() {
@@ -145,6 +146,7 @@ public:
       }
       TS_ASSERT_EQUALS(graph.num_vertices(), memgraph.num_vertices());
       TS_ASSERT_EQUALS(graph.num_edges(), memgraph.num_edges());
+      graph.finalize();
     }
     // check the graph
     {
@@ -215,6 +217,7 @@ public:
         TS_ASSERT_DIFFERS(graph.get_color(nbr),colori);
       }
     }
+    graph.finalize();
   }
   
   
@@ -249,7 +252,8 @@ public:
 
     graphlab::disk_graph<vertex_data, edge_data> graph("dg3", 10);
     graph = memgraph;
-    
+    graph.finalize();
+          
     std::cerr << "disk from mem: " << num_verts << " * " << degree << " edges created in " << ti.current_time() << " s" << std::endl;
     
     TS_TRACE("Checking graph");

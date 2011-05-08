@@ -1,9 +1,11 @@
 #ifndef DISK_ATOM_HPP
 #define DISK_ATOM_HPP
 #include <sstream>
+#include <map>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <kchashdb.h>
 
@@ -14,8 +16,8 @@ namespace graphlab {
  * 
  * The atom serves 2 purposes.
  * First it provides a partition of the graph, including its ghost vertices.
- * Next, it provides a hashtable distributed across all atom files, identifying 
- *       the owner of a vertex.
+ * Next, it provides an auxiliary hashtable distributed across all atom files, 
+ *        identifying the owner of a vertex.
  * 
  * The atom file is a Kyoto Cabinet data store and it contains the following keys:
  * 
@@ -44,12 +46,15 @@ class disk_atom{
   /// a linked list of vertex IDs stored here
   uint64_t head_vid;
   uint64_t tail_vid;
+  
   atomic<uint64_t> numv;
   atomic<uint64_t> nume;
   atomic<uint64_t> numlocalv;
   atomic<uint64_t> numlocale;
   uint16_t atomid;
   mutex mut;
+  
+  std::string filename;
   
   inline std::string id_to_str(uint64_t i) {
     char c[10]; 
@@ -62,16 +67,21 @@ class disk_atom{
   /// constructor. Accesses an atom stored at the filename provided
   disk_atom(std::string filename, uint16_t atomid);
 
-  /// Gets the atom ID of this atom
-  inline uint16_t atom_id() {
-    return atomid;
-  }
   
   ~disk_atom();
   
   /// Increments the number of local edges stored in this atom
   inline void inc_numlocale() {
     numlocale.inc();
+  }
+
+  /// Gets the atom ID of this atom
+  inline uint16_t atom_id() const {
+    return atomid;
+  }
+  
+  inline std::string get_filename() const {
+    return filename;
   }
   
   /**
@@ -173,6 +183,7 @@ class disk_atom{
   }
   
 
+
   /**
    * Modifies an existing vertex in the file. User must ensure that the file
    * already contains this vertex. If user is unsure, add_vertex should be used.
@@ -216,17 +227,7 @@ class disk_atom{
    * and not the data.
    * Returns true if vertex exists and false otherwise.
    */
-  template <typename T>
-  bool get_vertex(vertex_id_t vid, uint16_t &owner) {
-    std::string val;
-    if (db.get("v"+id_to_str(vid), &val) == false) return false;
-    
-    boost::iostreams::stream<boost::iostreams::array_source> 
-                                istrm(val.c_str(), val.length());   
-    iarchive iarc(istrm);
-    iarc >> owner;
-    return true;
-  }
+  bool get_vertex(vertex_id_t vid, uint16_t &owner);
   
 
   /**
@@ -283,13 +284,13 @@ class disk_atom{
   /**
    * Returns the set of incoming vertices of vertex 'vid'
    */
-  inline std::vector<vertex_id_t> get_in_vertices(vertex_id_t vid);
+  std::vector<vertex_id_t> get_in_vertices(vertex_id_t vid);
    
    
   /**
    * Returns the set of outgoing vertices of vertex 'vid'
    */
-  inline std::vector<vertex_id_t> get_out_vertices(vertex_id_t vid);
+  std::vector<vertex_id_t> get_out_vertices(vertex_id_t vid);
 
 
   /**
@@ -303,20 +304,26 @@ class disk_atom{
    */
   void set_color(vertex_id_t vid, uint32_t color);
   
+  
+  uint32_t max_color();
+  
   /**
-   * Reads from the hash table mapping vid ==> owner.
+   * Reads from the auxiliary hash table mapping vid ==> owner.
    * Returns (uint16_t)(-1) if the entry does not exist
    */
   uint16_t get_owner(vertex_id_t vid);
 
   /**
-   * Writes to the hash table mapping vid ==> owner.
+   * Writes to the auxiliary hash table mapping vid ==> owner.
    */
   void set_owner(vertex_id_t vid, uint16_t owner);
 
   /// empties the atom file
   void clear();
   
+  /// Ensures the disk storage is up to date
+  void synchronize();
+    
   inline uint64_t num_vertices() const {
     return numv.value;
   }

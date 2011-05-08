@@ -27,13 +27,8 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/mutable_queue.hpp>
-#include <graphlab/distributed2/graph/atom_file.hpp>
-#include <graphlab/distributed2/graph/atom_index_file.hpp>
-
-
-#include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_init_from_env.hpp>
-
+#include <graphlab/graph/atom_index_file.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 
 #include <graphlab/macros_def.hpp>
 

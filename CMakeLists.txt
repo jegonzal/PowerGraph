@@ -37,6 +37,7 @@ endif()
 
 
 
+
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 #set(CROSS_COMPILE_32_BIT 1)
@@ -162,6 +163,28 @@ else()
   set(Sctp-NOTFOUND 1)
 endif()
 
+
+# search for kyoto cabinet
+if(NOT $ENV{KC_ROOT} STREQUAL "")
+  set(KC_ROOT $ENV{KC_ROOT} CACHE STRING "Kyoto Cabinet Prefix")
+else()
+  set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
+endif()
+
+FIND_LIBRARY(KYOTO_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
+FIND_PATH(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
+if (KYOTO_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
+    message(FATAL_ERROR "Kyoto Cabinet not found. Run bootstrap!")
+endif()
+
+if (KYOTO_INCLUDE_DIR MATCHES KYOTO_INCLUDE_DIR-NOTFOUND)
+    message(FATAL_ERROR "Kyoto Cabinet includes not found. Run bootstrap!")
+else()
+    message(STATUS "Kyoto Cabinet Found")
+endif()
+
+link_libraries(${KYOTO_LIBRARY})
+include_directories(${KYOTO_INCLUDE_DIR})
 
 
 CHECK_LIBRARY_EXISTS(z zlibVersion "" ZLIB_FOUND)

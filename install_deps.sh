@@ -39,3 +39,34 @@ if [ ! -z $BOOST_ROOT ] && [ $BOOST_ROOT == $PWD/deps ]; then
     echo "Skipping Boost install"
    fi
 fi
+
+
+
+if [ ! -z $KC_ROOT ] && [ $KC_ROOT == $PWD/deps ]; then
+  echo
+  echo "================================================================"
+  echo "This script will now install Kyoto Cabinet into"
+  echo "$1/include and $1/lib"
+
+  echo "Press Y to continue, or N to skip the Kyoto Cabinet installation"
+  
+  skipinstall=1
+  while [ 1 ]; do
+    read ans
+    if [[ $ans == "N" || $ans == "n" ]]; then
+      break
+    elif [[ $ans == "Y" || $ans == "y" ]]; then
+      skipinstall=0
+      break
+    else
+      echo "Invalid Input: Press Y to continue, or N to skip the Kyoto Cabinet installation"
+    fi
+   done
+   if [ $skipinstall -eq 0 ]; then
+    echo "Continuing Kyoto Cabinet install"
+    installprefix=$1
+    source ./kcinstall.sh
+   else
+    echo "Skipping Boost install"
+   fi
+fi

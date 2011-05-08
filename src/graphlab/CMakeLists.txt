@@ -55,6 +55,7 @@ add_library(graphlab STATIC
   util/generics/any.cpp
   util/command_line_options.cpp
   graph/disk_atom.cpp
+  graph/atom_index_file.cpp
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
@@ -104,8 +105,6 @@ endif()
 
 #build distributed graphlab
 add_library(graphlab_dist2 STATIC
-    distributed2/graph/partitioning/adjacency_list.cpp      
-    distributed2/graph/atom_index_file.cpp
     distributed2/distributed_glshared_base.cpp
     distributed2/distributed_glshared_manager.cpp)
 
