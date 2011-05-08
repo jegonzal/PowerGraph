@@ -59,7 +59,7 @@ class disk_graph {
     nume.value = 0;
 
     for (size_t i = 0;i < idxfile.atoms.size(); ++i) {
-      ASSERT_EQ(idxfile.atoms[i].protocol, "file");
+      ASSERT_EQ(idxfile.atoms[i].protocol, std::string("file"));
       atoms[i] = new disk_atom(idxfile.atoms[i].file, i);
       numv.value += atoms[i]->num_local_vertices();
       nume.value += atoms[i]->num_local_edges();      

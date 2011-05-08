@@ -151,7 +151,7 @@ public:
     // check the graph
     {
       TS_TRACE("Reloading graph");
-      graphlab::disk_graph<vertex_data, edge_data> graph("dg1", 10);
+      graphlab::disk_graph<vertex_data, edge_data> graph("dg1.idx");
       TS_ASSERT_EQUALS(graph.num_vertices(), memgraph.num_vertices());
       TS_ASSERT_EQUALS(graph.num_edges(), memgraph.num_edges());
       TS_TRACE("Checking graph");
