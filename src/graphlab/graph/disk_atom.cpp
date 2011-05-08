@@ -112,15 +112,15 @@ std::vector<vertex_id_t> disk_atom::enumerate_vertices() {
 }
 
 
-std::set<uint16_t> disk_atom::enumerate_adjacent_atoms() {
-  std::set<uint16_t> ret;
+std::map<uint16_t, uint32_t> disk_atom::enumerate_adjacent_atoms() {
+  std::set<uint16_t, uint32_t> ret;
   if (head_vid == (uint64_t)(-1)) return ret;
   else {
     uint64_t curvid = head_vid;
     while(1) {
       uint16_t owner;
       get_vertex(curvid, owner);
-      ret.insert(owner);
+      if (owner != atomid) ret[owner]++;
       std::string next_key = "ll" + id_to_str(curvid);
       if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
         break;

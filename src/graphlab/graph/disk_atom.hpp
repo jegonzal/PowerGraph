@@ -275,8 +275,10 @@ class disk_atom{
   
   /**
    * Returns a list of all the adjacent atoms in the file
+   * and the number of ghost vertices in this atom belonging to the
+   * adjacent atom
    */
-  std::set<uint16_t> enumerate_adjacent_atoms();
+  std::map<uint16_t, uint32_t> enumerate_adjacent_atoms();
   
   /**
    * Returns the set of incoming vertices of vertex 'vid'
