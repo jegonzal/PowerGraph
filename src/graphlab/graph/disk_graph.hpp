@@ -146,6 +146,8 @@ class disk_graph {
     for (size_t i = 0;i < atoms.size(); ++i) {
       idx.atoms[i].protocol = "file";
       idx.atoms[i].file = atoms[i]->get_filename();
+      idx.atoms[i].nverts = atoms[i]->num_local_vertices();
+      idx.atoms[i].nedges = atoms[i]->num_local_edges();
       std::map<uint16_t, uint32_t> adj = atoms[i]->enumerate_adjacent_atoms();
       std::map<uint16_t, uint32_t>::iterator iter = adj.begin();
       while (iter != adj.end()) {
