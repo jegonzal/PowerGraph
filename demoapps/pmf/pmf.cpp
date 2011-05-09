@@ -1,4 +1,3 @@
-// written by Danny Bickson, CMU 
 // #define NDEBUG
 #include <fstream>
 #include <cmath>
@@ -13,28 +12,28 @@
 /**
 
  Probabalistic matrix/tensor factorization written Danny Bickson, CMU
-
+ See documentation in header file pmf.h
 
 */
 
 using namespace graphlab;
-bool BPTF = true; //is this a BPTF algo?
-bool tensor = true;
-bool debug = false;
+bool BPTF = true; //is this a sampling MCMC algo?
+bool tensor = true; //is this tensor or a matrix
+bool debug = false; //debug mode
 bool ZERO = false; //support edges with zero weight
-runmodes options;
+runmodes options; //type of algorithm
 timer gt;
 using namespace itpp;
 using namespace std;
-double scaling = 1;
-double truncating =0;
-std::vector<edge_id_t> * edges;
+double scaling = 1; //aggregate time values into bins? (default =1, no aggregation)
+double truncating =0; // truncate unused time bins (optional, default = 0, no truncation)
+std::vector<edge_id_t> * edges;  //edge list for pointing from time nodes into their connected users/movies (for tensor)
 std::string infile;
-bool loadfactors = false;
-bool savefactors = true;
-bool loadgraph = false;
-bool savegraph = false;
-bool stats = false;
+bool loadfactors = false; //start from a previous solution instead of a random point
+bool savefactors = true; //save solution to file
+bool loadgraph = false; //load graph from a binary saved file
+bool savegraph = false; //save input file into graph binary file
+bool stats = false; //print out statistics and exit
 bool regnormal = false; //regular normalization
 bool aggregatevalidation = false;
 extern bool finish; //defined in convergence.hpp
@@ -44,12 +43,12 @@ int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
 
 /* Variables for PMF */
 int M,N,K,L;//training size: users, movies, times, number of edges
-int Le = 0; //validation size
-int Lt = 0;//test size
-double pU = 10; //regularization for matrix
-double pT = 1;
-double pV = 10;
-double muT = 1;
+int Le = 0; //number of ratings in validation dataset 
+int Lt = 0;//number of rating in test data set
+double pU = 10; //regularization for users
+double pT = 1; //regularization for tensor time nodes
+double pV = 10; //regularization for movies
+double muT = 1; //mean of time nodes
 vec vones; 
 mat eDT; 
 mat dp;
@@ -104,9 +103,9 @@ void init_self_pot(){
   iW0T = inv(W0T);
   nu0 = D;
 
-  A_U = eye(D);
-  A_V = eye(D);
-  A_T = eye(D);
+  A_U = eye(D); //cov prior for users
+  A_V = eye(D); //cov prior for movies
+  A_T = eye(D); //cov prior for time nodes
 
   mu_U = zeros(D); mu_V = zeros(D); mu_T = zeros(D);
   printf("nuAlpha=%g, Walpha=%g, mu=%g, muT=%g, nu=%g, "
@@ -130,7 +129,7 @@ void init_self_pot(){
 /** CONSTRUCTOR **/
 void init_pmf() {
   if (BPTF)
-	pT=10;
+	   pT=10;
   eDT = itpp::eye(D)*pT;
   vones = itpp::ones(D);
 }
@@ -167,7 +166,10 @@ void sample_alpha(double res2){
   }
 }
 
-
+/**
+* calc the A'A part of the least squares solution inv(A'A)*A'
+* for time nodes
+*/
 mat calc_MMT(int start_pos, int end_pos, vec &Umean){
 
   int batchSize = 1000;
@@ -275,6 +277,7 @@ void sample_V(){
 }
 
 
+//calc laplacian matrix for a chain connection between time nodes (for tensor)
 mat calc_DT(){
 
   assert(tensor);
@@ -394,6 +397,9 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
      return sqrt(RMSE/(double)e);
 
    }
+   
+// go over all edges and aggregate RMSE by summing up the squares, computing the
+// mean and then sqrt()
 double calc_rmse_q(double & res){
 
   timer t; t.start();
@@ -409,7 +415,7 @@ double calc_rmse_q(double & res){
 
 }
 
-
+// fill out the linear relation matrix (Q) between users/movies and movie/users
 inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i){
       
   if (!ZERO)  
@@ -426,7 +432,9 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
   vals[i] = edge.weight;
 }
  
-  
+
+//count the number of edges connecting a user/movie to its neighbors
+//(when there are multiple edges in different times we count the total)
 int count_edges(edge_list es){
   
   if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
@@ -451,13 +459,11 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 			 gl_types::icallback &scheduler) {
     
 
-  //bool debug = false;
   /* GET current vertex data */
-
   vertex_data& vdata = scope.vertex_data();
  
   
-  /* CALCULATE new value */
+  /* print statistics */
   if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1) || ((int)scope.vertex() == 93712))){
     printf("entering %s node  %u \n", (((int)scope.vertex() < M) ? "movie":"user"), (int)scope.vertex());   
     debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , vdata.pvec, D);
@@ -467,29 +473,24 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   vdata.rmse = 0;
 
- 
-  //int i=0; 
   // update neighbors 
   edge_list outs = scope.out_edge_ids();
   edge_list ins = scope.in_edge_ids();
   int numedges = vdata.num_edges;
   if (numedges == 0){
-    return;
+    return; //if this user/movie have no ratings do nothing
   }
 
-  //assert(outs.size() == 0 || ins.size() == 0);   
-  assert(numedges > 0);
-
   timer t;
-  mat Q(D,numedges);
-  vec vals(numedges);
+  mat Q(D,numedges); //linear relation matrix
+  vec vals(numedges); //vector of ratings
 
   int i=0;
 
   t.start(); 
+  //USER NODES    
   if ((int)scope.vertex() < M){
-    
-    //USER NODES
+ 
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
 #ifndef GL_NO_MULT_EDGES
@@ -502,6 +503,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
       for (int j=0; j< (int)medges.medges.size(); j++){
         edge_data& edge = medges.medges[j];
 #endif
+        //go over each rating
         parse_edge(edge, pdata, Q, vals, i); 
      
         if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
@@ -528,7 +530,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         edge_data& edge = medges.medges[j];
 #else
 	edge_data & edge = scope.edge_data(iedgeid);
-#endif        
+#endif   
+        //go over each rating
         parse_edge(edge, pdata, Q, vals, i); 
         if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
@@ -630,12 +633,11 @@ void last_iter(){
 void calc_T(int i){
 
   assert(tensor);
-  //bool debug = false;
-
+ 
   //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
   if (ZERO && edges[i].size() == 0)
-	return;
+	  return;
 
   assert(edges[i].size() > 0);
 
@@ -678,14 +680,12 @@ void calc_T(int i){
     vertex_data * v2 = &g->vertex_data(g->source(edge));
     vec ret = elem_mult(v1->pvec, v2->pvec);
      
-    //Q.set_col(k, ret);
     for (int s=0; s<D; s++)
       Q(k%batchSize,s)=ret(s);
     if (debug && (i==0 || i == K-1) && (k == 0 || k == (int)edges[i].size() - 1))
       std::cout<<" clmn "<<k<< " vec: " << ret<<std::endl;
 
     vals[k%batchSize] = data.weight;
-    //assert(data->weight >=1 && data->weight <= 5);
     k++;
 
     if ((cnt  == batchSize) || (cnt < batchSize && k == (int)edges[i].size()-1)){
@@ -1127,6 +1127,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
   return e;
 }
 
+//go over all ratings and count how ratings for each node (user/movie)
 void count_all_edges(graph_type * _g){
     for (int i=0; i<M+N; i++){
         vertex_data &vdata = _g->vertex_data(i);
@@ -1296,7 +1297,7 @@ int main(int argc,  char *argv[]) {
        exit(1);
    }
    
-   // select tun mode
+   // select run mode (type of algorithm)
   infile = argv[1];
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
@@ -1330,6 +1331,7 @@ int main(int argc,  char *argv[]) {
   if (BPTF)
     logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag and recompile\n";
 #endif
+
 #ifdef GL_NO_MULT_EDGES
   if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT)
     logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag and recompile\n";
@@ -1338,13 +1340,13 @@ int main(int argc,  char *argv[]) {
    start(argc, argv);
 }
 
-// CALC SOME STATISTICS ABOUT MATRIX / TENSOR 
+// calc statistics about matrix/tensor and exit  
 void calc_stats(testtype type){
    graph_type * gr = NULL;
    switch(type){
-	case TRAINING: gr = g; break;
-	case VALIDATION: gr = &validation_graph; break;
-	case TEST: gr = &test_graph; break;
+	   case TRAINING: gr = g; break;
+	   case VALIDATION: gr = &validation_graph; break;
+	    case TEST: gr = &test_graph; break;
    }
 
    if (gr->num_vertices() == 0){
@@ -1427,10 +1429,11 @@ void calc_stats(testtype type){
  printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
  printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
 
+ //verify we did not miss any ratings
  switch(type){
  	case TRAINING: assert(numedges==L); break;
-	case VALIDATION: assert(numedges==Le); break;
-	case TEST: assert(numedges==Lt); break;
+	 case VALIDATION: assert(numedges==Le); break;
+	 case TEST: assert(numedges==Lt); break;
  }
  }
 
