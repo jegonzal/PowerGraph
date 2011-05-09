@@ -430,17 +430,18 @@ void distributed_control::init(const std::vector<std::string> &machines,
                                       this, i));
   }
 
-  // start the machines
-  comm->init(machines, options, curmachineid, 
-              receivers); 
   
   // set the local proc values
-  localprocid = comm->procid();
-  localnumprocs = comm->numprocs();
+  localprocid = curmachineid;
+  localnumprocs = machines.size();
   
   // construct the services
   distributed_services = new dc_services(*this);
-  sleep(3);
+  
+  // start the machines
+  comm->init(machines, options, curmachineid, 
+              receivers); 
+
   compute_master_ranks();
 }
   
