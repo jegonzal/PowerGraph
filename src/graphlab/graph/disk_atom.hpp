@@ -85,14 +85,14 @@ class disk_atom{
   }
   
   /**
-   * Inserts vertex 'vid' into the file without data.
+   * \brief Inserts vertex 'vid' into the file without data.
    * If the vertex already exists, it will be overwritten.
    */
   void add_vertex(vertex_id_t vid, uint16_t owner);
   
   
   /**
-   * Inserts vertex 'vid' into the file without data.
+   * \brief Inserts vertex 'vid' into the file without data.
    * If the vertex already exists, nothing will be done.
    * Returns true if vertex was added.
    */
@@ -100,7 +100,7 @@ class disk_atom{
   
   
   /**
-   * Inserts vertex 'vid' into the file. If the vertex already exists,
+   * \brief Inserts vertex 'vid' into the file. If the vertex already exists,
    * it will be overwritten.
    */
   template <typename T>
@@ -135,13 +135,13 @@ class disk_atom{
   
   
   /**
-   * Inserts edge src->target into the file without data. 
+   * \brief Inserts edge src->target into the file without data. 
    * If the edge already exists it will be overwritten.
    */
   void add_edge(vertex_id_t src, vertex_id_t target);
   
   /**
-   * Inserts edge src->target into the file. If the edge already exists,
+   * \brief Inserts edge src->target into the file. If the edge already exists,
    * it will be overwritten.
    */
   template <typename T>
@@ -169,7 +169,7 @@ class disk_atom{
   
   
   /**
-   * Modifies an existing vertex in the file where no data is assigned to the 
+   * \brief Modifies an existing vertex in the file where no data is assigned to the 
    * vertex. User must ensure that the file
    * already contains this vertex. If user is unsure, add_vertex should be used.
    */
@@ -185,7 +185,7 @@ class disk_atom{
 
 
   /**
-   * Modifies an existing vertex in the file. User must ensure that the file
+   * \brief Modifies an existing vertex in the file. User must ensure that the file
    * already contains this vertex. If user is unsure, add_vertex should be used.
    */
   template <typename T>
@@ -199,7 +199,7 @@ class disk_atom{
   
 
   /**
-   * Modifies an existing edge in the file where no data is assigned to the edge. 
+   * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
    * User must ensure that the file already contains this edge. 
    * If user is unsure, add_edge should be used.
    */
@@ -209,7 +209,7 @@ class disk_atom{
   }
   
   /**
-   * Modifies an existing edge in the file. User must ensure that the file
+   * \brief Modifies an existing edge in the file. User must ensure that the file
    * already contains this edge. If user is unsure, add_edge should be used.
    */
   template <typename T>
@@ -223,7 +223,7 @@ class disk_atom{
   
   
  /**
-   * Reads a vertex from the file returning only the 'owner' of the vertex
+   * \brief Reads a vertex from the file returning only the 'owner' of the vertex
    * and not the data.
    * Returns true if vertex exists and false otherwise.
    */
@@ -231,7 +231,7 @@ class disk_atom{
   
 
   /**
-   * Reads a vertex from the file returning results in 'owner' and 'vdata'.
+   * \brief Reads a vertex from the file returning results in 'owner' and 'vdata'.
    * Returns true if vertex exists and false otherwise.
    * If there is no vertex data stored, vdata will not be modified.
    */
@@ -250,7 +250,7 @@ class disk_atom{
   }
   
   /**
-   * Reads a edge from the file returning results in 'owner' and 'vdata'.
+   * \brief Reads a edge from the file returning results in 'owner' and 'vdata'.
    * Returns true if edge exists and false otherwise.
    * If there is no edge data stored, edata will not be modified.
    */
@@ -270,72 +270,80 @@ class disk_atom{
 
 
   /**
-   * Returns a list of all the vertices in the file
+   * \brief Returns a list of all the vertices in the file
    */
   std::vector<vertex_id_t> enumerate_vertices();
   
   /**
-   * Returns a list of all the adjacent atoms in the file
+   * \brief Returns a list of all the adjacent atoms in the file
    * and the number of ghost vertices in this atom belonging to the
    * adjacent atom
    */
   std::map<uint16_t, uint32_t> enumerate_adjacent_atoms();
   
   /**
-   * Returns the set of incoming vertices of vertex 'vid'
+   * \brief Returns the set of incoming vertices of vertex 'vid'
    */
   std::vector<vertex_id_t> get_in_vertices(vertex_id_t vid);
    
    
   /**
-   * Returns the set of outgoing vertices of vertex 'vid'
+   * \brief Returns the set of outgoing vertices of vertex 'vid'
    */
   std::vector<vertex_id_t> get_out_vertices(vertex_id_t vid);
 
 
   /**
-   * Get the color of the vertex 'vid'.
+   * \brief Get the color of the vertex 'vid'.
    * Returns (uint32_t)(-1) if the entry does not exist
    */
   uint32_t get_color(vertex_id_t vid);
 
   /**
-   * Sets the color of vertex 'vid'
+   * \brief Sets the color of vertex 'vid'
    */
   void set_color(vertex_id_t vid, uint32_t color);
   
-  
+  /// Returns the largest color number
   uint32_t max_color();
   
   /**
-   * Reads from the auxiliary hash table mapping vid ==> owner.
+   * \brief Reads from the auxiliary hash table mapping vid ==> owner.
    * Returns (uint16_t)(-1) if the entry does not exist
    */
   uint16_t get_owner(vertex_id_t vid);
 
   /**
-   * Writes to the auxiliary hash table mapping vid ==> owner.
+   * \brief Writes to the auxiliary hash table mapping vid ==> owner.
    */
   void set_owner(vertex_id_t vid, uint16_t owner);
 
-  /// empties the atom file
+  /// \brief empties the atom file
   void clear();
   
-  /// Ensures the disk storage is up to date
+  /// \brief Ensures the disk storage is up to date
   void synchronize();
     
+  /** \brief Return the total number of vertices stored in this atom, 
+   * whether or not the this atom actually owns the vertex.
+   */
   inline uint64_t num_vertices() const {
     return numv.value;
   }
   
+  /** \brief  Return the total number of edges stored in this atom, whether or 
+   * not the this atom actually owns the edge.
+   */
   inline uint64_t num_edges() const {
     return nume.value;
   }
   
+  /// Number of vertices owned by this atom
   inline uint64_t num_local_vertices() const {
     return numlocalv.value;
   }
   
+  /// Number of edges owned by this atom
   inline uint64_t num_local_edges() const {
     return numlocale.value;
   }

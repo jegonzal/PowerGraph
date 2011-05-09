@@ -15,6 +15,16 @@ add_executable(anytests anytests.cpp)
 add_executable(anytests_loader anytests_loader.cpp)
 add_executable(dc_consensus_test dc_consensus_test.cpp)
 
+add_executable(rpc_example1 rpc_example1.cpp)
+add_executable(rpc_example2 rpc_example2.cpp)
+add_executable(rpc_example3 rpc_example3.cpp)
+add_executable(rpc_example4 rpc_example4.cpp)
+add_executable(rpc_example5 rpc_example5.cpp)
+add_executable(rpc_example6 rpc_example6.cpp)
+add_executable(rpc_example7 rpc_example7.cpp)
+
+add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
+
 ADD_CXXTEST(md5test.cxx)
 
 

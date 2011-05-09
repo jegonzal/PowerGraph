@@ -30,9 +30,9 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/rpc/lazy_dht.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/metrics/metrics.hpp>
+#include <graphlab/graph/atom_index_file.hpp>
+#include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
-#include <graphlab/distributed2/graph/atom_index_file.hpp>
-#include <graphlab/distributed2/graph/atom_file.hpp>
 #include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
 #include <graphlab/logger/assertions.hpp>
 
@@ -118,7 +118,8 @@ class distributed_graph {
   typedef EdgeData edge_data_type;
   typedef dgraph_edge_list edge_list_type;
   
-  distributed_graph(distributed_control &dc, std::string atomidxfile, 
+  distributed_graph(distributed_control &dc, 
+                    std::string indexfilename, 
                     bool do_not_load_data = false,
                     bool do_not_mmap = true,
                     bool sliced_partitioning = false):
@@ -131,7 +132,7 @@ class distributed_graph {
     
     // read the atom index.
     atom_index_file atomindex;
-    atomindex.read_from_file(atomidxfile);
+    atomindex.read_from_file(indexfilename);
     // store the graph size
     numglobalverts = atomindex.nverts;
     numglobaledges = atomindex.nedges;
@@ -1164,10 +1165,9 @@ class distributed_graph {
   std::vector<async_scope_callback> scope_callbacks;
 
   metrics graph_metrics;
+
   /**
    * Returns true if the global vid is in the local fragment
-   * This is not synchronized. Caller must lock if there is a risk
-   * of the structure changing while this check is performed.
    */
   bool global_vid_in_local_fragment(vertex_id_t globalvid) const{
     // easiest way to check is to see if it is in the global2localvid mapping
@@ -1201,37 +1201,46 @@ class distributed_graph {
     
     
     // the atomfiles for the local fragment
-    std::vector<atom_file<VertexData, EdgeData>* > atomfiles;
+    std::vector<disk_atom*> atomfiles;
     // for convenience take a reference to the list of atoms in this partition
     std::vector<size_t>& atoms_in_curpart = partitiontoatom[curpartition];
     dense_bitset atoms_in_curpart_set(atomindex.atoms.size()); // make a set vertion for quick lookup
     atoms_in_curpart_set.clear();
-    logger(LOG_INFO, "Loading ID maps");
-    // create the atom file readers.
-    // and load the vid / eid mappings
+    std::vector<std::vector<vertex_id_t> > vertices_in_atom;
+    // create the atom file readers
+    // open the atoms
     atomfiles.resize(atoms_in_curpart.size());
-    {
-      logstream(LOG_INFO) << "Atoms on this machine: " << atoms_in_curpart.size() << std::endl;
-      #pragma omp parallel for
-      for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
-        atoms_in_curpart_set.set_bit(atoms_in_curpart[i]);
-        atomfiles[i] = new atom_file<VertexData, EdgeData>;
-        atomfiles[i]->input_filename(atomindex.atoms[atoms_in_curpart[i]].protocol,
-                                  atomindex.atoms[atoms_in_curpart[i]].file);
-        atomfiles[i]->load_id_maps();
-      }
+    logstream(LOG_INFO) << "Atoms on this machine: " << atoms_in_curpart.size() << std::endl;
+    // open the atoms we are assigned to
+    vertices_in_atom.resize(atoms_in_curpart.size());
+    for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
+      atoms_in_curpart_set.set_bit(atoms_in_curpart[i]);
+      atomfiles[i] = new disk_atom(atomindex.atoms[atoms_in_curpart[i]].file, 
+                                    atoms_in_curpart[i]);
+      vertices_in_atom[i] = atomfiles[i]->enumerate_vertices();
     }
+    
+    
     logger(LOG_INFO, "Generating mappings");
-
-    // Lets first construct the global/local vid/eid mappings by merging
-    // the mappings in each atom
+    /******************* get all the owned vertices  *************************/
+    // Takes all the open atoms, and returns the union of all the
+    // vertices in each atom (owned and ghosts). 
+    //
     // cat all the globalvids and globaleids into a single big list
     // and sort it. Make sure that my owned vertices come first before the ghost vertices
+    //
+    // globalvid_notowned_zip[i].second is the vertex ID
+    // and globalvid_notowned_zip[i].first == true if we do not own the vertex
+    //
+    // sorting this array will therefore put all the owned vertices at the start
     std::vector<std::pair<bool, vertex_id_t> > globalvid_notowned_zip;
     for (size_t i = 0;i < atomfiles.size(); ++i) {
-      for (size_t j = 0;j < atomfiles[i]->globalvids().size(); ++j) {
-        globalvid_notowned_zip.push_back(std::make_pair(atom2machine[atomfiles[i]->atom()[j]] != rmi.procid(),
-                                                        atomfiles[i]->globalvids()[j]));
+      std::vector<vertex_id_t>& vertices = vertices_in_atom[i];
+      for (size_t j = 0;j < vertices.size() ; ++j) {
+        uint16_t owneratom;
+        ASSERT_TRUE(atomfiles[i]->get_vertex(vertices[j], owneratom));
+        globalvid_notowned_zip.push_back(std::make_pair(atom2machine[owneratom] != rmi.procid(),
+                                         vertices[j]));
       }
     }
     
@@ -1243,19 +1252,16 @@ class distributed_graph {
               
     globalvid_notowned_zip.resize(uviter - globalvid_notowned_zip.begin());
     std::sort(globalvid_notowned_zip.begin(), globalvid_notowned_zip.end());
-
-    local2globalvid.resize(globalvid_notowned_zip.size());
-    // copy out info to global2localvid
     
+    
+      
+    local2globalvid.resize(globalvid_notowned_zip.size());
     for (size_t i = 0; i < globalvid_notowned_zip.size(); ++i) {
+      // this is a sanity checks that all the owned vertices come first
       if (i > 0 && globalvid_notowned_zip[i].first == false) ASSERT_EQ(globalvid_notowned_zip[i-1].first,  false); 
       local2globalvid[i] = globalvid_notowned_zip[i].second;
     } 
-    // don't need it anymore. clear the vector
-    std::vector<std::pair<bool, vertex_id_t> >().swap(globalvid_notowned_zip);
     
-    // construct localvid2owner
-    localvid2owner.resize(local2globalvid.size());
     //construct the reverse maps
     for (size_t i = 0; i < local2globalvid.size(); ++i) {
       global2localvid[local2globalvid[i]] = i;
@@ -1266,26 +1272,36 @@ class distributed_graph {
 
 
     logger(LOG_INFO, "Counting Edges");
+    /****** figure out how many edges I need to instantiate from each atom ****/
+    // This will let me isntantiate the edges in parallel later
+
     size_t nedges_to_create = 0;
     std::vector<size_t> acc_edges_created_in_this_atom(atomfiles.size(), 0);
     #pragma omp parallel for reduction(+ : nedges_to_create)
     for (int i = 0;i < (int)(atomfiles.size()); ++i) {
-      atomfiles[i]->load_structure();
-      for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
-        // if this atom owns the edge, then it must need a new id
-        // it owns the edge if the target is local
-        size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
-        bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
+      std::vector<vertex_id_t> vertices = vertices_in_atom[i];
+      foreach(vertex_id_t dest, vertices) {
+        uint16_t destowneratom;
+        ASSERT_TRUE(atomfiles[i]->get_vertex(dest, destowneratom));
+        // the atom owns the edge if the target is within the atom
+        bool newedge = (destowneratom == atomfiles[i]->atom_id());
+        
         // otherwise this must be an edge out connecting to the ghost of an atom
-        // If I also own the target atom, then lets not count the edge here.
-        newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
-        nedges_to_create += newedge;
-        acc_edges_created_in_this_atom[i] += newedge;
+        // Now if I also own the target atom then we do not need to instantiate the edge
+        // since the target atom will instantiate it.
+        //
+        // on the other hand, we do need to instantiate the edge if we do not
+        // own the target since this means that it is a true ghosted edge
+        newedge = newedge || (!atoms_in_curpart_set.get(destowneratom)); 
+        if (newedge) {
+          size_t ne = atomfiles[i]->get_in_vertices(dest).size();
+          nedges_to_create += ne;
+          acc_edges_created_in_this_atom[i] += ne;
+        }
       }
     }
-    
-    // perform an accumulation
-    // and get the first edge id in the atom file
+    // Now we compute the prefix sum of the acc_edges_created_in_this_atom 
+    // which will give us the first edge id to be instanted by each atom file
     std::vector<size_t> atom_file_edge_first_id(atomfiles.size(), 0);
    
     for (size_t i = 1;i < atomfiles.size(); ++i) {
@@ -1297,17 +1313,16 @@ class distributed_graph {
     logstream(LOG_INFO) << "Creating " << nedges_to_create << " edges locally." << std::endl;
 
 
-    
-    logger(LOG_INFO, "Creating mmap store");
+    // open the local store
+    logger(LOG_INFO, "Creating local store");
     // now lets construct the graph structure
     localstore.create_store(local2globalvid.size(), nedges_to_create,
                             "vdata." + tostr(curpartition),
                             "edata." + tostr(curpartition),
                             do_not_mmap);
     localstore.zero_all();
-    logger(LOG_INFO, "Loading Structure");
-    // load the graph structure
-     
+    // create a course grained lock for vertex IDs
+    // edge insertions should not touch the same vertex at the same time
     std::vector<mutex> hashvlock;
     hashvlock.resize((1 << 14));
     
@@ -1319,55 +1334,65 @@ class distributed_graph {
       size_t nextedgeid = atom_file_edge_first_id[i];
 
       // iterate through all the edges in this atom
-      for (size_t j = 0;j < atomfiles[i]->edge_src_dest().size(); ++j) {
-        // convert from the atom's local eid, to the global eid, then
-        // to the fragment localeid
-       std::pair<vertex_id_t, vertex_id_t> globaledge = 
-            std::make_pair(atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].first],
-                           atomfiles[i]->globalvids()[atomfiles[i]->edge_src_dest()[j].second]);
+      // in the same order as we did the counting
+      foreach(vertex_id_t dest, vertices_in_atom[i]) {
+        uint16_t destowneratom;
+        ASSERT_TRUE(atomfiles[i]->get_vertex(dest, destowneratom));
+        foreach(vertex_id_t src, atomfiles[i]->get_in_vertices(dest)) {
 
-        // create the edge ordering the same way I count
-        size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
-        bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
-        newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
-        if (newedge == false) continue;
-        edge_id_t eid = nextedgeid;
-        nextedgeid++;
-        
-        std::pair<vertex_id_t, vertex_id_t> localedge = global_edge_to_local_edge(globaledge);
-        size_t k1 = localedge.first & ((1 << 14) - 1);
-        size_t k2 = localedge.second & ((1 << 14) - 1);
-        if (k1 < k2) {
-          hashvlock[k1].lock();
-          hashvlock[k2].lock();
-        }
-        else if (k2 < k1) {
-          hashvlock[k2].lock();
-          hashvlock[k1].lock();
-        }
-        else {
-          hashvlock[k1].lock();
-        }
-        localstore.add_edge(eid, localedge.first, localedge.second);
-        if (k1 != k2) {
-          hashvlock[k1].unlock();
-          hashvlock[k2].unlock();
-        }
-        else {
-          hashvlock[k1].unlock();
+          std::pair<vertex_id_t, vertex_id_t> globaledge = std::make_pair(src, dest);
+          
+          bool newedge = (destowneratom == atomfiles[i]->atom_id());
+          newedge = newedge || (!atoms_in_curpart_set.get(destowneratom)); 
+          
+          if (newedge == false) continue;
+          edge_id_t eid = nextedgeid;
+          nextedgeid++;
+          
+          std::pair<vertex_id_t, vertex_id_t> localedge = global_edge_to_local_edge(globaledge);
+          size_t k1 = localedge.first & ((1 << 14) - 1);
+          size_t k2 = localedge.second & ((1 << 14) - 1);
+          if (k1 < k2) {
+            hashvlock[k1].lock();
+            hashvlock[k2].lock();
+          }
+          else if (k2 < k1) {
+            hashvlock[k2].lock();
+            hashvlock[k1].lock();
+          }
+          else {
+            hashvlock[k1].lock();
+          }
+          localstore.add_edge(eid, localedge.first, localedge.second);
+          if (k1 != k2) {
+            hashvlock[k1].unlock();
+            hashvlock[k2].unlock();
+          }
+          else {
+            hashvlock[k1].unlock();
+          }
         }
       }
-      
-      
-      // set the color and localvid2owner mappings
-      for (size_t j = 0; j < atomfiles[i]->vcolor().size(); ++j) {
-        // convert from the atom's local vid, to the global vid, then
-        // to the fragment localvid
-        vertex_id_t globalvid = atomfiles[i]->globalvids()[j];
-        vertex_id_t localvid = global2localvid[globalvid];
+    }
+    
 
-        localvid2owner[localvid] = atom2machine[atomfiles[i]->atom()[j]];
-        localstore.color(localvid) = atomfiles[i]->vcolor()[j];
+    std::cerr << std::endl;
+    
+    logstream(LOG_INFO) << "Local structure creation complete." << std::endl;
+    
+    // construct localvid2owner
+    localvid2owner.resize(local2globalvid.size());
+    
+    #pragma omp parallel for
+    for (int i = 0;i < (int)atomfiles.size(); ++i) {
+       // set the color and localvid2owner mappings
+      foreach (vertex_id_t globalvid, vertices_in_atom[i]) {
+        // get the localvid
+        vertex_id_t localvid = global2localvid[globalvid];
+        uint16_t owneratom;
+        ASSERT_TRUE(atomfiles[i]->get_vertex(globalvid, owneratom));
+        localvid2owner[localvid] = atom2machine[owneratom];
+        localstore.color(localvid) = atomfiles[i]->get_color(globalvid);
         // if I own this vertex, set the global ownership to me
         if (localvid2owner[localvid] == rmi.procid()) {
           globalvid2owner.set(globalvid, rmi.procid());
@@ -1375,13 +1400,10 @@ class distributed_graph {
       }
     }
     
-       
-    std::cerr << std::endl;
     // check for contiguousness of localvid
     for (size_t i = 1; i < local2globalvid.size(); ++i) {
       if (localvid2owner[i] == rmi.procid()) ASSERT_EQ(localvid2owner[i-1], rmi.procid());
     }
-    logstream(LOG_INFO) << "Local structure creation complete." << std::endl;
     logstream(LOG_INFO) << "vid -> Owner DHT set complete" << std::endl;
     logstream(LOG_INFO) << "Constructing auxiliary datastructures..." << std::endl;
 
@@ -1473,104 +1495,78 @@ class distributed_graph {
     
     if (do_not_load_data == false) {
       logger(LOG_INFO, "Loading data");
-      // done! structure constructed!  now for the data!  load atoms one
-      // at a time, don't keep more than one atom in memor at any one
-      // time
-      // check if the atom set contains ghost data
-      bool hasallghostdata = true;
+      // done! structure constructed!  now for the data!  
       
       #pragma omp parallel for
       for (int i = 0;i < (int)(atomfiles.size()); ++i) {
         std::cerr << ".";
         std::cerr.flush();
         
-        size_t nextedgeid = atom_file_edge_first_id[i];
+        // loop through the vertices
+        foreach(vertex_id_t globalvid, vertices_in_atom[i]) {
+          uint16_t owneratom;
+          ASSERT_TRUE(atomfiles[i]->get_vertex(globalvid, owneratom));
 
-        bool hasghostdata = (atomfiles[i]->vdata().size() == atomfiles[i]->globalvids().size());
-        if (hasghostdata == false) hasallghostdata = false;
-        
-        atomfiles[i]->load_all();
-        // does this have all the ghost data?
-        size_t curidx = 0;
-        for (size_t j = 0; j < atomfiles[i]->globalvids().size(); ++j) {
-          // convert from the atom's local vid, to the global vid, then
-          // to the fragment localvid
-          vertex_id_t globalvid = atomfiles[i]->globalvids()[j];
-          if (atomfiles[i]->atom()[j] == atoms_in_curpart[i] || hasghostdata) {
-            ASSERT_LT(curidx , atomfiles[i]->vdata().size());
+          // if the atomfile contains the data.
+          if (owneratom == atomfiles[i]->atom_id()) {
             size_t localvid = global2localvid[globalvid];
-            localstore.vertex_data(localvid) = atomfiles[i]->vdata()[curidx];
+            ASSERT_TRUE(atomfiles[i]->get_vertex<VertexData>(globalvid, 
+                                                             owneratom, 
+                                                             localstore.vertex_data(localvid)));
             localstore.set_vertex_version(localvid, 1);
-            ++curidx;
           }
-/*          else {
-            size_t localvid = global2localvid[globalvid];
-            ASSERT_EQ(localstore.vertex_version(localvid), 0);
-          }*/
         }
-        curidx = 0;
-        
-        hasghostdata = (atomfiles[i]->edata().size() == atomfiles[i]->edge_src_dest().size());
-        if (hasghostdata == false) hasallghostdata = false;
-        
-        for (size_t j = 0; j < atomfiles[i]->edge_src_dest().size(); ++j) {
-          // convert from the atom's local vid, to the global vid, then
-          // to the fragment localvi
-          // do I own this edge?
-          size_t edge_owned_by_atom = atomfiles[i]->atom()[atomfiles[i]->edge_src_dest()[j].second];  
-          bool newedge = (edge_owned_by_atom == atoms_in_curpart[i]);
-          newedge = newedge || (!atoms_in_curpart_set.get(edge_owned_by_atom)); 
-          if (newedge == false) {
-            continue;
-          }
-          edge_id_t eid = nextedgeid;
-          nextedgeid++;    
-        
-          vertex_id_t atom_local_target_vid = atomfiles[i]->edge_src_dest()[j].second;
-          if (atomfiles[i]->atom()[atom_local_target_vid] == atoms_in_curpart[i] || hasghostdata) {
-            ASSERT_LT(curidx , atomfiles[i]->edata().size());
-            localstore.edge_data(eid) = atomfiles[i]->edata()[curidx];
-            localstore.set_edge_version(eid, 1);
-            ++curidx;
-          }
-   /*       else {
-            ASSERT_EQ(localstore.edge_version(localeid), 0);
-          }*/
 
+    
+        size_t nextedgeid = atom_file_edge_first_id[i];
+        // loop through the edges
+        
+              // iterate through all the edges in this atom
+        // in the same order as we did the counting
+        foreach(vertex_id_t dest, vertices_in_atom[i]) {
+          uint16_t destowneratom;
+          ASSERT_TRUE(atomfiles[i]->get_vertex(dest, destowneratom));
+          foreach(vertex_id_t src, atomfiles[i]->get_in_vertices(dest)) {
+
+            bool newedge = (destowneratom == atomfiles[i]->atom_id());
+            newedge = newedge || (!atoms_in_curpart_set.get(destowneratom)); 
+
+            if (newedge == false) {
+              continue;
+            }
+            edge_id_t eid = nextedgeid;
+            nextedgeid++;    
+            // get the local edge
+            EdgeData temp;
+            if (atomfiles[i]->get_edge(src, dest, temp)) {
+              localstore.edge_data(eid) = temp;
+              localstore.set_edge_version(eid, 1);
+            }
+          }
         }
-        atomfiles[i]->clear();
-        delete atomfiles[i];
       }
 
-      // check if everyone has all the ghost data
-      std::vector<char> all_gather_hasghostdata(rmi.numprocs(), 0); 
-      all_gather_hasghostdata[rmi.procid()] = hasallghostdata;
-      rmi.all_gather(all_gather_hasghostdata);
-      for (size_t i = 0;i < all_gather_hasghostdata.size(); ++i) {
-        hasallghostdata = hasallghostdata && all_gather_hasghostdata[i];
-      }
-      std::cerr << std::endl;
-      if (hasallghostdata == false) {
-        rmi.barrier();
-        logger(LOG_INFO, "does not have all ghost data: Synchronizing...");
-        // shuffle for all the ghost data
-        push_all_owned_vertices_to_replicas();
-        rmi.dc().full_barrier();
-        logger(LOG_INFO, "vertices synchronized.");
-        
-        push_all_owned_edges_to_replicas();
-        rmi.dc().full_barrier();
-        logger(LOG_INFO, "edges synchronized.");
 
-        logger(LOG_INFO, "Synchronization complete.");
-        rmi.dc().barrier();
-        logger(LOG_INFO, "Performing data verification.");
-        for (size_t i = 0;i < localstore.num_vertices(); ++i) {
-          ASSERT_EQ(localstore.vertex_version(i), 1);
-        }
-        for (size_t i = 0;i < localstore.num_edges(); ++i) {
-          ASSERT_EQ(localstore.edge_version(i), 1);
-        }
+
+      rmi.barrier();
+      logger(LOG_INFO, "Synchronizing ghost data...");
+      // shuffle for all the ghost data
+      push_all_owned_vertices_to_replicas();
+      rmi.dc().full_barrier();
+      logger(LOG_INFO, "vertices synchronized.");
+      
+      push_all_owned_edges_to_replicas();
+      rmi.dc().full_barrier();
+      logger(LOG_INFO, "edges synchronized.");
+
+      logger(LOG_INFO, "Synchronization complete.");
+      rmi.dc().barrier();
+      logger(LOG_INFO, "Performing data verification.");
+      for (size_t i = 0;i < localstore.num_vertices(); ++i) {
+        ASSERT_EQ(localstore.vertex_version(i), 1);
+      }
+      for (size_t i = 0;i < localstore.num_edges(); ++i) {
+        ASSERT_EQ(localstore.edge_version(i), 1);
       }
     }
     // flush the store
@@ -1587,6 +1583,7 @@ class distributed_graph {
     std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
     
   }
+  
 
   
   vertex_conditional_store get_vertex_if_version_less_than(vertex_id_t vid, 

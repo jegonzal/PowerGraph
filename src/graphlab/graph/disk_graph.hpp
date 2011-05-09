@@ -2,7 +2,7 @@
 #define GRAPHLAB_DISK_GRAPH_HPP
 
 #include <omp.h>
-
+#include <graphlab/util/stl_util.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
@@ -68,8 +68,8 @@ class disk_graph {
     ASSERT_EQ(nume.value, idxfile.nedges);
   }
   
-  
-  disk_graph<VertexData, EdgeData>& operator=(const graph<VertexData, EdgeData> &g) {
+  void create_from_graph(const graph<VertexData, EdgeData> &g,
+                         const std::vector<vertex_id_t> &partids) {
     clear();
     size_t nv = g.num_vertices();
     #pragma omp parallel for 
@@ -77,7 +77,7 @@ class disk_graph {
       vertex_id_t vid = i;
       size_t hashloc = (vid) % atoms.size();
       //place vertices sequentially
-      uint16_t owner = (uint16_t)((i * atoms.size())/ nv);
+      uint16_t owner = partids[i] % atoms.size();
       atoms[hashloc]->set_owner(vid, owner);
       atoms[owner]->add_vertex(vid, owner, g.vertex_data(i));
       atoms[owner]->set_color(vid, g.color(vid));
@@ -87,8 +87,8 @@ class disk_graph {
     for (int i = 0;i < (int)(g.num_edges()); ++i) {
       vertex_id_t target = g.target(i);
       vertex_id_t source = g.source(i);
-      uint16_t targetowner = (uint16_t)((target * atoms.size())/ nv);
-      uint16_t sourceowner = (uint16_t)((source * atoms.size())/ nv);
+      uint16_t targetowner = partids[target] % atoms.size();
+      uint16_t sourceowner = partids[source] % atoms.size();
       atoms[targetowner]->add_edge(source, target, g.edge_data(i));
       atoms[targetowner]->inc_numlocale();
       // create ghosts
@@ -105,7 +105,16 @@ class disk_graph {
     
     numv.value = g.num_vertices();
     nume.value = g.num_edges();
-    
+    finalize();
+  }
+  
+  disk_graph<VertexData, EdgeData>& operator=(const graph<VertexData, EdgeData> &g) {
+    std::vector<vertex_id_t> partids(g.num_vertices());
+    size_t nv = g.num_vertices();
+    for (size_t i = 0;i < nv; ++i) {
+      partids[i] = ((i * atoms.size())/ nv);
+    }
+    create_from_graph(g, partids);
     return *this;
   }
   
