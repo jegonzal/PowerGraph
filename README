@@ -36,12 +36,12 @@ For more details on the GraphLab see http://graphlab.ml.cmu.edu
 ===========
 Compilation
 ===========
-GraphLab has two dependencies: CMake and Boost.
+GraphLab has three dependencies: CMake, Boost and Kyoto Cabinet
 
-If you already have CMake and Boost available, you can just run 
+If you already have all dependencies satistied,
 1a: ./configure
 
-Otherwise, autodetect, install and build boost and CMake.
+Otherwise, autodetect, install and build boost, CMake and Kyoto Cabinet
 1b: ./configure --bootstrap 
 
 
