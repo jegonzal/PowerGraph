@@ -79,7 +79,8 @@ namespace graphlab {
 
     bool enable_sched_yield;
  
-   
+    bool distributed_options;
+    
     engine_options() :
       ncpus(2),
       engine_type("async"),
@@ -87,16 +88,24 @@ namespace graphlab {
       scheduler_type("fifo"),
       metrics_type("basic"),
       enable_cpu_affinities(false),
-      enable_sched_yield(true) {
+      enable_sched_yield(true),
+      distributed_options(false){
       // Grab all the compiler flags 
-#ifdef COMPILEFLAGS
+/*#ifdef COMPILEFLAGS
 #define QUOTEME_(x) #x
 #define QUOTEME(x) QUOTEME_(x)
       compile_flags = QUOTEME(COMPILEFLAGS);
 #undef QUOTEME
 #undef QUOTEME_
-#endif
+#endif*/
     } // end of constructor
+
+    //! Use distributed options instead of shared memory options
+    void use_distributed_options() {
+      engine_type = "dist_chromatic";
+      scheduler_type = "sweep";
+      distributed_options = true;
+    }
 
     //! Set the cpu affinities value (true = enabled)
     void set_cpu_affinities(bool enabled) {

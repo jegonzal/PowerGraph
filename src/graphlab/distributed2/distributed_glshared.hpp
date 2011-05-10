@@ -103,7 +103,7 @@ public:
    *
    *
    */
-  inline __attribute((__deprecated__)) const_ptr_type get_ptr() const{
+  inline __attribute((error("get_ptr not supported yet for distributed glshared"))) const_ptr_type get_ptr() const{
     return ptr;
   }
 

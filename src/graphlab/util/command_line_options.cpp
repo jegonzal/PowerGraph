@@ -17,6 +17,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <graphlab/util/command_line_options.hpp>
 #include <graphlab/schedulers/scheduler_list.hpp>
+#include <graphlab/distributed2/distributed_scheduler_list.hpp>
 
 namespace boost {  
   template<>
@@ -60,42 +61,74 @@ namespace graphlab {
     std::string metricstype(get_metrics_type());
 
     if(!surpress_graphlab_options) {
-      // Set the program options
-      desc.add_options()
-        ("ncpus",
-         boost_po::value<size_t>(&(ncpus))->
-         default_value(ncpus),
-         "Number of cpus to use.")
-        ("engine",
-         boost_po::value<std::string>(&(enginetype))->
-         default_value(enginetype),
-         "Options are {async, async_sim, synchronous}")
-        ("affinities",
-         boost_po::value<bool>(&(cpuaffin))->
-         default_value(cpuaffin),
-         "Enable forced assignment of threads to cpus")
-        ("schedyield",
-         boost_po::value<bool>(&(schedyield))->
-         default_value(schedyield),
-         "Enable yielding when threads conflict in the scheduler.")
-        ("scope",
-         boost_po::value<std::string>(&(scopetype))->
-         default_value(scopetype),
-         "Options are {none, vertex, edge, full}")
-        ("metrics",
-         boost_po::value<std::string>(&(metricstype))->
-         default_value(metricstype),
-         "Options are {none, basic, file, html}")
-        ("schedhelp",
-         boost_po::value<std::string>()->implicit_value(""),
-         "Display help for a particular scheduler.")
-        ("scheduler",
-         boost_po::value<std::string>(&(schedulertype))->
-         default_value(schedulertype),
-         (std::string("Supported schedulers are: ")
-          + get_scheduler_names_str() +
-          ". Too see options for each scheduler, run the program with the option"
-          " ---schedhelp=[scheduler_name]").c_str());
+      if (distributed_options == false) {
+        // Set the program options
+        desc.add_options()
+          ("ncpus",
+          boost_po::value<size_t>(&(ncpus))->
+          default_value(ncpus),
+          "Number of cpus to use.")
+          ("engine",
+          boost_po::value<std::string>(&(enginetype))->
+          default_value(enginetype),
+          "Options are {async, async_sim, synchronous}")
+          ("affinities",
+          boost_po::value<bool>(&(cpuaffin))->
+          default_value(cpuaffin),
+          "Enable forced assignment of threads to cpus")
+          ("schedyield",
+          boost_po::value<bool>(&(schedyield))->
+          default_value(schedyield),
+          "Enable yielding when threads conflict in the scheduler.")
+          ("scope",
+          boost_po::value<std::string>(&(scopetype))->
+          default_value(scopetype),
+          "Options are {none, vertex, edge, full}")
+          ("metrics",
+          boost_po::value<std::string>(&(metricstype))->
+          default_value(metricstype),
+          "Options are {none, basic, file, html}")
+          ("schedhelp",
+          boost_po::value<std::string>()->implicit_value(""),
+          "Display help for a particular scheduler.")
+          ("scheduler",
+          boost_po::value<std::string>(&(schedulertype))->
+          default_value(schedulertype),
+          (std::string("Supported schedulers are: ")
+            + get_scheduler_names_str() +
+            ". Too see options for each scheduler, run the program with the option"
+            " ---schedhelp=[scheduler_name]").c_str());
+      }
+      else {
+        // Set the program options
+        desc.add_options()
+          ("ncpus",
+          boost_po::value<size_t>(&(ncpus))->
+          default_value(ncpus),
+          "Number of cpus to use per machine")
+          ("engine",
+          boost_po::value<std::string>(&(enginetype))->
+          default_value(enginetype),
+          "Options are {dist_chromatic, dist_locking}")
+          ("scope",
+          boost_po::value<std::string>(&(scopetype))->
+          default_value(scopetype),
+          "Options are {none, vertex, edge, full}")
+          ("metrics",
+          boost_po::value<std::string>(&(metricstype))->
+          default_value(metricstype),
+          "Options are {none, basic, file, html}")
+          ("schedhelp",
+          boost_po::value<std::string>()->implicit_value(""),
+          "Display help for a particular scheduler.")
+          ("scheduler",
+          boost_po::value<std::string>(&(schedulertype))->
+          default_value(schedulertype),
+          (std::string("Supported schedulers are: ")
+            + get_distributed_scheduler_names_str() +
+            ". Too see options for each scheduler, run the program with the option"
+            " ---schedhelp=[scheduler_name]").c_str());
+      }
     }
     // Parse the arguments
     try{
@@ -116,14 +149,28 @@ namespace graphlab {
       return false;
     }
     if (vm.count("schedhelp")) {
-      std::string schedname = vm["schedhelp"].as<std::string>();
-      if (schedname != "") {
-        print_scheduler_info(schedname, std::cout);
+      if (distributed_options == false) {
+        std::string schedname = vm["schedhelp"].as<std::string>();
+        if (schedname != "") {
+          print_scheduler_info(schedname, std::cout);
+        }
+        else {
+          std::vector<std::string> schednames = get_scheduler_names();
+          for(size_t i = 0;i < schednames.size(); ++i) {
+            print_scheduler_info(schednames[i], std::cout);
+          }
+        }
       }
       else {
-        std::vector<std::string> schednames = get_scheduler_names();
-        for(size_t i = 0;i < schednames.size(); ++i) {
-          print_scheduler_info(schednames[i], std::cout);
+        std::string schedname = vm["schedhelp"].as<std::string>();
+        if (schedname != "") {
+          print_distributed_scheduler_info(schedname, std::cout);
+        }
+        else {
+          std::vector<std::string> schednames = get_distributed_scheduler_names();
+          for(size_t i = 0;i < schednames.size(); ++i) {
+            print_distributed_scheduler_info(schednames[i], std::cout);
+          }
         }
       }
       return false;

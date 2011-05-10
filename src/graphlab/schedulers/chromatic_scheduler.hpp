@@ -73,7 +73,9 @@ namespace graphlab {
       update_function(NULL) {
       color.value = 0;
       // Verify the coloring
-      ASSERT_TRUE(graph.valid_coloring());
+      if (graph.valid_coloring() == false) {
+        graph.compute_coloring();
+      }
       // Initialize the chromatic blocks
       for(vertex_id_t i = 0; i < graph.num_vertices(); ++i) {
         graphlab::vertex_color_type color = graph.color(i);

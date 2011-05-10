@@ -139,8 +139,8 @@ class distributed_chromatic_engine : public iengine<Graph> {
     size_t sync_interval;
     size_t next_time;
     any zero;
-    size_t rangelow;
-    size_t rangehigh;
+    vertex_id_t rangelow;
+    vertex_id_t rangehigh;
     distributed_glshared_base *sharedvariable;
     any mergeval;
     std::vector<any> thread_intermediate;
@@ -148,7 +148,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
       sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
       sync_interval(-1),
       next_time(0), rangelow(0), 
-      rangehigh(size_t(-1)), sharedvariable(NULL) { }
+      rangehigh(vertex_id_t(-1)), sharedvariable(NULL) { }
   };
   
   /// A list of all registered sync tasks
@@ -227,17 +227,24 @@ class distributed_chromatic_engine : public iengine<Graph> {
     return termination_reason;
   }
 
-  
   /**
    * This function computes the last update count by adding all the
    * update counts of the individual threads.  This is an underestimate
    * if the engine is currently running.
    */
-  size_t last_update_count() const {
+  size_t thisproc_update_counts() const {
     size_t sum = 0;
     for(size_t i = 0; i < update_counts.size(); ++i)
       sum += update_counts[i];
     return sum;
+  } 
+
+
+  /**
+   * Returns the total number of updates executed
+   */
+  size_t last_update_count() const {
+    return total_update_count;
   } // end of last_update_count
 
 
@@ -352,8 +359,8 @@ class distributed_chromatic_engine : public iengine<Graph> {
                 const any& zero,
                 size_t sync_interval = 0,
                 merge_function_type merge = NULL,
-                size_t rangelow = 0,
-                size_t rangehigh = -1) {
+                vertex_id_t rangelow = 0,
+                vertex_id_t rangehigh = -1) {
     ASSERT_MSG(merge != NULL, "merge is required for the distributed engine");
     sync_task st;
     st.sync_fun = sync;
@@ -741,7 +748,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
     
     // proc 0 gathers all update counts
     std::vector<size_t> procupdatecounts(rmi.numprocs(), 0);
-    procupdatecounts[rmi.procid()] = last_update_count();
+    procupdatecounts[rmi.procid()] = thisproc_update_counts();
     rmi.gather(procupdatecounts, 0);
     
     std::vector<double> barrier_times(rmi.numprocs(), 0);
@@ -826,7 +833,6 @@ class distributed_chromatic_engine : public iengine<Graph> {
     logger(LOG_FATAL, "distributed engine does not support register monitor");
   }   
   
-  // Temp hack.
   size_t total_update_count;
   
   size_t get_tasks_done() const {

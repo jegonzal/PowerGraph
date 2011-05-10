@@ -117,16 +117,16 @@ namespace graphlab {
                (x2 == var1() && x1 == var2()));
         if(x1 == var2() && x2 == var1()) std::swap(asg1, asg2);
       }
-      assert( asg1 < arity1() );
-      assert( asg2 < arity2() );
+      ASSERT_LT( asg1 , arity1() );
+      ASSERT_LT( asg2 , arity2() );
       // return value
       return _data[asg1 + asg2 * arity1()];
     } // end of logP for a binary factor
 
   
     double& logP(uint16_t asg1, uint16_t asg2) {
-      assert( asg1 < arity1() );
-      assert( asg2 < arity2() );
+      ASSERT_LT( asg1 , arity1() );
+      ASSERT_LT( asg2 , arity2() );
       return _data[asg1 + asg2 * arity1()];
     } // end of logP for a binary factor
 

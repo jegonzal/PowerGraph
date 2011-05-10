@@ -317,7 +317,7 @@ void dc_tcp_comm::connect(size_t target) {
     for (size_t i = 0;i < 10; ++i) {
       if (::connect(newsock, (sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
         logstream(LOG_WARNING) << "connect " << curid << " to " << target << ": "
-                              << strerror(errno) << "\n";
+                              << strerror(errno) << ". Retrying...\n";
         sleep(1);
         // posix says that 
         /* If connect() fails, the state of the socket is unspecified. 

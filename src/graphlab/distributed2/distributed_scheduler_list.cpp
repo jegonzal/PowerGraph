@@ -16,26 +16,26 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <algorithm>
-#include <graphlab/schedulers/scheduler_list.hpp>
+#include <graphlab/distributed2/distributed_scheduler_list.hpp>
 #include <graphlab/util/stl_util.hpp>
 
 
 namespace graphlab {
   
-  std::vector<std::string> get_scheduler_names() {
+  std::vector<std::string> get_distributed_scheduler_names() {
     std::vector<std::string> ret;
 #define __APPEND_TO_RET__(r_unused, data_unused, i,  elem)      \
     ret.push_back(BOOST_PP_TUPLE_ELEM(3,0,elem));
-    BOOST_PP_SEQ_FOR_EACH_I(__APPEND_TO_RET__, _, __SCHEDULER_LIST__)
+    BOOST_PP_SEQ_FOR_EACH_I(__APPEND_TO_RET__, _, __DISTRIBUTED_SCHEDULER_LIST__)
 #undef __APPEND_TO_RET__
       return ret;
   }
 
 
-  std::string get_scheduler_names_str() {
+  std::string get_distributed_scheduler_names_str() {
     std::string ret;
     std::vector<std::string> schednames;
-    schednames = get_scheduler_names();
+    schednames = get_distributed_scheduler_names();
     for (size_t i = 0; i < schednames.size(); ++i) {
       if (i > 0) {
         ret = ret + ", ";
@@ -70,7 +70,7 @@ namespace graphlab {
     return ret;
   }
 
-  void print_scheduler_info(std::string s, std::ostream &out) {
+  void print_distributed_scheduler_info(std::string s, std::ostream &out) {
     // this is annoying... I need to instantiate the graph<char, char> type to
     // even call the scheduler
 #define __GENERATE_SCHEDULER_HELP__(r_unused, data_unused, i,  elem)    \
@@ -89,7 +89,7 @@ namespace graphlab {
      * ...
      */
     // generate the construction calls
-    BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_SCHEDULER_HELP__, _, __SCHEDULER_LIST__)
+    BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_SCHEDULER_HELP__, _, __DISTRIBUTED_SCHEDULER_LIST__)
     else {
       out << "Scheduler " << s << " not found" << "\n";
     }

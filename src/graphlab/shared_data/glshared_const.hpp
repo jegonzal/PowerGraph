@@ -53,7 +53,6 @@ namespace graphlab {
     bool finalized;
 
   public:
-    //! Construct initial shared pointers
     glshared_const() : finalized(false) { }
 
     /**

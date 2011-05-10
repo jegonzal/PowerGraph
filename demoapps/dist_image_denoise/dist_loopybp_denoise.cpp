@@ -43,6 +43,13 @@
 struct edge_data {
   graphlab::unary_factor message;
   graphlab::unary_factor old_message;
+  void save(graphlab::oarchive &oarc) const {
+    oarc << message << old_message;
+  }
+  
+  void load(graphlab::iarchive &iarc) {
+    iarc >> message >> old_message;
+  }
 }; // End of edge data
 
 
@@ -53,15 +60,22 @@ struct edge_data {
 struct vertex_data {
   graphlab::unary_factor potential;
   graphlab::unary_factor belief;
+  void save(graphlab::oarchive &oarc) const {
+    oarc << potential << belief;
+  }
+  
+  void load(graphlab::iarchive &iarc) {
+    iarc >> potential >> belief;
+  }
 }; // End of vertex data
 
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
-gl_types::glshared<graphlab::binary_factor> EDGE_FACTOR;
-gl_types::glshared<double> BOUND;
-gl_types::glshared<double> DAMPING;
+gl_types::distributed_glshared<graphlab::binary_factor> EDGE_FACTOR;
+gl_types::distributed_glshared<double> BOUND;
+gl_types::distributed_glshared<double> DAMPING;
 
 
 // GraphLab Update Function ===================================================>
@@ -70,7 +84,7 @@ gl_types::glshared<double> DAMPING;
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& graph);
+                     gl_types::in_memory_graph& graph);
 
 /** 
  * The core belief propagation update function.  This update satisfies
@@ -116,7 +130,7 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
 
-
+  bool makegraph = false;
   double bound = 1E-4;
   double damping = 0.1;
   size_t colors = 5;
@@ -135,6 +149,10 @@ int main(int argc, char** argv) {
 
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
+  clopts.use_distributed_options();
+  clopts.attach_option("makegraph",
+                       &makegraph, makegraph,
+                       "Creates the disk graph");
   clopts.attach_option("bound",
                        &bound, bound,
                        "Residual termination bound");
@@ -173,7 +191,7 @@ int main(int argc, char** argv) {
                        "Predicted image type {map, exp}");
   
 
-  clopts.set_scheduler_type("splash(splash_size=100)");
+  clopts.set_scheduler_type("multiqueue_fifo");
   clopts.set_scope_type("edge");
   
 
@@ -202,10 +220,7 @@ int main(int argc, char** argv) {
             << "pred_type:      " << pred_type << std::endl;
 
   
-  
 
-  // Create synthetic images -------------------------------------------------->
-  // Creating image for denoising
   std::cout << "Creating a synthetic image. " << std::endl;
   image img(rows, cols);
   img.paint_sunset(colors);
@@ -213,20 +228,36 @@ int main(int argc, char** argv) {
   img.save(orig_fn.c_str());
   std::cout << "Corrupting Image. " << std::endl;
   img.corrupt(sigma);
-  std::cout << "Saving corrupted image. " << std::endl;
-  img.save(noisy_fn.c_str());
 
+  if (makegraph) {
+    // Create synthetic images -------------------------------------------------->
+    // Creating image for denoising
+    std::cout << "Saving corrupted image. " << std::endl;
+    img.save(noisy_fn.c_str());
+    
+    std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
+    gl_types::disk_graph dg("denoise", 32);
+    gl_types::in_memory_graph g;
 
- 
+    construct_graph(img, colors, sigma, g);
+    std::vector<graphlab::vertex_id_t> parts;
+    g.metis_partition(32, parts);
+    dg.create_from_graph(g, parts);
+    dg.finalize();
+    return 0;
+  }
+
+  graphlab::mpi_tools::init(argc, argv);
   
-  
+  graphlab::dc_init_param param;
+  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  // create distributed control
+  graphlab::distributed_control dc(param);
   // Create the graph --------------------------------------------------------->
-  gl_types::core core;
+  gl_types::distributed_core core(dc, "denoise.idx");
   // Set the engine options
   core.set_engine_options(clopts);
-  
-  std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-  construct_graph(img, colors, sigma, core.graph());
+  core.build_engine();
 
   
   // Setup global shared variables -------------------------------------------->
@@ -262,37 +293,39 @@ int main(int argc, char** argv) {
   core.add_task_to_all(bp_update, 100.0);
   // Starte the engine
   double runtime = core.start();
-  
-  size_t update_count = core.last_update_count();
-  std::cout << "Finished Running engine in " << runtime 
-            << " seconds." << std::endl
-            << "Total updates: " << update_count << std::endl
-            << "Efficiency: " << (double(update_count) / runtime)
-            << " updates per second "
-            << std::endl;  
+  if (dc.procid() == 0) {
+    size_t update_count = core.last_update_count();
+    std::cout << "Finished Running engine in " << runtime 
+              << " seconds." << std::endl
+              << "Total updates: " << update_count << std::endl
+              << "Efficiency: " << (double(update_count) / runtime)
+              << " updates per second "
+              << std::endl;  
 
 
-  // Saving the output -------------------------------------------------------->
-  std::cout << "Rendering the cleaned image. " << std::endl;
-  if(pred_type == "map") {
-    for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-      const vertex_data& vdata = core.graph().vertex_data(v);
-      img.pixel(v) = vdata.belief.max_asg();    
+    // Saving the output -------------------------------------------------------->
+    std::cout << "Rendering the cleaned image. " << std::endl;
+    if(pred_type == "map") {
+      for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+        const vertex_data& vdata = core.graph().get_vertex_data(v);
+        img.pixel(v) = vdata.belief.max_asg();    
+      }
+    } else if(pred_type == "exp") {
+      for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+        const vertex_data& vdata = core.graph().get_vertex_data(v);
+        img.pixel(v) = vdata.belief.expectation();
+      }
+    } else {
+      std::cout << "Invalid prediction type! : " << pred_type
+                << std::endl;
+      return EXIT_FAILURE;
     }
-  } else if(pred_type == "exp") {
-    for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-      const vertex_data& vdata = core.graph().vertex_data(v);
-      img.pixel(v) = vdata.belief.expectation();
-    }
-  } else {
-    std::cout << "Invalid prediction type! : " << pred_type
-              << std::endl;
-    return EXIT_FAILURE;
+    std::cout << "Saving cleaned image. " << std::endl;
+    img.save(pred_fn.c_str());
+
+    std::cout << "Done!" << std::endl;
   }
-  std::cout << "Saving cleaned image. " << std::endl;
-  img.save(pred_fn.c_str());
-
-  std::cout << "Done!" << std::endl;
+  graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
 
@@ -346,8 +379,7 @@ void bp_update(gl_types::iscope& scope,
   // Compute outbound messages
   // ---------------------------------------------------------------->
 
-  boost::shared_ptr<const graphlab::binary_factor> edge_factor_ptr = EDGE_FACTOR.get_ptr();
-  const graphlab::binary_factor &edge_factor = *edge_factor_ptr;
+  const graphlab::binary_factor edge_factor = EDGE_FACTOR.get_val();
   
   // Send outbound messages
   graphlab::unary_factor cavity, tmp_msg;
@@ -395,7 +427,7 @@ void bp_update(gl_types::iscope& scope,
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& graph) {
+                     gl_types::in_memory_graph& graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.potential.resize(num_rings);

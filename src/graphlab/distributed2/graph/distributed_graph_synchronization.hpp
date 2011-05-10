@@ -161,10 +161,8 @@ void distributed_graph<VertexData, EdgeData>::synchronize_scope(vertex_id_t vid,
 
 
 /**
- * synchronize the entire scope for vertex vid
+ * Constructs the request for synchronizing the scope for vertex vid
  * vid must be owned by the current machine. 
- * \todo This function can be optimized to issue all requests simultaneously and 
- * wait for replies instead of issueing them sequentially.
  */
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::synchronize_scope_construct_req(vertex_id_t vid, 

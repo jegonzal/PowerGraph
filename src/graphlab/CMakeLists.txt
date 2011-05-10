@@ -86,6 +86,7 @@ add_library(graphlab STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
+  distributed2/distributed_scheduler_list.cpp
   ${rpc_compressed}
 )
 

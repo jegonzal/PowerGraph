@@ -120,6 +120,7 @@ class disk_graph {
   
   
   ~disk_graph() {
+    finalize();
     for (size_t i = 0;i < atoms.size(); ++i) {
       delete atoms[i];
     }

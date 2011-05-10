@@ -180,9 +180,9 @@ int main(int argc, char** argv) {
   double bound = 1E-4;
   double damping = 0.1;
   double ipfdamping = 0.1;
-  size_t colors = 5;
-  size_t rows = 200;
-  size_t cols = 200;
+  size_t colors = 4;
+  size_t rows = 100;
+  size_t cols = 100;
   double sigma = 2;
   double lambda = 2;
   std::string smoothing = "laplace";
@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
 
   // Create synthetic images -------------------------------------------------->
   // Creating image for denoising
-  std::cout << "Creating a synethic image. " << std::endl;
+  std::cout << "Creating a synthetic image. " << std::endl;
   image img(rows, cols);
   img.paint_sunset(colors);
   graphlab::binary_factor truecounts;
@@ -342,18 +342,21 @@ int main(int argc, char** argv) {
   graphlab::timer ti;
   ti.start();
   // loop it a few times
+  size_t update_count = 0;
   for (size_t i = 0;i < 10; ++i) {
     std::cout << "restart " << i << "\n";
     // Add the bp update to all vertices
     core.add_task_to_all(bp_update, 100.0);
     // Start the engine
     core.start();
+    update_count += core.last_update_count();
     graphlab::binary_factor newedgepot = sh_edgepot.get_val();
+    std::cout << newedgepot;
     if (binary_factor_equal(oldedgepot, newedgepot)) break;
     oldedgepot = newedgepot;
   }
+  
   double runtime = ti.current_time();
-  size_t update_count = core.last_update_count();
   std::cout << "Finished Running engine in " << runtime 
             << " seconds." << std::endl
             << "Total updates: " << update_count << std::endl
@@ -404,8 +407,8 @@ void bp_update(gl_types::iscope& scope,
   vertex_data& v_data = scope.vertex_data();
   
   // Get the in and out edges by reference
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
+  gl_types::edge_list in_edges = scope.in_edge_ids();
+  gl_types::edge_list out_edges = scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
   // Flip the old and new messages to improve safety when using the
@@ -481,8 +484,8 @@ void bp_update(gl_types::iscope& scope,
 
 
 void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc) {
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
+  gl_types::edge_list in_edges = scope.in_edge_ids();
+  gl_types::edge_list out_edges = scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
   
   graphlab::binary_factor& counts = acc.as<graphlab::binary_factor>();
@@ -551,8 +554,9 @@ void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
     acc.as<graphlab::binary_factor>();
   double ipfdamping = sh_ipfdamping.get_val();
   // perform the IPF update
-  // note that BP+IPF can be quite unstable
-  // so lets only update the parameter values if they change by > 1E-2
+  // note that BP+IPF can be quite unstable.
+  // (We do recommend the gradient update in practice)
+  // so lets only update the parameter values if they change by > 1E-1
   for (size_t i = 0;i < res.arity1(); ++i) {
     for (size_t j = 0;j < res.arity2(); ++j) {
       // + 100 to avoid divide by 0 problems
@@ -560,7 +564,7 @@ void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
         ipfdamping * log((truecounts.logP(i,j)+100) / 
                          (curcounts.logP(i,j)+100)) + 
         (1 - ipfdamping) * res.logP(i,j);
-      if (std::fabs(res.logP(i,j) - newval) >= 1E-2) {
+      if (std::fabs(res.logP(i,j) - newval) >= 1E-1) {
         res.logP(i,j) = newval;
       }
     }

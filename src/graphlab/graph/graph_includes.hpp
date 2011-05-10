@@ -18,6 +18,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 
 #include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/disk_graph.hpp>
 
 
 

@@ -258,7 +258,7 @@ namespace graphlab {
     }
     
     std::vector<uint32_t> retpart; 
-    if (atomgraph.num_edges() >= atomgraph.num_vertices() * atomgraph.num_vertices() / 4) {
+    if (atomgraph.num_edges() >= atomgraph.num_vertices() * atomgraph.num_vertices() / 2) {
       logstream(LOG_WARNING) << "high atom edge density. Using random partition" << std::endl;
       atomgraph.random_partition(nparts, retpart);
     

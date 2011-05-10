@@ -33,7 +33,6 @@
 
 
 
-
 // STRUCTS (Edge and Vertex data) =============================================>
 
 /**
@@ -43,6 +42,13 @@
 struct edge_data {
   graphlab::unary_factor message;
   graphlab::unary_factor old_message;
+  void save(graphlab::oarchive &oarc) const {
+    oarc << message << old_message;
+  }
+  
+  void load(graphlab::iarchive &iarc) {
+    iarc >> message >> old_message;
+  }
 }; // End of edge data
 
 
@@ -53,16 +59,25 @@ struct edge_data {
 struct vertex_data {
   graphlab::unary_factor potential;
   graphlab::unary_factor belief;
+  void save(graphlab::oarchive &oarc) const {
+    oarc << potential << belief;
+  }
+  
+  void load(graphlab::iarchive &iarc) {
+    iarc >> potential >> belief;
+  }
 }; // End of vertex data
 
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
-gl_types::glshared<graphlab::binary_factor> EDGE_FACTOR;
-gl_types::glshared<double> BOUND;
-gl_types::glshared<double> DAMPING;
-
+gl_types::distributed_glshared<double> sh_bound;
+gl_types::distributed_glshared<double> sh_damping;
+gl_types::distributed_glshared<double> sh_ipfdamping;
+gl_types::distributed_glshared<graphlab::binary_factor> sh_edgepot;
+gl_types::distributed_glshared<graphlab::binary_factor> sh_truecounts;
 
 // GraphLab Update Function ===================================================>
 
@@ -70,8 +85,16 @@ gl_types::glshared<double> DAMPING;
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& graph);
+                     gl_types::in_memory_graph& graph);
 
+/** Get the counts of the true image */
+void get_image_counts(image &trueimg, 
+                      graphlab::binary_factor &truebinarycount, 
+                      size_t arity);
+
+/** Tests if two binary factors are equal */
+bool binary_factor_equal(const graphlab::binary_factor &a, 
+                         const graphlab::binary_factor &b);
 /** 
  * The core belief propagation update function.  This update satisfies
  * the graphlab update_function interface.  
@@ -79,6 +102,17 @@ void construct_graph(image& img,
 void bp_update(gl_types::iscope& scope, 
                gl_types::icallback& scheduler);
                
+/**
+ * The edge potential sync simply counts the belief across the edges
+ */
+void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc);
+
+/**
+ * Performs an IPF update using the counts and the true counts
+ */
+void edgepot_apply(graphlab::any& result,  const graphlab::any& acc);
+
+void edgepot_merge(graphlab::any& result,  const graphlab::any& acc);
 
 // Command Line Parsing =======================================================>
 
@@ -105,7 +139,47 @@ struct options {
   size_t clustersize;
 };
 
+void get_image_counts(image &trueimg, 
+                      graphlab::binary_factor &truebinarycount, 
+                      size_t arity) {
+  truebinarycount.resize(arity,arity);
+  for (size_t i = 0; i < trueimg.rows(); ++i) {
+    for (size_t j = 0; j < trueimg.cols(); ++j) {
+      size_t color = trueimg.pixel(i,j);
+      // check neighbors
+      if (i > 1) {
+        size_t color2 = trueimg.pixel(i-1,j); 
+        truebinarycount.logP(color,color2)++;
+      }
+      if (i < trueimg.rows() - 1) {
+        size_t color2 = trueimg.pixel(i+1,j); 
+        truebinarycount.logP(color,color2)++;
+      }
+      if (j > 1) {
+        size_t color2 = trueimg.pixel(i,j-1); 
+        truebinarycount.logP(color,color2)++;
+      }
+      if (j < trueimg.cols() - 1) {
+        size_t color2 = trueimg.pixel(i,j+1); 
+        truebinarycount.logP(color,color2)++;
+      }
+    }
+  }
+}
 
+bool binary_factor_equal(const graphlab::binary_factor &a, 
+                         const graphlab::binary_factor &b) {
+  ASSERT_EQ(a.arity1(), b.arity1());
+  ASSERT_EQ(a.arity2(), b.arity2());
+  for (size_t i = 0;i < a.arity1(); ++i) {
+     for (size_t j = 0;j < a.arity2(); ++j) {
+      if ((a.logP(i,j) - b.logP(i,j)) > std::numeric_limits<double>::epsilon()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 // MAIN =======================================================================>
 int main(int argc, char** argv) {
   std::cout << "This program creates and denoises a synthetic " << std::endl
@@ -116,12 +190,13 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_WARNING);
   global_logger().set_log_to_console(true);
 
-
+  bool makegraph = false;
   double bound = 1E-4;
   double damping = 0.1;
-  size_t colors = 5;
-  size_t rows = 200;
-  size_t cols = 200;
+  double ipfdamping = 0.1;
+  size_t colors = 4;
+  size_t rows = 100;
+  size_t cols = 100;
   double sigma = 2;
   double lambda = 2;
   std::string smoothing = "laplace";
@@ -129,18 +204,25 @@ int main(int argc, char** argv) {
   std::string noisy_fn = "noisy_img.pgm";
   std::string pred_fn = "pred_img.pgm";
   std::string pred_type = "map";
-
+  
 
 
 
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
+  clopts.use_distributed_options();
+  clopts.attach_option("makegraph",
+                       &makegraph, makegraph,
+                       "If set, creates the initial disk graph file");
   clopts.attach_option("bound",
                        &bound, bound,
                        "Residual termination bound");
   clopts.attach_option("damping",
                        &damping, damping,
                        "The amount of message damping (higher = more damping)");
+  clopts.attach_option("ipfdamping",
+                       &ipfdamping, ipfdamping,
+                       "The amount of IPF damping. (lower == more damping)");
   clopts.attach_option("colors",
                        &colors, colors,
                        "The number of colors in the noisy image");
@@ -172,8 +254,9 @@ int main(int argc, char** argv) {
                        &pred_type, pred_type,
                        "Predicted image type {map, exp}");
   
+  
 
-  clopts.set_scheduler_type("splash(splash_size=100)");
+  clopts.set_scheduler_type("multiqueue_fifo");
   clopts.set_scope_type("edge");
   
 
@@ -203,30 +286,51 @@ int main(int argc, char** argv) {
 
   
   
-
-  // Create synthetic images -------------------------------------------------->
-  // Creating image for denoising
   std::cout << "Creating a synthetic image. " << std::endl;
   image img(rows, cols);
   img.paint_sunset(colors);
-  std::cout << "Saving image. " << std::endl;
-  img.save(orig_fn.c_str());
-  std::cout << "Corrupting Image. " << std::endl;
-  img.corrupt(sigma);
-  std::cout << "Saving corrupted image. " << std::endl;
-  img.save(noisy_fn.c_str());
+  
+  graphlab::binary_factor truecounts;
+  get_image_counts(img, truecounts, colors);
+
+            
+  // Create synthetic images -------------------------------------------------->
+  // Creating image for denoising
+  if (makegraph) {
+    std::cout << "Saving image. " << std::endl;
+    img.save(orig_fn.c_str());
+    std::cout << "Corrupting Image. " << std::endl;
+    img.corrupt(sigma);
+    std::cout << "Saving corrupted image. " << std::endl;
+    img.save(noisy_fn.c_str());
+    std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
+    gl_types::disk_graph dg("denoise_learn", 32);
+    gl_types::in_memory_graph g;
+
+    construct_graph(img, colors, sigma, g);
+    std::vector<graphlab::vertex_id_t> parts;
+    g.metis_partition(32, parts);
+    dg.create_from_graph(g, parts);
+    dg.finalize();
+    return 0;
+  }
 
 
+  std::cout << "True Counts: " << std::endl;
+  std::cout << truecounts;
  
   
+  graphlab::mpi_tools::init(argc, argv);
   
+  graphlab::dc_init_param param;
+  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  // create distributed control
+  graphlab::distributed_control dc(param);
   // Create the graph --------------------------------------------------------->
-  gl_types::core core;
+  gl_types::distributed_core core(dc, "denoise_learn.idx");
   // Set the engine options
   core.set_engine_options(clopts);
-  
-  std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-  construct_graph(img, colors, sigma, core.graph());
+  core.build_engine();
 
   
   // Setup global shared variables -------------------------------------------->
@@ -246,53 +350,79 @@ int main(int argc, char** argv) {
   }
   std::cout << edge_potential << std::endl;
   
-  EDGE_FACTOR.set(edge_potential);
-  BOUND.set(bound);
-  DAMPING.set(damping);
   
-
+  // fill the shared variales
+  sh_bound.set(bound);
+  sh_damping.set(damping);
+  sh_truecounts.set(truecounts);
+  sh_edgepot.set(edge_potential);
+  sh_ipfdamping.set(ipfdamping);
+  // make the true counts
+  
 
   // Running the engine ------------------------------------------------------->
   core.sched_options().add_option("update_function",bp_update);
-
   std::cout << "Running the engine. " << std::endl;
 
-  
-  // Add the bp update to all vertices
-  core.add_task_to_all(bp_update, 100.0);
-  // Starte the engine
-  double runtime = core.start();
-  
-  size_t update_count = core.last_update_count();
-  std::cout << "Finished Running engine in " << runtime 
-            << " seconds." << std::endl
-            << "Total updates: " << update_count << std::endl
-            << "Efficiency: " << (double(update_count) / runtime)
-            << " updates per second "
-            << std::endl;  
-
-
-  // Saving the output -------------------------------------------------------->
-  std::cout << "Rendering the cleaned image. " << std::endl;
-  if(pred_type == "map") {
-    for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-      const vertex_data& vdata = core.graph().vertex_data(v);
-      img.pixel(v) = vdata.belief.max_asg();    
-    }
-  } else if(pred_type == "exp") {
-    for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
-      const vertex_data& vdata = core.graph().vertex_data(v);
-      img.pixel(v) = vdata.belief.expectation();
-    }
-  } else {
-    std::cout << "Invalid prediction type! : " << pred_type
-              << std::endl;
-    return EXIT_FAILURE;
+  graphlab::binary_factor zero;
+  zero.resize(colors,colors);
+  zero.set_as_agreement(0);
+  core.set_sync(sh_edgepot,
+                edgepot_sync,
+                edgepot_apply,
+                zero,
+                rows*cols,
+                edgepot_merge);
+  graphlab::binary_factor oldedgepot = sh_edgepot.get_val();
+  graphlab::timer ti;
+  ti.start();
+  // loop it a few times
+  size_t update_count = 0;
+  for (size_t i = 0;i < 10; ++i) {
+    std::cout << "restart " << i << "\n";
+    // Add the bp update to all vertices
+    core.add_task_to_all(bp_update, 100.0);
+    // Start the engine
+    core.start();
+    update_count += core.last_update_count();
+    graphlab::binary_factor newedgepot = sh_edgepot.get_val();
+    if (binary_factor_equal(oldedgepot, newedgepot)) break;
+    oldedgepot = newedgepot;
   }
-  std::cout << "Saving cleaned image. " << std::endl;
-  img.save(pred_fn.c_str());
+  double runtime = ti.current_time();
+  
+  if (dc.procid() == 0) {
+    std::cout << "Finished Running engine in " << runtime 
+              << " seconds." << std::endl
+              << "Total updates: " << update_count << std::endl
+              << "Efficiency: " << (double(update_count) / runtime)
+              << " updates per second "
+              << std::endl;  
 
-  std::cout << "Done!" << std::endl;
+    
+    // Saving the output ----------------------------------------------------->
+    std::cout << "Rendering the cleaned image. " << std::endl;
+    if(pred_type == "map") {
+      for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+        const vertex_data vdata = core.graph().get_vertex_data(v);
+        img.pixel(v) = vdata.belief.max_asg();    
+      }
+    } else if(pred_type == "exp") {
+      for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
+        const vertex_data vdata = core.graph().get_vertex_data(v);
+        img.pixel(v) = vdata.belief.expectation();
+      }
+    } else {
+      std::cout << "Invalid prediction type! : " << pred_type
+                << std::endl;
+      return EXIT_FAILURE;
+    }
+    std::cout << "Saving cleaned image. " << std::endl;
+    img.save(pred_fn.c_str());
+
+    std::cout << "Done!" << std::endl;
+  }
+  graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
 
@@ -305,10 +435,8 @@ void bp_update(gl_types::iscope& scope,
                gl_types::icallback& scheduler) {
   //  std::cout << scope.vertex();;
   //  std::getchar();
-
-  // Get the shared data
-  double bound = BOUND.get_val();
-  double damping = DAMPING.get_val();
+  double bound = sh_bound.get_val();
+  double damping = sh_damping.get_val();
 
   // Grab the state from the scope
   // ---------------------------------------------------------------->
@@ -345,9 +473,8 @@ void bp_update(gl_types::iscope& scope,
   
   // Compute outbound messages
   // ---------------------------------------------------------------->
-
-  boost::shared_ptr<const graphlab::binary_factor> edge_factor_ptr = EDGE_FACTOR.get_ptr();
-  const graphlab::binary_factor &edge_factor = *edge_factor_ptr;
+  graphlab::binary_factor edge_factor = sh_edgepot.get_val();
+  
   
   // Send outbound messages
   graphlab::unary_factor cavity, tmp_msg;
@@ -392,10 +519,100 @@ void bp_update(gl_types::iscope& scope,
 } // end of BP_update
 
 
+void edgepot_sync(gl_types::iscope &scope,  graphlab::any& acc) {
+  gl_types::edge_list in_edges = scope.in_edge_ids();
+  gl_types::edge_list out_edges = scope.out_edge_ids();
+  assert(in_edges.size() == out_edges.size()); // Sanity check
+  
+  graphlab::binary_factor& counts = acc.as<graphlab::binary_factor>();
+  
+  // Get the in and out edge data
+  // the edge belief of u -- v
+  // belief of u / msg_{v->u) * belief of v / msg_{u->v} * edgepot;
+
+  const graphlab::unary_factor& blfu = scope.const_vertex_data().belief;
+  
+  foreach(graphlab::edge_id_t ineid, in_edges) {   
+    
+    graphlab::vertex_id_t srcv = scope.source(ineid);
+    // message from v->u
+    const graphlab::unary_factor &msgvu = 
+      scope.const_edge_data(ineid).message;
+    // belief at v
+    const graphlab::unary_factor& blfv= 
+      scope.const_neighbor_vertex_data(srcv).belief;
+    // get the message from u->v. requires the reverse edge
+    graphlab::edge_id_t outeid = scope.reverse_edge(ineid);
+    const graphlab::unary_factor &msguv = 
+      scope.const_edge_data(outeid).message;
+    
+    const graphlab::binary_factor edge_factor = sh_edgepot.get_val();
+    
+    graphlab::binary_factor edge_belief;
+    edge_belief.resize(blfu.arity(), blfv.arity());
+    // loop through my assignments and my neighbor assignments
+    
+    // using logP to store actual counts
+    for (size_t i = 0;i < blfu.arity(); ++i) {
+      for (size_t j = 0;j < blfv.arity(); ++j) {
+        edge_belief.logP(i,j) = 
+          blfu.logP(i) - msgvu.logP(i) + blfv.logP(j) - 
+          msguv.logP(j) + edge_factor.logP(i,j);
+      }
+    }
+    edge_belief.normalize();
+    for (size_t i = 0;i < edge_belief.arity1(); ++i) {
+      for (size_t j = 0;j < edge_belief.arity2(); ++j) {
+        counts.logP(i,j) += std::exp(edge_belief.logP(i,j));
+      }
+    }
+    
+  }
+}
+
+void edgepot_merge(graphlab::any& result,  const graphlab::any& acc) {
+  graphlab::binary_factor& res = result.as<graphlab::binary_factor>();
+  const graphlab::binary_factor& a = acc.as<graphlab::binary_factor>();
+
+  for (size_t i = 0;i < res.arity1(); ++i) {
+    for (size_t j = 0;j < res.arity2(); ++j) {
+      res.logP(i,j) += a.logP(i,j);
+    }
+  }
+}
+
+void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
+  // IPF update
+  graphlab::binary_factor& res = result.as<graphlab::binary_factor>();
+  graphlab::binary_factor truecounts = sh_truecounts.get_val();
+  const graphlab::binary_factor& curcounts = 
+    acc.as<graphlab::binary_factor>();
+  double ipfdamping = sh_ipfdamping.get_val();
+  // perform the IPF update
+  // note that BP+IPF can be quite unstable. 
+  // (We do recommend the gradient update in practice)
+  // so lets only update the parameter values if they change by > 1E-1
+  for (size_t i = 0;i < res.arity1(); ++i) {
+    for (size_t j = 0;j < res.arity2(); ++j) {
+      // + 100 to avoid divide by 0 problems
+      double newval = 
+        ipfdamping * log((truecounts.logP(i,j)+100) / 
+                         (curcounts.logP(i,j)+100)) + 
+        (1 - ipfdamping) * res.logP(i,j);
+      if (std::fabs(res.logP(i,j) - newval) >= 1E-1) {
+        res.logP(i,j) = newval;
+      }
+    }
+  }
+  std::cout << "sync of edge pot!\n";
+  std::cout << res << std::endl;
+}
+
+
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& graph) {
+                     gl_types::in_memory_graph& graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.potential.resize(num_rings);

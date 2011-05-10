@@ -56,6 +56,9 @@ template <typename GraphType> class graph_lock;
  * many times as the number of distinct machines owning neighbors of
  * the vertex in question.
  * 
+ * The distributed graph structure is <b> not mutable </b>. Only the graph
+ * data is mutable.
+ * 
  * Formally, where \f$ \Gamma(v)\f$ is the set of neighbors of \f$
  * v\f$ and \f$o(v)\f$ is the owner of vertex v, vertex v is
  * replicated \f$ \mbox{DISTINCT} \left( \left\{ o(u), u \in \left\{
@@ -72,18 +75,10 @@ template <typename GraphType> class graph_lock;
  * 
  * 
  *
- * Vertex / Edge IDs: 
+ * Vertex IDs: 
  * 
- * Every vertex/edge in the graph has a uniquely assigned global
- * vertex/edge ID.  The task of guaranteeing unique sequential
- * assignment is currently managed by machine 0.
- * 
- * \note If this is a performance issue in the future, the sequential
- * assignment guarantee could be dropped by having either a
- * post-graph-construction renumbering scheme, or by building the rest
- * of the components of GraphLab to not depend on sequential
- * numbering. The user should not expect the sequential numbering
- * property to be preserved in future versions.
+ * Every vertex in the graph has a uniquely assigned global
+ * vertex. 
  * 
  * Each machine has a local representation for its fragment of the
  * graph. Within the local fragment, each vertex/edge has a local
@@ -97,6 +92,20 @@ template <typename GraphType> class graph_lock;
  *      produce the same sequence whether or not we sort by global IDs 
  *      or Local IDs. </li>
  * </ul>
+ * 
+ * 
+ * Graph Data:
+ * 
+ * Accessing and modifying graph data through get_edge_data_from_pair(), 
+ * get_vertex_data(), set_edge_data_from_pair() and set_vertex_data() functions
+ * are fully parallel and can be called simultaneously from any machine.
+ * Remote accesses are automatically managed.
+ * 
+ * The regular vertex_data() and edge_data() functions which return references
+ * are still available. However, as a matter of necessity, only local vertices /
+ * local edges are accessible through these functions. An assertion failure
+ * will be raised if remote vertices / remote edges are accessed through 
+ * vertex_data() or edge_data().
  * 
  * Consistency: 
  * 
@@ -118,18 +127,27 @@ class distributed_graph {
   typedef EdgeData edge_data_type;
   typedef dgraph_edge_list edge_list_type;
   
+  /**
+   * Constructs a distributed graph loading the graph from the atom index
+   * 'indexfilename'
+   */
   distributed_graph(distributed_control &dc, 
                     std::string indexfilename, 
                     bool do_not_load_data = false,
                     bool do_not_mmap = true,
                     bool sliced_partitioning = false):
                               rmi(dc, this),
+                              indexfilename(indexfilename),
                               globalvid2owner(dc, 65536),
                               pending_async_updates(true, 0),
                               pending_push_updates(true, 0),
                               graph_metrics("distributed_graph"){
+
+    if (do_not_mmap == false) {
+      logstream(LOG_WARNING) << "Using MMAP for local storage is highly experimental" << std::endl;
+    }
+                                
     cur_proc_vector.push_back(rmi.procid());
-    
     // read the atom index.
     atom_index_file atomindex;
     atomindex.read_from_file(indexfilename);
@@ -138,35 +156,60 @@ class distributed_graph {
     numglobaledges = atomindex.nedges;
     numcolors = atomindex.ncolors;
     // machine 0 partitions it
-    std::vector<std::vector<size_t> > partitions;
     if (dc.procid() == 0) {
       if (sliced_partitioning == false) {
-        partitions = partition_atoms(atomindex, dc.numprocs());
+        atompartitions = partition_atoms(atomindex, dc.numprocs());
       }
       else {
-        partitions = partition_atoms_sliced(atomindex, dc.numprocs());
+        atompartitions = partition_atoms_sliced(atomindex, dc.numprocs());
       }
 
-      for (size_t i = 0;i < partitions.size(); ++i) {
+      for (size_t i = 0;i < atompartitions.size(); ++i) {
         logstream(LOG_DEBUG) << i << ":";
-        for (size_t j = 0; j < partitions[i].size(); ++j) {
-          logstream(LOG_DEBUG) << partitions[i][j] << ", ";
+        for (size_t j = 0; j < atompartitions[i].size(); ++j) {
+          logstream(LOG_DEBUG) << atompartitions[i][j] << ", ";
         }
         logstream(LOG_DEBUG) << std::endl;
       }
-
     }
-    rmi.broadcast(partitions, dc.procid() == 0);
-    construct_local_fragment(atomindex, partitions, rmi.procid(), do_not_load_data, do_not_mmap);
+    dc.barrier();
+    rmi.broadcast(atompartitions, dc.procid() == 0);
+    construct_local_fragment(atomindex, atompartitions, rmi.procid(), do_not_load_data, do_not_mmap);
     rmi.barrier();
   }
 
   ~distributed_graph() {
     rmi.barrier();
   }
-  /**
-   * Returns the number of vertices in the graph.
-   */
+
+  
+  
+  /// Saves the local fragment back to disk
+  void save() {
+    atom_index_file atomindex;
+    atomindex.read_from_file(indexfilename);
+    
+    std::vector<size_t>& atoms_in_curpart = atompartitions[rmi.procid()];
+
+    #pragma omp parallel for
+    for (int i = 0;i < (int)atoms_in_curpart.size(); ++i) {
+      size_t atomid = atoms_in_curpart[i];
+      disk_atom atom(atomindex.atoms[atomid].file, atomid);
+      // go through the set of owned vertices
+      foreach(vertex_id_t vid, atom.enumerate_vertices()) {
+        // update the data on the vertex. I should own this vertex
+        atom.set_vertex(vid, atomid, vertex_data(vid));
+        // go through the set of owned edges
+        foreach(vertex_id_t src, atom.get_in_vertices(vid)) {
+          // update the data on the edge. I should own this edge
+          atom.set_edge(src, vid, edge_data(src, vid));
+        }
+      }
+    }
+  }
+  
+
+  /// Returns the number of vertices in the graph.
   size_t num_vertices() const{
       return numglobalverts;
   }
@@ -175,13 +218,12 @@ class distributed_graph {
     return owned_vertices().size();
   }
 
-  /**
-   * Returns the number of edges in the graph.
-   */  
+  /// Returns the number of edges in the graph.
   size_t num_edges() const{
       return numglobaledges;
   }
 
+  /// Returns the number of incoming edges of vertex 'vid'
   size_t num_in_neighbors(vertex_id_t vid) const {
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
       global2localvid.find(vid);
@@ -202,7 +244,7 @@ class distributed_graph {
                               vid);
   }
 
-
+  /// Returns the number of outgoing edges of vertex 'vid'
   size_t num_out_neighbors(vertex_id_t vid) const {
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
       global2localvid.find(vid);
@@ -226,6 +268,11 @@ class distributed_graph {
   }
 
 
+  /** \brief Finds an edge return the edge id
+  The value of the first element of the pair will be true if an 
+  edge from src to target is found and false otherwise. If the 
+  edge is found, the edge ID is returned in the second element of the pair. 
+  The target vertex must be owned by this machine. */
   std::pair<bool, edge_id_t>
   find(vertex_id_t source, vertex_id_t target) const {
     std::pair<bool, edge_id_t> ret;
@@ -258,7 +305,7 @@ class distributed_graph {
     }
   }
 
-  // unsafe version of find
+  /// unsafe version of find
   edge_id_t edge_id(vertex_id_t source, vertex_id_t target) const {
     std::pair<bool, edge_id_t> res = find(source, target);
     // The edge must exist
@@ -266,6 +313,7 @@ class distributed_graph {
     return res.second;
   }
 
+  /// Reverses an existing edge id
   edge_id_t rev_edge_id(edge_id_t eid) const {
     // do I have this edge in the fragment?
     return localstore.rev_edge_id(eid);
@@ -283,6 +331,7 @@ class distributed_graph {
       return local2globalvid[localstore.target(eid)];
   }
 
+  /// Returns the set of incoming vertices of vertex v
   std::vector<vertex_id_t> in_vertices(vertex_id_t v) const {
     if (is_owned(v)) {
       // switch to localeid
@@ -304,6 +353,7 @@ class distributed_graph {
     }
   }
   
+  /// Returns the set of outgoing vertices of vertex v
   std::vector<vertex_id_t> out_vertices(vertex_id_t v) const {
     if (is_owned(v)) {
       // switch to localeid
@@ -341,6 +391,7 @@ class distributed_graph {
     return dgraph_edge_list(in_edge_id_as_vec(v));
   } // end of in edges
 
+    /** \brief Return the edge ids of the edges arriving at v as a vector */
   std::vector<edge_id_t> in_edge_id_as_vec(vertex_id_t v) const {
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
       global2localvid.find(v);
@@ -377,7 +428,7 @@ class distributed_graph {
 
 
 
-
+  /** \brief Return the edge ids of the edges leaving at v as a vector*/
   std::vector<edge_id_t> out_edge_id_as_vec(vertex_id_t v) const {
     boost::unordered_map<vertex_id_t, vertex_id_t>::const_iterator iter = 
       global2localvid.find(v);
@@ -404,7 +455,7 @@ class distributed_graph {
   } // end of in edges
 
 
-
+  /// Prints the local store
   void print(std::ostream &out) const {
     for (size_t i = 0;i < localstore.num_edges(); ++i) {
       std::cout << local2globalvid[localstore.source(i)] << ", " 
@@ -996,8 +1047,6 @@ class distributed_graph {
   /**
  * synchronize the entire scope for vertex vid
  * vid must be owned by the current machine. 
- * \todo: This function can be optimized to issue all requests simultaneously and 
- * wait for replies instead of issueing them sequentially.
  * This function synchronizes all ghost data on this scope
  * with their owners.
  */
@@ -1014,44 +1063,57 @@ class distributed_graph {
   When done, the callback is issued with the tag as the first argument.
   Allocate vertex callbacks must be called first. There can be at most one
   callback associated with any vertex. an assertion failure will be thrown otherwise.
-  vid must be adjacent to a vertex. An assertion will be thrown otherwise.
+  vid must be on the boundary of the fragment. An assertion will be thrown otherwise.
   */
-  void async_synchronize_scope_callback(vertex_id_t vid, boost::function<void (void)>);
+  void async_synchronize_scope_callback(vertex_id_t vid, 
+                                        boost::function<void (void)>);
 
   /**
  * Waits for all asynchronous data synchronizations to complete
  */
   void wait_for_all_async_syncs();
-  /*
+  /**
   Synchronize all ghost vertices
   */
   void synchronize_all_vertices(bool async = false);
   
-  /*
+  /**
   Synchronize all ghost edges
   */
   void synchronize_all_edges(bool async = false);
   
-  /*
-  Synchronize all ghost scopes. (does this make sense? Not really).
-  But we have it...
-  
+  /**
+  Synchronize all ghost scopes.
   */
   void synchronize_all_scopes(bool async = false);
 
-  /* These are called from the owner side to synchronize the 
-     owner against ghosts. Now, this family of functions has several caveats.
-     If the owner's versions is higher than all replicas, this will be fine.
-     
-     But if a ghost has modifications resulting in a version which is higher
-     than this owner's, the ghost will reject the owner's update resulting in
-     an unsynchronized state.
+  
+  /** Called from the owner side to synchronize the owner against ghosts. 
+   * Pushes an owned vertex to all ghosts.
   */
   void push_owned_vertex_to_replicas(vertex_id_t vid, bool async = false, bool untracked = false);
+  
+  /** Called from the owner side to synchronize the owner against ghosts. 
+   * Pushes an owned edge to all ghosts.
+  */
   void push_owned_edge_to_replicas(edge_id_t eid, bool async = false, bool untracked = false);
-  void push_owned_scope_to_replicas(vertex_id_t vid, bool modified_only, bool clear_modified, bool async = false, bool untracked = false);
+  
+  /** Called from the owner side to synchronize the owner against ghosts. 
+   * Pushes an owned scope to all ghosts.
+  */
+  void push_owned_scope_to_replicas(vertex_id_t vid, 
+                                    bool modified_only, 
+                                    bool clear_modified, 
+                                    bool async = false, 
+                                    bool untracked = false);
+
+  /** Updates all ghosted vertices. */
   void push_all_owned_vertices_to_replicas();
+  
+  /** Updates all ghosted edges . */
   void push_all_owned_edges_to_replicas();
+  
+  /** Waits for all asynchronous push requests to complete */
   void wait_for_all_async_pushes();
  public:
   
@@ -1107,6 +1169,9 @@ class distributed_graph {
 
  private:
   
+  std::string indexfilename;
+  std::vector<std::vector<size_t> > atompartitions;
+   
   /** Protects structural modifications of the graph.
    * Modifications to the data store and to the local<->global mappings
    * must lock this.
@@ -1581,11 +1646,8 @@ class distributed_graph {
     logger(LOG_INFO, "Load complete.");
     rmi.comm_barrier();
     std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
-    
   }
-  
 
-  
   vertex_conditional_store get_vertex_if_version_less_than(vertex_id_t vid, 
                                                            uint64_t vertexversion,
                                                            vertex_conditional_store &vdata);

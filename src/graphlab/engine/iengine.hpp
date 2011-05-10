@@ -328,14 +328,14 @@ namespace graphlab {
                           const any& zero,
                           size_t sync_interval = 0,
                           merge_function_type merge = NULL,
-                          size_t rangelow = 0,
-                          size_t rangehigh = -1) { }
+                          vertex_id_t rangelow = 0,
+                          vertex_id_t rangehigh = -1) = 0;
 
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    virtual void sync_now(glshared_base& shared) { };
+    virtual void sync_now(glshared_base& shared) = 0;
     
     // Convenience function.
     static std::string exec_status_as_string(exec_status es) {

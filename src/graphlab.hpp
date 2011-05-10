@@ -34,14 +34,11 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/shared_data/shared_data_includes.hpp>
 #include <graphlab/tasks/task_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
+#include <graphlab/distributed2/distributed2_includes.hpp>
 
 #include <graphlab/core.hpp>
+#include <graphlab/distributed_core.hpp>
 
-
-#ifdef GLDISTRIBUTED
-#include <graphlab/distributed/distributed_includes.hpp>
-#include <graphlab/distributed/distributed_engine.hpp>
-#endif 
 
 
 
@@ -84,6 +81,15 @@ namespace graphlab {
   struct types {
     ///  \brief The type of the Graph. 
     typedef Graph graph;
+    
+    typedef graphlab::graph<typename Graph::vertex_data_type,
+                            typename Graph::edge_data_type> in_memory_graph;
+
+    typedef graphlab::disk_graph<typename Graph::vertex_data_type,
+                                  typename Graph::edge_data_type> disk_graph;
+
+    typedef graphlab::distributed_graph<typename Graph::vertex_data_type,
+                                        typename Graph::edge_data_type> distributed_graph;
 
     /** \brief A convenient wrapper object around the commonly used
     portions of GraphLab.  This is useful for most GraphLab
@@ -91,6 +97,9 @@ namespace graphlab {
     */
     typedef graphlab::core<typename graph::vertex_data_type,
                            typename graph::edge_data_type> core;
+
+    typedef graphlab::distributed_core<typename graph::vertex_data_type,
+                                       typename graph::edge_data_type> distributed_core;
 
     typedef graphlab::command_line_options command_line_options;
     typedef graphlab::engine_options engine_options;
@@ -117,14 +126,12 @@ namespace graphlab {
 
 
     template<typename Scheduler, typename ScopeFactory>
-    struct engines {
-      typedef graphlab::
-      asynchronous_engine<graph, Scheduler, ScopeFactory> asynchronous;
-      #ifdef GLDISTRIBUTED
-      typedef graphlab::distributed_engine<graph, Scheduler> distributed;
-      #endif
-    };
-    
+    class asynchronous_engine: public graphlab::asynchronous_engine<graph, Scheduler, ScopeFactory> { };
+
+    template <typename Scheduler>
+    class distributed_locking_engine: public graphlab::distributed_locking_engine<graph, Scheduler> { };
+    class distributed_chromatic_engine: public graphlab::distributed_chromatic_engine<graph> { };
+
 
     typedef graphlab::fifo_scheduler<graph> fifo_scheduler;
     typedef graphlab::priority_scheduler<graph> priority_scheduler;
@@ -147,17 +154,18 @@ namespace graphlab {
     typedef graphlab::edge_id_t edge_id_t;
 
     typedef typename graph::edge_list_type edge_list;
-    
+       
     typedef graphlab::scheduler_options          scheduler_options;
     typedef graphlab::sched_status               sched_status;
     typedef graphlab::partition_method           partition_method;
     typedef graphlab::scope_range scope_range;
 
-    // typedef graphlab::random  random;
-
     template <typename T>
     class glshared:public graphlab::glshared<T> { };
-    
+
+    template <typename T>
+    class distributed_glshared:public graphlab::distributed_glshared<T> { };
+
     template <typename T>
     class glshared_const:public graphlab::glshared_const<T> { };
   };

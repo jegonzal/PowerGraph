@@ -192,7 +192,7 @@ namespace graphlab {
         sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
         sync_interval(-1),
         next_time(0), rangelow(0), 
-        rangehigh(size_t(-1)), sharedvariable(NULL) { }
+        rangehigh(vertex_id_t(-1)), sharedvariable(NULL) { }
     };
     
     /// A list of all registered sync tasks

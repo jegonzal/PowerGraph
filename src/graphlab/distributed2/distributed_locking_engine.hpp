@@ -164,8 +164,8 @@ private:
     size_t sync_interval;
     size_t next_time;
     any zero;
-    size_t rangelow;
-    size_t rangehigh;
+    vertex_id_t rangelow;
+    vertex_id_t rangehigh;
     distributed_glshared_base *sharedvariable;
     any mergeval;
     std::vector<any> thread_intermediate;
@@ -173,7 +173,7 @@ private:
       sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
       sync_interval(-1),
       next_time(0), rangelow(0), 
-      rangehigh(size_t(-1)), sharedvariable(NULL) { }
+      rangehigh(vertex_id_t(-1)), sharedvariable(NULL) { }
   };
   
   /// A list of all registered sync tasks
@@ -197,6 +197,8 @@ private:
   size_t numtasksdone;
 
   metrics engine_metrics;
+  
+  size_t total_update_count;
  public:
   distributed_locking_engine(distributed_control &dc,
                                     Graph& graph,
@@ -218,7 +220,7 @@ private:
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
-                            max_deferred_tasks(-1),
+                            max_deferred_tasks(1000),
                             ready_vertices(ncpus),
                             barrier_time(0.0),
                             const_nbr_vertices(true),
@@ -229,6 +231,7 @@ private:
                             threads_alive(ncpus),
                             binary_vertex_tasks(graph.local_vertices()),
                             engine_metrics("engine"),
+                            total_update_count(0),
                             reduction_barrier(ncpus) { 
     graph.allocate_scope_callbacks();
     dc.barrier();
@@ -282,18 +285,28 @@ private:
     return termination_reason;
   }
 
-  
+
   /**
    * This function computes the last update count by adding all the
    * update counts of the individual threads.  This is an underestimate
    * if the engine is currently running.
    */
-  size_t last_update_count() const {
+  size_t thisproc_update_counts() const {
     size_t sum = 0;
     for(size_t i = 0; i < update_counts.size(); ++i)
       sum += update_counts[i];
     return sum;
+  } 
+
+
+  /**
+   * Returns the total number of updates executed
+   */
+  size_t last_update_count() const {
+    return total_update_count;
   } // end of last_update_count
+
+
 
 
   /**
@@ -410,8 +423,8 @@ private:
                 const any& zero,
                 size_t sync_interval = 0,
                 merge_function_type merge = NULL,
-                size_t rangelow = 0,
-                size_t rangehigh = -1) {
+                vertex_id_t rangelow = 0,
+                vertex_id_t rangehigh = -1) {
     ASSERT_MSG(merge != NULL, "merge is required for the distributed engine");
     sync_task st;
     st.sync_fun = sync;
@@ -902,7 +915,7 @@ private:
     
     // proc 0 gathers all update counts
     std::vector<size_t> procupdatecounts(rmi.numprocs(), 0);
-    procupdatecounts[rmi.procid()] = last_update_count();
+    procupdatecounts[rmi.procid()] = thisproc_update_counts();
     rmi.gather(procupdatecounts, 0);
     
     std::vector<double> barrier_times(rmi.numprocs(), 0);
@@ -912,10 +925,12 @@ private:
     std::map<std::string, size_t> ret = rmi.gather_statistics();
 
     if (rmi.procid() == 0) {
+      total_update_count = 0;
       engine_metrics.add("runtime",
                         ti.current_time(), TIME);
       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
         engine_metrics.add_vector_entry("updatecount", i,  procupdatecounts[i]);
+        total_update_count += procupdatecounts[i];
       }
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         engine_metrics.add_vector_entry("barrier_time", i, barrier_times[i]);
@@ -960,10 +975,10 @@ private:
     rmi.barrier();
   }
   
-  void set_strength_reduction(bool strength_reduction_) {
+  void set_strength_reduction(bool strength_reduction_, size_t weak_color_ = 0) {
     strength_reduction = strength_reduction_;
     // TODO: More intelligent picking of the color to weaken
-    weak_color = 0;
+    weak_color = weak_color_;
     rmi.barrier();
   }
   
@@ -987,7 +1002,6 @@ private:
   }   
   
   
-  // Temp hack.
   long long int total_bytes_sent;
   long long int get_total_bytes_sent() {
      return total_bytes_sent;
