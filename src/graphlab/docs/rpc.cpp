@@ -73,7 +73,17 @@ We will discuss the different aspects of the RPC library seperately:
          Advanced usage of the RPC library. Creating and managing 
          distributed object contexts.
 
+\section Examples
+The tests/ directory include a collection of seven RPC examples demonstrating
+all the key features.
 
+\li RPC Example 1: Basic Synchronous RPC \ref rpc_example1.cpp
+\li RPC Example 2: Asynchronous RPC with Built-in Serialization \ref rpc_example2.cpp
+\li RPC Example 3: Asynchronous RPC with Struct POD Serialization \ref rpc_example3.cpp
+\li RPC Example 4: Asynchronous RPC with Manual Serialization \ref rpc_example4.cpp
+\li RPC Example 4: Asynchronous RPC to printf \ref rpc_example5.cpp
+\li RPC Example 4: Asynchronous RPC with any \ref rpc_example6.cpp
+\li RPC Example 4: Distributed Object \ref rpc_example7.cpp
 
 
 
