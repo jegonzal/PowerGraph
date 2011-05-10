@@ -27,7 +27,7 @@ implementation is built on top of this RPC library.
 GraphLab RPC uses extensive template meta-programming techniques to provide
 an \b IDL-free (http://en.wikipedia.org/wiki/Interface_description_language) 
 RPC system, allowing arbitrary functions to be called on program running on 
-remote machines (Note that all machines must the running the same binary).
+remote machines (Note that all machines must be running the same binary).
 
 For instance, this is a particularly interesting example:
 \code
