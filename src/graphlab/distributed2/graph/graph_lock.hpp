@@ -328,6 +328,7 @@ class graph_lock {
     plockparams.outidx = 0;
     plockparams.src_tag = src_tag;
     plockparams.curlocked = false;
+    plockparams.req.next = NULL;
     plockparams.scopetype = (scope_range::scope_range_enum)(scopetype);
     // if no lock needed on adjacent vertices
     // set inidx and outidx to infty

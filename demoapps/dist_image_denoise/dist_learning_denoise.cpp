@@ -309,7 +309,9 @@ int main(int argc, char** argv) {
 
     construct_graph(img, colors, sigma, g);
     std::vector<graphlab::vertex_id_t> parts;
+    std::cout << "Partitioning..." << std::endl;
     g.metis_partition(32, parts);
+    std::cout << "Saving..." << std::endl;
     dg.create_from_graph(g, parts);
     dg.finalize();
     return 0;

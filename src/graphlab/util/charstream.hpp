@@ -52,8 +52,7 @@ namespace graphlab {
 
       ~resizing_array_sink() {
         if( self_deleting && str != NULL) {
-          free(str);
-          str = NULL;
+          free((void*)str);
         }        
       }
 
