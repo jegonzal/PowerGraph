@@ -83,7 +83,7 @@ inline unsigned char compress_int(uint64_t u, char output[10]) {
 
 
 template <typename IntType>
-inline void decompress_int(char* arr, IntType &ret) {
+inline void decompress_int(const char* arr, IntType &ret) {
   // if 1st bit of u is set. could be negative,
   // flip all the bits if it is
   bool isneg = (arr[0] == 0);
@@ -97,6 +97,24 @@ inline void decompress_int(char* arr, IntType &ret) {
   };
   if (isneg)  ret = -ret;
 }
+
+template <typename IntType>
+inline void decompress_int_from_ref(const char* &arr, IntType &ret) {
+  // if 1st bit of u is set. could be negative,
+  // flip all the bits if it is
+  bool isneg = (arr[0] == 0);
+  if (isneg) ++arr;
+  
+  ret = 0;
+  while(1) {
+    ret = (ret << 7) | ((*arr) & 0x7F);
+    if ((*arr) & 0x80) break;
+    ++arr;
+  };
+  if (isneg)  ret = -ret;
+  ++arr;
+}
+
 
 template <typename IntType>
 inline void decompress_int(std::istream &strm, IntType &ret) {

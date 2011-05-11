@@ -231,14 +231,36 @@ class disk_graph {
     return v;
   }
   
+  /** 
+  * \brief Creates a vertex containing the vertex data and returns the id
+  * of the new vertex id. Vertex ids are assigned in increasing order with
+  * the first vertex having id 0.
+  * Vertex is stored in atom locationhint
+  */
   vertex_id_t add_vertex(const VertexData& vdata, 
                          uint16_t locationhint) {
     vertex_id_t v = numv.inc_ret_last();
     uint16_t owner = locationhint;
     atoms[owner]->add_vertex(v, owner, vdata);
-    atoms[owner]->set_owner(v, owner);
+    atoms[v % atoms.size()]->set_owner(v, owner);
     return v;
   }
+  
+  /**
+   * Adds a vertex with vertex ID vid.
+   * This function should be used with care as it will conflict
+   * with the other add_vertex functions which automatically assign vertex_ids
+   * Generally, this function is not safe to use together with the other
+   * add_vertex functions.
+   */
+  void add_vertex_unsafe(vertex_id_t vid,
+                          const VertexData& vdata, 
+                          uint16_t locationhint) {
+    uint16_t owner = locationhint;
+    atoms[owner]->add_vertex(vid, owner, vdata);
+    atoms[vid % atoms.size()]->set_owner(vid, owner);
+  }
+  
   /**
    * Adds a collection vdata.size() 
    * The collection of vertices will be assigned the name 'collectionname'
@@ -350,7 +372,25 @@ class disk_graph {
     }
   }
   
-  
+  /**
+   * Inserts an edge using explicitly specified locations for the source
+   * and target. Faster, but potentially unsafe.
+   */
+  void add_edge_explicit(vertex_id_t source, uint16_t sourceowner,
+                         vertex_id_t target, uint16_t targetowner,
+                         const EdgeData& edata = EdgeData()) {
+    nume.inc();
+    atoms[targetowner]->add_edge(source, target, edata);
+    atoms[targetowner]->inc_numlocale();
+    // create ghosts
+    if (sourceowner != targetowner) {
+      atoms[sourceowner]->add_edge(source, target);
+      atoms[sourceowner]->add_vertex_skip(target, targetowner);
+      atoms[targetowner]->add_vertex_skip(source, sourceowner);
+    }
+  }
+
+
   void set_color(vertex_id_t vid, vertex_color_type color) {
     uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
     ASSERT_NE(owner, (uint16_t)(-1));
@@ -454,6 +494,9 @@ class disk_graph {
     atoms[owner]->set_vertex(vid, owner, vdata);
   }
   
+  size_t num_atoms() const {
+    return atoms.size();
+  }
  private:
    
   // block copies

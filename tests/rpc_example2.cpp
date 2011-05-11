@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc.hpp>
@@ -43,11 +44,14 @@ int main(int argc, char ** argv) {
     /** Call the remote machine */  
     vec = dc.remote_request(1, add_one, vec);
     
+    std::stringstream strm;
     /** Print the vector */  
     for (size_t i = 0; i < vec.size(); ++i) {
-      std::cout << vec[i] << ", ";
+      strm << vec[i] << ", ";
     }
-    std::cout << std::endl;
+    strm << std::endl;
+    strm.flush();
+    dc.remote_call(1, print, strm.str());
   }
   dc.barrier();
 

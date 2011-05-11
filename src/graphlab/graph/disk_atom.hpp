@@ -158,6 +158,13 @@ class disk_atom{
   void add_edge(vertex_id_t src, vertex_id_t target);
   
   /**
+   * \brief Inserts edge src->target into the file without data. 
+   * If the edge already exists, nothing will be done.
+   * Returns true if edge was added.
+   */
+  bool add_edge_skip(vertex_id_t src, vertex_id_t target);
+  
+  /**
    * \brief Inserts edge src->target into the file. If the edge already exists,
    * it will be overwritten.
    */
@@ -262,6 +269,7 @@ class disk_atom{
     iarchive iarc(istrm);
     iarc >> owner;
     // try to deserialize vdata if exists
+    istrm.peek();
     if (!istrm.eof()) iarc >> vdata;
     return true;
   }
@@ -363,6 +371,11 @@ class disk_atom{
   /// Number of edges owned by this atom
   inline uint64_t num_local_edges() const {
     return numlocale.value;
+  }
+  
+  /// Returns a reference to the underlying Kyoto Cabinet
+  inline kyotocabinet::HashDB& get_db() {
+    return db;
   }
 };
 

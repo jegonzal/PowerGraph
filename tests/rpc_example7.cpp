@@ -87,11 +87,19 @@ int main(int argc, char ** argv) {
     vec.set(2, "set from 1");
   }
   dc.barrier();
-  
-  std::cout << vec.get(1) << "\n";  
-  std::cout << vec.get(2) << "\n";  
-  std::cout << vec.get(10) << "\n";
-  std::cout << vec.get(11) << std::endl;
+  if (dc.procid() == 0) {
+    std::cout << vec.get(1) << "\n";  
+    std::cout << vec.get(2) << "\n";  
+    std::cout << vec.get(10) << "\n";
+    std::cout << vec.get(11) << std::endl;
+  }
+  dc.barrier();
+  if (dc.procid() == 1) {
+    std::cout << vec.get(1) << "\n";  
+    std::cout << vec.get(2) << "\n";  
+    std::cout << vec.get(10) << "\n";
+    std::cout << vec.get(11) << std::endl;
+  }
   dc.barrier();
   
   mpi_tools::finalize();

@@ -30,11 +30,7 @@ namespace graphlab {
 
 namespace dgraph_elist_impl {
   
-edge_id_t eid_identity(edge_id_t eid) {
-  return eid;
-}
-
-
+edge_id_t eid_identity(edge_id_t eid);
 
 }
 

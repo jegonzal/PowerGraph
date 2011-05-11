@@ -23,6 +23,7 @@ add_executable(rpc_example5 rpc_example5.cpp)
 add_executable(rpc_example6 rpc_example6.cpp)
 add_executable(rpc_example7 rpc_example7.cpp)
 
+add_executable(distributed_dg_construction_test distributed_dg_construction_test.cpp)
 add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
 
 ADD_CXXTEST(md5test.cxx)

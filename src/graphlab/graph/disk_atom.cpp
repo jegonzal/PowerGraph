@@ -103,6 +103,13 @@ bool disk_atom::add_vertex_skip(vertex_id_t vid, uint16_t owner) {
 
 
 void disk_atom::add_edge(vertex_id_t src, vertex_id_t target) {
+  if (!add_edge_skip(src, target)) {
+    db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
+  }
+}
+
+
+bool disk_atom::add_edge_skip(vertex_id_t src, vertex_id_t target) {
   if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""))) {
     // increment the number of edges
     nume.inc();
@@ -114,12 +121,10 @@ void disk_atom::add_edge(vertex_id_t src, vertex_id_t target) {
     std::string iadj_key = "i"+id_to_str(target);
     uint64_t src64 = (uint64_t)src;
     db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
+    return true;
   }
-  else {
-    db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
-  }
+  return false;
 }
-
 
 std::vector<vertex_id_t> disk_atom::enumerate_vertices() {
   std::vector<vertex_id_t> ret;

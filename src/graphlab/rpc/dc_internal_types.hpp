@@ -85,11 +85,14 @@ inline void charstring_free<char*>(char* &c){
  * 
  * The data needed to receive the matched send / recvs */
 struct recv_from_struct {
+  inline recv_from_struct():tag(0), hasdata(false) { }
+  
   std::string data;
   size_t tag;
   mutex lock;
   conditional cond;
   bool hasdata;
+  
 };
 
 /**
