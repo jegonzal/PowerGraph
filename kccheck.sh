@@ -81,7 +81,7 @@ else
     if [ -d "lib" ] ; then
       rm -f lib/libkyotocabinet*
     fi
-    tar -xjvf kyotocabinet.tar.gz
+    tar -xzvf kyotocabinet.tar.gz
     # cd into kyoto cabinet directory
     cd kyotocabinet-1.2.53
     # build kyoto cabinet
