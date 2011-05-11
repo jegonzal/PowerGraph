@@ -1,4 +1,7 @@
 project(tests)
+
+
+
 link_libraries(${Boost_LIBRARIES})
 link_libraries(${GraphLab_LIBRARIES})
 include_directories( . )
@@ -28,6 +31,4 @@ add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
 
 ADD_CXXTEST(md5test.cxx)
 
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/runtests.sh
-    ${CMAKE_CURRENT_BINARY_DIR}/runtests.sh COPYONLY)
+copyfile(runtests.sh)

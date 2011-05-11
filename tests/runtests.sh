@@ -90,7 +90,8 @@ mpiexec -n 2 -host $localhostname ./distributed_dg_construction_test > /dev/null
 quit_if_bad_retvalue
 rm -f dg*
 
+echo "Testing Distributed Graph ..."
 ./distributed_graph_test -g
-mpiexec -n 2 -host $localhostname ./distributed_graph_test > /dev/null 2> /dev/null
+mpiexec -n 2 -host $localhostname ./distributed_graph_test -b > /dev/null 2> /dev/null
 quit_if_bad_retvalue
 rm -f dg*
