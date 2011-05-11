@@ -1282,6 +1282,7 @@ class distributed_graph {
       atoms_in_curpart_set.set_bit(atoms_in_curpart[i]);
       atomfiles[i] = new disk_atom(atomindex.atoms[atoms_in_curpart[i]].file, 
                                     atoms_in_curpart[i]);
+      atomfiles[i]->precache();
       vertices_in_atom[i] = atomfiles[i]->enumerate_vertices();
     }
     

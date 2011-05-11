@@ -25,6 +25,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <boost/iostreams/stream.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <kchashdb.h>
+#include <kccachedb.h>
 
 namespace graphlab {
   
@@ -58,11 +59,14 @@ namespace graphlab {
 class disk_atom{
  private:
   kyotocabinet::HashDB db;
+  kyotocabinet::CacheDB cache;  // a REALLY simple cache of the db.
+                                // with only one global invalidate flag
   //kyotocabinet::HashDB db;
   
   /// a linked list of vertex IDs stored here
   uint64_t head_vid;
   uint64_t tail_vid;
+  bool cache_invalid;
   
   atomic<uint64_t> numv;
   atomic<uint64_t> nume;
@@ -107,6 +111,10 @@ class disk_atom{
    */
   void add_vertex(vertex_id_t vid, uint16_t owner);
   
+  /**
+   * Reads the entire hash table into cache
+   */
+  void precache();
   
   /**
    * \brief Inserts vertex 'vid' into the file without data.
@@ -141,12 +149,14 @@ class disk_atom{
         mut.unlock();
         db.set(tail_next_key.c_str(), tail_next_key.length(),
                (char*)&vid, sizeof(vid));
+        cache_invalid = true;
       }
       numv.inc();
       if (owner == atomid) numlocalv.inc();
     }
     else {
       db.set("v"+id_to_str(vid), strm.str());
+      cache_invalid = true;
     }
   }
   
@@ -185,9 +195,11 @@ class disk_atom{
       std::string iadj_key = "i"+id_to_str(target);
       uint64_t src64 = (uint64_t)src;
       db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
+      cache_invalid = true;
     }
     else {
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
+      cache_invalid = true;
     }
   }
   
@@ -204,6 +216,7 @@ class disk_atom{
     oarc << owner;
     strm.flush();
     db.set("v"+id_to_str(vid), strm.str());
+    cache_invalid = true;
   }
   
 
@@ -219,6 +232,7 @@ class disk_atom{
     oarc << owner << vdata;
     strm.flush();
     db.set("v"+id_to_str(vid), strm.str());
+    cache_invalid = true;
   }
   
 
@@ -230,6 +244,7 @@ class disk_atom{
   template <typename T>
   void set_edge(vertex_id_t src, vertex_id_t target) {
     db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
+    cache_invalid = true;
   }
   
   /**
@@ -243,6 +258,7 @@ class disk_atom{
     oarc << edata;
     strm.flush();
     db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
+    cache_invalid = true;
   }
   
   
@@ -262,7 +278,10 @@ class disk_atom{
   template <typename T>
   bool get_vertex(vertex_id_t vid, uint16_t &owner, T &vdata) {
     std::string val;
-    if (db.get("v"+id_to_str(vid), &val) == false) return false;
+    std::string key = "v"+id_to_str(vid);
+    if (cache_invalid || cache.get(key, &val) == false) {
+      if (db.get("v"+id_to_str(vid), &val) == false) return false;
+    }
     
     boost::iostreams::stream<boost::iostreams::array_source> 
                                 istrm(val.c_str(), val.length());   
@@ -282,7 +301,10 @@ class disk_atom{
   template <typename T>
   bool get_edge(vertex_id_t src, vertex_id_t target, T &edata) {
     std::string val;
-    if (db.get("e"+id_to_str(src)+"_"+id_to_str(target), &val) == false) return false;
+    std::string key = "e"+id_to_str(src)+"_"+id_to_str(target);
+    if (cache_invalid || cache.get(key, &val) == false) {
+      if (db.get(key, &val) == false) return false;
+    }
     if (val.length() > 0) {
       // there is edata
       boost::iostreams::stream<boost::iostreams::array_source> 

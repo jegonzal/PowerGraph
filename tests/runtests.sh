@@ -58,6 +58,7 @@ quit_if_bad_retvalue
 
 popd > /dev/null
 
+echo
 echo "RPC Tests"
 echo "========="
 echo "Testing for availability of an MPI daemon"
@@ -80,7 +81,16 @@ test_rpc_prog rpc_example5 "1 + 2.000000 = three"
 test_rpc_prog rpc_example6 "10\\|15\\|hello world\\|10.5\\|10"
 test_rpc_prog rpc_example7 "set from 1\\|set from 1\\|set from 0\\|set from 0\\|set from 1\\|set from 1\\|set from 0\\|set from 0"
 
+echo
+echo "Distributed GraphLab Tests"
+echo "=========================="
+
 echo "Testing Distributed disk graph construction..."
 mpiexec -n 2 -host $localhostname ./distributed_dg_construction_test > /dev/null 2> /dev/null
 quit_if_bad_retvalue
-rm dg*
+rm -f dg*
+
+./distributed_graph_test -g
+mpiexec -n 2 -host $localhostname ./distributed_graph_test > /dev/null 2> /dev/null
+quit_if_bad_retvalue
+rm -f dg*

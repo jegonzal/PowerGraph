@@ -134,6 +134,7 @@ atom_properties merge_parallel_disk_atom(std::vector<std::string> disk_atom_file
         atomout.set_owner(vid, owner);
       }
     }
+    delete cur;
   }
   atomout.synchronize();
   atom_properties ret;

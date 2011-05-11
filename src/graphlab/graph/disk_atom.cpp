@@ -34,6 +34,7 @@ disk_atom::disk_atom(std::string filename,
 #if __LP64__
   db.tune_map(256 * 1024 * 1024); // 256MB
 #endif
+  cache_invalid = true;
   ASSERT_TRUE(db.open(filename));
   // get the pointers to the linked list of vertices
   if (db.get("head_vid", 7, (char*)&head_vid, sizeof(head_vid)) == -1) head_vid = (uint64_t)(-1);
@@ -44,7 +45,16 @@ disk_atom::disk_atom(std::string filename,
   if (db.get("numlocale", 9, (char*)&numlocale.value, sizeof(numlocale.value)) == -1) numlocale = 0;
 }
 
-
+void disk_atom::precache() {
+  kyotocabinet::HashDB::Cursor* cur = db.cursor();
+  cur->jump();
+  std::string key, val;
+  while (cur->get(&key, &val, true)) {
+    cache.set(key, val);
+  }
+  delete cur;
+  cache_invalid = false;
+}
 
 disk_atom::~disk_atom() {
   synchronize();
@@ -69,6 +79,7 @@ void disk_atom::add_vertex(vertex_id_t vid, uint16_t owner) {
     oarc << owner;
     strm.flush();
     db.set("v"+id_to_str(vid), strm.str());
+    cache_invalid = true;
   }
 }
 
@@ -93,6 +104,7 @@ bool disk_atom::add_vertex_skip(vertex_id_t vid, uint16_t owner) {
       mut.unlock();
       db.set(tail_next_key.c_str(), tail_next_key.length(), 
              (char*)&vid, sizeof(vid));
+      cache_invalid = true;
     }
     numv.inc();
     if (owner == atomid) numlocalv.inc();
@@ -105,6 +117,7 @@ bool disk_atom::add_vertex_skip(vertex_id_t vid, uint16_t owner) {
 void disk_atom::add_edge(vertex_id_t src, vertex_id_t target) {
   if (!add_edge_skip(src, target)) {
     db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
+    cache_invalid = true;
   }
 }
 
@@ -134,8 +147,11 @@ std::vector<vertex_id_t> disk_atom::enumerate_vertices() {
     while(1) {
       ret.push_back((vertex_id_t)(curvid));
       std::string next_key = "ll" + id_to_str(curvid);
-      if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
-        break;
+      if (cache_invalid || 
+          cache.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
+        if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
+          break;
+        }
       }
     }
   }
@@ -145,7 +161,10 @@ std::vector<vertex_id_t> disk_atom::enumerate_vertices() {
 
 bool disk_atom::get_vertex(vertex_id_t vid, uint16_t &owner) {
   std::string val;
-  if (db.get("v"+id_to_str(vid), &val) == false) return false;
+  std::string key = "v"+id_to_str(vid);
+  if (cache_invalid || cache.get(key, &val) == false) {
+    if (db.get("v"+id_to_str(vid), &val) == false) return false;
+  }
   
   boost::iostreams::stream<boost::iostreams::array_source> 
                               istrm(val.c_str(), val.length());   
@@ -197,7 +216,8 @@ uint32_t disk_atom::max_color() {
 std::vector<vertex_id_t> disk_atom::get_in_vertices(vertex_id_t vid) {
   std::vector<vertex_id_t> ret;
   std::string val;
-  if (db.get("i"+id_to_str(vid), &val)) {
+  std::string key = "i"+id_to_str(vid);
+  if ((cache_invalid == false && cache.get(key, &val)) || db.get(key, &val)) {
     const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
     ASSERT_TRUE(val.length() % 8 == 0);
     size_t numel = val.length() / 8;
@@ -212,7 +232,8 @@ std::vector<vertex_id_t> disk_atom::get_in_vertices(vertex_id_t vid) {
 std::vector<vertex_id_t> disk_atom::get_out_vertices(vertex_id_t vid) {
   std::vector<vertex_id_t> ret;
   std::string val;
-  if (db.get("o"+id_to_str(vid), &val)) {
+  std::string key = "o"+id_to_str(vid);
+  if ((cache_invalid == false && cache.get(key, &val)) || db.get(key, &val)) {
     const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
     size_t numel = val.length() / 8;
     ASSERT_TRUE(val.length() % 8 == 0);
@@ -227,6 +248,9 @@ std::vector<vertex_id_t> disk_atom::get_out_vertices(vertex_id_t vid) {
 uint32_t disk_atom::get_color(vertex_id_t vid) {
   std::string key = "c" + id_to_str(vid);
   uint32_t ret;
+  if (cache_invalid == false && 
+      cache.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) != -1) return ret;
+
   if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) ret = (uint32_t)(-1);
   return ret;
 }
@@ -235,12 +259,16 @@ uint32_t disk_atom::get_color(vertex_id_t vid) {
 void disk_atom::set_color(vertex_id_t vid, uint32_t color) {
   std::string key = "c" + id_to_str(vid);
   db.set(key.c_str(), key.length(), (char*)&color, sizeof(color));
+  cache_invalid = true;
 }
 
 
 uint16_t disk_atom::get_owner(vertex_id_t vid) {
   std::string key = "h" + id_to_str(vid);
   uint16_t ret;
+  if (cache_invalid == false && 
+      cache.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) != -1) return ret;
+  
   if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) ret = (uint16_t)(-1);
   return ret;
 }
@@ -249,6 +277,7 @@ uint16_t disk_atom::get_owner(vertex_id_t vid) {
 void disk_atom::set_owner(vertex_id_t vid, uint16_t owner) {
   std::string key = "h" + id_to_str(vid);
   db.set(key.c_str(), key.length(), (char*)&owner, sizeof(owner));
+  cache_invalid = true;
 }
 
 
