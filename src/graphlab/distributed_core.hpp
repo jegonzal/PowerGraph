@@ -45,7 +45,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 namespace graphlab {
 
   // Predecleration 
-  template<typename Graph> struct types;
+  template<typename Graph> struct distributed_types;
   
 
 
@@ -85,7 +85,7 @@ namespace graphlab {
   template <typename VertexType, typename EdgeType>
   class distributed_core {
   public:
-    typedef graphlab::types<graphlab::distributed_graph<VertexType, EdgeType> > types;
+    typedef graphlab::distributed_types<graphlab::distributed_graph<VertexType, EdgeType> > distributed_types;
 
   public:
     /** default constructor. Graph is constructed using the atom index.
@@ -121,12 +121,12 @@ namespace graphlab {
     /** Get a modifiable reference to the graph associated with this core
      * This function is parallel.
      */
-    typename types::graph& graph() { return mgraph; }
+    typename distributed_types::distributed_graph& graph() { return mgraph; }
 
     /** Get a constant reference to the graph associated with this core
      * This function is parallel.
      */
-    const typename types::graph& graph() const { return mgraph; }
+    const typename distributed_types::distributed_graph& graph() const { return mgraph; }
 
     /**
      * \brief Set the type of scheduler.
@@ -222,7 +222,7 @@ namespace graphlab {
      * build_engine() must be called prior to this.
      * This function is parallel.
      */
-    typename types::iengine& engine() {
+    typename distributed_types::iengine& engine() {
       ASSERT_NE(mengine, NULL);
       return *mengine; 
     }
@@ -342,9 +342,9 @@ namespace graphlab {
      * using build_engine() prior to calling this function.
      */
     void add_task(vertex_id_t vertex,
-                  typename types::update_function func,
+                  typename distributed_types::update_function func,
                   double priority) {
-      typename types::update_task task(vertex, func);
+      typename distributed_types::update_task task(vertex, func);
       add_task(task, priority);
     }
 
@@ -354,7 +354,7 @@ namespace graphlab {
      * This function is parallel. Engine must have been constructed
      * using build_engine() prior to calling this function.
      */
-    void add_task(typename types::update_task task, double priority) {
+    void add_task(typename distributed_types::update_task task, double priority) {
       engine().add_task(task, priority);
     }
 
@@ -365,7 +365,7 @@ namespace graphlab {
      * using build_engine() prior to calling this function.
      */
     void add_tasks(const std::vector<vertex_id_t>& vertices, 
-                   typename types::update_function func, double priority) {
+                   typename distributed_types::update_function func, double priority) {
       engine().add_tasks(vertices, func, priority);
     }
 
@@ -375,7 +375,7 @@ namespace graphlab {
      * This function is parallel. Engine must have been constructed
      * using build_engine() prior to calling this function.
      */
-    void add_task_to_all(typename types::update_function func, 
+    void add_task_to_all(typename distributed_types::update_function func, 
                          double priority) {
       engine().add_task_to_all(func, priority);
     }
@@ -455,11 +455,11 @@ namespace graphlab {
      *                  Defaults to infinity.
      */
     void set_sync(glshared_base& shared,
-                  typename types::iengine::sync_function_type sync,
+                  typename distributed_types::iengine::sync_function_type sync,
                   glshared_base::apply_function_type apply,
                   const any& zero,
                   size_t sync_interval ,
-                  typename types::iengine::merge_function_type merge ,
+                  typename distributed_types::iengine::merge_function_type merge ,
                   vertex_id_t rangelow = 0,
                   vertex_id_t rangehigh = -1) { 
       engine().set_sync(shared, sync, apply, zero, 
@@ -479,9 +479,9 @@ namespace graphlab {
 
     distributed_control& dc;
     // graph and data objects
-    typename types::graph mgraph;
+    typename distributed_types::distributed_graph mgraph;
     engine_options meopts;
-    typename types::iengine *mengine;
+    typename distributed_types::iengine *mengine;
     
     metrics coremetrics;
     imetrics_reporter* reporter;

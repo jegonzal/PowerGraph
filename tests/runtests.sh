@@ -17,7 +17,7 @@ function test_rpc_prog {
     exit 1
   fi
   str="mpiexec -n 2 -host $localhostname ./$1 2> /dev/null | grep \"$2\""
-  echo $str
+  #echo $str
   e=`eval $str`
   if [ -z "$e" ] ; then
     echo "Expected program output not obtained"

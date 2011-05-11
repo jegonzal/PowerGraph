@@ -513,7 +513,6 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
   subdirs(demoapps)
 endif()
 
-subdirs(tools)
 
 ## Installation rules
 ## ============================================================

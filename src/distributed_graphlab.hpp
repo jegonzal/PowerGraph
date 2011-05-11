@@ -34,8 +34,9 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/shared_data/shared_data_includes.hpp>
 #include <graphlab/tasks/task_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
+#include <graphlab/distributed2/distributed2_includes.hpp>
 
-#include <graphlab/core.hpp>
+#include <graphlab/distributed_core.hpp>
 
 
 
@@ -76,58 +77,61 @@ namespace graphlab {
   Now we can use gl::... to access all the available graphlab types. 
   */
   template<typename Graph>
-  struct types {
-    ///  \brief The type of the Graph. 
-    typedef Graph graph;
-    
+  struct distributed_types {
+   
+    typedef graphlab::graph<typename Graph::vertex_data_type,
+                            typename Graph::edge_data_type> graph;
+
     typedef graphlab::disk_graph<typename Graph::vertex_data_type,
                                   typename Graph::edge_data_type> disk_graph;
 
+    typedef graphlab::distributed_graph<typename Graph::vertex_data_type,
+                                        typename Graph::edge_data_type> distributed_graph;
+
     /** \brief A convenient wrapper object around the commonly used
     portions of GraphLab.  This is useful for most GraphLab
-    applications. See the \ref graphlab::core object for more details.
+    applications. See the \ref graphlab::distributed_core object for more details.
     */
-    typedef graphlab::core<typename graph::vertex_data_type,
-                           typename graph::edge_data_type> core;
-
+    typedef graphlab::distributed_core<typename distributed_graph::vertex_data_type,
+                                       typename distributed_graph::edge_data_type> distributed_core;
 
     typedef graphlab::command_line_options command_line_options;
     typedef graphlab::engine_options engine_options;
     
     /// \brief The type of the data stored on each vertex of the Graph. 
-    typedef typename graph::vertex_data_type vertex_data_type;
+    typedef typename distributed_graph::vertex_data_type vertex_data_type;
     
     /// \brief The type of the data stored on each edge of the Graph.   
-    typedef typename graph::edge_data_type   edge_data_type;
+    typedef typename distributed_graph::edge_data_type   edge_data_type;
     
-    typedef graphlab::update_task<graph>        update_task;
+    typedef graphlab::update_task<distributed_graph>        update_task;
     typedef typename update_task::update_function_type update_function;
     
-    typedef graphlab::iscope<graph>              iscope;
-    typedef graphlab::ischeduler<graph>          ischeduler;
-    typedef graphlab::icallback<graph>           icallback;
-    typedef graphlab::iengine<graph>             iengine;
-    typedef graphlab::imonitor<graph>            imonitor;
+    typedef graphlab::iscope<distributed_graph>              iscope;
+    typedef graphlab::ischeduler<distributed_graph>          ischeduler;
+    typedef graphlab::icallback<distributed_graph>           icallback;
+    typedef graphlab::iengine<distributed_graph>             iengine;
+    typedef graphlab::imonitor<distributed_graph>            imonitor;
 
     typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
     typedef graphlab::glshared_apply_ops glshared_apply_ops;
     typedef graphlab::glshared_merge_ops glshared_merge_ops;
 
 
+    template <typename Scheduler>
+    class distributed_locking_engine: public graphlab::distributed_locking_engine<distributed_graph, Scheduler> { };
+    class distributed_chromatic_engine: public graphlab::distributed_chromatic_engine<distributed_graph> { };
 
-    template<typename Scheduler, typename ScopeFactory>
-    class asynchronous_engine: public graphlab::asynchronous_engine<graph, Scheduler, ScopeFactory> { };
 
-
-    typedef graphlab::fifo_scheduler<graph> fifo_scheduler;
-    typedef graphlab::priority_scheduler<graph> priority_scheduler;
-    typedef graphlab::sampling_scheduler<graph> sampling_scheduler;
-    typedef graphlab::sweep_scheduler<graph> sweep_scheduler;
-    typedef graphlab::multiqueue_fifo_scheduler<graph> multiqueue_fifo_scheduler;
-    typedef graphlab::multiqueue_priority_scheduler<graph> multiqueue_priority_scheduler;
-    typedef graphlab::clustered_priority_scheduler<graph> clustered_priority_scheduler;
-    typedef graphlab::round_robin_scheduler<graph> round_robin_scheduler;
-    typedef graphlab::chromatic_scheduler<graph> chromatic_scheduler;
+    typedef graphlab::fifo_scheduler<distributed_graph> fifo_scheduler;
+    typedef graphlab::priority_scheduler<distributed_graph> priority_scheduler;
+    typedef graphlab::sampling_scheduler<distributed_graph> sampling_scheduler;
+    typedef graphlab::sweep_scheduler<distributed_graph> sweep_scheduler;
+    typedef graphlab::multiqueue_fifo_scheduler<distributed_graph> multiqueue_fifo_scheduler;
+    typedef graphlab::multiqueue_priority_scheduler<distributed_graph> multiqueue_priority_scheduler;
+    typedef graphlab::clustered_priority_scheduler<distributed_graph> clustered_priority_scheduler;
+    typedef graphlab::round_robin_scheduler<distributed_graph> round_robin_scheduler;
+    typedef graphlab::chromatic_scheduler<distributed_graph> chromatic_scheduler;
     
     
     
@@ -139,7 +143,7 @@ namespace graphlab {
     /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
     typedef graphlab::edge_id_t edge_id_t;
 
-    typedef typename graph::edge_list_type edge_list;
+    typedef typename distributed_graph::edge_list_type edge_list;
        
     typedef graphlab::scheduler_options          scheduler_options;
     typedef graphlab::sched_status               sched_status;
@@ -150,7 +154,7 @@ namespace graphlab {
     class glshared:public graphlab::glshared<T> { };
 
     template <typename T>
-    class glshared_const:public graphlab::glshared_const<T> { };
+    class distributed_glshared:public graphlab::distributed_glshared<T> { };
   };
 
 }

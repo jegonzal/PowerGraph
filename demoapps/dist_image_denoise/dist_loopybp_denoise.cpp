@@ -23,7 +23,7 @@
 #include <boost/program_options.hpp>
 
 
-#include <graphlab.hpp>
+#include <distributed_graphlab.hpp>
 
 #include "image.hpp"
 
@@ -71,7 +71,7 @@ struct vertex_data {
 
 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-typedef graphlab::types<graph_type> gl_types;
+typedef graphlab::distributed_types<graph_type> gl_types;
 
 gl_types::distributed_glshared<graphlab::binary_factor> EDGE_FACTOR;
 gl_types::distributed_glshared<double> BOUND;
@@ -84,7 +84,7 @@ gl_types::distributed_glshared<double> DAMPING;
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::in_memory_graph& graph);
+                     gl_types::graph& distributed_graph);
 
 /** 
  * The core belief propagation update function.  This update satisfies
@@ -152,7 +152,7 @@ int main(int argc, char** argv) {
   clopts.use_distributed_options();
   clopts.attach_option("makegraph",
                        &makegraph, makegraph,
-                       "Creates the disk graph");
+                       "Creates the disk distributed_graph");
   clopts.attach_option("bound",
                        &bound, bound,
                        "Residual termination bound");
@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
     
     std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
     gl_types::disk_graph dg("denoise", 32);
-    gl_types::in_memory_graph g;
+    gl_types::graph g;
 
     construct_graph(img, colors, sigma, g);
     std::vector<graphlab::vertex_id_t> parts;
@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
   ASSERT_TRUE(graphlab::init_param_from_mpi(param));
   // create distributed control
   graphlab::distributed_control dc(param);
-  // Create the graph --------------------------------------------------------->
+  // Create the distributed_graph --------------------------------------------------------->
   gl_types::distributed_core core(dc, "denoise.idx");
   // Set the engine options
   core.set_engine_options(clopts);
@@ -427,7 +427,7 @@ void bp_update(gl_types::iscope& scope,
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::in_memory_graph& graph) {
+                     gl_types::graph& distributed_graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.potential.resize(num_rings);
@@ -450,8 +450,8 @@ void construct_graph(image& img,
           -(obs - pred)*(obs - pred) / (2.0 * sigmaSq);
       }
       vdata.potential.normalize();
-      // Store the actual data in the graph
-      size_t vertid = graph.add_vertex(vdata);
+      // Store the actual data in the distributed_graph
+      size_t vertid = distributed_graph.add_vertex(vdata);
       // Ensure that we are using a consistent numbering
       assert(vertid == img.vertid(i, j));
     } // end of for j in cols
@@ -470,25 +470,25 @@ void construct_graph(image& img,
       if(i-1 < img.rows()) {
         edata.message.var() = img.vertid(i-1, j);
         edata.old_message.var() = edata.message.var();
-        graph.add_edge(vertid, img.vertid(i-1, j), edata);
+        distributed_graph.add_edge(vertid, img.vertid(i-1, j), edata);
       }
       if(i+1 < img.rows()) {
         edata.message.var() = img.vertid(i+1, j);
         edata.old_message.var() = edata.message.var();
-        graph.add_edge(vertid, img.vertid(i+1, j), edata);
+        distributed_graph.add_edge(vertid, img.vertid(i+1, j), edata);
       }
       if(j-1 < img.cols()) {
         edata.message.var() = img.vertid(i, j-1);
         edata.old_message.var() = edata.message.var();
-        graph.add_edge(vertid, img.vertid(i, j-1), edata);
+        distributed_graph.add_edge(vertid, img.vertid(i, j-1), edata);
       } if(j+1 < img.cols()) {
         edata.message.var() = img.vertid(i, j+1);
         edata.old_message.var() = edata.message.var();
-        graph.add_edge(vertid, img.vertid(i, j+1), edata);
+        distributed_graph.add_edge(vertid, img.vertid(i, j+1), edata);
       }
     } // end of for j in cols
   } // end of for i in rows
-  graph.finalize();  
-} // End of construct graph
+  distributed_graph.finalize();  
+} // End of construct distributed_graph
 
 
