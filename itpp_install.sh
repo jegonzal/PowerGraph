@@ -181,6 +181,7 @@ function install_lapack {
     echo "ITPP installation script cannot continue"
     exit 1
   fi
+  cd ..
 }
 
 function print_source_install_failure {
@@ -207,7 +208,7 @@ function install_from_source {
   read
   echo "Downloading ITPP 4.2 from SourceForge..."
   blaslapack_install=$1
-  #download_file_with_forward http://sourceforge.net/projects/itpp/files/itpp/4.2.0/itpp-4.2.tar.gz/download itpp-4.2.tar.gz
+  download_file_with_forward http://sourceforge.net/projects/itpp/files/itpp/4.2.0/itpp-4.2.tar.gz/download itpp-4.2.tar.gz
   # unpack
   set -e
   tar -xzvf itpp-4.2.tar.gz
