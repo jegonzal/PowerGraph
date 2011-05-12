@@ -12,10 +12,10 @@ function test_for_boost {
   rm -f a.out
   if [ -z $BOOST_ROOT ] ; then
     echo "BOOST_ROOT not defined. Probing in usual directories..."
-    g++ -L/usr/local/lib -I/usr/local/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp
+    g++ -L/usr/local/lib -I/usr/local/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
   else
     echo "Probing in $BOOST_ROOT"
-    g++ -L$BOOST_ROOT/lib -I$BOOST_ROOT/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp
+    g++ -L$BOOST_ROOT/lib -I$BOOST_ROOT/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
   fi
   if [ -f a.out ] ; then
     boostfound=1
@@ -81,6 +81,7 @@ else
     if [ -d "lib" ] ; then
       rm -f lib/libboost*
     fi
+    set -e
     tar -xjvf boost.tar.bz2
     # cd into boost directory
     cd boost_1_46_1
@@ -96,6 +97,7 @@ else
     echo "Installing Boost...This could take a little while..."
     ./bjam install
     cd ..
+    set +e
     # set BOOST_ROOT
     BOOST_ROOT=$installprefix
   else

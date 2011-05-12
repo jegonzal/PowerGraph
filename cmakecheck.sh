@@ -23,7 +23,7 @@ else
   # use which to look for a cmake in the path
   cmake_pos=`which $cmakecmd`
   if [ ! -z $force_cmake_install ] ; then
-    echo "1"
+    echo "Forcing cmake install..."
   fi
   if [ ! -z $force_cmake_install ] || [ -z "$cmake_pos" ] ; then
     # get the current path and remember it. This will be the installation directory
@@ -53,14 +53,15 @@ else
         exit 1
       fi
       rm -f cmake.tar.gz
+      set -e
       download_file $cmakedownload cmake.tar.gz
       tar -xzvf cmake.tar.gz
-
       # cd into the extracted directory and install
       cd cmake-*
       ./configure --prefix=$installprefix
       make -j2
       make install
+      set +e
       cd ..
 
       # make a link back to the deps directory

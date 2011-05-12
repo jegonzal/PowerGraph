@@ -1,4 +1,5 @@
 #!/bin/bash
+
 IN_BOOTSTRAP=1
 mkdir -p deps
 cd deps/
@@ -19,3 +20,4 @@ fi
 if [ ! -z $KC_ROOT ] && [ $KC_ROOT == $PWD/deps ]; then
   echo "KC_ROOT=$KC_ROOT" >> configure.deps
 fi
+

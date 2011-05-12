@@ -11,10 +11,10 @@ function test_for_kc {
   rm -f a.out
   if [ -z $KC_ROOT ] ; then
     echo "KC_ROOT not defined. Probing in usual directories..."
-    g++ -L/usr/local/lib -I/usr/local/include -lkyotocabinet kc_tester.cpp
+    g++ -L/usr/local/lib -I/usr/local/include -lkyotocabinet kc_tester.cpp > /dev/null 2> /dev/null
   else
     echo "Probing in $KC_ROOT"
-    g++ -L$KC_ROOT/lib -I$KC_ROOT/include -lkyotocabinet kc_tester.cpp
+    g++ -L$KC_ROOT/lib -I$KC_ROOT/include -lkyotocabinet kc_tester.cpp > /dev/null 2> /dev/null
   fi
   if [ -f a.out ] ; then
     kcfound=1
@@ -81,6 +81,7 @@ else
     if [ -d "lib" ] ; then
       rm -f lib/libkyotocabinet*
     fi
+    set -e
     tar -xzvf kyotocabinet.tar.gz
     # cd into kyoto cabinet directory
     cd kyotocabinet-1.2.53
@@ -93,6 +94,7 @@ else
     echo "Installing Kyoto Cabinet..."
     make install
     cd ..
+    set +e
     # set KC_ROOT
     KC_ROOT=$installprefix
   else
