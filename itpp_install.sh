@@ -109,7 +109,7 @@ function try_install_from_apt_get {
   echo
   run_as_sudo "apt-get install libitpp-dev"
   
-  dpkgstat=`dpkg -s libitpp-dev | grep -E "Status.*installed"`
+  dpkgstat=`dpkg -s libitpp-dev | grep -E "Status.* installed"`
   if [ ! -z "$dpkgstat" ]; then
     echo "Looks like itpp was installed successfully"
     itppinstalled=1
@@ -199,6 +199,10 @@ function print_source_install_failure {
 }
 
 function install_from_source {
+  if  [ $itppinstalled -eq 1 ]; then
+    return
+  fi
+  
   echo " ============= Source installation of ITPP =============== "
   # detect wget
   echo "The script will now proceed to download itpp and try to install it"
