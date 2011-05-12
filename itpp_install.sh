@@ -222,6 +222,7 @@ function install_from_source {
   lapackinstalled=0
 
   while true; do
+    pushd . 
     f=`./configure --without-fft 2>&1`
     blascheck=`echo $f | grep "cannot find any BLAS library"`
     lapackcheck=`echo $f | grep "cannot find any LAPACK library"`
@@ -250,8 +251,10 @@ function install_from_source {
         fi
       fi
     else
+      popd
       break
     fi
+    popd
   done
   # configure went well
   echo
