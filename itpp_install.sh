@@ -31,9 +31,9 @@ function find_itpp_lib {
 _Box () {
     str="$@"
     len=$((${#str}+4))
-    for i in $(seq $len); do echo -n '-'; done;
+    for (( i=1; i<=$len; i++ )); do echo -n '-'; done;
     echo; echo "| "$str" |";
-    for i in $(seq $len); do echo -n '-'; done;
+    for (( i=1; i<=$len; i++ )); do echo -n '-'; done;
     echo
 }
 
