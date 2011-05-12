@@ -50,7 +50,8 @@ function run_as_sudo {
   echo "or press Ctrl-C to break and run the above command yourself."
   read
 
-  sudo -k $1
+  sudo -k
+  sudo $1
 }
 
 
