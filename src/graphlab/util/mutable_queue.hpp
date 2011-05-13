@@ -544,3 +544,4 @@ namespace graphlab {
 #include <graphlab/macros_undef.hpp>
 
 #endif // #ifndef GRAPHLAB_MUTABLE_PRIORITY_QUEUE_HPP
+

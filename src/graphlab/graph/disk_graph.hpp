@@ -549,3 +549,4 @@ void graph_partition_to_atomindex(graph<VertexData, EdgeData> &g,
 
 #include <graphlab/macros_undef.hpp>
 #endif
+

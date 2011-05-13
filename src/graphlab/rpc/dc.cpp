@@ -590,3 +590,4 @@ void distributed_control::fill_metrics() {
 }
 
 } //namespace graphlab
+

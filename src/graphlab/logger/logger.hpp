@@ -324,3 +324,4 @@ struct log_stream_dispatch<false> {
 #include <graphlab/logger/assertions.hpp>
 
 #endif
+

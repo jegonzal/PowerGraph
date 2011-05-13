@@ -186,3 +186,4 @@ BOOST_PP_REPEAT(6, REMOTE_CALL_ISSUE_GENERATOR,  remote_call_issue )
 #include <graphlab/rpc/function_arg_types_undef.hpp>
 
 #endif
+

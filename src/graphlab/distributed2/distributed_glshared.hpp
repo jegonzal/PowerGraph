@@ -238,3 +238,4 @@ procid_t distributed_glshared<T>::preferred_machine() const {
 }
 }
 #endif //GRAPHLAB_DISTRIBUTED_GLSHARED_HPP
+

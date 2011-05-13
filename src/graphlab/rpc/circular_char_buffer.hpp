@@ -232,3 +232,4 @@ struct circular_char_buffer_device {
 
 }
 #endif
+

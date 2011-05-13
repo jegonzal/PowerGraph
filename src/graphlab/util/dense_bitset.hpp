@@ -496,3 +496,4 @@ namespace graphlab {
   const size_t fixed_dense_bitset<len>::arrlen = len / sizeof(size_t) + 1;
 }
 #endif
+

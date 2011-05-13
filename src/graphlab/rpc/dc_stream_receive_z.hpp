@@ -124,3 +124,4 @@ class dc_stream_receive_z: public dc_receive{
 } // namespace dc_impl
 } // namespace graphlab
 #endif
+

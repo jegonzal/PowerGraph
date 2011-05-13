@@ -184,3 +184,4 @@ atom_index_file atom_index_from_properties(const std::map<size_t, atom_propertie
 
 } // namespace graphlab
 #endif
+

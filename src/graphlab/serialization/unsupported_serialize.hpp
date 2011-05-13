@@ -50,3 +50,4 @@ Must be declared in the global namespace.
 
 
 #endif
+

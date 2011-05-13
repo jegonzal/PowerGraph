@@ -19,3 +19,4 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/monitoring/monitor_multiplexer.hpp>
 #include <graphlab/monitoring/console_monitor.hpp>
+

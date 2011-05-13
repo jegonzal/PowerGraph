@@ -136,3 +136,4 @@ BOOST_PP_REPEAT(6, PORTABLE_REQUEST_ISSUE_GENERATOR, remote_request_issue)
 } // namespace graphlab
 
 #endif
+

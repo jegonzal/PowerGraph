@@ -399,3 +399,4 @@ operator<<(std::ostream& out, const graphlab::small_set<MAX_DIM, T>& set) {
 
 #include <graphlab/macros_undef.hpp>
 #endif
+

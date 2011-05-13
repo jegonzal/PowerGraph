@@ -79,3 +79,4 @@ class distributed_glshared_base: public glshared_base {
 }
 
 #endif
+

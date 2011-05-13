@@ -147,3 +147,4 @@ BOOST_PP_REPEAT(6, GEN_GET_USER_ARG, _)
 #include <graphlab/rpc/function_arg_types_undef.hpp>
 
 #endif
+

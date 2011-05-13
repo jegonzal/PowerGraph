@@ -18,3 +18,4 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/logger/logger.hpp>
+

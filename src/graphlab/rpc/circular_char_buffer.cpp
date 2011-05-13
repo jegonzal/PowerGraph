@@ -313,3 +313,4 @@ void circular_char_buffer::advance_write(std::streamsize bytes) {
 }
   
 };
+

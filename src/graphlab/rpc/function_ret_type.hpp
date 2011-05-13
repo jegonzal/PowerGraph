@@ -139,3 +139,4 @@ struct mem_function_ret_type<void> {
 #include <graphlab/rpc/mem_function_arg_types_undef.hpp>
 
 #endif
+

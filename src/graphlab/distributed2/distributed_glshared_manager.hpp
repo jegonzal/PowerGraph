@@ -113,3 +113,4 @@ class distributed_glshared_manager {
 
 } // namespace graphlab
 #endif  
+

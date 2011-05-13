@@ -608,3 +608,4 @@ class graph_lock {
 #undef COMPILER_WRITE_BARRIER
 } // namespace graphlab
 #endif
+

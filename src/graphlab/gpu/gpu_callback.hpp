@@ -40,3 +40,4 @@ namespace graphlab {
 }; //end graphlab namespace
 
 #endif
+

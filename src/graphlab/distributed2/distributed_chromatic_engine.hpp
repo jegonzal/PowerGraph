@@ -865,3 +865,4 @@ class distributed_chromatic_engine : public iengine<Graph> {
 #include <graphlab/macros_undef.hpp>
 
 #endif // DISTRIBUTED_CHROMATIC_ENGINE_HPP
+

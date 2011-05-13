@@ -41,3 +41,4 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #undef __GLRPC_FRESULT
 #undef REMOVE_CONST_REF
 #undef __GLRPC_FARITY
+

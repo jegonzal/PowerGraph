@@ -116,3 +116,4 @@ extern boost::iostreams::stream<resizing_array_sink_ref>& get_thread_local_strea
 
 SERIALIZABLE_POD(graphlab::dc_impl::terminator_token);
 #endif
+

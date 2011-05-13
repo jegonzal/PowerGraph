@@ -140,3 +140,4 @@ void distributed_glshared_manager::read_synchronize(distributed_glshared_base* o
 }
 
 } // namespace graphlab
+

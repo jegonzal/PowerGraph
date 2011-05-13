@@ -35,3 +35,4 @@ void register_dist_glshared(distributed_glshared_base* glsharedobj) {
 
 } // namespace distgl_impl
 } // namespace graphlab
+

@@ -202,3 +202,4 @@ class dgraph_scope : public iscope<Graph> {
 
 } // end namespace graphlab
 #endif
+

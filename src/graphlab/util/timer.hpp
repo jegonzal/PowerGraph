@@ -120,3 +120,4 @@ std::ostream&  operator<<(std::ostream& out, const graphlab::timer& t);
 /** Returns the current time accurate to 100ms*/
 
 #endif
+

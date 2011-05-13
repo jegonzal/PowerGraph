@@ -791,3 +791,4 @@ inline void distributed_control::gather_partition(const std::vector<U>& local_co
 
 }
 #endif
+

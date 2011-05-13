@@ -131,3 +131,4 @@ class intention_lock {
 #undef INTENTION_WRITE_STATE
 
 #endif
+

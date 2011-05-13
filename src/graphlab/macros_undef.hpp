@@ -27,3 +27,4 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #undef DISALLOW_COPY_AND_ASSIGN
 #undef foreach
 #undef rev_foreach
+

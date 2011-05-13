@@ -115,3 +115,4 @@ BOOST_PP_REPEAT(6, REMOTE_CALL_ISSUE_GENERATOR,  (object_call_issue, _) )
 #include <graphlab/rpc/mem_function_arg_types_undef.hpp>
 
 #endif
+

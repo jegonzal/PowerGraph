@@ -27,3 +27,4 @@ std::ostream& operator<<(std::ostream& out,
   out << std::endl;
   return out;
 } // end of operator<<
+

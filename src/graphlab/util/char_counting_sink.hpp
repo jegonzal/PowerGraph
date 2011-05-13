@@ -47,3 +47,4 @@ struct char_counting_sink {
 };
 }
 #endif
+

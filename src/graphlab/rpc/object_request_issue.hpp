@@ -135,3 +135,4 @@ BOOST_PP_REPEAT(6, REMOTE_REQUEST_ISSUE_GENERATOR,  object_request_issue )
 #include <graphlab/rpc/mem_function_arg_types_undef.hpp>
 
 #endif
+
