@@ -18,6 +18,8 @@ ENDIF(APPLE)
 project(GraphLab)
 
 INCLUDE (CheckLibraryExists) 
+INCLUDE (CheckFunctionExists) 
+
 cmake_minimum_required(VERSION 2.4)
 
 if(COMMAND cmake_policy)
@@ -208,6 +210,17 @@ else()
   message(STATUS "ITPP was not found")
 endif()
 
+
+
+set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES "pthread")
+CHECK_FUNCTION_EXISTS(pthread_setaffinity_np HAS_SET_AFFINITY) 
+set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
+
+
+
+
+# test for system specific features
 
 
 
