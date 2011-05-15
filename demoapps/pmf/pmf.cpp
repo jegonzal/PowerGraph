@@ -8,6 +8,7 @@
 #include "pmf.h"
 #include "prob.hpp"
 #include "bptf.hpp"
+#include "svdpp.hpp"
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -53,6 +54,9 @@ double muT = 1; //mean of time nodes
 vec vones; 
 mat eDT; 
 mat dp;
+
+/* Variables for SVD++ */
+float *svd_m_bias, * svd_c_bias, * svd_movie_weight, * svd_sum_user_weight;
 
 double counter[20];
 
@@ -233,14 +237,14 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   vdata.rmse = 0;
 
-  // update neighbors 
-  edge_list outs = scope.out_edge_ids();
-  edge_list ins = scope.in_edge_ids();
   int numedges = vdata.num_edges;
   if (numedges == 0){
     return; //if this user/movie have no ratings do nothing
   }
 
+
+  edge_list outs = scope.out_edge_ids();
+  edge_list ins = scope.in_edge_ids();
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
@@ -250,7 +254,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   t.start(); 
   //USER NODES    
   if ((int)scope.vertex() < M){
- 
+
+    if (options == SVD_PLUS_PLUS)
+	calc_user_moviebag(vdata, outs);
+
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
 #ifndef GL_NO_MULT_EDGES
@@ -328,7 +335,6 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 	regularization*= Q.cols();
 
     bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
-    //assert(result.size() == D);     
     assert(ret);
     counter[3] += t.current_time();
   }
@@ -1069,8 +1075,10 @@ int main(int argc,  char *argv[]) {
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
   switch(options){
-    // iterative matrix factorization
+  // iterative matrix factorization using alternating least squares
+  // or SVD ++
   case ALS_MATRIX:
+  case SVD_PLUS_PLUS:
     tensor = false; BPTF = false;
     break;
     // MCMC tensor factorization

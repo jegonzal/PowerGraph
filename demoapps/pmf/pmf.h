@@ -15,6 +15,7 @@ See algrithm description and explanation in: Liang Xiong, Xi Chen, Tzu-Kuo Huang
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
 #define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
+//#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 int MAX_ITER=10; //maximal number of iterations to run
 int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
@@ -42,24 +43,40 @@ using namespace itpp;
 
 /** Vertex and edge data types **/
 struct vertex_data {
-  vec pvec; //vector of learned values U,V,K
-  double rmse; //root of mean square error
+  vec pvec; //vector of learned values U,V,T
+  float rmse; //root of mean square error
   int num_edges; //number of edges
+
+#ifdef GL_SVD_PP //data structure for svd++ only
+  float bias; //bias for this user/movie
+  vec weight; //weight vector for this user/movie
+#endif
+
+  //constructor
   vertex_data(){
     pvec = zeros(D);
     rmse = 0;
     num_edges = 0;
+#ifdef GL_SVD_PP
+    bias =0;
+    weight = zeros(D);
+#endif
   }
-
 
   void save(graphlab::oarchive& archive) const {  
     archive << pvec;
     archive << rmse << num_edges; 
+#ifdef GL_SVD_PP
+    archive << bias << weight;
+#endif
   }  
    
   void load(graphlab::iarchive& archive) {  
      archive >> pvec;
      archive >> rmse >> num_edges;  
+#ifdef GL_SVD_PP
+     archive >> bias >> weight;
+#endif
   }
 };
 
@@ -147,7 +164,8 @@ enum runmodes{
    BPTF_MATRIX = 1,
    BPTF_TENSOR = 2,
    BPTF_TENSOR_MULT = 3,
-   ALS_TENSOR_MULT = 4
+   ALS_TENSOR_MULT = 4,
+   SVD_PLUS_PLUS = 5,
 };
 
 const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
@@ -176,6 +194,7 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 #endif
 typedef graphlab::types<graph_type> gl_types;
 
+void calc_user_moviebag(vertex_data& data, graphlab::edge_list & outs);
 
 #endif
 
