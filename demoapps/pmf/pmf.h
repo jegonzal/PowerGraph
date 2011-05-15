@@ -1,4 +1,5 @@
 #ifndef PMF_H__	 
+#define PMF_H__
 
 #include <itpp/itbase.h>
 #include <itpp/itstat.h>
@@ -139,8 +140,8 @@ enum testtype{
 };
 
 const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
-//run modes
 
+//run modes
 enum runmodes{
    ALS_MATRIX = 0,
    BPTF_MATRIX = 1,
@@ -151,7 +152,7 @@ enum runmodes{
 
 const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
 
-
+//counters for debugging running time of different modules
 enum countervals{
    EDGE_TRAVERSAL=0,
    BPTF_SAMPLE_STEP=1,
@@ -166,5 +167,15 @@ enum countervals{
 
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", "NA", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "NA", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
+
+
+#ifndef GL_NO_MULT_EDGES
+typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
+#else
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
+#endif
+typedef graphlab::types<graph_type> gl_types;
+
+
 #endif
 
