@@ -7,6 +7,8 @@
 #include "itppvecutils.hpp"
 #include "pmf.h"
 #include "prob.hpp"
+#include "bptf.hpp"
+#include "svdpp.hpp"
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -35,7 +37,7 @@ bool loadgraph = false; //load graph from a binary saved file
 bool savegraph = false; //save input file into graph binary file
 bool stats = false; //print out statistics and exit
 bool regnormal = false; //regular normalization
-bool aggregatevalidation = false;
+bool aggregatevalidation = false; //use validation dataset as training data
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
 double scalerating = 0; //scale the rating by dividing to the scalerating factor (optional)
@@ -53,33 +55,13 @@ vec vones;
 mat eDT; 
 mat dp;
 
-/* variables for BPTF */
-double nuAlpha = 1;
-double Walpha = 1;
-double mu0 = 0;
-double mu0T = 1;
-double nu0 = D;
-double alpha = 0;
-double beta = 1;
-double beta0 = 1; //TODO
-mat W0;
-mat W0T;
-double iWalpha;
-mat iW0;
-mat iW0T;
-mat A_U, A_V, A_T;
-vec mu_U, mu_V, mu_T;
+/* Variables for SVD++ */
+float *svd_m_bias, * svd_c_bias, * svd_movie_weight, * svd_sum_user_weight;
 
 double counter[20];
 
 vertex_data * times = NULL;
 
-#ifndef GL_NO_MULT_EDGES
-typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
-#else
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
-#endif
-typedef graphlab::types<graph_type> gl_types;
 gl_types::iengine * engine;
 graph_type* g;
 graph_type validation_graph;
@@ -92,34 +74,6 @@ graph_type test_graph;
 
 const size_t RMSE = 0;
 
-
-void init_self_pot(){
-  //assert(BPTF);
-
-  W0 = eye(D);
-  W0T = eye(D);
-  iWalpha = 1.0/Walpha;
-  iW0 = inv(W0);
-  iW0T = inv(W0T);
-  nu0 = D;
-
-  A_U = eye(D); //cov prior for users
-  A_V = eye(D); //cov prior for movies
-  A_T = eye(D); //cov prior for time nodes
-
-  mu_U = zeros(D); mu_V = zeros(D); mu_T = zeros(D);
-  printf("nuAlpha=%g, Walpha=%g, mu=%g, muT=%g, nu=%g, "
-         "beta=%g, W=%g, WT=%g BURN_IN=%d\n", nuAlpha, Walpha, mu0, 
-         mu0T, nu0, beta0, W0(1,1), W0T(1,1), BURN_IN);
-
-
-  //test_randn(); 
-  //test_wishrnd();
-  //test_wishrnd2(); 
-  //test_chi2rnd();
-  //test_wishrnd3();
-  //test_mvnrndex();
-}
 
  
 /**
@@ -141,197 +95,8 @@ void last_iter();
 void export_kdd_format(graph_type * _g, bool dosave);
 void calc_stats(testtype type);
 
-/**
- * sample the noise level (PMF/BPTF only)
- */
-void sample_alpha(double res2){
-  
-  if (debug)
-  printf("res is %g\n", res2); 
-  
-  double res = res2;
-  assert(BPTF);
-  if (nuAlpha > 0){
-    double nuAlpha_ =nuAlpha+ L;
-    mat iWalpha_(1,1);
-    iWalpha_.set(0,0, iWalpha + res);
-    mat iiWalpha_ = zeros(1,1);
-    iiWalpha_ = inv(iWalpha_);
-    alpha = wishrnd(iiWalpha_, nuAlpha_).get(0,0);
-    assert(alpha != 0);
-
-    if (debug)
-      cout<<"Sampling from alpha" <<nuAlpha_<<" "<<iWalpha<<" "<< iiWalpha_<<" "<<alpha<<endl;
-    printf("sampled alpha is %g\n", alpha); 
-  }
-}
-
-/**
-* calc the A'A part of the least squares solution inv(A'A)*A'
-* for time nodes
-*/
-mat calc_MMT(int start_pos, int end_pos, vec &Umean){
-
-  int batchSize = 1000;
-  mat U = zeros(batchSize,D);
-  mat MMT = zeros(D,D);
-  int cnt = 0;
-  timer t;
-
-  for (int i=start_pos; i< end_pos; i++){
-    if ((i-start_pos) % batchSize == 0){
-      U=zeros(batchSize, D);
-      cnt = 1;
-    }
-
-    const vertex_data * data= &g->vertex_data(i);
-     
-    vec mean = data->pvec;
-    Umean += mean;
-    //Q.set_col(k, ret);
-    t.start(); 
-    for (int s=0; s<D; s++)
-      U(i%batchSize,s)=mean(s);
-    if (debug && (i==start_pos || i == end_pos-1))
-      std::cout<<" clmn "<<i<< " vec: " << mean <<std::endl;
-
-    if ((cnt  == batchSize) || (cnt < batchSize && i == end_pos-1)){
-      MMT = MMT+transpose(U)*U;
-    }
-    counter[8] += t.current_time();
-    cnt++;
-  }
-  Umean /= (end_pos-start_pos);
-  if (debug)
-    cout<<"mean: "<<Umean<<endl;
-
-  assert(MMT.rows() == D && MMT.cols() == D);
-  assert(Umean.size() == D);
-  return MMT;
-}
-
-
-
-// sample from movie nodes
-void sample_U(){
-  assert(BPTF);
-
-  vec Umean;
-  mat UUT = calc_MMT(0,M,Umean);
-  
-  double beta0_ = beta0 + M;
-  vec mu0_ = (beta0*mu0 + M*Umean)/beta0_;
-  double nu0_ = nu0 +M;
-  vec dMu = mu0 - Umean;
-  if (debug)
-    cout<<"dMu:"<<dMu<<"beta0: "<<beta0<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<" mu0_ " << mu0_<<endl;
-  mat UmeanT = M*(itpp::outer_product(Umean, Umean));
-  assert(UmeanT.rows() == D && UmeanT.cols() == D);
-  mat dMuT = (beta0*M/beta0_)*(itpp::outer_product(dMu, dMu));
-  mat iW0_ = iW0 + UUT - UmeanT + dMuT;
-  mat W0_; 
-  bool ret =inv(iW0_, W0_);
-  assert(ret);
-  mat tmp = (W0_+transpose(W0_))*0.5;
-  if (debug)
-    cout<<iW0<<UUT<<UmeanT<<dMuT<<W0_<<tmp<<nu0_<<endl;
-  A_U = wishrnd(tmp, nu0_);
-  mat tmp2;  
-  ret =  inv(beta0_ * A_U, tmp2);
-  assert(ret);
-  mu_U = mvnrndex(mu0_, tmp2, D);
-  if (debug)
-    cout<<"Sampling from U" <<A_U<<" "<<mu_U<<" "<<Umean<<" "<<W0_<<tmp<<endl;
-}
-
-// sample from user nodes
-void sample_V(){
-
-  assert(BPTF);
-  vec Vmean;
-  mat VVT = calc_MMT(M, M+N, Vmean);   
-
-  double beta0_ = beta0 + N;
-  vec mu0_ = (beta0*mu0 + N*Vmean)/beta0_;
-  double nu0_ = nu0 +N;
-  vec dMu = mu0 - Vmean;
-  if (debug)
-    cout<<"dMu:"<<dMu<<"beta0: "<<beta0<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<endl;
-  mat VmeanT = N*(itpp::outer_product(Vmean, Vmean));
-  assert(VmeanT.rows() == D && VmeanT.cols() == D);
-  mat dMuT =  (beta0*N/beta0_)*itpp::outer_product(dMu, dMu);
-  mat iW0_ = iW0 + VVT - VmeanT + dMuT;
-  mat W0_;
-  bool ret = inv(iW0_, W0_);
-  assert(ret);
-  mat tmp = (W0_+transpose(W0_))*0.5;
-  if (debug)
-    cout<<"iW0: "<<iW0<<" VVT: "<<VVT<<" VmeanT: "<<VmeanT<<" dMuT: " <<dMuT<<"W0_"<< W0_<<" tmp: " << tmp<<" nu0_: "<<nu0_<<endl;
-  A_V = wishrnd(tmp, nu0_);
-  mat tmp2; 
-  ret = inv(beta0_*A_V, tmp2);
-  assert(ret);
-  mu_V = mvnrndex(mu0_, tmp2, D);
-  if (debug)
-    cout<<"Sampling from V: A_V" <<A_V<<" mu_V: "<<mu_V<<" Vmean: "<<Vmean<<" W0_: "<<W0_<<" tmp: "<<tmp<<endl;
-}
-
-
-//calc laplacian matrix for a chain connection between time nodes (for tensor)
-mat calc_DT(){
-
-  assert(tensor);
-
-  mat T = zeros(D, K);
-  for (int i=0; i<K; i++){
-    T.set_col(i,times[i].pvec);
-  }
-  
-  mat diff = zeros(D,K-1);
-  for (int i=0; i<K-1; i++){
-    diff.set_col(i , T.get_col(i) - T.get_col(i+1));
-  }
-  if (debug)
-    cout<<"T:"<<T<<" diff: " << diff<<endl;
-  
-  return diff;
-
-}
-
-// sample from time nodes
-void sample_T(){
-  assert(BPTF);
-  assert(tensor);
-
-  double beta0_ = beta0 + 1;
-  vec pvec = times[0].pvec; 
-  vec mu0_ = (pvec + beta0*mu0T)/beta0_;
-  double nu0_ = nu0 +K;
-  //vec dMu = mu0 - Umean;
-  if (debug){
-    cout<<"beta0_ " << beta0_ << " beta0: " << beta0 << " nu0_ " << nu0_ << endl;
-  } 
-
-  mat dT = calc_DT();
-  vec dTe = pvec - mu0T;
-  mat iW0_ = iW0T + dT*transpose(dT) + (beta0/beta0_)*(itpp::outer_product(dTe,dTe));
-  
-  mat W0_;
-  bool ret =inv(iW0_, W0_);
-  assert(ret);
-  mat tmp = W0_+transpose(W0_)*0.5;
-  A_T = wishrnd(tmp, nu0_);
-
-  mat tmp2 ;
-  ret = inv(beta0_*A_T, tmp2);
-  assert(ret);
-  mu_T = mvnrndex(mu0_, tmp2, D);
-  if (debug)
-    cout<<"Sampling from T: A_T" <<A_T<<" mu_V: "<<mu_T<<" W0_: "<<W0_<<" tmp: "<<tmp<<endl;
-   
-}
-
 // update function for time nodes
+// this function is called only in tensor mode
 void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler) {
 
   assert(tensor);
@@ -346,8 +111,10 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
   else last_iter();
 }
 
-   //calculate RMSE
-   double calc_rmse(graph_type * _g, bool test, double & res){
+
+//calculate RMSE. This function is called only before and after grahplab is run.
+//during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
+double calc_rmse(graph_type * _g, bool test, double & res){
 
      if (test && Le == 0)
        return NAN;
@@ -355,7 +122,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
      res = 0;
      double RMSE = 0;
      int e = 0;
-     for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
+     for (int i=M; i< M+N; i++){
        vertex_data * data = &g->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
             
@@ -410,7 +177,7 @@ double calc_rmse_q(double & res){
     RMSE+= data->rmse;
   }
   res = RMSE;
-  counter[2] += t.current_time();
+  counter[CALC_RMSE_Q] += t.current_time();
   return sqrt(RMSE/(double)L);
 
 }
@@ -473,14 +240,14 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   vdata.rmse = 0;
 
-  // update neighbors 
-  edge_list outs = scope.out_edge_ids();
-  edge_list ins = scope.in_edge_ids();
   int numedges = vdata.num_edges;
   if (numedges == 0){
     return; //if this user/movie have no ratings do nothing
   }
 
+
+  edge_list outs = scope.out_edge_ids();
+  edge_list ins = scope.in_edge_ids();
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
@@ -490,7 +257,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   t.start(); 
   //USER NODES    
   if ((int)scope.vertex() < M){
- 
+
+    if (options == SVD_PLUS_PLUS)
+	calc_user_moviebag(vdata, outs);
+
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
 #ifndef GL_NO_MULT_EDGES
@@ -503,7 +273,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
       for (int j=0; j< (int)medges.medges.size(); j++){
         edge_data& edge = medges.medges[j];
 #endif
-        //go over each rating
+        //go over each rating of a movie and put the movie vector into the matrix Q
+        //and vector vals
         parse_edge(edge, pdata, Q, vals, i); 
      
         if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
@@ -531,7 +302,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #else
 	edge_data & edge = scope.edge_data(iedgeid);
 #endif   
-        //go over each rating
+        //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i); 
         if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
@@ -556,7 +327,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   }
   assert(i == numedges);
-  counter[0] += t.current_time();
+  counter[EDGE_TRAVERSAL] += t.current_time();
 
   vec result;
       
@@ -564,16 +335,17 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
     t.start();
     double regularization = LAMBDA;
+    //compute weighted regularization (see section 3.2 of Zhou paper)
     if (!regnormal)
 	regularization*= Q.cols();
 
     bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
-    //assert(result.size() == D);     
     assert(ret);
-    counter[3] += t.current_time();
+    counter[ALS_LEAST_SQUARES] += t.current_time();
   }
   else {
     //COMPUTE LEAST SQUARES (BPTF)
+    //according to equation A.6 or A.7 in Xiong paper.
     assert(Q.rows() == D);
     t.start();
     mat iAi_;
@@ -581,12 +353,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     assert(ret);
     t.start();
     vec mui_ =  iAi_*((((int)scope.vertex() < M)? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
-    counter[10]+= t.current_time();
+    counter[BPTF_LEAST_SQUARES2]+= t.current_time();
        
     t.start();
     result = mvnrndex(mui_, iAi_, D); 
     assert(result.size() == D);
-    counter[9] += t.current_time();
+    counter[BPTF_MVN_RNDEX] += t.current_time();
   }
 
   if (debug && (((int)scope.vertex()  == 0) || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
@@ -608,7 +380,7 @@ void last_iter(){
   double res,res2;
   double rmse = calc_rmse_q(res);
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
+  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
   iiter++;
   if (iiter == BURN_IN && BPTF){
     printf("Finished burn-in period. starting to aggregate samples\n");
@@ -623,18 +395,18 @@ void last_iter(){
     sample_V();
     if (tensor) 
       sample_T();
-    counter[1] += t.current_time();
+    counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
 	export_kdd_format(&test_graph, false);
    }
 }
 
 
+// Calculate time nodes (for tensor)
 void calc_T(int i){
 
   assert(tensor);
  
-  //for (int i=0; i< K; i++){
   assert(i >=0 && i < K);
   if (ZERO && edges[i].size() == 0)
 	  return;
@@ -695,7 +467,7 @@ void calc_T(int i){
     }
     cnt++;
   }
-  counter[5] += t.current_time();
+  counter[BPTF_TIME_EDGES] += t.current_time();
 
 
   if (debug && (i == 0 ||i== K-1 )){
@@ -711,11 +483,13 @@ void calc_T(int i){
   t.start();
   if (i == 0){
     vec t1 = times[1].pvec; 
+    //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ+ 2*eDT;
       bool ret = itpp::ls_solve(QQ, pT*(t1 + vones*muT)+ RQ, out);
       assert(ret);
     }
+    //calc equation A.8 in Xiong paper
     else {
       mat A_k = 2*A_T+alpha*QQ;
       mat iAk_;
@@ -727,11 +501,13 @@ void calc_T(int i){
   }
   else if (i == K-1){
     vec tk_2 = times[K-2].pvec; 
+    //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ + eDT;
       bool ret = itpp::ls_solve(QQ, pT*tk_2 + RQ, out);
       assert(ret); 
     }
+    //calc equation A.8 in Xiong paper
     else {
       mat A_k = A_T+alpha*QQ;
       mat iAk_; 
@@ -746,11 +522,13 @@ void calc_T(int i){
     vec t1 = times[i-1].pvec; 
     vec t2 = times[i+1].pvec;
     tsum = t1+t2;
+    //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ + 2*eDT;
       bool ret = itpp::ls_solve(QQ, pT*tsum + RQ, out);
       assert(ret);
     }
+    //calc equation A.8 in Xiong paper
     else {
       mat A_k = 2*A_T+alpha*QQ;
       mat iAk_;
@@ -765,7 +543,7 @@ void calc_T(int i){
   if (debug && (i == 0|| i == K-1)) 
     std::cout<<times[i].pvec<<std::endl;
   assert(QQ.rows() == D && QQ.cols() == D);
-  counter[6] += t.current_time();
+  counter[BPTF_LEAST_SQUARES] += t.current_time();
   //}
 
   if (i == K-1){
@@ -803,7 +581,7 @@ double calc_obj(double res){
     }
     sumT *= pT;
   }
-  counter[7]+= t.current_time();
+  counter[CALC_OBJ]+= t.current_time();
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
   return obj;
@@ -948,8 +726,8 @@ void start(int argc, char ** argv) {
     printf("Loading graph from file\n");
     iarc >> glcore.graph() >> validation_graph >> test_graph;
     g=&glcore.graph();
-    printf("Matrix size is: %dx %dx %d D=%d\n", M, N, K, D);   
-    printf("Creating %d edges...\n", L);
+    printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", M, N, K, D);   
+    printf("Creating %d edges (observed ratings)...\n", L);
   }
   
 
@@ -1001,7 +779,7 @@ void start(int argc, char ** argv) {
 
   double res, res2;
   double rmse =  calc_rmse(g, false, res);
-  printf("complete. Obj=%g, TRAIN RMSE=%0.4f TEST RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
+  printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
 
 
   if (BPTF){
@@ -1022,7 +800,7 @@ void start(int argc, char ** argv) {
 
   // calculate final RMSE
   rmse =  calc_rmse_q(res);
-  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f TEST RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
+  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
   
   if (infile == "kddcup" || infile == "kddcup2")
   	export_kdd_format(&test_graph, true);
@@ -1057,7 +835,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
   unsigned int e;
   int rc = fread(&e,1,4,f);
   assert(rc == 4);
-  printf("Creating %d edges...\n", e);
+  printf("Creating %d edges (observed ratings)...\n", e);
   assert(e>0);
   int total = 0;
   edgedata* ed = new edgedata[200000];
@@ -1173,7 +951,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   }
 
   //if (data_type==TRAINING)
-  printf("Matrix size is: %d %d %d\n", M, N, K);
+  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", M, N, K);
  
   vertex_data vdata;
 
@@ -1302,8 +1080,10 @@ int main(int argc,  char *argv[]) {
   options = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[options]);
   switch(options){
-    // iterative matrix factorization
+  // iterative matrix factorization using alternating least squares
+  // or SVD ++
   case ALS_MATRIX:
+  case SVD_PLUS_PLUS:
     tensor = false; BPTF = false;
     break;
     // MCMC tensor factorization
@@ -1387,7 +1167,7 @@ void calc_stats(testtype type){
 #ifndef GL_NO_MULT_EDGES            
          multiple_edges & edges = gr->edge_data(iedgeid);
 #endif
-         vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
+         //vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
 #ifndef GL_NO_MULT_EDGES        
          for (int j=0; j< (int)edges.medges.size(); j++){     
 		edge_data & data = edges.medges[j];
