@@ -6,6 +6,6 @@ add_graphlab_executable(gabp gabp.cpp)
 
 #add_graphlab_executable(BlockGABP gabp_block.cpp)
 
-i#target_link_libraries(BlockGABP itpp)
+#target_link_libraries(BlockGABP itpp)
 
 endif()
