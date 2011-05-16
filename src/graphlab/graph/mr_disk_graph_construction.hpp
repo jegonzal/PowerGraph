@@ -124,8 +124,8 @@ class igraph_constructor {
   * max = max_per_node * dc.numprocs() instances are constructed. 
   * begin() on each instance is called using this value.
   * 
-  * <b> If run in the distributed setting, all processes must have access to
-  * a common distributed file system (such as NFS) </b>
+  * \note If run in the distributed setting, all processes must have access to
+  * a common distributed file system (such as NFS) 
   * 
   * This function must be called with the same arguments across all the machines.
   * 

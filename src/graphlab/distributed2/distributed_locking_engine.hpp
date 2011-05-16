@@ -93,9 +93,6 @@ private:
   /** Use processor affinities */
   bool use_cpu_affinity;
 
-  /** Use schedule yielding when waiting on the scheduler*/
-  bool use_sched_yield;
- 
   
   /** Track the number of updates */
   std::vector<size_t> update_counts;
@@ -152,9 +149,6 @@ private:
   double barrier_time;
   size_t num_dist_barriers_called;
   
-  // other optimizations
-  bool const_nbr_vertices, const_edges;
-
   async_consensus consensus;
   
   struct sync_task {
@@ -209,7 +203,6 @@ private:
                             glshared_manager(dc),
                             ncpus( std::max(ncpus, size_t(1)) ),
                             use_cpu_affinity(false),
-                            use_sched_yield(true),
                             update_counts(std::max(ncpus, size_t(1)), 0),
                             timeout_millis(0),
                             force_stop(false),
@@ -223,8 +216,6 @@ private:
                             max_deferred_tasks(1000),
                             ready_vertices(ncpus),
                             barrier_time(0.0),
-                            const_nbr_vertices(true),
-                            const_edges(false),
                             consensus(dc, ncpus),
                             scheduler(this, graph, std::max(ncpus, size_t(1))),
                             graphlock(dc, graph, true),
@@ -245,12 +236,11 @@ private:
   //! Get the number of cpus
   size_t get_ncpus() const { return ncpus; }
 
-  //! set sched yield
-  void set_sched_yield(bool value) {
-    use_sched_yield = value;
-    rmi.barrier();
-  }
 
+  /**
+    Turns CPU affinity on or off.
+    Must be called by all machines simultaneously
+  */
   void set_cpu_affinities(bool value) {
     use_cpu_affinity = value;
     rmi.barrier();
@@ -311,6 +301,7 @@ private:
 
   /**
    * Add a terminator to the engine.
+   * Must be called by all machines simultaneously.
    */
   void add_terminator(termination_function_type term) {
     term_functions.push_back(term);
@@ -320,6 +311,7 @@ private:
 
   /**
    * Clear all terminators from the engine
+   * Must be called by all machines simultaneously.
    */
   void clear_terminators() {
     term_functions.clear();
@@ -329,7 +321,8 @@ private:
 
 
   /**
-   * Timeout. Default - no timeout. 
+   * Set a timeout. Disabled if set to 0.
+   * Must be called by all machines simultaneously.
    */
   void set_timeout(size_t timeout_seconds = 0) {
     timeout_millis = timeout_seconds * 1000;
@@ -337,7 +330,9 @@ private:
   }
   
   /**
-   * Task budget - max number of tasks to allow
+   * Sets a Task budget - max number of tasks to allow.
+   * Disabled if set to 0.
+   * Must be called by all machines simultaneously.
    */
   void set_task_budget(size_t max_tasks) {
     task_budget = max_tasks;
@@ -347,7 +342,9 @@ private:
 
   /**
    * \brief Adds an update task with a particular priority.
-   * This function is forwarded to the scheduler.
+   * add_task on any vertex can be called by any machine.
+   * The call is asynchronous and may not be completed until
+   * a full_barrier is issued.
    */
   void add_task(update_task_type task, double priority) {
     if (graph.is_owned(task.vertex())) {
@@ -385,12 +382,13 @@ private:
     }
   }
 
-
+  /// \internal
   void add_task_to_all_from_remote(size_t func,
                                   double priority) {
     add_task_to_all_impl(reinterpret_cast<update_function_type>(func), priority);
   }
   
+  /// \internal
   void add_task_to_all_impl(update_function_type func,
                             double priority) {
    std::vector<vertex_id_t> perm = graph.owned_vertices();
@@ -410,13 +408,17 @@ private:
   /**
    * \brief Creates a collection of tasks on all the vertices in the graph,
    * with the same update function and priority
-   * This function is forwarded to the scheduler.
+   * Must be called by all machines simultaneously
    */
   void add_task_to_all(update_function_type func,
                                double priority) {
     add_task_to_all_impl(func,priority);
   }
 
+  /**
+    Registers a sync operation.
+    Must be called by all machine simultaneously
+  */
   void set_sync(glshared_base& shared,
                 sync_function_type sync,
                 glshared_base::apply_function_type apply,
@@ -810,15 +812,6 @@ private:
       }
     }
   }
-  
-  void set_const_edges(bool const_edges_ = true) {
-    const_edges = const_edges_;
-  }
-
-  void set_const_nbr_vertices(bool const_nbr_vertices_ = true) {
-    const_nbr_vertices = const_nbr_vertices_;
-  }
-
   
   /*
   These variables protect the reduction completion 

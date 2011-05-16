@@ -564,7 +564,9 @@ WARN_LOGFILE           =
 # directories like "/usr/src/myproject". Separate the files or directories 
 # with spaces.
 
-INPUT                  = src tests/rpc_example1.cpp tests/rpc_example2.cpp tests/rpc_example3.cpp tests/rpc_example4.cpp tests/rpc_example5.cpp tests/rpc_example6.cpp tests/rpc_example7.cpp
+INPUT                  = src tests/distributed_dg_construction_test.cpp tests/rpc_example1.cpp   \
+                         tests/rpc_example2.cpp tests/rpc_example3.cpp tests/rpc_example4.cpp  \
+                         tests/rpc_example5.cpp tests/rpc_example6.cpp tests/rpc_example7.cpp 
 
 # This tag can be used to specify the character encoding of the source files 
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding, which is 
@@ -691,7 +693,7 @@ INLINE_SOURCES         = NO
 # doxygen to hide any special comment blocks from generated source code 
 # fragments. Normal C and C++ comments will always remain visible.
 
-STRIP_CODE_COMMENTS    = YES
+STRIP_CODE_COMMENTS    = NO
 
 # If the REFERENCED_BY_RELATION tag is set to YES 
 # then for each documented function all documented 

@@ -9,7 +9,10 @@ using namespace graphlab;
 
 /*
  * Simple example of a graph constructor. This graph constructor constructs
- * a distributed from an in-memory graph
+ * a distributed graph from an in-memory graph. Of course, this is quite 
+ * unecessary as a disk graph can be easily constructed from an im memory graph directly,
+ * but this provides a simple test case / example for using the distributed graph construction
+ * scheme
  */
 class graph_constructor: public igraph_constructor<float, double>{
  private:
@@ -23,6 +26,11 @@ class graph_constructor: public igraph_constructor<float, double>{
   graph_constructor(graph<float, double>& mg):mg(mg) { }
   graph_constructor(graph_constructor& g):mg(g.mg) { }
   
+  /**
+  Begin iteration. 
+  Instance "i" will store vertex IDs i, i+N, i+2N, etc.
+  and edge IDs i, i+N, i+2N, etc.
+  */
   void begin(size_t i_, size_t max_) {
     std::cout << "begin: " << i_ << " " << max_ << std::endl;
     i = i_;
@@ -31,15 +39,22 @@ class graph_constructor: public igraph_constructor<float, double>{
     eiterator = i;
   }
   
+  /**
+  We use a simple modular atom partitioning
+  */
   uint16_t vertex_to_atomid(vertex_id_t vid, uint16_t numatoms)  {
     return vid % numatoms;
   }
   
+  /**
+  This function will be called repeatedly until NoMoreData is returned.
+  */
   iterate_return_type iterate(vertex_id_t& vtx, 
                               float& vdata,
                               uint32_t& color,
                               std::pair<vertex_id_t, vertex_id_t>& edge, 
                               double& edata) {
+    /// while I still have vertices to insert, return a vertex
     while (viterator < mg.num_vertices()) {
       vtx = viterator;
       vdata = mg.vertex_data(viterator);
@@ -47,7 +62,8 @@ class graph_constructor: public igraph_constructor<float, double>{
       viterator += max;
       return Vertex;
     }
-    
+
+    /// while I still have edges to insert, return an edge
     while (eiterator < mg.num_edges()) {
       edge.first = mg.source(eiterator);
       edge.second = mg.target(eiterator);
@@ -73,7 +89,11 @@ int main(int argc, char** argv) {
   const size_t num_verts = 10000;
   const size_t degree = 100;
   
-  // here we first create an in memory graph
+  // here we first create an in memory graph. 
+  // Every machine creates exactly the same graph.
+  
+  srand(42);
+
   std::cout << "Testing Distributed Disk Graph Construction" << std::endl;
   std::cout << "Creating a graph" << std::endl;
   graph<float, double> memgraph;
@@ -94,7 +114,7 @@ int main(int argc, char** argv) {
   std::cout << "Completed in " << ti.current_time() << " s" << std::endl;
   //-----------------------------------------------------------------------
   
-  // everything after this is just for verfication
+  // everything after this is just for verification
   std::cout << "Checking constructed graph ... " << std::endl;
   if (dc.procid() == 0) {
     disk_graph<float,double> graph("dg.idx");

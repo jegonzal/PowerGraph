@@ -16,6 +16,8 @@ ADD_CXXTEST(serializetests.cxx)
 
 add_executable(anytests anytests.cpp)
 add_executable(anytests_loader anytests_loader.cpp)
+
+if (MPI_FOUND)
 add_executable(dc_consensus_test dc_consensus_test.cpp)
 
 add_executable(rpc_example1 rpc_example1.cpp)
@@ -28,6 +30,7 @@ add_executable(rpc_example7 rpc_example7.cpp)
 
 add_executable(distributed_dg_construction_test distributed_dg_construction_test.cpp)
 add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
+endif()
 
 ADD_CXXTEST(md5test.cxx)
 

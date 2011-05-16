@@ -31,7 +31,103 @@ namespace graphlab {
 
 
 
+/**
+  \brief GraphLab disk based Graph container templatized over the vertex and edge types.
+  
+  This class more or less exposes the same interface as graphlab::graph
+  but with a few critical differences.
+  
+  Firstly, the user will notice that edge IDs are no longer assigned. 
+  This is an intentional design decision as there are many more edges
+  in a graph than vertices, and as graph sizes grow large, it could become impractical
+  to hold a single index table mapping each unique edge id to the data / location
+  of the edge. Instead, we opt to switch to the more "natural" 
+  method of identifying each edge simply by its source and destination 
+  vertices.
 
+<b> Graph Creation </b>
+  
+    Vertices and edges can be added using the disk_graph::add_vertex()
+    and graph::add_edge() member functions.
+  
+  
+  \code
+  vertex_it disk_graph::add_vertex(const VertexData& vdata = VertexData()) 
+  void disk_graph::add_edge(vertex_id_t source, vertex_id_t target, const EdgeData& edata = EdgeData()) 
+  \endcode
+  
+  There is also a "hinted" version of add_vertex which allows the user to 
+  provide information about which atom should store the vertex.
+  
+  \code
+  vertex_it disk_graph::add_vertex(const VertexData& vdata, size_t locationhint)
+  \endcode
+  
+  However, these functions add one vertex or one edge at a time and
+  could be slow. Vertex / edge creation can often be parallelized using the following 
+  parallel creation functions.
+  
+<b> Parallel Graph Creation </b>
+
+  \code
+  vertex_id_t add_vertex_collection(std::string collectionname,
+                                    std::vector<VertexData> & vdata)
+
+  vertex_id_t add_vertex_collection(std::string collectionname,
+                                    size_t numvertices,
+                                    boost::function<VertexData (vertex_id_t)> generator)
+   \endcode
+
+   The first form inserts a collection of vertices, assigning the collection a name
+   and obtaining the vertex data from the vdata vector, 
+   The function returns the index of the first vertex inserted. Remaining vertices
+   are assigned the consecutive vertex IDs.
+   
+   The second form does the same but obtains the vertex data by calling a user provided
+  function "VertexData generator(vertex_id_t)"
+   
+   
+   Edges can then be inserted using the following function:
+   \code
+     void add_edge_indirect(std::string collectionname,
+                         boost::function<void (vertex_id_t,
+                                               const VertexData&,
+                                               std::vector<vertex_id_t>&, 
+                                               std::vector<EdgeData>&,
+                                               std::vector<vertex_id_t>&, 
+                                               std::vector<EdgeData>&)> efn) 
+    \endcode
+    This rather complicated looking function prototype is actually quite straightforward.
+   
+    The provided user function will be called on each vertex in the collection,
+    passing the user function the data on the vertex (vdata) as well as the
+    ID of the vertex.
+
+    The function should then return in the remaining arguments, the 
+    set of outgoing vertices and their corresponding edge data, as well as the
+    set of incoming vertices and their corresponding edge data.
+   
+    The prototype for the function is:
+    \code
+    void efn(vertex_id_t vid,          // input: vertex ID of the vertex being queried
+            const VertexData& vdata,   // input: vertex data of the vertex being queried
+            std::vector<vertex_id_t>& inv,    // output: Incoming vertices of the vertex being queried
+            std::vector<EdgeData>& inedata,   // output: Data on the in-edges of the vertex. Paired with inv.
+            std::vector<vertex_id_t>& outv,   // output: Outgoing vertices of the vertex being queried
+            std::vector<EdgeData>& outedata); // output: Data on the out-edges of the vertex. Paired with outv.
+    \endcode
+
+<b> Finalization </b>
+
+  The finalize() function completes synchronization
+  of disk IO as well as regenerate an atom index file.
+  finalize() is automatically called in the disk_graph destructor.
+
+<b> Performance </b>
+
+  Simple synthetic benchmarks have rated the edge insertion rate at about 100K to 200K edges
+  per second. Vertex insertion rate can exceed 500K vertices per second,.
+*/
 template<typename VertexData, typename EdgeData> 
 class disk_graph {
  public:
@@ -42,6 +138,8 @@ class disk_graph {
     * This is useful when either creating a new
     * disk graph, or to open a disk graph without an atom index.
     * 
+    * \note finalize() will always rebuild an atom index file irregardless of
+    * which constructor is used.
     */
   disk_graph(std::string fbasename, size_t numfiles){  
     atoms.resize(numfiles);
@@ -59,7 +157,7 @@ class disk_graph {
   
     
   /**
-    * Create or open a graph using 'atomindex' as the disk graph index file.
+    * Opens a graph using 'atomindex' as the disk graph index file.
     * If the file 'atomindex' does not exist, an assertion failure will be issued
     * Use the other constructor to create a new disk graph.
     */    
@@ -150,6 +248,10 @@ class disk_graph {
     nume.value = 0;   
   }
   
+  /**
+    Synchronizes all disk atoms. This also recomputes the graph coloring
+    if it is not already available. An atom index file is also regenerated.
+  */
   void finalize() { 
     // synchronize all atoms
     for (size_t i = 0;i < atoms.size(); ++i) {
@@ -528,6 +630,13 @@ class disk_graph {
 
 /**
  * Quick utility function to quickly turn a graph into a disk graph
+ * parts is a vector assigning each vertex to an atom ID. atom IDs begin 
+ * at 0. The total number of atoms created is 1 + the largest 
+ * value in the parts vector.
+ *
+ * The result graph will be saved using the basename provided. The
+ * atom index will have file name "[basename].idx" and the atoms 
+ * will be stored in "[basename].0", "[basename].1", etc.
  */
 template<typename VertexData, typename EdgeData>
 void graph_partition_to_atomindex(graph<VertexData, EdgeData> &g,

@@ -250,6 +250,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
 
   /**
    * Add a terminator to the engine.
+   * Must be called by all machines simultaneously.
    */
   void add_terminator(termination_function_type term) {
     term_functions.push_back(term);
@@ -259,8 +260,9 @@ class distributed_chromatic_engine : public iengine<Graph> {
 
   /**
    * Clear all terminators from the engine
+   * Must be called by all machines simultaneously.
    */
-  void clear_terminators() {
+   void clear_terminators() {
     term_functions.clear();
     rmi.barrier();
   }
@@ -268,7 +270,8 @@ class distributed_chromatic_engine : public iengine<Graph> {
 
 
   /**
-   * Timeout. Default - no timeout. 
+   * Set a timeout. Disabled if set to 0.
+   * Must be called by all machines simultaneously.
    */
   void set_timeout(size_t timeout_seconds = 0) {
     timeout_millis = timeout_seconds * 1000;
@@ -276,7 +279,9 @@ class distributed_chromatic_engine : public iengine<Graph> {
   }
   
   /**
-   * Task budget - max number of tasks to allow
+   * Sets a Task budget - max number of tasks to allow.
+   * Disabled if set to 0.
+   * Must be called by all machines simultaneously.
    */
   void set_task_budget(size_t max_tasks) {
     task_budget = max_tasks;
@@ -286,7 +291,9 @@ class distributed_chromatic_engine : public iengine<Graph> {
 
   /**
    * \brief Adds an update task with a particular priority.
-   * This function is forwarded to the scheduler.
+   * add_task on any vertex can be called by any machine.
+   * The call is asynchronous and may not be completed until
+   * a full_barrier is issued.
    */
   void add_task(update_task_type task, double priority) {
     if (update_function != NULL) assert(update_function == task.function());
@@ -319,12 +326,13 @@ class distributed_chromatic_engine : public iengine<Graph> {
     }
   }
 
-
+  /// \internal
   void add_task_to_all_from_remote(size_t func,
                                   double priority) {
     add_task_to_all_impl(reinterpret_cast<update_function_type>(func), priority);
   }
   
+  /// \internal
   void add_task_to_all_impl(update_function_type func,
                             double priority) {
     if (update_function != NULL) assert(update_function == func);
@@ -338,21 +346,27 @@ class distributed_chromatic_engine : public iengine<Graph> {
   /**
    * \brief Creates a collection of tasks on all the vertices in the graph,
    * with the same update function and priority
-   * This function is forwarded to the scheduler.
+   * Must be called by all machines simultaneously
    */
   void add_task_to_all(update_function_type func,
                                double priority) {
     add_task_to_all_impl(func,priority);
-    for (size_t i = 0;i < rmi.numprocs(); ++i) {
+    // forward add_task_to_all to all machines
+   /*for (size_t i = 0;i < rmi.numprocs(); ++i) {
       if (i != rmi.procid()) {
         rmi.remote_call(i,
                         &distributed_chromatic_engine<Graph>::add_task_to_all_from_remote,
                         reinterpret_cast<size_t>(func),
                         priority);
       }
-    }
+    }*/
+    rmi.barrier();
   }
 
+  /**
+    Registers a sync operation.
+    Must be called by all machine simultaneously
+  */
   void set_sync(glshared_base& shared,
                 sync_function_type sync,
                 glshared_base::apply_function_type apply,
