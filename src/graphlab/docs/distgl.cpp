@@ -114,10 +114,25 @@ This is best illustrated using an example
 
 /**
 \page page_distributed_graphlab Distributed GraphLab
+To work with distributed GraphLab, MPI is needed. We have tested with MPICH2 and the MPI
+distribution that comes with OS X. However, other distributions of MPI (Open MPI) should
+work as well.
+
 Distributed GraphLab is functionally quite similar to the regular GraphLab. But due to the
 law of leaky abstractions (http://www.joelonsoftware.com/articles/LeakyAbstractions.html), 
-there are necessarily a few key differences the user will have to take into consideration.
-to obtain good performance.
+there are some issues the user will have to take into consideration.
+
+Firstly, the graph cannot be created on the fly, and must be created before-hand and loaded from 
+an atom index file ( \ref page_distributed_graph_creation ).
+
+Next, since multiple instances of the program is started across the network, some amount of 
+coordination is needed to ensure that all instances behave identically. We strongly encourage
+the use of graphlab::core (which is the distributed setting is graphlab::distributed_core) since
+that simplifies the amount of management needed. 
+
+\attention The general rule is that any operation which affect operation on a global scale
+(for instance, a configuration setting) should be called by all instances simultaneously.
+
 
 
 
