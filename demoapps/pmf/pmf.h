@@ -187,6 +187,8 @@ const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "NA", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
 
 
+//model can support multiple ratings of user to the same movie in different times
+//or a single rating. Single rating will run faster.
 #ifndef GL_NO_MULT_EDGES
 typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
 #else

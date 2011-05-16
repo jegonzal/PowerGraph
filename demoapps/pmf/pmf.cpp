@@ -96,6 +96,7 @@ void export_kdd_format(graph_type * _g, bool dosave);
 void calc_stats(testtype type);
 
 // update function for time nodes
+// this function is called only in tensor mode
 void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler) {
 
   assert(tensor);
@@ -110,8 +111,10 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
   else last_iter();
 }
 
-   //calculate RMSE
-   double calc_rmse(graph_type * _g, bool test, double & res){
+
+//calculate RMSE. This function is called only before and after grahplab is run.
+//during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
+double calc_rmse(graph_type * _g, bool test, double & res){
 
      if (test && Le == 0)
        return NAN;
@@ -119,7 +122,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
      res = 0;
      double RMSE = 0;
      int e = 0;
-     for (int i=M; i< M+N; i++){ //TODO: optimize to start from N?
+     for (int i=M; i< M+N; i++){
        vertex_data * data = &g->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
             
@@ -174,7 +177,7 @@ double calc_rmse_q(double & res){
     RMSE+= data->rmse;
   }
   res = RMSE;
-  counter[2] += t.current_time();
+  counter[CALC_RMSE_Q] += t.current_time();
   return sqrt(RMSE/(double)L);
 
 }
@@ -270,7 +273,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
       for (int j=0; j< (int)medges.medges.size(); j++){
         edge_data& edge = medges.medges[j];
 #endif
-        //go over each rating
+        //go over each rating of a movie and put the movie vector into the matrix Q
+        //and vector vals
         parse_edge(edge, pdata, Q, vals, i); 
      
         if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
@@ -298,7 +302,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #else
 	edge_data & edge = scope.edge_data(iedgeid);
 #endif   
-        //go over each rating
+        //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i); 
         if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
@@ -323,7 +327,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   }
   assert(i == numedges);
-  counter[0] += t.current_time();
+  counter[EDGE_TRAVERSAL] += t.current_time();
 
   vec result;
       
@@ -331,12 +335,13 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
     t.start();
     double regularization = LAMBDA;
+    //compute weighted regularization (see section 3.2 of Zhou paper)
     if (!regnormal)
 	regularization*= Q.cols();
 
     bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
     assert(ret);
-    counter[3] += t.current_time();
+    counter[ALS_LEAST_SQUARES] += t.current_time();
   }
   else {
     //COMPUTE LEAST SQUARES (BPTF)
@@ -348,12 +353,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     assert(ret);
     t.start();
     vec mui_ =  iAi_*((((int)scope.vertex() < M)? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
-    counter[10]+= t.current_time();
+    counter[BPTF_LEAST_SQUARES2]+= t.current_time();
        
     t.start();
     result = mvnrndex(mui_, iAi_, D); 
     assert(result.size() == D);
-    counter[9] += t.current_time();
+    counter[BPTF_MVN_RNDEX] += t.current_time();
   }
 
   if (debug && (((int)scope.vertex()  == 0) || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
@@ -390,7 +395,7 @@ void last_iter(){
     sample_V();
     if (tensor) 
       sample_T();
-    counter[1] += t.current_time();
+    counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
 	export_kdd_format(&test_graph, false);
    }
@@ -462,7 +467,7 @@ void calc_T(int i){
     }
     cnt++;
   }
-  counter[5] += t.current_time();
+  counter[BPTF_TIME_EDGES] += t.current_time();
 
 
   if (debug && (i == 0 ||i== K-1 )){
@@ -538,7 +543,7 @@ void calc_T(int i){
   if (debug && (i == 0|| i == K-1)) 
     std::cout<<times[i].pvec<<std::endl;
   assert(QQ.rows() == D && QQ.cols() == D);
-  counter[6] += t.current_time();
+  counter[BPTF_LEAST_SQUARES] += t.current_time();
   //}
 
   if (i == K-1){
@@ -576,7 +581,7 @@ double calc_obj(double res){
     }
     sumT *= pT;
   }
-  counter[7]+= t.current_time();
+  counter[CALC_OBJ]+= t.current_time();
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
   return obj;
