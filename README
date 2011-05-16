@@ -32,6 +32,79 @@ and achieving a high degree of parallel performance.
 For more details on the GraphLab see http://graphlab.ml.cmu.edu
 
 
+============
+Dependencies
+============
+We require Cmake, Boost and Kyoto Cabinet. If you use distributed
+GraphLab, we also require MPI.
+
+
+CMake
+-----
+You can obtain CMake from 
+ - http://www.cmake.org/cmake/resources/software.html
+
+
+Boost
+-----
+We have tested with Boost 1.46. Many earlier versions, and all later
+versions should work as well.
+
+To install Boost 1.46 with the minimal set of libraries:
+
+   # download
+   wget http://sourceforge.net/projects/boost/files/boost/1.46.1/boost_1_46_1.tar.bz2/download boost.tar.bz2
+   cd boost_1_46_1
+   
+   # configure
+   ./bootstrap.sh --with-libraries="filesystem,program_options,system"
+   
+   # compile
+   ./bjam --threading=multi --link=static --variant=release | tee bjamlog.txt
+   
+   # install 
+   sudo ./bjam install
+
+
+Kyoto Cabinet
+-------------
+We have tested with Kyoto Cabinet 1.2.53. Later versions should work
+as well.
+
+To install Kyoto Cabinet 1.2.53: 
+   # download
+   wget http://fallabs.com/kyotocabinet/pkg/kyotocabinet-1.2.53.tar.gz kyotocabinet.tar.gz
+   cd kyotocabinet-1.2.53
+   
+   # configure
+   ./configure
+   
+   # compile
+   make
+    
+   # install
+   sudo make install
+
+
+MPI
+---
+We have tested with MPICH2. Open MPI might also work. 
+Mac OS X comes with MPI and works out of the box.
+
+To install MPICH2:
+   # download
+   http://www.mcs.anl.gov/research/projects/mpich2/downloads/tarballs/1.3.2p1/mpich2-1.3.2p1.tar.gz
+   cd mpich2-1.3.2p1/
+   
+   # configure
+   ./configure
+   
+   # compile
+   make
+   
+   # install
+   sudo make install
+   
 
 ===========
 Compilation
@@ -41,7 +114,11 @@ GraphLab has three dependencies: CMake, Boost and Kyoto Cabinet
 If you already have all dependencies satistied,
 1a: ./configure
 
-Otherwise, autodetect, install and build boost, CMake and Kyoto Cabinet
+Otherwise, autodetect, install and build boost, CMake and Kyoto Cabinet.
+Note that this will install all the dependencies in the deps/ directory
+and not install them globally. We STRONGLY recommend installing all the 
+dependencies globally. See the "Dependencies" section.
+
 1b: ./configure --bootstrap 
 
 
