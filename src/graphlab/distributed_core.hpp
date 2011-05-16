@@ -454,7 +454,7 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    void set_sync(glshared_base& shared,
+    void set_sync(distributed_glshared_base& shared,
                   typename distributed_types::iengine::sync_function_type sync,
                   glshared_base::apply_function_type apply,
                   const any& zero,

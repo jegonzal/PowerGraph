@@ -17,6 +17,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
+#include <graphlab/distributed2/graph/graph_local_store.hpp>
 #include <map>
 #include <set>
 #include <vector>
@@ -32,7 +33,6 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/graph/disk_atom.hpp>
-#include <graphlab/distributed2/graph/graph_local_store.hpp>
 #include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
 #include <graphlab/logger/assertions.hpp>
 

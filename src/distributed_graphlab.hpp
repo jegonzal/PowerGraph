@@ -21,7 +21,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 
 //
-
+#include <graphlab/distributed2/distributed2_includes.hpp>
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
@@ -34,7 +34,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/shared_data/shared_data_includes.hpp>
 #include <graphlab/tasks/task_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
-#include <graphlab/distributed2/distributed2_includes.hpp>
+
 
 #include <graphlab/distributed_core.hpp>
 

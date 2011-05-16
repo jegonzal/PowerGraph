@@ -42,7 +42,7 @@ namespace graphlab {
 
 
     inline void init(int& argc, char**& argv) {
-      const int required(MPI_THREAD_MULTIPLE);
+      const int required(MPI_THREAD_SINGLE);
       int provided(-1);
       int error = MPI_Init_thread(&argc, &argv, required, &provided);
       assert(provided == required);

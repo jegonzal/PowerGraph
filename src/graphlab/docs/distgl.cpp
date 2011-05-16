@@ -133,7 +133,7 @@ that simplifies the amount of management needed.
 \attention The general rule is that any operation which affect operation on a global scale
 (for instance, a configuration setting) should be called by all instances simultaneously.
 
-
+Here is a distributed version of the shared memory detailed_example: \ref distributed_detailed_example
 
 
 */

@@ -17,9 +17,9 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifndef GRAPH_LOCAL_STORE_HPP
 #define GRAPH_LOCAL_STORE_HPP
+#include <graphlab/util/mmap_wrapper.hpp>
 #include <climits>
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/util/mmap_wrapper.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/logger/assertions.hpp>
 

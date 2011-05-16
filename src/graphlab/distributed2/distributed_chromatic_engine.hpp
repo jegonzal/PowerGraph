@@ -808,6 +808,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
    * Performs a sync immediately. This function requires that the shared
    * variable already be registered with the engine.
    * and that the engine is not currently running
+   * All processes must call simultaneously
    */
   void sync_now(glshared_base& shared) {
     // TODO
