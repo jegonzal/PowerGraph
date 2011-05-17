@@ -62,7 +62,7 @@ atom_properties merge_parallel_disk_atom(std::vector<std::string> disk_atom_file
   volatile uint32_t max_color = 0;
   // iterate through each database, joining the keys as we see it
   #pragma omp parallel for
-  for (size_t i = 0;i < atoms.size(); ++i) {
+  for (int i = 0;i < (int)atoms.size(); ++i) {
     // open a cursor
     std::string key, val;
     kyotocabinet::HashDB::Cursor* cur = atoms[i]->get_db().cursor();

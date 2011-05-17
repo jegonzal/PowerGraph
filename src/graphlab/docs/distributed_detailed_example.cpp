@@ -16,16 +16,22 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /**
-\page detailed_example Detailed Example
+\page distributed_detailed_example Distributed Detailed Example
 
 In this section we provide a brief tutorial on how the pieces of 
 GraphLab come together to form a simple GraphLab program. In this 
 tutorial we construct a synthetic application which uses many of 
 the GraphLab concepts. However, many real GraphLab applications 
-will not need all the pieces described in this tutorial. For a 
-syntax highlighted (condensed version) of the demo.cpp see demo.cpp
+will not need all the pieces described in this tutorial. See dist_demo.cpp
+for the complete source.
 
-\section detailed_example_problem The Problem
+This is very to the \ref detailed_example but modified for the 
+distributed version. Depending on the complexity of your program, moving from the
+shared memory version to the distributed version can be quite mechanical. See 
+\ref page_distributed_graphlab for a condensed list of the changes you have to make.
+
+
+\section distributed_detailed_example_problem The Problem
 
 We begin by first describing the synthetic problem we will be solving. We are given a 
 d by d grid of magnetic coins. Each coin only interacts with its 4 neighboring coins 
@@ -68,28 +74,20 @@ The only two stable joint states are when all coins are black, Figure 1(b),
 or where all coins are red, Figure 1(c). We are interested in computing the 
 average number of flips for each coin before a stable state is reached. 
 
-\section detailed_example_includes Includes
+\section distributed_detailed_example_includes Includes
 
-We first need to include some headers: <tt>graphlab.hpp</tt> includes everything 
-you will ever need from GraphLab. 
+We first need to include some headers: <tt>distributed_graphlab.hpp</tt> includes everything 
+you will ever need for Distributed GraphLab. 
 
 \code
 // standard C++ headers 
 #include <iostream> 
 // includes the entire graphlab framework 
-#include <graphlab.hpp> 
+#include <distributed_graphlab.hpp> 
 \endcode
 
-In some of our demo code you may occasionally encounter the following additional included header: 
 
-\code
-#include <graphlab/macros_def.hpp> 
-\endcode
-
-If you use <tt>macros_def.hpp</tt> in a header file, it must be paired with a matching 
-<tt> \#include <graphlab/macros_undef.hpp> </tt> at the end of the header file.
-
-\section detailed_example_data_graph Getting Started with The Data Graph 
+\section distributed_detailed_example_data_graph Getting Started with The Data Graph 
 
 The first step to designing a GraphLab program is setting up the data graph. 
 To do this we will need to define the data elements and their dependencies. 
@@ -104,14 +102,17 @@ struct vertex_data {
 }; 
 \endcode
 
-GraphLab provides facilities to directly save/load graphs from disk. 
-However, to do so,  you must implement a save and load function
+
+Distributed GraphLab requires the vertex and edge data types to be serializable
+(\ref Serialization ) since the data must be transmittable across the network.
+To do so,  you must implement a save and load function
 so that GraphLab can understand your data-structures.  
 The serialization mechanism is simple to use and it understands all basic datatypes 
 as well as standard STL containers. If the STL container contains non-basic datatypes 
 (such as a struct), save/load functions must be written for the datatype. If we wanted 
 to be able to save the graph to a file we would implement the following functions.
 See \ref Serialization for more details.
+
 \code
 struct vertex_data { 
   size_t numflips; 
@@ -139,47 +140,35 @@ an alternative problem where edge weights are associated with each pair of
 interacting coins. 
 
 
-\section detailed_example_typedefs GraphLab Typedefs
+\section distributed_detailed_example_typedefs GraphLab Typedefs
 
 The GraphLab graph is templatized over the vertex data as well as the edge data. 
 Here we define the type of the graph using a typedef for convenience.
 \code
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 \endcode
 Since graphlab is heavily templatized and can be inconvenient to use in its standard form, 
-the <tt>graphlab::types</tt> structure provides convenient typedefed "shortcuts" to figure out the 
+the <tt>graphlab::distributed_types</tt> structure provides convenient typedefed "shortcuts" 
+to figure out the 
 other graphlab types easily.
 \code
-typedef graphlab::types<graph_type> gl;
-\endcode
-Rather than needing to directly instantiate template interfaces like:
-\code
-graphlab::iscope< graphlab::<vertex_data, edge_data> >* scope;
-\endcode
-we can use the simpler syntax:
-\code
-gl::iscope* scope;
+typedef graphlab::distributed_types<graph_type> gl;
 \endcode
 
-\section detailed_example_graph_datastructure The Graph Data Structure
+\section distributed_detailed_example_graph_datastructure The Graph Data Structure
 
 The next step in constructing a GraphLab program is to construct the actual graph. 
-The core graph datastructure is documented here: graphlab::graph .
-To simplify the presentation we will define a function which takes a reference to a 
-graph and populates the graph. Later we will show how to construct the empty graph. 
-The init_graph function takes an additional argument which describes the number of 
-coins along each dimension of the grid.
+Distributed Graphlab requires that the data graph be represented as a disk graph for
+input. And
+as stated in \ref sec_disk_graph_creation , there are three basic methods of creating
+a graph. Here, we will use the first method (\ref sec_memory_to_disk_graph) where 
+the graph is fully instantiated in memory before writing it out to disk.
+
+We define a simple init_graph function which takes a gl::graph type (gl::graph
+is an in memory graph. The distributed graph is gl::distributed_graph), and 
+creates a grid.
 \code 
-void init_graph(graph_type& g, size_t dim) {
-\endcode
-
-We first create create d * d vertices. We use the graph's 
-\ref graphlab::graph::add_vertex "gl::vertex_id_t add_vertex(vertex_data)"
-method which takes the vertex data as input and returns the vertex 
-id of the new vertex. The ids are guaranteed to be sequentially numbered. 
-The graph data structure behaves like an STL container and stores the vertex data by value.
-
-\code
+void init_graph(gl::graph& g, size_t dim) {
   for (size_t i = 0; i < dim * dim; ++i) { 
     // create the vertex data, randomizing the color 
     vertex_data vdata; 
@@ -190,49 +179,22 @@ The graph data structure behaves like an STL container and stores the vertex dat
     // create the vertex 
     g.add_vertex(vdata); 
   }
-\endcode
-
-Now we add all the edges. To add edges we use the graph's 
-\ref graphlab::graph::add_edge "gl::edge_id_t add_edge(src, target, edgedata)"
-function which creates an edge from src to target with the
-edge data given by edgedata. The add_edge function then returns the 
-id of the new edge. The ids are guaranteed to be sequentially numbered. 
-GraphLab does NOT support duplicated edges, and currently has no facilities 
-for checking for accidental duplicated edge insertions at the graph construction
-stage. (It is quite costly to do so) Any duplicated edges will result in an 
-assertion failure at the later finalize stage. Furthermore, the current version 
-does not support vertex or edge removal. These constraints are imposed to enable 
-the efficient construction of massive graphs while retaining fast look-up. For 
-more details about the graph data-structure see \ref graphlab::graph
-\code
-edge_data edata; 
-for (size_t i = 0; i < dim; ++i) { 
-  for (size_t j = 0; j < dim - 1; ++j) { 
-    // add the horizontal edges in both directions 
-    g.add_edge(dim * i + j, dim * i + j + 1, edata); 
-    g.add_edge(dim * i + j + 1, dim * i + j, edata); 
-    // add the vertical edges in both directions 
-    g.add_edge(dim * j + i, dim * (j + 1) + i, edata); 
-    g.add_edge(dim * (j + 1) + i, dim * j + i, edata); 
-  } 
-}
-\endcode
-The above block of code connects all the vertices in the 
-grid pattern illustrated in Figure 1(a). Now that the graph is fully 
-constructed, we need to call \ref graphlab::graph::finalize graph.finalize().
-
-\code
+  edge_data edata; 
+  for (size_t i = 0; i < dim; ++i) { 
+    for (size_t j = 0; j < dim - 1; ++j) { 
+      // add the horizontal edges in both directions 
+      g.add_edge(dim * i + j, dim * i + j + 1, edata); 
+      g.add_edge(dim * i + j + 1, dim * i + j, edata); 
+      // add the vertical edges in both directions 
+      g.add_edge(dim * j + i, dim * (j + 1) + i, edata); 
+      g.add_edge(dim * (j + 1) + i, dim * j + i, edata); 
+    } 
+  }
   g.finalize(); 
 } // end of init_graph function
 \endcode
 
-The finalize function reorders the vertex adjacency tables so that 
-the \ref graphlab::graph::in_edge_ids "in_edge_ids(vertex_id_t)" returns edges in order of the source 
-vertex id and the \ref graphlab::graph::out_edge_ids "out_edge_ids(vertex_id_t)" returns edges in order of 
-the target vertex id. This sorting also enables O(log(degree)) edge retrieval. 
-
-
-
+We will use this function to create the disk graph a little later.
 
 
 \section detailed_example_update_function The Update Function
@@ -459,12 +421,12 @@ across all the vertices in the graph, and store the results in a shared variable
 
 We will therefore define the following 3 shared variables: 
 \code
-gl::glshared_const<size_t> NUM_VERTICES;
-gl::glshared<double> RED_PROPORTION;
-gl::glshared<size_t> NUM_FLIPS;
+gl::distributed_glshared<size_t> NUM_VERTICES;
+gl::distributed_glshared<double> RED_PROPORTION;
+gl::distributed_glshared<size_t> NUM_FLIPS;
 \endcode
 
-\subsection detailed_example_num_vertices Num Vertices
+\subsection distributed_detailed_example_num_vertices Num Vertices
 
 The number of vertices in the graph is a constant, 
 and will not be changed through out execution of the GraphLab program. 
@@ -476,6 +438,10 @@ To get the value of a shared variable:
 \code
 size_t numvertices = NUM_VERTICES.get_val();
 \endcode
+
+Note that unlike the shared memory version which has a glshared_const type,
+we do not yet have a distributed_glshared_const type.
+Users could either use distributed_glshared, or could use regular variables.
 
 
 \subsection detailed_example_red_proportion Red Proportion
@@ -647,7 +613,6 @@ core.set_sync(NUM_FLIPS,
               gl::glshared_merge_ops::sum<size_t>);
 \endcode
 
-
 \section detailed_example_main The Main 
 
 The Main function where everything begins. Here, we will 
@@ -658,65 +623,160 @@ We first present the complete main and then discuss each of the parts.
 
 \code
 int main(int argc,  char *argv[]) {
-  // Parse command line options
+  // Parse the command line using the command line options tool
+  // and scope type on the command line
   graphlab::command_line_options opts;
+  
   size_t dimensions = 20;
-  opts.attach_option("dim",
-                     &dimensions, dimensions,
-                     "the dimension of the grid");
-  opts.scheduler_type = "fifo";
-  opts.scope_type = "edge";
-  if(!opts.parse(argc, argv)) return EXIT_FAILURE;
-  // Create the core which contains the graph and engine
-  gl::core glcore;
-  // Initialize engine with command line options
+  bool makegraph = false;
+  opts.use_distributed_options();
+  opts.attach_option("dim", 
+		     &dimensions, size_t(20), 
+		     "the dimension of the grid");
+  opts.attach_option("makegraph", 
+		     &makegraph, makegraph, 
+		     "Makes Graph");
+
+  // parse the command line
+  bool success = opts.parse(argc, argv);
+  if(!success) {
+    return EXIT_FAILURE;
+  }
+  
+  if (makegraph) {
+    // call init_graph to create the graph
+    gl::graph g;
+    init_graph(g, dimensions);
+    std::vector<graphlab::vertex_id_t> parts;
+    g.metis_partition (16, parts);
+    graph_partition_to_atomindex(g, parts, "demograph");
+    return 0;
+  }
+
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::dc_init_param param;
+  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  graphlab::distributed_control dc(param);
+
+  
+  // Display the values
+  opts.print();
+
+  // create a graphlab core which contains the graph, shared data, and
+  // engine
+  gl::distributed_core glcore(dc, "demograph.idx");
+
+  // Initialize the core with the command line arguments
   glcore.set_engine_options(opts);
-    // Initialize the the data structures  
-  init_graph(glcore.graph(), dimensions);
+  glcore.build_engine();
+  // call create shared_data to create the shared data
   init_shared_data(glcore, dimensions);
-  // Add all starting tasks
-  glcore.add_task_to_all(update_function, 1.0);  
+
+  // since we are using a task scheduler, we need to
+  // to create tasks. otherwise the engine will just terminate immediately
+  // there are DIM * DIM vertices
+  glcore.add_task_to_all(update_function, 1.0);
+  
   // Run the graphlab engine 
   double runtime = glcore.start();
-  
-  // Output the results
+
+  // output the runtime
   std::cout << "Completed in " << runtime << " seconds" << std::endl;
-  glcore.sync_now(NUM_FLIPS);
-  glcore.sync_now(RED_PROPORTION);
+
   // now we can look the values using the get() function
   size_t numberofflips = NUM_FLIPS.get_val();
   double redprop = RED_PROPORTION.get_val();
+
+  // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;
   std::cout << "Red prop: " << redprop << std::endl;
+
   // output the graph
-  size_t ctr = 0;
-  for (size_t i = 0;i < dimensions; ++i) {
-    for (size_t j = 0;j < dimensions; ++j) {
-      std::cout << size_t(glcore.graph().vertex_data(ctr).color) << " ";
-      ++ctr;
+  // note that here we take advantage of the fact that vertex insertion
+  // gives sequential numberings
+  if (dc.procid() == 0) {
+    size_t ctr = 0;
+    for (size_t i = 0;i < dimensions; ++i) {
+      for (size_t j = 0;j < dimensions; ++j) {
+        std::cout << size_t(glcore.graph().get_vertex_data(ctr).color) << " ";
+        ++ctr;
+      }
+      std::cout << std::endl;
     }
-    std::cout << std::endl;
   }
+  graphlab::mpi_tools::finalize();
 }
 \endcode
+
+\subsubsection distributed_detailed_example_usage Usage
+The expected usage of the program is for the user to run
+
+\verbatim
+  ./demo --makegraph=1
+\endverbatim
+which creates the disk graph. Followed by
+\verbatim
+  mpiexec -n [N] ./demo 
+\endverbatim
+which runs the demo app on [N] machines (replacing [N] with a number).
+
 
 Since the GraphLab engine can take many options we have built-in some 
 command line parsing tools. In this program we add an additional command 
 line argument "dim" which specifies the size of the grid. We set the default 
-value to 20. In addition we set the default scheduler to be "fifo" and the 
-default scope type to be "edge". If the user provides different values than 
-the defaults will be replaced. The call to \ref graphlab::command_line_options::parse "opts.parse(argc,argv)" invokes the p
-arser and fills in the fields.
+value to 20.  If the user provides different values than 
+the defaults will be replaced. The call to \ref graphlab::command_line_options::parse "opts.parse(argc,argv)" invokes the 
+parser and fills in the fields.
 
-The \ref graphlab::core "gl::core" object bundles an empty graph, and engine configuration into 
-a single object. The \ref graphlab::core::set_engine_options "core.set_engine_options(opts)" takes the engine 
-options from the command line and uses them to configure the internal engine. 
+\subsubsection distributed_detailed_example_makegraph Make Graph
+
+If the program is started with <tt>--makegraph=1</tt> the program calls the init_graph
+function defined earlier to create an in-memory graph, use metis to partition it, and
+convert it to an disk graph with the name "demograph"
+\code
+    // call init_graph to create the graph
+    gl::graph g;
+    init_graph(g, dimensions);
+    std::vector<graphlab::vertex_id_t> parts;
+    g.metis_partition (16, parts);
+    graph_partition_to_atomindex(g, parts, "demograph");
+    return 0;
+\endcode
+
+\subsubsection distributed_detailed_example_execution Execution
+
+If makegraph is not set, the program goes through the regular RPC initialization process and constructs
+a distributed core
+
+\code
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::dc_init_param param;
+  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  graphlab::distributed_control dc(param);
+
+  // create a graphlab core which contains the graph, shared data, and engine
+  gl::distributed_core glcore(dc, "demograph.idx");
+  
+  glcore.set_engine_options(opts);
+  glcore.build_engine();
+\endcode
+
+The \ref graphlab::distributed_core "gl::distributed_core" object bundles an empty graph, and engine configuration into 
+a single object. The \ref graphlab::distributed_core::set_engine_options "core.set_engine_options(opts)" takes the engine 
+options from the command line and uses them to configure the internal engine.
+The engine must then be constructed using graphlab::distributed_core::build_engine()
+
 The graph can be retrieved from the glcore by calling the \ref graphlab::core::graph "glcore.graph()" function. 
-The \ref graphlab::core::add_task_to_all "glcore.add_task_to_all" function adds an update task to each vertex with the 
+The \ref graphlab::distributed_core::add_task_to_all "glcore.add_task_to_all" function adds an update task to each vertex with the 
 desired update function and priority value.
 
 Finally, the engine is run by calling \ref graphlab::core::start "glcore.start()" which runs until their
 are no more tasks remaining or until a termination condition is reached.
+
+Almost all distributed_core functions must be called by all machines simultaneously. 
+Which is why there is little need for conditional execution based on the current processor ID
+(dc.procid()). However, since we only want to output the result once (on machine 0), we use 
+dc.procid() to identify the node 0, which then queries the graph data and prints it.
 
 \section detailed_example_comand_line Running On the Command Line
 After compilation, 
@@ -726,193 +786,22 @@ After compilation,
 will produce a list of all the available options.
 \verbatim
 GraphLab program.:
-  --help                  Print this help message.
-  --dim arg (=20)         the dimension of the grid
-  --ncpus arg (=2)        Number of cpus to use.
-  --engine arg (=async)   Options are {async, async_sim, synchronous}
-  --affinities arg (=0)   Enable forced assignment of threads to cpus
-  --schedyield arg (=1)   Enable yielding when threads conflict in the 
-                          scheduler.
-  --scope arg (=edge)     Options are {none, vertex, edge, full}
-  --metrics arg (=basic)  Options are {none, basic, file, html}
-  --schedhelp arg         Display help for a particular scheduler.
-  --scheduler arg (=fifo) Supported schedulers are: chromatic, sweep, fifo, 
-                          priority, multiqueue_fifo, multiqueue_priority, 
-                          splash, round_robin, clustered_priority, sampling. 
-                          Too see options for each scheduler, run the program 
-                          with the option ---schedhelp=[scheduler_name]
-\endverbatim
-Observe that the <tt>dim</tt> option defined by the \ref graphlab::command_line_options::attach_option "attach_option()"
-call in the main function appears as an available option.
-
-The GraphLab command line permit quite flexible manipulation of the scheduler capabilities
-and options through the command line using the <tt>--scheduler arg</tt> options.
-Running <tt>--schedhelp</tt> displays all the available scheduler options.
-
-When this tutorial was written, the output of running <tt> ./demo --schedhelp </tt> is
-
-\verbatim
-chromatic scheduler
---------------------------------------------------
-a scheduler which performs #iterations sweeps of
-the graph using a graph color ordering.
-
-Options: 
-max_iterations = [integer, default = 0]
-update_function = [update_function_type,default = set on add_task]
-
-sweep scheduler
---------------------------------------------------
-very fast dynamic scheduler. Scans all vertices in
-sequence, running all update tasks on each vertex
-evaluated.
-
-Options: 
-ordering = [string: linear/permute, default=linear]
-
-fifo scheduler
---------------------------------------------------
-Standard FIFO task queue, poor parallelism, but
-task evaluation sequence is highly predictable.
-Useful for debugging and testing.
-
-Options: 
-
-priority scheduler
---------------------------------------------------
-Standard Priority queue, poor parallelism, but
-task evaluation sequence is highly predictable.
-Useful for debugging
-
-Options: 
-
-multiqueue_fifo scheduler
---------------------------------------------------
-One or more FIFO task queues is assigned to each
-processor, where the queues are stochastically
-load balanced. Like the fifo scheduler, but less
-predictable, and much faster.
-
-Options: 
-
-multiqueue_priority scheduler
---------------------------------------------------
-One or more Priority task queues is assigned to
-each processor, where the queues are
-stochastically load balanced. Like the priority
-scheduler, but less predictable, and much faster.
-
-Options: 
-
-splash scheduler
---------------------------------------------------
-Similar to the priority queue scheduler, but
-allows for only one update function. Updates are
-evaluted in a "splash" ordering
-
-Options: 
-splash_size = [integer, default = 100]
-update_function = [update_function_type,default = set on add_task_to_all]
-
-round_robin scheduler
---------------------------------------------------
-Loops over a sequence of tasks repeatedly for #
-iterations.
-
-Options: 
-max_iterations = [integer, default = 0]
-start_vertex = [integer, default = 0]
-
-clustered_priority scheduler
---------------------------------------------------
-Like the priority scheduler, but groups vertices
-into clusters where the entire cluster has a
-single priority
-
-Options: 
-partition_method = [string: metis/random/bfs, default=metis]
-vertices_per_partition = [integer, default = 100]
-
-sampling scheduler
---------------------------------------------------
-A scheduler which samples vertices to update based
-on a multinomial probability which can be updated
-dynamically.
-
+  --help                         Print this help message.
+  --dim arg (=20)                the dimension of the grid
+  --makegraph arg (=0)           Makes Graph
+  --ncpus arg (=2)               Number of cpus to use per machine
+  --engine arg (=dist_chromatic) Options are {dist_chromatic, dist_locking}
+  --scope arg (=edge)            Options are {none, vertex, edge, full}
+  --metrics arg (=basic)         Options are {none, basic, file, html}
+  --schedhelp arg                Display help for a particular scheduler.
+  --scheduler arg (=sweep)       Supported schedulers are: sweep, fifo, 
+                                 priority, multiqueue_fifo, 
+                                 multiqueue_priority. Too see options for each 
+                                 scheduler, run the program with the option 
+                                 ---schedhelp=[scheduler_name]
 \endverbatim
 
-This lists all the available schedulers and the available options for each scheduler.
-For instance: to run the demo process using the sweep scheduler with a randomly permuted ordering:
-
-\verbatim
-./demo --scheduler="sweep(ordering=permute)"
-\endverbatim
-
-Additional scheduler options are seperated with a comma. For instance to run with the clustered
-priority scheduler using random partitioning and 50 vertices per partition:
-
-\verbatim
-./demo --scheduler="clustered_priority(partition_method=random,vertices_per_partition=50)"
-\endverbatim
-
-
-\section detailed_example_engine_options Comments on Engine Options
-\subsection detailed_example_scope_model Scope Model
-When an update function is executed on a vertex, 
-it can access all graph data on adjacent edges and adjacent 
-vertices. The different scoping consistency models provide 
-different data consistency guarantees when accessing graph data. 
-There are three scoping models, vertex, edge, and full.
-
-\par Vertex Consistency
-Vertex consistency is the weakest consistency model, and also the fastest 
-(lowest contention). The vertex consistency model only guarantees that the 
-Update Function can read and write to the current vertex without experiencing 
-data races. Reading or writing to adjacent edges or adjacent vertices could 
-result in inconsistent data. Data on adjacent edges and vertices may also 
-change between consecutive reads within a single Update Function call.
-\par Edge Consistency
-The edge consistency model guarantees that the Update Function can read and 
-write to the current vertex as all as all adjacent edges without experiencing 
-data races. In addition, the Update Function can also made consistent reads 
-from adjacent vertices.
-\par Full Consistency
-The full consistency model guarantees that the Update Function can read and 
-write to the current vertex, as well as all adjacent edges and vertices in 
-a consistent fashion. This model experiences the highest amount of contention 
-and provides the lowest level of parallelism
-
-\subsection detailed_example_consistency Choosing a consistency model
-
-The user should try to pick the lowest consistency model which satisfies 
-the needs of the algorithm. For instance, in this demo application, since 
-the update function only requires reading of neighboring vertex data, 
-the edge_consistency model is guaranteed to have sequential consistency, 
-and the algorithm is therefore guaranteed to be correct (assuming GraphLab is bug-free) 
-if executed with the edge consistency model or the full consistency model.
-
-Note that the sync operation is guaranteed to be sequentially consistent
-
-\subsection detailed_example_scheduler Scheduler Type
-
-GraphLab provides eight schedulers. The Synchronous scheduler, 
-the Round-robin scheduler, five task schedulers, and the Splash scheduler.
-
-All four task schedulers behave similarly as in the demo application, 
-but each have different set of scheduling guarantees.
-
-\par FIFO scheduler (fifo): 
-  Implements a strict single FIFO queue of tasks
-\par Multiqueue FIFO scheduler (multiqueue_fifo): 
-  Uses multiple load balanced FIFO queues to decrease contention. This tends to have better performance over FIFO, but loses the "First-in-first-out" guarantees.
-\par Sweep scheduler (sweep): 
-  partitions the vertices among the processors. Each processor than loops through all the vertices in its partition, executing all tasks encountered.
-\par Priority scheduler (priority): 
-  Implements a priority queue over tasks. Executes tasks in priority order.
-\par Multiqueue Priority scheduler (multiqueue_priority): 
-  Like Multiqueue FIFO scheduler but with prioritized tasks. Weaker priority guarantees but better performance.
-\par Clustered Priority scheduler (clustered_priority): 
-  partitions the graph into a collection of subgraphs, and builds a priority queue over subgraphs. tasks within a subgraph are executed in arbitrary order. The partitioning methods are "metis","bfs" and "random". Metis provides the best partitioning, but could be extremely costly for large graphs.
-
+All options are the same as that of the shared memory version with the exception of
+the <tt>--engine</tt> parameter. See \ref distributed_engine_types for details.
 */
 

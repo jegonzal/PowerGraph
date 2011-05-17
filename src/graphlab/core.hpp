@@ -454,6 +454,7 @@ cd     The core contains the
         // create the engine
         mengine = engine_factory::new_engine(meopts, mgraph);
         if(mengine == NULL) return false;
+        mengine->set_engine_options(meopts.get_engine_options());
       }
       // scheduler options is one parameter that is allowed
       // to change without rebuilding the engine

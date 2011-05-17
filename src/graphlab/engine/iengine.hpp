@@ -285,6 +285,8 @@ namespace graphlab {
     /** \brief Update the scheduler options.  */
     virtual void set_scheduler_options(const scheduler_options& opts) = 0;
 
+    /** \brief Update the engine options.  */
+    virtual void set_engine_options(const scheduler_options& opts) = 0;
 
 
     /**

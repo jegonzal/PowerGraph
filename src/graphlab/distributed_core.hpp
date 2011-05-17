@@ -240,6 +240,7 @@ namespace graphlab {
       // create the engine
       mengine = distributed_engine_factory::new_engine(dc, meopts, mgraph);
       if(mengine == NULL) return false;
+      mengine->set_engine_options(meopts.get_engine_options());
       return true;
     }
 

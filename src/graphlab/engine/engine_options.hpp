@@ -58,6 +58,8 @@ namespace graphlab {
     size_t ncpus;
     //! The type of engine {async, async_sim, synchronous}
     std::string engine_type;
+    scheduler_options engine_opts;
+    
     //! The type of scope
     std::string scope_type;
     //! The type of scheduler to use
@@ -136,8 +138,8 @@ namespace graphlab {
 
     //! Set the engine type
     bool set_engine_type(const std::string& etype) {
-      engine_type = etype;
-      return true; // TODO: ADD CHECKING
+      engine_type =  engine_opts.parse_scheduler_string(etype);
+      return true; 
     }
 
     //! Get the engine type
@@ -190,6 +192,16 @@ namespace graphlab {
     //! Get the scheduler options
     scheduler_options& get_scheduler_options() { 
       return scheduler_opts;
+    }
+
+    //! Get the scheduler options
+    const scheduler_options& get_engine_options() const { 
+      return engine_opts;
+    }
+
+    //! Get the scheduler options
+    scheduler_options& get_engine_options() { 
+      return engine_opts;
     }
 
     //! Get the compiler options (flags)

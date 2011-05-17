@@ -79,12 +79,21 @@ namespace graphlab {
   template<typename Graph>
   struct distributed_types {
    
+    /**
+     The type of the shared memory graph
+    */
     typedef graphlab::graph<typename Graph::vertex_data_type,
                             typename Graph::edge_data_type> graph;
 
+    /**
+     The type of the disk graph
+    */
     typedef graphlab::disk_graph<typename Graph::vertex_data_type,
                                   typename Graph::edge_data_type> disk_graph;
 
+    /**
+     The type of the distributed graph
+    */
     typedef graphlab::distributed_graph<typename Graph::vertex_data_type,
                                         typename Graph::edge_data_type> distributed_graph;
 

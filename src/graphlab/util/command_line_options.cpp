@@ -121,6 +121,9 @@ namespace graphlab {
           ("schedhelp",
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for a particular scheduler.")
+          ("enghelp",
+          boost_po::value<std::string>()->implicit_value(""),
+          "Display help for a particular engine.")
           ("scheduler",
           boost_po::value<std::string>(&(schedulertype))->
           default_value(schedulertype),
@@ -175,7 +178,24 @@ namespace graphlab {
       }
       return false;
     }    
+    if (vm.count("enghelp")) {
+      /// TODO put the options somewhere! Move this out of here!
+      /// Problem is I do not want to instantiate dist_chromatic_engine here
+      /// since that is rather costly...
+      std::cout << "dist_chromatic engine\n";   
+      std::cout << std::string(50, '-') << std::endl;
+      std::cout << "Options: \n";
+      std::cout << "max_iterations = [integer, default = 0]\n";
+      std::cout << "randomize_schedule = [integer, default = 0]\n";
+      std::cout << "update_function = [update_function_type,"
+              "default = set on add_task]\n";
 
+      std::cout << "dist_locking engine\n";   
+      std::cout << std::string(50, '-') << std::endl;
+      std::cout << "Options: \n";
+      std::cout << "max_deferred_tasks_per_node = [integer, default = 1000]\n";
+      return false;
+    } 
     set_ncpus(ncpus);
 
     if(!set_engine_type(enginetype)) {

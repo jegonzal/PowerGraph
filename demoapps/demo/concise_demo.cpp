@@ -18,7 +18,7 @@ void update_function(gl::iscope& scope,
   vertex_data& curvdata = scope.vertex_data();
 
 
-  graphlab::edge_list in_edges = scope.in_edge_ids();
+  gl::edge_list in_edges = scope.in_edge_ids();
   size_t num_red_neighbors = 0;  
   for (size_t i = 0; i < in_edges.size(); ++i) {
     // eid is the current edge id

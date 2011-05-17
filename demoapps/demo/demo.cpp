@@ -135,7 +135,7 @@ void update_function(gl::iscope& scope,
 
   // the in_edge_ids() function provide a vector of the edge ids of the edges
   // entering the current vertex
-  graphlab::edge_list in_edges = scope.in_edge_ids();
+  gl::edge_list in_edges = scope.in_edge_ids();
   // a counter for the number of red neighbors
   size_t num_red_neighbors = 0;  
   for (size_t i = 0; i < in_edges.size(); ++i) {

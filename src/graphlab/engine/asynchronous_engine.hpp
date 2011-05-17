@@ -258,6 +258,9 @@ namespace graphlab {
       use_cpu_affinity = value;
     }
 
+    void set_engine_options(const scheduler_options& opts) { }
+    
+    static void print_options_help(std::ostream& out) { }
 
 
     /**

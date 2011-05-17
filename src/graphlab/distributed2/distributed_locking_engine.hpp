@@ -963,9 +963,13 @@ private:
   }
   
     /** \brief Update the scheduler options.  */
-  void set_scheduler_options(const scheduler_options& opts) {
+  void set_engine_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
     rmi.barrier();
+  }
+  
+  void set_scheduler_options(const scheduler_options& opts) {
+    scheduler.set_options(opts);
   }
   
   void set_strength_reduction(bool strength_reduction_, size_t weak_color_ = 0) {
@@ -982,7 +986,7 @@ private:
   }
   
   static void print_options_help(std::ostream &out) {
-    out << "max_deferred_tasks_per_node = [integer, default = unsigned word max]\n";
+    out << "max_deferred_tasks_per_node = [integer, default = 1000]\n";
   };
 
 

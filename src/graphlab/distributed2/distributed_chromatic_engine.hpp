@@ -729,6 +729,10 @@ class distributed_chromatic_engine : public iengine<Graph> {
   /** Execute the engine */
   void start() {
     assert(update_function != NULL);
+    
+    if (default_scope_range == scope_range::FULL_CONSISTENCY) {
+      const_nbr_vertices = false;
+    }
     // generate colors then
     // wait for everyone to enter start    
     generate_color_blocks();
@@ -815,15 +819,17 @@ class distributed_chromatic_engine : public iengine<Graph> {
   }
   
     /** \brief Update the scheduler options.  */
-  void set_scheduler_options(const scheduler_options& opts) {
+  void set_engine_options(const scheduler_options& opts) {
     opts.get_int_option("max_iterations", max_iterations);
     opts.get_int_option("randomize_schedule", randomize_schedule);
-
     any uf;
     if (opts.get_any_option("update_function", uf)) {
       update_function = uf.as<update_function_type>();
     }
     rmi.barrier();
+  }
+
+  void set_scheduler_options(const scheduler_options& opts) {
   }
   
   void set_randomize_schedule(bool randomize_schedule_) {
@@ -835,6 +841,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
   
   static void print_options_help(std::ostream &out) {
     out << "max_iterations = [integer, default = 0]\n";
+    out << "randomize_schedule = [integer, default = 0]\n";
     out << "update_function = [update_function_type,"
       "default = set on add_task]\n";
   };
