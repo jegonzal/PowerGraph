@@ -64,8 +64,9 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
   The GraphLab library also has a collection of \ref util "parallel utility classes and functions"
   which may be useful.
 
-  Additionally, GraphLab also has a nice RPC implementation (which we use
-  in the distributed implementation which is not yet available)
-  \li \ref RPC "GraphLab RPC"
+  \section sec_main_dist_graphlab Distributed GraphLab
+  There is a basic usage documentation for the distributed GraphLab implementation here: \ref distributed_gl .
+
+  It relies on a nice RPC implementation documented here: \ref RPC "GraphLab RPC" .
 */
 
