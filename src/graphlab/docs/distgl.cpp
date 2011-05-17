@@ -142,6 +142,9 @@ Depending on the complexity of your program, moving from the
 shared memory version to the distributed version can be quite mechanical.
 The key differences are listed here.
 
+An easy way to see what changes you have to make to move a shared memory version
+to a distributed version is to take a diff between tests/demo/demo.cpp and tests/dist_demo/dist_demo.cpp
+
 \section sec_distributed_types Types
 Instead of including <tt>graphlab.hpp</tt>, you should include <tt>distributed_graphlab.hpp</tt>
 Similarly, the distributed version core is called <tt>dgraphlab::istributed_core</tt> and the distributed
