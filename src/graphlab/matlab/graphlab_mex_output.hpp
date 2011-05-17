@@ -38,3 +38,4 @@ int output_graph(emx_graph &graph,
 void output_canonical_adj_mat(emx_graph &graph,
                              mxArray* &adjmat);
 #endif
+

@@ -266,3 +266,4 @@ void deserialize_struct_array(graphlab::iarchive& arc, EMXType &emx) {
 }
 
 #endif  
+

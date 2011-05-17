@@ -77,3 +77,4 @@ inline std::ostream& operator<<(std::ostream& out, const gl_uint128_t &val) {
 SERIALIZABLE_POD(graphlab::gl_uint128_t);
 
 #endif
+

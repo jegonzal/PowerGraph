@@ -150,3 +150,4 @@ void register_all_matlab_update_functions();
 #undef GEN_UPDATE_FUNCTION_DECL
 
 #endif
+

@@ -25,3 +25,4 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #define GRAPHLAB_VERSION_REVISION 0
 
 #endif
+

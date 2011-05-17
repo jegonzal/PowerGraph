@@ -212,3 +212,4 @@ int add_edges_from_sparse_adj(emx_graph &graph,
   if (conversions_ok) return 1;
   else return 0;
 }
+

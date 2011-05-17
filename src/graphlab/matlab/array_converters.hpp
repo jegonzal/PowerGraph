@@ -339,3 +339,4 @@ std::vector<T> emxArray_to_vector(EMXType &c) {
   return ret;
 }
 #endif
+

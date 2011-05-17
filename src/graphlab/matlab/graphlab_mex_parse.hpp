@@ -62,3 +62,4 @@ int add_edges_from_sparse_adj(emx_graph &graph,
                               const mxArray* adjmat,
                               const mxArray* edata);
 #endif
+

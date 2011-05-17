@@ -63,3 +63,4 @@ typedef void (*gl_emx_updatefn_type)(uint32_T eml_currentvertex,
                                     double eml_handle);
 
 #endif
+

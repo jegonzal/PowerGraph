@@ -39,3 +39,4 @@ void get_master_ranks(std::set<size_t>& master_ranks) {
 
 } 
 }
+
