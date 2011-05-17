@@ -425,9 +425,7 @@ MACRO(add_dist2_executable NAME)
     #    add_definitions(-DGLDISTRIBUTED)
 
   ELSE(MPI_FOUND)
-    if(EXPERIMENTAL)   
     message(STATUS "Not Building " ${NAME} " since mpi was not found.")
-    endif()
   ENDIF(MPI_FOUND)
 ENDMACRO(add_dist2_executable)
 

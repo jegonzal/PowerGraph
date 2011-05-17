@@ -11,7 +11,9 @@ function quit_if_bad_retvalue {
 
 function test_rpc_prog {
   echo "Testing $1 ..."
-  mpiexec -n 2 -host $localhostname ./$1 > /dev/null 2> /dev/null
+  echo "---------$1-------------" >> $stdoutfname
+  echo "---------$1-------------" >> $stderrfname 
+  mpiexec -n 2 -host $localhostname ./$1  >> $stdoutfname 2>> $stderrfname
   if [ $? -ne 0 ]; then
     echo "FAIL. Program returned with failure"
     exit 1
@@ -25,6 +27,9 @@ function test_rpc_prog {
   fi
 }
 
+stdoutfname=$PWD/stdout.log
+stderrfname=$PWD/stderr.log
+rm -f $stdoutfname $stderrfname
 
 echo "Running Standard unit tests"
 echo "==========================="
@@ -34,29 +39,42 @@ ctest -O testlog.txt
 # delete extra generated files
 rm -f dg*
 
-pushd . > /dev/null
 
 echo 
 echo "Running application tests"
 echo "========================="
 echo "PMF..."
-cd ../demoapps/pmf
-./pmf  smalltest 0 --scheduler="round_robin(max_iterations=10)" --float=true --ncpus=1 > /dev/null 2> /dev/null
-if ./itdiff smalltest20.out smalltest.out ; then
-  echo "PASS"
+if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
+  pushd . > /dev/null
+  cd ../demoapps/pmf
+  echo "---------PMF-------------" >> $stdoutfname
+  echo "---------PMF-------------" >> $stderrfname
+  ./pmf  smalltest 0 --scheduler="round_robin(max_iterations=10)" --float=true --ncpus=1  >> $stdoutfname 2>> $stderrfname
+  if ./itdiff smalltest20.out smalltest.out ; then
+    echo "PASS"
+  else
+    echo "FAIL: Output differs!"
+    exit 1
+  fi
+  popd  > /dev/null
 else
-  echo "FAIL: Output differs!"
-  exit 1
+  echo "PMF not found. "
 fi
-
 echo
 
-cd ../demo
-echo "Demo..."
-./demo > /dev/null 2> /dev/null
-quit_if_bad_retvalue
-
-popd > /dev/null
+if [ -f ../demoapps/demo/demo ]; then
+  pushd . > /dev/null
+  cd ../demoapps/demo
+  echo "Demo..."
+  echo "---------demo-------------" >> $stdoutfname
+  echo "---------demo-------------" >> $stderrfname
+  
+  ./demo  >> $stdoutfname 2>> $stderrfname
+  quit_if_bad_retvalue
+  popd > /dev/null
+else
+  echo "demo not found. "
+fi
 
 echo
 echo "RPC Tests"
@@ -86,12 +104,16 @@ echo "Distributed GraphLab Tests"
 echo "=========================="
 
 echo "Testing Distributed disk graph construction..."
-mpiexec -n 2 -host $localhostname ./distributed_dg_construction_test > /dev/null 2> /dev/null
+echo "---------distributed_dg_construction_test-------------" >> $stdoutfname
+echo "---------distributed_dg_construction_test-------------" >> $stderrfname 
+mpiexec -n 2 -host $localhostname ./distributed_dg_construction_test >> $stdoutfname 2>> $stderrfname
 quit_if_bad_retvalue
 rm -f dg*
 
 echo "Testing Distributed Graph ..."
+echo "---------distributed_graph_test-------------" >> $stdoutfname
+echo "---------distributed_graph_test-------------" >> $stderrfname 
 ./distributed_graph_test -g
-mpiexec -n 2 -host $localhostname ./distributed_graph_test -b > /dev/null 2> /dev/null
+mpiexec -n 2 -host $localhostname ./distributed_graph_test -b >> $stdoutfname 2>> $stderrfname
 quit_if_bad_retvalue
 rm -f dg*
