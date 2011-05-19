@@ -52,8 +52,18 @@ namespace graphlab {
     inline void add_option_str(const std::string &opt, 
                                const std::string &val) {
       options[opt].strval = val;
-      options[opt].intval = boost::lexical_cast<size_t>(val);
-      options[opt].dblval = boost::lexical_cast<double>(val);
+      try{
+        options[opt].intval = boost::lexical_cast<size_t>(val);
+      }
+      catch(boost::bad_lexical_cast &) {
+        options[opt].intval = 0;
+      }
+      try{
+        options[opt].dblval = boost::lexical_cast<double>(val);
+      }
+      catch(boost::bad_lexical_cast &) {
+        options[opt].dblval = 0.0;
+      }
       options[opt].anyval = val;
     }
 

@@ -76,7 +76,8 @@ namespace graphlab {
     size_t endtask;     /// last vertex to run
     size_t endvertex;
     controlled_termination terminator;
-
+    size_t step;
+    
   public:
     round_robin_scheduler(iengine_type* engine,
                           Graph &g, size_t ncpus):
@@ -86,7 +87,8 @@ namespace graphlab {
       maxiterations(0),
       startvertex(0),
       endtask(numvertices),
-      endvertex(numvertices){
+      endvertex(numvertices),
+      step(1){
       cur_task.value = size_t(0);
     }
 
@@ -100,7 +102,8 @@ namespace graphlab {
     void start() {
       cur_task.value = startvertex;
       endtask = startvertex + maxiterations * numvertices - 1;
-      endvertex = (startvertex + numvertices - 1) % numvertices;
+      endvertex = (startvertex + numvertices - step) % numvertices;
+      std::cout << "step = " << step << std::endl;
     };
     
     void completed_task(size_t cpuid, const update_task_type &task){ };
@@ -137,8 +140,7 @@ namespace graphlab {
     }
   
     void set_start_vertex(size_t v){
-      logstream(LOG_INFO) << "Round robin: Starting from " << v << std::endl;
-      
+      logstream(LOG_INFO) << "Round robin: Starting from " << v << std::endl;    
       startvertex = v;
 
     }
@@ -153,8 +155,9 @@ namespace graphlab {
     sched_status::status_enum get_next_task(size_t cpuid,
                                             update_task_type &ret_task) {
       while(1) {
-        size_t oldtaskvid = cur_task.inc() - 1; //DB: we want the increment to happen later
-        size_t taskvid = oldtaskvid % numvertices;
+        size_t oldtaskvid = cur_task.inc_ret_last(); //DB: we want the increment to happen later
+        size_t taskvid = oldtaskvid  % numvertices;
+        size_t alternate_taskvid = (taskvid * step) % numvertices;
         if (maxiterations != 0) {
           
           if (oldtaskvid > endtask) {
@@ -165,9 +168,10 @@ namespace graphlab {
             iterations.inc();
           }
         }
-        ret_task = task_set[taskvid];
+        
+        ret_task = task_set[alternate_taskvid];
         if (ret_task.vertex() == vertex_id_t(-1)) continue;
-        assert(ret_task.vertex() == taskvid);
+        assert(ret_task.vertex() == alternate_taskvid);
         return sched_status::NEWTASK;
       }
     }
@@ -179,11 +183,13 @@ namespace graphlab {
     void set_options(const scheduler_options &opts) {
       opts.get_int_option("max_iterations", maxiterations);
       opts.get_int_option("start_vertex", startvertex);
+      opts.get_int_option("step", step);
     }
 
     static void print_options_help(std::ostream &out) {
       out << "max_iterations = [integer, default = 0]\n";
       out << "start_vertex = [integer, default = 0]\n";
+      out << "step = [integer which is either 1 or relatively prime to #vertices, default = 1]\n";
     }
 
     

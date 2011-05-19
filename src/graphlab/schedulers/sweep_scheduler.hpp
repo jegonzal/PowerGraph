@@ -243,6 +243,9 @@ namespace graphlab {
       v_to_int = (vertex_id_t*) calloc(numvertices, sizeof(vertex_id_t));
       int_to_v = (vertex_id_t*) calloc(numvertices, sizeof(vertex_id_t));
       if (permute_vertices) {
+        for(vertex_id_t i=0; i<numvertices; i++) {
+          v_to_int[i] = i;
+        }
         random::shuffle(&(v_to_int[0]), &(v_to_int[numvertices]));
         for(vertex_id_t i=0; i<numvertices; i++) {
           int_to_v[v_to_int[i]] = i;
