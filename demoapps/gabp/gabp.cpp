@@ -46,7 +46,7 @@ struct vertex_data {
   sdouble prev_mean; //  mean value from previous round (for convergence detection)
   sdouble prev_prec; //precision value from previous round (for convergence detection)
 
-  vertex_data():prev_mean(-1){ };
+  vertex_data():prev_mean(1000000){ };
 
 };
 
@@ -97,11 +97,11 @@ void read_nodes(FILE * f, int len, int offset, int nodes,
     int rc = (int)fread(temp, sizeof(double), toread, f);
     //assert(rc == toread);
     remain -= rc;
-    sdouble ndata[len];
+    vertex_data data;
     for (int i=0; i< rc; i++){
-      memset(ndata,0,len*sizeof(sdouble));
-      ndata[offset] = temp[i];
-      g->add_vertex(*(vtype*)&ndata);
+      sdouble * pdata = (sdouble*)&data;
+      pdata[offset] = temp[i];
+      g->add_vertex(*(vtype*)&data);
     }
     delete [] temp;
   }
@@ -355,8 +355,6 @@ void gabp_update_function(gl_types::iscope &scope,
     fabs(vdata.prev_mean- vdata.cur_mean) +
     fabs(vdata.prev_prec - vdata.cur_prec);
 
-  //if we did not converge yet
- if (residual > threshold) {
     for(size_t i = 0; i < inedgeid.size(); ++i) {
       assert(scope.source(inedgeid[i]) == scope.target(outedgeid[i]));
       edge_data& in_edge = scope.edge_data(inedgeid[i]);
@@ -393,15 +391,6 @@ void gabp_update_function(gl_types::iscope &scope,
       }
     }
 
-  } else { // Residual is less than threshold
-    if (debug) {
-      std::cout << scope.vertex()
-                << " finished because residual is "
-                << residual
-                << std::endl;
-    }
-
-  }
 
   // Count the number of iterations
   if (scope.vertex() == 0) {
@@ -484,6 +473,7 @@ int main(int argc,  char *argv[]) {
   bool debug = false;
   bool square = true;
   size_t iter = 0;
+  int syncinterval = 10000;
 
   clopts.attach_option("data", &datafile, "Binary input file (as created by the save_c_gl.m script)");
   clopts.add_positional("data");
@@ -498,7 +488,7 @@ int main(int argc,  char *argv[]) {
                        "is the matrix square? ");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("iter", &iter, iter, "maximum allowed iterations (optional).");
-
+  clopts.attach_option("syncinterval", &syncinterval, syncinterval, "sync interval (number of update functions before convergen detection");
   //clopts.scheduler_type = "round_robin";
 
   // Parse the command line arguments
@@ -536,16 +526,17 @@ int main(int argc,  char *argv[]) {
   core.set_sync(REAL_NORM_KEY,
                 gl_types::glshared_sync_ops::sum<double, get_real_norm>,
                 apply_func_real,
-                double(0),  150000,
+                double(0),  syncinterval,
                 gl_types::glshared_merge_ops::sum<double>);
   
   core.set_sync(RELATIVE_NORM_KEY,
                 gl_types::glshared_sync_ops::sum<double, get_relative_norm>,
                 apply_func_relative,
-                double(1),  150000,
+                double(0),  syncinterval,
                 gl_types::glshared_merge_ops::sum<double>);
   // Create an atomic entry to track iterations (as necessary)
   ITERATION_KEY.set(0);
+  RELATIVE_NORM_KEY.set(1);
   // Set all cosntants
   THRESHOLD_KEY.set(threshold);
   SUPPORT_NULL_VARIANCE_KEY.set(support_null_variance);
@@ -581,7 +572,7 @@ int main(int argc,  char *argv[]) {
      precs[i] = vdata.cur_prec;
   }
   std::cout << "gabp converged to an accuracy of "
-            << diff << " after " << ITERATION_KEY.get_val() << std::endl;
+            << diff << " after " << REAL_NORM_KEY.get_val() << " relative norm: " << RELATIVE_NORM_KEY.get_val() << std::endl;
 
    FILE * f = fopen((datafile+".out").c_str(), "w");
    assert(f!= NULL);
