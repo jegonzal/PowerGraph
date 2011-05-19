@@ -536,13 +536,13 @@ int main(int argc,  char *argv[]) {
   core.set_sync(REAL_NORM_KEY,
                 gl_types::glshared_sync_ops::sum<double, get_real_norm>,
                 apply_func_real,
-                double(0),  100,
+                double(0),  15000,
                 gl_types::glshared_merge_ops::sum<double>);
   
   core.set_sync(RELATIVE_NORM_KEY,
                 gl_types::glshared_sync_ops::sum<double, get_relative_norm>,
                 apply_func_relative,
-                double(0),  100,
+                double(0),  15000,
                 gl_types::glshared_merge_ops::sum<double>);
   // Create an atomic entry to track iterations (as necessary)
   ITERATION_KEY.set(0);

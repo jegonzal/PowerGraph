@@ -8,7 +8,7 @@
 #include "pmf.h"
 #include "prob.hpp"
 #include "bptf.hpp"
-#include "svdpp.hpp"
+//#include "svdpp.hpp"
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -125,25 +125,23 @@ double calc_rmse(graph_type * _g, bool test, double & res){
      for (int i=M; i< M+N; i++){
        vertex_data * data = &g->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
+         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
             
 #ifndef GL_NO_MULT_EDGES
          multiple_edges & edges = _g->edge_data(iedgeid);
-#else
-	edge_data & edge = _g->edge_data(iedgeid);
-#endif
-         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
-
-#ifndef GL_NO_MULT_EDGES
          for (int j=0; j< (int)edges.medges.size(); j++){       
            edge_data & edge = edges.medges[j];
+#else
+	   edge_data & edge = _g->edge_data(iedgeid);
 #endif
+
            if (!ZERO)
            	assert(edge.weight != 0);
 
            double sum = 0; 
            double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
            if (!ZERO)
-	   assert(sum != 0);         
+	      assert(sum != 0);         
            if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
              cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
 
@@ -152,18 +150,20 @@ double calc_rmse(graph_type * _g, bool test, double & res){
              edge.avgprd += sum;
              add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
            }
-         }
 #endif
             
            RMSE+= add;
            e++;
+#ifndef GL_NO_MULT_EDGES        
          }
-       }
-     res = RMSE;
-     assert(e == (test?Le:L));
-     return sqrt(RMSE/(double)e);
-
+#endif
+     }
    }
+   res = RMSE;
+   assert(e == (test?Le:L));
+   return sqrt(RMSE/(double)e);
+
+}
    
 // go over all edges and aggregate RMSE by summing up the squares, computing the
 // mean and then sqrt()
@@ -258,11 +258,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   //USER NODES    
   if ((int)scope.vertex() < M){
 
-    if (options == SVD_PLUS_PLUS)
-	calc_user_moviebag(vdata, outs);
-
     foreach(graphlab::edge_id_t oedgeid, outs) {
-
 #ifndef GL_NO_MULT_EDGES
       multiple_edges &medges =scope.edge_data(oedgeid);
 #else
@@ -276,15 +272,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
         parse_edge(edge, pdata, Q, vals, i); 
-     
         if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
         i++;
 #ifndef GL_NO_MULT_EDGES
       }   
 #endif
-           
-            
     }
   }
 
@@ -389,7 +382,7 @@ void last_iter(){
   if (BPTF){
     timer t;
     t.start();
-    if (iiter > BURN_IN)
+    if (iiter > delayalpha)
     	sample_alpha(res);
     sample_U();
     sample_V();
@@ -783,7 +776,7 @@ void start(int argc, char ** argv) {
 
 
   if (BPTF){
-    if (delayalpha > iiter)
+    if (delayalpha < iiter)
     	sample_alpha(L);
     sample_U();
     sample_V();
