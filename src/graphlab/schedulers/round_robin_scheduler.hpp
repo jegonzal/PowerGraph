@@ -170,7 +170,7 @@ namespace graphlab {
         }
         
         ret_task = task_set[alternate_taskvid];
-        if (ret_task.vertex() == vertex_id_t(-1)) continue;
+        if (__unlikely__(ret_task.vertex() == vertex_id_t(-1))) continue;
         assert(ret_task.vertex() == alternate_taskvid);
         return sched_status::NEWTASK;
       }

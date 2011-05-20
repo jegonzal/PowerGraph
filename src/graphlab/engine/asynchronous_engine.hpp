@@ -71,10 +71,6 @@ namespace graphlab {
     typedef typename iengine_base::sync_function_type sync_function_type;
     typedef typename iengine_base::merge_function_type merge_function_type;
 
-    struct padded_integer {
-      size_t val;
-      char __pad__[64 - sizeof(size_t)];
-    };
 
     /** The internal worker thread class used for the threaded engine */
     class engine_thread {      
