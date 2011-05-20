@@ -392,18 +392,6 @@ void gabp_update_function(gl_types::iscope &scope,
     }
 
 
-  // Count the number of iterations
-  if (scope.vertex() == 0) {
-    ITERATION_KEY.apply(gl_types::glshared_apply_ops::increment<size_t>,
-                                size_t(1));
-
-    size_t iter = MAX_ITER_KEY.get_val();
-    if (iter > 0 && ITERATION_KEY.get_val() > iter){
-        std::cout<<"Aborting since max iterations exceeded!"<<std::endl;
-        scheduler.force_abort();
-    }
-
- }
 }
 
 
@@ -523,6 +511,8 @@ int main(int argc,  char *argv[]) {
 
   // Initialize the shared data --------------------------------------
   // Set syncs
+  //
+  if (syncinterval > 0){
   core.set_sync(REAL_NORM_KEY,
                 gl_types::glshared_sync_ops::sum<double, get_real_norm>,
                 apply_func_real,
@@ -534,9 +524,9 @@ int main(int argc,  char *argv[]) {
                 apply_func_relative,
                 double(0),  syncinterval,
                 gl_types::glshared_merge_ops::sum<double>);
+  }
   // Create an atomic entry to track iterations (as necessary)
   ITERATION_KEY.set(0);
-  RELATIVE_NORM_KEY.set(1);
   // Set all cosntants
   THRESHOLD_KEY.set(threshold);
   SUPPORT_NULL_VARIANCE_KEY.set(support_null_variance);
@@ -553,7 +543,8 @@ int main(int argc,  char *argv[]) {
   core.add_task_to_all(gabp_update_function, initial_priority);
 
   // Add the termination condition to the engine
-  core.engine().add_terminator(termination_condition);
+  if (syncinterval > 0)
+  	core.engine().add_terminator(termination_condition);
 
   /**** START GRAPHLAB *****/
   double runtime = core.start();

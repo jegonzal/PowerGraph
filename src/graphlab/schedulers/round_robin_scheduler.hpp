@@ -118,6 +118,7 @@ namespace graphlab {
     void start() {
       cur_task.value = startvertex;
       endtask = startvertex + maxiterations * numvertices;
+      std::cout << "max iterations = " << maxiterations << std::endl;
       std::cout << "step = " << step << std::endl;
       std::cout << "max_iterations = " << maxiterations << std::endl;
       
