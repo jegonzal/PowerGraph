@@ -74,10 +74,19 @@ namespace graphlab {
     size_t maxiterations;               /// maximum number of iterations
     size_t startvertex;
     size_t endtask;     /// last vertex to run
-    size_t endvertex;
     controlled_termination terminator;
     size_t step;
-    
+    size_t blocksize;
+    /** The local information for each thread
+     * Each thread holds a block of vertices at a time
+     * if block_begin == (-1) we are done
+     */
+    struct thread_information {
+      size_t block_begin;
+      size_t numv_remaining_in_block;
+      char __pad__[64 - 2 * sizeof(size_t)];
+    };
+    std::vector<thread_information> thread_info;
   public:
     round_robin_scheduler(iengine_type* engine,
                           Graph &g, size_t ncpus):
@@ -87,9 +96,16 @@ namespace graphlab {
       maxiterations(0),
       startvertex(0),
       endtask(numvertices),
-      endvertex(numvertices),
-      step(1){
+      step(1),
+      thread_info(ncpus){
       cur_task.value = size_t(0);
+      // adapt the blocksize. 
+      // We want to minimize the possibilty of two cpus
+      // picking up the same block, yet we want to maximize the block size
+      // Lets just say 4 * ncpus blocks for now
+      size_t nblocks = 4 * ncpus;
+      blocksize = numvertices / nblocks;
+      if (blocksize < 1) blocksize = 1;
     }
 
  
@@ -101,9 +117,13 @@ namespace graphlab {
 
     void start() {
       cur_task.value = startvertex;
-      endtask = startvertex + maxiterations * numvertices - 1;
-      endvertex = (startvertex + numvertices - step) % numvertices;
+      endtask = startvertex + maxiterations * numvertices;
       std::cout << "step = " << step << std::endl;
+      std::cout << "max_iterations = " << maxiterations << std::endl;
+      
+      for (size_t i = 0;i < thread_info.size(); ++i) {
+        thread_info[i].numv_remaining_in_block = 0;
+      }
     };
     
     void completed_task(size_t cpuid, const update_task_type &task){ };
@@ -154,25 +174,71 @@ namespace graphlab {
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid,
                                             update_task_type &ret_task) {
+      thread_information& mythr_info = thread_info[cpuid];
       while(1) {
-        size_t oldtaskvid = cur_task.inc_ret_last(); //DB: we want the increment to happen later
-        size_t taskvid = oldtaskvid  % numvertices;
-        size_t alternate_taskvid = (taskvid * step) % numvertices;
-        if (maxiterations != 0) {
+        if (__unlikely__(mythr_info.block_begin == (size_t)(-1))) return sched_status::EMPTY;
+        while (mythr_info.numv_remaining_in_block != 0) {
+          // get the task from the thread info
+          size_t vid = mythr_info.block_begin;
+          ret_task = task_set[vid];
           
-          if (oldtaskvid > endtask) {
-            terminator.complete();
-            return sched_status::EMPTY;
-          }
-          if (taskvid == endvertex) {
-            iterations.inc();
-          }
+          // update the thread info
+          mythr_info.block_begin = mythr_info.block_begin + step;
+          //
+          //following line is equivalent to: 
+          // if (block_begin >= numvertices) block_begin -= numvertices;
+          //
+          // if (block_begin < numvertices) is true, the right side of & evaluates to 0
+          // otherwise it evaluates to (size_t)(-1)
+          //
+          mythr_info.block_begin -= numvertices & 
+                                    ((size_t)(mythr_info.block_begin < numvertices) - 1);
+          --mythr_info.numv_remaining_in_block;
+
+          // return the task if available, otherwise try again
+          if (__unlikely__(ret_task.vertex() == vertex_id_t(-1))) continue;
+          else return sched_status::NEWTASK;
         }
+        // we are here if the block has no vertices remaining
+        // cur_task is the number of tasks issued so far.
+        size_t taskid = cur_task.inc_ret_last(blocksize);
+        // vertex corresponding to this task is
+        size_t task_vertexid = (taskid * step) % numvertices;
+
+        // update the iteration counter
+        // we increment iteration counter if we cross the numvertices boundary
+        size_t t = taskid % numvertices;
+        if (t < numvertices && t + blocksize >= numvertices) {
+          iterations.inc();
+        }
+        // set the block starting point
+        mythr_info.block_begin = task_vertexid;
         
-        ret_task = task_set[alternate_taskvid];
-        if (__unlikely__(ret_task.vertex() == vertex_id_t(-1))) continue;
-        assert(ret_task.vertex() == alternate_taskvid);
-        return sched_status::NEWTASK;
+        // if maxiterations is set and we our block crosses the end task boundary
+        //we may be done
+        if (maxiterations != 0 && taskid + blocksize >= endtask) {
+          // remaining tasks
+          mythr_info.numv_remaining_in_block = endtask > taskid ? endtask - taskid : 0;
+          // if there are no tasks then we are done
+          if (mythr_info.numv_remaining_in_block == 0) {
+            mythr_info.block_begin = (size_t)(-1);
+            // ok... this is the tricky part
+            // we are going to return empty until every one is done, then we set
+            // the terminator.  
+            bool done = true;
+            for (size_t i = 0;i < thread_info.size(); ++i) {
+              if (thread_info[i].block_begin != (size_t)(-1)) {
+                done = false;
+                break;
+              }
+            }
+            if (done) terminator.complete();
+          }
+          continue;
+        }
+        else {
+          mythr_info.numv_remaining_in_block = blocksize;
+        }
       }
     }
 

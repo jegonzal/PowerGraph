@@ -545,7 +545,7 @@ int main(int argc,  char *argv[]) {
   DEBUG_KEY.set(debug);
   MAX_ITER_KEY.set(iter);
 
-
+  core.graph().compute_coloring();
 
   /**** CREATE INITIAL TASKS ******/
   // TOOD is this the correct starting priority?
