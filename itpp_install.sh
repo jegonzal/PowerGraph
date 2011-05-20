@@ -106,6 +106,12 @@ function try_install_from_apt_get {
     echo
     return
   fi
+  if [[ ${aptitppver[1]} -lt 2 ]]; then
+    echo "But we need version 4.2... "
+    echo
+    return
+  fi
+
   echo
   echo
   run_as_sudo "apt-get install libitpp-dev"

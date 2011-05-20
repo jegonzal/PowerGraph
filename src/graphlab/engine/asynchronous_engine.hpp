@@ -42,6 +42,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
+  
   /**
    * This class defines a basic asynchronous engine
    */
@@ -70,6 +71,10 @@ namespace graphlab {
     typedef typename iengine_base::sync_function_type sync_function_type;
     typedef typename iengine_base::merge_function_type merge_function_type;
 
+    struct padded_integer {
+      size_t val;
+      char __pad__[64 - sizeof(size_t)];
+    };
 
     /** The internal worker thread class used for the threaded engine */
     class engine_thread {      
@@ -92,11 +97,12 @@ namespace graphlab {
         assert(engine != NULL);
         logger(LOG_INFO, "Worker %d started.\n", workerid);        
         /* Start consuming tasks while the engine is active*/
-        while(engine->active) {
-          bool executed_task = engine->run_once(workerid, scheduler, scope_manager);
-          // If this was nothing to execute then fail
-          if (!executed_task) break;
-        }   
+        engine->run_to_terminate(workerid, scheduler, scope_manager);
+//         while(engine->active) {
+//           bool executed_task = engine->run_once(workerid, scheduler, scope_manager);
+//           // If this was nothing to execute then fail
+//           if (!executed_task) break;
+//         }   
         logger(LOG_INFO, "Worker %d finished.\n", workerid);
       }      
     }; // end of task worker
@@ -120,7 +126,9 @@ namespace graphlab {
     /** Use schedule yielding when waiting on the scheduler*/
     bool use_sched_yield;
     
-
+    /** set to 1 if the processor is in the midst of asking scheduler for stuff
+     *  and running an update */
+    std::vector<padded_integer> proc_in_update;
     
     /** Track the number of updates */
     std::vector<size_t> update_counts;
@@ -229,6 +237,7 @@ namespace graphlab {
       exec_type(exec_type),
       use_cpu_affinity(false),
       use_sched_yield(true),
+      proc_in_update(std::max(ncpus, size_t(1))),
       update_counts(std::max(ncpus, size_t(1)), 0),
       monitor(NULL),
       start_time_millis(lowres_time_millis()),
@@ -295,6 +304,8 @@ namespace graphlab {
       // Prepare the graph
       graph.finalize();      
       // Clear the update counts
+      
+      for (size_t i = 0;i < proc_in_update.size(); ++i) proc_in_update[i].val = 0;
       std::fill(update_counts.begin(), update_counts.end(), 0);
       apx_update_counts.value = 0;
       numsyncs.value = 0;
@@ -660,7 +671,6 @@ namespace graphlab {
 
 
 
-
     bool run_once(size_t cpuid, 
                   Scheduler* scheduler, 
                   ScopeFactory* scope_manager) {
@@ -702,6 +712,10 @@ namespace graphlab {
           else {
             if (scheduler->get_terminator().end_critical_section(cpuid)) {
               termination_reason = EXEC_TASK_DEPLETION;
+              terminate_all_syncs_mutex.lock();
+              terminate_all_syncs = 1;
+              terminate_all_syncs_cond.broadcast();
+              terminate_all_syncs_mutex.unlock();
               active = false;
               return false;
             }
@@ -749,6 +763,134 @@ namespace graphlab {
     } // End of run once
     
 
+    
+
+    /** runs the engine to termination. 
+     * \note Do not use for simulated engine
+    */
+    void run_to_terminate(size_t cpuid, 
+                  Scheduler* scheduler, 
+                  ScopeFactory* scope_manager) {
+      // Loop until we get a task for recieve a termination signal
+      size_t ctr = 0;
+      size_t updcount = 0;
+      bool isempty = false;
+      while(active) {
+        if (__builtin_expect(ctr == 0 || isempty || terminate_all_syncs, 0)) {
+          evaluate_sync_queue(scope_manager, 
+                              cpuid, 
+                              approximate_last_update_count());
+          /**
+          * Run any pending syncs and then test all termination
+          * conditions.
+          */
+          size_t timemillis = lowres_time_millis();
+          size_t curupdatecount = approximate_last_update_count();
+          if (last_check_millis < timemillis || isempty || terminate_all_syncs) {
+            last_check_millis = timemillis;
+            // Check all termination conditions
+            if(satisfies_termination_condition()) {
+              terminate_all_syncs_mutex.lock();
+              terminate_all_syncs = 1;
+              terminate_all_syncs_cond.broadcast();
+              terminate_all_syncs_mutex.unlock();
+              active = false;
+              break;
+            }
+          }
+          // estimate the next ctrlimit
+
+            // compute average update rate per millisecond. with a prior of 16K per 1000ms
+          // we want to trigger every 100ms
+          ctr = 1 + ((curupdatecount + 16000) / (timemillis + 1000)) * 100;
+
+          if (sync_task_queue_next_update > curupdatecount) {
+            ctr = std::min(ctr, 1 + (sync_task_queue_next_update - curupdatecount) / ncpus);
+          }
+        }
+        --ctr;
+        /**
+         * Get and execute the next task from the scheduler.
+         */
+        proc_in_update[cpuid].val = 1;
+        
+        update_task_type task;
+        sched_status::status_enum stat = scheduler->get_next_task(cpuid, task);
+        
+        if (stat == sched_status::EMPTY) {
+          isempty = true;
+          // check the schedule terminator
+          scheduler->get_terminator().begin_critical_section(cpuid);
+          stat = scheduler->get_next_task(cpuid, task);
+          if (stat == sched_status::NEWTASK) {
+            scheduler->get_terminator().cancel_critical_section(cpuid);
+          }
+          else {
+            if (scheduler->get_terminator().end_critical_section(cpuid)) {
+              termination_reason = EXEC_TASK_DEPLETION;
+              terminate_all_syncs_mutex.lock();
+              terminate_all_syncs = 1;
+              terminate_all_syncs_cond.broadcast();
+              terminate_all_syncs_mutex.unlock();
+              active = false;
+            }
+            else {
+              if(use_sched_yield) sched_yield();
+            }
+          }
+        }
+        
+        if (stat == sched_status::NEWTASK) {
+          isempty = false;
+          // If the status is new task than we must execute the task
+          const vertex_id_t vertex = task.vertex();
+          assert(vertex < graph.num_vertices());
+          assert(task.function() != NULL);
+          // Lock the vertex to ensure that no other processor tries
+          // to take it build a scope
+          iscope_type* scope = scope_manager->get_scope(cpuid, vertex);
+          assert(scope != NULL);                    
+          // get the callback for this cpu
+          typename Scheduler::callback_type& scallback = 
+                                      scheduler->get_callback(cpuid);
+          // execute the task
+          
+          task.function()(*scope, scallback);
+          // Commit any changes to the scope
+          scope->commit();
+          // Release the scope
+          scope_manager->release_scope(scope);
+          // Mark the task as completed in the scheduler
+          scheduler->completed_task(cpuid, task);
+          // record the successful execution of the task
+          if ((updcount & APX_INTERVAL) == APX_INTERVAL) {
+            apx_update_counts.inc(APX_INTERVAL + 1);
+          }
+          ++updcount;
+        } 
+        
+        proc_in_update[cpuid].val = 0;
+      } // end of while(true)
+      update_counts[cpuid] += updcount;
+      // loop until all processors are either
+      // 1: here. or 
+      // 2: waiting inside the evaluate_sync_queue function
+      size_t numpinupdate = 1;
+      while(numpinupdate > 0) {
+        numpinupdate = 0;
+        for (size_t i = 0;i < proc_in_update.size(); ++i) {
+          numpinupdate += proc_in_update[cpuid].val;
+        }
+        sched_yield();
+      }
+      // do a final evaluate_sync_queue which will ensure
+      // that the last update is committed, and will also 
+      // ensure termination since there might be threads stuck in (1).
+      evaluate_sync_queue(scope_manager, 
+                          cpuid, 
+                          approximate_last_update_count());
+    }
+    
     void construct_sync_queue() {
       sync_task_queue.clear();
       size_t min_sync_interval = size_t(-1);
@@ -901,10 +1043,17 @@ namespace graphlab {
                              size_t cpuid,
                              size_t curupdatecount) {
       bool is_cpu0 = (exec_type == THREADED && cpuid == 0) || exec_type == SIMULATED;
-      // if the head of the queue is still not ready yet...
+      // if the head of the queue is ready
       while (sync_task_queue_next_update <= curupdatecount) {
         // wait for all threads to reach here.
         sync_barrier.wait();
+        // I don't need to lock. All the threads are here.
+        // make sure if this is ever reached, we will never come back again
+        if (terminate_all_syncs) {
+          sync_task_queue_next_update = (size_t)(-1);
+          break;
+        }
+
         bool hastask = !sync_task_queue.empty() && 
                       (size_t)(-(sync_task_queue.top().second)) <= curupdatecount;
                       
@@ -913,7 +1062,7 @@ namespace graphlab {
         if (hastask == false) {
           // cpu 0 updates the head tracker
           if (is_cpu0) {
-            if (!sync_task_queue.empty()) {
+            if (active && !sync_task_queue.empty()) {
               sync_task_queue_next_update = -(sync_task_queue.top().second);
             }
             else {
@@ -943,7 +1092,7 @@ namespace graphlab {
           }
           
           // update the head tracker
-          if (!sync_task_queue.empty()) {
+          if (active && !sync_task_queue.empty()) {
             sync_task_queue_next_update = -(sync_task_queue.top().second);
           }
           else {
