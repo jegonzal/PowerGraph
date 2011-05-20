@@ -1,6 +1,7 @@
 #ifndef PMF_H__	 
 #define PMF_H__
 
+#define NDEBUG
 #include <itpp/itbase.h>
 #include <itpp/itstat.h>
 #include <itpp/stat/misc_stat.h>
@@ -14,7 +15,7 @@ See algrithm description and explanation in: Liang Xiong, Xi Chen, Tzu-Kuo Huang
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
-//#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
+#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
 //#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 int MAX_ITER=10; //maximal number of iterations to run

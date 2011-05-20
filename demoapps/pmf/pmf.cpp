@@ -390,7 +390,7 @@ void last_iter(){
       sample_T();
     counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
-	export_kdd_format(&test_graph, false);
+	export_kdd_format(&test_graph, !(iiter %15));
    }
 }
 
