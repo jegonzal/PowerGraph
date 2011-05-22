@@ -8,7 +8,9 @@
 #include "pmf.h"
 #include "prob.hpp"
 #include "bptf.hpp"
-//#include "svdpp.hpp"
+#ifdef GL_SVD_PP
+#include "svdpp.hpp"
+#endif
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -232,7 +234,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   
   /* print statistics */
   if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1) || ((int)scope.vertex() == 93712))){
-    printf("entering %s node  %u \n", (((int)scope.vertex() < M) ? "movie":"user"), (int)scope.vertex());   
+    printf("entering %s node  %u \n", (((int)scope.vertex() >= M) ? "movie":"user"), (int)scope.vertex());   
     debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , vdata.pvec, D);
   }
 
@@ -259,15 +261,13 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   if ((int)scope.vertex() < M){
 
     foreach(graphlab::edge_id_t oedgeid, outs) {
+      const vertex_data  & pdata = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
 #ifndef GL_NO_MULT_EDGES
       multiple_edges &medges =scope.edge_data(oedgeid);
-#else
-      edge_data & edge = scope.edge_data(oedgeid);
-#endif
-      const vertex_data  & pdata = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
-#ifndef GL_NO_MULT_EDGES	   
       for (int j=0; j< (int)medges.medges.size(); j++){
         edge_data& edge = medges.medges[j];
+#else
+        edge_data & edge = scope.edge_data(oedgeid);
 #endif
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
@@ -750,8 +750,12 @@ void start(int argc, char ** argv) {
     um.push_back(i);
  
   // add update function for user and movie nodes (tensor dims 1+2) 
+#ifndef GL_SVD_PP
   glcore.add_tasks(um, user_movie_nodes_update_function, 1);
-  
+#else
+  glcore.add_tasks(um, svd_plus_plus_update_function, 1);
+#endif  
+
   std::vector<vertex_id_t> tv;
   if (tensor){
     for (int i=M+N; i< M+N+K; i++)
@@ -808,7 +812,7 @@ void start(int argc, char ** argv) {
     	printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
-  export_uvt_to_file();
+   export_uvt_to_file();
 }
 
 
@@ -981,21 +985,24 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   // read tensor non zero edges from file
   int val = 0; 
   if (!FLOAT) 
-	val = read_mult_edges<edge_double>(f, M+N, data_type, _g);
-  else val = read_mult_edges<edge_float>(f,M+N, data_type, _g);
+     val = read_mult_edges<edge_double>(f, M+N, data_type, _g);
+  else 
+     val = read_mult_edges<edge_float>(f,M+N, data_type, _g);
 
   switch(data_type){
-	case TRAINING: 
-		L= val; 
-		break;
-        case VALIDATION: 
-		Le = val; 
-		if (aggregatevalidation)
-			L+=  Le; //add edges of validation dataset into the training data set as well.
-		break; 
-        case TEST: 
-		Lt = val; 
-		break;
+    case TRAINING: 
+      L = val; 
+      break;
+    
+    case VALIDATION: 
+      Le = val; 
+      if (aggregatevalidation)
+	L+=  Le; //add edges of validation dataset into the training data set as well.
+	break; 
+     
+    case TEST: 
+      Lt = val; 
+      break;
   }  
 
   if (data_type==TRAINING && tensor && K>1) 
@@ -1031,8 +1038,8 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   }
   
  //store number of edges for each node 
- if (data_type == TRAINING || (aggregatevalidation && data_type == VALIDATION)){
- 	count_all_edges(g);
+  if (data_type == TRAINING || (aggregatevalidation && data_type == VALIDATION)){
+    count_all_edges(g);
   }
 
  
@@ -1064,9 +1071,9 @@ int main(int argc,  char *argv[]) {
 
 
   if (argc < 3){
-       logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n";  
-       exit(1);
-   }
+    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n";  
+    exit(1);
+  }
    
    // select run mode (type of algorithm)
   infile = argv[1];
@@ -1081,15 +1088,13 @@ int main(int argc,  char *argv[]) {
     break;
     // MCMC tensor factorization
   case BPTF_TENSOR:
+    // tensor factorization , allow for multiple edges between user and movie in different times
+  case BPTF_TENSOR_MULT:
     tensor = true; BPTF = true;
    break;
     //MCMC matrix factorization
   case BPTF_MATRIX:
     tensor = false; BPTF = true;
-    break;
-    // tensor factorization , allow for multiple edges between user and movie in different times
-  case BPTF_TENSOR_MULT:
-    tensor = true; BPTF = true;
     break;
    // tensor factorization
   case ALS_TENSOR_MULT:
@@ -1116,30 +1121,29 @@ int main(int argc,  char *argv[]) {
 // calc statistics about matrix/tensor and exit  
 void calc_stats(testtype type){
    graph_type * gr = NULL;
-   switch(type){
-	   case TRAINING: gr = g; break;
-	   case VALIDATION: gr = &validation_graph; break;
-	    case TEST: gr = &test_graph; break;
+   switch(type){ 
+     case TRAINING: gr = g; break; 
+     case VALIDATION: gr = &validation_graph; break;
+     case TEST: gr = &test_graph; break;
    }
 
    if (gr->num_vertices() == 0){
-	printf("%s is missing, skipping data\n", testtypename[type]);
-        return;
+     printf("%s is missing, skipping data\n", testtypename[type]);
+     return;
    } 
 
    if (tensor && type == TRAINING){
-	int firsttimeused=-1;
-	int lasttimeused=-1;
-	for (int i=0; i<K; i++){
-		if (edges[i].size() > 0)
-		   firsttimeused = i;
-	}
-	for (int i=K-1; i>=0; i--){
-		if (edges[i].size() > 0)
-		   lasttimeused = i;
-
-	}
-	printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
+     int firsttimeused=-1;
+     int lasttimeused=-1;
+     for (int i=0; i<K; i++){
+       if (edges[i].size() > 0)
+         firsttimeused = i;
+     }
+     for (int i=K-1; i>=0; i--){
+       if (edges[i].size() > 0)
+         lasttimeused = i;
+     }
+     printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
   }	
 
   double avgval=-1, minval=1e100, maxval=-1e100;
@@ -1150,49 +1154,49 @@ void calc_stats(testtype type){
   int numedges = 0;
   for (int i=M; i< M+N; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
-         if (itpp::min(data->pvec) < minU)
-		minU = itpp::min(data->pvec);
-	 if (itpp::max(data->pvec) > maxU)
-		maxU = itpp::max(data->pvec);
-	if (gr->in_edge_ids(i).size() == 0)
-	moviewithoutedges++;
+      if (itpp::min(data->pvec) < minU)
+	 minU = itpp::min(data->pvec);
+      if (itpp::max(data->pvec) > maxU)
+	 maxU = itpp::max(data->pvec);
+      if (gr->in_edge_ids(i).size() == 0)
+	 moviewithoutedges++;
     foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
 #ifndef GL_NO_MULT_EDGES            
-         multiple_edges & edges = gr->edge_data(iedgeid);
+      multiple_edges & edges = gr->edge_data(iedgeid);
 #endif
          //vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
 #ifndef GL_NO_MULT_EDGES        
-         for (int j=0; j< (int)edges.medges.size(); j++){     
-		edge_data & data = edges.medges[j];
+      for (int j=0; j< (int)edges.medges.size(); j++){     
+	edge_data & data = edges.medges[j];
 #else
-		edge_data & data = gr->edge_data(iedgeid);
+	edge_data & data = gr->edge_data(iedgeid);
 #endif
-		numedges++;
-		avgval += data.weight;
-		avgtime += data.time;
-		if (data.weight<minval)
-		   minval=data.weight;
-		if (data.time <mintime)
-		   mintime = data.time;
-		if (data.weight>maxval)
-		   maxval=data.weight;
-		if (data.time > maxtime)
-		   maxtime =data.time;
+	numedges++;
+	avgval += data.weight;
+	avgtime += data.time;
+	if (data.weight<minval)
+	   minval=data.weight;
+	if (data.time <mintime)
+	   mintime = data.time;
+	if (data.weight>maxval)
+	   maxval=data.weight;
+	if (data.time > maxtime)
+	   maxtime =data.time;
 #ifndef GL_NO_MULT_EDGES	        
-	 }  
+      }  
 #endif
 	
-     }
+    }
  }
-  for (int i=0; i< M; i++){ 
-    const vertex_data * data = &gr->vertex_data(i);
-    if (itpp::min(data->pvec) < minV)
-	minV = itpp::min(data->pvec);
-	if (itpp::max(data->pvec) > maxV)
-		maxV = itpp::max(data->pvec);
+ for (int i=0; i< M; i++){ 
+   const vertex_data * data = &gr->vertex_data(i);
+   if (itpp::min(data->pvec) < minV)
+     minV = itpp::min(data->pvec);
+   if (itpp::max(data->pvec) > maxV)
+     maxV = itpp::max(data->pvec);
 	 
-    if (gr->out_edge_ids(i).size() == 0)
-	userwithoutedges++;
+   if (gr->out_edge_ids(i).size() == 0)
+     userwithoutedges++;
  }
  
  avgval /= numedges;
@@ -1204,11 +1208,11 @@ void calc_stats(testtype type){
 
  //verify we did not miss any ratings
  switch(type){
- 	case TRAINING: assert(numedges==L); break;
-	 case VALIDATION: assert(numedges==Le); break;
-	 case TEST: assert(numedges==Lt); break;
+   case TRAINING: assert(numedges==L); break;
+   case VALIDATION: assert(numedges==Le); break;
+   case TEST: assert(numedges==Lt); break;
  }
- }
+}
 
 //
 //The input prediction file should contain 6005940 lines, corresponding
@@ -1220,42 +1224,42 @@ void calc_stats(testtype type){
 
 void export_kdd_format(graph_type * _g, bool dosave) {
 
-        bool debugkdd = true;
-        assert(_g != NULL);
-        if (!dosave)
-		assert(BPTF);	
+  bool debugkdd = true;
+  assert(_g != NULL);
+  if (!dosave)
+    assert(BPTF);	
 
-	FILE * outFp = NULL;
-        if (dosave){
-                printf("Exporting KDD cup test graph: %s\n", (infile+"t.kdd.out").c_str());
-		outFp = fopen((infile+"t.kdd.out").c_str(), "w");
-		assert(outFp);
-	}
-	const int ExpectedTestSize = 6005940;
+    FILE * outFp = NULL;
+    if (dosave){
+      printf("Exporting KDD cup test graph: %s\n", (infile+"t.kdd.out").c_str());
+      outFp = fopen((infile+"t.kdd.out").c_str(), "w");
+      assert(outFp);
+    }
+    const int ExpectedTestSize = 6005940;
 
-	int lineNum = 0;
-	double prediction;
-	double sumPreds=0;
+    int lineNum = 0;
+    double prediction;
+    double sumPreds=0;
 
 
-     for (int i=0; i< M; i++){ //TODO: optimize to start from N?
-       vertex_data & data = g->vertex_data(i);
-       foreach(edge_id_t iedgeid, _g->out_edge_ids(i)) {
+    for (int i=0; i< M; i++){ //TODO: optimize to start from N?
+      vertex_data & data = g->vertex_data(i);
+      foreach(edge_id_t iedgeid, _g->out_edge_ids(i)) {
 #ifndef GL_NO_MULT_EDGES            
-         multiple_edges & edges = _g->edge_data(iedgeid);
+        multiple_edges & edges = _g->edge_data(iedgeid);
 #endif
-         vertex_data & pdata = g->vertex_data(_g->target(iedgeid)); 
+        vertex_data & pdata = g->vertex_data(_g->target(iedgeid)); 
 #ifndef GL_NO_MULT_EDGES
-         for (int j=0; j< (int)edges.medges.size(); j++){  
-           edge_data & edge = edges.medges[j];
+        for (int j=0; j< (int)edges.medges.size(); j++){  
+          edge_data & edge = edges.medges[j];
 #else
-	   edge_data & edge = _g->edge_data(iedgeid);
+	  edge_data & edge = _g->edge_data(iedgeid);
 #endif     
-           if (!ZERO)
+          if (!ZERO)
            	assert(edge.weight != 0);
 
-           prediction = 0;
-           rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
+          prediction = 0;
+          rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
 #ifndef GL_NO_MCMC 
           if (BPTF && iiter > BURN_IN){
              edge.avgprd += prediction;
@@ -1263,12 +1267,12 @@ void export_kdd_format(graph_type * _g, bool dosave) {
               prediction = (edge.avgprd / (iiter - BURN_IN));
            }
 #endif
-           if (debugkdd && (i== M || i == M+N-1))
-             cout<<lineNum<<") prediction:"<<prediction<<endl; 
-  	   if (prediction<0)
-		prediction=0;
-	   else if (prediction>100)
-		prediction=100; 
+          if (debugkdd && (i== M || i == M+N-1))
+            cout<<lineNum<<") prediction:"<<prediction<<endl; 
+  	  if (prediction<0)
+	     prediction=0;
+	  else if (prediction>100)
+	     prediction=100; 
           unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
           if (dosave)
 	  	fwrite(&roundScore,1,1,outFp);
@@ -1290,16 +1294,6 @@ void export_kdd_format(graph_type * _g, bool dosave) {
     fprintf(stderr, "**Completed successfully (mean prediction: %lf)**\n",sumPreds/ExpectedTestSize);
   }
 }
-
-
-
-
-
-
-
-
-
-
 
 
 

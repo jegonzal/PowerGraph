@@ -16,7 +16,7 @@ See algrithm description and explanation in: Liang Xiong, Xi Chen, Tzu-Kuo Huang
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
 #define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
-//#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
+#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 int MAX_ITER=10; //maximal number of iterations to run
 int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
@@ -169,7 +169,7 @@ enum runmodes{
    SVD_PLUS_PLUS = 5,
 };
 
-const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
+const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD_PLUS_PLUS"};
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -197,7 +197,6 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 #endif
 typedef graphlab::types<graph_type> gl_types;
 
-void calc_user_moviebag(vertex_data& data, graphlab::edge_list & outs);
-
+double calc_rmse_q(double & res);
 #endif
 
