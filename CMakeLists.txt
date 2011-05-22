@@ -173,9 +173,9 @@ else()
   set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
 endif()
 
-FIND_LIBRARY(KYOTO_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
+FIND_LIBRARY(KYOTO_SHARED_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
 FIND_PATH(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
-if (KYOTO_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
+if (KYOTO_SHARED_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
     message(FATAL_ERROR "Kyoto Cabinet not found. Run bootstrap!")
 endif()
 
@@ -184,8 +184,11 @@ if (KYOTO_INCLUDE_DIR MATCHES KYOTO_INCLUDE_DIR-NOTFOUND)
 else()
     message(STATUS "Kyoto Cabinet Found")
 endif()
+# get the static version
+STRING(REGEX REPLACE "\\${CMAKE_SHARED_LIBRARY_SUFFIX}$" ".a" KYOTO_STATIC_LIBRARY ${KYOTO_SHARED_LIBRARY})
+message(STATUS "Kyoto Cabinet: ${KYOTO_STATIC_LIBRARY}" )
 
-link_libraries(${KYOTO_LIBRARY} STATIC)
+
 include_directories(${KYOTO_INCLUDE_DIR})
 
 
@@ -403,6 +406,7 @@ MACRO(add_graphlab_executable NAME)
   ADD_EXECUTABLE(${NAME} ${ARGN})
   TARGET_LINK_LIBRARIES(${NAME} ${Boost_LIBRARIES})
   TARGET_LINK_LIBRARIES(${NAME} ${GraphLab_LIBRARIES})
+  TARGET_LINK_LIBRARIES(${NAME} ${KYOTO_STATIC_LIBRARY})
 ENDMACRO(add_graphlab_executable)
 
 

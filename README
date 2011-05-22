@@ -168,13 +168,13 @@ a c++ project without having to write complicated Makefiles.
 2: Create a CMakeLists.txt in apps/my_app containing the following lines:
 
   project(GraphLab) 
-  add_executable(my_app [List of cpp files space seperated]) 
+  add_graphlab_executable(my_app [List of cpp files space seperated]) 
   target_link_libraries(my_app [Additional libraries space seperated])
 
   Substituting the right values into the square brackets. For instance:
 
   project(GraphLab) 
-  add_executable(my_app my_app.cpp) 
+  add_graphlab_executable(my_app my_app.cpp) 
   target_link_libraries(my_app tcmalloc)
 
   If you have no additional libraries, you can comment out the 
