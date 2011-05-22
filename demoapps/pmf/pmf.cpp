@@ -668,8 +668,10 @@ void start(int argc, char ** argv) {
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
   clopts.attach_option("regnormal", &regnormal, regnormal, "regular normalization? ");  
   clopts.attach_option("scalerating", &scalerating, scalerating, "scale rating value ");  
-  clopts.attach_option("delayalpha", &delayalpha, delayalpha, "start sampling alpha the delayalpha round ");  
+  clopts.attach_option("delayalpha", &delayalpha, delayalpha, "start sampling alpha (noise level) the delayalpha round ");  
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
+  clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
+  clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -1269,10 +1271,10 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 #endif
           if (debugkdd && (i== M || i == M+N-1))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
-  	  if (prediction<0)
-	     prediction=0;
-	  else if (prediction>100)
-	     prediction=100; 
+  	  if (prediction<minval)
+	     prediction=minval;
+	  else if (prediction>maxval)
+	     prediction=maxval; 
           unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
           if (dosave)
 	  	fwrite(&roundScore,1,1,outFp);

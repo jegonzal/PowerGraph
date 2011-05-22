@@ -20,9 +20,6 @@ extern graph_type validation_graph;
 using namespace graphlab;
 using namespace itpp;
 
-void calc_users_moviebag(gl_types::iscope & scope, vertex_data & user, edge_list & outs){
-
-}
 void calc_user_moviebag(gl_types::iscope & scope, vertex_data & user, edge_list & outs){
 
     user.weight = zeros(D);
@@ -33,6 +30,23 @@ void calc_user_moviebag(gl_types::iscope & scope, vertex_data & user, edge_list 
     }
 } 
 
+// go over all edges and aggregate RMSE by summing up the squares, computing the
+// mean and then sqrt()
+double calc_rmse_q2(double & res){
+
+  timer t; t.start();
+  res = 0;
+  double RMSE = 0;
+  for (int i=0; i< M; i++){ 
+    const vertex_data * data = &g->vertex_data(i);
+    RMSE+= data->rmse;
+  }
+  res = RMSE;
+  counter[CALC_RMSE_Q] += t.current_time();
+  return sqrt(RMSE/(double)L);
+
+}
+
 
 float predict_svd_rating(const vertex_data & user, const vertex_data & movie, float ei){
 
@@ -40,13 +54,14 @@ float predict_svd_rating(const vertex_data & user, const vertex_data & movie, fl
   dsum += user.bias + movie.bias;
 
   //truncate values
-  if (infile == "kddcup" || infile == "kddcup2"){
-    if (dsum > 100)
-	dsum = 100;
-    else if (dsum < 0)
-	dsum = 0;
+  if (maxval != DEF_MAX_VAL){
+    if (dsum > maxval)
+	dsum = maxval;
+    else if (dsum < minval)
+	dsum = minval;
   }
-
+ 
+  assert(!isnan(dsum)); 
   return dsum;
 }
 //calculate RMSE. This function is called only before and after grahplab is run.
@@ -97,7 +112,7 @@ void svd_post_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = calc_rmse_q(res);
+  double rmse = calc_rmse_q2(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), "SVD", iiter,  rmse, calc_svd_rmse(&validation_graph, true, res2));
   iiter++;
 }
@@ -168,10 +183,9 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
         movie.bias += (float)(LRATE2 * (err-LAMBDA2 * mf_bias));
 
 	//cache off old feature values
-        vec cf = user.pvec;
-        vec mf = movie.pvec;
-        vec wf = movie.weight;
-
+        vec &cf = user.pvec;
+        vec &mf = movie.pvec;
+        vec &wf = movie.weight;
 
         user.pvec += (LRATE1 * (err*mf - LAMBDA1*cf));
         movie.pvec += (LRATE1 * (err*(itpp::dot(cf+ei,user.weight)) - LAMBDA1*mf));
@@ -187,7 +201,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
    assert(i == user.num_edges);
    counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == 0)
+   if (scope.vertex() == M-1)
   	svd_post_iter();
 
   }

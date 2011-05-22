@@ -197,6 +197,16 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 #endif
 typedef graphlab::types<graph_type> gl_types;
 
+
+
+
+#define DEF_MAX_VAL 1e100
+#define DEF_MIN_VAL -1e100
+
+float maxval = DEF_MAX_VAL;
+float minval = DEF_MIN_VAL;
+
+
 double calc_rmse_q(double & res);
 #endif
 
