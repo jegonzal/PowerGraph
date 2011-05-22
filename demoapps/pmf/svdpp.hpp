@@ -183,12 +183,12 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
         movie.bias += (float)(LRATE2 * (err-LAMBDA2 * mf_bias));
 
 	//cache off old feature values
-        vec &cf = user.pvec;
-        vec &mf = movie.pvec;
-        vec &wf = movie.weight;
+        vec cf = user.pvec;
+        vec mf = movie.pvec;
+        vec wf = movie.weight;
 
         user.pvec += (LRATE1 * (err*mf - LAMBDA1*cf));
-        movie.pvec += (LRATE1 * (err*(itpp::dot(cf+ei,user.weight)) - LAMBDA1*mf));
+        movie.pvec += (LRATE1 * (err*(itpp::dot(cf,ei*user.weight)) - LAMBDA1*mf));
         movie.weight += LRATE3*(err*ei*mf-LAMBDA3*wf);
         user.weight += movie.weight - wf;
 	i++;
