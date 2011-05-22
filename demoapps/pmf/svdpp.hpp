@@ -63,15 +63,15 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
      for (int i=0; i< M; i++){
        vertex_data & data = g->vertex_data(i);
        float ei = 1.0 / sqrtf(data.num_edges + 1.0); //regularization
-       foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
+       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)) {
+         vertex_data & pdata = g->vertex_data(_g->target(oedgeid)); 
             
 #ifndef GL_NO_MULT_EDGES
-         multiple_edges & edges = _g->edge_data(iedgeid);
+         multiple_edges & edges = _g->edge_data(oedgeid);
          for (int j=0; j< (int)edges.medges.size(); j++){       
            edge_data & edge = edges.medges[j];
 #else
-	   edge_data & edge = _g->edge_data(iedgeid);
+	   edge_data & edge = _g->edge_data(oedgeid);
 #endif
            if (!ZERO)
            	assert(edge.weight != 0);
@@ -184,13 +184,13 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
            
             
     }
-  }
+   assert(i == user.num_edges);
+   counter[EDGE_TRAVERSAL] += t.current_time();
 
-  assert(i == user.num_edges);
-  counter[EDGE_TRAVERSAL] += t.current_time();
-
-  if (scope.vertex() == 0)
+   if (scope.vertex() == 0)
   	svd_post_iter();
+
+  }
 
 }
 
