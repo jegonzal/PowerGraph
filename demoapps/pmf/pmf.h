@@ -169,7 +169,7 @@ enum runmodes{
    SVD_PLUS_PLUS = 5,
 };
 
-const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT"};
+const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD_PLUS_PLUS"};
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -197,7 +197,16 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 #endif
 typedef graphlab::types<graph_type> gl_types;
 
-void calc_user_moviebag(vertex_data& data, graphlab::edge_list & outs);
 
+
+
+#define DEF_MAX_VAL 1e100
+#define DEF_MIN_VAL -1e100
+
+float maxval = DEF_MAX_VAL;
+float minval = DEF_MIN_VAL;
+
+
+double calc_rmse_q(double & res);
 #endif
 
