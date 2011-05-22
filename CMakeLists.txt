@@ -185,7 +185,7 @@ else()
     message(STATUS "Kyoto Cabinet Found")
 endif()
 
-link_libraries(${KYOTO_LIBRARY})
+link_libraries(${KYOTO_LIBRARY} STATIC)
 include_directories(${KYOTO_INCLUDE_DIR})
 
 
