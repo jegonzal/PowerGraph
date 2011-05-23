@@ -56,6 +56,7 @@ double muT = 1; //mean of time nodes
 vec vones; 
 mat eDT; 
 mat dp;
+double globalMean[3] = {0}; //store global mean of matrix/tensor entries
 
 /* Variables for SVD++ */
 float *svd_m_bias, * svd_c_bias, * svd_movie_weight, * svd_sum_user_weight;
@@ -776,6 +777,17 @@ void start(int argc, char ** argv) {
   init_self_pot(); //init anyway
   init_pmf();
 
+#ifdef GL_SVD_PP
+   svd_init();
+#endif
+
+   if (infile == "netflix" || infile == "netflix-r"){
+       minval = 1; maxval = 5;
+    }
+   else if (infile == "kddcup" || infile == "kddcup2"){
+       minval = 0; maxval = 100;
+   }
+
   double res, res2;
   double rmse =  calc_rmse(g, false, res);
   printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
@@ -855,8 +867,10 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
+    
       if (scalerating)
 	edge.weight /= scalerating;
+      globalMean[type] += edge.weight;
       edge.time = (int)((ed[i].time -1-truncating)/scaling);
  
       std::pair<bool, edge_id_t> ret;
@@ -898,6 +912,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       break;
   }
   assert(total == (int)e);
+  globalMean[type] /= e;
   delete [] ed; ed = NULL;
   if (flags != NULL)
     delete[] flags;
@@ -1070,7 +1085,9 @@ int main(int argc,  char *argv[]) {
 #ifdef GL_NO_MCMC
   logstream(LOG_WARNING)<<"Code compiled with GL_NO_MCMC flag - this mode does not support MCMC methods.\n";
 #endif
-
+#ifdef GL_SVD_PP
+  logstream(LOG_WARNING)<<"Code compiled with GL_SVD_PP flag - this mode only supports SVD++ run.\n";
+#endif
 
   if (argc < 3){
     logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n";  
@@ -1108,15 +1125,24 @@ int main(int argc,  char *argv[]) {
 
   logger(LOG_INFO, "%s starting\n",runmodesname[options]);
 #ifdef GL_NO_MCMC
-  if (BPTF)
+  if (BPTF){
     logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag and recompile\n";
+    exit(1); 
+ }
 #endif
 
 #ifdef GL_NO_MULT_EDGES
-  if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT)
+  if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT){
     logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag and recompile\n";
+   exit(1);
+  }
 #endif  
-
+#ifdef GL_SVD_PP
+  if (options != SVD_PLUS_PLUS){
+    logstream(LOG_ERROR) << "Can run required algorithm with GL_SVD_PP flag. Please comment flag and recompile\n";
+    exit(1);
+  }
+#endif
    start(argc, argv);
 }
 

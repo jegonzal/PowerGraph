@@ -4,18 +4,29 @@
 #include "graphlab.hpp"
 #include <graphlab/macros_def.hpp>
 
-float LRATE1 = 0.003;               // Learning rate parameter
-float LRATE2 = 0.003;               // Learning rate parameter for biases
-float LRATE3 = 0.001;               // Learning rate parameter for weights
-float LAMBDA1 = 0.015;               // Regularization parameter used to minimize over-fitting
-float LAMBDA2 = 0.005;               // Biases regularization
-float LAMBDA3 = 0.015;               // Regularization parameter for weights
+
+float itmBiasStep = 5e-3f;
+float itmBiasReg = 1e-3f;
+float usrBiasStep = 2e-4f;
+float usrBiasReg = 5e-3f;
+float usrFctrStep = 2e-2f;
+float usrFctrReg = 2e-2f;
+float itmFctrStep = 3e-3f;
+float itmFctrReg = 1e-2f;
+float itmFctr2Step = 1e-4f;
+float itmFctr2Reg = 1e-2f;
 
 extern string infile;
 extern int iiter, L, Le;
 extern bool ZERO;
 extern timer gt;
 extern graph_type validation_graph;
+extern double globalMean[3];
+extern bool debug;
+
+double bestValidSqErr=DBL_MAX;
+double stepSize=8e-3;
+double regularization = 15e-3;
 
 using namespace graphlab;
 using namespace itpp;
@@ -29,6 +40,15 @@ void calc_user_moviebag(gl_types::iscope & scope, vertex_data & user, edge_list 
        user.weight += movie.weight;
     }
 } 
+
+
+void svd_init(){
+   fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", D,stepSize,regularization);
+   for (int i=0; i<M+N; i++){
+       vertex_data & data = g->vertex_data(i);
+       data.weight = debug ? itpp::ones(D) : itpp::randu(D);
+   } 
+}
 
 // go over all edges and aggregate RMSE by summing up the squares, computing the
 // mean and then sqrt()
@@ -48,22 +68,6 @@ double calc_rmse_q2(double & res){
 }
 
 
-float predict_svd_rating(const vertex_data & user, const vertex_data & movie, float ei){
-
-  float dsum = itpp::dot(movie.pvec, user.pvec + ei*user.weight);
-  dsum += user.bias + movie.bias;
-
-  //truncate values
-  if (maxval != DEF_MAX_VAL){
-    if (dsum > maxval)
-	dsum = maxval;
-    else if (dsum < minval)
-	dsum = minval;
-  }
- 
-  assert(!isnan(dsum)); 
-  return dsum;
-}
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
 double calc_svd_rmse(graph_type * _g, bool test, double & res){
@@ -73,40 +77,37 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
       
      
      res = 0;
-     double RMSE = 0;
-     int e = 0;
+     double sqErr =0;
+     int nCases = 0;
      for (int i=0; i< M; i++){
-       vertex_data & data = g->vertex_data(i);
-       float ei = 1.0 / sqrtf(data.num_edges + 1.0); //regularization
-       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)) {
-         vertex_data & pdata = g->vertex_data(_g->target(oedgeid)); 
-            
-#ifndef GL_NO_MULT_EDGES
-         multiple_edges & edges = _g->edge_data(oedgeid);
-         for (int j=0; j< (int)edges.medges.size(); j++){       
-           edge_data & edge = edges.medges[j];
-#else
-	   edge_data & edge = _g->edge_data(oedgeid);
-#endif
-           if (!ZERO)
-           	assert(edge.weight != 0);
+       vertex_data & usr = g->vertex_data(i);
+       int n = usr.num_edges; //+1.0 ? //regularization
+       usr.weight = zeros(D);
+       foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
+         vertex_data & movie = g->vertex_data(g->target(oedgeid)); 
+	 usr.weight += movie.weight;
+        }
+        float usrnorm = float(1.0/sqrt(n));
+        usr.weight *= usrnorm;
 
-           float p = predict_svd_rating(data, pdata, ei);
-           float err = edge.weight -  p;
-           if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
-             cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
-
-           RMSE+= (err*err);
-           e++;
-#ifndef GL_NO_MULT_EDGES        
-         }
-#endif
-     }
+       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
+         edge_data & item = _g->edge_data(oedgeid);
+         vertex_data & movie = g->vertex_data(_g->target(oedgeid)); 
+         float estScore = (float)globalMean[0];
+         estScore += movie.pvec*(usr.weight+usr.pvec);
+         estScore += movie.bias + usr.bias;
+         estScore = min(estScore, maxval);
+         estScore = max(estScore, minval);
+         double err = item.weight - estScore;
+         sqErr += err*err;
+         nCases++;
+       }
    }
-   res = RMSE;
-   assert(e == (test?Le:L));
-   return sqrt(RMSE/(double)e);
+   res = sqErr;
+   assert(nCases == (test?Le:L));
+   return sqrt(sqErr/(double)nCases);
 }
+
 
 void svd_post_iter(){
   printf("Entering last iter with %d\n", iiter);
@@ -114,6 +115,13 @@ void svd_post_iter(){
   double res,res2;
   double rmse = calc_rmse_q2(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), "SVD", iiter,  rmse, calc_svd_rmse(&validation_graph, true, res2));
+
+  itmFctrStep *= 0.9f;
+  itmFctr2Step *= 0.9f;
+  usrFctrStep *= 0.9f;
+  itmBiasStep *= 0.9f;
+  usrBiasStep *= 0.9f;
+
   iiter++;
 }
 
@@ -155,50 +163,55 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
   //USER NODES    
   if ((int)scope.vertex() < M){
 
-    calc_user_moviebag(scope, user, outs);
 
+    user.weight = zeros(D);
+    
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
-#ifndef GL_NO_MULT_EDGES
-      multiple_edges &medges =scope.edge_data(oedgeid);
-#else
       edge_data & edge = scope.edge_data(oedgeid);
-#endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
-#ifndef GL_NO_MULT_EDGES	   
-      for (int j=0; j< (int)medges.medges.size(); j++){
-        edge_data& edge = medges.medges[j];
-#endif
-        //go over each rating of a movie and put the movie vector into the matrix Q
-        //and vector vals
-        float ei = 1.0 / sqrtf(outs.size() + 1.0); //regularization
-        float p = predict_svd_rating(user,movie,ei);    
-        float err = edge.weight -  p;
-        user.rmse += err*err;
-
-        float cf_bias = user.bias;
-        float mf_bias = movie.bias;
-
-        user.bias += (float)(LRATE2 * (err-LAMBDA2 * cf_bias));
-        movie.bias += (float)(LRATE2 * (err-LAMBDA2 * mf_bias));
-
-	//cache off old feature values
-        vec cf = user.pvec;
-        vec mf = movie.pvec;
-        vec wf = movie.weight;
-
-        user.pvec += (LRATE1 * (err*mf - LAMBDA1*cf));
-        movie.pvec += (LRATE1 * (err*(itpp::dot(cf,ei*user.weight)) - LAMBDA1*mf));
-        movie.weight += LRATE3*(err*ei*mf-LAMBDA3*wf);
-        user.weight += movie.weight - wf;
-	i++;
-#ifndef GL_NO_MULT_EDGES
-      }   
-#endif
-           
+      user.weight += movie.weight; 
             
     }
-   assert(i == user.num_edges);
+   
+   float usrNorm = float(1.0/sqrt(user.num_edges));
+   user.weight *= usrNorm;
+
+   vec step = zeros(D);
+ 
+
+   foreach(graphlab::edge_id_t oedgeid, outs) {
+      edge_data & edge = scope.edge_data(oedgeid);
+      vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+      float estScore = globalMean[0];
+      estScore += movie.pvec*(user.pvec+user.weight);
+      estScore += user.bias + movie.bias;
+      estScore = min(estScore, maxval);
+      estScore = max(estScore, minval);
+      float err = edge.weight - estScore;
+      user.rmse += err*err; 
+
+     vec itmFctr = movie.pvec;
+     vec usrFactor = user.pvec;
+   
+     movie.pvec += itmFctrStep*(err*(user.weight+usrFactor)-itmFctrReg*itmFctr);
+     user.pvec += usrFctrStep*(err*itmFctr-usrFctrReg*usrFactor);
+     step = sum(err*itmFctr);
+
+     movie.bias += itmBiasStep*(err-itmBiasReg*movie.bias);
+     user.bias += usrBiasStep*(err-usrBiasReg*user.bias);
+   }
+
+   step *= float(itmFctr2Step*usrNorm);
+
+   double mult = itmFctr2Step*itmFctr2Reg;
+   foreach(graphlab::edge_id_t oedgeid, outs){
+      edge_data & edge = scope.edge_data(oedgeid);
+      vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+      movie.weight +=  step-mult*movie.weight;
+   }
+
+
    counter[EDGE_TRAVERSAL] += t.current_time();
 
    if (scope.vertex() == M-1)

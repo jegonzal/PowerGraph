@@ -208,5 +208,8 @@ float minval = DEF_MIN_VAL;
 
 
 double calc_rmse_q(double & res);
+
+
+void svd_init();
 #endif
 
