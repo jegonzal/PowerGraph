@@ -31,15 +31,6 @@ double regularization = 15e-3;
 using namespace graphlab;
 using namespace itpp;
 
-void calc_user_moviebag(gl_types::iscope & scope, vertex_data & user, edge_list & outs){
-
-    user.weight = zeros(D);
-    foreach(graphlab::edge_id_t oedgeid, outs) {
-       //edge_data & edge = scope.edge_data(oedgeid);
-       const vertex_data  & movie = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
-       user.weight += movie.weight;
-    }
-} 
 
 
 void svd_init(){
@@ -86,9 +77,9 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
        foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
          vertex_data & movie = g->vertex_data(g->target(oedgeid)); 
 	 usr.weight += movie.weight;
-        }
-        float usrnorm = float(1.0/sqrt(n));
-        usr.weight *= usrnorm;
+       }
+       float usrnorm = float(1.0/sqrt(n));
+       usr.weight *= usrnorm;
 
        foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
          edge_data & item = _g->edge_data(oedgeid);
@@ -196,7 +187,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
    
      movie.pvec += itmFctrStep*(err*(user.weight+usrFactor)-itmFctrReg*itmFctr);
      user.pvec += usrFctrStep*(err*itmFctr-usrFctrReg*usrFactor);
-     step = sum(err*itmFctr);
+     step += err*itmFctr;
 
      movie.bias += itmBiasStep*(err-itmBiasReg*movie.bias);
      user.bias += usrBiasStep*(err-usrBiasReg*user.bias);
