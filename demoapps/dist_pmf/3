@@ -1,0 +1,53 @@
+diff -r b47f83948bdf demoapps/pmf/pmf.h
+--- a/demoapps/pmf/pmf.h	Thu May 26 06:40:26 2011 -0400
++++ b/demoapps/pmf/pmf.h	Thu May 26 22:04:25 2011 -0400
+@@ -16,7 +16,7 @@
+ #include <vector>
+ #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
+ #define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
+-//#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
++#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
+ 
+ int MAX_ITER=10; //maximal number of iterations to run
+ int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
+@@ -127,22 +127,21 @@
+ };
+  
+ //methods to compute the Root mean square error (RMSE)     
+-inline double rmse(const vec& x1, const vec& x2, int len, double val, double & sum){
+-	sum = dot(x1, x2);	
+-	return pow(sum - val, 2);
++inline double rmse(const vec& x1, const vec& x2, double rating, double & prediction){
++	prediction = dot(x1, x2);	
++        //return the squared error
++	return pow(prediction - rating, 2);
+ }
+ 
+-inline double rmse(const vec& x1, const vec& x2, const vec *x3, int len, double val, double &sum){
++inline double rmse(const vec& x1, const vec& x2, const vec *x3, double rating, double &prediction){
+ 	if (x3 == NULL) //matrix	
+-		return rmse(x1,x2,len,val,sum);
++		return rmse(x1,x2,rating,prediction);
+ 
+-	sum = 0;
+-	double ret = 0;
+-	for (int i=0; i< len; i++){
+-	ret = (x1[i] * x2[i] * x3->get(i));
+-	sum+= ret;
++	prediction = 0;
++	for (int i=0; i< x1.size(); i++){
++	   prediction += (x1[i] * x2[i] * x3->get(i));
+ 	}
+-	return pow(sum - val, 2);
++	return pow(prediction - rating, 2);
+ }
+ 
+  double get_rmse(const vertex_data & v){
+@@ -150,6 +149,7 @@
+  }
+ 
+ 
++
+ //data file types
+ enum testtype{
+     TRAINING = 0,

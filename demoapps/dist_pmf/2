@@ -1,0 +1,42 @@
+diff -r b47f83948bdf demoapps/pmf/pmf.cpp
+--- a/demoapps/pmf/pmf.cpp	Thu May 26 06:40:26 2011 -0400
++++ b/demoapps/pmf/pmf.cpp	Thu May 26 22:03:40 2011 -0400
+@@ -142,7 +142,7 @@
+            	assert(edge.weight != 0);
+ 
+            double sum = 0; 
+-           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
++           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, edge.weight, sum);
+            if (!ZERO)
+ 	      assert(sum != 0);         
+            if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
+@@ -303,7 +303,7 @@
+ 
+         i++;
+         double sum;     
+-        double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, D, edge.weight, sum);
++        double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, edge.weight, sum);
+         //assert(sum != 0);
+ #ifndef GL_NO_MCMC
+         if (BPTF && iiter > BURN_IN){
+@@ -1287,7 +1287,7 @@
+            	assert(edge.weight != 0);
+ 
+           prediction = 0;
+-          rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, D, edge.weight, prediction);
++          rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, edge.weight, prediction);
+ #ifndef GL_NO_MCMC 
+           if (BPTF && iiter > BURN_IN){
+              edge.avgprd += prediction;
+@@ -1297,7 +1297,10 @@
+ #endif
+           if (debugkdd && (i== M || i == M+N-1))
+             cout<<lineNum<<") prediction:"<<prediction<<endl; 
+-  	  if (prediction<minval)
++            
++	  if (scalerating != 1)
++		prediction *= scalerating;
++	  if (prediction<minval)
+ 	     prediction=minval;
+ 	  else if (prediction>maxval)
+ 	     prediction=maxval; 

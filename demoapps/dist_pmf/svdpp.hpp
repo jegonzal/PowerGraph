@@ -20,7 +20,7 @@ extern string infile;
 extern int iiter, L, Le;
 extern bool ZERO;
 extern timer gt;
-extern graph_type validation_graph;
+extern gl_types::graph validation_graph;
 extern double globalMean[3];
 extern bool debug;
 
@@ -61,7 +61,7 @@ double calc_rmse_q2(double & res){
 
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
-double calc_svd_rmse(graph_type * _g, bool test, double & res){
+double calc_svd_rmse(gl_types::graph * _g, bool test, double & res){
 
      if (test && Le == 0)
        return NAN;
@@ -149,8 +149,8 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
   }
 
 
-  edge_list outs = scope.out_edge_ids();
-  edge_list ins = scope.in_edge_ids();
+  dgraph_edge_list outs = scope.out_edge_ids();
+  dgraph_edge_list ins = scope.in_edge_ids();
   timer t;
 
   t.start(); 

@@ -1,0 +1,62 @@
+diff -r b47f83948bdf demoapps/pmf/svdpp.hpp
+--- a/demoapps/pmf/svdpp.hpp	Thu May 26 06:40:26 2011 -0400
++++ b/demoapps/pmf/svdpp.hpp	Thu May 26 21:55:59 2011 -0400
+@@ -32,6 +32,7 @@
+ using namespace itpp;
+ 
+ 
++float svd_predict(vertex_data& user, vertex_data& movie, float rating, float & prediction);
+ 
+ void svd_init(){
+    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", D,stepSize,regularization);
+@@ -84,13 +85,8 @@
+        foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
+          edge_data & item = _g->edge_data(oedgeid);
+          vertex_data & movie = g->vertex_data(_g->target(oedgeid)); 
+-         float estScore = (float)globalMean[0];
+-         estScore += movie.pvec*(usr.weight+usr.pvec);
+-         estScore += movie.bias + usr.bias;
+-         estScore = min(estScore, maxval);
+-         estScore = max(estScore, minval);
+-         double err = item.weight - estScore;
+-         sqErr += err*err;
++         float estScore;
++         sqErr += svd_predict(usr, movie, item.weight, estScore);
+          nCases++;
+        }
+    }
+@@ -117,6 +113,15 @@
+ }
+ 
+ 
++float svd_predict(vertex_data& user, vertex_data& movie, float rating, float & prediction){
++      prediction = (float)globalMean[0];
++      prediction += movie.pvec*(user.pvec+user.weight);
++      prediction += user.bias + movie.bias;
++      prediction = min(prediction, maxval);
++      prediction = max(prediction, minval);
++      float err = rating - prediction;
++      return err*err; 
++}
+ 
+ /***
+  * UPDATE FUNCTION
+@@ -174,14 +179,11 @@
+    foreach(graphlab::edge_id_t oedgeid, outs) {
+       edge_data & edge = scope.edge_data(oedgeid);
+       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+-      float estScore = globalMean[0];
+-      estScore += movie.pvec*(user.pvec+user.weight);
+-      estScore += user.bias + movie.bias;
+-      estScore = min(estScore, maxval);
+-      estScore = max(estScore, minval);
+-      float err = edge.weight - estScore;
+-      user.rmse += err*err; 
+-
++      float estScore;
++      user.rmse += svd_predict(user, movie, edge.weight, estScore); 
++      assert(!isnan(user.rmse));
++  
+      vec itmFctr = movie.pvec;
+      vec usrFactor = user.pvec;
+    

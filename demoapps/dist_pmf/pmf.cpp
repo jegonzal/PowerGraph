@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdio>
 
-#include "graphlab.hpp"
 #include "itppvecutils.hpp"
 #include "pmf.h"
 #include "prob.hpp"
@@ -66,16 +65,17 @@ double counter[20];
 vertex_data * times = NULL;
 
 gl_types::iengine * engine;
-graph_type* g;
-graph_type validation_graph;
-graph_type test_graph;
+gl_types::graph * g;
+gl_types::graph validation_graph;
+gl_types::graph test_graph;
 
 #ifndef _min
 #define _min(a,b) (a>b)?b:a
 #endif
 
 
-const size_t RMSE = 0;
+
+gl_types::glshared<double> RMSE;
 
 
  
@@ -91,11 +91,11 @@ void init_pmf() {
   vones = itpp::ones(D);
 }
     
-void load_pmf_graph(const char* filename, graph_type * g, testtype flag,gl_types::core & glcore);    
+void load_pmf_graph(const char* filename, gl_types::graph * g, testtype flag);    
 void calc_T(int id);    
 double calc_obj(double res);
 void last_iter();
-void export_kdd_format(graph_type * _g, bool dosave);
+void export_kdd_format(gl_types::graph * _g, bool dosave);
 void calc_stats(testtype type);
 
 // update function for time nodes
@@ -117,7 +117,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
 
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
-double calc_rmse(graph_type * _g, bool test, double & res){
+double calc_rmse(gl_types::graph * _g, bool test, double & res){
      if (test && Le == 0)
        return NAN;
       
@@ -168,7 +168,7 @@ double calc_rmse(graph_type * _g, bool test, double & res){
 }
  
 
-double calc_rmse_wrapper(graph_type* _g, bool test, double & res){
+double calc_rmse_wrapper(gl_types::graph* _g, bool test, double & res){
 #ifdef SVD_PLUS_PLUS
    return calc_svd_rmse(_g, test, res);
 #else
@@ -214,7 +214,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
-int count_edges(edge_list es){
+int count_edges(dgraph_edge_list es){
   
   if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
       return es.size();
@@ -258,8 +258,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   }
 
 
-  edge_list outs = scope.out_edge_ids();
-  edge_list ins = scope.in_edge_ids();
+  dgraph_edge_list outs = scope.out_edge_ids();
+  dgraph_edge_list ins = scope.in_edge_ids();
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
@@ -372,8 +372,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vdata.pvec =  result;
 
   //calc post round tasks
-  if (!tensor && (int)scope.vertex() == M+N-1)
-    last_iter();
+  if (!tensor && (int)scope.vertex() == M+N-1){
+     last_iter();
+  }
 
 }
 
@@ -381,7 +382,8 @@ void last_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = calc_rmse_q(res);
+  double rmse = 0; //calc_rmse_q(res);
+ //TODO: agg rmse
   //rmse=0;
   printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
@@ -660,7 +662,9 @@ void import_uvt_from_file(){
  */
 void start(int argc, char ** argv) {
       
+  bool makegraph = false;
   command_line_options clopts;
+  clopts.use_distributed_options();
   //clopts.scheduler_type = "round_robin";
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
@@ -682,8 +686,12 @@ void start(int argc, char ** argv) {
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
+  clopts.attach_option("makegraph",
+                       &makegraph, makegraph,
+                       "If set, creates the initial disk distributed_graph file");
+  clopts.set_scheduler_type("round_robin");
  
-  gl_types::core glcore;
+  //gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
 
   if (delayalpha != 0 && (options != BPTF_TENSOR_MULT && options != BPTF_TENSOR))
@@ -693,47 +701,53 @@ void start(int argc, char ** argv) {
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
 
+  if (makegraph) {
+    gl_types::disk_graph dg("pmf", 32);
+    gl_types::graph g;
+
+    load_pmf_graph(infile.c_str(), &g, TRAINING);
+    std::vector<graphlab::vertex_id_t> parts;
+    std::cout << "Partitioning..." << std::endl;
+    g.metis_partition(32, parts);
+    std::cout << "Saving..." << std::endl;
+    dg.create_from_graph(g, parts);
+    dg.finalize();
+    return;
+  }
+
+
+  
+  graphlab::mpi_tools::init(argc, argv);
+  
+  graphlab::dc_init_param param;
+  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  // create distributed control
+  graphlab::distributed_control dc(param);
+  // Create the distributed_graph --------------------------------------------------------->
+  gl_types::distributed_core glcore(dc, "denoise_learn.idx");
+  // Set the engine options
+  glcore.set_engine_options(clopts);
+  glcore.build_engine();
+
+
 
   //read the training data
   printf("loading data file %s\n", infile.c_str());
   if (!loadgraph){
-    g=&glcore.graph();
-    load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
+    //g=&glcore.graph();
+    //load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
 
+
+  if (dc.procid() == 0){
   //read the vlidation data (optional)
     printf("loading data file %s\n", (infile+"e").c_str());
-    load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION, glcore);
+    load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION);
 
   //read the test data (optional)
     printf("loading data file %s\n", (infile+"t").c_str());
-    load_pmf_graph((infile+"t").c_str(),&test_graph, TEST, glcore);
+    load_pmf_graph((infile+"t").c_str(),&test_graph, TEST);
 
-
-    if (savegraph){
-	printf("Saving .graph files\n");
-	char filename[256];
-        sprintf(filename, "%s%d.graph", infile.c_str(), D);
-        std::ofstream fout(filename, std::fstream::binary);
-        graphlab::oarchive oarc(fout);
-	oarc << M << N << K << L << Le << Lt << D;
-        oarc << *g << validation_graph << test_graph;
-        printf("Done!\n");
-        fout.close();
-	exit(0);
-    }
-
-  } else {
-    char filename[256];
-    sprintf(filename, "%s%d.graph", infile.c_str(), D);
-    std::ifstream fin(filename, std::fstream::binary);
-    graphlab::iarchive iarc(fin);
-    iarc >> M >> N >> K >> L >> Le >> Lt >> D;
-    printf("Loading graph from file\n");
-    iarc >> glcore.graph() >> validation_graph >> test_graph;
-    g=&glcore.graph();
-    printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", M, N, K, D);   
-    printf("Creating %d edges (observed ratings)...\n", L);
-  }
+   }
   
 
   if (loadfactors){
@@ -747,18 +761,20 @@ void start(int argc, char ** argv) {
     calc_stats(TEST);
     exit(0);
   }
+  }//dc.procid() == 0 
 
   if (options != SVD_PLUS_PLUS){
     printf("setting regularization weight to %g\n", LAMBDA);
     pU=pV=LAMBDA;
   }
-  glcore.set_engine_options(clopts); 
+  //glcore.set_engine_options(clopts); 
 
   if (tensor)
     dp = GenDiffMat(K)*pT;
   if (debug)
     std::cout<<dp<<std::endl;
 
+  if (dc.procid() == 0){
   std::vector<vertex_id_t> um;
   for (int i=0; i< M+N; i++)
     um.push_back(i);
@@ -784,6 +800,8 @@ void start(int argc, char ** argv) {
   if (options != SVD_PLUS_PLUS && options != BPTF_TENSOR && options != BPTF_TENSOR_MULT)
     printf("pU=%g, pV=%g, pT=%g, muT=%g, D=%d\n", pU, pV, pT, muT,D);  
 
+  }
+
   if (BPTF)
      init_self_pot(); 
 
@@ -800,8 +818,10 @@ void start(int argc, char ** argv) {
        minval = 0; maxval = 100;
    }
 
+
+   if (dc.procid() == 0){
    double res, res2;
-   double rmse =  calc_rmse_wrapper(g, false, res);
+   double rmse = 0; //todo aggregate calc_rmse_wrapper(g, false, res);
    printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
 
   if (BPTF){
@@ -812,17 +832,19 @@ void start(int argc, char ** argv) {
     if (tensor) 
       sample_T();
   }
+  }
 
   /// Timing
   gt.start();
-  g->finalize();  
 
   /**** START GRAPHLAB *****/
   glcore.start();
 
   // calculate final RMSE
-    rmse =  calc_rmse_q(res);
-    printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  
+  if (dc.procid() == 0){ 
+  double rmse =  0; double res, res2; //TODO: calc_rmse_q(res);
+  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
 
   /**** POST-PROCESSING *****/
   double runtime = gt.current_time();
@@ -839,6 +861,7 @@ void start(int argc, char ** argv) {
    }
 
    export_uvt_to_file();
+   }
 }
 
 
@@ -846,7 +869,7 @@ void start(int argc, char ** argv) {
  * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
  */
 template<typename edgedata>
-int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool symmetry = false){
+int read_mult_edges(FILE * f, int nodes, testtype type, gl_types::graph * _g, bool symmetry = false){
      
   //typedef typename graph::edge_data_type edge_data;
   bool * flags = NULL;
@@ -932,7 +955,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
 }
 
 //go over all ratings and count how ratings for each node (user/movie)
-void count_all_edges(graph_type * _g){
+void count_all_edges(gl_types::graph * _g){
     for (int i=0; i<M+N; i++){
         vertex_data &vdata = _g->vertex_data(i);
         if (i < M)
@@ -942,7 +965,7 @@ void count_all_edges(graph_type * _g){
      }
 }
 /* function that reads the tensor from file */
-void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl_types::core & glcore) {
+void load_pmf_graph(const char* filename, gl_types::graph * _g, testtype data_type) {
 
   printf("Loading %s %s\n", filename, testtypename[data_type]);
   FILE * f = fopen(filename, "r");
@@ -1170,7 +1193,7 @@ int main(int argc,  char *argv[]) {
 
 // calc statistics about matrix/tensor and exit  
 void calc_stats(testtype type){
-   graph_type * gr = NULL;
+   gl_types::graph * gr = NULL;
    switch(type){ 
      case TRAINING: gr = g; break; 
      case VALIDATION: gr = &validation_graph; break;
@@ -1272,7 +1295,7 @@ void calc_stats(testtype type){
 //system.
 
 
-void export_kdd_format(graph_type * _g, bool dosave) {
+void export_kdd_format(gl_types::graph * _g, bool dosave) {
 
   bool debugkdd = true;
   assert(_g != NULL);

@@ -32,6 +32,7 @@ using namespace graphlab;
 using namespace itpp;
 
 
+float svd_predict(vertex_data& user, vertex_data& movie, float rating, float & prediction);
 
 void svd_init(){
    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", D,stepSize,regularization);
@@ -111,7 +112,8 @@ void svd_post_iter(){
   iiter++;
 }
 
-float svd_predict(const vertex_data& user, const vertex_data& movie, float rating, float & prediction){
+
+float svd_predict(vertex_data& user, vertex_data& movie, float rating, float & prediction){
       prediction = globalMean[0];
       prediction += movie.pvec*(user.pvec+user.weight);
       prediction += user.bias + movie.bias;
@@ -120,8 +122,6 @@ float svd_predict(const vertex_data& user, const vertex_data& movie, float ratin
       float err = rating - prediction;
       return err*err; 
 }
-
-
 
 /***
  * UPDATE FUNCTION
@@ -153,6 +153,8 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
   edge_list ins = scope.in_edge_ids();
   timer t;
 
+  int i=0;
+
   t.start(); 
   //USER NODES    
   if ((int)scope.vertex() < M){
@@ -162,7 +164,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
     
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
-      //edge_data & edge = scope.edge_data(oedgeid);
+      edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
       user.weight += movie.weight; 
             
@@ -179,8 +181,9 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
       user.rmse += svd_predict(user, movie, edge.weight, estScore); 
-      float err = edge.weight - estScore;
+      float err = estScore - edge.weight;
       assert(!isnan(user.rmse));
+  
      vec itmFctr = movie.pvec;
      vec usrFactor = user.pvec;
    
@@ -196,7 +199,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
    double mult = itmFctr2Step*itmFctr2Reg;
    foreach(graphlab::edge_id_t oedgeid, outs){
-      //edge_data & edge = scope.edge_data(oedgeid);
+      edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       movie.weight +=  step-mult*movie.weight;
    }
@@ -204,7 +207,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == (uint)M-1)
+   if (scope.vertex() == M-1)
   	svd_post_iter();
 
   }
