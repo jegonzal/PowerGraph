@@ -84,13 +84,8 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
        foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
          edge_data & item = _g->edge_data(oedgeid);
          vertex_data & movie = g->vertex_data(_g->target(oedgeid)); 
-         float estScore = (float)globalMean[0];
-         estScore += movie.pvec*(usr.weight+usr.pvec);
-         estScore += movie.bias + usr.bias;
-         estScore = min(estScore, maxval);
-         estScore = max(estScore, minval);
-         double err = item.weight - estScore;
-         sqErr += err*err;
+         float estScore;
+         sqErr += svd_predict(usr, movie, item.weight, estScore);
          nCases++;
        }
    }
@@ -114,6 +109,16 @@ void svd_post_iter(){
   usrBiasStep *= 0.9f;
 
   iiter++;
+}
+
+float svd_predict(const vertex_data& user, const vertex_data& movie, float rating, float & prediction){
+      prediction = globalMean[0];
+      prediction += movie.pvec*(user.pvec+user.weight);
+      prediction += user.bias + movie.bias;
+      prediction = min(prediction, maxval);
+      prediction = max(prediction, minval);
+      float err = rating - prediction;
+      return err*err; 
 }
 
 
@@ -159,7 +164,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
     
     foreach(graphlab::edge_id_t oedgeid, outs) {
 
-      edge_data & edge = scope.edge_data(oedgeid);
+      //edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
       user.weight += movie.weight; 
             
@@ -174,14 +179,10 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
    foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
-      float estScore = globalMean[0];
-      estScore += movie.pvec*(user.pvec+user.weight);
-      estScore += user.bias + movie.bias;
-      estScore = min(estScore, maxval);
-      estScore = max(estScore, minval);
+      float estScore;
+      user.rmse += svd_predict(user, movie, edge.weight, estScore); 
       float err = edge.weight - estScore;
-      user.rmse += err*err; 
-
+      assert(!isnan(user.rmse));
      vec itmFctr = movie.pvec;
      vec usrFactor = user.pvec;
    
@@ -197,7 +198,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
    double mult = itmFctr2Step*itmFctr2Reg;
    foreach(graphlab::edge_id_t oedgeid, outs){
-      edge_data & edge = scope.edge_data(oedgeid);
+      //edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       movie.weight +=  step-mult*movie.weight;
    }
@@ -205,7 +206,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == M-1)
+   if (scope.vertex() == (uint)M-1)
   	svd_post_iter();
 
   }

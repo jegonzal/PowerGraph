@@ -125,29 +125,42 @@ struct multiple_edges{
       archive >> medges;  
   }
 };
- 
+
+
+float svd_predict(const vertex_data& user, const vertex_data& movie, float rating, float & prediction);
+
 //methods to compute the Root mean square error (RMSE)     
-inline double rmse(const vec& x1, const vec& x2, int len, double val, double & sum){
-	sum = dot(x1, x2);	
-	return pow(sum - val, 2);
+inline float predict(const vec& x1, const vec& x2, float rating, float & prediction){
+	prediction = dot(x1, x2);	
+        //return the squared error
+	return powf(prediction - rating, 2);
 }
 
-inline double rmse(const vec& x1, const vec& x2, const vec *x3, int len, double val, double &sum){
+inline float predict(const vec& x1, const vec& x2, const vec *x3, float rating, float &prediction){
 	if (x3 == NULL) //matrix	
-		return rmse(x1,x2,len,val,sum);
+		return predict(x1,x2,rating,prediction);
 
-	sum = 0;
-	double ret = 0;
-	for (int i=0; i< len; i++){
-	ret = (x1[i] * x2[i] * x3->get(i));
-	sum+= ret;
+	prediction = 0;
+	for (int i=0; i< x1.size(); i++){
+	   prediction += (x1[i] * x2[i] * x3->get(i));
 	}
-	return pow(sum - val, 2);
+	return powf(prediction - rating, 2);
 }
 
+
+inline double predict(const vertex_data& user, const vertex_data &movie, float rating, float & prediction){
+#ifdef GL_SVD_PP	
+   return svd_predict(user, movie, rating, prediction);
+#else
+   return predict(user.pvec, movie.pvec, rating, prediction);
+#endif
+} 
+
+ 
  double get_rmse(const vertex_data & v){
     return v.rmse;
  }
+
 
 
 //data file types
