@@ -72,6 +72,7 @@ Defines a really useful function that performs an atomic
 increment of a flag when called. This is useful for waiting
 for a reply to a request
 \note: usemutex = false probably does not work and should be deprecated.
+\ingroup rpc
 \see reply_increment_counter
 */
 struct reply_ret_type{
@@ -106,6 +107,38 @@ struct reply_ret_type{
   }
 };
 
+
+
+/**
+ * Like reply_ret_type but can store a blob for each reply. 
+ * \ingroup rpc
+ * \see stored_increment_counter
+ */
+struct stored_ret_type{
+  atomic<size_t> flag;
+  std::map<procid_t, blob> val;
+  mutex mut;
+  conditional cond;
+  /**
+   * Constructs a reply object which waits for 'retcount' replies.
+   * usemutex should always be true
+   */
+  reply_ret_type(size_t retcount = 1):flag(retcount) { 
+  }
+  
+  ~reply_ret_type() { }
+
+  /**
+   * Waits for all replies to complete. It is up to the 
+   * reply implementation to decrement the counter.
+   */
+  inline void wait() {
+      mut.lock();
+      while(flag.value != 0) cond.wait(mut);
+      mut.unlock();
+  }
+};
+
 }
 
 
@@ -116,6 +149,15 @@ struct reply_ret_type{
  * \see reply_ret_type
  */
 void reply_increment_counter(distributed_control &dc, procid_t src, 
+                             size_t ptr, dc_impl::blob ret);
+
+/**
+ * \ingroup rpc
+ * A simple RPC call which converts ptr to a pointer to a stored_ret_type,
+ * stores the blob in it, and decrements its reply counter.
+ * \see stored_ret_type
+ */
+void stored_increment_counter(distributed_control &dc, procid_t src, 
                              size_t ptr, dc_impl::blob ret);
 
 }

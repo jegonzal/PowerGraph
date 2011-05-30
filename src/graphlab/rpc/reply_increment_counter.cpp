@@ -33,5 +33,17 @@ void reply_increment_counter(distributed_control &dc, procid_t src,
   a->mut.unlock();
 }
 
+void stored_increment_counter(distributed_control &dc, procid_t src, 
+                             size_t ptr, dc_impl::blob ret) {
+  dc_impl::stored_ret_type *a = reinterpret_cast<dc_impl::stored_ret_type*>(ptr);
+  a->mut.lock();
+  a->val[src]=ret;
+  size_t retval = a->flag.dec();  
+  if (retval == 0 && a->usemutex) {
+    a->cond.signal();
+  }
+  a->mut.unlock();
+}
+
 }
 
