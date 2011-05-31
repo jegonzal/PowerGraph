@@ -46,7 +46,10 @@ struct vertex_data {
   sdouble prev_mean; //  mean value from previous round (for convergence detection)
   sdouble prev_prec; //precision value from previous round (for convergence detection)
 
-  vertex_data():prev_mean(1000000){ };
+  vertex_data(){ 
+     prev_mean = 1000;
+     prior_mean = prior_prec = real = cur_mean = cur_prec = prev_prec = 0;
+   };
 
 };
 
@@ -55,6 +58,11 @@ struct edge_data {
   sdouble weight; //edge value
   sdouble mean; // message \mu_ij
   sdouble prec; // message P_ij
+
+  edge_data(){
+     weight = mean = prec = 0;
+  }
+
 };
 
 
@@ -81,7 +89,6 @@ gl_types::glshared_const<size_t> MAX_ITER_KEY;
 template<typename graph>
 void read_nodes(FILE * f, int len, int offset, int nodes,
                 graph * g){
-  typedef typename graph::vertex_data_type vtype;
 
   assert(offset>=0 && offset < len);
   assert(nodes>0);
@@ -99,9 +106,12 @@ void read_nodes(FILE * f, int len, int offset, int nodes,
     remain -= rc;
     vertex_data data;
     for (int i=0; i< rc; i++){
-      sdouble * pdata = (sdouble*)&data;
-      pdata[offset] = temp[i];
-      g->add_vertex(*(vtype*)&data);
+      if (offset == GABP_PRIOR_MEAN_OFFSET)
+      	data.prior_mean = temp[i];
+      else if (offset == GABP_REAL_OFFSET)
+        data.real = temp[i];
+      else assert(false);
+      g->add_vertex(data);
     }
     delete [] temp;
   }
@@ -207,19 +217,19 @@ int read_edges(FILE * f, int len, int offset, int nodes,
                     std::min(200000, edgecount_in_file - total), f);
     total += rc;
 
-    sdouble tmp[len/sizeof(sdouble)];
+    edge_data tmp;
     for (int i=0; i<rc; i++){
-      memset(tmp, 0, len/sizeof(sdouble));
-      tmp[offset] =  ed[i].weight;
+      //memset(tmp, 0, len/sizeof(sdouble));
+      tmp.weight =  ed[i].weight;
       assert(ed[i].weight != 0);
       assert(ed[i].from >= 1 && ed[i].from <= nodes);
       assert(ed[i].to >= 1 && ed[i].to <= nodes);
       assert(ed[i].to != ed[i].from);
       // Matlab export has ids starting from 1, ours start from 0
-      g->add_edge(ed[i].from-1, ed[i].to-1, *(etype*)&tmp);
+      g->add_edge(ed[i].from-1, ed[i].to-1, tmp);
       if (symmetry) { //add the reverse edge as well
         // Matlab export has ids starting from 1, ours start from 0
-        g->add_edge(ed[i].to-1, ed[i].from-1, *(etype*)&tmp);
+        g->add_edge(ed[i].to-1, ed[i].from-1, tmp);
       }
     }
     printf(".");
@@ -301,7 +311,6 @@ void gabp_update_function(gl_types::iscope &scope,
   graphlab::edge_list inedgeid = scope.in_edge_ids();
   graphlab::edge_list outedgeid = scope.out_edge_ids();
 
-  const double& threshold = THRESHOLD_KEY.get();
   const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get();
   const bool& round_robin = ROUND_ROBIN_KEY.get();
   const bool& finish = FINISH_KEY.get();
@@ -351,10 +360,6 @@ void gabp_update_function(gl_types::iscope &scope,
   assert(vdata.cur_mean != NAN);
 
   /* SEND new value and schedule neighbors */
-  sdouble residual =
-    fabs(vdata.prev_mean- vdata.cur_mean) +
-    fabs(vdata.prev_prec - vdata.cur_prec);
-
     for(size_t i = 0; i < inedgeid.size(); ++i) {
       assert(scope.source(inedgeid[i]) == scope.target(outedgeid[i]));
       edge_data& in_edge = scope.edge_data(inedgeid[i]);
@@ -552,8 +557,8 @@ int main(int argc,  char *argv[]) {
   /**** POST-PROCESSING *****/
   std::cout << "Finished in " << runtime << std::endl;
 
-  double means[m+n];
-  double precs[m+n];
+  std::vector<double> means(m+n);
+  std::vector<double> precs(m+n);
   double diff = 0;
   for (size_t i = 0; i < core.graph().num_vertices(); i++){
     const vertex_data& vdata = core.graph().vertex_data(i);
@@ -562,16 +567,16 @@ int main(int argc,  char *argv[]) {
      means[i] = vdata.cur_mean;
      precs[i] = vdata.cur_prec;
   }
-  std::cout << "gabp converged to an accuracy of "
-            << diff << " after " << REAL_NORM_KEY.get_val() << " relative norm: " << RELATIVE_NORM_KEY.get_val() << std::endl;
+  std::cout << "Assuming the linear system is Ax=y, gabp converged to an accuracy norm(Ax-y) of "
+            << diff << " norm(x-x*) where x* is the given solution is " << REAL_NORM_KEY.get_val() << " msg norm is: " << RELATIVE_NORM_KEY.get_val() << std::endl;
 
    FILE * f = fopen((datafile+".out").c_str(), "w");
    assert(f!= NULL);
 
    std::cout<<"Writing result to file: "<<datafile<<".out"<<std::endl;
    std::cout<<"You can read the file in Matlab using the load_c_gl.m matlab script"<<std::endl;
-   write_vec(f, m+n, means);
-   write_vec(f, m+n, precs);
+   write_vec(f, means.size(), &means[0]);
+   write_vec(f, means.size(), &precs[0]);
 
    fclose(f);
 
