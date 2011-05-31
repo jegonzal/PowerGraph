@@ -123,10 +123,10 @@ struct stored_ret_type{
    * Constructs a reply object which waits for 'retcount' replies.
    * usemutex should always be true
    */
-  reply_ret_type(size_t retcount = 1):flag(retcount) { 
+  stored_ret_type(size_t retcount = 1):flag(retcount) { 
   }
   
-  ~reply_ret_type() { }
+  ~stored_ret_type() { }
 
   /**
    * Waits for all replies to complete. It is up to the 

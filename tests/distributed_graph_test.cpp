@@ -294,6 +294,7 @@ void sync_test(distributed_graph<size_t, double> &dg, distributed_control &dc) {
     dg.synchronize_all_scopes();
   }
   dc.barrier();
+  
 }
 
 void print_usage() {
@@ -337,6 +338,7 @@ int main(int argc, char** argv) {
   // everyone do a check on the local graph structure
   const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
   std::set<edge_id_t> eids;
+  std::cout << "Checking Graph Structure..." << std::endl;
   for (size_t v_ = 0; v_ < localvertices.size(); ++v_) {
     vertex_id_t v = localvertices[v_];
     // everything has one in and one out
@@ -359,6 +361,7 @@ int main(int argc, char** argv) {
     eids.insert(*delist.begin());
   }
 
+  std::cout << "Checking Graph Data..." << std::endl;
   // check for data
   for (size_t v_ = 0; v_ < localvertices.size(); ++v_) {
     vertex_id_t v = localvertices[v_];
@@ -368,6 +371,37 @@ int main(int argc, char** argv) {
       ASSERT_EQ(dg.vertex_data(v), v);
     }
   }
+  
+  std::cout << "Testing one way vertex collection..." << std::endl;
+  // check vertex collection routines
+  // each machine collects a different random subset
+  std::vector<vertex_id_t> vsubset_collect;
+  for (size_t i = 0;i < 100; ++i) {
+    vsubset_collect.push_back(rand() % 10000);
+  }
+  std::map<vertex_id_t, size_t> retv = dg.collect_vertex_subset_one_way(vsubset_collect);
+  // check the map
+  for (size_t i = 0;i < 100; ++i) {
+    ASSERT_TRUE(retv.find(vsubset_collect[i]) != retv.end());
+    ASSERT_EQ(retv[vsubset_collect[i]], vsubset_collect[i]);
+  }
+  
+  dc.barrier();
+  
+  std::cout << "Testing all vertex collection..." << std::endl;
+  // try collect all vertices
+  std::vector<size_t> allvertexdata = dg.collect_vertices(0);
+  if (dc.procid() == 0) {
+    ASSERT_EQ(allvertexdata.size(), 10000);
+    for (size_t i = 0;i < 10000; ++i) {
+      ASSERT_EQ(allvertexdata[i], i);
+    }
+  }
+  else {
+    ASSERT_EQ(allvertexdata.size(), 0);
+  }
+  
+
   
   std::vector<edge_id_t> alledges;
   std::copy(eids.begin(), eids.end(), std::back_inserter(alledges));
