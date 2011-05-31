@@ -44,6 +44,7 @@ extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
 double scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
 int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
+bool outputvalidation = false; //experimental: output validation results of kdd format
 
 /* Variables for PMF */
 int M,N,K,L;//training size: users, movies, times, number of edges
@@ -95,7 +96,7 @@ void load_pmf_graph(const char* filename, graph_type * g, testtype flag,gl_types
 void calc_T(int id);    
 double calc_obj(double res);
 void last_iter();
-void export_kdd_format(graph_type * _g, bool dosave);
+void export_kdd_format(graph_type * _g, testtype type, bool dosave);
 void calc_stats(testtype type);
 
 // update function for time nodes
@@ -400,7 +401,7 @@ void last_iter(){
       sample_T();
     counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
-	export_kdd_format(&test_graph, !(iiter %15));
+	export_kdd_format(&test_graph, TEST, false);
    }
 }
 
@@ -682,6 +683,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
+  clopts.attach_option("outputvalidation", &outputvalidation, outputvalidation, "output prediction on vadlidation data in kdd format");
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -821,21 +823,24 @@ void start(int argc, char ** argv) {
   glcore.start();
 
   // calculate final RMSE
-    rmse =  calc_rmse_q(res);
-    printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  rmse =  calc_rmse_q(res);
+  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
 
   /**** POST-PROCESSING *****/
   double runtime = gt.current_time();
   printf("Finished in %lf \n", runtime);
  
-  if (infile == "kddcup" || infile == "kddcup2")
-  	export_kdd_format(&test_graph, true);
-
+  if (infile == "kddcup" || infile == "kddcup2"){
+    if (outputvalidation) //experimental: output prediction of validation data
+	export_kdd_format(&validation_graph, VALIDATION, true);
+    else //output prediction of test data, as required by KDD 
+	export_kdd_format(&test_graph, TEST, true);
+  }
      
   //timing counters
   for (int i=0; i<11; i++){
     if (counter[i] > 0)
-    	printf("Counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
+    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
    export_uvt_to_file();
@@ -1272,7 +1277,7 @@ void calc_stats(testtype type){
 //system.
 
 
-void export_kdd_format(graph_type * _g, bool dosave) {
+void export_kdd_format(graph_type * _g, testtype type, bool dosave) {
 
   bool debugkdd = true;
   assert(_g != NULL);
@@ -1281,7 +1286,7 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 
     FILE * outFp = NULL;
     if (dosave){
-      printf("Exporting KDD cup test graph: %s\n", (infile+"t.kdd.out").c_str());
+      printf("Exporting KDD cup %s graph: %s\n", testtypename[type], (infile+"t.kdd.out").c_str());
       outFp = fopen((infile+"t.kdd.out").c_str(), "w");
       assert(outFp);
     }
@@ -1352,14 +1357,23 @@ void export_kdd_format(graph_type * _g, bool dosave) {
 #endif
        }
      }
+   switch(type){
+     case TEST:
+        if (lineNum!= ExpectedTestSize)
+  	   logstream(LOG_WARNING) << "KDD test data has wrong length." << " current length is: " << Lt << " correct length " << ExpectedTestSize << std::endl;
+           assert(lineNum==Lt); 
+        break;
+     case VALIDATION:
+       assert(lineNum==Le);
+       break;
+     case TRAINING:
+       assert(false);
+       break; 
+  }
 
-   assert(lineNum==Lt); 
-   if (lineNum!= ExpectedTestSize)
-	logstream(LOG_WARNING) << "KDD test data has wrong length." << " current length is: " << Lt << " correct length " << ExpectedTestSize << std::endl;
- 
   if (dosave){
     fclose(outFp);
-    fprintf(stderr, "**Completed successfully (mean prediction: %lf)**\n",sumPreds/ExpectedTestSize);
+    fprintf(stderr, "**Completed successfully (mean prediction: %lf)**\n",sumPreds/lineNum);
   }
 }
 

@@ -10,13 +10,24 @@
 
  Probabalistic matrix/tensor factorization written Danny Bickson, CMU
 
-See algrithm description and explanation in: Liang Xiong, Xi Chen, Tzu-Kuo Huang, Jeff Schneider, Jaime G. Carbonell, Temporal Collaborative Filtering with Bayesian Probabilistic Tensor Factorization. In Proceedings of SIAM Data Mining, 2010.
+For BPTF algorithm:
+See algrithm description and explanation in: 
+1) Liang Xiong, Xi Chen, Tzu-Kuo Huang, Jeff Schneider, Jaime G. Carbonell, Temporal Collaborative Filtering with Bayesian Probabilistic Tensor Factorization. In Proceedings of SIAM Data Mining, 2010.
+2) Salakhutdinov and Mnih, Bayesian Probabilistic Matrix Factorization using Markov Chain Monte Carlo. in International Conference on Machine Learning, 2008.
+
+For ALS (Alternating least squares) see algorithm and explanation:
+3) Yunhong Zhou, Dennis Wilkinson, Robert Schreiber and Rong Pan. Large-Scale Parallel Collaborative Filtering for the Netflix Prize. Proceedings of the 4th international conference on Algorithmic Aspects in Information and Management. Shanghai, China pp. 337-348, 2008. 
+
+For SVD++ see algorithm and explanations:
+4) Koren, Yehuda. "Factorization meets the neighborhood: a multifaceted collaborative filtering model." In Proceeding of the 14th ACM SIGKDD 
+international conference on Knowledge discovery and data mining, 426434. ACM, 2008. http://portal.acm.org/citation.cfm?id=1401890.1401944
+
 
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
 #define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
-#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
+//#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 int MAX_ITER=10; //maximal number of iterations to run
 int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
@@ -175,15 +186,16 @@ const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
 
 //run modes
 enum runmodes{
-   ALS_MATRIX = 0,
-   BPTF_MATRIX = 1,
-   BPTF_TENSOR = 2,
+   ALS_MATRIX = 0,//alternating least squares, matrix (paper 3)
+   BPTF_MATRIX = 1,//Bayesian prob. matrix factorization (paper 2)
+   BPTF_TENSOR = 2,//Bayesian prob. tensor factorization (paper 1)
    BPTF_TENSOR_MULT = 3,
-   ALS_TENSOR_MULT = 4,
-   SVD_PLUS_PLUS = 5,
+   ALS_TENSOR_MULT = 4,//alternating least squares, tensor
+   SVD_PLUS_PLUS = 5, //SVD++, (paper 4)
+   STOCHASTIC_GRADIENT_DESCENT = 6, //SGD (paper 5)
 };
 
-const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD_PLUS_PLUS"};
+const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "STOCHASTIC GRADIENT DESCENT"};
 
 //counters for debugging running time of different modules
 enum countervals{
