@@ -65,7 +65,7 @@ namespace graphlab {
    *        done = consensus.end_done_critical_section(true);
    *      }
    *      else {
-   *        consensus.end_done_critical_section();
+   *        consensus.end_done_critical_section(false);
    *      }
    *    }
    * }

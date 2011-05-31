@@ -17,7 +17,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
-#include <graphlab/distributed2/graph/graph_local_store.hpp>
+
 #include <map>
 #include <set>
 #include <vector>
@@ -34,6 +34,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
+#include <graphlab/distributed2/graph/graph_local_store.hpp>
 #include <graphlab/logger/assertions.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -1000,9 +1001,6 @@ class distributed_graph {
   value for 'targetmachine'
   \warning This is only useful when the graph is small enough that
   all the vertex data fits in memory.
-  
-  TODO: implement collect_vertex_subset() and also a version of this
-  which can be called only from one machine.
   */
   std::vector<VertexData> collect_vertices(procid_t targetmachine) {
     std::vector<VertexData> ret;
@@ -1027,6 +1025,46 @@ class distributed_graph {
   }
 
 
+
+  /**
+   * Like collects a subset of vertex data onto the current machine, 
+   * 'vids' is a list of vertex IDs to collect. Result will be returned in the return value
+   * as an associative map from vertex ID to vertex Data.
+   * This function can be called from one machine.
+   */
+  std::map<vertex_id_t, VertexData> collect_vertex_subset_one_way(const std::vector<vertex_id_t> &vids) {
+    dc_impl::stored_ret_type ret(rmi.numprocs());
+    for (size_t i = 0;i < rmi.numprocs(); ++i) {
+        rmi.remote_call(i,
+                        &distributed_graph<VertexData,EdgeData>::send_vertex_subset,
+                        vids,
+                        rmi.procid(),
+                        reinterpret_cast<size_t>(&ret));
+    }
+    ret.wait();
+    
+    std::map<vertex_id_t, VertexData> final_ret;
+    // unpack
+    std::map<procid_t, dc_impl::blob>::iterator iter = ret.val.begin();
+    while (iter != ret.val.end()) {
+      // read the blob
+      boost::iostreams::stream<boost::iostreams::array_source> retstrm(iter->second.c, iter->second.len); 
+      iarchive iarc(retstrm);
+      std::map<vertex_id_t, VertexData> v_to_data;
+      iarc >> v_to_data;
+      iter->second.free();
+      
+      
+      // insert into final_ret
+      typename std::map<vertex_id_t, VertexData>::const_iterator miter = v_to_data.begin();
+      while (miter != v_to_data.end()) {
+        final_ret[miter->first] = miter->second;
+        ++miter;
+      }
+      ++iter;
+    }
+    return final_ret;
+  }
   
   // synchronzation calls. These are called from the ghost side
   // to synchronize against the owner.
@@ -1794,6 +1832,26 @@ class distributed_graph {
   }
 
 
+  /**
+   Receiving side of the collect_vertex_subset_one_way() function. Not to be used directly.
+  */
+  void send_vertex_subset(const std::vector<vertex_id_t> &vids, procid_t srcproc, size_t id) {
+    std::map<vertex_id_t, VertexData> ret;
+    for (size_t i = 0;i < vids.size(); ++i) {
+      if (is_owned(vids[i])) {
+        ret[vids[i]] = vertex_data(vids[i]);
+      }
+    }
+    boost::iostreams::stream<resizing_array_sink> retstrm(128); 
+    oarchive oarc(retstrm);
+    oarc << ret;
+    retstrm.flush();
+    
+    rmi.dc().remote_call(srcproc, stored_increment_counter, id, 
+                         dc_impl::blob(retstrm->str, retstrm->len));
+    free(retstrm->str);
+  }
+  
   
 };
 
