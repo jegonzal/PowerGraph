@@ -1,4 +1,3 @@
-// #define NDEBUG
 #include <fstream>
 #include <cmath>
 #include <cstdio>
@@ -8,6 +7,7 @@
 #include "pmf.h"
 #include "prob.hpp"
 #include "bptf.hpp"
+#include "sgd.hpp"
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
 #endif
@@ -20,6 +20,7 @@
 
 */
 
+#define NDEBUG
 using namespace graphlab;
 bool BPTF = true; //is this a sampling MCMC algo?
 bool tensor = true; //is this tensor or a matrix
@@ -45,6 +46,7 @@ int iiter = 1;//count number of time zero node run
 double scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
 int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
 bool outputvalidation = false; //experimental: output validation results of kdd format
+bool delinktimebins = false; //experimental: if true, regards different time bins as independent
 
 /* Variables for PMF */
 int M,N,K,L;//training size: users, movies, times, number of edges
@@ -61,6 +63,11 @@ double globalMean[3] = {0}; //store global mean of matrix/tensor entries
 
 /* Variables for SVD++ */
 float *svd_m_bias, * svd_c_bias, * svd_movie_weight, * svd_sum_user_weight;
+
+/* Variables for SGD */
+float sgd_gamma = 1e-2; //step size
+float sgd_lambda = 0.3; //step size
+
 
 double counter[20];
 
@@ -117,7 +124,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
 
 
 //calculate RMSE. This function is called only before and after grahplab is run.
-//during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
+//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
 double calc_rmse(graph_type * _g, bool test, double & res){
      if (test && Le == 0)
        return NAN;
@@ -178,9 +185,9 @@ double calc_rmse_wrapper(graph_type* _g, bool test, double & res){
 }
 
   
-// go over all edges and aggregate RMSE by summing up the squares, computing the
+// go over all movie edges and aggregate RMSE by summing up the squares, computing the
 // mean and then sqrt()
-double calc_rmse_q(double & res){
+double agg_rmse_by_movie(double & res){
 
   timer t; t.start();
   res = 0;
@@ -194,6 +201,23 @@ double calc_rmse_q(double & res){
   return sqrt(RMSE/(double)L);
 
 }
+// go over all user edges and aggregate RMSE by summing up the squares, computing the
+// mean and then sqrt()
+double agg_rmse_by_user(double & res){
+
+  timer t; t.start();
+  res = 0;
+  double RMSE = 0;
+  for (int i=0; i< M; i++){ 
+    const vertex_data * data = &g->vertex_data(i);
+    RMSE+= data->rmse;
+  }
+  res = RMSE;
+  counter[CALC_RMSE_Q] += t.current_time();
+  return sqrt(RMSE/(double)L);
+
+}
+
 
 // fill out the linear relation matrix (Q) between users/movies and movie/users
 inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i){
@@ -382,9 +406,9 @@ void last_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = calc_rmse_q(res);
+  double rmse = (options != STOCHASTIC_GRADIENT_DESCENT) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), runmodesname[options], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
   if (iiter == BURN_IN && BPTF){
     printf("Finished burn-in period. starting to aggregate samples\n");
@@ -490,6 +514,10 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ+ 2*eDT;
+      if (delinktimebins){
+        muT = 0;
+ 	t1 = ones(D);
+      }
       bool ret = itpp::ls_solve(QQ, pT*(t1 + vones*muT)+ RQ, out);
       assert(ret);
     }
@@ -508,6 +536,8 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ + eDT;
+      if (delinktimebins)
+	tk_2 = ones(D);
       bool ret = itpp::ls_solve(QQ, pT*tk_2 + RQ, out);
       assert(ret); 
     }
@@ -529,6 +559,8 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ + 2*eDT;
+      if (delinktimebins)
+	tsum = ones(D);
       bool ret = itpp::ls_solve(QQ, pT*tsum + RQ, out);
       assert(ret);
     }
@@ -684,6 +716,10 @@ void start(int argc, char ** argv) {
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
   clopts.attach_option("outputvalidation", &outputvalidation, outputvalidation, "output prediction on vadlidation data in kdd format");
+  clopts.attach_option("delinktimebins", &delinktimebins, delinktimebins, "assume there is no smooth correlation between time bins, each one is independent of the others");
+  clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size 1");
+  clopts.attach_option("sgd_gamma", &sgd_gamma, sgd_gamma, "SGD step size 2");
+  
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -766,24 +802,36 @@ void start(int argc, char ** argv) {
     um.push_back(i);
  
   // add update function for user and movie nodes (tensor dims 1+2) 
-#ifndef GL_SVD_PP
-  glcore.add_tasks(um, user_movie_nodes_update_function, 1);
-#else
-  glcore.add_tasks(um, svd_plus_plus_update_function, 1);
-#endif  
+  switch (options){
+     case ALS_TENSOR_MULT:
+     case ALS_MATRIX:
+     case BPTF_TENSOR:
+     case BPTF_TENSOR_MULT:
+     case BPTF_MATRIX:
+       glcore.add_tasks(um, user_movie_nodes_update_function, 1);
+       break;
 
-  std::vector<vertex_id_t> tv;
+     case STOCHASTIC_GRADIENT_DESCENT:
+       glcore.add_tasks(um, sgd_update_function, 1);
+       break;
+    
+     case SVD_PLUS_PLUS: 
+       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
+       break;
+ }
+
+  // add update function for time nodes (dim 3)
   if (tensor){
+    std::vector<vertex_id_t> tv;
     for (int i=M+N; i< M+N+K; i++)
       tv.push_back(i);
-     // add update function for time nodes (tensor dim 3)
     glcore.add_tasks(tv, time_node_update_function, 1);
   }
 
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[options], tensor?"tensor":"matrix", M, N, K, L, D);
   
-  if (options != SVD_PLUS_PLUS && options != BPTF_TENSOR && options != BPTF_TENSOR_MULT)
+  if (options != SVD_PLUS_PLUS && options != BPTF_TENSOR && options != BPTF_TENSOR_MULT && options != STOCHASTIC_GRADIENT_DESCENT)
     printf("pU=%g, pV=%g, pT=%g, muT=%g, D=%d\n", pU, pV, pT, muT,D);  
 
   if (BPTF)
@@ -819,11 +867,11 @@ void start(int argc, char ** argv) {
   gt.start();
   g->finalize();  
 
-  /**** START GRAPHLAB *****/
+  /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
   glcore.start();
 
   // calculate final RMSE
-  rmse =  calc_rmse_q(res);
+  rmse =  agg_rmse_by_movie(res);
   printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
 
   /**** POST-PROCESSING *****/
@@ -1120,6 +1168,7 @@ int main(int argc,  char *argv[]) {
   // or SVD ++
   case ALS_MATRIX:
   case SVD_PLUS_PLUS:
+  case STOCHASTIC_GRADIENT_DESCENT:
     tensor = false; BPTF = false;
     break;
 

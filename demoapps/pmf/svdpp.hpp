@@ -41,26 +41,9 @@ void svd_init(){
    } 
 }
 
-// go over all edges and aggregate RMSE by summing up the squares, computing the
-// mean and then sqrt()
-double calc_rmse_q2(double & res){
-
-  timer t; t.start();
-  res = 0;
-  double RMSE = 0;
-  for (int i=0; i< M; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
-    RMSE+= data->rmse;
-  }
-  res = RMSE;
-  counter[CALC_RMSE_Q] += t.current_time();
-  return sqrt(RMSE/(double)L);
-
-}
-
 
 //calculate RMSE. This function is called only before and after grahplab is run.
-//during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
+//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
 double calc_svd_rmse(graph_type * _g, bool test, double & res){
 
      if (test && Le == 0)
@@ -99,7 +82,7 @@ void svd_post_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = calc_rmse_q2(res);
+  double rmse = agg_rmse_by_user(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), "SVD", iiter,  rmse, calc_svd_rmse(&validation_graph, true, res2));
 
   itmFctrStep *= 0.9f;

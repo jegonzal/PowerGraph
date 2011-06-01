@@ -1,7 +1,7 @@
 #ifndef PMF_H__	 
 #define PMF_H__
 
-#define NDEBUG
+//#define NDEBUG
 #include <itpp/itbase.h>
 #include <itpp/itstat.h>
 #include <itpp/stat/misc_stat.h>
@@ -22,6 +22,11 @@ For SVD++ see algorithm and explanations:
 4) Koren, Yehuda. "Factorization meets the neighborhood: a multifaceted collaborative filtering model." In Proceeding of the 14th ACM SIGKDD 
 international conference on Knowledge discovery and data mining, 426434. ACM, 2008. http://portal.acm.org/citation.cfm?id=1401890.1401944
 
+For SGD, see algorhtm:
+5) Matrix Factorization Techniques for Recommender Systems
+Yehuda Koren, Robert Bell, Chris Volinsky
+In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
+ 
 
 */
 #include <vector>
@@ -34,6 +39,18 @@ int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
 int D=20;         //number of features
 bool FLOAT=false; //is data in float format
 double LAMBDA=1;//regularization weight
+
+#define DEF_MAX_VAL 1e100
+#define DEF_MIN_VAL -1e100
+
+
+float maxval = DEF_MAX_VAL; //max allowed matrix/tensor entry
+float minval = DEF_MIN_VAL;
+
+float min(float a, float b){ return a<b?a:b; }
+float max(float a, float b){ return a>b?a:b; }
+
+
 
 //starts for holding edge data in file
 struct edge_double{
@@ -144,6 +161,8 @@ float svd_predict(const vertex_data& user, const vertex_data& movie, float ratin
 inline float predict(const vec& x1, const vec& x2, float rating, float & prediction){
 	prediction = dot(x1, x2);	
         //return the squared error
+        prediction = min(prediction, maxval);
+        prediction = max(prediction, minval);
 	return powf(prediction - rating, 2);
 }
 
@@ -164,6 +183,8 @@ inline float predict(const vertex_data& v1, const vertex_data& v2, const vertex_
 	for (int i=0; i< v1.pvec.size(); i++){
 	   prediction += (v1.pvec[i] * v2.pvec[i] * v3->pvec.get(i));
 	}
+        prediction = min(prediction, maxval);
+        prediction = max(prediction, minval);
 	return powf(prediction - rating, 2);
 }
 
@@ -226,16 +247,16 @@ typedef graphlab::types<graph_type> gl_types;
 
 
 
-#define DEF_MAX_VAL 1e100
-#define DEF_MIN_VAL -1e100
 
-float maxval = DEF_MAX_VAL;
-float minval = DEF_MIN_VAL;
-
-
-double calc_rmse_q(double & res);
-
+double agg_rmse_by_movie(double & res);
+double agg_rmse_by_user(double & res);
 
 void svd_init();
+
+#ifndef GL_SVD_PP
+void svd_plus_plus_update_function(gl_types::iscope &scope, 
+			 gl_types::icallback &scheduler){};
+#endif
+
 #endif
 
