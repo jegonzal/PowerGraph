@@ -74,6 +74,7 @@ struct edge_data {
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 
+bool square=true;
 
 gl_types::glshared<double> REAL_NORM_KEY;
 gl_types::glshared<double> RELATIVE_NORM_KEY;
@@ -131,7 +132,7 @@ void write_vec(FILE * f, int len, double * array){
 }
 
 
-
+/*
 template<typename graph>
 void dispatch_vec(int start_pos, int end_pos, int offset,
                   graph * g,float * vec, int len,
@@ -148,8 +149,7 @@ void dispatch_vec(int start_pos, int end_pos, int offset,
   }
   if (free_vec)
     delete [] vec;
-}
-
+}*/
 template<typename graph>
 void dispatch_vec(int start_pos, int end_pos, int offset,
                   graph * g, double * vec, int len,
@@ -227,7 +227,7 @@ int read_edges(FILE * f, int len, int offset, int nodes,
       assert(ed[i].to != ed[i].from);
       // Matlab export has ids starting from 1, ours start from 0
       g->add_edge(ed[i].from-1, ed[i].to-1, tmp);
-      if (symmetry) { //add the reverse edge as well
+      if (!square) { //add the reverse edge as well
         // Matlab export has ids starting from 1, ours start from 0
         g->add_edge(ed[i].to-1, ed[i].from-1, tmp);
       }
@@ -404,7 +404,7 @@ void gabp_update_function(gl_types::iscope &scope,
 
 
 
-void load_gabp_graph(const char* filename, graph_type& graph) {
+void load_square_matrix(const char* filename, graph_type& graph) {
 
   printf("Loading %s\n", filename);
   FILE * f = fopen(filename, "r");
@@ -426,7 +426,7 @@ void load_gabp_graph(const char* filename, graph_type& graph) {
   fclose(f);
 }
 
-void load_gabp_graph2(const char* filename, graph_type& graph) {
+void load_non_square_matrix(const char* filename, graph_type& graph) {
   printf("Loading %s\n", filename);
   FILE * f = fopen(filename, "r");
   assert(f!= NULL);
@@ -435,14 +435,15 @@ void load_gabp_graph2(const char* filename, graph_type& graph) {
   fread(&n,1,4,f);
   assert( n > 0);
   assert( m > 0);
-  printf("Loading a graph of size %d x %d\n", n,m);
+  assert(m!=n); 
+  printf("Loading a non-square matrix A of size %d x %d\n", m,n);
   read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_PRIOR_MEAN_OFFSET,m,&graph);
   read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_REAL_OFFSET,n,&graph);
 
-  double * prec = read_vec(f, n);
-  dispatch_vec(0,n,GABP_PRIOR_PREC_OFFSET, &graph, prec, n, true);
+  double * prec = read_vec(f, n+m);
+  dispatch_vec(0,n+m,GABP_PRIOR_PREC_OFFSET, &graph, prec, n+m, true);
   dispatch_vec(0,n+m,GABP_PREV_MEAN_OFFSET, &graph, 1);
   dispatch_vec(0,n+m,GABP_PREV_PREC_OFFSET, &graph, 1);
   e = read_edges(f, sizeof(edge_data), 0, n+m, &graph);
@@ -464,7 +465,6 @@ int main(int argc,  char *argv[]) {
   bool support_null_variance = false;
   bool finish = false;
   bool debug = false;
-  bool square = true;
   size_t iter = 0;
   int syncinterval = 10000;
 
@@ -508,9 +508,9 @@ int main(int argc,  char *argv[]) {
 
   // Load the graph --------------------------------------------------
   if (!square)
-         load_gabp_graph2(datafile.c_str(), core.graph());
+         load_non_square_matrix(datafile.c_str(), core.graph());
   else //square matrix
-        load_gabp_graph(datafile.c_str(), core.graph());
+        load_square_matrix(datafile.c_str(), core.graph());
 
 
 
@@ -560,7 +560,7 @@ int main(int argc,  char *argv[]) {
   std::vector<double> means(m+n);
   std::vector<double> precs(m+n);
   double diff = 0;
-  for (size_t i = 0; i < core.graph().num_vertices(); i++){
+  for (size_t i = m; i < core.graph().num_vertices(); i++){
     const vertex_data& vdata = core.graph().vertex_data(i);
     diff += ((vdata.real - vdata.cur_mean)*
              (vdata.real - vdata.cur_mean));

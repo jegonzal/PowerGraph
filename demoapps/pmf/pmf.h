@@ -26,7 +26,9 @@ For SGD, see algorhtm:
 5) Matrix Factorization Techniques for Recommender Systems
 Yehuda Koren, Robert Bell, Chris Volinsky
 In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
- 
+
+For Lanczos algorithm (SVD) see:
+6) http://en.wikipedia.org/wiki/Lanczos_algorithm 
 
 */
 #include <vector>
@@ -76,7 +78,7 @@ struct vertex_data {
   float rmse; //root of mean square error
   int num_edges; //number of edges
 
-#ifdef GL_SVD_PP //data structure for svd++ only
+#ifdef GL_SVD_PP //data structure for svd++/svd only
   float bias; //bias for this user/movie
   vec weight; //weight vector for this user/movie
 #endif
@@ -214,9 +216,10 @@ enum runmodes{
    ALS_TENSOR_MULT = 4,//alternating least squares, tensor
    SVD_PLUS_PLUS = 5, //SVD++, (paper 4)
    STOCHASTIC_GRADIENT_DESCENT = 6, //SGD (paper 5)
+   LANCZOS = 7,// Lanczos algorithm (SVD) (reference 6)
 };
 
-const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "STOCHASTIC GRADIENT DESCENT"};
+const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "STOCHASTIC GRADIENT DESCENT", "SVD (LANCZOS)"};
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -224,15 +227,15 @@ enum countervals{
    BPTF_SAMPLE_STEP=1,
    CALC_RMSE_Q=2,
    ALS_LEAST_SQUARES=3,
-   BPTF_TIME_EDGES=5,
-   BPTF_LEAST_SQUARES=6,
-   CALC_OBJ = 7,
-   BPTF_MVN_RNDEX=9,
-   BPTF_LEAST_SQUARES2=10, 
+   BPTF_TIME_EDGES=4,
+   BPTF_LEAST_SQUARES=5,
+   CALC_OBJ =6,
+   BPTF_MVN_RNDEX=7,
+   BPTF_LEAST_SQUARES2=8, 
 };
 
-const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", "NA", \
-  "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "NA", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
+const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
+  "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
 
 
 //model can support multiple ratings of user to the same movie in different times

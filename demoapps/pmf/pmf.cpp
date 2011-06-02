@@ -62,12 +62,12 @@ mat dp;
 double globalMean[3] = {0}; //store global mean of matrix/tensor entries
 
 /* Variables for SVD++ */
-float *svd_m_bias, * svd_c_bias, * svd_movie_weight, * svd_sum_user_weight;
+float svdpp_step_dec = 0.9;//step decrement size for SVD++
 
 /* Variables for SGD */
 float sgd_gamma = 1e-2; //step size
-float sgd_lambda = 0.3; //step size
-
+float sgd_lambda = 0.3; //starting step size
+float sgd_step_dec = 0.9; //step decrement size
 
 double counter[20];
 
@@ -590,7 +590,7 @@ void calc_T(int i){
 
 }
 
-// CALCULATE OBJECTIVE VALUE
+// CALCULATE OBJECTIVE VALUE (Xiong paper)
 double calc_obj(double res){
    
   double sumU = 0, sumV = 0, sumT = 0;
@@ -696,10 +696,8 @@ void start(int argc, char ** argv) {
   command_line_options clopts;
   //clopts.scheduler_type = "round_robin";
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
-  clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
   clopts.attach_option("float", &FLOAT, FLOAT, "is data in float format?");
-  clopts.attach_option("D", &D, D, "dmension of weight vector");
-  clopts.attach_option("lambda", &LAMBDA, LAMBDA, "regularization weight");  
+  clopts.attach_option("D", &D, D, "number of features (dimension of computed weight vector)");
   clopts.attach_option("zero", &ZERO, ZERO, "support zero edges");  
   clopts.attach_option("scaling", &scaling, scaling, "time scaling factor (optional)");  
   clopts.attach_option("truncating", &truncating, truncating, "time truncation factor (optional)");  
@@ -708,17 +706,30 @@ void start(int argc, char ** argv) {
   clopts.attach_option("savefactors", &savefactors, savefactors, "save factors to file");  
   clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
+  
+  //BPTF related switches
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
-  clopts.attach_option("regnormal", &regnormal, regnormal, "regular normalization? ");  
+  clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "BPTF burn-in period");
+  clopts.attach_option("delayalpha", &delayalpha, delayalpha, "BPTF start sampling alpha (noise level) the delayalpha round ");  
+  
+  //ALS related switches
+  clopts.attach_option("regnormal", &regnormal, regnormal, "ALS - use identical normalization for each variable? (default is weighted regularization by the number of edges");  
+  clopts.attach_option("lambda", &LAMBDA, LAMBDA, "ALS regularization weight");  
+  
   clopts.attach_option("scalerating", &scalerating, scalerating, "scale rating value ");  
-  clopts.attach_option("delayalpha", &delayalpha, delayalpha, "start sampling alpha (noise level) the delayalpha round ");  
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
   clopts.attach_option("outputvalidation", &outputvalidation, outputvalidation, "output prediction on vadlidation data in kdd format");
   clopts.attach_option("delinktimebins", &delinktimebins, delinktimebins, "assume there is no smooth correlation between time bins, each one is independent of the others");
-  clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size 1");
-  clopts.attach_option("sgd_gamma", &sgd_gamma, sgd_gamma, "SGD step size 2");
+ 
+  //SVD++ related switches
+  clopts.attach_option("svdpp_step_dec", &svdpp_step_dec, svdpp_step_dec, "SVD++ step decrement ");
+ 
+  //SGD related switches
+  clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size");
+  clopts.attach_option("sgd_gamma", &sgd_gamma, sgd_gamma, "SGD starting step size");
+  clopts.attach_option("sgd_step_dec", &sgd_step_dec, sgd_step_dec, "SGD step decrement");
   
  
   gl_types::core glcore;
@@ -1310,7 +1321,7 @@ void calc_stats(testtype type){
  printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
  printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
 
- //verify we did not miss any ratings
+ //verify we did not miss any ratings (nnz values)
  switch(type){
    case TRAINING: assert(numedges==L); break;
    case VALIDATION: assert(numedges==Le); break;

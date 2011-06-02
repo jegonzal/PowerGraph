@@ -22,7 +22,7 @@ extern graph_type validation_graph;
 extern bool debug;
 extern float sgd_lambda;
 extern float sgd_gamma;
-
+extern float sgd_step_dec;
 using namespace graphlab;
 using namespace itpp;
 
@@ -73,16 +73,16 @@ void sgd_update_function(gl_types::iscope &scope,
       user.rmse += sqErr;
       assert(!isnan(user.rmse));
       float err = edge.weight - estScore;
-      vec oldmovie = movie.pvec;
-      vec olduser = user.pvec;
-      movie.pvec = movie.pvec + sgd_gamma*(err*user.pvec - sgd_lambda*oldmovie);
-      user.pvec = user.pvec + sgd_gamma*(err*movie.pvec - sgd_lambda*olduser);
+      movie.pvec = movie.pvec + sgd_gamma*(err*user.pvec - sgd_lambda*movie.pvec);
+      user.pvec = user.pvec + sgd_gamma*(err*movie.pvec - sgd_lambda*user.pvec);
    }
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == (uint)M-1)
+   if (scope.vertex() == (uint)M-1){
   	last_iter();
+        sgd_gamma *= sgd_step_dec;
+    }
 
   }
 
