@@ -36,11 +36,7 @@ For Lanczos algorithm (SVD) see:
 #define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
 //#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
-int MAX_ITER=10; //maximal number of iterations to run
-int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
-int D=20;         //number of features
-bool FLOAT=false; //is data in float format
-double LAMBDA=1;//regularization weight
+using namespace itpp;
 
 #define DEF_MAX_VAL 1e100
 #define DEF_MIN_VAL -1e100
@@ -69,8 +65,7 @@ struct edge_float{
 };
 
 
-//typedef double  sdouble; 
-using namespace itpp;
+int D=20;         //number of features
 
 /** Vertex and edge data types **/
 struct vertex_data {

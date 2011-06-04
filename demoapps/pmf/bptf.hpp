@@ -6,10 +6,11 @@
 //external global variables defined at pmf.cpp
 extern bool debug,tensor;
 extern bool BPTF;
-extern int M,N,K,L;
+extern int M,N,K,L,BURN_IN;
 extern vertex_data * times;
 extern double counter[20];
 extern graph_type * g;
+
 /* variables for BPTF */
 double nuAlpha = 1;
 double Walpha = 1;

@@ -20,20 +20,14 @@
 
 */
 
-#define NDEBUG
 using namespace graphlab;
+using namespace itpp;
+using namespace std;
+
 bool BPTF = true; //is this a sampling MCMC algo?
 bool tensor = true; //is this tensor or a matrix
 bool debug = false; //debug mode
 bool ZERO = false; //support edges with zero weight
-runmodes options; //type of algorithm
-timer gt;
-using namespace itpp;
-using namespace std;
-double scaling = 1; //aggregate time values into bins? (default =1, no aggregation)
-double truncating =0; // truncate unused time bins (optional, default = 0, no truncation)
-std::vector<edge_id_t> * edges;  //edge list for pointing from time nodes into their connected users/movies (for tensor)
-std::string infile;
 bool loadfactors = false; //start from a previous solution instead of a random point
 bool savefactors = true; //save solution to file
 bool loadgraph = false; //load graph from a binary saved file
@@ -41,34 +35,45 @@ bool savegraph = false; //save input file into graph binary file
 bool stats = false; //print out statistics and exit
 bool regnormal = false; //regular normalization
 bool aggregatevalidation = false; //use validation dataset as training data
-extern bool finish; //defined in convergence.hpp
-int iiter = 1;//count number of time zero node run
-double scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
-int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
 bool outputvalidation = false; //experimental: output validation results of kdd format
 bool delinktimebins = false; //experimental: if true, regards different time bins as independent
 
-/* Variables for PMF */
-int M,N,K,L;//training size: users, movies, times, number of edges
-int Le = 0; //number of ratings in validation dataset 
-int Lt = 0;//number of rating in test data set
+double scaling = 1; //aggregate time values into bins? (default =1, no aggregation)
+double truncating =0; // truncate unused time bins (optional, default = 0, no truncation)
+double scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
 double pU = 10; //regularization for users
 double pT = 1; //regularization for tensor time nodes
 double pV = 10; //regularization for movies
 double muT = 1; //mean of time nodes
+runmodes algorithm; //type of algorithm
+timer gt;
+std::vector<edge_id_t> * edges;  //edge list for pointing from time nodes into their connected users/movies (for tensor)
+std::string infile;
+int iiter = 1;//count number of time zero node run
+/* Variables for PMF */
+int M,N,K,L;//training size: users, movies, times, number of edges
+int Le = 0; //number of ratings in validation dataset 
+int Lt = 0;//number of rating in test data set
 vec vones; 
 mat eDT; 
 mat dp;
-double globalMean[3] = {0}; //store global mean of matrix/tensor entries
+bool FLOAT=false; //is data in float format
+double LAMBDA=1;//regularization weight
+
+/* variables of BPTF */
+int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
+int BURN_IN =10; //burn-in priod (for MCMC sampling - optional)
 
 /* Variables for SVD++ */
 float svdpp_step_dec = 0.9;//step decrement size for SVD++
+double globalMean[3] = {0}; //store global mean of matrix/tensor entries
 
 /* Variables for SGD */
 float sgd_gamma = 1e-2; //step size
 float sgd_lambda = 0.3; //starting step size
 float sgd_step_dec = 0.9; //step decrement size
 
+//performance counters
 double counter[20];
 
 vertex_data * times = NULL;
@@ -83,22 +88,7 @@ graph_type test_graph;
 #endif
 
 
-const size_t RMSE = 0;
-
-
- 
-/**
- * pmf APPLICATION CLASS
- */
-    
-/** CONSTRUCTOR **/
-void init_pmf() {
-  if (BPTF)
-	   pT=10;
-  eDT = itpp::eye(D)*pT;
-  vones = itpp::ones(D);
-}
-    
+/* Function declerations */ 
 void load_pmf_graph(const char* filename, graph_type * g, testtype flag,gl_types::core & glcore);    
 void calc_T(int id);    
 double calc_obj(double res);
@@ -106,6 +96,14 @@ void last_iter();
 void export_kdd_format(graph_type * _g, testtype type, bool dosave);
 void calc_stats(testtype type);
 
+
+void init_pmf() {
+  if (BPTF)
+    pT=10;
+  eDT = itpp::eye(D)*pT;
+  vones = itpp::ones(D);
+}
+ 
 // update function for time nodes
 // this function is called only in tensor mode
 void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler) {
@@ -241,7 +239,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
 //(when there are multiple edges in different times we count the total)
 int count_edges(edge_list es){
   
-  if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
+  if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT)
       return es.size();
 
 #ifndef GL_NO_MULT_EDGES
@@ -406,15 +404,15 @@ void last_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = (options != STOCHASTIC_GRADIENT_DESCENT) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
+  double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), runmodesname[options], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
-  if (iiter == BURN_IN && BPTF){
-    printf("Finished burn-in period. starting to aggregate samples\n");
-  }
-         
+        
   if (BPTF){
+    if (iiter == BURN_IN){
+      printf("Finished burn-in period. starting to aggregate samples\n");
+    }
     timer t;
     t.start();
     if (iiter > delayalpha)
@@ -735,10 +733,10 @@ void start(int argc, char ** argv) {
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
 
-  if (delayalpha != 0 && (options != BPTF_TENSOR_MULT && options != BPTF_TENSOR))
+  if (delayalpha != 0 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR))
 	logstream(LOG_WARNING) << "Delaying alpha (sampling of noise level) is ignored in non-MCMC methods" << std::endl;
 
-  if (BURN_IN != 10 && (options != BPTF_TENSOR_MULT && options != BPTF_TENSOR))
+  if (BURN_IN != 10 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR))
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
 
@@ -797,7 +795,7 @@ void start(int argc, char ** argv) {
     exit(0);
   }
 
-  if (options != SVD_PLUS_PLUS){
+  if (algorithm != SVD_PLUS_PLUS && algorithm != STOCHASTIC_GRADIENT_DESCENT){
     printf("setting regularization weight to %g\n", LAMBDA);
     pU=pV=LAMBDA;
   }
@@ -813,7 +811,7 @@ void start(int argc, char ** argv) {
     um.push_back(i);
  
   // add update function for user and movie nodes (tensor dims 1+2) 
-  switch (options){
+  switch (algorithm){
      case ALS_TENSOR_MULT:
      case ALS_MATRIX:
      case BPTF_TENSOR:
@@ -829,6 +827,10 @@ void start(int argc, char ** argv) {
      case SVD_PLUS_PLUS: 
        glcore.add_tasks(um, svd_plus_plus_update_function, 1);
        break;
+
+     case LANCZOS:
+	assert(false); //TBD
+        break;
  }
 
   // add update function for time nodes (dim 3)
@@ -840,9 +842,9 @@ void start(int argc, char ** argv) {
   }
 
   
-  printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[options], tensor?"tensor":"matrix", M, N, K, L, D);
+  printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[algorithm], tensor?"tensor":"matrix", M, N, K, L, D);
   
-  if (options != SVD_PLUS_PLUS && options != BPTF_TENSOR && options != BPTF_TENSOR_MULT && options != STOCHASTIC_GRADIENT_DESCENT)
+  if (algorithm != SVD_PLUS_PLUS && algorithm != BPTF_TENSOR && algorithm != BPTF_TENSOR_MULT && algorithm != STOCHASTIC_GRADIENT_DESCENT)
     printf("pU=%g, pV=%g, pT=%g, muT=%g, D=%d\n", pU, pV, pT, muT,D);  
 
   if (BPTF)
@@ -914,7 +916,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
      
   //typedef typename graph::edge_data_type edge_data;
   bool * flags = NULL;
-  if (options == BPTF_TENSOR_MULT || options == ALS_TENSOR_MULT){
+  if (algorithm == BPTF_TENSOR_MULT || algorithm == ALS_TENSOR_MULT){
     flags = new bool[nodes];
     memset(flags, 0, sizeof(bool)*nodes);
   }
@@ -950,7 +952,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       edge.time = (int)((ed[i].time -1-truncating)/scaling);
  
       std::pair<bool, edge_id_t> ret;
-      if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT){//no support for specific edge returning on different times
+      if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT){//no support for specific edge returning on different times
         ret.first = false;
       }
       else if (flags[(int)ed[i].from-1] == true && flags[(int)ed[i].to-1] == true){
@@ -971,7 +973,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
 #else
 	   g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edge);
 #endif
-        if (options == BPTF_TENSOR_MULT || options == ALS_TENSOR_MULT){
+        if (algorithm == BPTF_TENSOR_MULT || algorithm == ALS_TENSOR_MULT){
           flags[(int)ed[i].from-1] = true;
           flags[(int)ed[i].to-1] = true;
         }
@@ -1029,7 +1031,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   if (data_type != TRAINING && M != _M)
 	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << M << " in training file" << std::endl;
   if (data_type != TRAINING && N != _N)
-	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << M << " in training file" << std::endl;
+	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << N << " in training file" << std::endl;
   if (data_type != TRAINING && K != _K)
 	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in training file" << std::endl;
 
@@ -1154,7 +1156,7 @@ int main(int argc,  char *argv[]) {
 
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "PMF/ALS/SVD++ Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "PMF/ALS/SVD++/SGD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 #ifdef GL_NO_MULT_EDGES
   logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
 #endif
@@ -1172,9 +1174,9 @@ int main(int argc,  char *argv[]) {
    
    // select run mode (type of algorithm)
   infile = argv[1];
-  options = (runmodes)atoi(argv[2]);
-  printf("Setting run mode %s\n", runmodesname[options]);
-  switch(options){
+  algorithm = (runmodes)atoi(argv[2]);
+  printf("Setting run mode %s\n", runmodesname[algorithm]);
+  switch(algorithm){
   // iterative matrix factorization using alternating least squares
   // or SVD ++
   case ALS_MATRIX:
@@ -1201,7 +1203,7 @@ int main(int argc,  char *argv[]) {
     assert(0);
   }
 
-  logger(LOG_INFO, "%s starting\n",runmodesname[options]);
+  logger(LOG_INFO, "%s starting\n",runmodesname[algorithm]);
 
 //INPUT SANITY CHECKS
 #ifdef GL_NO_MCMC
@@ -1212,18 +1214,18 @@ int main(int argc,  char *argv[]) {
 #endif
 
 #ifdef GL_NO_MULT_EDGES
-  if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT){
+  if (algorithm == ALS_TENSOR_MULT || algorithm == BPTF_TENSOR_MULT){
     logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag on pmf.h and recompile\n";
    exit(1);
   }
 #endif  
 #ifdef GL_SVD_PP
-  if (options != SVD_PLUS_PLUS){
+  if (algorithm != SVD_PLUS_PLUS){
     logstream(LOG_ERROR) << "Can not run required algorithm with GL_SVD_PP flag. Please comment flag on pmf.h and recompile\n";
     exit(1);
   }
 #else
-  if (options == SVD_PLUS_PLUS){
+  if (algorithm == SVD_PLUS_PLUS){
     logstream(LOG_ERROR) << "Can not run required algorithm without GL_SVD_PP flag. Please define flag on pmf.h and recompile\n";
     exit(1);
   }
