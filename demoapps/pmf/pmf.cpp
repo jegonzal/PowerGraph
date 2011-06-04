@@ -1029,11 +1029,11 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   assert(_K>=1);
   assert(_M>=1 && _N>=1); 
   if (data_type != TRAINING && M != _M)
-	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << M << " in training file" << std::endl;
+	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << M << " in " << testtypename[data_type] << std::endl;
   if (data_type != TRAINING && N != _N)
-	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << N << " in training file" << std::endl;
+	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << N << " in " << testtypename[data_type] << std::endl;
   if (data_type != TRAINING && K != _K)
-	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in training file" << std::endl;
+	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in " << testtypename[data_type] <<std::endl;
 
   if (data_type == TRAINING){
   	M=_M; N= _N; K= _K;
