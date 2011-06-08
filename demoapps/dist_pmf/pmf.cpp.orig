@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdio>
 
-#include "graphlab.hpp"
 #include "itppvecutils.hpp"
 #include "pmf.h"
 #include "prob.hpp"
@@ -42,7 +41,7 @@ bool regnormal = false; //regular normalization
 bool aggregatevalidation = false; //use validation dataset as training data
 extern bool finish; //defined in convergence.hpp
 int iiter = 1;//count number of time zero node run
-double scalerating = 0; //scale the rating by dividing to the scalerating factor (optional)
+double scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
 int delayalpha = 0; //delay alpha sampling (optional, for BPTF)
 
 /* Variables for PMF */
@@ -66,16 +65,17 @@ double counter[20];
 vertex_data * times = NULL;
 
 gl_types::iengine * engine;
-graph_type* g;
-graph_type validation_graph;
-graph_type test_graph;
+gl_types::graph  g;
+gl_types::graph validation_graph;
+gl_types::graph test_graph;
 
 #ifndef _min
 #define _min(a,b) (a>b)?b:a
 #endif
 
 
-const size_t RMSE = 0;
+
+gl_types::glshared<double> RMSE;
 
 
  
@@ -91,11 +91,11 @@ void init_pmf() {
   vones = itpp::ones(D);
 }
     
-void load_pmf_graph(const char* filename, graph_type * g, testtype flag,gl_types::core & glcore);    
+void load_pmf_graph(const char* filename, gl_types::graph * g, testtype flag);    
 void calc_T(int id);    
 double calc_obj(double res);
 void last_iter();
-void export_kdd_format(graph_type * _g, bool dosave);
+void export_kdd_format(gl_types::graph * _g, bool dosave);
 void calc_stats(testtype type);
 
 // update function for time nodes
@@ -117,8 +117,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
 
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, calc_rmse_q is called 0 which is much lighter function (only aggregate sums of squares)
-double calc_rmse(graph_type * _g, bool test, double & res){
-
+double calc_rmse(gl_types::graph * _g, bool test, double & res){
      if (test && Le == 0)
        return NAN;
       
@@ -126,9 +125,9 @@ double calc_rmse(graph_type * _g, bool test, double & res){
      double RMSE = 0;
      int e = 0;
      for (int i=M; i< M+N; i++){
-       vertex_data * data = &g->vertex_data(i);
+       vertex_data & data = g.vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         vertex_data * pdata = &g->vertex_data(_g->source(iedgeid)); 
+         vertex_data & pdata = g.vertex_data(_g->source(iedgeid)); 
             
 #ifndef GL_NO_MULT_EDGES
          multiple_edges & edges = _g->edge_data(iedgeid);
@@ -141,21 +140,21 @@ double calc_rmse(graph_type * _g, bool test, double & res){
            if (!ZERO)
            	assert(edge.weight != 0);
 
-           double sum = 0; 
-           double add = rmse(data->pvec, pdata->pvec, tensor? (&times[(int)edge.time].pvec):NULL, edge.weight, sum);
+           float prediction = 0; 
+           double sq_err = predict(data, pdata, tensor? (&times[(int)edge.time]):NULL, edge.weight, prediction);
            if (!ZERO)
-	      assert(sum != 0);         
+	      assert(prediction != 0);         
            if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
-             cout<<"RMSE:"<<i <<"u1"<< data->pvec << " v1 "<< pdata->pvec<<endl; 
+             cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
 
 #ifndef GL_NO_MCMC
            if (BPTF && iiter > BURN_IN){
-             edge.avgprd += sum;
+             edge.avgprd += prediction;
              add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
            }
 #endif
             
-           RMSE+= add;
+           RMSE+= sq_err;
            e++;
 #ifndef GL_NO_MULT_EDGES        
          }
@@ -167,7 +166,17 @@ double calc_rmse(graph_type * _g, bool test, double & res){
    return sqrt(RMSE/(double)e);
 
 }
-   
+ 
+
+double calc_rmse_wrapper(gl_types::graph* _g, bool test, double & res){
+#ifdef SVD_PLUS_PLUS
+   return calc_svd_rmse(_g, test, res);
+#else
+   return calc_rmse(_g, test, res);
+#endif
+}
+
+  
 // go over all edges and aggregate RMSE by summing up the squares, computing the
 // mean and then sqrt()
 double calc_rmse_q(double & res){
@@ -176,7 +185,7 @@ double calc_rmse_q(double & res){
   res = 0;
   double RMSE = 0;
   for (int i=M; i< M+N; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
+    const vertex_data * data = &g.vertex_data(i);
     RMSE+= data->rmse;
   }
   res = RMSE;
@@ -205,7 +214,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
-int count_edges(edge_list es){
+int count_edges(dgraph_edge_list es){
   
   if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
       return es.size();
@@ -249,8 +258,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   }
 
 
-  edge_list outs = scope.out_edge_ids();
-  edge_list ins = scope.in_edge_ids();
+  dgraph_edge_list outs = scope.out_edge_ids();
+  dgraph_edge_list ins = scope.in_edge_ids();
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
@@ -302,12 +311,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
         i++;
-        double sum;     
-        double trmse = rmse(vdata.pvec, pdata.pvec, tensor?(&times[(int)edge.time].pvec):NULL, edge.weight, sum);
+        float prediction;     
+        float trmse = predict(vdata, pdata, tensor?(&times[(int)edge.time]):NULL, edge.weight, prediction);
         //assert(sum != 0);
 #ifndef GL_NO_MCMC
         if (BPTF && iiter > BURN_IN){
-          edge.avgprd += sum;        
+          edge.avgprd += prediction;        
           trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
         }
 #endif
@@ -363,8 +372,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vdata.pvec =  result;
 
   //calc post round tasks
-  if (!tensor && (int)scope.vertex() == M+N-1)
-    last_iter();
+  if (!tensor && (int)scope.vertex() == M+N-1){
+     last_iter();
+  }
 
 }
 
@@ -372,9 +382,10 @@ void last_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = calc_rmse_q(res);
+  double rmse = 0; //calc_rmse_q(res);
+ //TODO: agg rmse
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
+  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), BPTF?"BPTF":"ALS", iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
   if (iiter == BURN_IN && BPTF){
     printf("Finished burn-in period. starting to aggregate samples\n");
@@ -436,14 +447,14 @@ void calc_T(int i){
           break;
       }
 #else
-     edge_data data= g->edge_data(edge);
+     edge_data data= g.edge_data(edge);
 #endif
     assert(data.time == i);
 
-    assert((int)g->target(edge)>= M);
-    assert((int)g->source(edge)< M);
-    vertex_data * v1 = &g->vertex_data(g->target(edge));
-    vertex_data * v2 = &g->vertex_data(g->source(edge));
+    assert((int)g.target(edge)>= M);
+    assert((int)g.source(edge)< M);
+    vertex_data * v1 = &g.vertex_data(g.target(edge));
+    vertex_data * v2 = &g.vertex_data(g.source(edge));
     vec ret = elem_mult(v1->pvec, v2->pvec);
      
     for (int s=0; s<D; s++)
@@ -555,12 +566,12 @@ double calc_obj(double res){
   timer t;
   t.start(); 
   for (int i=0; i< M; i++){
-    const vertex_data * data = &g->vertex_data(i);
+    const vertex_data * data = &g.vertex_data(i);
     sumU += sum_sqr(data->pvec);
   } 
 
   for (int i=M; i< M+N; i++){
-    const vertex_data * data = &g->vertex_data(i);
+    const vertex_data * data = &g.vertex_data(i);
     sumV += sum_sqr(data->pvec);
   } 
 
@@ -589,7 +600,7 @@ void export_uvt_to_file(){
  mat V = zeros(N,D);
  mat T = zeros(K,D);
  for (int i=0; i< M+N; i++){ 
-    vertex_data & data = g->vertex_data(i);
+    vertex_data & data = g.vertex_data(i);
     if (i < M)
 	U.set_row(i, data.pvec);
     else
@@ -629,7 +640,7 @@ void import_uvt_from_file(){
  input.close();
  //saving output to file 
  for (int i=0; i< M+N; i++){ 
-    vertex_data & data = g->vertex_data(i);
+    vertex_data & data = g.vertex_data(i);
     if (i < M)
         data.pvec = U.get_row(i); 
    else
@@ -651,7 +662,9 @@ void import_uvt_from_file(){
  */
 void start(int argc, char ** argv) {
       
+  bool makegraph = false;
   command_line_options clopts;
+  clopts.use_distributed_options();
   //clopts.scheduler_type = "round_robin";
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "burn-in period");
@@ -673,8 +686,12 @@ void start(int argc, char ** argv) {
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
+  clopts.attach_option("makegraph",
+                       &makegraph, makegraph,
+                       "If set, creates the initial disk distributed_graph file");
+  clopts.set_scheduler_type("round_robin");
  
-  gl_types::core glcore;
+  //gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
 
   if (delayalpha != 0 && (options != BPTF_TENSOR_MULT && options != BPTF_TENSOR))
@@ -684,47 +701,53 @@ void start(int argc, char ** argv) {
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
 
+  if (makegraph) {
+    gl_types::disk_graph dg("pmf", 32);
+    //gl_types::graph g;
+
+    load_pmf_graph(infile.c_str(), &g, TRAINING);
+    std::vector<graphlab::vertex_id_t> parts;
+    std::cout << "Partitioning..." << std::endl;
+    g.metis_partition(32, parts);
+    std::cout << "Saving..." << std::endl;
+    dg.create_from_graph(g, parts);
+    dg.finalize();
+    return;
+  }
+
+
+  
+  graphlab::mpi_tools::init(argc, argv);
+  
+  graphlab::dc_init_param param;
+  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  // create distributed control
+  graphlab::distributed_control dc(param);
+  // Create the distributed_graph --------------------------------------------------------->
+  gl_types::distributed_core glcore(dc, "denoise_learn.idx");
+  // Set the engine options
+  glcore.set_engine_options(clopts);
+  glcore.build_engine();
+
+
 
   //read the training data
   printf("loading data file %s\n", infile.c_str());
   if (!loadgraph){
-    g=&glcore.graph();
-    load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
+    //g=&glcore.graph();
+    //load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
 
+
+  if (dc.procid() == 0){
   //read the vlidation data (optional)
     printf("loading data file %s\n", (infile+"e").c_str());
-    load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION, glcore);
+    load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION);
 
   //read the test data (optional)
     printf("loading data file %s\n", (infile+"t").c_str());
-    load_pmf_graph((infile+"t").c_str(),&test_graph, TEST, glcore);
+    load_pmf_graph((infile+"t").c_str(),&test_graph, TEST);
 
-
-    if (savegraph){
-	printf("Saving .graph files\n");
-	char filename[256];
-        sprintf(filename, "%s%d.graph", infile.c_str(), D);
-        std::ofstream fout(filename, std::fstream::binary);
-        graphlab::oarchive oarc(fout);
-	oarc << M << N << K << L << Le << Lt << D;
-        oarc << *g << validation_graph << test_graph;
-        printf("Done!\n");
-        fout.close();
-	exit(0);
-    }
-
-  } else {
-    char filename[256];
-    sprintf(filename, "%s%d.graph", infile.c_str(), D);
-    std::ifstream fin(filename, std::fstream::binary);
-    graphlab::iarchive iarc(fin);
-    iarc >> M >> N >> K >> L >> Le >> Lt >> D;
-    printf("Loading graph from file\n");
-    iarc >> glcore.graph() >> validation_graph >> test_graph;
-    g=&glcore.graph();
-    printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", M, N, K, D);   
-    printf("Creating %d edges (observed ratings)...\n", L);
-  }
+   }
   
 
   if (loadfactors){
@@ -738,16 +761,20 @@ void start(int argc, char ** argv) {
     calc_stats(TEST);
     exit(0);
   }
+  }//dc.procid() == 0 
 
-  printf("setting regularization weight to %g\n", LAMBDA);
-  pU=pV=LAMBDA;
-  glcore.set_engine_options(clopts); 
+  if (options != SVD_PLUS_PLUS){
+    printf("setting regularization weight to %g\n", LAMBDA);
+    pU=pV=LAMBDA;
+  }
+  //glcore.set_engine_options(clopts); 
 
   if (tensor)
     dp = GenDiffMat(K)*pT;
   if (debug)
     std::cout<<dp<<std::endl;
 
+  if (dc.procid() == 0){
   std::vector<vertex_id_t> um;
   for (int i=0; i< M+N; i++)
     um.push_back(i);
@@ -768,30 +795,34 @@ void start(int argc, char ** argv) {
   }
 
   
-  printf("%s for %s (%d, %d, %d):%d.  D=%d\n", BPTF?"BPTF":"PTF_ALS", tensor?"tensor":"matrix", M, N, K, L, D);
+  printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[options], tensor?"tensor":"matrix", M, N, K, L, D);
   
-  if (!BPTF)
+  if (options != SVD_PLUS_PLUS && options != BPTF_TENSOR && options != BPTF_TENSOR_MULT)
     printf("pU=%g, pV=%g, pT=%g, muT=%g, D=%d\n", pU, pV, pT, muT,D);  
 
-  //if (BPTF)
-  init_self_pot(); //init anyway
-  init_pmf();
+  }
+
+  if (BPTF)
+     init_self_pot(); 
 
 #ifdef GL_SVD_PP
    svd_init();
+#else
+  init_pmf();
 #endif
 
    if (infile == "netflix" || infile == "netflix-r"){
        minval = 1; maxval = 5;
     }
-   else if (infile == "kddcup" || infile == "kddcup2"){
+   else if ((infile == "kddcup" || infile == "kddcup2") && maxval == DEF_MAX_VAL){
        minval = 0; maxval = 100;
    }
 
-  double res, res2;
-  double rmse =  calc_rmse(g, false, res);
-  printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
 
+   if (dc.procid() == 0){
+   double res, res2;
+   double rmse = 0; //todo aggregate calc_rmse_wrapper(g, false, res);
+   printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
 
   if (BPTF){
     if (delayalpha < iiter)
@@ -801,25 +832,28 @@ void start(int argc, char ** argv) {
     if (tensor) 
       sample_T();
   }
+  }
 
   /// Timing
   gt.start();
-  g->finalize();  
 
   /**** START GRAPHLAB *****/
   glcore.start();
 
   // calculate final RMSE
-  rmse =  calc_rmse_q(res);
-  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse(&validation_graph, true, res2));
   
-  if (infile == "kddcup" || infile == "kddcup2")
-  	export_kdd_format(&test_graph, true);
+  if (dc.procid() == 0){ 
+  double rmse =  0; double res, res2; //TODO: calc_rmse_q(res);
+  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
 
   /**** POST-PROCESSING *****/
   double runtime = gt.current_time();
   printf("Finished in %lf \n", runtime);
-      
+ 
+  if (infile == "kddcup" || infile == "kddcup2")
+  	export_kdd_format(&test_graph, true);
+
+     
   //timing counters
   for (int i=0; i<11; i++){
     if (counter[i] > 0)
@@ -827,6 +861,7 @@ void start(int argc, char ** argv) {
    }
 
    export_uvt_to_file();
+   }
 }
 
 
@@ -834,7 +869,7 @@ void start(int argc, char ** argv) {
  * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
  */
 template<typename edgedata>
-int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool symmetry = false){
+int read_mult_edges(FILE * f, int nodes, testtype type, gl_types::graph * _g, bool symmetry = false){
      
   //typedef typename graph::edge_data_type edge_data;
   bool * flags = NULL;
@@ -868,7 +903,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
     
-      if (scalerating)
+      if (scalerating != 1.0)
 	edge.weight /= scalerating;
       globalMean[type] += edge.weight;
       edge.time = (int)((ed[i].time -1-truncating)/scaling);
@@ -891,9 +926,9 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
 #endif
         if (type == VALIDATION && aggregatevalidation)//add validation edges into training dataset as well
 #ifndef GL_NO_MULT_EDGES          
-           g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
+           g.add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
 #else
-	   g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edge);
+	   g.add_edge((int)ed[i].from-1, (int)ed[i].to-1, edge);
 #endif
         if (options == BPTF_TENSOR_MULT || options == ALS_TENSOR_MULT){
           flags[(int)ed[i].from-1] = true;
@@ -920,17 +955,17 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
 }
 
 //go over all ratings and count how ratings for each node (user/movie)
-void count_all_edges(graph_type * _g){
+void count_all_edges(gl_types::graph & _g){
     for (int i=0; i<M+N; i++){
-        vertex_data &vdata = _g->vertex_data(i);
+        vertex_data &vdata = _g.vertex_data(i);
         if (i < M)
-          vdata.num_edges = count_edges(_g->out_edge_ids(i));
+          vdata.num_edges = count_edges(_g.out_edge_ids(i));
         else
-          vdata.num_edges = count_edges(_g->in_edge_ids(i));
+          vdata.num_edges = count_edges(_g.in_edge_ids(i));
      }
 }
 /* function that reads the tensor from file */
-void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl_types::core & glcore) {
+void load_pmf_graph(const char* filename, gl_types::graph * _g, testtype data_type) {
 
   printf("Loading %s %s\n", filename, testtypename[data_type]);
   FILE * f = fopen(filename, "r");
@@ -953,7 +988,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   if (data_type != TRAINING && M != _M)
 	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << M << " in training file" << std::endl;
   if (data_type != TRAINING && N != _N)
-	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << M << " in training file" << std::endl;
+	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << N << " in training file" << std::endl;
   if (data_type != TRAINING && K != _K)
 	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in training file" << std::endl;
 
@@ -1078,7 +1113,7 @@ int main(int argc,  char *argv[]) {
 
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "PMF/ALS Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "PMF/ALS/SVD++ Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 #ifdef GL_NO_MULT_EDGES
   logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
 #endif
@@ -1090,7 +1125,7 @@ int main(int argc,  char *argv[]) {
 #endif
 
   if (argc < 3){
-    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n";  
+    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n\t5 = SVD++ algorithm\n";  
     exit(1);
   }
    
@@ -1105,6 +1140,7 @@ int main(int argc,  char *argv[]) {
   case SVD_PLUS_PLUS:
     tensor = false; BPTF = false;
     break;
+
     // MCMC tensor factorization
   case BPTF_TENSOR:
     // tensor factorization , allow for multiple edges between user and movie in different times
@@ -1124,35 +1160,44 @@ int main(int argc,  char *argv[]) {
   }
 
   logger(LOG_INFO, "%s starting\n",runmodesname[options]);
+
+//INPUT SANITY CHECKS
 #ifdef GL_NO_MCMC
   if (BPTF){
-    logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag and recompile\n";
+    logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag on pmf.h and recompile\n";
     exit(1); 
  }
 #endif
 
 #ifdef GL_NO_MULT_EDGES
   if (options == ALS_TENSOR_MULT || options == BPTF_TENSOR_MULT){
-    logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag and recompile\n";
+    logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag on pmf.h and recompile\n";
    exit(1);
   }
 #endif  
 #ifdef GL_SVD_PP
   if (options != SVD_PLUS_PLUS){
-    logstream(LOG_ERROR) << "Can run required algorithm with GL_SVD_PP flag. Please comment flag and recompile\n";
+    logstream(LOG_ERROR) << "Can not run required algorithm with GL_SVD_PP flag. Please comment flag on pmf.h and recompile\n";
+    exit(1);
+  }
+#else
+  if (options == SVD_PLUS_PLUS){
+    logstream(LOG_ERROR) << "Can not run required algorithm without GL_SVD_PP flag. Please define flag on pmf.h and recompile\n";
     exit(1);
   }
 #endif
+
+   //start graphlab!
    start(argc, argv);
 }
 
 // calc statistics about matrix/tensor and exit  
 void calc_stats(testtype type){
-   graph_type * gr = NULL;
+   gl_types::graph & gr = NULL;
    switch(type){ 
      case TRAINING: gr = g; break; 
-     case VALIDATION: gr = &validation_graph; break;
-     case TEST: gr = &test_graph; break;
+     case VALIDATION: gr = validation_graph; break;
+     case TEST: gr = test_graph; break;
    }
 
    if (gr->num_vertices() == 0){
@@ -1250,7 +1295,7 @@ void calc_stats(testtype type){
 //system.
 
 
-void export_kdd_format(graph_type * _g, bool dosave) {
+void export_kdd_format(gl_types::graph * _g, bool dosave) {
 
   bool debugkdd = true;
   assert(_g != NULL);
@@ -1266,12 +1311,27 @@ void export_kdd_format(graph_type * _g, bool dosave) {
     const int ExpectedTestSize = 6005940;
 
     int lineNum = 0;
-    double prediction;
+    float prediction;
     double sumPreds=0;
 
 
     for (int i=0; i< M; i++){ //TODO: optimize to start from N?
       vertex_data & data = g->vertex_data(i);
+
+
+#ifdef GL_SVD_PP
+       int n = data.num_edges; //+1.0 ? //regularization
+       data.weight = zeros(D);
+       foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
+         vertex_data & movie = g->vertex_data(g->target(oedgeid)); 
+	 data.weight += movie.weight;
+       }
+       float usrnorm = float(1.0/sqrt(n));
+       data.weight *= usrnorm;
+
+#endif
+
+
       foreach(edge_id_t iedgeid, _g->out_edge_ids(i)) {
 #ifndef GL_NO_MULT_EDGES            
         multiple_edges & edges = _g->edge_data(iedgeid);
@@ -1287,7 +1347,7 @@ void export_kdd_format(graph_type * _g, bool dosave) {
            	assert(edge.weight != 0);
 
           prediction = 0;
-          rmse(data.pvec, pdata.pvec, tensor? (&times[(int)edge.time].pvec):NULL, edge.weight, prediction);
+          predict(data, pdata, tensor? (&times[(int)edge.time]):NULL, edge.weight, prediction);
 #ifndef GL_NO_MCMC 
           if (BPTF && iiter > BURN_IN){
              edge.avgprd += prediction;
@@ -1295,15 +1355,15 @@ void export_kdd_format(graph_type * _g, bool dosave) {
               prediction = (edge.avgprd / (iiter - BURN_IN));
            }
 #endif
-          if (debugkdd && (i== M || i == M+N-1))
-            cout<<lineNum<<") prediction:"<<prediction<<endl; 
-            
-	  if (scalerating != 1)
-		prediction *= scalerating;
-	  if (prediction<minval)
+          if (prediction<minval)
 	     prediction=minval;
 	  else if (prediction>maxval)
 	     prediction=maxval; 
+            
+	  if (scalerating != 1)
+	    prediction *= scalerating;
+	  if (debugkdd && (i== 0 || i == M))
+            cout<<lineNum<<") prediction:"<<prediction<<endl; 
           unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
           if (dosave)
 	  	fwrite(&roundScore,1,1,outFp);

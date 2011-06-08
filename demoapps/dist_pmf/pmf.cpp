@@ -65,7 +65,8 @@ double counter[20];
 vertex_data * times = NULL;
 
 gl_types::iengine * engine;
-gl_types::graph * g;
+gl_types::graph * g; //pointer to training data
+gl_types::graph training;
 gl_types::graph validation_graph;
 gl_types::graph test_graph;
 
@@ -703,14 +704,15 @@ void start(int argc, char ** argv) {
 
   if (makegraph) {
     gl_types::disk_graph dg("pmf", 32);
-    gl_types::graph g;
+    //gl_types::graph g;
 
-    load_pmf_graph(infile.c_str(), &g, TRAINING);
+    g=&training;
+    load_pmf_graph(infile.c_str(), &training, TRAINING);
     std::vector<graphlab::vertex_id_t> parts;
     std::cout << "Partitioning..." << std::endl;
-    g.metis_partition(32, parts);
+    training.metis_partition(32, parts);
     std::cout << "Saving..." << std::endl;
-    dg.create_from_graph(g, parts);
+    dg.create_from_graph(training, parts);
     dg.finalize();
     return;
   }

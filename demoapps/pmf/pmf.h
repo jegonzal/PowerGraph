@@ -26,9 +26,10 @@ For SGD, see algorhtm:
 5) Matrix Factorization Techniques for Recommender Systems
 Yehuda Koren, Robert Bell, Chris Volinsky
 In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
+6) Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommender Systems. Journal of Machine Learning Research, 10, 623-656.
 
 For Lanczos algorithm (SVD) see:
-6) http://en.wikipedia.org/wiki/Lanczos_algorithm 
+7) http://en.wikipedia.org/wiki/Lanczos_algorithm 
 
 */
 #include <vector>
@@ -249,11 +250,13 @@ typedef graphlab::types<graph_type> gl_types;
 double agg_rmse_by_movie(double & res);
 double agg_rmse_by_user(double & res);
 
-void svd_init();
 
 #ifndef GL_SVD_PP
 void svd_plus_plus_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler){};
+void svd_init(){};
+#else
+void svd_init();
 #endif
 
 #endif

@@ -8,6 +8,7 @@
 #include "prob.hpp"
 #include "bptf.hpp"
 #include "sgd.hpp"
+#include "lanczos.hpp"
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
 #endif
@@ -95,7 +96,8 @@ double calc_obj(double res);
 void last_iter();
 void export_kdd_format(graph_type * _g, testtype type, bool dosave);
 void calc_stats(testtype type);
-
+void lanczos(gl_types::core & glcore);
+void init_lanczos();
 
 void init_pmf() {
   if (BPTF)
@@ -126,7 +128,10 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
 double calc_rmse(graph_type * _g, bool test, double & res){
      if (test && Le == 0)
        return NAN;
-      
+     
+     if (algorithm == LANCZOS) //not implemented yet
+       return NAN;
+ 
      res = 0;
      double RMSE = 0;
      int e = 0;
@@ -178,6 +183,9 @@ double calc_rmse_wrapper(graph_type* _g, bool test, double & res){
 #ifdef SVD_PLUS_PLUS
    return calc_svd_rmse(_g, test, res);
 #else
+   if (algorithm == LANCZOS){
+       res=-1; return -1; //not implemented yet
+   }
    return calc_rmse(_g, test, res);
 #endif
 }
@@ -829,8 +837,8 @@ void start(int argc, char ** argv) {
        break;
 
      case LANCZOS:
-	assert(false); //TBD
-        break;
+       //will do it later
+       break;
  }
 
   // add update function for time nodes (dim 3)
@@ -850,11 +858,21 @@ void start(int argc, char ** argv) {
   if (BPTF)
      init_self_pot(); 
 
-#ifdef GL_SVD_PP
-   svd_init();
-#else
-  init_pmf();
-#endif
+  switch(algorithm){
+        case SVD_PLUS_PLUS:
+           svd_init(); break;
+
+  	case LANCZOS: 
+	   init_lanczos(); break;
+    
+	case ALS_MATRIX:
+	case ALS_TENSOR_MULT:
+	case BPTF_TENSOR_MULT:
+        case BPTF_MATRIX:
+        case BPTF_TENSOR:
+        case STOCHASTIC_GRADIENT_DESCENT:
+	   init_pmf(); break;
+  }
 
    if (infile == "netflix" || infile == "netflix-r"){
        minval = 1; maxval = 5;
@@ -881,7 +899,10 @@ void start(int argc, char ** argv) {
   g->finalize();  
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
-  glcore.start();
+  if (algorithm != LANCZOS)
+  	glcore.start();
+  else 
+       lanczos(glcore);
 
   // calculate final RMSE
   rmse =  agg_rmse_by_movie(res);
@@ -1176,12 +1197,14 @@ int main(int argc,  char *argv[]) {
   infile = argv[1];
   algorithm = (runmodes)atoi(argv[2]);
   printf("Setting run mode %s\n", runmodesname[algorithm]);
+
   switch(algorithm){
   // iterative matrix factorization using alternating least squares
   // or SVD ++
   case ALS_MATRIX:
   case SVD_PLUS_PLUS:
   case STOCHASTIC_GRADIENT_DESCENT:
+  case LANCZOS:
     tensor = false; BPTF = false;
     break;
 
