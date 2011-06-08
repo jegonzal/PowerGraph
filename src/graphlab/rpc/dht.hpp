@@ -85,6 +85,14 @@ class dht {
     std::cerr << rpc.calls_sent() << " calls sent\n";
     std::cerr << rpc.calls_received() << " calls received\n";
   }
+  
+  /**
+  Must be called by all machines simultaneously
+  */
+  void clear() {
+    rpc.barrier();
+    storage.clear();
+  }
  private:
   mutable dc_dist_object<dht<KeyType, ValueType> > rpc;
   
