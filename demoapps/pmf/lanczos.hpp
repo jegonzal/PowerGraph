@@ -158,13 +158,13 @@ void ATxb(gl_types::iscope &scope,
 }
 
  
-double wTV(){
+double wTV(int j){
 
   timer t; t.start();
   double lancalpha = 0;
   for (int i=M; i< M+N; i++){ 
     const vertex_data * data = &g->vertex_data(i);
-    lancalpha+= data->rmse;
+    lancalpha+= data->rmse*data->pvec[j];
   }
   counter[CALC_RMSE_Q] += t.current_time();
   return lancalpha;
@@ -180,7 +180,7 @@ double w_lancalphaV(int j){
     norm += data->rmse*data->rmse;
   }
   counter[CALC_RMSE_Q] += t.current_time();
-  return norm;
+  return sqrt(norm);
 }
 
 void update_V(int j){
@@ -225,7 +225,7 @@ void lanczos(gl_types::core & glcore){
 	glcore.start();
 
         //lancalpha(j) = w'*V(:,j);
-	lancalpha[j] = wTV();
+	lancalpha[j] = wTV(j);
 
         //w =  w - lancalpha(j)*V(:,j);
         //lancbeta(j+1)=norm(w,2);
@@ -258,6 +258,10 @@ void lanczos(gl_types::core & glcore){
  vec eigenvalues; 
  mat eigenvectors;
  assert(eig_sym(V, eigenvalues, eigenvectors));
+ if (debug){
+   for (int i=0; i< eigenvectors.size(); i++)
+	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
+ }
 
 }
 
