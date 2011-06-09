@@ -76,6 +76,9 @@ float sgd_gamma = 1e-2; //step size
 float sgd_lambda = 0.3; //starting step size
 float sgd_step_dec = 0.9; //step decrement size
 
+/* variables for SVD */
+int svd_iter = 10; //number of iterations (which is the number of extracted eigenvectors)
+
 //performance counters
 double counter[20];
 
@@ -805,7 +808,9 @@ void start(int argc, char ** argv) {
   clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size");
   clopts.attach_option("sgd_gamma", &sgd_gamma, sgd_gamma, "SGD starting step size");
   clopts.attach_option("sgd_step_dec", &sgd_step_dec, sgd_step_dec, "SGD step decrement");
-  
+ 
+  //SVD related switches
+  clopts.attach_option("svd_iter", &svd_iter, svd_iter, "SVD iteration number"); 
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));

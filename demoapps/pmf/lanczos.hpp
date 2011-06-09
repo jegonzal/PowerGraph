@@ -13,7 +13,6 @@
  *  Code written by Danny Bickson, CMU, June 2011
  * */
 
-#define MAX_ITER 3
 
 extern string infile;
 extern int iiter, L, M, N, Le;
@@ -24,9 +23,9 @@ extern bool debug;
 using namespace graphlab;
 using namespace itpp;
 extern mat U,V;
+int m; //number of iterations
 
-
-int m = MAX_ITER;
+extern int svd_iter;
 
 void last_iter();
 double predict(const vertex_data& user, const vertex_data &movie, float rating, float & prediction);
@@ -50,6 +49,7 @@ int offset, offset2, offset3;
  *
  * */
 void init_lanczos(){
+   m = svd_iter;
    lancbeta = zeros(m+3);
    lancalpha = zeros(m+3);
    double sum = 0;
@@ -233,7 +233,7 @@ void lanczos(gl_types::core & glcore){
  
 
    //for j=2:m+2
-   for (int j=1; j<= m+1; j++){
+   for (int j=1; j<= svd_iter+1; j++){
         //w = A*V(:,j) 
         offset = j;
 	glcore.add_tasks(rows, Axb, 1);
