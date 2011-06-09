@@ -98,14 +98,13 @@ void Axb(gl_types::iscope &scope,
   timer t;
   t.start(); 
 
-   //compute SGD Step 
    foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       user.rmse += edge.weight * movie.pvec[offset];
    }
 
-  counter[EDGE_TRAVERSAL] += t.current_time();
+  counter[SVD_MULT_A] += t.current_time();
   if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1))){
     printf("Axb: computed value  %u %g \n",  (int)scope.vertex(), user.rmse);   
   }
@@ -141,7 +140,6 @@ void ATxb(gl_types::iscope &scope,
   timer t;
   t.start(); 
 
-   //compute SGD Step 
    foreach(graphlab::edge_id_t iedgeid, ins) {
       edge_data & edge = scope.edge_data(iedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
@@ -150,7 +148,7 @@ void ATxb(gl_types::iscope &scope,
 
    user.rmse -= lancbeta[offset2] * user.pvec[offset3];
 
-   counter[EDGE_TRAVERSAL] += t.current_time();
+   counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
 
   if (debug&& ((int)scope.vertex() == M || ((int)scope.vertex() == M+N-1))){
     printf("Axb: computed value  %u %g beta: %g v %g \n",  (int)scope.vertex(), user.rmse,lancbeta[offset2],  user.pvec[offset3]);   
@@ -279,10 +277,9 @@ void lanczos(gl_types::core & glcore){
  vec eigenvalues; 
  mat eigenvectors;
  assert(eig_sym(T, eigenvalues, eigenvectors));
- if (debug){
-   for (int i=0; i< min(eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
- }
+ cout << "Here are the computed eigenvalues, from larger to smaller" << endl;
+ for (int i=0; i< min(eigenvalues.size(),20); i++)
+	cout<<"eigenvalue " << i << " val: " << eigenvalues[eigenvalues.size() - i - 1] << endl;
 
 
  //exports computed eigenvalues and eigenvectors to file

@@ -907,10 +907,12 @@ void start(int argc, char ** argv) {
        minval = 0; maxval = 100;
    }
 
-   double res, res2;
-   double rmse =  calc_rmse_wrapper(g, false, res);
-   printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
-
+   if (algorithm != LANCZOS){
+     double res, res2;
+     double rmse =  calc_rmse_wrapper(g, false, res);
+     printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
+  }
+  
   if (BPTF){
     if (delayalpha < iiter)
     	sample_alpha(L);
@@ -921,36 +923,36 @@ void start(int argc, char ** argv) {
   }
 
   /// Timing
-  gt.start();
   g->finalize();  
+  gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
-  if (algorithm != LANCZOS)
+  if (algorithm != LANCZOS){
   	glcore.start();
-  else 
-       lanczos(glcore);
-
-  // calculate final RMSE
-  rmse =  agg_rmse_by_movie(res);
-  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
-
-  /**** POST-PROCESSING *****/
-  double runtime = gt.current_time();
-  printf("Finished in %lf \n", runtime);
+      // calculate final RMSE
+     double res, rmse =  agg_rmse_by_movie(res), res2;
+     printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+     double runtime = gt.current_time();
+     printf("Finished in %lf \n", runtime);
  
-  if (infile == "kddcup" || infile == "kddcup2"){
-    if (outputvalidation) //experimental: output prediction of validation data
-	export_kdd_format(&validation_graph, VALIDATION, true);
-    else //output prediction of test data, as required by KDD 
+   /**** POST-PROCESSING *****/
+    if (infile == "kddcup" || infile == "kddcup2"){
+      if (outputvalidation) //experimental: output prediction of validation data
+ 	export_kdd_format(&validation_graph, VALIDATION, true);
+      else //output prediction of test data, as required by KDD 
 	export_kdd_format(&test_graph, TEST, true);
+    }
   }
-     
-  //timing counters
+  else lanczos(glcore);
+
+   
+  //print timing counters
   for (int i=0; i<11; i++){
     if (counter[i] > 0)
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
+  //write output matrices to file
    export_uvt_to_file();
 }
 
