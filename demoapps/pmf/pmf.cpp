@@ -51,6 +51,8 @@ timer gt;
 std::vector<edge_id_t> * edges;  //edge list for pointing from time nodes into their connected users/movies (for tensor)
 std::string infile;
 int iiter = 1;//count number of time zero node run
+mat U,V,T; //for storing the output
+
 /* Variables for PMF */
 int M,N,K,L;//training size: users, movies, times, number of edges
 int Le = 0; //number of ratings in validation dataset 
@@ -633,22 +635,26 @@ double calc_obj(double res){
 //SAVE FACTORS TO FILE
 void export_uvt_to_file(){
  //saving output to file 
- mat U = zeros(M,D);
- mat V = zeros(N,D);
- mat T = zeros(K,D);
- for (int i=0; i< M+N; i++){ 
-    vertex_data & data = g->vertex_data(i);
-    if (i < M)
-	U.set_row(i, data.pvec);
-    else
-	V.set_row(i-M, data.pvec);
- }
 
- if (tensor){ 
-    for (int i=0; i<K; i++){
+
+ if (algorithm != LANCZOS){
+   U = zeros(M,D);
+   V = zeros(N,D);
+   for (int i=0; i< M+N; i++){ 
+      vertex_data & data = g->vertex_data(i);
+      if (i < M)
+   	  U.set_row(i, data.pvec);
+      else
+	V.set_row(i-M, data.pvec);
+   }
+
+   if (tensor){ 
+     T = zeros(K,D);
+     for (int i=0; i<K; i++){
      	T.set_row(i, times[i].pvec);
-    }
- } 
+     }
+   } 
+ }
 
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",infile.c_str(), D);
@@ -693,6 +699,69 @@ void import_uvt_from_file(){
 }
 
 
+void add_tasks(gl_types::core & glcore){
+
+  std::vector<vertex_id_t> um;
+  for (int i=0; i< M+N; i++)
+    um.push_back(i);
+ 
+ // add update function for user and movie nodes (tensor dims 1+2) 
+  switch (algorithm){
+     case ALS_TENSOR_MULT:
+     case ALS_MATRIX:
+     case BPTF_TENSOR:
+     case BPTF_TENSOR_MULT:
+     case BPTF_MATRIX:
+       glcore.add_tasks(um, user_movie_nodes_update_function, 1);
+       break;
+
+     case STOCHASTIC_GRADIENT_DESCENT:
+       glcore.add_tasks(um, sgd_update_function, 1);
+       break;
+    
+     case SVD_PLUS_PLUS: 
+       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
+       break;
+
+     case LANCZOS:
+       //lanczos is unique since it has more than one update function
+       //lanczos code is done later
+       break;
+ }
+
+  // add update function for time nodes (dim 3)
+  if (tensor){
+    std::vector<vertex_id_t> tv;
+    for (int i=M+N; i< M+N+K; i++)
+      tv.push_back(i);
+    glcore.add_tasks(tv, time_node_update_function, 1);
+  }
+
+
+}
+
+
+void init(){
+
+  if (BPTF)
+     init_self_pot(); 
+
+  switch(algorithm){
+        case SVD_PLUS_PLUS:
+           svd_init(); break;
+
+  	case LANCZOS: 
+	   init_lanczos(); break;
+    
+	case ALS_MATRIX:
+	case ALS_TENSOR_MULT:
+	case BPTF_TENSOR_MULT:
+        case BPTF_MATRIX:
+        case BPTF_TENSOR:
+        case STOCHASTIC_GRADIENT_DESCENT:
+	   init_pmf(); break;
+  }
+}
  
 /** 
  * ==== SETUP AND START
@@ -814,40 +883,8 @@ void start(int argc, char ** argv) {
   if (debug)
     std::cout<<dp<<std::endl;
 
-  std::vector<vertex_id_t> um;
-  for (int i=0; i< M+N; i++)
-    um.push_back(i);
- 
-  // add update function for user and movie nodes (tensor dims 1+2) 
-  switch (algorithm){
-     case ALS_TENSOR_MULT:
-     case ALS_MATRIX:
-     case BPTF_TENSOR:
-     case BPTF_TENSOR_MULT:
-     case BPTF_MATRIX:
-       glcore.add_tasks(um, user_movie_nodes_update_function, 1);
-       break;
-
-     case STOCHASTIC_GRADIENT_DESCENT:
-       glcore.add_tasks(um, sgd_update_function, 1);
-       break;
-    
-     case SVD_PLUS_PLUS: 
-       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
-       break;
-
-     case LANCZOS:
-       //will do it later
-       break;
- }
-
-  // add update function for time nodes (dim 3)
-  if (tensor){
-    std::vector<vertex_id_t> tv;
-    for (int i=M+N; i< M+N+K; i++)
-      tv.push_back(i);
-    glcore.add_tasks(tv, time_node_update_function, 1);
-  }
+  
+  add_tasks(glcore);
 
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[algorithm], tensor?"tensor":"matrix", M, N, K, L, D);
@@ -855,24 +892,8 @@ void start(int argc, char ** argv) {
   if (algorithm != SVD_PLUS_PLUS && algorithm != BPTF_TENSOR && algorithm != BPTF_TENSOR_MULT && algorithm != STOCHASTIC_GRADIENT_DESCENT)
     printf("pU=%g, pV=%g, pT=%g, muT=%g, D=%d\n", pU, pV, pT, muT,D);  
 
-  if (BPTF)
-     init_self_pot(); 
 
-  switch(algorithm){
-        case SVD_PLUS_PLUS:
-           svd_init(); break;
-
-  	case LANCZOS: 
-	   init_lanczos(); break;
-    
-	case ALS_MATRIX:
-	case ALS_TENSOR_MULT:
-	case BPTF_TENSOR_MULT:
-        case BPTF_MATRIX:
-        case BPTF_TENSOR:
-        case STOCHASTIC_GRADIENT_DESCENT:
-	   init_pmf(); break;
-  }
+  init();
 
    if (infile == "netflix" || infile == "netflix-r"){
        minval = 1; maxval = 5;

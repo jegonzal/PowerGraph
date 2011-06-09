@@ -9,6 +9,8 @@
  *
  *  Implementation of the Lanczos algorithm, as given in:
  *  http://en.wikipedia.org/wiki/Lanczos_algorithm
+ * 
+ *  Code written by Danny Bickson, CMU, June 2011
  * */
 
 #define MAX_ITER 3
@@ -19,9 +21,11 @@ extern bool ZERO;
 extern timer gt;
 extern graph_type validation_graph;
 extern bool debug;
-extern int iiter;
 using namespace graphlab;
 using namespace itpp;
+extern mat U,V;
+
+
 int m = MAX_ITER;
 
 void last_iter();
@@ -52,7 +56,7 @@ void init_lanczos(){
 
   for (int i=M; i< M+N; i++){ 
     vertex_data * data = &g->vertex_data(i);
-    data->pvec = zeros(m+1);
+    data->pvec = zeros(m+3);
     data->pvec[1] = debug ? 0.5 : rand();
     sum += data->pvec[1]*data->pvec[1];
   }
@@ -80,7 +84,7 @@ void Axb(gl_types::iscope &scope,
   /* print statistics */
   if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1))){
     printf("Axb: entering  node  %u \n",  (int)scope.vertex());   
-    debug_print_vec("V" , user.pvec, D);
+    //debug_print_vec("V" , user.pvec, D);
   }
 
   user.rmse = 0;
@@ -123,7 +127,7 @@ void ATxb(gl_types::iscope &scope,
   /* print statistics */
   if (debug&& ((int)scope.vertex() == M || ((int)scope.vertex() == M+N-1))){
     printf("Axb: entering  node  %u \n",  (int)scope.vertex());   
-    debug_print_vec("V" , user.pvec, D);
+    debug_print_vec("V" , user.pvec, m);
   }
 
   user.rmse = 0;
@@ -144,7 +148,7 @@ void ATxb(gl_types::iscope &scope,
       user.rmse += edge.weight * movie.rmse;
    }
 
-   user.rmse -= lancbeta[offset2] - user.pvec[offset3];
+   user.rmse -= lancbeta[offset2] * user.pvec[offset3];
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 
@@ -167,6 +171,9 @@ double wTV(int j){
     lancalpha+= data->rmse*data->pvec[j];
   }
   counter[CALC_RMSE_Q] += t.current_time();
+  if (debug)
+	cout<<"alpha: " << lancalpha<<endl;
+
   return lancalpha;
 
 }
@@ -174,21 +181,35 @@ double w_lancalphaV(int j){
 
   timer t; t.start();
   double norm = 0;
+  if (debug)
+	cout << "w: " ;
   for (int i=M; i< M+N; i++){ 
     vertex_data * data = &g->vertex_data(i);
     data->rmse -= lancalpha[j]*data->pvec[j];
+    if (debug && i-M<20)
+	cout<<data->rmse<<" ";
     norm += data->rmse*data->rmse;
   }
   counter[CALC_RMSE_Q] += t.current_time();
+  if (debug){
+	cout<<endl;
+        cout<<"Beta: " << sqrt(norm) << endl;
+  }
   return sqrt(norm);
 }
 
 void update_V(int j){
   timer t; t.start();
+  if (debug)
+	cout<<"V: ";
   for (int i=M; i< M+N; i++){ 
     vertex_data * data = &g->vertex_data(i);
-    data->pvec[j+1] = data->rmse / lancbeta[j+1];
+    data->pvec[j] = data->rmse / lancbeta[j];
+    if (debug && i-M<20)
+	cout<<data->pvec[j]<<" ";
   }
+  if (debug)
+	cout<<endl;
   counter[CALC_RMSE_Q] += t.current_time();
 }
 
@@ -196,7 +217,7 @@ mat calc_V(){
   mat V = zeros(M,m);
   for (int i=M; i< M+N; i++){ 
     const vertex_data * data = &g->vertex_data(i);
-    V.set_row(i-M, data->pvec);
+    V.set_row(i-M, data->pvec.mid(1,m));
   }
   return V;
 }
@@ -232,7 +253,7 @@ void lanczos(gl_types::core & glcore){
         lancbeta[j+1] = w_lancalphaV(j);
 
         //V(:,j+1) = w/lancbeta(j+1);
-        update_V(j);
+        update_V(j+1);
    }
 
   /* 
@@ -247,21 +268,28 @@ void lanczos(gl_types::core & glcore){
  */
 
  mat T=zeros(m+1,m+1);
- for (int i=1; i<=m+1; i++){
+ for (int i=1; i<=m; i++){
    T.set(i-1,i-1,lancalpha[i]);
    T.set(i-1,i,lancbeta[i+1]);
    T.set(i,i-1,lancbeta[i+1]);
  }
  T.set(m,m,lancalpha[m+1]);
- mat V=calc_V(); 
+ mat Vectors=calc_V(); 
    
  vec eigenvalues; 
  mat eigenvectors;
- assert(eig_sym(V, eigenvalues, eigenvectors));
+ assert(eig_sym(T, eigenvalues, eigenvectors));
  if (debug){
-   for (int i=0; i< eigenvectors.size(); i++)
+   for (int i=0; i< min(eigenvalues.size(),20); i++)
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
  }
+
+
+ //exports computed eigenvalues and eigenvectors to file
+ U=eigenvectors;
+ V=zeros(1,eigenvalues.size());
+ V.set_row(0,eigenvalues); 
+
 
 }
 
