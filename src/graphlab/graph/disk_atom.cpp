@@ -30,7 +30,7 @@ namespace graphlab {
 disk_atom::disk_atom(std::string filename, 
                             uint16_t atomid):atomid(atomid),filename(filename) {
   db.tune_options(kyotocabinet::HashDB::TSMALL);
-  db.tune_buckets(100 * 1000);
+  db.tune_buckets(/*100 * */1000); //DB: by ylow's suggestion
 #if __LP64__
   db.tune_map(256 * 1024 * 1024); // 256MB
 #endif

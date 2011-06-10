@@ -20,6 +20,7 @@
 #include "linear.h"
 #include "gabp.hpp"
 #include "jacobi.hpp"
+#include "cg.hpp"
 #include <graphlab/macros_def.hpp>
 
 
