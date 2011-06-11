@@ -51,6 +51,8 @@ timer gt;
 std::vector<edge_id_t> * edges;  //edge list for pointing from time nodes into their connected users/movies (for tensor)
 std::string infile;
 int iiter = 1;//count number of time zero node run
+mat U,V,T; //for storing the output
+
 /* Variables for PMF */
 int M,N,K,L;//training size: users, movies, times, number of edges
 int Le = 0; //number of ratings in validation dataset 
@@ -73,6 +75,9 @@ double globalMean[3] = {0}; //store global mean of matrix/tensor entries
 float sgd_gamma = 1e-2; //step size
 float sgd_lambda = 0.3; //starting step size
 float sgd_step_dec = 0.9; //step decrement size
+
+/* variables for SVD */
+int svd_iter = 10; //number of iterations (which is the number of extracted eigenvectors)
 
 //performance counters
 double counter[20];
@@ -633,22 +638,26 @@ double calc_obj(double res){
 //SAVE FACTORS TO FILE
 void export_uvt_to_file(){
  //saving output to file 
- mat U = zeros(M,D);
- mat V = zeros(N,D);
- mat T = zeros(K,D);
- for (int i=0; i< M+N; i++){ 
-    vertex_data & data = g->vertex_data(i);
-    if (i < M)
-	U.set_row(i, data.pvec);
-    else
-	V.set_row(i-M, data.pvec);
- }
 
- if (tensor){ 
-    for (int i=0; i<K; i++){
+
+ if (algorithm != LANCZOS){
+   U = zeros(M,D);
+   V = zeros(N,D);
+   for (int i=0; i< M+N; i++){ 
+      vertex_data & data = g->vertex_data(i);
+      if (i < M)
+   	  U.set_row(i, data.pvec);
+      else
+	V.set_row(i-M, data.pvec);
+   }
+
+   if (tensor){ 
+     T = zeros(K,D);
+     for (int i=0; i<K; i++){
      	T.set_row(i, times[i].pvec);
-    }
- } 
+     }
+   } 
+ }
 
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",infile.c_str(), D);
@@ -693,6 +702,69 @@ void import_uvt_from_file(){
 }
 
 
+void add_tasks(gl_types::core & glcore){
+
+  std::vector<vertex_id_t> um;
+  for (int i=0; i< M+N; i++)
+    um.push_back(i);
+ 
+ // add update function for user and movie nodes (tensor dims 1+2) 
+  switch (algorithm){
+     case ALS_TENSOR_MULT:
+     case ALS_MATRIX:
+     case BPTF_TENSOR:
+     case BPTF_TENSOR_MULT:
+     case BPTF_MATRIX:
+       glcore.add_tasks(um, user_movie_nodes_update_function, 1);
+       break;
+
+     case STOCHASTIC_GRADIENT_DESCENT:
+       glcore.add_tasks(um, sgd_update_function, 1);
+       break;
+    
+     case SVD_PLUS_PLUS: 
+       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
+       break;
+
+     case LANCZOS:
+       //lanczos is unique since it has more than one update function
+       //lanczos code is done later
+       break;
+ }
+
+  // add update function for time nodes (dim 3)
+  if (tensor){
+    std::vector<vertex_id_t> tv;
+    for (int i=M+N; i< M+N+K; i++)
+      tv.push_back(i);
+    glcore.add_tasks(tv, time_node_update_function, 1);
+  }
+
+
+}
+
+
+void init(){
+
+  if (BPTF)
+     init_self_pot(); 
+
+  switch(algorithm){
+        case SVD_PLUS_PLUS:
+           svd_init(); break;
+
+  	case LANCZOS: 
+	   init_lanczos(); break;
+    
+	case ALS_MATRIX:
+	case ALS_TENSOR_MULT:
+	case BPTF_TENSOR_MULT:
+        case BPTF_MATRIX:
+        case BPTF_TENSOR:
+        case STOCHASTIC_GRADIENT_DESCENT:
+	   init_pmf(); break;
+  }
+}
  
 /** 
  * ==== SETUP AND START
@@ -736,7 +808,9 @@ void start(int argc, char ** argv) {
   clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size");
   clopts.attach_option("sgd_gamma", &sgd_gamma, sgd_gamma, "SGD starting step size");
   clopts.attach_option("sgd_step_dec", &sgd_step_dec, sgd_step_dec, "SGD step decrement");
-  
+ 
+  //SVD related switches
+  clopts.attach_option("svd_iter", &svd_iter, svd_iter, "SVD iteration number"); 
  
   gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -814,40 +888,8 @@ void start(int argc, char ** argv) {
   if (debug)
     std::cout<<dp<<std::endl;
 
-  std::vector<vertex_id_t> um;
-  for (int i=0; i< M+N; i++)
-    um.push_back(i);
- 
-  // add update function for user and movie nodes (tensor dims 1+2) 
-  switch (algorithm){
-     case ALS_TENSOR_MULT:
-     case ALS_MATRIX:
-     case BPTF_TENSOR:
-     case BPTF_TENSOR_MULT:
-     case BPTF_MATRIX:
-       glcore.add_tasks(um, user_movie_nodes_update_function, 1);
-       break;
-
-     case STOCHASTIC_GRADIENT_DESCENT:
-       glcore.add_tasks(um, sgd_update_function, 1);
-       break;
-    
-     case SVD_PLUS_PLUS: 
-       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
-       break;
-
-     case LANCZOS:
-       //will do it later
-       break;
- }
-
-  // add update function for time nodes (dim 3)
-  if (tensor){
-    std::vector<vertex_id_t> tv;
-    for (int i=M+N; i< M+N+K; i++)
-      tv.push_back(i);
-    glcore.add_tasks(tv, time_node_update_function, 1);
-  }
+  
+  add_tasks(glcore);
 
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[algorithm], tensor?"tensor":"matrix", M, N, K, L, D);
@@ -855,24 +897,8 @@ void start(int argc, char ** argv) {
   if (algorithm != SVD_PLUS_PLUS && algorithm != BPTF_TENSOR && algorithm != BPTF_TENSOR_MULT && algorithm != STOCHASTIC_GRADIENT_DESCENT)
     printf("pU=%g, pV=%g, pT=%g, muT=%g, D=%d\n", pU, pV, pT, muT,D);  
 
-  if (BPTF)
-     init_self_pot(); 
 
-  switch(algorithm){
-        case SVD_PLUS_PLUS:
-           svd_init(); break;
-
-  	case LANCZOS: 
-	   init_lanczos(); break;
-    
-	case ALS_MATRIX:
-	case ALS_TENSOR_MULT:
-	case BPTF_TENSOR_MULT:
-        case BPTF_MATRIX:
-        case BPTF_TENSOR:
-        case STOCHASTIC_GRADIENT_DESCENT:
-	   init_pmf(); break;
-  }
+  init();
 
    if (infile == "netflix" || infile == "netflix-r"){
        minval = 1; maxval = 5;
@@ -881,10 +907,12 @@ void start(int argc, char ** argv) {
        minval = 0; maxval = 100;
    }
 
-   double res, res2;
-   double rmse =  calc_rmse_wrapper(g, false, res);
-   printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
-
+   if (algorithm != LANCZOS){
+     double res, res2;
+     double rmse =  calc_rmse_wrapper(g, false, res);
+     printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
+  }
+  
   if (BPTF){
     if (delayalpha < iiter)
     	sample_alpha(L);
@@ -895,36 +923,36 @@ void start(int argc, char ** argv) {
   }
 
   /// Timing
-  gt.start();
   g->finalize();  
+  gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
-  if (algorithm != LANCZOS)
+  if (algorithm != LANCZOS){
   	glcore.start();
-  else 
-       lanczos(glcore);
-
-  // calculate final RMSE
-  rmse =  agg_rmse_by_movie(res);
-  printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
-
-  /**** POST-PROCESSING *****/
-  double runtime = gt.current_time();
-  printf("Finished in %lf \n", runtime);
+      // calculate final RMSE
+     double res, rmse =  agg_rmse_by_movie(res), res2;
+     printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+     double runtime = gt.current_time();
+     printf("Finished in %lf \n", runtime);
  
-  if (infile == "kddcup" || infile == "kddcup2"){
-    if (outputvalidation) //experimental: output prediction of validation data
-	export_kdd_format(&validation_graph, VALIDATION, true);
-    else //output prediction of test data, as required by KDD 
+   /**** POST-PROCESSING *****/
+    if (infile == "kddcup" || infile == "kddcup2"){
+      if (outputvalidation) //experimental: output prediction of validation data
+ 	export_kdd_format(&validation_graph, VALIDATION, true);
+      else //output prediction of test data, as required by KDD 
 	export_kdd_format(&test_graph, TEST, true);
+    }
   }
-     
-  //timing counters
+  else lanczos(glcore);
+
+   
+  //print timing counters
   for (int i=0; i<11; i++){
     if (counter[i] > 0)
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
+  //write output matrices to file
    export_uvt_to_file();
 }
 

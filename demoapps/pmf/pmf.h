@@ -228,10 +228,12 @@ enum countervals{
    CALC_OBJ =6,
    BPTF_MVN_RNDEX=7,
    BPTF_LEAST_SQUARES2=8, 
+   SVD_MULT_A=9,
+   SVD_MULT_A_TRANSPOSE=10,
 };
 
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
-  "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
+  "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
 
 
 //model can support multiple ratings of user to the same movie in different times
