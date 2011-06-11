@@ -29,8 +29,9 @@ namespace graphlab {
 
 disk_atom::disk_atom(std::string filename, 
                             uint16_t atomid):atomid(atomid),filename(filename) {
-  db.tune_options(kyotocabinet::HashDB::TSMALL);
-  db.tune_buckets(100 * 1000);
+  db.tune_options(kyotocabinet::TreeDB::TLINEAR);
+  db.tune_buckets(1000);
+  db.tune_page(32768);
 #if __LP64__
   db.tune_map(256 * 1024 * 1024); // 256MB
 #endif
@@ -46,7 +47,7 @@ disk_atom::disk_atom(std::string filename,
 }
 
 void disk_atom::precache() {
-  kyotocabinet::HashDB::Cursor* cur = db.cursor();
+  kyotocabinet::TreeDB::Cursor* cur = db.cursor();
   cur->jump();
   std::string key, val;
   while (cur->get(&key, &val, true)) {

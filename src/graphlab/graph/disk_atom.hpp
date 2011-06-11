@@ -58,7 +58,7 @@ namespace graphlab {
  */
 class disk_atom{
  private:
-  kyotocabinet::HashDB db;
+  kyotocabinet::TreeDB db;
   kyotocabinet::CacheDB cache;  // a REALLY simple cache of the db.
                                 // with only one global invalidate flag
   //kyotocabinet::HashDB db;
@@ -396,7 +396,7 @@ class disk_atom{
   }
   
   /// Returns a reference to the underlying Kyoto Cabinet
-  inline kyotocabinet::HashDB& get_db() {
+  inline kyotocabinet::TreeDB& get_db() {
     return db;
   }
 };

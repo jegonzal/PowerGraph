@@ -187,6 +187,7 @@ class disk_graph {
                          const std::vector<vertex_id_t> &partids) {
     clear();
     size_t nv = g.num_vertices();
+    logger(LOG_WARNING, "storing vertices...");
     #pragma omp parallel for 
     for (int i = 0;i < (int)nv; ++i) {
       vertex_id_t vid = i;
@@ -197,7 +198,7 @@ class disk_graph {
       atoms[owner]->add_vertex(vid, owner, g.vertex_data(i));
       atoms[owner]->set_color(vid, g.color(vid));
     }
-    
+    logger(LOG_WARNING, "storing edges...");
     #pragma omp parallel for 
     for (int i = 0;i < (int)(g.num_edges()); ++i) {
       vertex_id_t target = g.target(i);
