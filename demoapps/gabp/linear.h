@@ -52,9 +52,10 @@ struct edge_data {
 enum algorithms{
    GaBP = 0, 
    JACOBI = 1,
+   CONJUGATE_GRADIENT = 2,
 };
 
-const char* algorithmnames[]= {"GaBP", "Jacobi"};
+const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient"};
 
 
 

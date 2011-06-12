@@ -379,6 +379,10 @@ int main(int argc,  char *argv[]) {
 
     case JACOBI:
           core.add_task_to_all(jacobi_update_function, initial_priority); break;
+
+    case CONJUGATE_GRADIENT:
+          //deliberately empty, will be done later
+          break;
     
     default:
          logstream(LOG_ERROR) << "Unknown algorithm" << std::endl;
@@ -391,8 +395,18 @@ int main(int argc,  char *argv[]) {
   	core.engine().add_terminator(termination_condition);
 
   // START GRAPHLAB *****
-  double runtime = core.start();
+  double runtime;
 
+  switch(algorithm){
+      case GaBP:
+      case JACOBI:
+        runtime= core.start();
+        break;
+
+      case CONJUGATE_GRADIENT:
+        runtime = cg(&core);
+        break;
+  }
   // POST-PROCESSING *****
   std::cout << algorithmnames[algorithm] << " finished in " << runtime << std::endl;
 
