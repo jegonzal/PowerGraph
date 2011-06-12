@@ -166,7 +166,7 @@ double calc_rmse(graph_type * _g, bool test, double & res){
 #ifndef GL_NO_MCMC
            if (BPTF && iiter > BURN_IN){
              edge.avgprd += prediction;
-             add = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+             sq_err = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
            }
 #endif
             
