@@ -32,7 +32,7 @@ void jacobi_update_function(gl_types::iscope &scope,
   //store last round values
   vdata.prev_mean = vdata.cur_mean;
 
-  //initialize accumlated values
+  //initialize accumlated values in x_i
   sdouble x_i = vdata.prior_mean;
   sdouble A_ii = vdata.prior_prec;
   assert(A_ii != 0);
@@ -40,7 +40,6 @@ void jacobi_update_function(gl_types::iscope &scope,
   if (debug) 
     std::cout << "entering node " << scope.vertex() << " P=" << vdata.prior_prec << " u=" << vdata.prior_mean << std::endl;
   
-  /* SEND new value and schedule neighbors */
     for(size_t i = 0; i < outedgeid.size(); ++i) {
       edge_data& out_edge = scope.edge_data(outedgeid[i]);
       const vertex_data & other = scope.neighbor_vertex_data(scope.target(outedgeid[i]));
