@@ -29,6 +29,7 @@ uint32_t m = 0; // number of cols of A (only used for non square matrix. In squr
 uint32_t e = 0; // number of edges
 
 bool square=true;
+bool debug = false;
 
 //read node data from file and add the nodes into the graph.
 #define BUFSIZE 500000
@@ -283,7 +284,6 @@ int main(int argc,  char *argv[]) {
   double threshold = 1e-5;
   bool support_null_variance = false;
   bool finish = false;
-  bool debug = false;
   size_t iter = 0;
   int syncinterval = 10000;
   int algorithm;

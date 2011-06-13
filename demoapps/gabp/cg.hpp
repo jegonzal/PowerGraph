@@ -10,14 +10,20 @@
 extern uint32_t m,n;
 double  c=1.0;
 double  d=0.0;
-int x_offset = -1, b_offset = -1, y_offset = -1, r_offset = -1, A_offset = -1;
-int increment=0;
+int x_offset = -1, b_offset = -1, y_offset = -1, r_offset = -1;
+bool A_offset = false;
+int increment=2;
 gl_types::core * glcore;
 double runtime = 0;
+extern bool debug;
+extern bool square;
 
 void reset_offsets(){
   c=1.0; d=0.0;
-  x_offset = b_offset = y_offset = r_offset = A_offset = -1;
+  x_offset = b_offset = y_offset = r_offset = -1;
+  A_offset = false;
+  if (debug)
+	std::cout<<"reset offsets"<<std::endl;
 }
 
 int increment_offset(){
@@ -55,15 +61,18 @@ class DistDouble;
 class DistVec{
    public:
    int offset;
+   std::string name; //optional
 
    DistVec(){ 
      offset = increment_offset();
+     debug_print(name);
    };
 
-   /*DistVec& operator*(DistVec & v){
-     x_offset = v.offset;
-     return *this;
-   }*/
+   DistVec(int _offset){
+     offset = _offset;
+     debug_print(name);
+   }   
+
    DistVec& operator-(){
      d=-1.0;
      return *this; 
@@ -71,11 +80,11 @@ class DistVec{
    DistVec& operator-(const DistVec & other){
      x_offset = offset;
      y_offset = other.offset;
-     d=-1.0;
+     d*=-1.0;
      return *this;
    }
    DistVec& operator+(){
-     d=1.0;
+     d*=1.0;
      return *this;
    }
    DistVec& operator+(const DistVec &other){
@@ -84,25 +93,44 @@ class DistVec{
       return *this; //TODO
    }
 
-   /*DistVec& operator=(const DistVec & vec){
-    output = itpp::zeros(end-start);
-    for (int i=start; i< end; i++){ 
-       const vertex_data * data = &glcore->graph().vertex_data(i);
-       output[i-start] = ((double*)data)[offset];
-     }
-    return *this;  
-  }*/
-
    DistVec& operator=(const DistVec & vec){
-        //if ( == 0)
-          glcore->add_tasks(rows, Axb, 1); //TODO
-        //else if (mat.start == (int)m)
-	//  glcore->add_tasks(cols, ATxb, 1);
-        //else assert(false);
-        runtime += glcore->start();
-        reset_offsets();
+       if (x_offset == -1 && y_offset == -1){
+         y_offset = vec.offset;
+       }  
+      r_offset = offset;
+      if (d == 0.0)
+        d=1.0;
+      glcore->add_tasks(rows, Axb, 1); //TODO
+      runtime += glcore->start();
+      debug_print(name);
+      reset_offsets();
       return *this;
   }
+
+  DistVec& operator=(const itpp::vec & pvec){
+    assert(offset >= 0);
+    assert(pvec.size() == (int)(m+n));
+    for (int i=0; i< (int)(m+n); i++){  //TODO
+         const vertex_data * data = &glcore->graph().vertex_data(i);
+         double * pv = (double*)data;
+         pv[offset] = pvec[i];  
+    }
+    debug_print(name);
+    return *this;       
+  }
+
+  void debug_print(const char * name){
+     if (debug){
+       std::cout<<name<<" ("<<offset<<") ";
+       for (int i=0; i< (int)(m+n); i++){  //TODO
+         const vertex_data * data = &glcore->graph().vertex_data(i);
+         double * pv = (double*)data;
+         std::cout<<pv[r_offset==-1?offset:r_offset]<<" ";
+       }
+       std::cout<<std::endl;
+     }
+  }
+  void debug_print(std::string name){ return debug_print(name.c_str());}
 
   DistDouble operator*(const DistVec & other);
   
@@ -115,9 +143,7 @@ class DistVec{
   }
 
   DistVec& operator=(const DistMat &mat);
-  //DistDouble operator=(const DistVec & vec);
  
-
  };
 
 
@@ -137,8 +163,9 @@ class DistMat{
 
 
     DistMat &operator*(const DistVec & v){
-	x_offset = v.offset;
-        A_offset = increment_offset();
+      	x_offset = v.offset;
+        A_offset = true;
+        //r_offset = A_offset;
         return *this;
     }
     DistMat &operator-(){
@@ -163,12 +190,14 @@ class DistMat{
 };
 
   DistVec& DistVec::operator=(const DistMat &mat){
+        r_offset = offset;
         if (mat.start == 0)
           glcore->add_tasks(rows, Axb, 1);
         else if (mat.start == (int)m)
 	  glcore->add_tasks(cols, ATxb, 1);
         else assert(false);
         runtime += glcore->start();
+        debug_print(name);
         reset_offsets();
         return *this;
   }
@@ -177,6 +206,7 @@ class DistMat{
 class DistDouble{
   public:
      double val;
+     std::string name;
      DistDouble(){};
    
      const DistVec& operator*(const DistVec & dval){
@@ -191,23 +221,36 @@ class DistDouble{
      bool operator<(const double other){
          return val < other;
      }
-     DistDouble operator=(const DistDouble & other){
-         DistDouble mval;
-         mval.val = other.val;
-         return mval;
+     DistDouble & operator=(const DistDouble & other){
+         val = other.val;
+         debug_print(name);
+         return *this;
      }
+     void debug_print(const char * name){
+       std::cout<<name<<" "<<val<<std::endl;
+     }
+     double toDouble(){
+        return val;
+     }
+     void debug_print(std::string name){ return debug_print(name.c_str()); }
+
 
  };
 
  DistDouble DistVec::operator*(const DistVec & vec){
+      y_offset = offset;
+      b_offset = vec.offset;
+      if (d == 0) 
+        d = 1.0;
+      assert(y_offset >=0 && b_offset >= 0);
+
       double val = 0;
       for (int i=0; i< (int)(m+n); i++){  //TODO
          const vertex_data * data = &glcore->graph().vertex_data(i);
          double * pv = (double*)data;
-         if (y_offset >= 0 && b_offset == -1)
-	   val += pv[y_offset] * pv[y_offset];
-         else if (y_offset >=0 && b_offset >= 0)
-         val += pv[y_offset] * pv[b_offset];
+        // if (y_offset >= 0 && b_offset == -1)
+	     //val += pv[y_offset] * pv[y_offset];
+         val += d* pv[y_offset] * pv[b_offset];
       }
       reset_offsets();
       DistDouble mval;
@@ -239,29 +282,33 @@ void Axb(gl_types::iscope &scope,
   vertex_data& user = scope.vertex_data();
   double * pr = (double*)&user;
   assert(r_offset >=0);
-  pr[r_offset] = 0;
-
+  double val = 0;
   assert(x_offset >=0 || y_offset>=0);
 
   /*** COMPUTE r = c*A*x  ********/
-  if (A_offset >= 0 && x_offset >= 0){
+  if (A_offset  && x_offset >= 0){
     edge_list outs = scope.out_edge_ids();
     foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       double * px = (double*)&movie;
-      pr[r_offset] += (c * edge.weight * px[x_offset]);
+      val += (c * edge.weight * px[x_offset]);
     }
+  
+    if (square)// add the diagonal term
+      val += (c* user.prior_prec * pr[x_offset]);
   }
  /***** COMPUTE r = c*I*x  *****/
-  else if (A_offset== -1 && x_offset >= 0 && y_offset == -1){
-     pr[r_offset] = d*pr[x_offset];
+  else if (!A_offset && x_offset >= 0){
+     val = c*pr[x_offset];
   }
   
   /**** COMPUTE r+= d*y (optional) ***/
   if (y_offset>= 0){
-    pr[r_offset] += d*pr[y_offset]; 
+    val += d*pr[y_offset]; 
   }
+
+  pr[r_offset] = val;
 }
 /***
  * UPDATE FUNCTION (COLS)
@@ -303,11 +350,12 @@ double cg(gl_types::core * _glcore){
  
     for (int i=m; i< (int)(m+n); i++)
       cols.push_back(i);
- 
+
     DistMat A;
-    DistVec b, r, p, x, Ap;
-    DistDouble rsold, rnew, alpha;
-  
+    DistVec b(0), r, p, x, Ap;
+    x = itpp::vec(".1 1 1");
+    DistDouble rsold, rnew, alpha, tmpdiv;
+ 
 
     /* r = -A*x+b;
        p = r;
@@ -335,13 +383,17 @@ double cg(gl_types::core * _glcore){
 
     for (int i=1; i < size(A,1); i++){
         Ap=A*p;
-        alpha=rsold/(p.transpose()*Ap);
+        tmpdiv = p.transpose()*Ap;
+        alpha=rsold/tmpdiv;
         x=x+alpha*p;
         r=r-alpha*Ap;
         rnew=r.transpose()*r;
-        if (sqrt(rnew)<1e-10)
-            break;
-        p=r+(rnew/rsold)*p;
+        if (sqrt(rnew)<1e-10){
+          logstream(LOG_INFO)<<" Conjugate gradient converged in iteration "<<i<<" to an accuracy of "  << sqrt(rnew).toDouble() << std::endl; //TODO
+          break;
+        }
+        tmpdiv = rnew/rsold;
+        p=r+tmpdiv*p;
         rsold=rnew;
     }
 
