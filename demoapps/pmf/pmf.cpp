@@ -38,6 +38,7 @@ bool regnormal = false; //regular normalization
 bool aggregatevalidation = false; //use validation dataset as training data
 bool outputvalidation = false; //experimental: output validation results of kdd format
 bool delinktimebins = false; //experimental: if true, regards different time bins as independent
+bool binaryoutput = false; //export the factors U,V,T to a binary file
 
 double scaling = 1; //aggregate time values into bins? (default =1, no aggregation)
 double truncating =0; // truncate unused time bins (optional, default = 0, no truncation)
@@ -634,12 +635,14 @@ double calc_obj(double res){
   return obj;
 }
 
+//write an output vector to file
+void write_vec(FILE * f, int len, double * array){
+  assert(f != NULL && array != NULL);
+  fwrite(array, len, sizeof(double), f);
+}
 
-//SAVE FACTORS TO FILE
-void export_uvt_to_file(){
- //saving output to file 
 
-
+void fill_factors_uvt(){
  if (algorithm != LANCZOS){
    U = zeros(M,D);
    V = zeros(N,D);
@@ -656,18 +659,63 @@ void export_uvt_to_file(){
      for (int i=0; i<K; i++){
      	T.set_row(i, times[i].pvec);
      }
-   } 
- }
+    } 
+  }
+}
 
- char dfile[256] = {0};
- sprintf(dfile,"%s%d.out",infile.c_str(), D);
- it_file output(dfile);
- output << Name("User") << U;
- output << Name("Movie") << V;
+
+
+
+//OUTPUT: SAVE FACTORS U,V,T to a binary file
+
+// FORMAT:  M N K D (4 x ints)
+// MATRIX U ( M x D doubles)
+// MATRIX V ( N x D doubles)
+// MATRIX K ( K x D doubles - optional, only for tensor)
+// TOTAL FILE SIZE: 4 ints + (M+N+K)*D - for tensor
+//                  4 ints + (M+N)*D - for matrix
+void export_uvt_to_binary_file(){
+
+  fill_factors_uvt();
+
+  char dfile[256] = {0};
+  sprintf(dfile,"%s%d.out",infile.c_str(), D);
+  FILE * f = fopen(dfile, "w");
+  assert(f!= NULL);
+
+  int rc = fwrite(&M, 1, 4, f);
+  assert(rc == 4);
+  rc = fwrite(&N, 1, 4, f);
+  assert(rc == 4);
+  rc = fwrite(&K, 1, 4, f);
+  assert(rc == 4);
+  rc = fwrite(&D, 1, 4, f);
+  assert(rc == 4);
+
+  write_vec(f, M*D, U._data());
+  write_vec(f, N*D, V._data());
+  if (tensor)
+    write_vec(f, K*D, T._data());
+
+  fclose(f); 
+
+}
+
+
+//OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
+void export_uvt_to_itpp_file(){
+
+  fill_factors_uvt();
+
+  char dfile[256] = {0};
+  sprintf(dfile,"%s%d.out",infile.c_str(), D);
+  it_file output(dfile);
+  output << Name("User") << U;
+  output << Name("Movie") << V;
   if (tensor){
     output << Name("Time") << T;
  }
- output.close();
+  output.close();
 }
 
 //LOAD FACTORS FROM FILE
@@ -784,7 +832,8 @@ void start(int argc, char ** argv) {
   clopts.attach_option("savefactors", &savefactors, savefactors, "save factors to file");  
   clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
-  
+  clopts.attach_option("binaryoutput", &binaryoutput, binaryoutput, "export U,V,T to a binary file"); 
+ 
   //BPTF related switches
   clopts.attach_option("alpha", &alpha, alpha, "BPTF alpha (noise parameter)");  
   clopts.attach_option("burn_in", &BURN_IN, BURN_IN, "BPTF burn-in period");
@@ -952,8 +1001,11 @@ void start(int argc, char ** argv) {
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
 
-  //write output matrices to file
-   export_uvt_to_file();
+  //write output matrices U,V,T to file
+  if (binaryoutput)
+     export_uvt_to_binary_file();
+  else // it++ output
+   export_uvt_to_itpp_file();
 }
 
 

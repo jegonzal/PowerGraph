@@ -71,14 +71,17 @@ class DistVec{
    DistVec& operator-(const DistVec & other){
      x_offset = offset;
      y_offset = other.offset;
+     d=-1.0;
      return *this;
    }
    DistVec& operator+(){
      d=1.0;
      return *this;
    }
-   DistVec& operator+(DistVec &other){
-     return *this; //TODO
+   DistVec& operator+(const DistVec &other){
+      x_offset =offset;
+      y_offset = other.offset;
+      return *this; //TODO
    }
 
    /*DistVec& operator=(const DistVec & vec){
@@ -331,16 +334,14 @@ double cg(gl_types::core * _glcore){
     */
 
     for (int i=1; i < size(A,1); i++){
-        Ap = A*p;
-        alpha = rsold/(p.transpose()*Ap);
-	//x = x+alpha*p; //TODO
-        x = x+p;
-        r = r-alpha*Ap;
-        rnew = r.transpose()*r;
+        Ap=A*p;
+        alpha=rsold/(p.transpose()*Ap);
+        x=x+alpha*p;
+        r=r-alpha*Ap;
+        rnew=r.transpose()*r;
         if (sqrt(rnew)<1e-10)
             break;
-        //p=r+(rnew/rsold)*p;
-        p=r+p; //TODO
+        p=r+(rnew/rsold)*p;
         rsold=rnew;
     }
 
