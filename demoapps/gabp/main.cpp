@@ -15,12 +15,20 @@
  * If you are using this code, you should cite the above reference. Thanks!
  */
 
+#define NO_CG_SUPPRT //comment this flag if you would like to compile cg code
+
 #include <cmath>
 #include <cstdio>
 #include "linear.h"
 #include "gabp.hpp"
 #include "jacobi.hpp"
+
+#ifndef NO_CG_SUPPRT
 #include "cg.hpp"
+#else
+double cg(gl_types::core * _glcore){};
+#endif
+
 #include <graphlab/macros_def.hpp>
 
 
@@ -30,8 +38,10 @@ uint32_t e = 0; // number of edges
 
 bool square=true;
 bool debug = false;
+bool supportgraphlabcf = false;
+bool isfloat = false;
+int cg_maxiter = 10; //maximal number of iterations for CG
 
-//read node data from file and add the nodes into the graph.
 #define BUFSIZE 500000
 template<typename graph>
 void read_nodes(FILE * f, int len, int offset, int nodes,
@@ -116,32 +126,45 @@ struct edata{
   double weight;
 };
 
+struct edata2{
+  float from;
+  float to;
+  float time;
+  float weight;
+};
+
+struct edata3{
+  int from;
+  int to;
+  double time;
+  double weight;
+};
 
 //read edges from file into the graph
-template<typename graph>
+template<typename edatatype>
 int read_edges(FILE * f, int len, int offset, int nodes,
-               graph * g, bool symmetry = false){
+               graph_type * g, bool symmetry = false){
   assert(offset>=0 && offset < len);
 
-  typedef typename graph::edge_data_type etype;
 
   unsigned int e,g0;
   int rc = fread(&e,1,4,f);
   assert(rc == 4);
-  rc = fread(&g0,1,4,f); //zero pad
-  assert(rc == 4);
-  assert(g0 == 0);
-
+  if (!supportgraphlabcf){
+    rc = fread(&g0,1,4,f); //zero pad
+    assert(rc == 4);
+    assert(g0 == 0);
+  }
   printf("Creating %d edges...\n", e);
   assert(e>0);
   int total = 0;
-  edata* ed = new edata[200000];
+  edatatype* ed = new edatatype[200000];
   printf("symmetry: %d\n", symmetry);
   int edgecount_in_file = e;
   if (symmetry) edgecount_in_file /= 2;
   while(true){
-    memset(ed, 0, 200000*sizeof(edata));
-    rc = (int)fread(ed, sizeof(edata),
+    memset(ed, 0, 200000*sizeof(edatatype));
+    rc = (int)fread(ed, sizeof(edatatype),
                     std::min(200000, edgecount_in_file - total), f);
     total += rc;
 
@@ -224,15 +247,19 @@ static void apply_func_relative(graphlab::any& current_data,
 
 }
 
+FILE * load_matrix_metadata(const char * filename){
+   printf("Loading %s\n", filename);
+   FILE * f = fopen(filename, "r");
+   assert(f!= NULL);
 
-void load_square_matrix(const char* filename, graph_type& graph) {
+   fread(&n, 1, 4, f);
+   fread(&m, 1, 4, f);
+   return f;
+}
 
-  printf("Loading %s\n", filename);
-  FILE * f = fopen(filename, "r");
-  assert(f!= NULL);
 
-  fread(&n, 1, 4, f);
-  fread(&m, 1, 4, f);
+void load_square_matrix(FILE * f, graph_type& graph) {
+
   assert(m==0);
   read_nodes(f, sizeof(vertex_data)/sizeof(sdouble), GABP_PRIOR_MEAN_OFFSET,
              n, &graph);
@@ -243,31 +270,43 @@ void load_square_matrix(const char* filename, graph_type& graph) {
   double * prec = read_vec(f, n);
   dispatch_vec(0,n,GABP_PRIOR_PREC_OFFSET, &graph, prec, n, true);
 
-  e = read_edges(f, sizeof(edge_data)/sizeof(sdouble), 0, n, &graph);
+  e = read_edges<edata>(f, sizeof(edge_data)/sizeof(sdouble), 0, n, &graph);
   fclose(f);
 }
 
-void load_non_square_matrix(const char* filename, graph_type& graph) {
-  printf("Loading %s\n", filename);
-  FILE * f = fopen(filename, "r");
-  assert(f!= NULL);
-
-  fread(&m,1,4,f);
-  fread(&n,1,4,f);
+void load_non_square_matrix(FILE * f, graph_type& graph) {
+  
   assert( n > 0);
   assert( m > 0);
   assert(m!=n); 
+  
   printf("Loading a non-square matrix A of size %d x %d\n", m,n);
-  read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
+
+  if (supportgraphlabcf){ //read matrix factorization file (GraphLab collabrative filtering format)
+     int tmp;
+     fread(&tmp, 1, 4, f); //skip over time bin number 
+     vertex_data data;
+     for (int i=0; i< (int)(m+n); i++){
+       data.real = 0; data.prior_mean = 1;
+       graph.add_vertex(data);
+     }
+     if (isfloat)
+          e = read_edges<edata2>(f, sizeof(edge_data), 0, n+m, &graph);
+     else  
+          e = read_edges<edata3>(f, sizeof(edge_data), 0, n+m, &graph);
+  }
+  else { //read A, x, y, from file
+    read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_PRIOR_MEAN_OFFSET,m,&graph);
-  read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
+    read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_REAL_OFFSET,n,&graph);
 
-  double * prec = read_vec(f, n+m);
-  dispatch_vec(0,n+m,GABP_PRIOR_PREC_OFFSET, &graph, prec, n+m, true);
-  dispatch_vec(0,n+m,GABP_PREV_MEAN_OFFSET, &graph, 1);
-  dispatch_vec(0,n+m,GABP_PREV_PREC_OFFSET, &graph, 1);
-  e = read_edges(f, sizeof(edge_data), 0, n+m, &graph);
+    double * prec = read_vec(f, n+m);
+    dispatch_vec(0,n+m,GABP_PRIOR_PREC_OFFSET, &graph, prec, n+m, true);
+    dispatch_vec(0,n+m,GABP_PREV_MEAN_OFFSET, &graph, 1);
+    dispatch_vec(0,n+m,GABP_PREV_PREC_OFFSET, &graph, 1);
+    e = read_edges<edata>(f, sizeof(edge_data), 0, n+m, &graph);
+  }
   fclose(f);
 }
 
@@ -300,7 +339,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("square", &square, square, "is the matrix square? ");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("syncinterval", &syncinterval, syncinterval, "sync interval (number of update functions before convergen detection");
-  
+  clopts.attach_option("supportgraphlabcf", &supportgraphlabcf, supportgraphlabcf, "input is given in GraphLab collaborative filtering format");
+  clopts.attach_option("isfloat", &isfloat, isfloat, "input file is given in float format");
+  clopts.attach_option("cg_maxiter", &cg_maxiter, cg_maxiter, "conjugate gradient max iteration ");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -327,22 +368,47 @@ int main(int argc,  char *argv[]) {
   gl_types::core core;
   core.set_engine_options(clopts); // Set the engine options
 
-
+ 
   // Load the graph --------------------------------------------------
-  if (!square){
-     load_non_square_matrix(datafile.c_str(), core.graph());
+  FILE * f = load_matrix_metadata(datafile.c_str());
+  if (m == 0){ //square matrix
+     square = true;
+     load_square_matrix(f, core.graph());
+  }
+  else {
+     square = false;
+     load_non_square_matrix(f, core.graph());
      if (algorithm == JACOBI){
         logstream(LOG_ERROR)<<" Jacobi can not run with non-square mastrix. Run with --sqaure=true and provide a square mastrix in the input file!" << std::endl;
         return EXIT_FAILURE;
      }
-                        
   }
-  else //square matrix
-        load_square_matrix(datafile.c_str(), core.graph());
 
 
 
-  // Initialize the shared data --------------------------------------
+  // CREATE INITIAL TASKS ******
+  // TOOD is this the correct starting priority?
+  double initial_priority = 1.0;
+  switch(algorithm){
+    case GaBP: 
+	  core.add_task_to_all(gabp_update_function, initial_priority); break;
+
+    case JACOBI:
+          core.add_task_to_all(jacobi_update_function, initial_priority); break;
+
+    case CONJUGATE_GRADIENT:
+          syncinterval = 0; //no need to sync here
+          //deliberately empty, will be done later
+          break;
+    
+    default:
+         logstream(LOG_ERROR) << "Unknown algorithm" << std::endl;
+         clopts.print_description(); 
+         return EXIT_FAILURE;
+  } 
+
+
+ // Initialize the shared data --------------------------------------
   // Set syncs
   //
   if (syncinterval > 0){
@@ -351,12 +417,15 @@ int main(int argc,  char *argv[]) {
                 apply_func_real,
                 double(0),  syncinterval,
                 gl_types::glshared_merge_ops::sum<double>);
-  
+
     core.set_sync(RELATIVE_NORM_KEY,
                 gl_types::glshared_sync_ops::sum<double, get_relative_norm>,
                 apply_func_relative,
                 double(0),  syncinterval,
                 gl_types::glshared_merge_ops::sum<double>);
+
+  	core.engine().add_terminator(termination_condition);
+
   }
   // Create an atomic entry to track iterations (as necessary)
   ITERATION_KEY.set(0);
@@ -370,29 +439,7 @@ int main(int argc,  char *argv[]) {
 
   core.graph().compute_coloring();
 
-  // CREATE INITIAL TASKS ******
-  // TOOD is this the correct starting priority?
-  double initial_priority = 1.0;
-  switch(algorithm){
-    case GaBP: 
-	  core.add_task_to_all(gabp_update_function, initial_priority); break;
 
-    case JACOBI:
-          core.add_task_to_all(jacobi_update_function, initial_priority); break;
-
-    case CONJUGATE_GRADIENT:
-          //deliberately empty, will be done later
-          break;
-    
-    default:
-         logstream(LOG_ERROR) << "Unknown algorithm" << std::endl;
-         clopts.print_description(); 
-         return EXIT_FAILURE;
-  } 
-
-  // Add the termination condition to the engine
-  if (syncinterval > 0)
-  	core.engine().add_terminator(termination_condition);
 
   // START GRAPHLAB *****
   double runtime;
@@ -423,7 +470,7 @@ int main(int argc,  char *argv[]) {
   std::cout << "Assuming the linear system is Ax=y, and the correct solution is x*," << algorithmnames[algorithm] << " converged to an accuracy norm(x-x*) of " << diff
             << " msg norm is: " << RELATIVE_NORM_KEY.get_val() << std::endl;
 
-   FILE * f = fopen((datafile+".out").c_str(), "w");
+   f = fopen((datafile+".out").c_str(), "w");
    assert(f!= NULL);
 
    std::cout<<"Writing result to file: "<<datafile<<".out"<<std::endl;

@@ -726,7 +726,7 @@ void start(int argc, char ** argv) {
   // create distributed control
   graphlab::distributed_control dc(param);
   // Create the distributed_graph --------------------------------------------------------->
-  gl_types::distributed_core glcore(dc, "denoise_learn.idx");
+  gl_types::distributed_core glcore(dc, "pmf.idx");
   // Set the engine options
   glcore.set_engine_options(clopts);
   glcore.build_engine();

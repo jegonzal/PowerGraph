@@ -17,13 +17,15 @@ gl_types::core * glcore;
 double runtime = 0;
 extern bool debug;
 extern bool square;
+extern int cg_maxiter;
+#define MAX_PRINT_ITEMS 21
 
 void reset_offsets(){
   c=1.0; d=0.0;
   x_offset = b_offset = y_offset = r_offset = -1;
   A_offset = false;
   if (debug)
-	std::cout<<"reset offsets"<<std::endl;
+	  std::cout<<"reset offsets"<<std::endl;
 }
 
 int increment_offset(){
@@ -52,7 +54,6 @@ end
 */
 std::vector<vertex_id_t> rows,cols;
 void Axb(gl_types::iscope &scope, gl_types::icallback &scheduler);
-void ATxb(gl_types::iscope &scope, gl_types::icallback &scheduler);
  
 
 class DistMat;
@@ -62,10 +63,12 @@ class DistVec{
    public:
    int offset;
    std::string name; //optional
+   bool transpose;
 
    DistVec(){ 
      offset = increment_offset();
      debug_print(name);
+     transpose = false;
    };
 
    DistVec(int _offset){
@@ -90,7 +93,7 @@ class DistVec{
    DistVec& operator+(const DistVec &other){
       x_offset =offset;
       y_offset = other.offset;
-      return *this; //TODO
+      return *this; 
    }
 
    DistVec& operator=(const DistVec & vec){
@@ -100,7 +103,10 @@ class DistVec{
       r_offset = offset;
       if (d == 0.0)
         d=1.0;
-      glcore->add_tasks(rows, Axb, 1); //TODO
+      if (vec.transpose)
+        transpose = true;
+      glcore->add_tasks((!transpose)?rows:cols, Axb, 1); 
+      
       runtime += glcore->start();
       debug_print(name);
       reset_offsets();
@@ -109,11 +115,17 @@ class DistVec{
 
   DistVec& operator=(const itpp::vec & pvec){
     assert(offset >= 0);
-    assert(pvec.size() == (int)(m+n));
-    for (int i=0; i< (int)(m+n); i++){  //TODO
+    assert(pvec.size() == (int)m || pvec.size() == (int)n);
+    int start = 0, end = n;
+    if (pvec.size() == (int)m){
+      transpose = true;
+      start = n; end = m+n;
+    }
+    
+    for (int i=start; i< (int)end; i++){  
          const vertex_data * data = &glcore->graph().vertex_data(i);
          double * pv = (double*)data;
-         pv[offset] = pvec[i];  
+         pv[offset] = pvec[i-start];  
     }
     debug_print(name);
     return *this;       
@@ -121,8 +133,11 @@ class DistVec{
 
   void debug_print(const char * name){
      if (debug){
-       std::cout<<name<<" ("<<offset<<") ";
-       for (int i=0; i< (int)(m+n); i++){  //TODO
+       std::cout<<name<<" ("<<offset<<" [ " << ((!transpose) ? n : m) << "] ";
+       int start = 0, end = n;
+       if (transpose)
+         start = n; end = m+n;
+       for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  //TODO
          const vertex_data * data = &glcore->graph().vertex_data(i);
          double * pv = (double*)data;
          std::cout<<pv[r_offset==-1?offset:r_offset]<<" ";
@@ -138,11 +153,11 @@ class DistVec{
      d=val;
      return *this;
   }
-  DistVec& transpose() { 
+  DistVec& _transpose() { 
     return *this;
   }
 
-  DistVec& operator=(const DistMat &mat);
+  DistVec& operator=(DistMat &mat);
  
  };
 
@@ -155,10 +170,12 @@ class DistMat{
   public:
     int start; 
     int end;
- 
+    bool transpose;
+
     DistMat() { 
       start = 0; 
       end = m+n; //@TODO
+      transpose = false;
     };
 
 
@@ -179,28 +196,35 @@ class DistMat{
     }
     DistMat &operator+(const DistVec &v){
         y_offset = v.offset;
-        d=1.0;
+        if (d == 0.0)
+            d=1.0;
         return *this;
     }
     DistMat &operator-(const DistVec &v){
-        d=-1.0;
+        if (d == 0.0)
+          d=-1.0;
+        else 
+          d*=-1.0;
         return *this;
+    }
+    DistMat & _transpose(){
+       transpose = true;
+       return *this;
     }
      
 };
 
-  DistVec& DistVec::operator=(const DistMat &mat){
-        r_offset = offset;
-        if (mat.start == 0)
-          glcore->add_tasks(rows, Axb, 1);
-        else if (mat.start == (int)m)
-	  glcore->add_tasks(cols, ATxb, 1);
-        else assert(false);
-        runtime += glcore->start();
-        debug_print(name);
-        reset_offsets();
-        return *this;
-  }
+DistVec& DistVec::operator=(DistMat &mat){
+  r_offset = offset;
+  glcore->add_tasks((!mat.transpose)?rows:cols, Axb, 1);
+  runtime += glcore->start();
+  if (mat.transpose)
+    transpose = true;
+  debug_print(name);
+  reset_offsets();
+  mat.transpose = false;
+  return *this;
+}
 
 
 class DistDouble{
@@ -270,6 +294,14 @@ DistDouble sqrt(DistDouble & dval){
     return mval;
 }
 
+
+edge_list get_edges(gl_types::iscope & scope){
+     return ((int)scope.vertex() < (int)n) ? scope.out_edge_ids(): scope.in_edge_ids();
+}
+const vertex_data& get_neighbor(gl_types::iscope & scope, edge_id_t oedgeid){
+     return ((int)scope.vertex() < (int)n) ? scope.neighbor_vertex_data(scope.target(oedgeid)) :  scope.neighbor_vertex_data(scope.source(oedgeid));
+}
+
 /***
  * UPDATE FUNCTION (ROWS)
  */
@@ -287,10 +319,10 @@ void Axb(gl_types::iscope &scope,
 
   /*** COMPUTE r = c*A*x  ********/
   if (A_offset  && x_offset >= 0){
-    edge_list outs = scope.out_edge_ids();
+    edge_list outs = get_edges(scope);
     foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
-      vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+      const vertex_data  & movie = get_neighbor(scope, oedgeid);
       double * px = (double*)&movie;
       val += (c * edge.weight * px[x_offset]);
     }
@@ -310,33 +342,22 @@ void Axb(gl_types::iscope &scope,
 
   pr[r_offset] = val;
 }
-/***
- * UPDATE FUNCTION (COLS)
- */
-void ATxb(gl_types::iscope &scope, 
-	 gl_types::icallback &scheduler) {
-    
 
 
-  /* GET current vertex data */
-  vertex_data& user = scope.vertex_data();
-  double * pr = (double*)&user;
-  assert(r_offset>= 0);
-  pr[r_offset] = 0;
+void init_row_cols(){
+      
+    for (int i=0; i< (int)n; i++)
+      rows.push_back(i);
 
-  edge_list ins = scope.in_edge_ids();
-  timer t;
-  t.start(); 
 
-   foreach(graphlab::edge_id_t iedgeid, ins) {
-      edge_data & edge = scope.edge_data(iedgeid);
-      vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
-      double * px = (double*)&movie;
-      pr[r_offset] += edge.weight * px[x_offset];
-   }
-
-   pr[r_offset] += d*pr[y_offset];
-
+    if (square){
+      cols = rows;
+    }
+    else {
+      assert(m!= 0);
+      for (int i=n; i < (int)(m+n); i++)
+        cols.push_back(i);
+    }
 }
 
 
@@ -344,16 +365,11 @@ void ATxb(gl_types::iscope &scope,
 double cg(gl_types::core * _glcore){
 
     glcore = _glcore;
-
-    for (int i=0; i< (int)(m==0?m+n:n); i++)
-      rows.push_back(i);
- 
-    for (int i=m; i< (int)(m+n); i++)
-      cols.push_back(i);
+    init_row_cols();
 
     DistMat A;
     DistVec b(0), r, p, x, Ap;
-    x = itpp::vec(".1 1 1");
+    x = itpp::ones(m);
     DistDouble rsold, rnew, alpha, tmpdiv;
  
 
@@ -361,10 +377,16 @@ double cg(gl_types::core * _glcore){
        p = r;
        rsold = r'*r;
     */
-
-    r=-A*x+b; //r = -A*x+b; @TODO
+    if (square){
+      r=-A*x+b; 
+    }
+    else {
+      r=-A*x;
+      r=A._transpose()*r;
+      r=r+b;
+    }
     p = r;
-    rsold = r.transpose()*r;
+    rsold = r._transpose()*r;
 
      /*
      for i=1:size(A,1)
@@ -381,15 +403,17 @@ double cg(gl_types::core * _glcore){
     end
     */
 
-    for (int i=1; i < size(A,1); i++){
+    for (int i=1; i <= std::min(cg_maxiter,size(A,1)); i++){
         Ap=A*p;
-        tmpdiv = p.transpose()*Ap;
+        if (!square)
+          Ap= A._transpose()*Ap;
+        tmpdiv = p._transpose()*Ap;
         alpha=rsold/tmpdiv;
         x=x+alpha*p;
         r=r-alpha*Ap;
-        rnew=r.transpose()*r;
+        rnew=r._transpose()*r;
         if (sqrt(rnew)<1e-10){
-          logstream(LOG_INFO)<<" Conjugate gradient converged in iteration "<<i<<" to an accuracy of "  << sqrt(rnew).toDouble() << std::endl; //TODO
+          logstream(LOG_INFO)<<" Conjugate gradient converged in iteration "<<i<<" to an accuracy of "  << sqrt(rnew).toDouble() << std::endl; 
           break;
         }
         tmpdiv = rnew/rsold;
