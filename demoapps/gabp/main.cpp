@@ -23,10 +23,11 @@
 #include "gabp.hpp"
 #include "jacobi.hpp"
 
-#ifndef NO_CG_SUPPRT
+#define ITPP
+#ifdef ITPP //if it++ is installed compiled algo conjugate gradient code
 #include "cg.hpp"
 #else
-double cg(gl_types::core * _glcore){};
+double cg(gl_types::core * _glcore){ return 0; };
 #endif
 
 #include <graphlab/macros_def.hpp>
@@ -318,6 +319,11 @@ int main(int argc,  char *argv[]) {
   global_logger().set_log_to_console(true);
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
+
+#ifdef ITPP
+  logstream(LOG_WARNING) << "it++ detected. adding support of conjugate gradient !" << std::endl;
+#endif
+  
   // Setup additional command line arguments for the GABP program
   std::string datafile;
   double threshold = 1e-5;

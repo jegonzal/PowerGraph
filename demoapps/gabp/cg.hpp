@@ -59,20 +59,28 @@ void Axb(gl_types::iscope &scope, gl_types::icallback &scheduler);
 class DistMat;
 class DistDouble;
 
+
+
 class DistVec{
    public:
    int offset;
    std::string name; //optional
    bool transpose;
+   int start;
+   int end;
 
    DistVec(){ 
      offset = increment_offset();
-     debug_print(name);
      transpose = false;
+     start = 0;
+     end = n;
+     debug_print(name);
    };
 
    DistVec(int _offset){
      offset = _offset;
+     start = 0;
+     end = n;
      debug_print(name);
    }   
 
@@ -83,16 +91,25 @@ class DistVec{
    DistVec& operator-(const DistVec & other){
      x_offset = offset;
      y_offset = other.offset;
-     d*=-1.0;
+     transpose = other.transpose;
+     start = other.start;
+     end = other.end;
+     if (d == 0)
+       d = -1.0;
+     else 
+       d*=-1.0;
      return *this;
    }
    DistVec& operator+(){
-     d*=1.0;
+     if (d == 0)
+       d=1.0;
      return *this;
    }
    DistVec& operator+(const DistVec &other){
       x_offset =offset;
       y_offset = other.offset;
+      start = other.start;
+      end = other.end;
       return *this; 
    }
 
@@ -103,8 +120,9 @@ class DistVec{
       r_offset = offset;
       if (d == 0.0)
         d=1.0;
-      if (vec.transpose)
-        transpose = true;
+      transpose = vec.transpose;
+      start = vec.start;
+      end = vec.end;
       glcore->add_tasks((!transpose)?rows:cols, Axb, 1); 
       
       runtime += glcore->start();
@@ -116,9 +134,9 @@ class DistVec{
   DistVec& operator=(const itpp::vec & pvec){
     assert(offset >= 0);
     assert(pvec.size() == (int)m || pvec.size() == (int)n);
-    int start = 0, end = n;
     if (pvec.size() == (int)m){
       transpose = true;
+      assert(!square);
       start = n; end = m+n;
     }
     
@@ -131,12 +149,10 @@ class DistVec{
     return *this;       
   }
 
+
   void debug_print(const char * name){
      if (debug){
-       std::cout<<name<<" ("<<offset<<" [ " << ((!transpose) ? n : m) << "] ";
-       int start = 0, end = n;
-       if (transpose)
-         start = n; end = m+n;
+       std::cout<<name<<" ("<<offset<<" [ " << end-start << "] ";
        for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  //TODO
          const vertex_data * data = &glcore->graph().vertex_data(i);
          double * pv = (double*)data;
@@ -154,7 +170,10 @@ class DistVec{
      return *this;
   }
   DistVec& _transpose() { 
-    return *this;
+     /*if (!square){
+       start = n; end = m+n;
+     }*/
+     return *this;
   }
 
   DistVec& operator=(DistMat &mat);
@@ -174,14 +193,15 @@ class DistMat{
 
     DistMat() { 
       start = 0; 
-      end = m+n; //@TODO
+      end = n; //@TODO
       transpose = false;
     };
 
 
-    DistMat &operator*(const DistVec & v){
+    DistMat &operator*(DistVec & v){
       	x_offset = v.offset;
         A_offset = true;
+        v.transpose = transpose;
         //r_offset = A_offset;
         return *this;
     }
@@ -201,6 +221,7 @@ class DistMat{
         return *this;
     }
     DistMat &operator-(const DistVec &v){
+        y_offset = v.offset;
         if (d == 0.0)
           d=-1.0;
         else 
@@ -209,6 +230,12 @@ class DistMat{
     }
     DistMat & _transpose(){
        transpose = true;
+       if (!square){
+         start=n ; end = m+n;
+       }
+       else {
+         start =0; end = n;
+       }
        return *this;
     }
      
@@ -216,10 +243,15 @@ class DistMat{
 
 DistVec& DistVec::operator=(DistMat &mat){
   r_offset = offset;
+  transpose = mat.transpose;
+  if (!transpose || square){
+    start = 0; end = n;
+  }
+  else {
+    start = n; end = m+n;
+  }
   glcore->add_tasks((!mat.transpose)?rows:cols, Axb, 1);
   runtime += glcore->start();
-  if (mat.transpose)
-    transpose = true;
   debug_print(name);
   reset_offsets();
   mat.transpose = false;
@@ -269,7 +301,8 @@ class DistDouble{
       assert(y_offset >=0 && b_offset >= 0);
 
       double val = 0;
-      for (int i=0; i< (int)(m+n); i++){  //TODO
+      start = vec.start; end = vec.end;
+      for (int i=start; i<  end; i++){  
          const vertex_data * data = &glcore->graph().vertex_data(i);
          double * pv = (double*)data;
         // if (y_offset >= 0 && b_offset == -1)
@@ -286,7 +319,10 @@ class DistDouble{
 
 int size(DistMat & A, int pos){
    assert(pos == 1 || pos == 2);
-   return pos==1 ? m+n: n; //TODO
+   if (square || pos == 1)
+     return n;
+   if (pos == 2)
+     return m;
 }
 DistDouble sqrt(DistDouble & dval){
     DistDouble mval;
@@ -294,6 +330,18 @@ DistDouble sqrt(DistDouble & dval){
     return mval;
 }
 
+DistDouble norm(DistVec & vec){
+    assert(vec.offset>=0);
+    DistDouble mval;
+    mval.val = 0;
+    for (int i=vec.start; i < vec.end; i++){
+       const vertex_data * data = &glcore->graph().vertex_data(i);
+       double * px = (double*)data;
+       mval.val += px[vec.offset]*px[vec.offset];
+    }
+    mval.val = sqrt(mval.val);
+    return mval;
+}
 
 edge_list get_edges(gl_types::iscope & scope){
      return ((int)scope.vertex() < (int)n) ? scope.out_edge_ids(): scope.in_edge_ids();
@@ -349,7 +397,6 @@ void init_row_cols(){
     for (int i=0; i< (int)n; i++)
       rows.push_back(i);
 
-
     if (square){
       cols = rows;
     }
@@ -368,8 +415,13 @@ double cg(gl_types::core * _glcore){
     init_row_cols();
 
     DistMat A;
-    DistVec b(0), r, p, x, Ap;
-    x = itpp::ones(m);
+    DistVec b(0), r, p, x, Ap, t;
+    b.transpose=true;
+    b.start=n; b.end=m+n;
+    if (!square)
+      x = itpp::ones(m)/2;
+    else
+      x = itpp::ones(n)/2;
     DistDouble rsold, rnew, alpha, tmpdiv;
  
 
@@ -410,6 +462,14 @@ double cg(gl_types::core * _glcore){
         tmpdiv = p._transpose()*Ap;
         alpha=rsold/tmpdiv;
         x=x+alpha*p;
+    
+        t=A*x;
+        if (!square)
+           t=A._transpose()*t-b;
+        else
+          t=t-b;
+        logstream(LOG_INFO)<<"Iteration " << i << " approximated solution redidual is " << norm(t).toDouble() << std::endl;
+        
         r=r-alpha*Ap;
         rnew=r._transpose()*r;
         if (sqrt(rnew)<1e-10){
