@@ -194,7 +194,7 @@ include_directories(${KYOTO_INCLUDE_DIR})
 
 CHECK_LIBRARY_EXISTS(z zlibVersion "" ZLIB_FOUND)
 if (ZLIB_FOUND)
-  add_definitions(-DZLIB_FOUND)
+  add_definitions(-DHAS_ZLIB)
   link_libraries(z)
 endif()
 
@@ -208,6 +208,7 @@ CHECK_CXX_SOURCE_COMPILES("#include <itpp/itbase.h>\nint main(int argc ,char** a
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 if (ITPP-FOUND)
   link_libraries(itpp)
+  add_definitions(-DHAS_ITPP)
   message(STATUS "ITPP found.")
 else()
   message(STATUS "ITPP was not found")
