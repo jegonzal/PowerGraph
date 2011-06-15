@@ -16,11 +16,13 @@ gl_types::core * glcore;
 #define MAX_OFFSET 7
 double runtime = 0;
 const char * names[]={"b","","r","p","x","Ap","t"};
+extern bool cg_noop;
 
 using namespace graphlab;
 std::vector<vertex_id_t> rows,cols;
 void Axb(gl_types::iscope &scope, 
 	 gl_types::icallback &scheduler);
+void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes);
 
 void reset_offsets(){
   c=1.0; d=0.0;
@@ -122,7 +124,12 @@ class DistVec{
       transpose = vec.transpose;
       start = vec.start;
       end = vec.end;
-      glcore->add_tasks((!transpose)?rows:cols, Axb, 1); 
+      if (cg_noop && !A_offset)
+         fast_Axb(
+               &glcore->graph(),
+               (!transpose)?rows:cols); 
+      else   
+         glcore->add_tasks((!transpose)?rows:cols, Axb, 1); 
       
       runtime += glcore->start();
       debug_print(name);
@@ -354,12 +361,17 @@ DistDouble norm(DistVec & vec){
 }
 
 edge_list get_edges(gl_types::iscope & scope){
-     return ((int)scope.vertex() < (int)n) ? scope.out_edge_ids(): scope.in_edge_ids();
+     return (scope.vertex() < n) ? scope.out_edge_ids(): scope.in_edge_ids();
+}
+edge_list get_edges(graph_type *g, vertex_id_t i){
+     return (i < n) ? g->out_edge_ids(i) : g->in_edge_ids(i);
 }
 const vertex_data& get_neighbor(gl_types::iscope & scope, edge_id_t oedgeid){
-     return ((int)scope.vertex() < (int)n) ? scope.neighbor_vertex_data(scope.target(oedgeid)) :  scope.neighbor_vertex_data(scope.source(oedgeid));
+     return (scope.vertex() < n) ? scope.neighbor_vertex_data(scope.target(oedgeid)) :  scope.neighbor_vertex_data(scope.source(oedgeid));
 }
-
+const vertex_data& get_neighbor(graph_type *g, vertex_id_t i, edge_id_t oedgeid){
+     return (i < n) ? g->vertex_data(g->target(oedgeid)) : g->vertex_data(g->source(oedgeid));
+}
  
 /***
  * UPDATE FUNCTION (ROWS)
@@ -367,7 +379,6 @@ const vertex_data& get_neighbor(gl_types::iscope & scope, edge_id_t oedgeid){
 void Axb(gl_types::iscope &scope, 
 	 gl_types::icallback &scheduler) {
     
-
 
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
@@ -402,6 +413,41 @@ void Axb(gl_types::iscope &scope,
   pr[r_offset] = val;
 }
 
+void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
+   for (int j=0; j< nodes.size(); j++){
+       vertex_id_t i =  nodes[j];
+       vertex_data & user = g->vertex_data(i);
+       double * pr = (double*)&user;
+       
+       assert(r_offset >=0);
+       double val = 0;
+       assert(x_offset >=0 || y_offset>=0);
+
+      /*** COMPUTE r = c*A*x  ********/
+     if (A_offset  && x_offset >= 0){
+     edge_list outs = get_edges(g, i);
+    foreach(graphlab::edge_id_t oedgeid, outs) {
+      edge_data & edge = g->edge_data(oedgeid);
+      const vertex_data  & movie = get_neighbor(g, i, oedgeid);
+      double * px = (double*)&movie;
+      val += (c * edge.weight * px[x_offset]);
+    }
+  
+    if (square)// add the diagonal term
+      val += (c* user.prior_prec * pr[x_offset]);
+    }
+   /***** COMPUTE r = c*I*x  *****/
+    else if (!A_offset && x_offset >= 0){
+      val = c*pr[x_offset];
+    }
+  
+  /**** COMPUTE r+= d*y (optional) ***/
+    if (y_offset>= 0){
+      val += d*pr[y_offset]; 
+    }
+     pr[r_offset] = val;
+   }
+}   
 
 void init_row_cols(){
       

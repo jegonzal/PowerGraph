@@ -10,6 +10,8 @@ extern gl_types::core * glcore;
 extern bool debug;
 extern bool square;
 extern int cg_maxiter;
+extern bool cg_resid;
+extern bool cg_noop;
 
 void init_row_cols();
 
@@ -88,14 +90,16 @@ double cg(gl_types::core * _glcore, std::vector<double> & means){
         tmpdiv = p._transpose()*Ap;
         alpha=rsold/tmpdiv;
         x=x+alpha*p;
-    
-        t=A*x;
-        if (!square)
+   
+        if (cg_resid){
+          t=A*x;
+          if (!square)
            t=A._transpose()*t-b;
-        else
-          t=t-b;
-        logstream(LOG_INFO)<<"Iteration " << i << " approximated solution redidual is " << norm(t).toDouble() << std::endl;
-        
+          else
+           t=t-b;
+          logstream(LOG_INFO)<<"Iteration " << i << " approximated solution redidual is " << norm(t).toDouble() << std::endl;
+        }
+
         r=r-alpha*Ap;
         rnew=r._transpose()*r;
         if (sqrt(rnew)<1e-10){

@@ -37,7 +37,9 @@ bool debug = false;
 bool supportgraphlabcf = false;
 bool isfloat = false;
 int cg_maxiter = 10; //maximal number of iterations for CG
-
+bool cg_noop = true;
+bool cg_resid = true;
+bool zero = false; //support zero matrix edges
 #define BUFSIZE 500000
 template<typename graph>
 void read_nodes(FILE * f, int len, int offset, int nodes,
@@ -168,7 +170,8 @@ int read_edges(FILE * f, int len, int offset, int nodes,
     for (int i=0; i<rc; i++){
       //memset(tmp, 0, len/sizeof(sdouble));
       tmp.weight =  ed[i].weight;
-      assert(ed[i].weight != 0);
+      if (!zero)
+        assert(ed[i].weight != 0);
       assert(ed[i].from >= 1 && ed[i].from <= nodes);
       assert(ed[i].to >= 1 && ed[i].to <= nodes);
       assert(ed[i].to != ed[i].from);
@@ -346,6 +349,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("supportgraphlabcf", &supportgraphlabcf, supportgraphlabcf, "input is given in GraphLab collaborative filtering format");
   clopts.attach_option("isfloat", &isfloat, isfloat, "input file is given in float format");
   clopts.attach_option("cg_maxiter", &cg_maxiter, cg_maxiter, "conjugate gradient max iteration ");
+  clopts.attach_option("cg_noop", &cg_noop, cg_noop, "perform math vec operation serially ");
+  clopts.attach_option("cg_resid", &cg_resid, cg_resid, "compute cg residual progress ");
+  clopts.attach_option("zero", &zero, zero, "support sparse matrix entry containing zero val ");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
