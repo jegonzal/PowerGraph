@@ -22,13 +22,8 @@
 #include "linear.h"
 #include "gabp.hpp"
 #include "jacobi.hpp"
-
-#define ITPP
-#ifdef HAS_ITPP //if it++ is installed compiled algo conjugate gradient code
 #include "cg.hpp"
-#else
-double cg(gl_types::core * _glcore){ return 0; };
-#endif
+#include "math.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -281,7 +276,7 @@ void load_non_square_matrix(FILE * f, graph_type& graph) {
   assert( m > 0);
   assert(m!=n); 
   
-  printf("Loading a non-square matrix A of size %d x %d\n", m,n);
+  printf("Loading a non-square matrix A of size %d x %d\n", n,m);
 
   if (supportgraphlabcf){ //read matrix factorization file (GraphLab collabrative filtering format)
      int tmp;
@@ -323,7 +318,10 @@ int main(int argc,  char *argv[]) {
 #ifdef ITPP
   logstream(LOG_WARNING) << "it++ detected. adding support of conjugate gradient !" << std::endl;
 #endif
-  
+  logstream(LOG_INFO) << "GraphLab Linear solver library code by Danny Bickson, CMU" << std::endl <<
+                         "Send comments and bug reports to danny.bickson@gmail.com" << std::endl <<
+                         "Currently implemented algorithms are: Gaussian Belief Propagation, Jacobi method, Conjugate Gradient" << std::endl;
+
   // Setup additional command line arguments for the GABP program
   std::string datafile;
   double threshold = 1e-5;
@@ -445,6 +443,8 @@ int main(int argc,  char *argv[]) {
 
   core.graph().compute_coloring();
 
+  //create a vector for storing the output
+  std::vector<double> means(m+n);
 
 
   // START GRAPHLAB *****
@@ -457,13 +457,12 @@ int main(int argc,  char *argv[]) {
         break;
 
       case CONJUGATE_GRADIENT:
-        runtime = cg(&core);
+        runtime = cg(&core,means);
         break;
   }
   // POST-PROCESSING *****
   std::cout << algorithmnames[algorithm] << " finished in " << runtime << std::endl;
 
-  std::vector<double> means(m+n);
   std::vector<double> precs(m+n);
   double diff = 0;
   for (size_t i = m; i < core.graph().num_vertices(); i++){
@@ -482,7 +481,8 @@ int main(int argc,  char *argv[]) {
    std::cout<<"Writing result to file: "<<datafile<<".out"<<std::endl;
    std::cout<<"You can read the file in Matlab using the load_c_gl.m matlab script"<<std::endl;
    write_vec(f, means.size(), &means[0]);
-   write_vec(f, means.size(), &precs[0]);
+   if (algorithm == GaBP)
+     write_vec(f, means.size(), &precs[0]);
 
    fclose(f);
    return EXIT_SUCCESS;
