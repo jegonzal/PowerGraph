@@ -18,7 +18,9 @@ double runtime = 0;
 extern bool debug;
 extern bool square;
 extern int cg_maxiter;
+const char * names[]={"b","","r","p","x","Ap","t"};
 #define MAX_PRINT_ITEMS 21
+#define MAX_OFFSET 7
 
 void reset_offsets(){
   c=1.0; d=0.0;
@@ -69,20 +71,41 @@ class DistVec{
    int start;
    int end;
 
-   DistVec(){ 
-     offset = increment_offset();
-     transpose = false;
-     start = 0;
-     end = n;
+   void init(){
+     if (square || !transpose){
+       start = 0;
+       end = n;
+     }
+     else {
+       start = n;
+       end = m+n;
+     }
      debug_print(name);
    };
 
+   DistVec(){
+     offset = increment_offset();
+     transpose = false;
+     init();
+   }
+
+   DistVec(bool _transpose){
+     transpose = _transpose;
+     offset = increment_offset();
+     init();
+   }
+
    DistVec(int _offset){
      offset = _offset;
-     start = 0;
-     end = n;
-     debug_print(name);
+     transpose = false;
+     init();
    }   
+
+   DistVec(int _offset, bool _transpose){
+     offset = _offset;
+     transpose = _transpose;
+     init();
+   }
 
    DistVec& operator-(){
      d=-1.0;
@@ -114,7 +137,8 @@ class DistVec{
    }
 
    DistVec& operator=(const DistVec & vec){
-       if (x_offset == -1 && y_offset == -1){
+     assert(offset < MAX_OFFSET);
+     if (x_offset == -1 && y_offset == -1){
          y_offset = vec.offset;
        }  
       r_offset = offset;
@@ -152,7 +176,7 @@ class DistVec{
 
   void debug_print(const char * name){
      if (debug){
-       std::cout<<name<<" ("<<offset<<" [ " << end-start << "] ";
+       std::cout<<name<<" ("<<names[offset]<<" "<<offset<<" [ " << end-start << "] ";
        for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  //TODO
          const vertex_data * data = &glcore->graph().vertex_data(i);
          double * pv = (double*)data;
@@ -201,7 +225,7 @@ class DistMat{
     DistMat &operator*(DistVec & v){
       	x_offset = v.offset;
         A_offset = true;
-        v.transpose = transpose;
+        //v.transpose = transpose;
         //r_offset = A_offset;
         return *this;
     }
@@ -321,8 +345,10 @@ int size(DistMat & A, int pos){
    assert(pos == 1 || pos == 2);
    if (square || pos == 1)
      return n;
-   if (pos == 2)
+   if (pos == 2){
+     assert(m!= 0);
      return m;
+   }
 }
 DistDouble sqrt(DistDouble & dval){
     DistDouble mval;
@@ -332,6 +358,8 @@ DistDouble sqrt(DistDouble & dval){
 
 DistDouble norm(DistVec & vec){
     assert(vec.offset>=0);
+    assert(vec.start < vec.end);
+
     DistDouble mval;
     mval.val = 0;
     for (int i=vec.start; i < vec.end; i++){
@@ -415,9 +443,7 @@ double cg(gl_types::core * _glcore){
     init_row_cols();
 
     DistMat A;
-    DistVec b(0), r, p, x, Ap, t;
-    b.transpose=true;
-    b.start=n; b.end=m+n;
+    DistVec b(0,true), r(true), p(true), x(true), Ap, t(true);
     if (!square)
       x = itpp::ones(m)/2;
     else
