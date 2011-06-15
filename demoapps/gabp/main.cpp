@@ -24,7 +24,7 @@
 #include "jacobi.hpp"
 
 #define ITPP
-#ifdef ITPP //if it++ is installed compiled algo conjugate gradient code
+#ifdef HAS_ITPP //if it++ is installed compiled algo conjugate gradient code
 #include "cg.hpp"
 #else
 double cg(gl_types::core * _glcore){ return 0; };

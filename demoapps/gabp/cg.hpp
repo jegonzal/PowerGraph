@@ -349,6 +349,7 @@ int size(DistMat & A, int pos){
      assert(m!= 0);
      return m;
    }
+   return -1;
 }
 DistDouble sqrt(DistDouble & dval){
     DistDouble mval;
