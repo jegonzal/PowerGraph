@@ -66,7 +66,13 @@ void sgd_update_function(gl_types::iscope &scope,
    // for each rating
    //compute SGD Step 
    foreach(graphlab::edge_id_t oedgeid, outs) {
+#ifndef GL_NO_MULT_EDGES
+      multiple_edges & edges = scope.edge_data(oedgeid);
+      for (int j=0; j< (int)edges.medges.size(); j++){
+         edge_data & edge = edges.medges[j];
+#else
       edge_data & edge = scope.edge_data(oedgeid);
+#endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
       float sqErr = predict(user, movie, edge.weight, estScore);
@@ -75,7 +81,11 @@ void sgd_update_function(gl_types::iscope &scope,
       float err = edge.weight - estScore;
       movie.pvec = movie.pvec + sgd_gamma*(err*user.pvec - sgd_lambda*movie.pvec);
       user.pvec = user.pvec + sgd_gamma*(err*movie.pvec - sgd_lambda*user.pvec);
+#ifndef GL_NO_MULT_EDGES
+      }
+#endif
    }
+
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 

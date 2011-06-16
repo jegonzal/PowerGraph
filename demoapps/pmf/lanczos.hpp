@@ -99,10 +99,19 @@ void Axb(gl_types::iscope &scope,
   t.start(); 
 
    foreach(graphlab::edge_id_t oedgeid, outs) {
+#ifndef GL_NO_MULT_EDGES
+      multiple_edges & edges = scope.edge_data(oedgeid);
+      for (int j=0; j< (int)edges.medges.size(); j++){
+         edge_data & edge = edges.medges[j];
+#else
       edge_data & edge = scope.edge_data(oedgeid);
+#endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       user.rmse += edge.weight * movie.pvec[offset];
-   }
+#ifndef GL_NO_MULT_EDGES
+      }
+#endif
+  }
 
   counter[SVD_MULT_A] += t.current_time();
   if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1))){
@@ -141,10 +150,19 @@ void ATxb(gl_types::iscope &scope,
   t.start(); 
 
    foreach(graphlab::edge_id_t iedgeid, ins) {
+#ifndef GL_NO_MULT_EDGES
+      multiple_edges & edges = scope.edge_data(iedgeid);
+      for (int j=0; j< (int)edges.medges.size(); j++){
+         edge_data & edge = edges.medges[j];
+#else
       edge_data & edge = scope.edge_data(iedgeid);
+#endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
       user.rmse += edge.weight * movie.rmse;
-   }
+#ifndef GL_NO_MULT_EDGES
+      }
+#endif
+      }
 
    user.rmse -= lancbeta[offset2] * user.pvec[offset3];
 

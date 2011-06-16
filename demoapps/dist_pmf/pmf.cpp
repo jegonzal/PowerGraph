@@ -69,7 +69,7 @@ gl_types::graph * g; //pointer to training data
 gl_types::graph training;
 gl_types::graph validation_graph;
 gl_types::graph test_graph;
-
+gl_types::distributed_graph * pdg;
 #ifndef _min
 #define _min(a,b) (a>b)?b:a
 #endif
@@ -126,9 +126,9 @@ double calc_rmse(gl_types::graph * _g, bool test, double & res){
      double RMSE = 0;
      int e = 0;
      for (int i=M; i< M+N; i++){
-       vertex_data & data = g->vertex_data(i);
+       vertex_data & data = pdg->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
+         vertex_data & pdata = pdg->vertex_data(_g->source(iedgeid)); 
             
 #ifndef GL_NO_MULT_EDGES
          multiple_edges & edges = _g->edge_data(iedgeid);
@@ -567,12 +567,12 @@ double calc_obj(double res){
   timer t;
   t.start(); 
   for (int i=0; i< M; i++){
-    const vertex_data * data = &g->vertex_data(i);
+    const vertex_data * data = &pdg->vertex_data(i);
     sumU += sum_sqr(data->pvec);
   } 
 
   for (int i=M; i< M+N; i++){
-    const vertex_data * data = &g->vertex_data(i);
+    const vertex_data * data = &pdg->vertex_data(i);
     sumV += sum_sqr(data->pvec);
   } 
 
@@ -690,7 +690,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("makegraph",
                        &makegraph, makegraph,
                        "If set, creates the initial disk distributed_graph file");
-  clopts.set_scheduler_type("round_robin");
+  clopts.set_scheduler_type("sweep");
  
   //gl_types::core glcore;
   assert(clopts.parse(argc-2, argv+2));
@@ -729,9 +729,9 @@ void start(int argc, char ** argv) {
   gl_types::distributed_core glcore(dc, "pmf.idx");
   // Set the engine options
   glcore.set_engine_options(clopts);
-  glcore.build_engine();
+  assert(  glcore.build_engine() );
 
-
+ 
 
   //read the training data
   printf("loading data file %s\n", infile.c_str());
@@ -749,21 +749,21 @@ void start(int argc, char ** argv) {
     printf("loading data file %s\n", (infile+"t").c_str());
     load_pmf_graph((infile+"t").c_str(),&test_graph, TEST);
 
+    pdg=&glcore.graph();  
    }
-  
+   } 
 
-  if (loadfactors){
-     import_uvt_from_file();
-  }
+//  if (loadfactors){   //TODO
+//     import_uvt_from_file();
+//  }
 
 
-  if (stats){
+  if (dc.procid() == 0 && stats){
     calc_stats(TRAINING);
     calc_stats(VALIDATION);
     calc_stats(TEST);
     exit(0);
   }
-  }//dc.procid() == 0 
 
   if (options != SVD_PLUS_PLUS){
     printf("setting regularization weight to %g\n", LAMBDA);
@@ -1160,6 +1160,13 @@ int main(int argc,  char *argv[]) {
   default:
     assert(0);
   }
+
+  if (infile.find("netflix-r") != string::npos){
+    M=480189; N=17770; L=99072112; K= 27; Le=1408395;
+  } else if (infile.find("netflix") != string::npos) {
+    M=95526; N=3561; K=27; L=3298163; Le = 545177;
+  }
+
 
   logger(LOG_INFO, "%s starting\n",runmodesname[options]);
 
