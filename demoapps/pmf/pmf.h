@@ -31,6 +31,9 @@ In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37.
 For Lanczos algorithm (SVD) see:
 7) http://en.wikipedia.org/wiki/Lanczos_algorithm 
 
+For NMF (non-negative matrix factorization) see:
+8) Lee, D..D., and Seung, H.S., (2001), 'Algorithms for Non-negative Matrix Factorization', Adv. Neural Info. Proc. Syst. 13, 556-562.
+
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
