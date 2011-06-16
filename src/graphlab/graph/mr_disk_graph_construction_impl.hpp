@@ -82,7 +82,7 @@ atom_properties merge_parallel_disk_atom(std::vector<std::string> disk_atom_file
   for (int i = 0;i < (int)atoms.size(); ++i) {
     // open a cursor
     std::string key, val;
-    kyotocabinet::TreeDB::Cursor* cur = atoms[i]->get_db().cursor();
+    disk_atom::storage_type::Cursor* cur = atoms[i]->get_db().cursor();
     cur->jump();
     
     // begin iteration

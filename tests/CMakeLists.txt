@@ -34,4 +34,8 @@ endif()
 
 ADD_CXXTEST(md5test.cxx)
 
+if(EXPERIMENTAL)
+ADD_CXXTEST(mmap_allocator_test.cxx)
+endif()
+
 copyfile(runtests.sh)

@@ -49,6 +49,10 @@ if (MPI_FOUND)
   set(util_mpi_tools util/mpi_tools.cpp)
 endif()
 
+IF (EXPERIMENTAL)
+  set(mmap_allocator util/mmap_allocator.cpp)
+endif()
+
 add_library(graphlab STATIC
   ${metis_sources}
   schedulers/scheduler_options.cpp
@@ -67,6 +71,7 @@ add_library(graphlab STATIC
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/md5.cpp
+  ${mmap_allocator}
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp

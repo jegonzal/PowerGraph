@@ -42,7 +42,7 @@ License along with GraphLab.  If not, see <http://www.gnu.org/licenses/>.
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue2.hpp>
 
-#ifdef ZLIB_FOUND
+#ifdef HAS_ZLIB
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
 #include <graphlab/rpc/dc_stream_receive_z.hpp>
 #endif

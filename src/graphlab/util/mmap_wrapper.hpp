@@ -56,33 +56,47 @@ namespace graphlab {
       }
       ASSERT_MSG(fd >= 0, strerror(errno));    
     
-      // get the file length
-      struct stat statbuf;
-      int ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
+      extend_file(pad);
     
-      // seek to the padding point and write a byte
-      if (pad > 0 && statbuf.st_size < (int)pad) {
-        lseek(fd, pad, SEEK_SET);
-        const ssize_t error(write(fd, " ", 1));
-        ASSERT_NE(error, ssize_t(-1));        
-        ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
-        ASSERT_GE(statbuf.st_size, pad);
-      }
       // mmap it into memory
-      ptrlen = statbuf.st_size;
+      ptrlen = file_length();
       ptr = mmap(0, ptrlen, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
       ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
+    }
+  
+    void extend_file_and_remap(uint64_t pad) {
+      extend_file(file_length() + pad);
+      if (remap_nomove() == false) remap();
+    }
+  
+    uint64_t file_length() {
+      struct stat statbuf;
+      int ret = fstat(fd, &statbuf); ASSERT_EQ(ret, 0);
+      return (uint64_t)statbuf.st_size;
     }
   
     inline void* mapped_ptr() {
       return ptr;
     }
 
+    inline bool remap_nomove() {
+      size_t newptrlen = file_length();
+      void* ret = mremap(ptr, ptrlen, newptrlen,  0);
+      if (ret != MAP_FAILED) {
+        ptrlen = newptrlen;
+        return true;
+      }
+      else {
+        return false;
+      }
+      
+    }
+    
     inline void remap() {
-      munmap(ptr, ptrlen);
-      ptr = mmap(0, ptrlen, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
+      size_t newptrlen = file_length();
+      ptr = mremap(ptr, ptrlen, newptrlen, MREMAP_MAYMOVE);
       ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
-      madvise(ptr, ptrlen, advisetype);
+      ptrlen = newptrlen;
     }
   
     inline void sync(void* start, size_t length) {
@@ -135,6 +149,17 @@ namespace graphlab {
       close();
     }
   private:
+    
+    void extend_file(uint64_t pad) {
+      // get the file length
+      if (pad > 0 && file_length() < pad) {
+        lseek(fd, pad - 1, SEEK_SET);
+        const ssize_t error(write(fd, "\0", 1));
+        ASSERT_NE(error, ssize_t(-1));        
+        ASSERT_GE(file_length(), pad);
+      }
+    }
+    
     std::string fname;
 
     int fd;
