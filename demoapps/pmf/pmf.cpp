@@ -9,6 +9,7 @@
 #include "bptf.hpp"
 #include "sgd.hpp"
 #include "lanczos.hpp"
+#include "nmf.hpp"
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
 #endif
@@ -104,6 +105,8 @@ void export_kdd_format(graph_type * _g, testtype type, bool dosave);
 void calc_stats(testtype type);
 void lanczos(gl_types::core & glcore);
 void init_lanczos();
+void nmf_init();
+
 
 void init_pmf() {
   if (BPTF)
@@ -775,6 +778,7 @@ void add_tasks(gl_types::core & glcore){
        break;
 
      case LANCZOS:
+     case NMF:
        //lanczos is unique since it has more than one update function
        //lanczos code is done later
        break;
@@ -803,7 +807,10 @@ void init(){
 
   	case LANCZOS: 
 	   init_lanczos(); break;
-    
+   
+   case NMF:
+      nmf_init(); break;
+
 	case ALS_MATRIX:
 	case ALS_TENSOR_MULT:
 	case BPTF_TENSOR_MULT:
@@ -814,6 +821,15 @@ void init(){
   }
 }
  
+void run_graphlab(gl_types::core &glcore,timer & gt ){
+        glcore.start();
+        // calculate final RMSE
+        double res, rmse =  agg_rmse_by_movie(res), res2;
+        printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+        double runtime = gt.current_time();
+        printf("Finished in %lf \n", runtime);
+}
+
 /** 
  * ==== SETUP AND START
  */
@@ -976,25 +992,34 @@ void start(int argc, char ** argv) {
   gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
-  if (algorithm != LANCZOS){
-  	glcore.start();
-      // calculate final RMSE
-     double res, rmse =  agg_rmse_by_movie(res), res2;
-     printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
-     double runtime = gt.current_time();
-     printf("Finished in %lf \n", runtime);
- 
-   /**** POST-PROCESSING *****/
+  	switch(algorithm){
+      case ALS_TENSOR_MULT:
+      case ALS_MATRIX:
+      case BPTF_TENSOR_MULT:
+      case BPTF_TENSOR:
+      case BPTF_MATRIX:
+      case SVD_PLUS_PLUS:
+      case STOCHASTIC_GRADIENT_DESCENT:
+         run_graphlab(glcore, gt);
+         break;
+     
+     case LANCZOS:
+        lanczos(glcore); break;
+
+     case NMF:
+        nmf(&glcore); break;
+  }
+
+ if (algorithm != LANCZOS){
+    /**** OUTPUT KDD FORMAT *****/
     if (infile == "kddcup" || infile == "kddcup2"){
       if (outputvalidation) //experimental: output prediction of validation data
- 	export_kdd_format(&validation_graph, VALIDATION, true);
+ 	     export_kdd_format(&validation_graph, VALIDATION, true);
       else //output prediction of test data, as required by KDD 
-	export_kdd_format(&test_graph, TEST, true);
+	     export_kdd_format(&test_graph, TEST, true);
     }
-  }
-  else lanczos(glcore);
+ }
 
-   
   //print timing counters
   for (int i=0; i<11; i++){
     if (counter[i] > 0)
@@ -1285,6 +1310,7 @@ int main(int argc,  char *argv[]) {
   case SVD_PLUS_PLUS:
   case STOCHASTIC_GRADIENT_DESCENT:
   case LANCZOS:
+  case NMF:
     tensor = false; BPTF = false;
     break;
 
