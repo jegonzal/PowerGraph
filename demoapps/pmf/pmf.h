@@ -213,9 +213,10 @@ enum runmodes{
    SVD_PLUS_PLUS = 5, //SVD++, (paper 4)
    STOCHASTIC_GRADIENT_DESCENT = 6, //SGD (paper 5)
    LANCZOS = 7,// Lanczos algorithm (SVD) (reference 6)
+   NMF = 8,
 };
 
-const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "STOCHASTIC GRADIENT DESCENT", "SVD (LANCZOS)"};
+const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "STOCHASTIC GRADIENT DESCENT", "SVD (LANCZOS)", "NMF (non-negative factorization)"};
 
 //counters for debugging running time of different modules
 enum countervals{

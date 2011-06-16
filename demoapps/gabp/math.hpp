@@ -414,7 +414,7 @@ void Axb(gl_types::iscope &scope,
 }
 
 void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
-   for (int j=0; j< nodes.size(); j++){
+   for (int j=0; j< (int)nodes.size(); j++){
        vertex_id_t i =  nodes[j];
        vertex_data & user = g->vertex_data(i);
        double * pr = (double*)&user;
