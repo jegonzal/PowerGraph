@@ -421,7 +421,7 @@ void last_iter(){
   printf("Entering last iter with %d\n", iiter);
 
   double res,res2;
-  double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
+  double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT && algorithm != NMF) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
   //rmse=0;
   printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
