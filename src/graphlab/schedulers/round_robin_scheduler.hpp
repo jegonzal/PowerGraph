@@ -77,6 +77,7 @@ namespace graphlab {
     controlled_termination terminator;
     size_t step;
     size_t blocksize;
+    size_t ncpus;
     /** The local information for each thread
      * Each thread holds a block of vertices at a time
      * if block_begin == (-1) we are done
@@ -97,6 +98,7 @@ namespace graphlab {
       startvertex(0),
       endtask(numvertices),
       step(1),
+      ncpus(ncpus),
       thread_info(ncpus){
       cur_task.value = size_t(0);
       // adapt the blocksize. 
@@ -251,12 +253,18 @@ namespace graphlab {
       opts.get_int_option("max_iterations", maxiterations);
       opts.get_int_option("start_vertex", startvertex);
       opts.get_int_option("step", step);
+      if (opts.get_int_option("block_size", blocksize) == false) {
+        size_t nblocks = 4 * ncpus;
+        blocksize = numvertices / nblocks;
+      }
+      if (blocksize < 1) blocksize = 1;
     }
 
     static void print_options_help(std::ostream &out) {
       out << "max_iterations = [integer, default = 0]\n";
       out << "start_vertex = [integer, default = 0]\n";
       out << "step = [integer which is either 1 or relatively prime to #vertices, default = 1]\n";
+      out << "block_size = Scheduling block size. [integer, default = nvertices/(4*ncpus)]\n";
     }
 
     
