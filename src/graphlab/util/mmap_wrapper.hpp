@@ -80,6 +80,10 @@ namespace graphlab {
     }
 
     inline bool remap_nomove() {
+#ifdef __APPLE__
+      // OS X has no mremap? Can we make this better?
+      return false;
+#else
       size_t newptrlen = file_length();
       void* ret = mremap(ptr, ptrlen, newptrlen,  0);
       if (ret != MAP_FAILED) {
@@ -89,14 +93,23 @@ namespace graphlab {
       else {
         return false;
       }
-      
+#endif   
     }
     
     inline void remap() {
+#ifdef __APPLE__
+      // OS X has no mremap? Can we make this better?
+      munmap(ptr, ptrlen);
+      size_t newptrlen = file_length();
+      ptr = mmap(0, ptrlen, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
+      ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
+      ptrlen = newptrlen;
+#else
       size_t newptrlen = file_length();
       ptr = mremap(ptr, ptrlen, newptrlen, MREMAP_MAYMOVE);
       ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
       ptrlen = newptrlen;
+#endif
     }
   
     inline void sync(void* start, size_t length) {

@@ -624,7 +624,14 @@ namespace graphlab {
       return vcolors[vertex];
     }
 
-
+    vertex_color_type get_color(vertex_id_t vid) const{
+      return color(vid);
+    }
+    
+    void set_color(vertex_id_t vid, vertex_color_type col) {
+      color(vid) = col;
+    }
+    
     /** \brief This function constructs a heuristic coloring for the 
     graph and returns the number of colors */
     size_t compute_coloring() {

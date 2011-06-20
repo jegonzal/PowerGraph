@@ -186,6 +186,9 @@ namespace graphlab {
       return _graph_ptr->num_vertices();  
     }
 
+    vertex_color_type color() const {
+      return _graph_ptr->get_color(_vertex);
+    }
     
     /**
      * \brief Returns the vertex id of the base vertex in this scope.

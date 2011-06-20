@@ -960,7 +960,7 @@ class distributed_graph {
    * It will wait for the remote machine to complete the modification before
    * returning control.
    */
-  void set_color(vertex_id_t vid, vertex_color_type color) const{
+  void set_color(vertex_id_t vid, vertex_color_type color) {
     if (global_vid_in_local_fragment(vid)) {
       localstore.color(global2localvid[vid]) = color;
     }
