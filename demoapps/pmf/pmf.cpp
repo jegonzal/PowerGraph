@@ -1233,7 +1233,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   for (int i=M; i < M+N; i++){
     foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
 #ifndef GL_NO_MULT_EDGES      
-      multiple_edges & tedges= _g->edge_data(eid);
+     const  multiple_edges & tedges= _g->const_edge_data(eid);
 #endif
       int from = _g->source(eid);
       int to = _g->target(eid);
@@ -1242,9 +1242,9 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 
 #ifndef GL_NO_MULT_EDGES
       for (int j=0; j< (int)tedges.medges.size(); j++){
-        edge_data & data= tedges.medges[j];
+        const edge_data & data= tedges.medges[j];
 #else
-      edge_data data = _g->edge_data(eid);
+      const edge_data & data = _g->edge_data(eid);
 #endif
 	if (!ZERO)
         	assert(data.weight != 0);  

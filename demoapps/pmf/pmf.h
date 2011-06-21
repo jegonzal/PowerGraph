@@ -38,7 +38,7 @@ For NMF (non-negative matrix factorization) see:
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
 //#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
-//#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
+#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 using namespace itpp;
 
@@ -239,6 +239,14 @@ enum countervals{
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
 
+//types of graph nodes
+enum colors{
+   COLOR_USER=0,
+   COLOR_MOVIE=1,
+   COLOR_TIME=2,
+   COLOR_LAST=3,
+};
+
 
 //model can support multiple ratings of user to the same movie in different times
 //or a single rating. Single rating will run faster.
@@ -258,11 +266,13 @@ double agg_rmse_by_user(double & res);
 
 
 #ifndef GL_SVD_PP
+void svd_init(){};
 void svd_plus_plus_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler){};
-void svd_init(){};
 #else
 void svd_init();
+void svd_plus_plus_update_function(gl_types::iscope & scope, 
+      gl_types::icallback & scheduler);
 #endif
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef __SVD_HPP
-#define __SVD_HPP
+#ifndef __LANCZOS_HPP
+#define __LANCZOS_HPP
 
 #include "graphlab.hpp"
 #include <graphlab/macros_def.hpp>
@@ -309,4 +309,4 @@ void lanczos(gl_types::core & glcore){
 }
 
 #include "graphlab/macros_undef.hpp"
-#endif //__SVD_HPP
+#endif //__LANCZOS_HPP

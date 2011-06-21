@@ -125,11 +125,11 @@ void nmf_init(){
      x1[i] = x2[i] = 0;
   }
 }
-edge_list get_edges(gl_types::iscope & scope){
-     return ((int)scope.vertex() < M) ? scope.out_edge_ids(): scope.in_edge_ids();
+const edge_list get_edges(bool isuser, gl_types::iscope & scope){
+     return isuser ? scope.out_edge_ids(): scope.in_edge_ids();
 }
-const vertex_data& get_neighbor(gl_types::iscope & scope, edge_id_t oedgeid){
-     return ((int)scope.vertex() < M) ? scope.neighbor_vertex_data(scope.target(oedgeid)) :  scope.neighbor_vertex_data(scope.source(oedgeid));
+const vertex_data& get_neighbor(bool isuser, gl_types::iscope & scope, edge_id_t oedgeid){
+     return isuser ? scope.const_neighbor_vertex_data(scope.target(oedgeid)) :  scope.const_neighbor_vertex_data(scope.source(oedgeid));
 }
      
 void nmf_update_function(gl_types::iscope & scope, 
@@ -139,14 +139,15 @@ void nmf_update_function(gl_types::iscope & scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
  
+  bool isuser = ((int)scope.vertex() < M);
+  int id = scope.vertex();
+
   
   /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
-    printf("NMF: entering %s node  %u \n", (((int)scope.vertex() < M) ? "user":"movie"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , user.pvec, D);
+  if (debug&& ((id == 0) || (id == M-1) || (id  == M) || (id == M+N-1))){
+    printf("NMF: entering %s node  %u \n", (isuser ? "user":"movie"), id);   
+    debug_print_vec((isuser ? "V " : "U") , user.pvec, D);
   }
-
-  assert((int)scope.vertex() < M+N);
 
   user.rmse = 0;
 
@@ -154,42 +155,52 @@ void nmf_update_function(gl_types::iscope & scope,
     return; //if this user/movie have no ratings do nothing
   }
 
-  double * buf = new double[(int)scope.vertex() <M? N:M];
+  double * buf = new double[isuser? N:M];
   double * ret = new double[D];
   for (int i=0; i<D; i++)
      ret[i] = 0;
-  for (int i=0; i< (((int)scope.vertex() < M ) ? N:M); i++)
+  for (int i=0; i< (isuser ? N:M); i++)
      buf[i] = 0;
 
-  edge_list outs = get_edges(scope);
+  edge_list outs = get_edges(isuser, scope);
   timer t; t.start(); 
     
    foreach(graphlab::edge_id_t oedgeid, outs) {
 
-      edge_data & edge = scope.edge_data(oedgeid);
+#ifdef GL_NO_MULT_EDGES
+      const edge_data & edge = scope.const_edge_data(oedgeid);
+#else
+      const multiple_edges edges = scope.const_edge_data(oedgeid);
+      for (int j=0; j< (int)edges.medges.size(); j++){  
+         const edge_data & edge = edges.medges[j];
+#endif
       double v = edge.weight;
-      const vertex_data  & movie = get_neighbor(scope, oedgeid);
+      const vertex_data  & movie = get_neighbor(isuser, scope, oedgeid);
       float prediction;     
       float sq_err = predict(user, movie, NULL, v , prediction);
-      int pos = ((int)scope.vertex() < M) ? (scope.target(oedgeid) - M) : scope.source(oedgeid); 
+      int pos = isuser ? (scope.target(oedgeid) - M) : scope.source(oedgeid); 
       buf[pos] = v/prediction;
       user.rmse += sq_err;
-    }
+#ifndef GL_NO_MULT_EDGES
+        }
+#endif
+   }
+  counter[EDGE_TRAVERSAL] += t.current_time();
 
+  t.start();
     foreach(graphlab::edge_id_t oedgeid, outs){
       
-       const vertex_data  & movie = get_neighbor(scope, oedgeid);
+       const vertex_data  & movie = get_neighbor(isuser,scope, oedgeid);
        for (int j=0; j<D; j++){
-         int pos = ((int)scope.vertex() < M) ? (scope.target(oedgeid) - M) : scope.source(oedgeid); 
+         int pos = isuser ? (scope.target(oedgeid) - M) : scope.source(oedgeid); 
          ret[j] += movie.pvec[j] * buf[pos];
        }
     }
-     
+  counter[SVD_MULT_A] += t.current_time();   
 
-  counter[EDGE_TRAVERSAL] += t.current_time();
 
   double * px;
-  if ((int)scope.vertex() < M)
+  if (isuser)
      px = x1;
   else 
      px = x2;
@@ -199,9 +210,9 @@ void nmf_update_function(gl_types::iscope & scope,
      user.pvec[i] *= ret[i] / px[i];
   }
  /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
-    printf("NMF: exiting %s node  %u \n", (((int)scope.vertex() < M) ? "user":"movie"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , user.pvec, D);
+  if (debug&& (id == 0 || (id == M-1) || (id == M) || (id == M+N-1))){
+    printf("NMF: exiting %s node  %u \n", (isuser ? "user":"movie"), id);   
+    debug_print_vec((isuser ? "V " : "U") , user.pvec, D);
   }
 
   delete[] buf;
@@ -213,9 +224,9 @@ void pre_user_iter(){
       x1[i] = 0;
 
    for (int i=M; i<M+N; i++){
-    const vertex_data * data = &glcore->graph().vertex_data(i);
+    const vertex_data & data = glcore->graph().vertex_data(i);
     for (int i=0; i<D; i++){
-      x1[i] += data->pvec[i];
+      x1[i] += data.pvec[i];
     }
   }
 }
@@ -224,9 +235,9 @@ void pre_movie_iter(){
       x2[i] = 0;
 
    for (int i=0; i<M; i++){
-    const vertex_data * data = &glcore->graph().vertex_data(i);
+    const vertex_data & data = glcore->graph().vertex_data(i);
     for (int i=0; i<D; i++){
-      x2[i] += data->pvec[i];
+      x2[i] += data.pvec[i];
     }
   }
 }
@@ -246,18 +257,19 @@ void nmf(gl_types::core * _glcore){
    for (int j=1; j<= svd_iter+1; j++){
 
      pre_user_iter();
-     cout<<"x1: " << x1[0] <<endl;
+     if (debug)
+        cout<<"x1: " << x1[0] <<endl;
      glcore->add_tasks(rows, nmf_update_function, 1);
      glcore->start();
-
+     
      pre_movie_iter();
-     cout<<"x2:" << x2[0] << endl;
-
+     if (debug)
+        cout<<"x2:" << x2[0] << endl;
      glcore->add_tasks(cols, nmf_update_function, 1);
      glcore->start();
      
 
-     last_iter();
+     //last_iter();  //TODO
    }
 }
 
