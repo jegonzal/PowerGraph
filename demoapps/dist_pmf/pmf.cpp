@@ -126,9 +126,9 @@ double calc_rmse(gl_types::graph * _g, bool test, double & res){
      double RMSE = 0;
      int e = 0;
      for (int i=M; i< M+N; i++){
-       vertex_data & data = pdg->vertex_data(i);
+       const vertex_data & data = pdg->get_vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         vertex_data & pdata = pdg->vertex_data(_g->source(iedgeid)); 
+         const vertex_data & pdata = pdg->get_vertex_data(_g->source(iedgeid)); 
             
 #ifndef GL_NO_MULT_EDGES
          multiple_edges & edges = _g->edge_data(iedgeid);
@@ -186,8 +186,8 @@ double calc_rmse_q(double & res){
   res = 0;
   double RMSE = 0;
   for (int i=M; i< M+N; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
-    RMSE+= data->rmse;
+    const vertex_data & data = pdg->get_vertex_data(i);
+    RMSE+= data.rmse;
   }
   res = RMSE;
   counter[CALC_RMSE_Q] += t.current_time();
@@ -230,6 +230,7 @@ int count_edges(dgraph_edge_list es){
   return es.size();
 #endif
 }
+
 
 
 /***
@@ -567,13 +568,13 @@ double calc_obj(double res){
   timer t;
   t.start(); 
   for (int i=0; i< M; i++){
-    const vertex_data * data = &pdg->vertex_data(i);
-    sumU += sum_sqr(data->pvec);
+    const vertex_data  data = pdg->get_vertex_data(i);
+    sumU += sum_sqr(data.pvec);
   } 
 
   for (int i=M; i< M+N; i++){
-    const vertex_data * data = &pdg->vertex_data(i);
-    sumV += sum_sqr(data->pvec);
+    const vertex_data  data = pdg->get_vertex_data(i);
+    sumV += sum_sqr(data.pvec);
   } 
 
 
@@ -601,7 +602,7 @@ void export_uvt_to_file(){
  mat V = zeros(N,D);
  mat T = zeros(K,D);
  for (int i=0; i< M+N; i++){ 
-    vertex_data & data = g->vertex_data(i);
+    const vertex_data data = pdg->get_vertex_data(i);
     if (i < M)
 	U.set_row(i, data.pvec);
     else
@@ -656,6 +657,24 @@ void import_uvt_from_file(){
  
 }
 
+void dispatch_update_function(gl_types::iscope & scope,
+      gl_types::icallback & scheduler){
+
+   switch (scope.color()){
+      case COLOR_USER:
+      case COLOR_MOVIE:
+         user_movie_nodes_update_function(scope, scheduler);
+         break;
+
+      case COLOR_TIME:
+         time_node_update_function(scope,scheduler);
+         break;
+
+      case COLOR_LAST:
+         break;//TODO
+   }
+
+}
 
  
 /** 
@@ -731,16 +750,26 @@ void start(int argc, char ** argv) {
   glcore.set_engine_options(clopts);
   assert(  glcore.build_engine() );
 
- 
+  if (dc.procid() == 0){  
+ #ifdef GL_NO_MULT_EDGES
+  logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
+#endif
+#ifdef GL_NO_MCMC
+  logstream(LOG_WARNING)<<"Code compiled with GL_NO_MCMC flag - this mode does not support MCMC methods.\n";
+#endif
+#ifdef GL_SVD_PP
+  logstream(LOG_WARNING)<<"Code compiled with GL_SVD_PP flag - this mode only supports SVD++ run.\n";
+#endif
+  }
 
   //read the training data
+  if (dc.procid() == 0){
   printf("loading data file %s\n", infile.c_str());
   if (!loadgraph){
     //g=&glcore.graph();
     //load_pmf_graph(infile.c_str(), g, TRAINING, glcore);
 
 
-  if (dc.procid() == 0){
   //read the vlidation data (optional)
     printf("loading data file %s\n", (infile+"e").c_str());
     load_pmf_graph((infile+"e").c_str(),&validation_graph, VALIDATION);
@@ -773,30 +802,18 @@ void start(int argc, char ** argv) {
 
   if (tensor)
     dp = GenDiffMat(K)*pT;
-  if (debug)
+  if (debug && dc.procid() == 0)
     std::cout<<dp<<std::endl;
 
-  if (dc.procid() == 0){
-  std::vector<vertex_id_t> um;
-  for (int i=0; i< M+N; i++)
-    um.push_back(i);
  
   // add update function for user and movie nodes (tensor dims 1+2) 
 #ifndef GL_SVD_PP
-  glcore.add_tasks(um, user_movie_nodes_update_function, 1);
+  glcore.add_task_to_all(dispatch_update_function, 1);
 #else
-  glcore.add_tasks(um, svd_plus_plus_update_function, 1);
+  glcore.add_task_to_all(svd_plus_plus_update_function, 1);
 #endif  
-
-  std::vector<vertex_id_t> tv;
-  if (tensor){
-    for (int i=M+N; i< M+N+K; i++)
-      tv.push_back(i);
-     // add update function for time nodes (tensor dim 3)
-    glcore.add_tasks(tv, time_node_update_function, 1);
-  }
-
   
+  if (dc.procid() == 0){
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[options], tensor?"tensor":"matrix", M, N, K, L, D);
   
   if (options != SVD_PLUS_PLUS && options != BPTF_TENSOR && options != BPTF_TENSOR_MULT)
@@ -845,7 +862,8 @@ void start(int argc, char ** argv) {
   // calculate final RMSE
   
   if (dc.procid() == 0){ 
-  double rmse =  0; double res, res2; //TODO: calc_rmse_q(res);
+  double rmse =  0; double res, res2; //TODO: 
+  calc_rmse_q(rmse);
   printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
 
   /**** POST-PROCESSING *****/
@@ -1116,15 +1134,6 @@ int main(int argc,  char *argv[]) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   logstream(LOG_INFO)<< "PMF/ALS/SVD++ Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
-#ifdef GL_NO_MULT_EDGES
-  logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
-#endif
-#ifdef GL_NO_MCMC
-  logstream(LOG_WARNING)<<"Code compiled with GL_NO_MCMC flag - this mode does not support MCMC methods.\n";
-#endif
-#ifdef GL_SVD_PP
-  logstream(LOG_WARNING)<<"Code compiled with GL_SVD_PP flag - this mode only supports SVD++ run.\n";
-#endif
 
   if (argc < 3){
     logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n\t5 = SVD++ algorithm\n";  

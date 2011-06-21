@@ -199,6 +199,15 @@ enum countervals{
    BPTF_LEAST_SQUARES2=10, 
 };
 
+//types of graph nodes
+enum colors{
+   COLOR_USER=0,
+   COLOR_MOVIE=1,
+   COLOR_TIME=2,
+   COLOR_LAST=3,
+};
+
+
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", "NA", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "NA", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2"};
 
