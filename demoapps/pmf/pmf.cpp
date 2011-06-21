@@ -814,9 +814,9 @@ void init(){
 	case ALS_MATRIX:
 	case ALS_TENSOR_MULT:
 	case BPTF_TENSOR_MULT:
-        case BPTF_MATRIX:
-        case BPTF_TENSOR:
-        case STOCHASTIC_GRADIENT_DESCENT:
+   case BPTF_MATRIX:
+   case BPTF_TENSOR:
+   case STOCHASTIC_GRADIENT_DESCENT:
 	   init_pmf(); break;
   }
 }
