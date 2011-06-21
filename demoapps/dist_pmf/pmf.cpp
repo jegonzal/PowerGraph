@@ -882,6 +882,8 @@ void start(int argc, char ** argv) {
 
    export_uvt_to_file();
    }
+
+   graphlab::mpi_tools::finalize();
 }
 
 

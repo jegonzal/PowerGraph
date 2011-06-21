@@ -451,8 +451,11 @@ void calc_T(int i){
   assert(tensor);
  
   assert(i >=0 && i < K);
-  if (ZERO && edges[i].size() == 0)
-	  return;
+  if (ZERO && edges[i].size() == 0){
+     if (i == K-1)
+        last_iter();
+    return;
+  }
 
   assert(edges[i].size() > 0);
 
