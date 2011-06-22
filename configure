@@ -13,6 +13,10 @@ INSTALL_DIR=/usr/local
 EXPERIMENTAL=false
 GRAPHLAB_HOME=$PWD
 
+## Overwrite defaults if they are available
+if [ -f configure.deps ]; then
+  source configure.deps
+fi
 
 
 
