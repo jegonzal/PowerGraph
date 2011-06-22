@@ -1,24 +1,20 @@
+## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
-IF(APPLE)
-  SET(CMAKE_C_COMPILER "gcc-4.2")	
-  SET(CMAKE_CXX_COMPILER "c++-4.2")
-ENDIF(APPLE)
-
-## Unfortunately this does not work since llvm does not seem to support openmp
-# # Build using the llvm compiler which provides gcc-4.2 support on
-# # later releases of ubuntu
-  # SET(CMAKE_C_COMPILER "llvm-gcc")	
-  # SET(CMAKE_CXX_COMPILER "llvm-c++")
-# SET(CMAKE_C_COMPILER "gcc-4.2")	
-# SET(CMAKE_CXX_COMPILER "g++-4.2")
+if(APPLE)
+  set(CMAKE_C_COMPILER "gcc-4.2")	
+  set(CMAKE_CXX_COMPILER "c++-4.2")
+endif(APPLE)
 
 
 
+
+## ===================================================================
+# Basic Project Declaration 
 
 project(GraphLab)
 
-INCLUDE (CheckLibraryExists) 
-INCLUDE (CheckFunctionExists) 
+include (CheckLibraryExists) 
+include (CheckFunctionExists) 
 
 cmake_minimum_required(VERSION 2.4)
 
@@ -27,44 +23,44 @@ if(COMMAND cmake_policy)
   cmake_policy(SET CMP0005 NEW)
 endif(COMMAND cmake_policy)
 
-# cmake_policy(SET CMP0014 OLD)
+# Determine where additional GraphLab specific cmake modules are
+# defined
+set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 
-if(NOT $ENV{EXPERIMENTAL} STREQUAL "")
-  set(EXPERIMENTAL $ENV{EXPERIMENTAL} CACHE BOOL "Turns on experimental capabilities")
-else()
-  set(EXPERIMENTAL 0 CACHE BOOL "Turns on experimental capabilities")
+
+
+## ===================================================================
+# Process command line arguments defined using cmake -D arg=val
+
+if(NOT EXPERIMENTAL)
+  set(EXPERIMENTAL 0 CACHE BOOL "Enables building of experimental
+  components.")
+endif()
+
+if(NOT KC_ROOT)
+  set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
 endif()
 
 
 
 
 
-set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
-
-#set(CROSS_COMPILE_32_BIT 1)
-
-# Make sure testing is enabled
-ENABLE_TESTING()
-
-
-# Use Python interpreter
-FIND_PACKAGE(PythonInterp)
+## ===================================================================
+# Setup Boost Libraries
 
 # Use the Boost libraries
-SET (Boost_USE_STATIC_LIBS TRUE)
-FIND_PACKAGE(Boost 1.39 COMPONENTS 
+set(Boost_USE_STATIC_LIBS TRUE)
+find_package(Boost 1.39 COMPONENTS 
   program_options; filesystem; system REQUIRED)
 
-
-
-SET(Boost_SHARED_LIBRARIES "")
+set(Boost_SHARED_LIBRARIES "")
 # Stupid hack because Cmake cannot seperate the shared from the static versions
 foreach(blib ${Boost_LIBRARIES})
   message(STATUS "Boost libs: " ${blib})
-  STRING(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
+  string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
   message(STATUS "Boost dyn libs: " ${bout})
-  SET(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
+  set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
 endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
@@ -72,7 +68,8 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 # find_package(Java)
 
 
-
+## ===================================================================
+# Setup CUDA libraries
 # # Use CUDA libraries (required only for GPU GraphLab)
 # find_package(CUDA)
 # # If CUDA libraries were not found, ignore commands:
@@ -92,16 +89,16 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
 #Find the JNI library
-FIND_PACKAGE(JNI)
-IF(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
-  SET(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
+find_package(JNI)
+if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
+  set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
   actually exists")
 message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-ELSE( )
-  SET(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
+else( )
+  set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
 message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
-ENDIF( )
+endif( )
 
 
 
@@ -109,44 +106,44 @@ ENDIF( )
 # EXPERIMENTAL (distributed) Capabilities
 find_package(MPICH2)
 
-IF(MPI_FOUND)
+if(MPI_FOUND)
   message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   add_definitions(-DHASMPI)
-ELSE(MPI_FOUND)
+else(MPI_FOUND)
   message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-ENDIF(MPI_FOUND)
+endif(MPI_FOUND)
 
 
-IF(EXPERIMENTAL)
-#Find zoltan library
-SET(ZOLTAN_ROOT "/usr/local/glzoltan" CACHE STRING 
-  "The path to zoltan/include and zoltan/lib")
-IF(EXISTS ${ZOLTAN_ROOT} )
-  SET(ZOLTAN_FOUND 1 CACHE BOOL "True if the Zoltan library was found")
-  SET(ZOLTAN_INCLUDE_DIR 
-    ${ZOLTAN_ROOT}/include 
-    CACHE STRING "Zoltan library include directory")
-  SET(ZOLTAN_LINK_DIR 
-    ${ZOLTAN_ROOT}/lib 
-    CACHE STRING "Zoltan library lib directory")
-  SET(ZOLTAN_LIBS 
-    zoltan
-    ptscotch
-    ptscotcherr
-    parmetis
-    metis
-    CACHE STRING "Zoltan library include directory")
-  message(STATUS "Zoltan library was found at " ${ZOLTAN_ROOT})
+if(EXPERIMENTAL)
+  #Find zoltan library
+  set(ZOLTAN_ROOT "/usr/local/glzoltan" CACHE STRING 
+    "The path to zoltan/include and zoltan/lib")
+  if(EXISTS ${ZOLTAN_ROOT} )
+    set(ZOLTAN_FOUND 1 CACHE BOOL "True if the Zoltan library was found")
+    set(ZOLTAN_INCLUDE_DIR 
+      ${ZOLTAN_ROOT}/include 
+      CACHE STRING "Zoltan library include directory")
+    set(ZOLTAN_LINK_DIR 
+      ${ZOLTAN_ROOT}/lib 
+      CACHE STRING "Zoltan library lib directory")
+    set(ZOLTAN_LIBS 
+      zoltan
+      ptscotch
+      ptscotcherr
+      parmetis
+      metis
+      CACHE STRING "Zoltan library include directory")
+    message(STATUS "Zoltan library was found at " ${ZOLTAN_ROOT})
 
-  include_directories( ${ZOLTAN_INCLUDE_DIR} )
-  link_directories( ${ZOLTAN_LINK_DIR}  )
-ELSE( )
-  SET(ZOLTAN_FOUND 0 CACHE BOOL "True if the Zoltan library was found")
-  message(STATUS "Zoltan library was NOT found at " ${ZOLTAN_ROOT})
-ENDIF( )
+    include_directories( ${ZOLTAN_INCLUDE_DIR} )
+    link_directories( ${ZOLTAN_LINK_DIR}  )
+  else( )
+    set(ZOLTAN_FOUND 0 CACHE BOOL "True if the Zoltan library was found")
+    message(STATUS "Zoltan library was NOT found at " ${ZOLTAN_ROOT})
+  endif( )
 
-# check for SCTP
-  FIND_LIBRARY(Sctp NAMES sctp)
+  # check for SCTP
+  find_library(Sctp NAMES sctp)
   if(Sctp MATCHES Sctp-NOTFOUND)
     message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
     set(Sctp-FOUND)
@@ -166,33 +163,27 @@ else()
 endif()
 
 
-# search for kyoto cabinet
-if(NOT $ENV{KC_ROOT} STREQUAL "")
-  set(KC_ROOT $ENV{KC_ROOT} CACHE STRING "Kyoto Cabinet Prefix")
-else()
-  set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
-endif()
 
-FIND_LIBRARY(KYOTO_SHARED_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
-FIND_PATH(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
+find_library(KYOTO_SHARED_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
+find_path(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
 if (KYOTO_SHARED_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
-    message(FATAL_ERROR "Kyoto Cabinet not found. Run bootstrap!")
+  message(FATAL_ERROR "Kyoto Cabinet not found. Run bootstrap!")
 endif()
 
 if (KYOTO_INCLUDE_DIR MATCHES KYOTO_INCLUDE_DIR-NOTFOUND)
-    message(FATAL_ERROR "Kyoto Cabinet includes not found. Run bootstrap!")
+  message(FATAL_ERROR "Kyoto Cabinet includes not found. Run bootstrap!")
 else()
-    message(STATUS "Kyoto Cabinet Found")
+  message(STATUS "Kyoto Cabinet Found")
 endif()
 # get the static version
-STRING(REGEX REPLACE "\\${CMAKE_SHARED_LIBRARY_SUFFIX}$" ".a" KYOTO_STATIC_LIBRARY ${KYOTO_SHARED_LIBRARY})
+string(REGEX REPLACE "\\${CMAKE_SHARED_LIBRARY_SUFFIX}$" ".a" KYOTO_STATIC_LIBRARY ${KYOTO_SHARED_LIBRARY})
 message(STATUS "Kyoto Cabinet: ${KYOTO_STATIC_LIBRARY}" )
 
 
 include_directories(${KYOTO_INCLUDE_DIR})
 
 
-CHECK_LIBRARY_EXISTS(z zlibVersion "" ZLIB_FOUND)
+check_library_exists(z zlibVersion "" ZLIB_FOUND)
 if (ZLIB_FOUND)
   add_definitions(-DHAS_ZLIB)
   link_libraries(z)
@@ -204,7 +195,10 @@ include(CheckCXXSourceCompiles)
 
 set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_LIBRARIES "itpp")
-CHECK_CXX_SOURCE_COMPILES("#include <itpp/itbase.h>\nint main(int argc ,char** argv) { itpp::vec v; return 0; }" ITPP-FOUND)
+
+check_cxx_source_compiles("#include <itpp/itbase.h>\nint main(int
+argc, char** argv) { itpp::vec v; return 0; }" ITPP-FOUND)
+
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 if (ITPP-FOUND)
   link_libraries(itpp)
@@ -218,7 +212,7 @@ endif()
 
 set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_LIBRARIES "pthread")
-CHECK_FUNCTION_EXISTS(pthread_setaffinity_np HAS_SET_AFFINITY) 
+check_function_exists(pthread_setaffinity_np HAS_SET_AFFINITY) 
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 
 
@@ -229,7 +223,7 @@ set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})
 
 
 # check for TCMalloc
-CHECK_LIBRARY_EXISTS("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
+check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
 if (TCMALLOC-FOUND)
   message(STATUS "tcmalloc found. Using it everywhere")
   link_libraries(tcmalloc)
@@ -359,12 +353,17 @@ endif()
 # uncomment the following line to get CMake variables to print to screen
 # include(CMakePrintSystemInformation)
 
-
-SET(CXXTESTGEN ${CMAKE_SOURCE_DIR}/cxxtest/cxxtestgen.py)
-
-MACRO(ADD_CXXTEST NAME)
-  IF(PYTHONINTERP_FOUND)
-    ADD_CUSTOM_COMMAND(
+## ===================================================================
+# testing tools
+# Make sure testing is enabled
+enable_testing()
+# Use Python interpreter
+find_package(PythonInterp)
+set(CXXTESTGEN ${CMAKE_SOURCE_DIR}/cxxtest/cxxtestgen.py)
+# create a macro to define a test
+macro(ADD_CXXTEST NAME)
+  if(PYTHONINTERP_FOUND)
+    add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp
       COMMAND
       ${PYTHON_EXECUTABLE} ${CXXTESTGEN}
@@ -373,51 +372,53 @@ MACRO(ADD_CXXTEST NAME)
       DEPENDS ${ARGV}
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       )
-  ENDIF(PYTHONINTERP_FOUND)
-
+  endif(PYTHONINTERP_FOUND)
   add_graphlab_executable(${NAME}test ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp)
+  add_test(${NAME} ${NAME}test)
+endmacro(ADD_CXXTEST)
 
-  ADD_TEST(${NAME} ${NAME}test)
-ENDMACRO(ADD_CXXTEST)
 
 
-MACRO(copyfile NAME)
-  ADD_CUSTOM_TARGET(
+## ===================================================================
+# Useful macros 
+
+macro(copyfile NAME)
+  add_custom_target(
     ${NAME} ALL
     COMMAND 
     ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
     ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Copying ${NAME}"
-  )
-ENDMACRO(copyfile NAME)
+    )
+endmacro(copyfile NAME)
 
-MACRO(EXEC file prog)
-  ADD_CUSTOM_COMMAND(
+macro(EXEC file prog)
+  add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file}
     COMMAND
     ${prog}
     DEPENDS ${prog}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
-ENDMACRO(EXEC)
+endmacro(EXEC)
 
 
-MACRO(add_graphlab_executable NAME)
-  ADD_EXECUTABLE(${NAME} ${ARGN})
-  TARGET_LINK_LIBRARIES(${NAME} ${Boost_LIBRARIES})
-  TARGET_LINK_LIBRARIES(${NAME} ${GraphLab_LIBRARIES})
-  TARGET_LINK_LIBRARIES(${NAME} ${KYOTO_STATIC_LIBRARY})
-ENDMACRO(add_graphlab_executable)
+macro(add_graphlab_executable NAME)
+  add_executable(${NAME} ${ARGN})
+  target_link_libraries(${NAME} ${Boost_LIBRARIES})
+  target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
+  target_link_libraries(${NAME} ${KYOTO_STATIC_LIBRARY})
+endmacro(add_graphlab_executable)
 
 
 
 
 
-MACRO(add_dist2_executable NAME)
-  IF(MPI_FOUND)
-    ADD_EXECUTABLE(${NAME} ${ARGN})
-    TARGET_LINK_LIBRARIES(${NAME} 
+macro(add_dist2_executable NAME)
+  if(MPI_FOUND)
+    add_executable(${NAME} ${ARGN})
+    target_link_libraries(${NAME} 
       graphlab_dist2 
       graphlab
       ${MPI_LIBRARY} 
@@ -426,38 +427,38 @@ MACRO(add_dist2_executable NAME)
       ${KYOTO_STATIC_LIBRARY}
       )
 
-    SET_SOURCE_FILES_PROPERTIES( ${ARGN}
+    set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
     # set_property(TARGET ${NAME} APPEND PROPERTY 
     #   COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
     #    add_definitions(-DGLDISTRIBUTED)
 
-  ELSE(MPI_FOUND)
+  else(MPI_FOUND)
     message(STATUS "Not Building " ${NAME} " since mpi was not found.")
-  ENDIF(MPI_FOUND)
-ENDMACRO(add_dist2_executable)
+  endif(MPI_FOUND)
+endmacro(add_dist2_executable)
 
 
 
 
 
 
-MACRO(add_zoltan_executable NAME)
-  IF(MPI_FOUND AND ZOLTAN_FOUND)
-    ADD_EXECUTABLE(${NAME} ${ARGN})   
-    TARGET_LINK_LIBRARIES(${NAME} 
+macro(add_zoltan_executable NAME)
+  if(MPI_FOUND AND ZOLTAN_FOUND)
+    add_executable(${NAME} ${ARGN})   
+    target_link_libraries(${NAME} 
       graphlab
       graphlab_dist2
       graphlab_zoltan
       ${ZOLTAN_LIBS}
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} )
-  ELSE( )
+  else( )
     if(EXPERIMENTAL)   
-    message(STATUS "Not Building " ${NAME} " because zoltan was not found")
+      message(STATUS "Not Building " ${NAME} " because zoltan was not found")
     endif()
-  ENDIF( )
-ENDMACRO(add_zoltan_executable)
+  endif( )
+endmacro(add_zoltan_executable)
 
 
 
@@ -544,19 +545,17 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
 endif()
 
 
-## Installation rules
-## ============================================================
-INSTALL(DIRECTORY src/  
+## ===================================================================
+# Installation rules
+install(DIRECTORY src/  
   DESTINATION include
   FILES_MATCHING PATTERN "*.hpp"  PATTERN "*.h" 
   PATTERN ".svn" EXCLUDE
   )
 
+install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
+  ${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY
+  ${CMAKE_CURRENT_SOURCE_DIR})")
 
-
-
-INSTALL(CODE "execute_process(COMMAND ./install_deps.sh ${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})")
-
-# Install target graphlab moved to after definition
 
 

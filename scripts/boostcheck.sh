@@ -1,4 +1,8 @@
 #!/bin/bash
+
+pushd .
+cd $DEPS_DIR
+
 function test_for_boost {
   # if force boost install is set, don't probe. assume failure
   if [ ! -z $force_boost_install ] ; then
@@ -104,3 +108,8 @@ else
     echo "Boost Found!"
   fi
 fi
+
+popd
+
+
+

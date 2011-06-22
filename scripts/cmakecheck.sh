@@ -1,5 +1,9 @@
 #!/bin/bash
 
+pushd .
+
+cd $DEPS_DIR
+
 function download_file {
   # detect wget
   echo "Downloading $2 from $1 ..."
@@ -75,3 +79,10 @@ else
     echo "cmake detected in $cmake_pos. Skipping cmake installation."
   fi
 fi
+
+
+popd
+
+
+
+

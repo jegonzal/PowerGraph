@@ -2,6 +2,9 @@
 
 major_version=1
 
+echo "THIS MUST BE RUN IN GRAPHLAB HOME"
+
+## JOEY: WHY ARE WE REMOVING THE FOLDER AND THEN USING RSYNC?
 rm -fR dist/graphlabapi
 mkdir -p dist/graphlabapi
 rsync -vv -al --delete --delete-excluded \

@@ -1,110 +1,224 @@
 #!/bin/bash
+
+## Begin logging in config.log
+LOG_FILE=config.log
+date | tee $LOG_FILE
+
+## Define some defaults which are modified by the script and whatever
+## is defined in configure.deps
+RELEASE_DIR=release
+DEBUG_DIR=debug
+PROFILE_DIR=profile
+INSTALL_DIR=/usr/local
+EXPERIMENTAL=false
+GRAPHLAB_HOME=$PWD
+
+
+
+
+
 function print_help {
   echo "Usage: ./configure [--bootstrap] [--force_cmake_install]"
   echo "                   [--force_boost_install] [--prefix=PREFIX]"
   echo "                   [--experimental]"
   echo
-  echo "      --bootstrap        bootstrap will install CMake/Boost if they are not detected."
+  echo "      --cleanup               remove all build directories"
+  echo 
+  echo "      --bootstrap             bootstrap will install CMake/Boost if they are not detected."
   echo
   echo "      --force_cmake_install   This forces a CMake installation even if CMake is detected."
   echo
   echo "      --force_boost_install   This forces a Boost installation even if Boost is detected."
   echo
-  echo "      --force_kc_install   This forces a Kyoto Cabinet installation even if Kyoto Cabinet is detected."
+  echo "      --force_kc_install      This forces a Kyoto Cabinet installation even if Kyoto Cabinet is detected."
   echo
   echo "      --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
   echo 
   echo "      --experimental          Turns on undocumented experimental distributed capabilities. "
+  echo "      --itpp                  Try to automatically build itpp"
   echo
   exit 1
 }
+
+function run_cleanup {
+  #!/bin/bash
+  echo "This script completely erases all build folders including dependencies!!!"
+  echo "Are you sure you want to continue? (yes or no)"
+  read yesorno;
+  if [ "$yesorno" == "yes" ]; then 
+    echo "Removing release debug and profile folders";
+    rm -rf release debug profile deps configure.deps
+  else
+    echo "Doing nothing!";
+  fi 
+  exit 1
+}
+
 
 function unknown_option {
   echo "Unrecognized option: $1"
   echo "To get help, run ./configure --help"
   exit 1
 }
-  
+
+
 while [ $# -gt 0 ]
   do case $1 in
-    --help)             print_help ;;
-    --bootstrap)  bootstrap=1 ;;
-    --force_cmake_install)    force_cmake_install=1 ;;
-    --force_boost_install)    force_boost_install=1 ;;
-    --force_kc_install)    force_kc_install=1 ;;
-    --prefix=*) prefix=${1##--prefix=} ;;
-    --experimental) experimental=1 ;;
+    --help)                 print_help ;;
+    --cleanup)              run_cleanup ;;
+    --bootstrap)            bootstrap=1 ;;
+    --force_cmake_install)  force_cmake_install=1 ;;
+    --force_boost_install)  force_boost_install=1 ;;
+    --force_kc_install)     force_kc_install=1 ;;
+    --prefix=*)             prefix=${1##--prefix=} ;;
+    --experimental)         experimental=1 ;;
+    --itpp)                 itpp=1 ;;
     *) unknown_option $1 ;;
   esac
   shift
 done
 
-# reset the configure.deps
+##==========================================================
+##  Construct configure.deps file specifying the necessary environment
+##  variables
+
+# Create a configure deps if no such file already exists
 if [ ! -f configure.deps ]; then
-  echo "CMAKE='cmake'" > configure.deps
+  # Initialize with default settings
+  echo "RELEASE_DIR=$RELEASE_DIR"     >> configure.deps
+  echo "DEBUG_DIR=$DEBUG_DIR"         >> configure.deps
+  echo "PROFILE_DIR=$PROFILE_DIR"     >> configure.deps
 fi
 
-if [ ! -z $bootstrap ]; then
-  source ./bootstrap.sh 
-fi
-
-source configure.deps
-
-if [ -z prefix ]; then
-  install_directory="/usr/local"
+# Enable or disable experimental graphlab components
+if [ ! -z $experimental ]; then
+  echo "EXPERIMENTAL=true"       >> configure.deps
 else
-  install_directory=$prefix
+  echo "EXPERIMENTAL=$EXPERIMENTAL"      >> configure.deps
+fi
+
+
+# Run the bootstrap script which populates configure.deps
+if [ ! -z $bootstrap ]; then
+  source ./scripts/bootstrap.sh | tee -a $LOG_FILE
+fi
+
+# Try to build itpp
+if [ ! -z $itpp ]; then
+  source ./scripts/itpp_install.sh | tee -a $LOG_FILE
+fi
+
+
+#if the prefix is not specified
+if [ ! -z $prefix ]; then
+  echo "INSTALL_DIR=$prefix"     >> configure.deps
+else
+  echo "INSTALL_DIR=$INSTALL_DIR"  >> configure.deps
+fi
+
+
+
+# Run the configure deps
+source configure.deps 
+
+
+#if cmake was not defined then define it
+if [ -z $CMAKE ]; then
+    CMAKE=cmake
+fi
+
+
+echo -e \
+    "======================= BUILD CONFIGURATION ========================\n"\
+    "System Information: " | tee -a $LOG_FILE
+uname -v | tee -a $LOG_FILE
+echo "GCC Information: " | tee -a $LOG_FILE
+gcc --version | tee -a $LOG_FILE
+echo -e \
+    "Release build path:        $RELEASE_DIR \n"\
+    "Debug build path:          $DEBUG_DIR \n"\
+    "Profile build path:        $PROFILE_DIR \n"\
+    "Install path:              $INSTALL_DIR \n"\
+    "BOOST_ROOT:                $BOOST_ROOT \n"\
+    "KC_ROOT:                   $KC_ROOT \n"\
+    "Build experimental parts:  $EXPERIMENTAL \n" | tee -a $LOG_FILE
+
+
+
+
+# Construct config flags for cmake
+if [ ! -z $INSTALL_DIR ]; then
+    config_flags="$config_flags -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
 fi
 
 if [ ! -z $BOOST_ROOT ]; then
-  echo "BOOST_ROOT=$BOOST_ROOT"
+    config_flags="$config_flags -D BOOST_ROOT:STRING=$BOOST_ROOT"
 fi
 
 if [ ! -z $KC_ROOT ]; then
-  echo "KC_ROOT=$KC_ROOT"
+    config_flags="$config_flags -D KC_ROOT:STRING=$KC_ROOT"
+fi
+
+if [ ! -z $EXPERIMENTAL ]; then
+    config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 fi
 
 
-reldir="./release"
-debugdir="./debug"
-profiledir="./profile"
-# matlabdir="./matlabmex"
 
-if [ ! -d $reldir ]; then
-    mkdir $reldir
+### CONSTRUCT THE BUILD DIRECTORIES ===========================================
+
+echo -e "\n\n\n======================= Release ========================" \
+    | tee -a $LOG_FILE 
+
+
+
+if [ ! -d $RELEASE_DIR ]; then
+    mkdir $RELEASE_DIR
 fi
+cd $RELEASE_DIR
+rm -f CMakeCache.txt
+build_cmd="$CMAKE \
+    -D CMAKE_BUILD_TYPE=Release \
+    $config_flags \
+    ../."
+echo $build_cmd | tee -a "../$LOG_FILE"
+eval $build_cmd | tee -a "../$LOG_FILE"
+cd $GRAPHLAB_HOME
 
-if [ ! -d $debugdir ]; then
-    mkdir $debugdir
+
+echo -e "\n\n\n======================= Debug =========================" \
+    | tee -a $LOG_FILE 
+
+if [ ! -d $DEBUG_DIR ]; then
+    mkdir $DEBUG_DIR
 fi
+cd $DEBUG_DIR
+rm -f CMakeCache.txt
+build_cmd="$CMAKE \
+    -D CMAKE_BUILD_TYPE=Debug \
+    $config_flags \
+    ../."
+echo $build_cmd | tee -a ../$LOG_FILE
+eval $build_cmd | tee -a ../$LOG_FILE
+cd $GRAPHLAB_HOME
 
-if [ ! -d $profiledir ]; then
-    mkdir $profiledir
+
+echo -e "\n\n\n======================= Profile ========================" \
+    | tee -a $LOG_FILE 
+
+if [ ! -d $PROFILE_DIR ]; then
+    mkdir $PROFILE_DIR
 fi
-# if [ ! -d $matlabdir ]; then
-#    mkdir $matlabdir
-# fi
+cd $PROFILE_DIR
+rm -f CMakeCache.txt
+build_cmd="$CMAKE \
+    -D CMAKE_BUILD_TYPE=Release \
+    -D COMPILE_PROFILING=1 \
+    $config_flags \
+    ../."
 
-envopts="BOOST_ROOT=$BOOST_ROOT KC_ROOT=$KC_ROOT"
-if [ ! -z $experimental ]; then
-  envopts="$envopts EXPERIMENTAL=$experimental"
-fi
+echo $build_cmd | tee -a ../$LOG_FILE
+eval $build_cmd | tee -a ../$LOG_FILE
+cd $GRAPHLAB_HOME
 
-cd $reldir
-rm CMakeCache.txt
-env $envopts $CMAKE -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=$install_directory ../.
-cd ..
 
-cd $debugdir
-rm CMakeCache.txt
-env $envopts $CMAKE -D CMAKE_BUILD_TYPE=Debug  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
-cd ..
-
-cd $profiledir
-rm CMakeCache.txt
-env $envopts $CMAKE -D CMAKE_BUILD_TYPE=Release -D COMPILE_PROFILING=1  -D CMAKE_INSTALL_PREFIX=$install_directory ../.
-cd ..
-
-# cd $matlabdir
-# cmake -D CMAKE_BUILD_TYPE=Mex  ../.
-# cd ..
