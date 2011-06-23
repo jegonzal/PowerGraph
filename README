@@ -6,8 +6,8 @@
 License
 =======
 
-GraphLab is free software licensed under the Apache License. See
-LICENSE.txt for details.
+GraphLab is free software licensed under the Apache 2.0 License. See
+license/LICENSE.txt for details.
 
 The GraphLab source distribution contains a modified version of METIS
 which is under a different license. See the file 
