@@ -274,21 +274,30 @@ FILE * load_matrix_metadata(const char * filename){
    FILE * f = fopen(filename, "r");
    assert(f!= NULL);
 
-   fread(&n, 1, 4, f);
    fread(&m, 1, 4, f);
+   fread(&n, 1, 4, f);
+   if (n == 0) 
+      n=m; //compatability with older file format, will be removed later
    return f;
 }
 
-
+/*
+ *  READ A SQUARE INVERSE COV MATRIX A of size nxn
+ *  Where the main digonal is the precision vector
+ * */
 void load_square_matrix(FILE * f, graph_type& graph) {
 
-  assert(m==0);
+  assert(m == n);
+  assert(n > 0);
+  //read the observation vector y of size n
   read_nodes(f, sizeof(vertex_data)/sizeof(sdouble), GABP_PRIOR_MEAN_OFFSET,
              n, &graph);
 
+  //read the real solution of size n (if given, otherwise it is zero)
   double * real = read_vec(f, n);
   dispatch_vec(0,n,GABP_REAL_OFFSET, &graph, real, n, true);
 
+  //read the precition of size n (the main diagonal of the matrix A)
   double * prec = read_vec(f, n);
   dispatch_vec(0,n,GABP_PRIOR_PREC_OFFSET, &graph, prec, n, true);
 
@@ -296,13 +305,19 @@ void load_square_matrix(FILE * f, graph_type& graph) {
   fclose(f);
 }
 
+
+/**
+ * READ A NON-SQUARE matrix of size m rows x n cols 
+ * Where the observation y is a vector of size m, the solution vector x=A\y is 
+ * a vector of size n.
+ */
 void load_non_square_matrix(FILE * f, graph_type& graph) {
   
   assert( n > 0);
   assert( m > 0);
   assert(m!=n); 
   
-  printf("Loading a non-square matrix A of size %d x %d\n", n,m);
+  printf("Loading a non-square matrix A of size %d x %d\n", m,n);
 
   if (supportgraphlabcf){ //read matrix factorization file (GraphLab collabrative filtering format)
      int tmp;
@@ -318,11 +333,15 @@ void load_non_square_matrix(FILE * f, graph_type& graph) {
           e = read_edges<edata3>(f, sizeof(edge_data), 0, n+m, &graph);
   }
   else { //read A, x, y, from file
+  
+    //read y (the observation) of size m
     read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_PRIOR_MEAN_OFFSET,m,&graph);
+    
+    //read x (the real solution, if given) of size n
     read_nodes(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_REAL_OFFSET,n,&graph);
-
+    //read the precision vector of size m+n (of both solution and observation)
     double * prec = read_vec(f, n+m);
     dispatch_vec(0,n+m,GABP_PRIOR_PREC_OFFSET, &graph, prec, n+m, true);
     dispatch_vec(0,n+m,GABP_PREV_MEAN_OFFSET, &graph, 1);
@@ -352,7 +371,6 @@ int main(int argc,  char *argv[]) {
   std::string datafile;
   double threshold = 1e-5;
   bool support_null_variance = false;
-  bool finish = false;
   size_t iter = 0;
   int syncinterval = 10000;
   int algorithm;
@@ -404,7 +422,7 @@ int main(int argc,  char *argv[]) {
  
   // Load the graph --------------------------------------------------
   FILE * f = load_matrix_metadata(datafile.c_str());
-  if (m == 0){ //square matrix
+  if (m == n){ //square matrix
      square = true;
      load_square_matrix(f, core.graph());
   }
@@ -466,14 +484,13 @@ int main(int argc,  char *argv[]) {
   THRESHOLD_KEY.set(threshold);
   SUPPORT_NULL_VARIANCE_KEY.set(support_null_variance);
   ROUND_ROBIN_KEY.set(round_robin);
-  FINISH_KEY.set(finish);
   DEBUG_KEY.set(debug);
   MAX_ITER_KEY.set(iter);
 
   core.graph().compute_coloring();
 
   //create a vector for storing the output
-  std::vector<double> means(m+n);
+  std::vector<double> means(n);
 
 
   // START GRAPHLAB *****
@@ -492,7 +509,7 @@ int main(int argc,  char *argv[]) {
   // POST-PROCESSING *****
   std::cout << algorithmnames[algorithm] << " finished in " << runtime << std::endl;
 
-  std::vector<double> precs(m+n);
+  std::vector<double> precs(n);
   double diff = 0;
   for (size_t i = m; i < core.graph().num_vertices(); i++){
     const vertex_data& vdata = core.graph().vertex_data(i);
