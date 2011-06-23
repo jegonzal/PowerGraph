@@ -138,6 +138,8 @@ echo -e \
 uname -v | tee -a $LOG_FILE
 echo "GCC Information: " | tee -a $LOG_FILE
 gcc --version | tee -a $LOG_FILE
+g++ --version | tee -a $LOG_FILE
+
 echo -e \
     "Release build path:        $RELEASE_DIR \n"\
     "Debug build path:          $DEBUG_DIR \n"\
