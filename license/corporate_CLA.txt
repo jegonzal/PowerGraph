@@ -7,9 +7,9 @@ Software Grant and Corporate Contributor License Agreement ("Agreement")
                             (v r190612)
 
 
-Thank you for your interest in Carnegie Mellon University ("CMU"). In
-order to clarify the intellectual property license granted with
-Contributions from any person or entity, the Foundation must have a
+Thank you for your interest in GraphLab. In order to clarify the
+intellectual property license granted with Contributions from any
+person or entity, Carnegie Mellon University ("CMU") must have a
 Contributor License Agreement (CLA) on file that has been signed by
 each Contributor, indicating agreement to the license terms
 below. This license is for your protection as a Contributor as well as
@@ -78,15 +78,15 @@ reserve all right, title, and interest in and to Your Contributions.
    any original work of authorship, including any modifications or
    additions to an existing work, that is intentionally submitted by
    You to CMU for inclusion in, or documentation of, any of the
-   products owned or managed by the Foundation (the "Work"). For the
-   purposes of this definition, "submitted" means any form of
-   electronic, verbal, or written communication sent to CMU or its
-   representatives, including but not limited to communication on
-   electronic mailing lists, source code control systems, and issue
-   tracking systems that are managed by, or on behalf of, CMU for the
-   purpose of discussing and improving the Work, but excluding
-   communication that is conspicuously marked or otherwise designated
-   in writing by You as "Not a Contribution."
+   products owned or managed by CMU (the "Work"). For the purposes of
+   this definition, "submitted" means any form of electronic, verbal,
+   or written communication sent to CMU or its representatives,
+   including but not limited to communication on electronic mailing
+   lists, source code control systems, and issue tracking systems that
+   are managed by, or on behalf of, CMU for the purpose of discussing
+   and improving the Work, but excluding communication that is
+   conspicuously marked or otherwise designated in writing by You as
+   "Not a Contribution."
 
 2. Grant of Copyright License. Subject to the terms and conditions of
    this Agreement, You hereby grant to CMU and to recipients of
