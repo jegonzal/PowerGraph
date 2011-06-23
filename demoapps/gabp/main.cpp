@@ -51,8 +51,8 @@
 #include <graphlab/macros_def.hpp>
 
 
-uint32_t n = 0; // number of rows of A
-uint32_t m = 0; // number of cols of A (only used for non square matrix. In squre matrix the number is n)
+uint32_t m = 0; // number of rows of A
+uint32_t n = 0; // number of cols of A
 uint32_t e = 0; // number of edges
 
 bool square=true;
@@ -374,6 +374,7 @@ int main(int argc,  char *argv[]) {
   size_t iter = 0;
   int syncinterval = 10000;
   int algorithm;
+  int unittest = 0;
 
   clopts.attach_option("algorithm", &algorithm, "Algorithm 0=Gaussian BP, 1= Jacobi");
   clopts.add_positional("algorithm");
@@ -393,11 +394,45 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("cg_noop", &cg_noop, cg_noop, "perform math vec operation serially ");
   clopts.attach_option("cg_resid", &cg_resid, cg_resid, "compute cg residual progress ");
   clopts.attach_option("zero", &zero, zero, "support sparse matrix entry containing zero val ");
+  clopts.attach_option("unittest", &unittest, unittest, "unit testing ( allowed values: 1/2)");
+ 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
     return EXIT_FAILURE;
   }
+
+  if (unittest == 1){
+    logstream(LOG_WARNING)<< "Going to run GaBP unit testing using matrix of size 3x2" << std::endl;
+    const char * args[] = {"gabp", "0", "mat3x2", "1e-10", "--unittest=1","--syncinterval=10000"};
+    clopts.parse(6, (char**)args);
+    clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
+  }
+  else if (unittest == 2){
+    logstream(LOG_WARNING)<< "Going to run GaBP unit testing using matrix of size 3x3" << std::endl;
+    const char * args[] = {"gabp", "0", "mat3x3", "1e-10", "--unittest=2", "--syncinterval=10000"};
+    clopts.parse(6, (char**)args);
+    clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
+  }
+  else if (unittest == 3){
+    logstream(LOG_WARNING)<< "Going to run Jacobi unit testing using matrix of size 3x3" << std::endl;
+    const char * args[] = {"gabp", "1", "mat3x3", "1e-10", "--unittest=3", "--syncinterval=10000"};
+    clopts.parse(6, (char**)args);
+    clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
+  }
+  else if (unittest == 4){
+    logstream(LOG_WARNING)<< "Going to run CG unit testing using matrix of size 3x3" << std::endl;
+    const char * args[] = {"gabp", "2", "mat3x3", "1e-10", "--unittest=3", "--syncinterval=10000"};
+    clopts.parse(6, (char**)args);
+    clopts.set_scheduler_type("fifo");
+  }
+ else if (unittest == 5){
+    logstream(LOG_WARNING)<< "Going to run CG unit testing using matrix of size 3x2" << std::endl;
+    const char * args[] = {"gabp", "2", "mat3x2", "1e-10", "--unittest=3", "--syncinterval=10000"};
+    clopts.parse(6, (char**)args);
+    clopts.set_scheduler_type("fifo");
+  }
+
 
   // Ensure that a data file is provided
   if(!clopts.is_set("data")) {
@@ -405,9 +440,9 @@ int main(int argc,  char *argv[]) {
     clopts.print_description();
     return EXIT_FAILURE;
   }
- // Ensure that a data file is provided
+ // Ensure that an algorithm is provided
   if(!clopts.is_set("algorithm")) {
-    logstream(LOG_ERROR)<< "No algorithm provided! Choose from: 0) GaBP 1) Jacobi" << std::endl;
+    logstream(LOG_ERROR)<< "No algorithm provided! Choose from: 0) GaBP 1) Jacobi 2) CG" << std::endl;
     clopts.print_description();
     return EXIT_FAILURE;
   }
@@ -495,6 +530,7 @@ int main(int argc,  char *argv[]) {
 
   // START GRAPHLAB *****
   double runtime;
+  double diff = 0;
 
   switch(algorithm){
       case GaBP:
@@ -503,23 +539,28 @@ int main(int argc,  char *argv[]) {
         break;
 
       case CONJUGATE_GRADIENT:
-        runtime = cg(&core,means);
+        runtime = cg(&core,means,diff);
         break;
   }
   // POST-PROCESSING *****
   std::cout << algorithmnames[algorithm] << " finished in " << runtime << std::endl;
 
   std::vector<double> precs(n);
-  double diff = 0;
   for (size_t i = m; i < core.graph().num_vertices(); i++){
     const vertex_data& vdata = core.graph().vertex_data(i);
-    diff += ((vdata.real - vdata.cur_mean)*
-             (vdata.real - vdata.cur_mean));
-     means[i] = vdata.cur_mean;
-     precs[i] = vdata.cur_prec;
+     if (algorithm == JACOBI || algorithm == GaBP){
+       diff += pow(vdata.real - vdata.cur_mean,2);
+       means[i-m] = vdata.cur_mean;
+       precs[i-m] = vdata.cur_prec;
+     }
+     //TODO: else if (algorithm == CONJUGATE_GRADIENT)
+     //   diff += pow(means[i-m] - vdata.real,2);
   }
+
+  if (algorithm == JACOBI || algorithm == GaBP){
   std::cout << "Assuming the linear system is Ax=y, and the correct solution is x*," << algorithmnames[algorithm] << " converged to an accuracy norm(x-x*) of " << diff
             << " msg norm is: " << RELATIVE_NORM_KEY.get_val() << std::endl;
+   }
 
    f = fopen((datafile+".out").c_str(), "w");
    assert(f!= NULL);
@@ -531,6 +572,19 @@ int main(int argc,  char *argv[]) {
      write_vec(f, means.size(), &precs[0]);
 
    fclose(f);
+
+   if (unittest == 1){
+      assert(diff <= 1.7e-4);
+   }
+   else if (unittest == 2){
+      assert(diff <= 1e-15);
+   }
+   else if (unittest == 3){
+      assert(diff <= 1e-30);
+   }
+   else if (unittest == 4 || unittest == 5)
+      assert(diff < 1e-14);
+   
    return EXIT_SUCCESS;
 }
 

@@ -60,13 +60,15 @@ using namespace graphlab;
 end
 */
 
-double cg(gl_types::core * _glcore, std::vector<double> & means){
+double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
 
     glcore = _glcore;
+    int tmp=n; n=m; m = tmp;
+    diff = NAN;
     init_row_cols();
 
     DistMat A;
-    DistVec b(0,true), r(true), p(true), x(true), Ap, t(true);
+    DistVec b(0,true), prec(1,true), r(2, true), p(3,true), x(4,true), Ap(5), t(6,true);
     //initialize startng guess
     if (!square)
       x = ones(0.5,m);
@@ -80,14 +82,9 @@ double cg(gl_types::core * _glcore, std::vector<double> & means){
        p = r;
        rsold = r'*r;
     */
-    if (square){
-      r=-A*x+b; 
-    }
-    else {
-      r=-A*x;
+    r=-A*x+b; 
+    if (!square)
       r=A._transpose()*r;
-      r=r+b;
-    }
     p = r;
     rsold = r._transpose()*r;
 
@@ -115,18 +112,15 @@ double cg(gl_types::core * _glcore, std::vector<double> & means){
         x=x+alpha*p;
    
         if (cg_resid){
-          t=A*x;
-          if (!square)
-           t=A._transpose()*t-b;
-          else
-           t=t-b;
+          t=A*x-b;
           logstream(LOG_INFO)<<"Iteration " << i << " approximated solution redidual is " << norm(t).toDouble() << std::endl;
         }
 
         r=r-alpha*Ap;
         rnew=r._transpose()*r;
         if (sqrt(rnew)<1e-10){
-          logstream(LOG_INFO)<<" Conjugate gradient converged in iteration "<<i<<" to an accuracy of "  << sqrt(rnew).toDouble() << std::endl; 
+          diff = sqrt(rnew).toDouble();
+          logstream(LOG_INFO)<<" Conjugate gradient converged in iteration "<<i<<" to an accuracy of "  << diff << std::endl; 
           break;
         }
         tmpdiv = rnew/rsold;
