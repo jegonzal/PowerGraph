@@ -18,6 +18,9 @@
  *
  *      http://www.graphlab.ml.cmu.edu
  *
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
  */
 
 
@@ -59,11 +62,11 @@ namespace graphlab {
   };
 
   /**
-  The atom index file is a file describing the locations and adjacency
-  structure of a collection of atom files. It can be generated from
-  a list of atom files using the disk_graph. The atom index file is stored
-  as text for human readability.
-  */
+     The atom index file is a file describing the locations and
+     adjacency structure of a collection of atom files. It can be
+     generated from a list of atom files using the disk_graph. The
+     atom index file is stored as text for human readability.
+   */
   struct atom_index_file {
 
     size_t nverts, nedges, ncolors, natoms;
@@ -73,9 +76,19 @@ namespace graphlab {
     void write_to_file(std::string outfilename);
   };
 
+
+  /**
+     Assign the atoms to parts (machines) by striping over the nparts.
+     That is atom $i$ is assigned to machine 
+     \f$ ret[i] = i \mod \text{nparts} \f$
+   */
   std::vector<std::vector<size_t> > 
   partition_atoms_sliced(const atom_index_file& atomindex, size_t nparts);
 
+  /**
+     This function assigns atoms to each processor by partitioning the
+     atom graph using METIS.
+   */
   std::vector<std::vector<size_t> >
   partition_atoms(const atom_index_file& atomindex, size_t nparts);
 
