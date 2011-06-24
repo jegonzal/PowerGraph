@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <stdint.h>
 
 #include <string>
 #include <graphlab/logger/assertions.hpp>
