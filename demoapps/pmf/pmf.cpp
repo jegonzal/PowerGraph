@@ -1,3 +1,26 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 #include <fstream>
 #include <cmath>
 #include <cstdio>
@@ -451,8 +474,11 @@ void calc_T(int i){
   assert(tensor);
  
   assert(i >=0 && i < K);
-  if (ZERO && edges[i].size() == 0)
-	  return;
+  if (ZERO && edges[i].size() == 0){
+     if (i == K-1)
+        last_iter();
+    return;
+  }
 
   assert(edges[i].size() > 0);
 
@@ -827,7 +853,7 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
         double res, rmse =  agg_rmse_by_movie(res), res2;
         printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
         double runtime = gt.current_time();
-        printf("Finished in %lf \n", runtime);
+        printf("Finished in %lf seconds\n", runtime);
 }
 
 /** 
@@ -1282,7 +1308,7 @@ int main(int argc,  char *argv[]) {
 
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "PMF/ALS/SVD++/SGD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 #ifdef GL_NO_MULT_EDGES
   logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
 #endif
@@ -1294,7 +1320,9 @@ int main(int argc,  char *argv[]) {
 #endif
 
   if (argc < 3){
-    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n\t5 = SVD++ algorithm\n";  
+    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \t\nRun modes are: \n";
+    for (int i=0; i< MAX_RUNMODE; i++) 
+       logstream(LOG_ERROR) << "\t" << i << " " << runmodesname[i] << std::endl;  
     exit(1);
   }
    

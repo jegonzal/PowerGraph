@@ -1,4 +1,8 @@
 #!/bin/bash
+
+pushd .
+cd $DEPS_DIR
+
 function test_for_kc {
   # if force boost install is set, don't probe. assume failure
   if [ ! -z $force_kc_install ] ; then
@@ -101,3 +105,6 @@ else
     echo "Kyoto Cabinet Found!"
   fi
 fi
+
+popd
+

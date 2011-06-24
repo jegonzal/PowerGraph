@@ -279,8 +279,9 @@ function install_from_source {
   fi
 }
 
-mkdir -p deps
-cd deps
+pushd .
+mkdir -p $DEPS_DIR
+cd $DEPS_DIR
 echo "Detecting itpp..."
 echo
 # first argument 
@@ -300,4 +301,4 @@ if [ -z $itppfound ] ; then
   fi
 fi
 find_itpp_lib
-cd ..
+popd

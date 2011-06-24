@@ -219,7 +219,9 @@ enum runmodes{
    NMF = 8,
 };
 
-const char * runmodesname[] = {"ALS_MATRIX", "BPTF_MATRIX", "BPTF_TENSOR", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "STOCHASTIC GRADIENT DESCENT", "SVD (LANCZOS)", "NMF (non-negative factorization)"};
+#define MAX_RUNMODE 8
+
+const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)"};
 
 //counters for debugging running time of different modules
 enum countervals{

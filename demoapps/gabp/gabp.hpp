@@ -1,3 +1,26 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 /**
  * GRAPHLAB implementation of Gaussiabn Belief Propagation Code See
  * algrithm description and explanation in: Danny Bickson, Gaussian
@@ -41,7 +64,6 @@ void gabp_update_function(gl_types::iscope &scope,
 
   const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get();
   const bool& round_robin = ROUND_ROBIN_KEY.get();
-  const bool& finish = FINISH_KEY.get();
   const bool& debug = DEBUG_KEY.get();
 
 
@@ -110,7 +132,7 @@ void gabp_update_function(gl_types::iscope &scope,
         out_edge.prec = -((out_edge.weight * out_edge.weight) / J_i_j);//matrix is assumed symmetric!
       }
 
-      if (!finish && !round_robin) {
+      if (!round_robin) {
         gl_types::update_task task(target, gabp_update_function);
         double priority = fabs(vdata.cur_prec) + 1e-5;
         scheduler.add_task(task, priority);
