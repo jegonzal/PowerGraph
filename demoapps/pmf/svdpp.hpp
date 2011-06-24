@@ -91,7 +91,7 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
          edge_data & item = _g->edge_data(oedgeid);
          vertex_data & movie = g->vertex_data(_g->target(oedgeid)); 
          float estScore;
-         sqErr += svd_predict(usr, movie, item.weight, estScore);
+         sqErr += svd_predict(usr, movie, NULL, item.weight, estScore);
          nCases++;
        }
    }
@@ -117,7 +117,7 @@ void svd_post_iter(){
   iiter++;
 }
 
-float svd_predict(const vertex_data& user, const vertex_data& movie, float rating, float & prediction){
+float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction){
       prediction = globalMean[0];
       prediction += movie.pvec*(user.pvec+user.weight);
       prediction += user.bias + movie.bias;
@@ -184,7 +184,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
-      user.rmse += svd_predict(user, movie, edge.weight, estScore); 
+      user.rmse += svd_predict(user, movie, NULL, edge.weight, estScore); 
       float err = edge.weight - estScore;
       assert(!isnan(user.rmse));
      vec itmFctr = movie.pvec;

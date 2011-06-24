@@ -37,7 +37,7 @@ For NMF (non-negative matrix factorization) see:
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
-//#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
+#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
 //#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 using namespace itpp;
@@ -112,11 +112,7 @@ struct vertex_data {
 
 struct edge_data {
   float  weight;  //observation 
-#ifndef GL_NO_MULT_EDGES
   float  time; //time of observation (for tensor algorithms)
-#else
-  short time;
-#endif
 #ifndef GL_NO_MCMC  
   float avgprd;
 #endif
@@ -156,37 +152,40 @@ struct multiple_edges{
 };
 
 
-float svd_predict(const vertex_data& user, const vertex_data& movie, float rating, float & prediction);
+float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction);
 
 //methods to compute the Root mean square error (RMSE)     
-inline float predict(const vec& x1, const vec& x2, float rating, float & prediction){
+inline float predict(const vec& x1, const vec& x2, const edge_data * edge, float rating, float & prediction){
 	prediction = dot(x1, x2);	
-        //return the squared error
-        prediction = min(prediction, maxval);
-        prediction = max(prediction, minval);
-	return powf(prediction - rating, 2);
+   //return the squared error
+   prediction = min(prediction, maxval);
+   prediction = max(prediction, minval);
+	float sq_err = powf(prediction - rating, 2);
+   return sq_err;
 }
 
-inline double predict(const vertex_data& user, const vertex_data &movie, float rating, float & prediction){
+inline double predict(const vertex_data& user, const vertex_data &movie, const edge_data * edge, float rating, float & prediction){
 #ifdef GL_SVD_PP	
-   return svd_predict(user, movie, rating, prediction);
+   return svd_predict(user, movie, edge, rating, prediction);
 #else
-   return predict(user.pvec, movie.pvec, rating, prediction);
+   return predict(user.pvec, movie.pvec, edge, rating, prediction);
 #endif
 } 
 
 
-inline float predict(const vertex_data& v1, const vertex_data& v2, const vertex_data *v3, float rating, float &prediction){
+inline float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction){
 	if (v3 == NULL) //matrix	
-		return predict(v1,v2,rating,prediction);
+		return predict(v1,v2,edge, rating,prediction);
 
 	prediction = 0;
 	for (int i=0; i< v1.pvec.size(); i++){
 	   prediction += (v1.pvec[i] * v2.pvec[i] * v3->pvec.get(i));
 	}
-        prediction = min(prediction, maxval);
-        prediction = max(prediction, minval);
-	return powf(prediction - rating, 2);
+   prediction = min(prediction, maxval);
+   prediction = max(prediction, minval);
+   float sq_err = powf(prediction - rating, 2);
+   return sq_err;
+   
 }
 
 
@@ -217,11 +216,12 @@ enum runmodes{
    STOCHASTIC_GRADIENT_DESCENT = 6, //SGD (paper 5)
    LANCZOS = 7,// Lanczos algorithm (SVD) (reference 6)
    NMF = 8,
+   WEIGHTED_ALS = 9,
 };
 
-#define MAX_RUNMODE 8
+#define MAX_RUNMODE 9
 
-const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)"};
+const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares"};
 
 //counters for debugging running time of different modules
 enum countervals{
