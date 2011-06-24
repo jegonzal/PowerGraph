@@ -1175,9 +1175,12 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   }
 
   int _M,_N,_K;
-  fread(&_M,1,4,f);//movies
-  fread(&_N,1,4,f);//users/
-  fread(&_K,1,4,f);//time
+  int rc = fread(&_M,1,4,f);//movies
+  assert(rc==4); 
+  rc=fread(&_N,1,4,f);//users/
+  assert(rc==4); 
+  rc=fread(&_K,1,4,f);//time
+  assert(rc==4); 
   assert(_K>=1);
   assert(_M>=1 && _N>=1); 
   if (data_type != TRAINING && M != _M)
