@@ -377,7 +377,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {
       if (compressed) {
-        #ifdef ZLIB_FOUND
+        #ifdef HAS_ZLIB
         receivers.push_back(new dc_impl::dc_stream_receive_z(this));
         #else
         logger(LOG_FATAL, "Not compiled with ZLib. Compressed option not available");
@@ -392,7 +392,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
       }
   
       if (compressed) {
-        #ifdef ZLIB_FOUND
+        #ifdef HAS_ZLIB
         single_sender = false;
         senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue_z(this, comm, i));
         #else
