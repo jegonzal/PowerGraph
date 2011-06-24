@@ -7,7 +7,7 @@
 
 Thank you for your interest in GraphLab. In order to clarify the
 intellectual property license granted with Contributions from any
-person or entity, Carneige Mellon University ("CMU") must have a
+person or entity, Carnegie Mellon University ("CMU") must have a
 Contributor License Agreement ("CLA") on file that has been signed by
 each Contributor, indicating agreement to the license terms
 below. This license is for your protection as a Contributor as well as
@@ -48,7 +48,7 @@ present and future Contributions submitted to CMU. In return, CMU
 shall not use Your Contributions in a way that is contrary to the
 public benefit or inconsistent with its nonprofit status and bylaws in
 effect at the time of the Contribution. Except for the license granted
-herein to the CMU and recipients of software distributed by CMU, You
+herein to CMU and recipients of software distributed by CMU, You
 reserve all right, title, and interest in and to Your Contributions.
 
 1. Definitions.

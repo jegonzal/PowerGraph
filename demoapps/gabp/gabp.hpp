@@ -64,7 +64,6 @@ void gabp_update_function(gl_types::iscope &scope,
 
   const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get();
   const bool& round_robin = ROUND_ROBIN_KEY.get();
-  const bool& finish = FINISH_KEY.get();
   const bool& debug = DEBUG_KEY.get();
 
 
@@ -133,7 +132,7 @@ void gabp_update_function(gl_types::iscope &scope,
         out_edge.prec = -((out_edge.weight * out_edge.weight) / J_i_j);//matrix is assumed symmetric!
       }
 
-      if (!finish && !round_robin) {
+      if (!round_robin) {
         gl_types::update_task task(target, gabp_update_function);
         double priority = fabs(vdata.cur_prec) + 1e-5;
         scheduler.add_task(task, priority);

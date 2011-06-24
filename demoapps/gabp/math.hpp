@@ -163,10 +163,13 @@ class DistVec{
   DistVec& operator=(const std::vector<double> & pvec){
     assert(offset >= 0);
     assert(pvec.size() == m || pvec.size() == n);
-    if (pvec.size() == m){
+    if (!square && pvec.size() == m){
       transpose = true;
-      assert(!square);
       start = n; end = m+n;
+    }
+    else {
+      transpose = false;
+      start = 0; end = n;
     }
     
     for (int i=start; i< (int)end; i++){  

@@ -98,7 +98,7 @@ void sgd_update_function(gl_types::iscope &scope,
 #endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
-      float sqErr = predict(user, movie, edge.weight, estScore);
+      float sqErr = predict(user, movie, NULL, edge.weight, estScore);
       user.rmse += sqErr;
       assert(!isnan(user.rmse));
       float err = edge.weight - estScore;

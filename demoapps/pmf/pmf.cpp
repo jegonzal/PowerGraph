@@ -64,8 +64,8 @@ bool outputvalidation = false; //experimental: output validation results of kdd 
 bool delinktimebins = false; //experimental: if true, regards different time bins as independent
 bool binaryoutput = false; //export the factors U,V,T to a binary file
 
-double scaling = 1; //aggregate time values into bins? (default =1, no aggregation)
-double truncating =0; // truncate unused time bins (optional, default = 0, no truncation)
+double scaling = 1.0; //aggregate time values into bins? (default =1, no aggregation)
+double truncating = 0.0; // truncate unused time bins (optional, default = 0, no truncation)
 double scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
 double pU = 10; //regularization for users
 double pT = 1; //regularization for tensor time nodes
@@ -177,16 +177,22 @@ double calc_rmse(graph_type * _g, bool test, double & res){
          for (int j=0; j< (int)edges.medges.size(); j++){       
            edge_data & edge = edges.medges[j];
 #else
-	   edge_data & edge = _g->edge_data(iedgeid);
+	        edge_data & edge = _g->edge_data(iedgeid);
 #endif
 
            if (!ZERO)
            	assert(edge.weight != 0);
 
            float prediction = 0; 
-           double sq_err = predict(data, pdata, tensor? (&times[(int)edge.time]):NULL, edge.weight, prediction);
+           double sq_err = predict(data, 
+                                   pdata, 
+                                   ((algorithm == WEIGHTED_ALS) ? &edge: NULL), 
+                                   tensor? (&times[(int)edge.time]):NULL, 
+                                   edge.weight, 
+                                   prediction);
            if (!ZERO)
-	      assert(prediction != 0);         
+	           assert(prediction != 0);         
+           
            if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
              cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
 
@@ -196,7 +202,8 @@ double calc_rmse(graph_type * _g, bool test, double & res){
              sq_err = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
            }
 #endif
-            
+           if (algorithm == WEIGHTED_ALS)
+              sq_err *= edge.time;
            RMSE+= sq_err;
            e++;
 #ifndef GL_NO_MULT_EDGES        
@@ -258,9 +265,9 @@ double agg_rmse_by_user(double & res){
 
 
 // fill out the linear relation matrix (Q) between users/movies and movie/users
-inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i){
+inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i, vec * weights){
       
-  if (!ZERO)  
+  if (!ZERO)
   	assert(edge.weight != 0);
 
   if (tensor){
@@ -272,6 +279,12 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
   }
  
   vals[i] = edge.weight;
+  
+  if (weights != NULL){
+     assert(edge.time!= 0);
+     weights->set( i, edge.time);
+     vals[i] *= edge.time;
+  }
 }
  
 
@@ -326,7 +339,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
-
+  vec weight(numedges); // vector of weights (to be used in weighted ALS)
   int i=0;
 
   t.start(); 
@@ -344,7 +357,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
-        parse_edge(edge, pdata, Q, vals, i); 
+        parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS? &weight : NULL); 
         if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
         i++;
@@ -369,21 +382,25 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 	edge_data & edge = scope.edge_data(iedgeid);
 #endif   
         //go over each rating by user
-        parse_edge(edge, pdata, Q, vals, i); 
+        parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS ? &weight: NULL); 
         if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
         i++;
         float prediction;     
-        float trmse = predict(vdata, pdata, tensor?(&times[(int)edge.time]):NULL, edge.weight, prediction);
-        //assert(sum != 0);
+        float trmse = predict(vdata, 
+                              pdata, 
+                              (algorithm == WEIGHTED_ALS) ? &edge : NULL, 
+                              tensor?(&times[(int)edge.time]):NULL, edge.weight, prediction);
 #ifndef GL_NO_MCMC
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += prediction;        
           trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
         }
 #endif
-        vdata.rmse += trmse; 
+       if (algorithm == WEIGHTED_ALS)
+          trmse *= edge.time;
+       vdata.rmse += trmse; 
  
 #ifndef GL_NO_MULT_EDGES     
       }
@@ -403,10 +420,17 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     double regularization = LAMBDA;
     //compute weighted regularization (see section 3.2 of Zhou paper)
     if (!regnormal)
-	regularization*= Q.cols();
+	   regularization*= Q.cols();
 
-    bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
-    assert(ret);
+    if (algorithm != WEIGHTED_ALS){
+       bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       assert(ret);
+    }
+    else {
+       mat W = diag(weight);
+       bool ret = itpp::ls_solve(Q*W*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       assert(ret);
+    }
     counter[ALS_LEAST_SQUARES] += t.current_time();
   }
   else {
@@ -792,6 +816,7 @@ void add_tasks(gl_types::core & glcore){
      case BPTF_TENSOR:
      case BPTF_TENSOR_MULT:
      case BPTF_MATRIX:
+     case WEIGHTED_ALS:
        glcore.add_tasks(um, user_movie_nodes_update_function, 1);
        break;
 
@@ -839,6 +864,7 @@ void init(){
 
 	case ALS_MATRIX:
 	case ALS_TENSOR_MULT:
+   case WEIGHTED_ALS:
 	case BPTF_TENSOR_MULT:
    case BPTF_MATRIX:
    case BPTF_TENSOR:
@@ -853,7 +879,7 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
         double res, rmse =  agg_rmse_by_movie(res), res2;
         printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
         double runtime = gt.current_time();
-        printf("Finished in %lf \n", runtime);
+        printf("Finished in %lf seconds\n", runtime);
 }
 
 /** 
@@ -862,7 +888,6 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
 void start(int argc, char ** argv) {
       
   command_line_options clopts;
-  //clopts.scheduler_type = "round_robin";
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("float", &FLOAT, FLOAT, "is data in float format?");
   clopts.attach_option("D", &D, D, "number of features (dimension of computed weight vector)");
@@ -1021,6 +1046,7 @@ void start(int argc, char ** argv) {
   	switch(algorithm){
       case ALS_TENSOR_MULT:
       case ALS_MATRIX:
+      case WEIGHTED_ALS:
       case BPTF_TENSOR_MULT:
       case BPTF_TENSOR:
       case BPTF_MATRIX:
@@ -1099,12 +1125,15 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       edge.weight = (double)ed[i].weight;
     
       if (scalerating != 1.0)
-	edge.weight /= scalerating;
+	     edge.weight /= scalerating;
       globalMean[type] += edge.weight;
-      edge.time = (int)((ed[i].time -1-truncating)/scaling);
- 
+      double time = ((ed[i].time - 1.0- truncating)/(double)scaling);
+      edge.time = time;
+      if (algorithm == WEIGHTED_ALS)
+         assert(edge.time != 0);
+
       std::pair<bool, edge_id_t> ret;
-      if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT){//no support for specific edge returning on different times
+      if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT){//no support for multple edges (ratings) of the same user - item pair at different times
         ret.first = false;
       }
       else if (flags[(int)ed[i].from-1] == true && flags[(int)ed[i].to-1] == true){
@@ -1175,9 +1204,12 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   }
 
   int _M,_N,_K;
-  fread(&_M,1,4,f);//movies
-  fread(&_N,1,4,f);//users/
-  fread(&_K,1,4,f);//time
+  int rc = fread(&_M,1,4,f);//movies
+  assert(rc==4); 
+  rc=fread(&_N,1,4,f);//users/
+  assert(rc==4); 
+  rc=fread(&_K,1,4,f);//time
+  assert(rc==4); 
   assert(_K>=1);
   assert(_M>=1 && _N>=1); 
   if (data_type != TRAINING && M != _M)
@@ -1308,7 +1340,7 @@ int main(int argc,  char *argv[]) {
 
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "PMF/ALS/SVD++/SGD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 #ifdef GL_NO_MULT_EDGES
   logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
 #endif
@@ -1320,7 +1352,9 @@ int main(int argc,  char *argv[]) {
 #endif
 
   if (argc < 3){
-    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \n \tRun mode are: \n\t0 = Matrix factorization using alternating least squares \n\t1 = Matrix factorization using MCMC procedure \n\t2 = Tensor factorization using MCMC procedure, single edge exist between user and movies \n\t3 = Tensor factorization, using MCMC procedure with support for multiple edges between user and movies in different times \n\t4 = Tensor factorization using alternating least squars\n\t5 = SVD++ algorithm\n";  
+    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \t\nRun modes are: \n";
+    for (int i=0; i< MAX_RUNMODE; i++) 
+       logstream(LOG_ERROR) << "\t" << i << " " << runmodesname[i] << std::endl;  
     exit(1);
   }
    
@@ -1333,6 +1367,7 @@ int main(int argc,  char *argv[]) {
   // iterative matrix factorization using alternating least squares
   // or SVD ++
   case ALS_MATRIX:
+  case WEIGHTED_ALS:
   case SVD_PLUS_PLUS:
   case STOCHASTIC_GRADIENT_DESCENT:
   case LANCZOS:
@@ -1546,7 +1581,12 @@ void export_kdd_format(graph_type * _g, testtype type, bool dosave) {
            	assert(edge.weight != 0);
 
           prediction = 0;
-          predict(data, pdata, tensor? (&times[(int)edge.time]):NULL, edge.weight, prediction);
+          predict(data, 
+                  pdata, 
+                  algorithm == WEIGHTED_ALS ? &edge : NULL, 
+                  tensor? (&times[(int)edge.time]):NULL, 
+                  edge.weight, 
+                  prediction);
 #ifndef GL_NO_MCMC 
           if (BPTF && iiter > BURN_IN){
              edge.avgprd += prediction;
