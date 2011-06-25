@@ -106,6 +106,7 @@ int svd_iter = 10; //number of iterations (which is the number of extracted eige
 
 //performance counters
 double counter[20];
+int unittest = 0;
 
 vertex_data * times = NULL;
 
@@ -317,14 +318,14 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& vdata = scope.vertex_data();
  
-  
+  int id = scope.vertex();
+  bool toprint =  debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
+  bool isuser = id < M;
   /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1) || ((int)scope.vertex() == 93712))){
-    printf("entering %s node  %u \n", (((int)scope.vertex() >= M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , vdata.pvec, D);
+  if (toprint){
+    printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
+    debug_print_vec((isuser ? "V " : "U") , vdata.pvec, D);
   }
-
-  assert((int)scope.vertex() < M+N);
 
   vdata.rmse = 0;
 
@@ -344,7 +345,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   t.start(); 
   //USER NODES    
-  if ((int)scope.vertex() < M){
+  if (isuser){
 
     foreach(graphlab::edge_id_t oedgeid, outs) {
       const vertex_data  & pdata = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
@@ -358,8 +359,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
         parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS? &weight : NULL); 
-        if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
-          std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
+        //if (toprint && (i==0 || i == numedges-1))
+        //  std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
         i++;
 #ifndef GL_NO_MULT_EDGES
       }   
@@ -383,8 +384,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif   
         //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS ? &weight: NULL); 
-        if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
-          std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
+        //if (toprint) && (i==0 || i == numedges-1))
+        //  std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
         i++;
         float prediction;     
@@ -400,6 +401,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif
        if (algorithm == WEIGHTED_ALS)
           trmse *= edge.time;
+      
+       if (toprint)
+          cout<<"trmse: " << trmse << endl;
        vdata.rmse += trmse; 
  
 #ifndef GL_NO_MULT_EDGES     
@@ -439,10 +443,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     assert(Q.rows() == D);
     t.start();
     mat iAi_;
-    bool ret =inv(((int)scope.vertex() < M? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
+    bool ret =inv((isuser? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
     assert(ret);
     t.start();
-    vec mui_ =  iAi_*((((int)scope.vertex() < M)? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
+    vec mui_ =  iAi_*((isuser? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
     counter[BPTF_LEAST_SQUARES2]+= t.current_time();
        
     t.start();
@@ -451,8 +455,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     counter[BPTF_MVN_RNDEX] += t.current_time();
   }
 
-  if (debug && (((int)scope.vertex()  == 0) || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
-    std::cout <<(BPTF?"BPTF":"ALS")<<" Q: " << Q << std::endl<<" result: " << result << " edges: " << numedges << std::endl;
+  if (toprint){
+    std::cout <<(BPTF?"BPTF":"ALS")<<std::endl<<" result: " << result << " edges: " << numedges << std::endl;
   }
       
   //store new result
@@ -685,6 +689,8 @@ double calc_obj(double res){
   counter[CALC_OBJ]+= t.current_time();
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
+  if (debug)
+     cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << pU << " pV: " << pV << endl; 
   return obj;
 }
 
@@ -916,7 +922,8 @@ void start(int argc, char ** argv) {
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
   clopts.attach_option("outputvalidation", &outputvalidation, outputvalidation, "output prediction on vadlidation data in kdd format");
   clopts.attach_option("delinktimebins", &delinktimebins, delinktimebins, "assume there is no smooth correlation between time bins, each one is independent of the others");
- 
+  clopts.attach_option("unittest", &unittest, unittest, "unit testing. ");
+
   //SVD++ related switches
   clopts.attach_option("svdpp_step_dec", &svdpp_step_dec, svdpp_step_dec, "SVD++ step decrement ");
  
