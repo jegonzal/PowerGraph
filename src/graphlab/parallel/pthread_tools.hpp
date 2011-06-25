@@ -708,7 +708,6 @@ namespace graphlab {
     char __pad__[64 - sizeof(size_t)];
   };
 
-
 }; // End Namespace
 
 #endif
