@@ -75,6 +75,7 @@ void test_pool(){
     for (size_t i = 0;i < 10; ++i) {
       pool.launch(test_dec);
     }
+    pool.set_cpu_affinity(j % 2);
   }
   
   pool.join();
@@ -104,6 +105,9 @@ void test_pool_exception_forwarding(){
   
   for (size_t i = 0;i < 10; ++i) {
     pool.launch(thread_assert_false);
+    if (i == 50) {
+      pool.set_cpu_affinity(true);
+    }
   }
   
   size_t numcaught = 0;

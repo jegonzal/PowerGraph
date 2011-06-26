@@ -5,12 +5,22 @@ namespace graphlab {
 
 
 thread_pool::thread_pool(size_t nthreads, bool affinity) {
-  size_t ncpus = thread::cpu_count();
   waiting_on_join = false;
   tasks_inserted = 0;
   tasks_completed = 0;
-  for (size_t i = 0;i < nthreads; ++i) {
-    if (affinity) {
+  cpu_affinity = affinity;
+  pool_size = nthreads;
+  spawn_thread_group();
+}
+
+/**
+  Creates the thread group
+*/
+void thread_pool::spawn_thread_group() {
+  size_t ncpus = thread::cpu_count();
+  // start all the threads if CPU affinity is set
+  for (size_t i = 0;i < pool_size; ++i) {
+    if (cpu_affinity) {
       threads.launch(boost::bind(&thread_pool::wait_for_task, this), i % ncpus);
     }
     else {
@@ -19,6 +29,54 @@ thread_pool::thread_pool(size_t nthreads, bool affinity) {
   }
 }
 
+
+void thread_pool::destroy_all_threads() {
+  // wait for all execution to complete
+  spawn_queue.wait_until_empty();
+  // kill the queue
+  spawn_queue.stop_blocking();
+  
+  // join the threads in the thread group
+  while(1) {
+    try {
+      threads.join();
+      break;
+    }
+    catch (const char* c) {
+      // this should not be possible!
+      logstream(LOG_FATAL) 
+        << "Unexpected exception caught in thread pool destructor: " 
+        << c << std::endl;
+      ASSERT_TRUE(false);
+    }
+  }
+}
+
+void thread_pool::set_cpu_affinity(bool affinity) {
+  if (affinity != cpu_affinity) {
+    cpu_affinity = affinity;
+    // stop the queue from blocking
+    spawn_queue.stop_blocking();
+    
+    // join the threads in the thread group
+    while(1) {
+      try {
+        threads.join();
+        break;
+      }
+      catch (const char* c) {
+        // this should not be possible!
+        logstream(LOG_FATAL) 
+          << "Unexpected exception caught in thread pool destructor: " 
+          << c << std::endl;
+        ASSERT_TRUE(false);
+      }
+    }
+    spawn_queue.start_blocking();
+    spawn_thread_group();
+  }
+}
+      
 void thread_pool::wait_for_task() {
   while(1) {
     std::pair<boost::function<void (void)>, bool> queue_entry;
@@ -92,26 +150,7 @@ void thread_pool::join() {
 
 
 thread_pool::~thread_pool() {
-  // wait for all execution to complete
-  spawn_queue.wait_until_empty();
-  // kill the queue
-  spawn_queue.stop_blocking();
-  
-  // join the threads in the thread group
-  while(1) {
-    try {
-      threads.join();
-      break;
-    }
-    catch (const char* c) {
-      // this should not be possible!
-      logstream(LOG_FATAL) 
-        << "Unexpected exception caught in thread pool destructor: " 
-        << c << std::endl;
-      ASSERT_TRUE(false);
-    }
-  }
-
+  destroy_all_threads();
 }
 
 }

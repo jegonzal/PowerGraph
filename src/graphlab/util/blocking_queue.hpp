@@ -156,18 +156,25 @@ namespace graphlab {
 
     /** Wakes up all threads waiting on the queue whether 
         or not an element is available. Once this function is called,
-        the blocking queue is essentially destroyed and can no longer be used.
+        all existing and future dequeue operations will return with failure.
         Note that there could be elements remaining in the queue after 
-        stop_blocking() is called. Those elements will no longer be 
-        "dequeue-able". The user should arbitrate properly between
-        wait_until_empty() and the producers to ensure that the queue
-        is empty, and no producers are active when stop_blocking() is called.
+        stop_blocking() is called. 
     */
     inline void stop_blocking() {
       m_mutex.lock();
       m_alive = false;
       m_conditional.broadcast();
       m_empty_conditional.broadcast();
+      m_mutex.unlock();
+    }
+
+    /**
+      Resumes operation of the blocking_queue. Future calls to
+      dequeue will proceed as normal.
+    */
+    inline void start_blocking() {
+      m_mutex.lock();
+      m_alive = true;
       m_mutex.unlock();
     }
     

@@ -32,7 +32,8 @@ namespace graphlab {
 
       thread_group threads;
       blocking_queue<boost::function<void (void)> > spawn_queue;
-
+      size_t pool_size;
+      
       // protects the exception queue, and the task counters
       mutex mut;
       conditional event_condition;  // to wake up the joining thread
@@ -41,12 +42,27 @@ namespace graphlab {
       size_t tasks_completed;
       bool waiting_on_join; // true if a thread is waiting in join
 
+      bool cpu_affinity;
       // not implemented
       thread_pool& operator=(const thread_pool &thrgrp);
       thread_pool(const thread_pool&);
       
+      /**
+        Called by each thread. Loops around a queue of tasks.
+      */
       void wait_for_task();
 
+      /**
+        Creates all the threads in the thread pool.
+        Resets the task and exception queue
+      */
+      void spawn_thread_group();
+      
+      /**
+        Destroys the thread pool.
+        Also destroys the task queue
+      */
+      void destroy_all_threads();
     public:
       
        /* Initializes a thread pool with nthreads. 
@@ -54,6 +70,20 @@ namespace graphlab {
         * the available cores on the system. 
         */
       thread_pool(size_t nthreads, bool affinity = false);
+  
+      /**
+        Changes the CPU affinity. Note that pthread does not provide
+        a way to change CPU affinity on a currently started thread.
+        This function therefore waits for all threads in the pool
+        to finish their current task, and destroy all the threads. Then
+        new threads are created with the new affinity setting.
+        */
+      void set_cpu_affinity(bool affinity);
+      
+      /**
+        Gets the CPU affinity.
+      */
+      bool get_cpu_affinity() { return cpu_affinity; };
   
       /** 
        * Launch a single thread which calls spawn_function. If affinity
