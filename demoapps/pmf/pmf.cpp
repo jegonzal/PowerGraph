@@ -107,7 +107,7 @@ int svd_iter = 10; //number of iterations (which is the number of extracted eige
 //performance counters
 double counter[20];
 int unittest = 0;
-
+int ialgo = 0;
 vertex_data * times = NULL;
 
 gl_types::iengine * engine;
@@ -882,10 +882,10 @@ void init(){
 void verify_result(double obj, double train_rmse, double validation_rmse){
    assert(unittest > 0);
    switch(unittest){
-      case 91: //WEIGHTED_ALS: Final result. Obj=0.0322088, TRAIN RMSE= 0.0203 VALIDATION RMSE= 1.1614.
-         assert(pow(obj -  0.0322088,2)<1e-10);
-         assert(pow(train_rmse - 0.0203,2)<1e-6);
-         assert(pow(validation_rmse - 1.1614,2)<1e-6);
+      case 91: //WEIGHTED_ALS: Final result. Obj=0.0298603, TRAIN RMSE= 0.0140 VALIDATION RMSE= 0.7924.
+         assert(pow(obj -  0.0298603,2)<1e-6);
+         assert(pow(train_rmse - 0.0140,2)<1e-6);
+         assert(pow(validation_rmse - 0.7924,2)<1e-6);
          break;
    }
 }
@@ -910,7 +910,7 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
 void unit_testing(int unittest, command_line_options& clopts){
 
    if (unittest == 91){
-      infile = "wals"; algorithm = WEIGHTED_ALS; FLOAT = true; debug = true; LAMBDA = 0.001;
+      infile = "wals"; ialgo = WEIGHTED_ALS; FLOAT = true; debug = true; LAMBDA = 0.001;
       clopts.set_scheduler_type("round_robin(max_iterations=10,block_size=1)");
    }
 }
@@ -926,7 +926,6 @@ void start(int argc, char ** argv) {
   clopts.attach_option("infile", &infile, infile, "Input matrix/tensor");
   clopts.add_positional("infile");
 
-  int ialgo = 0;
   clopts.attach_option("algorithm", &ialgo, ialgo, "algorithm");
   clopts.add_positional("algorithm");
   
