@@ -13,7 +13,7 @@ ADD_CXXTEST(disk_graph_test.cxx)
 ADD_CXXTEST(randomtest.cxx)
 ADD_CXXTEST(graphlab_test.cxx)
 ADD_CXXTEST(serializetests.cxx)
-
+ADD_CXXTEST(thread_tools.cxx)
 add_executable(anytests anytests.cpp)
 add_executable(anytests_loader anytests_loader.cpp)
 

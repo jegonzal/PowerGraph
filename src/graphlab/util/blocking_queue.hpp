@@ -49,6 +49,33 @@ namespace graphlab {
     conditional m_conditional;
     conditional m_empty_conditional;
     
+    /**
+     * Causes any threads currently blocking on a dequeue to wake up
+     * and evaluate the state of the queue. If the queue is empty,
+     * the threads will return back to sleep immediately. If the queue
+     * is destroyed through stop_blocking, all threads will return. 
+     */
+    void signal() {
+      m_mutex.lock();
+      m_conditional.broadcast();
+      m_mutex.unlock();
+    }
+    
+    
+
+    /**
+     * Causes any threads blocking on "wait_until_empty()" to wake
+     * up and evaluate the state of the queue. If the queue is not empty,
+     * the threads will return back to sleep immediately. If the queue
+     * is empty, all threads will return.
+    */
+    void signal_blocking_empty() {
+      m_mutex.lock();
+      m_empty_conditional.broadcast();
+      m_mutex.unlock();
+    }    
+
+
   public:
     
     //! creates a blocking queue
@@ -66,6 +93,11 @@ namespace graphlab {
     /**
      * Blocks until an element is available in the queue 
      * or until stop_blocking() is called.
+     * The return value is a pair of <T value, bool success>
+     * If "success" if set, then "value" is valid and 
+     * is an element popped from the queue.
+     * If "success" is false, stop_blocking() was called 
+     * and the queue has been destroyed.
      */
     inline std::pair<T, bool> dequeue() {
 
@@ -125,6 +157,11 @@ namespace graphlab {
     /** Wakes up all threads waiting on the queue whether 
         or not an element is available. Once this function is called,
         the blocking queue is essentially destroyed and can no longer be used.
+        Note that there could be elements remaining in the queue after 
+        stop_blocking() is called. Those elements will no longer be 
+        "dequeue-able". The user should arbitrate properly between
+        wait_until_empty() and the producers to ensure that the queue
+        is empty, and no producers are active when stop_blocking() is called.
     */
     inline void stop_blocking() {
       m_mutex.lock();
@@ -146,8 +183,8 @@ namespace graphlab {
      * The conceptual "reverse" of dequeue().
      * This function will block until the queue becomes empty, or 
      * until stop_blocking() is called.
-     * Returns true on success
-     * Returns false if the queue is no longer alove
+     * Returns true on success. 
+     * Returns false if the queue is no longer alive
     */
     bool wait_until_empty() {
       m_mutex.lock();
@@ -160,21 +197,7 @@ namespace graphlab {
       // otherwise I am dead
       return m_alive;
     }
-
-    /**
-     * Causes any threads currently blocking on a dequeue to wake up
-     */
-    void signal() {
-      m_mutex.lock();
-      m_conditional.broadcast();
-      m_mutex.unlock();
-    }
-    void signal_blocking_empty() {
-      m_mutex.lock();
-      m_empty_conditional.broadcast();
-      m_mutex.unlock();
-    }    
-
+    
     ~blocking_queue() {
       m_alive = false;
       signal();
