@@ -427,10 +427,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
        assert(ret);
     }
     else {
-       if (debug)
-          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << Q*vals << endl;
        mat W = diag(weight);
        bool ret = itpp::ls_solve(Q*W*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       if (debug)
+          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << Q*vals << " W: " << W << "Q*W*Q'+eDT+Reg: " << (Q*W*transpose(Q)+eDT*regularization) << endl;
        assert(ret);
     }
     counter[ALS_LEAST_SQUARES] += t.current_time();
