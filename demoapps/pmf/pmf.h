@@ -36,7 +36,7 @@ For NMF (non-negative matrix factorization) see:
 
 */
 #include <vector>
-//#define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
+#define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
 #define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
 //#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
