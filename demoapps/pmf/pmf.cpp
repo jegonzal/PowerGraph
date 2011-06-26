@@ -315,7 +315,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vertex_data& vdata = scope.vertex_data();
  
   int id = scope.vertex();
-  bool toprint = debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
+  bool toprint = true; //debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
   bool isuser = id < M;
   /* print statistics */
   if (toprint){
@@ -355,8 +355,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
         parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS? &weight : NULL); 
-        //if (toprint && (i==0 || i == numedges-1))
-        //  std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
+        if (toprint && (i==0 || i == numedges-1))
+          std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
         i++;
 #ifndef GL_NO_MULT_EDGES
       }   
@@ -380,8 +380,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif   
         //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS ? &weight: NULL); 
-        //if (toprint) && (i==0 || i == numedges-1))
-        //  std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
+        if (toprint/* && (i==0 || i == numedges-1)*/)
+          std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
         i++;
         float prediction;     
@@ -427,6 +427,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
        assert(ret);
     }
     else {
+       if (debug)
+          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << Q*vals << endl;
        mat W = diag(weight);
        bool ret = itpp::ls_solve(Q*W*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
@@ -911,6 +913,7 @@ void unit_testing(int unittest, command_line_options& clopts){
 
    if (unittest == 91){
       infile = "wals"; ialgo = WEIGHTED_ALS; FLOAT = true; debug = true; LAMBDA = 0.001;
+      clopts.set_ncpus(1);
       clopts.set_scheduler_type("round_robin(max_iterations=10,block_size=1)");
    }
 }
