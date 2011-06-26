@@ -204,7 +204,7 @@ namespace graphlab {
     variables. If there is an error in the syntax or parsing fails the
     parse routine will print the error and return false.
     */
-    bool parse(int argc, char** argv);
+    bool parse(int argc, const char* const* argv);
 
     /** The is set function is used to test if the user provided the option. 
     The option string should match one of the attached options. 
