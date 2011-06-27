@@ -1,6 +1,7 @@
 #include <iostream>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/thread_pool.hpp>
+#include <graphlab/parallel/thread_flip_flop.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <boost/bind.hpp>
 
@@ -127,6 +128,36 @@ void test_pool_exception_forwarding(){
 
 
 
+const int num_flip_flop_threads = 4;
+barrier f0_barrier(num_flip_flop_threads);
+barrier f1_barrier(num_flip_flop_threads);
+atomic<size_t> f0;
+atomic<size_t> f1;
+thread_flip_flop flipflop(num_flip_flop_threads,
+                          num_flip_flop_threads);
+
+void flip_flop_0() {
+  for (size_t i = 0; i < 1000; ++i) {
+    for (size_t j = 0;j < 10; ++j) {
+      f0.inc();
+    }
+    f0_barrier.wait();
+    ASSERT_EQ(f0.value - num_flip_flop_threads * 10, f1.value);
+    flipflop.wait(0);
+  }
+  flipflop.stop_blocking();
+}
+
+void flip_flop_1() {
+  for (size_t i = 0; i < 1000; ++i) {
+    flipflop.wait(1);
+    for (size_t j = 0;j < 10; ++j) {
+      f1.inc();
+    }
+  }
+  flipflop.stop_blocking();
+}
+
 class ThreadToolsTestSuite : public CxxTest::TestSuite {
 public:
    void test_thread_group_exception(void) {
@@ -139,5 +170,16 @@ public:
    
    void test_thread_pool_exception(void) {
      test_pool_exception_forwarding();
+   }
+
+   void test_flip_flop() {
+    thread_group a;
+    thread_group b;
+    for (int i = 0;i < num_flip_flop_threads; ++i) {
+      a.launch(flip_flop_0);
+      a.launch(flip_flop_1);
+    }
+    a.join();
+    b.join();
    }
 };
