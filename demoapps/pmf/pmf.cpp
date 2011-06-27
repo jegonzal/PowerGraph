@@ -316,7 +316,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vertex_data& vdata = scope.vertex_data();
  
   int id = scope.vertex();
-  bool toprint = true; //debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
+  bool toprint = debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
   bool isuser = id < M;
   /* print statistics */
   if (toprint){
