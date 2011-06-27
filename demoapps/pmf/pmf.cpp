@@ -63,6 +63,7 @@ bool aggregatevalidation = false; //use validation dataset as training data
 bool outputvalidation = false; //experimental: output validation results of kdd format
 bool delinktimebins = false; //experimental: if true, regards different time bins as independent
 bool binaryoutput = false; //export the factors U,V,T to a binary file
+bool printhighprecision = false; //print RMSE output with high precision
 
 double scaling = 1.0; //aggregate time values into bins? (default =1, no aggregation)
 double truncating = 0.0; // truncate unused time bins (optional, default = 0, no truncation)
@@ -428,9 +429,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     }
     else {
        mat W = diag(weight);
-       bool ret = itpp::ls_solve(Q*W*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       mat A = Q*W*transpose(Q)+(eDT*regularization);
+       bool ret = itpp::ls_solve_chol(A, Q*vals, result);
        if (debug)
-          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << Q*vals << " W: " << W << "Q*W*Q'+eDT+Reg: " << (Q*W*transpose(Q)+eDT*regularization) << endl;
+          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << Q*vals << " W: " << W << "Q*W*Q'+eDT+Reg: " << A << endl;
        assert(ret);
     }
     counter[ALS_LEAST_SQUARES] += t.current_time();
@@ -472,7 +474,10 @@ void last_iter(){
   double res,res2;
   double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT && algorithm != NMF) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  printf(printhighprecision ? 
+        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
+        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
+        , gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
         
   if (BPTF){
@@ -884,10 +889,10 @@ void init(){
 void verify_result(double obj, double train_rmse, double validation_rmse){
    assert(unittest > 0);
    switch(unittest){
-      case 91: //WEIGHTED_ALS: Final result. Obj=0.0298603, TRAIN RMSE= 0.0140 VALIDATION RMSE= 0.7924.
-         assert(pow(obj -  0.0298603,2)<1e-6);
-         assert(pow(train_rmse - 0.0140,2)<1e-6);
-         assert(pow(validation_rmse - 0.7924,2)<1e-6);
+      case 91: //WEIGHTED_ALS: Final result. Obj=0.0279126, TRAIN RMSE= 0.0121 VALIDATION RMSE= 0.7692.
+         assert(pow(obj -  0.0279126,2)<1e-6);
+         assert(pow(train_rmse - 0.0121,2)<1e-6);
+         assert(pow(validation_rmse - 0.7692,2)<1e-6);
          break;
    }
 }
@@ -899,7 +904,10 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
         double res, train_rmse =  agg_rmse_by_movie(res), res2;
         double obj = calc_obj(res);
         double validation_rmse = calc_rmse_wrapper(&validation_graph, true, res2);
-        printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", obj,  train_rmse, validation_rmse);
+        printf(printhighprecision ? 
+              "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
+              "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
+              , obj,  train_rmse, validation_rmse);
         double runtime = gt.current_time();
         printf("Finished in %lf seconds\n", runtime);
         if (unittest > 0){
@@ -972,6 +980,7 @@ void start(int argc, char ** argv) {
  
   //SVD related switches
   clopts.attach_option("svd_iter", &svd_iter, svd_iter, "SVD iteration number"); 
+  clopts.attach_option("printhighprecision", &printhighprecision, printhighprecision, "print RMSE output with high precision");
 
   assert(clopts.parse(argc, argv));
   
@@ -1138,7 +1147,10 @@ void start(int argc, char ** argv) {
    if (algorithm != LANCZOS){
      double res, res2;
      double rmse =  calc_rmse_wrapper(g, false, res);
-     printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
+     printf(printhighprecision ? 
+           "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
+           "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
+           , calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
   }
   
   if (BPTF){
