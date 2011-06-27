@@ -889,10 +889,10 @@ void init(){
 void verify_result(double obj, double train_rmse, double validation_rmse){
    assert(unittest > 0);
    switch(unittest){
-      case 91: //WEIGHTED_ALS: Final result. Obj=0.0279126, TRAIN RMSE= 0.0121 VALIDATION RMSE= 0.7692.
-         assert(pow(obj -  0.0279126,2)<1e-6);
-         assert(pow(train_rmse - 0.0121,2)<1e-6);
-         assert(pow(validation_rmse - 0.7692,2)<1e-6);
+      case 91: //WEIGHTED_ALS: Final result. Final result. Obj=0.0133187, TRAIN RMSE= 0.0043 VALIDATION RMSE= 0.7149.
+         assert(pow(obj -  0.0133187,2)<1e-5);
+         assert(pow(train_rmse - 0.0043,2)<1e-5);
+         assert(pow(validation_rmse - 0.7163,2)<1e-3);
          break;
    }
 }
@@ -922,7 +922,7 @@ void unit_testing(int unittest, command_line_options& clopts){
    if (unittest == 91){
       infile = "wals"; ialgo = WEIGHTED_ALS; FLOAT = true; debug = true; LAMBDA = 0.001;
       clopts.set_ncpus(1);
-      clopts.set_scheduler_type("round_robin(max_iterations=10,block_size=1)");
+      clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
    }
 }
 
