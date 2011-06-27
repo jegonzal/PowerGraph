@@ -38,8 +38,8 @@ namespace graphlab {
                      size_t first_running_group = 0) {
       running_group = first_running_group;
       alive = true;
-      bar[0] = new barrier(group_0_size);
-      bar[1] = new barrier(group_0_size);
+      bar[0] = new cancellable_barrier(group_0_size);
+      bar[1] = new cancellable_barrier(group_0_size);
     }
                      
     inline void wait(size_t group) {
