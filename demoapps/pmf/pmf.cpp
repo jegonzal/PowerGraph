@@ -426,13 +426,18 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     if (algorithm != WEIGHTED_ALS){
        bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
-    }
+    } //Weighted alternating least squares
     else {
-       mat W = diag(weight);
-       mat A = Q*W*transpose(Q)+(eDT*regularization);
-       bool ret = itpp::ls_solve_chol(A, Q*vals, result);
+       //mat W = diag(weight);
+       vec b = Q*vals;
+       weight = sqrt(weight);
+       for (int i=0; i<D; i++)
+	 for (int j=0; j<numedges; j++)
+             Q._elem(i,j)*= weight[j];
+       mat A = Q*transpose(Q)+(eDT*regularization);
+       bool ret = itpp::ls_solve_chol(A, b, result);
        if (debug)
-          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << Q*vals << " W: " << W << "Q*W*Q'+eDT+Reg: " << A << endl;
+          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << b << "Q*W*Q'+eDT+Reg: " << A << endl;
        assert(ret);
     }
     counter[ALS_LEAST_SQUARES] += t.current_time();
