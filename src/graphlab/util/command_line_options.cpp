@@ -55,7 +55,7 @@ namespace boost {
 
 namespace graphlab {
   
-  bool command_line_options::parse(int argc, char** argv) {
+  bool command_line_options::parse(int argc, const char* const* argv) {
     namespace boost_po = boost::program_options;
     
     size_t ncpus(get_ncpus());
@@ -141,7 +141,9 @@ namespace graphlab {
     }
     // Parse the arguments
     try{
-      boost_po::store(boost_po::command_line_parser(argc, argv).
+      std::vector<std::string> arguments;
+      std::copy(argv + 1, argv + argc + !argc, std::inserter(arguments, arguments.end()));
+      boost_po::store(boost_po::command_line_parser(arguments).
                       options(desc).positional(pos_opts).run(), vm);
       boost_po::notify(vm);
     } catch( boost_po::error error) {

@@ -75,10 +75,12 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
     else
       x = ones(0.5,n);
     
-    DistDouble rsold, rnew, alpha, tmpdiv;
- 
+    DistDouble rsold, rnew, alpha;
 
     /* r = -A*x+b;
+       if (~sqaure)
+         r=A'*r;
+       end
        p = r;
        rsold = r'*r;
     */
@@ -90,7 +92,10 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
 
      /*
      for i=1:size(A,1)
-        Ap=A*p;               
+        Ap=A*p; 
+        if (~square)
+          Ap=A'*Ap; 
+        end             
         alpha=rsold/(p'*Ap); 
         x=x+alpha*p;        
         r=r-alpha*Ap;      
@@ -107,8 +112,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
         Ap=A*p;
         if (!square)
           Ap= A._transpose()*Ap;
-        tmpdiv = p._transpose()*Ap;
-        alpha=rsold/tmpdiv;
+        alpha = rsold/(p._transpose()*Ap);
         x=x+alpha*p;
    
         if (cg_resid){
@@ -123,8 +127,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
           logstream(LOG_INFO)<<" Conjugate gradient converged in iteration "<<i<<" to an accuracy of "  << diff << std::endl; 
           break;
         }
-        tmpdiv = rnew/rsold;
-        p=r+tmpdiv*p;
+        p=r+(rnew/rsold)*p;
         rsold=rnew;
     }
 

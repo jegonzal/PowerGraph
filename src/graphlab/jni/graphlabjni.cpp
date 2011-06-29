@@ -162,9 +162,8 @@ extern "C" {
    */
   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_initGraphlab
   (JNIEnv * env, jobject obj) {
-    global_logger().set_log_level(LOG_INFO);
-    global_logger().set_log_to_console(true);
-    logger(LOG_INFO, "JNI Graphlab starting.");
+   global_logger().set_log_level(LOG_INFO);
+   global_logger().set_log_to_console(true);
  
     // Setup the parser
     graphlab::command_line_options

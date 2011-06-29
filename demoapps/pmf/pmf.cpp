@@ -63,6 +63,7 @@ bool aggregatevalidation = false; //use validation dataset as training data
 bool outputvalidation = false; //experimental: output validation results of kdd format
 bool delinktimebins = false; //experimental: if true, regards different time bins as independent
 bool binaryoutput = false; //export the factors U,V,T to a binary file
+bool printhighprecision = false; //print RMSE output with high precision
 
 double scaling = 1.0; //aggregate time values into bins? (default =1, no aggregation)
 double truncating = 0.0; // truncate unused time bins (optional, default = 0, no truncation)
@@ -106,17 +107,14 @@ int svd_iter = 10; //number of iterations (which is the number of extracted eige
 
 //performance counters
 double counter[20];
-
+int unittest = 0;
+int ialgo = 0;
 vertex_data * times = NULL;
 
 gl_types::iengine * engine;
 graph_type* g;
 graph_type validation_graph;
 graph_type test_graph;
-
-#ifndef _min
-#define _min(a,b) (a>b)?b:a
-#endif
 
 
 /* Function declerations */ 
@@ -193,8 +191,8 @@ double calc_rmse(graph_type * _g, bool test, double & res){
            if (!ZERO)
 	           assert(prediction != 0);         
            
-           if (debug && (i== M || i == M+N-1) && (e == 0 || e == (test?Le:L)))
-             cout<<"RMSE:"<<i <<"u1"<< data.pvec << " v1 "<< pdata.pvec<<endl; 
+           if (debug && (i== M || i == M+N-1) && ((e == 0) || ((e-1) == (test?Le:L))))
+		cout<<"RMSE sq_err: " << sq_err << " prediction: " << prediction << endl; 
 
 #ifndef GL_NO_MCMC
            if (BPTF && iiter > BURN_IN){
@@ -281,7 +279,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
   vals[i] = edge.weight;
   
   if (weights != NULL){
-     assert(edge.time!= 0);
+     if (!ZERO) assert(edge.time!= 0);
      weights->set( i, edge.time);
      vals[i] *= edge.time;
   }
@@ -317,14 +315,14 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& vdata = scope.vertex_data();
  
-  
+  int id = scope.vertex();
+  bool toprint = debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
+  bool isuser = id < M;
   /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1) || ((int)scope.vertex() == 93712))){
-    printf("entering %s node  %u \n", (((int)scope.vertex() >= M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , vdata.pvec, D);
+  if (toprint){
+    printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
+    debug_print_vec((isuser ? "V " : "U") , vdata.pvec, D);
   }
-
-  assert((int)scope.vertex() < M+N);
 
   vdata.rmse = 0;
 
@@ -344,7 +342,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   t.start(); 
   //USER NODES    
-  if ((int)scope.vertex() < M){
+  if (isuser){
 
     foreach(graphlab::edge_id_t oedgeid, outs) {
       const vertex_data  & pdata = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
@@ -358,7 +356,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
         parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS? &weight : NULL); 
-        if (debug && ((int)scope.vertex() == 0 || (int)scope.vertex() == M-1) && (i==0 || i == numedges-1))
+        if (toprint && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
         i++;
 #ifndef GL_NO_MULT_EDGES
@@ -383,7 +381,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif   
         //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS ? &weight: NULL); 
-        if (debug && (((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1)) && (i==0 || i == numedges-1))
+        if (toprint/* && (i==0 || i == numedges-1)*/)
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
         i++;
@@ -400,6 +398,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif
        if (algorithm == WEIGHTED_ALS)
           trmse *= edge.time;
+      
+       if (toprint)
+          cout<<"trmse: " << trmse << endl;
        vdata.rmse += trmse; 
  
 #ifndef GL_NO_MULT_EDGES     
@@ -423,12 +424,20 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 	   regularization*= Q.cols();
 
     if (algorithm != WEIGHTED_ALS){
-       bool ret = itpp::ls_solve(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
-    }
+    } //Weighted alternating least squares
     else {
-       mat W = diag(weight);
-       bool ret = itpp::ls_solve(Q*W*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       //mat W = diag(weight);
+       vec b = Q*vals;
+       weight = sqrt(weight);
+       for (int i=0; i<D; i++)
+	 for (int j=0; j<numedges; j++)
+             Q._elem(i,j)*= weight[j];
+       mat A = Q*transpose(Q)+(eDT*regularization);
+       bool ret = itpp::ls_solve_chol(A, b, result);
+       if (debug)
+          cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << b << "Q*W*Q'+eDT+Reg: " << A << endl;
        assert(ret);
     }
     counter[ALS_LEAST_SQUARES] += t.current_time();
@@ -439,10 +448,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     assert(Q.rows() == D);
     t.start();
     mat iAi_;
-    bool ret =inv(((int)scope.vertex() < M? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
+    bool ret =inv((isuser? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
     assert(ret);
     t.start();
-    vec mui_ =  iAi_*((((int)scope.vertex() < M)? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
+    vec mui_ =  iAi_*((isuser? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
     counter[BPTF_LEAST_SQUARES2]+= t.current_time();
        
     t.start();
@@ -451,8 +460,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     counter[BPTF_MVN_RNDEX] += t.current_time();
   }
 
-  if (debug && (((int)scope.vertex()  == 0) || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
-    std::cout <<(BPTF?"BPTF":"ALS")<<" Q: " << Q << std::endl<<" result: " << result << " edges: " << numedges << std::endl;
+  if (toprint){
+    std::cout <<(BPTF?"BPTF":"ALS")<<std::endl<<" result: " << result << " edges: " << numedges << std::endl;
   }
       
   //store new result
@@ -470,7 +479,10 @@ void last_iter(){
   double res,res2;
   double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT && algorithm != NMF) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
   //rmse=0;
-  printf("%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  printf(printhighprecision ? 
+        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
+        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
+        , gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
   iiter++;
         
   if (BPTF){
@@ -685,6 +697,8 @@ double calc_obj(double res){
   counter[CALC_OBJ]+= t.current_time();
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
+  if (debug)
+     cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << pU << " pV: " << pV << endl; 
   return obj;
 }
 
@@ -872,15 +886,63 @@ void init(){
 	   init_pmf(); break;
   }
 }
- 
+
+
+/**
+ * UNIT TESTING
+ */
+void verify_result(double obj, double train_rmse, double validation_rmse){
+   assert(unittest > 0);
+   switch(unittest){
+      case 1: //ALS: Final result. Obj=0.0114447, TRAIN RMSE= 0.0033 VALIDATION RMSE= 1.1005.
+	 assert(pow(obj - 0.012,2) < 1e-3);
+         assert(pow(train_rmse - 0.0033,2) < 1e-3);
+	 assert(pow(validation_rmse - 1.1005,2) < 1e-2);
+	 break;
+
+      case 91: //WEIGHTED_ALS: Final result. Final result. Obj=0.0133187, TRAIN RMSE= 0.0043 VALIDATION RMSE= 0.7149.
+         assert(pow(obj -  0.0133187,2)<1e-5);
+         assert(pow(train_rmse - 0.0043,2)<1e-5);
+         assert(pow(validation_rmse - 0.7163,2)<1e-3);
+         break;
+   }
+}
+
+
 void run_graphlab(gl_types::core &glcore,timer & gt ){
         glcore.start();
         // calculate final RMSE
-        double res, rmse =  agg_rmse_by_movie(res), res2;
-        printf("Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n", calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+        double res, train_rmse =  agg_rmse_by_movie(res), res2;
+        double obj = calc_obj(res);
+        double validation_rmse = calc_rmse_wrapper(&validation_graph, true, res2);
+        printf(printhighprecision ? 
+              "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
+              "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
+              , obj,  train_rmse, validation_rmse);
         double runtime = gt.current_time();
         printf("Finished in %lf seconds\n", runtime);
+        if (unittest > 0){
+            verify_result(obj, train_rmse, validation_rmse);
+        }
+
 }
+
+
+//UNIT TESTING OF VARIOUS METHODS
+void unit_testing(int unittest, command_line_options& clopts){
+
+   if (unittest == 1){ //ALTERNATING LEAST SQUARES
+      infile = "als"; ialgo = ALS_MATRIX; FLOAT = true; LAMBDA = 0.001;
+      clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
+   }
+
+   else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
+      infile = "wals"; ialgo = WEIGHTED_ALS; FLOAT = true; LAMBDA = 0.001;
+      clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
+   }
+}
+
+
 
 /** 
  * ==== SETUP AND START
@@ -888,6 +950,12 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
 void start(int argc, char ** argv) {
       
   command_line_options clopts;
+  clopts.attach_option("infile", &infile, infile, "Input matrix/tensor");
+  clopts.add_positional("infile");
+
+  clopts.attach_option("algorithm", &ialgo, ialgo, "algorithm");
+  clopts.add_positional("algorithm");
+  
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("float", &FLOAT, FLOAT, "is data in float format?");
   clopts.attach_option("D", &D, D, "number of features (dimension of computed weight vector)");
@@ -916,7 +984,8 @@ void start(int argc, char ** argv) {
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
   clopts.attach_option("outputvalidation", &outputvalidation, outputvalidation, "output prediction on vadlidation data in kdd format");
   clopts.attach_option("delinktimebins", &delinktimebins, delinktimebins, "assume there is no smooth correlation between time bins, each one is independent of the others");
- 
+  clopts.attach_option("unittest", &unittest, unittest, "unit testing. ");
+
   //SVD++ related switches
   clopts.attach_option("svdpp_step_dec", &svdpp_step_dec, svdpp_step_dec, "SVD++ step decrement ");
  
@@ -927,9 +996,76 @@ void start(int argc, char ** argv) {
  
   //SVD related switches
   clopts.attach_option("svd_iter", &svd_iter, svd_iter, "SVD iteration number"); 
- 
-  gl_types::core glcore;
-  assert(clopts.parse(argc-2, argv+2));
+  clopts.attach_option("printhighprecision", &printhighprecision, printhighprecision, "print RMSE output with high precision");
+
+  assert(clopts.parse(argc, argv));
+  
+  if (unittest > 0)
+     unit_testing(unittest,clopts);
+
+  algorithm = (runmodes)ialgo;
+  printf("Setting run mode %s\n", runmodesname[algorithm]);
+
+  switch(algorithm){
+  // iterative matrix factorization using alternating least squares
+  // or SVD ++
+  case ALS_MATRIX:
+  case WEIGHTED_ALS:
+  case SVD_PLUS_PLUS:
+  case STOCHASTIC_GRADIENT_DESCENT:
+  case LANCZOS:
+  case NMF:
+    tensor = false; BPTF = false;
+    break;
+
+    // MCMC tensor factorization
+  case BPTF_TENSOR:
+    // tensor factorization , allow for multiple edges between user and movie in different times
+  case BPTF_TENSOR_MULT:
+    tensor = true; BPTF = true;
+   break;
+    //MCMC matrix factorization
+  case BPTF_MATRIX:
+    tensor = false; BPTF = true;
+    break;
+   // tensor factorization
+  case ALS_TENSOR_MULT:
+    tensor = true; BPTF = false;
+    break;
+  default:
+    assert(0);
+  }
+
+  logger(LOG_INFO, "%s starting\n",runmodesname[algorithm]);
+
+//INPUT SANITY CHECKS
+#ifdef GL_NO_MCMC
+  if (BPTF){
+    logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag on pmf.h and recompile\n";
+    exit(1); 
+ }
+#endif
+
+#ifdef GL_NO_MULT_EDGES
+  if (algorithm == ALS_TENSOR_MULT || algorithm == BPTF_TENSOR_MULT){
+    logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag on pmf.h and recompile\n";
+   exit(1);
+  }
+#endif  
+#ifdef GL_SVD_PP
+  if (algorithm != SVD_PLUS_PLUS){
+    logstream(LOG_ERROR) << "Can not run required algorithm with GL_SVD_PP flag. Please comment flag on pmf.h and recompile\n";
+    exit(1);
+  }
+#else
+  if (algorithm == SVD_PLUS_PLUS){
+    logstream(LOG_ERROR) << "Can not run required algorithm without GL_SVD_PP flag. Please define flag on pmf.h and recompile\n";
+    exit(1);
+  }
+#endif
+
+   //start graphlab!
+
 
   if (delayalpha != 0 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR))
 	logstream(LOG_WARNING) << "Delaying alpha (sampling of noise level) is ignored in non-MCMC methods" << std::endl;
@@ -939,6 +1075,7 @@ void start(int argc, char ** argv) {
 
 
 
+  gl_types::core glcore;
   //read the training data
   printf("loading data file %s\n", infile.c_str());
   if (!loadgraph){
@@ -1026,7 +1163,10 @@ void start(int argc, char ** argv) {
    if (algorithm != LANCZOS){
      double res, res2;
      double rmse =  calc_rmse_wrapper(g, false, res);
-     printf("complete. Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
+     printf(printhighprecision ? 
+           "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
+           "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
+           , calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
   }
   
   if (BPTF){
@@ -1109,7 +1249,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
   int edgecount_in_file = e;
   while(true){
     //memset(ed, 0, 200000*sizeof(edge_float));
-    rc = (int)fread(ed, sizeof(edgedata), _min(200000, edgecount_in_file - total), f);
+    rc = (int)fread(ed, sizeof(edgedata), std::min(200000, edgecount_in_file - total), f);
     total += rc;
 
     for (int i=0; i<rc; i++){
@@ -1129,7 +1269,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       globalMean[type] += edge.weight;
       double time = ((ed[i].time - 1.0- truncating)/(double)scaling);
       edge.time = time;
-      if (algorithm == WEIGHTED_ALS)
+      if (algorithm == WEIGHTED_ALS && !ZERO)
          assert(edge.time != 0);
 
       std::pair<bool, edge_id_t> ret;
@@ -1212,19 +1352,19 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   assert(rc==4); 
   assert(_K>=1);
   assert(_M>=1 && _N>=1); 
-  if (data_type != TRAINING && M != _M)
+  if (data_type == TRAINING){
+  	M=_M; N= _N; K= _K;
+	if (infile == "kddcup" || infile == "kddcup2")// DB: ugly - kdd cup data has more time bins for test data than in training data. can fix this buy setting the time bins in training data to 6649.
+		K=6649;
+     K=ceil((K-truncating)/scaling);
+  }
+
+ if (data_type != TRAINING && M != _M)
 	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << M << " in " << testtypename[data_type] << std::endl;
   if (data_type != TRAINING && N != _N)
 	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << N << " in " << testtypename[data_type] << std::endl;
   if (data_type != TRAINING && K != _K)
 	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in " << testtypename[data_type] <<std::endl;
-
-  if (data_type == TRAINING){
-  	M=_M; N= _N; K= _K;
-	if (infile == "kddcup" || infile == "kddcup2")// DB: ugly - kdd cup data has more time bins for test data than in training data. can fix this buy setting the time bins in training data to 6649.
-		K=6649;
-        K=ceil((K-truncating)/scaling);
-  }
 
   //if (data_type==TRAINING)
   printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", M, N, K);
@@ -1291,7 +1431,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   for (int i=M; i < M+N; i++){
     foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
 #ifndef GL_NO_MULT_EDGES      
-     const  multiple_edges & tedges= _g->const_edge_data(eid);
+     const  multiple_edges & tedges= _g->edge_data(eid);
 #endif
       int from = _g->source(eid);
       int to = _g->target(eid);
@@ -1351,77 +1491,6 @@ int main(int argc,  char *argv[]) {
   logstream(LOG_WARNING)<<"Code compiled with GL_SVD_PP flag - this mode only supports SVD++ run.\n";
 #endif
 
-  if (argc < 3){
-    logstream(LOG_ERROR) <<  "Not enough input arguments. Usage is ./pmf <input file name> <run mode> \t\nRun modes are: \n";
-    for (int i=0; i< MAX_RUNMODE; i++) 
-       logstream(LOG_ERROR) << "\t" << i << " " << runmodesname[i] << std::endl;  
-    exit(1);
-  }
-   
-   // select run mode (type of algorithm)
-  infile = argv[1];
-  algorithm = (runmodes)atoi(argv[2]);
-  printf("Setting run mode %s\n", runmodesname[algorithm]);
-
-  switch(algorithm){
-  // iterative matrix factorization using alternating least squares
-  // or SVD ++
-  case ALS_MATRIX:
-  case WEIGHTED_ALS:
-  case SVD_PLUS_PLUS:
-  case STOCHASTIC_GRADIENT_DESCENT:
-  case LANCZOS:
-  case NMF:
-    tensor = false; BPTF = false;
-    break;
-
-    // MCMC tensor factorization
-  case BPTF_TENSOR:
-    // tensor factorization , allow for multiple edges between user and movie in different times
-  case BPTF_TENSOR_MULT:
-    tensor = true; BPTF = true;
-   break;
-    //MCMC matrix factorization
-  case BPTF_MATRIX:
-    tensor = false; BPTF = true;
-    break;
-   // tensor factorization
-  case ALS_TENSOR_MULT:
-    tensor = true; BPTF = false;
-    break;
-  default:
-    assert(0);
-  }
-
-  logger(LOG_INFO, "%s starting\n",runmodesname[algorithm]);
-
-//INPUT SANITY CHECKS
-#ifdef GL_NO_MCMC
-  if (BPTF){
-    logstream(LOG_ERROR) << "Can not run MCMC method with GL_NO_MCMC flag. Please comment flag on pmf.h and recompile\n";
-    exit(1); 
- }
-#endif
-
-#ifdef GL_NO_MULT_EDGES
-  if (algorithm == ALS_TENSOR_MULT || algorithm == BPTF_TENSOR_MULT){
-    logstream(LOG_ERROR) << "Can not have support for multiple edges with GL_NO_MULT_EDGES flag. Please comment flag on pmf.h and recompile\n";
-   exit(1);
-  }
-#endif  
-#ifdef GL_SVD_PP
-  if (algorithm != SVD_PLUS_PLUS){
-    logstream(LOG_ERROR) << "Can not run required algorithm with GL_SVD_PP flag. Please comment flag on pmf.h and recompile\n";
-    exit(1);
-  }
-#else
-  if (algorithm == SVD_PLUS_PLUS){
-    logstream(LOG_ERROR) << "Can not run required algorithm without GL_SVD_PP flag. Please define flag on pmf.h and recompile\n";
-    exit(1);
-  }
-#endif
-
-   //start graphlab!
    start(argc, argv);
 }
 

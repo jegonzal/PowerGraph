@@ -391,6 +391,75 @@ namespace graphlab {
     }
   }; // End rwlock
 
+
+
+
+
+  /**
+   * \ingroup util
+   * This is a simple sense-reversing barrier implementation.
+   * In addition to standard barrier functionality, this also
+   * provides a "cancel" function which can be used to destroy
+   * the barrier, releasing all threads stuck in the barrier.
+   */
+  class cancellable_barrier {
+  private:
+    mutex m;
+    int needed;
+    int called;
+    conditional c;
+    
+    bool barrier_sense;
+    bool barrier_release;
+    bool alive;
+    // we need the following to protect against spurious wakeups
+  
+  public:
+    /// Construct a barrier which will only fall when numthreads enter
+    cancellable_barrier(size_t numthreads) {
+      needed = numthreads;
+      called = 0;
+      barrier_sense = false;
+      barrier_release = true;
+      alive = true;
+    }
+    
+    ~cancellable_barrier() {}
+    
+    
+    inline void cancel() {
+      alive = false;
+      c.broadcast();
+    }
+    
+    /// Wait on the barrier until numthreads has called wait
+    inline void wait() {
+      if (!alive) return;
+      m.lock();
+      // set waiting;
+      called++;
+      bool listening_on = barrier_sense;
+      
+      if (called == needed) {
+        // if I have reached the required limit, wait up. Set waiting
+        // to 0 to make sure everyone wakes up
+
+        called = 0;
+        barrier_release = barrier_sense;
+        barrier_sense = !barrier_sense;
+        // clear all waiting
+        c.broadcast();
+      }
+      else {
+        // while no one has broadcasted, sleep
+        while(barrier_release != listening_on && alive) c.wait(m);
+      }
+      m.unlock();
+    }
+  };
+  
+
+
   /**
    * \class barrier
    * Wrapper around pthread's barrier
@@ -412,57 +481,10 @@ namespace graphlab {
   };
 
 #else
-  /**
-   * \ingroup util
-   * In some systems, pthread_barrier is not available.
-   * This is a simple sense-reversing barrier implementation
+   
+   /* In some systems, pthread_barrier is not available.
    */
-  class barrier {
-  private:
-    mutex m;
-    int needed;
-    int called;
-    conditional c;
-    
-    bool barrier_sense;
-    bool barrier_release;
-    // we need the following to protect against spurious wakeups
-  
-  public:
-    /// Construct a barrier which will only fall when numthreads enter
-    barrier(size_t numthreads) {
-      needed = numthreads;
-      called = 0;
-      barrier_sense = false;
-      barrier_release = true;
-    }
-    
-    ~barrier() {}
-    
-    /// Wait on the barrier until numthreads has called wait
-    inline void wait() {
-      m.lock();
-      // set waiting;
-      called++;
-      bool listening_on = barrier_sense;
-      
-      if (called == needed) {
-        // if I have reached the required limit, wait up. Set waiting
-        // to 0 to make sure everyone wakes up
-
-        called = 0;
-        barrier_release = barrier_sense;
-        barrier_sense = !barrier_sense;
-        // clear all waiting
-        c.broadcast();
-      }
-      else {
-        // while no one has broadcasted, sleep
-        while(barrier_release != listening_on) c.wait(m);
-      }
-      m.unlock();
-    }
-  };
+  typedef cancellable_barrier barrier;
 #endif
 
 
@@ -707,8 +729,6 @@ namespace graphlab {
     size_t val;
     char __pad__[64 - sizeof(size_t)];
   };
-
-
 }; // End Namespace
 
 #endif
