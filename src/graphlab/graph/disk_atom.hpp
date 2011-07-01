@@ -65,7 +65,7 @@ namespace graphlab {
    * h[vid] ==> uint16_t : The atom file owning vertex vid.  \n
    * These are entirely independent of the previous keys.
    */
-  Class disk_atom{
+  class disk_atom {
   public:
     typedef kyotocabinet::TreeDB storage_type;
   private:
