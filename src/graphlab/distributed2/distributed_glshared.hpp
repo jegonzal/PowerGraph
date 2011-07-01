@@ -17,6 +17,9 @@
  * For more about this software visit:
  *
  *      http://www.graphlab.ml.cmu.edu
+ * 
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
  *
  */
 
@@ -107,11 +110,14 @@ public:
    *  Bad:
    *    const int& x = *shared_x.get_ptr();
    *
-   *
+   * get_ptr not supported yet for distributed glshared
    */
-  inline __attribute((error("get_ptr not supported yet for distributed glshared"))) const_ptr_type get_ptr() const{
-    return ptr;
-  }
+  inline const_ptr_type get_ptr() __attribute__(( deprecated ));
+
+  //// Unfortunate error is not supported on gcc 4.2 compilers 
+  //   inline const_ptr_type get_ptr() 
+  //     __attribute__(( error ("get_ptr not supported yet for distributed glshared") ));
+  //  const{ return ptr; }
 
   /**
    * changes the data to 't'. This operation is atomic This
