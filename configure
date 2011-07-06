@@ -1,5 +1,9 @@
 #!/bin/bash
 
+## Ensure exit on error:
+set -e
+
+
 ## Begin logging in config.log
 LOG_FILE=config.log
 date | tee $LOG_FILE
