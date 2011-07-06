@@ -18,6 +18,13 @@
  *
  *      http://www.graphlab.ml.cmu.edu
  *
+ * Written By Danny Bickson, CMU
+ * Based on Code by Yehuda Koren, Yahoo! Research
+ * Send any question / comments to: danny.bickson@gmail.com
+ *
+ * This code implements the paper: Factorization Meets the Neighborhood: a Multifaceted 
+ * Collaborative Filtering Model by Yehuda Koren, in KDD 2008.
+ * Parallelization of the code is done by Danny Bickson, CMU
  */
 
 
@@ -35,7 +42,7 @@ float usrBiasReg = 5e-3f;
 float usrFctrStep = 2e-2f;
 float usrFctrReg = 2e-2f;
 float itmFctrStep = 3e-3f;
-float itmFctrReg = 1e-2f;
+float itmFctrReg = 1e-2f; //gamma7
 float itmFctr2Step = 1e-4f;
 float itmFctr2Reg = 1e-2f;
 
@@ -118,9 +125,12 @@ void svd_post_iter(){
 }
 
 float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction){
+      //\hat(r_ui) = \mu + 
       prediction = globalMean[0];
-      prediction += movie.pvec*(user.pvec+user.weight);
+                 // + b_u  +    b_i +
       prediction += user.bias + movie.bias;
+                 // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
+      prediction += movie.pvec*(user.pvec+user.weight);
       prediction = min(prediction, maxval);
       prediction = max(prediction, minval);
       float err = rating - prediction;
@@ -167,53 +177,59 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
     user.weight = zeros(D);
     
     foreach(graphlab::edge_id_t oedgeid, outs) {
-
-      //edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
+      //sum_{j \in N(u)} y_j 
       user.weight += movie.weight; 
             
     }
-   
+  
+   // sqrt(|N(u)|) 
    float usrNorm = float(1.0/sqrt(user.num_edges));
+   //sqrt(|N(u)| * sum_j y_j
    user.weight *= usrNorm;
 
    vec step = zeros(D);
  
-
+   // main algorithm, see Koren's paper, just below below equation (16)
    foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
       user.rmse += svd_predict(user, movie, NULL, edge.weight, estScore); 
+      // e_ui = r_ui - \hat{r_ui}
       float err = edge.weight - estScore;
       assert(!isnan(user.rmse));
-     vec itmFctr = movie.pvec;
-     vec usrFactor = user.pvec;
+      vec itmFctr = movie.pvec;
+      vec usrFactor = user.pvec;
    
-     movie.pvec += itmFctrStep*(err*(user.weight+usrFactor)-itmFctrReg*itmFctr);
-     user.pvec += usrFctrStep*(err*itmFctr-usrFctrReg*usrFactor);
-     step += err*itmFctr;
+      //q_i = q_i + gamma2     *(e_ui*(p_u      +  sqrt(N(U))\sum_j y_j) - gamma7    *q_i)
+      movie.pvec += itmFctrStep*(err*(useFactor +  user.weight)             - itmFctrReg*itmFctr);
+      //p_u = p_u + gamma2    *(e_ui*q_i   -gamma7     *p_u)
+      user.pvec += usrFctrStep*(err *itmFctr-usrFctrReg*usrFactor);
+      step += err*itmFctr;
 
-     movie.bias += itmBiasStep*(err-itmBiasReg*movie.bias);
-     user.bias += usrBiasStep*(err-usrBiasReg*user.bias);
+      //b_i = b_i + gamma1*(e_ui - gmma6 * b_i) 
+      movie.bias += itmBiasStep*(err-itmBiasReg*movie.bias);
+      //b_u = b_u + gamma1*(e_ui - gamma6 * b_u)
+      user.bias += usrBiasStep*(err-usrBiasReg*user.bias);
    }
 
    step *= float(itmFctr2Step*usrNorm);
 
+   //gamma7 
    double mult = itmFctr2Step*itmFctr2Reg;
    foreach(graphlab::edge_id_t oedgeid, outs){
-      //edge_data & edge = scope.edge_data(oedgeid);
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
-      movie.weight +=  step-mult*movie.weight;
+      //y_j = y_j  +   gamma2*sqrt|N(u)| * q_i - gamma7 * y_j
+      movie.weight +=  step                    -  mult  * movie.weight;
    }
 
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == (uint)M-1)
+   if (scope.vertex() == (uint)(M-1))
   	svd_post_iter();
-
-  }
+   }
 
 }
 

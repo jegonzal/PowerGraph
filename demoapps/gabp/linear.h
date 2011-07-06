@@ -58,6 +58,15 @@ enum algorithms{
 const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient"};
 
 
+//counters for debugging running time of different modules
+enum countervals{
+   EDGE_TRAVERSAL=0,
+   NODE_TRAVERSAL=1
+};
+
+#define MAX_COUNTER 2
+const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL"};
+
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
@@ -68,7 +77,6 @@ gl_types::glshared<size_t> ITERATION_KEY;
 gl_types::glshared_const<double> THRESHOLD_KEY;
 gl_types::glshared_const<bool> SUPPORT_NULL_VARIANCE_KEY;
 gl_types::glshared_const<bool> ROUND_ROBIN_KEY;
-gl_types::glshared_const<bool> FINISH_KEY;
 gl_types::glshared_const<bool> DEBUG_KEY;
 gl_types::glshared_const<size_t> MAX_ITER_KEY;
 

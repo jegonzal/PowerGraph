@@ -34,6 +34,7 @@ int x_offset = -1, b_offset = -1, y_offset = -1, r_offset = -1;
 bool A_offset = false;
 extern uint n; 
 extern uint m;
+extern double counter[20];
 gl_types::core * glcore;
 #define MAX_PRINT_ITEMS 21
 #define MAX_OFFSET 7
@@ -413,6 +414,8 @@ void Axb(gl_types::iscope &scope,
   double val = 0;
   assert(x_offset >=0 || y_offset>=0);
 
+  timer t; t.start();
+  
   /*** COMPUTE r = c*A*x  ********/
   if (A_offset  && x_offset >= 0){
     edge_list outs = get_edges(scope);
@@ -437,9 +440,12 @@ void Axb(gl_types::iscope &scope,
   }
 
   pr[r_offset] = val;
+  counter[EDGE_TRAVERSAL] += t.current_time();
 }
 
 void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
+   
+   timer t; t.start();
    for (int j=0; j< (int)nodes.size(); j++){
        vertex_id_t i =  nodes[j];
        vertex_data & user = g->vertex_data(i);
@@ -473,6 +479,7 @@ void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
     }
      pr[r_offset] = val;
    }
+   counter[NODE_TRAVERSAL] += t.current_time();
 }   
 
 void init_row_cols(){

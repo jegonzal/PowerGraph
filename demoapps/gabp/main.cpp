@@ -50,6 +50,7 @@
 
 #include <graphlab/macros_def.hpp>
 
+double counter[20];//timing counters
 
 uint32_t m = 0; // number of rows of A
 uint32_t n = 0; // number of cols of A
@@ -422,13 +423,13 @@ int main(int argc,  char *argv[]) {
   }
   else if (unittest == 4){
     logstream(LOG_WARNING)<< "Going to run CG unit testing using matrix of size 3x3" << std::endl;
-    const char * args[] = {"gabp", "2", "mat3x3", "1e-10", "--unittest=3", "--syncinterval=10000"};
+    const char * args[] = {"gabp", "2", "mat3x3", "1e-10", "--unittest=4", "--syncinterval=10000"};
     clopts.parse(6, (char**)args);
     clopts.set_scheduler_type("fifo");
   }
  else if (unittest == 5){
     logstream(LOG_WARNING)<< "Going to run CG unit testing using matrix of size 3x2" << std::endl;
-    const char * args[] = {"gabp", "2", "mat3x2", "1e-10", "--unittest=3", "--syncinterval=10000"};
+    const char * args[] = {"gabp", "2", "mat3x2", "1e-10", "--unittest=5", "--syncinterval=10000"};
     clopts.parse(6, (char**)args);
     clopts.set_scheduler_type("fifo");
   }
@@ -572,6 +573,13 @@ int main(int argc,  char *argv[]) {
      write_vec(f, means.size(), &precs[0]);
 
    fclose(f);
+
+  //print timing counters
+  for (int i=0; i<MAX_COUNTER; i++){
+    if (counter[i] > 0)
+    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
+   }
+
 
    if (unittest == 1){
       assert(diff <= 1.7e-4);

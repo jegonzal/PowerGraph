@@ -106,7 +106,8 @@ float sgd_step_dec = 0.9; //step decrement size
 int svd_iter = 10; //number of iterations (which is the number of extracted eigenvectors)
 
 //performance counters
-double counter[20];
+#define MAX_COUNTER 20
+double counter[MAX_COUNTER];
 int unittest = 0;
 int ialgo = 0;
 vertex_data * times = NULL;
@@ -1213,7 +1214,7 @@ void start(int argc, char ** argv) {
  }
 
   //print timing counters
-  for (int i=0; i<11; i++){
+  for (int i=0; i<MAX_COUNTER; i++){
     if (counter[i] > 0)
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
    }
