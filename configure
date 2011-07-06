@@ -1,7 +1,9 @@
 #!/bin/bash
 
 ## Ensure exit on error:
-set -e
+# set -e
+
+
 
 
 ## Begin logging in config.log
@@ -77,7 +79,7 @@ while [ $# -gt 0 ]
     --help)                 print_help ;;
     --cleanup)              run_cleanup ;;
     --bootstrap)            bootstrap=1 ;;
-    --yes)                  always_yes=1;;
+    --ye525s)                  always_yes=1;;
     --force_cmake_install)  force_cmake_install=1 ;;
     --force_boost_install)  force_boost_install=1 ;;
     --force_kc_install)     force_kc_install=1 ;;
