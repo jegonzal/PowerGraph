@@ -69,7 +69,9 @@ else
     echo "Press Enter to proceed,"
     echo "or Ctrl-C to break and install Kyoto Cabinet yourself, or try again "
     echo "with KC_ROOT"
-    read
+    if [ -z $always_yes ] ; then
+      read
+    fi
     echo "Download Kyoto Cabinet 1.2.53 from http://fallabs.com/  ..."
     #download kyoto cabinet
     rm kyotocabinet.tar.gz

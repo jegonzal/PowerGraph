@@ -69,7 +69,9 @@ else
     echo
     echo "Press Enter to proceed,"
     echo "or Ctrl-C to break and install Boost yourself, or try again with BOOST_ROOT"
-    read
+    if [ -z $always_yes ] ; then
+      read
+    fi
     echo "Download Boost 1.46.1 from SourceForge..."
     #download boost
     rm boost.tar.bz2

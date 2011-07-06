@@ -44,7 +44,9 @@ else
       echo
       echo "Press Enter to continue, "
       echo "or press Ctrl-C to break and install CMake yourself."
-      read
+      if [ -z $always_yes ] ; then
+        read
+      fi
       echo "Looking for latest version of CMake..."
 
       # get the cmake software page

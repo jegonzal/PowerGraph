@@ -30,6 +30,8 @@ function print_help {
   echo 
   echo "      --bootstrap             bootstrap will install CMake/Boost if they are not detected."
   echo
+  echo "      --yes                   automatically install dependencies locally if they are not met."
+  echo
   echo "      --force_cmake_install   This forces a CMake installation even if CMake is detected."
   echo
   echo "      --force_boost_install   This forces a Boost installation even if Boost is detected."
@@ -71,6 +73,7 @@ while [ $# -gt 0 ]
     --help)                 print_help ;;
     --cleanup)              run_cleanup ;;
     --bootstrap)            bootstrap=1 ;;
+    --yes)                  always_yes=1;;
     --force_cmake_install)  force_cmake_install=1 ;;
     --force_boost_install)  force_boost_install=1 ;;
     --force_kc_install)     force_kc_install=1 ;;
