@@ -47,7 +47,12 @@ function print_help {
   echo "      --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
   echo 
   echo "      --experimental          Turns on undocumented experimental distributed capabilities. "
+  echo 
   echo "      --itpp                  Try to automatically build itpp"
+  echo
+  echo "      --itpp_include_dir=[DIR] specify manually itpp include directories (path to itpp header files)."
+  echo 
+  echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
   echo
   exit 1
 }
@@ -79,13 +84,15 @@ while [ $# -gt 0 ]
     --help)                 print_help ;;
     --cleanup)              run_cleanup ;;
     --bootstrap)            bootstrap=1 ;;
-    --ye525s)                  always_yes=1;;
+    --yes)                  always_yes=1;;
     --force_cmake_install)  force_cmake_install=1 ;;
     --force_boost_install)  force_boost_install=1 ;;
     --force_kc_install)     force_kc_install=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --experimental)         experimental=1 ;;
     --itpp)                 itpp=1 ;;
+    --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
+    --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
     *) unknown_option $1 ;;
   esac
   shift
