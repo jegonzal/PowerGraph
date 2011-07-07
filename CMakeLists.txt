@@ -208,6 +208,22 @@ else()
   message(STATUS "ITPP was not found")
 endif()
 
+if (DEFINED ITPP_INCLUDE_DIR)
+  include_directories(ITPP_INCLUDE_DIR)
+  link_libraries(itpp)
+  add_definitions(-DHAS_ITPP)
+  message(STATUS "Manually setting itpp include dir: " ${ITPP_INCLUDE_DIR})
+  set(ITPP-FOUND 1)
+endif() 
+
+if (DEFINED ITPP_LINK_DIR)
+  link_directories(ITPP_LINK_DIR)
+  link_libraries(itpp)
+  add_definitions(-DHAS_ITPP)
+  message(STATUS "Manually setting itpp link dir: " ${ITPP_LINK_DIR})
+  set(ITPP-FOUND 1)
+endif() 
+
 
 
 set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})

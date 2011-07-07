@@ -138,6 +138,7 @@ fi
 
 
 
+
 # Run the configure deps
 source configure.deps 
 
@@ -185,7 +186,13 @@ if [ ! -z $EXPERIMENTAL ]; then
     config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 fi
 
+if [ ! -z $itpp_link_dir ]; then
+    config_flags="$config_flags -D ITPP_LINK_DIR:STRING=$itpp_link_dir"
+fi
 
+if [ ! -z $itpp_include_dir ]; then
+   config_flags="$config_flags -D ITPP_INCLUDE_DIR:STRING=$itpp_include_dir"
+fi
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
