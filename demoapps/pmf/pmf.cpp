@@ -1268,7 +1268,12 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       if (scalerating != 1.0)
 	     edge.weight /= scalerating;
       globalMean[type] += edge.weight;
-      double time = ((ed[i].time - 1.0- truncating)/(double)scaling);
+     
+      double time;
+      if (algorithm != WEIGHTED_ALS)
+         time  = ((ed[i].time - 1.0- truncating)/(double)scaling);
+      else
+         time = (ed[i].time - truncating)/scaling;
       edge.time = time;
       if (algorithm == WEIGHTED_ALS && !ZERO)
          assert(edge.time != 0);
@@ -1446,8 +1451,9 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
       const edge_data & data = _g->edge_data(eid);
 #endif
 	if (!ZERO)
-        	assert(data.weight != 0);  
-        assert(data.time < K);
+          assert(data.weight != 0);  
+        if (algorithm != WEIGHTED_ALS)
+          assert(data.time < K);
   
         if (K > 1 && data_type==TRAINING && tensor)
           edges[(int)data.time].push_back(eid);
