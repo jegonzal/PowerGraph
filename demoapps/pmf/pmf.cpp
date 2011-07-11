@@ -17,7 +17,9 @@
  * For more about this software visit:
  *
  *      http://www.graphlab.ml.cmu.edu
- *
+ *  
+ *  Code written by Danny Bickson, CMU
+ *  Any changes to the code must include this original license notice in full.
  */
 
 
@@ -397,11 +399,13 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
           trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
         }
 #endif
-       if (algorithm == WEIGHTED_ALS)
+      //weight rmse with edge weight 
+      if (algorithm == WEIGHTED_ALS)
           trmse *= edge.time;
       
        if (toprint)
           cout<<"trmse: " << trmse << endl;
+      //aggregate RMSE
        vdata.rmse += trmse; 
  
 #ifndef GL_NO_MULT_EDGES     
@@ -424,10 +428,11 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     if (!regnormal)
 	   regularization*= Q.cols();
 
+    // compute regular least suqares
     if (algorithm != WEIGHTED_ALS){
        bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
-    } //Weighted alternating least squares
+    } //Weighted alternating least squares (see equations (6),(7) in paper 9)
     else {
        //mat W = diag(weight);
        vec b = Q*vals;
@@ -1169,8 +1174,10 @@ void start(int argc, char ** argv) {
            "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
            , calc_obj(res), rmse, calc_rmse(&validation_graph, true, res2));
   }
-  
+ 
+ 
   if (BPTF){
+    //sample hyper priors and noise level
     if (delayalpha < iiter)
     	sample_alpha(L);
     sample_U();
@@ -1179,7 +1186,6 @@ void start(int argc, char ** argv) {
       sample_T();
   }
 
-  /// Timing
   g->finalize();  
   gt.start();
 
@@ -1239,7 +1245,12 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
     flags = new bool[nodes];
     memset(flags, 0, sizeof(bool)*nodes);
   }
- 
+
+  int matlab_offset_user_movie = 1; //matlab array start from 1
+  int matlab_offset_time = 1; //matlab arrays start from 1
+  if (algorithm == WEIGHTED_ALS)
+    matlab_offset_time = 0; //for weighted ALS there are no time bins which are integers, so no need to convert them
+
   unsigned int e;
   int rc = fread(&e,1,4,f);
   assert(rc == 4);
@@ -1253,28 +1264,30 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
     rc = (int)fread(ed, sizeof(edgedata), std::min(200000, edgecount_in_file - total), f);
     total += rc;
 
+    //go over each rating (edges)
     for (int i=0; i<rc; i++){
 #ifndef GL_NO_MULT_EDGES
       multiple_edges edges;
 #endif
       edge_data edge;
-      if (!ZERO)
-	 assert(ed[i].weight != 0); // && ed[i].weight <= 5);
-      assert((int)ed[i].from >= 1 && (int)ed[i].from <= nodes);
-      assert((int)ed[i].to >= 1 && (int)ed[i].to <= nodes);
+      if (!ZERO) //usually we do not allow zero ratings, unless --zero=true flag is set.
+	 assert(ed[i].weight != 0); 
+      //verify node ids are in allowed range
+      assert((int)ed[i].from >= matlab_offset_user_movie && (int)ed[i].from <= nodes);
+      assert((int)ed[i].to >= matlab_offset_user_movie && (int)ed[i].to <= nodes);
+      //no self edges
       assert((int)ed[i].to != (int)ed[i].from);
       edge.weight = (double)ed[i].weight;
     
+      //if sacling of rating values is requested to it here.
       if (scalerating != 1.0)
 	     edge.weight /= scalerating;
       globalMean[type] += edge.weight;
      
-      double time;
-      if (algorithm != WEIGHTED_ALS)
-         time  = ((ed[i].time - 1.0- truncating)/(double)scaling);
-      else
-         time = (ed[i].time - truncating)/scaling;
+      //if scaling of time bins request do it here
+      double time  = ((ed[i].time - matlab_offset_time - truncating)/(double)scaling);
       edge.time = time;
+      //assert weights in WALS are not zero (no sense to give zero weight)
       if (algorithm == WEIGHTED_ALS && !ZERO)
          assert(edge.time != 0);
 
@@ -1282,27 +1295,27 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT){//no support for multple edges (ratings) of the same user - item pair at different times
         ret.first = false;
       }
-      else if (flags[(int)ed[i].from-1] == true && flags[(int)ed[i].to-1] == true){
-        ret = _g->find((int)ed[i].from-1, (int)ed[i].to-1);
+      else if (flags[(int)ed[i].from-matlab_offset_user_movie] == true && flags[(int)ed[i].to-matlab_offset_user_movie] == true){
+        ret = _g->find((int)ed[i].from-matlab_offset_user_movie, (int)ed[i].to-matlab_offset_user_movie);
       }
       else ret.first = false;
 
       if (ret.first == false){
 #ifndef GL_NO_MULT_EDGES
         edges.medges.push_back(edge); 
-        _g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
+        _g->add_edge((int)ed[i].from-matlab_offset_user_movie, (int)ed[i].to-matlab_offset_user_movie, edges); // Matlab export has ids starting from 1, ours start from 0
 #else
-	_g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edge);
+	_g->add_edge((int)ed[i].from-matlab_offset_user_movie, (int)ed[i].to-matlab_offset_user_movie, edge);
 #endif
         if (type == VALIDATION && aggregatevalidation)//add validation edges into training dataset as well
 #ifndef GL_NO_MULT_EDGES          
-           g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edges); // Matlab export has ids starting from 1, ours start from 0
+           g->add_edge((int)ed[i].from-matlab_offset_user_movie, (int)ed[i].to-matlab_offset_user_movie, edges); // Matlab export has ids starting from 1, ours start from 0
 #else
-	   g->add_edge((int)ed[i].from-1, (int)ed[i].to-1, edge);
+	   g->add_edge((int)ed[i].from-matlab_offset_user_movie, (int)ed[i].to-matlab_offset_user_movie, edge);
 #endif
         if (algorithm == BPTF_TENSOR_MULT || algorithm == ALS_TENSOR_MULT){
-          flags[(int)ed[i].from-1] = true;
-          flags[(int)ed[i].to-1] = true;
+          flags[(int)ed[i].from-matlab_offset_user_movie] = true;
+          flags[(int)ed[i].to-matlab_offset_user_movie] = true;
         }
       }
 #ifndef GL_NO_MULT_EDGES
