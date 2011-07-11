@@ -108,12 +108,12 @@ namespace graphlab {
       // OS X has no mremap? Can we make this better?
       munmap(ptr, ptrlen);
       size_t newptrlen = file_length();
-      ptr = mmap(0, ptrlen, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
+      ptr = mmap(0, newptrlen, PROT_READ | PROT_WRITE, MAP_SHARED , fd, 0);
       ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
       ptrlen = newptrlen;
 #else
       size_t newptrlen = file_length();
-      ptr = mremap(ptr, ptrlen, newptrlen, MREMAP_MAYMOVE);
+      ptr = mremap(ptr, newptrlen, newptrlen, MREMAP_MAYMOVE);
       ASSERT_MSG(ptr != MAP_FAILED, strerror(errno));
       ptrlen = newptrlen;
 #endif

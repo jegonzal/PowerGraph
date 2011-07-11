@@ -70,7 +70,8 @@ mmap_allocator_offset_t mmap_allocator::create_vector(uint32_t elemsize,
                                                       uint64_t start_numel) {
   ASSERT_FALSE(closed);
   mmap_allocator_offset_t ret = mem_alloc(sizeof(mmap_allocator_impl::mmap_vector_header) + elemsize * start_numel);
-  void* ptr = get_ptr(ret);
+  mapped_file_lock.readlock();
+  void* ptr = ptr_offset(ret);
   // create the header
   mmap_allocator_impl::mmap_vector_header* vec_header = 
                                 (mmap_allocator_impl::mmap_vector_header*)ptr;
@@ -79,7 +80,7 @@ mmap_allocator_offset_t mmap_allocator::create_vector(uint32_t elemsize,
   vec_header->nextblock = 0;
   vec_header->thisblock_numel = start_numel;
   vec_header->elemsize = elemsize;
-  release_ptr(ptr);
+  mapped_file_lock.unlock();
   return ret;
 }
 
@@ -114,6 +115,36 @@ mmap_allocator_offset_t mmap_allocator::mem_alloc(uint64_t len) {
 }
 
 
+void mmap_allocator::get_range(uint64_t offset, void* target, uint64_t numbytes) {
+  mapped_file_lock.readlock();
+  memcpy(target, ptr_offset(offset), numbytes);
+  mapped_file_lock.unlock();
+}
+void mmap_allocator::set_range(uint64_t offset, const void* target, uint64_t numbytes) {
+  mapped_file_lock.readlock();
+  memcpy(ptr_offset(offset), target, numbytes);
+  mapped_file_lock.unlock();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*********** Mmap allocator vector implementation begins here *********/
 
 mmap_allocator_vector::mmap_allocator_vector(mmap_allocator* allocator, 
                       mmap_allocator_offset_t offset, uint32_t elemsize):allocator(allocator), 
@@ -121,12 +152,7 @@ mmap_allocator_vector::mmap_allocator_vector(mmap_allocator* allocator,
                                                                        released(false){
                                                                          
   // read the vector header
-  void* ptr = allocator->get_ptr(offset);
-  // create the header
-  mmap_allocator_impl::mmap_vector_header* vec_header = 
-                      (mmap_allocator_impl::mmap_vector_header*)ptr;
-  header = (*vec_header);
-  allocator->release_ptr(ptr);
+  allocator->get_range(offset, &header, sizeof(mmap_allocator_impl::mmap_vector_header));
   // make sure the element size matches
   ASSERT_EQ(header.elemsize, elemsize);
   // begin caching the index map
@@ -153,12 +179,9 @@ void mmap_allocator_vector::cache_header_index(idx_t up_to_index_or_end) const {
   
     idx_header_map[last_idx_header_entry].first = last_known_index + 1;
     // read the intermediate header
-    void* ptr = allocator->get_ptr(idx_header_map[last_idx_header_entry - 1].second.nextblock);
-    mmap_allocator_impl::mmap_vector_intermediate_header* int_header = 
-                  (mmap_allocator_impl::mmap_vector_intermediate_header*)(ptr);
-    // copy the header
-    idx_header_map[last_idx_header_entry].second = (*int_header);
-    allocator->release_ptr(ptr);
+    allocator->get_range(idx_header_map[last_idx_header_entry - 1].second.nextblock,
+                         &(idx_header_map[last_idx_header_entry].second),
+                         sizeof(mmap_allocator_impl::mmap_vector_intermediate_header));
     
     // update last index
     last_known_index = idx_header_map[last_idx_header_entry].first + 
@@ -167,7 +190,8 @@ void mmap_allocator_vector::cache_header_index(idx_t up_to_index_or_end) const {
   lock.unlock();
 }
 
-mmap_allocator_offset_t mmap_allocator_vector::find_index_pos(idx_t idx) const {
+
+int mmap_allocator_vector::find_block_containing(idx_t idx) const {
   ASSERT_FALSE(released);
   // if it is a valid index, but I know nothing about it
   if (idx > last_known_index &&
@@ -187,18 +211,8 @@ mmap_allocator_offset_t mmap_allocator_vector::find_index_pos(idx_t idx) const {
       if (idx_header_map[center].first <= idx &&
           idx_header_map[center].first + idx_header_map[center].second.thisblock_numel > idx) {
         // it is in this block!
-        // shift by the header
-        mmap_allocator_offset_t ret;
-        if (center == 0) {
-          ret = offset + sizeof(mmap_allocator_impl::mmap_vector_header);
-        }
-        else {
-          ret = idx_header_map[center - 1].second.nextblock + sizeof(mmap_allocator_impl::mmap_vector_intermediate_header);
-        }
-        
-        ret = ret + header.elemsize * (idx - idx_header_map[center].first);
         lock.unlock();
-        return ret;
+        return center;
       }
       else if (idx_header_map[center].first >= idx) {
         high = center;
@@ -210,14 +224,22 @@ mmap_allocator_offset_t mmap_allocator_vector::find_index_pos(idx_t idx) const {
     lock.unlock();
     ASSERT_MSG(false, "binary search in index map failed! Should be impossible!");
     // unreachable
-    return (mmap_allocator_offset_t)(-1);
+    return -1;
   }
 
   if (idx >= header.numel) {
-    return (mmap_allocator_offset_t)(-1);
+    return -1;
   }
   ASSERT_MSG(false, "Index corruption");
-  return (mmap_allocator_offset_t)(-1);;
+  return -1;
+}
+
+mmap_allocator_offset_t mmap_allocator_vector::find_index_pos(idx_t idx) const {
+  int block = find_block_containing(idx);
+  if (block == -1) return (mmap_allocator_offset_t)(-1);
+  mmap_allocator_offset_t ret = block_dataoffset(block);
+  ret += header.elemsize * (idx - block_firstel(block));
+  return ret;
 }
 
 void mmap_allocator_vector::resize(idx_t len) {
@@ -242,14 +264,15 @@ void mmap_allocator_vector::reserve(idx_t len) {
   mmap_allocator_offset_t ret = allocator->mem_alloc(new_block_len * header.elemsize + sizeof(mmap_allocator_impl::mmap_vector_intermediate_header));
   // create the new header and update the previous header
   idx_header_map[idx_header_map.size() - 1].second.nextblock = ret;
-  void* ptr = allocator->get_ptr(idx_header_map[idx_header_map.size() - 1].second.nextblock);
-  mmap_allocator_impl::mmap_vector_intermediate_header* new_header = 
-                  (mmap_allocator_impl::mmap_vector_intermediate_header*)(ptr);
-  new_header->thisblock_numel = new_block_len;
-  new_header->nextblock = 0;
+
+  mmap_allocator_impl::mmap_vector_intermediate_header new_header;
+  new_header.thisblock_numel = new_block_len;
+  new_header.nextblock = 0;
+  allocator->set_range(idx_header_map[idx_header_map.size() - 1].second.nextblock,
+                       &new_header,
+                       sizeof(mmap_allocator_impl::mmap_vector_intermediate_header));
   // add this new entry into the index map
-  idx_header_map.push_back(std::make_pair(last_known_index + 1, *new_header));
-  allocator->release_ptr(ptr);
+  idx_header_map.push_back(std::make_pair(last_known_index + 1, new_header));
 
 
   
@@ -264,11 +287,9 @@ void mmap_allocator_vector::reserve(idx_t len) {
     // otherwise size is at least 3. The previous block header is held in the
     // previous previous block's header
     mmap_allocator_offset_t prevblock = idx_header_map[idx_header_map.size() - 3].second.nextblock;
-    void* ptr = allocator->get_ptr(prevblock);
-    mmap_allocator_impl::mmap_vector_intermediate_header* prev_int_header = 
-                  (mmap_allocator_impl::mmap_vector_intermediate_header*)(ptr);
-    prev_int_header->nextblock = ret;
-    allocator->release_ptr(ptr);
+    allocator->set_range(prevblock + offsetof(mmap_allocator_impl::mmap_vector_intermediate_header, nextblock),
+                         &ret,
+                         sizeof(mmap_allocator_offset_t));
     idx_header_map[idx_header_map.size() - 2].second.nextblock = ret;
   }
   
@@ -285,9 +306,7 @@ bool mmap_allocator_vector::set_entry(idx_t idx, const void* val) {
   if (idx >= header.numel) return false;
   mmap_allocator_offset_t ret = mmap_allocator_vector::find_index_pos(idx);
 
-  void* ptr = allocator->get_ptr(ret);
-  memcpy(ptr, val, header.elemsize);
-  allocator->release_ptr(ptr);
+  allocator->set_range(ret, val, header.elemsize);
   return true;
 }
   
@@ -295,74 +314,87 @@ bool mmap_allocator_vector::get_entry(idx_t idx, void* oval) const {
   ASSERT_FALSE(released);
   if (idx >= header.numel) return false;
   mmap_allocator_offset_t ret = mmap_allocator_vector::find_index_pos(idx);
-  void* ptr = allocator->get_ptr(ret);
-  memcpy(oval, ptr, header.elemsize);
-  allocator->release_ptr(ptr);
+  allocator->get_range(ret, oval, header.elemsize);
   return true;
 }
   
 mmap_allocator_vector::idx_t mmap_allocator_vector::get_all(void* _ptr, idx_t len) const {
-  ASSERT_FALSE(released);
-  char* ptr = (char*)(_ptr);
-  idx_t startlen = len;
-  // loop through all the blocks and copy everything
-  // do the first block first
-  mmap_allocator_offset_t block = offset;
-  void* srcptr = allocator->get_ptr(block + sizeof(mmap_allocator_impl::mmap_vector_header));
-  size_t numel_to_copy = std::min<uint64_t>(len, header.thisblock_numel);
-  len -= numel_to_copy;
-  memcpy(ptr, srcptr, numel_to_copy * header.elemsize);
-  allocator->release_ptr(srcptr);
-  ptr += numel_to_copy * header.elemsize;
-  block = header.nextblock;
-  
-  // walk the linked list
-  while(block != 0 && len > 0){
-    srcptr = allocator->get_ptr(block);
-    mmap_allocator_impl::mmap_vector_intermediate_header* int_header = (mmap_allocator_impl::mmap_vector_intermediate_header*)(srcptr);
-    numel_to_copy = std::min<uint64_t>(len, int_header->thisblock_numel);
-    memcpy(ptr, 
-           (char*)srcptr + sizeof(mmap_allocator_impl::mmap_vector_intermediate_header), 
-           numel_to_copy * header.elemsize);
-    len -= numel_to_copy;
-    ptr += numel_to_copy * header.elemsize;
-    block = int_header->nextblock;
-    allocator->release_ptr(srcptr);
-  }
-  return startlen - len;
+  return get_range(_ptr, 0, len);
 }
 
 void mmap_allocator_vector::set_all(const void* _ptr, idx_t len) {
-  ASSERT_FALSE(released);
-  // resize if necessary
   resize(len + 1);
-  const char* ptr = (const char*)(_ptr);
-  // loop through all the blocks and copy everything
-  // do the first block first
-  mmap_allocator_offset_t block = offset;
-  void* destptr = allocator->get_ptr(block + sizeof(mmap_allocator_impl::mmap_vector_header));
-  size_t numel_to_copy = std::min<uint64_t>(len, header.thisblock_numel);
-  len -= numel_to_copy;
-  memcpy(destptr, ptr, numel_to_copy * header.elemsize);
-  allocator->release_ptr(destptr);
-  ptr += numel_to_copy * header.elemsize;
-  block = header.nextblock;
-  
-  // walk the linked list
-  while(block != 0 && len > 0){
-    destptr = allocator->get_ptr(block);
-    mmap_allocator_impl::mmap_vector_intermediate_header* int_header = (mmap_allocator_impl::mmap_vector_intermediate_header*)(destptr);
-    numel_to_copy = std::min<uint64_t>(len, int_header->thisblock_numel);
-    memcpy((char*)destptr + sizeof(mmap_allocator_impl::mmap_vector_intermediate_header),
-           ptr, 
-           numel_to_copy * header.elemsize);
-    len -= numel_to_copy;
+  return set_range(_ptr, 0, len);
+}
+
+
+mmap_allocator_vector::idx_t mmap_allocator_vector::get_range(void* _ptr, idx_t startel, idx_t numel) const {
+  ASSERT_FALSE(released);
+  cache_header_index(startel + numel);
+  char* ptr = (char*)(_ptr);
+  // length to copy
+  idx_t remaininglen = std::min(numel, header.numel);
+  // look for the first block containing the element I need
+  int block = find_block_containing(startel);
+
+  bool firstblock = true;
+  while(remaininglen > 0) {
+    mmap_allocator_offset_t src_dataoffset = block_dataoffset(block);
+    // if this is the first block, note that we may be starting partway into the block
+    idx_t numel_to_copy;
+    if (firstblock) {
+      numel_to_copy =  std::min<uint64_t>(remaininglen,
+                                          block_numel(block) - (startel - block_firstel(block)));
+      src_dataoffset += header.elemsize * (startel - block_firstel(block));
+      firstblock = false;
+    }
+    else {
+      numel_to_copy =  std::min<uint64_t>(remaininglen,
+                                          block_numel(block));    
+    }
+    remaininglen -= numel_to_copy;
+    
+    allocator->get_range(src_dataoffset, ptr, numel_to_copy * header.elemsize);
     ptr += numel_to_copy * header.elemsize;
-    block = int_header->nextblock;
-    allocator->release_ptr(destptr);
+    ++block;
+  }
+  
+  return ptr - (char*)(_ptr);
+}
+
+
+void mmap_allocator_vector::set_range(const void* _ptr, 
+                                      mmap_allocator_vector::idx_t startel, mmap_allocator_vector::idx_t numel) {
+  ASSERT_FALSE(released);
+  cache_header_index(startel + numel);
+  char* ptr = (char*)(_ptr);
+  // length to copy
+  idx_t remaininglen = std::min(numel, header.numel);
+  // look for the first block containing the element I need
+  int block = find_block_containing(startel);
+
+  bool firstblock = true;
+  while(remaininglen > 0) {
+    mmap_allocator_offset_t src_dataoffset = block_dataoffset(block);
+    // if this is the first block, note that we may be starting partway into the block
+    idx_t numel_to_copy;
+    if (firstblock) {
+      numel_to_copy =  std::min<uint64_t>(remaininglen,
+                                          block_numel(block) - (startel - block_firstel(block)));
+      src_dataoffset += header.elemsize * (startel - block_firstel(block));
+      firstblock = false;
+    }
+    else {
+      numel_to_copy =  std::min<uint64_t>(remaininglen,
+                                          block_numel(block));    
+    }
+    remaininglen -= numel_to_copy;
+    
+    allocator->set_range(src_dataoffset, ptr, numel_to_copy * header.elemsize);
+    ptr += numel_to_copy * header.elemsize;
+    ++block;
   }
 }
-  
   
 void mmap_allocator_vector::push_back(const void* ptr) {
   ASSERT_FALSE(released);
@@ -380,12 +412,7 @@ void mmap_allocator_vector::release() {
   if (released) return;
   released = true;
   // write back the header
-  void* ptr = allocator->get_ptr(offset);
-  // create the header
-  mmap_allocator_impl::mmap_vector_header* vec_header = 
-                      (mmap_allocator_impl::mmap_vector_header*)ptr;
-  (*vec_header) = header;
-  allocator->release_ptr(ptr);
+  allocator->set_range(offset, &header, sizeof(mmap_allocator_impl::mmap_vector_header));
 }
 
 void mmap_allocator_vector::print_map() {

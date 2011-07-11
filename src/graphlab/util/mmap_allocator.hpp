@@ -96,12 +96,28 @@ class mmap_allocator_vector {
    * Returns the actual number of elements copied
    */
   idx_t get_all(void* ptr, idx_t numel) const;
-  
+
   /** Reverse of get_all(). Dumps the data in the ptr pointer to disk,
    * updating the number of elements. 
    * numel * get_elem_size() bytes will be read from the pointer.
    */
   void set_all(const void* ptr, idx_t numel);
+
+
+
+  /** Performs a dump of a range of the vector from startel to startel + numel.
+   * If startel + numel exceeds the range of the vector, only the range: 
+   * startel to "vector length" will be copied.
+   * ptr must be able to store at least numel * get_elem_size() bytes.
+   * Returns the actual number of elements copied
+   */
+  idx_t get_range(void* ptr, idx_t startel, idx_t numel) const;
+
+  /** Performs a dump of a range of the vector from startel to startel + numel.
+   * ptr must be able to store at least numel * get_elem_size() bytes.
+   * Returns the actual number of elements copied
+   */
+  void set_range(const void* ptr, idx_t startel, idx_t numel);
   
   /**
    * Inserts an additional element. get_elem_size() bytes will be read
@@ -136,6 +152,27 @@ private:
   
   /// Get the offset of an index. Returns -1 if does not exist
   mmap_allocator_offset_t find_index_pos(idx_t idx) const;
+
+  
+  /** Get the beginning of a block containing an index. Returns -1 if does not exist
+  *   the returned index is an entry in the idx_header_map
+  */ 
+  int find_block_containing(idx_t idx) const;
+  
+  inline mmap_allocator_offset_t block_dataoffset(int block) const {
+    return block==0?(offset + sizeof(mmap_allocator_impl::mmap_vector_header)):
+                    (idx_header_map[block-1].second.nextblock + sizeof(mmap_allocator_impl::mmap_vector_intermediate_header));
+  }
+  
+  inline idx_t block_numel(int block) const {
+    return block==0?(header.thisblock_numel):
+                    (idx_header_map[block].second.thisblock_numel);
+  }
+
+  inline idx_t block_firstel(int block) const {
+    return block==0?0:idx_header_map[block].first;
+  }
+
   
   rwlock lock;
   bool released;
@@ -189,20 +226,15 @@ private:
   /// Requests an allocation of 'len' bytes. Returns the offset.
   mmap_allocator_offset_t mem_alloc(uint64_t len);
   
-  /** Get a ptr at this offset. Pointer must be released with release_ptr
-   * when done. TODO: Current implementation only permits each thread
-   * to have only one active pointer. 
+  void get_range(uint64_t offset, void* target, uint64_t numbytes);
+  void set_range(uint64_t offset, const void* target, uint64_t numbytes);
+  
+  /** Get the actual mmap ptr at this offset. 
    */
-  inline void* get_ptr(uint64_t offset) const {
+  inline void* ptr_offset(uint64_t offset) const {
     ASSERT_FALSE(closed);
-    mapped_file_lock.readlock();
     return (char*)(mapped_file->mapped_ptr()) + 
             sizeof(mmap_allocator_impl::mmap_file_header) + offset;
-  }
-  
-  inline void release_ptr(void* ptr) const {
-    ASSERT_FALSE(closed);
-    mapped_file_lock.unlock();
   }
   
   friend class mmap_allocator_vector;
