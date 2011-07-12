@@ -42,6 +42,26 @@ if(NOT KC_ROOT)
   set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
 endif()
 
+if(YRL_EXPERIMENTAL)
+  message(STATUS 
+    "\n"
+    "===============================================================\n"
+    "| Building Experimental Yahoo Labs Research Components.       |\n"
+    "|                                                             |\n"
+    "| These components are being included in the trunk to         |\n"
+    "| facilitate rapid incorporation.  The primary features       |\n"
+    "| under active development include:                           |\n"
+    "|                                                             |\n"
+    "|    a) An Hadoop interface for large graph construction.     |\n"
+    "|    b) An Hadoop interface for launching GraphLab on         |\n"
+    "|       hadoop based clouds                                   |\n"
+    "|    c) An improved sync interface that is more similar to    |\n"
+    "|       traditional map-reduce and provides more fine-grain   |\n"
+    "|       control over sync activation.                         |\n"
+    "|                                                             |\n" 
+    "===============================================================")
+  add_definitions(-DYRL_EXPERIMENTAL)
+endif()
 
 
 

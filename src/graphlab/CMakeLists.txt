@@ -19,6 +19,10 @@ subdirs(
  metrics
  jni)
 
+if(YRL_EXPERIMENTAL)
+  subdirs(yrl)
+endif()
+
 include(metisextern.cmake)
 
 #build graphlab_zoltan if available

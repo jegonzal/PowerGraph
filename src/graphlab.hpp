@@ -41,6 +41,12 @@
 #include <graphlab/tasks/task_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
 
+#ifdef YRL_EXPERIMENTAL
+#include <graphlab/yrl/yrl_includes.hpp>
+#endif
+
+
+
 #include <graphlab/core.hpp>
 
 
