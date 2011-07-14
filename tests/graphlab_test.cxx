@@ -46,8 +46,8 @@ void update_function(gl::iscope& scope,
   vertex_data& curvdata = scope.vertex_data();
   curvdata.ucount += 1;
   curvdata.val += 1;
-  foreach(graphlab::edge_id_t eid, scope.in_edge_ids()) {
-    graphlab::vertex_id_t sourcev = scope.source(eid);
+  foreach(gl::edge_id eid, scope.in_edge_ids()) {
+    gl::vertex_id sourcev = scope.source(eid);
     const vertex_data& nbrvertex =
       scope.const_neighbor_vertex_data(sourcev);
     curvdata.val += nbrvertex.val;
@@ -57,11 +57,11 @@ void update_function(gl::iscope& scope,
 
 
 void init_graph(graph_type& g,
-                  size_t length) {
+                size_t length) {
   vertex_data vd;
   vd.val = 0;
   vd.ucount = 0 ;
-  for (graphlab::vertex_id_t i = 0;i < (graphlab::vertex_id_t)length; ++i) {
+  for (gl::vertex_id i = 0;i < gl::vertex_id(length); ++i) {
     g.add_vertex(vd);
     if (i > 0) {
       g.add_edge(i-1, i, char(0));
@@ -82,7 +82,7 @@ bool test_graphlab_static(gl::core &glcore,
   TS_ASSERT_EQUALS(glcore.engine().last_update_count(),
                    size_t(NUM_VERTICES));
   
-  for (graphlab::vertex_id_t i = 0;i < NUM_VERTICES; ++i) {
+  for (gl::vertex_id i = 0;i < NUM_VERTICES; ++i) {
     if (glcore.graph().vertex_data(i).ucount < 1 ||
         glcore.graph().vertex_data(i).val < 1) {
       return false;
@@ -90,7 +90,7 @@ bool test_graphlab_static(gl::core &glcore,
   }
 
   if (sequentializationcheck) {
-    for (graphlab::vertex_id_t i = 1;i < NUM_VERTICES; ++i) {
+    for (gl::vertex_id i = 1;i < NUM_VERTICES; ++i) {
       if (glcore.graph().vertex_data(i).val ==
             glcore.graph().vertex_data(i-1).val) {
         return false;
@@ -111,7 +111,7 @@ bool test_graphlab_round_robin(gl::core &glcore,
   size_t startv = rand() % 10000;
   glcore.sched_options().add_option("start_vertex",startv);
 
-  for (graphlab::vertex_id_t v = skiptov;v < NUM_VERTICES; ++v) {
+  for (gl::vertex_id v = skiptov;v < NUM_VERTICES; ++v) {
     glcore.add_task(gl::update_task(v, update_function), 1.0);
   }
   
@@ -120,7 +120,7 @@ bool test_graphlab_round_robin(gl::core &glcore,
   size_t numupdates = iterations *  (NUM_VERTICES - skiptov);
   TS_ASSERT_EQUALS(glcore.engine().last_update_count(), numupdates);
   
-  for (graphlab::vertex_id_t i = 0;i < NUM_VERTICES; ++i) {
+  for (gl::vertex_id i = 0;i < NUM_VERTICES; ++i) {
     if (i < size_t(skiptov)) {
       TS_ASSERT_EQUALS(glcore.graph().vertex_data(i).ucount, 0);
     }
@@ -130,7 +130,7 @@ bool test_graphlab_round_robin(gl::core &glcore,
   }
   
   if (sequentializationcheck) {
-    for (graphlab::vertex_id_t i = skiptov;i < NUM_VERTICES; ++i) {
+    for (gl::vertex_id i = skiptov;i < NUM_VERTICES; ++i) {
       if (glcore.graph().vertex_data(i).val ==
                 glcore.graph().vertex_data(i-1).val) {
         return false;
@@ -154,7 +154,7 @@ bool test_graphlab_colored(gl::core &glcore,
   TS_ASSERT_EQUALS(glcore.engine().last_update_count(),
                    size_t(NUM_VERTICES * numiterations));
   
-  for (graphlab::vertex_id_t i = 0;i < NUM_VERTICES; ++i) {
+  for (gl::vertex_id i = 0;i < NUM_VERTICES; ++i) {
     if (glcore.graph().vertex_data(i).ucount < 1 ||
       glcore.graph().vertex_data(i).val < 1) {
       return false;
@@ -162,7 +162,7 @@ bool test_graphlab_colored(gl::core &glcore,
   }
   
   if (sequentializationcheck) {
-    for (graphlab::vertex_id_t i = 1;i < NUM_VERTICES; ++i) {
+    for (gl::vertex_id i = 1;i < NUM_VERTICES; ++i) {
       if (glcore.graph().vertex_data(i).val ==
         glcore.graph().vertex_data(i-1).val) {
         return false;
@@ -231,7 +231,7 @@ public:
             bool ret = test_graphlab_round_robin(glcore,
                                                 c != 0,
                                                 (int)iter,
-                                                (graphlab::vertex_id_t)(rand() % 1000));
+                                                gl::vertex_id(rand() % 1000));
                         // sequentialization check only if not vertex scope
             TS_ASSERT_EQUALS(ret, true);
           }

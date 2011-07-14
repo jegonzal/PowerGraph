@@ -61,8 +61,9 @@ void generate_atoms() {
 
 
 void check_vertex_values(distributed_graph<size_t, double> &dg, size_t value) {
-  const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
-  const std::vector<vertex_id_t>& ghostvertices = dg.ghost_vertices();
+  typedef distributed_graph<size_t, double>::vertex_id_type vertex_id_type;
+  const std::vector<vertex_id_type>& localvertices = dg.owned_vertices();
+  const std::vector<vertex_id_type>& ghostvertices = dg.ghost_vertices();
   for (size_t i = 0;i < localvertices.size(); ++i) {
     ASSERT_EQ(dg.vertex_data(localvertices[i]), value);
   }
@@ -72,19 +73,22 @@ void check_vertex_values(distributed_graph<size_t, double> &dg, size_t value) {
 }
 
 void check_edge_values(distributed_graph<size_t, double> &dg, double value) {
-  const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
+  typedef distributed_graph<size_t, double>::vertex_id_type vertex_id_type;
+  typedef distributed_graph<size_t, double>::edge_id_type edge_id_type;
+  const std::vector<vertex_id_type>& localvertices = dg.owned_vertices();
   for (size_t i = 0;i < localvertices.size(); ++i) {
-    foreach(edge_id_t eid, dg.in_edge_ids(localvertices[i])) {
+    foreach(edge_id_type eid, dg.in_edge_ids(localvertices[i])) {
       ASSERT_EQ(dg.edge_data(eid), value);
     }
-    foreach(edge_id_t eid, dg.out_edge_ids(localvertices[i])) {
+    foreach(edge_id_type eid, dg.out_edge_ids(localvertices[i])) {
       ASSERT_EQ(dg.edge_data(eid), value);
     }
   }
 }
 
 void set_all_vertices_to_value(distributed_graph<size_t, double> &dg, size_t value) {
-  const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
+  typedef distributed_graph<size_t, double>::vertex_id_type vertex_id_type;
+  const std::vector<vertex_id_type>& localvertices = dg.owned_vertices();
   // ok. now everyone set to zero
   for (size_t i = 0;i < localvertices.size(); ++i) {
     dg.vertex_data(localvertices[i]) = value;
@@ -93,9 +97,11 @@ void set_all_vertices_to_value(distributed_graph<size_t, double> &dg, size_t val
 }
 
 void set_all_edges_to_value(distributed_graph<size_t, double> &dg, double value) {
-  const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
+  typedef distributed_graph<size_t, double>::vertex_id_type vertex_id_type;
+  typedef distributed_graph<size_t, double>::edge_id_type edge_id_type;
+  const std::vector<vertex_id_type>& localvertices = dg.owned_vertices();
   for (size_t i = 0;i < localvertices.size(); ++i) {
-    foreach(edge_id_t eid, dg.in_edge_ids(localvertices[i])) {
+    foreach(edge_id_type eid, dg.in_edge_ids(localvertices[i])) {
       dg.edge_data(eid) = value;
       dg.edge_is_modified(eid);
     }
@@ -103,25 +109,27 @@ void set_all_edges_to_value(distributed_graph<size_t, double> &dg, double value)
 }
 
 void set_all_in_boundary(distributed_graph<size_t, double> &dg, size_t vvalue, double evalue) {
-  const std::vector<vertex_id_t>& boundvertices = dg.boundary_scopes();
+  typedef distributed_graph<size_t, double>::vertex_id_type vertex_id_type;
+  typedef distributed_graph<size_t, double>::edge_id_type edge_id_type;
+  const std::vector<vertex_id_type>& boundvertices = dg.boundary_scopes();
   for (size_t i = 0;i < boundvertices.size(); ++i) {
     dg.vertex_data(boundvertices[i]) = vvalue;
     dg.vertex_is_modified(boundvertices[i]);
 
-    foreach(edge_id_t eid, dg.in_edge_ids(boundvertices[i])) {
+    foreach(edge_id_type eid, dg.in_edge_ids(boundvertices[i])) {
       dg.edge_data(eid) = evalue;
       dg.edge_is_modified(eid);
 
-      vertex_id_t sourcevid = dg.source(eid);
+      vertex_id_type sourcevid = dg.source(eid);
       dg.vertex_data(sourcevid) = vvalue;
       dg.vertex_is_modified(sourcevid);
     }
 
-    foreach(edge_id_t eid, dg.out_edge_ids(boundvertices[i])) {
+    foreach(edge_id_type eid, dg.out_edge_ids(boundvertices[i])) {
       dg.edge_data(eid) = evalue;
       dg.edge_is_modified(eid);
 
-      vertex_id_t targetvid = dg.target(eid);
+      vertex_id_type targetvid = dg.target(eid);
       dg.vertex_data(targetvid) = vvalue;
       dg.vertex_is_modified(targetvid);
     }
@@ -133,11 +141,13 @@ void boundary_has_at_least_one_match(distributed_graph<size_t, double> &dg, size
   // test only owned data
   bool vmatch = false;
   bool ematch = false;
-  const std::vector<vertex_id_t>& boundvertices = dg.boundary_scopes();
+  typedef distributed_graph<size_t, double>::vertex_id_type vertex_id_type;
+  typedef distributed_graph<size_t, double>::edge_id_type edge_id_type;
+  const std::vector<vertex_id_type>& boundvertices = dg.boundary_scopes();
   for (size_t i = 0;i < boundvertices.size(); ++i) {
     if (dg.vertex_data(boundvertices[i]) == vvalue) vmatch = true;
 
-    foreach(edge_id_t eid, dg.in_edge_ids(boundvertices[i])) {
+    foreach(edge_id_type eid, dg.in_edge_ids(boundvertices[i])) {
       if (dg.edge_data(eid) == evalue) ematch = true;
     }
   }
@@ -362,16 +372,19 @@ int main(int argc, char** argv) {
   ASSERT_EQ(dg.num_vertices(), 10000);
   ASSERT_EQ(dg.num_edges(), 10000);
   // everyone do a check on the local graph structure
-  const std::vector<vertex_id_t>& localvertices = dg.owned_vertices();
-  std::set<edge_id_t> eids;
+  typedef graph_type::vertex_id_type vertex_id_type;
+  typedef graph_type::edge_id_type edge_id_type;
+  
+  const std::vector<vertex_id_type>& localvertices = dg.owned_vertices();
+  std::set<edge_id_type> eids;
   std::cout << "Checking Graph Structure..." << std::endl;
   for (size_t v_ = 0; v_ < localvertices.size(); ++v_) {
-    vertex_id_t v = localvertices[v_];
+    vertex_id_type v = localvertices[v_];
     // everything has one in and one out
     ASSERT_EQ(dg.num_in_neighbors(v), 1);
     ASSERT_EQ(dg.num_out_neighbors(v), 1);
     // check find
-    std::pair<bool, edge_id_t> ret = dg.find(v, (v+1) % 10000);
+    std::pair<bool, edge_id_type> ret = dg.find(v, (v+1) % 10000);
     ASSERT_TRUE(ret.first);
 
     // check source and target
@@ -390,7 +403,7 @@ int main(int argc, char** argv) {
   std::cout << "Checking Graph Data..." << std::endl;
   // check for data
   for (size_t v_ = 0; v_ < localvertices.size(); ++v_) {
-    vertex_id_t v = localvertices[v_];
+    vertex_id_type v = localvertices[v_];
     ASSERT_EQ(dg.get_vertex_data(v), v);
     ASSERT_EQ(dg.get_edge_data(v, (v+1) % 10000), v);
     if (dg.vertex_is_local(v)) {
@@ -401,11 +414,11 @@ int main(int argc, char** argv) {
   std::cout << "Testing one way vertex collection..." << std::endl;
   // check vertex collection routines
   // each machine collects a different random subset
-  std::vector<vertex_id_t> vsubset_collect;
+  std::vector<vertex_id_type> vsubset_collect;
   for (size_t i = 0;i < 100; ++i) {
     vsubset_collect.push_back(rand() % 10000);
   }
-  std::map<vertex_id_t, size_t> retv = dg.collect_vertex_subset_one_way(vsubset_collect);
+  std::map<vertex_id_type, size_t> retv = dg.collect_vertex_subset_one_way(vsubset_collect);
   // check the map
   for (size_t i = 0;i < 100; ++i) {
     ASSERT_TRUE(retv.find(vsubset_collect[i]) != retv.end());
@@ -429,10 +442,10 @@ int main(int argc, char** argv) {
   
 
   
-  std::vector<edge_id_t> alledges;
+  std::vector<edge_id_type> alledges;
   std::copy(eids.begin(), eids.end(), std::back_inserter(alledges));
   for (size_t e_ = 0; e_ < alledges.size(); ++e_) {
-    edge_id_t e = alledges[e_];
+    edge_id_type e = alledges[e_];
     
     ASSERT_EQ(dg.get_edge_data(e), dg.source(e));
     ASSERT_EQ(dg.edge_data(e), dg.source(e));

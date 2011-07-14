@@ -230,7 +230,7 @@ extern "C" {
     jboolean isCopy = false;
     jint * arr = env->GetIntArrayElements(colors, &isCopy);
     for(int i=0; i<sz; i++) {
-      graph.color(i) = (graphlab::vertex_color_type) arr[i];
+      graph.color(i) = gl_types::vertex_color(arr[i]);
     }
     env->ReleaseIntArrayElements(colors, arr, JNI_ABORT);
   }

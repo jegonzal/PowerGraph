@@ -21,8 +21,8 @@
  */
 
 
-#ifndef REDIRECT_SCHEDULER_CALLBACK_HPP
-#define REDIRECT_SCHEDULER_CALLBACK_HPP
+#ifndef GRAPHLAB_REDIRECT_SCHEDULER_CALLBACK_HPP
+#define GRAPHLAB_REDIRECT_SCHEDULER_CALLBACK_HPP
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/schedulers/icallback.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -34,8 +34,9 @@ namespace graphlab {
     public icallback<Graph> {
   public:
     typedef icallback<Graph> base;
-    typedef typename base::iengine_type iengine_type;
-    typedef typename base::update_task_type update_task_type;
+    typedef typename base::vertex_id_type    vertex_id_type;
+    typedef typename base::iengine_type      iengine_type;
+    typedef typename base::update_task_type  update_task_type;
     typedef typename base::update_function_type update_function_type;
     RedirectToType* redirectto;
     
@@ -54,7 +55,7 @@ namespace graphlab {
     /** Creates a collection of tasks on all the vertices in
         'vertices', and all with the same update function and
         priority  */
-    void add_tasks(const std::vector<vertex_id_t>& vertices, 
+    void add_tasks(const std::vector<vertex_id_type>& vertices, 
                    update_function_type func, double priority) {
       redirectobj->add_tasks(vertices, func, priority);
     }

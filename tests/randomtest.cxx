@@ -168,7 +168,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     core_type core;
     for(size_t i = 0; i < 32; ++i) 
       core.graph().add_vertex(vertex_data_type(0));
-    for(vertex_id_t i = 0; i+1 < core.graph().num_vertices(); ++i) {
+    for(core_type::vertex_id_type i = 0; i+1 < core.graph().num_vertices(); ++i) {
       core.graph().add_edge(i, i+1, edge_data_type(1));
       core.graph().add_edge(i+1, i, edge_data_type(2));
     }
@@ -181,7 +181,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
       core.sched_options().add_option("max_iterations", 2);
       std::cout << "--------------------------------" << std::endl;
       core.start();
-      for(vertex_id_t i = 0; i < core.graph().num_vertices(); ++i) {
+      for(core_type::vertex_id_type i = 0; i < core.graph().num_vertices(); ++i) {
         std::cout << core.graph().vertex_data(i) << "\t";
       }
       std::cout << std::endl;

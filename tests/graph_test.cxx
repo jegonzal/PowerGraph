@@ -67,6 +67,8 @@ public:
     static const size_t N = 1000;
     typedef graphlab::graph<vertex_data, edge_data> graph_type;
     typedef graph_type::vertex_id_type vertex_id_type;
+    typedef graph_type::vertex_id_type vertex_id_type;
+    typedef graph_type::edge_id_type edge_id_type;
 
     graph_type g;
     vertex_data verts[N];
@@ -135,7 +137,7 @@ public:
       std::set<vertex_id_type> neighbors;
       
       for(size_t j = 0; j < degree; ++j) {
-        vertex_id_t neighbor = vertex_id_type(graphlab::random::uniform<vertex_id_type>(0, num_verts - 1));
+        vertex_id_type neighbor = vertex_id_type(graphlab::random::uniform<vertex_id_type>(0, num_verts - 1));
         if(neighbor != i && neighbors.insert(neighbor).second) graph.add_edge(i, neighbor);
       }
     }

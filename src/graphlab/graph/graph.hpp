@@ -157,6 +157,8 @@ namespace graphlab {
       const edge_id_type* begin_ptr; // Points to first element
       const edge_id_type* end_ptr; // One past end   
     public:
+            
+
       /** \brief Construct an empty edge list */
       edge_list() : begin_ptr(NULL), end_ptr(NULL) { }
       /** \brief Construct an edge list from an std vector */
@@ -953,13 +955,18 @@ namespace graphlab {
   typedef graph<int,int>::vertex_id_type vertex_id_t;
 
   //! You should now use the edge id type associated with the graph
-  // __attribute__((__deprecated__)) 
+  //  __attribute__((__deprecated__)) 
   typedef graph<int,int>::edge_id_type edge_id_t;
 
   //! You should now use the vertex color type associated with the
   //! graph
-  // __attribute__((__deprecated__)) 
+  //  __attribute__((__deprecated__)) 
   typedef graph<int,int>::vertex_color_type vertex_color_type;
+
+  // This hack won't work without a clever copy constructor for edge_list
+  // //! You should now use the edge list type associated with the graph
+  // __attribute__((__deprecated__)) 
+  // typedef graph<int,int>::edge_list edge_list;
 
 
 
