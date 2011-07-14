@@ -50,6 +50,8 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef typename base::vertex_id_type       vertex_id_type;
+    typedef typename base::vertex_color_type    vertex_color_type;
     typedef typename base::iengine_type         iengine_type;
     typedef typename base::update_task_type     update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -83,8 +85,8 @@ namespace graphlab {
         graph.compute_coloring();
       }
       // Initialize the chromatic blocks
-      for(vertex_id_t i = 0; i < graph.num_vertices(); ++i) {
-        graphlab::vertex_color_type color = graph.color(i);
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
+        vertex_color_type color = graph.color(i);
         if( color >= color_blocks.size() ) color_blocks.resize(color + 1);
         color_blocks[color].push_back(i);        
       }
@@ -121,7 +123,7 @@ namespace graphlab {
      * Creates a collection of tasks on all the vertices in
      * 'vertices', and all with the same update function and priority
      */
-    void add_tasks(const std::vector<vertex_id_t>& vertices, 
+    void add_tasks(const std::vector<vertex_id_type>& vertices, 
                    update_function_type func, double priority) {
       update_function = func;
     }
@@ -180,7 +182,7 @@ namespace graphlab {
       
       // If the index is good then execute it
       if(cpu_index[cpuid].value < color_blocks[ current_color ].size()) {
-        vertex_id_t vertex =
+        vertex_id_type vertex =
           color_blocks[ current_color ][ cpu_index[cpuid].value ];
         ret_task = update_task_type(vertex, update_function);
         return sched_status::NEWTASK;
@@ -232,7 +234,7 @@ namespace graphlab {
     unused_scheduler_callback<Graph> callback;
 
     
-    std::vector< std::vector< vertex_id_t> > color_blocks;
+    std::vector< std::vector< vertex_id_type> > color_blocks;
     std::vector< cache_line_pad<size_t> > cpu_index;
     std::vector< cache_line_pad<size_t> > cpu_color;
     std::vector< cache_line_pad<size_t> > cpu_waiting;

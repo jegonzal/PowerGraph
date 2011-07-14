@@ -38,21 +38,27 @@ using namespace graphlab;
  * scheme
  */
 class graph_constructor: public igraph_constructor<float, double>{
- private:
+
+public: 
+  typedef igraph_constructor<float, double> base_type;
+  typedef base_type::vertex_id_type vertex_id_type;
+
+private:
+
   graph<float, double>& mg;
   size_t i;
   size_t max;
   
   size_t viterator;
   size_t eiterator;
- public:
+public:
   graph_constructor(graph<float, double>& mg):mg(mg) { }
   graph_constructor(graph_constructor& g):mg(g.mg) { }
   
   /**
-  Begin iteration. 
-  Instance "i" will store vertex IDs i, i+N, i+2N, etc.
-  and edge IDs i, i+N, i+2N, etc.
+     Begin iteration. 
+     Instance "i" will store vertex IDs i, i+N, i+2N, etc.
+     and edge IDs i, i+N, i+2N, etc.
   */
   void begin(size_t i_, size_t max_) {
     std::cout << "begin: " << i_ << " " << max_ << std::endl;
@@ -63,19 +69,19 @@ class graph_constructor: public igraph_constructor<float, double>{
   }
   
   /**
-  We use a simple modular atom partitioning
+     We use a simple modular atom partitioning
   */
-  uint16_t vertex_to_atomid(vertex_id_t vid, uint16_t numatoms)  {
+  uint16_t vertex_to_atomid(vertex_id_type vid, uint16_t numatoms)  {
     return vid % numatoms;
   }
   
   /**
-  This function will be called repeatedly until NoMoreData is returned.
+     This function will be called repeatedly until NoMoreData is returned.
   */
-  iterate_return_type iterate(vertex_id_t& vtx, 
+  iterate_return_type iterate(vertex_id_type& vtx, 
                               float& vdata,
                               uint32_t& color,
-                              std::pair<vertex_id_t, vertex_id_t>& edge, 
+                              std::pair<vertex_id_type, vertex_id_type>& edge, 
                               double& edata) {
     /// while I still have vertices to insert, return a vertex
     while (viterator < mg.num_vertices()) {
@@ -103,6 +109,7 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   mpi_tools::init(argc, argv);
   
+  
   dc_init_param param;
   ASSERT_TRUE(init_param_from_mpi(param));
   // create distributed control
@@ -120,8 +127,10 @@ int main(int argc, char** argv) {
   std::cout << "Testing Distributed Disk Graph Construction" << std::endl;
   std::cout << "Creating a graph" << std::endl;
   graph<float, double> memgraph;
-  for(vertex_id_t i = 0; i < num_verts; ++i) memgraph.add_vertex(rand());
-  for(vertex_id_t i = 0; i < num_verts; ++i) {
+  typedef graph<float, double>::vertex_id_type vertex_id_type;
+
+  for(vertex_id_type i = 0; i < num_verts; ++i) memgraph.add_vertex(rand());
+  for(vertex_id_type i = 0; i < num_verts; ++i) {
     for(size_t j = 0; j < degree; ++j) memgraph.add_edge(i, (i + j + 1) % num_verts, rand());
   }
   memgraph.compute_coloring();
@@ -144,10 +153,10 @@ int main(int argc, char** argv) {
 
     ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
     ASSERT_EQ(graph.num_edges(), memgraph.num_edges());
-    for(vertex_id_t i = 0; i < num_verts; ++i) {
+    for(vertex_id_type i = 0; i < num_verts; ++i) {
       // get the outvertices for each vertex
-      std::vector<vertex_id_t> outv = graph.out_vertices(i);
-      std::vector<vertex_id_t> outvmem = memgraph.out_vertices(i);
+      std::vector<vertex_id_type> outv = graph.out_vertices(i);
+      std::vector<vertex_id_type> outvmem = memgraph.out_vertices(i);
       // test if they are the same size
       ASSERT_EQ(outv.size(), outvmem.size());
       std::sort(outv.begin(), outv.end());
@@ -165,8 +174,8 @@ int main(int argc, char** argv) {
       }
       
       // repeat for in vertices
-      std::vector<vertex_id_t> inv = graph.in_vertices(i);
-      std::vector<vertex_id_t> invmem = memgraph.in_vertices(i);
+      std::vector<vertex_id_type> inv = graph.in_vertices(i);
+      std::vector<vertex_id_type> invmem = memgraph.in_vertices(i);
       // test if they are the same size
       ASSERT_EQ(inv.size(), invmem.size());
       std::sort(inv.begin(), inv.end());

@@ -148,7 +148,7 @@ void nmf_init(){
      x1[i] = x2[i] = 0;
   }
 }
-const edge_list get_edges(bool isuser, gl_types::iscope & scope){
+const gl_types::edge_list get_edges(bool isuser, gl_types::iscope & scope){
      return isuser ? scope.out_edge_ids(): scope.in_edge_ids();
 }
 const vertex_data& get_neighbor(bool isuser, gl_types::iscope & scope, edge_id_t oedgeid){
@@ -185,10 +185,10 @@ void nmf_update_function(gl_types::iscope & scope,
   for (int i=0; i< (isuser ? N:M); i++)
      buf[i] = 0;
 
-  edge_list outs = get_edges(isuser, scope);
+  gl_types::edge_list outs = get_edges(isuser, scope);
   timer t; t.start(); 
     
-   foreach(graphlab::edge_id_t oedgeid, outs) {
+   foreach(gl_types::edge_id oedgeid, outs) {
 
 #ifdef GL_NO_MULT_EDGES
       const edge_data & edge = scope.const_edge_data(oedgeid);

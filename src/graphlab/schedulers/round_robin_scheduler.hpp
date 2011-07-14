@@ -25,8 +25,8 @@
  * This class defines a basic round robin scheduler.
  * written by Danny Bickson
  **/
-#ifndef RR_SCHEDULER_HPP
-#define RR_SCHEDULER_HPP
+#ifndef GRAPHLAB_RR_SCHEDULER_HPP
+#define GRAPHLAB_RR_SCHEDULER_HPP
 
 #include <queue>
 #include <cmath>
@@ -64,6 +64,7 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -153,16 +154,16 @@ namespace graphlab {
     }
 
     void add_task_to_all(update_function_type func, double priority) {
-      for (vertex_id_t vertex = 0; vertex < numvertices; ++vertex){
+      for (vertex_id_type vertex = 0; vertex < numvertices; ++vertex){
         add_task(update_task_type(vertex, func), priority);
       }
     }
 
 
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority) {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         assert(vertex >=0 && vertex < numvertices);
         task_set[vertex] = update_task_type(vertex, func);
       } 
@@ -205,7 +206,7 @@ namespace graphlab {
           --mythr_info.numv_remaining_in_block;
 
           // return the task if available, otherwise try again
-          if (__unlikely__(ret_task.vertex() == vertex_id_t(-1))) continue;
+          if (__unlikely__(ret_task.vertex() == vertex_id_type(-1))) continue;
           else return sched_status::NEWTASK;
         }
         // we are here if the block has no vertices remaining

@@ -117,11 +117,11 @@ void Axb(gl_types::iscope &scope,
   }
 
 
-  edge_list outs = scope.out_edge_ids();
+  gl_types::edge_list outs = scope.out_edge_ids();
   timer t;
   t.start(); 
 
-   foreach(graphlab::edge_id_t oedgeid, outs) {
+   foreach(gl_types::edge_id oedgeid, outs) {
 #ifndef GL_NO_MULT_EDGES
       multiple_edges & edges = scope.edge_data(oedgeid);
       for (int j=0; j< (int)edges.medges.size(); j++){
@@ -168,11 +168,11 @@ void ATxb(gl_types::iscope &scope,
   }
 
 
-  edge_list ins = scope.in_edge_ids();
+  gl_types::edge_list ins = scope.in_edge_ids();
   timer t;
   t.start(); 
 
-   foreach(graphlab::edge_id_t iedgeid, ins) {
+   foreach(gl_types::edge_id iedgeid, ins) {
 #ifndef GL_NO_MULT_EDGES
       multiple_edges & edges = scope.edge_data(iedgeid);
       for (int j=0; j< (int)edges.medges.size(); j++){

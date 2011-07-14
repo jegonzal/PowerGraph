@@ -20,6 +20,16 @@
  *
  */
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
 
 #ifndef GRAPHLAB_GENERAL_SCOPE_FACTORY_HPP
 #define GRAPHLAB_GENERAL_SCOPE_FACTORY_HPP
@@ -39,11 +49,25 @@ namespace graphlab {
   template<typename Graph>
   class general_scope_factory :
     public iscope_factory<Graph> {
+
+
   public:
+
 
     typedef iscope_factory<Graph> base;
     typedef typename base::iscope_type iscope_type;
+    typedef typename Graph::vertex_id_type  vertex_id_type;
+    typedef typename Graph::edge_id_type    edge_id_type;
+    typedef typename Graph::edge_list_type  edge_list_type;
     typedef general_scope<Graph> general_scope_type;
+
+  private:
+    Graph& graph;
+    std::vector<general_scope_type*> scopes;
+    std::vector<rwlock> locks;
+    scope_range::scope_range_enum default_scope;
+
+  public:
 
     general_scope_factory(Graph& graph,
                           size_t ncpus,
@@ -78,7 +102,7 @@ namespace graphlab {
 
     // -----------------ACQUIRE SCOPE-----------------------------
     iscope_type* get_scope(size_t cpuid,
-                           vertex_id_t v,
+                           vertex_id_type v,
                            scope_range::scope_range_enum scope = scope_range::USE_DEFAULT) {
       if (scope == scope_range::USE_DEFAULT) scope = default_scope;
       
@@ -102,24 +126,24 @@ namespace graphlab {
     }
     
     
-    iscope_type* get_full_scope(size_t cpuid, vertex_id_t v) {
+    iscope_type* get_full_scope(size_t cpuid, vertex_id_type v) {
       // grab the scope
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
       scope->stype = scope_range::FULL_CONSISTENCY;
 
-      edge_list inedges =  graph.in_edge_ids(v);
-      edge_list outedges = graph.out_edge_ids(v);
+      const edge_list_type inedges =  graph.in_edge_ids(v);
+      const edge_list_type outedges = graph.out_edge_ids(v);
 
       size_t inidx = 0;
       size_t outidx = 0;
 
       bool curlocked = false;
-      vertex_id_t numv = (vertex_id_t)(graph.num_vertices());
-      vertex_id_t curv = scope->vertex();
-      vertex_id_t inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
-      vertex_id_t outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+      vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
+      vertex_id_type curv = scope->vertex();
+      vertex_id_type inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
+      vertex_id_type outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -148,23 +172,23 @@ namespace graphlab {
     }
 
 
-    iscope_type* get_edge_scope(size_t cpuid, vertex_id_t v) {
+    iscope_type* get_edge_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
       scope->stype = scope_range::EDGE_CONSISTENCY;
 
-      edge_list inedges =  graph.in_edge_ids(v);
-      edge_list outedges = graph.out_edge_ids(v);
+      const edge_list_type inedges =  graph.in_edge_ids(v);
+      const edge_list_type outedges = graph.out_edge_ids(v);
 
       size_t inidx = 0;
       size_t outidx = 0;
 
       bool curlocked = false;
-      vertex_id_t numv = (vertex_id_t)(graph.num_vertices());
-      vertex_id_t curv = scope->vertex();
-      vertex_id_t inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
-      vertex_id_t outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+      vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
+      vertex_id_type curv = scope->vertex();
+      vertex_id_type inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
+      vertex_id_type outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -192,47 +216,47 @@ namespace graphlab {
       return scope;
     }
 
-    iscope_type* get_vertex_scope(size_t cpuid, vertex_id_t v) {
+    iscope_type* get_vertex_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
       scope->stype = scope_range::VERTEX_CONSISTENCY;
 
-      vertex_id_t curv = scope->vertex();
+      vertex_id_type curv = scope->vertex();
       locks[curv].writelock();
       
       return scope;
     }
 
-    iscope_type* get_vertex_read_scope(size_t cpuid, vertex_id_t v) {
+    iscope_type* get_vertex_read_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
       scope->stype = scope_range::READ_CONSISTENCY;
 
-      vertex_id_t curv = scope->vertex();
+      vertex_id_type curv = scope->vertex();
       locks[curv].readlock();
       
       return scope;
     }
 
-    iscope_type* get_read_scope(size_t cpuid, vertex_id_t v) {
+    iscope_type* get_read_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
       scope->stype = scope_range::READ_CONSISTENCY;
 
-      edge_list inedges =  graph.in_edge_ids(v);
-      edge_list outedges = graph.out_edge_ids(v);
+      const edge_list_type inedges =  graph.in_edge_ids(v);
+      const edge_list_type outedges = graph.out_edge_ids(v);
 
       size_t inidx = 0;
       size_t outidx = 0;
 
       bool curlocked = false;
-      vertex_id_t numv = (vertex_id_t)(graph.num_vertices());
-      vertex_id_t curv = scope->vertex();
-      vertex_id_t inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
-      vertex_id_t outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+      vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
+      vertex_id_type curv = scope->vertex();
+      vertex_id_type inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
+      vertex_id_type outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -261,7 +285,7 @@ namespace graphlab {
     }
 
     
-    iscope_type* get_null_scope(size_t cpuid, vertex_id_t v) {
+    iscope_type* get_null_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
@@ -293,41 +317,41 @@ namespace graphlab {
     }
 
     void release_full_edge_scope(general_scope_type* scope) {
-      vertex_id_t v = scope->vertex();
-      edge_list inedges =  graph.in_edge_ids(v);
-      edge_list outedges = graph.out_edge_ids(v);
+      vertex_id_type v = scope->vertex();
+      const edge_list_type inedges =  graph.in_edge_ids(v);
+      const edge_list_type outedges = graph.out_edge_ids(v);
       size_t inidx = inedges.size() - 1;
       size_t outidx = outedges.size() - 1;
 
       bool curvunlocked = false;
 
-      vertex_id_t curv = scope->vertex();
-      vertex_id_t inv  = (inedges.size() > inidx) ?
-        graph.source(inedges[inidx]) : vertex_id_t(-1);
-      vertex_id_t outv  = (outedges.size() > outidx) ?
-        graph.target(outedges[outidx]) : vertex_id_t(-1);
+      vertex_id_type curv = scope->vertex();
+      vertex_id_type inv  = (inedges.size() > inidx) ?
+        graph.source(inedges[inidx]) : vertex_id_type(-1);
+      vertex_id_type outv  = (outedges.size() > outidx) ?
+        graph.target(outedges[outidx]) : vertex_id_type(-1);
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
-        if (!curvunlocked && (curv > inv || inv == vertex_id_t(-1)) &&
-            (curv > outv || outv == vertex_id_t(-1))) {
+        if (!curvunlocked && (curv > inv || inv == vertex_id_type(-1)) &&
+            (curv > outv || outv == vertex_id_type(-1))) {
           locks[curv].unlock();
           curvunlocked = true;
         } else if ((inv+1) > (outv+1)) {
           locks[inv].unlock(); --inidx;
           inv  = (inedges.size() > inidx) ?
-            graph.source(inedges[inidx]) : vertex_id_t(-1);
+            graph.source(inedges[inidx]) : vertex_id_type(-1);
         } else if ((outv+1) > (inv+1)) {
           locks[outv].unlock(); --outidx;
           outv  = (outedges.size() > outidx) ?
-            graph.target(outedges[outidx]) : vertex_id_t(-1);
+            graph.target(outedges[outidx]) : vertex_id_type(-1);
         } else if (inv == outv){
           locks[inv].unlock();
           --inidx; --outidx;
           inv  = (inedges.size() > inidx) ?
-            graph.source(inedges[inidx]) : vertex_id_t(-1);
+            graph.source(inedges[inidx]) : vertex_id_type(-1);
           outv  = (outedges.size() > outidx) ?
-            graph.target(outedges[outidx]) : vertex_id_t(-1);
+            graph.target(outedges[outidx]) : vertex_id_type(-1);
         }
       }
 
@@ -337,7 +361,7 @@ namespace graphlab {
     }
 
     void release_vertex_scope(general_scope_type* scope) {
-      vertex_id_t curv = scope->vertex();
+      vertex_id_type curv = scope->vertex();
       locks[curv].unlock();
     }
 
@@ -348,11 +372,6 @@ namespace graphlab {
 
     Graph& get_graph() { return graph; }
     
-  private:
-    Graph& graph;
-    std::vector<general_scope_type*> scopes;
-    std::vector<rwlock> locks;
-    scope_range::scope_range_enum default_scope;
   };
 
 }

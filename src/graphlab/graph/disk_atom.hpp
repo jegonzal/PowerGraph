@@ -18,14 +18,22 @@
  *
  *      http://www.graphlab.ml.cmu.edu
  *
+ */
+
+/**
  * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
  * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
  *
  */
 
 
-#ifndef DISK_ATOM_HPP
-#define DISK_ATOM_HPP
+#ifndef GRAPHLAB_DISK_ATOM_HPP
+#define GRAPHLAB_DISK_ATOM_HPP
+
+
 #include <sstream>
 #include <map>
 #include <graphlab/serialization/serialization_includes.hpp>
@@ -69,6 +77,11 @@ namespace graphlab {
   public:
     typedef kyotocabinet::TreeDB storage_type;
   private:
+
+    //! Todo: Fix ugly hack
+    typedef graph<bool,bool>::vertex_id_type    vertex_id_type;
+    typedef graph<bool,bool>::vertex_color_type vertex_color_type;
+
     storage_type db;
     kyotocabinet::CacheDB cache;  // a REALLY simple cache of the db.
     // with only one global invalidate flag
@@ -120,7 +133,7 @@ namespace graphlab {
      * \brief Inserts vertex 'vid' into the file without data.
      * If the vertex already exists, it will be overwritten.
      */
-    void add_vertex(vertex_id_t vid, uint16_t owner);
+    void add_vertex(vertex_id_type vid, uint16_t owner);
   
     /**
      * Reads the entire hash table into cache
@@ -132,7 +145,7 @@ namespace graphlab {
      * If the vertex already exists, nothing will be done.
      * Returns true if vertex was added.
      */
-    bool add_vertex_skip(vertex_id_t vid, uint16_t owner);
+    bool add_vertex_skip(vertex_id_type vid, uint16_t owner);
   
   
     /**
@@ -140,7 +153,7 @@ namespace graphlab {
      * it will be overwritten.
      */
     template <typename T>
-    void add_vertex(vertex_id_t vid, uint16_t owner, const T &vdata) {
+    void add_vertex(vertex_id_type vid, uint16_t owner, const T &vdata) {
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner << vdata;
@@ -176,21 +189,21 @@ namespace graphlab {
      * \brief Inserts edge src->target into the file without data. 
      * If the edge already exists it will be overwritten.
      */
-    void add_edge(vertex_id_t src, vertex_id_t target);
+    void add_edge(vertex_id_type src, vertex_id_type target);
   
     /**
      * \brief Inserts edge src->target into the file without data. 
      * If the edge already exists, nothing will be done.
      * Returns true if edge was added.
      */
-    bool add_edge_skip(vertex_id_t src, vertex_id_t target);
+    bool add_edge_skip(vertex_id_type src, vertex_id_type target);
   
     /**
      * \brief Inserts edge src->target into the file. If the edge already exists,
      * it will be overwritten.
      */
     template <typename T>
-    void add_edge(vertex_id_t src, vertex_id_t target, const T &edata) {
+    void add_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << edata;
@@ -221,7 +234,7 @@ namespace graphlab {
      * already contains this vertex. If user is unsure, add_vertex should be used.
      */
     template <typename T>
-    void set_vertex(vertex_id_t vid, uint16_t owner) {
+    void set_vertex(vertex_id_type vid, uint16_t owner) {
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner;
@@ -237,7 +250,7 @@ namespace graphlab {
      * already contains this vertex. If user is unsure, add_vertex should be used.
      */
     template <typename T>
-    void set_vertex(vertex_id_t vid, uint16_t owner, const T &vdata) {
+    void set_vertex(vertex_id_type vid, uint16_t owner, const T &vdata) {
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner << vdata;
@@ -253,7 +266,7 @@ namespace graphlab {
      * If user is unsure, add_edge should be used.
      */
     template <typename T>
-    void set_edge(vertex_id_t src, vertex_id_t target) {
+    void set_edge(vertex_id_type src, vertex_id_type target) {
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
       cache_invalid = true;
     }
@@ -263,7 +276,7 @@ namespace graphlab {
      * already contains this edge. If user is unsure, add_edge should be used.
      */
     template <typename T>
-    void set_edge(vertex_id_t src, vertex_id_t target, const T &edata) {
+    void set_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << edata;
@@ -278,7 +291,7 @@ namespace graphlab {
      * and not the data.
      * Returns true if vertex exists and false otherwise.
      */
-    bool get_vertex(vertex_id_t vid, uint16_t &owner);
+    bool get_vertex(vertex_id_type vid, uint16_t &owner);
   
 
     /**
@@ -287,7 +300,7 @@ namespace graphlab {
      * If there is no vertex data stored, vdata will not be modified.
      */
     template <typename T>
-    bool get_vertex(vertex_id_t vid, uint16_t &owner, T &vdata) {
+    bool get_vertex(vertex_id_type vid, uint16_t &owner, T &vdata) {
       std::string val;
       std::string key = "v"+id_to_str(vid);
       if (cache_invalid || cache.get(key, &val) == false) {
@@ -310,7 +323,7 @@ namespace graphlab {
      * If there is no edge data stored, edata will not be modified.
      */
     template <typename T>
-    bool get_edge(vertex_id_t src, vertex_id_t target, T &edata) {
+    bool get_edge(vertex_id_type src, vertex_id_type target, T &edata) {
       std::string val;
       std::string key = "e"+id_to_str(src)+"_"+id_to_str(target);
       if (cache_invalid || cache.get(key, &val) == false) {
@@ -330,7 +343,7 @@ namespace graphlab {
     /**
      * \brief Returns a list of all the vertices in the file
      */
-    std::vector<vertex_id_t> enumerate_vertices();
+    std::vector<vertex_id_type> enumerate_vertices();
   
     /**
      * \brief Returns a list of all the adjacent atoms in the file
@@ -342,39 +355,39 @@ namespace graphlab {
     /**
      * \brief Returns the set of incoming vertices of vertex 'vid'
      */
-    std::vector<vertex_id_t> get_in_vertices(vertex_id_t vid);
+    std::vector<vertex_id_type> get_in_vertices(vertex_id_type vid);
    
    
     /**
      * \brief Returns the set of outgoing vertices of vertex 'vid'
      */
-    std::vector<vertex_id_t> get_out_vertices(vertex_id_t vid);
+    std::vector<vertex_id_type> get_out_vertices(vertex_id_type vid);
 
 
     /**
      * \brief Get the color of the vertex 'vid'.
-     * Returns (uint32_t)(-1) if the entry does not exist
+     * Returns vertex_color_type(-1) if the entry does not exist
      */
-    uint32_t get_color(vertex_id_t vid);
+    vertex_color_type get_color(vertex_id_type vid);
 
     /**
      * \brief Sets the color of vertex 'vid'
      */
-    void set_color(vertex_id_t vid, uint32_t color);
+    void set_color(vertex_id_type vid, vertex_color_type color);
   
     /// Returns the largest color number
-    uint32_t max_color();
+    vertex_color_type max_color();
   
     /**
      * \brief Reads from the auxiliary hash table mapping vid ==> owner.
      * Returns (uint16_t)(-1) if the entry does not exist
      */
-    uint16_t get_owner(vertex_id_t vid);
+    uint16_t get_owner(vertex_id_type vid);
 
     /**
      * \brief Writes to the auxiliary hash table mapping vid ==> owner.
      */
-    void set_owner(vertex_id_t vid, uint16_t owner);
+    void set_owner(vertex_id_type vid, uint16_t owner);
 
     /// \brief empties the atom file
     void clear();

@@ -387,10 +387,10 @@ DistDouble norm(DistVec & vec){
     return mval;
 }
 
-edge_list get_edges(const gl_types::iscope & scope){
+gl_types::edge_list get_edges(const gl_types::iscope & scope){
      return (scope.vertex() < n) ? scope.out_edge_ids(): scope.in_edge_ids();
 }
-edge_list get_edges(const graph_type *g, vertex_id_t i){
+gl_types::edge_list get_edges(const graph_type *g, vertex_id_t i){
      return (i < n) ? g->out_edge_ids(i) : g->in_edge_ids(i);
 }
 const vertex_data& get_neighbor(const gl_types::iscope & scope, const edge_id_t oedgeid){
@@ -418,8 +418,8 @@ void Axb(gl_types::iscope &scope,
   
   /*** COMPUTE r = c*A*x  ********/
   if (A_offset  && x_offset >= 0){
-    edge_list outs = get_edges(scope);
-    foreach(graphlab::edge_id_t oedgeid, outs) {
+    gl_types::edge_list outs = get_edges(scope);
+    foreach(gl_types::edge_id oedgeid, outs) {
       const edge_data & edge = scope.edge_data(oedgeid);
       const vertex_data  & movie = get_neighbor(scope, oedgeid);
       double * px = (double*)&movie;
@@ -457,8 +457,8 @@ void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
 
       /*** COMPUTE r = c*A*x  ********/
      if (A_offset  && x_offset >= 0){
-     edge_list outs = get_edges(g, i);
-    foreach(graphlab::edge_id_t oedgeid, outs) {
+       gl_types::edge_list outs = get_edges(g, i);
+       foreach(gl_types::edge_id oedgeid, outs) {
       const edge_data & edge = g->edge_data(oedgeid);
       const vertex_data  & movie = get_neighbor(g, i, oedgeid);
       double * px = (double*)&movie;

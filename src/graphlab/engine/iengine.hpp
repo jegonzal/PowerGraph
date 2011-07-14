@@ -66,7 +66,7 @@ namespace graphlab {
                                   exceeded */
 
     EXEC_FORCED_ABORT,     /**< the engine was stopped by calling force
-                             abort */
+                              abort */
                              
     EXEC_EXCEPTION        /**< the engine was stopped by an exception */
   };
@@ -101,12 +101,22 @@ namespace graphlab {
     //! The type of graph that the engine operates on
     typedef Graph graph_type;
 
+    //! The type of vertex id used by the graph
+    typedef typename graph_type::vertex_id_type vertex_id_type;
+
+    //! The type of edge id used by the graph
+    typedef typename graph_type::edge_id_type edge_id_type;
+
+    //! The type of vertex color used by the graph
+    typedef typename graph_type::vertex_color_type vertex_color_type;
+
+
     //! The type of update task
     typedef update_task<Graph> update_task_type;
 
     //! The type of update function
     typedef typename update_task_type::update_function_type 
-                                               update_function_type;
+    update_function_type;
 
     //! The type of scheduler
     typedef ischeduler<Graph> ischeduler_type;
@@ -214,9 +224,9 @@ namespace graphlab {
     /**
      * \brief Add an update function to a particular vertex.
      */
-    virtual void add_vtask(vertex_id_t vid, 
-                          update_function_type fun, 
-                          double priority = 1.0) {
+    virtual void add_vtask(vertex_id_type vid, 
+                           update_function_type fun, 
+                           double priority = 1.0) {
       add_task(update_task_type(vid, fun),  priority);
     }
 
@@ -225,7 +235,7 @@ namespace graphlab {
      * 'vertices', and all with the same update function and priority
      * This function is forwarded to the scheduler.
      */
-    virtual void add_tasks(const std::vector<vertex_id_t>& vertices,
+    virtual void add_tasks(const std::vector<vertex_id_type>& vertices,
                            update_function_type func, double priority) = 0;
 
     /**
@@ -306,7 +316,7 @@ namespace graphlab {
      * However, it is highly recommended to provide a merge function since
      * this allow the sync operation to be parallelized.
      *
-      * The sync operation is guaranteed to be strictly sequentially consistent
+     * The sync operation is guaranteed to be strictly sequentially consistent
      * with all other execution.
      *
      * \param shared The shared variable to synchronize
@@ -336,8 +346,8 @@ namespace graphlab {
                           const any& zero,
                           size_t sync_interval = 0,
                           merge_function_type merge = NULL,
-                          vertex_id_t rangelow = 0,
-                          vertex_id_t rangehigh = -1) = 0;
+                          vertex_id_type rangelow = 0,
+                          vertex_id_type rangehigh = -1) = 0;
 
     /**
      * Performs a sync immediately. This function requires that the shared

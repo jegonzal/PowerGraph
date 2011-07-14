@@ -26,7 +26,7 @@
 
 
 
-//
+
 
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
@@ -126,9 +126,10 @@ namespace graphlab {
     typedef graphlab::glshared_merge_ops glshared_merge_ops;
 
 
-
+    
     template<typename Scheduler, typename ScopeFactory>
-    class asynchronous_engine: public graphlab::asynchronous_engine<graph, Scheduler, ScopeFactory> { };
+    class asynchronous_engine : 
+      public graphlab::asynchronous_engine<graph, Scheduler, ScopeFactory> { };
 
 
     typedef graphlab::fifo_scheduler<graph> fifo_scheduler;
@@ -136,7 +137,8 @@ namespace graphlab {
     typedef graphlab::sampling_scheduler<graph> sampling_scheduler;
     typedef graphlab::sweep_scheduler<graph> sweep_scheduler;
     typedef graphlab::multiqueue_fifo_scheduler<graph> multiqueue_fifo_scheduler;
-    typedef graphlab::multiqueue_priority_scheduler<graph> multiqueue_priority_scheduler;
+    typedef graphlab::multiqueue_priority_scheduler<graph> 
+    multiqueue_priority_scheduler;
     typedef graphlab::clustered_priority_scheduler<graph> clustered_priority_scheduler;
     typedef graphlab::round_robin_scheduler<graph> round_robin_scheduler;
     typedef graphlab::chromatic_scheduler<graph> chromatic_scheduler;
@@ -146,23 +148,45 @@ namespace graphlab {
     
     
 
-    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::vertex_id_t
-    typedef graphlab::vertex_id_t vertex_id_t;
-    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
-    typedef graphlab::edge_id_t edge_id_t;
+    /**
+     * \brief The type of id assigned to each vertex. Equivalent to
+     * graphlab::vertex_id_type 
+     */
+    typedef typename graph::vertex_id_type vertex_id;    
+    __attribute__((__deprecated__)) typedef vertex_id vertex_id_t;
 
+    
+    /**
+     * \brief The color type associated with each vertex.
+     */
+    typedef typename graph::vertex_color_type vertex_color;    
+
+
+    /**
+     * \brief The type of id assigned to each vertex. Equivalent to
+     * graphlab::edge_id_type
+     */
+    typedef typename graph::edge_id_type edge_id;
+    __attribute__((__deprecated__)) typedef edge_id edge_id_t;
+
+
+    /**
+     * \brief The type of id assigned to each vertex. Equivalent to
+     * graphlab::edge_id_t
+     */
     typedef typename graph::edge_list_type edge_list;
+
+    
        
     typedef graphlab::scheduler_options          scheduler_options;
     typedef graphlab::sched_status               sched_status;
-    typedef graphlab::partition_method           partition_method;
     typedef graphlab::scope_range scope_range;
 
     template <typename T>
-    class glshared:public graphlab::glshared<T> { };
+    class glshared : public graphlab::glshared<T> { };
 
     template <typename T>
-    class glshared_const:public graphlab::glshared_const<T> { };
+    class glshared_const : public graphlab::glshared_const<T> { };
   };
 
 }

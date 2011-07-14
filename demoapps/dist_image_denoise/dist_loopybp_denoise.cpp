@@ -107,7 +107,7 @@ gl_types::distributed_glshared<double> DAMPING;
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& distributed_graph);
+                     gl_types::memory_graph& distributed_graph);
 
 /** 
  * The core belief propagation update function.  This update satisfies
@@ -260,11 +260,11 @@ int main(int argc, char** argv) {
     
     std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
     gl_types::disk_graph dg("denoise", 32);
-    gl_types::graph g;
+    gl_types::memory_graph g;
 
     construct_graph(img, colors, sigma, g);
-    std::vector<graphlab::vertex_id_t> parts;
-    g.metis_partition(32, parts);
+    std::vector<graphlab::graph_partitioner::part_id_type> parts;
+    graphlab::graph_partitioner::metis_partition(g, 32, parts);
     dg.create_from_graph(g, parts);
     dg.finalize();
     return 0;
@@ -450,7 +450,7 @@ void bp_update(gl_types::iscope& scope,
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& distributed_graph) {
+                     gl_types::memory_graph& distributed_graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.potential.resize(num_rings);

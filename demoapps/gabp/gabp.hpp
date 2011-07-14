@@ -59,8 +59,8 @@ void gabp_update_function(gl_types::iscope &scope,
 
   /* GET current vertex data */
   vertex_data& vdata = scope.vertex_data();
-  graphlab::edge_list inedgeid = scope.in_edge_ids();
-  graphlab::edge_list outedgeid = scope.out_edge_ids();
+  gl_types::edge_list inedgeid = scope.in_edge_ids();
+  gl_types::edge_list outedgeid = scope.out_edge_ids();
 
   const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get();
   const bool& round_robin = ROUND_ROBIN_KEY.get();
@@ -86,7 +86,7 @@ void gabp_update_function(gl_types::iscope &scope,
   }
 
   //accumlate all messages (the inner summation in section 4 of Algorithm 1)
-  foreach(gl_types::edge_id_t eid, inedgeid) {
+  foreach(gl_types::edge_id eid, inedgeid) {
     const edge_data& edata = scope.edge_data(eid);
     mu_i += edata.mean;
     J_i +=  edata.prec;

@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_MASTER_INCLUDES
-#define GRAPHLAB_MASTER_INCLUDES
+#ifndef GRAPHLAB_DISTRIBUTED_MASTER_INCLUDES
+#define GRAPHLAB_DISTRIBUTED_MASTER_INCLUDES
 
 
 
@@ -86,10 +86,15 @@ namespace graphlab {
   struct distributed_types {
    
     /**
+       The type of the graph
+     */
+    typedef Graph graph;
+
+    /**
      The type of the shared memory graph
     */
     typedef graphlab::graph<typename Graph::vertex_data_type,
-                            typename Graph::edge_data_type> graph;
+                            typename Graph::edge_data_type> memory_graph;
 
     /**
      The type of the disk graph
@@ -109,6 +114,7 @@ namespace graphlab {
     */
     typedef graphlab::distributed_core<typename distributed_graph::vertex_data_type,
                                        typename distributed_graph::edge_data_type> distributed_core;
+    typedef distributed_core core;
 
     typedef graphlab::command_line_options command_line_options;
     typedef graphlab::engine_options engine_options;
@@ -154,15 +160,21 @@ namespace graphlab {
     
 
     /// \brief The type of id assigned to each vertex. Equivalent to graphlab::vertex_id_t
-    typedef graphlab::vertex_id_t vertex_id_t;
-    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
-    typedef graphlab::edge_id_t edge_id_t;
+    typedef typename graph::vertex_id_type vertex_id;
+    __attribute__((__deprecated__)) typedef vertex_id vertex_id_t;
+    
 
-    typedef typename distributed_graph::edge_list_type edge_list;
+    /// \brief The type of id assigned to each vertex. Equivalent to graphlab::edge_id_t
+    typedef typename graph::edge_id_type edge_id;
+    __attribute__((__deprecated__)) typedef edge_id edge_id_t;
+ 
+
+    typedef typename graph::edge_list_type edge_list;
+
        
     typedef graphlab::scheduler_options          scheduler_options;
     typedef graphlab::sched_status               sched_status;
-    typedef graphlab::partition_method           partition_method;
+    typedef graphlab::graph_partitioner          graph_partitioner;
     typedef graphlab::scope_range scope_range;
 
     template <typename T>

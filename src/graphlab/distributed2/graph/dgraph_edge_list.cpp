@@ -21,17 +21,17 @@
  */
 
 
-#include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
+// #include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
 
-namespace graphlab {
+// namespace graphlab {
 
-namespace dgraph_elist_impl {
+// namespace dgraph_elist_impl {
 
-edge_id_t eid_identity(edge_id_t eid) {
-  return eid;
-}
+// edge_id_type eid_identity(edge_id_t eid) {
+//   return eid;
+// }
 
 
-} // namespace dgraph_elist_impl
-} // namespace graphlab
+// } // namespace dgraph_elist_impl
+// } // namespace graphlab
 

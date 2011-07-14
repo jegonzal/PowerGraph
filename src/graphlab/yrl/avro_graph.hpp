@@ -20,7 +20,6 @@
  *
  */
 
-
 /**
  * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
  * reserved.  
@@ -39,8 +38,8 @@
  *
  */
 
-#ifndef GRAPHLAB_GRAPH_HPP
-#define GRAPHLAB_GRAPH_HPP
+#ifndef GRAPHLAB_AVRO_GRAPH_HPP
+#define GRAPHLAB_AVRO_GRAPH_HPP
 
 #include <omp.h>
 #include <cmath>
@@ -69,7 +68,7 @@
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 
-
+#include <graphlab/extern/metis/metis.hpp>
 
 #include <graphlab/util/random.hpp>
 
@@ -80,79 +79,33 @@
 namespace graphlab { 
 
 
+
+
+
+ 
+
   // CLASS GRAPH ==============================================================>
-  /**
-     \brief The GraphLab primary Graph container templatized over the
-     vertex and edge types.
-    
-     Every vertex and edge in the graph is assigned a unique integer
-     ID.  The type of the vertex id is
-     <code>graphlab::vertex_id_type</code> and the type of the edge id
-     is <code>graphlab::edge_id_type</code>. Both
-     <code>vertex_id_type</code> and <code>edge_id_type</code> are
-     currently defined as <code>uint32_t</code>.  While this limits
-     the graphs to 4 billion vertices it also helps reduce the storage
-     overhead. We encourage users to use the
-     <code>vertex_id_type</code> and <code>edge_id_type</code> types
-     as they may change in larger distributed systems.
-
-     <h2> Graph Creation </h2>
-  
-     Vertices and edges are added using the graph::add_vertex()
-     and graph::add_edge() member functions:
-  
-  
-     \code
-     vertex_id_type graph::add_vertex(const VertexData& vdata = VertexData()) 
-     edge_id_type graph::add_edge(vertex_id_type source, vertex_id_type target, 
-                                  const EdgeData& edata = EdgeData()) 
-     \endcode
-  
-     The functions return the id's of the added vertex and edge
-     respectively.  An edge can only be added if both the source and
-     target vertex id's are already in the graph. Duplicate edges are not 
-     supported and may result in undefined behavior.
-
-     The graph behaves like an STL container by storing a local copy of
-     any vertex or edge data.  This data can be accessed using
-     the useful graph routines described below.
-
-     The Graph datastructure is stored internally as a sorted adjacency
-     list.  Where each vertex contains two vectors listing all of its
-     in-edges and all of its out-edges. The in-edges are sorted by the
-     id of the source vertex, while the out-edges are sorted by the id
-     of the destination vertex. This allows for <i>O(log(n))</i> time
-     look up of an edge id given its source and destination vertex.
-   
-     However, this invariant is very expensive to maintain during graph
-     consruction.  Therefore, the Graph datastructure allows the
-     invariant to be violated during graph::add_vertex() or
-     graph::add_edge(). A final call to the member function
-     graph::finalize() is needed after graph construction to restore
-     the invariant.  The engine routines will defensively call
-     graph::finalize() it is not first called by the user.
-  */
+  /** \todo Update documentation  */
   template<typename VertexData, typename EdgeData>
-  class graph {
+  class avro_graph {
   public:
 
-
-    /// The type of a vertex is a simple size_t
-    typedef uint32_t vertex_id_type;
+    /// The type of a vertex id
+    typedef uint64_t vertex_id_type;
     
     /// The type of an edge id 
-    typedef uint32_t edge_id_type;
+    typedef uint64_t edge_id_type;
     
     /// Type for vertex colors 
-    typedef uint8_t vertex_color_type;
-    
-    
+    typedef uint32_t vertex_color_type;
+
+
     /** This class defines a set of edges */
     class edge_list {
     public:
       typedef const edge_id_type* iterator; // Should not be used
       typedef const edge_id_type* const_iterator;
-      typedef edge_id_type value_type;
+      typedef edge_id_type        value_type;
     private:
       const edge_id_type* begin_ptr; // Points to first element
       const edge_id_type* end_ptr; // One past end   
@@ -171,18 +124,18 @@ namespace graphlab {
       size_t size() const { return (size_t)(end_ptr - begin_ptr); }
       
       /** \brief Get the ith edge in the edge list */
-      edge_id_type operator[](size_t i) const {
+      edge_id_t operator[](size_t i) const {
         ASSERT_LT(i,  size());
         return *(begin_ptr + i);
       }
       
       /** \brief Returns a pointer to the start of the edge list */
-      const edge_id_type* begin() const {
+      const_iterator* begin() const {
         return begin_ptr;
       }
       
       /** \brief Returns a pointer to the end of the edge list */
-      const edge_id_type* end() const {
+      const_iterator* end() const {
         return end_ptr;
       } 
       
@@ -194,36 +147,73 @@ namespace graphlab {
       
       /** \brief test if the edge list is empty */
       bool empty() const { return size() == 0; }
-      
     }; // End of edge list
-    
 
-    /** The type of the edge list */
-    typedef edge_list edge_list_type;
+
+
+
 
     /** The type of the vertex data stored in the graph */
     typedef VertexData vertex_data_type;
 
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
+
+    /** The type of the edge list */
+    typedef edge_list edge_list_type;
+
+
+  private:
+
+    /** Record containing neighborhood information about a vertex */
+    struct neighborhood {
+      vertex_id_type             vid;
+      vertex_color_type          color;
+      VertexData                 vdata;
+      std::vector<edge_id_type>  in_edges;
+      std::vector<edge_id_type>  out_edges;
+    };
+
+    /** The vertex data is simply a vector of vertex data */
+    std::map<vertex_id_type, neighborhood> nbrs;
+
+    /** The edge data is a vector of edges where each edge stores its
+        source, destination, and data. */
+    std::vector<edge> edges;
     
+    
+    /** The vertex colors specified by the user. **/
+    std::vector< vertex_color_type > vcolors;  
+    
+    /** Mark whether the graph is finalized.  Graph finalization is a
+        costly procedure but it can also dramatically improve
+        performance. */
+    bool finalized;
+    
+    /** increments whenever the graph is cleared. Used to track the
+     *  changes to the graph structure  */
+    size_t changeid;
+
+
+
+
   public:
 
     // CONSTRUCTORS ============================================================>
     /**
      * Build a basic graph
      */
-    graph() : finalized(true),changeid(0) {  }
+    avro_graph() : finalized(true), changeid(0) {  }
 
     /**
      * Create a graph with nverts vertices.
      */
-    graph(size_t nverts) : 
-      vertices(nverts),
-      in_edges(nverts), out_edges(nverts), vcolors(nverts),
-      finalized(true),changeid(0) { }
+    avro_graph(size_t nverts) : 
+      finalized(true), changeid(0) { 
+      for(size_t i = 0; i < nverts; ++i) nbrs[i].vid = i;
+    }
 
-    graph(const graph<VertexData, EdgeData>& g) { (*this) = g; }
+    avro_graph(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
 
@@ -253,7 +243,7 @@ namespace graphlab {
       // check to see if the graph is already finalized
       if(finalized) return;
       //      std::cout << "Finalizing" << std::endl;
-      typedef std::vector< edge_id_type > edge_set;
+      typedef std::vector< edge_id_t > edge_set;
       edge_id_less_functor less_functor(this);      
       // Sort all in edges sets
       //      foreach(edge_set& eset, in_edges) {
@@ -322,23 +312,23 @@ namespace graphlab {
 
 
     /** \brief Get the number of in edges of a particular vertex */
-    size_t num_in_neighbors(vertex_id_type v) const {
+    size_t num_in_neighbors(vertex_id_t v) const {
       ASSERT_LT(v, vertices.size());
       return in_edges[v].size();
     } // end of num vertices
     
     /** \brief Get the number of out edges of a particular vertex */
-    size_t num_out_neighbors(vertex_id_type v) const  {
+    size_t num_out_neighbors(vertex_id_t v) const  {
       ASSERT_LT(v, vertices.size());
       return out_edges[v].size();
     } // end of num vertices
 
     /** \brief Finds an edge.
-        The value of the first element of the pair will be true if an 
-        edge from src to target is found and false otherwise. If the 
-        edge is found, the edge ID is returned in the second element of the pair. */
-    std::pair<bool, edge_id_type>
-    find(vertex_id_type source, vertex_id_type target) const {
+    The value of the first element of the pair will be true if an 
+    edge from src to target is found and false otherwise. If the 
+    edge is found, the edge ID is returned in the second element of the pair. */
+    std::pair<bool, edge_id_t>
+    find(vertex_id_t source, vertex_id_t target) const {
       ASSERT_LT(source, in_edges.size());
       ASSERT_LT(target, out_edges.size());
       // Check the base case that the souce or target have no edges
@@ -369,7 +359,7 @@ namespace graphlab {
         // if there are few in edges at the target search there
         if(in_edges[target].size() < out_edges[source].size()) {
           // linear search the in_edges at the target 
-          foreach(edge_id_type eid, in_edges[target]) {
+          foreach(edge_id_t eid, in_edges[target]) {
             ASSERT_LT(eid, edges.size());
             if(edges[eid].source() == source 
                && edges[eid].target() == target) {
@@ -379,7 +369,7 @@ namespace graphlab {
           return std::make_pair(false, -1);
         } else { // fewer out edges at the source
           // linear search the out_edges at the source
-          foreach(edge_id_type eid, out_edges[source]) {
+          foreach(edge_id_t eid, out_edges[source]) {
             ASSERT_LT(eid, edges.size());
             if(edges[eid].source() == source 
                && edges[eid].target() == target) {
@@ -395,8 +385,8 @@ namespace graphlab {
     /** \brief A less safe version of find. 
         Returns the edge_id of an edge from src to target exists. 
         Assertion failure otherwise. */
-    edge_id_type edge_id(vertex_id_type source, vertex_id_type target) const {
-      std::pair<bool, edge_id_type> res = find(source, target);
+    edge_id_t edge_id(vertex_id_t source, vertex_id_t target) const {
+      std::pair<bool, edge_id_t> res = find(source, target);
       // The edge must exist
       ASSERT_TRUE(res.first);
       ASSERT_LT(res.second, edges.size());
@@ -406,10 +396,10 @@ namespace graphlab {
     
     /** \brief Returns the edge ID of the edge going in the opposite direction. 
         Assertion failure if such an edge is not found.  */
-    edge_id_type rev_edge_id(edge_id_type eid) const {
+    edge_id_t rev_edge_id(edge_id_t eid) const {
       ASSERT_LT(eid, edges.size());
-      vertex_id_type source = edges[eid].source();
-      vertex_id_type target = edges[eid].target();    
+      vertex_id_t source = edges[eid].source();
+      vertex_id_t target = edges[eid].target();    
       return edge_id(target, source);
     } // end of rev_edge_id
 
@@ -418,13 +408,13 @@ namespace graphlab {
      * of the new vertex id. Vertex ids are assigned in increasing order with
      * the first vertex having id 0.
      */
-    vertex_id_type add_vertex(const VertexData& vdata = VertexData() ) {
+    vertex_id_t add_vertex(const VertexData& vdata = VertexData() ) {
       vertices.push_back(vdata);
       // Resize edge maps
       out_edges.resize(vertices.size());
       in_edges.resize(vertices.size());
       vcolors.resize(vertices.size());
-      return (vertex_id_type)vertices.size() - 1;
+      return (vertex_id_t)vertices.size() - 1;
     } // End of add vertex;
 
 
@@ -446,8 +436,8 @@ namespace graphlab {
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
      */
-    edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
-                          const EdgeData& edata = EdgeData()) {
+    edge_id_t add_edge(vertex_id_t source, vertex_id_t target, 
+                       const EdgeData& edata = EdgeData()) {
       if ( source >= vertices.size() 
            || target >= vertices.size() ) {
 
@@ -473,7 +463,7 @@ namespace graphlab {
       edges.push_back( edge( source, target, edata ) );
 
       // Add the edge id to in and out edge maps
-      edge_id_type edge_id = (edge_id_type)edges.size() - 1;
+      edge_id_t edge_id = (edge_id_t)edges.size() - 1;
       in_edges[target].push_back(edge_id);
       out_edges[source].push_back(edge_id);
 
@@ -494,22 +484,22 @@ namespace graphlab {
         
     
     /** \brief Returns a reference to the data stored on the vertex v. */
-    VertexData& vertex_data(vertex_id_type v) {
+    VertexData& vertex_data(vertex_id_t v) {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
-    const VertexData& vertex_data(vertex_id_type v) const {
+    const VertexData& vertex_data(vertex_id_t v) const {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
-    EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
+    EdgeData& edge_data(vertex_id_t source, vertex_id_t target) {
       ASSERT_LT(source, vertices.size());
       ASSERT_LT(target, vertices.size());
-      std::pair<bool, edge_id_type> ans = find(source, target);
+      std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
       ASSERT_TRUE(ans.first);
       // the edge id should be valid!
@@ -519,10 +509,10 @@ namespace graphlab {
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
-    const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
+    const EdgeData& edge_data(vertex_id_t source, vertex_id_t target) const {
       ASSERT_LT(source, vertices.size());
       ASSERT_LT(target, vertices.size());
-      std::pair<bool, edge_id_type> ans = find(source, target);
+      std::pair<bool, edge_id_t> ans = find(source, target);
       // We must find the edge!
       ASSERT_TRUE(ans.first);
       // the edge id should be valid!
@@ -531,63 +521,63 @@ namespace graphlab {
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
-    EdgeData& edge_data(edge_id_type edge_id) { 
+    EdgeData& edge_data(edge_id_t edge_id) { 
       ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].data();
     }
     
     /** \brief Returns a constant reference to the data stored on the edge e */
-    const EdgeData& edge_data(edge_id_type edge_id) const {
+    const EdgeData& edge_data(edge_id_t edge_id) const {
       ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].data();
     }
 
     /** \brief Returns the source vertex of an edge. */
-    vertex_id_type source(edge_id_type edge_id) const {
+    vertex_id_t source(edge_id_t edge_id) const {
       //      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].source();
     }
 
     /** \brief Returns the destination vertex of an edge. */
-    vertex_id_type target(edge_id_type edge_id) const {
+    vertex_id_t target(edge_id_t edge_id) const {
       //      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].target();    
     }
     
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
-    const vertex_color_type& color(vertex_id_type vertex) const {
+    const vertex_color_type& color(vertex_id_t vertex) const {
       ASSERT_LT(vertex, vertices.size());
       return vcolors[vertex];
     }
 
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
-    vertex_color_type& color(vertex_id_type vertex) {
+    vertex_color_type& color(vertex_id_t vertex) {
       ASSERT_LT(vertex, vertices.size());
       return vcolors[vertex];
     }
 
-    vertex_color_type get_color(vertex_id_type vid) const{
+    vertex_color_type get_color(vertex_id_t vid) const{
       return color(vid);
     }
     
-    void set_color(vertex_id_type vid, vertex_color_type col) {
+    void set_color(vertex_id_t vid, vertex_color_type col) {
       color(vid) = col;
     }
     
     /** \brief This function constructs a heuristic coloring for the 
-        graph and returns the number of colors */
+    graph and returns the number of colors */
     size_t compute_coloring() {
       // Reset the colors
-      for(vertex_id_type v = 0; v < num_vertices(); ++v) color(v) = 0;
+      for(vertex_id_t v = 0; v < num_vertices(); ++v) color(v) = 0;
       // construct a permuation of the vertices to use in the greedy
       // coloring. \todo Should probably sort by degree instead when
       // constructing greedy coloring.
-      std::vector<std::pair<vertex_id_type, vertex_id_type> > 
+      std::vector<std::pair<vertex_id_t, vertex_id_t> > 
 	permutation(num_vertices());
 
-      for(vertex_id_type v = 0; v < num_vertices(); ++v) 
+      for(vertex_id_t v = 0; v < num_vertices(); ++v) 
         permutation[v] = std::make_pair(-num_in_neighbors(v), v);
       //      std::random_shuffle(permutation.begin(), permutation.end());
       std::sort(permutation.begin(), permutation.end());
@@ -596,15 +586,15 @@ namespace graphlab {
       std::set<vertex_color_type> neighbor_colors;
       for(size_t i = 0; i < permutation.size(); ++i) {
         neighbor_colors.clear();
-        const vertex_id_type& vid = permutation[i].second;
+        const vertex_id_t& vid = permutation[i].second;
         // Get the neighbor colors
-        foreach(edge_id_type eid, in_edge_ids(vid)){
-          const vertex_id_type& neighbor_vid = source(eid);
+        foreach(edge_id_t eid, in_edge_ids(vid)){
+          const vertex_id_t& neighbor_vid = source(eid);
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
-        foreach(edge_id_type eid, out_edge_ids(vid)){
-          const vertex_id_type& neighbor_vid = target(eid);
+        foreach(edge_id_t eid, out_edge_ids(vid)){
+          const vertex_id_t& neighbor_vid = target(eid);
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
@@ -630,12 +620,12 @@ namespace graphlab {
      * return true is coloring is valid;
      */
     bool valid_coloring() const {
-      for(vertex_id_type vid = 0; vid < num_vertices(); ++vid) {
+      for(vertex_id_t vid = 0; vid < num_vertices(); ++vid) {
         const vertex_color_type& vertex_color = color(vid);
         edge_list in_edges = in_edge_ids(vid);
         // Get the neighbor colors
-        foreach(edge_id_type eid, in_edges){
-          const vertex_id_type& neighbor_vid = source(eid);
+        foreach(edge_id_t eid, in_edges){
+          const vertex_id_t& neighbor_vid = source(eid);
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           if(vertex_color == neighbor_color) return false;
         }
@@ -645,30 +635,30 @@ namespace graphlab {
     
     
     /** \brief Return the edge ids of the edges arriving at v */
-    edge_list in_edge_ids(vertex_id_type v) const {
+    edge_list in_edge_ids(vertex_id_t v) const {
       ASSERT_LT(v, in_edges.size());
       return edge_list(in_edges[v]);
     } // end of in edges    
 
     /** \brief Return the edge ids of the edges leaving at v */
-    edge_list out_edge_ids(vertex_id_type v) const {
+    edge_list out_edge_ids(vertex_id_t v) const {
       ASSERT_LT(v, out_edges.size());
       return edge_list(out_edges[v]);
     } // end of out edges
     
     /** \brief Get the set of in vertices of vertex v */
-    std::vector<vertex_id_type> in_vertices(vertex_id_type v) const {
-      std::vector<vertex_id_type> ret;
-      foreach(edge_id_type eid, in_edges[v]) {
+    std::vector<vertex_id_t> in_vertices(vertex_id_t v) const {
+      std::vector<vertex_id_t> ret;
+      foreach(edge_id_t eid, in_edges[v]) {
         ret.push_back(edges[eid].source());
       }
       return ret;
     }
     
     /** \brief Get the set of out vertices of vertex v */
-    std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
-      std::vector<vertex_id_type> ret;
-      foreach(edge_id_type eid, out_edges[v]) {
+    std::vector<vertex_id_t> out_vertices(vertex_id_t v) const {
+      std::vector<vertex_id_t> ret;
+      foreach(edge_id_t eid, out_edges[v]) {
         ret.push_back(edges[eid].target());
       }
       return ret;
@@ -741,14 +731,451 @@ namespace graphlab {
       fout.close();
     }
 
+    /**
+     * \brief partition the graph with roughly the same number of edges for
+     * each part. Equivalent to calling partition() with the 
+     * partition_method::PARTITION_EDGE_NUM parameter.
+     *
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
+     */
+    void edge_num_partition(size_t nparts, 
+			    std::vector<vertex_id_t>& vertex2part){
+      vertex2part.resize(num_vertices());
+      size_t e = 2 * num_edges();
+      size_t edge_per_part = e / nparts;
+
+      size_t curpart = 0;
+      std::vector<size_t> parts;
+      parts.resize(nparts, 0);
+      
+      for (vertex_id_t i = 0; i< num_vertices(); i++){
+        uint32_t ne = (uint32_t)(out_edge_ids(i).size() + in_edge_ids(i).size());
+        vertex2part[i] = (uint32_t)curpart;
+        parts[curpart]+= ne;
+           
+        if (parts[curpart] >= edge_per_part  && curpart < nparts-1){
+          curpart++;
+        }
+      }
+    }
 
 
+    /**
+     * \brief Randomly assign vertices to partitions.  This will assign
+     * vertices evenly to each partition.
+     * Equivalent to calling partition() with the 
+     * partition_method::PARTITION_RANDOM parameter
+     *
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
+     */
+    void random_partition(size_t nparts, std::vector<vertex_id_t>& vertex2part) {
+      vertex2part.resize(num_vertices());
+      for (vertex_id_t i = 0;i < num_vertices(); ++i) {
+        vertex2part[i] = (vertex_id_t)(i % nparts);
+      }
+      random::shuffle(vertex2part.begin(), vertex2part.end());
+    }
 
+
+    /**
+     * \brief Use a modified version of the METIS library to partition the
+     * graph. Equivalent to calling partition() with the 
+     * partition_method::PARTITION_METIS paramter
+     *
+     * \param numparts The number of parts to partition into
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     *
+     * The metis library is described in:
+     *
+     *   "A Fast and Highly Quality Multilevel Scheme for Partitioning
+     *   Irregular Graphs”. George Karypis and Vipin Kumar. SIAM
+     *   Journal on Scientific Computing, Vol. 20, No. 1, pp. 359—392,
+     *   1999.
+     *
+     * We have modified an alpha version (5.0) to work with the
+     * GraphLab framework.  Therefore users having trouble with this
+     * function or the included Metis source should direct concerns to
+     * the contact information provided at:
+     *
+     *   http://www.select.cs.cmu.edu/code
+     */
+    void metis_partition(size_t numparts , std::vector<vertex_id_t>& ret_part) {
+      if (numparts == 1) {
+        ret_part.assign(num_vertices(), 0);
+        return;
+      }
+      // Determine parameters needed to construct the partitioning
+      metis::idxtype numverts(num_vertices());
+      ASSERT_GT(numverts, 0);
+      // Compute the number of edges 
+      metis::idxtype numedges(num_edges());
+
+      // allocate metis data structures
+      metis::idxtype* vweight = new metis::idxtype[numverts];
+      ASSERT_NE(vweight, NULL);    
+      metis::idxtype* xadj = new metis::idxtype[numverts + 1];
+      ASSERT_NE(xadj, NULL);
+      metis::idxtype* adjacency = new metis::idxtype[2 * numedges];
+      ASSERT_NE(adjacency, NULL);
+      metis::idxtype* eweight = NULL;
+      //       if(weighted) {
+      //         eweight = new idxtype[numedges];
+      //         assert(eweigth != NULL);
+      //       }
+      metis::idxtype* res = new metis::idxtype[numverts];   
+      ASSERT_NE(res, NULL);
+
+      // Pass through vertices filling in the metis data structures
+      size_t offset = 0;
+      for(vertex_id_t u = 0; u < num_vertices(); ++u) {
+        // Update vertex weight
+        // Set weight
+        vweight[u] = 1;
+        // Update the offset
+        xadj[u] = offset;
+        // Fill the the adjacency data
+      
+        std::set<vertex_id_t> neighbors;
+        foreach(edge_id_t eid, out_edge_ids(u)) {
+          neighbors.insert(target(eid));
+        }
+        foreach(edge_id_t eid, in_edge_ids(u)) {
+          neighbors.insert(source(eid));
+        }
+        foreach(vertex_id_t vid, neighbors) {
+          if (vid == u) continue;
+          adjacency[offset] = vid;
+          ASSERT_GE(adjacency[offset], 0);
+          offset++;
+          ASSERT_GE(offset, 0);
+        }
     
+      } // end of data structure creation
+      
+      // Set the last entry in xadj to the end of the adjacency array
+      xadj[numverts] = offset;
     
+      // Set additional metis flags
+      /**
+       * 0 No weights (vwgts and adjwgt are NULL) 
+       * 1 Weights on the edges only (vwgts = NULL) 
+       * 2 Weights on the vertices only (adjwgt = NULL) 
+       * 3 Weights both on vertices and edges. 
+       */
+      metis::idxtype weightflag = 2;
+      // 0 for C-style numbering starting at 0 (1 for fortran style)
+      metis::idxtype numflag = 0;
+      // the number of parts to cut into
+      metis::idxtype nparts = numparts;     
+      // Options array (only care about first element if first element
+      // is zero
+      metis::idxtype options[5] = {0}; 
+      // output argument number of edges cut
+      metis::idxtype edgecut = 0;
+    
+      // Call kmetis
+      metis::METIS_PartGraphKway(&(numverts), 
+                                 xadj,
+                                 adjacency,
+                                 vweight,
+                                 eweight,
+                                 &(weightflag),
+                                 &(numflag),
+                                 &(nparts),
+                                 options,
+                                 &(edgecut),
+                                 res);
+    
+      //     // Call pmetis
+      //     metis::METIS_PartGraphRecursive(&(numverts), 
+      //                                     xadj,
+      //                                     adjacency,
+      //                                     vweight,
+      //                                     eweight,
+      //                                     &(weightflag),
+      //                                     &(numflag),
+      //                                     &(nparts),
+      //                                     options,
+      //                                     &(edgecut),
+      //                                     res);
+    
+      // destroy all unecessary data structures except res
+      if(xadj != NULL) delete [] xadj;
+      if(adjacency != NULL) delete [] adjacency;
+      if(vweight != NULL) delete [] vweight;
+      if(eweight != NULL) delete [] eweight;
+
+      // Resize the partition
+      ret_part.resize(num_vertices());
+      // process the final results
+      ASSERT_NE(res, NULL);
+      for(vertex_id_t v = 0; v < num_vertices(); ++v) {
+        ret_part[v] = (vertex_id_t)res[v];
+      }    
+      // Delete the result array
+      if(res != NULL) delete [] res;
+    } // end of metis partition
+
+
+    /**
+     * This function computes a weighted graph partition using METIS.
+     * \param numparts The number of parts to partition into
+     * \param[out] ret_part A vector providing a vertex_id -> partition_id mapping
+     * \param vfunction A function of the type size_t (*)(const VertexData &v)
+     *                  This function takes in the data on a vertex, and 
+     *                  returns the weight of the vertex
+     * \param wfunction A function of the type size_t (*)(const EdgeData &e)
+     *                  This function takes in the data on an edge, and 
+     *                  returns the weight of the edge
+     * \param usemetisdefaults If set to true, uses Metis default parameter set.
+     *                         defaults to false.
+     *                         
+     *
+     * Use a modified version of the METIS library to partition the
+     * graph using user provided edge and vertex weight functions.
+     * The methis library is described in:
+     *
+     *   "A Fast and Highly Quality Multilevel Scheme for Partitioning
+     *   Irregular Graphs”. George Karypis and Vipin Kumar. SIAM
+     *   Journal on Scientific Computing, Vol. 20, No. 1, pp. 359—392,
+     *   1999.
+     *
+     * We have modified an alpha version (5.0) to work with the
+     * GraphLab framework.  Therefore users having trouble with this
+     * function or the included Metis source should direct concerns to
+     * the contact information provided at:
+     *
+     *   http://www.select.cs.cmu.edu/code
+     *
+     */
+    template <typename EdgeWeightFunction, typename VertexWeightFunction>
+    void metis_weighted_partition(size_t numparts ,
+                                  std::vector<vertex_id_t>& ret_part,
+                                  VertexWeightFunction vfunction,
+                                  EdgeWeightFunction wfunction,
+                                  bool usemetisdefaults = false) {
+      if (numparts == 1) {
+        ret_part.assign(num_vertices(), 0);
+        return;
+      }
+      // Determine parameters needed to construct the partitioning
+      metis::idxtype numverts(num_vertices());
+      ASSERT_GT(numverts, 0);
+      // Compute the number of edges 
+      metis::idxtype numedges (num_edges());
+
+      // allocate metis data structures
+      metis::idxtype* vweight = new metis::idxtype[numverts];
+      ASSERT_NE(vweight, NULL);
+      metis::idxtype* xadj = new metis::idxtype[numverts + 1];
+      ASSERT_NE(xadj, NULL);
+      metis::idxtype* adjacency = new metis::idxtype[2 * numedges];
+      ASSERT_NE(adjacency, NULL);
+      metis::idxtype* eweight = NULL;
+      eweight = new metis::idxtype[ 2 * numedges];
+      ASSERT_NE(eweight, NULL);
+      
+      metis::idxtype* res = new metis::idxtype[numverts];   
+      ASSERT_NE(res, NULL);
+
+      // Pass through vertices filling in the metis data structures
+      size_t offset = 0;
+      for(vertex_id_t u = 0; u < num_vertices(); ++u) {
+        // Update vertex weight
+        // Set weight
+        vweight[u] = double(vfunction(vertex_data(u)));
+        // Update the offset
+        xadj[u] = offset;
+        // Fill the the adjacency data
+      
+        std::set<size_t> neighbors;
+        std::map<size_t, double> nbrtoweight;
+        foreach(edge_id_t eid, out_edge_ids(u)) {
+          neighbors.insert(target(eid));
+          nbrtoweight[target(eid)] = double(wfunction(edge_data(eid)));
+        }
+        foreach(edge_id_t eid, in_edge_ids(u)) {
+          neighbors.insert(source(eid));
+          nbrtoweight[source(eid)] = double(wfunction(edge_data(eid)));
+        }
+        foreach(vertex_id_t vid, neighbors) {
+          if (vid == u) continue;
+          adjacency[offset] = vid;
+          eweight[offset] = nbrtoweight[vid];
+          ASSERT_GE(adjacency[offset], 0);
+          offset++;
+          ASSERT_GE(offset, 0);
+        }
+    
+      } // end of data structure creation
+      
+      // Set the last entry in xadj to the end of the adjacency array
+      xadj[numverts] = offset;
+    
+      // Set additional metis flags
+      /**
+       * 0 No weights (vwgts and adjwgt are NULL) 
+       * 1 Weights on the edges only (vwgts = NULL) 
+       * 2 Weights on the vertices only (adjwgt = NULL) 
+       * 3 Weights both on vertices and edges. 
+       */
+      metis::idxtype weightflag = 3;
+      // 0 for C-style numbering starting at 0 (1 for fortran style)
+      metis::idxtype numflag = 0;
+      // the number of parts to cut into
+      metis::idxtype nparts = numparts;     
+      // Options array (only care about first element if first element
+      // is zero
+      metis::idxtype options[5] = {0};
+      
+      options[0] = 1;
+      options[1]=3;
+      options[2]=1;
+      options[3]=2;
+      options[4]=0;
+      if (usemetisdefaults) options[0] = 0;
+      // output argument number of edges cut
+      metis::idxtype edgecut = 0;
+    
+      // Call kmetis
+      metis::METIS_PartGraphKway(&(numverts), 
+                                 xadj,
+                                 adjacency,
+                                 vweight,
+                                 eweight,
+                                 &(weightflag),
+                                 &(numflag),
+                                 &(nparts),
+                                 options,
+                                 &(edgecut),
+                                 res);
+    
+      // Call pmetis
+      /*   metis::METIS_PartGraphRecursive(&(numverts), 
+           xadj,
+           adjacency,
+           vweight,
+           eweight,
+           &(weightflag),
+           &(numflag),
+           &(nparts),
+           options,
+           &(edgecut),
+           res);*/
+    
+      // destroy all unecessary data structures except res
+      if(xadj != NULL) delete [] xadj;
+      if(adjacency != NULL) delete [] adjacency;
+      if(vweight != NULL) delete [] vweight;
+      if(eweight != NULL) delete [] eweight;
+
+      // Resize the partition
+      ret_part.resize(num_vertices());
+      // process the final results
+      ASSERT_NE(res, NULL);
+      for(vertex_id_t v = 0; v < num_vertices(); ++v) {
+        ret_part[v] = res[v];
+      }    
+      // Delete the result array
+      if(res != NULL) delete [] res;
+    } // end of metis partition
+    
+     /**
+     * \brief Performs a breadth first search partitioning of the graph.
+     * Equivalent to calling partition() with the 
+     * partition_method::PARTITION_EDGE_NUM paramter
+     *
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
+     *
+     * The algorithm works by picking up a random vertex and performing a breadth
+     * first search until the number of vertices touched is |V|/nparts.
+     * This will then be assigned as the first partition. This procedure repeats
+     * until all partitions are filled.
+     */
+    void bfs_partition(size_t nparts, std::vector<vertex_id_t> &vertex2part) {
+      // create a list of all unassigned variables
+      std::set<vertex_id_t> unassigned;
+      vertex2part.resize(num_vertices());
+      // initialize the unassigned vertices
+      for(vertex_id_t v = 0; v < num_vertices(); ++v) {
+        unassigned.insert(v);
+      }
+      // Compute the partition size
+      size_t maxpartsize = (size_t)(std::ceil(double(unassigned.size()) / (double)nparts));
+      size_t partid = 0;
+      while(!unassigned.empty()) {  
+        std::list<vertex_id_t> queue;    // Breadth first queue 
+        std::set<vertex_id_t>  visited;  // Set of visited vertices
+        // While the task is still too small and their remains
+        // unassigned vertices
+        size_t curpartsize = 0;
+        while(curpartsize < maxpartsize 
+              && !unassigned.empty()) {
+          if(queue.empty()) { 
+            queue.push_front(*unassigned.begin());
+            visited.insert(*unassigned.begin());
+          }
+          ASSERT_FALSE(queue.empty());
+          // Pop the first element off the queue 
+          vertex_id_t v = queue.front(); queue.pop_front();
+          ASSERT_LT(partid, nparts);
+          // Add the element to the task
+          vertex2part[v] = (uint32_t)partid;
+          ++curpartsize;
+          // Remove the vertex from the set of unassigned vertices
+          unassigned.erase(v); 
+          // Add all its unassigned and unvisited neighbors to the queue
+          foreach(edge_id_t eid, out_edge_ids(v)) {
+            vertex_id_t u = target(eid);
+            if(unassigned.find(u) != unassigned.end() &&
+               visited.find(u) == visited.end()) {
+              queue.push_back(u);
+              visited.insert(u);
+            }
+          }
+          foreach(edge_id_t eid, in_edge_ids(v)) {
+            vertex_id_t u = source(eid);
+            if(unassigned.find(u) != unassigned.end() &&
+               visited.find(u) == visited.end()) {
+              queue.push_back(u);
+              visited.insert(u);
+            }
+          }
+        } // End of block build foor loop
+        // move to the next part
+        partid++;
+      }// end of outer while loop
+    } // end of bfs partition
 
 
 
+    /**
+     * Partition the graph using one of the available partitioning
+     * methods.
+     * \param partmethod A partition method. \ref partition_method
+     *
+     * \param nparts The number of parts to partition into
+     * \param[out] vertex2part A vector providing a vertex_id -> partition_id mapping
+     * 
+     */
+    void partition(partition_method::partition_method_enum partmethod,
+                   size_t nparts, std::vector<uint32_t>& vertex2part) {
+      switch (partmethod) {
+      case partition_method::PARTITION_METIS:
+        return metis_partition(nparts, vertex2part);
+      case partition_method::PARTITION_BFS:
+        return bfs_partition(nparts, vertex2part);
+      case partition_method::PARTITION_RANDOM:
+        return random_partition(nparts, vertex2part);
+      case partition_method::PARTITION_EDGE_NUM:
+        return edge_num_partition(nparts, vertex2part);
+      default:
+        ASSERT_TRUE(false); //shoud never ever happen
+      }
+    }
 
     /**
      * builds a topological_sort of the graph returning it in topsort. 
@@ -757,13 +1184,13 @@ namespace graphlab {
      *
      * function will return false if graph is not acyclic.
      */
-    bool topological_sort(std::vector<vertex_id_type>& topsort) const {
+    bool topological_sort(std::vector<vertex_id_t>& topsort) const {
       topsort.clear();
       topsort.reserve(num_vertices());
     
       std::vector<size_t> indeg;
       indeg.resize(num_vertices());
-      std::queue<vertex_id_type> q;
+      std::queue<vertex_id_t> q;
       for (size_t i = 0;i < num_vertices(); ++i) {
         indeg[i] = in_edge_ids(i).size();
         if (indeg[i] == 0) {
@@ -772,11 +1199,11 @@ namespace graphlab {
       }
     
       while (!q.empty()) {
-        vertex_id_type v = q.front();
+        vertex_id_t v = q.front();
         q.pop();
         topsort.push_back(v);
-        foreach(edge_id_type eid, out_edge_ids(v)) {
-          vertex_id_type destv = target(eid);
+        foreach(edge_id_t eid, out_edge_ids(v)) {
+          vertex_id_t destv = target(eid);
           --indeg[destv];
           if (indeg[destv] == 0) {
             q.push(destv);
@@ -792,17 +1219,17 @@ namespace graphlab {
   private:    
     /** Internal edge class  */   
     class edge {
-      vertex_id_type _source;
-      vertex_id_type _target;
+      vertex_id_t _source;
+      vertex_id_t _target;
       EdgeData _data;
     public:
       edge() : _source(-1), _target(-1) { }
       edge(const edge& other) :
         _source(other.source()), _target(other.target()),
         _data(other.data()) { }
-      edge(vertex_id_type source, vertex_id_type target) :
+      edge(vertex_id_t source, vertex_id_t target) :
         _source(source), _target(target)  { }
-      edge(vertex_id_type source, vertex_id_type target, EdgeData data) : 
+      edge(vertex_id_t source, vertex_id_t target, EdgeData data) : 
         _source(source), _target(target), _data(data) {}
 
       bool operator<(const edge& other) const {
@@ -810,8 +1237,8 @@ namespace graphlab {
           (_source == other._source && _target < other._target); 
       }
       
-      inline vertex_id_type source() const { return _source; }
-      inline vertex_id_type target() const { return _target; }   
+      inline vertex_id_t source() const { return _source; }
+      inline vertex_id_t target() const { return _target; }   
       inline EdgeData& data() { return _data; }
       inline const EdgeData& data() const { return _data; }
       
@@ -833,7 +1260,7 @@ namespace graphlab {
     struct edge_id_less_functor {
       graph* g_ptr;
       edge_id_less_functor(graph* g_ptr) : g_ptr(g_ptr) { }
-      bool operator()(edge_id_type a, edge_id_type b) {
+      bool operator()(edge_id_t a, edge_id_t b) {
         return g_ptr->edge_id_less(a,b);
       }
     };
@@ -845,7 +1272,7 @@ namespace graphlab {
      * the lexical ordering of the vertex ids of the corresponding
      * edge
      */
-    inline bool edge_id_less(edge_id_type a, edge_id_type b) const {
+    inline bool edge_id_less(edge_id_t a, edge_id_t b) const {
       //      ASSERT_LT(a, edges.size());
       //      ASSERT_LT(b, edges.size());
       return edges[a] < edges[b];
@@ -854,30 +1281,6 @@ namespace graphlab {
     
  
     // PRIVATE DATA MEMBERS ===================================================>    
-    /** The vertex data is simply a vector of vertex data */
-    std::vector<VertexData> vertices;
-
-    /** The edge data is a vector of edges where each edge stores its
-        source, destination, and data. */
-    std::vector<edge> edges;
-    
-    /** A map from src_vertex -> dest_vertex -> edge index */   
-    std::vector< std::vector<edge_id_type> >  in_edges;
-    
-    /** A map from src_vertex -> dest_vertex -> edge index */   
-    std::vector< std::vector<edge_id_type> >  out_edges;
-    
-    /** The vertex colors specified by the user. **/
-    std::vector< vertex_color_type > vcolors;  
-    
-    /** Mark whether the graph is finalized.  Graph finalization is a
-        costly procedure but it can also dramatically improve
-        performance. */
-    bool finalized;
-    
-    /** increments whenever the graph is cleared. Used to track the
-     *  changes to the graph structure  */
-    size_t changeid;
 
     // PRIVATE HELPERS =========================================================>
     /**
@@ -885,8 +1288,8 @@ namespace graphlab {
      * fails it returns size_t(-1)
      * TODO: switch to stl binary search
      */
-    size_t binary_search(const std::vector<edge_id_type>& vec,
-                         vertex_id_type source, vertex_id_type target) const {
+    size_t binary_search(const std::vector<edge_id_t>& vec,
+                         vertex_id_t source, vertex_id_t target) const {
       // Ensure that the graph is finalized before calling this function
       //      finalize();
       ASSERT_TRUE(finalized);
@@ -896,8 +1299,8 @@ namespace graphlab {
       while(first <= last) {
         size_t mid = (first+last)/2;
         ASSERT_LT(mid, vec.size());
-        vertex_id_type mid_source = edges[vec[mid]].source();
-        vertex_id_type mid_target = edges[vec[mid]].target();
+        vertex_id_t mid_source = edges[vec[mid]].source();
+        vertex_id_t mid_target = edges[vec[mid]].target();
         // Edge found
         if(mid_source == source && mid_target == target) {
           return mid;
@@ -936,33 +1339,12 @@ namespace graphlab {
     // }
     // return out;
     // Print adjacency List
-    typedef typename graphlab::graph<VertexData, EdgeData>::vertex_id_type 
-      vertex_id_type;
-    typedef typename graphlab::graph<VertexData, EdgeData>::edge_id_type 
-      edge_id_type;
-    for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
-      foreach(edge_id_type eid, graph.out_edge_ids(vid))
+    for(vertex_id_t vid = 0; vid < graph.num_vertices(); ++vid) {
+      foreach(edge_id_t eid, graph.out_edge_ids(vid))
         out << vid << ", " << graph.target(eid) << '\n';      
     }
     return out;
   }
-
-
-  //! You should now use the vertex type associated with the graph
-  //  __attribute__((__deprecated__)) 
-  typedef graph<int,int>::vertex_id_type vertex_id_t;
-
-  //! You should now use the edge id type associated with the graph
-  // __attribute__((__deprecated__)) 
-  typedef graph<int,int>::edge_id_type edge_id_t;
-
-  //! You should now use the vertex color type associated with the
-  //! graph
-  // __attribute__((__deprecated__)) 
-  typedef graph<int,int>::vertex_color_type vertex_color_type;
-
-
-
   
 
 } // end of namespace graphlab

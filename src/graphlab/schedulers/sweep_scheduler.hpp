@@ -60,6 +60,7 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -87,8 +88,8 @@ namespace graphlab {
     size_t vreserve;
     size_t vrcpu;
 
-    vertex_id_t* v_to_int;
-    vertex_id_t* int_to_v;
+    vertex_id_type* v_to_int;
+    vertex_id_type* int_to_v;
 
   public:
     sweep_scheduler(iengine_type* engine,
@@ -96,7 +97,7 @@ namespace graphlab {
                     size_t ncpus) : 
       terminator(ncpus) {
       this->g = &g;
-      numvertices = (vertex_id_t)(g.local_vertices());
+      numvertices = (vertex_id_type)(g.local_vertices());
       num_cpus = ncpus;
       callbacks.resize(num_cpus, direct_callback<Graph>(this, engine));
       // pad to guarantee not go over boundary
@@ -139,7 +140,7 @@ namespace graphlab {
       size_t nvp = numvertices + num_cpus;
       for(size_t i = 0; i<nvp; i+=num_cpus) {
        
-        vertex_id_t vid = (vertex_id_t)lastidx;
+        vertex_id_type vid = (vertex_id_type)lastidx;
         assert(vid%num_cpus == cpuid);
         assert(vid >= 0 && vid < numvertices);
         
@@ -195,7 +196,7 @@ namespace graphlab {
     void add_task(update_task_type task, double priority, 
                   int generated_by_cpuid) {
       if (v_to_int == NULL) init();  // Check if init was forgotten!
-      vertex_id_t task_vid = VID_TO_INTERNAL(task.vertex());
+      vertex_id_type task_vid = VID_TO_INTERNAL(task.vertex());
       size_t targetcpuid = task_vid%num_cpus;
       size_t idx = GETIDX(get_update_func_id(task.function()), 
                           targetcpuid , task_vid);
@@ -212,7 +213,7 @@ namespace graphlab {
     
       
     bool is_task_scheduled(update_task_type task) {
-      vertex_id_t task_vid = VID_TO_INTERNAL(task.vertex_id());
+      vertex_id_type task_vid = VID_TO_INTERNAL(task.vertex_id());
       size_t targetcpuid = task_vid%num_cpus;
       size_t idx = GETIDX(get_update_func_id(task.function()), 
                           targetcpuid , task_vid);
@@ -225,16 +226,16 @@ namespace graphlab {
       return callbacks[cpuid];
     }
     
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority)  {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         add_task(update_task_type(vertex, func), priority, -1);
       }
     }
     
     void add_task_to_all(update_function_type func, double priority) {
-      for (vertex_id_t vertex = 0; vertex < numvertices; ++vertex){
+      for (vertex_id_type vertex = 0; vertex < numvertices; ++vertex){
         add_task(update_task_type(vertex, func), priority, -1);
       }
     }
@@ -246,19 +247,19 @@ namespace graphlab {
   
     void init() {
       /* Mappings */
-      v_to_int = (vertex_id_t*) calloc(numvertices, sizeof(vertex_id_t));
-      int_to_v = (vertex_id_t*) calloc(numvertices, sizeof(vertex_id_t));
+      v_to_int = (vertex_id_type*) calloc(numvertices, sizeof(vertex_id_type));
+      int_to_v = (vertex_id_type*) calloc(numvertices, sizeof(vertex_id_type));
       if (permute_vertices) {
-        for(vertex_id_t i=0; i<numvertices; i++) {
+        for(vertex_id_type i=0; i<numvertices; i++) {
           v_to_int[i] = i;
         }
         random::shuffle(&(v_to_int[0]), &(v_to_int[numvertices]));
-        for(vertex_id_t i=0; i<numvertices; i++) {
+        for(vertex_id_type i=0; i<numvertices; i++) {
           int_to_v[v_to_int[i]] = i;
         }
       }
       else {
-        for(vertex_id_t i=0; i<numvertices; i++) {
+        for(vertex_id_type i=0; i<numvertices; i++) {
           v_to_int[i] = i;
           int_to_v[i] = i;
         }
@@ -301,7 +302,7 @@ namespace graphlab {
     update_function_type* updatefuncs;
     spinlock updflock;
     shared_termination terminator;
-    vertex_id_t numvertices;
+    vertex_id_type numvertices;
     size_t num_cpus;
     std::vector< direct_callback<Graph> > callbacks;
     Graph* g;

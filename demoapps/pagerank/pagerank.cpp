@@ -352,7 +352,7 @@ bool load_graph_from_file(const std::string& filename,
     vertex_data& vdata = graph.vertex_data(vid);
     // Initialze with self out edge weight
     double sum = vdata.self_weight;
-    const graphlab::edge_list& out_eids = 
+    const gl_types::edge_list& out_eids = 
       graph.out_edge_ids(vid);
     // Sum up weight on out edges
     for(size_t i = 0; i < out_eids.size(); ++i) {

@@ -152,6 +152,10 @@ namespace graphlab {
   public:
     //! The type of graph that the iscope operates on
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type    vertex_id_type;
+    typedef typename graph_type::edge_id_type      edge_id_type;
+    typedef typename graph_type::vertex_color_type vertex_color_type;
+
 
     //! The vertex data type associated with the graph
     typedef typename Graph::vertex_data_type vertex_data_type;
@@ -171,7 +175,7 @@ namespace graphlab {
      * engine when creating an iscope to be passed into an update
      * function.
      */
-    iscope(Graph* graph_ptr = NULL, vertex_id_t vertex = -1) : 
+    iscope(Graph* graph_ptr = NULL, vertex_id_type vertex = -1) : 
       _graph_ptr(graph_ptr), _vertex(vertex) {
     }
     
@@ -203,7 +207,7 @@ namespace graphlab {
      * vertex of the scope.  The base vertex is the vertex that the
      * update function is being applied to.
      */
-    vertex_id_t vertex() const { return _vertex; }
+    vertex_id_type vertex() const { return _vertex; }
 
     /** 
      * \brief edge lookup from source target pair to edge id.
@@ -211,8 +215,8 @@ namespace graphlab {
      * This is used to get structural information from the graph.  If
      * the edge is not present this method will fail. 
      */
-    edge_id_t edge(vertex_id_t source,
-                   vertex_id_t target) const {
+    edge_id_type edge(vertex_id_type source,
+                   vertex_id_type target) const {
       assert(_graph_ptr != NULL);
       // No cheating
       // assert(source == _vertex || target == _vertex);
@@ -225,8 +229,8 @@ namespace graphlab {
      * This method tests whether the edge exists.  If the edge exists
      * this method returns true.  
      */
-    bool edge_exists(vertex_id_t source,
-                     vertex_id_t target) const {
+    bool edge_exists(vertex_id_type source,
+                     vertex_id_type target) const {
       assert(_graph_ptr != NULL);
       // No cheating
       // assert(source == _vertex || target == _vertex);
@@ -240,7 +244,7 @@ namespace graphlab {
      * Get the reverse edge id.  If no such edge exists this method
      * will fail. 
      */
-    edge_id_t reverse_edge(edge_id_t eid) const {      
+    edge_id_type reverse_edge(edge_id_type eid) const {      
       assert(_graph_ptr != NULL);      
       //       // No cheating
       //       assert(_graph_ptr->source(eid) == _vertex ||
@@ -265,7 +269,7 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list_type in_edge_ids(vertex_id_t v) const {
+    edge_list_type in_edge_ids(vertex_id_type v) const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->in_edge_ids(v);
     }
@@ -288,19 +292,19 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list_type out_edge_ids(vertex_id_t v) const {
+    edge_list_type out_edge_ids(vertex_id_type v) const {
       assert(_graph_ptr != NULL);
       return _graph_ptr->out_edge_ids(v);
     }
 
     //! Get the source vertex of the edge id argument
-    vertex_id_t source(edge_id_t edge_id) const {
+    vertex_id_type source(edge_id_type edge_id) const {
       //      assert(_graph_ptr != NULL);
       return _graph_ptr->source(edge_id);
     }
 
     //! get the target vertex of the edge id argument
-    vertex_id_t target(edge_id_t edge_id) const {
+    vertex_id_type target(edge_id_type edge_id) const {
       //       assert(_graph_ptr != NULL);
       return _graph_ptr->target(edge_id);
     }
@@ -342,7 +346,7 @@ namespace graphlab {
      * const version of this function should be used to permit further
      * optimization.
      */
-    virtual edge_data_type& edge_data(edge_id_t eid) = 0;
+    virtual edge_data_type& edge_data(edge_id_type eid) = 0;
 
     /**
      * \brief Get an immutable reference to the data associated with
@@ -351,7 +355,7 @@ namespace graphlab {
      * This should only be invoked on edges that are adjacent to the
      * base vertex. 
      */
-    virtual const edge_data_type& edge_data(edge_id_t eid) const = 0;
+    virtual const edge_data_type& edge_data(edge_id_type eid) const = 0;
     
     
     /**
@@ -360,7 +364,7 @@ namespace graphlab {
      *
      * This should be called if the data does not need to be modified.
      */    
-    virtual const edge_data_type& const_edge_data(edge_id_t eid) const = 0;
+    virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0;
     
     /**
      * \brief get a mutable reference to the data associated with a
@@ -373,7 +377,7 @@ namespace graphlab {
      * const version of this function should be called to permit
      * further optimization by the graphlab engine.
      */
-    virtual vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) = 0;
+    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) = 0;
 
     /**
      * \brief get an immutable reference to the data associated with a
@@ -384,7 +388,7 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    neighbor_vertex_data(vertex_id_t vertex) const = 0;
+    neighbor_vertex_data(vertex_id_type vertex) const = 0;
         
 
         /**
@@ -396,7 +400,7 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_t vertex) const = 0;
+    const_neighbor_vertex_data(vertex_id_type vertex) const = 0;
 
 
     /**
@@ -416,7 +420,7 @@ namespace graphlab {
     Graph* _graph_ptr;
 
     /** The vertex that this graph represents*/
-    vertex_id_t _vertex;
+    vertex_id_type _vertex;
 
   }; // end of iscope
   

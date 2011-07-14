@@ -65,13 +65,16 @@ public:
  
   void test_graph() {
     static const size_t N = 1000;
-    graphlab::graph<vertex_data, edge_data> g;
+    typedef graphlab::graph<vertex_data, edge_data> graph_type;
+    typedef graph_type::vertex_id_type vertex_id_type;
+
+    graph_type g;
     vertex_data verts[N];
     edge_data edges[N];
     g.clear();
     // Add the vertices
     TS_TRACE("Checking Add Vertex");
-    for(vertex_id_t i = 0; i < N; ++i) {     
+    for(vertex_id_type i = 0; i < N; ++i) {     
       verts[i].bias = i; 
       verts[i].sum = 0;
       g.add_vertex(verts[i]);
@@ -84,10 +87,10 @@ public:
     }
     // Make a ring
     TS_TRACE("Checking Add Edge");
-    for(vertex_id_t i = 0; i < N; ++i) {
+    for(vertex_id_type i = 0; i < N; ++i) {
       edges[i].weight = i * i;
       edges[i].sum = 0;
-      vertex_id_t j = (i+1) % N;
+      vertex_id_type j = (i+1) % N;
       g.add_edge(i, j, edges[i]);
       g.finalize();
       edge_data& edata = g.edge_data(i,j);
@@ -104,10 +107,10 @@ public:
 
     // Make a ring
     TS_TRACE("Checking Add Edge Again with bi directed edges");
-    for(vertex_id_t i = 0; i < N; ++i) {
+    for(vertex_id_type i = 0; i < N; ++i) {
       edges[i].weight = i * i;
       edges[i].sum = 0;
-      vertex_id_t j = (i+1) % N;
+      vertex_id_type j = (i+1) % N;
       g.add_edge(i, j, edges[i]);
       g.add_edge(j, i, edges[i]);
     }   
@@ -120,16 +123,19 @@ public:
     ti.start();
     typedef graph<char, char> graph_type;
     typedef types< graph_type > gl;
+    typedef graph_type::vertex_id_type vertex_id_type;
+    typedef graph_type::edge_id_type edge_id_type;
     size_t num_verts = 10000;
     size_t degree = 100;
     TS_TRACE("Constructing random graph");
     gl::graph graph(num_verts);
+
     // create a random graph
-    for(vertex_id_t i = 0; i < num_verts; ++i) {
-      std::set<gl::vertex_id_t> neighbors;
+    for(vertex_id_type i = 0; i < num_verts; ++i) {
+      std::set<vertex_id_type> neighbors;
       
       for(size_t j = 0; j < degree; ++j) {
-        vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
+        vertex_id_t neighbor = vertex_id_type(graphlab::random::uniform<vertex_id_type>(0, num_verts - 1));
         if(neighbor != i && neighbors.insert(neighbor).second) graph.add_edge(i, neighbor);
       }
     }
@@ -138,11 +144,11 @@ public:
     TS_TRACE("Testing Coloring");
     graph.compute_coloring();
     
-    for(vertex_id_t i = 0; i < num_verts; ++i) {
-      foreach(edge_id_t e, graph.in_edge_ids(i)) {
+    for(vertex_id_type i = 0; i < num_verts; ++i) {
+      foreach(edge_id_type e, graph.in_edge_ids(i)) {
         TS_ASSERT_DIFFERS(graph.color(graph.source(e)), graph.color(i));
       }
-      foreach(edge_id_t e, graph.out_edge_ids(i)) {
+      foreach(edge_id_type e, graph.out_edge_ids(i)) {
         TS_ASSERT_DIFFERS(graph.color(graph.target(e)), graph.color(i));
       }
     }
@@ -150,6 +156,7 @@ public:
                                
   void test_partition() {
     typedef graph<char, char> graph_type;
+    typedef graph_type::vertex_id_type vertex_id_type;
     typedef types< graph_type > gl;
     // make a 100x100 grid
     size_t dim = 100;
@@ -157,28 +164,28 @@ public:
     
     for (size_t i = 0;i < dim; ++i) {
       for (size_t j = 0;j < dim - 1; ++j) {
-        g.add_edge((vertex_id_t)(dim * i + j), (vertex_id_t)(dim * i + j + 1), char(1));
-        g.add_edge((vertex_id_t)(dim * i + j + 1), (vertex_id_t)(dim * i + j), char(1));
-        g.add_edge((vertex_id_t)(dim * j + i), (vertex_id_t)(dim * (j + 1) + i), char(1));
-        g.add_edge((vertex_id_t)(dim * (j + 1) + i), (vertex_id_t)(dim * j + i), char(1));
+        g.add_edge((vertex_id_type)(dim * i + j), (vertex_id_type)(dim * i + j + 1), char(1));
+        g.add_edge((vertex_id_type)(dim * i + j + 1), (vertex_id_type)(dim * i + j), char(1));
+        g.add_edge((vertex_id_type)(dim * j + i), (vertex_id_type)(dim * (j + 1) + i), char(1));
+        g.add_edge((vertex_id_type)(dim * (j + 1) + i), (vertex_id_type)(dim * j + i), char(1));
       }
     }
     g.finalize();    
     TS_TRACE("Random Partitioning");
-    try_partition_method(g, partition_method::PARTITION_RANDOM);
+    try_partition_method(g, "random");
     TS_TRACE("Metis Partitioning");
-    try_partition_method(g, partition_method::PARTITION_METIS);
+    try_partition_method(g, "metis");
     TS_TRACE("BFS Partitioning");
-    try_partition_method(g, partition_method::PARTITION_BFS);
+    try_partition_method(g, "bfs");
     TS_TRACE("Edge Number Partitioning");
-    try_partition_method(g, partition_method::PARTITION_EDGE_NUM);
+    try_partition_method(g, "edge_num");
   }
   
 private:
   void try_partition_method(graph<char, char> &g, 
-                            partition_method::partition_method_enum partmethod) {
-    std::vector<vertex_id_t> parts;
-    g.partition(partmethod, 4, parts);
+                            const std::string& partmethod) {
+    std::vector<graph_partitioner::part_id_type> parts;
+    graph_partitioner::partition(partmethod, g, 4, parts);
     TS_ASSERT_EQUALS(parts.size(), g.num_vertices());  
 
     std::vector<size_t> vcount(4);

@@ -51,6 +51,7 @@ namespace graphlab {
     typedef typename imonitor_type::update_task_type update_task_type;
     typedef typename imonitor_type::iengine_type iengine_type;
     typedef typename imonitor_type::iscope_type iscope_type;
+    typedef typename imonitor_type::vertex_id_type vertex_id_type;
 
    
   private:
@@ -147,7 +148,7 @@ namespace graphlab {
     }
     
     /* Application calls */
-    void app_set_vertex_value(vertex_id_t vid, double value) { 
+    void app_set_vertex_value(vertex_id_type vid, double value) { 
       foreach (imonitor_type * child, children) {
         child->app_set_vertex_value(vid, value);
       }                                      

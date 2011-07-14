@@ -125,6 +125,9 @@ struct edge_data {
 // Graph type defintiions
 typedef graphlab::graph<vertex_data, edge_data> coem_graph;
 typedef coem_graph graph_type;
+typedef graph_type::vertex_id_type vertex_id_type;
+typedef graph_type::edge_id_type edge_id_type;
+typedef graph_type::edge_list_type edge_list_type;
 typedef graphlab::types<graph_type> gl_types;
 
 // Accuracy 
@@ -146,7 +149,7 @@ double subsamplingRatio = 1.0;
 bool prune_edges;
   
 // Hack for speeding up
-std::vector<vertex_id_t> ** vertex_lookups;
+std::vector<vertex_id_type> ** vertex_lookups;
 glshared_const<float> PARAM_M;
 glshared_const<size_t> NUM_NPS;
 glshared_const<size_t> NUM_CTX;
@@ -154,13 +157,13 @@ glshared_const<size_t> NUM_CATS;
 
 // Forward declarations
 void loadCategories();
-std::map<std::string, vertex_id_t>  loadVertices(gl_types::core& core, short typemask, FILE * f);
+std::map<std::string, vertex_id_type>  loadVertices(gl_types::core& core, short typemask, FILE * f);
 void prepare(gl_types::core& core);
 void load(gl_types::core& core);
 void loadEdges(gl_types::core& core, FILE * fcont_to_nps, 
-               std::map<std::string, vertex_id_t>& nps_map,
-               std::map<std::string, vertex_id_t>& ctx_map);
-void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map);
+               std::map<std::string, vertex_id_type>& nps_map,
+               std::map<std::string, vertex_id_type>& ctx_map);
+void setseeds(gl_types::core& core, std::map<std::string, vertex_id_type>& nps_map);
 void loadAndConvertToBin(gl_types::core& core, std::string binfile);
 void output_results(gl_types::core& core);
 
@@ -169,7 +172,7 @@ void coem_update_function(gl_types::iscope& scope,
                           gl_types::icallback& scheduler) {
                           
   /* A optimization. Use thred-local lookup-table for faster computation. */
-  std::vector<vertex_id_t> vlookup = *vertex_lookups[thread::thread_id()];
+  std::vector<vertex_id_type> vlookup = *vertex_lookups[thread::thread_id()];
   vlookup.clear();
    
   /* Get shared vars. These are just constants. */
@@ -184,7 +187,7 @@ void coem_update_function(gl_types::iscope& scope,
   /* We use directed edges as indirected, so either this vertex has only incoming  
      or outgoing vertices.  */
   bool use_outgoing = (scope.in_edge_ids().size()==0);
-  edge_list edge_ids = 
+  edge_list_type edge_ids = 
     (use_outgoing ? scope.out_edge_ids() : scope.in_edge_ids());
    
   if (edge_ids.size() == 0) {
@@ -201,7 +204,7 @@ void coem_update_function(gl_types::iscope& scope,
   /* First check is my normalizer precomputed. If not, do it. */
   if (vdata.normalizer == 0.0) {
     float norm = param_m * vtype_other_total;
-    foreach(edge_id_t eid, edge_ids) {
+    foreach(edge_id_type eid, edge_ids) {
       const edge_data& edata = scope.const_edge_data(eid);
       const vertex_data& nb_vdata = 
         scope.const_neighbor_vertex_data(use_outgoing ? 
@@ -222,9 +225,9 @@ void coem_update_function(gl_types::iscope& scope,
   for(int i=0; i<200; i++) tmp[i] = param_m;
 	
   // Compute weighted averages of neighbors' beliefs.
-  foreach(edge_id_t eid, edge_ids) {
+  foreach(edge_id_type eid, edge_ids) {
     const edge_data& edata = scope.const_edge_data(eid);
-    vertex_id_t nbvid = use_outgoing ? scope.target(eid) : scope.source(eid);
+    vertex_id_type nbvid = use_outgoing ? scope.target(eid) : scope.source(eid);
     const vertex_data& nb_vdata = scope.const_neighbor_vertex_data(nbvid);
     for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
       tmp[cat_id] += nb_vdata.p[cat_id] * 
@@ -258,9 +261,9 @@ void coem_update_function(gl_types::iscope& scope,
     // Write data to edges and schedule if threshold reached
     double randomNum = graphlab::random::rand01();
     for(int l = 0; l<sz; l++) {
-      vertex_id_t nbvid = vlookup[l];
+      vertex_id_type nbvid = vlookup[l];
       gl_types::update_task task(nbvid, coem_update_function);
-      edge_id_t eid = edge_ids[l];
+      edge_id_type eid = edge_ids[l];
       const edge_data& edata = scope.const_edge_data(eid);
            
       const vertex_data nb_vdata = scope.const_neighbor_vertex_data(nbvid);
@@ -329,10 +332,10 @@ int main(int argc,  char ** argv) {
   printf("Loading data took %lf secs\n", t.current_time());
 
   /** Hack **/
-  vertex_lookups = (std::vector<vertex_id_t> **) 
-    malloc(sizeof(std::vector<vertex_id_t> *) * clopts.get_ncpus());
+  vertex_lookups = (std::vector<vertex_id_type> **) 
+    malloc(sizeof(std::vector<vertex_id_type> *) * clopts.get_ncpus());
   for(unsigned int i=0; i< clopts.get_ncpus(); i++) {
-    vertex_lookups[i] = new std::vector<vertex_id_t>();
+    vertex_lookups[i] = new std::vector<vertex_id_type>();
     vertex_lookups[i]->reserve(1e6);
   }
   
@@ -507,10 +510,10 @@ void FIXLINE(char * s) {
 }
 
 
-std::map<std::string, vertex_id_t>  loadVertices(gl_types::core& core, short typemask, FILE * f) {
+std::map<std::string, vertex_id_type>  loadVertices(gl_types::core& core, short typemask, FILE * f) {
   /* Allocation size depends on number of categories */
   int vsize = sizeof(vertex_data) + categories.size()*sizeof(float);
-  map<std::string, vertex_id_t> map;
+  map<std::string, vertex_id_type> map;
   char s[255];
   char delims[] = "\t";	
   char *t = NULL;
@@ -535,7 +538,7 @@ std::map<std::string, vertex_id_t>  loadVertices(gl_types::core& core, short typ
     double randomNum = graphlab::random::rand01();
 		
     if (randomNum <= subsamplingRatio) {
-      vertex_id_t vid = core.graph().add_vertex(vdata);
+      vertex_id_type vid = core.graph().add_vertex(vdata);
       if (vid%50000 == 0) printf("Vertex: %d  %s\n", vid, vdata.text); 
       map.insert(make_pair(std::string(vdata.text), vid));
     } 
@@ -563,7 +566,7 @@ void loadCategories() {
   closedir(dp);
 }
 
-void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map) {
+void setseeds(gl_types::core& core, std::map<std::string, vertex_id_type>& nps_map) {
   short catid = 0;
   size_t num_of_seeds=0;
   foreach(std::string cat, categories) {
@@ -575,7 +578,7 @@ void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map)
     while(fgets(cs, 255, seedf) != NULL) {
       FIXLINE(cs);
       std::string s(cs);
-      map<string,vertex_id_t>::iterator iter = nps_map.find(s);
+      map<string,vertex_id_type>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
         continue;
       }
@@ -592,7 +595,7 @@ void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map)
     while(fgets(cs, 255, negseedf) != NULL) {
       FIXLINE(cs);
       std::string s(cs);
-      map<string,vertex_id_t>::iterator iter = nps_map.find(s);
+      map<string,vertex_id_type>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
         //std::cout << "Seed not found: [" << s << "]" << std::endl;
         continue;
@@ -607,8 +610,8 @@ void setseeds(gl_types::core& core, std::map<std::string, vertex_id_t>& nps_map)
 }
 
 void loadEdges(gl_types::core& core, FILE * fcont_to_nps, 
-               std::map<std::string, vertex_id_t>& nps_map,
-               std::map<std::string, vertex_id_t>& ctx_map) {
+               std::map<std::string, vertex_id_type>& nps_map,
+               std::map<std::string, vertex_id_type>& ctx_map) {
   size_t MAXBUF = 5*1000000;
   char  * s = (char*) malloc(MAXBUF); 	// 10 meg buffer :)
   char delims[] = "\t";	
@@ -648,7 +651,7 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
       continue;
     }
     std::string ctxname(t);
-    map<string,vertex_id_t>::iterator iter = ctx_map.find(ctxname);
+    map<string,vertex_id_type>::iterator iter = ctx_map.find(ctxname);
     if (iter == ctx_map.end()) {
       if (subsamplingRatio < 1.0) {
         // Not found (subsampling in effect)
@@ -661,13 +664,13 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
         // rather ugly.....
         memcpy(vdata.text, ctxname.c_str(), 
                (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
-        vertex_id_t vid = core.graph().add_vertex(vdata);
+        vertex_id_type vid = core.graph().add_vertex(vdata);
         if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata.text); 
         ctx_map.insert(make_pair(ctxname, vid));
         iter = ctx_map.find(ctxname);
       }	
     }
-    vertex_id_t ctx_vid = iter->second;
+    vertex_id_type ctx_vid = iter->second;
 		
     //  Each line contains the NP pairs for one pattern, with
     //  format <pattern>[\t<NP> || <NP> -#- <count>[...]]\n
@@ -707,7 +710,7 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
       }
 	
  		
-      map<string,vertex_id_t>::iterator iter = nps_map.find(npname);
+      map<string,vertex_id_type>::iterator iter = nps_map.find(npname);
 		    
       if (iter == nps_map.end()) {
         if (subsamplingRatio < 1.0) {
@@ -720,13 +723,13 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
           // rather ugly.....
           memcpy(vdata.text, npname.c_str(), 
                  (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
-          vertex_id_t vid = core.graph().add_vertex(vdata);
+          vertex_id_type vid = core.graph().add_vertex(vdata);
           if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata.text); 
           nps_map.insert(make_pair(npname, vid));
           iter = nps_map.find(npname);
         }
       }
-      vertex_id_t np_vid = iter->second;
+      vertex_id_type np_vid = iter->second;
 
  			
       // Create edge data
@@ -762,9 +765,9 @@ void loadAndConvertToBin(gl_types::core& core, std::string binfile) {
   assert(fmatrix != NULL);
     	
   /* Load NPS */
-  std::map<std::string, vertex_id_t> nps_map = loadVertices(core, NP_MASK, fnps);
+  std::map<std::string, vertex_id_type> nps_map = loadVertices(core, NP_MASK, fnps);
   /* Load CONTEXTS */
-  std::map<std::string, vertex_id_t> ctx_map = loadVertices(core, CTX_MASK, fctx);
+  std::map<std::string, vertex_id_type> ctx_map = loadVertices(core, CTX_MASK, fctx);
 
   std::cout << "NPS map " << nps_map.size() << " entries" << std::endl;
   std::cout << "CTX map " << ctx_map.size() << " entries" << std::endl;

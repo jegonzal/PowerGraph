@@ -165,8 +165,8 @@ void nbp_update(gl_types::iscope& scope,
   if ((int)vid == 0)
       iiter++;
 
-  graphlab::edge_list in_edges = scope.in_edge_ids();
-  graphlab::edge_list out_edges = scope.out_edge_ids();
+  gl_types::edge_list in_edges = scope.in_edge_ids();
+  gl_types::edge_list out_edges = scope.out_edge_ids();
   assert(in_edges.size() == out_edges.size()); // Sanity check
 
   //for each incoming message
@@ -371,7 +371,7 @@ int main(int argc, char** argv) {
 
 // convert the true image to an image
   image trueimg(rows, cols);
-  for (size_t i = 0;i < truedata.size(); ++i) {
+  for (size_t i = 0; i < size_t(truedata.size()); ++i) {
     trueimg.pixel(i) = truedata(i);
   }
 
@@ -381,7 +381,7 @@ int main(int argc, char** argv) {
   imgfile >> Name("obs2") >> observations;
   // convert observations to an image
   image img(rows, cols);
-  for (size_t i = 0;i < observations.size(); ++i) {
+  for (size_t i = 0;i < size_t(observations.size()); ++i) {
     img.pixel(i) = observations(i);
   }
   img.save("noisy.pgm");
@@ -402,7 +402,7 @@ int main(int argc, char** argv) {
   // Add the bp update to all vertices
   core.add_task_to_all(nbp_update, 100.0);
   // Starte the engine
-  double runtime = core.start();
+  const double runtime = core.start();
 
   // Saving the output -------------------------------------------------------->
   std::cout << "Rendering the cleaned image. " << std::endl;

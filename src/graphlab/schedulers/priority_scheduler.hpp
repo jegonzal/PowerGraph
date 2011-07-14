@@ -56,6 +56,7 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -71,7 +72,7 @@ namespace graphlab {
     size_t num_vertices;  
     
     /** The queue over vertices */
-    mutable_queue<vertex_id_t, double> task_queue;
+    mutable_queue<vertex_id_type, double> task_queue;
 
     /** The lock on the priority queue */
     spinlock queuelock; 
@@ -114,7 +115,7 @@ namespace graphlab {
         return sched_status::EMPTY;
       } else {
         // Get the highest priority vertex
-        vertex_id_t vertex = task_queue.pop().first;
+        vertex_id_type vertex = task_queue.pop().first;
 
         // From the task set get the highest priority task associated
         // with that vertex
@@ -146,7 +147,7 @@ namespace graphlab {
         first_add = true;
       } 
       // Update the priority queue
-      vertex_id_t vertex = task.vertex();
+      vertex_id_type vertex = task.vertex();
       task_queue.insert_max(vertex, priority);
       queuelock.unlock();
       // Update any listeners
@@ -160,10 +161,10 @@ namespace graphlab {
     } // end of add_task
     
 
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority) {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add tasks 
@@ -172,7 +173,7 @@ namespace graphlab {
     
     
     void add_task_to_all(update_function_type func, double priority) {
-      for (vertex_id_t vertex = 0; vertex < num_vertices; ++vertex){
+      for (vertex_id_type vertex = 0; vertex < num_vertices; ++vertex){
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add tasks to all

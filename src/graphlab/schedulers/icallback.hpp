@@ -47,6 +47,7 @@ namespace graphlab {
   class icallback {
   public:
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef update_task<Graph> update_task_type;
     typedef iengine<Graph> iengine_type;
     typedef typename update_task_type::update_function_type 
@@ -60,7 +61,7 @@ namespace graphlab {
      * Adds a task to execute the update function on the vertex with
      * the given priority.
      */
-    void add_task(vertex_id_t vertex,
+    void add_task(vertex_id_type vertex,
                    update_function_type update_fun,
                    double priority = 1.0) {
       update_task_type task(vertex, update_fun);
@@ -77,7 +78,7 @@ namespace graphlab {
      * Creates a collection of tasks on all the vertices in
      * 'vertices', and all with the same update function and priority
      */
-    virtual void add_tasks(const std::vector<vertex_id_t>& vertices, 
+    virtual void add_tasks(const std::vector<vertex_id_type>& vertices, 
                            update_function_type func, double priority) = 0;    
                          
 

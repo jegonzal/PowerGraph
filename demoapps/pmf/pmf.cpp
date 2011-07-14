@@ -291,7 +291,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
-int count_edges(edge_list es){
+int count_edges(gl_types::edge_list es){
   
   if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT)
       return es.size();
@@ -335,8 +335,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   }
 
 
-  edge_list outs = scope.out_edge_ids();
-  edge_list ins = scope.in_edge_ids();
+  gl_types::edge_list outs = scope.out_edge_ids();
+  gl_types::edge_list ins = scope.in_edge_ids();
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
@@ -347,7 +347,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   //USER NODES    
   if (isuser){
 
-    foreach(graphlab::edge_id_t oedgeid, outs) {
+    foreach(gl_types::edge_id oedgeid, outs) {
       const vertex_data  & pdata = scope.const_neighbor_vertex_data(scope.target(oedgeid)); 
 #ifndef GL_NO_MULT_EDGES
       multiple_edges &medges =scope.edge_data(oedgeid);
@@ -372,7 +372,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
 
     //MOVIE NODES
-    foreach(edge_id_t iedgeid, ins) {
+    foreach(gl_types::edge_id iedgeid, ins) {
 
       const vertex_data & pdata = scope.const_neighbor_vertex_data(scope.source(iedgeid)); 
 #ifndef GL_NO_MULT_EDGES

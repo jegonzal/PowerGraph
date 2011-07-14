@@ -6,7 +6,10 @@
 #include <itpp/itstat.h>
 #include <itpp/stat/misc_stat.h>
 
-#include "distributed_graphlab.hpp"
+
+#include <distributed_graphlab.hpp>
+#include <graphlab.hpp>
+
 /**
 
  Probabalistic matrix/tensor factorization written Danny Bickson, CMU
@@ -215,11 +218,14 @@ const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q
 //model can support multiple ratings of user to the same movie in different times
 //or a single rating. Single rating will run faster.
 #ifndef GL_NO_MULT_EDGES
-typedef graphlab::distributed_graph<vertex_data, multiple_edges> graph_type;
+typedef graphlab::distributed_graph<vertex_data, multiple_edges> dist_graph_type;
+typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
 #else
-typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+typedef graphlab::distributed_graph<vertex_data, edge_data> dist_graph_type;
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
 #endif
-typedef graphlab::distributed_types<graph_type> gl_types;
+typedef graphlab::distributed_types<dist_graph_type> gl_dist_types;
+typedef graphlab::types<graph_type> gl_types;
 
 
 

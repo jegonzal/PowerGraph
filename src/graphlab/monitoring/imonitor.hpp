@@ -46,6 +46,7 @@ namespace graphlab {
   public:
     
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef update_task<Graph> update_task_type;
     typedef iscope<Graph> iscope_type;
     typedef iengine<Graph> iengine_type;
@@ -81,7 +82,7 @@ namespace graphlab {
     virtual void scheduler_task_pruned(update_task_type task) { }
     
     /* Application calls */
-    virtual void app_set_vertex_value(vertex_id_t vid, double value) { }
+    virtual void app_set_vertex_value(vertex_id_type vid, double value) { }
     
     /* Called by application to help visualizers to scale values properly */
     virtual void app_set_vertex_value_scale(double min, double max) { }

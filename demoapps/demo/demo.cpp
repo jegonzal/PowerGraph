@@ -122,11 +122,11 @@ The scope provides access to a local neighborhood of a graph.
 The scope is centered on a particular vertex, ( scope.vertex() ), and includes
 all adjacent edges and vertices. \
 \ 
-All vertices are identified by an unsigned integer type vertex_id_t,
-and all edges are similarly identified by an unsigned integer type edge_id_t.
-GraphLab guarantees that all vertices are sequentially numbered from 0
-(so the largest vertex id is |num_vertices| - 1), and similarly for edges.
-All edges are directed.
+All vertices are identified by an unsigned integer type
+vertex_id_type, and all edges are similarly identified by an unsigned
+integer type edge_id_type.  GraphLab guarantees that all vertices are
+sequentially numbered from 0 (so the largest vertex id is
+|num_vertices| - 1), and similarly for edges.  All edges are directed.
 
 \param scheduler
 There are two basic types of schedulers.
@@ -158,7 +158,7 @@ void update_function(gl::iscope& scope,
 
   // the in_edge_ids() function provide a vector of the edge ids of the edges
   // entering the current vertex
-  gl::edge_list in_edges = scope.in_edge_ids();
+  graph_type::edge_list_type in_edges = scope.in_edge_ids();
   // a counter for the number of red neighbors
   size_t num_red_neighbors = 0;  
   for (size_t i = 0; i < in_edges.size(); ++i) {

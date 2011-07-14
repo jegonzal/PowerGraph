@@ -230,8 +230,8 @@ void update_function(gl::iscope& scope,
 /**
   In this function, we construct the grid graph
 */
-void init_graph(gl::graph & g,
-                  size_t dim) {
+void init_graph(gl::memory_graph & g,
+                size_t dim) {
   // here we create dim * dim vertices.
   // the graph add_vertex(vertexdata) function takes the vertex data as input
   // and returns the vertex id of the new vertex.
@@ -462,10 +462,10 @@ int main(int argc,  char *argv[]) {
   
   if (makegraph) {
     // call init_graph to create the graph
-    gl::graph g;
+    gl::memory_graph g;
     init_graph(g, dimensions);
-    std::vector<graphlab::vertex_id_t> parts;
-    g.metis_partition (16, parts);
+    std::vector<graphlab::graph_partitioner::part_id_type> parts;
+    graphlab::graph_partitioner::graph_partitioner::metis_partition(g, 16, parts);
     graph_partition_to_atomindex(g, parts, "demograph");
     return 0;
   }

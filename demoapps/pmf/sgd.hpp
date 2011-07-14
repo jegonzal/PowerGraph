@@ -82,7 +82,7 @@ void sgd_update_function(gl_types::iscope &scope,
   }
 
 
-  edge_list outs = scope.out_edge_ids();
+  gl_types::edge_list outs = scope.out_edge_ids();
   timer t;
   t.start(); 
 

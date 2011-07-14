@@ -108,7 +108,7 @@ gl_types::distributed_glshared<graphlab::binary_factor> sh_truecounts;
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& distributed_graph);
+                     gl_types::memory_graph& distributed_graph);
 
 /** Get the counts of the true image */
 void get_image_counts(image &trueimg, 
@@ -328,12 +328,12 @@ int main(int argc, char** argv) {
     img.save(noisy_fn.c_str());
     std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
     gl_types::disk_graph dg("denoise_learn", 32);
-    gl_types::graph g;
+    gl_types::memory_graph g;
 
     construct_graph(img, colors, sigma, g);
-    std::vector<graphlab::vertex_id_t> parts;
+    std::vector<graphlab::graph_partitioner::part_id_type> parts;
     std::cout << "Partitioning..." << std::endl;
-    g.metis_partition(32, parts);
+    graphlab::graph_partitioner::metis_partition(g, 32, parts);
     std::cout << "Saving..." << std::endl;
     dg.create_from_graph(g, parts);
     dg.finalize();
@@ -637,7 +637,7 @@ void edgepot_apply(graphlab::any& result,  const graphlab::any& acc) {
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& distributed_graph) {
+                     gl_types::memory_graph& distributed_graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.potential.resize(num_rings);

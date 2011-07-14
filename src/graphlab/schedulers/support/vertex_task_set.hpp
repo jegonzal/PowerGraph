@@ -41,6 +41,7 @@ namespace graphlab {
   class vertex_task_set {
   public:
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef update_task<Graph> update_task_type;
     typedef typename update_task_type::update_function_type 
     update_function_type;
@@ -200,7 +201,7 @@ namespace graphlab {
      * Look at the top task associated with the vertex.  If there are
      * no associated tasks then return false;
      */
-    bool top(vertex_id_t vertex_id,
+    bool top(vertex_id_type vertex_id,
              update_task_type& ret_task,
              double& ret_priority) {
       assert(vertex_id < locks.size());
@@ -230,7 +231,7 @@ namespace graphlab {
     /**
      * Get the top priority for a vertex
      */
-    double top_priority(vertex_id_t vertex_id) {
+    double top_priority(vertex_id_type vertex_id) {
       assert(vertex_id < locks.size());
       double priority(0);
       // grab the lock on the vertex
@@ -251,7 +252,7 @@ namespace graphlab {
     /**
      * Get the top priority for a vertex
      */
-    double total_priority(vertex_id_t vertex_id) {
+    double total_priority(vertex_id_type vertex_id) {
       assert(vertex_id < locks.size());
       double priority(0);
       // grab the lock on the vertex
@@ -274,7 +275,7 @@ namespace graphlab {
      * Look at the top task associated with the vertex.  If there are
      * no associated tasks then return false;
      */
-    bool pop(vertex_id_t vertex_id,
+    bool pop(vertex_id_type vertex_id,
              update_task_type& ret_task,
              double& ret_priority) {
       assert(vertex_id < locks.size());

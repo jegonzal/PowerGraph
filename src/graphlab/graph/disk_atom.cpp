@@ -17,9 +17,19 @@
  * For more about this software visit:
  *
  *      http://www.graphlab.ml.cmu.edu
- * 
  *
  */
+
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
 
 #include <sstream>
 #include <map>
@@ -79,7 +89,7 @@ namespace graphlab {
     db.synchronize();
   }
 
-  void disk_atom::add_vertex(vertex_id_t vid, uint16_t owner) {
+  void disk_atom::add_vertex(disk_atom::vertex_id_type vid, uint16_t owner) {
     if (!add_vertex_skip(vid, owner)) {
       std::stringstream strm;
       oarchive oarc(strm);    
@@ -91,7 +101,7 @@ namespace graphlab {
   }
 
 
-  bool disk_atom::add_vertex_skip(vertex_id_t vid, uint16_t owner) {
+  bool disk_atom::add_vertex_skip(disk_atom::vertex_id_type vid, uint16_t owner) {
     std::stringstream strm;
     oarchive oarc(strm);    
     oarc << owner;
@@ -121,7 +131,7 @@ namespace graphlab {
   }
 
 
-  void disk_atom::add_edge(vertex_id_t src, vertex_id_t target) {
+  void disk_atom::add_edge(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
     if (!add_edge_skip(src, target)) {
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
       cache_invalid = true;
@@ -129,7 +139,7 @@ namespace graphlab {
   }
 
 
-  bool disk_atom::add_edge_skip(vertex_id_t src, vertex_id_t target) {
+  bool disk_atom::add_edge_skip(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
     if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""))) {
       // increment the number of edges
       nume.inc();
@@ -146,13 +156,13 @@ namespace graphlab {
     return false;
   }
 
-  std::vector<vertex_id_t> disk_atom::enumerate_vertices() {
-    std::vector<vertex_id_t> ret;
+  std::vector<disk_atom::vertex_id_type> disk_atom::enumerate_vertices() {
+    std::vector<disk_atom::vertex_id_type> ret;
     if (head_vid == (uint64_t)(-1)) return ret;
     else {
       uint64_t curvid = head_vid;
       while(1) {
-        ret.push_back((vertex_id_t)(curvid));
+        ret.push_back((disk_atom::vertex_id_type)(curvid));
         std::string next_key = "ll" + id_to_str(curvid);
         if (cache_invalid || 
             cache.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
@@ -166,7 +176,7 @@ namespace graphlab {
   }
 
 
-  bool disk_atom::get_vertex(vertex_id_t vid, uint16_t &owner) {
+  bool disk_atom::get_vertex(disk_atom::vertex_id_type vid, uint16_t &owner) {
     std::string val;
     std::string key = "v"+id_to_str(vid);
     if (cache_invalid || cache.get(key, &val) == false) {
@@ -188,7 +198,7 @@ namespace graphlab {
       uint64_t curvid = head_vid;
       while(1) {
         uint16_t owner;
-        get_vertex((vertex_id_t)curvid, owner);
+        get_vertex((disk_atom::vertex_id_type)curvid, owner);
         if (owner != atomid) ret[owner]++;
         std::string next_key = "ll" + id_to_str(curvid);
         if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
@@ -199,15 +209,15 @@ namespace graphlab {
     return ret;
   }
 
-  uint32_t disk_atom::max_color() {
-    uint32_t mcolor = 0;
+  disk_atom::vertex_color_type disk_atom::max_color() {
+    disk_atom::vertex_color_type mcolor = 0;
     if (head_vid == (uint64_t)(-1)) return mcolor;
     else {
       uint64_t curvid = head_vid;
       while(1) {
 
-        uint32_t c = get_color(curvid);
-        if (c != (uint32_t)(-1)) {
+        disk_atom::vertex_color_type c = get_color(curvid);
+        if (c != disk_atom::vertex_color_type(-1)) {
           mcolor = std::max(mcolor, c);
         }
         std::string next_key = "ll" + id_to_str(curvid);
@@ -220,8 +230,8 @@ namespace graphlab {
   }
 
 
-  std::vector<vertex_id_t> disk_atom::get_in_vertices(vertex_id_t vid) {
-    std::vector<vertex_id_t> ret;
+  std::vector<disk_atom::vertex_id_type> disk_atom::get_in_vertices(disk_atom::vertex_id_type vid) {
+    std::vector<disk_atom::vertex_id_type> ret;
     std::string val;
     std::string key = "i"+id_to_str(vid);
     if ((cache_invalid == false && cache.get(key, &val)) || db.get(key, &val)) {
@@ -236,8 +246,8 @@ namespace graphlab {
    
    
 
-  std::vector<vertex_id_t> disk_atom::get_out_vertices(vertex_id_t vid) {
-    std::vector<vertex_id_t> ret;
+  std::vector<disk_atom::vertex_id_type> disk_atom::get_out_vertices(disk_atom::vertex_id_type vid) {
+    std::vector<disk_atom::vertex_id_type> ret;
     std::string val;
     std::string key = "o"+id_to_str(vid);
     if ((cache_invalid == false && cache.get(key, &val)) || db.get(key, &val)) {
@@ -252,25 +262,29 @@ namespace graphlab {
 
 
 
-  uint32_t disk_atom::get_color(vertex_id_t vid) {
+  disk_atom::vertex_color_type 
+  disk_atom::get_color(disk_atom::vertex_id_type vid) {
     std::string key = "c" + id_to_str(vid);
-    uint32_t ret;
+    disk_atom::vertex_color_type  ret;
     if (cache_invalid == false && 
-        cache.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) != -1) return ret;
+        cache.get(key.c_str(), key.length(), 
+                  (char*)&ret, sizeof(ret)) != -1) return ret;
 
-    if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) ret = (uint32_t)(-1);
+    if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) 
+      ret = disk_atom::vertex_color_type(-1);
     return ret;
   }
 
 
-  void disk_atom::set_color(vertex_id_t vid, uint32_t color) {
+  void disk_atom::set_color(disk_atom::vertex_id_type vid, 
+                            disk_atom::vertex_color_type color) {
     std::string key = "c" + id_to_str(vid);
     db.set(key.c_str(), key.length(), (char*)&color, sizeof(color));
     cache_invalid = true;
   }
 
 
-  uint16_t disk_atom::get_owner(vertex_id_t vid) {
+  uint16_t disk_atom::get_owner(disk_atom::vertex_id_type vid) {
     std::string key = "h" + id_to_str(vid);
     uint16_t ret;
     if (cache_invalid == false && 
@@ -281,7 +295,7 @@ namespace graphlab {
   }
 
 
-  void disk_atom::set_owner(vertex_id_t vid, uint16_t owner) {
+  void disk_atom::set_owner(disk_atom::vertex_id_type vid, uint16_t owner) {
     std::string key = "h" + id_to_str(vid);
     db.set(key.c_str(), key.length(), (char*)&owner, sizeof(owner));
     cache_invalid = true;

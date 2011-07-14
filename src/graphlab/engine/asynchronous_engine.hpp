@@ -21,6 +21,16 @@
  */
 
 
+/**
+ * This file includes the experimental components under active
+ * development at Yahoo Labs Research.  For more information contact:
+ *
+ *  Joseph Gonzalez
+ *  Email:  jegonzal@yahoo-inc.com
+ *
+ */
+
+
 #ifndef GRAPHLAB_ASYNCHRONOUS_ENGINE_HPP
 #define GRAPHLAB_ASYNCHRONOUS_ENGINE_HPP
 
@@ -67,6 +77,7 @@ namespace graphlab {
     
 
     typedef iengine<Graph> iengine_base;
+    typedef typename iengine_base::vertex_id_type vertex_id_type;
     typedef typename iengine_base::update_task_type update_task_type;
     typedef typename iengine_base::update_function_type update_function_type;
     typedef typename iengine_base::ischeduler_type ischeduler_type;
@@ -195,14 +206,14 @@ namespace graphlab {
       size_t next_time;
       any zero;
       mutex lock;
-      vertex_id_t rangelow;
-      vertex_id_t rangehigh;
+      vertex_id_type rangelow;
+      vertex_id_type rangehigh;
       glshared_base *sharedvariable;
       sync_task() :
         sync_fun(NULL), merge_fun(NULL), apply_fun(NULL),
         sync_interval(-1),
         next_time(0), rangelow(0), 
-        rangehigh(vertex_id_t(-1)), sharedvariable(NULL) { }
+        rangehigh(vertex_id_type(-1)), sharedvariable(NULL) { }
     };
     
     /// A list of all registered sync tasks
@@ -498,8 +509,8 @@ namespace graphlab {
                   const any& zero,
                   size_t sync_interval = 0,
                   merge_function_type merge = NULL,
-                  vertex_id_t rangelow = 0,
-                  vertex_id_t rangehigh = -1) {
+                  vertex_id_type rangelow = 0,
+                  vertex_id_type rangehigh = -1) {
       sync_task st;
       st.sync_fun = sync;
       st.merge_fun = merge;
@@ -514,7 +525,8 @@ namespace graphlab {
       var2synctask[&shared] = sync_tasks.size() - 1;
       if (merge == NULL) {
         logger(LOG_WARNING, 
-                "Syncs without a merge function defined are not parallelized and may be slow on large graphs.");
+                "Syncs without a merge function defined are not "
+               "parallelized and may be slow on large graphs.");
       }
     }
 
@@ -731,7 +743,7 @@ namespace graphlab {
         
         if (stat == sched_status::NEWTASK) {
           // If the status is new task than we must execute the task
-          const vertex_id_t vertex = task.vertex();
+          const vertex_id_type vertex = task.vertex();
           assert(vertex < graph.num_vertices());
           assert(task.function() != NULL);
           // Lock the vertex to ensure that no other processor tries
@@ -845,7 +857,7 @@ namespace graphlab {
         if (stat == sched_status::NEWTASK) {
           isempty = false;
           // If the status is new task than we must execute the task
-          const vertex_id_t vertex = task.vertex();
+          const vertex_id_type vertex = task.vertex();
           assert(vertex < graph.num_vertices());
           assert(task.function() != NULL);
           // Lock the vertex to ensure that no other processor tries
@@ -919,12 +931,13 @@ namespace graphlab {
       numsyncs.inc();
       sync_task &sync = sync_tasks[syncid];
       // # get the range of vertices
-      vertex_id_t vmin = sync.rangelow;
-      vertex_id_t vmax = std::min(sync.rangehigh, (vertex_id_t)(graph.num_vertices() - 1));
+      const vertex_id_type vmin = sync.rangelow;
+      const vertex_id_type vmax = 
+        std::min(sync.rangehigh, vertex_id_type(graph.num_vertices() - 1) );
       
       //accumulate through all the vertices
       any accumulator = sync.zero;
-      for (vertex_id_t i = vmin; i <= vmax; ++i) {
+      for(vertex_id_type i = vmin; i <= vmax; ++i) {
         iscope_type* scope = scope_manager->get_scope(cpuid, i,
                                             scope_range::NULL_CONSISTENCY);
         sync.sync_fun(*scope, accumulator);
@@ -978,18 +991,18 @@ namespace graphlab {
         // lets do a parallel reduction
         
         // # get the range of vertices
-        vertex_id_t vmin = sync.rangelow;
-        vertex_id_t vmax = std::min(sync.rangehigh, (vertex_id_t)graph.num_vertices());
+        const vertex_id_type vmin = sync.rangelow;
+        const vertex_id_type vmax = std::min(sync.rangehigh, vertex_id_type(graph.num_vertices()));
         // slice the range into ncpus
-        vertex_id_t nverts = vmax - vmin;
+        const vertex_id_type nverts = vmax - vmin;
         // get my true range
-        vertex_id_t v_mymin = (vertex_id_t)(vmin + (nverts * cpuid) / ncpus);
-        vertex_id_t v_mymax = (vertex_id_t)(vmin + (nverts * (cpuid + 1)) / ncpus);
+        const vertex_id_type v_mymin = vertex_id_type(vmin + (nverts * cpuid) / ncpus);
+        const vertex_id_type v_mymax = vertex_id_type(vmin + (nverts * (cpuid + 1)) / ncpus);
         
         //accumulate through all the vertices
         any& accumulator = sync_accumulators[cpuid];
         accumulator = sync.zero;
-        for (vertex_id_t i = v_mymin; i < v_mymax; ++i) {
+        for (vertex_id_type i = v_mymin; i < v_mymax; ++i) {
           iscope_type* scope = scope_manager->get_scope(cpuid, i, 
                                           scope_range::NULL_CONSISTENCY);
           sync.sync_fun(*scope, accumulator);
@@ -1007,20 +1020,20 @@ namespace graphlab {
           }
           sync.sharedvariable->apply(sync.apply_fun, accumulator);
         }
-      }
-      else {
+      } else {
         // simulated engine, or no merge function.
         // we have to do the sync sequentially
         if (exec_type == SIMULATED || cpuid == 0) {
           numsyncs.inc();
           sync_task &sync = sync_tasks[syncid];
           // # get the range of vertices
-          vertex_id_t vmin = sync.rangelow;
-          vertex_id_t vmax = (vertex_id_t)(std::min(sync.rangehigh, (vertex_id_t)(graph.num_vertices() - 1)));
+          const vertex_id_type vmin = sync.rangelow;
+          const vertex_id_type vmax = 
+            vertex_id_type(std::min(sync.rangehigh, (vertex_id_type)(graph.num_vertices() - 1)));
           
           //accumulate through all the vertices
           any accumulator = sync.zero;
-          for (vertex_id_t i = vmin; i <= vmax; ++i) {
+          for (vertex_id_type i = vmin; i <= vmax; ++i) {
             iscope_type* scope = scope_manager->get_scope(cpuid, i,
                                           scope_range::NULL_CONSISTENCY);
             scope->commit();

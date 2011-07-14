@@ -43,6 +43,7 @@ namespace graphlab {
   class binary_vertex_task_set {    
   public:
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef update_task<Graph> update_task_type;
     typedef typename update_task_type::update_function_type 
     update_function_type;
@@ -69,14 +70,14 @@ namespace graphlab {
     
     bool get(const update_task_type& task) {
       update_function_type func = task.function();
-      vertex_id_t vid = task.vertex();
+      vertex_id_type vid = task.vertex();
       size_t mask = get_update_func_mask(func);
       return ((vertexbits[vid] & mask) != 0);
     }
     
     bool add(const update_task_type& task) {
       update_function_type func = task.function();
-      vertex_id_t vid = task.vertex();
+      vertex_id_type vid = task.vertex();
       size_t mask = get_update_func_mask(func);
       if ((vertexbits[vid] & mask) == 0) {
         size_t before = __sync_fetch_and_or(&vertexbits[vid], mask);
@@ -87,7 +88,7 @@ namespace graphlab {
     
     void remove(const update_task_type& task) {
       update_function_type func = task.function();
-      vertex_id_t vid = task.vertex();
+      vertex_id_type vid = task.vertex();
       size_t mask = get_update_func_mask(func);
 
       // Set bit for this function to 0

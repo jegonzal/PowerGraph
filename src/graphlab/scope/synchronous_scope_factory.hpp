@@ -40,6 +40,7 @@ namespace graphlab {
   public:
     typedef iscope_factory<Graph> base;
     typedef typename base::iscope_type iscope_type;
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef synchronous_scope<Graph> synchronous_scope_type;
     
     synchronous_scope_factory(Graph& srcgraph, 
@@ -56,9 +57,10 @@ namespace graphlab {
 
     void set_default_scope(scope_range::scope_range_enum default_scope_range) { };
     
-    iscope_type* get_scope(size_t cpuid,
-                           vertex_id_t v,
-                           scope_range::scope_range_enum scope_range = scope_range::USE_DEFAULT) {
+    iscope_type* 
+    get_scope(size_t cpuid, vertex_id_type v,
+              scope_range::scope_range_enum scope_range = 
+              scope_range::USE_DEFAULT) {
       assert(cpuid < scopes.size());
       synchronous_scope_type& scope = scopes[cpuid];
       scope.init(_srcgraph,_destgraph, _vertexdatagraph, v);

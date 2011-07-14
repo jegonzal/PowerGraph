@@ -33,6 +33,7 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/mutable_queue.hpp>
+#include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
@@ -180,8 +181,8 @@ namespace graphlab {
               atomsubset.end(), 
               std::inserter(atomsubset_set,atomsubset_set.end()));
 
-  
-    graph<size_t, size_t> atomgraph;
+    typedef graph<size_t, size_t> atom_graph_type;
+    atom_graph_type atomgraph;
     // add vertices
     foreach(size_t i, atomsubset) {
       atomrevmap[i] = atomgraph.add_vertex(atomindex.atoms[i].nedges + 1);
@@ -202,9 +203,14 @@ namespace graphlab {
         }
       }
     }
-    std::vector<uint32_t> retpart;
-    atomgraph.metis_weighted_partition(2, retpart,
-                                       identity_function, identity_function, true);
+    std::vector<graph_partitioner::part_id_type> retpart;
+    const size_t nparts(2);
+    graph_partitioner::metis_weighted_partition(atomgraph, 
+                                                nparts, 
+                                                retpart,
+                                                identity_function, 
+                                                identity_function, 
+                                                true);
 
     std::vector<std::vector<size_t> > ret(2);
     for (size_t i = 0;i < retpart.size(); ++i) {
@@ -263,16 +269,18 @@ namespace graphlab {
       }
     }
     
-    std::vector<uint32_t> retpart; 
+    std::vector<graph_partitioner::part_id_type> retpart; 
     if (atomgraph.num_edges() >= atomgraph.num_vertices() * atomgraph.num_vertices() / 2) {
       logstream(LOG_WARNING) << "high atom edge density. Using random partition" << std::endl;
-      atomgraph.random_partition(nparts, retpart);
+      graph_partitioner::random_partition(atomgraph, nparts, retpart);
     
     }
     else {
       //  std::cout << atomgraph;
-      atomgraph.metis_weighted_partition(nparts, retpart,
-                                         identity_function, identity_function, true);
+      graph_partitioner::metis_weighted_partition(atomgraph,
+                                                  nparts, retpart,
+                                                  identity_function, identity_function, 
+                                                  true);
       //atomgraph.metis_partition(nparts, retpart);
     }
     std::vector<std::vector<size_t> > ret;

@@ -41,6 +41,8 @@ namespace graphlab {
     public iscope<Graph> {
   public:
     typedef iscope<Graph> base;
+    typedef typename Graph::vertex_id_type   vertex_id_type;
+    typedef typename Graph::edge_id_type     edge_id_type;
     typedef typename Graph::vertex_data_type vertex_data_type;
     typedef typename Graph::edge_data_type edge_data_type;
 
@@ -53,7 +55,7 @@ namespace graphlab {
     // TODO: Why 3 graph arguments?  
     synchronous_scope(Graph* srcgraph, Graph* destgraph,
                       Graph* vertexdatagraph, 
-                      vertex_id_t vertex) : 
+                      vertex_id_type vertex) : 
       base(srcgraph, vertex)  {
       _srcgraph = srcgraph;
       _destgraph = destgraph;
@@ -67,7 +69,7 @@ namespace graphlab {
     
     void init(Graph* srcgraph, 
               Graph* destgraph,
-              Graph* vertexdatagraph, vertex_id_t vertex) {
+              Graph* vertexdatagraph, vertex_id_type vertex) {
       base::_graph_ptr = srcgraph;
       base::_vertex = vertex;
       _srcgraph = srcgraph;
@@ -89,12 +91,12 @@ namespace graphlab {
     }
 
     /// Direct calls to access edge data
-    const edge_data_type& edge_data(edge_id_t eid) const { 
+    const edge_data_type& edge_data(edge_id_type eid) const { 
       return const_edge_data(eid);
     }
 
     /// Direct calls to access edge data
-    const edge_data_type& const_edge_data(edge_id_t eid) const { 
+    const edge_data_type& const_edge_data(edge_id_type eid) const { 
       // TODO: make sure edge is associated with this vertex
       if (_srcgraph->target(eid) == _vertex ) {
         // in edge
@@ -105,7 +107,7 @@ namespace graphlab {
       }
     }
 
-    edge_data_type& edge_data(edge_id_t eid) {
+    edge_data_type& edge_data(edge_id_type eid) {
       // TODO: make sure edge is associated with this vertex
       if (_srcgraph->target(eid) == _vertex) {
         // in edge
@@ -116,15 +118,15 @@ namespace graphlab {
       }
     }
     
-    const vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) const {
+    const vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) const {
       return const_neighbor_vertex_data(vertex);
     }
 
-    const vertex_data_type& const_neighbor_vertex_data(vertex_id_t vertex) const {
+    const vertex_data_type& const_neighbor_vertex_data(vertex_id_type vertex) const {
       return _srcgraph->vertex_data(vertex);
     }
 
-    vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) {
+    vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) {
       // this totally does not make sense for synchronous execution
       assert(false);
       return _srcgraph->vertex_data(vertex);

@@ -532,7 +532,7 @@ bool jt_worker::is_vertex_available(vertex_id_t vid) {
   if(in_tree) return false;
   // check that the neighbors are not in any other trees than this
   // one
-  const graphlab::edge_list& in_eids = mrf.in_edge_ids(vid);
+  const mrf_gl::edge_list& in_eids = mrf.in_edge_ids(vid);
   foreach(edge_id_t in_eid, in_eids) {
     vertex_id_t neighbor_vid = mrf.source(in_eid);
     const mrf_vertex_data& vdata = mrf.vertex_data(neighbor_vid);

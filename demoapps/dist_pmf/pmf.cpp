@@ -92,7 +92,7 @@ gl_types::graph * g; //pointer to training data
 gl_types::graph training;
 gl_types::graph validation_graph;
 gl_types::graph test_graph;
-gl_types::distributed_graph * pdg;
+gl_dist_types::distributed_graph * pdg;
 #ifndef _min
 #define _min(a,b) (a>b)?b:a
 #endif
@@ -124,7 +124,8 @@ void calc_stats(testtype type);
 
 // update function for time nodes
 // this function is called only in tensor mode
-void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler) {
+void time_node_update_function(gl_dist_types::iscope &scope, 
+                               gl_dist_types::icallback &scheduler) {
 
   assert(tensor);
 
@@ -238,7 +239,7 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
-int count_edges(dgraph_edge_list es){
+int count_edges(gl_dist_types::edge_list es){
   
   if (options != BPTF_TENSOR_MULT && options != ALS_TENSOR_MULT)
       return es.size();
@@ -259,8 +260,8 @@ int count_edges(dgraph_edge_list es){
 /***
  * UPDATE FUNCTION
  */
-void user_movie_nodes_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler) {
+void user_movie_nodes_update_function(gl_dist_types::iscope &scope, 
+                                      gl_dist_types::icallback &scheduler) {
     
 
   /* GET current vertex data */
@@ -283,8 +284,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   }
 
 
-  dgraph_edge_list outs = scope.out_edge_ids();
-  dgraph_edge_list ins = scope.in_edge_ids();
+  gl_dist_types::edge_list outs = scope.out_edge_ids();
+  gl_dist_types::edge_list ins = scope.in_edge_ids();
   timer t;
   mat Q(D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
@@ -680,8 +681,8 @@ void import_uvt_from_file(){
  
 }
 
-void dispatch_update_function(gl_types::iscope & scope,
-      gl_types::icallback & scheduler){
+void dispatch_update_function(gl_dist_types::iscope & scope,
+                              gl_dist_types::icallback & scheduler){
 
    switch (scope.color()){
       case COLOR_USER:
@@ -752,7 +753,7 @@ void start(int argc, char ** argv) {
     load_pmf_graph(infile.c_str(), &training, TRAINING);
     std::vector<graphlab::vertex_id_t> parts;
     std::cout << "Partitioning..." << std::endl;
-    training.metis_partition(32, parts);
+    graphlab::graph_partitioner::metis_partition(training, 32, parts);
     std::cout << "Saving..." << std::endl;
     dg.create_from_graph(training, parts);
     dg.finalize();
@@ -768,7 +769,7 @@ void start(int argc, char ** argv) {
   // create distributed control
   graphlab::distributed_control dc(param);
   // Create the distributed_graph --------------------------------------------------------->
-  gl_types::distributed_core glcore(dc, "pmf.idx");
+  gl_dist_types::core glcore(dc, "pmf.idx");
   // Set the engine options
   glcore.set_engine_options(clopts);
   assert(  glcore.build_engine() );

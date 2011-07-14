@@ -56,6 +56,7 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -109,12 +110,12 @@ namespace graphlab {
     
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid, update_task_type &ret_task) {
-      vertex_id_t vertex_id = (vertex_id_t)(-1);
+      vertex_id_type vertex_id = (vertex_id_type)(-1);
       size_t drawnsample = (size_t)(-1);
       // Try and draw a sample (select a vertex)
       while(multinomial.sample(drawnsample , cpuid)) {      
         assert(drawnsample < num_vertices);
-        vertex_id = (vertex_id_t)drawnsample;
+        vertex_id = (vertex_id_type)drawnsample;
         double ret_priority = 0.0;
         bool success = false;
         // Grab the lock for that vertex
@@ -181,17 +182,17 @@ namespace graphlab {
       } // end of if listener != NULL
     } // end of add_task
     
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority) {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add_tasks
     
     void add_task_to_all(update_function_type func, 
                          double priority) {
-      for (vertex_id_t vertex = 0; vertex < num_vertices; ++vertex){
+      for (vertex_id_type vertex = 0; vertex < num_vertices; ++vertex){
         add_task(update_task_type(vertex, func), priority);
       }
     } // add_task_to_all

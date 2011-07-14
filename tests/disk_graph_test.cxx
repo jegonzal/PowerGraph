@@ -51,6 +51,9 @@ struct edge_data {
 };
 SERIALIZABLE_POD(edge_data);
 
+typedef graph<vertex_data, edge_data> graph_type;
+typedef graph_type::vertex_id_type vertex_id_t;
+
 vertex_data vertexdata_generator(vertex_id_t idx) {
   return vertex_data();
 }
@@ -62,7 +65,7 @@ void edge_generator(vertex_id_t vid,
                     std::vector<edge_data>& inedata,
                     std::vector<vertex_id_t>& outv, 
                     std::vector<edge_data>& outedata) {
-  std::set<graphlab::vertex_id_t> neighbors;
+  std::set<vertex_id_t> neighbors;
   for(size_t j = 0; j < degree; ++j) {
     vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
     if(neighbor != vid && neighbors.insert(neighbor).second) {
@@ -154,7 +157,7 @@ public:
       
       // create a random graph
       for(vertex_id_t i = 0; i < num_verts; ++i) {
-        std::set<graphlab::vertex_id_t> neighbors;
+        std::set<vertex_id_t> neighbors;
         
         for(size_t j = 0; j < degree; ++j) {
           vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
@@ -257,7 +260,7 @@ public:
     
     // create a random graph
     for(vertex_id_t i = 0; i < num_verts; ++i) {
-      std::set<graphlab::vertex_id_t> neighbors;
+      std::set<vertex_id_t> neighbors;
       
       for(size_t j = 0; j < degree; ++j) {
         vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);

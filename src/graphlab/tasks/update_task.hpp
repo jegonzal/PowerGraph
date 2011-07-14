@@ -40,6 +40,8 @@ namespace graphlab {
   public:
 
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
+
     typedef iscope<Graph> iscope_type;
     typedef icallback<Graph> callback_type;
     typedef ishared_data<Graph> ishared_data_type;
@@ -54,11 +56,11 @@ namespace graphlab {
     };
 
   private:
-    vertex_id_t vertexid;  
+    vertex_id_type vertexid;  
     update_function_type func;
 
   public:
-    explicit update_task(vertex_id_t vertexid = -1, 
+    explicit update_task(vertex_id_type vertexid = -1, 
                          update_function_type func = NULL) :
       vertexid(vertexid), func(func) { }
 
@@ -72,7 +74,7 @@ namespace graphlab {
     //   func(scope, scheduler, data_manager);
     // }
     
-    vertex_id_t vertex() const {
+    vertex_id_type vertex() const {
       return vertexid;
     }
     

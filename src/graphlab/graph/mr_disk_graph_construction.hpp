@@ -45,6 +45,10 @@ namespace graphlab {
 template <typename VertexData, typename EdgeData>
 class igraph_constructor {
  public:
+
+  typedef disk_graph<VertexData, EdgeData> disk_graph_type;
+  typedef typename disk_graph_type::vertex_id_type vertex_id_type;
+
   
   enum iterate_return_type {
     Vertex,
@@ -84,10 +88,10 @@ class igraph_constructor {
    *         from the arguments. If return value is NoMoreData, no data is read,
    *         and the construction loop is terminated.
    */
-  virtual iterate_return_type iterate(vertex_id_t& vtx, 
+  virtual iterate_return_type iterate(vertex_id_type& vtx, 
                                       VertexData& vdata,
                                       uint32_t& color,
-                                      std::pair<vertex_id_t, vertex_id_t>& edge, 
+                                      std::pair<vertex_id_type, vertex_id_type>& edge, 
                                       EdgeData & edata) = 0;
                        
   /**
@@ -95,7 +99,7 @@ class igraph_constructor {
    * The behavior of this function must be consistent across all (distributed)
    * instances.
    */
-  virtual uint16_t vertex_to_atomid(vertex_id_t vtx, uint16_t numatoms) = 0;
+  virtual uint16_t vertex_to_atomid(vertex_id_type vtx, uint16_t numatoms) = 0;
   
   /**
    * Used by mr_disk_graph_construction. Creates a section of the disk graph
@@ -107,8 +111,8 @@ class igraph_constructor {
     begin(i, max);
     
     iterate_return_type irt;
-    vertex_id_t vtx;
-    std::pair<vertex_id_t, vertex_id_t> edge;
+    vertex_id_type vtx;
+    std::pair<vertex_id_type, vertex_id_type> edge;
     VertexData vdata;
     EdgeData edata;
     uint16_t numatoms = (uint16_t) dg.num_atoms();

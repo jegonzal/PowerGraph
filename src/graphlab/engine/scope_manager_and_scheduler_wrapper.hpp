@@ -40,13 +40,15 @@ namespace graphlab {
   template <typename Graph, typename Scheduler, typename ScopeFactory>
   class scope_manager_and_scheduler_wrapper : public iengine<Graph>{
   public:
-    typedef typename Scheduler::update_task_type update_task_type;
-    typedef typename Scheduler::update_function_type update_function_type;
+    
+    typedef iengine<Graph> base;
+    typedef typename base::vertex_id_type vertex_id_type;
+    typedef typename base::update_task_type update_task_type;
+    typedef typename base::update_function_type update_function_type;
 
   private:
 
     Graph& graph;
-
     size_t ncpus;
 
     /** Responsible for managing the update of scopes */
@@ -195,7 +197,7 @@ namespace graphlab {
      * 'vertices', and all with the same update function and priority
      * This function is forwarded to the scheduler.
      */
-    void add_tasks(const std::vector<vertex_id_t>& vertices,
+    void add_tasks(const std::vector<vertex_id_type>& vertices,
                    update_function_type func, double priority) {
       check_if_add_task_is_safe();
       scheduler->add_tasks(vertices, func, priority);

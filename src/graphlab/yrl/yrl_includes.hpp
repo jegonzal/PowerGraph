@@ -24,6 +24,16 @@
  */
 
 /**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
+/**
  * This file includes the experimental components under active
  * development at Yahoo Labs Research.  For more information contact:
  *

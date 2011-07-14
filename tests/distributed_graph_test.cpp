@@ -29,6 +29,7 @@
 #include <set>
 #include <algorithm>
 #include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/distributed2/graph/distributed_graph.hpp>
 #include <graphlab/graph/disk_graph.hpp>
 #include <graphlab/rpc/dc.hpp>
@@ -37,6 +38,10 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/macros_def.hpp>
 
+
+using namespace graphlab;
+
+
 void generate_atoms() {
   graphlab::graph<size_t, double> testgraph;
   for (size_t v = 0; v < 10000; ++v) testgraph.add_vertex(v);
@@ -44,8 +49,8 @@ void generate_atoms() {
     testgraph.add_edge(i, i+1, i);
   }
   testgraph.add_edge(9999,0,9999);
-  std::vector<uint32_t> parts;
-  testgraph.partition(graphlab::partition_method::PARTITION_METIS, 4, parts);
+  std::vector<graph_partitioner::part_id_type> parts;
+  graph_partitioner::partition("metis", testgraph, 4, parts);
   testgraph.compute_coloring();
    
   graphlab::disk_graph<size_t, double> dg("atom_ne", 4);
@@ -53,9 +58,6 @@ void generate_atoms() {
   dg.finalize();
 }
 
-
-
-using namespace graphlab;
 
 
 void check_vertex_values(distributed_graph<size_t, double> &dg, size_t value) {
@@ -351,7 +353,8 @@ int main(int argc, char** argv) {
   distributed_control dc(param);
 
   dc.barrier();
-  distributed_graph<size_t, double> dg(dc, "atom_ne.idx");
+  typedef distributed_graph<size_t, double> graph_type;
+  graph_type dg(dc, "atom_ne.idx");
 
   dc.barrier();
   std::cout << "Constructed!" << std::endl;
@@ -376,7 +379,7 @@ int main(int argc, char** argv) {
     ASSERT_EQ(dg.target(ret.second), (v+1) % 10000);
 
     // check in edgeids
-    dgraph_edge_list delist = dg.in_edge_ids(v);
+    graph_type::edge_list_type delist = dg.in_edge_ids(v);
     ASSERT_EQ(delist.size(), 1);
     eids.insert(*delist.begin());
     delist = dg.out_edge_ids(v);

@@ -42,6 +42,7 @@ namespace graphlab {
 
     
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef iscope<Graph> iscope_type;
 
     /**  \note This constructor here does not actually do anything. It just exists
@@ -52,7 +53,7 @@ namespace graphlab {
 
     //!  Returns a scope around a particular vertex
     virtual iscope_type* get_scope(size_t cpuid,
-                                   vertex_id_t vertex,
+                                   vertex_id_type vertex,
                                    scope_range::scope_range_enum s = scope_range::USE_DEFAULT) = 0;
 
     //! Set the default scope type

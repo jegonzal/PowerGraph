@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/tasks/update_task.hpp>
@@ -63,7 +64,7 @@ namespace graphlab {
   public:
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
-
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -88,8 +89,8 @@ namespace graphlab {
     /** The lock on the priority queue */
     spinlock queuelock; 
     
-    std::vector<std::vector<vertex_id_t> > id2vertex;
-    std::vector<vertex_id_t> vertex2id;
+    std::vector<std::vector<vertex_id_type> > id2vertex;
+    std::vector<vertex_id_type> vertex2id;
 
     /** The vertex task set which maintains the tasks at each
         vertex */
@@ -109,7 +110,7 @@ namespace graphlab {
 
     /** clustering parameters */
     size_t verticespercluster;
-    partition_method::partition_method_enum partmethod;
+    graph_partitioner::partition_method partmethod;
     
     struct cpustate {
       int clusterid; // the cluster ID this cpu is currently running
@@ -118,7 +119,7 @@ namespace graphlab {
       uint64_t update_function_list;  // current list of update
                                       // functions to be executed on
                                       // the vertex v
-      vertex_id_t vertex;
+      vertex_id_type vertex;
       std::vector<update_task_type> buffered_task_creations;
       std::vector<double> buffered_priority_updates;
       dense_bitset hasbuffer;
@@ -136,12 +137,12 @@ namespace graphlab {
       // cluster the vertices
       timer ti;
       ti.start();
-      g.partition(partmethod,numclusters, vertex2id);
+      graph_partitioner::partition(partmethod, g, numclusters, vertex2id);
       
       logger(LOG_INFO, "Partition took %f seconds", ti.current_time());
       
       id2vertex.resize(numclusters);
-      for (vertex_id_t i = 0 ;i < g.num_vertices(); ++i) {
+      for (vertex_id_type i = 0 ;i < g.num_vertices(); ++i) {
         id2vertex[vertex2id[i]].push_back(i);
       }
       for (size_t i = 0;i < numclusters; ++i) {
@@ -167,7 +168,7 @@ namespace graphlab {
       terminator(ncpus_),
       ncpus(ncpus_),
       verticespercluster(100),
-      partmethod(partition_method::PARTITION_METIS) {
+      partmethod(graph_partitioner::PARTITION_METIS) {
       cpu_state.resize(ncpus);
       for (size_t i = 0; i < ncpus; ++i) {
         cpu_state[i].clusterid = -1;
@@ -293,17 +294,17 @@ namespace graphlab {
     } // end of add_task
     
 
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority) {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add tasks 
     
     
     void add_task_to_all(update_function_type func, double priority) {
-      for (vertex_id_t vertex = 0; vertex < num_vertices; ++vertex){
+      for (vertex_id_type vertex = 0; vertex < num_vertices; ++vertex){
         add_task(update_task_type(vertex, func), priority);
       }
     } // end of add tasks to all
@@ -342,7 +343,7 @@ namespace graphlab {
       opts.get_int_option("vertices_per_partition", verticespercluster);
       std::string strpartmethod;
       if (opts.get_string_option("partition_method", strpartmethod)) {
-        if (!partition_method::string_to_enum(strpartmethod, partmethod)) {
+        if (!graph_partitioner::string_to_enum(strpartmethod, partmethod)) {
           logstream(LOG_WARNING) << "Invalid Partition Method" << strpartmethod
                                                                << std::endl;
         }

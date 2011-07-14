@@ -21,8 +21,8 @@
  */
 
 
-#ifndef UNUSED_SCHEDULER_CALLBACK_HPP
-#define UNUSED_SCHEDULER_CALLBACK_HPP
+#ifndef GRAPHLAB_UNUSED_SCHEDULER_CALLBACK_HPP
+#define GRAPHLAB_UNUSED_SCHEDULER_CALLBACK_HPP
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/schedulers/icallback.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -37,6 +37,7 @@ namespace graphlab {
     typedef icallback<Graph> base;
     typedef ischeduler<Graph> scheduler_type;
 
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -61,7 +62,7 @@ namespace graphlab {
     /** Creates a collection of tasks on all the vertices in
         'vertices', and all with the same update function and
         priority  */
-    void add_tasks(const std::vector<vertex_id_t>& vertices, 
+    void add_tasks(const std::vector<vertex_id_type>& vertices, 
                    update_function_type func, double priority) {
       if (logoutput == false) {
         logger(LOG_WARNING, "This scheduler does not permit add task operations."

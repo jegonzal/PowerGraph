@@ -45,6 +45,7 @@ namespace graphlab {
     public icallback<Graph> {
   public:
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef icallback<Graph> base;
     typedef ischeduler<Graph> scheduler_type;
 
@@ -89,10 +90,10 @@ namespace graphlab {
       }
     }
   
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority) {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         add_task(update_task_type(vertex, func), priority);
       }    
     }

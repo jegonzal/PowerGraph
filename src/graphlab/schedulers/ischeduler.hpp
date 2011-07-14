@@ -83,6 +83,9 @@ namespace graphlab {
   public:
 
     typedef Graph graph_type;
+    typedef typename graph_type::vertex_id_type    vertex_id_type;
+    typedef typename graph_type::edge_id_type      edge_id_type;
+    typedef typename graph_type::vertex_color_type vertex_color_type;
     typedef update_task<Graph> update_task_type;
     typedef typename update_task_type::update_function_type 
     update_function_type;
@@ -124,7 +127,7 @@ namespace graphlab {
      * 'vertices', and all with the same update function and priority
      * This function may be called at anytime.
      */
-    virtual void add_tasks(const std::vector<vertex_id_t>& vertices, 
+    virtual void add_tasks(const std::vector<vertex_id_type>& vertices, 
                            update_function_type func, double priority) = 0;
     
     /** 

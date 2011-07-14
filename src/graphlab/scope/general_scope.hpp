@@ -20,6 +20,15 @@
  *
  */
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
 
 #ifndef GRAPHLAB_GENERAL_SCOPE_HPP
 #define GRAPHLAB_GENERAL_SCOPE_HPP
@@ -42,9 +51,11 @@ namespace graphlab {
     public iscope<Graph> {
   public:
     typedef iscope<Graph> base;
-    typedef typename Graph::vertex_data_type vertex_data_type;
-    typedef typename Graph::edge_data_type edge_data_type;
-    typedef typename Graph::edge_list_type   edge_list_type;
+    typedef typename base::vertex_id_type   vertex_id_type;
+    typedef typename base::edge_id_type     edge_id_type;
+    typedef typename base::vertex_data_type vertex_data_type;
+    typedef typename base::edge_data_type   edge_data_type;
+    typedef typename base::edge_list_type   edge_list_type;
 
     using base::_vertex;
     using base::_graph_ptr;
@@ -55,7 +66,7 @@ namespace graphlab {
     general_scope() :
       base(NULL,NULL) { }
 
-    general_scope(Graph* graph_ptr, vertex_id_t vertex,
+    general_scope(Graph* graph_ptr, vertex_id_type vertex,
                   iscope_factory<Graph>* factory,
                   scope_range::scope_range_enum s = scope_range::USE_DEFAULT) :
       base(graph_ptr, vertex), stype(s), factory(factory)  {
@@ -70,7 +81,7 @@ namespace graphlab {
     void commit() {}
     
 
-    void init(Graph* graph, vertex_id_t vertex) {
+    void init(Graph* graph, vertex_id_type vertex) {
       base::_graph_ptr = graph;
       base::_vertex = vertex;
     }
@@ -89,37 +100,40 @@ namespace graphlab {
     }
 
     /// Direct calls to access edge data
-    const edge_data_type& edge_data(edge_id_t eid) const {
+    const edge_data_type& edge_data(edge_id_type eid) const {
       return const_edge_data(eid);
     }
 
-    const edge_data_type& const_edge_data(edge_id_t eid) const {
+    const edge_data_type& const_edge_data(edge_id_type eid) const {
       return (_graph_ptr->edge_data(eid));
     }
     
-    edge_data_type& edge_data(edge_id_t eid) {
+    edge_data_type& edge_data(edge_id_type eid) {
       return (_graph_ptr->edge_data(eid));
     }
 
 
-    const vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) const {
+    const vertex_data_type& 
+    neighbor_vertex_data(vertex_id_type vertex) const {
       return const_neighbor_vertex_data(vertex);
     }
 
 
-    const vertex_data_type& const_neighbor_vertex_data(vertex_id_t vertex) const {
+    const vertex_data_type& 
+    const_neighbor_vertex_data(vertex_id_type vertex) const {
       return _graph_ptr->vertex_data(vertex);
     }
 
     // warning. Guarantee free!
-    vertex_data_type& neighbor_vertex_data(vertex_id_t vertex) {
+    vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) {
       return _graph_ptr->vertex_data(vertex);
     }
     
     bool experimental_scope_upgrade(scope_range::scope_range_enum newrange) { 
       assert(factory != NULL);
       factory->release_scope(this);
-      ASSERT_TRUE(factory->get_scope(thread::thread_id(),base::_vertex,newrange) == this);
+      ASSERT_TRUE(factory->get_scope(thread::thread_id(), 
+                                     base::_vertex,newrange) == this);
       stype = newrange;
       return true;
     }

@@ -18,8 +18,14 @@
  *
  *      http://www.graphlab.ml.cmu.edu
  *
+ */
+
+/**
  * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
  * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
  *
  */
 
@@ -36,11 +42,12 @@ namespace graphlab {
 
 
   struct atom_file_descriptor{
+    
     std::string protocol;
     std::string file;
-    vertex_id_t nverts;
-    edge_id_t nedges;
-    std::vector<vertex_id_t> adjatoms;
+    size_t nverts;
+    size_t nedges;
+    std::vector<size_t> adjatoms;
     std::vector<size_t> optional_weight_to_adjatoms;
     void save(oarchive &oarc) const{
       oarc << protocol

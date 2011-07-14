@@ -91,6 +91,9 @@ cd     The core contains the
   class core {
   public:
     typedef graphlab::types<graphlab::graph<VertexType, EdgeType> > types;
+    typedef typename types::vertex_id vertex_id_type;
+    typedef typename types::edge_id edge_id_type;
+    typedef typename types::edge_list edge_list_type;
 
   public:
     /// default constructor does nothing
@@ -325,7 +328,7 @@ cd     The core contains the
     /**
      * \brief Add a single update function to a single vertex.
      */
-    void add_task(vertex_id_t vertex,
+    void add_task(vertex_id_type vertex,
                   typename types::update_function func,
                   double priority) {
       engine_has_been_modified = true;
@@ -346,7 +349,7 @@ cd     The core contains the
      * \brief Add the update function to all the veritces in the provided
      * vector with the given priority.
      */
-    void add_tasks(const std::vector<vertex_id_t>& vertices, 
+    void add_tasks(const std::vector<vertex_id_type>& vertices, 
                    typename types::update_function func, double priority) {
       engine_has_been_modified = true;
       engine().add_tasks(vertices, func, priority);
@@ -434,8 +437,8 @@ cd     The core contains the
                   const any& zero,
                   size_t sync_interval = 0,
                   typename types::iengine::merge_function_type merge = NULL,
-                  vertex_id_t rangelow = 0,
-                  vertex_id_t rangehigh = -1) { 
+                  vertex_id_type rangelow = 0,
+                  vertex_id_type rangehigh = -1) { 
       engine_has_been_modified = true;
       engine().set_sync(shared, sync, apply, zero, 
                         sync_interval, merge, rangelow, rangehigh);

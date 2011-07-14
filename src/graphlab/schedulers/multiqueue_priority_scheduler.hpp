@@ -58,6 +58,7 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::iengine_type iengine_type;
     typedef typename base::update_task_type     update_task_type;
     typedef typename base::update_function_type update_function_type;
@@ -196,17 +197,17 @@ namespace graphlab {
   
     }
 
-    void add_tasks(const std::vector<vertex_id_t> &vertices,
+    void add_tasks(const std::vector<vertex_id_type> &vertices,
                    update_function_type func,
                    double priority) {
-      foreach(vertex_id_t vertex, vertices) {
+      foreach(vertex_id_type vertex, vertices) {
         add_task(update_task_type(vertex, func), priority);
       }
     }
 
 
     void add_task_to_all(update_function_type func, double priority)  {
-      for (vertex_id_t vertex = 0; vertex < numvertices; ++vertex){
+      for (vertex_id_type vertex = 0; vertex < numvertices; ++vertex){
         add_task(update_task_type(vertex, func), priority);
       }
     }

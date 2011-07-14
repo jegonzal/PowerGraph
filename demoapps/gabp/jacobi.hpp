@@ -43,12 +43,12 @@
  * x_i = (b_i - \sum_j A_ij * x_j)/A_ii
  */
 void jacobi_update_function(gl_types::iscope &scope,
-                          gl_types::icallback &scheduler) {
-
+                            gl_types::icallback &scheduler) {
+  
 
   /* GET current vertex data */
   vertex_data& vdata = scope.vertex_data();
-  graphlab::edge_list outedgeid = scope.out_edge_ids();
+  gl_types::edge_list outedgeid = scope.out_edge_ids();
 
   const bool& debug = DEBUG_KEY.get();
 

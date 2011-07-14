@@ -17,11 +17,18 @@
  * For more about this software visit:
  *
  *      http://www.graphlab.ml.cmu.edu
- * 
+ *
+ */
+
+/**
  * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
  * reserved.  
  *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
  */
+
 
 
 #ifndef GRAPHLAB_DISTRIBUTED_GLSHARED_HPP
