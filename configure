@@ -126,6 +126,9 @@ else
 fi
 
 
+# Run the configure deps
+source configure.deps 
+
 
 # Run the bootstrap script which populates configure.deps
 if [ ! -z $bootstrap ]; then
@@ -188,6 +191,8 @@ if [ ! -z $BOOST_ROOT ]; then
     config_flags="$config_flags -D BOOST_ROOT:STRING=$BOOST_ROOT"
 fi
 
+
+
 if [ ! -z $KC_ROOT ]; then
     config_flags="$config_flags -D KC_ROOT:STRING=$KC_ROOT"
 fi
@@ -198,6 +203,9 @@ fi
 
 if [ ! -z $YRL_EXPERIMENTAL ]; then
     config_flags="$config_flags -D YRL_EXPERIMENTAL:BOOL=$YRL_EXPERIMENTAL"
+   if [ ! -z $AVRO_ROOT ]; then
+       config_flags="$config_flags -D AVRO_ROOT:STRING=$AVRO_ROOT"
+   fi
 fi
 
 
@@ -210,6 +218,8 @@ if [ ! -z $itpp_include_dir ]; then
 fi
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
+
+set -e
 
 echo -e "\n\n\n======================= Release ========================" \
     | tee -a $LOG_FILE 

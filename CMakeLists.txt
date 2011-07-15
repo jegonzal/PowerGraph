@@ -61,6 +61,12 @@ if(YRL_EXPERIMENTAL)
     "|                                                             |\n" 
     "===============================================================")
   add_definitions(-DYRL_EXPERIMENTAL)
+
+  message(STATUS "Using Avro Path: " ${AVRO_ROOT})
+  include_directories(${AVRO_ROOT}/include)
+  link_directories(${AVRO_ROOT}/lib)
+
+
 endif()
 
 
