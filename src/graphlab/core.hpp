@@ -68,7 +68,7 @@ namespace graphlab {
      gl::core glcore;
      \endcode
    
-cd     The core contains the 
+     The core contains the 
    
      \li Data Graph: which represents the structured data dependencies.
      \li Engine: The computational structure which contains the
