@@ -150,21 +150,21 @@ namespace graphlab {
     //! Virtual destructor required for inheritance 
     virtual ~iengine() {};
 
-    //! get the number of cpus
-    virtual size_t get_ncpus() const = 0;
+    // //! get the number of cpus
+    // virtual size_t get_ncpus() const = 0;
 
 
-    /**
-     * \brief Set the default scope range.
-     *
-     * The default scope range determines the locking extent of an
-     * update function. See \ref Scopes for details.
-     *
-     * \param default_scope_range can take on any of the values
-     * described in \ref scope_range
-     *
-     */
-    virtual void set_default_scope(scope_range::scope_range_enum default_scope_range) = 0;
+    // /**
+    //  * \brief Set the default scope range.
+    //  *
+    //  * The default scope range determines the locking extent of an
+    //  * update function. See \ref Scopes for details.
+    //  *
+    //  * \param default_scope_range can take on any of the values
+    //  * described in \ref scope_range
+    //  *
+    //  */
+    // virtual void set_default_scope(scope_range::scope_range_enum default_scope_range) = 0;
     
     /**
      * \brief Start the engine execution.
@@ -225,8 +225,8 @@ namespace graphlab {
      * \brief Add an update function to a particular vertex.
      */
     virtual void add_vtask(vertex_id_type vid, 
-                           update_function_type fun, 
-                           double priority = 1.0) {
+                          update_function_type fun, 
+                          double priority = 1.0) {
       add_task(update_task_type(vid, fun),  priority);
     }
 
@@ -235,8 +235,11 @@ namespace graphlab {
      * 'vertices', and all with the same update function and priority
      * This function is forwarded to the scheduler.
      */
-    virtual void add_tasks(const std::vector<vertex_id_type>& vertices,
-                           update_function_type func, double priority) = 0;
+    virtual void add_task(const std::vector<vertex_id_type>& vertices,
+                          update_function_type func, double priority) {
+      for(size_t i = 0; i < vertices.size(); ++i) 
+        add_task(vertices[i], 
+    };
 
     /**
      * \brief Creates a collection of tasks on all the vertices in the graph,
@@ -263,20 +266,6 @@ namespace graphlab {
     //!  remove all associated termination functions
     virtual void clear_terminators() = 0;
     
-
-    /**
-     * Set whether sched yield should be used when waiting on new
-     * jobs
-     */
-    virtual void set_sched_yield(bool value) { };
-
-    /**
-     * Set whether cpu affinities should be used.
-     */
-    virtual void set_cpu_affinities(bool value) { };
-
-    
-    
     /**
      *  \brief The timeout is the total
      *  ammount of time in seconds that the engine may run before
@@ -297,12 +286,8 @@ namespace graphlab {
      */
     virtual void set_task_budget(size_t max_tasks) = 0;
 
-
-    /** \brief Update the scheduler options.  */
-    virtual void set_scheduler_options(const scheduler_options& opts) = 0;
-
     /** \brief Update the engine options.  */
-    virtual void set_engine_options(const scheduler_options& opts) = 0;
+    virtual void set_engine_options(const engine_options& opts) = 0;
 
 
     /**
@@ -347,7 +332,7 @@ namespace graphlab {
                           size_t sync_interval = 0,
                           merge_function_type merge = NULL,
                           vertex_id_type rangelow = 0,
-                          vertex_id_type rangehigh = -1) = 0;
+                          vertex_id_type rangehigh = -1) { }
 
     /**
      * Performs a sync immediately. This function requires that the shared
