@@ -203,7 +203,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
       vec usrFactor = user.pvec;
    
       //q_i = q_i + gamma2     *(e_ui*(p_u      +  sqrt(N(U))\sum_j y_j) - gamma7    *q_i)
-      movie.pvec += itmFctrStep*(err*(useFactor +  user.weight)             - itmFctrReg*itmFctr);
+      movie.pvec += itmFctrStep*(err*(usrFactor +  user.weight)             - itmFctrReg*itmFctr);
       //p_u = p_u + gamma2    *(e_ui*q_i   -gamma7     *p_u)
       user.pvec += usrFctrStep*(err *itmFctr-usrFctrReg*usrFactor);
       step += err*itmFctr;

@@ -63,7 +63,6 @@ bool stats = false; //print out statistics and exit
 bool regnormal = false; //regular normalization
 bool aggregatevalidation = false; //use validation dataset as training data
 bool outputvalidation = false; //experimental: output validation results of kdd format
-bool delinktimebins = false; //experimental: if true, regards different time bins as independent
 bool binaryoutput = false; //export the factors U,V,T to a binary file
 bool printhighprecision = false; //print RMSE output with high precision
 
@@ -392,7 +391,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         float trmse = predict(vdata, 
                               pdata, 
                               (algorithm == WEIGHTED_ALS) ? &edge : NULL, 
-                              tensor?(&times[(int)edge.time]):NULL, edge.weight, prediction);
+                              tensor?(&times[(int)edge.time]):NULL, 
+			      edge.weight, 
+                              prediction);
 #ifndef GL_NO_MCMC
         if (BPTF && iiter > BURN_IN){
           edge.avgprd += prediction;        
@@ -424,6 +425,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
     t.start();
     double regularization = LAMBDA;
+  
     //compute weighted regularization (see section 3.2 of Zhou paper)
     if (!regnormal)
 	   regularization*= Q.cols();
@@ -432,7 +434,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     if (algorithm != WEIGHTED_ALS){
        bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
-    } //Weighted alternating least squares (see equations (6),(7) in paper 9)
+    } 
+    //Weighted alternating least squares (see equations (6),(7) in paper 9)
     else {
        //mat W = diag(weight);
        vec b = Q*vals;
@@ -448,7 +451,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     }
     counter[ALS_LEAST_SQUARES] += t.current_time();
   }
-  else {
+  else 
+  {
     //COMPUTE LEAST SQUARES (BPTF)
     //according to equation A.6 or A.7 in Xiong paper.
     assert(Q.rows() == D);
@@ -479,19 +483,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
 }
 
-void last_iter(){
-  printf("Entering last iter with %d\n", iiter);
-
-  double res,res2;
-  double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT && algorithm != NMF) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
-  //rmse=0;
-  printf(printhighprecision ? 
-        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
-        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
-        , gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
-  iiter++;
-        
-  if (BPTF){
+/**
+ * for BPTF: sample hyperprior and noise level at the end of each round
+ */
+void last_iter_bptf(double res){
     if (iiter == BURN_IN){
       printf("Finished burn-in period. starting to aggregate samples\n");
     }
@@ -506,7 +501,26 @@ void last_iter(){
     counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (infile == "kddcup" || infile == "kddcup2")
 	export_kdd_format(&test_graph, TEST, false);
-   }
+}
+
+
+/**
+ * printout RMSE statistics after each iteration
+ */
+void last_iter(){
+  printf("Entering last iter with %d\n", iiter);
+
+  double res,res2;
+  double rmse = (algorithm != STOCHASTIC_GRADIENT_DESCENT && algorithm != NMF) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
+  //rmse=0;
+  printf(printhighprecision ? 
+        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
+        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
+        , gt.current_time(), runmodesname[algorithm], iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&validation_graph, true, res2));
+  iiter++;
+
+  if (BPTF)
+    last_iter_bptf(res);        
 }
 
 
@@ -597,10 +611,6 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ+ 2*eDT;
-      if (delinktimebins){
-        muT = 0;
- 	t1 = ones(D);
-      }
       bool ret = itpp::ls_solve(QQ, pT*(t1 + vones*muT)+ RQ, out);
       assert(ret);
     }
@@ -619,8 +629,6 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ + eDT;
-      if (delinktimebins)
-	tk_2 = ones(D);
       bool ret = itpp::ls_solve(QQ, pT*tk_2 + RQ, out);
       assert(ret); 
     }
@@ -642,8 +650,6 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!BPTF){
       QQ = QQ + 2*eDT;
-      if (delinktimebins)
-	tsum = ones(D);
       bool ret = itpp::ls_solve(QQ, pT*tsum + RQ, out);
       assert(ret);
     }
@@ -873,24 +879,25 @@ void init(){
      init_self_pot(); 
 
   switch(algorithm){
-        case SVD_PLUS_PLUS:
-           svd_init(); break;
+   case SVD_PLUS_PLUS:
+     svd_init(); break;
 
-  	case LANCZOS: 
-	   init_lanczos(); break;
+   case LANCZOS: 
+     init_lanczos(); break;
    
    case NMF:
       nmf_init(); break;
 
-	case ALS_MATRIX:
-	case ALS_TENSOR_MULT:
+   case ALS_MATRIX:
+   case ALS_TENSOR_MULT:
    case WEIGHTED_ALS:
-	case BPTF_TENSOR_MULT:
+   case BPTF_TENSOR_MULT:
    case BPTF_MATRIX:
    case BPTF_TENSOR:
    case STOCHASTIC_GRADIENT_DESCENT:
-	   init_pmf(); break;
+      init_pmf(); break;
   }
+
 }
 
 
@@ -906,10 +913,10 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
 	 assert(pow(validation_rmse - 1.1005,2) < 1e-2);
 	 break;
 
-      case 91: //WEIGHTED_ALS: Final result. Final result. Obj=0.0133187, TRAIN RMSE= 0.0043 VALIDATION RMSE= 0.7149.
-         assert(pow(obj -  0.0133187,2)<1e-5);
+      case 91: //WEIGHTED_ALS: -Iter100... UV. objective=0.0207271, RMSE=0.0043/0.6344. Time to finish=0.00hr.
+         assert(pow(obj -  0.0207271,2)<1e-5);
          assert(pow(train_rmse - 0.0043,2)<1e-5);
-         assert(pow(validation_rmse - 0.7163,2)<1e-3);
+         assert(pow(validation_rmse - 0.6344,2)<1e-3);
          break;
    }
 }
@@ -989,7 +996,6 @@ void start(int argc, char ** argv) {
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
   clopts.attach_option("outputvalidation", &outputvalidation, outputvalidation, "output prediction on vadlidation data in kdd format");
-  clopts.attach_option("delinktimebins", &delinktimebins, delinktimebins, "assume there is no smooth correlation between time bins, each one is independent of the others");
   clopts.attach_option("unittest", &unittest, unittest, "unit testing. ");
 
   //SVD++ related switches
@@ -1347,7 +1353,20 @@ void count_all_edges(graph_type * _g){
           vdata.num_edges = count_edges(_g->in_edge_ids(i));
      }
 }
+
 /* function that reads the tensor from file */
+/* Input format is:
+ * M - number of users (int)
+ * N - number of movies (int)
+ * K - number of time bins (int), in case of weighted ALS this value is ignored
+ * e - number of edges (int)
+ * A list of edges in the format
+ * [from] [to] [ time] [weight]  (4 floats)
+ * where [from] is an integeter from 1 to M
+ * [to] is an interger from 1 to N
+ * [time] is an integer from 1 to K (for weighted ALS this is the weight, which is float)
+ * [weight] - this is the rating, which is float. Rating is assumed non-zero unless the --zero=true flas is on 
+ */
 void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl_types::core & glcore) {
 
   printf("Loading %s %s\n", filename, testtypename[data_type]);
@@ -1385,14 +1404,12 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   if (data_type != TRAINING && K != _K)
 	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << K << " in " << testtypename[data_type] <<std::endl;
 
-  //if (data_type==TRAINING)
   printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", M, N, K);
  
   vertex_data vdata;
 
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
-    
     vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     _g->add_vertex(vdata);
     if (debug && (i<= 5 || i == M-1))
@@ -1429,8 +1446,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 
   switch(data_type){
     case TRAINING: 
-      L = val; 
-      break;
+      L = val; break;
     
     case VALIDATION: 
       Le = val; 
@@ -1439,8 +1455,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 	break; 
      
     case TEST: 
-      Lt = val; 
-      break;
+      Lt = val; break;
   }  
 
   if (data_type==TRAINING && tensor && K>1) 
@@ -1480,7 +1495,6 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   if (data_type == TRAINING || (aggregatevalidation && data_type == VALIDATION)){
     count_all_edges(g);
   }
-
  
   //verify correct number of edges encourntered
   if (data_type==TRAINING && tensor && K>1){
