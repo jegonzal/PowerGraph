@@ -36,150 +36,67 @@
 namespace graphlab {
 
   /**
-   * Common base class for all glshared<T> objects.  Exposes a common
-   *  interface allowing all glshared<T> objects to be manipulated in
-   *  the same way.  
-   */
-  class glshared_base{
-  public:
-    /**
-     * The type of an apply function. The apply function performs an
-     *  atomic operation on the contents of a shared object. The apply
-     *  function takes a reference to the current value of the object
-     *  (current_value: wrapped inside an any), an additional
-     *  parameter (param), and makes modifications to the current
-     *  value.
-     */
-    typedef void(*apply_function_type)(any& current_data, const any& param);
-
-    /**
-     * Gets the value of the shared variable wrapped in an any.
-     */
-    virtual any get_any() const = 0;
-  
-    /**
-     * Sets the value of the shared variable using an any. The type of
-     * the any must match the type of the shared object.
-     */
-    virtual void set_any(const any&) = 0;
-  
-    /**
-     * Performs an atomic modification on the value of the shared
-     * object.  essentially calls fun(current_value, srcd) where
-     * current_value is the value of this variable wrapped inside an
-     * any.
-     */
-    virtual void apply(apply_function_type fun,
-                       const any& srcd) = 0;
-                         
-    /**
-     * Returns true if there are no other active references to this
-     * variable.
-     */
-    virtual bool is_unique() const = 0;
-  };
-
-
-
-  namespace glshared_impl {
-    template <typename T>
-    struct empty_deleter {
-      void operator()(T* d) { }
-    };
-  };
-
-
-
-
-  /**
    * \brief A shared data entry.  
    *
-   * glshared<datatype> variable; 
-   * will create a shared variable of the defined datatype.
-   * The accessor functions get_val(), get_ptr() and set() can be used
-   * to access the data in parallel. An RCU mechanism is used to ensure
-   * consistency of the stored data. 
-   * The variable can be registered with a GraphLab
-   * engine to provide global aggregate information of a graph during
-   * GraphLab execution. \see asynchronous_engine::set_sync
-   *
-   * This is implemented using an RCU
-   * scheme where two shared pointers are created to 
-   * two instances of the data. The two shared pointers
-   * are called the "head" and the "buffer".  All reads are performed
-   * using the head, and all writes are made to the buffer. Since
-   * readers can hold references to the data (using a shared pointer),
-   * writes are only performed when all readers release their
-   * references to the buffers.  When writes complete, the head and
-   * the buffer pointers are exchanged atomically.
-   *
-   * The two-pointer scheme allows a limited amount of simultaneous
-   * read/write. Specifically, while readers are accessing data, a
-   * single write could be completed successfully. After which, all
-   * readers must release their references to the data before a second
-   * write can complete. Readers should therefore release their
-   * references to the shared data as soon as possible to avoid
-   * dead-locks.
+   * glshared<datatype> variable; will create a shared variable of the
+   * defined datatype. 
    */
   template <typename T>
-  class glshared : public glshared_base{
+  class glshared : public iglshared_base{
 
   public:
+    //! The type of the internal element
+    typedef T contained_type;
     //! Type of the apply function inhereted from the gl_shared base
     typedef glshared_base::apply_function_type apply_function_type;
-    //! Type of the boost shared pointer to a constant 
-    typedef boost::shared_ptr<const T> const_ptr_type;
-    //! Type of the boost shared pointer
-    typedef boost::shared_ptr<T> ptr_type;
 
+    //! Reference holder
+    class const_ref {
+      const T& data;
+      rwlock& lock;
+      const_ref(); // Not default constructable
+      const_ref(const const_ref&); // Not copyable 
+      operator=(const const_ref&); // not assignable
+    public:
+      const_ref(const glshared& shared) : 
+        data(shared.data), lock(shared.lock) { 
+        lock.read_lock();
+      }
+      ~const_ref() { lock.unlock(); }
+      const T& val() { return data; }
+    };
 
   private:
-    // two instances of the data
-    T buffer_and_head[2];
+    //! The interal storage item
+    contained_type data;
+    rwlock lock;
 
-    // shared pointers to the data
-    boost::shared_ptr<T> buffer_and_head_ptr[2];
-  
-    // a pointer to the shared pointer which contains the write target
-    boost::shared_ptr<T>* buffer;
-    // a pointer to the shared pointer which contains the read target
-    boost::shared_ptr<T>* head;
-  
-    // A lock used to sequentialize multiple writes
-    mutex set_lock;
-
-    // Waits until all references to the buffer are released
-    inline void wait_for_buffer_release() {
-      while(!(buffer->unique())) sched_yield();
-    }
-  
-    // Performs an atomic exchange of the head and buffer pointers
-    inline void exchange_buffer_and_head() {
-      atomic_exchange(buffer, head);
-    }
-  
   public:
     //! Construct initial shared pointers
-    glshared() {
-      buffer_and_head_ptr[0].reset(&(buffer_and_head[0]), 
-                                   glshared_impl::empty_deleter<T>());
-      buffer_and_head_ptr[1].reset(&(buffer_and_head[1]), 
-                                   glshared_impl::empty_deleter<T>());
-      buffer = &(buffer_and_head_ptr[0]);
-      head = &(buffer_and_head_ptr[1]);
-    }
+    glshared() { }
   
+    //! Add a delta function:
+    void operator+=(const T& other) { 
+      lock.writelock();
+      data += other;
+      lock.unlock();
+    }
+
 
     /// Returns a copy of the data
-    inline T get_val() const{
-      return *(*(head));
+    inline T val() const {
+      T copy;
+      lock.readlock();
+      copy = data;
+      lock.unlock();
+      return copy;
     }
 
     /**
      * Gets the value of the shared variable wrapped in an any.
      */
     any get_any() const {
-      return *(*(head));
+      return any<T>(val());
     }
   
     /**
@@ -188,7 +105,7 @@ namespace graphlab {
      * and is meant for internal use.
      */
     bool is_unique() const {
-      return buffer->unique() && head->unique();
+      return true;
     }
   
     /**
