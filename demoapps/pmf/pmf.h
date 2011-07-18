@@ -37,6 +37,10 @@ For NMF (non-negative matrix factorization) see:
 For Weigted alternating least squares see:
 9) Rong Pan, Yunhong Zhou, Bin Cao, Nathan N. Liu, Rajan Lukose, Martin Scholz, and Qiang Yang. 2008. One-Class Collaborative Filtering. In Proceedings of the 2008 Eighth IEEE International Conference on Data Mining (ICDM '08). IEEE Computer Society, Washington, DC, USA, 502-511. 
 
+For implicit collaborative filering see:
+10) One-Class Collaborative Filtering
+by: Rong Pan, Yunhong Zhou, Bin Cao, N. N. Liu, R. Lukose, M. Scholz, Qiang Yang. Data Mining, IEEE International Conference on In Data Mining, 2008. ICDM '08
+
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
