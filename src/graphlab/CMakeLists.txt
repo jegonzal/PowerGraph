@@ -19,9 +19,9 @@ subdirs(
  metrics
  jni)
 
-if(YRL_EXPERIMENTAL)
-  subdirs(yrl)
-endif()
+# if(YRL_EXPERIMENTAL)
+#   subdirs(yrl)
+# endif()
 
 include(metisextern.cmake)
 
