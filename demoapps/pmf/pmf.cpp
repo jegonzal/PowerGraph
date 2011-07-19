@@ -39,6 +39,7 @@
 #include "unittest.hpp"
 #include "io.hpp"
 #include "stats.hpp"
+#include "implicit.hpp"
 
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
@@ -303,7 +304,7 @@ void start(int argc, char ** argv) {
   clopts.attach_option("svd_iter", &svd_iter, svd_iter, "SVD iteration number"); 
   clopts.attach_option("printhighprecision", &printhighprecision, printhighprecision, "print RMSE output with high precision");
 
-  //implicit rating options
+  //implicit rating options (see reference 10 in pmf.h)
   clopts.attach_option("implicitratingtype", &implicitratingtype, implicitratingtype, "type can be: user/item/uniform");
   clopts.attach_option("implicitratingpercentage", &implicitratingpercentage, implicitratingpercentage, " precentage of implicit added edges (0-100)");
   clopts.attach_option("implicitratingvalue", &implicitratingvalue, implicitratingvalue, "value for implicit negative ratings");
@@ -375,9 +376,6 @@ void start(int argc, char ** argv) {
   }
 #endif
 
-   //start graphlab!
-
-
   if (delayalpha != 0 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR))
 	logstream(LOG_WARNING) << "Delaying alpha (sampling of noise level) is ignored in non-MCMC methods" << std::endl;
 
@@ -441,7 +439,7 @@ void start(int argc, char ** argv) {
     exit(0);
   }
 
-  if (algorithm != SVD_PLUS_PLUS && algorithm != STOCHASTIC_GRADIENT_DESCENT){
+  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX){
     printf("setting regularization weight to %g\n", LAMBDA);
     pU=pV=LAMBDA;
   }
@@ -491,7 +489,7 @@ void start(int argc, char ** argv) {
   gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
-  	switch(algorithm){
+    switch(algorithm){
       case ALS_TENSOR_MULT:
       case ALS_MATRIX:
       case WEIGHTED_ALS:
@@ -524,7 +522,7 @@ void start(int argc, char ** argv) {
   for (int i=0; i<MAX_COUNTER; i++){
     if (counter[i] > 0)
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], counter[i]); 
-   }
+  }
 
   //write output matrices U,V,T to file
   if (binaryoutput)
