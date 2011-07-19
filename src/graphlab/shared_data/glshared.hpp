@@ -35,6 +35,13 @@
 
 namespace graphlab {
 
+
+
+
+
+
+
+
   /**
    * \brief A shared data entry.  
    *
@@ -75,12 +82,6 @@ namespace graphlab {
     //! Construct initial shared pointers
     glshared() { }
   
-    //! Add a delta function:
-    void operator+=(const T& other) { 
-      lock.writelock();
-      data += other;
-      lock.unlock();
-    }
 
 
     /// Returns a copy of the data
@@ -95,54 +96,8 @@ namespace graphlab {
     /**
      * Gets the value of the shared variable wrapped in an any.
      */
-    any get_any() const {
-      return any<T>(val());
-    }
-  
-    /**
-     * Returns true if there are no other active references to this
-     * variable. This should not be used to test for exclusive access,
-     * and is meant for internal use.
-     */
-    bool is_unique() const {
-      return true;
-    }
-  
-    /**
-     * Returns a shared_ptr to the data.  When the shared pointer goes
-     * out of scope, its contained pointer becomes invalid. The user
-     * should not request for the underlying pointer inside the
-     * shared_ptr.
-     *
-     *  gl_shared<int> shared_x;
-     * 
-     *  Ok: 
-     *    boost::shared_ptr<const int> var_p = shared_x.get_ptr();
-     *    const int& x = *var_p;
-     *
-     *  Bad:
-     *    const int& x = *shared_x.get_ptr();
-     *
-     *
-     */
-    inline const_ptr_type get_ptr() const{
-      return boost::const_pointer_cast<const T, T>(*head);
-    }
+    any get_any() const { return any<T>(val()); }
 
-    /**
-     * changes the data to 't'. This operation is atomic This
-     * operation could stall forever if there are active shared
-     * pointers to this variable which are never released.
-     */
-    void set(const T& t) {
-      set_lock.lock();
-      wait_for_buffer_release();
-      *(*buffer) = t;
-      exchange_buffer_and_head();
-      set_lock.unlock();
-    }
-  
-  
     /**
      * Sets the value of the shared variable using an any. The type of
      * the any must match the type of the shared object.
@@ -150,23 +105,6 @@ namespace graphlab {
     void set_any(const any &t) {
       set(t.as<T>());
     }
-  
-    /** 
-     * Exchanges the data with 't'. This operation performs the
-     * exchange atomically and could therefore stall
-     * forever if there are active shared
-     * pointers to this variable which are never released.
-     */
-    void exchange(T& t) {
-      set_lock.lock();
-      wait_for_buffer_release();
-      T retval = get_val();
-      *(*buffer) = t;
-      t = retval;
-      exchange_buffer_and_head();
-      set_lock.unlock();
-    }
-
 
     /**
      * apply's a function to this variable passing an additional
@@ -185,26 +123,190 @@ namespace graphlab {
       exchange_buffer_and_head();
       set_lock.unlock();
     }
+
+  
+    /**
+     * Returns true if there are no other active references to this
+     * variable. This should not be used to test for exclusive access,
+     * and is meant for internal use.
+     */
+    bool is_unique() const { return true; }
+  
+    /**
+     * changes the data to 't'. This operation is atomic This
+     * operation could stall forever if there are active shared
+     * pointers to this variable which are never released.
+     */
+    void set(const T& other) {
+      lock.writelock();
+      data = other;
+      lock.unlock();
+    }
+
+    //! Add a delta function:
+    void operator+=(const T& other) { 
+      lock.writelock();
+      data += other;
+      lock.unlock();
+    }
+  
+  
+  
+
+
   };
 
 
-  /**
-   * Because it is inconvenient that the apply function specification
-   * takes the current value as an "any" as opposed to using the true
-   * type of the current value (T), this function adapts an apply
-   * function written in the more intuitive form:
-   *
-   *  void applyfn(T&, const any&)
-   *
-   * to the regular apply function type.  apply_adapter<T, applyfn> is
-   * a function which matches the regular apply function type and
-   * calls applyfn.
-   */
-  template<typename T, void (*applyfn)(T&, const any&) >  
-  void apply_adapter(any &d, const any& param) {
-    applyfn(d.as<T>(), param);
-  }
+  /// Old RCU version
 
+  // template <typename T>
+  // class glshared : public glshared_base{
+
+  // public:
+  //   //! Type of the apply function inhereted from the gl_shared base
+  //   typedef glshared_base::apply_function_type apply_function_type;
+  //   //! Type of the boost shared pointer to a constant 
+  //   typedef boost::shared_ptr<const T> const_ptr_type;
+  //   //! Type of the boost shared pointer
+  //   typedef boost::shared_ptr<T> ptr_type;
+
+
+  // private:
+  //   // two instances of the data
+  //   T buffer_and_head[2];
+
+  //   // shared pointers to the data
+  //   boost::shared_ptr<T> buffer_and_head_ptr[2];
+  
+  //   // a pointer to the shared pointer which contains the write target
+  //   boost::shared_ptr<T>* buffer;
+  //   // a pointer to the shared pointer which contains the read target
+  //   boost::shared_ptr<T>* head;
+  
+  //   // A lock used to sequentialize multiple writes
+  //   mutex set_lock;
+
+  //   // Waits until all references to the buffer are released
+  //   inline void wait_for_buffer_release() {
+  //     while(!(buffer->unique())) sched_yield();
+  //   }
+  
+  //   // Performs an atomic exchange of the head and buffer pointers
+  //   inline void exchange_buffer_and_head() {
+  //     atomic_exchange(buffer, head);
+  //   }
+  
+  // public:
+  //   //! Construct initial shared pointers
+  //   glshared() {
+  //     buffer_and_head_ptr[0].reset(&(buffer_and_head[0]), 
+  //                                  glshared_impl::empty_deleter<T>());
+  //     buffer_and_head_ptr[1].reset(&(buffer_and_head[1]), 
+  //                                  glshared_impl::empty_deleter<T>());
+  //     buffer = &(buffer_and_head_ptr[0]);
+  //     head = &(buffer_and_head_ptr[1]);
+  //   }
+  
+
+  //   /// Returns a copy of the data
+  //   inline T get_val() const{
+  //     return *(*(head));
+  //   }
+
+  //   /**
+  //    * Gets the value of the shared variable wrapped in an any.
+  //    */
+  //   any get_any() const {
+  //     return *(*(head));
+  //   }
+  
+  //   /**
+  //    * Returns true if there are no other active references to this
+  //    * variable. This should not be used to test for exclusive access,
+  //    * and is meant for internal use.
+  //    */
+  //   bool is_unique() const {
+  //     return buffer->unique() && head->unique();
+  //   }
+  
+  //   /**
+  //    * Returns a shared_ptr to the data.  When the shared pointer goes
+  //    * out of scope, its contained pointer becomes invalid. The user
+  //    * should not request for the underlying pointer inside the
+  //    * shared_ptr.
+  //    *
+  //    *  gl_shared<int> shared_x;
+  //    * 
+  //    *  Ok: 
+  //    *    boost::shared_ptr<const int> var_p = shared_x.get_ptr();
+  //    *    const int& x = *var_p;
+  //    *
+  //    *  Bad:
+  //    *    const int& x = *shared_x.get_ptr();
+  //    *
+  //    *
+  //    */
+  //   inline const_ptr_type get_ptr() const{
+  //     return boost::const_pointer_cast<const T, T>(*head);
+  //   }
+
+  //   /**
+  //    * changes the data to 't'. This operation is atomic This
+  //    * operation could stall forever if there are active shared
+  //    * pointers to this variable which are never released.
+  //    */
+  //   void set(const T& t) {
+  //     set_lock.lock();
+  //     wait_for_buffer_release();
+  //     *(*buffer) = t;
+  //     exchange_buffer_and_head();
+  //     set_lock.unlock();
+  //   }
+  
+  
+  //   /**
+  //    * Sets the value of the shared variable using an any. The type of
+  //    * the any must match the type of the shared object.
+  //    */
+  //   void set_any(const any &t) {
+  //     set(t.as<T>());
+  //   }
+  
+  //   /** 
+  //    * Exchanges the data with 't'. This operation performs the
+  //    * exchange atomically and could therefore stall
+  //    * forever if there are active shared
+  //    * pointers to this variable which are never released.
+  //    */
+  //   void exchange(T& t) {
+  //     set_lock.lock();
+  //     wait_for_buffer_release();
+  //     T retval = get_val();
+  //     *(*buffer) = t;
+  //     t = retval;
+  //     exchange_buffer_and_head();
+  //     set_lock.unlock();
+  //   }
+
+
+  //   /**
+  //    * apply's a function to this variable passing an additional
+  //    * parameter. This operation tries to perform the modification atomically
+  //    * and could stall forever if there are
+  //    * active shared pointers to this variable which are never
+  //    * released.
+  //    */
+  //   void apply(apply_function_type fun,
+  //              const any& srcd) {
+  //     set_lock.lock();
+  //     wait_for_buffer_release();
+  //     any temp = *(*head);
+  //     fun(temp, srcd);
+  //     *(*buffer) = temp.as<T>();
+  //     exchange_buffer_and_head();
+  //     set_lock.unlock();
+  //   }
+  // };
 } 
 #endif
 
