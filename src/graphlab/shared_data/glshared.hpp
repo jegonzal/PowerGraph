@@ -21,6 +21,16 @@
  */
 
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
 #ifndef GRAPHLAB_GLSHARED_HPP
 #define GRAPHLAB_GLSHARED_HPP
 #include <boost/shared_ptr.hpp>
@@ -33,13 +43,9 @@
 #include <graphlab/util/generics/any.hpp>
 #include <graphlab/logger/assertions.hpp>
 
+
+
 namespace graphlab {
-
-
-
-
-
-
 
 
   /**
@@ -49,7 +55,7 @@ namespace graphlab {
    * defined datatype. 
    */
   template <typename T>
-  class glshared : public iglshared_base{
+  class glshared : public iglshared_base {
 
   public:
     //! The type of the internal element
@@ -149,10 +155,6 @@ namespace graphlab {
       data += other;
       lock.unlock();
     }
-  
-  
-  
-
 
   };
 
