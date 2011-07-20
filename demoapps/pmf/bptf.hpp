@@ -33,6 +33,10 @@ extern int M,N,K,L,BURN_IN;
 extern vertex_data * times;
 extern double counter[20];
 extern graph_type * g;
+extern graph_type test_graph;
+extern int iiter;
+extern int delayalpha;
+extern string infile;
 
 /* variables for BPTF */
 double nuAlpha = 1;
@@ -54,6 +58,7 @@ vec mu_U, mu_V, mu_T;
 using namespace itpp;
 using namespace graphlab;
 
+void export_kdd_format(graph_type * _g, testtype type, bool dosave);
 /**
 * calc the A'A part of the least squares solution inv(A'A)*A'
 * for time nodes
@@ -97,8 +102,6 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
   assert(Umean.size() == D);
   return MMT;
 }
-
-
 
 
 void init_self_pot(){
@@ -278,5 +281,27 @@ void sample_T(){
     cout<<"Sampling from T: A_T" <<A_T<<" mu_V: "<<mu_T<<" W0_: "<<W0_<<" tmp: "<<tmp<<endl;
    
 }
+
+/**
+ * for BPTF: sample hyperprior and noise level at the end of each round
+ */
+void last_iter_bptf(double res){
+    if (iiter == BURN_IN){
+      printf("Finished burn-in period. starting to aggregate samples\n");
+    }
+    timer t;
+    t.start();
+    if (iiter > delayalpha)
+    	sample_alpha(res);
+    sample_U();
+    sample_V();
+    if (tensor) 
+      sample_T();
+    counter[BPTF_SAMPLE_STEP] += t.current_time();
+    if (infile == "kddcup" || infile == "kddcup2")
+	export_kdd_format(&test_graph, TEST, false);
+}
+
+
 
 #endif //__BPTF_H

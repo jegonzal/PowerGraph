@@ -52,7 +52,7 @@ struct edge_data {
 SERIALIZABLE_POD(edge_data);
 
 typedef graph<vertex_data, edge_data> graph_type;
-typedef graph_type::vertex_id_type vertex_id_t;
+//typedef graph_type::vertex_id_type vertex_id_t;
 
 vertex_data vertexdata_generator(vertex_id_t idx) {
   return vertex_data();

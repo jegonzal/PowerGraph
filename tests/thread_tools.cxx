@@ -172,14 +172,4 @@ public:
      test_pool_exception_forwarding();
    }
 
-   void test_flip_flop() {
-    thread_group a;
-    thread_group b;
-    for (int i = 0;i < num_flip_flop_threads; ++i) {
-      a.launch(flip_flop_0);
-      a.launch(flip_flop_1);
-    }
-    a.join();
-    b.join();
-   }
 };
