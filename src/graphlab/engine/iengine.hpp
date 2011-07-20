@@ -38,6 +38,7 @@
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/shared_data/glshared.hpp>
+
 namespace graphlab {
   
   /**

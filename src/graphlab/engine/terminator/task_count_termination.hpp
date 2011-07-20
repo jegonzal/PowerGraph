@@ -28,7 +28,7 @@
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
-
+#include <graphlab/engine/terminator/iterminator.hpp>
 
 namespace graphlab {
   /**
@@ -43,7 +43,7 @@ namespace graphlab {
    * - If (end_critical_section() returns true, the scheduler can terminate.
    * Otherwise it must loop again.
    */
-  class task_count_termination {
+  class task_count_termination : public iterminator {
     atomic<size_t> newtaskcount;
     atomic<size_t> finishedtaskcount;
     bool force_termination; //signal computation is aborted

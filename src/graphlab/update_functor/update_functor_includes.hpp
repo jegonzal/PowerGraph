@@ -22,5 +22,5 @@
 
 
 
-#include <graphlab/tasks/update_task.hpp>
+#include <graphlab/tasks/iupdate_functor.hpp>
 

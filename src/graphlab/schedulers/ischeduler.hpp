@@ -27,15 +27,12 @@
 #include <vector>
 #include <sstream>
 #include <ostream>
-#include <graphlab/tasks/update_task.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
-#include <graphlab/schedulers/icallback.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
 #include <graphlab/metrics/metrics.hpp>
 
 namespace graphlab {
-  template <typename Graph> class iengine;
-  
+ 
   /**
    * This is an enumeration for the possible return values for
    * get_next_tasks
@@ -78,25 +75,17 @@ namespace graphlab {
    * EXACTLY. Note that all functions (with the exception of the
    * constructor and destructor) must be thread-safe.
    */
-  template<typename Graph>
+  template<typename Engine>
   class ischeduler {
   public:
 
-    typedef Graph graph_type;
+    typedef Engine engine_type;
+    typedef typename engine_type::graph_type       graph_type;
     typedef typename graph_type::vertex_id_type    vertex_id_type;
     typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::vertex_color_type vertex_color_type;
-    typedef update_task<Graph> update_task_type;
-    typedef typename update_task_type::update_function_type 
-    update_function_type;
+    
 
-    typedef iengine<Graph> iengine_type;
-    typedef icallback<Graph> callback_type;
-    typedef imonitor<Graph> monitor_type;
-
-    /** Defines the preferred terminator algorithm */
-    typedef char terminator_type;
-    terminator_type terminator;
     /** 
      * Constructor: The scheduler must be provided with the graph, and the 
      * number of cpus.  All initialization of the scheduler internal state must

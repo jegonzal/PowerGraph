@@ -26,6 +26,8 @@
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
+#include <graphlab/engine/terminator/iterminator.hpp>
+
 
 namespace graphlab {
   /**
@@ -39,7 +41,7 @@ namespace graphlab {
      - If (end_critical_section() returns true, the scheduler can terminate.
      Otherwise it must loop again.
   */
-  class shared_termination {
+  class shared_termination : public iterminator {
   public:
     shared_termination(size_t ncpus) {
       numactive = ncpus;
