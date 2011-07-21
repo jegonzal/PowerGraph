@@ -44,7 +44,7 @@
 #define GRAPHLAB_IENGINE_HPP
 
 
-#include <graphlab/schedulers/ischeduler.hpp>
+#include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>

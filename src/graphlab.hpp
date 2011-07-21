@@ -31,10 +31,11 @@
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
+#include <graphlab/options/options_includes.hpp>
 #include <graphlab/logger/logger_includes.hpp>
 #include <graphlab/monitoring/monitoring_includes.hpp>
 #include <graphlab/parallel/parallel_includes.hpp>
-#include <graphlab/schedulers/scheduler_includes.hpp>
+#include <graphlab/scheduler/scheduler_includes.hpp>
 #include <graphlab/scope/scope_includes.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/shared_data/shared_data_includes.hpp>

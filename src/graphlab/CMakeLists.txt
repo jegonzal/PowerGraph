@@ -10,7 +10,7 @@ subdirs(
  monitoring
  options
  parallel
- schedulers
+ scheduler
  scope
  shared_data
  update_functor
@@ -71,7 +71,7 @@ add_library(graphlab STATIC
   parallel/pthread_tools.cpp
   parallel/thread_pool.cpp
   util/random.cpp
-  schedulers/scheduler_list.cpp
+  scheduler/scheduler_list.cpp
   metrics/metrics.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
