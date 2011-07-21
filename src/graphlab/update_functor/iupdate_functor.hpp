@@ -65,8 +65,8 @@ namespace graphlab {
      * implemented by the derived class then the default scope range
      * is returned.
      */
-    virtual scope_range::scope_range_enum scope() const {
-      return scope_range::USE_DEFAULT;
+    virtual consistency_model::model_enum consistency() const {
+      return consistency_model::USE_DEFAULT;
     }
 
     /**

@@ -60,7 +60,7 @@ namespace graphlab {
     using base::_vertex;
     using base::_graph_ptr;
 
-    scope_range::scope_range_enum stype;
+    consistency_model::model_enum stype;
     iscope_factory<Graph>* factory;
   public:
     general_scope() :
@@ -68,11 +68,11 @@ namespace graphlab {
 
     general_scope(Graph* graph_ptr, vertex_id_type vertex,
                   iscope_factory<Graph>* factory,
-                  scope_range::scope_range_enum s = scope_range::USE_DEFAULT) :
+                  consistency_model::model_enum s = consistency_model::USE_DEFAULT) :
       base(graph_ptr, vertex), stype(s), factory(factory)  {
     }
 
-    scope_range::scope_range_enum scope_type() const {
+    consistency_model::model_enum scope_type() const {
       return stype;
     }
 
@@ -129,7 +129,7 @@ namespace graphlab {
       return _graph_ptr->vertex_data(vertex);
     }
     
-    bool experimental_scope_upgrade(scope_range::scope_range_enum newrange) { 
+    bool experimental_scope_upgrade(consistency_model::model_enum newrange) { 
       assert(factory != NULL);
       factory->release_scope(this);
       ASSERT_TRUE(factory->get_scope(thread::thread_id(), 

@@ -53,6 +53,7 @@ namespace graphlab {
    * This is the class that is passed to update functors and allows
    * them to communicate with the engine.
    */
+  template<typename Graph, typename UpdateFunctor>
   class icallback {
   public:
     typedef Graph graph_type;

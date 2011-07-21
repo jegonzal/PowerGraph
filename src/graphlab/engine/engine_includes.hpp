@@ -24,8 +24,11 @@
 
 
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/asynchronous_engine.hpp>
-#include <graphlab/engine/engine_factory.hpp>
-#include <graphlab/engine/engine_options.hpp>
+#include <graphlab/callback/callback_includes.hpp>
+#include <graphlab/engine/shared_memory_engine.hpp>
+
+//#include <graphlab/engine/asynchronous_engine.hpp>
+//#include <graphlab/engine/engine_factory.hpp>
+//#include <graphlab/engine/engine_options.hpp>
 
 

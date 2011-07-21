@@ -20,9 +20,18 @@
  *
  */
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
-#ifndef GRAPHLAB_SCHEDULER_OPTIONS
-#define GRAPHLAB_SCHEDULER_OPTIONS
+
+#ifndef GRAPHLAB_OPTIONS_MAP_HPP
+#define GRAPHLAB_OPTIONS_MAP_HPP
 #include <map>
 #include <sstream>
 #include <ostream>
@@ -36,18 +45,17 @@
 namespace graphlab {
 
   /**
-     Scheduler options data structure.  Defines a collection of
-     key->value pairs where the key is a string, and the value is an
-     arbitrary data type.  The scheduler_options class will invisibly
-     cast between string, integer and double data types. For instance,
-     if a scheduler expects a
+     options data structure.  Defines a collection of key->value pairs
+     where the key is a string, and the value is an arbitrary data
+     type.  The options_map class will invisibly cast between string,
+     integer and double data types.
   */
-  class scheduler_options {
+  class options_map {
   public:
    
-    scheduler_options() {};
+    options_map() {};
 
-    explicit scheduler_options(std::string &s) {
+    explicit options_map(std::string &s) {
       parse_options(s);
     };
 
@@ -115,9 +123,9 @@ namespace graphlab {
     /**
      * Reads a string option
      */
-    inline bool get_string_option(const std::string &opt, 
-                                  std::string &val) const {
-      std::map<std::string, scheduler_option_values>::const_iterator i = 
+    inline bool get_string_option(const std::string& opt, 
+                                  std::string& val) const {
+      std::map<std::string, option_values>::const_iterator i = 
         options.find(opt);
       if (i == options.end()) return false;
       val = i->second.strval;
@@ -128,9 +136,9 @@ namespace graphlab {
      * Reads a integer option
      */
     template <typename IntType>
-    inline bool get_int_option(const std::string &opt, 
-                               IntType &val) const {
-      std::map<std::string, scheduler_option_values>::const_iterator i = 
+    inline bool get_int_option(const std::string& opt, 
+                               IntType& val) const {
+      std::map<std::string, option_values>::const_iterator i = 
         options.find(opt);
       if (i == options.end()) return false;
       val = i->second.intval;
@@ -141,9 +149,9 @@ namespace graphlab {
      * Reads a float option
      */
     template <typename FloatType>
-    inline bool get_float_option(const std::string &opt, 
-                                 FloatType &val) const {
-      std::map<std::string, scheduler_option_values>::const_iterator i = 
+    inline bool get_float_option(const std::string& opt, 
+                                 FloatType& val) const {
+      std::map<std::string, option_values>::const_iterator i = 
         options.find(opt);
       if (i == options.end()) return false;
       val = i->second.dblval;
@@ -153,8 +161,8 @@ namespace graphlab {
     /**
      * Reads an any option
      */
-    inline bool get_any_option(const std::string &opt, any &val) const {
-      std::map<std::string, scheduler_option_values>::const_iterator i = 
+    inline bool get_any_option(const std::string& opt, any &val) const {
+      std::map<std::string, option_values>::const_iterator i = 
         options.find(opt);
       if (i == options.end()) return false;
       val = i->second.anyval;
@@ -170,9 +178,9 @@ namespace graphlab {
     }
 
     /**
-     * Combines two scheduler options. Warns if options intersects
+     * Combines two options. Warns if options intersects
      */
-    inline void apply_options(const scheduler_options &other) {
+    inline void apply_options(const options_map& other) {
       std::set<std::string> commonopts = 
         set_intersect(keys(options),  keys(other.options));
       if (commonopts.size() > 0) {
@@ -183,7 +191,7 @@ namespace graphlab {
           other.get_string_option(*i, otherval);
           if (myval != otherval) {
             logger(LOG_WARNING,
-                   "Common scheduler options detected between options set\n"
+                   "Common options detected between options set\n"
                    "programmatically and options set on the command line.\n");
             logstream(LOG_WARNING) << "\t" << *i << " = " << myval << " || " 
                                    << otherval << "\n";
@@ -191,7 +199,7 @@ namespace graphlab {
           ++i;
         }
       }
-      std::map<std::string, scheduler_option_values> res;
+      std::map<std::string, option_values> res;
       res = map_union(other.options, options);
       options = res;
     }
@@ -200,7 +208,7 @@ namespace graphlab {
     /**
      * Parses an option stream  of the form "a=b c=d ..."
      */
-    inline void parse_options(const std::string &s) {
+    inline void parse_options(const std::string& s) {
       std::stringstream strm(s);
       parse_options(strm);
     }
@@ -209,7 +217,7 @@ namespace graphlab {
     /**
      * Parses an option stream  of the form "a=b c=d ..."
      */
-    inline void parse_options(std::istream &s) {
+    inline void parse_options(std::istream& s) {
       std::string opt, value;
       // read till the equal
       while(s.good()) {
@@ -221,8 +229,8 @@ namespace graphlab {
       }
     }
 
-    /// The internal storage of the scheduler options
-    struct scheduler_option_values{
+    /// The internal storage of the options
+    struct option_values{
       std::string strval;
       size_t intval;
       double dblval;
@@ -235,17 +243,15 @@ namespace graphlab {
      * Parse the scheduler string returning the scheduler and storing
      * all the options.
      */
-    std::string parse_scheduler_string(std::string scheduler_raw);
+    std::string parse_string(std::string options_raw);
 
-
-
-    std::map<std::string, scheduler_option_values> options;
+    std::map<std::string, option_values> options;
 
   };
 
 
   std::ostream& operator<<(std::ostream& out,
-                         const graphlab::scheduler_options& opts);
+                           const graphlab::options_map& opts);
 
 
 } // end of graphlab namespace

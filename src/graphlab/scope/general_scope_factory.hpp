@@ -65,18 +65,18 @@ namespace graphlab {
     Graph& graph;
     std::vector<general_scope_type*> scopes;
     std::vector<rwlock> locks;
-    scope_range::scope_range_enum default_scope;
+    consistency_model::model_enum default_scope;
 
   public:
 
     general_scope_factory(Graph& graph,
                           size_t ncpus,
-                          scope_range::scope_range_enum default_scope_range 
-                          = scope_range::NULL_CONSISTENCY) :
+                          consistency_model::model_enum default_scope_range 
+                          = consistency_model::NULL_CONSISTENCY) :
       base(graph,ncpus), graph(graph),
       default_scope(default_scope_range) {
-      if (default_scope == scope_range::USE_DEFAULT)
-        default_scope = scope_range::VERTEX_CONSISTENCY;
+      if (default_scope == consistency_model::USE_DEFAULT)
+        default_scope = consistency_model::VERTEX_CONSISTENCY;
       locks.resize(graph.num_vertices());
       
       // preallocate the scopes
@@ -84,14 +84,14 @@ namespace graphlab {
       // create them to be some arbitrary scope type
       for (size_t i = 0; i < ncpus;++i) {
         scopes[i] = new general_scope_type(&graph, 0, this, 
-                                           scope_range::FULL_CONSISTENCY);
+                                           consistency_model::FULL_CONSISTENCY);
       }
     }
 
-    void set_default_scope(scope_range::scope_range_enum default_scope_range) {
+    void set_default_scope(consistency_model::model_enum default_scope_range) {
       default_scope = default_scope_range;
-      if (default_scope == scope_range::USE_DEFAULT) 
-        default_scope = scope_range::VERTEX_CONSISTENCY;
+      if (default_scope == consistency_model::USE_DEFAULT) 
+        default_scope = consistency_model::VERTEX_CONSISTENCY;
     }
 
     ~general_scope_factory() { 
@@ -103,21 +103,21 @@ namespace graphlab {
     // -----------------ACQUIRE SCOPE-----------------------------
     iscope_type* get_scope(size_t cpuid,
                            vertex_id_type v,
-                           scope_range::scope_range_enum scope = scope_range::USE_DEFAULT) {
-      if (scope == scope_range::USE_DEFAULT) scope = default_scope;
+                           consistency_model::model_enum scope = consistency_model::USE_DEFAULT) {
+      if (scope == consistency_model::USE_DEFAULT) scope = default_scope;
       
       switch(scope){
-      case scope_range::VERTEX_CONSISTENCY:
+      case consistency_model::VERTEX_CONSISTENCY:
         return get_vertex_scope(cpuid, v);
-      case scope_range::VERTEX_READ_CONSISTENCY:
+      case consistency_model::VERTEX_READ_CONSISTENCY:
         return get_vertex_read_scope(cpuid, v);
-      case scope_range::READ_CONSISTENCY:
+      case consistency_model::READ_CONSISTENCY:
         return get_read_scope(cpuid, v);
-      case scope_range::EDGE_CONSISTENCY:
+      case consistency_model::EDGE_CONSISTENCY:
         return get_edge_scope(cpuid, v);
-      case scope_range::FULL_CONSISTENCY:
+      case consistency_model::FULL_CONSISTENCY:
         return get_full_scope(cpuid, v);
-      case scope_range::NULL_CONSISTENCY:
+      case consistency_model::NULL_CONSISTENCY:
         return get_null_scope(cpuid, v);
       default:
         ASSERT_TRUE(false);
@@ -131,7 +131,7 @@ namespace graphlab {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
-      scope->stype = scope_range::FULL_CONSISTENCY;
+      scope->stype = consistency_model::FULL_CONSISTENCY;
 
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -176,7 +176,7 @@ namespace graphlab {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
-      scope->stype = scope_range::EDGE_CONSISTENCY;
+      scope->stype = consistency_model::EDGE_CONSISTENCY;
 
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -220,7 +220,7 @@ namespace graphlab {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
-      scope->stype = scope_range::VERTEX_CONSISTENCY;
+      scope->stype = consistency_model::VERTEX_CONSISTENCY;
 
       vertex_id_type curv = scope->vertex();
       locks[curv].writelock();
@@ -232,7 +232,7 @@ namespace graphlab {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
-      scope->stype = scope_range::READ_CONSISTENCY;
+      scope->stype = consistency_model::READ_CONSISTENCY;
 
       vertex_id_type curv = scope->vertex();
       locks[curv].readlock();
@@ -244,7 +244,7 @@ namespace graphlab {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
-      scope->stype = scope_range::READ_CONSISTENCY;
+      scope->stype = consistency_model::READ_CONSISTENCY;
 
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -289,7 +289,7 @@ namespace graphlab {
       general_scope_type* scope = scopes[cpuid];
       
       scope->init(&graph, v);
-      scope->stype = scope_range::NULL_CONSISTENCY;
+      scope->stype = consistency_model::NULL_CONSISTENCY;
 
       return scope;
     }
@@ -299,16 +299,16 @@ namespace graphlab {
     void release_scope(iscope_type* scopei) {
       general_scope_type* scope = (general_scope_type*)scopei;
       switch(scope->scope_type()){
-      case scope_range::VERTEX_CONSISTENCY:
-      case scope_range::VERTEX_READ_CONSISTENCY:
+      case consistency_model::VERTEX_CONSISTENCY:
+      case consistency_model::VERTEX_READ_CONSISTENCY:
         release_vertex_scope(scope);
         break;
-      case scope_range::EDGE_CONSISTENCY:
-      case scope_range::FULL_CONSISTENCY:
-      case scope_range::READ_CONSISTENCY:
+      case consistency_model::EDGE_CONSISTENCY:
+      case consistency_model::FULL_CONSISTENCY:
+      case consistency_model::READ_CONSISTENCY:
         release_full_edge_scope(scope);
         break;
-      case scope_range::NULL_CONSISTENCY:
+      case consistency_model::NULL_CONSISTENCY:
         release_null_scope(scope);
         break;
       default:

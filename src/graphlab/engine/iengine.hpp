@@ -21,6 +21,17 @@
  */
 
 
+
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
 /* \file iengine.hpp
    \brief The file containing the iengine description
    
@@ -32,46 +43,20 @@
 #ifndef GRAPHLAB_IENGINE_HPP
 #define GRAPHLAB_IENGINE_HPP
 
-#include <graphlab/graph/graph.hpp>
+
 #include <graphlab/schedulers/ischeduler.hpp>
-#include <graphlab/monitoring/imonitor.hpp>
-#include <graphlab/metrics/metrics.hpp>
 #include <graphlab/scope/iscope.hpp>
+#include <graphlab/engine/execution_status.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/shared_data/glshared.hpp>
+
+// #include <graphlab/metrics/metrics.hpp>
+
+
 
 namespace graphlab {
   
-  /**
-   * \brief the reasons for execution completion.
-   *
-   * Because there are several reasons why the graphlab engine might
-   * terminate the exec_status value is returned from the start
-   * function after completing execution. 
-   *
-   */
-  enum exec_status {
 
-    EXEC_UNSET,  /** The default termination reason */
-
-    EXEC_TASK_DEPLETION, /**<Execution completed successfully due to
-                            task depletion */
-
-    EXEC_TERM_FUNCTION,  /**< Execution completed successfully due to
-                            termination function. */
-
-    EXEC_TIMEOUT,       /**< The execution completed after timing
-                           out */
-
-    EXEC_TASK_BUDGET_EXCEEDED, /**< The execution completed because
-                                  the maximum number of tasks was
-                                  exceeded */
-
-    EXEC_FORCED_ABORT,     /**< the engine was stopped by calling force
-                              abort */
-                             
-    EXEC_EXCEPTION        /**< the engine was stopped by an exception */
-  };
-  
 
   
   /**
@@ -95,12 +80,15 @@ namespace graphlab {
      static functions to create
      engines directly from configuration strings.
   */
-  template<typename Graph>
+  template<typename Graph, typename UpdateFunctor>
   class iengine {
   public:
 
     //! The type of graph that the engine operates on
     typedef Graph graph_type;
+    
+    //! The type of the udpate functor
+    typedef UpdateFunctor update_functor_type;
 
     //! The type of vertex id used by the graph
     typedef typename graph_type::vertex_id_type vertex_id_type;
@@ -112,18 +100,8 @@ namespace graphlab {
     typedef typename graph_type::vertex_color_type vertex_color_type;
 
 
-    //! The type of update task
-    typedef update_task<Graph> update_task_type;
-
-    //! The type of update function
-    typedef typename update_task_type::update_function_type 
-    update_function_type;
-
     //! The type of scheduler
     typedef ischeduler<Graph> ischeduler_type;
-
-    //! The type of monitor
-    typedef imonitor<Graph> imonitor_type;
 
     //! The type of scope 
     typedef iscope<Graph> iscope_type;
@@ -150,22 +128,6 @@ namespace graphlab {
 
     //! Virtual destructor required for inheritance 
     virtual ~iengine() {};
-
-    // //! get the number of cpus
-    // virtual size_t get_ncpus() const = 0;
-
-
-    // /**
-    //  * \brief Set the default scope range.
-    //  *
-    //  * The default scope range determines the locking extent of an
-    //  * update function. See \ref Scopes for details.
-    //  *
-    //  * \param default_scope_range can take on any of the values
-    //  * described in \ref scope_range
-    //  *
-    //  */
-    // virtual void set_default_scope(scope_range::scope_range_enum default_scope_range) = 0;
     
     /**
      * \brief Start the engine execution.
@@ -193,10 +155,8 @@ namespace graphlab {
      *
      * Return the reason for the last termination.
      */
-    virtual exec_status last_exec_status() const = 0;
-
-
-    
+    virtual execution_status::status_enum last_exec_status() const = 0;
+   
     /**
      * \brief Get the number of updates executed by the engine.
      *
@@ -206,49 +166,22 @@ namespace graphlab {
      * \return the total number of updates
      */
     virtual size_t last_update_count() const = 0;
-
-        
-    /**
-     * \brief Register a monitor with an engine. 
-     *
-     * A monitor tracks the execution of an engine can be useful when
-     * debugging. 
-     */
-    virtual void register_monitor(imonitor_type* listener) = 0;
-    
+           
     /**
      * \brief Adds an update task with a particular priority.
      * This function is forwarded to the scheduler.
      */
-    virtual void add_task(update_task_type task, double priority) = 0;
+    virtual void schedule(vertex_id_type vid,
+                          const update_functor_type& update_functor) = 0;
+
 
     /**
-     * \brief Add an update function to a particular vertex.
+     * \brief Creates a collection of tasks on all the vertices in the
+     * graph, with the same update function and priority This function
+     * is forwarded to the scheduler.
      */
-    virtual void add_vtask(vertex_id_type vid, 
-                          update_function_type fun, 
-                          double priority = 1.0) {
-      add_task(update_task_type(vid, fun),  priority);
-    }
+    virtual void schedule_all(const update_functor_type& update_functor) = 0;
 
-    /**
-     * \brief Creates a collection of tasks on all the vertices in
-     * 'vertices', and all with the same update function and priority
-     * This function is forwarded to the scheduler.
-     */
-    virtual void add_task(const std::vector<vertex_id_type>& vertices,
-                          update_function_type func, double priority) {
-      for(size_t i = 0; i < vertices.size(); ++i) 
-        add_task(vertices[i], 
-    };
-
-    /**
-     * \brief Creates a collection of tasks on all the vertices in the graph,
-     * with the same update function and priority
-     * This function is forwarded to the scheduler.
-     */
-    virtual void add_task_to_all(update_function_type func,
-                                 double priority) = 0;
     /**
      * \brief associate a termination function with this engine.
      *
@@ -262,10 +195,10 @@ namespace graphlab {
      * bool term_fun(const ishared_data_type* shared_data)
      * \endcode
      */
-    virtual void add_terminator(termination_function_type term) = 0;
+    virtual void add_termination_condition(termination_function_type term) = 0;
 
     //!  remove all associated termination functions
-    virtual void clear_terminators() = 0;
+    virtual void clear_termination_condition() = 0;
     
     /**
      *  \brief The timeout is the total
@@ -287,8 +220,12 @@ namespace graphlab {
      */
     virtual void set_task_budget(size_t max_tasks) = 0;
 
+
     /** \brief Update the engine options.  */
-    virtual void set_engine_options(const engine_options& opts) = 0;
+    virtual void set_options(const graphlab_options& opts) = 0;
+
+    /** \brief get the current engine options. */
+    virtual const graphlab_options& get_options() = 0;
 
 
     /**
@@ -339,51 +276,8 @@ namespace graphlab {
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    virtual void sync_now(glshared_base& shared) = 0;
+    virtual void sync_now(glshared_base& shared) = 0;   
     
-    // Convenience function.
-    static std::string exec_status_as_string(exec_status es) {
-      switch(es) {
-      case EXEC_UNSET: return "engine not run!";
-      case EXEC_FORCED_ABORT: return "forced abort";
-      case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
-      case EXEC_TERM_FUNCTION: return "termination function";
-      case EXEC_TASK_DEPLETION: return "task depletion (natural)";
-      case EXEC_TIMEOUT: return "timeout";
-      case EXEC_EXCEPTION: return "exception";
-      };
-      return "unknown";
-    }
-
-    /**
-     * Return the metrics information logged by the engine.
-     * \see dump_metrics reset_metrics
-     */
-    virtual metrics get_metrics() {
-      return metrics();
-    }
-
-    /**
-     * Clears all logged metrics
-     * \see dump_metrics get_metrics
-     */
-    virtual void reset_metrics() { }
-    
-    /**
-     * Writes out the metrics information logged by the engine
-     * and all subordinate classes.
-     *
-     * Engine writers should note that for dump_metrics() to work,
-     * the engine only has to implement get_metrics()
-     * and reset_metrics(). Default behavior is to report the metrics
-     * returned by get_metrics() and call reset_metrics().
-     * This behavior may be overridden by implementing this function.
-     * 
-     * \see get_metrics reset_metrics
-     */
-    virtual void report_metrics(imetrics_reporter &reporter) {
-      get_metrics().report(reporter);
-    }
     
   };
 

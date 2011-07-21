@@ -21,105 +21,76 @@
  */
 
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
 
-#ifndef DIRECT_CALLBACK_HPP
-#define DIRECT_CALLBACK_HPP
+
+#ifndef GRAPHLAB_DIRECT_CALLBACK_HPP
+#define GRAPHLAB_DIRECT_CALLBACK_HPP
 
 #include <vector>
 #include <algorithm>
 
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/schedulers/ischeduler.hpp>
-#include <graphlab/schedulers/icallback.hpp>
+#include <graphlab/engine/icallback.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
 
   /**
-     This is a callback class that is passed to the update functions, and allow the
-     update functions to add tasks back into the scheduler
-     \see ischeduler_callback */
-  template<typename Graph>
+     This is a callback class that is passed to the update functions,
+     and allow the update functions to add tasks back into the
+     scheduler \see ischeduler_callback 
+  */
+  template<typename Engine>
   class direct_callback : 
-    public icallback<Graph> {
+    public icallback<typename Engine::graph_type, 
+                     typename Engine::update_functor_type> {
   public:
-    typedef Graph graph_type;
+    typedef Engine engine_type;
+    typedef typename engine_type::graph_type graph_type;
+    typedef typename engine_type::update_functor_type update_functor_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;
-    typedef icallback<Graph> base;
-    typedef ischeduler<Graph> scheduler_type;
+    typedef typename engine_type::ischeduler_type ischeduler_type;
 
-    typedef typename base::iengine_type iengine_type;
-    typedef typename base::update_task_type update_task_type;
-    typedef typename base::update_function_type update_function_type;
-   
-  protected: 
-  
-
-    typedef std::pair<update_task_type, double> task_priority_pair;
-    
-    scheduler_type* scheduler;    /// a pointer to the owning scheduler
-    iengine_type* engine; 
-    bool buffering_enabled;
-    std::vector< task_priority_pair > tasks; /// The collection of tasks inserted
+  private:
+    engine_type* engine_ptr;
+    //    ischeduler_type* scheduler_ptr;
   public:
   
-    direct_callback(scheduler_type* scheduler = NULL,
-                    iengine_type* engine = NULL) :
-      scheduler(scheduler), engine(engine),
-      buffering_enabled(false) { }
-  
-    ~direct_callback() { }
+    direct_callback(engine_type* engine_ptr = NULL) :
+      engine_ptr(engine_ptr) {} 
 
-
-    void set_engine(iengine_type* eng) {
-      engine = eng;
-    }
-  
-    void enable_buffering() {
-      buffering_enabled = true;
+    void schedule(const vertex_id_type& vertex, 
+                  const update_functor_type& update_fun) {
+      engine_ptr->schedule(vertex, update_fun);
     }
 
-  
-    void add_task(update_task_type task, double priority) {
-      assert(task.function() != NULL);
-      if (!buffering_enabled) {
-      	scheduler->add_task(task, priority);  
-      } else {
-      	tasks.push_back(task_priority_pair(task, priority));
-      }
-    }
-  
-    void add_tasks(const std::vector<vertex_id_type> &vertices,
-                   update_function_type func,
-                   double priority) {
-      foreach(vertex_id_type vertex, vertices) {
-        add_task(update_task_type(vertex, func), priority);
-      }    
-    }
-    
-    
-    int num_of_buffered_tasks() {
-      return (int)tasks.size();
-    }
-    
-    
-    
-    void commit() {
-      if(buffering_enabled) {
-        foreach(task_priority_pair tp, tasks) {
-          scheduler->add_task(tp.first, tp.second);
-        }
-        tasks.clear();
-      }
+    void schedule_in_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun) {
+      logstream(LOG_FATAL) << "Unsupported call!" << std::endl;
     }
 
-    void force_abort() {
-      assert(engine != NULL);
-      engine->stop();
+    virtual void schedule_in_neighbors(const vertex_id_type& vertex, 
+                                       const update_functor_type& update_fun) {
+      logstream(LOG_FATAL) << "Unsupported call!" << std::endl;
     }
     
-    
+    /**
+     * Calling this function will force the engine to abort
+     * immediately
+     */
+    virtual void terminate() {
+      engine_ptr->stop();
+    };
+
   };
 }
 

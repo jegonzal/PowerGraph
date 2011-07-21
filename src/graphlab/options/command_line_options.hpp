@@ -25,12 +25,12 @@
 #define GRAPHLAB_COMMAND_LINE_OPTIONS
 
 #include <string>
-
+#include <vector>
 
 #include <boost/program_options.hpp>
 
 
-#include <graphlab/engine/engine_options.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 
 
 namespace boost {
@@ -151,7 +151,7 @@ namespace graphlab {
   
   
   */
-  class command_line_options : public engine_options {
+  class command_line_options : public graphlab_options {
 
     boost::program_options::options_description desc;
     boost::program_options::positional_options_description 

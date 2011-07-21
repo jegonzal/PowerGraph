@@ -36,107 +36,58 @@
 
 #include <graphlab/graph/graph.hpp>
 
+#include <graphlab/scope/consistency_model.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-  /** \brief defines the types of scope consistency guarantees provided  
-   
-      There are several choices for consistency mechanisms in the
-      graphlab framework.  Each choice determines to what extent
-      adjacent vertices can be operated on in parallel.  
 
-      <ul> 
 
-        <li> Null Consistency: provides no guarantees allowing update
-        functions to operate on the same vertex concurrently </li>
 
-        <li> Vertex Read Consistency: On ensures that that you can
-        read from the local vertex correctly</li>
-
-        <li> Vertex Consistency: Ensures that a scope is aquired by
-        only one processor at a time </li>
-
-        <li> Edge Consistency: Ensures that adjacent vertices are not
-        updated simultaneoulsy. If the update function only modifies
-        the data on the scope vertex and its adjacent edges then this
-        consistency model is sufficient to guarantee sequential
-        consistency </li>
-
-        <li> Fully Consistency: This consistency models guarantees
-        sequential consistency but may limit the available
-        parallelism.  Effectively, this consistency model ensures that
-        overlapping scopes cannot be executed simultaneously.</li>
-
-      </ul>
-
-      The scope_range_enum is passed to the engine through the iengine
-      interface or set using the engine factory.
- 
-   */
-  struct scope_range {
-    /// \brief scope types
-    enum scope_range_enum {
-      NULL_CONSISTENCY = 0,    ///< no locks
-      VERTEX_READ_CONSISTENCY, ///< read only from self
-      READ_CONSISTENCY,        ///< read from self and adjacent structures
-      VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
-      EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
-      FULL_CONSISTENCY,        ///< write to self and adjacent structures
-      USE_DEFAULT
-    };
-    
-    enum lock_type_enum {
-      NO_LOCK = 0,
-      READ_LOCK = 1,
-      WRITE_LOCK = 2
-    };
-  };
-
-  inline scope_range::lock_type_enum central_vertex_lock_type(scope_range::scope_range_enum srange) {
+  inline consistency_model::lock_type_enum central_vertex_lock_type(consistency_model::model_enum srange) {
     switch (srange) {
-      case scope_range::NULL_CONSISTENCY:
-        return scope_range::NO_LOCK;
-      case scope_range::VERTEX_READ_CONSISTENCY:
-      case scope_range::READ_CONSISTENCY:
-        return scope_range::READ_LOCK;
-      case scope_range::VERTEX_CONSISTENCY:
-      case scope_range::EDGE_CONSISTENCY:
-      case scope_range::FULL_CONSISTENCY:
-        return scope_range::WRITE_LOCK;
+      case consistency_model::NULL_CONSISTENCY:
+        return consistency_model::NO_LOCK;
+      case consistency_model::VERTEX_READ_CONSISTENCY:
+      case consistency_model::READ_CONSISTENCY:
+        return consistency_model::READ_LOCK;
+      case consistency_model::VERTEX_CONSISTENCY:
+      case consistency_model::EDGE_CONSISTENCY:
+      case consistency_model::FULL_CONSISTENCY:
+        return consistency_model::WRITE_LOCK;
       default:
         assert(false);
         // unreachable
-        return scope_range::NO_LOCK;
+        return consistency_model::NO_LOCK;
     }
   }
 
-  inline scope_range::lock_type_enum adjacent_vertex_lock_type(scope_range::scope_range_enum srange) {
+  inline consistency_model::lock_type_enum adjacent_vertex_lock_type(consistency_model::model_enum srange) {
     switch (srange) {
-      case scope_range::NULL_CONSISTENCY:
-      case scope_range::VERTEX_READ_CONSISTENCY:
-      case scope_range::VERTEX_CONSISTENCY:
-        return scope_range::NO_LOCK;
-      case scope_range::READ_CONSISTENCY:
-      case scope_range::EDGE_CONSISTENCY:
-        return scope_range::READ_LOCK;
-      case scope_range::FULL_CONSISTENCY:
-        return scope_range::WRITE_LOCK;
+      case consistency_model::NULL_CONSISTENCY:
+      case consistency_model::VERTEX_READ_CONSISTENCY:
+      case consistency_model::VERTEX_CONSISTENCY:
+        return consistency_model::NO_LOCK;
+      case consistency_model::READ_CONSISTENCY:
+      case consistency_model::EDGE_CONSISTENCY:
+        return consistency_model::READ_LOCK;
+      case consistency_model::FULL_CONSISTENCY:
+        return consistency_model::WRITE_LOCK;
       default:
         assert(false);
         // unreachable
-        return scope_range::NO_LOCK;
+        return consistency_model::NO_LOCK;
     }
   }
 
 
-  inline bool scope_is_subset_of(scope_range::scope_range_enum A,
-                                 scope_range::scope_range_enum B) {
+  inline bool scope_is_subset_of(consistency_model::model_enum A,
+                                 consistency_model::model_enum B) {
     /*
-    if (A==scope_range::READ_CONSISTENCY && B == scope_range::VERTEX_CONSISTENCY) return false;
+    if (A==consistency_model::READ_CONSISTENCY && B == consistency_model::VERTEX_CONSISTENCY) return false;
     else return (A < B);*/
     
-    return (!(A==scope_range::READ_CONSISTENCY && B == scope_range::VERTEX_CONSISTENCY)) && (A < B);
+    return (!(A==consistency_model::READ_CONSISTENCY && B == consistency_model::VERTEX_CONSISTENCY)) && (A < B);
   }
 
   /**
@@ -411,7 +362,7 @@ namespace graphlab {
     reacquiring the upgraded scope.
     */
     virtual bool 
-    experimental_scope_upgrade(scope_range::scope_range_enum newrange) { 
+    experimental_scope_upgrade(consistency_model::model_enum newrange) { 
       return false;
     }
 

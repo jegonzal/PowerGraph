@@ -21,18 +21,19 @@
  */
 
 
-// #include <graphlab/schedulers/clustered_priority_scheduler.hpp>
 
-#include <graphlab/schedulers/fifo_scheduler.hpp>
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
-// #include <graphlab/schedulers/ischeduler.hpp>
-// #include <graphlab/schedulers/icallback.hpp>
-// #include <graphlab/schedulers/sweep_scheduler.hpp>
-// #include <graphlab/schedulers/multiqueue_fifo_scheduler.hpp>
-// #include <graphlab/schedulers/multiqueue_priority_scheduler.hpp>
-// #include <graphlab/schedulers/priority_scheduler.hpp>
-// #include <graphlab/schedulers/round_robin_scheduler.hpp>
-// #include <graphlab/schedulers/chromatic_scheduler.hpp>
-// #include <graphlab/schedulers/sampling_scheduler.hpp>
 
+
+#include <graphlab/options/command_line_options.hpp>
+#include <graphlab/options/options_map.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 

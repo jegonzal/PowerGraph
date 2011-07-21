@@ -21,8 +21,9 @@
  */
 
 
-#include <graphlab/util/command_line_options.hpp>
+#include <graphlab/options/command_line_options.hpp>
 #include <graphlab/schedulers/scheduler_list.hpp>
+
 #include <graphlab/distributed2/distributed_scheduler_list.hpp>
 
 namespace boost {  
@@ -60,8 +61,6 @@ namespace graphlab {
     
     size_t ncpus(get_ncpus());
     std::string enginetype(get_engine_type());
-    bool cpuaffin(get_cpu_affinities());
-    bool schedyield(get_sched_yield());
     std::string scopetype(get_scope_type());
     std::string schedulertype(get_scheduler_type());
     std::string metricstype(get_metrics_type());
@@ -78,14 +77,6 @@ namespace graphlab {
           boost_po::value<std::string>(&(enginetype))->
           default_value(enginetype),
           "Options are {async, async_sim, synchronous}")
-          ("affinities",
-          boost_po::value<bool>(&(cpuaffin))->
-          default_value(cpuaffin),
-          "Enable forced assignment of threads to cpus")
-          ("schedyield",
-          boost_po::value<bool>(&(schedyield))->
-          default_value(schedyield),
-          "Enable yielding when threads conflict in the scheduler.")
           ("scope",
           boost_po::value<std::string>(&(scopetype))->
           default_value(scopetype),
@@ -104,8 +95,7 @@ namespace graphlab {
             + get_scheduler_names_str() +
             ". Too see options for each scheduler, run the program with the option"
             " ---schedhelp=[scheduler_name]").c_str());
-      }
-      else {
+      } else {
         // Set the program options
         desc.add_options()
           ("ncpus",
@@ -164,20 +154,17 @@ namespace graphlab {
         std::string schedname = vm["schedhelp"].as<std::string>();
         if (schedname != "") {
           print_scheduler_info(schedname, std::cout);
-        }
-        else {
+        } else {
           std::vector<std::string> schednames = get_scheduler_names();
           for(size_t i = 0;i < schednames.size(); ++i) {
             print_scheduler_info(schednames[i], std::cout);
           }
         }
-      }
-      else {
+      } else {
         std::string schedname = vm["schedhelp"].as<std::string>();
         if (schedname != "") {
           print_distributed_scheduler_info(schedname, std::cout);
-        }
-        else {
+        } else {
           std::vector<std::string> schednames = get_distributed_scheduler_names();
           for(size_t i = 0;i < schednames.size(); ++i) {
             print_distributed_scheduler_info(schednames[i], std::cout);
@@ -211,9 +198,6 @@ namespace graphlab {
                 << std::endl;
       return false;
     }
-
-    set_cpu_affinities(cpuaffin);
-    set_sched_yield(schedyield);
 
     if(!set_scope_type(scopetype)) {
       std::cout << "Invalid scope type! : " << scopetype

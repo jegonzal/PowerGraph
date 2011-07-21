@@ -29,6 +29,8 @@
 #include <ostream>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/schedulers/scheduler_options.hpp>
+
+
 #include <graphlab/metrics/metrics.hpp>
 
 namespace graphlab {
@@ -42,30 +44,10 @@ namespace graphlab {
     enum status_enum {
       NEWTASK,      /**< The get_next_tasks function returned a new task 
                         to be executed */
-      EMPTY,         /**< The schedule is empty. */
-      
-      /// Deprecated options. to be phased out. do not use.
-      WAITING,      /// \deprecated
-      COMPLETE      /// \deprecated
+      EMPTY,         /**< The schedule is empty. */      
     };
   };
-  
- /// \deprecated
-  struct scheduler_options_enum {
-    /// \deprecated
-    enum options_enum {
-      UPDATE_FUNCTION,    /// used by 1-update function schedulers
-      MAX_ITERATIONS,     /// maximum iteration count. Used by round-robin
-      START_VERTEX,       /// vertex to start at. used by round-robin
-      VERTICES_PER_PARTITION,  /// Used by cluster_priority
-      PARTITION_METHOD,        /// Used by cluster_priority
-      SWEEP_PERMUTE,           /// used by sweep scheduler
-      SPLASH_SIZE,             /// used by splash scheduler
-      BARRIER,
-      DISTRIBUTED_CONTROL
-    };
-  };
-  
+
 
   /**
    * \ingroup group_schedulers
@@ -80,20 +62,16 @@ namespace graphlab {
   public:
 
     typedef Engine engine_type;
-    typedef typename engine_type::graph_type       graph_type;
+    typedef typename engine_type::graph_type           graph_type;
+    typedef typename engine_type::update_functor_type  update_functor_type;
+
     typedef typename graph_type::vertex_id_type    vertex_id_type;
     typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::vertex_color_type vertex_color_type;
+
+
     
 
-    /** 
-     * Constructor: The scheduler must be provided with the graph, and the 
-     * number of cpus.  All initialization of the scheduler internal state must
-     * be performed here.
-     *
-     */
-    //    ischeduler(iengine_type* engine, Graph& g, size_t ncpus) : monitor(NULL) { }
-    ischeduler() : monitor(NULL) {}
     
     /// destructor
     virtual ~ischeduler() {};
@@ -109,31 +87,17 @@ namespace graphlab {
      * Adds an update task with a particular priority. 
      * This function may be called at anytime.
      */
-    virtual void add_task(update_task_type task, double priority) = 0;
+    virtual void schedule(vertex_id_type vid, 
+                          const update_functor_type& fun) = 0;
     
-    /** 
-     * Creates a collection of tasks on all the vertices in
-     * 'vertices', and all with the same update function and priority
-     * This function may be called at anytime.
-     */
-    virtual void add_tasks(const std::vector<vertex_id_type>& vertices, 
-                           update_function_type func, double priority) = 0;
     
     /** 
      * Creates a collection of tasks on all the vertices in the graph,
      * with the same update function and priority
      * This function may be called at anytime.
      */
-    virtual void add_task_to_all(update_function_type func, 
-                                 double priority) = 0;
-    
-    /**
-     * This function returns a reference to the scheduling callback to
-     * be used for a particular cpu. This callback will be passed to
-     * update functions, and is the main interface which allow the
-     * update functions to create new tasks.
-     */
-    virtual callback_type& get_callback(size_t cpuid) = 0;
+    virtual void schedule_all(const update_functor_type& fun) = 0;
+
 
     /**
      * This function is called by the engine to ask for new work to
@@ -144,68 +108,69 @@ namespace graphlab {
      * 
      *  \retval EMPTY There are no tasks available in the scheduler.
      */
-    virtual sched_status::status_enum get_next_task(size_t cpuid, 
-                                       update_task_type &ret_task) = 0;
+    virtual sched_status::status_enum 
+    get_next(size_t cpuid,
+             vertex_id_type& ret_vid,
+             update_functor_type& ret_fun) = 0;
+
+
 
     /**
      * This is called after a task has been executed
      */
-    virtual void completed_task(size_t cpuid, 
-                                const update_task_type &task) = 0;
-
-
-    /** Installs a listener (done by the engine) */
-    virtual void register_monitor(monitor_type* monitor_) { 
-      monitor = monitor_;
-    }
-
+    virtual void completed(size_t cpuid,
+                           vertex_id_type vid,
+                           const update_functor_type& fun) { }
+    
+    /**
+     * Set the scheduler options.
+     */
     virtual void set_options(const scheduler_options &opts) { };
 
+
+    /**
+     * Print a help string describing the options that this scheduler
+     * accepts.
+     */
     static void print_options_help(std::ostream &out) { };
 
-
-    /// UNUSED!!! Only used for temporary backward compatibility with the distributed code
-    virtual void set_option(scheduler_options_enum::options_enum, void*) { };
+   
     
-    /** Returns a reference to the terminator */
-    terminator_type& get_terminator() {
-      return terminator;
-    };
+    // /**
+    //  * Return the metrics information logged by the engine.
+    //  * \see dump_metrics reset_metrics
+    //  */
+    // virtual metrics get_metrics() {
+    //   return metrics();
+    // }
 
-    /**
-     * Return the metrics information logged by the engine.
-     * \see dump_metrics reset_metrics
-     */
-    virtual metrics get_metrics() {
-      return metrics();
-    }
-
-    /**
-     * Clears all logged metrics
-     * \see dump_metrics get_metrics
-     */
-    virtual void reset_metrics() { }
+    // /**
+    //  * Clears all logged metrics
+    //  * \see dump_metrics get_metrics
+    //  */
+    // virtual void reset_metrics() { }
     
-    /**
-     * Writes out the metrics information logged by the engine
-     * and all subordinate classes.
-     *
-     * Scheduler writers should note that for dump_metrics() to work,
-     * the scheduler only has to implement get_metrics()
-     * and reset_metrics(). Default behavior is to report the metrics
-     * returned by get_metrics() and call reset_metrics().
-     * This behavior may be overridden by implementing this function.
-     *
-     * \see get_metrics reset_metrics
-     */
-    virtual void report_metrics(imetrics_reporter &reporter) {
-      get_metrics().report(reporter);
-    }
 
-
-  protected:
-    monitor_type* monitor;
-
+    //   /**
+    //    * Writes out the metrics information logged by the engine
+    //    * and all subordinate classes.
+    //    *
+    //    * Scheduler writers should note that for dump_metrics() to work,
+    //    * the scheduler only has to implement get_metrics()
+    //    * and reset_metrics(). Default behavior is to report the metrics
+    //    * returned by get_metrics() and call reset_metrics().
+    //    * This behavior may be overridden by implementing this function.
+    //    *
+    //    * \see get_metrics reset_metrics
+    //    */
+    //   virtual void report_metrics(imetrics_reporter &reporter) {
+    //     get_metrics().report(reporter);
+    //   }
+    
+    
+    // protected:
+    //   monitor_type* monitor;
+    
   };
 
 }

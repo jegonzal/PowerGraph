@@ -37,23 +37,25 @@
 #include <cmath>
 #include <cassert>
 #include <algorithm>
+
 #include <boost/bind.hpp>
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/random.hpp>
-#include <graphlab/util/mutable_queue.hpp>
+
+
+
+#include <graphlab/options/graphlab_options.hpp>
 
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/tasks/update_task.hpp>
 #include <graphlab/logger/logger.hpp>
-#include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/shared_data/glshared.hpp>
-#include <graphlab/engine/scope_manager_and_scheduler_wrapper.hpp>
-#include <graphlab/metrics/metrics.hpp>
+
+
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -62,52 +64,64 @@ namespace graphlab {
   /**
    * This class defines a basic shared_memory engine
    */
-  template<typename Graph>
-  class shared_memory_engine : public iengine<Graph> {
+  template<typename Graph, typename UpdateFunctor>
+  class shared_memory_engine : 
+    public iengine<Graph, UpdateFunctor> {
     
   public:
 
     // Include parent types
-    typedef iengine<Graph> iengine_base;
+    typedef iengine<Graph, UpdateFunctor> iengine_base;
+    typedef typename iengine_base::graph_type graph_type;
+    typedef typename iengine_base::update_functor_type update_functor_type;
+
     typedef typename iengine_base::vertex_id_type vertex_id_type;
-    typedef typename iengine_base::update_task_type update_task_type;
-    typedef typename iengine_base::update_function_type update_function_type;
     typedef typename iengine_base::ischeduler_type ischeduler_type;
     typedef typename iengine_base::imonitor_type imonitor_type;
+    typedef typename iengine_base::icallback_type icallback_type;
     typedef typename iengine_base::termination_function_type termination_function_type;
     typedef typename iengine_base::iscope_type iscope_type;
     typedef typename iengine_base::sync_function_type sync_function_type;
     typedef typename iengine_base::merge_function_type merge_function_type;
 
+    typedef direct_callback<graph_type, update_functor_type> callback_type;
     
     typedef general_scope_factor<Graph> scope_factory_type;
     
   private:
 
     //! The Graph that the engine is operating on
-    graph_type* graph;
+    graph_type& graph;
    
+    //! The local engine options
+    graphlab_options opts; 
+
     /** 
      * The number vertices in the graph.  This number is set when
      * internal data structures are initialized and is used to track
      * whether the graph has changed externally since the engine was
      * last executed.
      */
-    size_t nverts;
+    size_t previous_nverts;
     
     //! The active scope factory
     scope_factory_type* scope_factory_ptr;
-
+    
     //! The active scheduler
     ischeduler_type* scheduler_ptr;
     
-    //! The local engine options
-    engine_options eopts;
+    //! the active terminator
+    iterminator* terminator_ptr;    
+    
+    //! The callbacks for each cpu
+    std::vector<callback_type> callbacks;
+
+
    
   public:
    
     //! Create an engine for the given graph
-    shared_memory_engine(Graph& graph);
+    shared_memory_engine(graph_type& graph);
     
     //! Clear internal members
     ~shared_memory_engine();
@@ -119,43 +133,39 @@ namespace graphlab {
     void stop();
     
     //! \brief Describe the reason for termination.
-    exec_status last_exec_status();
+    execution_status::status_enum last_exec_status();
 
     //! \brief Get the number of updates executed by the engine.
     size_t last_update_count();
 
         
-    //! \brief Register a monitor with an engine. 
-    void register_monitor(imonitor_type* listener);
     
     //! \brief Adds an update task with a particular priority.
-    void add_task(update_task_type task, double priority);
-
-    //! \brief Add a vector of tasks
-
-    void add_task(const std::vector<vertex_id_type>& vertices,
-                  update_function_type func, double priority);
+    void schedule(vertex_id_type vid,
+                  const update_functor_type& update_functor);
 
  
     //! \brief Apply update function to all the vertices in the graph
-    void add_task_to_all(update_function_type func,
-                         double priority);
+    void schedule_all(const update_functor_type& update_functor);
+
 
     //! \brief associate a termination function with this engine.
-    void add_terminator(termination_function_type term) = 0;
+    void add_termination_condition(termination_function_type term) = 0;
 
     //!  remove all associated termination functions
-    void clear_terminators();
+    void clear_termination_condition();
     
     //! \brief The timeout is the total
     void set_timeout(size_t timeout_secs);
 
-    
     //! \brief set a limit on the number of tasks that may be executed.
     void set_task_budget(size_t max_tasks);
 
     //! \brief Update the engine options.  
-    void set_engine_options(const engine_options& opts);
+    void set_options(const graphlab_options& opts);
+
+    //! \brief Get the current engine options for this engine
+    const graphlab_options& get_options(); 
 
 
     //! \brief Registers a sync with the engine.
@@ -171,20 +181,17 @@ namespace graphlab {
 
     //! Performs a sync immediately.
     virtual void sync_now(glshared_base& shared) = 0;
-    
+
+    //! reset the engine
+    void clear();
+
+  private:
+    void initialize_members();
 
 
-
-    ///////////////////////////////////////////////////////////////
-    /// New Functions
-
-
-    /** 
-     * This function clears an internal engine state other than the
-     * graph and the engine options.
-     */
-    void reset();
-
+    void run_once(size_t cpuid);
+    void evaluate_sync_queue(size_t cpuid);
+    bool evaluate_termination_conditions(size_t cpuid);
         
   }; // end of shared_memory engine
 
@@ -194,35 +201,46 @@ namespace graphlab {
   /////////////////////////////////////////////////////////////////////////
   /// Implementation
 
-  template<typename Graph> 
-  shared_memory_engine<Graph>::
-  shared_memory_engine(Graph& graph) : 
-    graph(&graph), 
-    nvert(graph.num_vertices()),
+  template<typename Graph, typename UpdateFunctor> 
+  shared_memory_engine<Graph, UpdateFunctor>::
+  shared_memory_engine(graph_type& graph) : 
+    graph(graph), 
+    previous_nverts(graph.num_vertices()),
     scope_factory_ptr(NULL),
-    scheduler_ptr(NULL) { } // end of constructor
+    scheduler_ptr(NULL),
+    terminator(NULL) {  
+  } // end of constructor
 
 
-  template<typename Graph> 
-  shared_memory_engine<Graph>::
-  ~shared_memory_engine(Graph& graph) {
-    clear_members();
+  template<typename Graph, typename UpdateFunctor> 
+  shared_memory_engine<Graph, UpdateFunctor>::
+  ~shared_memory_engine(graph_type& graph) {
+    clear();
   } // end of destructor
 
 
-  template<typename Graph>
-  void
-  shared_memory_engine<Graph>::
-  set_engine_options(const engine_options& new_opts) {
-    clear_members();
-    eopts = new_opts;
-  } // end of set_engine_options
 
-  template<typename Graph>
+  template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph>::reset() {
-    ASSERT_TRUE((scope_factory_ptr != NULL && scheduler_ptr != NULL) ||
-                (scope_factor_ptr == NULL && scheduler_ptr == NULL));
+  shared_memory_engine<Graph, UpdateFunctor>::
+  set_options(const graphlab_options& new_opts) {
+    clear();
+    eopts = opts;
+  } // end of set_options
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  get_options(const graphlab_options& new_opts) {
+    return opts;
+  } // end of set_options
+
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  clear() {
     if(scope_factory_ptr != NULL) {
       delete scope_factory_ptr;
       scope_factory_ptr = NULL;
@@ -231,11 +249,130 @@ namespace graphlab {
       delete scheduler_ptr; 
       scheduler_ptr = NULL;
     }
+    if(terminator_ptr != NULL) {
+      delete terminator_ptr; 
+      terminator_ptr = NULL;
+    }
+
   } // end of clear_members
 
 
 
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  initialize_members() {
+    // If everything is already properly initialized then we don't
+    // need to do anything.
+    if(previous_nverts == graph.nverts &&
+       scope_factory_ptr != NULL &&
+       terminator_ptr != NULL &&
+       scheduler_ptr != NULL) {
+      return;
+    } else {
+      // Force a reset and start over
+      clear();
+      // construct the scope factory
+      ASSERT_TRUE(scope_factory_ptr == NULL);
+      const consistency_model::model_enum scope_range =
+        consistency_model::from_string(opts.scope_type);
+      scope_factory_ptr = 
+        new scope_factory_type(graph, 
+                               opts.get_ncpus(),
+                               scope_range);
+      ASSERT_TRUE(terminator_ptr != NULL);
+
+      // construct the terminator
+      ASSERT_TRUE(terminator_ptr == NULL);                               
+      terminator_ptr = new task_count_terminator();      
+      ASSERT_TRUE(terminator_ptr != NULL);
+
+      // construct the scheduler
+      ASSERT_TRUE(scheduler_ptr == NULL);
+      scheduler_ptr = scheduler_factory<shared_memory_engine>::
+        get_scheduler(opts.scheduler_type,
+                      opts.scheduler_args,
+                      graph,
+                      *terminator_ptr,
+                      opts.ncpus);
+      ASSERT_TRUE(scheduler_ptr != NULL);
+      
+      // set the number of callbacks appropriately
+      callbacks.resize(opts.get_ncpus());
+    }
+      
+  } // end of initialize_members
+
+
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  run_once(size_t cpuid) {
+    // Evaluate pending sync operations
+    evaluate_sync_queue(cpuid);
+    // Evaluate the available termination conditions and if the
+    // program is finished simply return
+    const bool is_finished = evaluate_termination_conditions(cpuid);
+    if(is_finished) return;
+
+    // Get the next task from the scheduler
+    vertex_id_type vid(-1);
+    update_functor_type ufun;
+    sched_status::status_enum stat = 
+      scheduler_ptr->get_next(cpuid, vid, ufun);
+
+    // If we failed to get a task enter the retry /termination loop
+    while(stat == sched_status::EMPTY) {
+      // Enter the critical section
+      terminator_ptr->begin_critical_section(cpuid);
+      // Try again in the critical section
+      stat = scheduler_ptr->get_next(cpuid, vid, ufun);
+      // If we fail again
+      if (stat == sched_status::EMPTY) {
+        // test if the scheduler is finished
+        const bool scheduler_empty = 
+          scheduler_ptr->get_terminator().end_critical_section(cpuid);
+        if(scheduler_empty) {
+          termination_reason = EXEC_TASK_DEPLETION;
+          return;
+        } else {
+          // \todo use sched yield option
+          // if(use_sched_yield) sched_yield();
+        }
+        // cancel the critical section
+        terminator_ptr->cancel_critical_section(cpuid);
+      }
+    } // end of while loop
+    ASSERT_EQ(stat, sched_status::NEW_TASK);
+    ASSERT_LT(vid, graph.num_vertices());
+    
+    // Get the scope
+    iscope_type* scope = 
+      scope_factory_ptr->get_scope(cpuid, vertex, ufun.consistency());
+    ASSERT_TRUE(scope != NULL);
+    
+    // Apply the update functor
+    ufun(*scope, callbacks[cpuid]);
+
+    
+          
+    
+   
+
+
+    
+
+    
+      
+  } // end of run_once
+
   
+
+
+
 
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
