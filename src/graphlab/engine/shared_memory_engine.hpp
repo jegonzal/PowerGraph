@@ -52,6 +52,8 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/iengine.hpp>
+#include <graphlab/scheduler/ischeduler.hpp>
+#include <graphlab/scheduler/scheduler_factor.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/shared_data/glshared.hpp>
 

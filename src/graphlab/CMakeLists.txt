@@ -8,11 +8,12 @@ subdirs(
  graph
  gpu
  monitoring
+ options
  parallel
  schedulers
  scope
  shared_data
- tasks
+ update_functor
  util
  serialization
  logger
@@ -59,10 +60,10 @@ endif()
 
 add_library(graphlab STATIC
   ${metis_sources}
-  schedulers/scheduler_options.cpp
+  options/command_line_options.cpp
+  options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
-  util/command_line_options.cpp
   graph/disk_atom.cpp
   graph/atom_index_file.cpp
   logger/logger.cpp
