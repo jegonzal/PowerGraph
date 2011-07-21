@@ -40,6 +40,7 @@
 #include "io.hpp"
 #include "stats.hpp"
 #include "implicit.hpp"
+#include "lasso.hpp"
 
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
@@ -113,6 +114,10 @@ float implicitratingvalue = 0;
 string implicitratingtype = "none";
 float implicitratingpercentage = 0;
 
+/* sparsity enforcing priors (see reference 11 in pmf.h) */
+int lasso_max_iter = 10;
+double lasso_lambda = 1;
+
 //performance counters
 #define MAX_COUNTER 20
 double counter[MAX_COUNTER];
@@ -169,6 +174,8 @@ void add_tasks(gl_types::core & glcore){
   switch (algorithm){
      case ALS_TENSOR_MULT:
      case ALS_MATRIX:
+     case ALS_SPARSE_FACTOR:
+     case ALS_SPARSE_FACTORS:
      case BPTF_TENSOR:
      case BPTF_TENSOR_MULT:
      case BPTF_MATRIX:
@@ -220,6 +227,8 @@ void init(){
 
    case ALS_MATRIX:
    case ALS_TENSOR_MULT:
+   case ALS_SPARSE_FACTOR:
+   case ALS_SPARSE_FACTORS:
    case WEIGHTED_ALS:
    case BPTF_TENSOR_MULT:
    case BPTF_MATRIX:
@@ -234,7 +243,7 @@ void init(){
 void run_graphlab(gl_types::core &glcore,timer & gt ){
         glcore.start();
         // calculate final RMSE
-        double res, train_rmse =  agg_rmse_by_movie(res), res2;
+        double res, train_rmse =  gg_rmse_by_movie(res), res2;
         double obj = calc_obj(res);
         double validation_rmse = calc_rmse_wrapper(&validation_graph, true, res2);
         printf(printhighprecision ? 
@@ -310,6 +319,10 @@ void start(int argc, char ** argv) {
   clopts.attach_option("implicitratingvalue", &implicitratingvalue, implicitratingvalue, "value for implicit negative ratings");
   clopts.attach_option("implicitratingweight", &implicitratingweight, implicitratingweight, "weight/time for implicit negative ratings");
 
+  //sparsity enforcing priors (see reference 11 in pmf.h)
+  clopts.attach_option("lasso_lambda", &lasso_lambda, lasso_lambda, "Lambda for lasso (weight for L1 regularization for sparsity enforcing priors - ALS_SPARSE_FACTOR, ALS_SPARSE_FACTORS");
+  clopts.attach_option("lasso_max_iter", &lasso_max_iter, lasso_max_iter, "max iter for lasso internal propcedire, for run modes ALS_SPARSE_FACTOR, ALS_SPARSE_FACTORS");
+
   assert(clopts.parse(argc, argv));
   
   if (unittest > 0)
@@ -322,6 +335,8 @@ void start(int argc, char ** argv) {
   // iterative matrix factorization using alternating least squares
   // or SVD ++
   case ALS_MATRIX:
+  case ALS_SPARSE_FACTOR:
+  case ALS_SPARSE_FACTORS:
   case WEIGHTED_ALS:
   case SVD_PLUS_PLUS:
   case STOCHASTIC_GRADIENT_DESCENT:
@@ -439,7 +454,7 @@ void start(int argc, char ** argv) {
     exit(0);
   }
 
-  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX){
+  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX || algorithm == ALS_SPARSE_FACTOR || algorithm == ALS_SPARSE_FACTORS){
     printf("setting regularization weight to %g\n", LAMBDA);
     pU=pV=LAMBDA;
   }
@@ -492,6 +507,8 @@ void start(int argc, char ** argv) {
     switch(algorithm){
       case ALS_TENSOR_MULT:
       case ALS_MATRIX:
+      case ALS_SPARSE_FACTOR:
+      case ALS_SPARSE_FACTORS:
       case WEIGHTED_ALS:
       case BPTF_TENSOR_MULT:
       case BPTF_TENSOR:

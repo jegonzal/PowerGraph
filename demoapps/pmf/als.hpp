@@ -33,11 +33,15 @@ extern runmodes algorithm;
 extern double LAMBDA;
 extern bool regnormal;
 extern double pT;
+extern double lasso_lambda;
+extern int lasso_max_iter;
 mat eDT; 
 vec vones; 
-
 double pU = 10; //regularization for users
 double pV = 10; //regularization for movies
+
+
+vec lasso(mat A, vec b, double lambda, int max_iter, int D);
 
 void init_pmf() {
   if (BPTF)
@@ -193,8 +197,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     if (!regnormal)
 	   regularization*= Q.cols();
 
+   //enforce sparsity priors on resulting factor vector, see algorithm 1, page 4 in Xi et. al paper
+   if (algorithm == ALS_SPARSE_FACTORS || (algorithm == ALS_SPARSE_FACTOR && isuser)){ 
+       result = lasso(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, lasso_lambda, lasso_max_iter, D); 
+   }
     // compute regular least suqares
-    if (algorithm != WEIGHTED_ALS){
+   else if (algorithm != WEIGHTED_ALS){
        bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
     } 
