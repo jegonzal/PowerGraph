@@ -122,7 +122,7 @@ double calc_obj(double res){
         total = M;
      else if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS)
         total = M+N; 
-     cout<<"Current sparsity : " << sparsity / ((double)D*total) << " %" << endl;
+     cout<<"Current sparsity : of " << runmodesname[algorithm] << " is: " << sparsity / ((double)D*total) << endl;
      obj += absSum;
   }
 

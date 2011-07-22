@@ -201,7 +201,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
    //enforce sparsity priors on resulting factor vector, see algorithm 1, page 4 in Xi et. al paper
    if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || (algorithm == ALS_SPARSE_USR_FACTOR && isuser) || 
       (algorithm == ALS_SPARSE_MOVIE_FACTOR && !isuser)){ 
-       result = CoSaMP(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, (1-desired_factor_sparsity)*D, lasso_max_iter, 1e-4, D); 
+       result = CoSaMP(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, ceil((1.0-desired_factor_sparsity)*(double)D), lasso_max_iter, 1e-4, D); 
    }
     // compute regular least suqares
    else if (algorithm != WEIGHTED_ALS){
