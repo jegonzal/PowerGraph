@@ -243,7 +243,7 @@ void init(){
 void run_graphlab(gl_types::core &glcore,timer & gt ){
         glcore.start();
         // calculate final RMSE
-        double res, train_rmse =  gg_rmse_by_movie(res), res2;
+        double res, train_rmse =  agg_rmse_by_movie(res), res2;
         double obj = calc_obj(res);
         double validation_rmse = calc_rmse_wrapper(&validation_graph, true, res2);
         printf(printhighprecision ? 

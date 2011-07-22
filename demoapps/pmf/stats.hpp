@@ -29,7 +29,8 @@
 #include <graphlab/macros_def.hpp>
 extern int Lt;
 extern mat dp;
-
+extern double lasso_lambda;
+extern runmodes algorithm;
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
 int count_edges(gl_types::edge_list es){
@@ -60,21 +61,42 @@ void count_all_edges(graph_type * _g){
      }
 }
 
+int num_zeros(const vec & pvec){
+   int ret = 0;
+   for (int i=0; i< pvec.size(); i++)
+      if (pvec[i] == 0)
+         ret++;
+
+   return ret;
+
+}
 
 // CALCULATE OBJECTIVE VALUE (Xiong paper)
 double calc_obj(double res){
    
   double sumU = 0, sumV = 0, sumT = 0;
+  double absSum = 0;
+  int sparsity = 0;
+
   timer t;
   t.start(); 
   for (int i=0; i< M; i++){
     const vertex_data * data = &g->vertex_data(i);
     sumU += sum_sqr(data->pvec);
+    if (algorithm == ALS_SPARSE_FACTORS){
+	absSum += sum(abs(data->pvec));
+        sparsity += num_zeros(data->pvec);
+    }
+     
   } 
 
   for (int i=M; i< M+N; i++){
     const vertex_data * data = &g->vertex_data(i);
     sumV += sum_sqr(data->pvec);
+    if (algorithm == ALS_SPARSE_FACTORS || algorithm == ALS_SPARSE_FACTOR){
+       absSum += sum(abs(data->pvec));
+       sparsity += num_zeros(data->pvec);
+    }
   } 
 
 
@@ -91,6 +113,12 @@ double calc_obj(double res){
   counter[CALC_OBJ]+= t.current_time();
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
+
+  if (algorithm == ALS_SPARSE_FACTORS || algorithm == ALS_SPARSE_FACTOR){ //add L1 penalty to objective
+     obj += lasso_lambda * absSum;
+     cout<<"Current sparsity : " << sparsity / ((double)D*(algorithm == ALS_SPARSE_FACTORS?(M+N):N)) << " %" << endl;
+  }
+
   if (debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << pU << " pV: " << pV << endl; 
   return obj;
