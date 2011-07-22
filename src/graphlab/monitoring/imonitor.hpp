@@ -33,33 +33,32 @@
 
 
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/tasks/update_task.hpp>
 #include <graphlab/scope/iscope.hpp>
 
 namespace graphlab {
   
-  // Predecleration 
-  template<typename Graph> class iengine;
   
-  template<typename Graph>
+  template<typename Engine>
   class imonitor {    
   public:
-    
-    typedef Graph graph_type;
+    typedef Engine engine_type;
+    typedef typename engine_type::graph_type graph_type;
+    typedef typename engine_type::update_functor_type update_functor_type;
+    typedef typename engine_type::iscope_type iscope_type;
+
     typedef typename graph_type::vertex_id_type vertex_id_type;
-    typedef update_task<Graph> update_task_type;
-    typedef iscope<Graph> iscope_type;
-    typedef iengine<Graph> iengine_type;
+
 
     /* Initialization, called by the engine */
-    virtual void init(iengine_type* engine) { }
+    virtual void init(engine_type* engine) { }
     
     /* Engine calls */
-    virtual void engine_task_execute_start(update_task_type task, 
+    virtual void engine_task_execute_start(const update_functor_type& ufun,
                                            iscope_type* scope, 
                                            size_t cpuid) { }
     
-    virtual void engine_task_execute_finished(update_task_type task, 
+    virtual void engine_task_execute_finished(vertex_id_type vid,
+                                              const update_functor_type& ufun,
                                               iscope_type* scope, 
                                               size_t cpuid) { }
     
@@ -70,22 +69,23 @@ namespace graphlab {
     
     
     /* Scheduler calls */
-    virtual void scheduler_task_added(update_task_type task, double priority) { }
+    virtual void scheduler_task_added(vertex_id_t vid,
+                                      const update_functor_type& fun) { }
     
-    virtual void scheduler_task_promoted(update_task_type task, 
+    virtual void scheduler_task_promoted(vertex_id_type vid,
+                                         const update_functor_type& fun,
                                          double diffpriority, 
                                          double totalpriority) { }
     
-    virtual void scheduler_task_scheduled(update_task_type task, 
-                                          double current_max_priority) { }
+    virtual void scheduler_task_scheduled(vertex_id_type vid,
+                                          const update_functor_type& fun) { }
     
-    virtual void scheduler_task_pruned(update_task_type task) { }
     
     /* Application calls */
-    virtual void app_set_vertex_value(vertex_id_type vid, double value) { }
+    // virtual void app_set_vertex_value(vertex_id_type vid, double value) { }
     
     /* Called by application to help visualizers to scale values properly */
-    virtual void app_set_vertex_value_scale(double min, double max) { }
+    // virtual void app_set_vertex_value_scale(double min, double max) { }
     
   };
 }

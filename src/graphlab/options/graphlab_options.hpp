@@ -21,10 +21,21 @@
  */
 
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
+
 #ifndef GRAPHLAB_GRAPHLAB_OPTIONS_HPP
 #define GRAPHLAB_GRAPHLAB_OPTIONS_HPP
 
-#include <graphlab/util/options_map.hpp>
+#include <graphlab/options/options_map.hpp>
  
 namespace graphlab {
 

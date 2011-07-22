@@ -103,7 +103,8 @@ namespace graphlab {
     // -----------------ACQUIRE SCOPE-----------------------------
     iscope_type* get_scope(size_t cpuid,
                            vertex_id_type v,
-                           consistency_model::model_enum scope = consistency_model::USE_DEFAULT) {
+                           consistency_model::model_enum scope = 
+                           consistency_model::USE_DEFAULT) {
       if (scope == consistency_model::USE_DEFAULT) scope = default_scope;
       
       switch(scope){
@@ -140,10 +141,14 @@ namespace graphlab {
       size_t outidx = 0;
 
       bool curlocked = false;
-      vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
+      const vertex_id_type numv = 
+        vertex_id_type(graph.num_vertices());
       vertex_id_type curv = scope->vertex();
-      vertex_id_type inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
-      vertex_id_type outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+      vertex_id_type inv  = 
+        (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
+      vertex_id_type outv  = 
+        (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -153,15 +158,19 @@ namespace graphlab {
           curv = numv;
         } else if (inv < outv) {
           locks[inv].writelock(); ++inidx;
-          inv = (inedges.size() > inidx) ? graph.source(inedges[inidx]) : numv;
+          inv = (inedges.size() > inidx) ? 
+            graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
           locks[outv].writelock(); ++outidx;
-          outv= (outedges.size() > outidx) ? graph.target(outedges[outidx]) : numv;
-        } else if (inv == outv){
+          outv = (outedges.size() > outidx) ? 
+            graph.target(outedges[outidx]) : numv;
+        } else if (inv == outv) {
           locks[inv].writelock();
           ++inidx; ++outidx;
-          inv = (inedges.size() > inidx) ? graph.source(inedges[inidx]) : numv;
-          outv= (outedges.size() > outidx) ? graph.target(outedges[outidx]) : numv;
+          inv = (inedges.size() > inidx) ? 
+            graph.source(inedges[inidx]) : numv;
+          outv = (outedges.size() > outidx) ? 
+            graph.target(outedges[outidx]) : numv;
         }
       }
       // just in case we never got around to locking it
@@ -185,10 +194,12 @@ namespace graphlab {
       size_t outidx = 0;
 
       bool curlocked = false;
-      vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
+      const vertex_id_type numv = vertex_id_type(graph.num_vertices());
       vertex_id_type curv = scope->vertex();
-      vertex_id_type inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
-      vertex_id_type outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+      vertex_id_type inv  = 
+        (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
+      vertex_id_type outv  = 
+        (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -198,15 +209,19 @@ namespace graphlab {
           curv = numv;
         } else if (inv < outv) {
           locks[inv].readlock(); ++inidx;
-          inv = (inedges.size() > inidx) ? graph.source(inedges[inidx]) : numv;
+          inv = (inedges.size() > inidx) ? 
+            graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
           locks[outv].readlock(); ++outidx;
-          outv= (outedges.size() > outidx) ? graph.target(outedges[outidx]) : numv;
+          outv = (outedges.size() > outidx) ? 
+            graph.target(outedges[outidx]) : numv;
         } else if (inv == outv){
           locks[inv].readlock();
           ++inidx; ++outidx;
-          inv = (inedges.size() > inidx) ? graph.source(inedges[inidx]) : numv;
-          outv= (outedges.size() > outidx) ? graph.target(outedges[outidx]) : numv;
+          inv = (inedges.size() > inidx) ? 
+            graph.source(inedges[inidx]) : numv;
+          outv = (outedges.size() > outidx) ? 
+            graph.target(outedges[outidx]) : numv;
         }
       }
       // just in case we never got around to locking it
@@ -253,10 +268,12 @@ namespace graphlab {
       size_t outidx = 0;
 
       bool curlocked = false;
-      vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
+      const vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
       vertex_id_type curv = scope->vertex();
-      vertex_id_type inv  = (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
-      vertex_id_type outv  = (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
+      vertex_id_type inv  = 
+        (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
+      vertex_id_type outv  = 
+        (outedges.size() > 0) ? graph.target(outedges[0]) : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -266,15 +283,19 @@ namespace graphlab {
           curv = numv;
         } else if (inv < outv) {
           locks[inv].readlock(); ++inidx;
-          inv = (inedges.size() > inidx) ? graph.source(inedges[inidx]) : numv;
+          inv = (inedges.size() > inidx) ? 
+            graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
           locks[outv].readlock(); ++outidx;
-          outv= (outedges.size() > outidx) ? graph.target(outedges[outidx]) : numv;
-        } else if (inv == outv){
+          outv= (outedges.size() > outidx) ? 
+            graph.target(outedges[outidx]) : numv;
+        } else if (inv == outv) {
           locks[inv].readlock();
           ++inidx; ++outidx;
-          inv = (inedges.size() > inidx) ? graph.source(inedges[inidx]) : numv;
-          outv= (outedges.size() > outidx) ? graph.target(outedges[outidx]) : numv;
+          inv = (inedges.size() > inidx) ? 
+            graph.source(inedges[inidx]) : numv;
+          outv = (outedges.size() > outidx) ? 
+            graph.target(outedges[outidx]) : numv;
         }
       }
       // just in case we never got around to locking it

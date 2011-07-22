@@ -28,7 +28,6 @@
 
 
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/tasks/update_task.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/macros_def.hpp>
@@ -43,12 +42,14 @@ namespace graphlab {
       * simultaneously.
       */
   
-  template<typename Graph>
+  template<typename Engine>
   class monitor_multiplexer : 
-    public imonitor<Graph> {
+    public imonitor<Engine> {
   public:
-    typedef imonitor<Graph> imonitor_type;
-    typedef typename imonitor_type::update_task_type update_task_type;
+
+    typedef imonitor<Engine> imonitor_type;
+    typedef typename imonitor_type::update_functor_type update_functor_type;
+    typedef typename imonitor_type::graph_type graph_type;
     typedef typename imonitor_type::iengine_type iengine_type;
     typedef typename imonitor_type::iscope_type iscope_type;
     typedef typename imonitor_type::vertex_id_type vertex_id_type;
@@ -61,8 +62,7 @@ namespace graphlab {
         
     ~monitor_multiplexer() {
       foreach (imonitor_type* child, children) {
-        if(child != NULL)
-          delete child;
+        if(child != NULL) delete child;        
       }
     }
 
@@ -79,36 +79,37 @@ namespace graphlab {
     
     /* Initialization, called by the engine */
     void init(iengine_type* engine) {
-      foreach (imonitor_type * child, children) child->init(engine);
+      foreach (imonitor_type* child, children) child->init(engine);
     }
     
     /* Engine calls */
-    void engine_task_execute_start(update_task_type task, 
+    void engine_task_execute_start(const update_functor_type& ufun,
                                    iscope_type* scope, 
-                                   size_t cpuid) { 
-      foreach (imonitor_type * child, children) {
-        child->engine_task_execute_start(task, scope, cpuid);
+                                   size_t cpuid) {
+      foreach (imonitor_type* child, children) {
+        child->engine_task_execute_start(ufun, scope, cpuid);
       }                                      
     }
     
-    void engine_task_execute_finished(update_task_type task, 
+    void engine_task_execute_finished(vertex_id_type vid,
+                                      const update_functor_type& ufun,
                                       iscope_type* scope, 
-                                      size_t cpuid) { 
-      foreach (imonitor_type * child, children) {
-        child->engine_task_execute_finished(task, scope, cpuid);
+                                      size_t cpuid) {
+      foreach (imonitor_type* child, children) {
+        child->engine_task_execute_finished(vid, ufun, scope, cpuid);
       }                                      
     }
     
     
     void engine_worker_starts(size_t cpuid) { 
-      foreach (imonitor_type * child, children) {
+      foreach (imonitor_type* child, children) {
         child->engine_worker_starts(cpuid);
       }                                      
     }
     
     
     void engine_worker_dies(size_t cpuid, int taskcount){ 
-      foreach (imonitor_type * child, children) {
+      foreach (imonitor_type* child, children) {
         child->engine_worker_dies(cpuid, taskcount);
       }                                      
     }
@@ -117,50 +118,52 @@ namespace graphlab {
     
     
     /* Scheduler calls */
-    void scheduler_task_added(update_task_type task, double priority){ 
+    void scheduler_task_added(vertex_id_t vid,
+                              const update_functor_type& fun) {
       foreach (imonitor_type * child, children) {
-        child->scheduler_task_added(task, priority);
+        child->scheduler_task_added(vid, fun);
       }                                      
     }
     
     
-    void scheduler_task_promoted(update_task_type task, 
+    void scheduler_task_promoted(vertex_id_type vid,
+                                 const update_functor_type& fun,
                                  double diffpriority, 
-                                 double totalpriority){ 
+                                 double totalpriority) {
       foreach (imonitor_type * child, children) {
-        child->scheduler_task_promoted(task, diffpriority, totalpriority);
+        child->scheduler_task_promoted(vid, fun, diffpriority, totalpriority);
       }                                      
     }
     
     
-    void scheduler_task_scheduled(update_task_type task, 
-                                  double current_max_priority){ 
+    void scheduler_task_scheduled(vertex_id_type vid,
+                                  const update_functor_type& fun) {
       foreach (imonitor_type * child, children) {
-        child->scheduler_task_scheduled(task, current_max_priority);
+        child->scheduler_task_scheduled(vid, fun);
       }                                      
     }
     
     
-    void scheduler_task_pruned(update_task_type task) { 
-      foreach (imonitor_type * child, children) {
-        child->scheduler_task_pruned(task);
-      }                                      
-    }
+    // void scheduler_task_pruned(update_task_type task) { 
+    //   foreach (imonitor_type * child, children) {
+    //     child->scheduler_task_pruned(task);
+    //   }                                      
+    // }
     
-    /* Application calls */
-    void app_set_vertex_value(vertex_id_type vid, double value) { 
-      foreach (imonitor_type * child, children) {
-        child->app_set_vertex_value(vid, value);
-      }                                      
-    }
+    // /* Application calls */
+    // void app_set_vertex_value(vertex_id_type vid, double value) { 
+    //   foreach (imonitor_type * child, children) {
+    //     child->app_set_vertex_value(vid, value);
+    //   }                                      
+    // }
     
     
-    /* Called by application to help visualizers to scale values properly */
-    void app_set_vertex_value_scale(double min, double max) { 
-      foreach (imonitor_type * child, children) {
-        child->app_set_vertex_value_scale(min, max);
-      }                                      
-    }
+    // /* Called by application to help visualizers to scale values properly */
+    // void app_set_vertex_value_scale(double min, double max) { 
+    //   foreach (imonitor_type * child, children) {
+    //     child->app_set_vertex_value_scale(min, max);
+    //   }                                      
+    // }
     
 
 

@@ -49,15 +49,15 @@ namespace graphlab {
   public:
     typedef Graph graph_type;
     typedef typename graph_type::vertex_data_type vertex_data_type;
-    typedef typename graph_Type::edge_data_type   edge_data_type;
-    typedef typename iscope<graph_type> iscope_type;
-    typedef typename icallback<Graph, iupdate_functor> icallback_type;
+    typedef typename graph_type::edge_data_type   edge_data_type;
+    typedef iscope<graph_type> iscope_type;
+    typedef icallback<graph_type, iupdate_functor> icallback_type;
 
     
     /**
      * The main part of an update functor
      */
-    virtual void operator()(iscope_type& scope, icallback_type& callback) = 0;
+    virtual void operator()(iscope_type& scope, icallback_type& callback) { }
 
 
     /**

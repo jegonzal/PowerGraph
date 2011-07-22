@@ -21,17 +21,20 @@
  */
 
 
-#ifndef GRAPHLAB_GLSHARED_HPP
-#define GRAPHLAB_GLSHARED_HPP
-#include <boost/shared_ptr.hpp>
-#include <boost/function.hpp>
-#include <boost/type_traits/function_traits.hpp>
-#include <boost/type_traits/remove_reference.hpp>
+#ifndef GRAPHLAB_IGLSHARED_HPP
+#define GRAPHLAB_IGLSHARED_HPP
 
-#include <graphlab/parallel/atomic.hpp>
-#include <graphlab/parallel/pthread_tools.hpp>
+// #include <boost/shared_ptr.hpp>
+// #include <boost/function.hpp>
+// #include <boost/type_traits/function_traits.hpp>
+// #include <boost/type_traits/remove_reference.hpp>
+
+// #include <graphlab/parallel/atomic.hpp>
+// #include <graphlab/parallel/pthread_tools.hpp>
+// #include <graphlab/logger/assertions.hpp>
+
+
 #include <graphlab/util/generics/any.hpp>
-#include <graphlab/logger/assertions.hpp>
 
 namespace graphlab {
 
@@ -93,9 +96,9 @@ namespace graphlab {
      * calls applyfn.
      */
     template<typename T, void (*applyfn)(T&, const any&) >  
-    void static::apply_adapter(any &d, const any& param) {
-    applyfn(d.as<T>(), param);
-  }
+    void static apply_adapter(any& d, const any& param) {
+      applyfn(d.as<T>(), param);
+    } // end of apply adapter
 
   };
 

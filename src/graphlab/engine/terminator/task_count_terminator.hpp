@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_TASK_COUNT_TERMINATION_HPP
-#define GRAPHLAB_TASK_COUNT_TERMINATION_HPP
+#ifndef GRAPHLAB_TASK_COUNT_TERMINATOR_HPP
+#define GRAPHLAB_TASK_COUNT_TERMINATOR_HPP
 
 #include <cassert>
 
@@ -33,8 +33,8 @@
 namespace graphlab {
   /**
    *  \ingroup util_internal
-   *  termination checker based on task counting.
-   * simple condition variable based shared termination checker.
+   *  terminator checker based on task counting.
+   * simple condition variable based shared terminator checker.
    * When a processor finds that it is out of work, it should call
    * - begin_critical_section(cpuid),
    * - check the state of the queue.
@@ -43,31 +43,31 @@ namespace graphlab {
    * - If (end_critical_section() returns true, the scheduler can terminate.
    * Otherwise it must loop again.
    */
-  class task_count_termination : public iterminator {
+  class task_count_terminator : public iterminator {
     atomic<size_t> newtaskcount;
     atomic<size_t> finishedtaskcount;
-    bool force_termination; //signal computation is aborted
+    bool force_terminator; //signal computation is aborted
 
   public:
-    task_count_termination() : newtaskcount(0), 
+    task_count_terminator() : newtaskcount(0), 
                                finishedtaskcount(0), 
-                               force_termination(false) { }
+                               force_terminator(false) { }
     
-    ~task_count_termination(){ }
+    ~task_count_terminator(){ }
 
     void begin_critical_section(size_t cpuid) { }
     void cancel_critical_section(size_t cpuid)  { }
     
     bool end_critical_section(size_t cpuid) {
       return newtaskcount.value == finishedtaskcount.value 
-        || force_termination;
+        || force_terminator;
     }
     
     void abort(){
-      force_termination = true;
+      force_terminator = true;
     }
 
-    bool is_aborted(){ return force_termination; }
+    bool is_aborted(){ return force_terminator; }
 
 
     void new_job() {

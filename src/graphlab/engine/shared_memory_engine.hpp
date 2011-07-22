@@ -46,18 +46,27 @@
 #include <graphlab/util/random.hpp>
 
 
+#include <graphlab/logger/logger.hpp>
 
 #include <graphlab/options/graphlab_options.hpp>
 
 #include <graphlab/graph/graph.hpp>
+
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/engine/iengine.hpp>
+#include <graphlab/scope/general_scope_factory.hpp>
+
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/scheduler_factor.hpp>
-#include <graphlab/logger/logger.hpp>
+#include <graphlab/scheduler/scheduler_factory.hpp>
+
 #include <graphlab/shared_data/glshared.hpp>
 
 
+
+#include <graphlab/engine/iengine.hpp>
+#include <graphlab/engine/execution_status.hpp>
+#include <graphlab/engine/callback/direct_callback.hpp>
+#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/engine/terminator/task_count_terminator.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -81,14 +90,17 @@ namespace graphlab {
     typedef typename iengine_base::ischeduler_type ischeduler_type;
     typedef typename iengine_base::imonitor_type imonitor_type;
     typedef typename iengine_base::icallback_type icallback_type;
-    typedef typename iengine_base::termination_function_type termination_function_type;
+    typedef typename iengine_base::termination_function_type 
+    termination_function_type;
     typedef typename iengine_base::iscope_type iscope_type;
     typedef typename iengine_base::sync_function_type sync_function_type;
     typedef typename iengine_base::merge_function_type merge_function_type;
 
-    typedef direct_callback<graph_type, update_functor_type> callback_type;
     
-    typedef general_scope_factor<Graph> scope_factory_type;
+    typedef task_count_terminator terminator_type;
+    typedef direct_callback<shared_memory_engine> callback_type;
+    
+    typedef general_scope_factory<graph_type> scope_factory_type;
     
   private:
 
@@ -114,19 +126,31 @@ namespace graphlab {
     
     //! the active terminator
     iterminator* terminator_ptr;    
-    
-    //! The callbacks for each cpu
-    std::vector<callback_type> callbacks;
-
-
    
+
+    //! The reason for last termination
+    execution_status::status_enum exec_status;
+
+    /**
+     * Local state for each thread
+     */
+    struct thread_state_type {
+      size_t update_count;
+      callback_type callback;
+      char FALSE_CACHE_SHARING_PAD[128];
+      thread_state_type(shared_memory_engine* ptr = NULL) : 
+        update_count(0), callback(ptr) { }
+    }; //end of thread_state
+    std::vector<thread_state_type> tls_array; 
+    
+
   public:
    
     //! Create an engine for the given graph
     shared_memory_engine(graph_type& graph);
     
     //! Clear internal members
-    ~shared_memory_engine();
+    ~shared_memory_engine() { clear(); }
     
     //! Start the engine
     void start();
@@ -155,7 +179,7 @@ namespace graphlab {
     void add_termination_condition(termination_function_type term) = 0;
 
     //!  remove all associated termination functions
-    void clear_termination_condition();
+    void clear_termination_conditions() { };
     
     //! \brief The timeout is the total
     void set_timeout(size_t timeout_secs);
@@ -164,25 +188,25 @@ namespace graphlab {
     void set_task_budget(size_t max_tasks);
 
     //! \brief Update the engine options.  
-    void set_options(const graphlab_options& opts);
+    void set_options(const graphlab_options& newopts);
 
     //! \brief Get the current engine options for this engine
-    const graphlab_options& get_options(); 
+    const graphlab_options& get_options() { return opts; } 
 
 
     //! \brief Registers a sync with the engine.
-    void set_sync(glshared_base& shared,
+    void set_sync(iglshared& shared,
                   sync_function_type sync,
-                  glshared_base::apply_function_type apply,
+                  iglshared::apply_function_type apply,
                   const any& zero,
                   size_t sync_interval = 0,
                   merge_function_type merge = NULL,
                   vertex_id_type rangelow = 0,
-                  vertex_id_type rangehigh = -1);
+                  vertex_id_type rangehigh = -1) { };
 
 
     //! Performs a sync immediately.
-    virtual void sync_now(glshared_base& shared) = 0;
+    void sync_now(iglshared& shared) { };
 
     //! reset the engine
     void clear();
@@ -210,15 +234,10 @@ namespace graphlab {
     previous_nverts(graph.num_vertices()),
     scope_factory_ptr(NULL),
     scheduler_ptr(NULL),
-    terminator(NULL) {  
+    terminator_ptr(NULL), 
+    exec_status(execution_status::EXEC_UNSET) {  
   } // end of constructor
 
-
-  template<typename Graph, typename UpdateFunctor> 
-  shared_memory_engine<Graph, UpdateFunctor>::
-  ~shared_memory_engine(graph_type& graph) {
-    clear();
-  } // end of destructor
 
 
 
@@ -227,14 +246,7 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   set_options(const graphlab_options& new_opts) {
     clear();
-    eopts = opts;
-  } // end of set_options
-
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  get_options(const graphlab_options& new_opts) {
-    return opts;
+    opts = new_opts;
   } // end of set_options
 
 
@@ -255,7 +267,9 @@ namespace graphlab {
       delete terminator_ptr; 
       terminator_ptr = NULL;
     }
-
+    tls_array.clear();
+    previous_nverts(0);
+    exec_status(execution_status::EXEC_UNSET);
   } // end of clear_members
 
 
@@ -287,7 +301,7 @@ namespace graphlab {
 
       // construct the terminator
       ASSERT_TRUE(terminator_ptr == NULL);                               
-      terminator_ptr = new task_count_terminator();      
+      terminator_ptr = new terminator_type();
       ASSERT_TRUE(terminator_ptr != NULL);
 
       // construct the scheduler
@@ -299,9 +313,13 @@ namespace graphlab {
                       *terminator_ptr,
                       opts.ncpus);
       ASSERT_TRUE(scheduler_ptr != NULL);
+
+      // reset the execution status
+      exec_status = execution_status::EXEC_UNSET;
+      // reset the thread local state 
+      const thread_state_type starting_state(this);
+      tls_array.resize(opts.get_ncpus(), starting_state );
       
-      // set the number of callbacks appropriately
-      callbacks.resize(opts.get_ncpus());
     }
       
   } // end of initialize_members
@@ -338,7 +356,7 @@ namespace graphlab {
         const bool scheduler_empty = 
           scheduler_ptr->get_terminator().end_critical_section(cpuid);
         if(scheduler_empty) {
-          termination_reason = EXEC_TASK_DEPLETION;
+          exec_status = execution_status::EXEC_TASK_DEPLETION;
           return;
         } else {
           // \todo use sched yield option
@@ -350,17 +368,20 @@ namespace graphlab {
     } // end of while loop
     ASSERT_EQ(stat, sched_status::NEW_TASK);
     ASSERT_LT(vid, graph.num_vertices());
-    
     // Get the scope
-    iscope_type* scope = 
-      scope_factory_ptr->get_scope(cpuid, vertex, ufun.consistency());
-    ASSERT_TRUE(scope != NULL);
-    
+    iscope_type* scope_ptr = 
+      scope_factory_ptr->get_scope(cpuid, vid, ufun.consistency());
+    ASSERT_TRUE(scope_ptr != NULL);
     // Apply the update functor
-    ufun(*scope, callbacks[cpuid]);
-
-    
-          
+    ufun(*scope_ptr, tls_array[cpuid]);
+    // Finish any pending transactions in the scope
+    scope_ptr->commit();
+    // Release the scope (and all corresponding locks)
+    scope_factory_ptr->release_scope(scope_ptr);    
+    // Mark scope as completed in the scheduler
+    scheduler_ptr->completed(cpuid, vid, ufun);
+    // Record an increase in the update counts
+    tls_array[cpuid].update_count++;
     
    
 

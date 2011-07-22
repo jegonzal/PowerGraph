@@ -23,37 +23,37 @@
 
 /**
 
-This demo provides a synthetic application which makes use a good
-number of GraphLab concepts. Note that this demo app is intentionally
-built to use as many of graphlab concepts as possible. This may not be
-typical for most GraphLab applications.
+   This demo provides a synthetic application which makes use a good
+   number of GraphLab concepts. Note that this demo app is
+   intentionally built to use as many of graphlab concepts as
+   possible. This may not be typical for most GraphLab applications.
 
 
-Picture of grid model:
+   Picture of grid model:
 
-     x----x----x
-     |    |    |
-     x----o----o
-     |    |    |
-     o----x----x
+   x----x----x
+   |    |    |
+   x----o----o
+   |    |    |
+   o----x----x
 
 
-Given a DIMxDIM undirected grid graph where each vertex is assigned a
-random color, either black or white (represented as a boolean value)
-Each vertex then makes a local random decision:
+   Given a DIMxDIM undirected grid graph where each vertex is assigned
+   a random color, either black or white (represented as a boolean
+   value) Each vertex then makes a local random decision:
 
-  - become white with probabilty proportionate to the number of white
-    neighbors
+   - become white with probabilty proportionate to the number of white
+   neighbors
 
-  - become black with probabilty proportionate to the number of black
-    neighbors
+   - become black with probabilty proportionate to the number of black
+   neighbors
 
-Clearly, the two stable outcomes are where all vertices are black, or
-where all vertices are white. We are interested in knowing how many
-flips each vertex took on average.
+   Clearly, the two stable outcomes are where all vertices are black,
+   or where all vertices are white. We are interested in knowing how
+   many flips each vertex took on average.
 
-Also, since GraphLab only has directed edges, we will build the graph
-by duplicating every edge in both directions.
+   Also, since GraphLab only has directed edges, we will build the
+   graph by duplicating every edge in both directions.
 
 */
 
@@ -66,22 +66,23 @@ by duplicating every edge in both directions.
 
 
 /**
-First we will design the graph data. For each vertex, we will need to
-know its current color, and a counter to count the number of flips it
-took.
+   First we will design the graph data. For each vertex, we will need
+   to know its current color, and a counter to count the number of
+   flips it took.
 
-GraphLab provides facilities to directly save/load graphs from
-disk. However, to do so, GraphLab must be able to understand your
-datastructures.  If you are not interested in saving/loading graphs,
-you can simply inherit from unsupported_serialize. Otherwise, you will
-need write a save/load function pair for your struct.
+   GraphLab provides facilities to directly save/load graphs from
+   disk. However, to do so, GraphLab must be able to understand your
+   datastructures.  If you are not interested in saving/loading
+   graphs, you can simply inherit from
+   unsupported_serialize. Otherwise, you will need write a save/load
+   function pair for your struct.
 
-To write a save/load function see the commented region in the struct.
-The serialization mechanism is simple to use and it understands all
-basic datatypes as well as standard STL containers. If the STL
-container contains non-basic datatypes (such as a struct), save/load
-functions must be written for the datatype.
-*/
+   To write a save/load function see the commented region in the
+   struct.  The serialization mechanism is simple to use and it
+   understands all basic datatypes as well as standard STL
+   containers. If the STL container contains non-basic datatypes (such
+   as a struct), save/load functions must be written for the datatype.
+   */
 struct vertex_data {
   size_t numflips;
   bool color;     // black == FALSE, red == TRUE,
@@ -89,148 +90,154 @@ struct vertex_data {
 
 
 /** In this example, we do not need edge data. However GraphLab
-currently does not have a mechanism to completely disable the use of
-edge data.  Therefore, we will just put an arbitrary small
-placeholder type on the edges.
+    currently does not have a mechanism to completely disable the use of
+    edge data.  Therefore, we will just put an arbitrary small
+    placeholder type on the edges.
 
-Note that we do not need to write a save/load function here since
-GraphLab's serializer already understands basic datatypes. */
-typedef char edge_data;
+    Note that we do not need to write a save/load function here since
+    GraphLab's serializer already understands basic datatypes. */
+typedef double edge_data;
 
 
 /**
-The GraphLab graph is templatized over the vertex data as well as the
-edge data.  Here we define the type of the graph for convenience.  */
+   The GraphLab graph is templatized over the vertex data as well as the
+   edge data.  Here we define the type of the graph for convenience.  */
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 /**
-Since graphlab is heavily templatized and can be inconvenient to use
-in its standard form, the graphlab::types structure provides
-convenient typedefed "shortcuts" to figure out the other graphlab
-types easily.  */
-typedef graphlab::types<graph_type> gl;
+   In order to take advantage of the types we must first predeclare the
+   update functor. */
+class update_functor;
+
+/**
+   Since graphlab is heavily templatized and can be inconvenient to use
+   in its standard form, the graphlab::types structure provides
+   convenient typedefed "shortcuts" to figure out the other graphlab
+   types easily.  */
+typedef graphlab::types<graph_type, update_functor> gl;
 
 
 /**
 
-Now we can begin to write the update function. This is the standard
-form of an update function. You may specify more than one update
-function, but we only need one for this application.
+   Now we can begin to write the update function. This is the standard
+   form of an update function. You may specify more than one update
+   function, but we only need one for this application.
 
-\param scope
-The scope provides access to a local neighborhood of a graph.
-The scope is centered on a particular vertex, ( scope.vertex() ), and includes
-all adjacent edges and vertices. \
-\ 
-All vertices are identified by an unsigned integer type
-vertex_id_type, and all edges are similarly identified by an unsigned
-integer type edge_id_type.  GraphLab guarantees that all vertices are
-sequentially numbered from 0 (so the largest vertex id is
-|num_vertices| - 1), and similarly for edges.  All edges are directed.
+   \param scope
+   The scope provides access to a local neighborhood of a graph.
+   The scope is centered on a particular vertex, ( scope.vertex() ), and includes
+   all adjacent edges and vertices. \
+   \ 
+   All vertices are identified by an unsigned integer type
+   vertex_id_type, and all edges are similarly identified by an unsigned
+   integer type edge_id_type.  GraphLab guarantees that all vertices are
+   sequentially numbered from 0 (so the largest vertex id is
+   |num_vertices| - 1), and similarly for edges.  All edges are directed.
 
-\param scheduler
-There are two basic types of schedulers.
-The synchronous / round_robin scheduler takes a single fixed set of tasks
-and repeatedly executes them until some termination condition is achieved.
-Using these schedulers generally means that the update function will not use
-this parameter.
+   \param scheduler
+   There are two basic types of schedulers.
+   The synchronous / round_robin scheduler takes a single fixed set of tasks
+   and repeatedly executes them until some termination condition is achieved.
+   Using these schedulers generally means that the update function will not use
+   this parameter.
 
-The task schedulers, which include fifo, multiqueue_fifo, priority,
-clustered_priority, all operate on the idea that executing an
-update_function on a vertex can be thought of as a task. Update functions
-can therefore inject new jobs into the task scheduler through this parameter.
-Since the task scheduler is slightly more complex to use, in this example,
-we will demonstrate task schedulers. Each update will decide whether to 
-schedule its neighbors, and the algorithm terminates when there are no
-tasks remaining. (See the comments in update_function for details).
+   The task schedulers, which include fifo, multiqueue_fifo, priority,
+   clustered_priority, all operate on the idea that executing an
+   update_function on a vertex can be thought of as a task. Update functions
+   can therefore inject new jobs into the task scheduler through this parameter.
+   Since the task scheduler is slightly more complex to use, in this example,
+   we will demonstrate task schedulers. Each update will decide whether to 
+   schedule its neighbors, and the algorithm terminates when there are no
+   tasks remaining. (See the comments in update_function for details).
 
-There are other methods for terminating execution, such as registering a
-termination evaluator with the engine, but we are not going to describe
-that here.
+   There are other methods for terminating execution, such as registering a
+   termination evaluator with the engine, but we are not going to describe
+   that here.
 
 */
-void update_function(gl::iscope& scope,
-                     gl::icallback& scheduler) {
-  //scope.vertex_data allows me to grab a reference to the vertex data
-  // on the graph
-  vertex_data& curvdata = scope.vertex_data();
+class update_functor : public gl::iupdate_functor {
+  void operator()(gl::iscope& scope, gl::icallback& callback) {
+    //scope.vertex_data allows me to grab a reference to the vertex data
+    // on the graph
+    vertex_data& curvdata = scope.vertex_data();
 
-
-  // the in_edge_ids() function provide a vector of the edge ids of the edges
-  // entering the current vertex
-  graph_type::edge_list_type in_edges = scope.in_edge_ids();
-  // a counter for the number of red neighbors
-  size_t num_red_neighbors = 0;  
-  for (size_t i = 0; i < in_edges.size(); ++i) {
-    // eid is the current edge id
-    size_t eid = in_edges[i];    
-    // the target(eid) function allows to get the vertex at the destination
-    // of the edge 'eid'. The source(eid) function provides me with the
-    // source vertex.. Since I am looking at in_edges, the source vertex
-    // will be my adjacent vertices
-    size_t sourcev = scope.source(eid);
-    // the neighbor_vertex_data() function allow me to read the vertex data
-    // of a vertex adjacent to the current vertex.
-    // since I am not going to change this data, I can just grab a const
-    // reference. You should always try to use const references whenever
-    // you know that you will definitely not be changing the data, since
-    // GraphLab could make use of this knowledge to perform other optimizations
-    const vertex_data& nbrvertex = scope.neighbor_vertex_data(sourcev);
-    // if red, add to our counter
-    if (nbrvertex.color) ++num_red_neighbors;
-  }
-  // get the total number of neighbors we have
-  size_t num_neighbors = in_edges.size();
-
-  // Determine the new color by drawing a random number.  There are 2
-  // functions. rand01() provides a random floating point number
-  // between 0 and 1. rand_int(max) provides a random integer between
-  // 0 and max inclusive
-  bool new_color =
-    graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
-  
-  // Determine if the coin was deterministic probability 1 or 0 of
-  // landing red
-  bool is_deterministic =
-    num_neighbors == num_red_neighbors || num_red_neighbors == 0;
-
-  // see if I flip and update the current vertex data.
-  bool color_changed = new_color != curvdata.color;
-  if (color_changed) ++curvdata.numflips;
-
-  // Assign the new color
-  curvdata.color = new_color;
-
-  // If I flipped, all my neighbors could be affected, loop through
-  // all my neighboring vertices and add them as tasks.
-  if (color_changed) {
+    // the in_edge_ids() function provide a vector of the edge ids of the edges
+    // entering the current vertex
+    graph_type::edge_list_type in_edges = scope.in_edge_ids();
+    // a counter for the number of red neighbors
+    size_t num_red_neighbors = 0;  
     for (size_t i = 0; i < in_edges.size(); ++i) {
-      size_t sourcev = scope.source(in_edges[i]);
-      // add the task
-      // the gl::update_task object takes a vertex id, and the update function
-      // to execute on. add_task also takes another argument, which is
-      // the priority of this task. This value should be strictly > 0.
-      // The priority parameter of course, is only used by the priority
-      // schedulers. In this demo app, we don't really care about the
-      // priority, so we will just set it to 1.0      
-      scheduler.add_task(gl::update_task(sourcev, update_function),
-                        1.0);
+      // eid is the current edge id
+      size_t eid = in_edges[i];    
+      // the target(eid) function allows to get the vertex at the destination
+      // of the edge 'eid'. The source(eid) function provides me with the
+      // source vertex.. Since I am looking at in_edges, the source vertex
+      // will be my adjacent vertices
+      size_t sourcev = scope.source(eid);
+      // the neighbor_vertex_data() function allow me to read the vertex data
+      // of a vertex adjacent to the current vertex.
+      // since I am not going to change this data, I can just grab a const
+      // reference. You should always try to use const references whenever
+      // you know that you will definitely not be changing the data, since
+      // GraphLab could make use of this knowledge to perform other optimizations
+      const vertex_data& nbrvertex = scope.neighbor_vertex_data(sourcev);
+      // if red, add to our counter
+      if (nbrvertex.color) ++num_red_neighbors;
+    }
+    // get the total number of neighbors we have
+    size_t num_neighbors = in_edges.size();
+
+    // Determine the new color by drawing a random number.  There are 2
+    // functions. rand01() provides a random floating point number
+    // between 0 and 1. rand_int(max) provides a random integer between
+    // 0 and max inclusive
+    bool new_color =
+      graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
+  
+    // Determine if the coin was deterministic probability 1 or 0 of
+    // landing red
+    bool is_deterministic =
+      num_neighbors == num_red_neighbors || num_red_neighbors == 0;
+
+    // see if I flip and update the current vertex data.
+    bool color_changed = new_color != curvdata.color;
+    if (color_changed) ++curvdata.numflips;
+
+    // Assign the new color
+    curvdata.color = new_color;
+
+    // If I flipped, all my neighbors could be affected, loop through
+    // all my neighboring vertices and add them as tasks.
+    if (color_changed) {
+      for (size_t i = 0; i < in_edges.size(); ++i) {
+        size_t sourcev = scope.source(in_edges[i]);
+        // add the task
+        // the gl::update_task object takes a vertex id, and the update function
+        // to execute on. add_task also takes another argument, which is
+        // the priority of this task. This value should be strictly > 0.
+        // The priority parameter of course, is only used by the priority
+        // schedulers. In this demo app, we don't really care about the
+        // priority, so we will just set it to 1.0      
+        scheduler.add_task(gl::update_task(sourcev, update_function),
+                           1.0);
+      }
+    }
+    // now if I flipped myself based on a random number. This means that if I
+    // update myself again, I could switch colors. Therefore I should
+    // add myself as a task
+    if (is_deterministic == false) {
+      scheduler.add_task(gl::update_task(scope.vertex(), update_function),
+                         1.0);
     }
   }
-  // now if I flipped myself based on a random number. This means that if I
-  // update myself again, I could switch colors. Therefore I should
-  // add myself as a task
-  if (is_deterministic == false) {
-    scheduler.add_task(gl::update_task(scope.vertex(), update_function),
-                        1.0);
-  }
-}
+}; // end of update_functor
+
 
 /**
-  In this function, we construct the grid graph
+   In this function, we construct the grid graph
 */
 void init_graph(graph_type& g,
-                  size_t dim) {
+                size_t dim) {
   // here we create dim * dim vertices.
   // the graph add_vertex(vertexdata) function takes the vertex data as input
   // and returns the vertex id of the new vertex.
@@ -252,9 +259,9 @@ void init_graph(graph_type& g,
   // for checking for accidental duplicated edge insertions at the
   // graph construction stage. (It is quite costly to do so)
   //
-   // Any duplicated edges will result in an assertion failure at the later
-   // 'finalize' stage.
-   edge_data edata;
+  // Any duplicated edges will result in an assertion failure at the later
+  // 'finalize' stage.
+  edge_data edata;
   for (size_t i = 0;i < dim; ++i) {
     for (size_t j = 0;j < dim - 1; ++j) {
       // add the horizontal edges in both directions
@@ -273,22 +280,22 @@ void init_graph(graph_type& g,
 }
 
 /*
- Say if we are interested in having an incremental counter which provides
- the total number of flips executed so far, as well as a ratio of the total
- number of red vertices vs black vertices.
- we can do this via the shared data manager's Sync mechanism.
+  Say if we are interested in having an incremental counter which provides
+  the total number of flips executed so far, as well as a ratio of the total
+  number of red vertices vs black vertices.
+  we can do this via the shared data manager's Sync mechanism.
  
- The Sync mechanism allows you to build a 'Fold / Reduce' operation
- across all the vertices in the graph, and store the results in the
- Shared Data object. The Shared Data table is essentially a big table
- mapping integer ids -> arbitrary data types
+  The Sync mechanism allows you to build a 'Fold / Reduce' operation
+  across all the vertices in the graph, and store the results in the
+  Shared Data object. The Shared Data table is essentially a big table
+  mapping integer ids -> arbitrary data types
 
- First we need to define the entries of the table. The data we need are:
+  First we need to define the entries of the table. The data we need are:
   - the total number of vertices (constant)
   - red vertex proportion      (synced)
   - the total number of flips    (synced)
   
- We will therefore define 3 entries in the Shared Data table.
+  We will therefore define 3 entries in the Shared Data table.
 */
 
 
@@ -314,12 +321,12 @@ gl::glshared<size_t> NUM_FLIPS;
 // the NUM_VERTICES table entry
 
 /**
-This is the reducer for the RED_PROPORTION sync.
-We just count the number of red verices.
+   This is the reducer for the RED_PROPORTION sync.
+   We just count the number of red verices.
 
-\param scope The scope on the vertex we are currently accessing
+   \param scope The scope on the vertex we are currently accessing
 
-\param accumulator The input and output of the fold/reduce operation.
+   \param accumulator The input and output of the fold/reduce operation.
 */       
 void reduce_red_proportion(gl::iscope& scope,
                            graphlab::any& accumulator) {
@@ -333,13 +340,13 @@ void reduce_red_proportion(gl::iscope& scope,
 }
 
 /**
-This is the apply for the RED_PROPORTION sync.
-We divide the accumulated value by the number of vertices
+   This is the apply for the RED_PROPORTION sync.
+   We divide the accumulated value by the number of vertices
 
-\param current_data The current (old) value in the shared data table entry.
-                    Overwriting this will update the shared data table entry
+   \param current_data The current (old) value in the shared data table entry.
+   Overwriting this will update the shared data table entry
 
-\param new_data The result of the reduce operation on all the vertices.
+   \param new_data The result of the reduce operation on all the vertices.
 */       
 void apply_red_proportion(graphlab::any& current_data, 
                           const graphlab::any& new_data) {
@@ -358,8 +365,8 @@ void apply_red_proportion(graphlab::any& current_data,
 
 
 /**
- This is the merge function for the RED_PROPORTION sync
- Since it is just a sum, intermediate results simply add`
+   This is the merge function for the RED_PROPORTION sync
+   Since it is just a sum, intermediate results simply add`
 */
 void merge_red_proportion(graphlab::any& target, 
                           const graphlab::any& source) {
@@ -369,19 +376,19 @@ void merge_red_proportion(graphlab::any& target,
 
 
 /**
-  GraphLab provides a number of predefined syncing operations which allow
-  simple reductions / applies to be implemented very quickly. 
-  We will implement the NUM_FLIPS entry using one of these predefined
-  operations. The predefined operations typically require the user to
-  provide a simple function which extracts the information of interest
-  from the vertex data. In this case, the numflips field.
+   GraphLab provides a number of predefined syncing operations which allow
+   simple reductions / applies to be implemented very quickly. 
+   We will implement the NUM_FLIPS entry using one of these predefined
+   operations. The predefined operations typically require the user to
+   provide a simple function which extracts the information of interest
+   from the vertex data. In this case, the numflips field.
 */
 size_t get_flip(const vertex_data &v) {
   return v.numflips;
 }
 
 /**
-  Here we create the shared data values
+   Here we create the shared data values
 */
 void init_shared_data(gl::core &core, size_t dim) {
   // the number of vertices is a constant and is just dim * dim
@@ -421,11 +428,11 @@ void init_shared_data(gl::core &core, size_t dim) {
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
 
   core.set_sync(NUM_FLIPS,  
-               gl::glshared_sync_ops::sum<size_t, get_flip>,
-               gl::glshared_apply_ops::identity<size_t>,
-               size_t(0),
-               128,
-               gl::glshared_merge_ops::sum<size_t>);
+                gl::glshared_sync_ops::sum<size_t, get_flip>,
+                gl::glshared_apply_ops::identity<size_t>,
+                size_t(0),
+                128,
+                gl::glshared_merge_ops::sum<size_t>);
 
 }
 
@@ -460,7 +467,7 @@ int main(int argc,  char *argv[]) {
   gl::core glcore;
 
   // Initialize the core with the command line arguments
-  glcore.set_engine_options(opts);
+  glcore.set_options(opts);
   
   // call init_graph to create the graph
   init_graph(glcore.graph(), dimensions);
@@ -470,9 +477,8 @@ int main(int argc,  char *argv[]) {
   // since we are using a task scheduler, we need to
   // to create tasks. otherwise the engine will just terminate immediately
   // there are DIM * DIM vertices
-  for (size_t i = 0;i < dimensions * dimensions; ++i) {
-    glcore.add_task(gl::update_task(i, update_function), 1.0);
-  }
+  const update_functor functor;
+  glcore.schedule_all( functor );
   
   // Run the graphlab engine 
   double runtime = glcore.start();
@@ -484,7 +490,7 @@ int main(int argc,  char *argv[]) {
   // if we want to get a correct value for the syncs we should run them again
   // we can do his with
   glcore.sync_now(NUM_FLIPS);
-//  glcore.shared_data().sync(RED_PROPORTION_KEY);
+  //  glcore.shared_data().sync(RED_PROPORTION_KEY);
 
   // now we can look the values using the get() function
   size_t numberofflips = NUM_FLIPS.get_val();
@@ -510,12 +516,12 @@ int main(int argc,  char *argv[]) {
 
 
 /*
-As a final comment. Since the update function only requires reading of
-neighboring vertex data, the edge_consistency model is guaranteed to have
-sequential consistency, and the algorithm is therefore guaranteed to be
-correct if executed with --scope=edge or --scope=full.
+  As a final comment. Since the update function only requires reading of
+  neighboring vertex data, the edge_consistency model is guaranteed to have
+  sequential consistency, and the algorithm is therefore guaranteed to be
+  correct if executed with --scope=edge or --scope=full.
 
-Sequential consistency is not guaranteed under --scope=vertex, though it could
-be quite difficult in practice to construct a race.
+  Sequential consistency is not guaranteed under --scope=vertex, though it could
+  be quite difficult in practice to construct a race.
 */
 

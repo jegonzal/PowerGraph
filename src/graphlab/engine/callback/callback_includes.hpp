@@ -34,5 +34,5 @@
 
 
 #include <graphlab/engine/callback/icallback.hpp>
-#include <draphlab/engine/callback/direct_callback.hpp>
+#include <graphlab/engine/callback/direct_callback.hpp>          
 

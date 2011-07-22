@@ -5,6 +5,7 @@ project(GraphLab)
 
 subdirs(
  engine
+# distributed2
  graph
  gpu
  monitoring
@@ -116,11 +117,11 @@ endif()
 
 
 
-#build distributed graphlab
-add_library(graphlab_dist2 STATIC
-    distributed2/distributed_glshared_base.cpp
-    distributed2/distributed_glshared_manager.cpp
-    distributed2/graph/dgraph_edge_list.cpp)
+# #build distributed graphlab
+# add_library(graphlab_dist2 STATIC
+#     distributed2/distributed_glshared_base.cpp
+#     distributed2/distributed_glshared_manager.cpp
+#     distributed2/graph/dgraph_edge_list.cpp)
 
 
 #build PIC versions of everything

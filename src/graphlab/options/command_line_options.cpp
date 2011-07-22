@@ -22,7 +22,7 @@
 
 
 #include <graphlab/options/command_line_options.hpp>
-#include <graphlab/schedulers/scheduler_list.hpp>
+#include <graphlab/scheduler/scheduler_list.hpp>
 
 #include <graphlab/distributed2/distributed_scheduler_list.hpp>
 

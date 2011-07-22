@@ -35,13 +35,6 @@
 #ifndef GRAPHLAB_ICALLBACK_HPP
 #define GRAPHLAB_ICALLBACK_HPP
 
-#include <vector>
-
-#include <graphlab/scope/iscope_factory.hpp>
-#include <graphlab/tasks/update_task.hpp>
-#include <graphlab/monitoring/imonitor.hpp>
-
-
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {

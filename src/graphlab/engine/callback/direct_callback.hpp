@@ -39,9 +39,10 @@
 #include <algorithm>
 
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/engine/icallback.hpp>
-#include <graphlab/macros_def.hpp>
+#include <graphlab/engine/callback/icallback.hpp>
 
+
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
 
   /**

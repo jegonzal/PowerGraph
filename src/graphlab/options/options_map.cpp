@@ -35,7 +35,8 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
-#include <graphlab/util/options_map.hpp>
+
+#include <graphlab/options/options_map.hpp>
 
 namespace graphlab {
   

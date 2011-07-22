@@ -20,6 +20,14 @@
  *
  */
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
 
 
@@ -39,10 +47,11 @@
 #include <graphlab/parallel/atomic.hpp>
 
 
-#include <graphlab/schedulers/ischeduler.hpp>
+#include <graphlab/scheduler/ischeduler.hpp>
+#include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/engine/terminator/iterminator.hpp>
 #include <graphlab/options/options_map.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
+
 
 
 
@@ -55,7 +64,7 @@ namespace graphlab {
   /** \ingroup group_schedulers
    */
   template<typename Engine>
-  class fifo_scheduler: public ischeduler<Engine> {
+  class fifo_scheduler : public ischeduler<Engine> {
   public:
     
 
@@ -81,7 +90,7 @@ namespace graphlab {
                    iterminator& terminator, 
                    size_t ncpus,
                    const options_map& opts) :
-      vertex_tasks(graph.num_vertices()), 
+      vfun_set(graph.num_vertices()), 
       terminator(terminator) {  }
     
 
@@ -89,18 +98,18 @@ namespace graphlab {
 
     void schedule(vertex_id_type vid, 
                   const update_functor_type& fun) {      
-      if (vfun_set.add(task)) {
+      if (vfun_set.add(vid, fun)) {
         terminator.new_job();
         queue_lock().lock();
         queue.push(vid);
         queue_lock.unlock();
       } 
-    } // end of add_task
+    } // end of schedule
 
     void schedule_all(const update_functor_type& fun) {
       for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
         schedule(vid, fun);      
-    } // end of add_task_to_all
+    } // end of schedule_all
 
     void completed(size_t cpuid,
                    vertex_id_type vid,
@@ -123,13 +132,13 @@ namespace graphlab {
       if(success) {
         const bool get_success = vfun_set.test_and_get(ret_fun);
         ASSERT_TRUE(get_success);
-        return sched_status::NEWTASK;
+        return sched_status::NEW_TASK;
       } else {
         return sched_status::EMPTY;
       }
     } // end of get_next_task
 
-    void set_options(const scheduler_options &opts) { }
+    void set_options(const options_map& opts) { }
 
 
   }; // end of fifo_scheduler

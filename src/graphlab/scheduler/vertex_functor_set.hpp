@@ -120,7 +120,7 @@ namespace graphlab {
     bool test_and_get(const vertex_id_type& vid,
                       update_functor_type& ret_fun) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].test_and_get(fun);
+      return vfun_set[vid].test_and_get(ret_fun);
     }
     
     size_t size() const { 

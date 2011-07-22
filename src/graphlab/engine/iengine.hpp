@@ -48,7 +48,7 @@
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
-#include <graphlab/shared_data/glshared.hpp>
+#include <graphlab/shared_data/iglshared.hpp>
 
 // #include <graphlab/metrics/metrics.hpp>
 
@@ -198,7 +198,7 @@ namespace graphlab {
     virtual void add_termination_condition(termination_function_type term) = 0;
 
     //!  remove all associated termination functions
-    virtual void clear_termination_condition() = 0;
+    virtual void clear_termination_conditions() = 0;
     
     /**
      *  \brief The timeout is the total
@@ -263,9 +263,9 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    virtual void set_sync(glshared_base& shared,
+    virtual void set_sync(iglshared& shared,
                           sync_function_type sync,
-                          glshared_base::apply_function_type apply,
+                          iglshared::apply_function_type apply,
                           const any& zero,
                           size_t sync_interval = 0,
                           merge_function_type merge = NULL,
@@ -276,7 +276,7 @@ namespace graphlab {
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    virtual void sync_now(glshared_base& shared) = 0;   
+    virtual void sync_now(iglshared& shared) = 0;   
     
     
   };

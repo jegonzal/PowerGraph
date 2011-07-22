@@ -33,12 +33,14 @@
 
 #ifndef GRAPHLAB_GLSHARED_HPP
 #define GRAPHLAB_GLSHARED_HPP
-#include <boost/shared_ptr.hpp>
-#include <boost/function.hpp>
-#include <boost/type_traits/function_traits.hpp>
-#include <boost/type_traits/remove_reference.hpp>
+// #include <boost/shared_ptr.hpp>
+// #include <boost/function.hpp>
+// #include <boost/type_traits/function_traits.hpp>
+// #include <boost/type_traits/remove_reference.hpp>
 
-#include <graphlab/parallel/atomic.hpp>
+//#include <graphlab/parallel/atomic.hpp>
+
+#include <graphlab/shared_data/iglshared.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/generics/any.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -55,13 +57,13 @@ namespace graphlab {
    * defined datatype. 
    */
   template <typename T>
-  class glshared : public iglshared_base {
+  class glshared : public iglshared {
 
   public:
     //! The type of the internal element
     typedef T contained_type;
     //! Type of the apply function inhereted from the gl_shared base
-    typedef glshared_base::apply_function_type apply_function_type;
+    typedef iglshared::apply_function_type apply_function_type;
 
     //! Reference holder
     class const_ref {
@@ -69,11 +71,11 @@ namespace graphlab {
       rwlock& lock;
       const_ref(); // Not default constructable
       const_ref(const const_ref&); // Not copyable 
-      operator=(const const_ref&); // not assignable
+      void operator=(const const_ref&); // not assignable
     public:
       const_ref(const glshared& shared) : 
         data(shared.data), lock(shared.lock) { 
-        lock.read_lock();
+        lock.readlock();
       }
       ~const_ref() { lock.unlock(); }
       const T& val() { return data; }
@@ -81,12 +83,12 @@ namespace graphlab {
 
   private:
     //! The interal storage item
-    contained_type data;
+    any data;
     rwlock lock;
 
   public:
     //! Construct initial shared pointers
-    glshared() { }
+    glshared(const T& other = T()) : data(other) { }
   
 
 
@@ -94,7 +96,7 @@ namespace graphlab {
     inline T val() const {
       T copy;
       lock.readlock();
-      copy = data;
+      copy = data.as<T>();
       lock.unlock();
       return copy;
     }
@@ -102,15 +104,13 @@ namespace graphlab {
     /**
      * Gets the value of the shared variable wrapped in an any.
      */
-    any get_any() const { return any<T>(val()); }
+    any get_any() const { return data; }
 
     /**
      * Sets the value of the shared variable using an any. The type of
      * the any must match the type of the shared object.
      */
-    void set_any(const any &t) {
-      set(t.as<T>());
-    }
+    void set_any(const any& other) { data = other; }
 
     /**
      * apply's a function to this variable passing an additional
@@ -121,13 +121,9 @@ namespace graphlab {
      */
     void apply(apply_function_type fun,
                const any& srcd) {
-      set_lock.lock();
-      wait_for_buffer_release();
-      any temp = *(*head);
-      fun(temp, srcd);
-      *(*buffer) = temp.as<T>();
-      exchange_buffer_and_head();
-      set_lock.unlock();
+      lock.writelock();
+      fun(data, srcd);      
+      lock.unlock();
     }
 
   
@@ -144,15 +140,15 @@ namespace graphlab {
      * pointers to this variable which are never released.
      */
     void set(const T& other) {
-      lock.writelock();
-      data = other;
+      lock.writelock();     
+      data.as<T>() = other;
       lock.unlock();
     }
 
     //! Add a delta function:
     void operator+=(const T& other) { 
-      lock.writelock();
-      data += other;
+      lock.writelock();     
+      data.as<T>() += other;
       lock.unlock();
     }
 

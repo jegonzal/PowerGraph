@@ -20,14 +20,14 @@
  *
  */
 
-
 /**
-   \author Yucheng Low (ylow), Joseph Gonzalez
-   Interface for Scope Factories
-*/
+ * \todo: Evaluate if we still really need this interface.
+ */
+
 #ifndef GRAPHLAB_ISCOPE_FACTORY_HPP
 #define GRAPHLAB_ISCOPE_FACTORY_HPP
 
+#include <graphlab/scope/consistency_model.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/macros_def.hpp>
 
@@ -45,8 +45,9 @@ namespace graphlab {
     typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef iscope<Graph> iscope_type;
 
-    /**  \note This constructor here does not actually do anything. It just exists
-         to force the derived class constructors to look like this     */
+    /**  \note This constructor here does not actually do anything. It
+         just exists to force the derived class constructors to look
+         like this  */
     iscope_factory(Graph& graph, size_t ncpus) {}
  
     virtual ~iscope_factory() {}
@@ -54,10 +55,12 @@ namespace graphlab {
     //!  Returns a scope around a particular vertex
     virtual iscope_type* get_scope(size_t cpuid,
                                    vertex_id_type vertex,
-                                   scope_range::scope_range_enum s = scope_range::USE_DEFAULT) = 0;
+                                   consistency_model::model_enum s = 
+                                   consistency_model::USE_DEFAULT) = 0;
 
     //! Set the default scope type
-    virtual void set_default_scope(scope_range::scope_range_enum default_scope_range) = 0;
+    virtual void set_default_scope(consistency_model::model_enum
+                                   default_scope_range) = 0;
   
     //! Destroys a scope
     virtual void release_scope(iscope<Graph>* scope) = 0;

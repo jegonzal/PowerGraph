@@ -20,6 +20,15 @@
  *
  */
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
 
 #ifndef GRAPHLAB_ISCHEDULER_HPP
 #define GRAPHLAB_ISCHEDULER_HPP
@@ -28,7 +37,7 @@
 #include <sstream>
 #include <ostream>
 #include <graphlab/monitoring/imonitor.hpp>
-#include <graphlab/schedulers/scheduler_options.hpp>
+#include <graphlab/options/options_map.hpp>
 
 
 #include <graphlab/metrics/metrics.hpp>
@@ -42,7 +51,7 @@ namespace graphlab {
   struct sched_status {
     /// \brief the possible scheduler status.
     enum status_enum {
-      NEWTASK,      /**< The get_next_tasks function returned a new task 
+      NEW_TASK,      /**< The get_next_tasks function returned a new task 
                         to be executed */
       EMPTY,         /**< The schedule is empty. */      
     };
@@ -125,14 +134,14 @@ namespace graphlab {
     /**
      * Set the scheduler options.
      */
-    virtual void set_options(const scheduler_options &opts) { };
+    virtual void set_options(const options_map& opts) { };
 
 
     /**
      * Print a help string describing the options that this scheduler
      * accepts.
      */
-    static void print_options_help(std::ostream &out) { };
+    static void print_options_help(std::ostream& out) { };
 
    
     
