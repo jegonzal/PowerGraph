@@ -328,7 +328,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
-    vdata.pvec = (debug && algorithm != ALS_SPARSE_FACTOR && algorithm != ALS_SPARSE_FACTORS) ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
+    vdata.pvec = debug? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     _g->add_vertex(vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
@@ -336,7 +336,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   
   // add N user node (tensor dim 2) 
   for (int i=0; i<N; i++){
-    vdata.pvec = (debug && algorithm != ALS_SPARSE_FACTOR && algorithm != ALS_SPARSE_FACTORS) ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
+    vdata.pvec = debug? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     _g->add_vertex(vdata);
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);

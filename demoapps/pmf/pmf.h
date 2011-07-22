@@ -227,13 +227,14 @@ enum runmodes{
    LANCZOS = 7,// Lanczos algorithm (SVD) (reference 6)
    NMF = 8,
    WEIGHTED_ALS = 9,
-   ALS_SPARSE_FACTOR = 10,
-   ALS_SPARSE_FACTORS = 11
+   ALS_SPARSE_USR_FACTOR = 10,
+   ALS_SPARSE_USR_MOVIE_FACTORS = 11,
+   ALS_SPARSE_MOVIE_FACTOR = 12
 };
 
 #define MAX_RUNMODE 9
 
-const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse factor matrix", "Alternating least squares with doubly sparse factor matrices"};
+const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix"};
 
 //counters for debugging running time of different modules
 enum countervals{

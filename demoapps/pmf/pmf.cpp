@@ -41,6 +41,7 @@
 #include "stats.hpp"
 #include "implicit.hpp"
 #include "lasso.hpp"
+#include "cosamp.hpp"
 
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
@@ -116,7 +117,7 @@ float implicitratingpercentage = 0;
 
 /* sparsity enforcing priors (see reference 11 in pmf.h) */
 int lasso_max_iter = 10;
-double lasso_lambda = 1;
+double desired_factor_sparsity = .8;
 
 //performance counters
 #define MAX_COUNTER 20
@@ -174,8 +175,9 @@ void add_tasks(gl_types::core & glcore){
   switch (algorithm){
      case ALS_TENSOR_MULT:
      case ALS_MATRIX:
-     case ALS_SPARSE_FACTOR:
-     case ALS_SPARSE_FACTORS:
+     case ALS_SPARSE_USR_FACTOR:
+     case ALS_SPARSE_USR_MOVIE_FACTORS:
+     case ALS_SPARSE_MOVIE_FACTOR:
      case BPTF_TENSOR:
      case BPTF_TENSOR_MULT:
      case BPTF_MATRIX:
@@ -227,8 +229,9 @@ void init(){
 
    case ALS_MATRIX:
    case ALS_TENSOR_MULT:
-   case ALS_SPARSE_FACTOR:
-   case ALS_SPARSE_FACTORS:
+   case ALS_SPARSE_USR_FACTOR:
+   case ALS_SPARSE_USR_MOVIE_FACTORS:
+   case ALS_SPARSE_MOVIE_FACTOR:
    case WEIGHTED_ALS:
    case BPTF_TENSOR_MULT:
    case BPTF_MATRIX:
@@ -320,8 +323,8 @@ void start(int argc, char ** argv) {
   clopts.attach_option("implicitratingweight", &implicitratingweight, implicitratingweight, "weight/time for implicit negative ratings");
 
   //sparsity enforcing priors (see reference 11 in pmf.h)
-  clopts.attach_option("lasso_lambda", &lasso_lambda, lasso_lambda, "Lambda for lasso (weight for L1 regularization for sparsity enforcing priors - ALS_SPARSE_FACTOR, ALS_SPARSE_FACTORS");
-  clopts.attach_option("lasso_max_iter", &lasso_max_iter, lasso_max_iter, "max iter for lasso internal propcedire, for run modes ALS_SPARSE_FACTOR, ALS_SPARSE_FACTORS");
+  clopts.attach_option("desired_factor_sparsity", &desired_factor_sparsity, desired_factor_sparsity, "desired sparsity [0->0.5] (for L1 regularization for sparsity enforcing priors - ALS_SPARSE_USR_FACTOR, ALS_SPARSE_USR_MOVIE_FACTORS");
+  clopts.attach_option("lasso_max_iter", &lasso_max_iter, lasso_max_iter, "max iter for lasso internal propcedire, for run modes ALS_SPARSE_USR_FACTOR, ALS_SPARSE_USR_MOVIE_FACTORS");
 
   assert(clopts.parse(argc, argv));
   
@@ -335,8 +338,9 @@ void start(int argc, char ** argv) {
   // iterative matrix factorization using alternating least squares
   // or SVD ++
   case ALS_MATRIX:
-  case ALS_SPARSE_FACTOR:
-  case ALS_SPARSE_FACTORS:
+  case ALS_SPARSE_USR_FACTOR:
+  case ALS_SPARSE_USR_MOVIE_FACTORS:
+  case ALS_SPARSE_MOVIE_FACTOR:
   case WEIGHTED_ALS:
   case SVD_PLUS_PLUS:
   case STOCHASTIC_GRADIENT_DESCENT:
@@ -397,8 +401,10 @@ void start(int argc, char ** argv) {
   if (BURN_IN != 10 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR && algorithm != BPTF_MATRIX))
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
-
-
+  if (desired_factor_sparsity < 0.5 || desired_factor_sparsity >= 1){
+	logstream(LOG_ERROR) << "desired_factor_sparsity has to be in the range [0.5 1)" << std::endl;
+        exit(1);
+  }
   gl_types::core glcore;
   //read the training data
   printf("loading data file %s\n", infile.c_str());
@@ -454,7 +460,7 @@ void start(int argc, char ** argv) {
     exit(0);
   }
 
-  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX || algorithm == ALS_SPARSE_FACTOR || algorithm == ALS_SPARSE_FACTORS){
+  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
     printf("setting regularization weight to %g\n", LAMBDA);
     pU=pV=LAMBDA;
   }
@@ -507,8 +513,9 @@ void start(int argc, char ** argv) {
     switch(algorithm){
       case ALS_TENSOR_MULT:
       case ALS_MATRIX:
-      case ALS_SPARSE_FACTOR:
-      case ALS_SPARSE_FACTORS:
+      case ALS_SPARSE_USR_FACTOR:
+      case ALS_SPARSE_USR_MOVIE_FACTORS:
+      case ALS_SPARSE_MOVIE_FACTOR:
       case WEIGHTED_ALS:
       case BPTF_TENSOR_MULT:
       case BPTF_TENSOR:

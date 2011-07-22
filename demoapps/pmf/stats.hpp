@@ -83,7 +83,7 @@ double calc_obj(double res){
   for (int i=0; i< M; i++){
     const vertex_data * data = &g->vertex_data(i);
     sumU += sum_sqr(data->pvec);
-    if (algorithm == ALS_SPARSE_FACTORS){
+    if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR){
 	absSum += sum(abs(data->pvec));
         sparsity += num_zeros(data->pvec);
     }
@@ -93,7 +93,7 @@ double calc_obj(double res){
   for (int i=M; i< M+N; i++){
     const vertex_data * data = &g->vertex_data(i);
     sumV += sum_sqr(data->pvec);
-    if (algorithm == ALS_SPARSE_FACTORS || algorithm == ALS_SPARSE_FACTOR){
+    if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
        absSum += sum(abs(data->pvec));
        sparsity += num_zeros(data->pvec);
     }
@@ -114,9 +114,16 @@ double calc_obj(double res){
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
 
-  if (algorithm == ALS_SPARSE_FACTORS || algorithm == ALS_SPARSE_FACTOR){ //add L1 penalty to objective
-     obj += lasso_lambda * absSum;
-     cout<<"Current sparsity : " << sparsity / ((double)D*(algorithm == ALS_SPARSE_FACTORS?(M+N):N)) << " %" << endl;
+  if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
+     int total;
+     if (algorithm == ALS_SPARSE_MOVIE_FACTOR)
+        total = N;
+     else if (algorithm == ALS_SPARSE_USR_FACTOR)
+        total = M;
+     else if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS)
+        total = M+N; 
+     cout<<"Current sparsity : " << sparsity / ((double)D*total) << " %" << endl;
+     obj += absSum;
   }
 
   if (debug)
