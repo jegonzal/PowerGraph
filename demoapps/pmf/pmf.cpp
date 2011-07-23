@@ -90,6 +90,8 @@ int M,N,K,L;//training size: users, movies, times, number of edges
 int Le = 0; //number of ratings in validation dataset 
 int Lt = 0;//number of rating in test data set
 mat dp;
+
+
 bool FLOAT=false; //is data in float format
 double LAMBDA=1;//regularization weight
 
