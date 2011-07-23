@@ -93,7 +93,7 @@ namespace graphlab {
 
 
     /// Returns a copy of the data
-    inline T val() const {
+    inline T get_val() const {
       T copy;
       lock.readlock();
       copy = data.as<T>();

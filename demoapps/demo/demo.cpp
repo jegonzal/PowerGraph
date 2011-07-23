@@ -210,24 +210,22 @@ class update_functor : public gl::iupdate_functor {
     // all my neighboring vertices and add them as tasks.
     if (color_changed) {
       for (size_t i = 0; i < in_edges.size(); ++i) {
-        size_t sourcev = scope.source(in_edges[i]);
-        // add the task
-        // the gl::update_task object takes a vertex id, and the update function
-        // to execute on. add_task also takes another argument, which is
-        // the priority of this task. This value should be strictly > 0.
-        // The priority parameter of course, is only used by the priority
-        // schedulers. In this demo app, we don't really care about the
-        // priority, so we will just set it to 1.0      
-        scheduler.add_task(gl::update_task(sourcev, update_function),
-                           1.0);
+        const gl::vertex_id sourcev = scope.source(in_edges[i]);
+        // add the task the gl::update_task object takes a vertex id,
+        // and the update function to execute on. add_task also takes
+        // another argument, which is the priority of this task. This
+        // value should be strictly > 0.  The priority parameter of
+        // course, is only used by the priority schedulers. In this
+        // demo app, we don't really care about the priority, so we
+        // will just set it to 1.0
+        callback.schedule(sourcev, update_functor());
       }
     }
-    // now if I flipped myself based on a random number. This means that if I
-    // update myself again, I could switch colors. Therefore I should
-    // add myself as a task
+    // now if I flipped myself based on a random number. This means
+    // that if I update myself again, I could switch colors. Therefore
+    // I should add myself as a task
     if (is_deterministic == false) {
-      scheduler.add_task(gl::update_task(scope.vertex(), update_function),
-                         1.0);
+      callback.schedule(scope.vertex(), update_functor());
     }
   }
 }; // end of update_functor
@@ -238,10 +236,10 @@ class update_functor : public gl::iupdate_functor {
 */
 void init_graph(graph_type& g,
                 size_t dim) {
-  // here we create dim * dim vertices.
-  // the graph add_vertex(vertexdata) function takes the vertex data as input
-  // and returns the vertex id of the new vertex.
-  // The ids are guaranteed to be sequentially numbered
+  // here we create dim * dim vertices.  The graph
+  // add_vertex(vertexdata) function takes the vertex data as input
+  // and returns the vertex id of the new vertex.  The ids are
+  // guaranteed to be sequentially numbered
   for (size_t i = 0;i < dim * dim; ++i) {
     // create the vertex data, randomizing the color
     vertex_data vdata;

@@ -25,6 +25,7 @@
 #define GRAPHLAB_CORE_HPP
 
 
+#include <graphlab/types.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/options/command_line_options.hpp>
 

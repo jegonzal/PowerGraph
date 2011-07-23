@@ -88,8 +88,8 @@ namespace graphlab {
 
     typedef typename iengine_base::vertex_id_type vertex_id_type;
     typedef typename iengine_base::ischeduler_type ischeduler_type;
-    typedef typename iengine_base::imonitor_type imonitor_type;
-    typedef typename iengine_base::icallback_type icallback_type;
+   
+   
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
     typedef typename iengine_base::iscope_type iscope_type;
@@ -153,39 +153,39 @@ namespace graphlab {
     ~shared_memory_engine() { clear(); }
     
     //! Start the engine
-    void start();
+    void start() { }
     
     //! Stop the engine
-    void stop();
+    void stop() { }
     
     //! \brief Describe the reason for termination.
-    execution_status::status_enum last_exec_status();
+    execution_status::status_enum last_exec_status() const { return exec_status; }
 
     //! \brief Get the number of updates executed by the engine.
-    size_t last_update_count();
+    size_t last_update_count() const { return 0; }
 
         
     
     //! \brief Adds an update task with a particular priority.
     void schedule(vertex_id_type vid,
-                  const update_functor_type& update_functor);
+                  const update_functor_type& update_functor) { }
 
  
     //! \brief Apply update function to all the vertices in the graph
-    void schedule_all(const update_functor_type& update_functor);
+    void schedule_all(const update_functor_type& update_functor) { }
 
 
     //! \brief associate a termination function with this engine.
-    void add_termination_condition(termination_function_type term) = 0;
+    void add_termination_condition(termination_function_type term) { }
 
     //!  remove all associated termination functions
     void clear_termination_conditions() { };
     
     //! \brief The timeout is the total
-    void set_timeout(size_t timeout_secs);
+    void set_timeout(size_t timeout_secs) { }
 
     //! \brief set a limit on the number of tasks that may be executed.
-    void set_task_budget(size_t max_tasks);
+    void set_task_budget(size_t max_tasks) { }
 
     //! \brief Update the engine options.  
     void set_options(const graphlab_options& newopts);
@@ -216,8 +216,8 @@ namespace graphlab {
 
 
     void run_once(size_t cpuid);
-    void evaluate_sync_queue(size_t cpuid);
-    bool evaluate_termination_conditions(size_t cpuid);
+    void evaluate_sync_queue(size_t cpuid) { };
+    bool evaluate_termination_conditions(size_t cpuid) { return false; };
         
   }; // end of shared_memory engine
 
@@ -268,8 +268,8 @@ namespace graphlab {
       terminator_ptr = NULL;
     }
     tls_array.clear();
-    previous_nverts(0);
-    exec_status(execution_status::EXEC_UNSET);
+    previous_nverts = 0;
+    exec_status = execution_status::EXEC_UNSET;
   } // end of clear_members
 
 

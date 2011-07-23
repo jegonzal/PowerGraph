@@ -47,8 +47,11 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/execution_status.hpp>
+#include <graphlab/engine/callback/icallback.hpp>
+#include <graphlab/engine/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/shared_data/iglshared.hpp>
+
 
 // #include <graphlab/metrics/metrics.hpp>
 
@@ -101,10 +104,13 @@ namespace graphlab {
 
 
     //! The type of scheduler
-    typedef ischeduler<Graph> ischeduler_type;
+    typedef ischeduler<iengine> ischeduler_type;
 
     //! The type of scope 
-    typedef iscope<Graph> iscope_type;
+    typedef iscope<graph_type> iscope_type;
+
+    //! The type of the callback interface
+    typedef icallback<graph_type, update_functor_type> icallback_type;
 
     typedef void(*sync_function_type)(iscope_type& scope,
                                       any& accumulator);

@@ -56,14 +56,17 @@
 */
 namespace graphlab {
  
+  //! Predecleration of the core type
+  template <typename Graph, typename UpdateFunctor> class core;
+
   /**
-  \brief A types datastructure which provides convenient specializations of all
-  user-facing GraphLab types.
+  \brief A types datastructure which provides convenient
+  specializations of all user-facing GraphLab types.
   
-  GraphLab is heavily templatized. The graphlab::types object provides a 
-  convenient way to access the GraphLab classes without requiring excessive 
-  angle brackets (< , >). The GraphLab types object is located in <graphlab.hpp>. 
-  To define a graphlab type object:
+  GraphLab is heavily templatized. The graphlab::types object provides
+  a convenient way to access the GraphLab classes without requiring
+  excessive angle brackets (< , >). The GraphLab types object is
+  located in <graphlab.hpp>.  To define a graphlab type object:
   
   \code
   typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -102,10 +105,10 @@ namespace graphlab {
   
     typedef iupdate_functor<graph> iupdate_functor;
     
-    typedef graphlab::iengine<graph, update_functor> iengine;
-    typedef graphlab::iscope<iengine>              iscope;
-    typedef graphlab::ischeduler<iengine>          ischeduler;
-    typedef graphlab::icallback<graph, update_functor> icallback;
+    typedef graphlab::iengine<graph, update_functor>    iengine;
+    typedef graphlab::iscope<graph>                     iscope;
+    typedef graphlab::ischeduler<iengine>               ischeduler;
+    typedef graphlab::icallback<graph, update_functor>  icallback;
     
     //    typedef graphlab::imonitor<graph>            imonitor;
 
@@ -164,9 +167,9 @@ namespace graphlab {
     typedef typename graph::edge_list_type edge_list;
 
     
-    typedef graphlab::scheduler_options          scheduler_options;
-    typedef graphlab::sched_status               sched_status;
-    typedef graphlab::scope_range scope_range;
+    typedef graphlab::options_map          scheduler_options;
+    typedef graphlab::sched_status         sched_status;
+    typedef graphlab::consistency_model    consistency_model;
 
     template <typename T>
     class glshared : public graphlab::glshared<T> { };

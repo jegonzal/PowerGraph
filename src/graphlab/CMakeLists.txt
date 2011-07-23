@@ -18,8 +18,7 @@ subdirs(
  util
  serialization
  logger
- metrics
- jni)
+ metrics)
 
 if(YRL_EXPERIMENTAL)
   subdirs(yrl)

@@ -79,8 +79,8 @@ namespace graphlab {
       logstream(LOG_FATAL) << "Unsupported call!" << std::endl;
     }
 
-    virtual void schedule_in_neighbors(const vertex_id_type& vertex, 
-                                       const update_functor_type& update_fun) {
+    void schedule_out_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun) {
       logstream(LOG_FATAL) << "Unsupported call!" << std::endl;
     }
     
@@ -93,7 +93,7 @@ namespace graphlab {
     };
 
   };
-}
+}; // end of graphlab namspace
 
 #include <graphlab/macros_undef.hpp>
 

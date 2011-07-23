@@ -73,8 +73,8 @@ namespace graphlab {
     /**
      * Schedule an update on all the out neighbors of a particular vertex
      */
-    virtual void schedule_in_neighbors(const vertex_id_type& vertex, 
-                                       const update_functor_type& update_fun) = 0;
+    virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
+                                        const update_functor_type& update_fun) = 0;
                                                   
 
     /**
