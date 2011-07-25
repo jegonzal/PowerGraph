@@ -262,7 +262,9 @@ double calc_rmse(graph_type * _g, bool test, double & res){
                                    tensor? (&times[(int)edge.time]):NULL, 
                                    edge.weight, 
                                    prediction);
-           if (!ZERO)
+
+           //we do not allow zero predicion on dense matrices (prediction vectors are rarely orthogonal)
+           if (!ZERO && algorithm != ALS_SPARSE_USR_MOVIE_FACTORS)
 	           assert(prediction != 0);         
            
            if (debug && (i== M || i == M+N-1) && ((e == 0) || ((e-1) == (test?Le:L))))
