@@ -79,23 +79,30 @@ double calc_obj(double res){
   int sparsity = 0;
 
   timer t;
-  t.start(); 
+  t.start();
+  int cnt = 0; 
   for (int i=0; i< M; i++){
     const vertex_data * data = &g->vertex_data(i);
-    sumU += sum_sqr(data->pvec);
-    if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR){
+    if (data->num_edges > 0){
+      sumU += sum_sqr(data->pvec);
+      if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR){
 	absSum += sum(abs(data->pvec));
         sparsity += num_zeros(data->pvec);
+        cnt++;
+      }
     }
      
   } 
 
   for (int i=M; i< M+N; i++){
     const vertex_data * data = &g->vertex_data(i);
-    sumV += sum_sqr(data->pvec);
-    if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
-       absSum += sum(abs(data->pvec));
-       sparsity += num_zeros(data->pvec);
+    if (data->num_edges > 0 ){
+      sumV += sum_sqr(data->pvec);
+      if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
+         absSum += sum(abs(data->pvec));
+         sparsity += num_zeros(data->pvec);
+         cnt++;
+      }
     }
   } 
 
@@ -115,14 +122,7 @@ double calc_obj(double res){
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
 
   if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
-     int total;
-     if (algorithm == ALS_SPARSE_MOVIE_FACTOR)
-        total = N;
-     else if (algorithm == ALS_SPARSE_USR_FACTOR)
-        total = M;
-     else if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS)
-        total = M+N; 
-     cout<<"Current sparsity : of " << runmodesname[algorithm] << " is: " << sparsity / ((double)D*total) << endl;
+     cout<<"Current sparsity : of " << runmodesname[algorithm] << " is: " << ((double)sparsity / ((double)D*cnt)) << endl;
      obj += absSum;
   }
 
