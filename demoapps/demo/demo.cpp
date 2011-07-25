@@ -155,7 +155,7 @@ typedef graphlab::types<graph_type, update_functor> gl;
    that here.
 
 */
-class update_functor : public gl::iupdate_functor {
+struct update_functor : public gl::iupdate_functor {
   void operator()(gl::iscope& scope, gl::icallback& callback) {
     //scope.vertex_data allows me to grab a reference to the vertex data
     // on the graph

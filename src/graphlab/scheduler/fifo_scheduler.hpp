@@ -100,7 +100,7 @@ namespace graphlab {
                   const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
         terminator.new_job();
-        queue_lock().lock();
+        queue_lock.lock();
         queue.push(vid);
         queue_lock.unlock();
       } 
@@ -130,7 +130,7 @@ namespace graphlab {
       }
       queue_lock.unlock();
       if(success) {
-        const bool get_success = vfun_set.test_and_get(ret_fun);
+        const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
         ASSERT_TRUE(get_success);
         return sched_status::NEW_TASK;
       } else {

@@ -36,33 +36,35 @@ namespace graphlab {
    */
   struct execution_status {
     enum status_enum {
-      EXEC_UNSET,  /** The default termination reason */      
-      EXEC_TASK_DEPLETION, /**<Execution completed successfully due to
+      UNSET,          /** The default termination reason */      
+      RUNNING,        /** The engine is currently running */
+      TASK_DEPLETION, /**<Execution completed successfully due to
                               task depletion */      
-      EXEC_TERM_FUNCTION,  /**< Execution completed successfully due to
+      TERM_FUNCTION,  /**< Execution completed successfully due to
                               termination function. */      
-      EXEC_TIMEOUT,       /**< The execution completed after timing
-                             out */
-      EXEC_TASK_BUDGET_EXCEEDED, /**< The execution completed because
+      TIMEOUT,        /**< The execution completed after timing
+                              out */
+      TASK_BUDGET_EXCEEDED, /**< The execution completed because
                                     the maximum number of tasks was
                                     exceeded */
       
-      EXEC_FORCED_ABORT,     /**< the engine was stopped by calling force
+      FORCED_ABORT,     /**< the engine was stopped by calling force
                                 abort */
       
-      EXEC_EXCEPTION        /**< the engine was stopped by an exception */
+      EXCEPTION        /**< the engine was stopped by an exception */
     }; // end of enum
     
     // Convenience function.
     static std::string to_string(status_enum es) {
       switch(es) {
-      case EXEC_UNSET: return "engine not run!";
-      case EXEC_FORCED_ABORT: return "forced abort";
-      case EXEC_TASK_BUDGET_EXCEEDED: return "budget exceed";
-      case EXEC_TERM_FUNCTION: return "termination function";
-      case EXEC_TASK_DEPLETION: return "task depletion (natural)";
-      case EXEC_TIMEOUT: return "timeout";
-      case EXEC_EXCEPTION: return "exception";
+      case UNSET: return "engine not run!";
+      case RUNNING: return "engine is still running!"; 
+      case FORCED_ABORT: return "forced abort";
+      case TASK_BUDGET_EXCEEDED: return "budget exceed";
+      case TERM_FUNCTION: return "termination function";
+      case TASK_DEPLETION: return "task depletion (natural)";
+      case TIMEOUT: return "timeout";
+      case EXCEPTION: return "exception";
       };
       return "unknown";
     } // end of to_string
