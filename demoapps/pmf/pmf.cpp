@@ -119,8 +119,9 @@ float implicitratingpercentage = 0;
 
 /* sparsity enforcing priors (see reference 11 in pmf.h) */
 int lasso_max_iter = 10;
-double desired_factor_sparsity = .8;
-
+#define DEFAULT_SPARSITY 0.8
+double user_sparsity = DEFAULT_SPARSITY;
+double movie_sparsity= DEFAULT_SPARSITY;
 //performance counters
 #define MAX_COUNTER 20
 double counter[MAX_COUNTER];
@@ -325,8 +326,9 @@ void start(int argc, char ** argv) {
   clopts.attach_option("implicitratingweight", &implicitratingweight, implicitratingweight, "weight/time for implicit negative ratings");
 
   //sparsity enforcing priors (see reference 11 in pmf.h)
-  clopts.attach_option("desired_factor_sparsity", &desired_factor_sparsity, desired_factor_sparsity, "desired sparsity [0->0.5] (for L1 regularization for sparsity enforcing priors - ALS_SPARSE_USR_FACTOR, ALS_SPARSE_USR_MOVIE_FACTORS");
-  clopts.attach_option("lasso_max_iter", &lasso_max_iter, lasso_max_iter, "max iter for lasso internal propcedire, for run modes ALS_SPARSE_USR_FACTOR, ALS_SPARSE_USR_MOVIE_FACTORS");
+  clopts.attach_option("user_sparsity", &user_sparsity, user_sparsity, "user sparsity [0.5->1) (for L1 regularization for sparsity enforcing priors - run modes 10,11");
+  clopts.attach_option("movie_sparsity", &movie_sparsity, movie_sparsity, "movie sparsity [0.5->1) (for L1 regularization for sparsity enforcing priors - run modes 11,12");
+  clopts.attach_option("lasso_max_iter", &lasso_max_iter, lasso_max_iter, "max iter for lasso sparsity (run modes 10-12)");
 
   assert(clopts.parse(argc, argv));
   
@@ -403,11 +405,15 @@ void start(int argc, char ** argv) {
   if (BURN_IN != 10 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR && algorithm != BPTF_MATRIX))
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
-  if (desired_factor_sparsity < 0.5 || desired_factor_sparsity >= 1){
-	logstream(LOG_ERROR) << "desired_factor_sparsity has to be in the range [0.5 1)" << std::endl;
+  if (user_sparsity < 0.5 || user_sparsity >= 1){
+	logstream(LOG_ERROR) << "user_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
         exit(1);
   }
-  gl_types::core glcore;
+  if (movie_sparsity < 0.5 || movie_sparsity >= 1){
+	logstream(LOG_ERROR) << "movie_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
+        exit(1);
+  }
+   gl_types::core glcore;
   //read the training data
   printf("loading data file %s\n", infile.c_str());
   if (!loadgraph){

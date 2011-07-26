@@ -76,20 +76,23 @@ double calc_obj(double res){
    
   double sumU = 0, sumV = 0, sumT = 0;
   double absSum = 0;
-  int sparsity = 0;
+  int user_sparsity = 0;
+  int movie_sparsity = 0;
+  int user_cnt = 0; 
+  int movie_cnt = 0;
+
 
   timer t;
   t.start();
-  int cnt = 0; 
   for (int i=0; i< M; i++){
     const vertex_data * data = &g->vertex_data(i);
     if (data->num_edges > 0){
       sumU += sum_sqr(data->pvec);
       if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR){
 	absSum += sum(abs(data->pvec));
-        sparsity += num_zeros(data->pvec);
-        cnt++;
-      }
+      } 
+      user_sparsity += num_zeros(data->pvec);
+      user_cnt++;
     }
      
   } 
@@ -100,9 +103,9 @@ double calc_obj(double res){
       sumV += sum_sqr(data->pvec);
       if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
          absSum += sum(abs(data->pvec));
-         sparsity += num_zeros(data->pvec);
-         cnt++;
-      }
+      }  
+      movie_sparsity += num_zeros(data->pvec);
+      movie_cnt++;
     }
   } 
 
@@ -122,7 +125,7 @@ double calc_obj(double res){
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
 
   if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
-     cout<<"Current sparsity : of " << runmodesname[algorithm] << " is: " << ((double)sparsity / ((double)D*cnt)) << endl;
+     cout<<"Current user sparsity : " << ((double)user_sparsity / ((double)D*user_cnt)) << " movie sparsity: "  << ((double)movie_sparsity / ((double)D*movie_cnt)) << endl;
      obj += absSum;
   }
 
@@ -159,8 +162,8 @@ void calc_stats(testtype type){
      printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
   }	
 
-  double avgval=-1, minval=1e100, maxval=-1e100;
-  double avgtime=-1, mintime=1e100, maxtime=-1e100;
+  double avgval=0, minval=1e100, maxval=-1e100;
+  double avgtime=0, mintime=1e100, maxtime=-1e100;
   double minV=1e100, maxV=-1e100, minU=1e100, maxU=-1e100;
   int moviewithoutedges = 0;
   int userwithoutedges = 0;
