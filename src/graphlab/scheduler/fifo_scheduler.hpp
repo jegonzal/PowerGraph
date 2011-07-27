@@ -50,6 +50,7 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/engine/terminator/task_count_terminator.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -80,18 +81,16 @@ namespace graphlab {
     vertex_functor_set<engine_type> vfun_set;
     std::queue<vertex_id_type> queue; 
     mutex queue_lock; 
-    iterminator& terminator;
+    task_count_terminator term;
 
 
 
   public:
 
     fifo_scheduler(const graph_type& graph, 
-                   iterminator& terminator, 
                    size_t ncpus,
                    const options_map& opts) :
-      vfun_set(graph.num_vertices()), 
-      terminator(terminator) {  }
+      vfun_set(graph.num_vertices()) { }
     
 
     void start() { }
@@ -99,7 +98,7 @@ namespace graphlab {
     void schedule(vertex_id_type vid, 
                   const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
-        terminator.new_job();
+        term.new_job();
         queue_lock.lock();
         queue.push(vid);
         queue_lock.unlock();
@@ -114,7 +113,7 @@ namespace graphlab {
     void completed(size_t cpuid,
                    vertex_id_type vid,
                    const update_functor_type& fun) {
-      terminator.completed_job();
+      term.completed_job();
     }
 
 
@@ -139,6 +138,9 @@ namespace graphlab {
     } // end of get_next_task
 
     void set_options(const options_map& opts) { }
+
+
+    iterminator& terminator() { return term; }
 
 
   }; // end of fifo_scheduler

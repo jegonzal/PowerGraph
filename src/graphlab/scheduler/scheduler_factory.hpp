@@ -56,11 +56,10 @@ namespace graphlab {
      */
     template<typename Scheduler>
     static ischeduler_type* new_scheduler(const graph_type& graph,
-                                          iterminator& terminator,
                                           const size_t& ncpus,
                                           const options_map& opts) {
       ischeduler_type* scheduler_ptr = 
-        new Scheduler(graph, terminator, ncpus, opts);
+        new Scheduler(graph, ncpus, opts);
       ASSERT_TRUE(scheduler_ptr != NULL);
       scheduler_ptr->set_options(opts);
       return scheduler_ptr;
@@ -76,14 +75,13 @@ namespace graphlab {
     new_scheduler(const std::string& scheduler_str,
                   const options_map& opts,
                   const graph_type& graph,
-                  iterminator& terminator,
                   const size_t& ncpus) {
 #define __GENERATE_NEW_SCHEDULER__(r_unused, data_unused, i,  elem)     \
       BOOST_PP_EXPR_IF(i, else)                                         \
         if (scheduler_str == BOOST_PP_TUPLE_ELEM(3,0,elem)) {           \
           typedef BOOST_PP_TUPLE_ELEM(3,1,elem)<Engine> scheduler_type; \
           return new_scheduler<scheduler_type>                          \
-            ( graph, terminator, ncpus, opts );                         \
+            ( graph, ncpus, opts );                                     \
         }      
       // generate the construction calls
       BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_NEW_SCHEDULER__, _, __SCHEDULER_LIST__);

@@ -57,7 +57,7 @@ namespace graphlab {
     /**
      * The main part of an update functor
      */
-    virtual void operator()(iscope_type& scope, icallback_type& callback) { }
+    //virtual void operator()(iscope_type& scope, icallback_type& callback);
 
 
     /**

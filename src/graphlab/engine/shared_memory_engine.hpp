@@ -71,7 +71,6 @@
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/engine/callback/direct_callback.hpp>
 #include <graphlab/engine/terminator/iterminator.hpp>
-#include <graphlab/engine/terminator/task_count_terminator.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -103,7 +102,6 @@ namespace graphlab {
     typedef typename iengine_base::merge_function_type merge_function_type;
 
     
-    typedef task_count_terminator terminator_type;
     typedef direct_callback<shared_memory_engine> callback_type;
     
     typedef general_scope_factory<graph_type> scope_factory_type;
@@ -130,11 +128,10 @@ namespace graphlab {
     //! The scheduler
     ischeduler_type* scheduler_ptr;
     
-    //! A boolean indicating that tasks have been added to the scheduler since the last run
+    //! A boolean indicating that tasks have been added to the
+    //! scheduler since the last run
     bool new_tasks_added;
 
-    //! the terminator
-    iterminator* terminator_ptr;    
 
     /**
      * The thread pool contain the active threads.  The pool is stored
@@ -145,7 +142,14 @@ namespace graphlab {
     thread_pool* threads_ptr;   
 
 
-    //! The reason for last termination
+    /**
+     * The execution status describes the current state of the engine.
+     * If unset the engine is not currently running.  
+     *
+     * The main thread loops check the execution status while running
+     * and continue to run if and only iff the execution status is
+     * currently set to RUNNING.  
+     */
     execution_status::status_enum exec_status;
 
     /** The cause of the last termination condition */
@@ -161,7 +165,7 @@ namespace graphlab {
     struct thread_state_type {
       size_t update_count;
       callback_type callback;
-      char FALSE_CACHE_SHARING_PAD[128];
+      char FALSE_CACHE_SHARING_PAD[64];
       thread_state_type(shared_memory_engine* ptr = NULL) : 
         update_count(0), callback(ptr) { }
     }; //end of thread_state
@@ -184,7 +188,7 @@ namespace graphlab {
     void start();
     
     //! Stop the engine
-    void stop() { }
+    void stop();
     
     //! \brief Describe the reason for termination.
     execution_status::status_enum last_exec_status() const { return exec_status; }
@@ -269,7 +273,6 @@ namespace graphlab {
     scope_factory_ptr(NULL),
     scheduler_ptr(NULL),
     new_tasks_added(false),
-    terminator_ptr(NULL), 
     threads_ptr(NULL),
     exec_status(execution_status::UNSET),
     exception_message(NULL),
@@ -339,10 +342,6 @@ namespace graphlab {
       delete scheduler_ptr; 
       scheduler_ptr = NULL;
     }
-    if(terminator_ptr != NULL) {
-      delete terminator_ptr; 
-      terminator_ptr = NULL;
-    }
     tls_array.clear();
     nverts = 0;
     exec_status = execution_status::UNSET;
@@ -368,7 +367,6 @@ namespace graphlab {
     ASSERT_EQ(graph.num_vertices(), nverts);
     ASSERT_TRUE(scope_factory_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
-    ASSERT_TRUE(terminator_ptr != NULL);
     ASSERT_EQ(tls_array.size(), opts.get_ncpus());
         
     // -------------------- Reset Internal Counters ------------------------ //
@@ -398,8 +396,15 @@ namespace graphlab {
 
 
 
-
-
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  stop() {      
+    // Setting the execution status to forced abort will cause any
+    // thread loops to terminate after the current computaiton
+    // completes
+    exec_status = execution_status::FORCED_ABORT;
+  } // end of stop
 
 
 
@@ -418,7 +423,6 @@ namespace graphlab {
     // need to do anything.
     if(nverts == graph.num_vertices() &&
        scope_factory_ptr != NULL &&
-       terminator_ptr != NULL &&
        scheduler_ptr != NULL) {
       return;
     } else {
@@ -437,12 +441,8 @@ namespace graphlab {
         new scope_factory_type(graph, 
                                opts.get_ncpus(),
                                scope_range);
-      ASSERT_TRUE(terminator_ptr != NULL);
+      ASSERT_TRUE(scope_factory_ptr != NULL);
 
-      // construct the terminator
-      ASSERT_TRUE(terminator_ptr == NULL);                               
-      terminator_ptr = new terminator_type();
-      ASSERT_TRUE(terminator_ptr != NULL);
 
       // construct the scheduler
       ASSERT_TRUE(scheduler_ptr == NULL);
@@ -450,7 +450,6 @@ namespace graphlab {
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph,
-                      *terminator_ptr,
                       opts.get_ncpus());
       ASSERT_TRUE(scheduler_ptr != NULL);
       
@@ -592,14 +591,14 @@ namespace graphlab {
     // If we failed to get a task enter the retry /termination loop
     while(stat == sched_status::EMPTY) {
       // Enter the critical section
-      terminator_ptr->begin_critical_section(cpuid);
+      scheduler_ptr->terminator().begin_critical_section(cpuid);
       // Try again in the critical section
       stat = scheduler_ptr->get_next(cpuid, vid, ufun);
       // If we fail again
       if (stat == sched_status::EMPTY) {
         // test if the scheduler is finished
         const bool scheduler_empty = 
-          terminator_ptr->end_critical_section(cpuid);
+          scheduler_ptr->terminator().end_critical_section(cpuid);
         if(scheduler_empty) {
           exec_status = execution_status::TASK_DEPLETION;
           return;
@@ -608,7 +607,7 @@ namespace graphlab {
           // if(use_sched_yield) sched_yield();
         }
         // cancel the critical section
-        terminator_ptr->cancel_critical_section(cpuid);
+        scheduler_ptr->terminator().cancel_critical_section(cpuid);
       }
     } // end of while loop
 

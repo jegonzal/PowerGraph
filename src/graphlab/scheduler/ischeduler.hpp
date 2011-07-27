@@ -38,7 +38,7 @@
 #include <ostream>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/options/options_map.hpp>
-
+#include <graphlab/engine/terminator/iterminator.hpp>
 
 #include <graphlab/metrics/metrics.hpp>
 
@@ -130,6 +130,12 @@ namespace graphlab {
     virtual void completed(size_t cpuid,
                            vertex_id_type vid,
                            const update_functor_type& fun) { }
+
+
+    /**
+     * Get the terminator associated with this scheduler
+     */
+    virtual iterminator& terminator() = 0;
     
     /**
      * Set the scheduler options.
