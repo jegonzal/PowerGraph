@@ -166,8 +166,9 @@ namespace graphlab {
       size_t update_count;
       callback_type callback;
       char FALSE_CACHE_SHARING_PAD[64];
-      thread_state_type(shared_memory_engine* ptr = NULL) : 
-        update_count(0), callback(ptr) { }
+      thread_state_type(shared_memory_engine* engine_ptr = NULL,
+                        ischeduler_type* ischeduler_ptr = NULL) : 
+        update_count(0), callback(engine_ptr, ischeduler_ptr) { }
     }; //end of thread_state
     std::vector<thread_state_type> tls_array; 
 
@@ -299,7 +300,7 @@ namespace graphlab {
            const update_functor_type& update_functor) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
-    scheduler_ptr->schedule_all(update_functor);
+    scheduler_ptr->schedule(vid, update_functor);
   } // end of schedule
 
  
@@ -463,7 +464,7 @@ namespace graphlab {
         // Determine if the engine should use affinities
         std::string affinity = "false";
         opts.engine_args.get_string_option("affinity", affinity);
-        const bool use_cpu_affinities = affinity == "affinity";
+        const bool use_cpu_affinities = affinity == "true";
         // construct the thread pool
         threads_ptr = new thread_pool(opts.get_ncpus(), use_cpu_affinities);
         ASSERT_TRUE(threads_ptr != NULL);
@@ -474,7 +475,7 @@ namespace graphlab {
       // reset the execution status
       exec_status = execution_status::UNSET;
       // reset the thread local state 
-      const thread_state_type starting_state(this);
+      const thread_state_type starting_state(this, scheduler_ptr);
       tls_array.resize(opts.get_ncpus(), starting_state );
     }
       
@@ -514,8 +515,8 @@ namespace graphlab {
   join_threads() {
     ASSERT_TRUE(threads_ptr != NULL);
     // Join all the threads (looping while failed)
-    for(bool join_successful = false; !join_successful; ) {
-      join_successful = true; 
+    bool join_successful = false;   
+    while(!join_successful) {
       try { 
         // Join blocks until all exection threads return.  However if
         // a thread terminates early due to exception in user code
@@ -524,6 +525,7 @@ namespace graphlab {
         // and then try to kill the rest of the threads and proceed to
         // join again.
         threads_ptr->join();
+        join_successful = true; 
       } catch (const char* error_str) {
         logstream(LOG_ERROR) 
           << "Exception in execution thread caught: " << error_str 
@@ -572,6 +574,7 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   run_once(size_t cpuid) {
+    std::cout << "Running once" << std::endl;
     // -------------------- Execute Sync Operations ------------------------ //
     // Evaluate pending sync operations
     evaluate_sync_queue(cpuid);

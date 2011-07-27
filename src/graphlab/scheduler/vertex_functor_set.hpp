@@ -61,13 +61,14 @@ namespace graphlab {
       update_functor_type functor;
     public:
       vfun_type() : is_set(false) { }
+      /** returns true if set for the first time */
       inline bool set(const update_functor_type& other) {
         lock.lock();
         const bool already_set(is_set);
         if(is_set) functor += other;
-        else functor = other;
+        else { functor = other; is_set = true; }
         lock.unlock();
-        return already_set;
+        return !already_set;
       }
       inline update_functor_type get() {
         update_functor_type ret;
