@@ -56,7 +56,7 @@
 #include <graphlab/graph/graph.hpp>
 
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/general_scope_factory.hpp>
+#include <graphlab/scope/scope_manager.hpp>
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
@@ -95,7 +95,6 @@ namespace graphlab {
     typedef ischeduler<shared_memory_engine> ischeduler_type;
     typedef typename iengine_base::iscope_type iscope_type;
    
-   
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
     typedef typename iengine_base::sync_function_type sync_function_type;
@@ -104,7 +103,7 @@ namespace graphlab {
     
     typedef direct_callback<shared_memory_engine> callback_type;
     
-    typedef general_scope_factory<graph_type> scope_factory_type;
+    typedef scope_manager<graph_type> scope_manager_type;
     
   private:
 
@@ -123,7 +122,7 @@ namespace graphlab {
     size_t nverts;
     
     //! The scope factory
-    scope_factory_type* scope_factory_ptr;
+    scope_manager_type* scope_manager_ptr;
     
     //! The scheduler
     ischeduler_type* scheduler_ptr;
@@ -174,6 +173,22 @@ namespace graphlab {
 
 
 
+    //! Termination related variables
+    struct termination_members {
+      size_t last_check_time_in_millis;
+      size_t task_budget;
+      size_t timeout_millis;
+      std::vector<termination_function_type> functions;
+      termination_members() { clear(); }
+      void clear() { 
+        last_check_time_in_millis = 0;
+        task_budget = 0;
+        timeout_millis = 0;
+        functions.clear();
+      }
+    };
+    termination_members termination;
+
 
     
 
@@ -192,10 +207,11 @@ namespace graphlab {
     void stop();
     
     //! \brief Describe the reason for termination.
-    execution_status::status_enum last_exec_status() const { return exec_status; }
+    execution_status::status_enum last_exec_status() const { 
+      return exec_status; }
 
     //! \brief Get the number of updates executed by the engine.
-    size_t last_update_count() const { return 0; }
+    size_t last_update_count() const;
 
         
     
@@ -209,16 +225,16 @@ namespace graphlab {
 
 
     //! \brief associate a termination function with this engine.
-    void add_termination_condition(termination_function_type term) { }
+    void add_termination_condition(termination_function_type term);
 
     //!  remove all associated termination functions
-    void clear_termination_conditions() { };
+    void clear_termination_conditions();
     
     //! \brief The timeout is the total
-    void set_timeout(size_t timeout_secs) { }
+    void set_timeout(size_t timeout_in_seconds = 0);
 
     //! \brief set a limit on the number of tasks that may be executed.
-    void set_task_budget(size_t max_tasks) { }
+    void set_task_budget(size_t max_tasks = 0);
 
     //! \brief Update the engine options.  
     void set_options(const graphlab_options& newopts);
@@ -255,8 +271,8 @@ namespace graphlab {
 
 
     void run_once(size_t cpuid);
-    void evaluate_sync_queue(size_t cpuid) { };
-    bool evaluate_termination_conditions(size_t cpuid) { return false; };
+    void evaluate_sync_queue(size_t cpuid);
+    void evaluate_termination_conditions(size_t cpuid);
         
   }; // end of shared_memory engine
 
@@ -271,13 +287,14 @@ namespace graphlab {
   shared_memory_engine(graph_type& graph) : 
     graph(graph), 
     nverts(graph.num_vertices()),
-    scope_factory_ptr(NULL),
+    scope_manager_ptr(NULL),
     scheduler_ptr(NULL),
     new_tasks_added(false),
     threads_ptr(NULL),
     exec_status(execution_status::UNSET),
-    exception_message(NULL),
+    exception_message(NULL),   
     start_time_millis(0) {
+    
   } // end of constructor
 
 
@@ -290,6 +307,22 @@ namespace graphlab {
     clear();
     opts = new_opts;
   } // end of set_options
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  set_timeout(size_t timeout_in_seconds) {
+    termination.timeout_millis = 
+      timeout_in_seconds * 1000;
+  } // end of set_timeout
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  set_task_budget(size_t max_tasks) {
+     termination.task_budget = max_tasks; 
+  } // end of set_timeout
 
 
 
@@ -315,6 +348,15 @@ namespace graphlab {
   } // end of schedule_all
 
 
+  template<typename Graph, typename UpdateFunctor> 
+  size_t
+  shared_memory_engine<Graph, UpdateFunctor>::
+  last_update_count() const {
+    size_t count = 0;
+    for(size_t i = 0; i < tls_array.size(); ++i) 
+      count += tls_array[i].update_count;
+    return count;
+  } // end of last update count
 
 
 
@@ -329,9 +371,9 @@ namespace graphlab {
       delete threads_ptr;
       threads_ptr = NULL;
     }
-    if(scope_factory_ptr != NULL) {
-      delete scope_factory_ptr;
-      scope_factory_ptr = NULL;
+    if(scope_manager_ptr != NULL) {
+      delete scope_manager_ptr;
+      scope_manager_ptr = NULL;
     }
     if(scheduler_ptr != NULL) {
       if(new_tasks_added) {
@@ -366,7 +408,7 @@ namespace graphlab {
     
     // Check internal data-structures
     ASSERT_EQ(graph.num_vertices(), nverts);
-    ASSERT_TRUE(scope_factory_ptr != NULL);
+    ASSERT_TRUE(scope_manager_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
     ASSERT_EQ(tls_array.size(), opts.get_ncpus());
         
@@ -410,6 +452,28 @@ namespace graphlab {
 
 
 
+
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  clear_termination_conditions() {      
+    termination.clear();
+  } // end of clear_termination_conditions
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  add_termination_condition(termination_function_type fun) {
+    ASSERT_TRUE(fun != NULL);
+    termination.functions.push_back(fun);
+  } // end of clear_termination_conditions
+
+
+
+
   /////////////////////////////////////////////////////////////////////////////
   ///////////////// Private Methods ///////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -423,7 +487,7 @@ namespace graphlab {
     // If everything is already properly initialized then we don't
     // need to do anything.
     if(nverts == graph.num_vertices() &&
-       scope_factory_ptr != NULL &&
+       scope_manager_ptr != NULL &&
        scheduler_ptr != NULL) {
       return;
     } else {
@@ -435,14 +499,14 @@ namespace graphlab {
       // Force a reset and start over
       clear();
       // construct the scope factory
-      ASSERT_TRUE(scope_factory_ptr == NULL);
+      ASSERT_TRUE(scope_manager_ptr == NULL);
       const consistency_model::model_enum scope_range =
-        consistency_model::from_string(opts.scope_type);
-      scope_factory_ptr = 
-        new scope_factory_type(graph, 
+        consistency_model::from_string(opts.get_scope_type());
+      scope_manager_ptr = 
+        new scope_manager_type(graph, 
                                opts.get_ncpus(),
                                scope_range);
-      ASSERT_TRUE(scope_factory_ptr != NULL);
+      ASSERT_TRUE(scope_manager_ptr != NULL);
 
 
       // construct the scheduler
@@ -459,8 +523,9 @@ namespace graphlab {
       // Determine if the engine is threaded or simualted (default is simulated)
       std::string engine_type = "threaded"; // "simulated"
       opts.engine_args.get_string_option("type", engine_type);
-      const bool is_threaded = engine_type == "threaded";
-      if(is_threaded) {
+      const bool is_simulated = engine_type == "simulated" ||
+        opts.get_engine_type() == "async_sim";
+      if(!is_simulated) {
         // Determine if the engine should use affinities
         std::string affinity = "false";
         opts.engine_args.get_string_option("affinity", affinity);
@@ -558,9 +623,10 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   run_simulated() {  
-    const size_t ncpus = opts.get_ncpus();
+    ASSERT_TRUE(opts.get_ncpus() > 0);
+    const size_t last_cpuid = opts.get_ncpus() - 1;
     while(exec_status == execution_status::RUNNING) {
-      const size_t cpuid = random::fast_uniform<size_t>(0, ncpus);
+      const size_t cpuid = random::fast_uniform<size_t>(0, last_cpuid);
       run_once(cpuid);
     }
   } // end of run_simulated
@@ -574,7 +640,6 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   run_once(size_t cpuid) {
-    std::cout << "Running once" << std::endl;
     // -------------------- Execute Sync Operations ------------------------ //
     // Evaluate pending sync operations
     evaluate_sync_queue(cpuid);
@@ -618,23 +683,69 @@ namespace graphlab {
     ASSERT_EQ(stat, sched_status::NEW_TASK);
     ASSERT_LT(vid, graph.num_vertices());
     // Get the scope
-    iscope_type* scope_ptr = 
-      scope_factory_ptr->get_scope(cpuid, vid, ufun.consistency());
-    ASSERT_TRUE(scope_ptr != NULL);
+    iscope_type& scope = 
+      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
     // Apply the update functor
-    ufun(*scope_ptr, tls_array[cpuid].callback);
-
+    ufun(scope, tls_array[cpuid].callback);
     // ----------------------- Post Update Code ---------------------------- //
     // Finish any pending transactions in the scope
-    scope_ptr->commit();
+    scope.commit();
     // Release the scope (and all corresponding locks)
-    scope_factory_ptr->release_scope(scope_ptr);    
+    scope_manager_ptr->release_scope(scope);    
     // Mark scope as completed in the scheduler
     scheduler_ptr->completed(cpuid, vid, ufun);
     // Record an increase in the update counts
+    ASSERT_LT(cpuid, tls_array.size());
     tls_array[cpuid].update_count++;     
       
   } // end of run_once
+
+  
+
+
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  evaluate_sync_queue(size_t cpuid) {
+
+
+  } // end of evaluate_sync_queue
+
+
+
+
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  evaluate_termination_conditions(size_t cpuid) {
+    return;
+    // return immediately if a check has already occured recently
+    if(termination.last_check_time_in_millis == lowres_time_millis()) return;
+    termination.last_check_time_in_millis = lowres_time_millis();    
+    // ------------------------- Check timeout ----------------------------- //
+    if(termination.timeout_millis > 0 &&
+       start_time_millis + termination.timeout_millis < lowres_time_millis()) {
+      exec_status = execution_status::TIMEOUT;
+      return;
+    }
+    // ----------------------- Check task budget --------------------------- //
+    if(termination.task_budget > 0 &&
+       last_update_count() > termination.task_budget) {
+      exec_status = execution_status::TASK_BUDGET_EXCEEDED;
+      return;
+    }
+    // ------------------ Check termination functions ---------------------- //
+    for (size_t i = 0; i < termination.functions.size(); ++i) {
+      if (termination.functions[i]()) {
+        exec_status = execution_status::TERM_FUNCTION;
+        return;
+      }
+    }
+  } // end of evaluate_termination_conditions
 
   
 

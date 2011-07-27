@@ -26,7 +26,7 @@
 
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/util/generics/any.hpp>
-#include <graphlab/scope/iscope_factory.hpp>
+
 
 namespace graphlab {
 

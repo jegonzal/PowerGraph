@@ -78,7 +78,7 @@ namespace graphlab {
       VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
       EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
       FULL_CONSISTENCY,        ///< write to self and adjacent structures
-      USE_DEFAULT
+      USE_DEFAULT              ///< use externally described default
     };
     
     enum lock_type_enum {

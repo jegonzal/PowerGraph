@@ -24,8 +24,8 @@
  * \todo: Evaluate if we still really need this interface.
  */
 
-#ifndef GRAPHLAB_ISCOPE_FACTORY_HPP
-#define GRAPHLAB_ISCOPE_FACTORY_HPP
+#ifndef GRAPHLAB_ISCOPE_MANAGER_HPP
+#define GRAPHLAB_ISCOPE_MANAGER_HPP
 
 #include <graphlab/scope/consistency_model.hpp>
 #include <graphlab/scope/iscope.hpp>
@@ -36,7 +36,7 @@ namespace graphlab {
 
 
   template<typename Graph>
-  class iscope_factory {
+  class iscope_manager {
   public:
 
 
@@ -48,12 +48,12 @@ namespace graphlab {
     /**  \note This constructor here does not actually do anything. It
          just exists to force the derived class constructors to look
          like this  */
-    iscope_factory(Graph& graph, size_t ncpus) {}
+    iscope_manager(Graph& graph, size_t ncpus) {}
  
-    virtual ~iscope_factory() {}
+    virtual ~iscope_manager() {}
 
     //!  Returns a scope around a particular vertex
-    virtual iscope_type* get_scope(size_t cpuid,
+    virtual iscope_type& get_scope(size_t cpuid,
                                    vertex_id_type vertex,
                                    consistency_model::model_enum s = 
                                    consistency_model::USE_DEFAULT) = 0;
@@ -63,7 +63,7 @@ namespace graphlab {
                                    default_scope_range) = 0;
   
     //! Destroys a scope
-    virtual void release_scope(iscope<Graph>* scope) = 0;
+    virtual void release_scope(iscope<graph_type>& scope) = 0;
 
     //! Get the number of vertices
     virtual size_t num_vertices() const = 0;

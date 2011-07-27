@@ -31,13 +31,13 @@
 
 
 
-#ifndef GRAPHLAB_GENERAL_SCOPE_FACTORY_HPP
-#define GRAPHLAB_GENERAL_SCOPE_FACTORY_HPP
+#ifndef GRAPHLAB_SCOPE_MANAGER_HPP
+#define GRAPHLAB_SCOPE_MANAGER_HPP
 
 #include <vector>
 
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/iscope_factory.hpp>
+#include <graphlab/scope/iscope_manager.hpp>
 #include <graphlab/scope/general_scope.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph.hpp>
@@ -47,66 +47,54 @@ namespace graphlab {
 
 
   template<typename Graph>
-  class general_scope_factory :
-    public iscope_factory<Graph> {
-
+  class scope_manager {
 
   public:
 
-
-    typedef iscope_factory<Graph> base;
-    typedef typename base::iscope_type iscope_type;
+    typedef Graph graph_type;
+    typedef iscope<Graph>                   iscope_type;
     typedef typename Graph::vertex_id_type  vertex_id_type;
     typedef typename Graph::edge_id_type    edge_id_type;
     typedef typename Graph::edge_list_type  edge_list_type;
-    typedef general_scope<Graph> general_scope_type;
+    typedef general_scope<Graph>            general_scope_type;
 
   private:
     Graph& graph;
-    std::vector<general_scope_type*> scopes;
+    std::vector<general_scope_type> scopes;
     std::vector<rwlock> locks;
     consistency_model::model_enum default_scope;
 
   public:
 
-    general_scope_factory(Graph& graph,
-                          size_t ncpus,
-                          consistency_model::model_enum default_scope_range 
-                          = consistency_model::NULL_CONSISTENCY) :
-      base(graph,ncpus), graph(graph),
+    scope_manager(Graph& graph,
+                  size_t ncpus,
+                  consistency_model::model_enum default_scope_range 
+                  = consistency_model::EDGE_CONSISTENCY) :
+      graph(graph), scopes(ncpus), locks(graph.num_vertices()),
       default_scope(default_scope_range) {
       if (default_scope == consistency_model::USE_DEFAULT)
-        default_scope = consistency_model::VERTEX_CONSISTENCY;
-      locks.resize(graph.num_vertices());
-      
-      // preallocate the scopes
-      scopes.resize(ncpus);
-      // create them to be some arbitrary scope type
-      for (size_t i = 0; i < ncpus;++i) {
-        scopes[i] = new general_scope_type(&graph, 0, this, 
-                                           consistency_model::FULL_CONSISTENCY);
-      }
-    }
+        default_scope = consistency_model::EDGE_CONSISTENCY;
+    } // end of scope manager
+
 
     void set_default_scope(consistency_model::model_enum default_scope_range) {
       default_scope = default_scope_range;
       if (default_scope == consistency_model::USE_DEFAULT) 
-        default_scope = consistency_model::VERTEX_CONSISTENCY;
+        default_scope = consistency_model::EDGE_CONSISTENCY;
     }
 
-    ~general_scope_factory() { 
-      for (size_t i = 0;i < scopes.size(); ++i) {
-        delete scopes[i];
-      }
-    }
 
     // -----------------ACQUIRE SCOPE-----------------------------
-    iscope_type* get_scope(size_t cpuid,
+    iscope_type& get_scope(size_t cpuid,
                            vertex_id_type v,
                            consistency_model::model_enum scope = 
                            consistency_model::USE_DEFAULT) {
-      if (scope == consistency_model::USE_DEFAULT) scope = default_scope;
-      
+      // Verify that the cpuid and vertex id are valid
+      ASSERT_LT(cpuid, scopes.size());
+      ASSERT_LT(v, locks.size());
+
+      if (scope == consistency_model::USE_DEFAULT) 
+        scope = default_scope;      
       switch(scope){
       case consistency_model::VERTEX_CONSISTENCY:
         return get_vertex_scope(cpuid, v);
@@ -121,18 +109,17 @@ namespace graphlab {
       case consistency_model::NULL_CONSISTENCY:
         return get_null_scope(cpuid, v);
       default:
-        ASSERT_TRUE(false);
-        return NULL;
+        logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
+        return get_edge_scope(cpuid,v);
       }
     }
     
     
-    iscope_type* get_full_scope(size_t cpuid, vertex_id_type v) {
+    iscope_type& get_full_scope(size_t cpuid, vertex_id_type v) {
       // grab the scope
-      general_scope_type* scope = scopes[cpuid];
+      general_scope_type& scope(scopes[cpuid]);
       
-      scope->init(&graph, v);
-      scope->stype = consistency_model::FULL_CONSISTENCY;
+      scope.init(&graph, v, consistency_model::FULL_CONSISTENCY);
 
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -143,7 +130,7 @@ namespace graphlab {
       bool curlocked = false;
       const vertex_id_type numv = 
         vertex_id_type(graph.num_vertices());
-      vertex_id_type curv = scope->vertex();
+      vertex_id_type curv = scope.vertex();
       vertex_id_type inv  = 
         (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
       vertex_id_type outv  = 
@@ -181,11 +168,10 @@ namespace graphlab {
     }
 
 
-    iscope_type* get_edge_scope(size_t cpuid, vertex_id_type v) {
-      general_scope_type* scope = scopes[cpuid];
+    iscope_type& get_edge_scope(size_t cpuid, vertex_id_type v) {
+      general_scope_type& scope = scopes[cpuid];
       
-      scope->init(&graph, v);
-      scope->stype = consistency_model::EDGE_CONSISTENCY;
+      scope.init(&graph, v, consistency_model::EDGE_CONSISTENCY);
 
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -195,7 +181,7 @@ namespace graphlab {
 
       bool curlocked = false;
       const vertex_id_type numv = vertex_id_type(graph.num_vertices());
-      vertex_id_type curv = scope->vertex();
+      vertex_id_type curv = scope.vertex();
       vertex_id_type inv  = 
         (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
       vertex_id_type outv  = 
@@ -231,35 +217,26 @@ namespace graphlab {
       return scope;
     }
 
-    iscope_type* get_vertex_scope(size_t cpuid, vertex_id_type v) {
-      general_scope_type* scope = scopes[cpuid];
-      
-      scope->init(&graph, v);
-      scope->stype = consistency_model::VERTEX_CONSISTENCY;
-
-      vertex_id_type curv = scope->vertex();
-      locks[curv].writelock();
-      
+    iscope_type& get_vertex_scope(size_t cpuid, vertex_id_type v) {
+      general_scope_type& scope = scopes[cpuid];      
+      scope.init(&graph, v, consistency_model::VERTEX_CONSISTENCY);
+      const vertex_id_type curv = scope.vertex();
+      locks[curv].writelock();     
       return scope;
     }
 
-    iscope_type* get_vertex_read_scope(size_t cpuid, vertex_id_type v) {
-      general_scope_type* scope = scopes[cpuid];
-      
-      scope->init(&graph, v);
-      scope->stype = consistency_model::READ_CONSISTENCY;
-
-      vertex_id_type curv = scope->vertex();
-      locks[curv].readlock();
-      
+    iscope_type& get_vertex_read_scope(size_t cpuid, vertex_id_type v) {
+      general_scope_type& scope = scopes[cpuid];      
+      scope.init(&graph, v, consistency_model::READ_CONSISTENCY);
+      const vertex_id_type curv = scope.vertex();
+      locks[curv].readlock();      
       return scope;
     }
 
-    iscope_type* get_read_scope(size_t cpuid, vertex_id_type v) {
-      general_scope_type* scope = scopes[cpuid];
+    iscope_type& get_read_scope(size_t cpuid, vertex_id_type v) {
+      general_scope_type& scope = scopes[cpuid];
       
-      scope->init(&graph, v);
-      scope->stype = consistency_model::READ_CONSISTENCY;
+      scope.init(&graph, v, consistency_model::READ_CONSISTENCY);
 
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -269,7 +246,7 @@ namespace graphlab {
 
       bool curlocked = false;
       const vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
-      vertex_id_type curv = scope->vertex();
+      vertex_id_type curv = scope.vertex();
       vertex_id_type inv  = 
         (inedges.size() > 0) ? graph.source(inedges[0]) : numv;
       vertex_id_type outv  = 
@@ -306,20 +283,21 @@ namespace graphlab {
     }
 
     
-    iscope_type* get_null_scope(size_t cpuid, vertex_id_type v) {
-      general_scope_type* scope = scopes[cpuid];
-      
-      scope->init(&graph, v);
-      scope->stype = consistency_model::NULL_CONSISTENCY;
-
+    iscope_type& get_null_scope(size_t cpuid, vertex_id_type v) {
+      general_scope_type& scope = scopes[cpuid];      
+      scope.init(&graph, v, consistency_model::NULL_CONSISTENCY);
       return scope;
     }
 
+
+
     // -----------------RELEASE SCOPE-----------------------------
 
-    void release_scope(iscope_type* scopei) {
-      general_scope_type* scope = (general_scope_type*)scopei;
-      switch(scope->scope_type()){
+    void release_scope(iscope_type& iscope) {
+      // convert from the iscope to the general scope type
+      general_scope_type& scope =
+        *dynamic_cast<general_scope_type*>(&iscope);;
+      switch(scope.consistency()) {
       case consistency_model::VERTEX_CONSISTENCY:
       case consistency_model::VERTEX_READ_CONSISTENCY:
         release_vertex_scope(scope);
@@ -337,8 +315,8 @@ namespace graphlab {
       }
     }
 
-    void release_full_edge_scope(general_scope_type* scope) {
-      vertex_id_type v = scope->vertex();
+    void release_full_edge_scope(general_scope_type& scope) {
+      const vertex_id_type v = scope.vertex();
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
       size_t inidx = inedges.size() - 1;
@@ -346,7 +324,7 @@ namespace graphlab {
 
       bool curvunlocked = false;
 
-      vertex_id_type curv = scope->vertex();
+      vertex_id_type curv = scope.vertex();
       vertex_id_type inv  = (inedges.size() > inidx) ?
         graph.source(inedges[inidx]) : vertex_id_type(-1);
       vertex_id_type outv  = (outedges.size() > outidx) ?
@@ -381,13 +359,12 @@ namespace graphlab {
       }
     }
 
-    void release_vertex_scope(general_scope_type* scope) {
-      vertex_id_type curv = scope->vertex();
+    void release_vertex_scope(general_scope_type& scope) {
+      vertex_id_type curv = scope.vertex();
       locks[curv].unlock();
     }
 
-    void release_null_scope(general_scope_type* scope) {
-    }
+    void release_null_scope(general_scope_type& scope) { }
 
     size_t num_vertices() const { return graph.num_vertices(); }
 
