@@ -249,12 +249,25 @@ namespace graphlab {
 
 
     //! \brief Registers a sync with the engine.
-    void add_sync(const isync_type& sync,
+    template<typename T, typename Accum>
+    void set_sync(glshared<T>& shared,
+                  void(*fold_function)(iscope_type& scope, Accum& acc),
                   size_t sync_interval,
+                  const Accum zero = Accum(0),
+                  void(*apply_function)(T& lvalue, const Accum& rvalue) =
+                  (sync_defaults::apply<T, Accum >),
                   size_t rangelow = 0,
                   size_t rangehigh = 0) { 
-      
-      
+
+      typedef fold_sync<Graph, T, Accum> fold_type;
+
+      isync_type* sync = new fold_type(shared,
+                                       fold_function,
+                                       zero,
+                                       apply_function);
+
+                                                 
+      //      isync_type* sync = new fold_type(shared, zero);      
     }
 
 

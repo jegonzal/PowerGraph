@@ -43,99 +43,94 @@
 
 namespace graphlab {
 
- 
-  namespace sync_impl {
+
+
+  namespace sync_defaults {
     template<typename T, typename Accum>
-    void default_apply(T& lvalue, const Accum& accum) {
+    void apply(T& lvalue, const Accum& accum) {
       lvalue = accum;
-    }; // end of default_apply
-  }; // end of namespace sync_impl;
+    } // end of default_apply
+  }; // end of sync_defaults namespace
 
+  template<typename Graph, typename T, typename Accum >
+  class fold_sync : public isync<Graph> {
+  public:
 
-  template<typename Graph>
-  struct sync {
 
     typedef isync<Graph> isync_type;
-    typedef iscope<Graph> iscope_type;
+    typedef typename isync_type::iscope_type iscope_type;
 
-    template<typename T, 
-             typename Accum,
-             void(*fold_function)(iscope_type& scope, Accum& result),
-             void(*apply_function)(T& lvalue, const Accum& accum) = 
-             sync_impl::default_apply<T, Accum>  >
-    class fold : public isync_type {
-    public:
-
-
-      typedef typename isync_type::iscope_type iscope_type;
-
-      //! The target should supply = operation
-      typedef glshared<T> glshared_type;
-      typedef T      contained_type;
-      typedef Accum  accumulator_type;
+    //! The target should supply = operation
+    typedef glshared<T> glshared_type;
+    typedef T      contained_type;
+    typedef Accum  accumulator_type;
 
     
 
-      /** 
-       * The map function takes a scope and extracts the relevant
-       * information into the result object.
-       */
-      typedef void(*fold_function_type)(iscope_type& scope, Accum& result);
+    /** 
+     * The map function takes a scope and extracts the relevant
+     * information into the result object.
+     */
+    typedef void(*fold_function_type)(iscope_type& scope, Accum& result);
 
-      /**
-       *  The apply function manipulates the partial sum and assigns it
-       *  to the target gl shared object
-       */
-      typedef void(*apply_function_type)(T& lvalue, const Accum& accum);
-
-
-      // /** 
-      //  * The reduce function combines the right partial sum into the
-      //  * left partial sum and behaves like:
-      //  *
-      //  *      partial_sum += rvalue
-      //  *
-      //  */
-      // typedef void(*combine_function_type)(Accum& partial_sum, 
-      //                                      const Accum& rvalue);
+    /**
+     *  The apply function manipulates the partial sum and assigns it
+     *  to the target gl shared object
+     */
+    typedef void(*apply_function_type)(T& lvalue, const Accum& accum);
 
 
+    // /** 
+    //  * The reduce function combines the right partial sum into the
+    //  * left partial sum and behaves like:
+    //  *
+    //  *      partial_sum += rvalue
+    //  *
+    //  */
+    // typedef void(*combine_function_type)(Accum& partial_sum, 
+    //                                      const Accum& rvalue);
 
 
 
 
 
-    private:
-      glshared_type& target;
-      accumulator_type zero;
-      accumulator_type acc;
 
 
-    public:
+  private:
+    glshared_type& target;
+    accumulator_type zero;
+    accumulator_type acc;
 
-      fold(fold& other) : 
-        target(other.target), zero(other.zero), acc(other.acc) { }
+    fold_function_type fold_function;
+    apply_function_type apply_function;
 
-      fold(glshared_type& target,
-           const accumulator_type& zero = accumulator_type(0) ) :
-        target(target), zero(zero), acc(zero) { }
+  public:
+
+    fold_sync(fold_sync& other) : 
+      target(other.target), zero(other.zero), acc(other.acc) { }
+
+    fold_sync(glshared_type& target,
+              fold_function_type fold_function,
+              const accumulator_type& zero = accumulator_type(0),
+              apply_function_type apply_function = (sync_defaults::apply<T, Accum>) ) :
+      target(target), zero(zero), acc(zero) { }
 
 
     
-      isync_type* clone() { return new fold(*this); }
-      void clear() { acc = zero; }
-      void operator+=(iscope_type& scope) { fold_function(scope, acc); }
-      void operator+=(const isync_type& iother) {
-        const fold& other = 
-          *dynamic_cast<const fold*>(&iother);
-        acc += other.acc;
-      }
-      void apply() { 
-        target.apply(apply_function, acc); 
-      }
-    }; // end of fold
+    isync_type* clone() { return new fold_sync(*this); }
+    void clear() { acc = zero; }
+    void operator+=(iscope_type& scope) { fold_function(scope, acc); }
+    void operator+=(const isync_type& iother) {
+      const fold_sync& other = 
+        *dynamic_cast<const fold_sync*>(&iother);
+      acc += other.acc;
+    }
+    void apply() { 
+      target.apply(apply_function, acc); 
+    }
+  }; // end of fold_sync
     
-  }; // end of struct sync  
+
   
 }; // end of Namespace graphlab
 

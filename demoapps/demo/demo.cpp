@@ -396,12 +396,11 @@ void init_shared_data(gl::core &core, size_t dim) {
  
   // create the sync for the red_proportion entriy
 
-  gl::sync::fold< double, 
-                  double, 
-                  reduce_red_proportion,  
-                  apply_red_proportion 
-                  >  red_prop_sync(RED_PROPORTION, 0);
-  core.engine().add_sync(red_prop_sync,  128);
+  core.engine().set_sync(RED_PROPORTION,
+                         reduce_red_proportion,
+                         128,
+                         double(0),
+                         apply_red_proportion);
 
 
 
