@@ -56,7 +56,7 @@ namespace graphlab {
    * glshared<datatype> variable; will create a shared variable of the
    * defined datatype. 
    */
-  template <typename T>
+  template <typename T, typename Accum = T>
   class glshared : public iglshared {
 
   public:

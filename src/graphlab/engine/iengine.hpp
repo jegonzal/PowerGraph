@@ -234,55 +234,55 @@ namespace graphlab {
     virtual const graphlab_options& get_options() = 0;
 
 
-    /**
-     * \brief Registers a sync with the engine.
-     *
-     * Registers a sync with the engine.
-     * The sync will be performed approximately every "interval" updates,
-     * and will perform a reduction over all vertices from rangelow
-     * to rangehigh inclusive.
-     * The merge function may be NULL, in which it will not be used.
-     * However, it is highly recommended to provide a merge function since
-     * this allow the sync operation to be parallelized.
-     *
-     * The sync operation is guaranteed to be strictly sequentially consistent
-     * with all other execution.
-     *
-     * \param shared The shared variable to synchronize
-     * \param sync The reduction function
-     * \param apply The final apply function which writes to the shared value
-     * \param zero The initial zero value passed to the reduction
-     * \param sync_interval Frequency at which the sync is initiated.
-     *                      Corresponds approximately to the number of
-     *                     update function calls before the sync is reevaluated.
-     *                     If 0, the sync will only be evaluated once
-     *                     at engine start,  and will never be evaluated again.
-     *                     Defaults to 0.
-     * \param merge Combined intermediate reduction value. defaults to NULL.
-     *              in which case, it will not be used.
-     * \param rangelow he lower range of vertex id to start syncing.
-     *                 The range is inclusive. i.e. vertex with id 'rangelow'
-     *                 and vertex with id 'rangehigh' will be included.
-     *                 Defaults to 0.
-     * \param rangehigh The upper range of vertex id to stop syncing.
-     *                  The range is inclusive. i.e. vertex with id 'rangelow'
-     *                  and vertex with id 'rangehigh' will be included.
-     *                  Defaults to infinity.
-     */
-    virtual void set_sync(iglshared& shared,
-                          sync_function_type sync,
-                          iglshared::apply_function_type apply,
-                          const any& zero,
-                          size_t sync_interval = 0,
-                          merge_function_type merge = NULL,
-                          vertex_id_type rangelow = 0,
-                          vertex_id_type rangehigh = -1) { }
+    // /**
+    //  * \brief Registers a sync with the engine.
+    //  *
+    //  * Registers a sync with the engine.
+    //  * The sync will be performed approximately every "interval" updates,
+    //  * and will perform a reduction over all vertices from rangelow
+    //  * to rangehigh inclusive.
+    //  * The merge function may be NULL, in which it will not be used.
+    //  * However, it is highly recommended to provide a merge function since
+    //  * this allow the sync operation to be parallelized.
+    //  *
+    //  * The sync operation is guaranteed to be strictly sequentially consistent
+    //  * with all other execution.
+    //  *
+    //  * \param shared The shared variable to synchronize
+    //  * \param sync The reduction function
+    //  * \param apply The final apply function which writes to the shared value
+    //  * \param zero The initial zero value passed to the reduction
+    //  * \param sync_interval Frequency at which the sync is initiated.
+    //  *                      Corresponds approximately to the number of
+    //  *                     update function calls before the sync is reevaluated.
+    //  *                     If 0, the sync will only be evaluated once
+    //  *                     at engine start,  and will never be evaluated again.
+    //  *                     Defaults to 0.
+    //  * \param merge Combined intermediate reduction value. defaults to NULL.
+    //  *              in which case, it will not be used.
+    //  * \param rangelow he lower range of vertex id to start syncing.
+    //  *                 The range is inclusive. i.e. vertex with id 'rangelow'
+    //  *                 and vertex with id 'rangehigh' will be included.
+    //  *                 Defaults to 0.
+    //  * \param rangehigh The upper range of vertex id to stop syncing.
+    //  *                  The range is inclusive. i.e. vertex with id 'rangelow'
+    //  *                  and vertex with id 'rangehigh' will be included.
+    //  *                  Defaults to infinity.
+    //  */
+    // virtual void set_sync(iglshared& shared,
+    //                       sync_function_type sync,
+    //                       iglshared::apply_function_type apply,
+    //                       const any& zero,
+    //                       size_t sync_interval = 0,
+    //                       merge_function_type merge = NULL,
+    //                       vertex_id_type rangelow = 0,
+    //                       vertex_id_type rangehigh = -1) { }
 
-    /**
-     * Performs a sync immediately. This function requires that the shared
-     * variable already be registered with the engine.
-     */
-    virtual void sync_now(iglshared& shared) = 0;   
+    // /**
+    //  * Performs a sync immediately. This function requires that the shared
+    //  * variable already be registered with the engine.
+    //  */
+    // virtual void sync_now(iglshared& shared) = 0;   
     
     
   };

@@ -239,7 +239,7 @@ namespace graphlab {
      * Get a reference to the active engine.  If no engine exists one is
      * created.
      */
-    typename types::iengine& engine() { return mengine; }
+    typename types::shared_memory_engine& engine() { return mengine; }
 
 
 

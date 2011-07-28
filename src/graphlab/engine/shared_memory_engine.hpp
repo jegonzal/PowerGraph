@@ -62,7 +62,7 @@
 #include <graphlab/scheduler/scheduler_factory.hpp>
 
 #include <graphlab/shared_data/glshared.hpp>
-
+#include <graphlab/aggregation/fold_combine_aggregator.hpp>
 
 
 
@@ -97,8 +97,9 @@ namespace graphlab {
    
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
-    typedef typename iengine_base::sync_function_type sync_function_type;
-    typedef typename iengine_base::merge_function_type merge_function_type;
+
+    // typedef typename iengine_base::sync_function_type sync_function_type;
+    // typedef typename iengine_base::merge_function_type merge_function_type;
 
     
     typedef direct_callback<shared_memory_engine> callback_type;
@@ -244,18 +245,26 @@ namespace graphlab {
 
 
     //! \brief Registers a sync with the engine.
-    void set_sync(iglshared& shared,
-                  sync_function_type sync,
-                  iglshared::apply_function_type apply,
-                  const any& zero,
-                  size_t sync_interval = 0,
-                  merge_function_type merge = NULL,
-                  vertex_id_type rangelow = 0,
-                  vertex_id_type rangehigh = -1) { };
+    template<typename Target, typename Accum>
+    void set_sync(Target& target,
+                  const Accum zero,
+                  size_t sync_interval,
+                  typename fold_combine_aggregator<Graph,Target,Accum>::
+                  fold_function_type fold_fun,
+                  typename fold_combine_aggregator<Graph,Target,Accum>::
+                  apply_function_type apply_fun,
+                  typename fold_combine_aggregator<Graph,Target,Accum>::
+                  combine_function_type apply_fun,
+                  size_t rangelow = 0,
+                  size_t rangehigh = 0) { 
+      
+    }
+
 
 
     //! Performs a sync immediately.
-    void sync_now(iglshared& shared) { };
+    template<typename Target>
+    void sync_now(Target& t) { };
 
     //! reset the engine
     void clear();

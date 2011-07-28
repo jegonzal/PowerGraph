@@ -37,9 +37,6 @@
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/engine/iengine.hpp>
-#include <graphlab/shared_data/glshared.hpp>
-#include <graphlab/aggregation/iaggregator.hpp>
 
 
 
@@ -61,36 +58,35 @@ namespace graphlab {
   class iaggregator {
   public:
     typedef Graph graph_type;
-    typedef iengine<graph_type> iengine_type;
-    typedef typename iengine_type::iscope_type;
+    typedef iscope<graph_type> iscope_type;
 
     virtual ~iaggregator();
 
+
     /**
-     * Clear the current partial sum and reset the delta
+     * Make a virtual copy of the aggregator
+     */
+    virtual iaggregator* clone() = 0;
+
+    /**
+     * Clear the current aggregator
      */
     virtual void clear() = 0;
 
     /**
      * Add the scope to the current partial sum
      */
-    virtual void add(iscope_type& scope) = 0;
+    virtual void operator+=(const iscope_type& scope) = 0;
 
     /**
      * Add another partial sum to this partial sum.
      */
-    virtual bool add(const iaggregator* other_ptr) = 0;
-
-    /**
-     * This function add the result of an update function post to this
-     * partial sum.
-     */
-    virtual bool add_delta(const void* accumulator_ptr) = 0;
+    virtual void operator+=(const iaggregator& other) = 0;
 
     /**
      * Apply this partial sum to a global shared object.
      */
-    virtual void apply(any& base) = 0;
+    virtual void apply() = 0;
   }; // end of iaggregator
 
 

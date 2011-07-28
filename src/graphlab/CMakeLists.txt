@@ -4,6 +4,7 @@ project(GraphLab)
 
 
 subdirs(
+ aggregation
  engine
 # distributed2
  graph
