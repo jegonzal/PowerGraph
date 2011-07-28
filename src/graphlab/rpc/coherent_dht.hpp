@@ -625,6 +625,7 @@ class coherent_dht{
 
   void invalidate_reply(const KeyType &key, 
                         procid_t source, size_t reply) const {
+//    logstream(LOG_INFO) << "Invalidate of " << key << std::endl;
     invalidate(key);
     if (source != procid_t(-1)) {
       rpc.dc().remote_call(source, reply_increment_counter,
@@ -634,6 +635,7 @@ class coherent_dht{
 
   void update_cache_reply(const KeyType &key, const ValueType &value, 
                           procid_t source, size_t reply) const {
+//    logstream(LOG_INFO) << "Update of " << key << std::endl;
     update_cache(key, value);
     if (source != procid_t(-1)) {
       rpc.dc().remote_call(source, reply_increment_counter,

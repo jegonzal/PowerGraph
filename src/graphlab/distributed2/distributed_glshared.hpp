@@ -68,7 +68,7 @@ private:
   /**
     check if the backend storage has been modified
   */
-  void check_invalidation(bool async = false) const;
+  void check_is_valid(bool async = false) const;
   
   void issue_modification(bool async = false);
 public:
@@ -81,6 +81,7 @@ public:
 
   /// Returns a copy of the data
   inline T get_val() const{
+    check_is_valid();
     lock.readlock();
     T ret = head;
     lock.rdunlock();
@@ -192,10 +193,10 @@ public:
 
 namespace graphlab {
 template <typename T>
-void distributed_glshared<T>::check_invalidation(bool async) const{
+void distributed_glshared<T>::check_is_valid(bool async) const{
   if (manager) {
-    if (atomic_compare_and_swap(invalidated, true, false)) {
-      manager->read_synchronize(id, async);
+    if (invalidated) {
+        manager->read_synchronize(id, async);
     }
   }
 }

@@ -86,7 +86,6 @@ std::string distributed_glshared_manager::exchange(size_t entry,
 
 
 void distributed_glshared_manager::invalidate(size_t entry, const std::string &value, bool incache) {
-//  logstream(LOG_DEBUG) << rmi.procid() << ": " << "invalidate of " << entry << std::endl;
   if (incache) {
 //    read_synchronize(entry, false);
     std::stringstream strm(value);
@@ -108,7 +107,7 @@ void distributed_glshared_manager::write_synchronize(size_t entry, bool async) {
   std::stringstream strm;
   oarchive oarc(strm);
   glsharedobjs[entry]->save(oarc);
-  
+  glsharedobjs[entry]->invalidated = false;
   if (async) {
     dht.set(entry, strm.str());
   }
@@ -138,6 +137,7 @@ void distributed_glshared_manager::read_synchronize(size_t entry,
   std::stringstream strm(ret.second);
   iarchive iarc(strm);
   glsharedobjs[entry]->load(iarc);
+  glsharedobjs[entry]->invalidated = false;
 }
 
 void distributed_glshared_manager::read_synchronize(distributed_glshared_base* obj, 

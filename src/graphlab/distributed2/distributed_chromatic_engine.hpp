@@ -546,6 +546,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
         }
       }
     }
+    thread_color_barrier.wait();
   }
 
   /** clears the active sync tasks and figure out what syncs to run next.
@@ -554,6 +555,8 @@ class distributed_chromatic_engine : public iengine<Graph> {
     // update the next time variable
     for (size_t i = 0;i < active_sync_tasks.size(); ++i) {
       sync_tasks[i].next_time = num_executed_tasks + sync_tasks[i].sync_interval;
+      //  if it is within the next iteration 
+      if (sync_tasks[i].next_time < num_executed_tasks + graph.num_vertices()) sync_tasks[i].next_time = num_executed_tasks;
       // if sync interval of 0, this was the first iteration.
       // then I just set next time to infinity and it will never be run again
       if (sync_tasks[i].sync_interval == 0) {
@@ -563,7 +566,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
     active_sync_tasks.clear();
     // figure out what to run next
     for (size_t i = 0;i < sync_tasks.size(); ++i) {
-      if (sync_tasks[i].next_time < num_executed_tasks) {
+      if (sync_tasks[i].next_time <= num_executed_tasks) {
         active_sync_tasks.push_back(&(sync_tasks[i]));
       }
     }
