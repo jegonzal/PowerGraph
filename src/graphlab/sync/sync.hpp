@@ -56,12 +56,13 @@ namespace graphlab {
   struct sync {
 
     typedef isync<Graph> isync_type;
-    typedef iscop<Graph> iscope_type;
+    typedef iscope<Graph> iscope_type;
 
-    typename<typename T, typename Accum,
-              void(*fold_function)(iscope_type& scope, Accum& result),
-              void(*apply_function)(T& lvalue, const Accum& accum) = 
-              sync_impl::default_apply<T, Accum>  >
+    template<typename T, 
+             typename Accum,
+             void(*fold_function)(iscope_type& scope, Accum& result),
+             void(*apply_function)(T& lvalue, const Accum& accum) = 
+             sync_impl::default_apply<T, Accum>  >
     class fold : public isync_type {
     public:
 
@@ -112,24 +113,27 @@ namespace graphlab {
 
     public:
 
+      fold(fold& other) : 
+        target(other.target), zero(other.zero), acc(other.acc) { }
+
       fold(glshared_type& target,
            const accumulator_type& zero = accumulator_type(0) ) :
-        target(target),
-        zero(zero),
-        acc(zero) { }
+        target(target), zero(zero), acc(zero) { }
 
 
     
-      isync_type* clone() { return new fold_sync(*this); }
+      isync_type* clone() { return new fold(*this); }
       void clear() { acc = zero; }
       void operator+=(iscope_type& scope) { fold_function(scope, acc); }
       void operator+=(const isync_type& iother) {
         const fold& other = 
-          *dynamic_cast<const fold_sync*>(&iother);
+          *dynamic_cast<const fold*>(&iother);
         acc += other.acc;
       }
-      void apply() { target.apply(apply_function, acc); }
-    }; // end of fold_sync
+      void apply() { 
+        target.apply(apply_function, acc); 
+      }
+    }; // end of fold
     
   }; // end of struct sync  
   

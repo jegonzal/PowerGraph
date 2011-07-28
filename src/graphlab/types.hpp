@@ -112,10 +112,11 @@ namespace graphlab {
     
     //    typedef graphlab::imonitor<graph>            imonitor;
 
-    typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
-    typedef graphlab::glshared_apply_ops glshared_apply_ops;
-    typedef graphlab::glshared_merge_ops glshared_merge_ops;
-
+    //    typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
+    //    typedef graphlab::glshared_apply_ops glshared_apply_ops;
+    // typedef graphlab::glshared_merge_ops glshared_merge_ops;
+    typedef graphlab::isync<graph> isync;
+    typedef graphlab::sync<graph> sync;
 
     
     typedef shared_memory_engine<graph, update_functor> shared_memory_engine;

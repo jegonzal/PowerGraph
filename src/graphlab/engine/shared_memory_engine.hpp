@@ -64,7 +64,7 @@
 #include <graphlab/shared_data/glshared.hpp>
 
 #include <graphlab/sync/isync.hpp>
-#include <graphlab/sync/fold_sync.hpp>
+#include <graphlab/sync/sync.hpp>
 
 
 
@@ -253,6 +253,7 @@ namespace graphlab {
                   size_t sync_interval,
                   size_t rangelow = 0,
                   size_t rangehigh = 0) { 
+      
       
     }
 

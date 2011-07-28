@@ -61,7 +61,7 @@ namespace graphlab {
     typedef iscope<graph_type> iscope_type;
     typedef typename Graph::vertex_data_type vertex_data_type;
 
-    virtual ~isync();
+    virtual ~isync() { }
 
     /**
      * Make a virtual copy of the aggregator

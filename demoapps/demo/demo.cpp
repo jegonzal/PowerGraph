@@ -346,7 +346,7 @@ void reduce_red_proportion(gl::iscope& scope, double& acc) {
    \param new_data The result of the reduce operation on all the vertices.
 */       
 void apply_red_proportion(double& current_data, 
-                          double& accum) {
+                          const double& accum) {
   // get the number of vertices from the constant section of the shared data
   const size_t numvertices = NUM_VERTICES.get_val();
   // compute the proportion
@@ -396,13 +396,13 @@ void init_shared_data(gl::core &core, size_t dim) {
  
   // create the sync for the red_proportion entriy
 
-  core.engine().
-    set_sync(RED_PROPORTION,       // The value we are syncing
-             double(0),             // the initial value for the fold/reduce
-             128,                   // syncing frequency.in #updates             
-             reduce_red_proportion, // the reduce function
-             apply_red_proportion,  // the apply function           
-             merge_red_proportion); // merge function
+  gl::sync::fold< double, 
+                  double, 
+                  reduce_red_proportion,  
+                  apply_red_proportion 
+                  >  red_prop_sync(RED_PROPORTION, 0);
+  core.engine().add_sync(red_prop_sync,  128);
+
 
 
 
@@ -420,6 +420,12 @@ void init_shared_data(gl::core &core, size_t dim) {
   // The template field (size_t) is the type of the entry.
   
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
+
+  // gl::sync::fold< size_t, 
+  //                 size_t, 
+  //                 reduce_red_proportion,  
+  //                 apply_red_proportion 
+  //                 >  red_prop_sync(RED_PROPORTION, 0);
 
   // core.set_sync(NUM_FLIPS,  
   //               size_t(0),

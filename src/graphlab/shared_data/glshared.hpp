@@ -107,17 +107,17 @@ namespace graphlab {
       data.as<T>() = other;
       lock.unlock();
     }
-
+    
     // //! Apply an update functor
     // void deferred_apply(const UpdateFunctor& fun) {
     //   lock.writelock();
     //   fun(data.as<T>());
     //   lock.unlock();
     // } // end of update
-
-
-    template<typename Function, typename Argument>
-    void apply(Function& fun, Argument& arg) {
+      
+      
+    template<typename Arg>
+    void apply( void(*fun)(T&, const Arg&), Arg& arg) {
       lock.writelock();
       fun(data.as<T>(), arg);      
       lock.unlock();
