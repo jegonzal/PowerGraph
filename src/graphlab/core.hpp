@@ -377,17 +377,17 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    void set_sync(iglshared& shared,
-                  typename types::iengine::sync_function_type sync,
-                  iglshared::apply_function_type apply,
-                  const any& zero,
-                  size_t sync_interval = 0,
-                  typename types::iengine::merge_function_type merge = NULL,
-                  vertex_id_type rangelow = 0,
-                  vertex_id_type rangehigh = -1) { 
-      engine().set_sync(shared, sync, apply, zero, 
-                        sync_interval, merge, rangelow, rangehigh);
-    }
+    // void set_sync(iglshared& shared,
+    //               typename types::iengine::sync_function_type sync,
+    //               iglshared::apply_function_type apply,
+    //               const any& zero,
+    //               size_t sync_interval = 0,
+    //               typename types::iengine::merge_function_type merge = NULL,
+    //               vertex_id_type rangelow = 0,
+    //               vertex_id_type rangehigh = -1) { 
+    //   engine().set_sync(shared, sync, apply, zero, 
+    //                     sync_interval, merge, rangelow, rangehigh);
+    // }
     
 
     /**

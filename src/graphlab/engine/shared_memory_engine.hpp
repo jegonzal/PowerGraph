@@ -254,7 +254,7 @@ namespace graphlab {
                   typename fold_combine_aggregator<Graph,Target,Accum>::
                   apply_function_type apply_fun,
                   typename fold_combine_aggregator<Graph,Target,Accum>::
-                  combine_function_type apply_fun,
+                  combine_function_type combine_fun,
                   size_t rangelow = 0,
                   size_t rangehigh = 0) { 
       

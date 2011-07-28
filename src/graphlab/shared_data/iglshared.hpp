@@ -35,6 +35,8 @@
 
 
 #include <graphlab/util/generics/any.hpp>
+#include <graphlab/aggregation/iaggregator.hpp>
+
 
 namespace graphlab {
 
@@ -66,14 +68,14 @@ namespace graphlab {
      */
     virtual void set_any(const any&) = 0;
   
-    /**
-     * Performs an atomic modification on the value of the shared
-     * object.  essentially calls fun(current_value, srcd) where
-     * current_value is the value of this variable wrapped inside an
-     * any.
-     */
-    virtual void apply(apply_function_type fun,
-                       const any& srcd) = 0;
+    // /**
+    //  * Performs an atomic modification on the value of the shared
+    //  * object.  essentially calls fun(current_value, srcd) where
+    //  * current_value is the value of this variable wrapped inside an
+    //  * any.
+    //  */
+    // virtual void apply(apply_function_type fun,
+    //                    const any& srcd) = 0;
                          
     /**
      * Returns true if there are no other active references to this
@@ -82,11 +84,11 @@ namespace graphlab {
     virtual bool is_unique() const = 0;
 
 
-    /**
-     * Return a pointer to an aggergator type.  Note that aggregators
-     * must be freed by the caller.
-     */
-    iaggregator* new_aggregator();
+    // /**
+    //  * Return a pointer to an aggergator type.  Note that aggregators
+    //  * must be freed by the caller.
+    //  */
+    // virtual iaggregator* new_aggregator() = 0;
 
     
     /**

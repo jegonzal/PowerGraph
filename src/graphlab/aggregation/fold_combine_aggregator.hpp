@@ -72,18 +72,20 @@ namespace graphlab {
     //! The target should supply = operation
     typedef Target target_type;
     typedef Accum  accumulator_type;
+    typedef typename Target::contained_type contained_type;
+    
 
     /** 
      * The map function takes a scope and extracts the relevant
      * information into the result object.
      */
-    typedef void(*fold_function_type)(const iscope_type& scope, Accum& result);
+    typedef void(*fold_function_type)(iscope_type& scope, Accum& result);
 
     /**
      *  The apply function manipulates the partial sum and assigns it
      *  to the target gl shared object
      */
-    typedef void(*apply_function_type)(Target& target, Accum& accum);
+    typedef void(*apply_function_type)(contained_type& target, Accum& accum);
 
 
     /** 
@@ -94,14 +96,16 @@ namespace graphlab {
      *
      */
     typedef void(*combine_function_type)(Accum& partial_sum, 
-                                        const Accum& rvalue);
+                                         const Accum& rvalue);
+
+
 
 
 
 
 
   private:
-    target_type& target;
+    target_type&     target;
     accumulator_type zero;
     accumulator_type acc;
 
@@ -133,7 +137,7 @@ namespace graphlab {
         *dynamic_cast<const fold_combine_aggregator*>(&iother);
       combine_function(acc, other.acc);
     }
-    void apply() { apply_function(target, acc); }
+    void apply() { target.apply(apply_function, acc); }
   }; // end of fold_combine_aggregator
   
 }; // end of Namespace graphlab

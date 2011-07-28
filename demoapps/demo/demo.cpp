@@ -326,15 +326,14 @@ gl::glshared<size_t> NUM_FLIPS;
 
    \param accumulator The input and output of the fold/reduce operation.
 */       
-void reduce_red_proportion(gl::iscope& scope,
-                           graphlab::any& accumulator) {
+void reduce_red_proportion(gl::iscope& scope, double& acc) {
   // each entry in the shared_data table is a special data type called
   // graphlab::any (which is derived and modified from boost::any).
   // This allows you to store arbitrary datatypes into the shared data table,
   // with the minor caveat that the user must know EXACTLY what is the data
   // type stored at each entry. In this case, we will simply
   // store doubles.
-  if (scope.vertex_data().color) accumulator.as<double>() += 1.0;
+  if (scope.vertex_data().color) acc += 1.0;
 }
 
 /**
@@ -346,19 +345,16 @@ void reduce_red_proportion(gl::iscope& scope,
 
    \param new_data The result of the reduce operation on all the vertices.
 */       
-void apply_red_proportion(graphlab::any& current_data, 
-                          const graphlab::any& new_data) {
+void apply_red_proportion(double& current_data, 
+                          double& accum) {
   // get the number of vertices from the constant section of the shared data
-  size_t numvertices = NUM_VERTICES.get_val();
-
-  // new_data is the reduced result, which is the number of red vertices
-  double numred = new_data.as<double>();
+  const size_t numvertices = NUM_VERTICES.get_val();
   // compute the proportion
-  double proportion = numred / numvertices;
+  const double proportion = accum / numvertices;
   // here we can output something as a progress monitor
   std::cout << "Red Proportion: " << proportion << std::endl;
   // write the final result into the shared data table
-  current_data.as<double>() = proportion;
+  current_data = accum;
 }
 
 
@@ -366,9 +362,8 @@ void apply_red_proportion(graphlab::any& current_data,
    This is the merge function for the RED_PROPORTION sync
    Since it is just a sum, intermediate results simply add`
 */
-void merge_red_proportion(graphlab::any& target, 
-                          const graphlab::any& source) {
-  target.as<double>() += source.as<double>();
+void merge_red_proportion(double& target, const double& source) {
+  target += source;
 }
 
 
@@ -401,12 +396,13 @@ void init_shared_data(gl::core &core, size_t dim) {
  
   // create the sync for the red_proportion entriy
 
-  core.set_sync(RED_PROPORTION,       // The value we are syncing
-                reduce_red_proportion, // the reduce function
-                apply_red_proportion,  // the apply function
-                double(0),             // the initial value for the fold/reduce
-                128,                   // syncing frequency.in #updates
-                merge_red_proportion); // merge function
+  core.engine().
+    set_sync(RED_PROPORTION,       // The value we are syncing
+             double(0),             // the initial value for the fold/reduce
+             128,                   // syncing frequency.in #updates             
+             reduce_red_proportion, // the reduce function
+             apply_red_proportion,  // the apply function           
+             merge_red_proportion); // merge function
 
 
 

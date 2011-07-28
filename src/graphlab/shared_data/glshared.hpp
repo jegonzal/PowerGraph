@@ -49,6 +49,16 @@
 
 namespace graphlab {
 
+  template<typename T> 
+  struct add_functor {
+    T delta;
+    add_functor(const T& delta) : delta(delta) { }
+    void operator()(T& body) { body += delta; };
+    void operator+=(const add_functor& other) { delta += other.delta; }
+  };
+  
+
+
 
   /**
    * \brief A shared data entry.  
@@ -56,7 +66,7 @@ namespace graphlab {
    * glshared<datatype> variable; will create a shared variable of the
    * defined datatype. 
    */
-  template <typename T, typename Accum = T>
+  template <typename T>
   class glshared : public iglshared {
 
   public:
@@ -91,12 +101,44 @@ namespace graphlab {
     glshared(const T& other = T()) : data(other) { }
   
 
+    //! Assign a new value 
+    void operator=(const T& other) {
+      lock.writelock();
+      data.as<T>() = other;
+      lock.unlock();
+    }
+
+    // //! Apply an update functor
+    // void deferred_apply(const UpdateFunctor& fun) {
+    //   lock.writelock();
+    //   fun(data.as<T>());
+    //   lock.unlock();
+    // } // end of update
+
+
+    template<typename Function, typename Argument>
+    void apply(Function& fun, Argument& arg) {
+      lock.writelock();
+      fun(data.as<T>(), arg);      
+      lock.unlock();
+    }
+
+
+
+    //! Add a delta function:
+    void operator+=(const T& other) { 
+      lock.writelock();     
+      data.as<T>() += other;
+      lock.unlock();
+    }
+
+
+
 
     /// Returns a copy of the data
     inline T get_val() const {
-      T copy;
       lock.readlock();
-      copy = data.as<T>();
+      const T copy = data.as<T>();
       lock.unlock();
       return copy;
     }
@@ -104,27 +146,39 @@ namespace graphlab {
     /**
      * Gets the value of the shared variable wrapped in an any.
      */
-    any get_any() const { return data; }
+    any get_any() const {
+      lock.readlock();
+      const graphlab::any copy(data.as<T>());
+      lock.unlock();
+      return copy; 
+    }
 
     /**
      * Sets the value of the shared variable using an any. The type of
      * the any must match the type of the shared object.
      */
-    void set_any(const any& other) { data = other; }
-
-    /**
-     * apply's a function to this variable passing an additional
-     * parameter. This operation tries to perform the modification atomically
-     * and could stall forever if there are
-     * active shared pointers to this variable which are never
-     * released.
-     */
-    void apply(apply_function_type fun,
-               const any& srcd) {
+    void set_any(const any& other) { 
       lock.writelock();
-      fun(data, srcd);      
+      data = other; 
       lock.unlock();
     }
+
+
+    // /**
+    //  * apply's a function to this variable passing an additional
+    //  * parameter. This operation tries to perform the modification atomically
+    //  * and could stall forever if there are
+    //  * active shared pointers to this variable which are never
+    //  * released.
+    //  */
+    // void apply(apply_function_type fun,
+    //            const any& srcd) {
+    //   lock.writelock();
+    //   fun(data, srcd);      
+    //   lock.unlock();
+    // }
+
+
 
   
     /**
@@ -145,12 +199,7 @@ namespace graphlab {
       lock.unlock();
     }
 
-    //! Add a delta function:
-    void operator+=(const T& other) { 
-      lock.writelock();     
-      data.as<T>() += other;
-      lock.unlock();
-    }
+
 
   };
 
