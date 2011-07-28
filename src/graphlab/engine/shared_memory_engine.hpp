@@ -47,7 +47,7 @@
 
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/random.hpp>
-
+#include <graphlab/util/mutable_queue.hpp>
 
 #include <graphlab/logger/logger.hpp>
 
@@ -195,6 +195,36 @@ namespace graphlab {
     termination_members termination;
 
 
+
+    //! All sync related variables
+    struct sync_members {
+      //! A record contains a single sync record
+      struct record {
+        mutex lock;
+        isync_type* sync_ptr;
+        size_t sync_interval;
+        vertex_id_type begin_vid, end_vid;
+        record() :
+          sync_ptr(NULL), sync_interval(0), begin_vid(0), end_vid(0) { }
+        void clear() { 
+          if(sync_ptr != NULL) { delete sync_ptr; sync_ptr = NULL; } 
+        }
+      }; // end of sync record,
+  
+      mutex lock;
+      bool active_sync;
+      std::map<iglshared*, record> shared2id;
+      typedef std::pair<iglshared* const, record> pair_type;
+      mutable_queue<iglshared*, long> queue;
+      ~sync_members() {
+        foreach(pair_type& pair, shared2id) 
+          pair.second.clear(); 
+      }
+  
+    }; // end of sync members
+    sync_members syncs;
+
+
     
 
   public:
@@ -252,24 +282,12 @@ namespace graphlab {
     template<typename T, typename Accum>
     void set_sync(glshared<T>& shared,
                   void(*fold_function)(iscope_type& scope, Accum& acc),
-                  size_t sync_interval,
+                  size_t sync_interval = 0,
                   const Accum zero = Accum(0),
                   void(*apply_function)(T& lvalue, const Accum& rvalue) =
                   (sync_defaults::apply<T, Accum >),
-                  size_t rangelow = 0,
-                  size_t rangehigh = 0) { 
-
-      typedef fold_sync<Graph, T, Accum> fold_type;
-
-      isync_type* sync = new fold_type(shared,
-                                       fold_function,
-                                       zero,
-                                       apply_function);
-
-                                                 
-      //      isync_type* sync = new fold_type(shared, zero);      
-    }
-
+                  vertex_id_type begin_vid = 0,
+                  vertex_id_type end_vid = -1);
 
 
     //! Performs a sync immediately.
@@ -424,7 +442,7 @@ namespace graphlab {
     // ---------------------- Pre-execution Checks ------------------------- //
     graph.finalize();      // Do any last checks on the graph
     initialize_members();  // Initialize engine members
-    
+
     // Check internal data-structures
     ASSERT_EQ(graph.num_vertices(), nverts);
     ASSERT_TRUE(scope_manager_ptr != NULL);
@@ -440,6 +458,19 @@ namespace graphlab {
     start_time_millis = lowres_time_millis(); 
     // Initialize the scheduler
     scheduler_ptr->start();
+
+    // -------------------------- Initialize Syncs ------------------------- //
+    {
+      typedef typename sync_members::pair_type pair_type;
+      syncs.lock.lock();
+      syncs.queue.clear();
+      const long last_ucount = last_update_count();
+      foreach(pair_type& pair, syncs.shared2id)
+        syncs.queue.push(pair.first, 
+                         last_ucount - long(pair.second.sync_interval));
+      syncs.lock.unlock();
+    }
+
       
     // ------------------------ Start the engine --------------------------- //
     if(threads_ptr != NULL) launch_threads();
@@ -489,6 +520,48 @@ namespace graphlab {
     ASSERT_TRUE(fun != NULL);
     termination.functions.push_back(fun);
   } // end of clear_termination_conditions
+
+
+
+
+
+
+
+
+
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  template<typename T, typename Accum>
+  void 
+  shared_memory_engine<Graph, UpdateFunctor>::
+  set_sync(glshared<T>& shared,
+           void(*fold_function)(iscope_type& scope, Accum& acc),
+           size_t sync_interval,
+           const Accum zero,
+           void(*apply_function)(T& lvalue, const Accum& rvalue),
+           vertex_id_type begin_vid, vertex_id_type end_vid) { 
+    // Construct a local isync
+    typedef fold_sync<Graph, T, Accum> fold_type;    
+    isync_type* sync_ptr = new fold_type(shared,
+                                         fold_function,
+                                         zero,
+                                         apply_function);
+    // Update the syncs map
+    syncs.lock.lock();
+    typename sync_members::record& rec = syncs.shared2id[&shared];
+    rec.lock.lock();
+    rec.clear(); 
+    rec.sync_ptr = sync_ptr; 
+    rec.sync_interval = sync_interval;
+    rec.begin_vid = begin_vid;
+    rec.end_vid = end_vid;
+    rec.lock.unlock(); 
+    syncs.lock.unlock();
+  } // end of set_sync
+
+
+
 
 
 
@@ -728,8 +801,11 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue(size_t cpuid) {
-
-
+    // Try to grab the lock if we fail just return
+    if(!syncs.lock.try_lock()) return;    
+    // ASSERT: the lock has been aquired
+    
+    
   } // end of evaluate_sync_queue
 
 

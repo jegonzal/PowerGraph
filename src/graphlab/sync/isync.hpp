@@ -35,6 +35,7 @@
 #define	GRAPHLAB_ISYNC_HPP
 
 
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/scope/iscope.hpp>
 
@@ -60,6 +61,7 @@ namespace graphlab {
     typedef Graph graph_type;
     typedef iscope<graph_type> iscope_type;
     typedef typename Graph::vertex_data_type vertex_data_type;
+
 
     virtual ~isync() { }
 
