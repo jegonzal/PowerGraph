@@ -328,7 +328,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 
   // add M movie nodes (tensor dim 1)
   for (int i=0; i<M; i++){
-    vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
+    vdata.pvec = debug? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     _g->add_vertex(vdata);
     if (debug && (i<= 5 || i == M-1))
       debug_print_vec("U: ", vdata.pvec, D);
@@ -336,7 +336,7 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   
   // add N user node (tensor dim 2) 
   for (int i=0; i<N; i++){
-    vdata.pvec = debug ? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
+    vdata.pvec = debug? (itpp::ones(D)*0.1) : (itpp::randu(D)*0.1);
     _g->add_vertex(vdata);
     if (debug && (i<=5 || i==N-1))
       debug_print_vec("V: ", vdata.pvec, D);
@@ -472,6 +472,8 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
       if (!ZERO) //usually we do not allow zero ratings, unless --zero=true flag is set.
 	 assert(ed[i].weight != 0); 
       //verify node ids are in allowed range
+      if (i == 0 && ((int)ed[i].from < matlab_offset_user_movie || (int)ed[i].from> nodes))
+          logstream(LOG_ERROR) << " Wrong intput file format. Did you try to use --float=true " << endl;
       assert((int)ed[i].from >= matlab_offset_user_movie && (int)ed[i].from <= nodes);
       assert((int)ed[i].to >= matlab_offset_user_movie && (int)ed[i].to <= nodes);
       //no self edges

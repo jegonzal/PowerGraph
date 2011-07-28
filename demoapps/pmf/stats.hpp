@@ -29,7 +29,8 @@
 #include <graphlab/macros_def.hpp>
 extern int Lt;
 extern mat dp;
-
+extern double lasso_lambda;
+extern runmodes algorithm;
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
 int count_edges(gl_types::edge_list es){
@@ -60,21 +61,52 @@ void count_all_edges(graph_type * _g){
      }
 }
 
+int num_zeros(const vec & pvec){
+   int ret = 0;
+   for (int i=0; i< pvec.size(); i++)
+      if (pvec[i] == 0)
+         ret++;
+
+   return ret;
+
+}
 
 // CALCULATE OBJECTIVE VALUE (Xiong paper)
 double calc_obj(double res){
    
   double sumU = 0, sumV = 0, sumT = 0;
+  double absSum = 0;
+  int user_sparsity = 0;
+  int movie_sparsity = 0;
+  int user_cnt = 0; 
+  int movie_cnt = 0;
+
+
   timer t;
-  t.start(); 
+  t.start();
   for (int i=0; i< M; i++){
     const vertex_data * data = &g->vertex_data(i);
-    sumU += sum_sqr(data->pvec);
+    if (data->num_edges > 0){
+      sumU += sum_sqr(data->pvec);
+      if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR){
+	absSum += sum(abs(data->pvec));
+      } 
+      user_sparsity += num_zeros(data->pvec);
+      user_cnt++;
+    }
+     
   } 
 
   for (int i=M; i< M+N; i++){
     const vertex_data * data = &g->vertex_data(i);
-    sumV += sum_sqr(data->pvec);
+    if (data->num_edges > 0 ){
+      sumV += sum_sqr(data->pvec);
+      if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
+         absSum += sum(abs(data->pvec));
+      }  
+      movie_sparsity += num_zeros(data->pvec);
+      movie_cnt++;
+    }
   } 
 
 
@@ -91,6 +123,12 @@ double calc_obj(double res){
   counter[CALC_OBJ]+= t.current_time();
   
   double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
+
+  if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
+     cout<<"Current user sparsity : " << ((double)user_sparsity / ((double)D*user_cnt)) << " movie sparsity: "  << ((double)movie_sparsity / ((double)D*movie_cnt)) << endl;
+     obj += absSum;
+  }
+
   if (debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << pU << " pV: " << pV << endl; 
   return obj;
@@ -124,8 +162,8 @@ void calc_stats(testtype type){
      printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
   }	
 
-  double avgval=-1, minval=1e100, maxval=-1e100;
-  double avgtime=-1, mintime=1e100, maxtime=-1e100;
+  double avgval=0, minval=1e100, maxval=-1e100;
+  double avgtime=0, mintime=1e100, maxtime=-1e100;
   double minV=1e100, maxV=-1e100, minU=1e100, maxU=-1e100;
   int moviewithoutedges = 0;
   int userwithoutedges = 0;
@@ -227,7 +265,9 @@ double calc_rmse(graph_type * _g, bool test, double & res){
                                    tensor? (&times[(int)edge.time]):NULL, 
                                    edge.weight, 
                                    prediction);
-           if (!ZERO)
+
+           //we do not allow zero predicion on dense matrices (prediction vectors are rarely orthogonal)
+           if (!ZERO && algorithm != ALS_SPARSE_USR_MOVIE_FACTORS)
 	           assert(prediction != 0);         
            
            if (debug && (i== M || i == M+N-1) && ((e == 0) || ((e-1) == (test?Le:L))))

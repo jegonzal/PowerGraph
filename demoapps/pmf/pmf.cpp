@@ -40,6 +40,8 @@
 #include "io.hpp"
 #include "stats.hpp"
 #include "implicit.hpp"
+#include "lasso.hpp"
+#include "cosamp.hpp"
 
 #ifdef GL_SVD_PP
 #include "svdpp.hpp"
@@ -88,6 +90,8 @@ int M,N,K,L;//training size: users, movies, times, number of edges
 int Le = 0; //number of ratings in validation dataset 
 int Lt = 0;//number of rating in test data set
 mat dp;
+
+
 bool FLOAT=false; //is data in float format
 double LAMBDA=1;//regularization weight
 
@@ -113,6 +117,11 @@ float implicitratingvalue = 0;
 string implicitratingtype = "none";
 float implicitratingpercentage = 0;
 
+/* sparsity enforcing priors (see reference 11 in pmf.h) */
+int lasso_max_iter = 10;
+#define DEFAULT_SPARSITY 0.8
+double user_sparsity = DEFAULT_SPARSITY;
+double movie_sparsity= DEFAULT_SPARSITY;
 //performance counters
 #define MAX_COUNTER 20
 double counter[MAX_COUNTER];
@@ -169,6 +178,9 @@ void add_tasks(gl_types::core & glcore){
   switch (algorithm){
      case ALS_TENSOR_MULT:
      case ALS_MATRIX:
+     case ALS_SPARSE_USR_FACTOR:
+     case ALS_SPARSE_USR_MOVIE_FACTORS:
+     case ALS_SPARSE_MOVIE_FACTOR:
      case BPTF_TENSOR:
      case BPTF_TENSOR_MULT:
      case BPTF_MATRIX:
@@ -220,6 +232,9 @@ void init(){
 
    case ALS_MATRIX:
    case ALS_TENSOR_MULT:
+   case ALS_SPARSE_USR_FACTOR:
+   case ALS_SPARSE_USR_MOVIE_FACTORS:
+   case ALS_SPARSE_MOVIE_FACTOR:
    case WEIGHTED_ALS:
    case BPTF_TENSOR_MULT:
    case BPTF_MATRIX:
@@ -310,6 +325,11 @@ void start(int argc, char ** argv) {
   clopts.attach_option("implicitratingvalue", &implicitratingvalue, implicitratingvalue, "value for implicit negative ratings");
   clopts.attach_option("implicitratingweight", &implicitratingweight, implicitratingweight, "weight/time for implicit negative ratings");
 
+  //sparsity enforcing priors (see reference 11 in pmf.h)
+  clopts.attach_option("user_sparsity", &user_sparsity, user_sparsity, "user sparsity [0.5->1) (for L1 regularization for sparsity enforcing priors - run modes 10,11");
+  clopts.attach_option("movie_sparsity", &movie_sparsity, movie_sparsity, "movie sparsity [0.5->1) (for L1 regularization for sparsity enforcing priors - run modes 11,12");
+  clopts.attach_option("lasso_max_iter", &lasso_max_iter, lasso_max_iter, "max iter for lasso sparsity (run modes 10-12)");
+
   assert(clopts.parse(argc, argv));
   
   if (unittest > 0)
@@ -322,6 +342,9 @@ void start(int argc, char ** argv) {
   // iterative matrix factorization using alternating least squares
   // or SVD ++
   case ALS_MATRIX:
+  case ALS_SPARSE_USR_FACTOR:
+  case ALS_SPARSE_USR_MOVIE_FACTORS:
+  case ALS_SPARSE_MOVIE_FACTOR:
   case WEIGHTED_ALS:
   case SVD_PLUS_PLUS:
   case STOCHASTIC_GRADIENT_DESCENT:
@@ -382,9 +405,15 @@ void start(int argc, char ** argv) {
   if (BURN_IN != 10 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR && algorithm != BPTF_MATRIX))
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
-
-
-  gl_types::core glcore;
+  if (user_sparsity < 0.5 || user_sparsity >= 1){
+	logstream(LOG_ERROR) << "user_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
+        exit(1);
+  }
+  if (movie_sparsity < 0.5 || movie_sparsity >= 1){
+	logstream(LOG_ERROR) << "movie_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
+        exit(1);
+  }
+   gl_types::core glcore;
   //read the training data
   printf("loading data file %s\n", infile.c_str());
   if (!loadgraph){
@@ -439,7 +468,7 @@ void start(int argc, char ** argv) {
     exit(0);
   }
 
-  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX){
+  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
     printf("setting regularization weight to %g\n", LAMBDA);
     pU=pV=LAMBDA;
   }
@@ -492,6 +521,9 @@ void start(int argc, char ** argv) {
     switch(algorithm){
       case ALS_TENSOR_MULT:
       case ALS_MATRIX:
+      case ALS_SPARSE_USR_FACTOR:
+      case ALS_SPARSE_USR_MOVIE_FACTORS:
+      case ALS_SPARSE_MOVIE_FACTOR:
       case WEIGHTED_ALS:
       case BPTF_TENSOR_MULT:
       case BPTF_TENSOR:

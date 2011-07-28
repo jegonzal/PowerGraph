@@ -4,6 +4,9 @@
 extern int unittest;
 extern int ialgo;
 extern bool FLOAT;
+
+void test_cosamp();
+
 /**
  * UNIT TESTING
  */
@@ -21,6 +24,7 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
          assert(pow(train_rmse - 0.0043,2)<1e-5);
          assert(pow(validation_rmse - 0.6344,2)<1e-3);
          break;
+
    }
 }
 
@@ -37,6 +41,9 @@ void unit_testing(int unittest, command_line_options& clopts){
       infile = "wals"; ialgo = WEIGHTED_ALS; FLOAT = true; LAMBDA = 0.001;
       clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
    }
+   else if (unittest == 101){
+      test_cosamp();
+   } 
 }
 
 

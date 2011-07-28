@@ -33,11 +33,17 @@ extern runmodes algorithm;
 extern double LAMBDA;
 extern bool regnormal;
 extern double pT;
+extern double user_sparsity;
+extern double movie_sparsity;
+extern int lasso_max_iter;
 mat eDT; 
 vec vones; 
-
 double pU = 10; //regularization for users
 double pV = 10; //regularization for movies
+
+
+//vec lasso(mat A, vec b, double lambda, int max_iter, int D);
+vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D);
 
 void init_pmf() {
   if (BPTF)
@@ -193,8 +199,17 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     if (!regnormal)
 	   regularization*= Q.cols();
 
+   //enforce sparsity priors on resulting factor vector, see algorithm 1, page 4 in Xi et. al paper
+   if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || (algorithm == ALS_SPARSE_USR_FACTOR && isuser) || 
+      (algorithm == ALS_SPARSE_MOVIE_FACTOR && !isuser)){ 
+       double sparsity_level = 1.0;
+       if (isuser)
+	  sparsity_level -= user_sparsity;
+       else sparsity_level -= movie_sparsity;
+       result = CoSaMP(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, ceil(sparsity_level*(double)D), lasso_max_iter, 1e-4, D); 
+   }
     // compute regular least suqares
-    if (algorithm != WEIGHTED_ALS){
+   else if (algorithm != WEIGHTED_ALS){
        bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
     } 
