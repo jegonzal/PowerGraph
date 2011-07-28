@@ -40,10 +40,9 @@ namespace graphlab {
      * Directly applies the new value in place of the old value:
      *  current value = new data;
      */
-    template<typename AccumType>
-    static void identity(any& current_data,
-                         const any& new_data) {
-      current_data.as<AccumType>() = new_data.as<AccumType>();
+    template<typename T, typename Accum>
+    static void identity(T& lvalue, const Accum& rvalue) {
+      lvalue = rvalue;
     }
 
     /**
@@ -52,11 +51,10 @@ namespace graphlab {
      *  print(new data);
      *  current value = new data;
      */
-    template<typename AccumType>
-    static void identity_print(any& current_data,
-                               const any& new_data) {
-      std::cout << new_data.as<AccumType>() << std::endl;
-      current_data.as<AccumType>() = new_data.as<AccumType>();
+    template<typename T, typename Accum>
+    static void identity_print(T& lvalue, const Accum& rvalue) {
+      std::cout << rvalue << std::endl;
+      identity<T, Accum>(lvalue, rvalue);
     }
 
 
@@ -64,21 +62,18 @@ namespace graphlab {
      * Computes the square root:
      *  current value = sqrt(new_data);
      */
-    template<typename AccumType>
-    static void sqrt(any& current_data,
-                     const any& new_data) {
-      current_data.as<AccumType>() =
-        std::sqrt(new_data.as<AccumType>());
+    template<typename T, typename Accum>
+    static void sqrt(T& lvalue, const Accum& rvalue) {
+      lvalue = sqrt(rvalue);
     }
 
     /**
      * Increments the current value by the new value
      *  current value += new value;
      */
-    template<typename AccumType>
-    static void increment(any& current_data,
-                          const any& new_data) {
-      current_data.as<AccumType>() += new_data.as<AccumType>();
+    template<typename T, typename Accum>
+    static void increment(T& lvalue, const Accum& rvalue) {
+      lvalue += rvalue;
     }
 
 
@@ -86,12 +81,12 @@ namespace graphlab {
      * Decrements the current value by the new value
      *  current value -= new value;
      */
-    template<typename AccumType>
-    static void decrement(any& current_data,
-                          const any& new_data) {
-      current_data.as<AccumType>() -= new_data.as<AccumType>();
-    }      
+    template<typename T, typename Accum>
+    static void decrement(T& lvalue, const Accum& rvalue) {
+      lvalue -= rvalue;
+    }
   };
+
 
     
   /**

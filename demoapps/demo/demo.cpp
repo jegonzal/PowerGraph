@@ -421,12 +421,12 @@ void init_shared_data(gl::core &core, size_t dim) {
   
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
 
-  core.set_sync(NUM_FLIPS,  
-                gl::glshared_sync_ops::sum<size_t, get_flip>,
-                gl::glshared_apply_ops::identity<size_t>,
-                size_t(0),
-                128,
-                gl::glshared_merge_ops::sum<size_t>);
+  // core.set_sync(NUM_FLIPS,  
+  //               size_t(0),
+  //               128,
+  //               gl::glshared_sync_ops::sum<size_t, get_flip>,
+  //               gl::glshared_apply_ops::identity<size_t>,
+  //               gl::glshared_merge_ops::sum<size_t>);
 
 }
 

@@ -31,8 +31,8 @@
 
 
 
-#ifndef GRAPHLAB_IAGGREGATOR_HPP
-#define	GRAPHLAB_IAGGREGATOR_HPP
+#ifndef GRAPHLAB_ISYNC_HPP
+#define	GRAPHLAB_ISYNC_HPP
 
 
 #include <graphlab/logger/logger.hpp>
@@ -47,26 +47,26 @@ namespace graphlab {
    * \brief  This class is the base type of an aggregation (sync)
    * operation. 
    *
-   * Each thread is assumed to have a a single iaggregator which it
+   * Each thread is assumed to have a a single isync which it
    * uses to assemble the the partial sum.  This class is not thread
    * safe and therefore proper locking should be used.
    *
-   * The iaggregator maintains an internal partial sum.
+   * The isync maintains an internal partial sum.
    *
    */
   template<typename Graph> 
-  class iaggregator {
+  class isync {
   public:
     typedef Graph graph_type;
     typedef iscope<graph_type> iscope_type;
+    typedef typename Graph::vertex_data_type vertex_data_type;
 
-    virtual ~iaggregator();
-
+    virtual ~isync();
 
     /**
      * Make a virtual copy of the aggregator
      */
-    virtual iaggregator* clone() = 0;
+    virtual isync* clone() = 0;
 
     /**
      * Clear the current aggregator
@@ -76,18 +76,18 @@ namespace graphlab {
     /**
      * Add the scope to the current partial sum
      */
-    virtual void operator+=(const iscope_type& scope) = 0;
+    virtual void operator+=(iscope_type& vdata) = 0;
 
     /**
      * Add another partial sum to this partial sum.
      */
-    virtual void operator+=(const iaggregator& other) = 0;
+    virtual void operator+=(const isync& other) = 0;
 
     /**
      * Apply this partial sum to a global shared object.
      */
     virtual void apply() = 0;
-  }; // end of iaggregator
+  }; // end of isync
 
 
 
@@ -97,5 +97,5 @@ namespace graphlab {
 }; // end of namespace graphlab
 
 
-#endif	/* GRAPHLAB_IAGGREGATOR_HPP */
+#endif	/* GRAPHLAB_ISYNC_HPP */
 

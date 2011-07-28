@@ -62,7 +62,9 @@
 #include <graphlab/scheduler/scheduler_factory.hpp>
 
 #include <graphlab/shared_data/glshared.hpp>
-#include <graphlab/aggregation/fold_combine_aggregator.hpp>
+
+#include <graphlab/sync/isync.hpp>
+#include <graphlab/sync/fold_sync.hpp>
 
 
 
@@ -97,6 +99,8 @@ namespace graphlab {
    
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
+
+    typedef typename iengine_base::isync_type isync_type;
 
     // typedef typename iengine_base::sync_function_type sync_function_type;
     // typedef typename iengine_base::merge_function_type merge_function_type;
@@ -245,16 +249,8 @@ namespace graphlab {
 
 
     //! \brief Registers a sync with the engine.
-    template<typename Target, typename Accum>
-    void set_sync(Target& target,
-                  const Accum zero,
+    void add_sync(const isync_type& sync,
                   size_t sync_interval,
-                  typename fold_combine_aggregator<Graph,Target,Accum>::
-                  fold_function_type fold_fun,
-                  typename fold_combine_aggregator<Graph,Target,Accum>::
-                  apply_function_type apply_fun,
-                  typename fold_combine_aggregator<Graph,Target,Accum>::
-                  combine_function_type combine_fun,
                   size_t rangelow = 0,
                   size_t rangehigh = 0) { 
       

@@ -4,7 +4,7 @@ project(GraphLab)
 
 
 subdirs(
- aggregation
+
  engine
 # distributed2
  graph
@@ -15,6 +15,7 @@ subdirs(
  scheduler
  scope
  shared_data
+ sync
  update_functor
  util
  serialization

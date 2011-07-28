@@ -35,7 +35,6 @@
 
 
 #include <graphlab/util/generics/any.hpp>
-#include <graphlab/aggregation/iaggregator.hpp>
 
 
 namespace graphlab {
@@ -91,22 +90,22 @@ namespace graphlab {
     // virtual iaggregator* new_aggregator() = 0;
 
     
-    /**
-     * Because it is inconvenient that the apply function specification
-     * takes the current value as an "any" as opposed to using the true
-     * type of the current value (T), this function adapts an apply
-     * function written in the more intuitive form:
-     *
-     *  void applyfn(T&, const any&)
-     *
-     * to the regular apply function type.  apply_adapter<T, applyfn> is
-     * a function which matches the regular apply function type and
-     * calls applyfn.
-     */
-    template<typename T, void (*applyfn)(T&, const any&) >  
-    void static apply_adapter(any& d, const any& param) {
-      applyfn(d.as<T>(), param);
-    } // end of apply adapter
+    // /**
+    //  * Because it is inconvenient that the apply function specification
+    //  * takes the current value as an "any" as opposed to using the true
+    //  * type of the current value (T), this function adapts an apply
+    //  * function written in the more intuitive form:
+    //  *
+    //  *  void applyfn(T&, const any&)
+    //  *
+    //  * to the regular apply function type.  apply_adapter<T, applyfn> is
+    //  * a function which matches the regular apply function type and
+    //  * calls applyfn.
+    //  */
+    // template<typename T, void (*applyfn)(T&, const any&) >  
+    // void static apply_adapter(any& d, const any& param) {
+    //   applyfn(d.as<T>(), param);
+    // } // end of apply adapter
 
   };
 
