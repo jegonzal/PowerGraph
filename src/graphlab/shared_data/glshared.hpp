@@ -96,6 +96,7 @@ namespace graphlab {
     any data;
     rwlock lock;
 
+
   public:
     //! Construct initial shared pointers
     glshared(const T& other = T()) : data(other) { }

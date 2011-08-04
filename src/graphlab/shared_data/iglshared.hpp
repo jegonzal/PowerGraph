@@ -83,6 +83,7 @@ namespace graphlab {
     virtual bool is_unique() const = 0;
 
 
+
     // /**
     //  * Return a pointer to an aggergator type.  Note that aggregators
     //  * must be freed by the caller.

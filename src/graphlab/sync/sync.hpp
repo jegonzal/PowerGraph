@@ -46,11 +46,17 @@ namespace graphlab {
 
 
   namespace sync_defaults {
+    template<typename ScopeType, typename Accum>
+    void fold(ScopeType& iscope, Accum& accum) {
+      accum += Accum(iscope);
+    } // end of default_apply
+
     template<typename T, typename Accum>
     void apply(T& lvalue, const Accum& accum) {
-      lvalue = accum;
+      lvalue = T(accum);
     } // end of default_apply
   }; // end of sync_defaults namespace
+
 
   template<typename Graph, typename T, typename Accum >
   class fold_sync : public isync<Graph> {
@@ -62,8 +68,8 @@ namespace graphlab {
 
     //! The target should supply = operation
     typedef glshared<T> glshared_type;
-    typedef T      contained_type;
-    typedef Accum  accumulator_type;
+    typedef T           contained_type;
+    typedef Accum       accumulator_type;
 
     
 
@@ -78,20 +84,6 @@ namespace graphlab {
      *  to the target gl shared object
      */
     typedef void(*apply_function_type)(T& lvalue, const Accum& accum);
-
-
-    // /** 
-    //  * The reduce function combines the right partial sum into the
-    //  * left partial sum and behaves like:
-    //  *
-    //  *      partial_sum += rvalue
-    //  *
-    //  */
-    // typedef void(*combine_function_type)(Accum& partial_sum, 
-    //                                      const Accum& rvalue);
-
-
-
 
 
 
@@ -115,9 +107,11 @@ namespace graphlab {
     }
 
     fold_sync(glshared_type& target,
-              fold_function_type fold_function,
               const accumulator_type& zero = accumulator_type(0),
-              apply_function_type apply_function = (sync_defaults::apply<T, Accum>) ) :
+              fold_function_type fold_function = 
+              (sync_defaults::fold<iscope_type, Accum>),
+              apply_function_type apply_function = 
+              (sync_defaults::apply<T, Accum>) ) :
       target(target), zero(zero), acc(zero),
       fold_function(fold_function), apply_function(apply_function) { 
       ASSERT_TRUE(fold_function != NULL);

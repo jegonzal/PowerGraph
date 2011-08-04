@@ -117,6 +117,31 @@ class update_functor;
 typedef graphlab::types<graph_type, update_functor> gl;
 
 
+/*
+  Say if we are interested in having an incremental counter which provides
+  the total number of flips executed so far, as well as a ratio of the total
+  number of red vertices vs black vertices.
+  we can do this via the shared data manager's Sync mechanism.
+ 
+  The Sync mechanism allows you to build a 'Fold / Reduce' operation
+  across all the vertices in the graph, and store the results in the
+  Shared Data object. The Shared Data table is essentially a big table
+  mapping integer ids -> arbitrary data types
+
+  First we need to define the entries of the table. The data we need are:
+  - the total number of vertices (constant)
+  - red vertex proportion      (synced)
+  - the total number of flips    (synced)
+  
+  We will therefore define 3 entries in the Shared Data table.
+*/
+
+
+gl::glshared_const<size_t> NUM_VERTICES;
+gl::glshared<double> RED_PROPORTION;
+gl::glshared<size_t> NUM_FLIPS;
+
+
 /**
 
    Now we can begin to write the update function. This is the standard
@@ -277,29 +302,6 @@ void init_graph(graph_type& g,
   g.finalize();
 }
 
-/*
-  Say if we are interested in having an incremental counter which provides
-  the total number of flips executed so far, as well as a ratio of the total
-  number of red vertices vs black vertices.
-  we can do this via the shared data manager's Sync mechanism.
- 
-  The Sync mechanism allows you to build a 'Fold / Reduce' operation
-  across all the vertices in the graph, and store the results in the
-  Shared Data object. The Shared Data table is essentially a big table
-  mapping integer ids -> arbitrary data types
-
-  First we need to define the entries of the table. The data we need are:
-  - the total number of vertices (constant)
-  - red vertex proportion      (synced)
-  - the total number of flips    (synced)
-  
-  We will therefore define 3 entries in the Shared Data table.
-*/
-
-
-gl::glshared_const<size_t> NUM_VERTICES;
-gl::glshared<double> RED_PROPORTION;
-gl::glshared<size_t> NUM_FLIPS;
 
 
 
@@ -376,8 +378,8 @@ void merge_red_proportion(double& target, const double& source) {
    provide a simple function which extracts the information of interest
    from the vertex data. In this case, the numflips field.
 */
-size_t get_flip(const vertex_data &v) {
-  return v.numflips;
+size_t get_flips(gl::iscope& scope) {
+  return scope.vertex_data().numflips;
 }
 
 /**
@@ -395,12 +397,13 @@ void init_shared_data(gl::core &core, size_t dim) {
   NUM_VERTICES.set(dim*dim);
  
   // create the sync for the red_proportion entriy
-
-  core.engine().set_sync(RED_PROPORTION,
-                         reduce_red_proportion,
-                         128,
-                         double(0),
-                         apply_red_proportion);
+  
+  core.engine().set_sync<double>(RED_PROPORTION,                         
+                                 128,
+                                 false,
+                                 0,                                 
+                                 apply_red_proportion,
+                                 reduce_red_proportion);
 
 
 
@@ -420,14 +423,15 @@ void init_shared_data(gl::core &core, size_t dim) {
   
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
 
-  // gl::sync::fold< size_t, 
-  //                 size_t, 
-  //                 reduce_red_proportion,  
-  //                 apply_red_proportion 
-  //                 >  red_prop_sync(RED_PROPORTION, 0);
+  typedef gl::sync_ops::sum_group<size_t, get_flips> group_type;
 
-  // core.set_sync(NUM_FLIPS,  
-  //               size_t(0),
+  core.engine().set_sync<group_type>(NUM_FLIPS,  
+                                     128,
+                                     true);
+
+                                 
+
+  //                        size_t(0),
   //               128,
   //               gl::glshared_sync_ops::sum<size_t, get_flip>,
   //               gl::glshared_apply_ops::identity<size_t>,
@@ -489,7 +493,7 @@ int main(int argc,  char *argv[]) {
   // if we want to get a correct value for the syncs we should run them again
   // we can do his with
   glcore.sync_now(NUM_FLIPS);
-  //  glcore.shared_data().sync(RED_PROPORTION_KEY);
+  glcore.sync_now(RED_PROPORTION);
 
   // now we can look the values using the get() function
   size_t numberofflips = NUM_FLIPS.get_val();

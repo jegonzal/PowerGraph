@@ -114,7 +114,7 @@ namespace graphlab {
 
     //    typedef graphlab::glshared_sync_ops<Graph> glshared_sync_ops;
     //    typedef graphlab::glshared_apply_ops glshared_apply_ops;
-    // typedef graphlab::glshared_merge_ops glshared_merge_ops;
+    typedef graphlab::sync_ops<graph> sync_ops;
     typedef graphlab::isync<graph> isync;
 
     

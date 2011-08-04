@@ -22,7 +22,7 @@
 
 #include <graphlab/sync/isync.hpp>
 #include <graphlab/sync/sync.hpp>
-
+#include <graphlab/sync/sync_ops.hpp>
 
 
 
