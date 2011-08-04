@@ -67,15 +67,19 @@
 #define __SCHEDULER_LIST__                                              \
   (("fifo", fifo_scheduler,                                             \
     "Standard FIFO task queue, poor parallelism, but task evaluation "  \
-    "sequence is highly predictable. Useful for debugging and testing.")) 
+    "sequence is highly predictable. Useful for debugging and testing.")) \
+  (("chromatic", chromatic_scheduler,                                   \
+    "a scheduler which performs #iterations sweeps of the graph using " \
+    "a graph color ordering.")) 
 
 
 #include <graphlab/scheduler/fifo_scheduler.hpp>
+#include <graphlab/scheduler/chromatic_scheduler.hpp>
 
 // #include <graphlab/scheduler/priority_scheduler.hpp>
 // #include <graphlab/scheduler/sampling_scheduler.hpp>
 // #include <graphlab/scheduler/round_robin_scheduler.hpp>
-// #include <graphlab/scheduler/chromatic_scheduler.hpp>
+
 // #include <graphlab/scheduler/sweep_scheduler.hpp>
 // #include <graphlab/scheduler/splash_scheduler.hpp>
 // #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>

@@ -48,8 +48,9 @@
 
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/vertex_functor_set.hpp>
+
 #include <graphlab/engine/terminator/task_count_terminator.hpp>
 #include <graphlab/options/options_map.hpp>
 
@@ -93,7 +94,8 @@ namespace graphlab {
       vfun_set(graph.num_vertices()) { }
     
 
-    void start() { }
+    //! Reset the terminator
+    void start() { term.reset(); }
 
     void schedule(vertex_id_type vid, 
                   const update_functor_type& fun) {      

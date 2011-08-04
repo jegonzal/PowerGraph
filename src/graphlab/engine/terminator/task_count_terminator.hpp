@@ -46,12 +46,12 @@ namespace graphlab {
   class task_count_terminator : public iterminator {
     atomic<size_t> newtaskcount;
     atomic<size_t> finishedtaskcount;
-    bool force_terminator; //signal computation is aborted
+    bool forced_abort; //signal computation is aborted
 
   public:
     task_count_terminator() : newtaskcount(0), 
                                finishedtaskcount(0), 
-                               force_terminator(false) { }
+                               forced_abort(false) { }
     
     ~task_count_terminator(){ }
 
@@ -60,14 +60,12 @@ namespace graphlab {
     
     bool end_critical_section(size_t cpuid) {
       return newtaskcount.value == finishedtaskcount.value 
-        || force_terminator;
+        || forced_abort;
     }
     
-    void abort(){
-      force_terminator = true;
-    }
+    void abort(){ forced_abort = true; }
 
-    bool is_aborted(){ return force_terminator; }
+    bool is_aborted(){ return forced_abort; }
 
 
     void new_job() {
@@ -82,11 +80,18 @@ namespace graphlab {
       finishedtaskcount.inc();
       assert(finishedtaskcount.value <= newtaskcount.value);
     }
+
+    void reset() {
+      newtaskcount.value = 0;
+      finishedtaskcount = 0;
+      forced_abort = false;
+    }
     
     void print() {
       std::cout << finishedtaskcount.value << " of "
                 << newtaskcount.value << std::endl;
     }
+
   };
 
 }

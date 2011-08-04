@@ -55,14 +55,15 @@ namespace graphlab {
    */
   class iterminator {
   public:
+    virtual ~iterminator() { }
     virtual void begin_critical_section(size_t cpuid) = 0;
     virtual void cancel_critical_section(size_t cpuid) = 0;
     virtual bool end_critical_section(size_t cpuid) = 0;
     virtual void new_job(size_t cpuhint = size_t(-1)) = 0;
     virtual void completed_job() = 0;
     virtual bool is_aborted() = 0;
-
     virtual void abort() = 0;
+    virtual void reset() = 0;
 
 
   };

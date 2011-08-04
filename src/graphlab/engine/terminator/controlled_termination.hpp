@@ -20,15 +20,22 @@
  *
  */
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
-#ifndef CONTROLLED_TERMINATION_HPP
-#define CONTROLLED_TERMINATION_HPP
+
+#ifndef GRAPHLAB_CONTROLLED_TERMINATION_HPP
+#define GRAPHLAB_CONTROLLED_TERMINATION_HPP
 
 #include <cassert>
 
-#include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/parallel/atomic.hpp>
-
+#include <graphlab/engine/terminator/iterminator.hpp>
 
 namespace graphlab {
   /**
@@ -36,27 +43,28 @@ namespace graphlab {
    * The simplest possible terminator.
    * Always fails until a flag is set
    */
-  class controlled_termination {
-    bool quit;
+  class controlled_termination : public iterminator {
+    bool natural_quit;
+    bool forced_abort;
   public:
-    controlled_termination():quit(false) { }
+    controlled_termination() : 
+      natural_quit(false), forced_abort(false) { }
 
-    ~controlled_termination(){ }
 
     void begin_critical_section(size_t cpuid) { }
     void cancel_critical_section(size_t cpuid)  { }
-
-    bool end_critical_section(size_t cpuid) { return quit;  }
-
-    void new_job() { }
-
+    bool end_critical_section(size_t cpuid) { 
+      return natural_quit || forced_abort;  }
     void new_job(size_t cpuhint) { }
-
     void completed_job() { }
+    bool is_aborted() { return forced_abort; }
+    void abort() { forced_abort = true; }
+    void reset() { 
+      natural_quit = false; 
+      forced_abort = false;
+    }
+    void complete() { natural_quit = true; }
 
-    void complete() { quit = true; }
-
-    void reset() { quit = false; }
   };
 
 }
