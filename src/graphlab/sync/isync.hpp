@@ -68,7 +68,7 @@ namespace graphlab {
     /**
      * Make a virtual copy of the aggregator
      */
-    virtual isync* clone() = 0;
+    virtual isync* clone() const = 0;
 
     /**
      * Clear the current aggregator

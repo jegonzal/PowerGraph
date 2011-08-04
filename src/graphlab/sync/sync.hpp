@@ -106,7 +106,7 @@ namespace graphlab {
 
   public:
 
-    fold_sync(fold_sync& other) : 
+    fold_sync(const fold_sync& other) : 
       target(other.target), zero(other.zero), acc(other.acc) { }
 
     fold_sync(glshared_type& target,
@@ -117,7 +117,7 @@ namespace graphlab {
 
 
     
-    isync_type* clone() { return new fold_sync(*this); }
+    isync_type* clone() const { return new fold_sync(*this); }
     void clear() { acc = zero; }
     void operator+=(iscope_type& scope) { fold_function(scope, acc); }
     void operator+=(const isync_type& iother) {

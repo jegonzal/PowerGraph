@@ -95,7 +95,7 @@ namespace graphlab {
      * If affinity is set, the nthreads will by default stripe across 
      * the available cores on the system. 
      */
-    thread_pool(size_t nthreads, bool affinity = false);
+    thread_pool(size_t nthreads = 2, bool affinity = false);
     
     /**
      * Set the number of threads in the queue
