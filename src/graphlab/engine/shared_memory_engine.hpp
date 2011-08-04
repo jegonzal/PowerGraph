@@ -251,13 +251,10 @@ namespace graphlab {
       typedef mutable_queue<record*, long> queue_type;   
       queue_type queue;
       ~sync_members() {
-        std::cout << "Grabbing death lock" << std::endl;
         lock.lock();
-        std::cout << "Success: Grabbing death lock" << std::endl;
         typedef typename map_type::value_type pair_type;
         foreach(pair_type& pair, iglshared2sync) {
           record*& record_ptr = pair.second;
-          std::cout << "Pointer " << record_ptr << std::endl;
           ASSERT_TRUE(record_ptr != NULL);
           delete record_ptr;
        
@@ -868,7 +865,6 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue() {
-    std::cout << "evaluating sync queue" << std::endl;
     const size_t MIN_SPAN(1);
     typedef typename sync_members::record record_type;
     // if the engine is no longer running then we terminate early 
@@ -884,8 +880,6 @@ namespace graphlab {
     // if we have more updates than the next update count for this
     // task then run it
     if(next_ucount < last_ucount) {
-      std::cout << "Running Sync: " 
-                << next_ucount << ", " << last_ucount << std::endl;
       // Get the key and then remove the task from the queue
       record_type* record_ptr = syncs.queue.pop().first;
       ASSERT_TRUE(record_ptr != NULL);
@@ -974,7 +968,6 @@ namespace graphlab {
     record.lock.lock();
     *(record.sync_ptr) += local_sync;
     record.subtasks_remaining--;
-    std::cout << "subtasks remaining: " << record.subtasks_remaining << std::endl;
     const bool last_thread = record.subtasks_remaining == 0;
     record.lock.unlock();
     /**
@@ -1009,7 +1002,6 @@ namespace graphlab {
       record.lock.unlock();
       // Free the master lock to allow other syncs to proceed
       syncs.lock.unlock();
-      std::cout << "released sync lock" << std::endl;
       // Step 4:
       evaluate_sync_queue();
     }
