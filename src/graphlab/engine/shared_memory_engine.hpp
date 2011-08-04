@@ -212,10 +212,12 @@ namespace graphlab {
           begin_vid(0), end_vid(0),
           subtasks_remaining(0) { ASSERT_TRUE(sync_ptr != NULL); }
         ~record() { clear(); }
-        void clear() {
-          lock.lock();
-          if(sync_ptr != NULL) { delete sync_ptr; sync_ptr = NULL; }
-          lock.unlock();
+        void clear(const bool need_lock = true) {
+          if(need_lock) lock.lock();
+          ASSERT_TRUE(sync_ptr != NULL);
+          delete sync_ptr; 
+          sync_ptr = NULL; 
+          if(need_lock) lock.unlock();
         }
       }; // end of sync record,
       struct subtask {
@@ -232,6 +234,7 @@ namespace graphlab {
           ASSERT_TRUE(sync_ptr != NULL);
           delete sync_ptr;
           sync_ptr = NULL;
+          record_ptr = NULL;
         }
         
       }; // end of subtask
@@ -248,12 +251,20 @@ namespace graphlab {
       typedef mutable_queue<record*, long> queue_type;   
       queue_type queue;
       ~sync_members() {
+        std::cout << "Grabbing death lock" << std::endl;
+        lock.lock();
+        std::cout << "Success: Grabbing death lock" << std::endl;
         typedef typename map_type::value_type pair_type;
         foreach(pair_type& pair, iglshared2sync) {
-          record* record_ptr = pair.second;
+          record*& record_ptr = pair.second;
+          std::cout << "Pointer " << record_ptr << std::endl;
           ASSERT_TRUE(record_ptr != NULL);
-          delete pair.second;
+          delete record_ptr;
+       
+          record_ptr = NULL;
+        
         }
+        lock.unlock();
       }
       thread_pool threads;
     }; // end of sync members
@@ -322,7 +333,8 @@ namespace graphlab {
                   void(*apply_function)(T& lvalue, const Accum& rvalue) =
                   (sync_defaults::apply<T, Accum >),
                   vertex_id_type begin_vid = 0,
-                  vertex_id_type end_vid = -1);
+                  vertex_id_type end_vid = 
+                  std::numeric_limits<vertex_id_type>::max());
 
 
     //! Performs a sync immediately.
@@ -512,15 +524,10 @@ namespace graphlab {
       }
       syncs.lock.unlock();
     } // end of initialize syncs
-   
-
-     
+        
     // ------------------------ Start the engine --------------------------- //
     launch_threads();
     // \todo: Decide if we really still want to support run_simulated();
-
-    
-     
 
     // --------------------- Finished running engine ----------------------- //
     // Join all the active threads
@@ -551,8 +558,6 @@ namespace graphlab {
 
 
 
-
-
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
@@ -568,13 +573,6 @@ namespace graphlab {
     ASSERT_TRUE(fun != NULL);
     termination.functions.push_back(fun);
   } // end of clear_termination_conditions
-
-
-
-
-
-
-
 
 
 
@@ -613,7 +611,6 @@ namespace graphlab {
     record_type& rec = *record_ptr;
     // Initialize the rest of the record
     rec.lock.lock();
-    rec.clear(); 
     rec.sync_interval = sync_interval;
     rec.begin_vid = begin_vid;
     rec.end_vid = end_vid;
@@ -709,6 +706,7 @@ namespace graphlab {
     const size_t ncpus = opts.get_ncpus();
     // launch the threads
     for(size_t i = 0; i < ncpus; ++i) {
+      logstream(LOG_INFO) << "Scheduling thread: " << i << std::endl;
       // Create the boost function which effectively calls:
       //    this->thread_mainloop(i);
       const boost::function<void (void)> run_function = 
@@ -766,9 +764,13 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   thread_mainloop(size_t cpuid) {  
+    logstream(LOG_INFO) 
+      << "Starting thread " << cpuid << " started." << std::endl;
     while(exec_status == execution_status::RUNNING) {
       run_once(cpuid);
     }
+    logstream(LOG_INFO) 
+      << "Thread " << cpuid << " finished." << std::endl;
   } // end of thread_mainloop
 
 
@@ -796,6 +798,7 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   run_once(size_t cpuid) {
+    // std::cout << "Run once on " << cpuid << std::endl;
     // -------------------- Execute Sync Operations ------------------------ //
     // Evaluate pending sync operations
     evaluate_sync_queue();
@@ -865,8 +868,11 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue() {
+    std::cout << "evaluating sync queue" << std::endl;
     const size_t MIN_SPAN(1);
     typedef typename sync_members::record record_type;
+    // if the engine is no longer running then we terminate early 
+    if(exec_status != execution_status::RUNNING) return;
     // Try to grab the lock if we fail just return
     if(!syncs.lock.try_lock()) return;
     // ASSERT: the lock has been aquired
@@ -874,9 +880,12 @@ namespace graphlab {
     const long negated_next_ucount = syncs.queue.top().second;
     ASSERT_LE(negated_next_ucount, 0);
     const size_t next_ucount = size_t(-negated_next_ucount);
+    const size_t last_ucount = last_update_count();
     // if we have more updates than the next update count for this
     // task then run it
-    if(next_ucount < last_update_count()) { 
+    if(next_ucount < last_ucount) {
+      std::cout << "Running Sync: " 
+                << next_ucount << ", " << last_ucount << std::endl;
       // Get the key and then remove the task from the queue
       record_type* record_ptr = syncs.queue.pop().first;
       ASSERT_TRUE(record_ptr != NULL);
@@ -886,19 +895,25 @@ namespace graphlab {
       rec.lock.lock();
       // Zero the current master accumulator
       rec.sync_ptr->clear();
-      // Compute the true end
-      const vertex_id_type true_end = 
+      // Compute the true begin and end.  Note that if we find that
+      // the user set begin == end then we will assume the user just
+      // wants to run on all vertices in the graph.
+      vertex_id_type true_begin = 
+        std::min(graph.num_vertices(), size_t(rec.begin_vid));;
+      vertex_id_type true_end = 
         std::min(graph.num_vertices(), size_t(rec.end_vid));
-      ASSERT_LT(rec.begin_vid, true_end);
+      // if(true_begin == true_end) {
+      //   true_begin = 0; true_end = graph.num_vertices();
+      // } 
+      ASSERT_LT(true_begin, true_end);
       ASSERT_LE(true_end, graph.num_vertices());
-      ASSERT_LE(true_end, rec.end_vid);
       // Compute the span of each subtask.  The span should not be
       // less than some minimal span.
       const vertex_id_type span = 
-        std::max((true_end - rec.begin_vid)/opts.get_ncpus(), MIN_SPAN);
+        std::max((true_end - true_begin)/opts.get_ncpus(), MIN_SPAN);
       ASSERT_GT(span, 0);
       // Launch threads to compute the fold on each span.
-      for(vertex_id_type vid = rec.begin_vid; 
+      for(vertex_id_type vid = true_begin;
           vid < true_end; vid += span) {
         // Create a subtask that will be passed to the thread
         typedef typename sync_members::subtask subtask_type;
@@ -919,10 +934,11 @@ namespace graphlab {
       } 
       // Release the locks to allow subtasks to commit their results.
       rec.lock.unlock();
-    } // end of start sync
-    // // If the sync operation are not barriered then we can allow
-    // // multiple syncs to run simultaneously.
-    // if(!syncs.barrier) syncs.lock.unlock();
+    } else { 
+      // Otherwsie the next thing to do is not ready yet so just
+      // release the lock and let the thread continue.
+      syncs.lock.unlock();
+    }
   } // end of evaluate_sync_queue
 
 
@@ -934,7 +950,7 @@ namespace graphlab {
     ASSERT_TRUE(subtask_ptr->record_ptr != NULL);
     ASSERT_TRUE(subtask_ptr->sync_ptr != NULL);
     ASSERT_LT(subtask_ptr->begin_vid, subtask_ptr->end_vid);
-    ASSERT_LT(subtask_ptr->end_vid, graph.num_vertices());
+    ASSERT_LE(subtask_ptr->end_vid, graph.num_vertices());
     // Get a reference to the isync
     isync_type& local_sync = *(subtask_ptr->sync_ptr);
     // Loop over all vertices applying the sync
@@ -958,6 +974,7 @@ namespace graphlab {
     record.lock.lock();
     *(record.sync_ptr) += local_sync;
     record.subtasks_remaining--;
+    std::cout << "subtasks remaining: " << record.subtasks_remaining << std::endl;
     const bool last_thread = record.subtasks_remaining == 0;
     record.lock.unlock();
     /**
@@ -992,6 +1009,7 @@ namespace graphlab {
       record.lock.unlock();
       // Free the master lock to allow other syncs to proceed
       syncs.lock.unlock();
+      std::cout << "released sync lock" << std::endl;
       // Step 4:
       evaluate_sync_queue();
     }

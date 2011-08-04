@@ -107,19 +107,30 @@ namespace graphlab {
   public:
 
     fold_sync(const fold_sync& other) : 
-      target(other.target), zero(other.zero), acc(other.acc) { }
+      target(other.target), zero(other.zero), acc(other.acc),
+      fold_function(other.fold_function), 
+      apply_function(other.apply_function) { 
+      ASSERT_TRUE(fold_function != NULL);
+      ASSERT_TRUE(apply_function != NULL);
+    }
 
     fold_sync(glshared_type& target,
               fold_function_type fold_function,
               const accumulator_type& zero = accumulator_type(0),
               apply_function_type apply_function = (sync_defaults::apply<T, Accum>) ) :
-      target(target), zero(zero), acc(zero) { }
+      target(target), zero(zero), acc(zero),
+      fold_function(fold_function), apply_function(apply_function) { 
+      ASSERT_TRUE(fold_function != NULL);
+      ASSERT_TRUE(apply_function != NULL);
+    }
 
 
     
     isync_type* clone() const { return new fold_sync(*this); }
     void clear() { acc = zero; }
-    void operator+=(iscope_type& scope) { fold_function(scope, acc); }
+    void operator+=(iscope_type& scope) { 
+      fold_function(scope, acc); 
+    }
     void operator+=(const isync_type& iother) {
       const fold_sync& other = 
         *dynamic_cast<const fold_sync*>(&iother);
