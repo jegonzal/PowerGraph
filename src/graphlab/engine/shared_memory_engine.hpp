@@ -853,6 +853,7 @@ namespace graphlab {
         } else {
           // \todo use sched yield option
           // if(use_sched_yield) sched_yield();
+          continue;
         }
         // cancel the critical section
         scheduler_ptr->terminator().cancel_critical_section(cpuid);
