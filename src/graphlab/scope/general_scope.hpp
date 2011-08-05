@@ -33,10 +33,10 @@
 #ifndef GRAPHLAB_GENERAL_SCOPE_HPP
 #define GRAPHLAB_GENERAL_SCOPE_HPP
 
-#include <boost/bind.hpp>
+//#include <boost/bind.hpp>
 
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/iscope_factory.hpp>
+//#include <graphlab/scope/iscope_manager.hpp>
 
 
 
@@ -60,85 +60,40 @@ namespace graphlab {
     using base::_vertex;
     using base::_graph_ptr;
 
-    scope_range::scope_range_enum stype;
-    iscope_factory<Graph>* factory;
+    consistency_model::model_enum stype;
+    //    iscope_manager<Graph>* manager;
+
   public:
     general_scope() :
       base(NULL,NULL) { }
 
-    general_scope(Graph* graph_ptr, vertex_id_type vertex,
-                  iscope_factory<Graph>* factory,
-                  scope_range::scope_range_enum s = scope_range::USE_DEFAULT) :
-      base(graph_ptr, vertex), stype(s), factory(factory)  {
-    }
+    general_scope(Graph* graph_ptr, 
+                  vertex_id_type vertex,
+                  consistency_model::model_enum stype 
+                  = consistency_model::EDGE_CONSISTENCY) :
+      base(graph_ptr, vertex, stype) { }
 
-    scope_range::scope_range_enum scope_type() const {
-      return stype;
-    }
-
-    ~general_scope() { }
-
-    void commit() {}
     
 
-    void init(Graph* graph, vertex_id_type vertex) {
+    void init(Graph* graph, vertex_id_type vertex, 
+              consistency_model::model_enum consistency) {
       base::_graph_ptr = graph;
       base::_vertex = vertex;
-    }
+      base::_consistency = consistency;
+    } // end of init
 
-    vertex_data_type& vertex_data() {
-      return (_graph_ptr->vertex_data(_vertex));
-    }
-
-
-    const vertex_data_type& vertex_data() const {
-      return const_vertex_data();
-    }
-
-    const vertex_data_type& const_vertex_data() const {
-      return (_graph_ptr->vertex_data(_vertex));
-    }
-
-    /// Direct calls to access edge data
-    const edge_data_type& edge_data(edge_id_type eid) const {
-      return const_edge_data(eid);
-    }
-
-    const edge_data_type& const_edge_data(edge_id_type eid) const {
-      return (_graph_ptr->edge_data(eid));
-    }
     
-    edge_data_type& edge_data(edge_id_type eid) {
-      return (_graph_ptr->edge_data(eid));
-    }
+    // bool experimental_scope_upgrade(consistency_model::model_enum newrange) { 
+    //   assert(manager != NULL);
+    //   manager->release_scope(this);
 
+    //   ASSERT_TRUE(manager->get_scope(thread::thread_id(), 
+    //                                  base::_vertex,newrange) == this);
+    //   stype = newrange;
+    //   return true;
+    // }
 
-    const vertex_data_type& 
-    neighbor_vertex_data(vertex_id_type vertex) const {
-      return const_neighbor_vertex_data(vertex);
-    }
-
-
-    const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vertex) const {
-      return _graph_ptr->vertex_data(vertex);
-    }
-
-    // warning. Guarantee free!
-    vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) {
-      return _graph_ptr->vertex_data(vertex);
-    }
-    
-    bool experimental_scope_upgrade(scope_range::scope_range_enum newrange) { 
-      assert(factory != NULL);
-      factory->release_scope(this);
-      ASSERT_TRUE(factory->get_scope(thread::thread_id(), 
-                                     base::_vertex,newrange) == this);
-      stype = newrange;
-      return true;
-    }
-
-    friend class general_scope_factory<Graph>;
+    //friend class scope_manager<Graph>;
   }; // end of ext_locked_scope
 
 } // end of graphlab namespace

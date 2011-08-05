@@ -93,7 +93,7 @@ while [ $# -gt 0 ]
     --itpp)                 itpp=1 ;;
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
- #   --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
+    --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
     *) unknown_option $1 ;;
   esac
   shift
@@ -118,12 +118,12 @@ else
   echo "EXPERIMENTAL=$EXPERIMENTAL"      >> configure.deps
 fi
 
-# # Enable or disable Yahoo Research Labs Experimental components
-# if [ ! -z $yrlabs ]; then
-#   echo "YRL_EXPERIMENTAL=true"       >> configure.deps
-# else
-#   echo "YRL_EXPERIMENTAL=$YRL_EXPERIMENTAL"      >> configure.deps
-# fi
+# Enable or disable Yahoo Research Labs Experimental components
+if [ ! -z $yrlabs ]; then
+  echo "YRL_EXPERIMENTAL=true"       >> configure.deps
+else
+  echo "YRL_EXPERIMENTAL=$YRL_EXPERIMENTAL"      >> configure.deps
+fi
 
 
 # Run the configure deps
@@ -201,12 +201,12 @@ if [ ! -z $EXPERIMENTAL ]; then
     config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 fi
 
-# if [ ! -z $YRL_EXPERIMENTAL ]; then
-#     config_flags="$config_flags -D YRL_EXPERIMENTAL:BOOL=$YRL_EXPERIMENTAL"
-#    if [ ! -z $AVRO_ROOT ]; then
-#        config_flags="$config_flags -D AVRO_ROOT:STRING=$AVRO_ROOT"
-#    fi
-# fi
+if [ ! -z $YRL_EXPERIMENTAL ]; then
+    config_flags="$config_flags -D YRL_EXPERIMENTAL:BOOL=$YRL_EXPERIMENTAL"
+   if [ ! -z $AVRO_ROOT ]; then
+       config_flags="$config_flags -D AVRO_ROOT:STRING=$AVRO_ROOT"
+   fi
+fi
 
 
 if [ ! -z $itpp_link_dir ]; then

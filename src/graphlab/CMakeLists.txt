@@ -4,24 +4,27 @@ project(GraphLab)
 
 
 subdirs(
+
  engine
+# distributed2
  graph
  gpu
  monitoring
+ options
  parallel
- schedulers
+ scheduler
  scope
  shared_data
- tasks
+ sync
+ update_functor
  util
  serialization
  logger
- metrics
- jni)
+ metrics)
 
-# if(YRL_EXPERIMENTAL)
-#   subdirs(yrl)
-# endif()
+if(YRL_EXPERIMENTAL)
+  subdirs(yrl)
+endif()
 
 include(metisextern.cmake)
 
@@ -59,10 +62,10 @@ endif()
 
 add_library(graphlab STATIC
   ${metis_sources}
-  schedulers/scheduler_options.cpp
+  options/command_line_options.cpp
+  options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
-  util/command_line_options.cpp
   graph/disk_atom.cpp
   graph/atom_index_file.cpp
   logger/logger.cpp
@@ -70,7 +73,7 @@ add_library(graphlab STATIC
   parallel/pthread_tools.cpp
   parallel/thread_pool.cpp
   util/random.cpp
-  schedulers/scheduler_list.cpp
+  scheduler/scheduler_list.cpp
   metrics/metrics.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
@@ -115,11 +118,11 @@ endif()
 
 
 
-#build distributed graphlab
-add_library(graphlab_dist2 STATIC
-    distributed2/distributed_glshared_base.cpp
-    distributed2/distributed_glshared_manager.cpp
-    distributed2/graph/dgraph_edge_list.cpp)
+# #build distributed graphlab
+# add_library(graphlab_dist2 STATIC
+#     distributed2/distributed_glshared_base.cpp
+#     distributed2/distributed_glshared_manager.cpp
+#     distributed2/graph/dgraph_edge_list.cpp)
 
 
 #build PIC versions of everything

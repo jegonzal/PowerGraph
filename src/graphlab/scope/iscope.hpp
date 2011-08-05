@@ -36,108 +36,73 @@
 
 #include <graphlab/graph/graph.hpp>
 
+#include <graphlab/scope/consistency_model.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-  /** \brief defines the types of scope consistency guarantees provided  
-   
-      There are several choices for consistency mechanisms in the
-      graphlab framework.  Each choice determines to what extent
-      adjacent vertices can be operated on in parallel.  
 
-      <ul> 
-
-        <li> Null Consistency: provides no guarantees allowing update
-        functions to operate on the same vertex concurrently </li>
-
-        <li> Vertex Read Consistency: On ensures that that you can
-        read from the local vertex correctly</li>
-
-        <li> Vertex Consistency: Ensures that a scope is aquired by
-        only one processor at a time </li>
-
-        <li> Edge Consistency: Ensures that adjacent vertices are not
-        updated simultaneoulsy. If the update function only modifies
-        the data on the scope vertex and its adjacent edges then this
-        consistency model is sufficient to guarantee sequential
-        consistency </li>
-
-        <li> Fully Consistency: This consistency models guarantees
-        sequential consistency but may limit the available
-        parallelism.  Effectively, this consistency model ensures that
-        overlapping scopes cannot be executed simultaneously.</li>
-
-      </ul>
-
-      The scope_range_enum is passed to the engine through the iengine
-      interface or set using the engine factory.
- 
-   */
-  struct scope_range {
-    /// \brief scope types
-    enum scope_range_enum {
-      NULL_CONSISTENCY = 0,    ///< no locks
-      VERTEX_READ_CONSISTENCY, ///< read only from self
-      READ_CONSISTENCY,        ///< read from self and adjacent structures
-      VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
-      EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
-      FULL_CONSISTENCY,        ///< write to self and adjacent structures
-      USE_DEFAULT
-    };
-    
-    enum lock_type_enum {
-      NO_LOCK = 0,
-      READ_LOCK = 1,
-      WRITE_LOCK = 2
-    };
-  };
-
-  inline scope_range::lock_type_enum central_vertex_lock_type(scope_range::scope_range_enum srange) {
+  inline consistency_model::lock_type_enum 
+  central_vertex_lock_type(consistency_model::model_enum srange) {
     switch (srange) {
-      case scope_range::NULL_CONSISTENCY:
-        return scope_range::NO_LOCK;
-      case scope_range::VERTEX_READ_CONSISTENCY:
-      case scope_range::READ_CONSISTENCY:
-        return scope_range::READ_LOCK;
-      case scope_range::VERTEX_CONSISTENCY:
-      case scope_range::EDGE_CONSISTENCY:
-      case scope_range::FULL_CONSISTENCY:
-        return scope_range::WRITE_LOCK;
-      default:
-        assert(false);
-        // unreachable
-        return scope_range::NO_LOCK;
+    case consistency_model::NULL_CONSISTENCY:
+      return consistency_model::NO_LOCK;
+    case consistency_model::VERTEX_READ_CONSISTENCY:
+    case consistency_model::READ_CONSISTENCY:
+      return consistency_model::READ_LOCK;
+    case consistency_model::VERTEX_CONSISTENCY:
+    case consistency_model::EDGE_CONSISTENCY:
+    case consistency_model::FULL_CONSISTENCY:
+      return consistency_model::WRITE_LOCK;
+    case consistency_model::USE_DEFAULT:
+      logstream(LOG_FATAL) 
+        << "USE_DEFAULT not supported for lock requests!" << std::endl;
+    default:
+      logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
+      // unreachable
+      return consistency_model::NO_LOCK;
     }
-  }
+  } // end of central_vertex_lock_type
 
-  inline scope_range::lock_type_enum adjacent_vertex_lock_type(scope_range::scope_range_enum srange) {
+
+
+  inline consistency_model::lock_type_enum 
+  adjacent_vertex_lock_type(consistency_model::model_enum srange) {
     switch (srange) {
-      case scope_range::NULL_CONSISTENCY:
-      case scope_range::VERTEX_READ_CONSISTENCY:
-      case scope_range::VERTEX_CONSISTENCY:
-        return scope_range::NO_LOCK;
-      case scope_range::READ_CONSISTENCY:
-      case scope_range::EDGE_CONSISTENCY:
-        return scope_range::READ_LOCK;
-      case scope_range::FULL_CONSISTENCY:
-        return scope_range::WRITE_LOCK;
-      default:
-        assert(false);
-        // unreachable
-        return scope_range::NO_LOCK;
+    case consistency_model::NULL_CONSISTENCY:
+    case consistency_model::VERTEX_READ_CONSISTENCY:
+    case consistency_model::VERTEX_CONSISTENCY:
+      return consistency_model::NO_LOCK;
+    case consistency_model::READ_CONSISTENCY:
+    case consistency_model::EDGE_CONSISTENCY:
+      return consistency_model::READ_LOCK;
+    case consistency_model::FULL_CONSISTENCY:
+      return consistency_model::WRITE_LOCK;
+    case consistency_model::USE_DEFAULT:
+      logstream(LOG_FATAL) 
+        << "USE_DEFAULT not supported for lock requests!" << std::endl;
+    default:
+      logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
+      // unreachable
+      return consistency_model::NO_LOCK;
     }
-  }
+  } // end of adjacent_vertex_lock_type
 
 
-  inline bool scope_is_subset_of(scope_range::scope_range_enum A,
-                                 scope_range::scope_range_enum B) {
+  inline bool scope_is_subset_of(consistency_model::model_enum A,
+                                 consistency_model::model_enum B) {
     /*
-    if (A==scope_range::READ_CONSISTENCY && B == scope_range::VERTEX_CONSISTENCY) return false;
-    else return (A < B);*/
-    
-    return (!(A==scope_range::READ_CONSISTENCY && B == scope_range::VERTEX_CONSISTENCY)) && (A < B);
-  }
+      if (A==consistency_model::READ_CONSISTENCY && B ==
+      consistency_model::VERTEX_CONSISTENCY) return false; else return
+      (A < B);
+    */  
+    return (!(A==consistency_model::READ_CONSISTENCY 
+              && B == consistency_model::VERTEX_CONSISTENCY)) 
+      && (A < B);
+  } // end of scope_is_subset_of
+
+
+
 
   /**
    * \brief represents the data associated with a vertex its adjacent
@@ -175,9 +140,11 @@ namespace graphlab {
      * engine when creating an iscope to be passed into an update
      * function.
      */
-    iscope(Graph* graph_ptr = NULL, vertex_id_type vertex = -1) : 
-      _graph_ptr(graph_ptr), _vertex(vertex) {
-    }
+    iscope(Graph* graph_ptr = NULL, vertex_id_type vertex = -1,
+           consistency_model::model_enum consistency = 
+           consistency_model::EDGE_CONSISTENCY) : 
+      _graph_ptr(graph_ptr), _vertex(vertex), 
+      _consistency(consistency) { }
     
     /** iscope destructor */
     virtual ~iscope() { }
@@ -186,7 +153,7 @@ namespace graphlab {
      * \brief commits all changes.
      * This is called by the engine after the update function returns.
      */
-    virtual void commit() = 0;
+    virtual void commit() { }
 
     /**
      * Get the number of vertices in the graph
@@ -216,7 +183,7 @@ namespace graphlab {
      * the edge is not present this method will fail. 
      */
     edge_id_type edge(vertex_id_type source,
-                   vertex_id_type target) const {
+                      vertex_id_type target) const {
       assert(_graph_ptr != NULL);
       // No cheating
       // assert(source == _vertex || target == _vertex);
@@ -309,6 +276,12 @@ namespace graphlab {
       return _graph_ptr->target(edge_id);
     }
     
+
+    //! Get the consistency model under which this scope was acquired
+    consistency_model::model_enum consistency() const { 
+      return _consistency;
+    }
+
     /**
      * \brief Get a mutable reference to the data associated with the
      * base vertex
@@ -318,7 +291,9 @@ namespace graphlab {
      * Therefore if the vertex data does not need to be mutable use
      * the const reference version of vertex_data.
      */
-    virtual vertex_data_type& vertex_data() = 0;
+    virtual vertex_data_type& vertex_data() {
+      return _graph_ptr->vertex_data(_vertex);
+    }
 
     /**
      * \brief Get an immutable reference to the data associated with
@@ -326,7 +301,9 @@ namespace graphlab {
      * \deprecated use const_vertex_data
      * This should be called if the data does not need to be modified.
      */
-    virtual const vertex_data_type& vertex_data() const = 0;
+    virtual const vertex_data_type& vertex_data() const {
+      return const_vertex_data();
+    }
     
     /**
      * \brief Get an immutable reference to the data associated with
@@ -334,7 +311,9 @@ namespace graphlab {
      *
      * This should be called if the data does not need to be modified.
      */    
-    virtual const vertex_data_type& const_vertex_data() const = 0;
+    virtual const vertex_data_type& const_vertex_data() const {
+      return _graph_ptr->vertex_data(_vertex);
+    }
     
     
     /**
@@ -346,7 +325,9 @@ namespace graphlab {
      * const version of this function should be used to permit further
      * optimization.
      */
-    virtual edge_data_type& edge_data(edge_id_type eid) = 0;
+    virtual edge_data_type& edge_data(edge_id_type eid) {
+      return _graph_ptr->edge_data(eid);
+    }
 
     /**
      * \brief Get an immutable reference to the data associated with
@@ -355,7 +336,9 @@ namespace graphlab {
      * This should only be invoked on edges that are adjacent to the
      * base vertex. 
      */
-    virtual const edge_data_type& edge_data(edge_id_type eid) const = 0;
+    virtual const edge_data_type& edge_data(edge_id_type eid) const {
+      return const_edge_data(eid);
+    }
     
     
     /**
@@ -364,7 +347,9 @@ namespace graphlab {
      *
      * This should be called if the data does not need to be modified.
      */    
-    virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0;
+    virtual const edge_data_type& const_edge_data(edge_id_type eid) const {
+      return _graph_ptr->edge_data(eid);
+    }
     
     /**
      * \brief get a mutable reference to the data associated with a
@@ -377,7 +362,9 @@ namespace graphlab {
      * const version of this function should be called to permit
      * further optimization by the graphlab engine.
      */
-    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) = 0;
+    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) {
+      return _graph_ptr->vertex_data(vertex);
+    }
 
     /**
      * \brief get an immutable reference to the data associated with a
@@ -388,10 +375,12 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    neighbor_vertex_data(vertex_id_type vertex) const = 0;
+    neighbor_vertex_data(vertex_id_type vertex) const {
+      return const_neighbor_vertex_data(vertex);
+    }
         
 
-        /**
+    /**
      * \brief get an immutable reference to the data associated with a
      * neighboring vertex.
      *
@@ -400,18 +389,20 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vertex) const = 0;
+    const_neighbor_vertex_data(vertex_id_type vertex) const {
+      return _graph_ptr->vertex_data(vertex);
+    }
 
 
     /**
-    Experimental scope upgrade scheme. Returns true if scope upgrade is 
-    successful. If this ever returns false, you are hosed. Should work
-    with general_scope. Note that after scope_upgrade is called, any graph
-    data within the scope may change due to a race between releasing and 
-    reacquiring the upgraded scope.
+       Experimental scope upgrade scheme. Returns true if scope upgrade is 
+       successful. If this ever returns false, you are hosed. Should work
+       with general_scope. Note that after scope_upgrade is called, any graph
+       data within the scope may change due to a race between releasing and 
+       reacquiring the upgraded scope.
     */
     virtual bool 
-    experimental_scope_upgrade(scope_range::scope_range_enum newrange) { 
+    experimental_scope_upgrade(consistency_model::model_enum newrange) { 
       return false;
     }
 
@@ -421,6 +412,10 @@ namespace graphlab {
 
     /** The vertex that this graph represents*/
     vertex_id_type _vertex;
+
+    /** The consistency model that this scope ensures */
+    consistency_model::model_enum _consistency;
+    
 
   }; // end of iscope
   

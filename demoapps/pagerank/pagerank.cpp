@@ -70,12 +70,14 @@ struct vertex_data {
 //! The type of graph used in this program
 typedef graphlab::graph<vertex_data, edge_data> pagerank_graph;
 
+//! Predeclar the pagerank update functor
+class pagerank_update;
 
 /**
  * The collection of graphlab types restricted to the graph type used
  * in this program.
  */
-typedef graphlab::types<pagerank_graph> gl_types;
+typedef graphlab::types<pagerank_graph, pagerank_update> gl;
 
 
 /**
@@ -103,56 +105,59 @@ void make_toy_graph(pagerank_graph& graph);
 /**
  * The Page rank update function
  */
-void pagerank_update(gl_types::iscope &scope,
-                     gl_types::icallback &scheduler) {
-  
-  
-                     
-  // Get the data associated with the vertex
-  vertex_data& vdata = scope.vertex_data();
-  
-  // Sum the incoming weights; start by adding the 
-  // contribution from a self-link.
-  float sum = vdata.value * vdata.self_weight;
-  
-  foreach(graphlab::edge_id_t eid, scope.in_edge_ids()) {
-    // Get the neighobr vertex value
-    const vertex_data& neighbor_vdata =
-      scope.const_neighbor_vertex_data(scope.source(eid));
-    double neighbor_value = neighbor_vdata.value;
-    
-    // Get the edge data for the neighbor
-    edge_data& edata = scope.edge_data(eid);
-    // Compute the contribution of the neighbor
-    double contribution = edata.weight * neighbor_value;
-    
-    // Add the contribution to the sum
-    sum += contribution;
-    
-    // Remember this value as last read from the neighbor
-    edata.old_source_value = neighbor_value;
-  }
+class pagerank_update : public gl::iupdate_functor {
+private:
+  double val;  
+public:
+  pagerank_update(const double& val = 0) : val(val) { }
+  double priority() const { return val; }
+  void operator+=(const pagerank_update& other) { val += other.val; }
 
-  // compute the jumpweight
-  sum = random_reset_prob/scope.num_vertices() + 
-    (1-random_reset_prob)*sum;
-  vdata.value = sum;
-   
-  // Schedule the neighbors as needed
-  foreach(graphlab::edge_id_t eid, scope.out_edge_ids()) {
-    edge_data& outedgedata = scope.edge_data(eid);    
-    // Compute edge-specific residual by comparing the new value of this
-    // vertex to the previous value seen by the neighbor vertex.
-    double residual =
-      outedgedata.weight *
-      std::fabs(outedgedata.old_source_value - vdata.value);
-    // If the neighbor changed sufficiently add to scheduler.
-    if(residual > termination_bound) {
-      gl_types::update_task task(scope.target(eid), pagerank_update);
-      scheduler.add_task(task, residual);
+  void operator()(gl::iscope& scope,
+                  gl::icallback& callback) {                       
+    // Get the data associated with the vertex
+    vertex_data& vdata = scope.vertex_data();
+  
+    // Sum the incoming weights; start by adding the 
+    // contribution from a self-link.
+    float sum = vdata.value * vdata.self_weight;
+    // Loop over all in edges to this vertex
+    const gl::edge_list in_edges = scope.in_edge_ids();
+    foreach(gl::edge_id eid, in_edges) {
+      // Get the neighobr vertex value
+      const vertex_data& neighbor_vdata =
+        scope.const_neighbor_vertex_data(scope.source(eid));
+      const double neighbor_value = neighbor_vdata.value;    
+      // Get the edge data for the neighbor
+      edge_data& edata = scope.edge_data(eid);
+      // Compute the contribution of the neighbor
+      double contribution = edata.weight * neighbor_value;    
+      // Add the contribution to the sum
+      sum += contribution;
+      // Remember this value as last read from the neighbor
+      edata.old_source_value = neighbor_value;
     }
-  }
-} // end of pagerank update function
+
+    // compute the jumpweight
+    sum = random_reset_prob/scope.num_vertices() + 
+      (1-random_reset_prob)*sum;
+    vdata.value = sum;
+   
+    // Schedule the neighbors as needed
+    foreach(gl::edge_id eid, scope.out_edge_ids()) {
+      edge_data& outedgedata = scope.edge_data(eid);    
+      // Compute edge-specific residual by comparing the new value of this
+      // vertex to the previous value seen by the neighbor vertex.
+      double residual =
+        outedgedata.weight *
+        std::fabs(outedgedata.old_source_value - vdata.value);
+      // If the neighbor changed sufficiently add to scheduler.
+      if(residual > termination_bound) {
+        callback.schedule(scope.target(eid), pagerank_update(residual));
+      }
+    }
+  } // end of operator()
+}; // end of pagerank update functor
 
 
 
@@ -191,10 +196,10 @@ int main(int argc, char** argv) {
   }
 
   // Create a graphlab core
-  gl_types::core core;
+  gl::core core;
 
   // Set the engine options
-  core.set_engine_options(clopts);
+  core.set_options(clopts);
   
   // Create or load graph depending on if the file was set
   app_metrics.start_time("load");
@@ -225,10 +230,10 @@ int main(int argc, char** argv) {
       core.graph().vertex_data(i).value / sum;
   }
   app_metrics.stop_time("normalize");
-  app_metrics.report(core.get_reporter());
+  //  app_metrics.report(core.get_reporter());
   // Schedule all vertices to run pagerank update on the
   // first round.
-  core.add_task_to_all(pagerank_update, 100.0);
+  core.schedule_all(pagerank_update(100.0));
   
   // Run the engine
   double runtime = core.start();
@@ -242,20 +247,18 @@ int main(int argc, char** argv) {
   // First we need to compute a normalizer. This could be done with
   // the sync facility, but for simplicity, we do it by hand.
   double norm = 0.0;
-  for(graphlab::vertex_id_t vid = 0; 
+  for(gl::vertex_id vid = 0; 
       vid < core.graph().num_vertices(); vid++) {
-            norm += core.graph().vertex_data(vid).value;
+    norm += core.graph().vertex_data(vid).value;
   }
   
   // And output 5 first vertices pagerank after dividing their value
   // with the norm.
-  for(graphlab::vertex_id_t vid = 0; 
+  for(gl::vertex_id vid = 0; 
       vid < 5 && vid < core.graph().num_vertices(); vid++) {
     std::cout << "Page " << vid << " pagerank = " <<
       core.graph().vertex_data(vid).value / norm << '\n';
-  }
-  
-	  
+  }    
   return EXIT_SUCCESS;
 } // End of main
 
@@ -347,28 +350,26 @@ bool load_graph_from_file(const std::string& filename,
   std::cout << "Normalizing out edge weights." << std::endl;
   // This could be done in graphlab but the focus of this app is
   // demonstrating pagerank
-  for(graphlab::vertex_id_t vid = 0; 
+  for(gl::vertex_id vid = 0; 
       vid < graph.num_vertices(); ++vid) {
     vertex_data& vdata = graph.vertex_data(vid);
     // Initialze with self out edge weight
     double sum = vdata.self_weight;
-    const gl_types::edge_list& out_eids = 
-      graph.out_edge_ids(vid);
+    const gl::edge_list& out_eids = graph.out_edge_ids(vid);
     // Sum up weight on out edges
     for(size_t i = 0; i < out_eids.size(); ++i) {
-      graphlab::edge_id_t out_eid = out_eids[i];
-      sum += graph.edge_data(out_eid).weight;
-      
+      const gl::edge_id out_eid = out_eids[i];
+      sum += graph.edge_data(out_eid).weight;      
     }
     if (sum == 0) {
-        vdata.self_weight = 1.0;
-        sum = 1.0; //Dangling page
+      vdata.self_weight = 1.0;
+      sum = 1.0; // Dangling page
     }
     assert(sum > 0);
     // divide everything by sum
     vdata.self_weight /= sum;
     for(size_t i = 0; i < out_eids.size(); ++i) {
-      graphlab::edge_id_t out_eid = out_eids[i];
+      const gl::edge_id out_eid = out_eids[i];
       graph.edge_data(out_eid).weight /= sum;
     } 
   }

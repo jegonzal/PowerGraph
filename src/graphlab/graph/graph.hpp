@@ -950,23 +950,23 @@ namespace graphlab {
   }
 
 
-  //! You should now use the vertex type associated with the graph
-  //  __attribute__((__deprecated__)) 
-  typedef graph<int,int>::vertex_id_type vertex_id_t;
+  // //! You should now use the vertex type associated with the graph
+  // //  __attribute__((__deprecated__)) 
+  // typedef graph<int,int>::vertex_id_type vertex_id_t;
 
-  //! You should now use the edge id type associated with the graph
-  //  __attribute__((__deprecated__)) 
-  typedef graph<int,int>::edge_id_type edge_id_t;
+  // //! You should now use the edge id type associated with the graph
+  // //  __attribute__((__deprecated__)) 
+  // typedef graph<int,int>::edge_id_type edge_id_t;
 
-  //! You should now use the vertex color type associated with the
-  //! graph
-  //  __attribute__((__deprecated__)) 
-  typedef graph<int,int>::vertex_color_type vertex_color_type;
+  // //! You should now use the vertex color type associated with the
+  // //! graph
+  // //  __attribute__((__deprecated__)) 
+  // typedef graph<int,int>::vertex_color_type vertex_color_type;
 
-  // This hack won't work without a clever copy constructor for edge_list
-  // //! You should now use the edge list type associated with the graph
-  // __attribute__((__deprecated__)) 
-  // typedef graph<int,int>::edge_list edge_list;
+  // // This hack won't work without a clever copy constructor for edge_list
+  // // //! You should now use the edge list type associated with the graph
+  // // __attribute__((__deprecated__)) 
+  // // typedef graph<int,int>::edge_list edge_list;
 
 
 

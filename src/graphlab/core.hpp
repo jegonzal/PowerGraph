@@ -24,23 +24,25 @@
 #ifndef GRAPHLAB_CORE_HPP
 #define GRAPHLAB_CORE_HPP
 
+
+#include <graphlab/types.hpp>
+#include <graphlab/options/graphlab_options.hpp>
+#include <graphlab/options/command_line_options.hpp>
+
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/engine_options.hpp>
-#include <graphlab/engine/engine_factory.hpp>
-
-#include <graphlab/util/command_line_options.hpp>
-
-#include <graphlab/schedulers/ischeduler.hpp>
+#include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/graph/graph.hpp>
 
+#include <graphlab/engine/shared_memory_engine.hpp>
 
 
-#include <graphlab/metrics/metrics.hpp>
-#include <graphlab/metrics/reporters/null_reporter.hpp>
-#include <graphlab/metrics/reporters/basic_reporter.hpp>
-#include <graphlab/metrics/reporters/file_reporter.hpp>
-#include <graphlab/metrics/reporters/html_reporter.hpp>
+
+// #include <graphlab/metrics/metrics.hpp>
+// #include <graphlab/metrics/reporters/null_reporter.hpp>
+// #include <graphlab/metrics/reporters/basic_reporter.hpp>
+// #include <graphlab/metrics/reporters/file_reporter.hpp>
+// #include <graphlab/metrics/reporters/html_reporter.hpp>
 
 
 
@@ -48,7 +50,7 @@
 namespace graphlab {
 
   // Predecleration 
-  template<typename Graph> struct types;
+  template<typename Graph, typename UpdateFunctor> struct types;
   
 
 
@@ -87,38 +89,48 @@ namespace graphlab {
      Otherwise, modifications to the engine options will result in the
      clearing of all scheduler tasks.
   */
-  template <typename VertexType, typename EdgeType>
+  template <typename Graph, typename UpdateFunctor>
   class core {
   public:
-    typedef graphlab::types<graphlab::graph<VertexType, EdgeType> > types;
-    typedef typename types::vertex_id vertex_id_type;
-    typedef typename types::edge_id edge_id_type;
-    typedef typename types::edge_list edge_list_type;
+    typedef Graph graph_type;
+    typedef UpdateFunctor update_functor_type;
+    typedef typename graphlab::types<graph_type, update_functor_type> types;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
+    typedef typename graph_type::edge_id_type   edge_id_type;
+    typedef typename graph_type::edge_list_type edge_list_type;
+
+
+  private:
+    
+    // graph and data objects
+    typename types::graph mgraph;
+    typename types::shared_memory_engine mengine;
+
+
 
   public:
     /// default constructor does nothing
-    core() : 
-      mengine(NULL),
-      engine_has_been_modified(false), 
-      coremetrics("core"), reporter(new null_reporter) { }
+    core() :  mengine(mgraph) { } 
+      // coremetrics("core"), reporter(new null_reporter) { }
   private:
     //! Core is not copyable
     core(const core& other);
     //! Core is not copyable
     core& operator=(const core& other);
 
+
+
   public:
 
 
-    ~core() { 
-      if (meopts.get_metrics_type() != "none") {        
-        // Write options to metrics
-        fill_metrics();
-        report_metrics();
-      }
-      destroy_engine(); 
-      delete reporter;
-    } 
+    // ~core() { 
+    //   // if (opts.get_metrics_type() != "none") {        
+    //   //   // Write options to metrics
+    //   //   fill_metrics();
+    //   //   report_metrics();
+    //   // }
+    //   //      delete reporter;
+    // } 
        
     /// \brief Get a modifiable reference to the graph associated with this core
     typename types::graph& graph() { return mgraph; }
@@ -133,11 +145,10 @@ namespace graphlab {
      * associated with the scheduler.  See \ref Schedulers for the
      * list of supported schedulers.
      */
-    void set_scheduler_type(const std::string& scheduler_type) {
-      check_engine_modification();
-      bool success = meopts.set_scheduler_type(scheduler_type);
-      ASSERT_TRUE(success);
-      destroy_engine();
+    void set_scheduler_type(const std::string& scheduler_str) {
+      graphlab_options opts = mengine.get_options();
+      opts.set_scheduler_type(scheduler_str);
+      mengine.set_options(opts);
     }
 
     /**
@@ -155,63 +166,60 @@ namespace graphlab {
      *
      * See \ref Scopes for details
      */
-    void set_scope_type(const std::string& scope_type) {
-      check_engine_modification();
-      bool success = meopts.set_scope_type(scope_type);
-      ASSERT_TRUE(success);
-      destroy_engine();
+    void set_scope_type(const std::string& scope_str) {
+      graphlab_options opts = mengine.get_options();
+      opts.set_scope_type(scope_str);
+      mengine.set_options(opts);
     }
 
 
-    /**
-     * \brief Set the engine type.
-     *
-     * This will destroy the current engine and any tasks associated
-     * with the current scheduler. 
-     *
-     *  \li \b "async" This is the regular multithreaded engine
-     *  \li \b "async_sim" This is a single threaded engine. But it can be 
-     *                     be started with multiple "simulated threads".
-     *                     The simulation is low-fidelity however, and should
-     *                     be used with caution.
-     */
-    void set_engine_type(const std::string& engine_type) {
-      check_engine_modification();
-      bool success = meopts.set_engine_type(engine_type);
-      ASSERT_TRUE(success);
-      destroy_engine();
-    }
+    // /**
+    //  * \brief Set the engine type.
+    //  *
+    //  * This will destroy the current engine and any tasks associated
+    //  * with the current scheduler. 
+    //  *
+    //  *  \li \b "async" This is the regular multithreaded engine
+    //  *  \li \b "async_sim" This is a single threaded engine. But it can be 
+    //  *                     be started with multiple "simulated threads".
+    //  *                     The simulation is low-fidelity however, and should
+    //  *                     be used with caution.
+    //  */
+    // void set_engine_type(const std::string& engine_type) {
+    //   check_engine_modification();
+    //   bool success = opts.set_engine_type(engine_type);
+    //   ASSERT_TRUE(success);
+    //   destroy_engine();
+    // }
+
     
-    /**
-     * \brief Sets the output format of any recorded metrics
-     *  \li \b "none" No reporting
-     *  \li \b "basic" Outputs to screen
-     *  \li \b "file" Outputs to a text file graphlab_metrics.txt
-     *  \li \b "html" Outputs to a html file graphlab_metrics.html
-     */
-    void set_metrics_type(const std::string& metrics_type) {
-      bool metrics_set_success = meopts.set_metrics_type(metrics_type);
-      ASSERT_TRUE(metrics_set_success);
+    // /**
+    //  * \brief Sets the output format of any recorded metrics
+    //  *  \li \b "none" No reporting
+    //  *  \li \b "basic" Outputs to screen
+    //  *  \li \b "file" Outputs to a text file graphlab_metrics.txt
+    //  *  \li \b "html" Outputs to a html file graphlab_metrics.html
+    //  */
+    // void set_metrics_type(const std::string& metrics_type) {
+    //   bool metrics_set_success = opts.set_metrics_type(metrics_type);
+    //   ASSERT_TRUE(metrics_set_success);
       
-      delete reporter;
-      if (meopts.get_metrics_type() == "file") {
-        reporter = new file_reporter("graphlab_metrics.txt");
-      } else if (meopts.get_metrics_type() == "html") {
-        reporter = new  html_reporter("graphlab_metrics.html");
-      } else if (meopts.get_metrics_type() == "basic") {
-        reporter = new basic_reporter;
-      } else {
-        reporter = new null_reporter;
-      }
-    }
+    //   delete reporter;
+    //   if (opts.get_metrics_type() == "file") {
+    //     reporter = new file_reporter("graphlab_metrics.txt");
+    //   } else if (opts.get_metrics_type() == "html") {
+    //     reporter = new  html_reporter("graphlab_metrics.html");
+    //   } else if (opts.get_metrics_type() == "basic") {
+    //     reporter = new basic_reporter;
+    //   } else {
+    //     reporter = new null_reporter;
+    //   }
+    // }
 
     /**
        \brief Destroys a created engine (if any).
     */
-    void reset() {
-      engine_has_been_modified = false;
-      destroy_engine();
-    }
+    void reset() {  mengine.reset(); }
     
     /**
      * \brief Set the number of cpus that the engine will use.
@@ -221,9 +229,9 @@ namespace graphlab {
      *
      */
     void set_ncpus(size_t ncpus) {
-      check_engine_modification();
-      meopts.set_ncpus(ncpus);
-      destroy_engine();
+      graphlab_options opts = mengine.get_options();
+      opts.set_ncpus(ncpus);
+      mengine.set_options(opts);
     }
 
 
@@ -231,80 +239,47 @@ namespace graphlab {
      * Get a reference to the active engine.  If no engine exists one is
      * created.
      */
-    typename types::iengine& engine() { 
-      bool engine_build_success = auto_build_engine();
-      ASSERT_TRUE(engine_build_success);
-      return *mengine; 
-    }
+    typename types::shared_memory_engine& engine() { return mengine; }
 
 
 
-
-    /**
-     * \brief Destroys and reconstructs the current engine,
-     * reprocessing the engine arguments.  
-     */
-    bool rebuild_engine() {
-      destroy_engine();
-      ASSERT_EQ(mengine, NULL);
-      return auto_build_engine();
-    }
 
     /**
      * \brief Set the engine options by passing in an engine options object.
      */
-    void set_engine_options(const engine_options& opts) {
-      check_engine_modification();
-      meopts = opts;
-      
-      delete reporter;
-      if (meopts.get_metrics_type() == "file") {
-        reporter = new file_reporter("graphlab_metrics.txt");
-      } else if (meopts.get_metrics_type() == "html") {
-        reporter = new  html_reporter("graphlab_metrics.html");
-      } else if (meopts.get_metrics_type() == "basic") {
-        reporter = new basic_reporter;
-      } else {
-        reporter = new null_reporter;
-      }
+    void set_options(const graphlab_options& opts) {
+      mengine.set_options(opts);
+
+      // delete reporter;
+      // if (opts.get_metrics_type() == "file") {
+      //   reporter = new file_reporter("graphlab_metrics.txt");
+      // } else if (opts.get_metrics_type() == "html") {
+      //   reporter = new  html_reporter("graphlab_metrics.html");
+      // } else if (opts.get_metrics_type() == "basic") {
+      //   reporter = new basic_reporter;
+      // } else {
+      //   reporter = new null_reporter;
+      // }
     }
 
-    imetrics_reporter& get_reporter() {
-      return *reporter;
-    }
+    // imetrics_reporter& get_reporter() { return *reporter; }
 
     /**
      * \brief Returns the engine options
      */
-    const engine_options& get_engine_options() const { 
-      return meopts;
+    const graphlab_options& get_options() const { 
+      return mengine.get_options();
     }
-
-    /**
-     * \brief Returns a modifiable reference to the scheduler options
-     */
-    scheduler_options& sched_options() {
-      return meopts.get_scheduler_options();
-    }
-
-    /**
-     * \brief Returns a constant reference to the scheduler options
-     */
-    const scheduler_options& sched_options() const{
-      return meopts.get_scheduler_options();
-    }
-
 
     /**
      * \brief Set the engine options by simply parsing the command line
      * arguments. 
      */
-    bool parse_engine_options(int argc, char **argv) {
-      check_engine_modification();
+    bool parse_options(int argc, char **argv) {
       command_line_options clopts;
       bool success = clopts.parse(argc, argv);
       ASSERT_TRUE(success);
-      return set_engine_options(clopts);
+      return set_options(clopts);
     }
 
 
@@ -313,14 +288,9 @@ namespace graphlab {
      * there are no more tasks remaining to execute.
      */
     double start() {
-      bool success = auto_build_engine();
-      ASSERT_TRUE(success);
-      ASSERT_NE(mengine, NULL);
-      // merge in options from command line and other manually set options
-      mengine->set_scheduler_options( meopts.get_scheduler_options() );
       graphlab::timer ti;
       ti.start();
-      mengine->start();
+      mengine.start();
       return ti.current_time();
     }
   
@@ -328,73 +298,49 @@ namespace graphlab {
     /**
      * \brief Add a single update function to a single vertex.
      */
-    void add_task(vertex_id_type vertex,
-                  typename types::update_function func,
-                  double priority) {
-      engine_has_been_modified = true;
-      typename types::update_task task(vertex, func);
-      add_task(task, priority);
+    void schedule(vertex_id_type vid,
+                  const update_functor_type& fun) {
+      mengine.schedule(vid, fun);
     }
 
-
-    /**
-     * \brief Add a single task with a fixed priority.
-     */
-    void add_task(typename types::update_task task, double priority) {
-      engine_has_been_modified = true;
-      engine().add_task(task, priority);
-    }
-
-    /**
-     * \brief Add the update function to all the veritces in the provided
-     * vector with the given priority.
-     */
-    void add_tasks(const std::vector<vertex_id_type>& vertices, 
-                   typename types::update_function func, double priority) {
-      engine_has_been_modified = true;
-      engine().add_tasks(vertices, func, priority);
-    }
 
 
     /**
      * \brief Add the given function to all vertices using the given priority
      */
-    void add_task_to_all(typename types::update_function func, 
-                         double priority) {
-      engine_has_been_modified = true;
-      engine().add_task_to_all(func, priority);
+    void schedule_all(const update_functor_type& fun) {
+      mengine.schedule_all(fun);
     }
     
     /**
      * \brief Get the number of updates executed by the engine
      */
     size_t last_update_count() {
-      if(mengine == NULL) return 0;
-      else return mengine->last_update_count();
+      return mengine.last_update_count();
     }
     
-    void fill_metrics() {
-      coremetrics.set("ncpus", meopts.get_ncpus());
-      coremetrics.set("engine", meopts.get_engine_type());
-      coremetrics.set("scope", meopts.get_scope_type());
-      coremetrics.set("scheduler", meopts.get_scheduler_type());
-      coremetrics.set("affinities", meopts.get_cpu_affinities() ? "true" : "false");
-      coremetrics.set("schedyield", meopts.get_sched_yield() ? "true" : "false");
-      coremetrics.set("compile_flags", meopts.get_compile_flags());
-    }
+    // void fill_metrics() {
+    //   coremetrics.set("ncpus", opts.get_ncpus());
+    //   coremetrics.set("engine", opts.get_engine_type());
+    //   coremetrics.set("scope", opts.get_scope_type());
+    //   coremetrics.set("scheduler", opts.get_scheduler_type());
+    //   coremetrics.set("affinities", opts.get_cpu_affinities() ? "true" : "false");
+    //   coremetrics.set("schedyield", opts.get_sched_yield() ? "true" : "false");
+    //   coremetrics.set("compile_flags", opts.get_compile_flags());
+    // }
 
-    void reset_metrics() {
-      coremetrics.clear();
-      engine().reset_metrics();
-    }
+    // void reset_metrics() {
+    //   coremetrics.clear();
+    //   engine().reset_metrics();
+    // }
       
-    /**
-       \brief Outputs the recorded metrics
-    */
-    void report_metrics() {
-      coremetrics.report(get_reporter());
-      engine().report_metrics(get_reporter());
-    }
+    // /**
+    //    \brief Outputs the recorded metrics
+    // */
+    // void report_metrics() {
+    //   coremetrics.report(get_reporter());
+    //   engine().report_metrics(get_reporter());
+    // }
     
     /**
      * \brief Registers a sync with the engine.
@@ -431,54 +377,28 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    void set_sync(glshared_base& shared,
-                  typename types::iengine::sync_function_type sync,
-                  glshared_base::apply_function_type apply,
-                  const any& zero,
-                  size_t sync_interval = 0,
-                  typename types::iengine::merge_function_type merge = NULL,
-                  vertex_id_type rangelow = 0,
-                  vertex_id_type rangehigh = -1) { 
-      engine_has_been_modified = true;
-      engine().set_sync(shared, sync, apply, zero, 
-                        sync_interval, merge, rangelow, rangehigh);
-      
-    }
+    // void set_sync(iglshared& shared,
+    //               typename types::iengine::sync_function_type sync,
+    //               iglshared::apply_function_type apply,
+    //               const any& zero,
+    //               size_t sync_interval = 0,
+    //               typename types::iengine::merge_function_type merge = NULL,
+    //               vertex_id_type rangelow = 0,
+    //               vertex_id_type rangehigh = -1) { 
+    //   engine().set_sync(shared, sync, apply, zero, 
+    //                     sync_interval, merge, rangelow, rangehigh);
+    // }
     
 
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    void sync_now(glshared_base& shared) { 
+    void sync_now(iglshared& shared) { 
       engine().sync_now(shared);
     };
-  private:
 
-    /**
-     * Build the engine if it has not already been built.
-     */
-    bool auto_build_engine() {
-      if(mengine == NULL) {
-        // create the engine
-        mengine = engine_factory::new_engine(meopts, mgraph);
-        if(mengine == NULL) return false;
-        mengine->set_engine_options(meopts.get_engine_options());
-      }
-      // scheduler options is one parameter that is allowed
-      // to change without rebuilding the engine
-      return true;
-    }
 
-    /**
-     * Destroy the engine if one exists.
-     */
-    void destroy_engine() {
-      if(mengine != NULL) {
-        delete mengine;
-        mengine = NULL;
-      }
-    }
 
 
 
@@ -493,8 +413,7 @@ namespace graphlab {
     
     /** Save the core to an archive */
     void save(oarchive& arc) const {
-      arc << mgraph
-          << meopts;
+      arc << mgraph << mengine.get_options();
     } // end of save
 
 
@@ -510,28 +429,14 @@ namespace graphlab {
 
     /** Load the core from an archive. */
     void load(iarchive& arc) {
-      arc >> mgraph
-          >> meopts;
+      graphlab_options opts;
+      arc >> mgraph >> opts;
+      mengine.set_options(opts);
     } // end of load
 
 
-    void check_engine_modification() {
-      ASSERT_MSG(engine_has_been_modified == false, 
-                 "Modifications to the engine/scheduler parameters are not"
-                 "allowed once tasks have been inserted into the engine.");
-    }
-    
-    // graph and data objects
-    typename types::graph mgraph;
-    engine_options meopts;
-    typename types::iengine *mengine;
-    /** For error tracking. Once engine has been modified, any scheduler/
-     * engine parameter modifications will reset the modifications
-     */
-    bool engine_has_been_modified;
-    metrics coremetrics;
-
-    imetrics_reporter* reporter;
+    // metrics coremetrics;
+    // imetrics_reporter* reporter;
   };
 
 }
