@@ -61,7 +61,6 @@ namespace graphlab {
       ischeduler_type* scheduler_ptr = 
         new Scheduler(graph, ncpus, opts);
       ASSERT_TRUE(scheduler_ptr != NULL);
-      scheduler_ptr->set_options(opts);
       return scheduler_ptr;
     }
   

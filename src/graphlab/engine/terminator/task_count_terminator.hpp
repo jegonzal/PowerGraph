@@ -82,8 +82,10 @@ namespace graphlab {
     }
 
     void reset() {
-      newtaskcount.value = 0;
-      finishedtaskcount = 0;
+      // These counters cannot be reset since reset is called at start
+      // and there may have been scheduled tasks.
+      // // newtaskcount.value = 0;
+      // // finishedtaskcount = 0;
       forced_abort = false;
     }
     

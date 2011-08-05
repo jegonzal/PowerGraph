@@ -137,10 +137,6 @@ namespace graphlab {
      */
     virtual iterminator& terminator() = 0;
     
-    /**
-     * Set the scheduler options.
-     */
-    virtual void set_options(const options_map& opts) { };
 
 
     /**

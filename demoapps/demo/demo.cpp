@@ -429,14 +429,6 @@ void init_shared_data(gl::core &core, size_t dim) {
                                      128,
                                      true);
 
-                                 
-
-  //                        size_t(0),
-  //               128,
-  //               gl::glshared_sync_ops::sum<size_t, get_flip>,
-  //               gl::glshared_apply_ops::identity<size_t>,
-  //               gl::glshared_merge_ops::sum<size_t>);
-
 }
 
 
@@ -448,6 +440,9 @@ int main(int argc,  char *argv[]) {
   // sets the logging level of graphlab
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
+  
+  // Seed the random number generator
+  graphlab::random::nondet_seed();
 
   // Parse the command line using the command line options tool
   // and scope type on the command line

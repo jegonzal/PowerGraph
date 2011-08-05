@@ -37,7 +37,7 @@
 #include <vector>
 
 #include <graphlab/logger/assertions.hpp>
-
+#include <graphlab/parallel/cache_line_pad.hpp>
 
 
 #include <graphlab/parallel/atomic.hpp>
@@ -74,16 +74,6 @@ namespace graphlab {
 
     typedef controlled_termination terminator_type;
 
-
-    /**
-     * Used to prevent false cache sharing by padding T
-     */
-    template <typename T> struct cache_line_pad  {
-      T value;
-      char pad[64 - (sizeof(T) % 64)];      
-      cache_line_pad(const T& value = T()) : value(value) { }
-      T& operator=(const T& other) { return value = other; }      
-    };
 
 
   private:    
@@ -122,7 +112,9 @@ namespace graphlab {
       color.value = 0;
       // Verify the coloring
       //ASSERT_TRUE(graph.valid_coloring());
-
+      
+      // parse the options
+      opts.get_int_option("max_iterations", max_iterations);
       // Initialize the chromatic blocks
       vertex_color_type ncolors(0);
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) 
@@ -147,7 +139,6 @@ namespace graphlab {
       }
       // Set waiting to zero
       waiting.value = 0;
-      // REset the control termination
       term.reset();
     }
 
@@ -231,10 +222,6 @@ namespace graphlab {
 
     iterminator& terminator() { return term; };
 
-
-    void set_options(const options_map& opts) {
-      opts.get_int_option("max_iterations", max_iterations);
-    }
 
     static void print_options_help(std::ostream &out) {
       out << "max_iterations = [integer, default = 0]\n";

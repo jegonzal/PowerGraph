@@ -538,7 +538,6 @@ namespace graphlab {
     // \todo: new_tasks_added should only be cleared when no tasks
     // remain in the scheduler
     new_tasks_added = false;  // The scheduler is "finished"
-    
   } // end of start
 
 

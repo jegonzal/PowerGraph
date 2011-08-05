@@ -43,16 +43,15 @@ namespace graphlab {
   */
   class shared_termination : public iterminator {
   public:
-    shared_termination(size_t ncpus) {
-      numactive = ncpus;
-      numcpus = ncpus;
-      done = false;
-      trying_to_sleep.value = 0;
-      sleeping.resize(ncpus);
+    shared_termination(size_t ncpus) :
+      numactive(ncpus),
+      ncpus(ncpus),
+      done(false),
+      trying_to_sleep(0),
+      sleeping(ncpus) {
       for (size_t i = 0; i < ncpus; ++i) sleeping[i] = 0;
     }
   
-    ~shared_termination(){ }
   
     void begin_critical_section(size_t cpuid) {
       trying_to_sleep.inc();
@@ -68,7 +67,7 @@ namespace graphlab {
 
     bool end_critical_section(size_t cpuid) {
       // if done flag is set, quit immediately
-      if (done) {
+      if (done || forced_abort) {
         m.unlock();
         trying_to_sleep.dec();
         sleeping[cpuid] = false;
@@ -115,7 +114,7 @@ namespace graphlab {
       */
       if (trying_to_sleep.value > 0) {
         m.lock();
-        if (numactive < numcpus) cond.broadcast();
+        if (numactive < ncpus) cond.broadcast();
         m.unlock();
       }
     }
@@ -123,7 +122,7 @@ namespace graphlab {
     void new_job(size_t cpuhint) {
       if (sleeping[cpuhint]) {
         m.lock();
-        if (numactive < numcpus) cond.broadcast();
+        if (numactive < ncpus) cond.broadcast();
         m.unlock();
       }
     }
@@ -133,14 +132,31 @@ namespace graphlab {
     size_t num_active() {
       return numactive;
     }
+
+    bool is_aborted() {
+      return forced_abort;
+    }
+
+    void abort() { 
+      forced_abort = true;
+    }
+
+    void reset() {
+      numactive = ncpus;
+      done = false;
+      forced_abort = false;
+      trying_to_sleep.value = 0;
+      for (size_t i = 0; i < ncpus; ++i) sleeping[i] = 0;
+    }
   private:
     conditional cond;
     mutex m;
     size_t numactive;
-    size_t numcpus;
+    size_t ncpus;
+    bool done;
+    bool forced_abort;    
     atomic<size_t> trying_to_sleep;
     std::vector<char> sleeping;
-    bool done;
   };
 
 }

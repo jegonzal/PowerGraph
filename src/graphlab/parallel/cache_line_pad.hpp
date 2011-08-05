@@ -20,21 +20,38 @@
  *
  */
 
-
-// #include <graphlab/scheduler/clustered_priority_scheduler.hpp>
-
-#include <graphlab/scheduler/fifo_scheduler.hpp>
-#include <graphlab/scheduler/chromatic_scheduler.hpp>
-#include <graphlab/scheduler/sweep_scheduler.hpp>
-
-// #include <graphlab/scheduler/ischeduler.hpp>
-// #include <graphlab/scheduler/icallback.hpp>
-
-// #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
-// #include <graphlab/scheduler/multiqueue_priority_scheduler.hpp>
-// #include <graphlab/scheduler/priority_scheduler.hpp>
-// #include <graphlab/scheduler/round_robin_scheduler.hpp>
-
-// #include <graphlab/scheduler/sampling_scheduler.hpp>
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
 
+
+
+
+#ifndef GRAPHLAB_CACHE_LINE_PAD
+#define GRAPHLAB_CACHE_LINE_PAD
+
+namespace graphlab {
+    /**
+     * Used to prevent false cache sharing by padding T
+     */
+    template <typename T> struct cache_line_pad  {
+      T value;
+      char pad[64 - (sizeof(T) % 64)];      
+      cache_line_pad(const T& value = T()) : value(value) { }
+      T& operator=(const T& other) { return value = other; }      
+      operator T() const { return value; }
+    }; // end of cache_line_pad
+
+}; // end of namespace
+
+
+
+
+
+#endif
