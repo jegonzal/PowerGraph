@@ -891,8 +891,10 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue() {
     typedef typename sync_members::record record_type;
-    // if the engine is no longer running then we terminate early 
-    if(exec_status != execution_status::RUNNING) return;
+    // if the engine is no longer running or there is nothing in the
+    // sync queue then we terminate early
+    if(exec_status != execution_status::RUNNING ||
+       syncs.queue.empty()) return;
     // Try to grab the lock if we fail just return
     if(!syncs.lock.try_lock()) return;
     // ASSERT: the lock has been aquired

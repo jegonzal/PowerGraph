@@ -69,7 +69,7 @@ namespace graphlab {
     
     
     /* Scheduler calls */
-    virtual void scheduler_task_added(vertex_id_t vid,
+    virtual void scheduler_task_added(vertex_id_type vid,
                                       const update_functor_type& fun) { }
     
     virtual void scheduler_task_promoted(vertex_id_type vid,

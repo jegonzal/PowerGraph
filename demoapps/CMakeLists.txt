@@ -26,7 +26,7 @@ project(GraphLab)
 
 
 
-subdirs(demo)
+subdirs(demo pagerank)
 
 
 

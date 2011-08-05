@@ -118,7 +118,7 @@ namespace graphlab {
     
     
     /* Scheduler calls */
-    void scheduler_task_added(vertex_id_t vid,
+    void scheduler_task_added(vertex_id_type vid,
                               const update_functor_type& fun) {
       foreach (imonitor_type * child, children) {
         child->scheduler_task_added(vid, fun);
