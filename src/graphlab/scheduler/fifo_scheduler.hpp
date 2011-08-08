@@ -81,7 +81,7 @@ namespace graphlab {
     //! The set of functions to apply
     vertex_functor_set<engine_type> vfun_set;
     std::queue<vertex_id_type> queue; 
-    mutex queue_lock; 
+    spinlock queue_lock; 
     task_count_terminator term;
 
 
@@ -138,9 +138,6 @@ namespace graphlab {
         return sched_status::EMPTY;
       }
     } // end of get_next_task
-
-    void set_options(const options_map& opts) { }
-
 
     iterminator& terminator() { return term; }
 

@@ -73,15 +73,19 @@
     "a graph color ordering."))                                         \
   (("sweep", sweep_scheduler,                                           \
     "very fast dynamic scheduler. Scans all vertices in sequence, "     \
-    "running all update tasks on each vertex evaluated."))              
+    "running all update tasks on each vertex evaluated."))              \
+  (("priority", priority_scheduler,                                     \
+    "Standard Priority queue, poor parallelism, but task evaluation "   \
+    "sequence is highly predictable. Useful for debugging"))
   
 
 #include <graphlab/scheduler/fifo_scheduler.hpp>
 #include <graphlab/scheduler/chromatic_scheduler.hpp>
 #include <graphlab/scheduler/sweep_scheduler.hpp>
+#include <graphlab/scheduler/priority_scheduler.hpp>
 
 
-// #include <graphlab/scheduler/priority_scheduler.hpp>
+
 // #include <graphlab/scheduler/sampling_scheduler.hpp>
 // #include <graphlab/scheduler/round_robin_scheduler.hpp>
 

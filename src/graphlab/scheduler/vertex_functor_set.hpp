@@ -56,7 +56,7 @@ namespace graphlab {
     
     class vfun_type {
     private:
-      mutex lock;
+      spinlock lock;
       bool is_set;
       update_functor_type functor;
     public:
@@ -78,6 +78,13 @@ namespace graphlab {
         is_set = false;
         lock.unlock();
         return functor;
+      }
+      inline std::pair<bool,double> priority() const {        
+        lock.lock();
+        const bool was_set = is_set;
+        const double priority = functor.priority();
+        lock.unlock();
+        return std::make_pair(was_set, priority);               
       }
       inline bool test_and_get(update_functor_type& ret) {
         lock.lock();
@@ -107,6 +114,11 @@ namespace graphlab {
     void resize(size_t num_vertices) {
       vfun_set.resize(num_vertices);
     }
+
+    std::pair<bool, double> priority(vertex_id_type vid) const {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].priority();
+    } // end of priority
 
     
     /** Add a task to the set returning false if the task was already

@@ -29,77 +29,16 @@
  *  http://en.wikipedia.org/wiki/Pagerank
  */
 
-#include <string>
+#include "pagerank.hpp"
 
-#include <graphlab.hpp>
+
 
 #include <graphlab/macros_def.hpp>
-
-
-// Constants for the algorithm. Better way would be to
-// pass them in the shared_data to the update function, but for
-// the simplicity of this example, we simply define them here.
 
 double termination_bound = 1e-5;
 double random_reset_prob = 0.15;   // PageRank random reset probability
 
-/**
- * Edge data represents the weight as well as the weight times the
- * last value of the source vertex when the target value was computed.
- */
-struct edge_data {
-  float weight;
-  float old_source_value;
-  edge_data(float weight = 1) :
-    weight(weight), old_source_value(0) { } 
-}; // End of edge data
 
-
-/**
- * Stores the value and the self weight
- */
-struct vertex_data {
-  float value;
-  float self_weight; // GraphLab does not support edges from vertex to itself, so
-  // we save weight of vertex's self-edge in the vertex data
-  vertex_data(float value = 1) : value(value), self_weight(0) { }
-}; // End of vertex data
-
-
-
-//! The type of graph used in this program
-typedef graphlab::graph<vertex_data, edge_data> pagerank_graph;
-
-//! Predeclar the pagerank update functor
-class pagerank_update;
-
-/**
- * The collection of graphlab types restricted to the graph type used
- * in this program.
- */
-typedef graphlab::types<pagerank_graph, pagerank_update> gl;
-
-
-/**
- * Predecleration of the graph file loading function.  Defined at
- * bottom of file for clarity.
- *
- * Load a graph file specified in the format:
- *
- *   source_id <tab> target_id <tab> weight
- *   source_id <tab> target_id <tab> weight
- *   source_id <tab> target_id <tab> weight
- *               ....
- *
- * The file should not contain repeated edges.
- */
-bool load_graph_from_file(const std::string& filename,
-                          pagerank_graph& graph);
-
-/**
- * Makes a small to graph.
- */
-void make_toy_graph(pagerank_graph& graph);
 
 
 /**
@@ -208,7 +147,7 @@ int main(int argc, char** argv) {
     make_toy_graph(core.graph());
   } else {
     // load the graph from the file
-    bool success = load_graph_from_file(graph_file, core.graph());
+    bool success = load_graph_from_metis_file(graph_file, core.graph());
     if(!success) {
       std::cout << "Error in reading file: " << graph_file
                 << std::endl;
@@ -263,124 +202,3 @@ int main(int argc, char** argv) {
 } // End of main
 
 
-
-// Creates simple 5x5 graph
-void make_toy_graph(pagerank_graph& graph) {
-  // Create 5 vertices
-  graph.add_vertex(vertex_data());
-  graph.add_vertex(vertex_data());
-  graph.add_vertex(vertex_data());
-  graph.add_vertex(vertex_data());
-  graph.add_vertex(vertex_data());
-
-	
-  // Page 0 links to page 3 only, so weight is 1
-  graph.add_edge(0, 3, edge_data(1));
-	
-  // Page 1 links to 0 and 2
-  graph.add_edge(1, 0, edge_data(0.5));
-  graph.add_edge(1, 2, edge_data(0.5));
-	
-  // ... and so on
-  graph.add_edge(2, 0, edge_data(1.0/3));
-  graph.add_edge(2, 1, edge_data(1.0/3));
-  graph.add_edge(2, 3, edge_data(1.0/3));
-
-  graph.add_edge(3, 0, edge_data(0.25));
-  graph.add_edge(3, 1, edge_data(0.25));
-  graph.add_edge(3, 2, edge_data(0.25));
-  graph.add_edge(3, 4, edge_data(0.25));
-
-  graph.add_edge(4, 0, edge_data(0.2));
-  graph.add_edge(4, 1, edge_data(0.2));
-  graph.add_edge(4, 2, edge_data(0.2));
-  graph.add_edge(4, 3, edge_data(0.2));
-  // and self edge which must be handled specially from 4 to 4
-  graph.vertex_data(4).self_weight = 0.2;
-
-} // end of make_toy_graph
-
-
-
-/**
- * Load a graph file specified in the format:
- *
- *   source_id <tab> target_id <tab> weight
- *   source_id <tab> target_id <tab> weight
- *   source_id <tab> target_id <tab> weight
- *               ....
- *
- * The file should not contain repeated edges.
- */
-bool load_graph_from_file(const std::string& filename,
-                          pagerank_graph& graph) {
-  std::ifstream fin(filename.c_str());
-  if(!fin.good()) return false;
-  // Loop through file reading each line
-  while(fin.good() && !fin.eof()) {
-    size_t source = 0;
-    size_t target = 0;
-    float weight = -1;
-    fin >> source;
-    if(!fin.good()) break;
-    //  fin.ignore(1); // skip comma
-    fin >> target;
-    assert(fin.good());
-    //  fin.ignore(1); // skip comma
-    fin >> weight;
-    assert(fin.good());
-    // Ensure that the number of vertices is correct
-    if(source >= graph.num_vertices() ||
-       target >= graph.num_vertices())
-      graph.resize(std::max(source, target) + 1);
-    if(source != target) {
-      // Add the edge
-      edge_data edata(weight);
-      graph.add_edge(source, target, weight);
-    } else {
-      // add the self edge by updating the vertex weight
-      graph.vertex_data(source).self_weight = weight;
-    }       
-  }
-  std::cout 
-    << "Finished loading graph with: " << std::endl
-    << "\t Vertices: " << graph.num_vertices() << std::endl
-    << "\t Edges: " << graph.num_edges() << std::endl;
-
-  std::cout << "Normalizing out edge weights." << std::endl;
-  // This could be done in graphlab but the focus of this app is
-  // demonstrating pagerank
-  for(gl::vertex_id vid = 0; 
-      vid < graph.num_vertices(); ++vid) {
-    vertex_data& vdata = graph.vertex_data(vid);
-    // Initialze with self out edge weight
-    double sum = vdata.self_weight;
-    const gl::edge_list& out_eids = graph.out_edge_ids(vid);
-    // Sum up weight on out edges
-    for(size_t i = 0; i < out_eids.size(); ++i) {
-      const gl::edge_id out_eid = out_eids[i];
-      sum += graph.edge_data(out_eid).weight;      
-    }
-    if (sum == 0) {
-      vdata.self_weight = 1.0;
-      sum = 1.0; // Dangling page
-    }
-    assert(sum > 0);
-    // divide everything by sum
-    vdata.self_weight /= sum;
-    for(size_t i = 0; i < out_eids.size(); ++i) {
-      const gl::edge_id out_eid = out_eids[i];
-      graph.edge_data(out_eid).weight /= sum;
-    } 
-  }
-  std::cout << "Finished normalizing edes." << std::endl;
-
-
-  std::cout 
-    << "Finalizing graph." << std::endl
-    << "\t This is required for the locking protocol to function correctly"
-    << std::endl;
-  graph.finalize();
-  std::cout << "Finished finalization!" << std::endl;
-  return true;
-} // end of load graph
