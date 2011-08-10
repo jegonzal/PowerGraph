@@ -42,7 +42,6 @@ double pU = 10; //regularization for users
 double pV = 10; //regularization for movies
 
 
-//vec lasso(mat A, vec b, double lambda, int max_iter, int D);
 vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D);
 
 void init_pmf() {
@@ -215,9 +214,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     } 
     //Weighted alternating least squares (see equations (6),(7) in paper 9)
     else {
-       //mat W = diag(weight);
        vec b = Q*vals;
        weight = sqrt(weight);
+       //avoid explicit creation of W = diag(W) because it is wasteful in memory.
+       //instead, compute directly the product Q*W*Q'
        for (int i=0; i<D; i++)
 	 for (int j=0; j<numedges; j++)
              Q._elem(i,j)*= weight[j];
