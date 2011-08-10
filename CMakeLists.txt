@@ -342,6 +342,9 @@ endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 ## IMPORTANT: we currently assume a GCC compiler when setting flags
 # if(CMAKE_COMPILER_IS_GNUCXX)
 
+## -march=native is not supported on <= gcc-4.2 (i.e., Breaks Mac
+## build);
+
 ### Set the debug flags ----------------------------------------------------->
 # Note: -fkeep-inline-functions significantly slows down the compilation
 set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self -fopenmp") 
@@ -349,20 +352,24 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self -fopenmp")
 ### Set the release flags --------------------------------------------------->
 if (CROSS_COMPILE_32_BIT MATCHES 1)
   set(CMAKE_CXX_FLAGS_RELEASE 
-    "-m32 -O3 -Wall -Wextra -g -march=native -fopenmp")
+    "-m32 -O3 -Wall -Wextra -g -mtune=native -fopenmp")
+
   set(CMAKE_C_FLAGS_RELEASE 
-    "-m32 -O3 -Wall -Wextra -g -march=native -fopenmp")
+    "-m32 -O3 -Wall -Wextra -g -mtune=native -fopenmp")
+
 else(CROSS_COMPILE_32_BIT MATCHES 1)
   
   # Set the C compiler flags in release mode on 64bit systems
   set(CMAKE_C_FLAGS_RELEASE 
-    "-O3 -Wall -g -march=native -fopenmp")
+    "-O3 -Wall -g -mtune=native -fopenmp")
+
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O2 -Wall -g -march=native -pg -fopenmp")
+      "-O2 -Wall -g -mtune=native -pg -fopenmp")
+
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -Wall -g -march=native -fopenmp")
+      "-O3 -Wall -g -mtune=native -fopenmp")
   endif(COMPILE_PROFILING MATCHES 1)
 
 endif(CROSS_COMPILE_32_BIT MATCHES 1)

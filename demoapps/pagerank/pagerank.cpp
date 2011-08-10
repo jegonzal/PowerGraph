@@ -134,6 +134,11 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  std::cout << "Using termination bound:  " << termination_bound 
+            << std::endl
+            << "Using reset probability:  " << random_reset_prob
+            << std::endl;
+  
   // Create a graphlab core
   gl::core core;
 
@@ -156,19 +161,10 @@ int main(int argc, char** argv) {
   }
   app_metrics.stop_time("load");
 
-  //Normalize the vertices
-  app_metrics.start_time("normalize");
-  double sum = 0;
-  for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
-    core.graph().vertex_data(i).value = 
-      graphlab::random::rand01() + 1;
-    sum += core.graph().vertex_data(i).value;
-  }
-  for(size_t i = 0; i < core.graph().num_vertices(); ++i) {
-    core.graph().vertex_data(i).value = 
-      core.graph().vertex_data(i).value / sum;
-  }
-  app_metrics.stop_time("normalize");
+  // std::cout << "Saving graph as tsv" << std::endl;
+  // save_edges_as_tsv("edges.tsv", core.graph());
+  // std::cout << "Finished saving graph." << std::endl;
+
   //  app_metrics.report(core.get_reporter());
   // Schedule all vertices to run pagerank update on the
   // first round.
@@ -190,14 +186,22 @@ int main(int argc, char** argv) {
       vid < core.graph().num_vertices(); vid++) {
     norm += core.graph().vertex_data(vid).value;
   }
+  std::cout << "Total Mass: " << norm << std::endl;
+
   
   // And output 5 first vertices pagerank after dividing their value
   // with the norm.
   for(gl::vertex_id vid = 0; 
       vid < 5 && vid < core.graph().num_vertices(); vid++) {
     std::cout << "Page " << vid << " pagerank = " <<
-      core.graph().vertex_data(vid).value / norm << '\n';
+      core.graph().vertex_data(vid).value << '\n';
   }    
+
+  // Write the pagerank vector
+  std::cout << "Saving pagerank vector." << std::endl;
+  save_pagerank("pagerank.tsv", core.graph());
+  std::cout << "Finished." << std::endl;
+
   return EXIT_SUCCESS;
 } // End of main
 

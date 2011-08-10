@@ -72,6 +72,9 @@ struct vertex_data {
   vertex_data(float value = 1) : value(value), self_weight(0) { }
 }; // End of vertex data
 
+std::ostream& operator<<(std::ostream& out, const edge_data& edata);
+std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
+
 
 
 //! The type of graph used in this program
@@ -86,6 +89,15 @@ class pagerank_update;
  */
 typedef graphlab::types<pagerank_graph, pagerank_update> gl;
 
+
+
+//! Save the graph to tsv file
+void save_edges_as_tsv(const std::string& fname, 
+                       const pagerank_graph& graph);
+
+//! save the pagerank as a tsv file
+void save_pagerank(const std::string& fname,
+                   const pagerank_graph& graph);
 
 /**
  * Load a graph in metis format

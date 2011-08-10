@@ -8,7 +8,7 @@ IF(APPLE)
   set(METIS_BUILD_OPTS "${METIS_BUILD_OPTS} -DDARWIN")
 ENDIF(APPLE)
 
-set (metis_sources
+set (METIS_SOURCES
 extern/metis/GKlib/b64.c
 extern/metis/GKlib/dlmalloc.c
 extern/metis/GKlib/getopt.c

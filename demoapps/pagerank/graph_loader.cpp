@@ -21,6 +21,7 @@
  */
 
 
+#include <iomanip>
 #include "pagerank.hpp"
 
 
@@ -28,8 +29,102 @@
 #include <graphlab/macros_def.hpp>
 
 
-// Load a graph in metis format
 
+
+std::ostream& operator<<(std::ostream& out, const edge_data& edata) {
+  out << "(w: " << edata.weight << ", ov: " << edata.old_source_value << ")";
+  return out;
+}
+
+
+std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
+  out << "(v: " << vdata.value << ", w: " << vdata.self_weight << ")";
+  return out;
+}
+
+
+
+void save_pagerank(const std::string& fname,
+                   const pagerank_graph& graph) {
+  std::ofstream fout;
+  fout.open(fname.c_str());
+  fout << std::setprecision(10);
+  for(gl::vertex_id vid = 0; vid < graph.num_vertices(); ++vid) {
+    fout << graph.vertex_data(vid).value << "\n";
+  }
+  fout.close();
+} // end of save_pagerank
+
+void save_edges_as_tsv(const std::string& fname,
+                       const pagerank_graph& graph) {
+  std::ofstream fout; 
+  fout.open(fname.c_str()); 
+  fout << std::setprecision(10);
+  for(gl::vertex_id vid = 0; vid < graph.num_vertices(); ++vid) {
+    fout << vid << '\t' << vid << '\t' 
+         << graph.vertex_data(vid).self_weight << "\n";
+    foreach(gl::edge_id eid, graph.out_edge_ids(vid)) {
+      fout << vid << '\t' << graph.target(eid) << '\t' 
+           << graph.edge_data(eid).weight << "\n";
+    }
+  }
+  fout.close();
+} // end of write graph as tsv
+
+
+
+void normalize_graph(pagerank_graph& graph) {
+  std::cout 
+    << "Finalizing graph." << std::endl
+    << "\t This is required for the locking protocol to function correctly"
+    << std::endl;
+  graph.finalize();
+  std::cout << "Finished finalization!" << std::endl;
+
+  std::cout << "Normalizing out edge weights." << std::endl;
+  // This could be done in graphlab but the focus of this app is
+  // demonstrating pagerank
+  for(gl::vertex_id vid = 0; 
+      vid < graph.num_vertices(); ++vid) {
+    vertex_data& vdata = graph.vertex_data(vid);
+    // Initialze with self out edge weight
+    double sum = vdata.self_weight;
+    const gl::edge_list& out_eids = graph.out_edge_ids(vid);
+    // Sum up weight on out edges
+    for(size_t i = 0; i < out_eids.size(); ++i) {
+      const gl::edge_id out_eid = out_eids[i];
+      sum += graph.edge_data(out_eid).weight;      
+    }
+    if (sum == 0) {
+      vdata.self_weight = 1.0;
+      sum = 1.0; // Dangling page
+    }
+    assert(sum > 0);
+    // divide everything by sum
+    vdata.self_weight /= sum;
+    for(size_t i = 0; i < out_eids.size(); ++i) {
+      const gl::edge_id out_eid = out_eids[i];
+      graph.edge_data(out_eid).weight /= sum;
+    } 
+  }
+  std::cout << "Finished normalizing edges." << std::endl;
+
+  //Normalize the vertices
+  //  app_metrics.start_time("normalize");
+  std::cout << "Randomizing initial pagerank values." << std::endl;
+  double sum = 0;
+  for(size_t i = 0; i < graph.num_vertices(); ++i) {
+    // graph.vertex_data(i).value = 
+    //   graphlab::random::rand01() + 1;
+    sum += graph.vertex_data(i).value;
+  }
+  for(size_t i = 0; i < graph.num_vertices(); ++i) {
+    graph.vertex_data(i).value = 
+      graph.vertex_data(i).value / sum;
+  }
+  std::cout << "Finished Randomization." << std::endl;
+  // app_metrics.stop_time("normalize");
+} // end of normalize_graph
 
 
 
@@ -67,38 +162,11 @@ void make_toy_graph(pagerank_graph& graph) {
   // and self edge which must be handled specially from 4 to 4
   graph.vertex_data(4).self_weight = 0.2;
 
+  normalize_graph(graph);
 } // end of make_toy_graph
 
 
-void normalize_graph(pagerank_graph& graph) {
-  std::cout << "Normalizing out edge weights." << std::endl;
-  // This could be done in graphlab but the focus of this app is
-  // demonstrating pagerank
-  for(gl::vertex_id vid = 0; 
-      vid < graph.num_vertices(); ++vid) {
-    vertex_data& vdata = graph.vertex_data(vid);
-    // Initialze with self out edge weight
-    double sum = vdata.self_weight;
-    const gl::edge_list& out_eids = graph.out_edge_ids(vid);
-    // Sum up weight on out edges
-    for(size_t i = 0; i < out_eids.size(); ++i) {
-      const gl::edge_id out_eid = out_eids[i];
-      sum += graph.edge_data(out_eid).weight;      
-    }
-    if (sum == 0) {
-      vdata.self_weight = 1.0;
-      sum = 1.0; // Dangling page
-    }
-    assert(sum > 0);
-    // divide everything by sum
-    vdata.self_weight /= sum;
-    for(size_t i = 0; i < out_eids.size(); ++i) {
-      const gl::edge_id out_eid = out_eids[i];
-      graph.edge_data(out_eid).weight /= sum;
-    } 
-  }
-  std::cout << "Finished normalizing edges." << std::endl;
-}
+
 
 
 inline void skip_newline(std::ifstream& fin) {
@@ -115,7 +183,7 @@ bool load_graph_from_metis_file(const std::string& filename,
   if(!fin.good()) return false;
   size_t nverts = 0, nedges = 0;
   fin >> nverts >> nedges;
-  std::cout << "Processing graph with " 
+  std::cout << "Loading graph with " 
             << nverts << " vertices and "
             << nedges << " edges." << std::endl;
   skip_newline(fin);
@@ -137,7 +205,7 @@ bool load_graph_from_metis_file(const std::string& filename,
         graph.add_edge(source, target);
       } else {
         // add the self edge by updating the vertex weight
-        graph.vertex_data(source).self_weight++;
+        graph.vertex_data(source).self_weight = 1;
       }
     }
     skip_newline(fin);
@@ -149,7 +217,31 @@ bool load_graph_from_metis_file(const std::string& filename,
     std::cout << "\tUndirected Graph." << std::endl;
   }
 
+
+
+  std::cout << "Normalizing the Graph." << std::endl;
   normalize_graph(graph);  
+  std::cout << "Finished normalizing." << std::endl;
+  
+
+  // { // Simple debugging code
+  //   const gl::vertex_id vid = 1;
+  //   std::cout << "Inspecting: " << vid << std::endl;
+  //   std::cout << graph.vertex_data(vid) << std::endl;
+  //   std::cout << "In edges: " << std::endl;
+  //   foreach(gl::edge_id ineid, graph.in_edge_ids(vid)) {
+  //     std::cout << '\t' << graph.source(ineid) << ", " 
+  //               << graph.edge_data(ineid) << std::endl;
+  //   }
+  //   std::cout << "Out edges: " << std::endl;
+  //   foreach(gl::edge_id outeid, graph.out_edge_ids(vid)) {
+  //     std::cout << '\t' << graph.target(outeid) << ", " 
+  //               << graph.edge_data(outeid) << std::endl;
+  //   }
+  //   getchar();
+  // }
+  
+
   return true;
 } // end of load graph from metis file.
 
@@ -200,13 +292,9 @@ bool load_graph_from_tsv_file(const std::string& filename,
     << "\t Vertices: " << graph.num_vertices() << std::endl
     << "\t Edges: " << graph.num_edges() << std::endl;
 
+
+
   normalize_graph(graph);
 
-  std::cout 
-    << "Finalizing graph." << std::endl
-    << "\t This is required for the locking protocol to function correctly"
-    << std::endl;
-  graph.finalize();
-  std::cout << "Finished finalization!" << std::endl;
   return true;
 } // end of load graph
