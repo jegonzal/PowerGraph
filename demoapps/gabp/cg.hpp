@@ -32,9 +32,6 @@ extern uint32_t m,n;
 extern gl_types::core * glcore;
 extern bool debug;
 extern bool square;
-extern int cg_maxiter;
-extern bool cg_resid;
-extern bool cg_noop;
 
 void init_row_cols();
 
@@ -60,7 +57,7 @@ using namespace graphlab;
 end
 */
 
-double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
+double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff, int iter, bool cg_resid){
 
     glcore = _glcore;
     int tmp=n; n=m; m = tmp;
@@ -108,7 +105,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
     end
     */
 
-    for (int i=1; i <= std::min(cg_maxiter,size(A,1)); i++){
+    for (int i=1; i <= std::min(iter,size(A,1)); i++){
         Ap=A*p;
         if (!square)
           Ap= A._transpose()*Ap;
