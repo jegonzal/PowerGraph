@@ -38,19 +38,82 @@
 double termination_bound = 1e-5;
 double random_reset_prob = 0.15;   // PageRank random reset probability
 
+#ifdef FACTORIZED
 
+/**
+ * The factorized page rank update function
+ */
+class pagerank_update : public gl::iupdate_functor::factorized {
+private:
+  double prio;
+  double accum;
+public:
+  pagerank_update(const double& prio = 0) : prio(prio), accum(0) { }
+  double priority() const { return prio; }
+  void operator+=(const pagerank_update& other) { 
+    prio += other.prio;
+    accum += other.accum;
+  }
 
+  void gather(gl::iscope& scope, gl::icallback& callback, 
+              gl::edge_id in_eid) {
+    // Get the neighobr vertex value
+    const vertex_data& neighbor_vdata =
+      scope.const_neighbor_vertex_data(scope.source(in_eid));
+    const double neighbor_value = neighbor_vdata.value;    
+    // Get the edge data for the neighbor
+    edge_data& edata = scope.edge_data(in_eid);
+    // Compute the contribution of the neighbor
+    double contribution = edata.weight * neighbor_value;    
+    // Add the contribution to the sum
+    accum += contribution;
+    // Remember this value as last read from the neighbor
+    edata.old_source_value = neighbor_value;
+  } // end of gather
+
+  void apply(gl::iscope& scope,
+             gl::icallback& callback) {                       
+    // Get the data associated with the vertex
+    vertex_data& vdata = scope.vertex_data();
+    // add the contribution from a self-link.
+    accum += vdata.value * vdata.self_weight;
+    // add the random reset probability
+    accum = random_reset_prob/scope.num_vertices() + 
+      (1-random_reset_prob)*accum;
+    vdata.value = accum;
+  } // end of apply
+
+  void scatter(gl::iscope& scope, gl::icallback& callback, 
+               gl::edge_id out_eid) {
+    // Get the data associated with the vertex
+    const vertex_data& vdata = scope.const_vertex_data();
+    // get the data associated with the out edge
+    const edge_data& outedgedata = scope.const_edge_data(out_eid);    
+    // Compute edge-specific residual by comparing the new value of this
+    // vertex to the previous value seen by the neighbor vertex.
+    double residual =
+      outedgedata.weight *
+      std::fabs(outedgedata.old_source_value - vdata.value);
+    // If the neighbor changed sufficiently add to scheduler.
+    if(residual > termination_bound) {
+      callback.schedule(scope.target(out_eid), pagerank_update(residual));
+    }
+  } // end of scatter
+  
+}; // end of pagerank update functor
+
+#else
 
 /**
  * The Page rank update function
  */
 class pagerank_update : public gl::iupdate_functor {
 private:
-  double val;  
+  double prio;  
 public:
-  pagerank_update(const double& val = 0) : val(val) { }
-  double priority() const { return val; }
-  void operator+=(const pagerank_update& other) { val += other.val; }
+  pagerank_update(const double& prio = 0) : prio(prio) { }
+  double priority() const { return prio; }
+  void operator+=(const pagerank_update& other) { prio += other.prio; }
 
   void operator()(gl::iscope& scope,
                   gl::icallback& callback) {                       
@@ -97,6 +160,8 @@ public:
     }
   } // end of operator()
 }; // end of pagerank update functor
+
+#endif
 
 
 

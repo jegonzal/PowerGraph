@@ -46,6 +46,7 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scope/iscope.hpp>
+#include <graphlab/update_functor/iupdate_functor.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/engine/callback/icallback.hpp>
 #include <graphlab/engine/terminator/iterminator.hpp>
@@ -92,6 +93,11 @@ namespace graphlab {
     
     //! The type of the udpate functor
     typedef UpdateFunctor update_functor_type;
+
+    //! The generic iupdate functor type
+    typedef iupdate_functor<graph_type, update_functor_type> 
+    iupdate_functor_type;
+
 
     //! The type of vertex id used by the graph
     typedef typename graph_type::vertex_id_type vertex_id_type;

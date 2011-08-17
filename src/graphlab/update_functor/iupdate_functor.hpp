@@ -38,12 +38,23 @@
 #define GRAPHLAB_IUPDATE_FUNCTOR_HPP
 
 
+// #include <boost/type_traits.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/engine/callback/icallback.hpp>
 
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
+
+  // /**
+  //  * type deduction
+  //  */
+  // template<typename G, typename U, template T<G, U> > 
+  // struct is_factorizable : public boost::false_type { }; 
+  // template<typename G, typename U, template T< typename G, typename U> >
+  // struct is_factorizable<G, U, iupdate_functor<G,U>::factorizble > : 
+  //   public boost::true_type { }; 
+
 
 
   template<typename Graph, typename UpdateFunctor> 

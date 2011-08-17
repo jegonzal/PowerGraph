@@ -91,6 +91,8 @@ namespace graphlab {
     typedef iengine<Graph, UpdateFunctor> iengine_base;
     typedef typename iengine_base::graph_type graph_type;
     typedef typename iengine_base::update_functor_type update_functor_type;
+    typedef typename iengine_base::iupdate_functor_type iupdate_functor_type;
+    
 
     typedef typename iengine_base::vertex_id_type vertex_id_type;
 
@@ -354,6 +356,15 @@ namespace graphlab {
     void run_simulated();
 
     void run_once(size_t cpuid);
+
+    void evaluate_update_functor(vertex_id_type vid,
+                                 iupdate_functor_type& ufun, 
+                                 size_t cpuid);
+    
+    void evaluate_update_functor(vertex_id_type vid,
+                                 typename iupdate_functor_type::
+                                 factorized& ufun, 
+                                 size_t cpuid);
 
     
     void evaluate_sync_queue();
@@ -860,19 +871,11 @@ namespace graphlab {
       }
     } // end of while loop
 
-    // ------------------------- Update Code ------------------------------- //
+    // ------------------- Run The Update Functor -------------------------- //
     ASSERT_EQ(stat, sched_status::NEW_TASK);
     ASSERT_LT(vid, graph.num_vertices());
-    // Get the scope
-    iscope_type& scope = 
-      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
-    // Apply the update functor
-    ufun(scope, tls_array[cpuid].callback);
-    // ----------------------- Post Update Code ---------------------------- //
-    // Finish any pending transactions in the scope
-    scope.commit();
-    // Release the scope (and all corresponding locks)
-    scope_manager_ptr->release_scope(scope);    
+    evaluate_update_functor(vid, ufun, cpuid);
+    // ----------------------- Post Update Code ---------------------------- //   
     // Mark scope as completed in the scheduler
     scheduler_ptr->completed(cpuid, vid, ufun);
     // Record an increase in the update counts
@@ -880,6 +883,48 @@ namespace graphlab {
     tls_array[cpuid].update_count++;     
       
   } // end of run_once
+
+  // unfactorized version
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  evaluate_update_functor(vertex_id_type vid,
+                          iupdate_functor_type& ufun, 
+                          size_t cpuid) {
+    // Get the scope
+    iscope_type& scope = 
+      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
+    // get the callback
+    callback_type& callback = tls_array[cpuid].callback;
+    // Apply the update functor
+    ufun(scope, callback);
+    // Finish any pending transactions in the scope
+    scope.commit();
+    // Release the scope (and all corresponding locks)
+    scope_manager_ptr->release_scope(scope); 
+  }
+
+
+  // Factorized version
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  evaluate_update_functor(vertex_id_type vid, 
+                          typename iupdate_functor_type::
+                          factorized& ufun,
+                          size_t cpuid) {
+    // Get the scope
+    iscope_type& scope = 
+      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
+    // get the callback
+    callback_type& callback = tls_array[cpuid].callback;
+    // Apply the update functor
+    ufun(scope, callback);
+    // Finish any pending transactions in the scope
+    scope.commit();
+    // Release the scope (and all corresponding locks)
+    scope_manager_ptr->release_scope(scope); 
+  }
 
   
 
