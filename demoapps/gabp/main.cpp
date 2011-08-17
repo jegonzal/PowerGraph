@@ -48,6 +48,7 @@
 #include "cg.hpp"
 #include "math.hpp"
 #include "syncs.hpp"
+#include "gabp_inv.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -433,7 +434,10 @@ int main(int argc,  char *argv[]) {
           syncinterval = 0; //no need to sync here
           //deliberately empty, will be done later
           break;
-    
+   
+    case GaBP_INV:
+          core.add_task_to_all(gabp_update_inv_function, initial_priority); break;
+ 
     default:
          logstream(LOG_ERROR) << "Unknown algorithm" << std::endl;
          clopts.print_description(); 
@@ -482,6 +486,7 @@ int main(int argc,  char *argv[]) {
   switch(algorithm){
       case GaBP:
       case JACOBI:
+      case GaBP_INV:
         runtime= core.start();
         break;
 

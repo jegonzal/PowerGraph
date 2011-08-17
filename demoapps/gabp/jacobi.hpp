@@ -50,7 +50,7 @@ void jacobi_update_function(gl_types::iscope &scope,
   vertex_data& vdata = scope.vertex_data();
   gl_types::edge_list outedgeid = scope.out_edge_ids();
 
-  const bool& debug = DEBUG_KEY.get();
+  const bool& debug = DEBUG_KEY.get_val();
 
   //store last round values
   vdata.prev_mean = vdata.cur_mean;

@@ -530,6 +530,9 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool sy
     if (rc == 0 || total >= edgecount_in_file)
       break;
   }
+  if (total != (int)e){
+      logstream(LOG_ERROR) << "Missing edges in " << testtypename[type] << "file. Should be " << e << edges << " but in file we counted only " << total << " edges. Please check your conversion script and verify the file is not truncated and edges are not missing. " << endl;
+  }
   assert(total == (int)e);
   globalMean[type] /= e;
   delete [] ed; ed = NULL;

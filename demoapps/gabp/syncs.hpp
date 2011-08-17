@@ -13,6 +13,13 @@ double get_relative_norm(const vertex_data& v){
 }
 
 
+//helper function to compute the norm between last round iteration and this round of the current mean
+double get_relative_norm(const vertex_data_inv& v){
+  return pow(v.cur_mean[0] - v.prev_mean[0], 2); //TODO
+}
+
+
+
 /**
  * Engine terminates when this returns true
  */
@@ -20,12 +27,13 @@ bool termination_condition() {
   double ret = RELATIVE_NORM_KEY.get_val();
 
   //std::cout<<"I was in term"<<std::endl;
-  if (ret < THRESHOLD_KEY.get()){
+  if (ret < THRESHOLD_KEY.get_val()){
     std::cout << "Aborting since relative norm is: " << ret << std::endl;
     return true;
   }
   return false;
 }
+
 
 
 /*
