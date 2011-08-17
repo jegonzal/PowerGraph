@@ -82,11 +82,13 @@ namespace graphlab {
     return ret;
   }
 
+  typedef graph<char,char> dummy_graph;
+  struct dummy_functor : 
+    public iupdate_functor<dummy_graph, dummy_functor>  { };
+
   void print_distributed_scheduler_info(std::string s, std::ostream &out) {
     
-    typedef graph<char,char> dummy_graph_type;
-    typedef iupdate_functor<dummy_graph_type> dummy_functor_type;
-    typedef iengine<dummy_graph_type, dummy_functor_type> dummy_engine_type;
+    typedef iengine<dummy_graph, dummy_functor> dummy_engine_type;
     
     // this is annoying... I need to instantiate the graph<char, char> type to
     // even call the scheduler

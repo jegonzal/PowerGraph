@@ -90,7 +90,6 @@ class pagerank_update;
 typedef graphlab::types<pagerank_graph, pagerank_update> gl;
 
 
-
 //! Save the graph to tsv file
 void save_edges_as_tsv(const std::string& fname, 
                        const pagerank_graph& graph);

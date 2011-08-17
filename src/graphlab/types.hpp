@@ -103,7 +103,7 @@ namespace graphlab {
     
     
   
-    typedef iupdate_functor<graph> iupdate_functor;
+    typedef iupdate_functor<graph, update_functor> iupdate_functor;
     
     typedef graphlab::iengine<graph, update_functor>    iengine;
     typedef graphlab::iscope<graph>                     iscope;
