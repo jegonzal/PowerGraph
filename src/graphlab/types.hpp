@@ -102,8 +102,9 @@ namespace graphlab {
     typedef graphlab::graphlab_options graphlab_options;
     
     
-  
-    typedef graphlab::iupdate_functor<graph, update_functor> iupdate_functor;
+    typedef graphlab::iupdate_functor<graph, update_functor> 
+    iupdate_functor;
+
     
     typedef graphlab::iengine<graph, update_functor>    iengine;
     typedef graphlab::iscope<graph>                     iscope;
@@ -117,8 +118,9 @@ namespace graphlab {
     typedef graphlab::sync_ops<graph> sync_ops;
     typedef graphlab::isync<graph> isync;
 
-    
-    typedef graphlab::shared_memory_engine<graph, update_functor> shared_memory_engine;
+
+    typedef graphlab::shared_memory_engine<graph, update_functor> 
+    shared_memory_engine;
 
 
 
