@@ -436,7 +436,8 @@ int main(int argc,  char *argv[]) {
           break;
    
     case GaBP_INV:
-          core.add_task_to_all(gabp_update_inv_function, initial_priority); break;
+      logstream(LOG_FATAL) << "This code is currently broken" << std::endl;
+      //      core.add_task_to_all(gabp_update_inv_function, initial_priority); break;
  
     default:
          logstream(LOG_ERROR) << "Unknown algorithm" << std::endl;
