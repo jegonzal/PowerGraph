@@ -26,7 +26,7 @@ project(GraphLab)
 
 
 
-subdirs(demo pagerank)
+subdirs(demo pagerank lda)
 
 
 
