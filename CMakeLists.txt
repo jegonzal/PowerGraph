@@ -588,9 +588,9 @@ set(GraphLab_LIBRARIES graphlab)
 subdirs(src tests)
 
 
-if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
-  subdirs(apps)
-endif()
+# if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
+#   subdirs(apps)
+# endif()
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
   subdirs(demoapps)
 endif()
