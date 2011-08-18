@@ -37,7 +37,6 @@
 #include <vector>
 
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/iscope_manager.hpp>
 #include <graphlab/scope/general_scope.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph.hpp>
@@ -112,7 +111,7 @@ namespace graphlab {
         logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
         return get_edge_scope(cpuid,v);
       }
-    }
+    } // end of get scope
     
     
     iscope_type& get_full_scope(size_t cpuid, vertex_id_type v) {
@@ -215,7 +214,23 @@ namespace graphlab {
         locks[curv].writelock();
       }
       return scope;
-    }
+    } // end of get edge scope
+
+    
+    iscope_type& get_single_edge_scope(size_t cpuid,
+                                       vertex_id_type vid,
+                                       edge_id_type eid) {
+      general_scope_type& scope = scopes[cpuid];
+      scope.init(&graph, vid, consistency_model::EDGE_CONSISTENCY);
+      vertex_id_type source = graph.source(eid);
+      vertex_id_type target = graph.target(eid);
+      ASSERT_NE(source, target);
+      if(source > target) std::swap(source, target);
+      locks[source].readlock(); 
+      locks[target].readlock();
+      return scope;
+    } // end of get single edge scope
+
 
     iscope_type& get_vertex_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type& scope = scopes[cpuid];      
@@ -314,6 +329,16 @@ namespace graphlab {
         ASSERT_TRUE(false);
       }
     }
+
+    void release_single_edge_scope(iscope_type& scope, 
+                                   edge_id_type eid) {
+      vertex_id_type source = graph.source(eid);
+      vertex_id_type target = graph.target(eid);
+      ASSERT_NE(source, target);
+      if(source > target) std::swap(source, target);
+      locks[source].unlock();
+      locks[target].unlock();
+    } // end of release single edge scope
 
     void release_full_edge_scope(general_scope_type& scope) {
       const vertex_id_type v = scope.vertex();

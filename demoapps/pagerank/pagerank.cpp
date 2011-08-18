@@ -64,7 +64,7 @@ public:
     // Get the edge data for the neighbor
     edge_data& edata = scope.edge_data(in_eid);
     // Compute the contribution of the neighbor
-    double contribution = edata.weight * neighbor_value;    
+    const double contribution = edata.weight * neighbor_value;    
     // Add the contribution to the sum
     accum += contribution;
     // Remember this value as last read from the neighbor

@@ -95,6 +95,8 @@ namespace graphlab {
     
 
     typedef typename iengine_base::vertex_id_type vertex_id_type;
+    typedef typename iengine_base::edge_id_type   edge_id_type;
+    typedef typename iengine_base::edge_list_type edge_list_type;
 
     typedef ischeduler<shared_memory_engine> ischeduler_type;
     typedef typename iengine_base::iscope_type iscope_type;
@@ -913,18 +915,64 @@ namespace graphlab {
                           typename iupdate_functor_type::
                           factorized& ufun,
                           size_t cpuid) {
-    // Get the scope
-    iscope_type& scope = 
-      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
+    //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // get the callback
     callback_type& callback = tls_array[cpuid].callback;
-    // Apply the update functor
-    ufun(scope, callback);
-    // Finish any pending transactions in the scope
+    // Gather phase -----------------------------------------------------------
+    if(ufun.gather_edges() == iupdate_functor_type::factorized::IN_EDGES ||
+       ufun.gather_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.in_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        iscope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid);
+        ufun.gather(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_single_edge_scope(scope, eid);
+      }
+    }
+    if(ufun.gather_edges() == iupdate_functor_type::factorized::OUT_EDGES ||
+       ufun.gather_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.out_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        iscope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid);
+        ufun.gather(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_single_edge_scope(scope, eid);
+      }
+    }
+
+    // Apply phase ------------------------------------------------------------
+    iscope_type& scope = 
+      scope_manager_ptr->get_vertex_scope(cpuid, vid);
+    ufun.apply(scope, callback);
     scope.commit();
-    // Release the scope (and all corresponding locks)
-    scope_manager_ptr->release_scope(scope); 
-  }
+    scope_manager_ptr->release_scope(scope);
+
+    // Scatter phase ----------------------------------------------------------
+    if(ufun.scatter_edges() == iupdate_functor_type::factorized::IN_EDGES ||
+       ufun.scatter_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.in_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        iscope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid);
+        ufun.scatter(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_single_edge_scope(scope, eid);
+      }
+    }
+    if(ufun.scatter_edges() == iupdate_functor_type::factorized::OUT_EDGES ||
+       ufun.scatter_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.out_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        iscope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid);
+        ufun.scatter(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_single_edge_scope(scope, eid);
+      }
+    }
+  } // end of evaluate_update_functor
 
   
 
