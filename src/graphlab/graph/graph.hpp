@@ -144,7 +144,7 @@ namespace graphlab {
     typedef uint32_t edge_id_type;
     
     /// Type for vertex colors 
-    typedef uint8_t vertex_color_type;
+    typedef vertex_id_type vertex_color_type;
     
     
     /** This class defines a set of edges */
