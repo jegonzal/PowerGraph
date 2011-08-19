@@ -51,6 +51,10 @@
 #include "gabp_inv.hpp"
 #include "advanced_config.h"
 
+#ifdef HAS_ITPP
+#include <itpp/itbase.h>
+#endif
+
 #include <graphlab/macros_def.hpp>
 
 double counter[20];//timing counters
@@ -316,7 +320,6 @@ FILE * load_matrix_metadata(const char * filename){
  *  Where the main digonal is the precision vector
  * */
 
-template<typename graph_type, typename vertex_data, typename edge_data>
 void load_square_matrix(FILE * f, graph_type& graph, advanced_config & config) {
 
   assert(m == n);
@@ -332,6 +335,36 @@ void load_square_matrix(FILE * f, graph_type& graph, advanced_config & config) {
   //read the precition of size n (the main diagonal of the matrix A)
   double * prec = read_vec(f, n);
   dispatch_vec(0,n,GABP_PRIOR_PREC_OFFSET, &graph, prec, n, true);
+
+  e = read_edges<edata>(f, sizeof(edge_data)/sizeof(sdouble), 0, n, &graph, config);
+  fclose(f);
+}
+
+/*
+ *  READ A SQUARE INVERSE COV MATRIX A of size nxn
+ *  Where the main digonal is the precision vector
+ * */
+
+void load_square_matrix(FILE * f, graph_type_inv& graph, advanced_config & config) {
+
+  assert(m == n);
+  assert(n > 0);
+  //read the observation vector y of size n
+  read_nodes(f, sizeof(vertex_data)/sizeof(sdouble), GABP_PRIOR_MEAN_OFFSET,
+             n, &graph);
+
+  //unused, skip this vector to be in the right file offset
+  double * real = read_vec(f, n);
+  delete[] real;
+
+  //read the precition of size n (the main diagonal of the matrix A)
+  double * prec = read_vec(f, n);
+  assert(n == graph.num_vertices());
+  for (int i=0; i< (int)n; i++){
+     vertex_data_inv &data= graph.vertex_data(i);
+     data.prior_prec = prec[i];
+  }
+  delete[] prec;
 
   e = read_edges<edata>(f, sizeof(edge_data)/sizeof(sdouble), 0, n, &graph, config);
   fclose(f);
@@ -387,7 +420,6 @@ template <typename coretype>
 double start_inv(graphlab::command_line_options &clopts, advanced_config &config){
 
   assert(config.algorithm == GaBP_INV);
-
   // Create a core
   coretype core;
   core.set_engine_options(clopts); // Set the engine options
@@ -396,15 +428,10 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
   FILE * f = load_matrix_metadata(config.datafile.c_str());
   if (m == n){ //square matrix
      config.square = true;
-     load_square_matrix<graph_type_inv,vertex_data_inv, edge_data_inv>(f, core.graph(), config);
+     load_square_matrix(f, core.graph(), config);
   }
   else {
-     config.square = false;
-     load_non_square_matrix<graph_type_inv,vertex_data_inv, edge_data_inv>(f, core.graph(), config);
-     if (config.algorithm == JACOBI){
-        logstream(LOG_ERROR)<<" Jacobi can not run with non-square mastrix. Run with --sqaure=true and provide a square mastrix in the input file!" << std::endl;
-        return EXIT_FAILURE;
-     }
+     assert(false);
   }
 
 
@@ -434,7 +461,31 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
   runtime= core.start();
   // POST-PROCESSING *****
   std::cout << algorithmnames[config.algorithm] << " finished in " << runtime << std::endl;
+#ifdef HAS_ITPP
 
+  itpp::mat ret = itpp::zeros(core.graph().num_vertices(), core.graph().num_vertices());
+  for (size_t i = 0; i < core.graph().num_vertices(); i++){
+    const vertex_data_inv& vdata = core.graph().vertex_data(i);
+    
+    for (int j=0; j< (int)core.graph().num_vertices(); j++){
+      ret.set(i,j,vdata.cur_mean[j]);
+    }   
+
+   //diff += pow(vdata.real - vdata.cur_mean,2);
+       //x[i] = vdata.cur_mean;
+       //prec[i] = vdata.cur_prec;
+       //TODO
+  }
+
+    if (config.debug){
+      std::cout<<ret<<std::endl;
+      if (config.unittest == 6){
+         itpp::mat A = ("1.7011078828 0.4972882085 1.01358835; 0.4972882085 2.0077549 1.09088855; 1.01358835 1.09088855 2.690904500");
+         std::cout<<A*ret<<std::endl;
+      }
+         
+   }
+#endif
   //TODO, measure qulity of solutio
   return diff;
 }
@@ -455,7 +506,7 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
   FILE * f = load_matrix_metadata(config.datafile.c_str());
   if (m == n){ //square matrix
      config.square = true;
-     load_square_matrix<graph_type, vertex_data, edge_data>(f, core.graph(), config);
+     load_square_matrix(f, core.graph(), config);
   }
   else {
      config.square = false;
@@ -652,7 +703,14 @@ int main(int argc,  char *argv[]) {
     config.iter = 10;
     clopts.set_scheduler_type("fifo");
   }
-
+ else if (config.unittest == 6){
+    logstream(LOG_WARNING)<< "Going to run GaBP inverse unit testing using matrix of size 3x3" << std::endl;
+    const char * args[] = {"gabp", "3", "mat3x3", "1e-10", "--unittest=6", "--syncinterval=10000"};
+    clopts.parse(6, (char**)args);
+    config.iter = 10;
+    MATRIX_WIDTH_KEY.set(3);
+    clopts.set_scheduler_type("round_robin(max_iterations=20,block_size=1)");
+ }
 
   // Ensure that a data file is provided
   if(!clopts.is_set("data")) {
