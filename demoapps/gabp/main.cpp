@@ -448,7 +448,7 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
   ROUND_ROBIN_KEY.set(config.round_robin);
   DEBUG_KEY.set(config.debug);
   MAX_ITER_KEY.set(config.iter);
-
+  MATRIX_WIDTH_KEY.set(n);
 
   //create a vector for storing the output
   std::vector<double> means(n);
