@@ -64,17 +64,15 @@ void gabp_update_inv_function(gl_types_inv::iscope &scope,
   const bool& round_robin = ROUND_ROBIN_KEY.get_val();
   const bool& debug = DEBUG_KEY.get_val();
   const int n = MATRIX_WIDTH_KEY.get_val();
-
+  assert(n>0);
 
   //store last round values
   memcpy(vdata.prev_mean, vdata.cur_mean, sizeof(sdouble)*n);
-  sdouble prev_prec = vdata.cur_prec;
+  //sdouble prev_prec = vdata.cur_prec;
 
   //initialize accumlated values
   sdouble * mu_i = new sdouble[n];
   memcpy(mu_i, vdata.prior_mean, n*sizeof(sdouble));
-  sdouble J_i = vdata.prior_prec;
-  if (!support_null_variance) assert(J_i != 0);
 
   /* CALCULATE new value */
   if (debug) {
@@ -87,6 +85,8 @@ void gabp_update_inv_function(gl_types_inv::iscope &scope,
 
   for (int j=0; j<n; j++){
   //accumlate all messages (the inner summation in section 4 of Algorithm 1)
+  sdouble J_i = vdata.prior_prec;
+  if (!support_null_variance) assert(J_i != 0);
    foreach(gl_types_inv::edge_id eid, inedgeid) {
     const edge_data_inv& edata = scope.edge_data(eid);
     mu_i[j] += edata.mean[j];
@@ -95,7 +95,7 @@ void gabp_update_inv_function(gl_types_inv::iscope &scope,
 
   if (debug) {
     std::cout << scope.vertex() << ") summing up all messages in problem " << j 
-              << mu_i[j] << " " << J_i << std::endl;
+              << " Mu: " << mu_i[j] << " " << J_i << std::endl;
   }
 
   // optional support for null variances
