@@ -12,7 +12,27 @@
 
 
 #include "corpus.hpp"
+#include "lda.hpp"
 
+
+
+#include <graphlab/macros_def.hpp>
+
+class lda_update : public gl::iupdate_functor {
+  void operator()(gl::iscope& scope, gl::icallback& callback) {   
+    // Do the LDA update for all the words in this document
+    
+  }
+}; 
+
+
+
+
+
+
+
+
+void load_graph(graph_type& graph, const corpus& data);
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -75,7 +95,40 @@ int main(int argc, char** argv) {
   std::cout << "Shuffling corpus: " << std::endl;
   corpus.shuffle_tokens();
 
-
-
+  // Setup the core
+  gl::core core;
+  core.set_options(clopts);
+  std::cout << "Building Graph" << std::endl;
+  load_graph(core.graph(), corpus);
+  std::cout << "Finished loading graph" << std::endl;
   return EXIT_SUCCESS;
 } // end of main
+
+
+
+
+void load_graph(graph_type& graph, const corpus& data) {
+  // Construct all the vertices
+  const gl::vertex_id nverts = data.nwords + data.ndocs;
+  graph.resize(nverts);
+  for(gl::vertex_id vid = 0; vid < data.ndocs; ++vid) {
+    graph.vertex_data(vid).type = DOCUMENT;    
+  }
+  for(gl::vertex_id vid = data.ndocs; vid < nverts; ++vid) {
+    graph.vertex_data(vid).type = WORD;
+  }
+  const size_t word_offset = data.ndocs;
+  typedef corpus::token token_type;
+  foreach(const token_type& tok, data.tokens) {
+    document_vertex_data::word_topic_pair wt_pair(tok.word);    
+    graph.vertex_data(tok.doc).doc.words.push_back(wt_pair);
+    graph.add_edge(tok.doc, tok.word + word_offset);
+  }
+}; // end of load_graph
+
+
+
+
+
+
+
