@@ -18,15 +18,10 @@
 
 #include <graphlab/macros_def.hpp>
 
-class lda_update : public gl::iupdate_functor {
-  void operator()(gl::iscope& scope, gl::icallback& callback) {   
-    // Do the LDA update for all the words in this document
-    
-  }
-}; 
-
-
-
+size_t ntopics = 50;
+size_t nwords = 0;
+double alpha(1/ntopics);
+double beta(0.1);
 
 
 
@@ -42,11 +37,8 @@ int main(int argc, char** argv) {
 
   std::string dictionary_fname("dictionary.txt");
   std::string counts_fname("counts.tsv");
-  size_t ntopics(50);
+  
   size_t niters(10);
-  double alpha(50.0/double(ntopics));
-  double beta(0.1);
-  std::string alg_str("gibbs");
   std::string llik_fname("llik.txt");
   
 
@@ -60,9 +52,6 @@ int main(int argc, char** argv) {
   clopts.attach_option("counts", 
                        &counts_fname, counts_fname, 
                        "Counts file");
-  clopts.attach_option("alg",
-                       &alg_str, alg_str, 
-                       "Algorithm {gibbs, annealing, opt}");
   clopts.attach_option("ntopics", 
                        &ntopics, ntopics, "Number of topics");
   clopts.attach_option("niters",
@@ -111,18 +100,26 @@ void load_graph(graph_type& graph, const corpus& data) {
   // Construct all the vertices
   const gl::vertex_id nverts = data.nwords + data.ndocs;
   graph.resize(nverts);
-  for(gl::vertex_id vid = 0; vid < data.ndocs; ++vid) {
-    graph.vertex_data(vid).type = DOCUMENT;    
-  }
-  for(gl::vertex_id vid = data.ndocs; vid < nverts; ++vid) {
+  for(gl::vertex_id vid = 0; vid < data.nwords; ++vid) {
     graph.vertex_data(vid).type = WORD;
   }
-  const size_t word_offset = data.ndocs;
+  for(gl::vertex_id vid = data.nwords; vid < nverts; ++vid) {
+    graph.vertex_data(vid).type = DOCUMENT;
+  }
+  const size_t doc_offset = data.nwords;
   typedef corpus::token token_type;
-  foreach(const token_type& tok, data.tokens) {
-    document_vertex_data::word_topic_pair wt_pair(tok.word);    
-    graph.vertex_data(tok.doc).doc.words.push_back(wt_pair);
-    graph.add_edge(tok.doc, tok.word + word_offset);
+
+  // Compute word counts
+  std::vector< std::map< word_id_type, count_type> > 
+    word_counts(data.ndocs);
+  foreach(const token_type& tok, data.tokens)
+    word_counts[tok.doc][tok.word]++;
+  
+  typedef std::pair<word_id_type, count_type> wc_pair_type;
+  for(doc_id_type doc = 0; doc < data.ndocs; ++doc) {
+    foreach(const wc_pair_type& wc_pair, word_counts[doc]) {
+      graph.add_edge(doc, wc_pair.first, wc_pair.second); 
+    }
   }
 }; // end of load_graph
 
