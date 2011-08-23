@@ -89,9 +89,10 @@ enum algorithms{
    JACOBI = 1,
    CONJUGATE_GRADIENT = 2,
    GaBP_INV = 3,
+   LEAST_SQUARES = 4,
 };
 
-const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse"};
+const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares"};
 
 
 //counters for debugging running time of different modules
