@@ -112,7 +112,8 @@ int main(int argc, char** argv) {
   return EXIT_SUCCESS;
 
   // set the scheduler
-  
+  core.schedule_all(lda_update());
+  core.start();
 
 } // end of main
 
