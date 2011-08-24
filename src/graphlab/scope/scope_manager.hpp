@@ -218,16 +218,20 @@ namespace graphlab {
 
     
     iscope_type& get_single_edge_scope(size_t cpuid,
-                                       vertex_id_type vid,
-                                       edge_id_type eid) {
+                                       vertex_id_type center_vid,
+                                       edge_id_type eid,
+                                       bool writable) {
       general_scope_type& scope = scopes[cpuid];
-      scope.init(&graph, vid, consistency_model::EDGE_CONSISTENCY);
+      scope.init(&graph, center_vid, consistency_model::EDGE_CONSISTENCY);
       vertex_id_type source = graph.source(eid);
       vertex_id_type target = graph.target(eid);
       ASSERT_NE(source, target);
-      if(source > target) std::swap(source, target);
-      locks[source].readlock(); 
-      locks[target].readlock();
+      ASSERT_TRUE(source == center_vid || target == center_vid);
+      if(source < target) std::swap(source, target);
+      if(source != center_vid && writable) locks[source].writelock(); 
+      else locks[source].readlock(); 
+      if(target != center_vid && writable) locks[target].writelock();
+      else locks[target].readlock();
       return scope;
     } // end of get single edge scope
 

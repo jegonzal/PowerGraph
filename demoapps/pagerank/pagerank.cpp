@@ -72,7 +72,7 @@ public:
   } // end of gather
 
   void apply(gl::iscope& scope,
-             gl::icallback& callback) {                       
+             gl::icallback& callback) {
     // Get the data associated with the vertex
     vertex_data& vdata = scope.vertex_data();
     // add the contribution from a self-link.

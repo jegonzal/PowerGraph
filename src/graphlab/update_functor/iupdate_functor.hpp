@@ -73,7 +73,7 @@ namespace graphlab {
      */
     class factorized : public iupdate_functor {
     public:
-      enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES};
+      enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
 
       // Default update functor behavior
       virtual void operator()(iscope_type& scope, 
@@ -99,6 +99,9 @@ namespace graphlab {
             scatter(scope, callback, eid);
         }
       } // end of operator()
+
+      virtual bool writable_gather() const { return false; }
+      virtual bool writable_scatter() const { return true; }
 
       virtual edge_set gather_edges() const { return IN_EDGES; }
       virtual edge_set scatter_edges() const { return OUT_EDGES; }
