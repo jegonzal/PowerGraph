@@ -43,7 +43,7 @@
 typedef uint32_t word_id_type;
 typedef uint32_t doc_id_type;
 typedef uint16_t topic_id_type;
-typedef size_t   count_type;
+typedef int   count_type;
 
 #define NULL_WORD word_id_type(-1)
 #define NULL_TOPIC topic_id_type(-1)

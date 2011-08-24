@@ -46,7 +46,7 @@ namespace graphlab {
   template<typename T>
   class idivisible {
   public:
-    virtual apply_diff(const T& other, const T& old) = 0;
+    virtual void apply_diff(const T& changed, const T& old) = 0;
   }; // end of class idivisible
 
 

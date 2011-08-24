@@ -45,65 +45,103 @@ enum vertex_type {DOCUMENT, WORD};
 
 class vertex_data : public graphlab::idivisible<vertex_data>  {
   vertex_type m_type;
+  count_type m_iterations;
   std::vector<count_type> m_nt;
-  std::vector<count_type> m_delta;
 public:
-  vertex_data(vertex_type type = DOCUMENT) : type(type) { }
+  vertex_data(vertex_type type = DOCUMENT) : m_type(type), m_iterations(0) { }
+ 
 
-  vertex_data split() const { 
-    vertex_data vdata = *this;
-    vdata.m_delta.
-  }
+  void set_type(vertex_type new_type) { m_type = new_type; }
+  const vertex_type& type() const { return m_type; }
 
-  void set_type(vertex_type new_type) { type = newtype; }
-  void set_ntopics(size_t ntopics) {
-    m_nt.clear(); m_nt.resize(ntopics, 0);
-  }
+  bool is_finished() const { return m_iterations <= 0; }
+  void finished_iteration() { m_iterations--; }
 
-  vertex_type& type() const { return type; }
+
+  void init(size_t ntopics, count_type iterations) {
+    if(m_nt.size() != ntopics) {
+      m_nt.clear(); m_nt.resize(ntopics, 0);
+    }
+    m_iterations = iterations;
+  } //end of init
+
+
+  void apply_diff(const vertex_data& changed, 
+                  const vertex_data& old) {
+    ASSERT_EQ(m_nt.size(), changed.m_nt.size());
+    ASSERT_EQ(m_nt.size(), old.m_nt.size());
+    ASSERT_EQ(m_type, changed.m_type);
+    ASSERT_EQ(m_type, old.m_type);
+    for(topic_id_type t = 0; t < m_nt.size(); ++t) 
+      m_nt[t] += (changed.m_nt[t] - old.m_nt[t]);
+    m_iterations += (changed.m_iterations - old.m_iterations);
+  } // end of apply diff 
+
 
   count_type get(const topic_id_type topic) const { 
-    ASSERT_LT(topic < m_nt.size());
-    if(m_delta.empty()) {
-      return m_nt[topic];
-    } else {
-      ASSERT_LT(topic, m_delta.size());
-      return m_nt[topic] + m_delta[topic];
-    }
+    ASSERT_LT(topic, m_nt.size());
+    return m_nt[topic];
   } // end of get
 
   void set(const topic_id_type topic, count_type count) { 
-    ASSERT_LT(topic < m_nt.size());
-    if(m_delta.empty()) {
-      m_nt[topic] = count;
-    } else {
-      ASSERT_LT(topic < m_delta.size());    
-      m_delta[topic] += (count - m_nt[topic]);
-    }
+    ASSERT_LT(topic, m_nt.size());
+    m_nt[topic] = count;
   } // end of set
 
   void add(const topic_id_type topic, count_type count) { 
-    ASSERT_LT(topic < m_nt.size());
-    if(m_delta.empty()) {
-      m_nt[topic] += count;
-    } else {
-      ASSERT_LT(topic < m_delta.size());    
-      m_delta[topic] += count;
-    }
+    ASSERT_LT(topic, m_nt.size());
+    m_nt[topic] += count;
+  } // end of set
+
+  void subtract(const topic_id_type topic, count_type count) { 
+    ASSERT_LT(topic, m_nt.size());
+    m_nt[topic] -= count;
   } // end of set
 };
 
 
-struct edge_data { 
+struct edge_data {
   count_type count;
-  std::vector<count_type> n_t;
-  edge_data() : count(0) { }
+  std::vector<count_type> m_nt; 
+public:
+  edge_data(count_type count = 0) : count(count) { }
+  
+  void set_count(const count_type new_count) { 
+    count = new_count; 
+  }
+  
+  count_type get_count() const { return count; }
+
+  void init(size_t ntopics) {
+    if(m_nt.size() != ntopics) {
+      m_nt.clear(); m_nt.resize(ntopics, 0); 
+    }
+  }
+
+  count_type get(const topic_id_type topic) const { 
+    ASSERT_LT(topic, m_nt.size());
+    return m_nt[topic];
+  }
+  void set(const topic_id_type topic, count_type count) {
+    ASSERT_LT(topic, m_nt.size());
+    m_nt[topic] = count;
+  }
 };
 
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 class lda_update;
 typedef graphlab::types<graph_type, lda_update> gl;
+
+
+extern size_t ntopics;
+extern size_t nwords;
+extern size_t ndocs;
+extern double alpha;
+extern double beta;
+extern std::vector< graphlab::glshared<count_type> > global_n_t;
+
+
 
 
 

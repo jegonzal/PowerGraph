@@ -13,21 +13,37 @@
 
 #include "corpus.hpp"
 #include "lda.hpp"
+#include "lda_update.hpp"
+
 
 
 
 #include <graphlab/macros_def.hpp>
 
+
+
+
 size_t ntopics = 50;
 size_t nwords = 0;
+size_t ndocs = 0;
 double alpha(1/ntopics);
 double beta(0.1);
-std::vector< glshared<size_t> > n_t;
+std::vector< graphlab::glshared<count_type> > global_n_t;
 
 
 
 
-void load_graph(graph_type& graph, const corpus& data);
+
+
+ 
+
+
+
+
+
+
+void load_graph(graph_type& graph, const corpus& data, 
+                size_t iterations);
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -74,7 +90,6 @@ int main(int argc, char** argv) {
   std::cout << "Number of words:   " << corpus.nwords << std::endl
             << "Number of docs:    " << corpus.ndocs << std::endl
             << "Number of tokens:  " << corpus.ntokens << std::endl
-            << "Algorithm:         " << alg_str << std::endl
             << "Ntopics:           " << ntopics << std::endl
             << "Alpha:             " << alpha   << std::endl
             << "Beta:              " << beta    << std::endl;
@@ -84,30 +99,38 @@ int main(int argc, char** argv) {
   std::cout << "Shuffling corpus: " << std::endl;
   corpus.shuffle_tokens();
 
+  std::cout << "Setting global variables" << std::endl;
+  ndocs = corpus.ndocs;
+  nwords = corpus.nwords;
+
   // Setup the core
   gl::core core;
   core.set_options(clopts);
   std::cout << "Building Graph" << std::endl;
-  load_graph(core.graph(), corpus);
+  load_graph(core.graph(), corpus, niters );
   std::cout << "Finished loading graph" << std::endl;
   return EXIT_SUCCESS;
+
+  // set the scheduler
+  
+
 } // end of main
 
 
 
 
-void load_graph(graph_type& graph, const corpus& data) {
+void load_graph(graph_type& graph, const corpus& data, size_t niters) {
   // Construct all the vertices
   const gl::vertex_id nverts = data.nwords + data.ndocs;
   std::cout << "Initializing vertices" << std::endl;
   graph.resize(nverts);
-  for(gl::vertex_id vid = 0; vid < data.nwords; ++vid) {
-    graph.vertex_data(vid).set_type(WORD);
-    graph.vertex_data(vid).set_ntopics(ntopics);
+  for(gl::vertex_id word_vid = 0; word_vid < data.nwords; ++word_vid) {
+    graph.vertex_data(word_vid).set_type(WORD);
+    graph.vertex_data(word_vid).init(ntopics, niters);
   }
-  for(gl::vertex_id vid = data.nwords; vid < nverts; ++vid) {
-    graph.vertex_data(vid).set_type(DOCUMENT);
-    graph.vertex_data(vid).set_ntopics(ntopics);
+  for(gl::vertex_id doc_vid = data.nwords; doc_vid < nverts; ++doc_vid) {
+    graph.vertex_data(doc_vid).set_type(DOCUMENT);
+    graph.vertex_data(doc_vid).init(ntopics, niters);
   }
   const size_t doc_offset = data.nwords;
   typedef corpus::token token_type;
@@ -123,7 +146,8 @@ void load_graph(graph_type& graph, const corpus& data) {
   typedef std::pair<word_id_type, count_type> wc_pair_type;
   for(doc_id_type doc = 0; doc < data.ndocs; ++doc) {
     foreach(const wc_pair_type& wc_pair, word_counts[doc]) {
-      graph.add_edge(doc + doc_offset, wc_pair.first, wc_pair.second); 
+      const edge_data edata(wc_pair.second);
+      graph.add_edge(doc + doc_offset, wc_pair.first, edata);
     }
   }
 }; // end of load_graph
