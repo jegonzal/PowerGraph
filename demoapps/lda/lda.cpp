@@ -48,7 +48,7 @@ void load_graph(graph_type& graph, const corpus& data,
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logger(LOG_INFO, "PageRank starting\n");
+  logger(LOG_INFO, "LDA starting\n");
 
 
   std::string dictionary_fname("dictionary.txt");
@@ -109,12 +109,13 @@ int main(int argc, char** argv) {
   std::cout << "Building Graph" << std::endl;
   load_graph(core.graph(), corpus, niters );
   std::cout << "Finished loading graph" << std::endl;
-  return EXIT_SUCCESS;
 
   // set the scheduler
   core.schedule_all(lda_update());
   core.start();
 
+
+  return EXIT_SUCCESS;
 } // end of main
 
 
@@ -151,6 +152,8 @@ void load_graph(graph_type& graph, const corpus& data, size_t niters) {
       graph.add_edge(doc + doc_offset, wc_pair.first, edata);
     }
   }
+  std::cout << "Finalizing the graph." << std::endl;
+  graph.finalize();
 }; // end of load_graph
 
 
