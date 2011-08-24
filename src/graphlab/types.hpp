@@ -161,6 +161,10 @@ namespace graphlab {
      */
     typedef typename graph::edge_id_type edge_id;
 
+    /**
+     *
+     */
+    typedef graphlab::idivisible<vertex_data> idivisible;
 
     /**
      * \brief The type of id assigned to each vertex. Equivalent to

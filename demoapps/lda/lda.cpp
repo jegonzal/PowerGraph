@@ -22,7 +22,7 @@ size_t ntopics = 50;
 size_t nwords = 0;
 double alpha(1/ntopics);
 double beta(0.1);
-
+std::vector< glshared<size_t> > n_t;
 
 
 
@@ -99,26 +99,31 @@ int main(int argc, char** argv) {
 void load_graph(graph_type& graph, const corpus& data) {
   // Construct all the vertices
   const gl::vertex_id nverts = data.nwords + data.ndocs;
+  std::cout << "Initializing vertices" << std::endl;
   graph.resize(nverts);
   for(gl::vertex_id vid = 0; vid < data.nwords; ++vid) {
-    graph.vertex_data(vid).type = WORD;
+    graph.vertex_data(vid).set_type(WORD);
+    graph.vertex_data(vid).set_ntopics(ntopics);
   }
   for(gl::vertex_id vid = data.nwords; vid < nverts; ++vid) {
-    graph.vertex_data(vid).type = DOCUMENT;
+    graph.vertex_data(vid).set_type(DOCUMENT);
+    graph.vertex_data(vid).set_ntopics(ntopics);
   }
   const size_t doc_offset = data.nwords;
   typedef corpus::token token_type;
 
   // Compute word counts
+  std::cout << "Compute word counts." << std::endl;
   std::vector< std::map< word_id_type, count_type> > 
     word_counts(data.ndocs);
   foreach(const token_type& tok, data.tokens)
     word_counts[tok.doc][tok.word]++;
-  
+
+  std::cout << "Adding edges" << std::endl;
   typedef std::pair<word_id_type, count_type> wc_pair_type;
   for(doc_id_type doc = 0; doc < data.ndocs; ++doc) {
     foreach(const wc_pair_type& wc_pair, word_counts[doc]) {
-      graph.add_edge(doc, wc_pair.first, wc_pair.second); 
+      graph.add_edge(doc + doc_offset, wc_pair.first, wc_pair.second); 
     }
   }
 }; // end of load_graph

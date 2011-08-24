@@ -9,8 +9,7 @@ extern size_t ntopics;
 extern size_t nwords;
 extern double;
 extern double;
-
-std::vector< glshared<size_t> > n_t;
+extern std::vector< glshared<size_t> > n_t;
 
 
  
@@ -18,14 +17,18 @@ class lda_update : public gl::iupdate_functor {
   
 public:
     
-  
+  void operator()(iscope_type& scope, icallback_type& callback) {
+    // Get local data structures
+    const vertex_data& doc       = scope.vertex_data();
+    // only gather on a document
+    ASSERT_EQ(doc.type() == DOCUMENT);
+    // Loop over the out edges
+    
+
+  } // end of operator()
   
   void gather(iscope_type& scope, icallback_type& callback,
               edge_id_type eid) {
-    // only gather on a document
-    ASSERT_EQ(scope.vertex_data().type == DOCUMENT);
-    // Get local data structures
-    const vertex_data& doc       = scope.vertex_data();
     const gl::vertex_id word_vid = scope.target(eid);
     const word_id_type word_id   = word_vid;
     const vertex_data& word      = scope.neighbor_vertex_data(word_vid);

@@ -50,6 +50,8 @@ typedef size_t   count_type;
 
 
 struct corpus {
+
+
   struct token {
     word_id_type word;
     doc_id_type doc;
@@ -66,6 +68,7 @@ struct corpus {
               const std::string& counts_fname );
   void load_dictionary(const std::string& fname);
   void load_counts(const std::string& fname);
+
   void shuffle_tokens();
 }; // end of corpus
 

@@ -21,14 +21,36 @@
  */
 
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
 
-#include <graphlab/graph/graph.hpp>
-#include <graphlab/graph/graph_partitioner.hpp>
-#include <graphlab/graph/disk_graph.hpp>
-#include <graphlab/graph/idivisible.hpp>
+#ifndef GRAPHLAB_IDIVISIBLE_HPP
+#define GRAPHLAB_IDIVISIBLE_HPP
 
 
 
+
+namespace graphlab {
+
+
+  /**
+   * This interface signifies that a vertex is divisible.
+   */
+  template<typename T>
+  class idivisible {
+  public:
+    virtual apply_diff(const T& other, const T& old) = 0;
+  }; // end of class idivisible
+
+
+}; // end of namespace
+#endif
 
 
