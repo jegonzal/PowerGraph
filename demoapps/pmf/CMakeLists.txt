@@ -3,8 +3,9 @@ project(GraphLab)
 
 
 if (ITPP-FOUND)
-  add_graphlab_executable(pmf pmf.cpp advanced_config.cpp)
+  add_graphlab_executable(pmf pmf.cpp advanced_config.cpp main.cpp)
 
+  add_library(graphlabpmf STATIC pmf.cpp advanced_config.cpp)
   # test files
     add_graphlab_executable(itdiff itdiff.cpp)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest

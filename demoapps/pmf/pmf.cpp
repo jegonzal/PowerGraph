@@ -273,7 +273,7 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
 /** 
  * ==== SETUP AND START
  */
-void start(int argc, char ** argv) {
+void start(int argc, const char * argv[]) {
   
   command_line_options clopts = ac.init_command_line_options();    
   assert(clopts.parse(argc, argv));
@@ -440,9 +440,7 @@ void start(int argc, char ** argv) {
 
 
 
-//main function 
-int main(int argc,  char *argv[]) {
-
+void do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
@@ -458,4 +456,6 @@ int main(int argc,  char *argv[]) {
 
    start(argc, argv);
 }
+
+
 #include <graphlab/macros_undef.hpp>

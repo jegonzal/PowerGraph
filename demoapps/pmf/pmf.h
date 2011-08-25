@@ -278,7 +278,7 @@ public:
 
 };
 
-
+void do_main(int argc, const char * argv[]);
 
 
 #endif
