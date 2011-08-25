@@ -84,7 +84,7 @@ void export_kdd_format(graph_type * _g, testtype type, bool dosave) {
     FILE * outFp = NULL;
     if (dosave){
       printf("Exporting KDD cup %s graph: %s\n", testtypename[type], (ac.datafile+"t.kdd.out").c_str());
-      outFp = fopen((ps.datafile+"t.kdd.out").c_str(), "w");
+      outFp = fopen((ac.datafile+"t.kdd.out").c_str(), "w");
       assert(outFp);
     }
     const int ExpectedTestSize = 6005940;

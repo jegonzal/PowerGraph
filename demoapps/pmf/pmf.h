@@ -224,33 +224,33 @@ void svd_plus_plus_update_function(gl_types::iscope & scope,
 class problem_setup{
 public:
 
-bool BPTF; //is this a sampling MCMC algo?
-double pT; //regularization for tensor time nodes
-runmodes algorithm; //type of algorithm
-graphlab::timer gt;
-std::string datafile;
-int iiter;//count number of time zero node run
-mat U,V,T; //for storing the output
-mat dp;
+  bool BPTF; //is this a sampling MCMC algo?
+  double pT; //regularization for tensor time nodes
+  runmodes algorithm; //type of algorithm
+ 
+  graphlab::timer gt;
+  int iiter;//count number of time zero node run
+  mat U,V,T; //for storing the output
+  mat dp;
+
 /* Variables for PMF */
-int M,N,K,L;//training size: users, movies, times, number of edges
-int Le; //number of ratings in validation dataset 
-int Lt;//number of rating in test data set
+  int M,N,K,L;//training size: users, movies, times, number of edges
+  int Le; //number of ratings in validation dataset 
+  int Lt;//number of rating in test data set
 
-bool tensor; //is this tensor or a matrix
+  bool tensor; //is this tensor or a matrix
 
-double globalMean[3]; //store global mean of matrix/tensor entries
+  double globalMean[3]; //store global mean of matrix/tensor entries
 
 //performance counters
 #define MAX_COUNTER 20
-double counter[MAX_COUNTER];
-int unittest;
-vertex_data * times;
-
-gl_types::iengine * engine;
-graph_type* g;
-graph_type validation_graph;
-graph_type test_graph;
+  double counter[MAX_COUNTER];
+  
+  vertex_data * times;
+  gl_types::iengine * engine;
+  graph_type* g;
+  graph_type validation_graph;
+  graph_type test_graph;
 
  problem_setup(){
 
@@ -267,16 +267,14 @@ graph_type test_graph;
   memset(globalMean,0,3*sizeof(double));  //store global mean of matrix/tensor entries
 
 //performance counters
-memset(counter, 0, MAX_COUNTER*sizeof(double));
-unittest = 0;
-times = NULL;
+  memset(counter, 0, MAX_COUNTER*sizeof(double));
+  times = NULL;
 
-engine = NULL;
-g = NULL;
+  engine = NULL;
+  g = NULL;
+}
 
-
-   }
-void verify_setup();
+  void verify_setup();
 
 };
 
