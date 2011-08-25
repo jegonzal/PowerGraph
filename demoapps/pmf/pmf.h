@@ -280,6 +280,8 @@ public:
 
 void do_main(int argc, const char * argv[]);
 
-
+void add_vertices(graph_type * _g, testtype data_type);
+void verify_edges(graph_type * _g, testtype data_type);
+void set_num_edges(int val, testtype data_type);
 #endif
 

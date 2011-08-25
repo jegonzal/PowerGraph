@@ -36,9 +36,11 @@ public:
   double truncating ; // truncate unused time bins (optional, default = 0, no truncation)
   double scalerating; //scale the rating by dividing to the scalerating factor (optional)
 #define DEF_MAX_VAL 1e100
-  double minval;
-  double maxval;
-
+  double minval; //minimal allowed value in matrix/tensor
+  double maxval; //maximal allowed value in matrix/tensor
+  
+  bool mainfunc;
+  bool manualgraphsetup; //if true, graph is loaded in user code and not by us
 
 /* variables of BPTF */
 double als_lambda;
@@ -106,6 +108,8 @@ bool FLOAT; //is data in float format
     minval = -DEF_MAX_VAL;
     maxval = DEF_MAX_VAL;
 
+    mainfunc = true;
+    manualgraphsetup = false;
     als_lambda = 1;
     bptf_delay_alpha = 0;
     bptf_burn_in = 10;

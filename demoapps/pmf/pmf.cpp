@@ -276,7 +276,8 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
 void start(int argc, const char * argv[]) {
   
   command_line_options clopts = ac.init_command_line_options();    
-  assert(clopts.parse(argc, argv));
+  if (ac.mainfunc) //if called from main(), parse command line arguments
+    assert(clopts.parse(argc, argv));
   
   if (ac.unittest > 0)
      unit_testing(ac.unittest,clopts);
@@ -291,6 +292,7 @@ void start(int argc, const char * argv[]) {
    gl_types::core glcore;
   //read the training data
   printf("loading data file %s\n", ac.datafile.c_str());
+  if (!ac.manualgraphsetup){
   if (!ac.loadgraph){
     ps.g=&glcore.graph();
     load_pmf_graph(ac.datafile.c_str(), ps.g, TRAINING, glcore);
@@ -329,7 +331,7 @@ void start(int argc, const char * argv[]) {
     printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", ps.M, ps.N, ps.K, ac.D);   
     printf("Creating %d edges (observed ratings)...\n", ps.L);
   }
-  
+  }
 
   if (ac.loadfactors){
      import_uvt_from_file();

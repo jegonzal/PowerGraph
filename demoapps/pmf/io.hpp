@@ -263,7 +263,87 @@ void import_uvt_from_file(){
  } 
  
 }
+void verify_edges(graph_type * _g, testtype data_type){
 
+  //verify edges
+  for (int i=ps.M; i < ps.M+ps.N; i++){
+    foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
+#ifndef GL_NO_MULT_EDGES      
+     const  multiple_edges & tedges= _g->edge_data(eid);
+#endif
+      int from = _g->source(eid);
+      int to = _g->target(eid);
+      assert(from < ps.M);
+      assert(to >= ps.M && to < ps.M+ps.N);
+
+#ifndef GL_NO_MULT_EDGES
+      for (int j=0; j< (int)tedges.medges.size(); j++){
+        const edge_data & data= tedges.medges[j];
+#else
+      const edge_data & data = _g->edge_data(eid);
+#endif
+	if (!ac.zero)
+          assert(data.weight != 0);  
+        if (ps.algorithm != WEIGHTED_ALS)
+          assert(data.time < ps.K);
+  
+        if (ps.K > 1 && data_type==TRAINING && ps.tensor)
+          edges[(int)data.time].push_back(eid);
+#ifndef GL_NO_MULT_EDGES      
+        }
+#endif
+    }
+  }
+}
+
+
+void set_num_edges(int val, testtype data_type){
+  switch(data_type){
+    case TRAINING: 
+      ps.L = val; break;
+    
+    case VALIDATION: 
+      ps.Le = val; 
+      if (ac.aggregatevalidation)
+	ps.L+=  ps.Le; //add edges of validation dataset into the training data set as well.
+	break; 
+     
+    case TEST: 
+      ps.Lt = val; break;
+  }  
+}
+
+void add_vertices(graph_type * _g, testtype data_type){
+  vertex_data vdata;
+  // add M movie nodes (ps.tensor dim 1)
+  for (int i=0; i<ps.M; i++){
+    vdata.pvec = ac.debug? (itpp::ones(ac.D)*0.1) : (itpp::randu(ac.D)*0.1);
+    _g->add_vertex(vdata);
+    if (ac.debug && (i<= 5 || i == ps.M-1))
+      debug_print_vec("U: ", vdata.pvec, ac.D);
+  }
+  
+  // add N user node (ps.tensor dim 2) 
+  for (int i=0; i<ps.N; i++){
+    vdata.pvec = ac.debug? (itpp::ones(ac.D)*0.1) : (itpp::randu(ac.D)*0.1);
+    _g->add_vertex(vdata);
+    if (ac.debug && (i<=5 || i==ps.N-1))
+      debug_print_vec("V: ", vdata.pvec, ac.D);
+  }
+  
+  if (data_type==TRAINING && ps.tensor){
+    //init times
+    ps.times = new vertex_data[ps.K];
+    vec tones = itpp::ones(ac.D)*(ps.K==1?1:0.1);
+    //add T time node (ps.tensor dim 3)
+    for (int i=0; i<ps.K; i++){
+      ps.times[i].pvec =tones;
+      _g->add_vertex(ps.times[i]);
+      if (ac.debug && (i <= 5 || i == ps.K-1))
+        debug_print_vec("T: ", ps.times[i].pvec, ac.D);
+    }
+  }
+}
 
 /* function that reads the ps.tensor from file */
 /* Input format is:
@@ -317,37 +397,8 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
 
   printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", ps.M, ps.N, ps.K);
  
-  vertex_data vdata;
-
-  // add M movie nodes (ps.tensor dim 1)
-  for (int i=0; i<ps.M; i++){
-    vdata.pvec = ac.debug? (itpp::ones(ac.D)*0.1) : (itpp::randu(ac.D)*0.1);
-    _g->add_vertex(vdata);
-    if (ac.debug && (i<= 5 || i == ps.M-1))
-      debug_print_vec("U: ", vdata.pvec, ac.D);
-  }
-  
-  // add N user node (ps.tensor dim 2) 
-  for (int i=0; i<ps.N; i++){
-    vdata.pvec = ac.debug? (itpp::ones(ac.D)*0.1) : (itpp::randu(ac.D)*0.1);
-    _g->add_vertex(vdata);
-    if (ac.debug && (i<=5 || i==ps.N-1))
-      debug_print_vec("V: ", vdata.pvec, ac.D);
-  }
-  
-  if (data_type==TRAINING && ps.tensor){
-    //init times
-    ps.times = new vertex_data[ps.K];
-    vec tones = itpp::ones(ac.D)*(ps.K==1?1:0.1);
-    //add T time node (ps.tensor dim 3)
-    for (int i=0; i<ps.K; i++){
-      ps.times[i].pvec =tones;
-      _g->add_vertex(ps.times[i]);
-      if (ac.debug && (i <= 5 || i == ps.K-1))
-        debug_print_vec("T: ", ps.times[i].pvec, ac.D);
-    }
-  }
-  
+  add_vertices(_g, data_type);
+ 
   // read tensor non zero edges from file
   int val = 0; 
   if (!ac.FLOAT) 
@@ -355,52 +406,12 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   else 
      val = read_mult_edges<edge_float>(f,ps.M+ps.N, data_type, _g);
 
-  switch(data_type){
-    case TRAINING: 
-      ps.L = val; break;
-    
-    case VALIDATION: 
-      ps.Le = val; 
-      if (ac.aggregatevalidation)
-	ps.L+=  ps.Le; //add edges of validation dataset into the training data set as well.
-	break; 
-     
-    case TEST: 
-      ps.Lt = val; break;
-  }  
-
   if (data_type==TRAINING && ps.tensor && ps.K>1) 
     edges = new std::vector<edge_id_t>[ps.K]();
 
-  //verify edges
-  for (int i=ps.M; i < ps.M+ps.N; i++){
-    foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
-#ifndef GL_NO_MULT_EDGES      
-     const  multiple_edges & tedges= _g->edge_data(eid);
-#endif
-      int from = _g->source(eid);
-      int to = _g->target(eid);
-      assert(from < ps.M);
-      assert(to >= ps.M && to < ps.M+ps.N);
+  set_num_edges(val, data_type);
+  verify_edges(_g, data_type);
 
-#ifndef GL_NO_MULT_EDGES
-      for (int j=0; j< (int)tedges.medges.size(); j++){
-        const edge_data & data= tedges.medges[j];
-#else
-      const edge_data & data = _g->edge_data(eid);
-#endif
-	if (!ac.zero)
-          assert(data.weight != 0);  
-        if (ps.algorithm != WEIGHTED_ALS)
-          assert(data.time < ps.K);
-  
-        if (ps.K > 1 && data_type==TRAINING && ps.tensor)
-          edges[(int)data.time].push_back(eid);
-#ifndef GL_NO_MULT_EDGES      
-        }
-#endif
-    }
-  }
   fclose(f);
   
   //add implicit edges if requested
