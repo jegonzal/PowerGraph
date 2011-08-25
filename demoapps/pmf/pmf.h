@@ -5,7 +5,7 @@
 #include <itpp/itbase.h>
 #include <itpp/itstat.h>
 #include <itpp/stat/misc_stat.h>
-
+#include "graphlab.hpp"
 /**
 
  Probabalistic matrix/tensor factorization written Danny Bickson, CMU
@@ -52,17 +52,6 @@ For sparsity enforcing priors see:
 
 using namespace itpp;
 
-#define DEF_MAX_VAL 1e100
-#define DEF_MIN_VAL -1e100
-
-
-float maxval = DEF_MAX_VAL; //max allowed matrix/tensor entry
-float minval = DEF_MIN_VAL;
-
-float min(float a, float b){ return a<b?a:b; }
-float max(float a, float b){ return a>b?a:b; }
-
-
 
 //starts for holding edge data in file
 struct edge_double{
@@ -79,7 +68,6 @@ struct edge_float{
 };
 
 
-int D=20;         //number of features
 
 /** Vertex and edge data types **/
 struct vertex_data {
@@ -93,31 +81,11 @@ struct vertex_data {
 #endif
 
   //constructor
-  vertex_data(){
-    pvec = zeros(D);
-    rmse = 0;
-    num_edges = 0;
-#ifdef GL_SVD_PP
-    bias =0;
-    weight = zeros(D);
-#endif
-  }
+  vertex_data();
 
-  void save(graphlab::oarchive& archive) const {  
-    archive << pvec;
-    archive << rmse << num_edges; 
-#ifdef GL_SVD_PP
-    archive << bias << weight;
-#endif
-  }  
+  void save(graphlab::oarchive& archive) const; 
    
-  void load(graphlab::iarchive& archive) {  
-     archive >> pvec;
-     archive >> rmse >> num_edges;  
-#ifdef GL_SVD_PP
-     archive >> bias >> weight;
-#endif
-  }
+  void load(graphlab::iarchive& archive); 
 };
 
 struct edge_data {
@@ -163,47 +131,13 @@ struct multiple_edges{
 
 
 float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction);
-
-//methods to compute the Root mean square error (RMSE)     
-inline float predict(const vec& x1, const vec& x2, const edge_data * edge, float rating, float & prediction){
-	prediction = dot(x1, x2);	
-   //return the squared error
-   prediction = min(prediction, maxval);
-   prediction = max(prediction, minval);
-	float sq_err = powf(prediction - rating, 2);
-   return sq_err;
-}
-
-inline double predict(const vertex_data& user, const vertex_data &movie, const edge_data * edge, float rating, float & prediction){
-#ifdef GL_SVD_PP	
-   return svd_predict(user, movie, edge, rating, prediction);
-#else
-   return predict(user.pvec, movie.pvec, edge, rating, prediction);
-#endif
-} 
-
-
-inline float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction){
-	if (v3 == NULL) //matrix	
-		return predict(v1,v2,edge, rating,prediction);
-
-	prediction = 0;
-	for (int i=0; i< v1.pvec.size(); i++){
-	   prediction += (v1.pvec[i] * v2.pvec[i] * v3->pvec.get(i));
-	}
-   prediction = min(prediction, maxval);
-   prediction = max(prediction, minval);
-   float sq_err = powf(prediction - rating, 2);
-   return sq_err;
-   
-}
+float predict(const vec& x1, const vec& x2, const edge_data * edge, float rating, float & prediction);
+double predict(const vertex_data& user, const vertex_data &movie, const edge_data * edge, float rating, float & prediction);
+float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction);
 
 
  
- double get_rmse(const vertex_data & v){
-    return v.rmse;
- }
-
+ double get_rmse(const vertex_data & v);
 
 
 //data file types
@@ -213,7 +147,8 @@ enum testtype{
     TEST = 2
 };
 
-const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
+static const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
+
 
 //run modes
 enum runmodes{
@@ -234,7 +169,7 @@ enum runmodes{
 
 #define MAX_RUNMODE 9
 
-const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix"};
+static const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix"};
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -251,8 +186,10 @@ enum countervals{
    SVD_MULT_A_TRANSPOSE=10,
 };
 
-const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
+static const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
+
+
 
 //types of graph nodes
 enum colors{
@@ -279,16 +216,72 @@ typedef graphlab::types<graph_type> gl_types;
 double agg_rmse_by_movie(double & res);
 double agg_rmse_by_user(double & res);
 
-
-#ifndef GL_SVD_PP
-void svd_init(){};
-void svd_plus_plus_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler){};
-#else
 void svd_init();
 void svd_plus_plus_update_function(gl_types::iscope & scope, 
       gl_types::icallback & scheduler);
-#endif
+
+
+class problem_setup{
+public:
+
+bool BPTF; //is this a sampling MCMC algo?
+double pT; //regularization for tensor time nodes
+runmodes algorithm; //type of algorithm
+graphlab::timer gt;
+std::string datafile;
+int iiter;//count number of time zero node run
+mat U,V,T; //for storing the output
+mat dp;
+/* Variables for PMF */
+int M,N,K,L;//training size: users, movies, times, number of edges
+int Le; //number of ratings in validation dataset 
+int Lt;//number of rating in test data set
+
+bool tensor; //is this tensor or a matrix
+
+double globalMean[3]; //store global mean of matrix/tensor entries
+
+//performance counters
+#define MAX_COUNTER 20
+double counter[MAX_COUNTER];
+int unittest;
+vertex_data * times;
+
+gl_types::iengine * engine;
+graph_type* g;
+graph_type validation_graph;
+graph_type test_graph;
+
+ problem_setup(){
+
+  BPTF = false; //is this a sampling MCMC algo?
+  pT = 1; //regularization for tensor time nodes
+  algorithm = ALS_MATRIX; //type of algorithm
+  iiter = 1;//count number of time zero node run
+
+ /* Problem size */
+  M=N=K=L=0;//training size: users, movies, times, number of edges
+  Le = 0; //number of ratings in validation dataset 
+  Lt = 0;//number of rating in test data set
+
+  memset(globalMean,0,3*sizeof(double));  //store global mean of matrix/tensor entries
+
+//performance counters
+memset(counter, 0, MAX_COUNTER*sizeof(double));
+unittest = 0;
+times = NULL;
+
+engine = NULL;
+g = NULL;
+
+
+   }
+void verify_setup();
+
+};
+
+
+
 
 #endif
 

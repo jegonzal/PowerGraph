@@ -36,16 +36,9 @@
  *  In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
  *
  * */
+extern advanced_config ac;
+extern problem_setup ps;
 
-extern string infile;
-extern int iiter, L, Le;
-extern bool ZERO;
-extern timer gt;
-extern graph_type validation_graph;
-extern bool debug;
-extern float sgd_lambda;
-extern float sgd_gamma;
-extern float sgd_step_dec;
 using namespace graphlab;
 using namespace itpp;
 
@@ -60,7 +53,7 @@ void sgd_update_function(gl_types::iscope &scope,
     
 
   //USER NODES    
-  if ((int)scope.vertex() < M){
+  if ((int)scope.vertex() < ps.M){
 
 
   /* GET current vertex data */
@@ -68,12 +61,12 @@ void sgd_update_function(gl_types::iscope &scope,
  
   
   /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1))){
-    printf("SGD: entering %s node  %u \n", (((int)scope.vertex() < M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , user.pvec, D);
+  if (ac.debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1) || ((int)scope.vertex() == ps.M) || ((int)scope.vertex() == ps.M+ps.N-1))){
+    printf("SGD: entering %s node  %u \n", (((int)scope.vertex() < ps.M) ? "movie":"user"), (int)scope.vertex());   
+    debug_print_vec((((int)scope.vertex() < ps.M) ? "V " : "U") , user.pvec, ac.D);
   }
 
-  assert((int)scope.vertex() < M+N);
+  assert((int)scope.vertex() < ps.M+ps.N);
 
   user.rmse = 0;
 
@@ -102,19 +95,19 @@ void sgd_update_function(gl_types::iscope &scope,
       user.rmse += sqErr;
       assert(!isnan(user.rmse));
       float err = edge.weight - estScore;
-      movie.pvec = movie.pvec + sgd_gamma*(err*user.pvec - sgd_lambda*movie.pvec);
-      user.pvec = user.pvec + sgd_gamma*(err*movie.pvec - sgd_lambda*user.pvec);
+      movie.pvec = movie.pvec + ac.sgd_gamma*(err*user.pvec - ac.sgd_lambda*movie.pvec);
+      user.pvec = user.pvec + ac.sgd_gamma*(err*movie.pvec - ac.sgd_lambda*user.pvec);
 #ifndef GL_NO_MULT_EDGES
       }
 #endif
    }
 
 
-   counter[EDGE_TRAVERSAL] += t.current_time();
+   ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == (uint)M-1){
+   if (scope.vertex() == (uint)ps.M-1){
   	last_iter();
-        sgd_gamma *= sgd_step_dec;
+        ac.sgd_gamma *= ac.sgd_step_dec;
     }
 
   }

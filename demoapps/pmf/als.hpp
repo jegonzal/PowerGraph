@@ -29,13 +29,8 @@
 #include "pmf.h"
 #include <graphlab/macros_def.hpp>
 
-extern runmodes algorithm;
-extern double LAMBDA;
-extern bool regnormal;
-extern double pT;
-extern double user_sparsity;
-extern double movie_sparsity;
-extern int lasso_max_iter;
+extern advanced_config ac;
+extern problem_setup ps;
 mat eDT; 
 vec vones; 
 double pU = 10; //regularization for users
@@ -45,32 +40,32 @@ double pV = 10; //regularization for movies
 vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D);
 
 void init_pmf() {
-  if (BPTF)
-    pT=10;
-  eDT = itpp::eye(D)*pT;
-  vones = itpp::ones(D);
-  printf("pU=%g, pV=%g, pT=%g, D=%d\n", pU, pV, pT,D);  
+  if (ps.BPTF)
+    ps.pT=10;
+  eDT = itpp::eye(ac.D)*ps.pT;
+  vones = itpp::ones(ac.D);
+  printf("pU=%g, pV=%g, pT=%g, D=%d\n", pU, pV, ps.pT,ac.D);  
 }
  
  
 // fill out the linear relation matrix (Q) between users/movies and movie/users
 inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i, vec * weights){
       
-  if (!ZERO)
+  if (!ac.zero)
   	assert(edge.weight != 0);
 
-  if (tensor){
-    dot2(pdata.pvec,  times[(int)edge.time].pvec, Q, i, D);  
+  if (ps.tensor){
+    dot2(pdata.pvec,  ps.times[(int)edge.time].pvec, Q, i, ac.D);  
   }
   else {
-    for (int j=0; j<D; j++)
+    for (int j=0; j<ac.D; j++)
       Q.set(j,i, pdata.pvec[j]); 
   }
  
   vals[i] = edge.weight;
   
   if (weights != NULL){
-     if (!ZERO) assert(edge.time!= 0);
+     if (!ac.zero) assert(edge.time!= 0);
      weights->set( i, edge.time);
      vals[i] *= edge.time;
   }
@@ -86,12 +81,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vertex_data& vdata = scope.vertex_data();
  
   int id = scope.vertex();
-  bool toprint = debug && (id == 0 || (id == M-1) || (id == M) || (id == M+N-1)); 
-  bool isuser = id < M;
+  bool toprint = ac.debug && (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1)); 
+  bool isuser = id < ps.M;
   /* print statistics */
   if (toprint){
     printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
-    debug_print_vec((isuser ? "V " : "U") , vdata.pvec, D);
+    debug_print_vec((isuser ? "V " : "U") , vdata.pvec, ac.D);
   }
 
   vdata.rmse = 0;
@@ -105,7 +100,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   gl_types::edge_list outs = scope.out_edge_ids();
   gl_types::edge_list ins = scope.in_edge_ids();
   timer t;
-  mat Q(D,numedges); //linear relation matrix
+  mat Q(ac.D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
   vec weight(numedges); // vector of weights (to be used in weighted ALS)
   int i=0;
@@ -125,7 +120,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 #endif
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
-        parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS? &weight : NULL); 
+        parse_edge(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS? &weight : NULL); 
         if (toprint && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
         i++;
@@ -150,7 +145,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 	edge_data & edge = scope.edge_data(iedgeid);
 #endif   
         //go over each rating by user
-        parse_edge(edge, pdata, Q, vals, i, algorithm == WEIGHTED_ALS ? &weight: NULL); 
+        parse_edge(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS ? &weight: NULL); 
         if (toprint/* && (i==0 || i == numedges-1)*/)
           std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
 
@@ -158,8 +153,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         float prediction;     
         float trmse = predict(vdata, 
                               pdata, 
-                              (algorithm == WEIGHTED_ALS) ? &edge : NULL, 
-                              tensor?(&times[(int)edge.time]):NULL, 
+                              (ps.algorithm == WEIGHTED_ALS) ? &edge : NULL, 
+                              ps.tensor?(&ps.times[(int)edge.time]):NULL, 
 			      edge.weight, 
                               prediction);
 #ifndef GL_NO_MCMC
@@ -169,7 +164,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         }
 #endif
       //weight rmse with edge weight 
-      if (algorithm == WEIGHTED_ALS)
+      if (ps.algorithm == WEIGHTED_ALS)
           trmse *= edge.time;
       
        if (toprint)
@@ -185,30 +180,30 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   }
   assert(i == numedges);
-  counter[EDGE_TRAVERSAL] += t.current_time();
+  ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
   vec result;
       
-  if (!BPTF){
+  if (!ps.BPTF){
     //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
     t.start();
-    double regularization = LAMBDA;
+    double regularization = ac.als_lambda;
   
     //compute weighted regularization (see section 3.2 of Zhou paper)
-    if (!regnormal)
+   if (!ac.regnormal)
 	   regularization*= Q.cols();
 
    //enforce sparsity priors on resulting factor vector, see algorithm 1, page 4 in Xi et. al paper
-   if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || (algorithm == ALS_SPARSE_USR_FACTOR && isuser) || 
-      (algorithm == ALS_SPARSE_MOVIE_FACTOR && !isuser)){ 
+   if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || (ps.algorithm == ALS_SPARSE_USR_FACTOR && isuser) || 
+      (ps.algorithm == ALS_SPARSE_MOVIE_FACTOR && !isuser)){ 
        double sparsity_level = 1.0;
        if (isuser)
-	  sparsity_level -= user_sparsity;
-       else sparsity_level -= movie_sparsity;
-       result = CoSaMP(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, ceil(sparsity_level*(double)D), lasso_max_iter, 1e-4, D); 
+	  sparsity_level -= ac.user_sparsity;
+       else sparsity_level -= ac.movie_sparsity;
+       result = CoSaMP(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, ceil(sparsity_level*(double)ac.D), ac.lasso_max_iter, 1e-4, ac.D); 
    }
     // compute regular least suqares
-   else if (algorithm != WEIGHTED_ALS){
+   else if (ps.algorithm != WEIGHTED_ALS){
        bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
     } 
@@ -218,45 +213,45 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
        weight = sqrt(weight);
        //avoid explicit creation of W = diag(W) because it is wasteful in memory.
        //instead, compute directly the product Q*W*Q'
-       for (int i=0; i<D; i++)
+       for (int i=0; i<ac.D; i++)
 	 for (int j=0; j<numedges; j++)
              Q._elem(i,j)*= weight[j];
        mat A = Q*transpose(Q)+(eDT*regularization);
        bool ret = itpp::ls_solve_chol(A, b, result);
-       if (debug)
+       if (ac.debug)
           cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << b << "Q*W*Q'+eDT+Reg: " << A << endl;
        assert(ret);
     }
-    counter[ALS_LEAST_SQUARES] += t.current_time();
+    ps.counter[ALS_LEAST_SQUARES] += t.current_time();
   }
   else 
   {
     //COMPUTE LEAST SQUARES (BPTF)
     //according to equation A.6 or A.7 in Xiong paper.
-    assert(Q.rows() == D);
+    assert(Q.rows() == ac.D);
     t.start();
     mat iAi_;
     bool ret =inv((isuser? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
     assert(ret);
     t.start();
     vec mui_ =  iAi_*((isuser? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);
-    counter[BPTF_LEAST_SQUARES2]+= t.current_time();
+    ps.counter[BPTF_LEAST_SQUARES2]+= t.current_time();
        
     t.start();
-    result = mvnrndex(mui_, iAi_, D); 
-    assert(result.size() == D);
-    counter[BPTF_MVN_RNDEX] += t.current_time();
+    result = mvnrndex(mui_, iAi_, ac.D); 
+    assert(result.size() == ac.D);
+    ps.counter[BPTF_MVN_RNDEX] += t.current_time();
   }
 
   if (toprint){
-    std::cout <<(BPTF?"BPTF":"ALS")<<std::endl<<" result: " << result << " edges: " << numedges << std::endl;
+    std::cout <<(ps.BPTF?"BPTF":"ALS")<<std::endl<<" result: " << result << " edges: " << numedges << std::endl;
   }
       
   //store new result
   vdata.pvec =  result;
 
   //calc post round tasks
-  if (!tensor && (int)scope.vertex() == M+N-1)
+  if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
     last_iter();
 
 }

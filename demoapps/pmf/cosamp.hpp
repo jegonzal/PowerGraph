@@ -29,7 +29,7 @@
 
 #include <itpp/base/sort.h>
 
-extern bool debug;
+
 
 ivec sort_union(ivec a, ivec b){
    ivec ab = concat(a,b);

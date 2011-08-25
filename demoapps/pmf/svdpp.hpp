@@ -46,13 +46,8 @@ float itmFctrReg = 1e-2f; //gamma7
 float itmFctr2Step = 1e-4f;
 float itmFctr2Reg = 1e-2f;
 
-extern string infile;
-extern int iiter, L, Le;
-extern bool ZERO;
-extern timer gt;
-extern graph_type validation_graph;
-extern double globalMean[3];
-extern bool debug;
+extern advanced_config ac;
+extern problem_setup ps;
 
 double bestValidSqErr=DBL_MAX;
 double stepSize=8e-3;
@@ -65,9 +60,9 @@ using namespace itpp;
 
 void svd_init(){
    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", D,stepSize,regularization);
-   for (int i=0; i<M+N; i++){
+   for (int i=0; i<ps.M+ps.N; i++){
        vertex_data & data = g->vertex_data(i);
-       data.weight = debug ? itpp::ones(D) : itpp::randu(D);
+       data.weight = debug ? itpp::ones(ps.D) : itpp::randu(D);
    } 
 }
 
@@ -83,10 +78,10 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
      res = 0;
      double sqErr =0;
      int nCases = 0;
-     for (int i=0; i< M; i++){
+     for (int i=0; i< ps.M; i++){
        vertex_data & usr = g->vertex_data(i);
        int n = usr.num_edges; //+1.0 ? //regularization
-       usr.weight = zeros(D);
+       usr.weight = zeros(ps.D);
        foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
          vertex_data & movie = g->vertex_data(g->target(oedgeid)); 
 	 usr.weight += movie.weight;
@@ -103,7 +98,7 @@ double calc_svd_rmse(graph_type * _g, bool test, double & res){
        }
    }
    res = sqErr;
-   assert(nCases == (test?Le:L));
+   assert(nCases == (test?ps.Le:ps.L));
    return sqrt(sqErr/(double)nCases);
 }
 
@@ -113,7 +108,7 @@ void svd_post_iter(){
 
   double res,res2;
   double rmse = agg_rmse_by_user(res);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), "SVD", iiter,  rmse, calc_svd_rmse(&validation_graph, true, res2));
+  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(&validation_graph, true, res2));
 
   itmFctrStep *= 0.9f;
   itmFctr2Step *= 0.9f;
@@ -126,13 +121,13 @@ void svd_post_iter(){
 
 float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction){
       //\hat(r_ui) = \mu + 
-      prediction = globalMean[0];
+      prediction = ps.globalMean[0];
                  // + b_u  +    b_i +
       prediction += user.bias + movie.bias;
                  // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
       prediction += movie.pvec*(user.pvec+user.weight);
-      prediction = min(prediction, maxval);
-      prediction = max(prediction, minval);
+      prediction = min(prediction, ps.maxval);
+      prediction = max(prediction, ps.minval);
       float err = rating - prediction;
       return err*err; 
 }
@@ -151,12 +146,12 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
  
   
   /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1) || ((int)scope.vertex() == M) || ((int)scope.vertex() == M+N-1) || ((int)scope.vertex() == 93712))){
-    printf("SVDPP: entering %s node  %u \n", (((int)scope.vertex() < M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < M) ? "V " : "U") , user.pvec, D);
+  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1) || ((int)scope.vertex() == ps.M) || ((int)scope.vertex() == ps.M+ps.N-1))){
+    printf("SVDPP: entering %s node  %u \n", (((int)scope.vertex() < ps.M) ? "movie":"user"), (int)scope.vertex());   
+    debug_print_vec((((int)scope.vertex() < ps.M) ? "V " : "U") , user.pvec, ps.D);
   }
 
-  assert((int)scope.vertex() < M+N);
+  assert((int)scope.vertex() < ps.M+ps.N);
 
   user.rmse = 0;
 
@@ -171,10 +166,10 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
   t.start(); 
   //USER NODES    
-  if ((int)scope.vertex() < M){
+  if ((int)scope.vertex() < ps.M){
 
 
-    user.weight = zeros(D);
+    user.weight = zeros(ps.D);
     
     foreach(graphlab::edge_id_t oedgeid, outs) {
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
@@ -188,7 +183,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
    //sqrt(|N(u)| * sum_j y_j
    user.weight *= usrNorm;
 
-   vec step = zeros(D);
+   vec step = zeros(ps.D);
  
    // main algorithm, see Koren's paper, just below below equation (16)
    foreach(graphlab::edge_id_t oedgeid, outs) {
@@ -227,7 +222,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
    counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == (uint)(M-1))
+   if (scope.vertex() == (uint)(ps.M-1))
   	svd_post_iter();
    }
 

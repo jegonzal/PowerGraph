@@ -3,7 +3,7 @@ project(GraphLab)
 
 
 if (ITPP-FOUND)
-  add_graphlab_executable(pmf pmf.cpp)
+  add_graphlab_executable(pmf pmf.cpp advanced_config.cpp)
 
   # test files
     add_graphlab_executable(itdiff itdiff.cpp)

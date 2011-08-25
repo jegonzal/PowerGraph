@@ -27,15 +27,16 @@
 #define _STATS_HPP
 
 #include <graphlab/macros_def.hpp>
-extern int Lt;
-extern mat dp;
-extern double lasso_lambda;
-extern runmodes algorithm;
+
+extern advanced_config ac;
+extern problem_setup ps;
+
+
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
 int count_edges(gl_types::edge_list es){
   
-  if (algorithm != BPTF_TENSOR_MULT && algorithm != ALS_TENSOR_MULT)
+  if (ps.algorithm != BPTF_TENSOR_MULT && ps.algorithm != ALS_TENSOR_MULT)
       return es.size();
 
 #ifndef GL_NO_MULT_EDGES
@@ -52,9 +53,9 @@ int count_edges(gl_types::edge_list es){
 
 //go over all ratings and count how ratings for each node (user/movie)
 void count_all_edges(graph_type * _g){
-    for (int i=0; i<M+N; i++){
+    for (int i=0; i<ps.M+ps.N; i++){
         vertex_data &vdata = _g->vertex_data(i);
-        if (i < M)
+        if (i < ps.M)
           vdata.num_edges = count_edges(_g->out_edge_ids(i));
         else
           vdata.num_edges = count_edges(_g->in_edge_ids(i));
@@ -84,11 +85,11 @@ double calc_obj(double res){
 
   timer t;
   t.start();
-  for (int i=0; i< M; i++){
-    const vertex_data * data = &g->vertex_data(i);
+  for (int i=0; i< ps.M; i++){
+    const vertex_data * data = &ps.g->vertex_data(i);
     if (data->num_edges > 0){
       sumU += sum_sqr(data->pvec);
-      if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR){
+      if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_USR_FACTOR){
 	absSum += sum(abs(data->pvec));
       } 
       user_sparsity += num_zeros(data->pvec);
@@ -97,11 +98,11 @@ double calc_obj(double res){
      
   } 
 
-  for (int i=M; i< M+N; i++){
-    const vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){
+    const vertex_data * data = &ps.g->vertex_data(i);
     if (data->num_edges > 0 ){
       sumV += sum_sqr(data->pvec);
-      if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR){
+      if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_MOVIE_FACTOR){
          absSum += sum(abs(data->pvec));
       }  
       movie_sparsity += num_zeros(data->pvec);
@@ -111,25 +112,25 @@ double calc_obj(double res){
 
 
   mat T;
-  if (tensor){
-    T = zeros(D,K);
-    for (int i=0; i<K; i++){
-      vec tmp = times[i].pvec;
+  if (ps.tensor){
+    T = zeros(ac.D,ps.K);
+    for (int i=0; i<ps.K; i++){
+      vec tmp = ps.times[i].pvec;
       sumT += pow(norm(tmp - vones, 2),2);
       T.set_col(i, tmp);
     }
-    sumT *= pT;
+    sumT *= ps.pT;
   }
-  counter[CALC_OBJ]+= t.current_time();
+  ps.counter[CALC_OBJ]+= t.current_time();
   
-  double obj = (res + pU*sumU + pV*sumV + sumT + (tensor?trace(T*dp*T.transpose()):0)) / 2.0;
+  double obj = (res + pU*sumU + pV*sumV + sumT + (ps.tensor?trace(T*ps.dp*T.transpose()):0)) / 2.0;
 
-  if (algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
-     cout<<"Current user sparsity : " << ((double)user_sparsity / ((double)D*user_cnt)) << " movie sparsity: "  << ((double)movie_sparsity / ((double)D*movie_cnt)) << endl;
+  if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_USR_FACTOR || ps.algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
+     cout<<"Current user sparsity : " << ((double)user_sparsity / ((double)ac.D*user_cnt)) << " movie sparsity: "  << ((double)movie_sparsity / ((double)ac.D*movie_cnt)) << endl;
      obj += absSum;
   }
 
-  if (debug)
+  if (ac.debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << pU << " pV: " << pV << endl; 
   return obj;
 }
@@ -138,9 +139,9 @@ double calc_obj(double res){
 void calc_stats(testtype type){
    graph_type * gr = NULL;
    switch(type){ 
-     case TRAINING: gr = g; break; 
-     case VALIDATION: gr = &validation_graph; break;
-     case TEST: gr = &test_graph; break;
+     case TRAINING: gr = ps.g; break; 
+     case VALIDATION: gr = &ps.validation_graph; break;
+     case TEST: gr = &ps.test_graph; break;
    }
 
    if (gr->num_vertices() == 0){
@@ -148,18 +149,18 @@ void calc_stats(testtype type){
      return;
    } 
 
-   if (tensor && type == TRAINING){
+   if (ps.tensor && type == TRAINING){
      int firsttimeused=-1;
      int lasttimeused=-1;
-     for (int i=0; i<K; i++){
+     for (int i=0; i<ps.K; i++){
        if (edges[i].size() > 0)
          firsttimeused = i;
      }
-     for (int i=K-1; i>=0; i--){
+     for (int i=ps.K-1; i>=0; i--){
        if (edges[i].size() > 0)
          lasttimeused = i;
      }
-     printf("Out of total %d time components, first used is %d, last used is %d\n", K, firsttimeused, lasttimeused);
+     printf("Out of total %d time components, first used is %d, last used is %d\n", ps.K, firsttimeused, lasttimeused);
   }	
 
   double avgval=0, minval=1e100, maxval=-1e100;
@@ -168,7 +169,7 @@ void calc_stats(testtype type){
   int moviewithoutedges = 0;
   int userwithoutedges = 0;
   int numedges = 0;
-  for (int i=M; i< M+N; i++){ 
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
       if (itpp::min(data->pvec) < minU)
 	 minU = itpp::min(data->pvec);
@@ -204,7 +205,7 @@ void calc_stats(testtype type){
 	
     }
  }
- for (int i=0; i< M; i++){ 
+ for (int i=0; i< ps.M; i++){ 
    const vertex_data * data = &gr->vertex_data(i);
    if (itpp::min(data->pvec) < minV)
      minV = itpp::min(data->pvec);
@@ -224,28 +225,28 @@ void calc_stats(testtype type){
 
  //verify we did not miss any ratings (nnz values)
  switch(type){
-   case TRAINING: assert(numedges==L); break;
-   case VALIDATION: assert(numedges==Le); break;
-   case TEST: assert(numedges==Lt); break;
+   case TRAINING: assert(numedges==ps.L); break;
+   case VALIDATION: assert(numedges==ps.Le); break;
+   case TEST: assert(numedges==ps.Lt); break;
  }
 }
 
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
 double calc_rmse(graph_type * _g, bool test, double & res){
-     if (test && Le == 0)
+     if (test && ps.Le == 0)
        return NAN;
      
-     if (algorithm == LANCZOS) //not implemented yet
+     if (ps.algorithm == LANCZOS) //not implemented yet
        return NAN;
  
      res = 0;
      double RMSE = 0;
      int e = 0;
-     for (int i=M; i< M+N; i++){
-       vertex_data & data = g->vertex_data(i);
+     for (int i=ps.M; i< ps.M+ps.N; i++){
+       vertex_data & data = ps.g->vertex_data(i);
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         vertex_data & pdata = g->vertex_data(_g->source(iedgeid)); 
+         vertex_data & pdata = ps.g->vertex_data(_g->source(iedgeid)); 
             
 #ifndef GL_NO_MULT_EDGES
          multiple_edges & edges = _g->edge_data(iedgeid);
@@ -255,31 +256,31 @@ double calc_rmse(graph_type * _g, bool test, double & res){
 	        edge_data & edge = _g->edge_data(iedgeid);
 #endif
 
-           if (!ZERO)
+           if (!ac.zero)
            	assert(edge.weight != 0);
 
            float prediction = 0; 
            double sq_err = predict(data, 
                                    pdata, 
-                                   ((algorithm == WEIGHTED_ALS) ? &edge: NULL), 
-                                   tensor? (&times[(int)edge.time]):NULL, 
+                                   ((ps.algorithm == WEIGHTED_ALS) ? &edge: NULL), 
+                                   ps.tensor? (&ps.times[(int)edge.time]):NULL, 
                                    edge.weight, 
                                    prediction);
 
            //we do not allow zero predicion on dense matrices (prediction vectors are rarely orthogonal)
-           if (!ZERO && algorithm != ALS_SPARSE_USR_MOVIE_FACTORS)
+           if (!ac.zero && ps.algorithm != ALS_SPARSE_USR_MOVIE_FACTORS)
 	           assert(prediction != 0);         
            
-           if (debug && (i== M || i == M+N-1) && ((e == 0) || ((e-1) == (test?Le:L))))
+           if (ac.debug && (i== ps.M || i == ps.M+ps.N-1) && ((e == 0) || ((e-1) == (test?ps.Le:ps.L))))
 		cout<<"RMSE sq_err: " << sq_err << " prediction: " << prediction << endl; 
 
 #ifndef GL_NO_MCMC
-           if (BPTF && iiter > BURN_IN){
+           if (ps.BPTF && ps.iiter > BURN_IN){
              edge.avgprd += prediction;
-             sq_err = powf((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+             sq_err = powf((edge.avgprd / (ps.iiter - ps.bptf_bur_in)) - edge.weight, 2);
            }
 #endif
-           if (algorithm == WEIGHTED_ALS)
+           if (ps.algorithm == WEIGHTED_ALS)
               sq_err *= edge.time;
            RMSE+= sq_err;
            e++;
@@ -289,7 +290,7 @@ double calc_rmse(graph_type * _g, bool test, double & res){
      }
    }
    res = RMSE;
-   assert(e == (test?Le:L));
+   assert(e == (test?ps.Le:ps.L));
    return sqrt(RMSE/(double)e);
 
 }
@@ -299,7 +300,7 @@ double calc_rmse_wrapper(graph_type* _g, bool test, double & res){
 #ifdef SVD_PLUS_PLUS
    return calc_svd_rmse(_g, test, res);
 #else
-   if (algorithm == LANCZOS){
+   if (ps.algorithm == LANCZOS){
        res=-1; return -1; //not implemented yet
    }
    return calc_rmse(_g, test, res);
@@ -314,13 +315,13 @@ double agg_rmse_by_movie(double & res){
   timer t; t.start();
   res = 0;
   double RMSE = 0;
-  for (int i=M; i< M+N; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    const vertex_data * data = &ps.g->vertex_data(i);
     RMSE+= data->rmse;
   }
   res = RMSE;
-  counter[CALC_RMSE_Q] += t.current_time();
-  return sqrt(RMSE/(double)L);
+  ps.counter[CALC_RMSE_Q] += t.current_time();
+  return sqrt(RMSE/(double)ps.L);
 
 }
 // go over all user edges and aggregate RMSE by summing up the squares, computing the
@@ -330,13 +331,13 @@ double agg_rmse_by_user(double & res){
   timer t; t.start();
   res = 0;
   double RMSE = 0;
-  for (int i=0; i< M; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
+  for (int i=0; i< ps.M; i++){ 
+    const vertex_data * data = &ps.g->vertex_data(i);
     RMSE+= data->rmse;
   }
   res = RMSE;
-  counter[CALC_RMSE_Q] += t.current_time();
-  return sqrt(RMSE/(double)L);
+  ps.counter[CALC_RMSE_Q] += t.current_time();
+  return sqrt(RMSE/(double)ps.L);
 
 }
 

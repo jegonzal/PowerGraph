@@ -27,58 +27,54 @@
 
 #include <graphlab/macros_def.hpp>
 
-extern float implicitratingweight;
-extern float implicitratingvalue;
-extern string implicitratingtype;
-extern float implicitratingpercentage;
-extern int M,N,L;
-
+extern advanced_config ac;
+extern problem_setup ps;
 
 void add_implicit_edges(graph_type * g){
 
-   assert(implicitratingpercentage>= 0 && implicitratingpercentage<=1);
-   assert(implicitratingtype != "none");
+   assert(ac.implicitratingpercentage>= 0 && ac.implicitratingpercentage<=1);
+   assert(ac.implicitratingtype != "none");
 
-   if (implicitratingtype != "uniform" && implicitratingtype != "user"){
+   if (ac.implicitratingtype != "uniform" && ac.implicitratingtype != "user"){
       logstream(LOG_ERROR) << "item implicit ratings not implemented yet!" << std::endl;
       return;
    }
 
    edge_data data;
-   data.weight = implicitratingvalue;
-   data.time = implicitratingweight;
+   data.weight = ac.implicitratingvalue;
+   data.time = ac.implicitratingweight;
 
    int added = 0;
  
-   bool *flag_edges = new bool[N];
-   for (int i=0; i< M; i++){
-      memset(flag_edges, 0, N*sizeof(bool));
+   bool *flag_edges = new bool[ps.N];
+   for (int i=0; i< ps.M; i++){
+      memset(flag_edges, 0, ps.N*sizeof(bool));
       foreach(gl_types::edge_id oedgeid, g->out_edge_ids(i)) {
-          int to = g->target(oedgeid)-M;
-          assert(to >= 0 && to < N);
+          int to = g->target(oedgeid)-ps.M;
+          assert(to >= 0 && to < ps.N);
           flag_edges[to]=true;
       }
       float toadd;
-      if (implicitratingtype == "uniform")
-	toadd  = implicitratingpercentage*N;
-      else if (implicitratingtype == "user")
-        toadd = implicitratingpercentage*g->out_edge_ids(i).size();
-      if (implicitratingtype == "uniform" && i == 0 && toadd < 1){
+      if (ac.implicitratingtype == "uniform")
+	toadd  = ac.implicitratingpercentage*ps.N;
+      else if (ac.implicitratingtype == "user")
+        toadd = ac.implicitratingpercentage*g->out_edge_ids(i).size();
+      if (ac.implicitratingtype == "uniform" && i == 0 && toadd < 1){
          logstream(LOG_WARNING) << "implicitratingpercentage given is too low, resulting in " << toadd << " new edges per node. No edges will be added." << std::endl;
       }
-      ivec newedges = randi(toadd,0,N-1);
-      assert(newedges.size() <= N);
+      ivec newedges = randi(toadd,0,ps.N-1);
+      assert(newedges.size() <= ps.N);
       for (int j=0; j< newedges.size(); j++){
 	 if (!flag_edges[newedges[j]]){
-		g->add_edge(i,M+ newedges[j], data);
+		g->add_edge(i,ps.M+ newedges[j], data);
  		flag_edges[newedges[j]] = true;
 		added++;
          }
       } 
    }
 
-   L+=added; //update edge count including added edges
-   logstream(LOG_INFO) << "added " << added << " implicit edges, rating=" <<implicitratingvalue << " weight=" << implicitratingweight << " type=" << implicitratingtype << std::endl;
+   ps.L+=added; //update edge count including added edges
+   logstream(LOG_INFO) << "added " << added << " implicit edges, rating=" <<ac.implicitratingvalue << " weight=" << ac.implicitratingweight << " type=" << ac.implicitratingtype << std::endl;
 }
 
 
