@@ -129,7 +129,7 @@ namespace graphlab {
     }
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-                    const boost::false_type& is_divisible) {
+                           const boost::false_type& is_divisible) {
       locks[vid].writelock();
     }
 
@@ -351,7 +351,7 @@ namespace graphlab {
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
-          acquire_readlock(cpuid, inv); // locks[outv].readlock(); 
+          acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
           ++outidx;
           outv = (outedges.size() > outidx) ? 
             graph.target(outedges[outidx]) : numv;
@@ -444,7 +444,7 @@ namespace graphlab {
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
-          acquire_readlock(cpuid, curv); // locks[inv].readlock(); 
+          acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
           ++inidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
