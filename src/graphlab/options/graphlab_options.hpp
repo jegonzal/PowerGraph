@@ -170,7 +170,7 @@ namespace graphlab {
       //! \todo: ADD CHECKING
       scheduler_type = scheduler_args.parse_string(stype);
       return true; 
-    }
+    }    
 
     //! Get the scope type
     const std::string& get_scheduler_type() const {
@@ -181,6 +181,12 @@ namespace graphlab {
     const options_map& get_scheduler_args() const { 
       return scheduler_args;
     }
+
+    //! Get the scheduler options
+    options_map& get_scheduler_args() { 
+      return scheduler_args;
+    }
+
 
 
 

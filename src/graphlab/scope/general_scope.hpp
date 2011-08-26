@@ -37,11 +37,11 @@
 
 #include <graphlab/scope/iscope.hpp>
 
-
+#include <graphlab/scope/idiffable.hpp>
 
 
 namespace graphlab {
-  template<typename Graph> class general_scope_factory;
+
 
 
   /**
@@ -63,7 +63,7 @@ namespace graphlab {
     using base::_graph_ptr;
 
    
-    edge_id_type eid;
+
 
     // Cache related members --------------------------------------------------
     struct cache_entry {
@@ -73,10 +73,12 @@ namespace graphlab {
       cache_entry() : uses(0) { }
     };
     typedef std::map<vertex_id_type, cache_entry> cache_map_type;
+
+
+    edge_id_type eid;
     cache_map_type cache;
 
-    //    consistency_model::model_enum stype;
-    //    iscope_manager<Graph>* manager;
+    
 
 
   public:

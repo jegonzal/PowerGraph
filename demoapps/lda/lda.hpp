@@ -43,7 +43,7 @@
 
 enum vertex_type {DOCUMENT, WORD};
 
-class vertex_data : public graphlab::idivisible<vertex_data>  {
+class vertex_data : public graphlab::idiffable<vertex_data>  {
   vertex_type m_type;
   count_type m_iterations;
   std::vector<count_type> m_nt;

@@ -551,6 +551,7 @@ namespace graphlab {
     // --------------------- Finished running engine ----------------------- //
     // Join all the active threads
     join_all_threads();
+
     // \todo: new_tasks_added should only be cleared when no tasks
     // remain in the scheduler
     new_tasks_added = false;  // The scheduler is "finished"
@@ -806,6 +807,9 @@ namespace graphlab {
     while(exec_status == execution_status::RUNNING) {
       run_once(cpuid);
     }
+    // Flush the thread local cache associated with vertex data
+    scope_manager_ptr->flush_cache(cpuid);
+   
     logstream(LOG_INFO) 
       << "Thread " << cpuid << " finished." << std::endl;
   } // end of thread_mainloop

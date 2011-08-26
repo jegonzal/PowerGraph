@@ -9,8 +9,15 @@
 
 
 class lda_update : public gl::iupdate_functor {  
+  size_t iters_remaining;
+
 public:
+
+  lda_update(const size_t iters = 100) : iters_remaining(iters) { }
+  
+
   void operator()(gl::iscope& scope, gl::icallback& callback) {
+    if(iters_remaining == 0) return;
     // Make a local copy of the global topic counts
     std::vector<count_type> local_n_t(ntopics);
     for(size_t t = 0; t < ntopics; ++t) 
@@ -78,6 +85,11 @@ public:
     for(size_t t = 0; t < ntopics; ++t) {
       global_n_t[t] += (local_n_t[t] - old_global_n_t[t]);
     }
+
+    // Reschedule self if necessary
+    if(--iters_remaining > 0) 
+      callback.schedule(scope.vertex(), *this);
+    
   } // end of operator()
  
 }; // end of lda_update

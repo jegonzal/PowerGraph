@@ -66,7 +66,7 @@ struct edge_data {
 /**
  * Stores the value and the self weight
  */
-struct vertex_data : public graphlab::idivisible<vertex_data> {
+struct vertex_data : public graphlab::idiffable<vertex_data> {
   float value;
   float self_weight; // GraphLab does not support edges from vertex to itself, so
   // we save weight of vertex's self-edge in the vertex data

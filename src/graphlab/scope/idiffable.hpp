@@ -31,8 +31,8 @@
  */
 
 
-#ifndef GRAPHLAB_IDIVISIBLE_HPP
-#define GRAPHLAB_IDIVISIBLE_HPP
+#ifndef GRAPHLAB_IDIFFABLE_HPP
+#define GRAPHLAB_IDIFFABLE_HPP
 
 
 
@@ -44,10 +44,10 @@ namespace graphlab {
    * This interface signifies that a vertex is divisible.
    */
   template<typename T>
-  class idivisible {
+  class idiffable {
   public:
     virtual void apply_diff(const T& changed, const T& old) = 0;
-  }; // end of class idivisible
+  }; // end of class idiffable
 
 
 }; // end of namespace

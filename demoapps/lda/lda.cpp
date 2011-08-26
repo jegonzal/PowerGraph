@@ -62,6 +62,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options
     clopts("Apply the LDA model to estimate topic "
            "distributions for each document.");
+  clopts.set_scheduler_type("sweep");
   clopts.attach_option("dictionary",
                        &dictionary_fname, dictionary_fname,
                        "Dictionary file");
@@ -110,8 +111,15 @@ int main(int argc, char** argv) {
   load_graph(core.graph(), corpus, niters );
   std::cout << "Finished loading graph" << std::endl;
 
-  // set the scheduler
-  core.schedule_all(lda_update());
+  // Schedule only the document vertices
+  const size_t doc_offset = corpus.nwords;   
+  for(size_t i = 0; i < corpus.ndocs; ++i) {
+    const gl::vertex_id doc_vid = doc_offset + i;
+    ASSERT_LT(doc_vid, core.graph().num_vertices());
+    core.schedule(doc_vid, lda_update());
+  }
+
+
   core.start();
 
 

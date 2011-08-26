@@ -41,11 +41,14 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph.hpp>
 
-#include <graphlab/graph/idivisible.hpp>
+#include <graphlab/scope/idiffable.hpp>
 
+
+
+
+
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
-
-
 
 
   template<typename Graph>
@@ -60,10 +63,15 @@ namespace graphlab {
     typedef typename Graph::edge_list_type  edge_list_type;
     typedef typename Graph::vertex_data_type vertex_data_type;
     typedef general_scope<Graph>            general_scope_type;
+    typedef typename general_scope_type::cache_map_type cache_map_type;
+    typedef typename general_scope_type::cache_entry cache_entry_type;
+    typedef boost::is_base_of< idiffable<vertex_data_type>, 
+                               vertex_data_type> is_diffable;
 
   private:
     Graph& graph;
     std::vector<general_scope_type> scopes;
+    
     std::vector<rwlock> locks;
     consistency_model::model_enum default_scope;
 
@@ -119,27 +127,44 @@ namespace graphlab {
     
 
 
+    void flush_cache(size_t cpuid) {  flush_cache(cpuid, is_diffable()); }
 
+    //! Nothing to flush if it is not diffable
+    void flush_cache(size_t cpuid, const boost::false_type&) { 
+      // Check that all the caches are empty (they must be)
+      foreach(const general_scope_type& scope, scopes)
+        ASSERT_EQ(scope.cache.size(), 0);
+    } // end of flush_cache
+
+    void flush_cache(size_t cpuid, const boost::true_type&) {
+      cache_map_type& cache = scopes[cpuid].cache;
+      typedef typename cache_map_type::value_type cache_pair_type;
+      foreach(const cache_pair_type& pair, cache) {
+        const vertex_id_type vid = pair.first;
+        const cache_entry_type& entry = pair.second;
+        locks[vid].writelock();
+        graph.vertex_data(vid).apply_diff(entry.current_value, entry.old_value);
+        locks[vid].unlock();        
+      }
+      // Empty the cache
+      cache.clear();
+    } // end of flush cache
 
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid) {
-      boost::is_base_of< idivisible<vertex_data_type>, 
-                         vertex_data_type> is_divisible;
-      acquire_writelock(cpuid, vid, is_divisible);
+      acquire_writelock(cpuid, vid, is_diffable());
     }
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-                           const boost::false_type& is_divisible) {
+                           const boost::false_type&) {
       locks[vid].writelock();
     }
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-                    const boost::true_type& is_divisible) {
+                           const boost::true_type&) {
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
-      typedef typename general_scope_type::cache_entry cache_entry_type;
-      typedef typename general_scope_type::cache_map_type::iterator
-        iterator_type;
+      typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = scope.cache.find(vid);
       const bool is_cached = iter != scope.cache.end();
 
@@ -152,33 +177,33 @@ namespace graphlab {
           graph.vertex_data(vid).apply_diff(cache_entry.current_value, 
                                             cache_entry.old_value);
           scope.cache.erase(iter);
-          std::cout << "commit" << std::endl;
         }
         return;
       } else {
-        std::cout << "Collision!" << std::endl;
         if(is_cached && iter->second.uses < 10) {
           iter->second.uses++;
           return;
         }
-        // If we reach this point then we must grab the lock
-        locks[vid].writelock();
         // Update the cache entry or create it if it does not already exist
         if(is_cached) {
+          // Grab the write lock and dump the value
+          locks[vid].writelock();
           cache_entry_type& cache_entry = iter->second;
           graph.vertex_data(vid).apply_diff(cache_entry.current_value, 
                                             cache_entry.old_value);
-          cache_entry.uses = 0;
           cache_entry.current_value = graph.vertex_data(vid);
+          locks[vid].unlock();
+          cache_entry.uses = 0;
           cache_entry.old_value = cache_entry.current_value;
         } else {       
+          locks[vid].readlock();
           // Update the cache
           cache_entry_type& cache_entry = scope.cache[vid];
-          cache_entry.uses = 0;
           cache_entry.current_value = graph.vertex_data(vid);
+          locks[vid].unlock();
+          cache_entry.uses = 0;
           cache_entry.old_value = cache_entry.current_value;
         } // end of else
-        locks[vid].unlock();
       }
     } // end of acquire write lock
 
@@ -187,24 +212,20 @@ namespace graphlab {
 
 
 
-    void acquire_readlock(const size_t cpuid, const vertex_id_type vid) {
-      boost::is_base_of<idivisible<vertex_data_type>,
-                        vertex_data_type> is_divisible;
-      acquire_readlock(cpuid, vid, is_divisible);
+    void acquire_readlock(const size_t cpuid, const vertex_id_type vid) {      
+      acquire_readlock(cpuid, vid, is_diffable());
     }
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
-                          const boost::false_type& is_divisible) {
+                          const boost::false_type&) {
       locks[vid].readlock();
     }
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
-                          const boost::true_type& is_divisible) {
+                          const boost::true_type&) {
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
-      typedef typename general_scope_type::cache_entry cache_entry_type;
-      typedef typename general_scope_type::cache_map_type::iterator
-        iterator_type;
+      typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = scope.cache.find(vid);
       const bool is_cached = iter != scope.cache.end();
       cache_entry_type& cache_entry = iter->second;
@@ -234,18 +255,16 @@ namespace graphlab {
 
     
     void release_lock(size_t cpuid, vertex_id_type vid) {
-      boost::is_base_of<idivisible<vertex_data_type>,
-                        vertex_data_type> is_divisible;
-      release_lock(cpuid, vid, is_divisible);
+      release_lock(cpuid, vid, is_diffable());
     }
 
     void release_lock(size_t cpuid, vertex_id_type vid,
-                      const boost::false_type& is_divisible) {
+                      const boost::false_type&) {
       locks[vid].unlock();
     }
 
     void release_lock(size_t cpuid, vertex_id_type vid,
-                      const boost::true_type& is_divisible) {
+                      const boost::true_type&) {
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename general_scope_type::cache_entry cache_entry_type;
@@ -579,8 +598,10 @@ namespace graphlab {
     Graph& get_graph() { return graph; }
     
   };
+}; // end of graphlab namespace
+#include <graphlab/macros_undef.hpp>
 
-}
+
 
 #endif
 

@@ -23,6 +23,8 @@
 
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/scope/consistency_model.hpp>
+#include <graphlab/scope/idiffable.hpp>
+
 
 
 
