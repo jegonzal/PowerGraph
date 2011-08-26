@@ -62,6 +62,20 @@ struct edge_data {
 }; // End of edge data
 
 
+#ifdef DIFFABLE
+/**
+ * Stores the value and the self weight
+ */
+struct vertex_data : public graphlab::idivisible<vertex_data> {
+  float value;
+  float self_weight; // GraphLab does not support edges from vertex to itself, so
+  // we save weight of vertex's self-edge in the vertex data
+  vertex_data(float value = 1) : value(value), self_weight(0) { }
+  void apply_diff(const vertex_data& changed, const vertex_data& old) {
+    value += (changed.value - old.value);
+  }
+}; // End of vertex data
+#else
 /**
  * Stores the value and the self weight
  */
@@ -71,6 +85,7 @@ struct vertex_data {
   // we save weight of vertex's self-edge in the vertex data
   vertex_data(float value = 1) : value(value), self_weight(0) { }
 }; // End of vertex data
+#endif
 
 std::ostream& operator<<(std::ostream& out, const edge_data& edata);
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);

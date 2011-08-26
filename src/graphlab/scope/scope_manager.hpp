@@ -152,9 +152,11 @@ namespace graphlab {
           graph.vertex_data(vid).apply_diff(cache_entry.current_value, 
                                             cache_entry.old_value);
           scope.cache.erase(iter);
+          std::cout << "commit" << std::endl;
         }
         return;
       } else {
+        std::cout << "Collision!" << std::endl;
         if(is_cached && iter->second.uses < 10) {
           iter->second.uses++;
           return;
@@ -496,10 +498,13 @@ namespace graphlab {
       case consistency_model::SINGLE_EDGE_READ_CONSISTENCY:
       case consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY:
         release_single_edge_scope(cpuid, scope);
+        break;
       default:
         ASSERT_TRUE(false);
       }
-    }
+    } // end of release scope
+
+
 
     void release_single_edge_scope(size_t cpuid, 
                                    general_scope_type& scope) {
