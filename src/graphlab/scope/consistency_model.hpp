@@ -76,6 +76,8 @@ namespace graphlab {
       VERTEX_READ_CONSISTENCY, ///< read only from self
       READ_CONSISTENCY,        ///< read from self and adjacent structures
       VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
+      SINGLE_EDGE_READ_CONSISTENCY, ///< only lock a single edge
+      SINGLE_EDGE_WRITE_CONSISTENCY, ///< only lock a single edge for write access
       EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
       FULL_CONSISTENCY,        ///< write to self and adjacent structures
       USE_DEFAULT              ///< use externally described default

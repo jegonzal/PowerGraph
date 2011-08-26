@@ -36,12 +36,13 @@
 //#include <boost/bind.hpp>
 
 #include <graphlab/scope/iscope.hpp>
-//#include <graphlab/scope/iscope_manager.hpp>
+
 
 
 
 namespace graphlab {
   template<typename Graph> class general_scope_factory;
+
 
   /**
    * This defines a general scope type 
@@ -56,14 +57,30 @@ namespace graphlab {
     typedef typename base::vertex_data_type vertex_data_type;
     typedef typename base::edge_data_type   edge_data_type;
     typedef typename base::edge_list_type   edge_list_type;
+    
 
     using base::_vertex;
     using base::_graph_ptr;
 
-    consistency_model::model_enum stype;
+   
+    edge_id_type eid;
+
+    // Cache related members --------------------------------------------------
+    struct cache_entry {
+      vertex_data_type old_value;
+      vertex_data_type current_value;
+      size_t uses;
+      cache_entry() : uses(0) { }
+    };
+    typedef std::map<vertex_id_type, cache_entry> cache_map_type;
+    cache_map_type cache;
+
+    //    consistency_model::model_enum stype;
     //    iscope_manager<Graph>* manager;
 
+
   public:
+
     general_scope() :
       base(NULL,NULL) { }
 
@@ -81,6 +98,54 @@ namespace graphlab {
       base::_vertex = vertex;
       base::_consistency = consistency;
     } // end of init
+
+    edge_id_type& edge_id() { return eid; }
+
+    vertex_data_type& vertex_data(const vertex_id_type vid) {
+      typedef typename cache_map_type::iterator iterator_type;
+      iterator_type iter = cache.find(vid);
+      if(iter != cache.end()) {
+        return iter->second.current_value;
+      } else {
+        return _graph_ptr->vertex_data(vid);
+      }
+    }
+
+    const vertex_data_type& vertex_data(const vertex_id_type vid) const {
+      typedef typename cache_map_type::const_iterator iterator_type;
+      iterator_type iter = cache.find(vid);
+      if(iter != cache.end()) {
+        return iter->second.current_value;
+      } else {
+        return _graph_ptr->vertex_data(vid);
+      }
+    }
+
+
+
+    vertex_data_type& vertex_data() {
+      return vertex_data(_vertex);
+    }
+
+    const vertex_data_type& vertex_data() const {
+      return vertex_data(_vertex);
+    }
+
+    const vertex_data_type& const_vertex_data() const {
+      return vertex_data(_vertex);
+    }
+
+    vertex_data_type& neighbor_vertex_data(vertex_id_type vid) {
+      return vertex_data(vid);
+    }
+
+    const vertex_data_type& neighbor_vertex_data(vertex_id_type vid) const {
+      return vertex_data(vid);
+    }
+
+    const vertex_data_type& const_neighbor_vertex_data(vertex_id_type vid) const {
+      return vertex_data(vid);
+    }
 
     
     // bool experimental_scope_upgrade(consistency_model::model_enum newrange) { 

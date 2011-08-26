@@ -379,6 +379,9 @@ namespace graphlab {
       pthread_rwlock_wrlock(&m_rwlock);
       //ASSERT_TRUE(!error);
     }
+    inline bool try_writelock() const {
+      return pthread_rwlock_trywrlock(&m_rwlock) == 0;
+    }
     inline void unlock() const {
       pthread_rwlock_unlock(&m_rwlock);
       //ASSERT_TRUE(!error);
