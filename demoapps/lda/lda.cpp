@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
     clopts("Apply the LDA model to estimate topic "
            "distributions for each document.");
   clopts.set_scheduler_type("sweep");
+  clopts.set_scope_type("full");
   clopts.attach_option("dictionary",
                        &dictionary_fname, dictionary_fname,
                        "Dictionary file");
@@ -112,12 +113,15 @@ int main(int argc, char** argv) {
   std::cout << "Finished loading graph" << std::endl;
 
   // Schedule only the document vertices
-  const size_t doc_offset = corpus.nwords;   
+  const size_t doc_offset = corpus.nwords;  
   for(size_t i = 0; i < corpus.ndocs; ++i) {
     const gl::vertex_id doc_vid = doc_offset + i;
     ASSERT_LT(doc_vid, core.graph().num_vertices());
-    core.schedule(doc_vid, lda_update());
+    core.schedule(doc_vid, lda_update(niters));
   }
+
+  // Initialize the global variables
+  global_n_t.resize(ntopics);
 
 
   core.start();
