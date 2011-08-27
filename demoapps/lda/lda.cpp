@@ -26,7 +26,7 @@
 size_t ntopics = 50;
 size_t nwords = 0;
 size_t ndocs = 0;
-double alpha(1/ntopics);
+double alpha(1.0/double(ntopics));
 double beta(0.1);
 std::vector< graphlab::glshared<count_type> > global_n_t;
 
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
   std::string dictionary_fname("dictionary.txt");
   std::string counts_fname("counts.tsv");
   
-  size_t niters(10);
+  size_t niters(1);
   std::string llik_fname("llik.txt");
   
 
