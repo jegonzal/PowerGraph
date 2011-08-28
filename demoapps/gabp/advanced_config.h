@@ -6,7 +6,6 @@
 class advanced_config{
 
 public:
-  int D;
   bool debug;
   double threshold;
   int syncinterval;
@@ -14,23 +13,31 @@ public:
   int ncpus;
   int algorithm;
   bool cg_resid;
-  bool zero;
-  bool isfloat;
+  
+  //marix proprties
+  bool zero;//allow zero entries in matrix?
+  bool isfloat;//input file in float format
+  bool square;//is matrix square?
+  int D; //width of factor matrices
+  
   int unittest;
-  bool square;
+
+  //input output related stuff
   std::string datafile;
-  bool support_null_variance;
-  bool round_robin;
-  bool supportgraphlabcf;
+  bool matrixmarket; //martix market input format
   bool loadfactors; //start from a previous solution instead of a random point
   bool savefactors; //save solution to file
   bool loadgraph; //load graph from a binary saved file
   bool savegraph; //save input file into graph binary file
-  bool stats; //print out statistics and exit
+  bool binaryoutput; //export the factors U,V,T to a binary file
+   
+  bool support_null_variance;
+  //bool round_robin;
+  bool supportgraphlabcf;
+ bool stats; //print out statistics and exit
   bool regnormal; //regular normalization
   bool aggregatevalidation; //use validation dataset as training data
   bool outputvalidation; //experimental: output validation results of kdd format
-  bool binaryoutput; //export the factors U,V,T to a binary file
   bool printhighprecision; //print RMSE output with high precision
   double scaling; //aggregate time values into bins? (default =1, no aggregation)
   double truncating ; // truncate unused time bins (optional, default = 0, no truncation)
@@ -38,12 +45,15 @@ public:
 #define DEF_MAX_VAL 1e100
   double minval; //minimal allowed value in matrix/tensor
   double maxval; //maximal allowed value in matrix/tensor
-  
+  std::string scheduler; 
   bool mainfunc;
   bool manualgraphsetup; //if true, graph is loaded in user code and not by us
+  double regularization;
+
+/* variables for ALS */
+double als_lambda;
 
 /* variables of BPTF */
-double als_lambda;
 int bptf_delay_alpha; //delay alpha sampling (optional, for BPTF)
 int bptf_burn_in; //burn-in priod (for MCMC sampling - optional)
 double bptf_alpha;
@@ -88,7 +98,7 @@ bool FLOAT; //is data in float format
     algorithm = 0;
     square = false;
     support_null_variance = false;
-    round_robin = true;
+    //round_robin = true;
     supportgraphlabcf = false;
     debug = false; //debug mode
     zero = false; //support edges with zero weight
@@ -101,6 +111,7 @@ bool FLOAT; //is data in float format
     aggregatevalidation = false; //use validation dataset as training data
     outputvalidation = false; //experimental: output validation results of kdd format
     binaryoutput = false; //export the factors U,V,T to a binary file
+    matrixmarket = false; //is input/output in matrix market format
     printhighprecision = false; //print RMSE output with high precision
     scaling = 1.0; //aggregate time values into bins? (default =1, no aggregation)
     truncating = 0.0; // truncate unused time bins (optional, default = 0, no truncation)
@@ -114,7 +125,7 @@ bool FLOAT; //is data in float format
     bptf_delay_alpha = 0;
     bptf_burn_in = 10;
     bptf_alpha = 0;
-
+    regularization = 0;
   /* Variables for SVD++ */
     svdpp_step_dec = 0.9;//step decrement size for SVD++
 
@@ -142,7 +153,7 @@ bool FLOAT; //is data in float format
  }
 
 
-  graphlab::command_line_options init_command_line_options();
+  void init_command_line_options(graphlab::command_line_options & clopts);
 };
 
 

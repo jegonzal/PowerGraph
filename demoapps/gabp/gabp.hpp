@@ -46,8 +46,9 @@
 #include "linear.h"
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
+#include "advanced_config.h"
 
-
+extern advanced_config config;
 
 /***
  * UPDATE FUNCTION
@@ -74,7 +75,7 @@ void gabp_update_function(gl_types::iscope &scope,
 
   //initialize accumlated values
   sdouble mu_i = vdata.prior_mean;
-  sdouble J_i = vdata.prior_prec;
+  sdouble J_i = vdata.prior_prec + config.regularization;
   if (!support_null_variance) assert(J_i != 0);
 
   /* CALCULATE new value */

@@ -241,6 +241,7 @@ public:
   bool tensor; //is this tensor or a matrix
 
   double globalMean[3]; //store global mean of matrix/tensor entries
+  gl_types::core * glcore;
 
 //performance counters
 #define MAX_COUNTER 20
@@ -269,7 +270,7 @@ public:
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));
   times = NULL;
-
+  glcore = NULL;
   engine = NULL;
   g = NULL;
 }
@@ -283,5 +284,9 @@ void do_main(int argc, const char * argv[]);
 void add_vertices(graph_type * _g, testtype data_type);
 void verify_edges(graph_type * _g, testtype data_type);
 void set_num_edges(int val, testtype data_type);
+void load_matrix_market(const char * filename, graph_type * _g, testtype data_type);
+void verify_size(testtype data_type, int M, int N, int K);
+void count_all_edges(graph_type * g);
+void save_matrix_market_format(const char * filename, mat U, mat V);
 #endif
 

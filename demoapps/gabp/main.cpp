@@ -175,9 +175,9 @@ void dispatch_vec(int start_pos, int end_pos, int offset,
 
 //struct for holding edge data in file
 struct edata{
-  int from;
-  int to;
-  double weight;
+  float from;
+  float to;
+  float weight;
 };
 
 struct edata2{
@@ -188,10 +188,9 @@ struct edata2{
 };
 
 struct edata3{
-  int from;
-  int to;
-  double time;
-  double weight;
+  float from;
+  float to;
+  float weight;
 };
 
 //read edges from file into the graph
@@ -445,7 +444,6 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
   // Set all cosntants
   THRESHOLD_KEY.set(config.threshold);
   SUPPORT_NULL_VARIANCE_KEY.set(config.support_null_variance);
-  ROUND_ROBIN_KEY.set(config.round_robin);
   DEBUG_KEY.set(config.debug);
   MAX_ITER_KEY.set(config.iter);
   MATRIX_WIDTH_KEY.set(n);
@@ -566,7 +564,6 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
   // Set all cosntants
   THRESHOLD_KEY.set(config.threshold);
   SUPPORT_NULL_VARIANCE_KEY.set(config.support_null_variance);
-  ROUND_ROBIN_KEY.set(config.round_robin);
   DEBUG_KEY.set(config.debug);
   MAX_ITER_KEY.set(config.iter);
 
@@ -664,8 +661,10 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("cg_resid", &config.cg_resid, config.cg_resid, "compute cg residual progress ");
   clopts.attach_option("zero", &config.zero, config.zero, "support sparse matrix entry containing zero val ");
   clopts.attach_option("unittest", &config.unittest, config.unittest, "unit testing ( allowed values: 1/2)");
- 
-  // Parse the command line arguments
+  clopts.attach_option("supportnullvariance", &config.support_null_variance, config.support_null_variance, "GABP: support zero precision (infinite variance)"); 
+  clopts.attach_option("regularization", &config.regularization, config.regularization, "regularization"); 
+  
+// Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
     return EXIT_FAILURE;

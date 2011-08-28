@@ -27,6 +27,7 @@
 #define _IO_HPP
 
 #include "stats.hpp"
+#include "../../libs/matrixmarket/mmio.h" //matrix market format support
 #include <graphlab/macros_def.hpp>
 
 extern advanced_config config;
@@ -233,6 +234,17 @@ void export_uvt_to_itpp_file(){
   output.close();
 }
 
+
+void export_uvt_to_matrixmarket(){
+  fill_factors_uvt();
+  char dfile[256] = {0};
+  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
+  if (ps.tensor)
+    logstream(LOG_WARNING)<<" matrix market IO does not support tensor mode" << std::endl;
+  save_matrix_market_format(dfile, ps.U, ps.V);  
+ 
+}
+
 //LOAD FACTORS FROM FILE
 void import_uvt_from_file(){
 
@@ -345,6 +357,19 @@ void add_vertices(graph_type * _g, testtype data_type){
   }
 }
 
+
+void verify_size(testtype data_type, int _M, int _N, int _K){
+ if (data_type != TRAINING && ps.M != _M)
+	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << ps.M << " in " << testtypename[data_type] << std::endl;
+  if (data_type != TRAINING && ps.N != _N)
+	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << ps.N << " in " << testtypename[data_type] << std::endl;
+  if (data_type != TRAINING && ps.K != _K)
+	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << ps.K << " in " << testtypename[data_type] <<std::endl;
+
+  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", ps.M, ps.N, ps.K);
+}
+
+
 /* function that reads the ps.tensor from file */
 /* Input format is:
  * M - number of users (int)
@@ -359,6 +384,13 @@ void add_vertices(graph_type * _g, testtype data_type){
  * [weight] - this is the rating, which is float. Rating is assumed non-zero unless the --zero=true flas is on 
  */
 void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl_types::core & glcore) {
+
+
+  if (ac.matrixmarket){
+      printf("Loading Matrix Market file %s %s\n", filename, testtypename[data_type]);
+      load_matrix_market(filename, _g, data_type);
+      return;
+  }
 
   printf("Loading %s %s\n", filename, testtypename[data_type]);
   FILE * f = fopen(filename, "r");
@@ -381,22 +413,15 @@ void load_pmf_graph(const char* filename, graph_type * _g, testtype data_type,gl
   assert(rc==4); 
   assert(_K>=1);
   assert(_M>=1 && _N>=1); 
+
+
   if (data_type == TRAINING){
   	ps.M=_M; ps.N= _N; ps.K= _K;
 	if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")// DB: ugly - kdd cup data has more time bins for test data than in training data. can fix this buy setting the time bins in training data to 6649.
 		ps.K=6649;
      ps.K=ceil((ps.K-ac.truncating)/ac.scaling);
   }
-
- if (data_type != TRAINING && ps.M != _M)
-	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << ps.M << " in " << testtypename[data_type] << std::endl;
-  if (data_type != TRAINING && ps.N != _N)
-	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << ps.N << " in " << testtypename[data_type] << std::endl;
-  if (data_type != TRAINING && ps.K != _K)
-	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << ps.K << " in " << testtypename[data_type] <<std::endl;
-
-  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", ps.M, ps.N, ps.K);
- 
+  verify_size(data_type, _M,_N,_K);
   add_vertices(_g, data_type);
  
   // read tensor non zero edges from file

@@ -81,7 +81,7 @@ double calc_obj(double res){
   int movie_sparsity = 0;
   int user_cnt = 0; 
   int movie_cnt = 0;
-
+  int edges = 0;
 
   timer t;
   t.start();
@@ -94,6 +94,7 @@ double calc_obj(double res){
       } 
       user_sparsity += num_zeros(data->pvec);
       user_cnt++;
+      edges+= data->num_edges;
     }
      
   } 
@@ -107,6 +108,7 @@ double calc_obj(double res){
       }  
       movie_sparsity += num_zeros(data->pvec);
       movie_cnt++;
+     edges+= data->num_edges;
     }
   } 
 
@@ -132,6 +134,8 @@ double calc_obj(double res){
 
   if (ac.debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << pU << " pV: " << pV << endl; 
+
+  assert(edges == 2*ps.L);
   return obj;
 }
 

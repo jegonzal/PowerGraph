@@ -93,7 +93,10 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   int numedges = vdata.num_edges;
   if (numedges == 0){
-    return; //if this user/movie have no ratings do nothing
+     if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
+       last_iter();
+
+   return; //if this user/movie have no ratings do nothing
   }
 
 

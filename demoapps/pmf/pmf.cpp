@@ -25,6 +25,7 @@
 #include <fstream>
 #include <cmath>
 #include <cstdio>
+#include <stdlib.h>
 
 #include "graphlab.hpp"
 #include "itppvecutils.hpp"
@@ -274,36 +275,47 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
  * ==== SETUP AND START
  */
 void start(int argc, const char * argv[]) {
-  
-  command_line_options clopts = ac.init_command_line_options();    
-  if (ac.mainfunc) //if called from main(), parse command line arguments
-    assert(clopts.parse(argc, argv));
-  
-  if (ac.unittest > 0)
-     unit_testing(ac.unittest,clopts);
+   
+  command_line_options clopts;
+  ac.init_command_line_options(clopts);
+  gl_types::core glcore;
+  if (ps.glcore == NULL)
+    ps.glcore = &glcore;
 
+  if (ac.mainfunc){ //if called from main(), parse command line arguments
+    assert(clopts.parse(argc, argv));
+
+   if (ac.unittest > 0)
+      unit_testing(ac.unittest,clopts);
+  }
+  
   ps.algorithm = (runmodes)ac.algorithm;
   printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
-
+  if (ac.scheduler == "round_robin"){
+    char schedulerstring[256];
+    sprintf(schedulerstring, "round_robin(max_iterations=%d,block_size=1)", ac.iter);
+    clopts.set_scheduler_type(schedulerstring);
+    assert(ac.iter > 0);
+  }
   ps.verify_setup();
+  ps.glcore->set_engine_options(clopts); 
 
   logger(LOG_INFO, "%s starting\n",runmodesname[ps.algorithm]);
-   gl_types::core glcore;
   //read the training data
   printf("loading data file %s\n", ac.datafile.c_str());
   if (!ac.manualgraphsetup){
   if (!ac.loadgraph){
-    ps.g=&glcore.graph();
-    load_pmf_graph(ac.datafile.c_str(), ps.g, TRAINING, glcore);
+    ps.g=&ps.glcore->graph();
+    load_pmf_graph(ac.datafile.c_str(), ps.g, TRAINING,* ps.glcore);
 
   //read the vlidation data (optional)
     printf("loading data file %s\n", (ac.datafile+"e").c_str());
-    load_pmf_graph((ac.datafile+"e").c_str(),&ps.validation_graph, VALIDATION, glcore);
+    load_pmf_graph((ac.datafile+"e").c_str(),&ps.validation_graph, VALIDATION, *ps.glcore);
 
   //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
-    load_pmf_graph((ac.datafile+"t").c_str(),&ps.test_graph, TEST, glcore);
+    load_pmf_graph((ac.datafile+"t").c_str(),&ps.test_graph, TEST, *ps.glcore);
 
 
     if (ac.savegraph){
@@ -326,8 +338,8 @@ void start(int argc, const char * argv[]) {
     graphlab::iarchive iarc(fin);
     iarc >> ps.M >> ps.N >> ps.K >> ps.L >> ps.Le >> ps.Lt >> ac.D;
     printf("Loading graph from file\n");
-    iarc >> glcore.graph() >> ps.validation_graph >> ps.test_graph;
-    ps.g=&glcore.graph();
+    iarc >> ps.glcore->graph() >> ps.validation_graph >> ps.test_graph;
+    ps.g=&ps.glcore->graph();
     printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", ps.M, ps.N, ps.K, ac.D);   
     printf("Creating %d edges (observed ratings)...\n", ps.L);
   }
@@ -349,15 +361,14 @@ void start(int argc, const char * argv[]) {
     printf("setting regularization weight to %g\n", ac.als_lambda);
     pU=pV=ac.als_lambda;
   }
-  glcore.set_engine_options(clopts); 
 
-  if (ps.tensor)
+   if (ps.tensor){
     ps.dp = GenDiffMat(ps.K)*ps.pT;
-  if (ac.debug)
-    std::cout<<ps.dp<<std::endl;
-
+    if (ac.debug)
+      std::cout<<ps.dp<<std::endl;
+  }
   
-  add_tasks(glcore);
+  add_tasks(*ps.glcore);
 
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[ac.algorithm], ps.tensor?"tensor":"matrix", ps.M, ps.N, ps.K, ps.L, ac.D);
@@ -407,14 +418,14 @@ void start(int argc, const char * argv[]) {
       case BPTF_MATRIX:
       case SVD_PLUS_PLUS:
       case STOCHASTIC_GRADIENT_DESCENT:
-         run_graphlab(glcore, ps.gt);
+         run_graphlab(*ps.glcore, ps.gt);
          break;
      
      case LANCZOS:
-        lanczos(glcore); break;
+        lanczos(*ps.glcore); break;
 
      case NMF:
-        nmf(&glcore); break;
+        nmf(ps.glcore); break;
   }
 
  if (ps.algorithm != LANCZOS){
@@ -436,6 +447,8 @@ void start(int argc, const char * argv[]) {
   //write output matrices U,V,T to file
   if (ac.binaryoutput)
      export_uvt_to_binary_file();
+  else if (ac.matrixmarket)
+     export_uvt_to_matrixmarket();
   else // it++ output
    export_uvt_to_itpp_file();
 }
