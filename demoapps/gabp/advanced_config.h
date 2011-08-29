@@ -1,7 +1,7 @@
 #ifndef _ADVANCED_CONFIG
 #define _ADVANCED_CONFIG
 
-
+#include "graphlab.hpp"
 
 class advanced_config{
 
