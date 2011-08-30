@@ -8,6 +8,7 @@ include_directories( . )
 
 
 ADD_CXXTEST(graph_test.cxx)
+ADD_CXXTEST(sharedsum_test.cxx)
 ADD_CXXTEST(disk_graph_test.cxx)
 
 # ADD_CXXTEST(randomtest.cxx)

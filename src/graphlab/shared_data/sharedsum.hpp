@@ -55,7 +55,7 @@ namespace graphlab {
         reads(reads), writes(writes) { }
       virtual ~icache_entry() { }
     };
-    virtual void flush(icache_entry* entry); 
+    virtual void flush(icache_entry* entry) = 0; 
   };
 
 
@@ -101,15 +101,16 @@ namespace graphlab {
 
   private:
 
-    cache_entry* get_cache_entry() {
+    cache_entry* get_cache_entry() const {
       return static_cast<cache_entry*>
-        (sharedsum_impl::get_cache_entry(this));
+        (sharedsum_impl::get_cache_entry(const_cast<sharedsum*>(this)));
     }
 
-    cache_entry* create_cache_entry() {
+    cache_entry* create_cache_entry() const {
       cache_entry* entry_ptr = new cache_entry(value);
       ASSERT_NE(entry_ptr, NULL);
-      sharedsum_impl::add_cache_entry(this, entry_ptr);
+      sharedsum_impl::add_cache_entry(const_cast<sharedsum*>(this),
+                                      entry_ptr);
       return entry_ptr;
     }
 
@@ -128,7 +129,7 @@ namespace graphlab {
         entry_ptr->reads = 1;
         return entry_ptr->current;
       } else if(is_cached && !grabbed_readlock) {
-        if(entry_ptr.reads == 10) { 
+        if(entry_ptr->reads == lag) { 
           rwlock.readlock();
           entry_ptr->current += value - entry_ptr->old;
           entry_ptr->old = value;
@@ -150,7 +151,7 @@ namespace graphlab {
       }
     } // end of get 
 
-    value_type& get_write() const {     
+    value_type& get_write() {     
       cache_entry* entry_ptr = get_cache_entry();
       const bool is_cached = entry_ptr != NULL;
       const bool grabbed_writelock = rwlock.try_writelock();
@@ -166,7 +167,7 @@ namespace graphlab {
         entry_ptr->reads = 0;
         return entry_ptr->current;
       } else if(is_cached && !grabbed_writelock) {
-        if(entry_ptr.writes == 10) { 
+        if(entry_ptr->writes == lag) { 
           rwlock.writelock();
           value += (entry_ptr->current - entry_ptr->old);
           entry_ptr->old = value;
@@ -191,13 +192,13 @@ namespace graphlab {
     } // end of get 
 
 
-    void release() {
+    void release() const {
       if(get_cache_entry() == NULL) rwlock.unlock();
     }
 
     graphlab::rwlock rwlock;
     value_type value;
-    
+    uint16_t lag;    
 
   public:
 
@@ -211,7 +212,8 @@ namespace graphlab {
       delete entry_ptr;
     }
 
-    sharedsum(const T& value = T()) : value(value) { }
+    sharedsum(const T& value = T(), uint16_t lag = 10) : 
+      value(value), lag(lag){ }
   
 
     value_type get() const {     
