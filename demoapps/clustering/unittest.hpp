@@ -24,6 +24,11 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
 
 //UNIT TESTING OF VARIOUS METHODS
 void unit_testing(int unittest, graphlab::command_line_options& clopts){
+   if (unittest == 0){
+      test_math();
+      exit(0);
+   }
+
 
    if (unittest == 1){ //ALTERNATING LEAST SQUARES
       //ac.datafile = "als"; ps.algorithm = ALS_MATRIX; ac.algorithm = ALS_MATRIX; ac.FLOAT = true; ac.als_lambda = 0.001;
