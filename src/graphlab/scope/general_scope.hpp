@@ -67,10 +67,10 @@ namespace graphlab {
 
     // Cache related members --------------------------------------------------
     struct cache_entry {
-      vertex_data_type old_value;
-      vertex_data_type current_value;
-      size_t uses;
-      cache_entry() : uses(0) { }
+      vertex_data_type old;
+      vertex_data_type current;
+      uint16_t reads, writes;
+      cache_entry() : reads(0), writes(0) { }
     };
     typedef std::map<vertex_id_type, cache_entry> cache_map_type;
 
@@ -107,7 +107,7 @@ namespace graphlab {
       typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = cache.find(vid);
       if(iter != cache.end()) {
-        return iter->second.current_value;
+        return iter->second.current;
       } else {
         return _graph_ptr->vertex_data(vid);
       }
@@ -117,7 +117,7 @@ namespace graphlab {
       typedef typename cache_map_type::const_iterator iterator_type;
       iterator_type iter = cache.find(vid);
       if(iter != cache.end()) {
-        return iter->second.current_value;
+        return iter->second.current;
       } else {
         return _graph_ptr->vertex_data(vid);
       }

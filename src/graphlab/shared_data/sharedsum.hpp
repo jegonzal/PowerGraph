@@ -40,7 +40,6 @@
 
 //#include <graphlab/parallel/atomic.hpp>
 
-#include <graphlab/shared_data/isharedsum.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/generics/any.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -49,80 +48,202 @@
 
 namespace graphlab {
 
-  namespace sharedsum_impl {
-    template<typename T, typename Acc> 
-    struct identity {
-      void operator()(T& ret, const Acc& acc) const { ret = acc; }
+  struct isharedsum { 
+    struct icache_entry { 
+      uint16_t reads, writes;
+      icache_entry(uint16_t reads = 0, uint16_t writes = 0) : 
+        reads(reads), writes(writes) { }
+      virtual ~icache_entry() { }
     };
-    struct ipartial_sum { virtual ~ipartial_sum() { } };
-    ipartial_sum* get_tl_partial_sum(void* sharedsum_ptr);
-    void set_tl_partial_sum(void* sharedsum_ptr, ipartial_sum* ps_ptr);
+    virtual void flush(icache_entry* entry); 
   };
 
-  template <typename T, typename Acc = T, 
-            typename ApplyFunctor = sharedsum_impl::identity<T,Acc> >
-  class sharedsum {
 
+  namespace sharedsum_impl {
+    typedef isharedsum::icache_entry icache_entry;
+
+    /**
+     * Get the cache entry if it is available.  Returns null if its
+     * not available.
+     */
+    icache_entry* get_cache_entry(isharedsum* id);
+    
+    /**
+     * add a local cache entry
+     */
+    void add_cache_entry(isharedsum* id, icache_entry* entry_ptr);
+
+    /**
+     * Evict a particular key
+     */
+    bool evict(isharedsum* key);
+    
+    /**
+     * evict an entry from the cache
+     */
+    void evict();
+
+    size_t size();
+
+  };
+
+  template <typename T>
+  class sharedsum : public isharedsum {
   public:
-    typedef T   contained_type;
-    typedef Acc accumulator_type;
-    typedef ApplyFunctor apply_functor_type;
-    typedef sharedsum_impl::ipartial_sum ipartial_sum;
+    typedef T value_type;
+    typedef isharedsum::icache_entry icache_entry;
 
-    struct partial_sum : public ipartial_sum {
-      lock lock;
-      accumlator_type acc;
-      partial_sum(const accumulator_type& acc = accumulator_type()) :
-        acc(acc) { }
-      void zero() { acc = accumulator_type(); }
-    };
+    struct cache_entry : public icache_entry {      
+      value_type current, old;
+      cache_entry(const value_type& value) : 
+      current(value), old(value) { }
+    };    
 
   private:
-    rwlock lock;
-    contained_type contents;
 
-    lock ps_lock;
-    std::vector<partial_sum*> partial_sums;
+    cache_entry* get_cache_entry() {
+      return static_cast<cache_entry*>
+        (sharedsum_impl::get_cache_entry(this));
+    }
 
-    partial_sum& get_tl_partial_sum() {
-      ipartial_sum* ips_ptr = sharedsum_impl::get_tl_partial_sum(this);
-      if(ips_ptr == NULL) {
-        ips_ptr = new partial_sum();
-        shared_sum_impl::set_tl_partial_sum(this, ips_ptr);
-        ps_lock.lock();
-        partial_sums.push_back(
-      }
-      ASSERT_NE(ips_ptr, NULL);
-      partial_sum* ps_ptr = dynamic_cast<partial_sum*>(ips_ptr);
-      return *ps_ptr;
+    cache_entry* create_cache_entry() {
+      cache_entry* entry_ptr = new cache_entry(value);
+      ASSERT_NE(entry_ptr, NULL);
+      sharedsum_impl::add_cache_entry(this, entry_ptr);
+      return entry_ptr;
     }
 
 
+    const value_type& get_read() const {     
+      cache_entry* entry_ptr = get_cache_entry();
+      const bool is_cached = entry_ptr != NULL;
+      const bool grabbed_readlock = rwlock.try_readlock();
+      // Base case
+      if(!is_cached && grabbed_readlock) {
+        return value;
+      } else if(is_cached && grabbed_readlock) {
+        entry_ptr->current += value - entry_ptr->old;
+        entry_ptr->old = value;
+        rwlock.unlock();
+        entry_ptr->reads = 1;
+        return entry_ptr->current;
+      } else if(is_cached && !grabbed_readlock) {
+        if(entry_ptr.reads == 10) { 
+          rwlock.readlock();
+          entry_ptr->current += value - entry_ptr->old;
+          entry_ptr->old = value;
+          rwlock.unlock();
+          entry_ptr->reads = 0;
+        }
+        entry_ptr->reads++;
+        return entry_ptr->current; 
+      } else {
+        ASSERT_FALSE(is_cached);
+        ASSERT_FALSE(grabbed_readlock);
+        // if it is not cached we go ahead an force the creation of
+        // a cache entry
+        rwlock.readlock();
+        entry_ptr = create_cache_entry();
+        rwlock.unlock();
+        entry_ptr->reads++;
+        return entry_ptr->current; 
+      }
+    } // end of get 
+
+    value_type& get_write() const {     
+      cache_entry* entry_ptr = get_cache_entry();
+      const bool is_cached = entry_ptr != NULL;
+      const bool grabbed_writelock = rwlock.try_writelock();
+      // Base case
+      if(!is_cached && grabbed_writelock) {
+        return value;
+      } else if(is_cached && grabbed_writelock) {
+        value += (entry_ptr->current - entry_ptr->old);
+        entry_ptr->old = value;
+        rwlock.unlock();
+        entry_ptr->current = entry_ptr->old;
+        entry_ptr->writes = 1;
+        entry_ptr->reads = 0;
+        return entry_ptr->current;
+      } else if(is_cached && !grabbed_writelock) {
+        if(entry_ptr.writes == 10) { 
+          rwlock.writelock();
+          value += (entry_ptr->current - entry_ptr->old);
+          entry_ptr->old = value;
+          rwlock.unlock();
+          entry_ptr->current = entry_ptr->old;
+          entry_ptr->writes = 0;
+          entry_ptr->reads = 0;
+        }
+        entry_ptr->writes++;
+        return entry_ptr->current; 
+      } else {
+        ASSERT_FALSE(is_cached);
+        ASSERT_FALSE(grabbed_writelock);
+        // if it is not cached we go ahead an force the creation of
+        // a cache entry
+        rwlock.readlock();
+        entry_ptr = create_cache_entry();
+        rwlock.unlock();
+        entry_ptr->writes++;
+        return entry_ptr->current; 
+      }
+    } // end of get 
+
+
+    void release() {
+      if(get_cache_entry() == NULL) rwlock.unlock();
+    }
+
+    graphlab::rwlock rwlock;
+    value_type value;
+    
+
   public:
 
-    sharedsum(const T& val = T()) : contents(val) { }
+    //! The eviction interface
+    void flush(icache_entry* ientry_ptr) {
+      ASSERT_NE(ientry_ptr, NULL);      
+      cache_entry* entry_ptr = static_cast<cache_entry*>(ientry_ptr);
+      rwlock.writelock();
+      value += (entry_ptr->current - entry_ptr->old);
+      rwlock.unlock();
+      delete entry_ptr;
+    }
+
+    sharedsum(const T& value = T()) : value(value) { }
   
+
+    value_type get() const {     
+      const value_type ret_val = get_read();
+      release();
+      return ret_val;
+    } // end of get 
+
+    operator T() { return get(); }
+
 
     //! Assign a new value 
     void operator=(const T& val) {
-      lock.writelock();
-      contents = val;
-      lock.unlock();
+      value_type& cache_val = get_write();
+      cache_val = val;
+      release();
+    }
+    
+    void operator+=(const T& val) { 
+      value_type& cache_val = get_write();
+      cache_val += val;
+      release();
     }
 
-    //! Add a delta function:
-    void operator+=(const Acc& acc) { 
-      
+    void operator-=(const T& val) { 
+      value_type& cache_val = get_write();
+      cache_val -= val;
+      release();
     }
 
 
-    /// Returns a copy of the data
-    inline T get_val() const {
-      lock.readlock();
-      const T copy = contents;
-      lock.unlock();
-      return copy;
-    }
+    void flush() { sharedsum_impl::evict(this); }
 
 
   };

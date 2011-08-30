@@ -143,7 +143,7 @@ namespace graphlab {
         const vertex_id_type vid = pair.first;
         const cache_entry_type& entry = pair.second;
         locks[vid].writelock();
-        graph.vertex_data(vid).apply_diff(entry.current_value, entry.old_value);
+        graph.vertex_data(vid).apply_diff(entry.current, entry.old);
         locks[vid].unlock();        
       }
       // Empty the cache
@@ -174,14 +174,13 @@ namespace graphlab {
         // If we succeed go ahead and merge the cache entry and then drop it
         if(is_cached) {
           const cache_entry_type& cache_entry = iter->second;
-          graph.vertex_data(vid).apply_diff(cache_entry.current_value, 
-                                            cache_entry.old_value);
+          graph.vertex_data(vid).apply_diff(cache_entry.current, 
+                                            cache_entry.old);
           scope.cache.erase(iter);
         }
         return;
       } else {
-        if(is_cached && iter->second.uses < 10) {
-          iter->second.uses++;
+        if(is_cached && ++(iter->second.writes) < 10) {
           return;
         }
         // Update the cache entry or create it if it does not already exist
@@ -189,20 +188,20 @@ namespace graphlab {
           // Grab the write lock and dump the value
           locks[vid].writelock();
           cache_entry_type& cache_entry = iter->second;
-          graph.vertex_data(vid).apply_diff(cache_entry.current_value, 
-                                            cache_entry.old_value);
-          cache_entry.current_value = graph.vertex_data(vid);
+          graph.vertex_data(vid).apply_diff(cache_entry.current, 
+                                            cache_entry.old);
+          cache_entry.current = graph.vertex_data(vid);
           locks[vid].unlock();
-          cache_entry.uses = 0;
-          cache_entry.old_value = cache_entry.current_value;
+          cache_entry.writes = 0;
+          cache_entry.old = cache_entry.current;
         } else {       
           locks[vid].readlock();
-          // Update the cache
+          // create a cache entry
           cache_entry_type& cache_entry = scope.cache[vid];
-          cache_entry.current_value = graph.vertex_data(vid);
+          cache_entry.current = graph.vertex_data(vid);
           locks[vid].unlock();
-          cache_entry.uses = 0;
-          cache_entry.old_value = cache_entry.current_value;
+          cache_entry.writes = 0;
+          cache_entry.old = cache_entry.current;
         } // end of else
       }
     } // end of acquire write lock
@@ -230,18 +229,16 @@ namespace graphlab {
       const bool is_cached = iter != scope.cache.end();
       cache_entry_type& cache_entry = iter->second;
       if(is_cached) {
-        cache_entry.uses++;
-        if(++cache_entry.uses < 10) {
+        cache_entry.reads++;
+        if(++cache_entry.reads < 10) {
           return; // Read cache is valid
         } else {
           locks[vid].readlock();
           const vertex_data_type& vdata = graph.vertex_data(vid);
-          cache_entry.current_value.apply_diff(vdata, 
-                                               cache_entry.old_value);
-          cache_entry.old_value = vdata;
-          graph.vertex_data(vid).apply_diff(cache_entry.current_value, 
-                                            cache_entry.old_value);
+          cache_entry.current.apply_diff(vdata, cache_entry.old);
+          cache_entry.old = vdata;
           locks[vid].unlock(); 
+          cache_entry.reads = 0;
         }
       } else {
         locks[vid].readlock();

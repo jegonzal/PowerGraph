@@ -39,12 +39,13 @@ namespace graphlab {
     volatile T value;
     
     /// Creates an atomic number with value "value"
-    atomic(const T& value = 0) : value(value) { }
+    atomic(const T& value = T()) : value(value) { }
     
     /// Performs an atomic increment by 1, returning the new value
     T inc() { return __sync_add_and_fetch(&value, 1);  }
     /// Performs an atomic decrement by 1, returning the new value
     T dec() { return __sync_sub_and_fetch(&value, 1);  }
+
     /// Performs an atomic increment by 'val', returning the new value
     T inc(T val) { return __sync_add_and_fetch(&value, val);  }
     /// Performs an atomic decrement by 'val', returning the new value

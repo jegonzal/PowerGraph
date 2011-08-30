@@ -28,5 +28,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/small_set.hpp>
 #include <graphlab/util/charstream.hpp>
+#include <graphlab/util/cache.hpp>
+
 
 

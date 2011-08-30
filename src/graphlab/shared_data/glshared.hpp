@@ -72,30 +72,11 @@ namespace graphlab {
   public:
     //! The type of the internal element
     typedef T contained_type;
-    //! Type of the apply function inhereted from the gl_shared base
-    typedef iglshared::apply_function_type apply_function_type;
-
-    //! Reference holder
-    class const_ref {
-      const T& data;
-      rwlock& lock;
-      const_ref(); // Not default constructable
-      const_ref(const const_ref&); // Not copyable 
-      void operator=(const const_ref&); // not assignable
-    public:
-      const_ref(const glshared& shared) : 
-        data(shared.data), lock(shared.lock) { 
-        lock.readlock();
-      }
-      ~const_ref() { lock.unlock(); }
-      const T& val() { return data; }
-    };
 
   private:
     //! The interal storage item
     any data;
     rwlock lock;
-
 
   public:
     //! Construct initial shared pointers

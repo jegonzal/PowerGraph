@@ -1,16 +1,20 @@
 #include <pthread.h>
 #include <map>
-
+#include <graphlab/util/cache.hpp>
 #include <graphlab/shared_data/sharedsum.hpp>
 
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
   namespace sharedsum_impl {
-    typedef std::map<void* ipartial_sum*> partial_sum_map_type;
+
+
+    typedef cache::lru<isharedsum*, icache_entry*> cache_type;
+
+
 
     void destroy_tls_data(void* ptr) {
-      partial_sum_map_type* ps_map_ptr = 
-        static_cast<partial_sum_map_type*>(ptr);
-      if(ps_map_ptr != NULL) { delete ps_map_ptr; }
+      cache_type* cache_ptr = static_cast<cache_type*>(ptr);
+      if(cache_ptr != NULL) { delete cache_ptr; }
     }
     struct tls_key_creator {
       pthread_key_t TLS_KEY;
@@ -19,30 +23,55 @@ namespace graphlab {
       }
     }; 
     const tls_key_creator key;     
-
-
-    partial_sum_map_type& get_partial_sum_map() {
-      partial_sum_map_type* ps_map_ptr = 
-        static_cast<partial_sum_map_type*> 
+    cache_type& get_cache() {
+      cache_type* cache_ptr = static_cast<cache_type*> 
         (pthread_getspecific(key.TLS_KEY));
-      if(ps_map_ptr == NULL) {
-        ps_map_ptr = new partial_sum_map_type();
-        pthread_setspecific(key.TLS_KEY, ps_map_ptr);
+      if(cache_ptr == NULL) {
+        cache_ptr = new cache_type();
+        pthread_setspecific(key.TLS_KEY, cache_ptr);
       }
-      ASSERT_NE(ps_map_ptr, NULL);
-      return *ps_map_ptr;
+      ASSERT_NE(cache_ptr, NULL);
+      return *cache_ptr;
     }
 
 
-    ipartial_sum* get_tl_partial_sum(void* sharedsum_ptr) {
-      partial_sum_map_type& ps_map = get_partial_sum_map();
-      return ps_map[sharedsum_ptr];
+    icache_entry* get_cache_entry(isharedsum* key) {
+      icache_entry* result = NULL;
+      const bool successful = get_cache().get(key, result);
+      return successful? result : NULL;
+    }    
+
+
+    void add_cache_entry(isharedsum* id, icache_entry* ptr) {
+      cache_type& cache = get_cache();
+      if(cache.size() == 100) evict();
+      get_cache().add(id, ptr);
     }
 
-    
-    void set_tl_partial_sum(void* sharedsum_ptr, ipartial_sum* ps_ptr) {
-      get_partial_sum_map()[sharedsum_ptr] = ps_ptr;
+    bool evict(isharedsum* key) {
+      icache_entry* entry = NULL;
+      const bool success = get_cache().evict(key, entry);
+      if(success) {
+        ASSERT_NE(entry, NULL);
+        ASSERT_NE(key, NULL);
+        key->flush(entry);
+      }
+      return success;
     }
+
+
+    void evict() {
+      typedef std::pair<isharedsum*, icache_entry*> pair_type;
+      pair_type evicted_pair = get_cache().evict();
+      ASSERT_NE(evicted_pair.first, NULL);
+      ASSERT_NE(evicted_pair.second, NULL);
+      evicted_pair.first->flush(evicted_pair.second);
+    }
+
+
+    size_t size() { return get_cache().size(); }
+
+
 
   }; // end of sharedsum_impl;
 
