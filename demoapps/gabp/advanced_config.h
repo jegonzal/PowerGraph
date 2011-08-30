@@ -19,7 +19,7 @@ public:
   bool isfloat;//input file in float format
   bool square;//is matrix square?
   int D; //width of factor matrices
-  
+  int K; //number of clusters 
   int unittest;
 
   //input output related stuff
@@ -82,10 +82,11 @@ double movie_sparsity;
 
 bool FLOAT; //is data in float format
 
-
+int distance_measure;
 
   advanced_config(){
     D = 20;
+    K = 0;
     debug = true;
     threshold = 1e-10;
     syncinterval = 10000;
@@ -150,6 +151,8 @@ bool FLOAT; //is data in float format
 
    FLOAT = false;
    als_lambda = 1;
+
+   distance_measure = 0;
  }
 
 
