@@ -82,4 +82,28 @@ vec minus( sparse_vec &v1,  vec &v2){
   return ret;
 }
 
+void test_math(){
+   sparse_vec v1;
+   sparse_vec v2;
+   v1.set_new(1,1.0);
+   v2.set_new(2,2.0);
+   sparse_vec v3 = minus(v1, v2);
+   assert(v3.get_nz_data(0) == 1.0);
+   assert(v3.get_nz_data(1) == - 2.0);
+   assert(v3.nnz() == 2);
 
+   sparse_vec v4 = fabs(v3); 
+   assert(v4.get_nz_data(0) == 1.0);
+   assert(v4.get_nz_data(1) == 2.0);
+   assert(v4.nnz() == 2);
+
+   double sqr = sum_sqr(v4);
+   assert(sqr == 5);
+   assert(v4.nnz() == 2);
+
+   double mmin = min(v4);
+   assert(mmin = 1);
+   double mmax = max(v4);
+   assert(mmax = 2);
+
+}

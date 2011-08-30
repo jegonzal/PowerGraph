@@ -24,7 +24,7 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
 
 //UNIT TESTING OF VARIOUS METHODS
 void unit_testing(int unittest, graphlab::command_line_options& clopts){
-   if (unittest == 0){
+   if (unittest == 1){
       test_math();
       exit(0);
    }

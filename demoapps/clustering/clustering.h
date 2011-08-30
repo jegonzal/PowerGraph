@@ -132,5 +132,7 @@ void do_main(int argc, const char * argv[]);
 void add_vertices(graph_type * _g);
 void load_matrix_market(const char * filename, graph_type * _g);
 void save_matrix_market_format(const char * filename);
+
+void test_math();
 #endif
 
