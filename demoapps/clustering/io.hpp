@@ -137,7 +137,7 @@ void add_vertices(graph_type * _g){
   vertex_data vdata;
   // add M movie nodes (ps.tensor dim 1)
   for (int i=0; i<ps.M; i++){
-    vdata.current_cluster = randi(0, ps.K-1);
+    vdata.current_cluster = ac.debug ? ( i % ps.K) : randi(0, ps.K-1);
     _g->add_vertex(vdata);
     if (ac.debug && (i<= 5 || i == ps.M-1))
        std::cout<<"node " << i <<" initial assignment is: " << vdata.current_cluster << std::endl; 
@@ -189,7 +189,7 @@ void load_graph(const char* filename, graph_type * _g, gl_types::core & glcore) 
   add_vertices(_g);
  
   // read tensor non zero edges from file
-  int val = read_edges<edge_float>(f,ps.M, _g);
+  int val = read_edges<edge_float>(f,ps.N, _g);
   assert(val == ps.L);
 
   fclose(f);
@@ -200,7 +200,7 @@ void load_graph(const char* filename, graph_type * _g, gl_types::core & glcore) 
  * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
  */
 template<typename edgedata>
-int read_edges(FILE * f, int nodes, graph_type * _g){
+int read_edges(FILE * f, int column_dim, graph_type * _g){
      
   int matlab_offset = 1; //matlab array start from 1
 
@@ -222,17 +222,17 @@ int read_edges(FILE * f, int nodes, graph_type * _g){
       if (!ac.zero) //usually we do not allow zero entries, unless --zero=true flag is set.
 	 assert(ed[i].weight != 0); 
       //verify node ids are in allowed range
-      assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= nodes);
-      assert((int)ed[i].to >= matlab_offset && (int)ed[i].to <= nodes);
+      assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= column_dim);
+      assert((int)ed[i].to >= matlab_offset && (int)ed[i].to <= column_dim);
       //no self edges
-      assert((int)ed[i].to != (int)ed[i].from);
+      //assert((int)ed[i].to != (int)ed[i].from);
     
       //if sacling of rating values is requested to it here.
       if (ac.scalerating != 1.0)
 	     ed[i].weight /= ac.scalerating;
   
-      vertex_data & vdata = _g->vertex_data(ed[i].from);
-      vdata.datapoint.set_new(ed[i].to, ed[i].weight);   
+      vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
+      vdata.datapoint.set_new(ed[i].to - matlab_offset, ed[i].weight);   
       }
       printf(".");
       fflush(0);

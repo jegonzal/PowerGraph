@@ -80,23 +80,6 @@ double calc_cost(){
 }
  
 
-/**
- * printout cost after each iteration
- */
-void last_iter(){
-  printf("Entering last iter with %d\n", ps.iiter);
-
-  double cost = calc_cost();
-  printf("%g) Iter %s %d  Cost=%g\n",
-        ps.gt.current_time(), 
-	runmodesname[ps.algorithm], 
-	ps.iiter,
-        cost);
-  ps.iiter++;
-
-}
-
-
 void add_tasks(gl_types::core & glcore){
 
   std::vector<vertex_id_t> um;
@@ -117,8 +100,7 @@ void init(){
 
   switch(ps.algorithm){
    case K_MEANS:
-     //TODO; 
-     break;
+    break;
 
   }
 }
@@ -153,6 +135,8 @@ void start(int argc, const char * argv[]) {
   ps.algorithm = (runmodes)ac.algorithm;
   printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
+
+  ac.scheduler = "round_robin"; //TODO
   if (ac.scheduler == "round_robin"){
     char schedulerstring[256];
     sprintf(schedulerstring, "round_robin(max_iterations=%d,block_size=1)", ac.iter);

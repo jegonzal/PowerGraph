@@ -81,6 +81,14 @@ vec minus( sparse_vec &v1,  vec &v2){
   }
   return ret;
 }
+vec plus( vec &v1,  const sparse_vec &v2){
+  vec ret = v1;
+  for (int i=0; i< ((sparse_vec)v2).nnz(); i++){
+      ret.set(i, ret[((sparse_vec)v2).get_nz_index(i)] + ((sparse_vec)v2).get_nz_data(i));
+  }
+  return ret;
+}
+
 
 void test_math(){
    sparse_vec v1;
@@ -105,5 +113,11 @@ void test_math(){
    assert(mmin = 1);
    double mmax = max(v4);
    assert(mmax = 2);
+
+   vec v5 = vec("1 2 3 4");
+   vec v6 = plus(v5, v1);
+   assert(v6[0] == 1);
+   assert(v6[1] == 3);
+   assert(v6.size() == 4);
 
 }

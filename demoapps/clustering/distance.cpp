@@ -23,7 +23,7 @@ double calc_euclidian_distance( sparse_vec & datapoint,  vec &cluster){
       int pos = ((sparse_vec)datapoint).get_nz_index(i);
       dist += (((val - cluster[pos])*(val - cluster[pos])) - cluster[pos]*cluster[pos]);
    }
-  return dist;
+  return sqrt(dist);
 }
 
 double calc_chebychev_distance( sparse_vec & datapoint,  sparse_vec &cluster){
@@ -96,4 +96,15 @@ double calc_distance(itpp::sparse_vec &datapoint,  vec & cluster){
 
 }
 
+
+void test_distance(){
+  sparse_vec v1;
+  v1.set_new(1,1.0);
+  v1.set_new(2,-3.5);
+  vec v2("1 2 3 4 5");
+  ac.distance_measure = EUCLIDEAN;
+  double ret = calc_distance(v1, v2);
+  assert(powf(ret - 9.233092656309694,2) < 1e-10);
+
+}
 

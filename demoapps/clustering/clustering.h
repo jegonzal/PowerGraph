@@ -16,7 +16,6 @@ using namespace itpp;
 struct edge_float{
   float from;
   float to;
-  float time;
   float weight;
 };
 

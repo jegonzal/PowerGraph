@@ -13,8 +13,11 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("algorithm", &algorithm, algorithm, "ps.algorithm");
   clopts.add_positional("algorithm");
   
+  clopts.attach_option("K", &K, K, "number of clusters");
+  clopts.add_positional("K");  
+
+  clopts.attach_option("max_iter", &iter, iter, "Maximum number if iterations");
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
-  clopts.attach_option("D", &K, K, "number of clusters");
   clopts.attach_option("zero", &zero, zero, "support zero edges");  
   clopts.attach_option("savegraph", &savegraph, savegraph, "save graphs to file");  
   clopts.attach_option("loadgraph", &loadgraph, loadgraph, "load graphs to file");  
@@ -35,6 +38,6 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
 }
 
 void problem_setup::verify_setup(){
-
+   K = ac.K;
    assert(K>0);
 }

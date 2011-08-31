@@ -6,8 +6,7 @@
 
 extern advanced_config ac;
 
-void test_cosamp();
-
+void test_distance();
 /**
  * UNIT TESTING
  */
@@ -28,12 +27,14 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       test_math();
       exit(0);
    }
-
-
-   if (unittest == 1){ //ALTERNATING LEAST SQUARES
+   else if (unittest == 2){
+      test_distance();
+      exit(0);
+   }
+   /*if (unittest == 1){ //ALTERNATING LEAST SQUARES
       //ac.datafile = "als"; ps.algorithm = ALS_MATRIX; ac.algorithm = ALS_MATRIX; ac.FLOAT = true; ac.als_lambda = 0.001;
       //clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
-   }
+   }*/
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);
