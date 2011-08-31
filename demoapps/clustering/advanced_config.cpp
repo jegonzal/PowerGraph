@@ -31,7 +31,8 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in data");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in data");
   clopts.attach_option("unittest", &unittest, unittest, "unit testing. ");
- 
+  clopts.attach_option("pmfformat", &supportgraphlabcf, supportgraphlabcf, "unit testing. ");
+  clopts.attach_option("float", &FLOAT, FLOAT, "data in float format (pmf data)"); 
   //SVD related switches
   clopts.attach_option("printhighprecision", &printhighprecision, printhighprecision, "print RMSE output with high precision");
 

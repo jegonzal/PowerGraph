@@ -32,6 +32,8 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
+void init();
+
 void load_matrix_market(const char * filename, graph_type *_g)
 {
     int ret_code;
@@ -70,6 +72,8 @@ void load_matrix_market(const char * filename, graph_type *_g)
     }
 
     ps.M = M; ps.N = N; ps.K = 1;
+
+    init();
     add_vertices(_g); 
 
     /* reseve memory for matrices */

@@ -57,8 +57,8 @@ double sum_sqr( sparse_vec & dvec){
 
 sparse_vec fabs( sparse_vec & dvec1){
    sparse_vec ret = dvec1;
-   for (int i=0; i< ((sparse_vec)ret).nnz(); i++){
-       ret.set(((sparse_vec)ret).get_nz_index(i), fabs(((sparse_vec)ret).get_nz_data(i)));
+   for (int i=0; i< ret.nnz(); i++){
+       ret.set(ret.get_nz_index(i), fabs(ret.get_nz_data(i)));
    }
    return ret;
 	
@@ -81,13 +81,19 @@ vec minus( sparse_vec &v1,  vec &v2){
   }
   return ret;
 }
-vec plus( vec &v1,  const sparse_vec &v2){
-  vec ret = v1;
-  for (int i=0; i< ((sparse_vec)v2).nnz(); i++){
-      ret.set(i, ret[((sparse_vec)v2).get_nz_index(i)] + ((sparse_vec)v2).get_nz_data(i));
+void plus( vec &v1,  sparse_vec &v2){
+  for (int i=0; i< v2.nnz(); i++){
+      v1[v2.get_nz_index(i)] += v2.get_nz_data(i);
   }
-  return ret;
 }
+void minus( vec &v1, sparse_vec &v2){
+  for (int i=0; i< v2.nnz(); i++){
+      v1[v2.get_nz_index(i)] -= v2.get_nz_data(i);
+  }
+}
+
+
+
 
 
 void test_math(){
@@ -115,9 +121,11 @@ void test_math(){
    assert(mmax = 2);
 
    vec v5 = vec("1 2 3 4");
-   vec v6 = plus(v5, v1);
-   assert(v6[0] == 1);
-   assert(v6[1] == 3);
-   assert(v6.size() == 4);
+   plus(v5, v1);
+   assert(v5[0] == 1);
+   assert(v5[1] == 3);
+   assert(v5[2] == 5);
+   assert(v5[3] == 4);
+   assert(v5.size() == 4);
 
 }

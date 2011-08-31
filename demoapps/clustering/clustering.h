@@ -19,17 +19,39 @@ struct edge_float{
   float weight;
 };
 
+struct edge_float_cf{
+  float from;
+  float to;
+  float time;
+  float weight;
+};
+struct edge_double_cf{
+  int from;
+  int to;
+  double time;
+  double weight;
+};
+
+
+
 
 
 /** Vertex and edge data types **/
 struct vertex_data {
   sparse_vec datapoint;
   int current_cluster;
+  int prev_cluster;
   float min_distance;
+  bool reported;
+  bool hot;
+
   //constructor
   vertex_data(){
     current_cluster = -1;
+    prev_cluster = -1;
     min_distance = 0;
+    reported = false;
+    hot = false;
   }
 
   void save(graphlab::oarchive& archive) const; 
@@ -52,6 +74,21 @@ struct edge_data {
 };
 
 
+struct cluster{
+  vec location;
+  int num_assigned_points;
+  vec cur_sum_of_points;
+  double sum_sqr;
+  cluster(){
+    num_assigned_points = 0;
+    sum_sqr = 0;
+  }
+  
+};
+
+struct clusters{
+  std::vector<cluster> cluster_vec;
+};
 
 
 //run modes
@@ -91,6 +128,7 @@ public:
   int L;//number of non zero elements in data
 
   gl_types::core * glcore;
+  clusters clusts;
 
 //performance counters
 #define MAX_COUNTER 20
@@ -101,6 +139,7 @@ public:
 
   mat output_clusters;
   vec output_assignements;
+  int total_assigned;
 
  problem_setup(){
 
@@ -115,13 +154,14 @@ public:
   glcore = NULL;
   engine = NULL;
   g = NULL;
+  total_assigned = 0;
 }
 
   void verify_setup();
 
 };
 
-static graphlab::glshared<mat> CLUSTER_LOCATIONS;
+static graphlab::glshared<clusters> CLUSTERS;
 
 
 

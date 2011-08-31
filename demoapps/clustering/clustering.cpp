@@ -80,6 +80,16 @@ double calc_cost(){
 }
  
 
+int calc_cluster_centers(){
+   int total = 0;
+   for (int i=0; i< ps.K; i++){
+       ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
+       total += ps.clusts.cluster_vec[i].num_assigned_points;
+       ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
+   }
+  return total;
+}
+
 void add_tasks(gl_types::core & glcore){
 
   std::vector<vertex_id_t> um;
@@ -95,8 +105,22 @@ void add_tasks(gl_types::core & glcore){
 }
 
 
+
+void init_clusters(){
+  assert(ps.N >0);
+  for (int i=0; i< ac.K; i++){
+     cluster a ;
+     a.location = zeros(ps.N); 
+     a.cur_sum_of_points = zeros(ps.N);
+     ps.clusts.cluster_vec.push_back(a);
+  }
+
+}
+
+
 void init(){
 
+  init_clusters();
 
   switch(ps.algorithm){
    case K_MEANS:
@@ -107,9 +131,11 @@ void init(){
 
 
 void run_graphlab(gl_types::core &glcore,timer & gt ){
+   for (int i=0; i< ac.iter; i++){
     glcore.start();
     last_iter();
-    ps.iiter--;
+    add_tasks(*ps.glcore);
+  }
 }
 
 
@@ -136,14 +162,15 @@ void start(int argc, const char * argv[]) {
   printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
 
-  ac.scheduler = "round_robin"; //TODO
+  /*ac.scheduler = "round_robin"; //TODO
   if (ac.scheduler == "round_robin"){
     char schedulerstring[256];
-    sprintf(schedulerstring, "round_robin(max_iterations=%d,block_size=1)", ac.iter);
+    sprintf(schedulerstring, "round_robin(max_iterations=1,block_size=1)");
     clopts.set_scheduler_type(schedulerstring);
     assert(ac.iter > 0);
-  }
+  }*/
   ps.verify_setup();
+  
   ps.glcore->set_engine_options(clopts); 
 
   logger(LOG_INFO, "%s starting\n",runmodesname[ps.algorithm]);
@@ -190,13 +217,14 @@ void start(int argc, const char * argv[]) {
     calc_stats();
     exit(0);
   }
+  
 
   add_tasks(*ps.glcore);
-
-  
+  calc_cluster_centers();
+ 
+ 
   printf("%s for (%d, %d, %d):%d.\n", runmodesname[ac.algorithm], ps.M, ps.N, ps.K, ps.L);
   
-  init();
 
 
   last_iter();

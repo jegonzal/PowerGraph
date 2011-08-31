@@ -25,7 +25,7 @@ enum distance_measure{
 
 static const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TONIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
 
-double calc_distance(itpp::sparse_vec & datapoint, itpp::vec &cluster);
+double calc_distance(itpp::sparse_vec & datapoint, itpp::vec &cluster, double sqr_sum = 0);
 
 
 #endif //_DISTANCE_H

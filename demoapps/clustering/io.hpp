@@ -33,12 +33,16 @@
 extern advanced_config config;
 extern problem_setup ps;
 
+void init();
+
 template<typename edgedata>
 int read_edges(FILE * f, int nodes, graph_type * _g);
 
 
 void fill_output(){
-   ps.output_clusters = CLUSTER_LOCATIONS.get_val();
+   ps.output_clusters = zeros(ps.K, ps.N);
+   for (int i=0; i<ps.K; i++)
+     ps.output_clusters.set_row(i, ps.clusts.cluster_vec[i].location);
    ps.output_assignements = zeros(ps.M);
    for (int i=0; i< ps.M; i++){ 
       vertex_data & data = ps.g->vertex_data(i);
@@ -127,8 +131,9 @@ void import_from_file(){
     vertex_data & data = ps.g->vertex_data(i);
     data.current_cluster = assignments[i]; 
  }
-
- CLUSTER_LOCATIONS.set(clusters);  
+ for (int i=0; i<ps.K; i++){
+    ps.clusts.cluster_vec[i].location = clusters.get_row(i);
+ }
 }
 
 
@@ -180,17 +185,28 @@ void load_graph(const char* filename, graph_type * _g, gl_types::core & glcore) 
   rc=fread(&_N,1,4,f);//matrix cols
   assert(rc==4); 
   rc=fread(&_K,1,4,f);//unused
-  assert(rc==4); 
-  assert(_K == 0); 
+  assert(rc==4);
+  if (!ac.supportgraphlabcf) 
+    assert(_K == 0); 
+  else assert(_K >= 1);
   assert(_M>=1 && _N>=1); 
+  
 
 
   ps.M=_M; ps.N= _N;
+  init();
   add_vertices(_g);
  
   // read tensor non zero edges from file
-  int val = read_edges<edge_float>(f,ps.N, _g);
-  assert(val == ps.L);
+  
+ int val;
+  if (!ac.supportgraphlabcf)
+    val = read_edges<edge_float>(f,ps.N, _g);
+  else {
+      if (ac.FLOAT)
+    val = read_edges<edge_float_cf>(f,ps.N,_g);
+    else val = read_edges<edge_double_cf>(f,ps.N,_g);
+  }assert(val == ps.L);
 
   fclose(f);
 }
@@ -222,8 +238,10 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
       if (!ac.zero) //usually we do not allow zero entries, unless --zero=true flag is set.
 	 assert(ed[i].weight != 0); 
       //verify node ids are in allowed range
-      assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= column_dim);
-      assert((int)ed[i].to >= matlab_offset && (int)ed[i].to <= column_dim);
+      assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= ps.M);
+      if (ac.supportgraphlabcf)
+        ed[i].to -= ps.M;
+      assert((int)ed[i].to >= matlab_offset && (int)ed[i].to <= ps.N);
       //no self edges
       //assert((int)ed[i].to != (int)ed[i].from);
     
@@ -232,8 +250,14 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
 	     ed[i].weight /= ac.scalerating;
   
       vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
-      vdata.datapoint.set_new(ed[i].to - matlab_offset, ed[i].weight);   
+      vdata.datapoint.set_new(ed[i].to - matlab_offset, ed[i].weight);  
+      ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
+      if (! vdata.reported){
+         vdata.reported = true;
+         ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
+         ps.total_assigned++;
       }
+    }
       printf(".");
       fflush(0);
       if (rc == 0 || total >= edgecount_in_file)

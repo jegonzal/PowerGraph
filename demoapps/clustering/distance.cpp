@@ -10,17 +10,17 @@ double sum_sqr(sparse_vec & dvec1);
 sparse_vec fabs(sparse_vec& dvec1);
 double sum(sparse_vec & dvec);
 
-double calc_euclidian_distance( sparse_vec & datapoint,  sparse_vec &cluster){
+double calc_euclidian_distance( sparse_vec & datapoint,  sparse_vec &cluster, double sqr_sum){
   sparse_vec diff = minus(datapoint , cluster);
   return sqrt(sum_sqr(diff));
 }
 
 
-double calc_euclidian_distance( sparse_vec & datapoint,  vec &cluster){
-  double dist = sum_sqr(cluster); //most of the entries of the datapoints are zero 
-  for (int i=0; i< ((sparse_vec)datapoint).nnz(); i++){
-      double val = ((sparse_vec)datapoint).get_nz_data(i);
-      int pos = ((sparse_vec)datapoint).get_nz_index(i);
+double calc_euclidian_distance( sparse_vec & datapoint,  vec &cluster, double sqr_sum){
+  double dist = sqr_sum;
+  for (int i=0; i< datapoint.nnz(); i++){
+      double val = datapoint.get_nz_data(i);
+      int pos = datapoint.get_nz_index(i);
       dist += (((val - cluster[pos])*(val - cluster[pos])) - cluster[pos]*cluster[pos]);
    }
   return sqrt(dist);
@@ -76,10 +76,10 @@ double calc_cosine_distance( sparse_vec & datapoint,  vec & cluster){
 }
 
 
-double calc_distance(itpp::sparse_vec &datapoint,  vec & cluster){
+double calc_distance(itpp::sparse_vec &datapoint,  vec & cluster, double sqr_sum){
    switch(ac.distance_measure){
       case EUCLIDEAN:          
-          return calc_euclidian_distance(datapoint, cluster);
+          return calc_euclidian_distance(datapoint, cluster, sqr_sum);
       case CHEBYCHEV:
           return calc_chebychev_distance(datapoint, cluster);
       case COSINE:

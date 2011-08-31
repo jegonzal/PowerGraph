@@ -38,7 +38,10 @@ extern problem_setup ps;
 void last_iter();
 double calc_cost();
 void update_clusters();
-vec plus(vec & v1, const sparse_vec & v2);
+void plus( vec &v1,  sparse_vec &v2);
+void minus( vec &v1, sparse_vec &v2);
+int calc_cluster_centers();
+
 
  /***
  * UPDATE FUNCTION
@@ -58,14 +61,17 @@ void kmeans_update_function(gl_types::iscope &scope,
     printf("entering data point %u, current cluster %d\n",  id, vdata.current_cluster);   
   }
 
-  const mat &clusters = CLUSTER_LOCATIONS.get_val();
+  if (!vdata.reported) //this matrix row have no non-zero entries, and thus ignored
+     return;
+  //const mat &clusters = CLUSTER_LOCATIONS.get_val();
 
   double min_dist = 1e100;
   int pos = -1;
   graphlab::timer t; t.start();
   for (int i=0; i< ps.K; i++){
-     vec row = clusters.get_row(i);
-     double dist = calc_distance(vdata.datapoint, row);
+     //vec row = clusters.get_row(i);
+     vec & row = ps.clusts.cluster_vec[i].location;
+     double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr);
      if (min_dist > dist){
          min_dist = dist;
          pos = i;
@@ -75,15 +81,15 @@ void kmeans_update_function(gl_types::iscope &scope,
   assert(pos != -1);
 
 
-  if (toprint && pos != vdata.current_cluster){
-    std::cout <<id<<" assigned to cluster: " << pos << std::endl;
+  if (pos != vdata.current_cluster){
+    vdata.hot=true;
+    if (toprint)
+      std::cout <<id<<" assigned to cluster: " << pos << std::endl;
   }
-      
+  vdata.prev_cluster = vdata.current_cluster; 
   vdata.current_cluster = pos;
   vdata.min_distance = min_dist;
 
-  if (id == ps.M-1)
-	last_iter();
 }
 
 
@@ -110,28 +116,26 @@ void update_clusters(){
  
 
    mat means = zeros(ps.K, ps.N);
-   vec count_in_cluster = zeros(ps.K);
    for (int i=0; i< ps.M; i++){
-       const vertex_data & data = ps.g->vertex_data(i);
-       assert(data.current_cluster >=0 && data.current_cluster < ps.K);
-       count_in_cluster[data.current_cluster]++;
-       vec row = means.get_row(data.current_cluster);
-       row = plus(row, data.datapoint);
-       means.set_row(data.current_cluster, row);
+       vertex_data & data = ps.g->vertex_data(i);
+       if (!data.hot)
+         continue;
+       else {
+         assert(data.current_cluster >=0 && data.current_cluster < ps.K);
+         assert(data.prev_cluster >=0 && data.prev_cluster < ps.K);
+         assert(data.prev_cluster != data.current_cluster);
+         plus(ps.clusts.cluster_vec[data.current_cluster].cur_sum_of_points , data.datapoint);    
+         minus(ps.clusts.cluster_vec[data.prev_cluster].cur_sum_of_points , data.datapoint);    
+         ps.clusts.cluster_vec[data.current_cluster].num_assigned_points++;
+         ps.clusts.cluster_vec[data.prev_cluster].num_assigned_points--;
+         data.hot = false;  
+         if (ac.debug)
+           std::cout<<"in hot node: " << i << std::endl;
+       }
    }
-   for (int i=0; i< ps.K; i++){
-      vec row = means.get_row(i);
-      if (count_in_cluster[i] > 0)
-        row /= count_in_cluster[i];
-      means.set_row(i, row);
-   }
+   int total_assigned =calc_cluster_centers();
+   assert(total_assigned == ps.total_assigned);
 
-   CLUSTER_LOCATIONS.set(means);
-
-   if (ac.debug){
-      std::cout<<"counter in clusters: " << count_in_cluster<< std::endl;
-      std::cout<<"cluster locations: " << means << std::endl;
-   }
 }
  
 
