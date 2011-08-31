@@ -17,7 +17,7 @@ public:
   
 
   void operator()(gl::iscope& scope, gl::icallback& callback) {
-    std::cout << "Processing vertex: " << scope.vertex() << std::endl;
+    //    std::cout << "Processing vertex: " << scope.vertex() << std::endl;
     ASSERT_GT(iters_remaining, 0);
     // Make a local copy of the global topic counts
     std::vector<count_type> local_n_t(ntopics);

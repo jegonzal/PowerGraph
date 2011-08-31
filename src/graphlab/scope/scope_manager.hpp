@@ -162,52 +162,35 @@ namespace graphlab {
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
                            const boost::true_type&) {
+      const size_t MAX_WRITES = 100;
+
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = scope.cache.find(vid);
       const bool is_cached = iter != scope.cache.end();
-
-      // Try to get the write lock
-      const bool lock_acquired = locks[vid].try_writelock();
-      if(lock_acquired) {
-        // If we succeed go ahead and merge the cache entry and then drop it
-        if(is_cached) {
-          const cache_entry_type& cache_entry = iter->second;
+      if(is_cached) {
+        cache_entry_type& cache_entry = iter->second;        
+        if(++cache_entry.writes > MAX_WRITES) {
+          locks[vid].writelock();
           graph.vertex_data(vid).apply_diff(cache_entry.current, 
                                             cache_entry.old);
           scope.cache.erase(iter);
-        }
-        return;
-      } else {
-        if(is_cached && ++(iter->second.writes) < 10) {
           return;
-        }
-        // Update the cache entry or create it if it does not already exist
-        if(is_cached) {
-          // Grab the write lock and dump the value
-          locks[vid].writelock();
-          cache_entry_type& cache_entry = iter->second;
-          graph.vertex_data(vid).apply_diff(cache_entry.current, 
-                                            cache_entry.old);
-          cache_entry.current = graph.vertex_data(vid);
-          locks[vid].unlock();
-          cache_entry.writes = 0;
-          cache_entry.old = cache_entry.current;
-        } else {       
+        } 
+      } else {
+        // Try to get the write lock
+        const bool lock_acquired = locks[vid].try_writelock();
+        if(!lock_acquired) {
           locks[vid].readlock();
           // create a cache entry
           cache_entry_type& cache_entry = scope.cache[vid];
           cache_entry.current = graph.vertex_data(vid);
           locks[vid].unlock();
-          cache_entry.writes = 0;
           cache_entry.old = cache_entry.current;
-        } // end of else
+        }
       }
     } // end of acquire write lock
-
-
-
 
 
 
@@ -222,26 +205,32 @@ namespace graphlab {
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
                           const boost::true_type&) {
+      const size_t MAX_READS = 100;
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = scope.cache.find(vid);
       const bool is_cached = iter != scope.cache.end();
-      cache_entry_type& cache_entry = iter->second;
       if(is_cached) {
-        cache_entry.reads++;
-        if(++cache_entry.reads < 10) {
-          return; // Read cache is valid
-        } else {
+        cache_entry_type& cache_entry = iter->second;        
+        if(++cache_entry.reads > MAX_READS) {        
           locks[vid].readlock();
           const vertex_data_type& vdata = graph.vertex_data(vid);
           cache_entry.current.apply_diff(vdata, cache_entry.old);
           cache_entry.old = vdata;
           locks[vid].unlock(); 
-          cache_entry.reads = 0;
         }
       } else {
-        locks[vid].readlock();
+        // Try to get the write lock
+        const bool lock_acquired = locks[vid].try_readlock();
+        if(!lock_acquired) {
+          locks[vid].readlock();
+          // create a cache entry
+          cache_entry_type& cache_entry = scope.cache[vid];
+          cache_entry.current = graph.vertex_data(vid);
+          locks[vid].unlock();
+          cache_entry.old = cache_entry.current;
+        }
       }
     } // end of acquire readlock
 

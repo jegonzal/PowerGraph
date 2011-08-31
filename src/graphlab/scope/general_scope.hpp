@@ -33,11 +33,12 @@
 #ifndef GRAPHLAB_GENERAL_SCOPE_HPP
 #define GRAPHLAB_GENERAL_SCOPE_HPP
 
-#include <boost/type_traits.hpp>
+//#include <boost/bind.hpp>
 
-#include <graphlab/util/cache.hpp>
 #include <graphlab/scope/iscope.hpp>
+
 #include <graphlab/scope/idiffable.hpp>
+
 
 namespace graphlab {
 
@@ -56,9 +57,6 @@ namespace graphlab {
     typedef typename base::vertex_data_type vertex_data_type;
     typedef typename base::edge_data_type   edge_data_type;
     typedef typename base::edge_list_type   edge_list_type;
-
-    typedef boost::is_base_of< idiffable<vertex_data_type>, 
-                               vertex_data_type> is_diffable;
     
 
     using base::_vertex;
@@ -72,13 +70,13 @@ namespace graphlab {
       vertex_data_type old;
       vertex_data_type current;
       uint16_t reads, writes;
-      bool evicatable;
-      cache_entry() : reads(0), writes(0), evictable(true) { }
+      cache_entry() : reads(0), writes(0) { }
     };
-    typedef cache::lru<vertex_id_type, cache_entry*> cache_type
+    typedef std::map<vertex_id_type, cache_entry> cache_map_type;
+
 
     edge_id_type eid;
-    cache_type cache;
+    cache_map_type cache;
 
     
 
@@ -105,31 +103,15 @@ namespace graphlab {
 
     edge_id_type& edge_id() { return eid; }
 
-
     vertex_data_type& vertex_data(const vertex_id_type vid) {
-      return vertex_data(vid, is_diffable());
+      typedef typename cache_map_type::iterator iterator_type;
+      iterator_type iter = cache.find(vid);
+      if(iter != cache.end()) {
+        return iter->second.current;
+      } else {
+        return _graph_ptr->vertex_data(vid);
+      }
     }
-    vertex_data_type& vertex_data(const vertex_id_type vid, 
-                                  const boost::false_type&) {
-      return _graph_ptr->vertex_data(vid);
-    }
-    vertex_data_type& vertex_data(const vertex_id_type vid,
-                                  const boost::true_type&) {
-      cache_entry* entry_ptr(NULL);
-      const bool success = cache.get(vid, entry_ptr);
-      ASSERT_TRUE(success);
-      ASSERT_NE(entry_ptr, NULL);
-      entry_ptr->writes++;
-      ASSERT_FALSE(entry_ptr->evictable);
-      return entry_ptr->current;
-    }
-
-
-
-    const vertex_data_type& vertex_data(const vertex_id_type vid) const {
-      return vertex_data(vid, is_diffable());
-    }
-
 
     const vertex_data_type& vertex_data(const vertex_id_type vid) const {
       typedef typename cache_map_type::const_iterator iterator_type;
