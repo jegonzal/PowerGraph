@@ -22,6 +22,16 @@
 
 
 
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
 // Test the graph class
 
 #include <vector>
@@ -51,44 +61,80 @@ public:
     global_logger().set_log_to_console(true);
   }
  
-  void test_sequential() {
+  void test_sequential_sum() {
     graphlab::sharedsum<int> x;
     for(size_t i = 0; i < 100; ++i) {
       x += 1;
     }
     std::cout << std::endl;
-    std::cout << x.get() << std::endl;
+    std::cout << x << std::endl;
+    TS_ASSERT_EQUALS(x.val(), 100);
   } // end of test_sequential 
 
   
   struct functor {
     graphlab::sharedsum<int>& x;
-    size_t min, max;
+    int min, max;
     functor(graphlab::sharedsum<int>& x,
-            size_t min, size_t max) :
+            int min, int max) :
       x(x), min(min), max(max) { };
     void operator()() {
-      for(size_t i = min; i < max; ++i) {
+      for(int i = min; i < max; ++i) {
         x += 1;
       }
-      std::cout << "value: " << x << std::endl;
       x.flush();
     }
   }; // end of functor
 
-  void test_parallel() {
-    const size_t total = 100;
-    const size_t step_size = 10000;
-    graphlab::sharedsum<int> x(0, 1000);
+  void test_parallel_sum() {
+    const int total = 10;
+    const int step_size = 1000;
+    graphlab::sharedsum<int> x(0, 100);
     graphlab::thread_group threads;
-    for(size_t i = 0; (i+1) < total * step_size; i += step_size) {
+    for(int i = 0; (i+1) < total * step_size; i += step_size) {
       threads.launch(functor(x, i, i + step_size)); 
     }
     threads.join();
     std::cout << std::endl;
-    std::cout << x.get() << std::endl;
-
+    std::cout << x << std::endl;
+    TS_ASSERT_EQUALS(x.val(), total*step_size); 
   } // end of test parallel
+
+
+
+  // struct functor {
+  //   graphlab::sharedsum<int>& x;
+  //   int min, max;
+  //   functor(graphlab::sharedsum<int>& x,
+  //           int min, int max) :
+  //     x(x), min(min), max(max) { };
+  //   void operator()() {
+  //     for(int i = min; i < max; ++i) {
+  //       x += 1;
+  //     }
+  //     x.flush();
+  //   }
+  // }; // end of functor
+
+
+
+  // void test_parallel_density() {
+  //   const int total = 100;
+  //   const int step_size = 10000;
+  //   std::vector<graphlab::sharedsum<int>> counts(10000, 
+  //                                                graphlab::shared_sum<int>(0, 100));
+  //   graphlab::thread_group threads;
+  //   for(int i = 0; (i+1) < total * step_size; i += step_size) {
+  //     threads.launch(functor(x, i, i + step_size)); 
+  //   }
+  //   threads.join();
+  //   std::cout << std::endl;
+  //   std::cout << x << std::endl;
+  //   TS_ASSERT_EQUALS(x.val(), total*step_size); 
+  // } // end of test parallel
+
+
+
 
 };
 

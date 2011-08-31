@@ -14,7 +14,17 @@ namespace graphlab {
 
     void destroy_tls_data(void* ptr) {
       cache_type* cache_ptr = static_cast<cache_type*>(ptr);
-      if(cache_ptr != NULL) { delete cache_ptr; }
+      if(cache_ptr != NULL) { 
+        typedef cache_type::cache_map_type::iterator iterator;
+        cache_type& cache = *cache_ptr;
+        for(iterator iter = cache.begin(), iend = cache.end(); iter != iend; ++iter) {
+          if(iter->get_right() != NULL) {
+            delete iter->get_right();
+            iter->get_right() = NULL;
+          }
+        }
+        delete cache_ptr;
+      }
     }
     struct tls_key_creator {
       pthread_key_t TLS_KEY;

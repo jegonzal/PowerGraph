@@ -77,6 +77,9 @@ namespace graphlab {
     public:
       
       size_t size() { return cache_map.size(); }
+
+      typename cache_map_type::iterator begin() { return cache_map.begin(); }
+      typename cache_map_type::iterator end() { return cache_map.end(); }
       
       std::pair<key_type, value_type> evict() {
         ASSERT_FALSE(cache_map.empty());

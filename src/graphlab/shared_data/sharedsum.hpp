@@ -118,17 +118,8 @@ namespace graphlab {
     const value_type& get_read() const {     
       cache_entry* entry_ptr = get_cache_entry();
       const bool is_cached = entry_ptr != NULL;
-      const bool grabbed_readlock = rwlock.try_readlock();
-      // Base case
-      if(!is_cached && grabbed_readlock) {
-        return value;
-      } else if(is_cached && grabbed_readlock) {
-        entry_ptr->current += value - entry_ptr->old;
-        entry_ptr->old = value;
-        rwlock.unlock();
-        entry_ptr->reads = 1;
-        return entry_ptr->current;
-      } else if(is_cached && !grabbed_readlock) {
+      if(is_cached) {
+        ASSERT_NE(entry_ptr, NULL);
         if(entry_ptr->reads == lag) { 
           rwlock.readlock();
           entry_ptr->current += value - entry_ptr->old;
@@ -136,37 +127,24 @@ namespace graphlab {
           rwlock.unlock();
           entry_ptr->reads = 0;
         }
-        entry_ptr->reads++;
-        return entry_ptr->current; 
       } else {
-        ASSERT_FALSE(is_cached);
-        ASSERT_FALSE(grabbed_readlock);
+        ASSERT_EQ(entry_ptr, NULL);
         // if it is not cached we go ahead an force the creation of
         // a cache entry
         rwlock.readlock();
         entry_ptr = create_cache_entry();
         rwlock.unlock();
-        entry_ptr->reads++;
-        return entry_ptr->current; 
       }
-    } // end of get 
+      ASSERT_NE(entry_ptr, NULL);
+      entry_ptr->reads++;
+      return entry_ptr->current; 
+    } // end of get
 
-    value_type& get_write() {     
+    value_type& get_write() {    
       cache_entry* entry_ptr = get_cache_entry();
       const bool is_cached = entry_ptr != NULL;
-      const bool grabbed_writelock = rwlock.try_writelock();
-      // Base case
-      if(!is_cached && grabbed_writelock) {
-        return value;
-      } else if(is_cached && grabbed_writelock) {
-        value += (entry_ptr->current - entry_ptr->old);
-        entry_ptr->old = value;
-        rwlock.unlock();
-        entry_ptr->current = entry_ptr->old;
-        entry_ptr->writes = 1;
-        entry_ptr->reads = 0;
-        return entry_ptr->current;
-      } else if(is_cached && !grabbed_writelock) {
+      if(is_cached) {
+        ASSERT_NE(entry_ptr, NULL);
         if(entry_ptr->writes == lag) { 
           rwlock.writelock();
           value += (entry_ptr->current - entry_ptr->old);
@@ -176,25 +154,19 @@ namespace graphlab {
           entry_ptr->writes = 0;
           entry_ptr->reads = 0;
         }
-        entry_ptr->writes++;
-        return entry_ptr->current; 
       } else {
-        ASSERT_FALSE(is_cached);
-        ASSERT_FALSE(grabbed_writelock);
+        ASSERT_EQ(entry_ptr, NULL);
         // if it is not cached we go ahead an force the creation of
         // a cache entry
         rwlock.readlock();
         entry_ptr = create_cache_entry();
         rwlock.unlock();
-        entry_ptr->writes++;
-        return entry_ptr->current; 
       }
+      ASSERT_NE(entry_ptr, NULL);
+      entry_ptr->writes++;
+      return entry_ptr->current; 
     } // end of get 
 
-
-    void release() const {
-      if(get_cache_entry() == NULL) rwlock.unlock();
-    }
 
     graphlab::rwlock rwlock;
     value_type value;
@@ -216,32 +188,28 @@ namespace graphlab {
       value(value), lag(lag){ }
   
 
-    value_type get() const {     
-      const value_type ret_val = get_read();
-      release();
-      return ret_val;
+    const value_type& val() const {     
+      return get_read();
     } // end of get 
 
-    operator T() { return get(); }
+    value_type& val() {     
+      return get_write();
+    } // end of get 
+
+    operator T() const { return val(); }
 
 
     //! Assign a new value 
-    void operator=(const T& val) {
-      value_type& cache_val = get_write();
-      cache_val = val;
-      release();
+    void operator=(const T& new_val) {
+      val() = val;
     }
     
-    void operator+=(const T& val) { 
-      value_type& cache_val = get_write();
-      cache_val += val;
-      release();
+    void operator+=(const T& other) {
+      val() += other;
     }
 
-    void operator-=(const T& val) { 
-      value_type& cache_val = get_write();
-      cache_val -= val;
-      release();
+    void operator-=(const T& other) { 
+      val() -= other;
     }
 
 
