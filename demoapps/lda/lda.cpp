@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
   std::string dictionary_fname("dictionary.txt");
   std::string counts_fname("counts.tsv");
   
-  size_t niters(1);
+  size_t niters(2);
   std::string llik_fname("llik.txt");
   
 
@@ -124,8 +124,8 @@ int main(int argc, char** argv) {
   global_n_t.resize(ntopics);
 
 
-  core.start();
-
+  double runtime = core.start();
+  std::cout << "Runtime: " << runtime << std::endl;
 
   return EXIT_SUCCESS;
 } // end of main

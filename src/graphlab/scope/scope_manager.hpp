@@ -173,22 +173,20 @@ namespace graphlab {
         cache_entry_type& cache_entry = iter->second;        
         if(++cache_entry.writes > MAX_WRITES) {
           locks[vid].writelock();
-          graph.vertex_data(vid).apply_diff(cache_entry.current, 
-                                            cache_entry.old);
-          scope.cache.erase(iter);
-          return;
-        } 
-      } else {
-        // Try to get the write lock
-        const bool lock_acquired = locks[vid].try_writelock();
-        if(!lock_acquired) {
-          locks[vid].readlock();
-          // create a cache entry
-          cache_entry_type& cache_entry = scope.cache[vid];
-          cache_entry.current = graph.vertex_data(vid);
+          vertex_data_type& vdata = graph.vertex_data(vid);
+          vdata.apply_diff(cache_entry.current, cache_entry.old);
+          cache_entry.current = vdata;
           locks[vid].unlock();
           cache_entry.old = cache_entry.current;
-        }
+          cache_entry.writes = cache_entry.reads = 0;
+        } 
+      } else {       
+        locks[vid].readlock();
+        // create a cache entry
+        cache_entry_type& cache_entry = scope.cache[vid];
+        cache_entry.current = graph.vertex_data(vid);
+        locks[vid].unlock();
+        cache_entry.old = cache_entry.current;
       }
     } // end of acquire write lock
 
@@ -222,15 +220,12 @@ namespace graphlab {
         }
       } else {
         // Try to get the write lock
-        const bool lock_acquired = locks[vid].try_readlock();
-        if(!lock_acquired) {
-          locks[vid].readlock();
-          // create a cache entry
-          cache_entry_type& cache_entry = scope.cache[vid];
-          cache_entry.current = graph.vertex_data(vid);
-          locks[vid].unlock();
-          cache_entry.old = cache_entry.current;
-        }
+        locks[vid].readlock();
+        // create a cache entry
+        cache_entry_type& cache_entry = scope.cache[vid];
+        cache_entry.current = graph.vertex_data(vid);
+        locks[vid].unlock();
+        cache_entry.old = cache_entry.current;        
       }
     } // end of acquire readlock
 
