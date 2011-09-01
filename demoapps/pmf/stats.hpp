@@ -31,6 +31,7 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
+extern const char * testtypename[];
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
@@ -42,7 +43,7 @@ int count_edges(gl_types::edge_list es){
 #ifndef GL_NO_MULT_EDGES
   int cnt = 0; 
   for (int j=0; j< (int)es.size(); j++){
-    cnt += g->edge_data(es[j]).medges.size();
+    cnt += ps.g->edge_data(es[j]).medges.size();
   }
   return cnt;
 #else
@@ -279,9 +280,9 @@ double calc_rmse(graph_type * _g, bool test, double & res){
 		cout<<"RMSE sq_err: " << sq_err << " prediction: " << prediction << endl; 
 
 #ifndef GL_NO_MCMC
-           if (ps.BPTF && ps.iiter > BURN_IN){
+           if (ps.BPTF && ps.iiter > ac.bptf_burn_in){
              edge.avgprd += prediction;
-             sq_err = powf((edge.avgprd / (ps.iiter - ps.bptf_bur_in)) - edge.weight, 2);
+             sq_err = powf((edge.avgprd / (ps.iiter - ac.bptf_burn_in)) - edge.weight, 2);
            }
 #endif
            if (ps.algorithm == WEIGHTED_ALS)

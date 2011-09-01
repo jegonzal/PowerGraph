@@ -43,7 +43,7 @@ void calc_T(int i){
 
     //find the right edge which matches the current time
 #ifndef GL_NO_MULT_EDGES    
-     multiple_edges * medges= &g->edge_data(edge);
+     multiple_edges * medges= &ps.g->edge_data(edge);
       edge_data data;
       for (int j=0; j< (int)medges->medges.size(); j++){
         data = medges->medges[j];

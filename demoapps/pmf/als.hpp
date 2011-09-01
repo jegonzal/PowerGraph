@@ -161,9 +161,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 			      edge.weight, 
                               prediction);
 #ifndef GL_NO_MCMC
-        if (BPTF && iiter > BURN_IN){
+        if (ps.BPTF && ps.iiter > ac.bptf_burn_in){
           edge.avgprd += prediction;        
-          trmse = pow((edge.avgprd / (iiter - BURN_IN)) - edge.weight, 2);
+          trmse = pow((edge.avgprd / (ps.iiter - ac.bptf_burn_in)) - edge.weight, 2);
         }
 #endif
       //weight rmse with edge weight 

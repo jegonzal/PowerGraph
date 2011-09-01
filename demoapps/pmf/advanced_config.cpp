@@ -128,6 +128,13 @@ void problem_setup::verify_setup(){
   }
 #endif
 
+#ifndef GL_NO_MULT_EDGES
+#ifdef GL_SVD_PP
+   logstream(LOG_ERROR) << "When working with SVD++ (GL_SVD_PP is defined in pmf.h) you should also define GL_NO_MULT_EDGES\n";
+   exit(1); 
+#endif
+#endif
+
   if (ac.bptf_delay_alpha != 0 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR))
 	logstream(LOG_WARNING) << "Delaying alpha (sampling of noise level) is ignored in non-MCMC methods" << std::endl;
 

@@ -147,7 +147,6 @@ enum testtype{
     TEST = 2
 };
 
-static const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
 
 
 //run modes
@@ -169,8 +168,6 @@ enum runmodes{
 
 #define MAX_RUNMODE 9
 
-static const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix"};
-
 //counters for debugging running time of different modules
 enum countervals{
    EDGE_TRAVERSAL=0,
@@ -185,10 +182,6 @@ enum countervals{
    SVD_MULT_A=9,
    SVD_MULT_A_TRANSPOSE=10,
 };
-
-static const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
-  "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
-
 
 
 //types of graph nodes

@@ -102,8 +102,8 @@ void export_kdd_format(graph_type * _g, testtype type, bool dosave) {
 #ifdef GL_SVD_PP
        int n = data.num_edges; //+1.0 ? //regularization
        data.weight = zeros(ac.D);
-       foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
-         vertex_data & movie = g->vertex_data(g->target(oedgeid)); 
+       foreach(edge_id_t oedgeid, ps.g->out_edge_ids(i)) {
+         vertex_data & movie = ps.g->vertex_data(ps.g->target(oedgeid)); 
 	 data.weight += movie.weight;
        }
        float usrnorm = float(1.0/sqrt(n));
@@ -134,10 +134,10 @@ void export_kdd_format(graph_type * _g, testtype type, bool dosave) {
                   edge.weight, 
                   prediction);
 #ifndef GL_NO_MCMC 
-          if (BPTF && iiter > bptf_burn_in){
+          if (ps.BPTF && ps.iiter > ac.bptf_burn_in){
              edge.avgprd += prediction;
              //add = powf((edge.avgprd / (iiter - bptf_burn_in)) - edge.weight, 2);
-              prediction = (edge.avgprd / (iiter - bptf_burn_in));
+              prediction = (edge.avgprd / (ps.iiter - ac.bptf_burn_in));
            }
 #endif
           if (prediction<ac.minval)
