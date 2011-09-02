@@ -3,6 +3,7 @@
 #include "../gabp/advanced_config.h"
 
 extern advanced_config ac;
+const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TONIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
 
 sparse_vec minus(sparse_vec & dvec1, sparse_vec & dvec2);
 vec minus(sparse_vec & dvec1, vec & dvec2);
@@ -23,6 +24,8 @@ double calc_euclidian_distance( sparse_vec & datapoint,  vec &cluster, double sq
       int pos = datapoint.get_nz_index(i);
       dist += (((val - cluster[pos])*(val - cluster[pos])) - cluster[pos]*cluster[pos]);
    }
+  if (fabs(dist) <1e-10)
+     dist = 0;
   return sqrt(dist);
 }
 

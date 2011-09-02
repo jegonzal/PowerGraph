@@ -12,6 +12,7 @@ public:
   int iter;
   int ncpus;
   int algorithm;
+  int init_mode; //initialization mode used for clustering
   bool cg_resid;
   
   //marix proprties
@@ -97,6 +98,7 @@ int distance_measure;
     isfloat = true;
     unittest = 0;
     algorithm = 0;
+    init_mode = 0;
     square = false;
     support_null_variance = false;
     //round_robin = true;

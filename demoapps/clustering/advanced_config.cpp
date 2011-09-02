@@ -4,6 +4,7 @@
 
 extern problem_setup ps;
 extern advanced_config ac;
+extern const char * inittypenames[];
 
 void advanced_config::init_command_line_options(graphlab::command_line_options & clopts){
 
@@ -16,6 +17,8 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("K", &K, K, "number of clusters");
   clopts.add_positional("K");  
 
+  clopts.attach_option("init_mode", &init_mode, init_mode, "Initialization: 0 = random, 1= round_robin, 2 = kmeans++");
+  clopts.add_positional("init_mode");
   clopts.attach_option("max_iter", &iter, iter, "Maximum number if iterations");
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
   clopts.attach_option("zero", &zero, zero, "support zero edges");  
@@ -40,5 +43,8 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
 
 void problem_setup::verify_setup(){
    K = ac.K;
+   algorithm = (runmodes)ac.algorithm;
+   logstream(LOG_INFO) << "Setting cluster initialization mode to: " << inittypenames[ac.init_mode] << std::endl;
+   ps.init_type = (initizliation_type)ac.init_mode;
    assert(K>0);
 }

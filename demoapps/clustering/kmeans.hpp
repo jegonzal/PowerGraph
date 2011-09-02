@@ -33,7 +33,7 @@
 
 extern advanced_config ac;
 extern problem_setup ps;
-
+extern const char * runmodesname[];
 
 void last_iter();
 double calc_cost();
@@ -63,13 +63,18 @@ void kmeans_update_function(gl_types::iscope &scope,
 
   if (!vdata.reported) //this matrix row have no non-zero entries, and thus ignored
      return;
-  //const mat &clusters = CLUSTER_LOCATIONS.get_val();
 
   double min_dist = 1e100;
   int pos = -1;
   graphlab::timer t; t.start();
-  for (int i=0; i< ps.K; i++){
-     //vec row = clusters.get_row(i);
+
+  int end_cluster;
+  switch(ps.algorithm){
+    case K_MEANS: end_cluster = ps.K; break; //regular k-means, calculate distance to all cluster heads
+    case K_MEANS_PLUS_PLUS: end_cluster = 1; break; //calculate distance of all point to current cluster
+  }
+
+  for (int i=0; i< end_cluster; i++){
      vec & row = ps.clusts.cluster_vec[i].location;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr);
      if (min_dist > dist){
@@ -83,13 +88,16 @@ void kmeans_update_function(gl_types::iscope &scope,
 
   if (pos != vdata.current_cluster){
     vdata.hot=true;
-    if (toprint)
+    if (toprint && ps.algorithm == K_MEANS)
       std::cout <<id<<" assigned to cluster: " << pos << std::endl;
+    else if (toprint && ps.algorithm == K_MEANS_PLUS_PLUS)
+      std::cout <<id<<" distance to current cluster is : " << min_dist << std::endl;
   }
-  vdata.prev_cluster = vdata.current_cluster; 
-  vdata.current_cluster = pos;
   vdata.min_distance = min_dist;
-
+  if (ps.algorithm == K_MEANS){ 
+    vdata.prev_cluster = vdata.current_cluster; 
+    vdata.current_cluster = pos;
+  }
 }
 
 
@@ -122,19 +130,28 @@ void update_clusters(){
          continue;
        else {
          assert(data.current_cluster >=0 && data.current_cluster < ps.K);
-         assert(data.prev_cluster >=0 && data.prev_cluster < ps.K);
-         assert(data.prev_cluster != data.current_cluster);
+         if ((ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter >= 1) || (ps.algorithm = K_MEANS)){
+           assert(data.prev_cluster >=0 && data.prev_cluster < ps.K);
+           assert(data.prev_cluster != data.current_cluster);
+         }
+         //add point mass into new cluster
          plus(ps.clusts.cluster_vec[data.current_cluster].cur_sum_of_points , data.datapoint);    
-         minus(ps.clusts.cluster_vec[data.prev_cluster].cur_sum_of_points , data.datapoint);    
          ps.clusts.cluster_vec[data.current_cluster].num_assigned_points++;
-         ps.clusts.cluster_vec[data.prev_cluster].num_assigned_points--;
+         
+         if (ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter < 2 && data.prev_cluster == -1){
+         }
+         else { //remove point from old cluster
+           minus(ps.clusts.cluster_vec[data.prev_cluster].cur_sum_of_points , data.datapoint);    
+           ps.clusts.cluster_vec[data.prev_cluster].num_assigned_points--;
+         }
+     
          data.hot = false;  
          if (ac.debug)
            std::cout<<"in hot node: " << i << std::endl;
        }
    }
    int total_assigned =calc_cluster_centers();
-   assert(total_assigned == ps.total_assigned);
+   ASSERT_EQ(total_assigned , ps.total_assigned);
 
 }
  

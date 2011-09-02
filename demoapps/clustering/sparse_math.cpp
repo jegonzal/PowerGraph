@@ -6,6 +6,14 @@
 using namespace itpp;
 extern problem_setup ps;
 
+//assign sparse vector value v2 into v1
+void assign(vec & v1, sparse_vec & v2){
+  v1 = zeros(ps.N);
+  for (int i=0; i< (v2).nnz(); i++){
+     v1[v2.get_nz_index(i)] = v2.get_nz_data(i);
+  }
+
+}
 
 double get(sparse_vec & v1, int pos){
   for (int i=0; i< v1.nnz(); i++){
@@ -23,8 +31,8 @@ double get(sparse_vec & v1, int pos){
 double min( sparse_vec & dvec){
  
   double dmin = 1e100;
-  for (int i=0; i< ((sparse_vec)dvec).nnz(); i++){
-     dmin = std::min(dmin, ((sparse_vec)dvec).get_nz_data(i));
+  for (int i=0; i< (dvec).nnz(); i++){
+     dmin = std::min(dmin, (dvec).get_nz_data(i));
   }
   return dmin;
 }
@@ -32,8 +40,8 @@ double min( sparse_vec & dvec){
 double max( sparse_vec & dvec){
  
   double dmax = -1e100;
-  for (int i=0; i< ((sparse_vec)dvec).nnz(); i++){
-     dmax = std::max(dmax, ((sparse_vec)dvec).get_nz_data(i));
+  for (int i=0; i< (dvec).nnz(); i++){
+     dmax = std::max(dmax, (dvec).get_nz_data(i));
   }
   return dmax;
 }
@@ -41,16 +49,16 @@ double max( sparse_vec & dvec){
 double sum( sparse_vec & dvec){
  
   double sum = 0;
-  for (int i=0; i< ((sparse_vec)dvec).nnz(); i++){
-     sum += ((sparse_vec)dvec).get_nz_data(i);
+  for (int i=0; i< (dvec).nnz(); i++){
+     sum += (dvec).get_nz_data(i);
   }
   return sum;
 }
 double sum_sqr( sparse_vec & dvec){
  
   double sum = 0;
-  for (int i=0; i< ((sparse_vec)dvec).nnz(); i++){
-     sum += (((sparse_vec)dvec).get_nz_data(i)*((sparse_vec)dvec).get_nz_data(i));
+  for (int i=0; i< (dvec).nnz(); i++){
+     sum += ((dvec).get_nz_data(i)*(dvec).get_nz_data(i));
   }
   return sum;
 }

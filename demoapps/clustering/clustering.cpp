@@ -50,12 +50,15 @@ using namespace std;
 advanced_config ac;
 problem_setup ps;
 
+const char * runmodesname[] = {"K-means", "K-means++"};
+const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++"};
+const char * countername[] = {"DISTANCE_CALCULTION"};
 
 
 /* Function declerations */ 
 void load_graph(const char* filename, graph_type * g,gl_types::core & glcore);    
 void last_iter();
-
+void initialize_clusters();
 
   void vertex_data::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
@@ -90,7 +93,7 @@ int calc_cluster_centers(){
   return total;
 }
 
-void add_tasks(gl_types::core & glcore){
+void add_tasks(){
 
   std::vector<vertex_id_t> um;
   for (int i=0; i< ps.M; i++)
@@ -98,7 +101,8 @@ void add_tasks(gl_types::core & glcore){
  
   switch (ps.algorithm){
      case K_MEANS:
-       glcore.add_tasks(um, kmeans_update_function, 1);
+     case K_MEANS_PLUS_PLUS:
+       ps.glcore->add_tasks(um, kmeans_update_function, 1);
        break;
  }
 
@@ -120,21 +124,24 @@ void init_clusters(){
 
 void init(){
 
-  init_clusters();
 
   switch(ps.algorithm){
    case K_MEANS:
+    init_clusters();
+    break;
+
+   case K_MEANS_PLUS_PLUS:
     break;
 
   }
 }
 
 
-void run_graphlab(gl_types::core &glcore,timer & gt ){
+void run_graphlab(){
    for (int i=0; i< ac.iter; i++){
-    glcore.start();
+    ps.glcore->start();
     last_iter();
-    add_tasks(*ps.glcore);
+    add_tasks();
   }
 }
 
@@ -219,15 +226,13 @@ void start(int argc, const char * argv[]) {
   }
   
 
-  add_tasks(*ps.glcore);
-  calc_cluster_centers();
+  add_tasks();
  
  
   printf("%s for (%d, %d, %d):%d.\n", runmodesname[ac.algorithm], ps.M, ps.N, ps.K, ps.L);
   
 
-
-  last_iter();
+  
   ps.iiter--; 
  
   ps.g->finalize();  
@@ -236,9 +241,14 @@ void start(int argc, const char * argv[]) {
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
     switch(ps.algorithm){
       case K_MEANS:
-         run_graphlab(*ps.glcore, ps.gt);
+         last_iter();
+         calc_cluster_centers();
+         run_graphlab();
          break;
-     
+
+      case K_MEANS_PLUS_PLUS:
+         initialize_clusters();
+     	 break;
   }
 
   //print timing counters

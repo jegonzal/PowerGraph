@@ -44,6 +44,7 @@ struct vertex_data {
   float min_distance;
   bool reported;
   bool hot;
+  bool clusterhead;
 
   //constructor
   vertex_data(){
@@ -52,6 +53,7 @@ struct vertex_data {
     min_distance = 0;
     reported = false;
     hot = false;
+    clusterhead = false;
   }
 
   void save(graphlab::oarchive& archive) const; 
@@ -93,12 +95,18 @@ struct clusters{
 
 //run modes
 enum runmodes{
-   K_MEANS = 0//K-means algo
+   K_MEANS = 0,//K-means algo
+   K_MEANS_PLUS_PLUS = 1, //initalization for K_means
 };
 
 #define MAX_RUNMODE 1
 
-static const char * runmodesname[] = {"K-means"};
+
+enum initizliation_type{
+   INIT_RANDOM = 0,
+   INIT_ROUND_ROBIN = 1,
+   INIT_KMEANS_PLUS_PLUS = 2
+};
 
 
 //counters for debugging running time of different modules
@@ -106,7 +114,6 @@ enum countervals{
    DISTANCE_CALCULATION
 };
 
-static const char * countername[] = {"DISTANCE_CALCULTION"};
 
 
 
@@ -119,7 +126,7 @@ class problem_setup{
 public:
 
   runmodes algorithm; //type of algorithm
- 
+  initizliation_type init_type; 
   graphlab::timer gt;
   int iiter;//count number of time zero node run
 

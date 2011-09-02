@@ -32,7 +32,7 @@
 
 extern advanced_config config;
 extern problem_setup ps;
-
+extern const char * inittypenames[];
 void init();
 
 template<typename edgedata>
@@ -142,7 +142,19 @@ void add_vertices(graph_type * _g){
   vertex_data vdata;
   // add M movie nodes (ps.tensor dim 1)
   for (int i=0; i<ps.M; i++){
-    vdata.current_cluster = ac.debug ? ( i % ps.K) : randi(0, ps.K-1);
+    switch (ps.init_type){
+       case INIT_RANDOM:
+         vdata.current_cluster = randi(0, ps.K-1);
+         break;
+       
+       case INIT_ROUND_ROBIN:
+	 vdata.current_cluster = i % ps.K;
+         break;
+
+       case INIT_KMEANS_PLUS_PLUS: //is done later
+	 vdata.current_cluster = -1;
+	 break;
+    }
     _g->add_vertex(vdata);
     if (ac.debug && (i<= 5 || i == ps.M-1))
        std::cout<<"node " << i <<" initial assignment is: " << vdata.current_cluster << std::endl; 
@@ -251,12 +263,15 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
   
       vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
       vdata.datapoint.set_new(ed[i].to - matlab_offset, ed[i].weight);  
-      ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
+      if (ps.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
+         ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
+      }
       if (! vdata.reported){
          vdata.reported = true;
-         ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
-         ps.total_assigned++;
-      }
+         if (ps.algorithm == K_MEANS) 
+           ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
+         ps.total_assigned++; //count the total number of non-zero rows we encountered
+       }
     }
       printf(".");
       fflush(0);
