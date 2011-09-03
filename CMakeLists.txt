@@ -343,25 +343,31 @@ endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 
 ### Set the debug flags ----------------------------------------------------->
 # Note: -fkeep-inline-functions significantly slows down the compilation
-set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self -fopenmp") 
+if (HAVE_64_BIT MATCHES 1)
+  set(MARCH "x86-64")
+else()
+  set(MARCH "i686")
+endif()
+
+set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -march=${MARCH} -Wall -Winit-self -fopenmp") 
 #-fno-implicit-templates")
 ### Set the release flags --------------------------------------------------->
 if (CROSS_COMPILE_32_BIT MATCHES 1)
   set(CMAKE_CXX_FLAGS_RELEASE 
-    "-m32 -O3 -Wall -Wextra -g -march=i686 -mtune=native -fopenmp")
+    "-m32 -O3 -Wall -Wextra -g -march=i686 -mtune=i686 -fopenmp")
   set(CMAKE_C_FLAGS_RELEASE 
-    "-m32 -O3 -Wall -Wextra -g -march=i686 -mtune=native -fopenmp")
+    "-m32 -O3 -Wall -Wextra -g -march=i686 -mtune=i686 -fopenmp")
 else(CROSS_COMPILE_32_BIT MATCHES 1)
   
   # Set the C compiler flags in release mode on 64bit systems
   set(CMAKE_C_FLAGS_RELEASE 
-    "-O3 -Wall -g -march=i686 -mtune=native -fopenmp")
+    "-O3 -Wall -g -march=${MARCH} -mtune=native -fopenmp")
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O2 -Wall -g -march=i686 -mtune=native -pg -fopenmp")
+      "-O2 -Wall -g -march=${MARCH} -mtune=native -pg -fopenmp")
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -Wall -g -march=i686 -mtune=native -fopenmp")
+      "-O3 -Wall -g -march=${MARCH} -mtune=native -fopenmp")
   endif(COMPILE_PROFILING MATCHES 1)
 
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
