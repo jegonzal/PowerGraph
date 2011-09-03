@@ -71,7 +71,7 @@ namespace graphlab {
       
       
     private:
-      cache_map_type cache_map;
+      mutable cache_map_type cache_map;
       
       
     public:
@@ -91,38 +91,80 @@ namespace graphlab {
         return result;
       } // end of evict
 
-      bool evict(const key_type& key, value_type& result) {
+      std::pair<bool, value_type> evict(const key_type& key) {
+        typedef typename cache_map_type::left_iterator iterator_type;
+        iterator_type iter = cache_map.left.find(key);
+        if(iter == cache_map.left.end()) 
+          return std::make_pair(false, value_type());
+        const value_type result = iter->get_right();
+        cache_map.left.erase(iter);
+        return std::make_pair(true, result);  
+      } // end of evict(key)
+
+      bool evict(const key_type& key, value_type& ret_value) {
         typedef typename cache_map_type::left_iterator iterator_type;
         iterator_type iter = cache_map.left.find(key);
         if(iter == cache_map.left.end()) return false;
-        result = iter->get_right();
+        ret_value = iter->get_right();
         cache_map.left.erase(iter);
-        return true;  
-      } // end of erase
+        return true;
+      } // end of evict(key)
       
+
+      bool contains(const key_type& key) const {
+        typedef typename cache_map_type::const_left_iterator iterator_type;
+        iterator_type iter = cache_map.left.find(key);
+        return iter != cache_map.left.end();
+      } // end of contains
+
+
+      value_type& operator[](const key_type& key) {
+        typedef typename cache_map_type::left_iterator iterator_type;
+        iterator_type iter = cache_map.left.find(key);
+        if(iter != cache_map.left.end()) { // already in cache
+          // move it to the end
+          cache_map.right.relocate(cache_map.right.end(), 
+                                   cache_map.project_right(iter));
+          return iter->get_right();
+        } else {
+          // add it to the cache
+          // Get the true entry from the source
+          typedef typename cache_map_type::value_type pair_type;
+          cache_map.insert(pair_type(key, value_type()));
+          return cache_map.left[key];
+        }
+      } // end of oeprator[]
+
+      const value_type& operator[](const key_type& key) const {
+        typedef typename cache_map_type::const_left_iterator iterator_type;
+        iterator_type iter = cache_map.left.find(key);
+        if(iter != cache_map.left.end()) { // already in cache
+          // move it to the end
+          cache_map.right.relocate(cache_map.right.end(), 
+                                   cache_map.project_right(iter));
+          return iter->get_right();
+        }
+        logstream(LOG_FATAL) << "Key not found!" << std::endl;
+        return value_type();
+      } // end of oeprator[]
 
       bool get(const key_type& key, value_type& ret_value) {
         typedef typename cache_map_type::left_iterator iterator_type;
         iterator_type iter = cache_map.left.find(key);
-        if(iter != cache_map.left.end()) {
+        if(iter != cache_map.left.end()) { // already in cache
           ret_value = iter->get_right();
+          // move it to the end
           cache_map.right.relocate(cache_map.right.end(), 
                                    cache_map.project_right(iter));
           return true;
-        } else return false;
+         } else return false;
       } // end of get
-      
 
-
-      void add(const key_type& key, const value_type& value) {
-        typedef typename cache_map_type::left_iterator iterator_type;
-        iterator_type iter = cache_map.left.find(key);
-        ASSERT_TRUE(iter == cache_map.left.end());
-        // Get the true entry from the source
-        typedef typename cache_map_type::value_type pair_type;
-        cache_map.insert(pair_type(key, value));
-      } // end of add
     }; // end of class lru
+
+
+
+
   }; // end of cache namespace 
 }; // end of graphlab namespace
 

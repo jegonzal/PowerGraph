@@ -11,6 +11,10 @@ namespace graphlab {
     typedef cache::lru<isharedsum*, icache_entry*> cache_type;
 
 
+    size_t max_cache_size = 1024;
+    
+    size_t& cache_size() { return max_cache_size; }
+
 
     void destroy_tls_data(void* ptr) {
       cache_type* cache_ptr = static_cast<cache_type*>(ptr);
@@ -45,6 +49,7 @@ namespace graphlab {
     }
 
 
+
     icache_entry* get_cache_entry(isharedsum* key) {
       icache_entry* result = NULL;
       const bool successful = get_cache().get(key, result);
@@ -53,9 +58,9 @@ namespace graphlab {
 
 
     void add_cache_entry(isharedsum* id, icache_entry* ptr) {
+      while(size() > max_cache_size) evict();
       cache_type& cache = get_cache();
-      if(cache.size() == 100) evict();
-      get_cache().add(id, ptr);
+      cache[id] = ptr;
     }
 
     bool evict(isharedsum* key) {

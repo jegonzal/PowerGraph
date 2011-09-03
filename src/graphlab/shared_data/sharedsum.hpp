@@ -55,11 +55,15 @@ namespace graphlab {
         reads(reads), writes(writes) { }
       virtual ~icache_entry() { }
     };
-    virtual void flush(icache_entry* entry) = 0; 
+    virtual void flush(icache_entry* entry) = 0;
+
   };
 
 
   namespace sharedsum_impl {
+
+    size_t& cache_size();
+
     typedef isharedsum::icache_entry icache_entry;
 
     /**

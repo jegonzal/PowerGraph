@@ -69,6 +69,7 @@ public:
     std::cout << std::endl;
     std::cout << x << std::endl;
     TS_ASSERT_EQUALS(x.val(), 100);
+    x.flush();
   } // end of test_sequential 
 
   
@@ -87,8 +88,8 @@ public:
   }; // end of functor
 
   void test_parallel_sum() {
-    const int total = 10;
-    const int step_size = 1000;
+    const int total = 100;
+    const int step_size = 10000;
     graphlab::sharedsum<int> x(0, 100);
     graphlab::thread_group threads;
     for(int i = 0; (i+1) < total * step_size; i += step_size) {
@@ -97,9 +98,49 @@ public:
     threads.join();
     std::cout << std::endl;
     std::cout << x << std::endl;
-    TS_ASSERT_EQUALS(x.val(), total*step_size); 
+    TS_ASSERT_EQUALS(x.val(), total*step_size);
+    x.flush(); 
   } // end of test parallel
 
+
+
+  struct functor2 {
+    std::vector<graphlab::sharedsum<int> >& counts;
+    int min, max;
+    functor2(std::vector<graphlab::sharedsum<int> >& counts,
+             int min, int max) :
+      counts(counts), min(min), max(max) { };
+    void operator()() {
+      for(int i = min; i < max; ++i) {
+        for(size_t j = 0; j < counts.size(); ++j) {
+          if(i % (j+1) == 0) counts[j] +=1 ;
+        }
+      }
+      for(size_t j = 0; j < counts.size(); ++j) 
+        counts[j].flush();
+    }
+  }; // end of functor2
+
+
+
+  void test_parallel_sum2() {
+    const int total = 10;
+    const int step_size = 10000;
+    std::vector<graphlab::sharedsum<int> > 
+      counts(20, graphlab::sharedsum<int>(0, 100));
+    graphlab::sharedsum_impl::cache_size() = counts.size() -1;
+    graphlab::thread_group threads;
+    for(int i = 0; (i+1) < total * step_size; i += step_size) {
+      threads.launch(functor2(counts, i, i + step_size)); 
+    }
+    threads.join();
+    std::cout << std::endl;
+    for(size_t j = 0; j < counts.size(); ++j) 
+      std::cout << counts[j] << std::endl;
+    for(size_t j = 0; j < counts.size(); ++j) 
+      counts[j].flush();
+    // TS_ASSERT_EQUALS(x.val(), total*step_size); 
+  }
 
 
   // struct functor {
