@@ -75,6 +75,9 @@ namespace graphlab {
       
       
     public:
+
+      lru(size_t cache_reserve = 1024)  { }
+
       
       size_t size() { return cache_map.size(); }
 
@@ -112,7 +115,7 @@ namespace graphlab {
       
 
       bool contains(const key_type& key) const {
-        typedef typename cache_map_type::const_left_iterator iterator_type;
+        typedef typename cache_map_type::left_const_iterator iterator_type;
         iterator_type iter = cache_map.left.find(key);
         return iter != cache_map.left.end();
       } // end of contains

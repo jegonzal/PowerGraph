@@ -36,13 +36,12 @@
 
 
 #include <boost/unordered_map.hpp>
-#include <boost/intrusive/list.hpp>
 #include <boost/functional/hash.hpp>
 
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
-
+#include <graphlab/util/cache.hpp>
 
 
 
@@ -61,24 +60,14 @@ namespace graphlab {
 
     typedef boost::unordered_map<key_type, value_type> data_map_type;
     
-    //! List hook required to use the intrusive containers
-    typedef boost::instrusive::list_base_hook<
-      boost::intrusive::link_mode<
-        boost::intrusive::auto_unlink> > auto_unlink_hook;
 
-
-    struct cache_entry : public auto_unlink_hook {
+    struct cache_entry {
       value_type old;
       value_type current;
       size_t uses;
       cache_entry() : uses(0) { }
     };
-    typedef boost::unordered_map<key_type, cache_entry> cache_map_type;
-
-    //! LRU list used to queue cache entries
-    typedef boost::intrusive::
-    list<cache_entry, 
-         boost::intrusive::constant_time_size<false> >  lru_list_type;
+    typedef cache::lru<key_type, cache_entry> cache_type;
 
   private:
 
@@ -89,10 +78,7 @@ namespace graphlab {
     data_map_type  data_map;
 
     //! The cache of remote data currently present on this machine
-    mutable cache_map_type cache_map;
-
-    //! The LRU list which is used to order cache evictions
-    mutable lru_list_type  lru_list;
+    mutable cache_type cache;
 
     //! The maximum cache size
     size_t max_cache_size;
@@ -100,39 +86,127 @@ namespace graphlab {
     //! The locks
     mutex data_lock;
 
-    mutable size_t cache_requests, cache_misses;
+    mutable size_t cache_hits, cache_misses;
+
+    boost::hash<key_type> hasher;
+
 
   public:
 
     delta_dht(distributed_control& dc, 
-              size_t max_cache_size = 1600) : 
+              size_t max_cache_size = 2056) : 
       rpc(dc, this), 
-      cache_map(max_cache_size),
       max_cache_size(max_cache_size), 
-      cache_requests(0), cache_misses(0) {  }
-
+      cache_hits(0), cache_misses(0) {  }
 
 
     value_type& operator[](const key_type& key) {
-      typedef cache_map_type::iterator iterator_type;
       // test for the key in the cache
-      iterator_type iter = cache_map.find(key);
-      if(key != iter.end()) { // found entry in cache
-        cache_entry& entry = iter->second;
-        entry.uses++; // count an additional read and write
-        // update the LRU list
-        lru_list.erase(cache_entry);
-        lru_list.push_front(cache_entry);
-        // return the value
+      if(cache.contains(key) == false) {
+        cache_misses++;
+        // make room for the new entry
+        while(cache.size() + 1 > max_cache_size) {
+          const std::pair<key_type, cache_entry> pair = cache.evict();
+          const key_type& key = pair.first;
+          const cache_entry& entry = pair.second;
+          send_delta(key, entry);
+        }
+        // get the new entry from the server
+        cache_entry& entry = cache[key];
+        entry.old = get_rpc(key);
+        entry.current = entry.old;
         return entry.current;
-      } else { // the data is not in the cache
-        // Determine which machine owns the data
-
+      } else {
+        cache_hits++;
       }
 
-    } // end of operator [] 
+      cache_entry& entry = cache[key];
+      if(entry.uses > 100) {
+        synchronize(key, entry);
+        entry.uses = 0;
+      }
+      return entry.current;
+    } // end of operator []
+
+
+    //! empty the local cache
+    void flush() {
+      while(cache.size() > 0) {
+        const std::pair<key_type, cache_entry> pair = cache.evict();
+        const key_type& key = pair.first;
+        const cache_entry& entry = pair.second;
+        send_delta(key, entry);
+      }
+    }
+
+
+    size_t owning_cpu(const key_type& key) const {
+      const size_t hash_value = hasher(key);
+      const size_t cpuid = hash_value % rpc.dc().numprocs();
+      return cpuid;
+    }
+      
+
+
+    bool is_local(const key_type& key) const {
+      return owning_cpu(key) == rpc.dc().procid();
+    } // end of is local
+
     
 
+    value_type get_rpc(const key_type& key) {
+      // If the data is stored locally just read and return
+      if(is_local(key)) {
+        data_lock.lock();
+        const value_type ret_value = data_map[key];
+        data_lock.unlock();
+        return ret_value;
+      } else {
+        return rpc.remote_request(owning_cpu(key), 
+                                  &delta_dht::get_rpc, key);
+      }
+    } // end of direct get
+
+    void send_delta(const key_type& key, const cache_entry& entry) {
+      const value_type delta = entry.current - entry.old;
+      send_delta_rpc(key, delta);
+    } // end of send_delta
+
+    void send_delta_rpc(const key_type& key, const value_type& delta)  {
+      // If the data is stored locally just read and return
+      if(is_local(key)) {
+        data_lock.lock();
+        typename data_map_type::iterator iter = data_map.find(key);
+        ASSERT_TRUE(iter != data_map.end());
+        iter->second += delta;
+        data_lock.unlock();
+      } else {
+        rpc.remote_call(owning_cpu(key), 
+                        &delta_dht::send_delta_rpc, 
+                        key, delta);
+      }
+    } // end of send_delta_rpc
+    
+    void synchronize(const key_type& key, cache_entry& entry)  {
+      const value_type delta = entry.current - entry.old;
+      entry.old = synchronize_rpc(key, delta);
+      entry.current = entry.old;
+    } // end of synchronize
+
+    value_type synchronize_rpc(const key_type& key, const value_type& delta) {
+      if(is_local(key)) {
+        data_lock.lock();
+        typename data_map_type::iterator iter = data_map.find(key);
+        ASSERT_TRUE(iter != data_map.end());
+        const value_type ret_value = (iter->second += delta);
+        data_lock.unlock();
+        return ret_value;
+      } else {
+        return rpc.remote_request(owning_cpu(key), 
+                                  &delta_dht::synchronize_rpc, 
+                                  key, delta);
+      }
+    } // end of synchronize_rpc
 
   }; // end of delta_dht
 
