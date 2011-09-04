@@ -20,7 +20,12 @@ public:
   bool isfloat;//input file in float format
   bool square;//is matrix square?
   int D; //width of factor matrices
+
+  /* clustering related fields */
   int K; //number of clusters 
+  bool clusterdump; //dump cluster locations into a text file
+  bool tfidf; //deploy tf-idf transformation on matrix values
+
   int unittest;
 
   //input output related stuff
@@ -154,7 +159,10 @@ int distance_measure;
    FLOAT = false;
    als_lambda = 1;
 
+   /* for clustering */
    distance_measure = 0;
+   clusterdump = false;
+   tfidf = false;
  }
 
 

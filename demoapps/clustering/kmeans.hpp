@@ -109,11 +109,12 @@ void last_iter(){
 
   update_clusters();
   double cost = calc_cost();
-  printf("%g) Iter %s %d  Cost=%g\n",
+  printf("%g) Iter %s %d  Cost=%g Normalized cost=%g\n",
         ps.gt.current_time(), 
 	runmodesname[ps.algorithm], 
 	ps.iiter,
-        cost);
+        cost, 
+	cost/ps.M);
   ps.iiter++;
 
 }

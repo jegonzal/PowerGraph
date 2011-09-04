@@ -59,6 +59,7 @@ void initialize_clusters(){
       }
 
       int thenode = -1; double thenode_dist;
+      distances = pow(distances,2);
       distances = distances / sum(distances); //normalize to one
       distances = cumsum(distances);
       double loc = randu();

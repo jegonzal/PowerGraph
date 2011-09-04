@@ -59,6 +59,8 @@ const char * countername[] = {"DISTANCE_CALCULTION"};
 void load_graph(const char* filename, graph_type * g,gl_types::core & glcore);    
 void last_iter();
 void initialize_clusters();
+void dumpcluster();
+void tfidf_weighting();
 
   void vertex_data::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
@@ -220,6 +222,9 @@ void start(int argc, const char * argv[]) {
   }
 
 
+  if (ac.tfidf)
+    tfidf_weighting();
+
   if (ac.stats){
     calc_stats();
     exit(0);
@@ -250,6 +255,10 @@ void start(int argc, const char * argv[]) {
          initialize_clusters();
      	 break;
   }
+
+
+  if (ac.clusterdump)
+     dumpcluster();
 
   //print timing counters
   for (int i=0; i<MAX_COUNTER; i++){

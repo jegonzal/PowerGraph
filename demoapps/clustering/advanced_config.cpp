@@ -36,9 +36,9 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("unittest", &unittest, unittest, "unit testing. ");
   clopts.attach_option("pmfformat", &supportgraphlabcf, supportgraphlabcf, "unit testing. ");
   clopts.attach_option("float", &FLOAT, FLOAT, "data in float format (pmf data)"); 
-  //SVD related switches
   clopts.attach_option("printhighprecision", &printhighprecision, printhighprecision, "print RMSE output with high precision");
-
+  clopts.attach_option("clusterdump", &clusterdump, clusterdump, "dump cluster locations into a text file");
+  clopts.attach_option("tfidf", &tfidf, tfidf, "tfidf weighting scheme applied to document/term matrix");
 }
 
 void problem_setup::verify_setup(){
