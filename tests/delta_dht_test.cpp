@@ -165,6 +165,16 @@ void large_scale_test(graphlab::distributed_control& dc) {
 }
 
 
+void test_random_gamma(graphlab::distributed_control& dc) {
+  graphlab::random::seed(dc.procid());
+  word_id_type sum_wid = 0;
+  for(size_t i = 0; i < 10000; ++i) {
+    const word_id_type word(graphlab::random::gamma(10) * 1000.0);
+    sum_wid += word;
+  }
+  std::cout << "(" << dc.procid() << ", " << sum_wid << ")" << std::endl;
+}
+
 int main(int argc, char** argv) {
   std::cout << "Running distributed test" << std::endl;
   
@@ -174,10 +184,11 @@ int main(int argc, char** argv) {
   graphlab::dc_init_param rpc_parameters;
   graphlab::init_param_from_mpi(rpc_parameters);
   graphlab::distributed_control dc(rpc_parameters);
-  graphlab::random::seed(dc.procid());
-
+ 
+  
+  
   large_scale_test(dc);
-
+  test_random_gamma(dc);
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
