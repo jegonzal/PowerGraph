@@ -46,7 +46,7 @@
 
 
 
-
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
 
 
@@ -83,6 +83,9 @@ namespace graphlab {
     //! The maximum cache size
     size_t max_cache_size;
 
+    //! The maximum number of uses
+    size_t max_uses;
+
     //! The locks
     mutex data_lock;
 
@@ -96,24 +99,29 @@ namespace graphlab {
     delta_dht(distributed_control& dc, 
               size_t max_cache_size = 2056) : 
       rpc(dc, this), 
-      max_cache_size(max_cache_size), 
+      max_cache_size(max_cache_size), max_uses(100), 
       cache_hits(0), cache_misses(0) {  }
 
+    ~delta_dht() {
+      rpc.full_barrier();
+      std::cout << "cache_hits: " << cache_hits << std::endl;
+      std::cout << "cache_misses: " << cache_misses << std::endl;
+    }
 
     value_type& operator[](const key_type& key) {
       // test for the key in the cache
-      if(cache.contains(key) == false) {
+      if(!cache.contains(key)) {
         cache_misses++;
         // make room for the new entry
         while(cache.size() + 1 > max_cache_size) {
           const std::pair<key_type, cache_entry> pair = cache.evict();
           const key_type& key = pair.first;
           const cache_entry& entry = pair.second;
-          send_delta(key, entry);
+          send_delta(key, entry.current - entry.old);
         }
         // get the new entry from the server
         cache_entry& entry = cache[key];
-        entry.old = get_rpc(key);
+        entry.old = get_master(key);
         entry.current = entry.old;
         return entry.current;
       } else {
@@ -121,7 +129,7 @@ namespace graphlab {
       }
 
       cache_entry& entry = cache[key];
-      if(entry.uses > 100) {
+      if(entry.uses > max_uses) {
         synchronize(key, entry);
         entry.uses = 0;
       }
@@ -135,26 +143,69 @@ namespace graphlab {
         const std::pair<key_type, cache_entry> pair = cache.evict();
         const key_type& key = pair.first;
         const cache_entry& entry = pair.second;
-        send_delta(key, entry);
+        send_delta(key, entry.current - entry.old);
       }
+    }
+
+    void synchronize(const key_type& key) {
+      if(cache.contains(key)) synchronize(key, cache[key]);
     }
 
 
     size_t owning_cpu(const key_type& key) const {
       const size_t hash_value = hasher(key);
-      const size_t cpuid = hash_value % rpc.dc().numprocs();
+      const size_t cpuid = hash_value % rpc.numprocs();
       return cpuid;
     }
       
 
 
     bool is_local(const key_type& key) const {
-      return owning_cpu(key) == rpc.dc().procid();
+      return owning_cpu(key) == rpc.procid();
     } // end of is local
 
-    
+   
 
-    value_type get_rpc(const key_type& key) {
+    value_type delta(const key_type& key) const { 
+      if(cache.contains(key)) { 
+        cache_entry& entry = cache[key];
+        return entry.current - entry.old;
+      } else {
+        return value_type();
+      }
+    }
+
+    void send_delta(const key_type& key) {
+      if(cache.contains(key)) send_delta(key, delta(key));
+    }
+
+
+    void send_delta(const key_type& key, const value_type& delta) {
+      send_delta_rpc(key, delta);
+    } // end of send_delta
+
+
+    size_t local_size() const {
+      data_lock.lock();
+      const size_t result = data_map.size(); 
+      data_lock.unlock();
+      return result;
+    }
+
+    size_t size() const {
+      std::vector<size_t> sizes(rpc.numprocs());
+      sizes[rpc.procid()] = local_size();
+      rpc.all_gather(sizes);
+      size_t sum = 0;
+      foreach(const size_t& val, sizes) sum += val;
+      return sum;
+    }
+
+    size_t numprocs() const { return rpc.num_procs(); }
+    size_t procid() const { return rpc.procid(); }
+
+
+    value_type get_master(const key_type& key) {
       // If the data is stored locally just read and return
       if(is_local(key)) {
         data_lock.lock();
@@ -163,15 +214,11 @@ namespace graphlab {
         return ret_value;
       } else {
         return rpc.remote_request(owning_cpu(key), 
-                                  &delta_dht::get_rpc, key);
+                                  &delta_dht::get_master, key);
       }
     } // end of direct get
 
-    void send_delta(const key_type& key, const cache_entry& entry) {
-      const value_type delta = entry.current - entry.old;
-      send_delta_rpc(key, delta);
-    } // end of send_delta
-
+  private:
     void send_delta_rpc(const key_type& key, const value_type& delta)  {
       // If the data is stored locally just read and return
       if(is_local(key)) {
@@ -208,11 +255,15 @@ namespace graphlab {
       }
     } // end of synchronize_rpc
 
+
+
+
+
   }; // end of delta_dht
 
 
 }; // end of namespace graphlab
-
+#include <graphlab/macros_undef.hpp>
 
 
 

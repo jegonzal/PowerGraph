@@ -51,23 +51,129 @@
 #include <graphlab/macros_def.hpp>
 
 
+void basic_test(graphlab::distributed_control& dc) {
+  ///! Create the dht 
+  graphlab::delta_dht<std::string, int> counts(dc);
+  counts["cat"]++;
+  counts["dog"]++;
+  counts.flush();
+  dc.barrier();
+  if(dc.procid() == 0) {
+    std::cout << "cat: " << counts["cat"] << std::endl;
+    std::cout << "dog: " << counts["dog"] << std::endl;
+  }
+}
+
+
+///! Create the dht 
+typedef size_t word_id_type;
+
+struct topic_vector {
+  std::vector<int> n_t;
+  topic_vector(size_t ntopics = 0) : n_t(ntopics) { }
+  int& operator[](const size_t& index) { return n_t[index]; }
+  const int& operator[](const size_t& index) const { return n_t[index]; }
+  size_t size() const { return n_t.size(); }
+  void resize(const size_t& ntopics) { n_t.resize(ntopics); }
+
+
+  topic_vector& operator+=(const topic_vector& other) {
+    const size_t max_size = std::max(size(), other.size());
+    n_t.resize(max_size);
+    for(size_t i = 0; i < max_size; ++i) 
+      n_t[i] += (i < other.size()? other[i] : 0);
+    return *this;
+  }
+
+  topic_vector& operator-=(const topic_vector& other) {
+    const size_t max_size = std::max(size(), other.size());
+    n_t.resize(max_size);
+    for(size_t i = 0; i < max_size; ++i) 
+      n_t[i] -= (i < other.size()? other[i] : 0);
+    return *this;
+  } 
+
+  topic_vector operator+(const topic_vector& other) const {
+    topic_vector result(*this); result += other;
+    return result;
+  } 
+  topic_vector operator-(const topic_vector& other) const {
+    topic_vector result(*this); result -= other;
+    return result;
+  } 
+
+  void load(graphlab::iarchive& arc) { arc >> n_t; }
+  void save(graphlab::oarchive& arc) const { arc << n_t; }
+};
+
+typedef graphlab::delta_dht<word_id_type, topic_vector> dictionary_type;
+
+struct functor {
+  dictionary_type& dictionary;
+  functor(dictionary_type& dictionary) : dictionary(dictionary) { }
+  void operator()() {
+    std::cout << "Running sampler on machine " << dictionary.procid() << std::endl;
+    const size_t n_word_draws = 10000;
+    const size_t n_topic_draws = 1;
+    const size_t n_topics = 1;
+    size_t draws = 0;
+    for(size_t i = 0; i < n_word_draws; ++i) {
+      // const word_id_type word(graphlab::random::gamma(10) * 1000.0);
+      const word_id_type word = 
+        graphlab::random::fast_uniform<word_id_type>(0, 10000000);
+      topic_vector& vec = dictionary[word];
+      if(vec.size() != n_topics) vec.resize(n_topics);    
+      // for(size_t j = 0; j < n_topic_draws; ++j) 
+      //   vec[graphlab::random::fast_uniform<size_t>(0, n_topics-1)]++;
+      draws++;
+    }
+    const word_id_type lastword = graphlab::random::fast_uniform<word_id_type>(0, 100); 
+    std::cout << "(" << dictionary.procid() << ", " << draws << ", "
+              << lastword <<   ")" << std::endl;
+
+    std::cout << "Finished running sampler." << std::endl;
+    dictionary.flush();
+    std::cout << "Finished flush." << std::endl;
+  }
+};
+
+
+void large_scale_test(graphlab::distributed_control& dc) {
+  ///! Create the dht 
+  typedef size_t word_id_type;
+  typedef std::vector<int> topic_count_type;
+  dictionary_type dictionary(dc, 500);
+  functor fun(dictionary);
+  fun();
+  dictionary.flush();
+
+  std::cout << "reached barrier" << std::endl;
+  dc.full_barrier();
+
+
+  // if(dc.procid() == 0) {
+    std::cout << "Finished! " << std::endl
+              << "Local Size: " 
+              << dictionary.local_size() << std::endl
+              << "Dictionary size: " 
+              << dictionary.size() << std::endl;
+    // }
+
+}
+
+
 int main(int argc, char** argv) {
   std::cout << "Running distributed test" << std::endl;
+  
   
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::dc_init_param rpc_parameters;
   graphlab::init_param_from_mpi(rpc_parameters);
   graphlab::distributed_control dc(rpc_parameters);
+  graphlab::random::seed(dc.procid());
 
-  ///! Create the dht 
-  graphlab::delta_dht<std::string, int> counts(dc);
-
-
-  counts["cat"] += 1;
-  counts["dog"] += 1;
-  
-  counts.flush();
+  large_scale_test(dc);
 
 
   graphlab::mpi_tools::finalize();
