@@ -143,6 +143,9 @@ void large_scale_test(graphlab::distributed_control& dc) {
   typedef size_t word_id_type;
   typedef std::vector<int> topic_count_type;
   dictionary_type dictionary(dc, 500);
+
+  
+
   functor fun(dictionary);
   fun();
   dictionary.flush();

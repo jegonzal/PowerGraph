@@ -100,7 +100,9 @@ namespace graphlab {
               size_t max_cache_size = 2056) : 
       rpc(dc, this), 
       max_cache_size(max_cache_size), max_uses(100), 
-      cache_hits(0), cache_misses(0) {  }
+      cache_hits(0), cache_misses(0) {  
+      rpc.full_barrier();
+    }
 
     ~delta_dht() {
       rpc.full_barrier();
