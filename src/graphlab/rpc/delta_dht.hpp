@@ -49,7 +49,10 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-
+  namespace delta_dht_impl {
+    struct icache { virtual ~icache() { }  };
+    icache*& get_icache_ptr(const void* dht_ptr);
+  }; // end of namespace delta_dht_impl
 
   template<typename KeyType, typename ValueType>
   class delta_dht {
@@ -60,14 +63,34 @@ namespace graphlab {
 
     typedef boost::unordered_map<key_type, value_type> data_map_type;
     
-
+   
     struct cache_entry {
       value_type old;
       value_type current;
       size_t uses;
       cache_entry() : uses(0) { }
     };
+
     typedef cache::lru<key_type, cache_entry> cache_type;
+
+    struct tl_cache :
+      public delta_dht_impl::icache, public cache_type {
+      size_t hits, misses;
+      tl_cache() : hits(0), misses(0) { }
+    };
+
+  private:
+   
+    tl_cache& get_tl_cache() const {
+      // get the pointer to for this local icache
+      delta_dht_impl::icache*& icache_ptr = 
+        delta_dht_impl::get_icache_ptr(this);
+      if(icache_ptr == NULL) {
+        icache_ptr = new tl_cache();
+      }
+      ASSERT_NE(icache_ptr, NULL);
+      return *static_cast<tl_cache*>(icache_ptr);
+    };
 
   private:
 
@@ -77,43 +100,50 @@ namespace graphlab {
     //! The data stored locally on this machine
     data_map_type  data_map;
 
-    //! The cache of remote data currently present on this machine
-    mutable cache_type cache;
-
+    //! The lock for the data map
+    mutex data_lock;
+  
     //! The maximum cache size
     size_t max_cache_size;
 
     //! The maximum number of uses
     size_t max_uses;
 
-    //! The locks
-    mutex data_lock;
-
-    mutable size_t cache_hits, cache_misses;
-
+    //! the hash function
     boost::hash<key_type> hasher;
 
+    //! cache hits and misses
+    atomic<size_t> hits;
+    atomic<size_t> misses;
 
   public:
 
     delta_dht(distributed_control& dc, 
               size_t max_cache_size = 2056) : 
       rpc(dc, this), 
-      max_cache_size(max_cache_size), max_uses(100), 
-      cache_hits(0), cache_misses(0) {  
+      max_cache_size(max_cache_size), max_uses(100) {
       rpc.full_barrier();
     }
 
-    ~delta_dht() {
-      rpc.full_barrier();
-      std::cout << "cache_hits: " << cache_hits << std::endl;
-      std::cout << "cache_misses: " << cache_misses << std::endl;
+    ~delta_dht() { rpc.full_barrier(); }
+
+    size_t total_cache_hits() const { return hits.value; }
+    size_t total_cache_misses() const { return misses.value; }
+    size_t cache_hits() const { return get_tl_cache().hits; }
+    size_t cache_misses() const { return get_tl_cache().misses; }
+    size_t cache_size() const { return get_tl_cache().size(); }
+    bool is_cached(const key_type& key) const { 
+      return get_tl_cache().contains(key); 
     }
+
+
 
     value_type& operator[](const key_type& key) {
+      tl_cache& cache = get_tl_cache();
       // test for the key in the cache
       if(!cache.contains(key)) {
-        cache_misses++;
+        cache.misses++;
+        misses++;
         // make room for the new entry
         while(cache.size() + 1 > max_cache_size) {
           const std::pair<key_type, cache_entry> pair = cache.evict();
@@ -127,7 +157,8 @@ namespace graphlab {
         entry.current = entry.old;
         return entry.current;
       } else {
-        cache_hits++;
+        cache.hits++;
+        hits++;
       }
 
       cache_entry& entry = cache[key];
@@ -141,6 +172,7 @@ namespace graphlab {
 
     //! empty the local cache
     void flush() {
+      tl_cache& cache = get_tl_cache();
       while(cache.size() > 0) {
         const std::pair<key_type, cache_entry> pair = cache.evict();
         const key_type& key = pair.first;
@@ -149,7 +181,9 @@ namespace graphlab {
       }
     }
 
+    
     void synchronize(const key_type& key) {
+      tl_cache& cache = get_tl_cache();
       if(cache.contains(key)) synchronize(key, cache[key]);
     }
 
@@ -161,14 +195,13 @@ namespace graphlab {
     }
       
 
-
     bool is_local(const key_type& key) const {
       return owning_cpu(key) == rpc.procid();
-    } // end of is local
+    } // end of is local   
 
-   
 
-    value_type delta(const key_type& key) const { 
+    value_type delta(const key_type& key) const {
+      tl_cache& cache = get_tl_cache(); 
       if(cache.contains(key)) { 
         cache_entry& entry = cache[key];
         return entry.current - entry.old;
@@ -177,7 +210,9 @@ namespace graphlab {
       }
     }
 
+
     void send_delta(const key_type& key) {
+      tl_cache& cache = get_tl_cache();
       if(cache.contains(key)) send_delta(key, delta(key));
     }
 
@@ -193,6 +228,7 @@ namespace graphlab {
       data_lock.unlock();
       return result;
     }
+
 
     size_t size() const {
       std::vector<size_t> sizes(rpc.numprocs());

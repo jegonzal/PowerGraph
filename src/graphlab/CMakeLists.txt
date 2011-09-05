@@ -101,6 +101,7 @@ add_library(graphlab STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
+  rpc/delta_dht.cpp
   distributed2/distributed_scheduler_list.cpp
   ${rpc_compressed}
   )
@@ -122,8 +123,7 @@ endif()
 #build distributed graphlab
 add_library(graphlab_dist2 STATIC
     distributed2/distributed_glshared_base.cpp
-    distributed2/distributed_glshared_manager.cpp
-    distributed2/graph/dgraph_edge_list.cpp)
+    distributed2/distributed_glshared_manager.cpp)
 
 
 #build PIC versions of everything

@@ -114,7 +114,7 @@ struct functor {
   void operator()() {
     std::cout << "Running sampler on machine " << dictionary.procid() << std::endl;
     const size_t n_word_draws = 10000;
-    const size_t n_topic_draws = 1;
+    // const size_t n_topic_draws = 1;
     const size_t n_topics = 1;
     size_t draws = 0;
     for(size_t i = 0; i < n_word_draws; ++i) {
