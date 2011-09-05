@@ -118,9 +118,9 @@ struct functor {
     const size_t n_topics = 1;
     size_t draws = 0;
     for(size_t i = 0; i < n_word_draws; ++i) {
-      // const word_id_type word(graphlab::random::gamma(10) * 1000.0);
-      const word_id_type word = 
-        graphlab::random::fast_uniform<word_id_type>(0, 10000000);
+      const word_id_type word(graphlab::random::gamma(10) * 1000.0);
+      // const word_id_type word = 
+      //   graphlab::random::fast_uniform<word_id_type>(0, 10000000);
       topic_vector& vec = dictionary[word];
       if(vec.size() != n_topics) vec.resize(n_topics);    
       // for(size_t j = 0; j < n_topic_draws; ++j) 
@@ -142,7 +142,7 @@ void large_scale_test(graphlab::distributed_control& dc) {
   ///! Create the dht 
   typedef size_t word_id_type;
   typedef std::vector<int> topic_count_type;
-  dictionary_type dictionary(dc, 500);
+  dictionary_type dictionary(dc);
 
   
 

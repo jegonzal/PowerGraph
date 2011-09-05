@@ -257,10 +257,6 @@ namespace graphlab {
       }
     } // end of synchronize_rpc
 
-
-
-
-
   }; // end of delta_dht
 
 
