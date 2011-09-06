@@ -130,10 +130,10 @@ struct functor {
     const word_id_type lastword = graphlab::random::fast_uniform<word_id_type>(0, 100); 
     std::cout << "(" << dictionary.procid() << ", " << draws << ", "
               << lastword <<   ")" << std::endl;
-
     std::cout << "Finished running sampler." << std::endl;
     dictionary.flush();
     std::cout << "Finished flush." << std::endl;
+    std::cout << "Dictionary size: " << dictionary.local_size() << std::endl;
   }
 };
 
@@ -144,23 +144,27 @@ void large_scale_test(graphlab::distributed_control& dc) {
   typedef std::vector<int> topic_count_type;
   dictionary_type dictionary(dc);
 
-  
-
+  graphlab::thread_group threads;
   functor fun(dictionary);
-  fun();
+  threads.launch(fun);
+  threads.launch(fun);
+  threads.join();
+
   dictionary.flush();
+
 
   std::cout << "reached barrier" << std::endl;
   dc.full_barrier();
+  
 
 
-  // if(dc.procid() == 0) {
+  if(dc.procid() == 0) {
     std::cout << "Finished! " << std::endl
               << "Local Size: " 
               << dictionary.local_size() << std::endl
               << "Dictionary size: " 
               << dictionary.size() << std::endl;
-    // }
+  } 
 
 }
 
@@ -186,9 +190,14 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc(rpc_parameters);
  
   
+  graphlab::random::nondet_seed();
+  graphlab::random::seed(dc.procid());
   
+  
+  
+
   large_scale_test(dc);
-  test_random_gamma(dc);
+  // test_random_gamma(dc);
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;

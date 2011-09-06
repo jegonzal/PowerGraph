@@ -122,7 +122,7 @@ namespace graphlab {
               size_t max_cache_size = 2056) : 
       rpc(dc, this), 
       max_cache_size(max_cache_size), max_uses(100) {
-      rpc.full_barrier();
+      rpc.barrier();
     }
 
     ~delta_dht() { rpc.full_barrier(); }
@@ -181,6 +181,13 @@ namespace graphlab {
       }
     }
 
+
+    //! empty the local cache
+    void barrier_flush() {
+      flush();
+      rpc.full_barrier();
+    }
+
     
     void synchronize(const key_type& key) {
       tl_cache& cache = get_tl_cache();
@@ -231,11 +238,11 @@ namespace graphlab {
 
 
     size_t size() const {
-      std::vector<size_t> sizes(rpc.numprocs());
-      sizes[rpc.procid()] = local_size();
-      rpc.all_gather(sizes);
       size_t sum = 0;
-      foreach(const size_t& val, sizes) sum += val;
+      for(size_t i = 0; i < rpc.numprocs(); ++i) {
+        if(i == rpc.procid()) sum += local_size();
+        else sum += rpc.remote_request(i, &delta_dht::local_size); 
+      }
       return sum;
     }
 
