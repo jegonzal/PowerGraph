@@ -37,6 +37,7 @@
 
 #include <boost/bimap.hpp>
 #include <boost/bimap/list_of.hpp>
+#include <boost/bimap/unordered_set_of.hpp>
 
 
 #include <graphlab/logger/assertions.hpp>
@@ -65,7 +66,7 @@ namespace graphlab {
       typedef Value value_type;
       
       typedef boost::bimaps::bimap<
-        boost::bimaps::set_of<key_type>, 
+        boost::bimaps::unordered_set_of<key_type>, 
         boost::bimaps::list_of<value_type> > 
       cache_map_type;
       
@@ -76,7 +77,9 @@ namespace graphlab {
       
     public:
 
-      lru(size_t cache_reserve = 1024)  { }
+      lru(size_t cache_reserve = 1024) {
+        cache_map.left.rehash(cache_reserve); 
+      }
 
       
       size_t size() { return cache_map.size(); }

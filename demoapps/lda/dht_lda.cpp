@@ -124,21 +124,26 @@ void run_gibbs(const size_t niters,
     const doc_id_type  d = corpus.tokens[i].doc;
     const topic_id_type old_topic = topics[i];
 
+    topic_vector& vec_n_dt(n_dt[d]);
+    topic_vector& vec_n_wt(n_wt[w]);
+
     // resize the corresponding topic vectors if they are not currently allocated
-    if(n_dt[d].empty()) n_dt[d].resize(ntopics, 0);
-    if(n_wt[w].empty()) n_wt[w].resize(ntopics, 0);
+    if(vec_n_dt.empty()) vec_n_dt.resize(ntopics, 0);
+    if(vec_n_wt.empty()) vec_n_wt.resize(ntopics, 0);
+
+    
 
     // Remove the word from the current counters
     if(old_topic != NULL_TOPIC) {
-      --n_dt[d][old_topic]; 
-      --n_wt[w][old_topic];
+      --vec_n_dt[old_topic]; 
+      --vec_n_wt[old_topic];
       --n_t[old_topic];
     }
 
     // Construct the conditional
     double normalizer = 0;
     for(size_t t = 0; t < ntopics; ++t) {
-      conditional[t] = (alpha + n_dt[d][t]) * (beta + n_wt[w][t]) /
+      conditional[t] = (alpha + vec_n_dt[t]) * (beta + vec_n_wt[t]) /
         (beta * corpus.nwords + n_t[t]);        
       normalizer += conditional[t];
     }
@@ -154,16 +159,19 @@ void run_gibbs(const size_t niters,
     // Update the topic assignment and counters
     topics[i] = new_topic;
     if(new_topic != old_topic) nchanges++;
-    ++n_dt[d][new_topic]; 
-    ++n_wt[w][new_topic];
+    ++vec_n_dt[new_topic]; 
+    ++vec_n_wt[new_topic];
     ++n_t[new_topic];
 
-    if(i % 1000 == 0) {
+    if((i+1) % 1000000 == 0) {
       std::cout << "(" << n_wt.procid() << ", "
                 << "[" << n_wt.cache_hits() << ", " << n_wt.cache_misses() << "] "
                 << "[" << n_t.cache_hits() << ", " << n_t.cache_misses() << "])"
                 << std::endl;
+      return;
     }
+
+    
 
   } // end of loop over tokens
 } // end of run gibbs
@@ -228,9 +236,9 @@ int main(int argc, char** argv) {
 
   std::cout << "Construct DHTs" << std::endl;
   // Initialize the shared word and topic counts
-  graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc);
+  graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc, 10000);
   graphlab::delta_dht<topic_id_type, int> n_t(dc);
-  n_t.fresh_predicate().max_uses = 1000;
+  n_t.fresh_predicate().max_uses = 100000;
 
   for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
 

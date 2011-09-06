@@ -9,7 +9,7 @@ include_directories( . )
 
 ADD_CXXTEST(graph_test.cxx)
 ADD_CXXTEST(sharedsum_test.cxx)
-ADD_CXXTEST(disk_graph_test.cxx)
+#ADD_CXXTEST(disk_graph_test.cxx)
 
 add_dist2_executable(delta_dht_test delta_dht_test.cpp)
 
