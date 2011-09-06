@@ -157,6 +157,14 @@ void run_gibbs(const size_t niters,
     ++n_dt[d][new_topic]; 
     ++n_wt[w][new_topic];
     ++n_t[new_topic];
+
+    if(i % 1000 == 0) {
+      std::cout << "(" << n_wt.procid() << ", "
+                << "[" << n_wt.cache_hits() << ", " << n_wt.cache_misses() << "] "
+                << "[" << n_t.cache_hits() << ", " << n_t.cache_misses() << "])"
+                << std::endl;
+    }
+
   } // end of loop over tokens
 } // end of run gibbs
 
@@ -204,26 +212,32 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  std::cout << "Loading Corpus" << std::endl;
   // Load only the local documents
   corpus corpus(dictionary_fname, counts_fname, 
                 dc.procid(), dc.numprocs());
   corpus.shuffle_tokens();
-
+  std::cout << "(" << corpus.ndocs << ", " << corpus.ntokens << ")" 
+            << std::endl;
+  
   // Initialize the topic assignments
   std::vector<topic_id_type> topic_asgs(corpus.ntokens, NULL_TOPIC);
   // Initialize the per-document topic counts
   boost::unordered_map<doc_id_type, topic_vector> n_dt(corpus.ndocs);
   
 
+  std::cout << "Construct DHTs" << std::endl;
   // Initialize the shared word and topic counts
   graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc);
   graphlab::delta_dht<topic_id_type, int> n_t(dc);
+  n_t.fresh_predicate().max_uses = 1000;
 
   for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
 
 
   // Run the gibbs sampler
   for(size_t iteration = 0; iteration < niters; ++iteration) {
+    std::cout << "Beginning Iteraton " << iteration << std::endl;
     run_gibbs(niters, ntopics, alpha, beta, corpus, 
               topic_asgs, n_dt, n_wt, n_t);
   }
