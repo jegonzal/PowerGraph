@@ -26,7 +26,7 @@
 
 #include <vector>
 #include <boost/shared_ptr.hpp>
-#include <graphlab/shared_data/glshared.hpp>
+#include <graphlab/shared_data/iglshared.hpp>
 #include <graphlab/util/generics/any.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 
@@ -51,7 +51,7 @@ namespace distgl_impl {
  distributed glshared base class. Allows the glshared manager
  to manage it
 */
-class distributed_glshared_base: public glshared_base {
+class distributed_glshared_base: public iglshared {
  protected:
   mutable distributed_glshared_manager* manager;
   size_t id;
@@ -61,7 +61,7 @@ class distributed_glshared_base: public glshared_base {
 
  public:
  
-  typedef glshared_base::apply_function_type apply_function_type;
+  typedef iglshared::apply_function_type apply_function_type;
 
   distributed_glshared_base() : manager(NULL) {
     distgl_impl::register_dist_glshared(this);

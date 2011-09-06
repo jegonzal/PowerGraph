@@ -157,6 +157,8 @@ namespace graphlab {
         mut.lock();
         generators.insert(tls_ptr);
         tls_ptr->seed(master);
+        // std::cout << "Generator created" << std::endl;
+        // __print_back_trace();
         mut.unlock();
       }
       

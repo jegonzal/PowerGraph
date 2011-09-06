@@ -39,6 +39,7 @@
 #include <algorithm>
 
 #include <boost/bind.hpp>
+#include <boost/type_traits.hpp>
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
@@ -95,9 +96,12 @@ namespace graphlab {
     
 
     typedef typename iengine_base::vertex_id_type vertex_id_type;
+    typedef typename iengine_base::edge_id_type   edge_id_type;
+    typedef typename iengine_base::edge_list_type edge_list_type;
 
     typedef ischeduler<shared_memory_engine> ischeduler_type;
     typedef typename iengine_base::iscope_type iscope_type;
+    typedef general_scope<Graph> general_scope_type;
    
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
@@ -358,13 +362,14 @@ namespace graphlab {
     void run_once(size_t cpuid);
 
     void evaluate_update_functor(vertex_id_type vid,
-                                 iupdate_functor_type& ufun, 
-                                 size_t cpuid);
+                                 update_functor_type& ufun, 
+                                 size_t cpuid,
+                                 const boost::false_type& factorizable);
     
     void evaluate_update_functor(vertex_id_type vid,
-                                 typename iupdate_functor_type::
-                                 factorized& ufun, 
-                                 size_t cpuid);
+                                 update_functor_type& ufun,
+                                 size_t cpuid,
+                                 const boost::true_type& factorizable);
 
     
     void evaluate_sync_queue();
@@ -546,6 +551,7 @@ namespace graphlab {
     // --------------------- Finished running engine ----------------------- //
     // Join all the active threads
     join_all_threads();
+
     // \todo: new_tasks_added should only be cleared when no tasks
     // remain in the scheduler
     new_tasks_added = false;  // The scheduler is "finished"
@@ -801,6 +807,9 @@ namespace graphlab {
     while(exec_status == execution_status::RUNNING) {
       run_once(cpuid);
     }
+    // Flush the thread local cache associated with vertex data
+    scope_manager_ptr->flush_cache(cpuid);
+   
     logstream(LOG_INFO) 
       << "Thread " << cpuid << " finished." << std::endl;
   } // end of thread_mainloop
@@ -872,9 +881,18 @@ namespace graphlab {
     } // end of while loop
 
     // ------------------- Run The Update Functor -------------------------- //
+    
     ASSERT_EQ(stat, sched_status::NEW_TASK);
     ASSERT_LT(vid, graph.num_vertices());
-    evaluate_update_functor(vid, ufun, cpuid);
+    // Grab the sync lock
+    syncs.vlocks[vid].lock();
+    // Call the correct update functor
+    boost::is_base_of<typename iupdate_functor_type::factorized, 
+                      update_functor_type> factorizable; 
+    evaluate_update_functor(vid, ufun, cpuid, factorizable);
+    // release the lock
+    syncs.vlocks[vid].unlock();
+
     // ----------------------- Post Update Code ---------------------------- //   
     // Mark scope as completed in the scheduler
     scheduler_ptr->completed(cpuid, vid, ufun);
@@ -889,10 +907,11 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_update_functor(vertex_id_type vid,
-                          iupdate_functor_type& ufun, 
-                          size_t cpuid) {
+                          update_functor_type& ufun, 
+                          size_t cpuid,
+                          const boost::false_type& factorizable) {
     // Get the scope
-    iscope_type& scope = 
+    general_scope_type& scope = 
       scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
     // get the callback
     callback_type& callback = tls_array[cpuid].callback;
@@ -901,7 +920,7 @@ namespace graphlab {
     // Finish any pending transactions in the scope
     scope.commit();
     // Release the scope (and all corresponding locks)
-    scope_manager_ptr->release_scope(scope); 
+    scope_manager_ptr->release_scope(cpuid, scope); 
   }
 
 
@@ -910,21 +929,71 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_update_functor(vertex_id_type vid, 
-                          typename iupdate_functor_type::
-                          factorized& ufun,
-                          size_t cpuid) {
-    // Get the scope
-    iscope_type& scope = 
-      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
+                          update_functor_type& ufun,
+                          size_t cpuid,
+                          const boost::true_type& factorizable) {
+    //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // get the callback
     callback_type& callback = tls_array[cpuid].callback;
-    // Apply the update functor
-    ufun(scope, callback);
-    // Finish any pending transactions in the scope
+    // Gather phase -----------------------------------------------------------
+    if(ufun.gather_edges() == iupdate_functor_type::factorized::IN_EDGES ||
+       ufun.gather_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.in_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        general_scope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid, 
+                                                   ufun.writable_gather());
+        ufun.gather(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_scope(cpuid, scope);
+      }
+    }
+    if(ufun.gather_edges() == iupdate_functor_type::factorized::OUT_EDGES ||
+       ufun.gather_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.out_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        general_scope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid, 
+                                                   ufun.writable_gather());
+        ufun.gather(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_scope(cpuid, scope);
+      }
+    }
+
+    // Apply phase ------------------------------------------------------------
+    general_scope_type& scope = 
+      scope_manager_ptr->get_vertex_scope(cpuid, vid);
+    ufun.apply(scope, callback);
     scope.commit();
-    // Release the scope (and all corresponding locks)
-    scope_manager_ptr->release_scope(scope); 
-  }
+    scope_manager_ptr->release_scope(cpuid, scope);
+
+    // Scatter phase ----------------------------------------------------------
+    if(ufun.scatter_edges() == iupdate_functor_type::factorized::IN_EDGES ||
+       ufun.scatter_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.in_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        general_scope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid,
+                                                   ufun.writable_scatter());
+        ufun.scatter(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_scope(cpuid, scope);
+      }
+    }
+    if(ufun.scatter_edges() == iupdate_functor_type::factorized::OUT_EDGES ||
+       ufun.scatter_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+      const edge_list_type edges = graph.out_edge_ids(vid);
+      foreach(const edge_id_type eid, edges) {
+        general_scope_type& scope = 
+          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid,
+                                                   ufun.writable_scatter());
+        ufun.scatter(scope, callback, eid);
+        scope.commit();
+        scope_manager_ptr->release_scope(cpuid, scope);
+      }
+    }
+  } // end of evaluate_update_functor
 
   
 

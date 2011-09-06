@@ -35,29 +35,53 @@ namespace graphlab {
   template<typename T>
   class atomic{
   public:
-    /// The current value of the atomic number
+    //! The current value of the atomic number
     volatile T value;
     
-    /// Creates an atomic number with value "value"
-    atomic(const T& value = 0) : value(value) { }
+    //! Creates an atomic number with value "value"
+    atomic(const T& value = T()) : value(value) { }
     
-    /// Performs an atomic increment by 1, returning the new value
+    //! Performs an atomic increment by 1, returning the new value
     T inc() { return __sync_add_and_fetch(&value, 1);  }
-    /// Performs an atomic decrement by 1, returning the new value
+
+    //! Performs an atomic decrement by 1, returning the new value
     T dec() { return __sync_sub_and_fetch(&value, 1);  }
-    /// Performs an atomic increment by 'val', returning the new value
-    T inc(T val) { return __sync_add_and_fetch(&value, val);  }
-    /// Performs an atomic decrement by 'val', returning the new value
-    T dec(T val) { return __sync_sub_and_fetch(&value, val);  }
+
+    //! Performs an atomic increment by 1, returning the new value
+    T operator++() { return inc(); }
+
+    //! Performs an atomic decrement by 1, returning the new value
+    T operator--() { return dec(); }
     
-    /// Performs an atomic increment by 1, returning the old value
+    //! Performs an atomic increment by 'val', returning the new value
+    T inc(const T val) { return __sync_add_and_fetch(&value, val);  }
+    
+    //! Performs an atomic decrement by 'val', returning the new value
+    T dec(const T val) { return __sync_sub_and_fetch(&value, val);  }
+    
+    //! Performs an atomic increment by 'val', returning the new value
+    T operator+=(const T val) { return inc(val); }
+
+    //! Performs an atomic decrement by 'val', returning the new value
+    T operator-=(const T val) { return dec(val); }
+
+    //! Performs an atomic increment by 1, returning the old value
     T inc_ret_last() { return __sync_fetch_and_add(&value, 1);  }
-    /// Performs an atomic decrement by 1, returning the old value
+    
+    //! Performs an atomic decrement by 1, returning the old value
     T dec_ret_last() { return __sync_fetch_and_sub(&value, 1);  }
-    /// Performs an atomic increment by 'val', returning the old value
-    T inc_ret_last(T val) { return __sync_fetch_and_add(&value, val);  }
-    /// Performs an atomic decrement by 'val', returning the new value
-    T dec_ret_last(T val) { return __sync_fetch_and_sub(&value, val);  }
+
+    //! Performs an atomic increment by 1, returning the old value
+    T operator++(int) { return inc_ret_last(); }
+
+    //! Performs an atomic decrement by 1, returning the old value
+    T operator--(int) { return dec_ret_last(); }
+
+    //! Performs an atomic increment by 'val', returning the old value
+    T inc_ret_last(const T val) { return __sync_fetch_and_add(&value, val);  }
+    
+    //! Performs an atomic decrement by 'val', returning the new value
+    T dec_ret_last(const T val) { return __sync_fetch_and_sub(&value, val);  }
 
   };
 
@@ -117,9 +141,10 @@ namespace graphlab {
   inline bool atomic_compare_and_swap(double& a, 
                                       const double &oldval, 
                                       const double &newval) {
-    return __sync_bool_compare_and_swap(reinterpret_cast<uint64_t*>(&a), 
-                                        *reinterpret_cast<const uint64_t*>(&oldval), 
-                                        *reinterpret_cast<const uint64_t*>(&newval));
+    return __sync_bool_compare_and_swap
+      (reinterpret_cast<uint64_t*>(&a), 
+       *reinterpret_cast<const uint64_t*>(&oldval), 
+       *reinterpret_cast<const uint64_t*>(&newval));
   };
 
   /**
@@ -136,10 +161,13 @@ namespace graphlab {
     \endcode
   */
   template <>
-  inline bool atomic_compare_and_swap(float& a, const float &oldval, const float &newval) {
-    return __sync_bool_compare_and_swap(reinterpret_cast<uint32_t*>(&a), 
-                                        *reinterpret_cast<const uint32_t*>(&oldval), 
-                                        *reinterpret_cast<const uint32_t*>(&newval));
+  inline bool atomic_compare_and_swap(float& a, 
+                                      const float &oldval, 
+                                      const float &newval) {
+    return __sync_bool_compare_and_swap
+      (reinterpret_cast<uint32_t*>(&a), 
+       *reinterpret_cast<const uint32_t*>(&oldval), 
+       *reinterpret_cast<const uint32_t*>(&newval));
   };
 
   /** 
@@ -148,7 +176,7 @@ namespace graphlab {
     */
   template<typename T>
   void atomic_exchange(T& a, T& b) {
-    b =__sync_lock_test_and_set(&a, b);
+    b = __sync_lock_test_and_set(&a, b);
   };
 
   /** 

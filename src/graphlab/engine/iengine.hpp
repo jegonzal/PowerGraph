@@ -105,6 +105,9 @@ namespace graphlab {
     //! The type of edge id used by the graph
     typedef typename graph_type::edge_id_type edge_id_type;
 
+    //! The edge list type used by the graph
+    typedef typename graph_type::edge_list_type  edge_list_type;
+
     //! The type of vertex color used by the graph
     typedef typename graph_type::vertex_color_type vertex_color_type;
 

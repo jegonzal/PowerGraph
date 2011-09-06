@@ -1,1 +1,3 @@
-project(graphlab)
+project(GraphLab)
+
+

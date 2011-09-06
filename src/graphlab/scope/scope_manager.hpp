@@ -37,12 +37,17 @@
 #include <vector>
 
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/iscope_manager.hpp>
 #include <graphlab/scope/general_scope.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph.hpp>
 
+#include <graphlab/scope/idiffable.hpp>
 
+
+
+
+
+#include <graphlab/macros_def.hpp>
 namespace graphlab {
 
 
@@ -56,11 +61,17 @@ namespace graphlab {
     typedef typename Graph::vertex_id_type  vertex_id_type;
     typedef typename Graph::edge_id_type    edge_id_type;
     typedef typename Graph::edge_list_type  edge_list_type;
+    typedef typename Graph::vertex_data_type vertex_data_type;
     typedef general_scope<Graph>            general_scope_type;
+    typedef typename general_scope_type::cache_map_type cache_map_type;
+    typedef typename general_scope_type::cache_entry cache_entry_type;
+    typedef boost::is_base_of< idiffable<vertex_data_type>, 
+                               vertex_data_type> is_diffable;
 
   private:
     Graph& graph;
     std::vector<general_scope_type> scopes;
+    
     std::vector<rwlock> locks;
     consistency_model::model_enum default_scope;
 
@@ -85,10 +96,10 @@ namespace graphlab {
 
 
     // -----------------ACQUIRE SCOPE-----------------------------
-    iscope_type& get_scope(size_t cpuid,
-                           vertex_id_type v,
-                           consistency_model::model_enum scope = 
-                           consistency_model::USE_DEFAULT) {
+    general_scope_type& get_scope(size_t cpuid,
+                                  vertex_id_type v,
+                                  consistency_model::model_enum scope = 
+                                  consistency_model::USE_DEFAULT) {
       // Verify that the cpuid and vertex id are valid
       ASSERT_LT(cpuid, scopes.size());
       ASSERT_LT(v, locks.size());
@@ -112,10 +123,149 @@ namespace graphlab {
         logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
         return get_edge_scope(cpuid,v);
       }
+    } // end of get scope
+    
+
+
+    void flush_cache(size_t cpuid) {  flush_cache(cpuid, is_diffable()); }
+
+    //! Nothing to flush if it is not diffable
+    void flush_cache(size_t cpuid, const boost::false_type&) { 
+      // Check that all the caches are empty (they must be)
+      foreach(const general_scope_type& scope, scopes)
+        ASSERT_EQ(scope.cache.size(), 0);
+    } // end of flush_cache
+
+    void flush_cache(size_t cpuid, const boost::true_type&) {
+      cache_map_type& cache = scopes[cpuid].cache;
+      typedef typename cache_map_type::value_type cache_pair_type;
+      foreach(const cache_pair_type& pair, cache) {
+        const vertex_id_type vid = pair.first;
+        const cache_entry_type& entry = pair.second;
+        locks[vid].writelock();
+        graph.vertex_data(vid).apply_diff(entry.current, entry.old);
+        locks[vid].unlock();        
+      }
+      // Empty the cache
+      cache.clear();
+    } // end of flush cache
+
+
+    void acquire_writelock(const size_t cpuid, const vertex_id_type vid) {
+      acquire_writelock(cpuid, vid, is_diffable());
     }
+
+    void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
+                           const boost::false_type&) {
+      locks[vid].writelock();
+    }
+
+    void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
+                           const boost::true_type&) {
+      const size_t MAX_WRITES = 100;
+
+      // First check the cache
+      general_scope_type& scope = scopes[cpuid];
+      typedef typename cache_map_type::iterator iterator_type;
+      iterator_type iter = scope.cache.find(vid);
+      const bool is_cached = iter != scope.cache.end();
+      if(is_cached) {
+        cache_entry_type& cache_entry = iter->second;        
+        if(++cache_entry.writes > MAX_WRITES) {
+          locks[vid].writelock();
+          vertex_data_type& vdata = graph.vertex_data(vid);
+          vdata.apply_diff(cache_entry.current, cache_entry.old);
+          cache_entry.current = vdata;
+          locks[vid].unlock();
+          cache_entry.old = cache_entry.current;
+          cache_entry.writes = cache_entry.reads = 0;
+        } 
+      } else {       
+        locks[vid].readlock();
+        // create a cache entry
+        cache_entry_type& cache_entry = scope.cache[vid];
+        cache_entry.current = graph.vertex_data(vid);
+        locks[vid].unlock();
+        cache_entry.old = cache_entry.current;
+      }
+    } // end of acquire write lock
+
+
+
+    void acquire_readlock(const size_t cpuid, const vertex_id_type vid) {      
+      acquire_readlock(cpuid, vid, is_diffable());
+    }
+
+    void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
+                          const boost::false_type&) {
+      locks[vid].readlock();
+    }
+
+    void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
+                          const boost::true_type&) {
+      const size_t MAX_READS = 100;
+      // First check the cache
+      general_scope_type& scope = scopes[cpuid];
+      typedef typename cache_map_type::iterator iterator_type;
+      iterator_type iter = scope.cache.find(vid);
+      const bool is_cached = iter != scope.cache.end();
+      if(is_cached) {
+        cache_entry_type& cache_entry = iter->second;        
+        if(++cache_entry.reads > MAX_READS) {        
+          locks[vid].readlock();
+          const vertex_data_type& vdata = graph.vertex_data(vid);
+          cache_entry.current.apply_diff(vdata, cache_entry.old);
+          cache_entry.old = vdata;
+          locks[vid].unlock(); 
+        }
+      } else {
+        // Try to get the write lock
+        locks[vid].readlock();
+        // create a cache entry
+        cache_entry_type& cache_entry = scope.cache[vid];
+        cache_entry.current = graph.vertex_data(vid);
+        locks[vid].unlock();
+        cache_entry.old = cache_entry.current;        
+      }
+    } // end of acquire readlock
+
+
+
+
+
+
     
+    void release_lock(size_t cpuid, vertex_id_type vid) {
+      release_lock(cpuid, vid, is_diffable());
+    }
+
+    void release_lock(size_t cpuid, vertex_id_type vid,
+                      const boost::false_type&) {
+      locks[vid].unlock();
+    }
+
+    void release_lock(size_t cpuid, vertex_id_type vid,
+                      const boost::true_type&) {
+      // First check the cache
+      general_scope_type& scope = scopes[cpuid];
+      typedef typename general_scope_type::cache_entry cache_entry_type;
+      typedef typename general_scope_type::cache_map_type::iterator
+        iterator_type;
+      iterator_type iter = scope.cache.find(vid);
+      const bool is_cached = iter != scope.cache.end();
+
+      if(is_cached) return;
+      else locks[vid].unlock();
+    }
+
+
+
+
+
+
+
     
-    iscope_type& get_full_scope(size_t cpuid, vertex_id_type v) {
+    general_scope_type& get_full_scope(size_t cpuid, vertex_id_type v) {
       // grab the scope
       general_scope_type& scope(scopes[cpuid]);
       
@@ -140,19 +290,21 @@ namespace graphlab {
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curlocked && curv < inv  && curv < outv) {
-          locks[curv].writelock();
+          acquire_writelock(cpuid, curv); // locks[curv].writelock();
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
-          locks[inv].writelock(); ++inidx;
+          acquire_writelock(cpuid, inv); // locks[inv].writelock(); 
+          ++inidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
-          locks[outv].writelock(); ++outidx;
+          acquire_writelock(cpuid, outv); // locks[outv].writelock(); 
+          ++outidx;
           outv = (outedges.size() > outidx) ? 
             graph.target(outedges[outidx]) : numv;
         } else if (inv == outv) {
-          locks[inv].writelock();
+          acquire_writelock(cpuid, inv); // locks[inv].writelock();
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
@@ -162,13 +314,15 @@ namespace graphlab {
       }
       // just in case we never got around to locking it
       if (!curlocked) {
-        locks[curv].writelock();
+        acquire_writelock(cpuid, curv); // locks[curv].writelock();
       }
       return scope;
-    }
+    } // end of get_full_scope
 
 
-    iscope_type& get_edge_scope(size_t cpuid, vertex_id_type v) {
+
+
+    general_scope_type& get_edge_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type& scope = scopes[cpuid];
       
       scope.init(&graph, v, consistency_model::EDGE_CONSISTENCY);
@@ -190,19 +344,21 @@ namespace graphlab {
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curlocked && curv < inv  && curv < outv) {
-          locks[curv].writelock();
+          acquire_writelock(cpuid, curv); // locks[curv].writelock();
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
-          locks[inv].readlock(); ++inidx;
+          acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
+          ++inidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
-          locks[outv].readlock(); ++outidx;
+          acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
+          ++outidx;
           outv = (outedges.size() > outidx) ? 
             graph.target(outedges[outidx]) : numv;
         } else if (inv == outv){
-          locks[inv].readlock();
+          acquire_readlock(cpuid, inv); // locks[inv].readlock();
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
@@ -212,28 +368,59 @@ namespace graphlab {
       }
       // just in case we never got around to locking it
       if (!curlocked) {
-        locks[curv].writelock();
+        acquire_writelock(cpuid, curv); // locks[curv].writelock();
       }
       return scope;
-    }
+    } // end of get edge scope
 
-    iscope_type& get_vertex_scope(size_t cpuid, vertex_id_type v) {
+    
+
+    general_scope_type& get_single_edge_scope(size_t cpuid,
+                                       vertex_id_type center_vid,
+                                       edge_id_type eid,
+                                       bool writable) {
+      general_scope_type& scope = scopes[cpuid];
+      const consistency_model::model_enum consistency = writable? 
+        consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY :
+        consistency_model::SINGLE_EDGE_READ_CONSISTENCY;
+      scope.init(&graph, center_vid, consistency);
+      scope.edge_id() = eid;
+      vertex_id_type source = graph.source(eid);
+      vertex_id_type target = graph.target(eid);
+      ASSERT_NE(source, target);
+      ASSERT_TRUE(source == center_vid || target == center_vid);
+      if(source < target) std::swap(source, target);
+      if(source != center_vid && writable) {
+        acquire_writelock(cpuid, source); // locks[source].writelock(); 
+      } else { 
+        acquire_readlock(cpuid, source); // locks[source].readlock(); 
+      }
+      if(target != center_vid && writable) { 
+        acquire_writelock(cpuid, target); // locks[target].writelock();
+      } else { 
+        acquire_readlock(cpuid, target); // locks[target].readlock(); 
+      }
+      return scope;
+    } // end of get single edge scope
+
+
+    general_scope_type& get_vertex_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type& scope = scopes[cpuid];      
       scope.init(&graph, v, consistency_model::VERTEX_CONSISTENCY);
       const vertex_id_type curv = scope.vertex();
-      locks[curv].writelock();     
+      acquire_writelock(cpuid, curv); // locks[curv].writelock();     
       return scope;
     }
 
-    iscope_type& get_vertex_read_scope(size_t cpuid, vertex_id_type v) {
+    general_scope_type& get_vertex_read_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type& scope = scopes[cpuid];      
       scope.init(&graph, v, consistency_model::READ_CONSISTENCY);
       const vertex_id_type curv = scope.vertex();
-      locks[curv].readlock();      
+      acquire_readlock(cpuid, curv); // locks[curv].readlock();      
       return scope;
     }
 
-    iscope_type& get_read_scope(size_t cpuid, vertex_id_type v) {
+    general_scope_type& get_read_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type& scope = scopes[cpuid];
       
       scope.init(&graph, v, consistency_model::READ_CONSISTENCY);
@@ -255,19 +442,21 @@ namespace graphlab {
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curlocked && curv < inv  && curv < outv) {
-          locks[curv].readlock();
+          acquire_readlock(cpuid, curv); // locks[curv].readlock();
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
-          locks[inv].readlock(); ++inidx;
+          acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
+          ++inidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
         } else if (outv < inv) {
-          locks[outv].readlock(); ++outidx;
+          acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
+          ++outidx;
           outv= (outedges.size() > outidx) ? 
             graph.target(outedges[outidx]) : numv;
         } else if (inv == outv) {
-          locks[inv].readlock();
+          acquire_readlock(cpuid, inv); // locks[inv].readlock();
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
             graph.source(inedges[inidx]) : numv;
@@ -277,13 +466,13 @@ namespace graphlab {
       }
       // just in case we never got around to locking it
       if (!curlocked) {
-        locks[curv].readlock();
+        acquire_readlock(cpuid, curv); // locks[curv].readlock();
       }
       return scope;
     }
 
     
-    iscope_type& get_null_scope(size_t cpuid, vertex_id_type v) {
+    general_scope_type& get_null_scope(size_t cpuid, vertex_id_type v) {
       general_scope_type& scope = scopes[cpuid];      
       scope.init(&graph, v, consistency_model::NULL_CONSISTENCY);
       return scope;
@@ -292,30 +481,45 @@ namespace graphlab {
 
 
     // -----------------RELEASE SCOPE-----------------------------
-
-    void release_scope(iscope_type& iscope) {
-      // convert from the iscope to the general scope type
-      general_scope_type& scope =
-        *dynamic_cast<general_scope_type*>(&iscope);;
+    void release_scope(size_t cpuid, general_scope_type& scope) {
       switch(scope.consistency()) {
       case consistency_model::VERTEX_CONSISTENCY:
       case consistency_model::VERTEX_READ_CONSISTENCY:
-        release_vertex_scope(scope);
+        release_vertex_scope(cpuid, scope);
         break;
       case consistency_model::EDGE_CONSISTENCY:
       case consistency_model::FULL_CONSISTENCY:
       case consistency_model::READ_CONSISTENCY:
-        release_full_edge_scope(scope);
+        release_full_edge_scope(cpuid, scope);
         break;
       case consistency_model::NULL_CONSISTENCY:
-        release_null_scope(scope);
+        release_null_scope(cpuid, scope);
+        break;
+      case consistency_model::SINGLE_EDGE_READ_CONSISTENCY:
+      case consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY:
+        release_single_edge_scope(cpuid, scope);
         break;
       default:
         ASSERT_TRUE(false);
       }
-    }
+    } // end of release scope
 
-    void release_full_edge_scope(general_scope_type& scope) {
+
+
+    void release_single_edge_scope(size_t cpuid, 
+                                   general_scope_type& scope) {
+      const edge_id_type eid = scope.edge_id();
+      vertex_id_type source = graph.source(eid);
+      vertex_id_type target = graph.target(eid);
+      ASSERT_NE(source, target);
+      if(source > target) std::swap(source, target);
+      release_lock(cpuid, source);
+      release_lock(cpuid, target);
+    } // end of release single edge scope
+
+
+    void release_full_edge_scope(size_t cpuid,
+                                 general_scope_type& scope) {
       const vertex_id_type v = scope.vertex();
       const edge_list_type inedges =  graph.in_edge_ids(v);
       const edge_list_type outedges = graph.out_edge_ids(v);
@@ -334,18 +538,20 @@ namespace graphlab {
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curvunlocked && (curv > inv || inv == vertex_id_type(-1)) &&
             (curv > outv || outv == vertex_id_type(-1))) {
-          locks[curv].unlock();
+          release_lock(cpuid, curv); // locks[curv].unlock();
           curvunlocked = true;
         } else if ((inv+1) > (outv+1)) {
-          locks[inv].unlock(); --inidx;
+          release_lock(cpuid, inv); // locks[inv].unlock(); 
+          --inidx;
           inv  = (inedges.size() > inidx) ?
             graph.source(inedges[inidx]) : vertex_id_type(-1);
         } else if ((outv+1) > (inv+1)) {
-          locks[outv].unlock(); --outidx;
+          release_lock(cpuid, outv); // locks[outv].unlock(); 
+          --outidx;
           outv  = (outedges.size() > outidx) ?
             graph.target(outedges[outidx]) : vertex_id_type(-1);
         } else if (inv == outv){
-          locks[inv].unlock();
+          release_lock(cpuid, inv); // locks[inv].unlock();
           --inidx; --outidx;
           inv  = (inedges.size() > inidx) ?
             graph.source(inedges[inidx]) : vertex_id_type(-1);
@@ -355,24 +561,28 @@ namespace graphlab {
       }
 
       if (!curvunlocked) {
-        locks[curv].unlock();
+        release_lock(cpuid, curv); // locks[curv].unlock();
       }
     }
 
-    void release_vertex_scope(general_scope_type& scope) {
+    void release_vertex_scope(size_t cpuid, 
+                              general_scope_type& scope) {
       vertex_id_type curv = scope.vertex();
-      locks[curv].unlock();
+      release_lock(cpuid, curv); // locks[curv].unlock();
     }
 
-    void release_null_scope(general_scope_type& scope) { }
+    void release_null_scope(size_t cpuid, 
+                            general_scope_type& scope) { }
 
     size_t num_vertices() const { return graph.num_vertices(); }
 
     Graph& get_graph() { return graph; }
     
   };
+}; // end of graphlab namespace
+#include <graphlab/macros_undef.hpp>
 
-}
+
 
 #endif
 

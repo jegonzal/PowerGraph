@@ -21,20 +21,36 @@
  */
 
 
-#include <execinfo.h>
-#include <iostream>
-#include <cstdlib>
-#include <unistd.h>
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
 
-/* Obtain a backtrace and print it to stderr. */
-void __print_back_trace() {
-  const size_t array_size(1024);
-  void *array[array_size];
-  int size;
-  size = backtrace(array, array_size);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  std::cerr << "Use c++filt to process the output." << std::endl;
 
-  // backtrace_symbols_fd(array, size, STDOUT_FILENO);
-}
+#ifndef GRAPHLAB_IDIFFABLE_HPP
+#define GRAPHLAB_IDIFFABLE_HPP
+
+
+
+
+namespace graphlab {
+
+
+  /**
+   * This interface signifies that a vertex is divisible.
+   */
+  template<typename T>
+  class idiffable {
+  public:
+    virtual void apply_diff(const T& changed, const T& old) = 0;
+  }; // end of class idiffable
+
+
+}; // end of namespace
+#endif
+
 
