@@ -50,20 +50,53 @@
 namespace graphlab {
 
   namespace delta_dht_impl {
-    struct icache { virtual ~icache() { }  };
-    icache*& get_icache_ptr(const void* dht_ptr);
+    struct icache { virtual ~icache() { } };
+    icache*& get_icache_ptr(const void* dht_ptr);    
   }; // end of namespace delta_dht_impl
 
-  template<typename KeyType, typename ValueType>
+
+  namespace fresh_predicate {
+    template<typename ValueType>
+    struct uses {
+      size_t max_uses;
+      uses(size_t max_uses = 100) : max_uses(max_uses) { }
+      //! returns true if the predicate 
+      bool operator()(const ValueType& current,
+                      const ValueType& old,
+                      const size_t& uses) const {
+        return uses < max_uses;
+      }
+    }; // end of uses
+
+    template<typename ValueType>
+    struct never_stale {
+      //! returns true if the predicate 
+      bool operator()(const ValueType& current,
+                      const ValueType& old,
+                      const size_t& uses) const {
+        return true;
+      }
+    }; // end of uses
+
+  }; // end of eviction predicates
+
+
+
+
+
+
+  template<typename KeyType, typename ValueType,
+           typename FreshPredicate = 
+           fresh_predicate::uses<ValueType> >
   class delta_dht {
   public:
     typedef KeyType   key_type;
     typedef ValueType value_type;
     typedef size_t    size_type;    
-
+    typedef FreshPredicate fresh_predicate_type;
+    
     typedef boost::unordered_map<key_type, value_type> data_map_type;
     
-   
     struct cache_entry {
       value_type old;
       value_type current;
@@ -79,18 +112,6 @@ namespace graphlab {
       tl_cache() : hits(0), misses(0) { }
     };
 
-  private:
-   
-    tl_cache& get_tl_cache() const {
-      // get the pointer to for this local icache
-      delta_dht_impl::icache*& icache_ptr = 
-        delta_dht_impl::get_icache_ptr(this);
-      if(icache_ptr == NULL) {
-        icache_ptr = new tl_cache();
-      }
-      ASSERT_NE(icache_ptr, NULL);
-      return *static_cast<tl_cache*>(icache_ptr);
-    };
 
   private:
 
@@ -106,9 +127,6 @@ namespace graphlab {
     //! The maximum cache size
     size_t max_cache_size;
 
-    //! The maximum number of uses
-    size_t max_uses;
-
     //! the hash function
     boost::hash<key_type> hasher;
 
@@ -116,12 +134,15 @@ namespace graphlab {
     atomic<size_t> hits;
     atomic<size_t> misses;
 
+    //! The functor that determines how fresh a cache entry is
+    fresh_predicate_type fresh_pred;
+
   public:
 
     delta_dht(distributed_control& dc, 
               size_t max_cache_size = 2056) : 
       rpc(dc, this), 
-      max_cache_size(max_cache_size), max_uses(100) {
+      max_cache_size(max_cache_size) {
       rpc.barrier();
     }
 
@@ -135,8 +156,7 @@ namespace graphlab {
     bool is_cached(const key_type& key) const { 
       return get_tl_cache().contains(key); 
     }
-
-
+    fresh_predicate_type& fresh_predicate() { return fresh_pred; }
 
     value_type& operator[](const key_type& key) {
       tl_cache& cache = get_tl_cache();
@@ -146,7 +166,8 @@ namespace graphlab {
         misses++;
         // make room for the new entry
         while(cache.size() + 1 > max_cache_size) {
-          const std::pair<key_type, cache_entry> pair = cache.evict();
+          const std::pair<key_type, cache_entry> pair = 
+            cache.evict();
           const key_type& key = pair.first;
           const cache_entry& entry = pair.second;
           send_delta(key, entry.current - entry.old);
@@ -162,7 +183,7 @@ namespace graphlab {
       }
 
       cache_entry& entry = cache[key];
-      if(entry.uses > max_uses) {
+      if(!fresh_pred(entry.current, entry.old, entry.uses)) {
         synchronize(key, entry);
         entry.uses = 0;
       }
@@ -174,7 +195,8 @@ namespace graphlab {
     void flush() {
       tl_cache& cache = get_tl_cache();
       while(cache.size() > 0) {
-        const std::pair<key_type, cache_entry> pair = cache.evict();
+        const std::pair<key_type, cache_entry> pair = 
+          cache.evict();
         const key_type& key = pair.first;
         const cache_entry& entry = pair.second;
         send_delta(key, entry.current - entry.old);
@@ -264,6 +286,19 @@ namespace graphlab {
     } // end of direct get
 
   private:
+
+    tl_cache& get_tl_cache() const {
+      // get the pointer to for this local icache
+      delta_dht_impl::icache*& icache_ptr = 
+        delta_dht_impl::get_icache_ptr(this);
+      if(icache_ptr == NULL) {
+        icache_ptr = new tl_cache();
+      }
+      ASSERT_NE(icache_ptr, NULL);
+      return *static_cast<tl_cache*>(icache_ptr);
+    };
+
+
     void send_delta_rpc(const key_type& key, const value_type& delta)  {
       // If the data is stored locally just read and return
       if(is_local(key)) {
@@ -278,12 +313,14 @@ namespace graphlab {
                         key, delta);
       }
     } // end of send_delta_rpc
+
     
     void synchronize(const key_type& key, cache_entry& entry)  {
       const value_type delta = entry.current - entry.old;
       entry.old = synchronize_rpc(key, delta);
       entry.current = entry.old;
     } // end of synchronize
+
 
     value_type synchronize_rpc(const key_type& key, const value_type& delta) {
       if(is_local(key)) {

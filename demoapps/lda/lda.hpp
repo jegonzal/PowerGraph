@@ -72,7 +72,7 @@ public:
     ASSERT_EQ(m_nt.size(), old.m_nt.size());
     ASSERT_EQ(m_type, changed.m_type);
     ASSERT_EQ(m_type, old.m_type);
-    for(topic_id_type t = 0; t < m_nt.size(); ++t) 
+    for(size_t t = 0; t < m_nt.size(); ++t) 
       m_nt[t] += (changed.m_nt[t] - old.m_nt[t]);
     m_iterations += (changed.m_iterations - old.m_iterations);
   } // end of apply diff 

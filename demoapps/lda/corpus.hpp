@@ -42,8 +42,8 @@
 
 typedef uint32_t word_id_type;
 typedef uint32_t doc_id_type;
-typedef uint16_t topic_id_type;
-typedef int   count_type;
+typedef int      topic_id_type;
+typedef int      count_type;
 
 #define NULL_WORD word_id_type(-1)
 #define NULL_TOPIC topic_id_type(-1)
@@ -63,11 +63,17 @@ struct corpus {
   size_t ntokens;
   std::vector< token > tokens;
   std::vector<std::string> dictionary;
-  std::vector< word_id_type > ntokens_in_doc;
+  boost::unordered_map<size_t, word_id_type> ntokens_in_doc;
   corpus(const std::string& dictionary_fname, 
-              const std::string& counts_fname );
+         const std::string& counts_fname);
+
+  corpus(const std::string& dictionary_fname, 
+         const std::string& counts_fname, 
+         const size_t procid, const size_t nprocs);
   void load_dictionary(const std::string& fname);
   void load_counts(const std::string& fname);
+  void load_counts(const std::string& fname, 
+                   const size_t procid, const size_t nprocs);
 
   void shuffle_tokens();
 }; // end of corpus

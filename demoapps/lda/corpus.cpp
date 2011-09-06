@@ -45,14 +45,27 @@ std::ostream& operator<<(std::ostream& out, const corpus::token& tok) {
 
 
 corpus::corpus(const std::string& dictionary_fname, 
-                         const std::string& counts_fname ) : 
-  nwords(0), ndocs(0), ntokens(0) {
+               const std::string& counts_fname ) : 
+  nwords(0), ndocs(0), ntokens(0), ntokens_in_doc(50000) {
+  dictionary.reserve(20000);
+  tokens.reserve(100000);
   load_dictionary(dictionary_fname);
   load_counts(counts_fname);
-  dictionary.reserve(20000);
-  ntokens_in_doc.reserve(5000);
-  tokens.reserve(100000);
 }
+
+
+
+corpus::corpus(const std::string& dictionary_fname, 
+               const std::string& counts_fname,
+               const size_t procid, const size_t nprocs) : 
+  nwords(0), ndocs(0), ntokens(0), ntokens_in_doc(50000) {
+  dictionary.reserve(20000);
+  tokens.reserve(100000);
+  load_dictionary(dictionary_fname);
+  load_counts(counts_fname, procid, nprocs);
+}
+
+
 
 void corpus::load_dictionary(const std::string& fname) {
   std::ifstream fin(fname.c_str());
@@ -82,8 +95,6 @@ void corpus::load_counts(const std::string& fname) {
       // Assert valid word
       assert(word < nwords);
       // Update the words in document counter
-      if(doc >= ntokens_in_doc.size())
-        ntokens_in_doc.resize(doc+1, 0);
       ntokens_in_doc[doc] += count;
       // Add all the tokens
       corpus::token tok; tok.word = word; tok.doc = doc;
@@ -91,6 +102,33 @@ void corpus::load_counts(const std::string& fname) {
     }
   }
   fin.close();
+  ntokens = tokens.size();
+}
+
+
+void corpus::load_counts(const std::string& fname,
+                         const size_t procid,
+                         const size_t nprocs) {
+  std::ifstream fin(fname.c_str());    
+  while(fin.good()) {
+    // Read a collection of tokens
+    size_t word=0, doc=0, count=0;
+    fin >> word >> doc >> count;
+    if(fin.good()) {
+      assert(word > 0 && doc > 0 && count > 0);
+      // Decrement to c-style from matlab style
+      word--; doc--;
+      if( (doc + procid) % nprocs == 0  ) {
+        // update the number of words in that document
+        ntokens_in_doc[doc] += count;
+        // Add all the tokens
+        corpus::token tok; tok.word = word; tok.doc = doc;
+        for(size_t i = 0; i < count; ++i) tokens.push_back(tok);
+      }
+    }
+  }
+  fin.close();
+  ndocs = ntokens_in_doc.size();
   ntokens = tokens.size();
 }
 
