@@ -112,7 +112,7 @@ void run_gibbs(const size_t niters,
                std::vector<topic_id_type>& topics,
                boost::unordered_map<doc_id_type, topic_vector>& n_dt,
                graphlab::delta_dht<word_id_type, topic_vector>& n_wt,
-               graphlab::delta_dht<topic_id_type, int>& n_t) {
+               graphlab::delta_dht<char, topic_vector>& n_t) {
 
   // Preallocate the vector to store the conditional
   std::vector<double> conditional(ntopics, 0);
@@ -126,6 +126,7 @@ void run_gibbs(const size_t niters,
 
     topic_vector& vec_n_dt(n_dt[d]);
     topic_vector& vec_n_wt(n_wt[w]);
+    topic_vector& vec_n_t(n_t[0]);
 
     // resize the corresponding topic vectors if they are not currently allocated
     if(vec_n_dt.empty()) vec_n_dt.resize(ntopics, 0);
@@ -137,14 +138,14 @@ void run_gibbs(const size_t niters,
     if(old_topic != NULL_TOPIC) {
       --vec_n_dt[old_topic]; 
       --vec_n_wt[old_topic];
-      --n_t[old_topic];
+      --vec_n_t[old_topic];
     }
 
     // Construct the conditional
     double normalizer = 0;
     for(size_t t = 0; t < ntopics; ++t) {
       conditional[t] = (alpha + vec_n_dt[t]) * (beta + vec_n_wt[t]) /
-        (beta * corpus.nwords + n_t[t]);        
+        (beta * corpus.nwords + vec_n_t[t]);        
       normalizer += conditional[t];
     }
     ASSERT_GT(normalizer, 0);
@@ -161,19 +162,19 @@ void run_gibbs(const size_t niters,
     if(new_topic != old_topic) nchanges++;
     ++vec_n_dt[new_topic]; 
     ++vec_n_wt[new_topic];
-    ++n_t[new_topic];
+    ++vec_n_t[new_topic];
 
-    if((i+1) % 1000000 == 0) {
+    if((i+1) % 100000 == 0) {
       std::cout << "(" << n_wt.procid() << ", "
                 << "[" << n_wt.cache_hits() << ", " << n_wt.cache_misses() << "] "
                 << "[" << n_t.cache_hits() << ", " << n_t.cache_misses() << "])"
                 << std::endl;
-      return;
     }
-
-    
-
   } // end of loop over tokens
+  n_wt.flush();
+  n_t.flush();
+  // n_wt.synchronize();
+  // n_t.synchronize();
 } // end of run gibbs
 
 
@@ -225,7 +226,9 @@ int main(int argc, char** argv) {
   corpus corpus(dictionary_fname, counts_fname, 
                 dc.procid(), dc.numprocs());
   corpus.shuffle_tokens();
-  std::cout << "(" << corpus.ndocs << ", " << corpus.ntokens << ")" 
+  std::cout << "(" << corpus.ndocs << ", "
+            << corpus.nwords << ", "
+            << corpus.ntokens << ")" 
             << std::endl;
   
   // Initialize the topic assignments
@@ -236,11 +239,13 @@ int main(int argc, char** argv) {
 
   std::cout << "Construct DHTs" << std::endl;
   // Initialize the shared word and topic counts
-  graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc, 10000);
-  graphlab::delta_dht<topic_id_type, int> n_t(dc);
-  n_t.fresh_predicate().max_uses = 100000;
-
-  for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
+  graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc, corpus.nwords + 10);
+  graphlab::delta_dht<char, topic_vector > n_t(dc, 2);
+  n_t.fresh_predicate().max_uses = 10000;
+  n_wt.fresh_predicate().max_uses = 1000;
+  // Initialize the topic vector
+  n_t[0].resize(ntopics,0);
+  // for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
 
 
   // Run the gibbs sampler
