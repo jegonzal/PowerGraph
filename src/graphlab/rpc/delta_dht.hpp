@@ -105,6 +105,7 @@ namespace graphlab {
     };
 
     typedef cache::lru<key_type, cache_entry> cache_type;
+    // typedef cache::associative<key_type, cache_entry> cache_type;
 
     struct tl_cache :
       public delta_dht_impl::icache, public cache_type {
@@ -164,7 +165,17 @@ namespace graphlab {
       if(!cache.contains(key)) {
         cache.misses++;
         misses++;
-        // make room for the new entry
+        // // Associative cache version
+        // { // make room for the new entry
+        //   key_type prev_key;
+        //   cache_entry prev_entry;
+        //   const bool entry_found = 
+        //     cache.evict_slot(key, prev_key, prev_entry);
+        //   if(entry_found) {
+        //     send_delta(prev_key, prev_entry.current - prev_entry.old);
+        //   }
+        // }
+
         while(cache.size() + 1 > max_cache_size) {
           const std::pair<key_type, cache_entry> pair = 
             cache.evict();
@@ -214,6 +225,15 @@ namespace graphlab {
     void synchronize(const key_type& key) {
       tl_cache& cache = get_tl_cache();
       if(cache.contains(key)) synchronize(key, cache[key]);
+    }
+
+
+   void synchronize() {
+      tl_cache& cache = get_tl_cache();
+      typedef typename cache_type::pair_type pair_type;
+      foreach(pair_type& pair, cache) {
+        synchronize(pair.first, pair.second);
+      } // end of foreach
     }
 
 

@@ -72,6 +72,8 @@ namespace graphlab {
         boost::bimaps::list_of<value_type> > 
       cache_map_type;
       
+      typedef typename cache_map_type::iterator iterator_type;
+      typedef typename cache_map_type::value_type pair_type;
       
     private:
       mutable cache_map_type cache_map;
@@ -86,8 +88,8 @@ namespace graphlab {
       
       size_t size() { return cache_map.size(); }
 
-      typename cache_map_type::iterator begin() { return cache_map.begin(); }
-      typename cache_map_type::iterator end() { return cache_map.end(); }
+      iterator_type begin() { return cache_map.begin(); }
+      iterator_type end() { return cache_map.end(); }
       
       std::pair<key_type, value_type> evict() {
         ASSERT_FALSE(cache_map.empty());
@@ -174,8 +176,7 @@ namespace graphlab {
 
 
     
-    template<typename Key, typename Value, 
-             typename EvictionHandler>
+    template<typename Key, typename Value>
     class associative {
     public:
       typedef Key key_type;

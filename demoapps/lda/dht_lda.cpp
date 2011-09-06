@@ -170,10 +170,11 @@ void run_gibbs(const size_t niters,
                 << "[" << n_t.cache_hits() << ", " << n_t.cache_misses() << "])"
                 << std::endl;
     }
-
-    
-
   } // end of loop over tokens
+  n_wt.flush();
+  n_t.flush();
+  // n_wt.synchronize();
+  // n_t.synchronize();
 } // end of run gibbs
 
 
@@ -238,9 +239,10 @@ int main(int argc, char** argv) {
 
   std::cout << "Construct DHTs" << std::endl;
   // Initialize the shared word and topic counts
-  graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc, 10000);
+  graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc, corpus.nwords + 10);
   graphlab::delta_dht<char, topic_vector > n_t(dc, 2);
-  //n_t.fresh_predicate().max_uses = 10000;
+  n_t.fresh_predicate().max_uses = 10000;
+  n_wt.fresh_predicate().max_uses = 1000;
   // Initialize the topic vector
   n_t[0].resize(ntopics,0);
   // for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
