@@ -34,6 +34,8 @@
 #define GRAPHLAB_CACHE_HPP
 
 #include <algorithm>
+#include <vector>
+#include <boost/functional/hash.hpp>
 
 #include <boost/bimap.hpp>
 #include <boost/bimap/list_of.hpp>
@@ -167,6 +169,107 @@ namespace graphlab {
       } // end of get
 
     }; // end of class lru
+
+
+
+
+    
+    template<typename Key, typename Value, 
+             typename EvictionHandler>
+    class associative {
+    public:
+      typedef Key key_type;
+      typedef Value value_type;
+       
+      
+    private:
+      std::vector<key_type>   keys;
+      std::vector<value_type> values;
+      std::vector<bool>       is_set;
+      size_t size_;
+      boost::hash<key_type>   hash_function;
+      
+    public:
+
+      associative(size_t cache_size = 1024) :
+        keys(cache_size), values(cache_size), 
+        is_set(cache_size), size_(0) { }
+      
+      size_t size() { return size_; }
+      
+
+      bool evict_slot(const key_type& key, 
+                      key_type& ret_key, value_type& ret_value) {
+        const size_t index = hash_function(key) % keys.size();
+        if(is_set[index]) {
+          ret_key = keys[index]; ret_value = values[index];
+          is_set[index] = false;
+          return true;
+        } else return false;
+      } // end of evict_slot
+        
+      std::pair<bool, value_type> evict(const key_type& key) {
+        const size_t index = hash_function(key) % keys.size();
+        if(is_set[index] && key[index] == key) {
+          is_set[index] = false;
+          return std::make_pair(true, values[index]);
+        } else {
+          return std::make_pair(false, value_type());
+        }
+      } // end of evict(key)
+
+      bool evict(const key_type& key, value_type& ret_value) {
+        const size_t index = hash_function(key) % keys.size();
+        if(is_set[index] && key[index] == key) {
+          is_set[index] = false;
+          ret_value = values[index];
+          return true;
+        } else {
+          return false;
+        }
+      }      
+
+      bool contains(const key_type& key) const {
+        const size_t index = hash_function(key) % keys.size();
+        return is_set[index] && keys[index] == key;
+      } // end of contains
+
+
+      value_type& operator[](const key_type& key) {
+        const size_t index = hash_function(key) % keys.size();
+        if(is_set[index]) {
+          ASSERT_TRUE(key == keys[index]);
+          return values[index];
+        } else {
+          keys[index] = key;
+          is_set[index] = true;
+          values[index] = value_type();
+          return values[index];
+        }
+      } // end of oeprator[]
+
+      const value_type& operator[](const key_type& key) const {
+        const size_t index = hash_function(key) % keys.size();
+        if(is_set[index]) {
+          ASSERT_TRUE(key == keys[index]);
+          return values[index];
+        } else {
+          logstream(LOG_FATAL) << "Key not found!" << std::endl;
+          return value_type();
+        }
+      } // end of oeprator[]
+
+      bool get(const key_type& key, value_type& ret_value) {
+        const size_t index = hash_function(key) % keys.size();
+        if(is_set[index] && keys[index] == key) {
+          ret_value = values[index];
+          return true;
+        } else {
+          return false;
+        }     
+      } // end of get
+
+    }; // end of class associative
 
 
 
