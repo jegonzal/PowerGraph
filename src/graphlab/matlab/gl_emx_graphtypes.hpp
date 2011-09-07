@@ -48,11 +48,18 @@ typedef boost::remove_const<
               boost::function<datatype_identifier_fn_type>::arg1_type>
             ::type>
         ::type gl_emx_vertextype;
+        
 typedef boost::remove_const<
             boost::remove_pointer<
               boost::function<datatype_identifier_fn_type>::arg2_type>
             ::type>
         ::type gl_emx_edgetype;
+
+typedef boost::remove_const<
+            boost::remove_pointer<
+              boost::function<datatype_identifier_fn_type>::arg3_type>
+            ::type>
+        ::type HANDLE_TYPE;
 
 // define the graphlab data types
 #include <graphlab.hpp>
@@ -66,7 +73,7 @@ typedef void (*gl_emx_updatefn_type)(uint32_T eml_currentvertex,
                                     const emxArray_uint32_T *eml_inv, 
                                     const emxArray_uint32_T *eml_outedges, 
                                     const emxArray_uint32_T *eml_outv, 
-                                    double eml_handle);
+                                    HANDLE_TYPE eml_handle);
 
 #endif
 

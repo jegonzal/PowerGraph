@@ -1,4 +1,4 @@
-function datatype_identifier(vdata, edata, unused) %#eml
+function datatype_identifier(vdata, edata, handle, unused) %#eml
 %#VERTEX_STRUCT#%
 %#EDGE_STRUCT#%
 end

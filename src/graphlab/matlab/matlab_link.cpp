@@ -26,11 +26,11 @@
 #include "update_function_generator.hpp"
 #include "mx_emx_converters.hpp"
 
-gl_update_function_params* get_params(double handle) {
+gl_update_function_params* get_params(HANDLE_TYPE handle) {
   // depun the pointer
   // first force cast it back to a uint64_t
-  double *handleptr = &handle;
-  uint64_t paramsptr = *reinterpret_cast<uint64_t*>(handleptr);
+  HANDLE_TYPE *handleptr = &handle;
+  size_t paramsptr = *reinterpret_cast<size_t*>(handleptr);
   gl_update_function_params* params;
 #ifdef __LP64__
   params = *reinterpret_cast<gl_update_function_params**>(&paramsptr);
@@ -42,7 +42,7 @@ gl_update_function_params* get_params(double handle) {
 #endif
 }
 
-void emx_get_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
+void emx_get_edge_data(HANDLE_TYPE handle, uint32_T eid, gl_emx_edgetype *edge) {
   gl_update_function_params *paramsptr = get_params(handle);
   eid--;
   // get the data and copy it out
@@ -50,7 +50,7 @@ void emx_get_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
   emxcopy(*edge, e);
 }
 
-void emx_get_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex) {
+void emx_get_vertex_data(HANDLE_TYPE handle, uint32_T vid, gl_emx_vertextype *vertex) {
   gl_update_function_params *paramsptr = get_params(handle);
   vid--;
   // get the data and copy it out
@@ -65,7 +65,7 @@ void emx_get_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex)
   }
 }
 
-void emx_set_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
+void emx_set_edge_data(HANDLE_TYPE handle, uint32_T eid, gl_emx_edgetype *edge) {
   gl_update_function_params *paramsptr = get_params(handle);
   eid--;
   // write the data
@@ -73,7 +73,7 @@ void emx_set_edge_data(double handle, uint32_T eid, gl_emx_edgetype *edge) {
   emxcopy(e, *edge);
 }
 
-void emx_set_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex) {
+void emx_set_vertex_data(HANDLE_TYPE handle, uint32_T vid, gl_emx_vertextype *vertex) {
   gl_update_function_params *paramsptr = get_params(handle);
   vid--;
   // write the data
@@ -89,7 +89,7 @@ void emx_set_vertex_data(double handle, uint32_T vid, gl_emx_vertextype *vertex)
 }
 
 
-void emx_add_task(double handle, uint32_T vid, const char* fnname, double priority) {
+void emx_add_task(HANDLE_TYPE handle, uint32_T vid, const char* fnname, double priority) {
   //std::cout << "add_task: " << vid << " " << fnname << " " << priority << std::endl;
   static bool printed = false;
   gl_update_function_params *paramsptr = get_params(handle);

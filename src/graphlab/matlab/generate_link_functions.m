@@ -26,6 +26,8 @@ else
      substs.EDGE_STRUCT = '';
 end
 
+substs.HANDLE_STRUCT = 'eml.cstructname(handle, ''HANDLE_TYPE'');';
+
 file_template_substitution([templatedirectory, '/get_vertex_data.template'], ...
                            'get_vertex_data.m', ...
                            substs);

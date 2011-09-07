@@ -257,6 +257,20 @@ disp(['Working Directory:', workingdirectory]);
 olddir = pwd;
 oldpath = path;
 
+
+largearraydims = [];
+native_word_type = 'emlcoder.egs(handle_type__)';
+if (strcmp(computer, 'GLNXA64') ~= 1 && strcmp(computer, 'MACI64') ~= 1)
+    largearraydims = ['-DMX_COMPAT_32'];
+    handle_type__.low = uint32(0);
+    disp('Configuring for 32 bit system');
+else
+    handle_type__.high = uint32(0);
+    handle_type__.low = uint32(0);
+    disp('Configuring for 64 bit system');
+end
+
+
 % ---------- Stage 0 ------------------------------------
 % Workaround: There is an interesting issue if the edge
 % structure is exactly equivalent to the vertex structure, or a substructure
@@ -362,7 +376,8 @@ exinput = ['-eg {uint32(0), ' ...               % current vertex
           'emlcoder.egs(uint32(0),[Inf]), ' ... % inV
           'emlcoder.egs(uint32(0),[Inf]), ' ... % out edges
           'emlcoder.egs(uint32(0),[Inf]), ' ... % outV
-          'double(0.0)} '];                       % handle
+          native_word_type ', ' ...             % handle
+          '} '];                   
           
 cfg = emlcoder.CompilerOptions;
 cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
@@ -375,12 +390,12 @@ for i = 1:length(updatefunctions)
 end
 
 % append the additional functions
-emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge, emlcoder.egs(double(0), [Inf])}'];
-emlcstring = [emlcstring ' get_vertex_data -eg {double(0), uint32(0)}'];
-emlcstring = [emlcstring ' get_edge_data -eg {double(0), uint32(0)}'];
-emlcstring = [emlcstring ' set_vertex_data -eg {double(0), uint32(0), exvertex}'];
-emlcstring = [emlcstring ' set_edge_data -eg {double(0), uint32(0), exedge}'];
-emlcstring = [emlcstring ' add_task -eg {double(0), uint32(0), emlcoder.egs(''a'', [Inf]), double(0)}'];
+emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge,' native_word_type ' emlcoder.egs(double(0), [Inf])}'];
+emlcstring = [emlcstring ' get_vertex_data -eg {' native_word_type ', uint32(0)}'];
+emlcstring = [emlcstring ' get_edge_data -eg {' native_word_type ', uint32(0)}'];
+emlcstring = [emlcstring ' set_vertex_data -eg {' native_word_type ', uint32(0), exvertex}'];
+emlcstring = [emlcstring ' set_edge_data -eg {' native_word_type ', uint32(0), exedge}'];
+emlcstring = [emlcstring ' add_task -eg {' native_word_type ', uint32(0), emlcoder.egs(''a'', [Inf]), double(0)}'];
 emlcstring = [emlcstring ' matlab_link.h'];
 disp(['Issuing command: ' emlcstring]);
 eval(emlcstring);
@@ -417,11 +432,6 @@ str = '';
 for i = 1:length(allcfiles)
     str = [str allcfiles(i).name ' '];
     allcfilescellarray{i} = allcfiles(i).name;
-end
-
-largearraydims = [];
-if (strcmp(computer, 'GLNXA64') ~= 1 && strcmp(computer, 'MACI64') ~= 1)
-    largearraydims = ['-DMX_COMPAT_32'];
 end
 
 

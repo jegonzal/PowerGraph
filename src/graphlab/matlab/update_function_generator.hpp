@@ -116,11 +116,11 @@ void exec_update_function(gl_types::iscope& scope,
   gl_update_function_params params;
   params.scope = &scope;
   params.scheduler = &scheduler;
-  // store the pointer in a 64 bit integer
-  uint64_t paramsptr = (uint64_t)(&params);  
-  double handle = 0;
+  // store the pointer in an integer
+  size_t paramsptr = (size_t)(&params);  
+  HANDLE_TYPE handle;
   // force cast the contents of the integer to a double
-  handle = *reinterpret_cast<double*>(&paramsptr);
+  handle = *reinterpret_cast<HANDLE_TYPE*>(&paramsptr);
   emx_update_fn(scope.vertex() + 1, &eml_inedges, &eml_inv, &eml_outedges, &eml_outv, handle);
 
   // nothing to free since everything is on the stack
