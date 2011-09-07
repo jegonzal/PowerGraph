@@ -66,6 +66,12 @@ namespace graphlab {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
+    
+    mutex(const mutex&) {
+      int error = pthread_mutex_init(&m_mut, NULL);
+      ASSERT_TRUE(!error);
+    }
+    
     /// Acquires a lock on the mutex
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
@@ -371,6 +377,12 @@ namespace graphlab {
       int error = pthread_rwlock_destroy(&m_rwlock);
       ASSERT_TRUE(!error);
     }
+    // useless copy constructor
+    rwlock(const rwlock &) {
+      int error = pthread_rwlock_init(&m_rwlock, NULL);
+      ASSERT_TRUE(!error);
+    }
+    
     inline void readlock() const {
       pthread_rwlock_rdlock(&m_rwlock);
       //ASSERT_TRUE(!error);
