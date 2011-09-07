@@ -19,7 +19,6 @@ extern/metis/GKlib/util.c
 extern/metis/GKlib/blas.c
 extern/metis/GKlib/error.c
 extern/metis/GKlib/htable.c
-extern/metis/GKlib/omp.c
 extern/metis/GKlib/seq.c
 extern/metis/GKlib/timers.c
 extern/metis/GKlib/dfkvkselect.c
@@ -97,7 +96,6 @@ set_property(SOURCE extern/metis/GKlib/util.c PROPERTY COMPILE_FLAGS "${METIS_BU
 set_property(SOURCE extern/metis/GKlib/blas.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
 set_property(SOURCE extern/metis/GKlib/error.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
 set_property(SOURCE extern/metis/GKlib/htable.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
-set_property(SOURCE extern/metis/GKlib/omp.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
 set_property(SOURCE extern/metis/GKlib/seq.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
 set_property(SOURCE extern/metis/GKlib/timers.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
 set_property(SOURCE extern/metis/GKlib/dfkvkselect.c PROPERTY COMPILE_FLAGS "${METIS_BUILD_OPTS}")
