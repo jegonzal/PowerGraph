@@ -152,9 +152,15 @@ void add_vertices(graph_type * _g){
          break;
 
        case INIT_KMEANS_PLUS_PLUS: //is done later
+       case INIT_RANDOM_CLUSTER:
 	 vdata.current_cluster = -1;
 	 break;
     }
+
+    vdata.datapoint.set_size(ps.N);
+    if (ps.algorithm == K_MEANS_FUZZY)
+	vdata.distances = zeros(ps.K);
+
     _g->add_vertex(vdata);
     if (ac.debug && (i<= 5 || i == ps.M-1))
        std::cout<<"node " << i <<" initial assignment is: " << vdata.current_cluster << std::endl; 
@@ -262,7 +268,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
 	     ed[i].weight /= ac.scalerating;
   
       vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
-      vdata.datapoint.set_new(ed[i].to - matlab_offset, ed[i].weight);  
+      vdata.datapoint.add_elem(ed[i].to - matlab_offset, ed[i].weight);  
       if (ps.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
       }

@@ -44,6 +44,7 @@ struct vertex_data {
   float min_distance;
   bool reported;
   bool hot;
+  vec distances;
   bool clusterhead;
 
   //constructor
@@ -97,6 +98,7 @@ struct clusters{
 enum runmodes{
    K_MEANS = 0,//K-means algo
    K_MEANS_PLUS_PLUS = 1, //initalization for K_means
+   K_MEANS_FUZZY = 2
 };
 
 #define MAX_RUNMODE 1
@@ -105,7 +107,8 @@ enum runmodes{
 enum initizliation_type{
    INIT_RANDOM = 0,
    INIT_ROUND_ROBIN = 1,
-   INIT_KMEANS_PLUS_PLUS = 2
+   INIT_KMEANS_PLUS_PLUS = 2,
+   INIT_RANDOM_CLUSTER = 3
 };
 
 

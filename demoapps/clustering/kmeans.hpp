@@ -37,7 +37,7 @@ extern const char * runmodesname[];
 
 void last_iter();
 double calc_cost();
-void update_clusters();
+void update_kmeans_clusters();
 void plus( vec &v1,  sparse_vec &v2);
 void minus( vec &v1, sparse_vec &v2);
 int calc_cluster_centers();
@@ -70,33 +70,47 @@ void kmeans_update_function(gl_types::iscope &scope,
 
   int end_cluster;
   switch(ps.algorithm){
-    case K_MEANS: end_cluster = ps.K; break; //regular k-means, calculate distance to all cluster heads
+    case K_MEANS: 
+    case K_MEANS_FUZZY:
+	end_cluster = ps.K; break; //regular k-means, calculate distance to all cluster heads
     case K_MEANS_PLUS_PLUS: end_cluster = 1; break; //calculate distance of all point to current cluster
   }
 
   for (int i=0; i< end_cluster; i++){
      vec & row = ps.clusts.cluster_vec[i].location;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr);
-     if (min_dist > dist){
+     assert(dist >= 0 && !isnan(dist));
+     if (ps.algorithm == K_MEANS_PLUS_PLUS || ps.algorithm == K_MEANS){
+       if (min_dist > dist){
          min_dist = dist;
-         pos = i;
+          pos = i;
+       }
+     }
+     else if (ps.algorithm == K_MEANS_FUZZY){
+	vdata.distances[i] = dist;
      }
   }  
   ps.counter[DISTANCE_CALCULATION] += t.current_time();
-  assert(pos != -1);
 
 
-  if (pos != vdata.current_cluster){
-    vdata.hot=true;
-    if (toprint && ps.algorithm == K_MEANS)
-      std::cout <<id<<" assigned to cluster: " << pos << std::endl;
-    else if (toprint && ps.algorithm == K_MEANS_PLUS_PLUS)
-      std::cout <<id<<" distance to current cluster is : " << min_dist << std::endl;
-  }
-  vdata.min_distance = min_dist;
-  if (ps.algorithm == K_MEANS){ 
+  if (ps.algorithm == K_MEANS || ps.algorithm == K_MEANS_PLUS_PLUS){
+    assert(pos != -1);
+    if (pos != vdata.current_cluster){
+      vdata.hot=true;
+      if (toprint && (ps.algorithm == K_MEANS))
+        std::cout <<id<<" assigned to cluster: " << pos << std::endl;
+      else if (toprint && ps.algorithm == K_MEANS_PLUS_PLUS)
+        std::cout <<id<<" distance to current cluster is : " << min_dist << std::endl;
+    }
+
+    vdata.min_distance = min_dist;
     vdata.prev_cluster = vdata.current_cluster; 
     vdata.current_cluster = pos;
+  }
+  else if (ps.algorithm == K_MEANS_FUZZY){
+     vdata.min_distance = sum(pow(vdata.distances,2));
+     assert(!isnan(vdata.min_distance) && vdata.min_distance > 0);
+     vdata.distances = pow(vdata.distances,2) / vdata.min_distance;
   }
 }
 
@@ -106,8 +120,11 @@ void kmeans_update_function(gl_types::iscope &scope,
  */
 void last_iter(){
   printf("Entering last iter with %d\n", ps.iiter);
-
-  update_clusters();
+  if (ps.algorithm == K_MEANS_PLUS_PLUS || ps.algorithm == K_MEANS)
+    update_kmeans_clusters();
+  else if (ps.algorithm == K_MEANS_FUZZY)
+    calc_cluster_centers();
+ 
   double cost = calc_cost();
   printf("%g) Iter %s %d  Cost=%g Normalized cost=%g\n",
         ps.gt.current_time(), 
@@ -121,17 +138,17 @@ void last_iter(){
 
 
 
-void update_clusters(){
- 
+void update_kmeans_clusters(){
 
-   mat means = zeros(ps.K, ps.N);
+
+
    for (int i=0; i< ps.M; i++){
        vertex_data & data = ps.g->vertex_data(i);
        if (!data.hot)
          continue;
        else {
          assert(data.current_cluster >=0 && data.current_cluster < ps.K);
-         if ((ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter >= 1) || (ps.algorithm = K_MEANS)){
+         if ((ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter >= 1) || (ps.algorithm == K_MEANS)){
            assert(data.prev_cluster >=0 && data.prev_cluster < ps.K);
            assert(data.prev_cluster != data.current_cluster);
          }
@@ -141,7 +158,7 @@ void update_clusters(){
          
          if (ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter < 2 && data.prev_cluster == -1){
          }
-         else { //remove point from old cluster
+         else{ //remove point from old cluster
            minus(ps.clusts.cluster_vec[data.prev_cluster].cur_sum_of_points , data.datapoint);    
            ps.clusts.cluster_vec[data.prev_cluster].num_assigned_points--;
          }

@@ -75,10 +75,10 @@ sparse_vec fabs( sparse_vec & dvec1){
 sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
   sparse_vec ret(ps.N, v1.nnz() + v2.nnz());
   for (int i=0; i< v1.nnz(); i++){
-      ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get(v2, v1.get_nz_index(i)));
+      ret.add_elem(v1.get_nz_index(i), v1.get_nz_data(i) - get(v2, v1.get_nz_index(i)));
   }
   for (int i=0; i< v2.nnz(); i++){
-      ret.set_new(v2.get_nz_index(i), get(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
+      ret.add_elem(v2.get_nz_index(i), get(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
   }
   return ret;
 }
@@ -94,6 +94,11 @@ void plus( vec &v1,  sparse_vec &v2){
       v1[v2.get_nz_index(i)] += v2.get_nz_data(i);
   }
 }
+void plus_mul( vec &v1,  sparse_vec &v2, double factor){
+  for (int i=0; i< v2.nnz(); i++){
+      v1[v2.get_nz_index(i)] += factor*v2.get_nz_data(i);
+  }
+}
 void minus( vec &v1, sparse_vec &v2){
   for (int i=0; i< v2.nnz(); i++){
       v1[v2.get_nz_index(i)] -= v2.get_nz_data(i);
@@ -107,8 +112,8 @@ void minus( vec &v1, sparse_vec &v2){
 void test_math(){
    sparse_vec v1;
    sparse_vec v2;
-   v1.set_new(1,1.0);
-   v2.set_new(2,2.0);
+   v1.add_elem(1,1.0);
+   v2.add_elem(2,2.0);
    sparse_vec v3 = minus(v1, v2);
    assert(v3.get_nz_data(0) == 1.0);
    assert(v3.get_nz_data(1) == - 2.0);

@@ -102,8 +102,8 @@ double calc_distance(itpp::sparse_vec &datapoint,  vec & cluster, double sqr_sum
 
 void test_distance(){
   sparse_vec v1;
-  v1.set_new(1,1.0);
-  v1.set_new(2,-3.5);
+  v1.add_elem(1,1.0);
+  v1.add_elem(2,-3.5);
   vec v2("1 2 3 4 5");
   ac.distance_measure = EUCLIDEAN;
   double ret = calc_distance(v1, v2);

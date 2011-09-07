@@ -33,7 +33,7 @@
 #include "unittest.hpp"
 #include "io.hpp"
 #include "../gabp/advanced_config.h"
-
+#include "omp.h"
 
 #include <graphlab/macros_def.hpp>
 /**
@@ -50,8 +50,8 @@ using namespace std;
 advanced_config ac;
 problem_setup ps;
 
-const char * runmodesname[] = {"K-means", "K-means++"};
-const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++"};
+const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means"};
+const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER"};
 const char * countername[] = {"DISTANCE_CALCULTION"};
 
 
@@ -61,6 +61,8 @@ void last_iter();
 void initialize_clusters();
 void dumpcluster();
 void tfidf_weighting();
+void plus_mul(vec& v1, sparse_vec &v2, double factor);
+
 
   void vertex_data::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
@@ -83,16 +85,48 @@ double calc_cost(){
    return cost;
 
 }
+
+
+
+
  
 
 int calc_cluster_centers(){
    int total = 0;
-   for (int i=0; i< ps.K; i++){
-       ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
-       total += ps.clusts.cluster_vec[i].num_assigned_points;
+   if (ps.algorithm == K_MEANS){
+#ifdef OMP_SUPPORT
+#pragma omp parallel for
+#endif    
+     for (int i=0; i< ps.K; i++){
+         ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
+         ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
+     }
+     for (int i=0; i< ps.K; i++)
+         total += ps.clusts.cluster_vec[i].num_assigned_points;
+   }
+  else if (ps.algorithm == K_MEANS_FUZZY){
+#ifdef OMP_SUPPORT
+#pragma omp parallel for
+#endif
+    for (int i=0; i< ps.K; i++){
+       if (ps.iiter > 0){
+         ps.clusts.cluster_vec[i].location = zeros(ps.N);
+         ps.clusts.cluster_vec[i].num_assigned_points = ps.M;
+       //ps.clusts.cluster_vec[i].cur_sum_of_points = zeros(ps.K);
+         double sum_u_i_j = 0;
+         for (int j=0; j< ps.M; j++){
+            vertex_data & data = ps.g->vertex_data(j);
+	    plus_mul(ps.clusts.cluster_vec[i].location, data.datapoint, data.distances[i]);
+            sum_u_i_j += data.distances[i];
+         }
+         assert(sum_u_i_j > 0); 
+         ps.clusts.cluster_vec[i].location /= sum_u_i_j;
+       }
        ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
    }
+ }
   return total;
+
 }
 
 void add_tasks(){
@@ -104,6 +138,7 @@ void add_tasks(){
   switch (ps.algorithm){
      case K_MEANS:
      case K_MEANS_PLUS_PLUS:
+     case K_MEANS_FUZZY:
        ps.glcore->add_tasks(um, kmeans_update_function, 1);
        break;
  }
@@ -114,21 +149,43 @@ void add_tasks(){
 
 void init_clusters(){
   assert(ps.N >0);
-  for (int i=0; i< ac.K; i++){
-     cluster a ;
-     a.location = zeros(ps.N); 
-     a.cur_sum_of_points = zeros(ps.N);
-     ps.clusts.cluster_vec.push_back(a);
-  }
+  
+   for (int i=0; i< ac.K; i++){
+        cluster a ;
+        a.location = zeros(ps.N); 
+        a.cur_sum_of_points = zeros(ps.N);
+        ps.clusts.cluster_vec.push_back(a);
+   }
+
 
 }
+	
 
+void init_random_cluster(){
+   for (int i=0; i < ac.K; i++){
+       int tries = 0;
+       while(true){
+        ::plus(ps.clusts.cluster_vec[i].location,  ps.g->vertex_data(randi(0, ps.M-1)).datapoint);
+  	 if (sum(abs(ps.clusts.cluster_vec[i].location))>0)	
+           break;
+         tries++;
+	 if (tries > 100){
+	    logstream(LOG_ERROR)<<"Failed to assign non-zero cluster head"<<std::endl;
+	    exit(1);
+	 }
+       }
+   }
+}
 
 void init(){
-
+#ifdef OMP_SUPPORT
+   omp_set_num_threads(ac.omp_support ? ac.ncpus: 1);
+   logstream(LOG_INFO) << "setting the number of omp threads to: " << (ac.omp_support ? ac.ncpus: 1) << std::endl;
+#endif 
 
   switch(ps.algorithm){
    case K_MEANS:
+   case K_MEANS_FUZZY:
     init_clusters();
     break;
 
@@ -162,6 +219,7 @@ void start(int argc, const char * argv[]) {
 
   if (ac.mainfunc){ //if called from main(), parse command line arguments
     assert(clopts.parse(argc, argv));
+    ac.ncpus = clopts.get_ncpus();
 
    if (ac.unittest > 0)
       unit_testing(ac.unittest,clopts);
@@ -189,6 +247,9 @@ void start(int argc, const char * argv[]) {
   if (!ac.loadgraph){
     ps.g=&ps.glcore->graph();
     load_graph(ac.datafile.c_str(), ps.g,* ps.glcore);
+
+    if (ps.init_type == INIT_RANDOM_CLUSTER)
+       init_random_cluster();
 
     if (ac.savegraph){
 	printf("Saving .graph files\n");
@@ -246,8 +307,9 @@ void start(int argc, const char * argv[]) {
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
     switch(ps.algorithm){
       case K_MEANS:
-         last_iter();
+      case K_MEANS_FUZZY:
          calc_cluster_centers();
+         last_iter();
          run_graphlab();
          break;
 
@@ -282,6 +344,9 @@ void do_main(int argc, const char *argv[]){
   global_logger().set_log_to_console(true);
   logstream(LOG_INFO)<< "Clustering Code (K-Means) written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 
+#ifdef OMP_SUPPORT
+  logstream(LOG_INFO)<<"Program compiled with OMP support\n";
+#endif
    start(argc, argv);
 }
 

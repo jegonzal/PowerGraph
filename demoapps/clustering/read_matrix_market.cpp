@@ -96,7 +96,7 @@ void load_matrix_market(const char * filename, graph_type *_g)
         assert(I< M);
         assert(J< N);
         vertex_data & vdata = _g->vertex_data(I);
-        vdata.datapoint.set_new(J, val);   
+        vdata.datapoint.add_elem(J, val);   
     }
     ps.L = nz;
 

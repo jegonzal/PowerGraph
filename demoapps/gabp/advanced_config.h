@@ -14,7 +14,9 @@ public:
   int algorithm;
   int init_mode; //initialization mode used for clustering
   bool cg_resid;
-  
+ 
+  bool omp_support;
+ 
   //marix proprties
   bool zero;//allow zero entries in matrix?
   bool isfloat;//input file in float format
@@ -129,6 +131,9 @@ int distance_measure;
 
     mainfunc = true;
     manualgraphsetup = false;
+
+    omp_support = true;
+
     als_lambda = 1;
     bptf_delay_alpha = 0;
     bptf_burn_in = 10;
