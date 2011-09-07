@@ -55,6 +55,7 @@ namespace graphlab {
    * \ingroup util
    *
    * Simple wrapper around pthread's mutex.
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class mutex {
   private:
@@ -66,6 +67,19 @@ namespace graphlab {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
+    
+    /** Copy constructor which does not copy. Do not use!
+        Required for compatibility with some STL implementations (LLVM).
+        which use the copy constructor for vector resize, 
+        rather than the standard constructor.    */
+    mutex(const mutex&) {
+      int error = pthread_mutex_init(&m_mut, NULL);
+      ASSERT_TRUE(!error);
+    }
+
+    // not copyable
+    void operator=(const mutex& m) { }
+    
     /// Acquires a lock on the mutex
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
@@ -93,6 +107,8 @@ namespace graphlab {
    * \ingroup util
    *
    * Wrapper around pthread's spinlock.
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class spinlock {
   private:
@@ -104,6 +120,20 @@ namespace graphlab {
       int error = pthread_spin_init(&m_spin, PTHREAD_PROCESS_PRIVATE);
       ASSERT_TRUE(!error);
     }
+    
+    /** Copy constructor which does not copy. Do not use!
+        Required for compatibility with some STL implementations (LLVM).
+        which use the copy constructor for vector resize, 
+        rather than the standard constructor.    */
+    spinlock(const spinlock&) {
+      int error = pthread_spin_init(&m_spin, PTHREAD_PROCESS_PRIVATE);
+      ASSERT_TRUE(!error);
+    }
+    
+    // not copyable
+    void operator=(const spinlock& m) { }
+
+
     /// Acquires a lock on the spinlock
     inline void lock() const { 
       int error = pthread_spin_lock( &m_spin  );
@@ -136,6 +166,8 @@ namespace graphlab {
    * \ingroup util
    *If pthread spinlock is not implemented, 
    * this provides a simple alternate spin lock implementation.
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class simple_spinlock {
   private:
@@ -146,6 +178,19 @@ namespace graphlab {
     simple_spinlock () {
       spinner = 0;
     }
+    
+    /** Copy constructor which does not copy. Do not use!
+    Required for compatibility with some STL implementations (LLVM).
+    which use the copy constructor for vector resize, 
+    rather than the standard constructor.    */
+    simple_spinlock(const simple_spinlock&) {
+      spinner = 0;
+    }
+    
+    // not copyable
+    void operator=(const simple_spinlock& m) { }
+
+    
     /// Acquires a lock on the spinlock
     inline void lock() const { 
       while(spinner == 1 || __sync_lock_test_and_set(&spinner, 1));
@@ -168,15 +213,32 @@ namespace graphlab {
   /**
    * \ingroup util
    * Wrapper around pthread's condition variable
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class conditional {
   private:
     mutable pthread_cond_t  m_cond;
+
   public:
     conditional() {
       int error = pthread_cond_init(&m_cond, NULL);
       ASSERT_TRUE(!error);
     }
+    
+    /** Copy constructor which does not copy. Do not use!
+        Required for compatibility with some STL implementations (LLVM).
+        which use the copy constructor for vector resize, 
+        rather than the standard constructor.    */
+    conditional(const conditional &) {
+      int error = pthread_cond_init(&m_cond, NULL);
+      ASSERT_TRUE(!error);
+    }
+    
+    // not copyable
+    void operator=(const conditional& m) { }
+
+    
     /// Waits on condition. The mutex must already be acquired. Caller must be careful about spurious wakes.
     inline void wait(const mutex& mut) const {
       int error = pthread_cond_wait(&m_cond, &mut.m_mut);
@@ -222,6 +284,8 @@ namespace graphlab {
 #ifdef __APPLE__
   /**
    * Custom implementation of a semaphore.
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class semaphore {
   private:
@@ -229,11 +293,24 @@ namespace graphlab {
     mutex mut;
     mutable volatile size_t semvalue;
     mutable volatile size_t waitercount;
+
   public:
     semaphore() {
       semvalue = 0;
       waitercount = 0;
     }
+    /** Copy constructor which does not copy. Do not use!
+        Required for compatibility with some STL implementations (LLVM).
+        which use the copy constructor for vector resize, 
+        rather than the standard constructor.    */
+    semaphore(const semaphore&) {
+      semvalue = 0;
+      waitercount = 0;
+    }
+    
+    // not copyable
+    void operator=(const semaphore& m) { }
+
     inline void post() const {
       mut.lock();
       if (waitercount > 0) {
@@ -260,15 +337,31 @@ namespace graphlab {
 #else
   /**
    * Wrapper around pthread's semaphore
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class semaphore {
   private:
     mutable sem_t  m_sem;
+
   public:
     semaphore() {
       int error = sem_init(&m_sem, 0,0);
       ASSERT_TRUE(!error);
     }
+    
+    /** Copy constructor with does not copy. Do not use!
+        Required for compatibility with some STL implementations (LLVM).
+        which use the copy constructor for vector resize, 
+        rather than the standard constructor.    */
+    semaphore(const semaphore&) {
+      int error = sem_init(&m_sem, 0,0);
+      ASSERT_TRUE(!error);
+    }
+    
+    // not copyable
+    void operator=(const semaphore& m) { }
+
     inline void post() const {
       int error = sem_post(&m_sem);
       ASSERT_TRUE(!error);
@@ -358,10 +451,13 @@ namespace graphlab {
   /**
    * \class rwlock
    * Wrapper around pthread's rwlock
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class rwlock {
   private:
     mutable pthread_rwlock_t m_rwlock;
+
   public:
     rwlock() {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
@@ -371,6 +467,20 @@ namespace graphlab {
       int error = pthread_rwlock_destroy(&m_rwlock);
       ASSERT_TRUE(!error);
     }
+    
+    /** Copy constructor which does not copy. Do not use!
+        Required for compatibility with some STL implementations (LLVM).
+        which use the copy constructor for vector resize, 
+        rather than the standard constructor.    */
+    rwlock(const rwlock &) {
+      int error = pthread_rwlock_init(&m_rwlock, NULL);
+      ASSERT_TRUE(!error);
+    }
+    
+    // not copyable
+    void operator=(const rwlock& m) { }
+
+    
     inline void readlock() const {
       pthread_rwlock_rdlock(&m_rwlock);
       //ASSERT_TRUE(!error);
@@ -401,6 +511,8 @@ namespace graphlab {
    * In addition to standard barrier functionality, this also
    * provides a "cancel" function which can be used to destroy
    * the barrier, releasing all threads stuck in the barrier.
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
   class cancellable_barrier {
   private:
@@ -414,6 +526,10 @@ namespace graphlab {
     bool alive;
     // we need the following to protect against spurious wakeups
   
+
+    // not copyconstructible
+    cancellable_barrier(const cancellable_barrier&) { }
+
   public:
     /// Construct a barrier which will only fall when numthreads enter
     cancellable_barrier(size_t numthreads) {
@@ -423,6 +539,10 @@ namespace graphlab {
       barrier_release = true;
       alive = true;
     }
+    
+    // not copyable
+    void operator=(const cancellable_barrier& m) { }
+
     
     ~cancellable_barrier() {}
     
@@ -463,6 +583,8 @@ namespace graphlab {
   /**
    * \class barrier
    * Wrapper around pthread's barrier
+   *
+   * Before you use, see \ref parallel_object_intricacies.
    */
 #ifdef __linux__
   /**
@@ -472,9 +594,19 @@ namespace graphlab {
   class barrier {
   private:
     mutable pthread_barrier_t m_barrier;
+    
+
+    // not copyconstructable
+    barrier(const barrier&) { }
+
   public:
     /// Construct a barrier which will only fall when numthreads enter
     barrier(size_t numthreads) { pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }
+    
+    // not copyable
+    void operator=(const barrier& m) { }
+
+    
     ~barrier() { pthread_barrier_destroy(&m_barrier); }
     /// Wait on the barrier until numthreads has called wait
     inline void wait() const { pthread_barrier_wait(&m_barrier); }

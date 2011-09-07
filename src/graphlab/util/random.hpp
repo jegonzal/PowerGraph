@@ -105,6 +105,10 @@ namespace graphlab {
       typedef boost::mt11213b            discrete_rng_type;  
       typedef boost::rand48              fast_discrete_rng_type;       
     
+      generator() {
+        time_seed();
+      }
+    
       //! Seed the generator using the default seed
       inline void seed() {
         mut.lock();

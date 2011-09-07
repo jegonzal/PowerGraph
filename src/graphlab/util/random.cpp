@@ -249,9 +249,9 @@ namespace graphlab {
     void generator::nondet_seed() {
       mut.lock();
       // std::cout << "initializing real rng" << std::endl;
-      real_rng.seed(global_nondet_rng);
+      real_rng.seed(global_nondet_rng());
       // std::cout << "initializing discrete rng" << std::endl;
-      discrete_rng.seed(global_nondet_rng);
+      discrete_rng.seed(global_nondet_rng());
       // std::cout << "initializing fast discrete rng" << std::endl;
       fast_discrete_rng.seed(global_nondet_rng());
       mut.unlock();
