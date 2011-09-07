@@ -33,7 +33,9 @@
 #include "unittest.hpp"
 #include "io.hpp"
 #include "../gabp/advanced_config.h"
+#ifdef OMP_SUPPORT
 #include "omp.h"
+#endif
 
 #include <graphlab/macros_def.hpp>
 /**
