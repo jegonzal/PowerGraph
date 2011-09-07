@@ -46,9 +46,8 @@
 
 #define GEN_UPDATE_FUNCTION(Z,N,_) void GET_GL_UPDATE_FUNCTION_N(N)     \
                                   (gl_types::iscope& scope,               \
-                                   gl_types::icallback& scheduler,         \
-                                   gl_types::ishared_data* shared_data) {  \
-  exec_update_function< GET_UPDATE_FUNCTION_N(N) >(scope,scheduler,shared_data); \
+                                   gl_types::icallback& scheduler) {  \
+  exec_update_function< GET_UPDATE_FUNCTION_N(N) >(scope,scheduler); \
 }
   
 BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION, _)
