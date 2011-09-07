@@ -59,8 +59,7 @@ struct gl_update_function_params{
 
 template <gl_emx_updatefn_type emx_update_fn>
 void exec_update_function(gl_types::iscope& scope, 
-                                 gl_types::icallback& scheduler,
-                                 gl_types::ishared_data* shared_data) {
+                                 gl_types::icallback& scheduler) {
   // create the graph structure arrays I need to pass to the update function
   // allocate them all on the stack
   int32_t inesize = scope.in_edge_ids().size();
@@ -117,9 +116,6 @@ void exec_update_function(gl_types::iscope& scope,
   gl_update_function_params params;
   params.scope = &scope;
   params.scheduler = &scheduler;
-#if __SIZEOF_DOUBLE__ != 8
-  #error "sizeof(double) != 8 Type punning pointers to double does not work on this platform!"
-#endif
   // store the pointer in a 64 bit integer
   uint64_t paramsptr = (uint64_t)(&params);  
   double handle = 0;
@@ -132,8 +128,7 @@ void exec_update_function(gl_types::iscope& scope,
 
 #define GEN_UPDATE_FUNCTION_DECL(Z,N,_) void GET_GL_UPDATE_FUNCTION_N(N)     \
                                   (gl_types::iscope& scope,               \
-                                   gl_types::icallback& scheduler,         \
-                                   gl_types::ishared_data* shared_data);
+                                   gl_types::icallback& scheduler);
   
 BOOST_PP_REPEAT(GET_NUM_UPDATE_FUNCTIONS, GEN_UPDATE_FUNCTION_DECL, _)
   
