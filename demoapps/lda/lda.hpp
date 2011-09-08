@@ -43,7 +43,12 @@
 
 enum vertex_type {DOCUMENT, WORD};
 
+#ifdef DIFFABLE
 class vertex_data : public graphlab::idiffable<vertex_data>  {
+#else
+class vertex_data {
+#endif
+
   vertex_type m_type;
   count_type m_iterations;
   std::vector<count_type> m_nt;

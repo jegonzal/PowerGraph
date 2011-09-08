@@ -54,39 +54,48 @@ namespace graphlab {
    * \ingroup group_schedulers
      This class defines a simple First-In-First_Out scheduler
    */
-  template<typename Graph>
-  class multiqueue_fifo_scheduler : 
-    public ischeduler<Graph> {
+  template<typename Engine>
+  class multiqueue_fifo_scheduler : public ischeduler<Engine> {
   
   public:
     typedef Graph graph_type;
     typedef ischeduler<Graph> base;
 
+    typedef ischeduler<Engine> base;
+    typedef typename base::graph_type graph_type;
+    typedef typename base::engine_type engine_type;
     typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::iengine_type iengine_type;
-    typedef typename base::update_task_type update_task_type;
-    typedef typename base::update_function_type update_function_type;
-    typedef typename base::callback_type callback_type;
-    typedef typename base::monitor_type monitor_type;
+    typedef typename base::update_functor_type update_functor_type;
 
-    typedef std::queue<update_task_type> taskqueue_t;
+
+    typedef std::queue<vertex_id_type> taskqueue_t;
     typedef task_count_termination terminator_type;
 
     
+
   private:
-    using base::monitor;
+
+    vertex_functor_set<engine_type> vfun_set;
+
+    size_t num_queues;
+    size_t queues_per_cpu;
+  
+    std::vector<taskqueue_t> task_queues; /// The actual task queue
+    std::vector<spinlock> queue_locks;
+    std::vector<size_t> lastqueue;
+
+
+    // Terminator
+    task_count_termination terminator;
+ 
+
 
   public:
 
-    multiqueue_fifo_scheduler(iengine_type* engine,
-                              Graph& g, 
-                              size_t ncpus) : 
-      callbacks(ncpus, direct_callback<Graph>(this, engine)), 
-      binary_vertex_tasks(g.local_vertices()), prunecounter(ncpus, 0),
-      sched_metrics("multiqueue_fifo") {
-      numvertices = g.local_vertices();
-        
-      /* How many queues per cpu. More queues, less contention */
+    multiqueue_fifo_scheduler(const graph_type& graph, 
+                              size_t ncpus,
+                              const options_map& opts) :
+      vfun_set(graph.num_vertices()) { 
       queues_per_cpu = 2;
       num_queues = queues_per_cpu * ncpus;
        
@@ -100,16 +109,54 @@ namespace graphlab {
 
     }
 
-  
-    ~multiqueue_fifo_scheduler() {
+    void start() { term.reset(); }
+   
+
+    void schedule(vertex_id_type vid, 
+                  const update_functor_type& fun) {      
+      if (vfun_set.add(vid, fun)) {
+        term.new_job();
+        queue_lock.lock();
+        queue.push(vid);
+        queue_lock.unlock();
+      } 
+    } // end of schedule
+
+    void schedule_all(const update_functor_type& fun) {
+      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
+        schedule(vid, fun);      
+    } // end of schedule_all
+
+    void completed(size_t cpuid,
+                   vertex_id_type vid,
+                   const update_functor_type& fun) {
+      term.completed_job();
     }
 
-    callback_type& get_callback(size_t cpuid) {
-      return callbacks[cpuid];
-    }
 
-    void start() {};
-    
+    /** Get the next element in the queue */
+    sched_status::status_enum get_next(size_t cpuid,
+                                       vertex_id_type& ret_vid,
+                                       update_functor_type& ret_fun) {         
+      queue_lock.lock();
+      const bool success = !queue.empty();
+      if(success) {
+        ret_vid = queue.front();
+        queue.pop();
+      }
+      queue_lock.unlock();
+      if(success) {
+        const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+        ASSERT_TRUE(get_success);
+        return sched_status::NEW_TASK;
+      } else {
+        return sched_status::EMPTY;
+      }
+    } // end of get_next_task
+
+    iterminator& terminator() { return term; }
+
+ 
     /** Get the next element in the queue */
     sched_status::status_enum get_next_task(size_t cpuid,
                                             update_task_type &ret_task) {
@@ -258,30 +305,6 @@ namespace graphlab {
     }
 
 
-  private:
-    size_t numvertices; /// Remember the number of vertices in the graph
-  
-    size_t num_queues;
-    size_t queues_per_cpu;
-  
-    std::vector<taskqueue_t> task_queues; /// The actual task queue
-    std::vector<spinlock> queue_locks;
-    std::vector<size_t> lastqueue;
-
-    /// The callbacks pre-created for each cpuid
-    std::vector<direct_callback<Graph> > callbacks; 
-
-    // Task set for task pruning
-    binary_vertex_task_set<Graph> binary_vertex_tasks;
-    
-    // Terminator
-    task_count_termination terminator;
-    
-        
-    // Keep track of how many tasks were pruned.
-    std::vector<size_t> prunecounter;
-
-    metrics sched_metrics;
   }; 
 
 

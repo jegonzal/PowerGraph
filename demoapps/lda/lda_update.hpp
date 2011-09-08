@@ -14,6 +14,8 @@ class lda_update : public gl::iupdate_functor {
 public:
 
   lda_update(const size_t iters = 100) : iters_remaining(iters) { }
+
+
   
 
   void operator()(gl::iscope& scope, gl::icallback& callback) {
@@ -30,6 +32,7 @@ public:
     vertex_data& doc       = scope.vertex_data();
     // only gather on a document
     ASSERT_EQ(doc.type(), DOCUMENT);
+
     // Loop over the words in the document (encoded by out edges)
     const gl::edge_list out_edges = scope.out_edge_ids();
     std::vector<double> prob(ntopics); 
