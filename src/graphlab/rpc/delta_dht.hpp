@@ -127,6 +127,7 @@ namespace graphlab {
     mutable atomic<size_t> local; 
     mutable atomic<size_t> hits;
     mutable atomic<size_t> misses;
+    mutable atomic<size_t> background_updates;
 
   public:
 
@@ -141,8 +142,11 @@ namespace graphlab {
     
     void set_max_uses(size_t max) { max_uses = max; }
 
+    size_t cache_local() const { return local.value; }
     size_t cache_hits() const { return hits.value; }
     size_t cache_misses() const { return misses.value; }
+    size_t background_syncs() const { return background_updates.value; }
+
     size_t cache_size() const { 
       cache_lock.lock();
       const size_t ret_val = cache.size(); 
@@ -245,10 +249,12 @@ namespace graphlab {
       foreach(pair_type& pair, cache) {
         key_type& key = pair.first;
         cache_entry& entry = pair.second;
-        const delta_type accum_delta = entry.delta;
-        entry.delta = delta_type();
-        entry.uses = 0;
-        send_delta(key, accum_delta);
+        if(entry.uses > 0) {
+          const delta_type accum_delta = entry.delta;
+          entry.delta = delta_type();
+          entry.uses = 0;
+          send_delta(key, accum_delta);
+        }
       } // end of foreach
       cache_lock.unlock();
     }
@@ -361,6 +367,7 @@ namespace graphlab {
         entry.value = new_value;
         entry.value += entry.delta;
       }
+      ++background_updates;
       cache_lock.unlock();
     } // end of send_delta_rpc_callback  
 

@@ -34,14 +34,6 @@ std::vector< graphlab::glshared<count_type> > global_n_t;
 
 
 
-
- 
-
-
-
-
-
-
 void load_graph(graph_type& graph, const corpus& data, 
                 size_t iterations);
 
