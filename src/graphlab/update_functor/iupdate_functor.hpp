@@ -75,6 +75,8 @@ namespace graphlab {
     public:
       enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
 
+      virtual ~factorized() { }
+
       // Default update functor behavior
       virtual void operator()(iscope_type& scope, 
                               icallback_type& callback) {
@@ -113,6 +115,8 @@ namespace graphlab {
                            edge_id_type eid) = 0;
     }; // end of factorized
     
+
+    virtual ~iupdate_functor() { }
         
     /**
      * The main part of an update functor
