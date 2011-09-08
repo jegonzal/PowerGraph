@@ -57,10 +57,11 @@ extern std::vector< graphlab::sharedsum<count_type> > shared_n_t;
 enum vertex_type {DOCUMENT, WORD};
 
 #ifdef DIFFABLE
-class vertex_data : public graphlab::idiffable<vertex_data>  {
+class vertex_data : public graphlab::idiffable<vertex_data>  
 #else
-class vertex_data {
+class vertex_data 
 #endif
+{
 
   vertex_type m_type;
   count_type m_iterations;
@@ -118,7 +119,7 @@ public:
   } // end of set
 };
 
-
+  
 struct edge_data {
   count_type count;
   std::vector<count_type> m_nt; 
@@ -147,9 +148,11 @@ public:
   }
 };
 
-
+  
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
+
 class lda_update;
+
 typedef graphlab::types<graph_type, lda_update> gl;
 
 

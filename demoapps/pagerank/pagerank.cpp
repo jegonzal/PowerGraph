@@ -43,11 +43,15 @@ double random_reset_prob = 0.15;   // PageRank random reset probability
 /**
  * The factorized page rank update function
  */
-class pagerank_update : public gl::iupdate_functor::factorized {
+class pagerank_update : public gl::iupdate_functor {
 private:
   double prio;
   double accum;
 public:
+
+
+  bool is_factorizable() const { return true; }
+
   pagerank_update(const double& prio = 0) : prio(prio), accum(0) { }
   double priority() const { return prio; }
   void operator+=(const pagerank_update& other) { 

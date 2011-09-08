@@ -68,60 +68,56 @@ namespace graphlab {
     typedef iscope<graph_type> iscope_type;
     typedef icallback<graph_type, update_functor_type> icallback_type;
 
-    /**
-     * Class representing a factorized update functor
-     */
-    class factorized : public iupdate_functor {
-    public:
-      enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
+    enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
+    
+    virtual ~iupdate_functor() { }
 
-      virtual ~factorized() { }
-
-      // Default update functor behavior
-      virtual void operator()(iscope_type& scope, 
-                              icallback_type& callback) {
-        // Gather
-        if(gather_edges() == IN_EDGES || gather_edges() == ALL_EDGES) {
-          foreach(const edge_id_type eid, scope.in_edge_ids()) 
-            gather(scope, callback, eid);
-        }
-        if(gather_edges() == OUT_EDGES || gather_edges() == ALL_EDGES) {
-          foreach(const edge_id_type eid, scope.out_edge_ids()) 
-            gather(scope, callback, eid);
-        }
-        // Apply
-        apply(scope, callback);
-        // scatter
-        if(scatter_edges() == IN_EDGES || scatter_edges() == ALL_EDGES) {
-          foreach(const edge_id_type eid, scope.in_edge_ids()) 
-            scatter(scope, callback, eid);
-        }
-        if(scatter_edges() == OUT_EDGES || scatter_edges() == ALL_EDGES) {
-          foreach(const edge_id_type eid, scope.out_edge_ids()) 
-            scatter(scope, callback, eid);
-        }
-      } // end of operator()
-
-      virtual bool writable_gather() const { return false; }
-      virtual bool writable_scatter() const { return true; }
-
-      virtual edge_set gather_edges() const { return IN_EDGES; }
-      virtual edge_set scatter_edges() const { return OUT_EDGES; }
-      
-      virtual void gather(iscope_type& scope, icallback_type& callback,
-                          edge_id_type eid) = 0;
-      virtual void apply(iscope_type& scope, icallback_type& callback) = 0;
-      virtual void scatter(iscope_type& scope, icallback_type& callback,
-                           edge_id_type eid) = 0;
-    }; // end of factorized
     
 
-    virtual ~iupdate_functor() { }
-        
     /**
      * The main part of an update functor
      */
-    virtual void operator()(iscope_type& scope, icallback_type& callback) = 0;
+    virtual void operator()(iscope_type& scope, 
+                            icallback_type& callback) {
+      // Gather
+      if(gather_edges() == IN_EDGES || gather_edges() == ALL_EDGES) {
+        foreach(const edge_id_type eid, scope.in_edge_ids()) 
+          gather(scope, callback, eid);
+      }
+      if(gather_edges() == OUT_EDGES || gather_edges() == ALL_EDGES) {
+        foreach(const edge_id_type eid, scope.out_edge_ids()) 
+          gather(scope, callback, eid);
+      }
+      // Apply
+      apply(scope, callback);
+      // scatter
+      if(scatter_edges() == IN_EDGES || scatter_edges() == ALL_EDGES) {
+        foreach(const edge_id_type eid, scope.in_edge_ids()) 
+          scatter(scope, callback, eid);
+      }
+      if(scatter_edges() == OUT_EDGES || scatter_edges() == ALL_EDGES) {
+        foreach(const edge_id_type eid, scope.out_edge_ids()) 
+          scatter(scope, callback, eid);
+      }
+    } // end of operator()
+
+    virtual bool is_factorizable() const { return false; }
+    
+    virtual bool writable_gather() const { return false; }
+    virtual bool writable_scatter() const { return true; }
+    
+    virtual edge_set gather_edges() const { return IN_EDGES; }
+    virtual edge_set scatter_edges() const { return OUT_EDGES; }
+    
+    virtual void gather(iscope_type& scope, icallback_type& callback,
+                        edge_id_type eid) { };
+    virtual void apply(iscope_type& scope, icallback_type& callback) { };
+    virtual void scatter(iscope_type& scope, icallback_type& callback,
+                         edge_id_type eid) { };
+
+    
+        
+    //    virtual void operator()(iscope_type& scope, icallback_type& callback) = 0;
 
     /**
      * Gets the scope range required by this update functor.  If not

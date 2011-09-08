@@ -363,13 +363,12 @@ namespace graphlab {
 
     void evaluate_update_functor(vertex_id_type vid,
                                  update_functor_type& ufun, 
-                                 size_t cpuid,
-                                 const boost::false_type& factorizable);
+                                 size_t cpuid); 
     
-    void evaluate_update_functor(vertex_id_type vid,
-                                 update_functor_type& ufun,
-                                 size_t cpuid,
-                                 const boost::true_type& factorizable);
+    void evaluate_factorized_update_functor(vertex_id_type vid,
+                                              update_functor_type& ufun,
+                                              size_t cpuid);
+    
 
     
     void evaluate_sync_queue();
@@ -887,9 +886,11 @@ namespace graphlab {
     // Grab the sync lock
     syncs.vlocks[vid].lock();
     // Call the correct update functor
-    boost::is_base_of<typename iupdate_functor_type::factorized, 
-                      update_functor_type> factorizable; 
-    evaluate_update_functor(vid, ufun, cpuid, factorizable);
+    if(ufun.is_factorizable()) {
+      evaluate_factorized_update_functor(vid, ufun, cpuid);
+    } else { 
+      evaluate_update_functor(vid, ufun, cpuid);
+    }
     // release the lock
     syncs.vlocks[vid].unlock();
 
@@ -908,8 +909,7 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_update_functor(vertex_id_type vid,
                           update_functor_type& ufun, 
-                          size_t cpuid,
-                          const boost::false_type& factorizable) {
+                          size_t cpuid) {              
     // Get the scope
     general_scope_type& scope = 
       scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
@@ -928,16 +928,15 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
-  evaluate_update_functor(vertex_id_type vid, 
-                          update_functor_type& ufun,
-                          size_t cpuid,
-                          const boost::true_type& factorizable) {
+  evaluate_factorized_update_functor(vertex_id_type vid, 
+                                     update_functor_type& ufun,
+                                     size_t cpuid) {
     //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // get the callback
     callback_type& callback = tls_array[cpuid].callback;
     // Gather phase -----------------------------------------------------------
-    if(ufun.gather_edges() == iupdate_functor_type::factorized::IN_EDGES ||
-       ufun.gather_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+    if(ufun.gather_edges() == iupdate_functor_type::IN_EDGES ||
+       ufun.gather_edges() == iupdate_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 
@@ -948,8 +947,8 @@ namespace graphlab {
         scope_manager_ptr->release_scope(cpuid, scope);
       }
     }
-    if(ufun.gather_edges() == iupdate_functor_type::factorized::OUT_EDGES ||
-       ufun.gather_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+    if(ufun.gather_edges() == iupdate_functor_type::OUT_EDGES ||
+       ufun.gather_edges() == iupdate_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 
@@ -969,8 +968,8 @@ namespace graphlab {
     scope_manager_ptr->release_scope(cpuid, scope);
 
     // Scatter phase ----------------------------------------------------------
-    if(ufun.scatter_edges() == iupdate_functor_type::factorized::IN_EDGES ||
-       ufun.scatter_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+    if(ufun.scatter_edges() == iupdate_functor_type::IN_EDGES ||
+       ufun.scatter_edges() == iupdate_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 
@@ -981,8 +980,8 @@ namespace graphlab {
         scope_manager_ptr->release_scope(cpuid, scope);
       }
     }
-    if(ufun.scatter_edges() == iupdate_functor_type::factorized::OUT_EDGES ||
-       ufun.scatter_edges() == iupdate_functor_type::factorized::ALL_EDGES) {
+    if(ufun.scatter_edges() == iupdate_functor_type::OUT_EDGES ||
+       ufun.scatter_edges() == iupdate_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 

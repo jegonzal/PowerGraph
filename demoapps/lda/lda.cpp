@@ -14,7 +14,12 @@
 
 #include "corpus.hpp"
 #include "lda.hpp"
+
+#ifdef FACTORIZED
+#include "lda_update_factorized.hpp"
+#else
 #include "lda_update.hpp"
+#endif
 
 
 
