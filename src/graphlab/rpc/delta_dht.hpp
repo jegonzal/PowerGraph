@@ -55,26 +55,16 @@ namespace graphlab {
   }; // end of namespace delta_dht_impl
 
 
-  namespace fresh_predicate {
-    template<typename ValueType>
+  namespace delta_predicate {
+    template<typename ValueType, typename DeltaType>
     struct uses {
       size_t max_uses;
       uses(size_t max_uses = 100) : max_uses(max_uses) { }
       //! returns true if the predicate 
       bool operator()(const ValueType& current,
-                      const ValueType& old,
+                      const DeltaType& delta,
                       const size_t& uses) const {
         return uses < max_uses;
-      }
-    }; // end of uses
-
-    template<typename ValueType>
-    struct never_stale {
-      //! returns true if the predicate 
-      bool operator()(const ValueType& current,
-                      const ValueType& old,
-                      const size_t& uses) const {
-        return true;
       }
     }; // end of uses
 
@@ -86,132 +76,159 @@ namespace graphlab {
 
 
   template<typename KeyType, typename ValueType,
-           typename FreshPredicate = 
-           fresh_predicate::uses<ValueType> >
+           typename DeltaType = ValueType>
   class delta_dht {
   public:
     typedef KeyType   key_type;
     typedef ValueType value_type;
+    typedef DeltaType delta_type;
+
     typedef size_t    size_type;    
-    typedef FreshPredicate fresh_predicate_type;
     
     typedef boost::unordered_map<key_type, value_type> data_map_type;
     
     struct cache_entry {
-      value_type old;
-      value_type current;
+      value_type value;
+      delta_type delta;
       size_t uses;
-      cache_entry() : uses(0) { }
+      cache_entry(const value_type& value = value_type()) : 
+        value(value), uses(0) { }
     };
 
     typedef cache::lru<key_type, cache_entry> cache_type;
-    // typedef cache::associative<key_type, cache_entry> cache_type;
-
-    struct tl_cache :
-      public delta_dht_impl::icache, public cache_type {
-      size_t hits, misses;
-      tl_cache() : hits(0), misses(0) { }
-    };
-
 
   private:
 
     //! The remote procedure call manager 
     mutable dc_dist_object<delta_dht> rpc;
 
+
     //! The data stored locally on this machine
     data_map_type  data_map;
 
     //! The lock for the data map
     mutex data_lock;
+
+    //! The master cache
+    cache_type cache;
+
+    //! The master cash rw lock
+    mutex cache_lock;
   
     //! The maximum cache size
     size_t max_cache_size;
 
+    size_t max_uses;
+
     //! the hash function
-    boost::hash<key_type> hasher;
+    boost::hash<key_type> hash_function;
 
     //! cache hits and misses
-    atomic<size_t> hits;
-    atomic<size_t> misses;
-
-    //! The functor that determines how fresh a cache entry is
-    fresh_predicate_type fresh_pred;
+    mutable atomic<size_t> local; 
+    mutable atomic<size_t> hits;
+    mutable atomic<size_t> misses;
 
   public:
 
     delta_dht(distributed_control& dc, 
               size_t max_cache_size = 2056) : 
       rpc(dc, this), 
-      max_cache_size(max_cache_size) {
+      max_cache_size(max_cache_size), max_uses(10) {
       rpc.barrier();
     }
 
     ~delta_dht() { rpc.full_barrier(); }
+    
+    void set_max_uses(size_t max) { max_uses = max; }
 
-    size_t total_cache_hits() const { return hits.value; }
-    size_t total_cache_misses() const { return misses.value; }
-    size_t cache_hits() const { return get_tl_cache().hits; }
-    size_t cache_misses() const { return get_tl_cache().misses; }
-    size_t cache_size() const { return get_tl_cache().size(); }
-    bool is_cached(const key_type& key) const { 
-      return get_tl_cache().contains(key); 
+    size_t cache_hits() const { return hits.value; }
+    size_t cache_misses() const { return misses.value; }
+    size_t cache_size() const { 
+      cache_lock.lock();
+      const size_t ret_val = cache.size(); 
+      cache_lock.unlock();
+      return ret_val;
     }
-    fresh_predicate_type& fresh_predicate() { return fresh_pred; }
 
-    value_type& operator[](const key_type& key) {
-      tl_cache& cache = get_tl_cache();
-      // test for the key in the cache
-      if(!cache.contains(key)) {
-        cache.misses++;
-        misses++;
-        // // Associative cache version
-        // { // make room for the new entry
-        //   key_type prev_key;
-        //   cache_entry prev_entry;
-        //   const bool entry_found = 
-        //     cache.evict_slot(key, prev_key, prev_entry);
-        //   if(entry_found) {
-        //     send_delta(prev_key, prev_entry.current - prev_entry.old);
-        //   }
-        // }
+    bool is_cached(const key_type& key) const { 
+      cache_lock.lock();
+      const bool ret_value = cache.contains(key); 
+      cache_lock.unlock();
+      return ret_value;
+    }
 
-        while(cache.size() + 1 > max_cache_size) {
-          const std::pair<key_type, cache_entry> pair = 
-            cache.evict();
-          const key_type& key = pair.first;
-          const cache_entry& entry = pair.second;
-          send_delta(key, entry.current - entry.old);
+
+    value_type operator[](const key_type& key) {     
+      if(is_local(key)) {
+        ++local;
+        data_lock.lock();
+        const value_type value = data_map[key];
+        data_lock.unlock();
+        return value;
+      } else { // on a remote machine check the cache    
+        // test for the key in the cache
+        cache_lock.lock();
+        if(cache.contains(key)) {
+          ++hits;
+          const value_type ret_value = cache[key].value;
+          cache_lock.unlock();
+          return ret_value;
+        } else { // need to create a cache entry
+          ++misses;
+          // Free space in the cache if necessary
+          while(cache.size() + 1 > max_cache_size) {
+            ASSERT_GT(cache.size(), 0);
+            const std::pair<key_type, cache_entry> pair = cache.evict();
+            const key_type& key                         = pair.first;
+            const cache_entry& entry                    = pair.second;
+            send_delta(key, entry.delta);
+          }          
+          // get the new entry from the server
+          const value_type ret_value = (cache[key].value = get_master(key));
+          cache_lock.unlock();
+          return ret_value;
         }
-        // get the new entry from the server
-        cache_entry& entry = cache[key];
-        entry.old = get_master(key);
-        entry.current = entry.old;
-        return entry.current;
-      } else {
-        cache.hits++;
-        hits++;
       }
-
-      cache_entry& entry = cache[key];
-      if(!fresh_pred(entry.current, entry.old, entry.uses)) {
-        synchronize(key, entry);
-        entry.uses = 0;
-      }
-      return entry.current;
     } // end of operator []
+    
+
+    void apply_delta(const key_type& key, const delta_type& delta) {
+      if(is_local(key)) {
+        data_lock.lock();
+        data_map[key] += delta;
+        data_lock.unlock();
+      } else {
+        // update the cache entry if availablable
+        cache_lock.lock();
+        if(cache.contains(key)) {
+          cache_entry& entry = cache[key];
+          entry.value += delta;
+          entry.delta += delta;               
+          if( entry.uses > max_uses ) {
+            const delta_type accum_delta = entry.delta;
+            entry.delta = delta_type();
+            entry.uses = 0;
+            cache_lock.unlock();
+            send_delta(key, accum_delta);
+            return;
+          }
+        }
+        cache_lock.unlock();          
+      }
+    }
+
 
 
     //! empty the local cache
     void flush() {
-      tl_cache& cache = get_tl_cache();
+      cache_lock.lock();
       while(cache.size() > 0) {
-        const std::pair<key_type, cache_entry> pair = 
-          cache.evict();
+        const std::pair<key_type, cache_entry> pair = cache.evict();
         const key_type& key = pair.first;
         const cache_entry& entry = pair.second;
-        send_delta(key, entry.current - entry.old);
+        send_delta(key, entry.delta);
       }
+      cache_lock.unlock();
     }
 
 
@@ -220,25 +237,39 @@ namespace graphlab {
       flush();
       rpc.full_barrier();
     }
-
     
-    void synchronize(const key_type& key) {
-      tl_cache& cache = get_tl_cache();
-      if(cache.contains(key)) synchronize(key, cache[key]);
+    
+    void synchronize() {
+      typedef typename cache_type::pair_type pair_type;
+      cache_lock.lock();
+      foreach(pair_type& pair, cache) {
+        key_type& key = pair.first;
+        cache_entry& entry = pair.second;
+        const delta_type accum_delta = entry.delta;
+        entry.delta = delta_type();
+        entry.uses = 0;
+        send_delta(key, accum_delta);
+      } // end of foreach
+      cache_lock.unlock();
     }
 
 
-   void synchronize() {
-      tl_cache& cache = get_tl_cache();
-      typedef typename cache_type::pair_type pair_type;
-      foreach(pair_type& pair, cache) {
-        synchronize(pair.first, pair.second);
-      } // end of foreach
+    void synchronize(const key_type& key) {
+      if(is_local(key)) return;
+      cache_lock.lock();
+      if(cache.contains(key)) {
+        cache_entry& entry = cache[key];
+        const delta_type accum_delta = entry.delta;
+        entry.delta = delta_type();
+        entry.uses = 0;
+        cache_lock.unlock();
+        send_delta(key, accum_delta);
+      } else cache_lock.unlock();
     }
 
 
     size_t owning_cpu(const key_type& key) const {
-      const size_t hash_value = hasher(key);
+      const size_t hash_value = hash_function(key);
       const size_t cpuid = hash_value % rpc.numprocs();
       return cpuid;
     }
@@ -249,26 +280,18 @@ namespace graphlab {
     } // end of is local   
 
 
-    value_type delta(const key_type& key) const {
-      tl_cache& cache = get_tl_cache(); 
-      if(cache.contains(key)) { 
-        cache_entry& entry = cache[key];
-        return entry.current - entry.old;
-      } else {
-        return value_type();
+    delta_type delta(const key_type& key) const {
+      if(!is_local(key)) {
+        cache_lock.lock();
+        if(cache.contains(key)) {
+          const delta_type delta = cache[key].delta;
+          cache_lock.unlock();
+          return delta;
+        }
+        cache_lock.unlock();
       }
+      return delta_type();
     }
-
-
-    void send_delta(const key_type& key) {
-      tl_cache& cache = get_tl_cache();
-      if(cache.contains(key)) send_delta(key, delta(key));
-    }
-
-
-    void send_delta(const key_type& key, const value_type& delta) {
-      send_delta_rpc(key, delta);
-    } // end of send_delta
 
 
     size_t local_size() const {
@@ -304,58 +327,64 @@ namespace graphlab {
                                   &delta_dht::get_master, key);
       }
     } // end of direct get
-
+    
   private:
-
-    tl_cache& get_tl_cache() const {
-      // get the pointer to for this local icache
-      delta_dht_impl::icache*& icache_ptr = 
-        delta_dht_impl::get_icache_ptr(this);
-      if(icache_ptr == NULL) {
-        icache_ptr = new tl_cache();
-      }
-      ASSERT_NE(icache_ptr, NULL);
-      return *static_cast<tl_cache*>(icache_ptr);
-    };
-
-
-    void send_delta_rpc(const key_type& key, const value_type& delta)  {
+    
+    void send_delta(const key_type& key, const delta_type& delta)  {
       // If the data is stored locally just read and return
-      if(is_local(key)) {
-        data_lock.lock();
-        typename data_map_type::iterator iter = data_map.find(key);
-        ASSERT_TRUE(iter != data_map.end());
-        iter->second += delta;
-        data_lock.unlock();
-      } else {
-        rpc.remote_call(owning_cpu(key), 
-                        &delta_dht::send_delta_rpc, 
-                        key, delta);
-      }
+      ASSERT_FALSE(is_local(key));
+      const size_t calling_procid = procid();
+      rpc.remote_call(owning_cpu(key), 
+                      &delta_dht::send_delta_rpc, 
+                      calling_procid, key, delta);
+      
+    } // end of send_delta
+    
+    void send_delta_rpc(const size_t& calling_procid, 
+                        const key_type& key, const delta_type& delta)  {
+      // If the data is stored locally just read and return
+      ASSERT_TRUE(is_local(key));
+      data_lock.lock(); 
+      const value_type ret_value = (data_map[key] += delta);
+      data_lock.unlock();
+      rpc.remote_call(calling_procid, 
+                      &delta_dht::send_delta_rpc_callback, key, ret_value);      
+      
     } // end of send_delta_rpc
+    
+    void send_delta_rpc_callback(const key_type& key, const value_type& new_value)  {
+      // If the data is stored locally just read and return
+      ASSERT_FALSE(is_local(key));
+      cache_lock.lock();
+      if(cache.contains(key)) {
+        cache_entry& entry = cache[key];
+        entry.value = new_value;
+        entry.value += entry.delta;
+      }
+      cache_lock.unlock();
+    } // end of send_delta_rpc_callback  
 
     
-    void synchronize(const key_type& key, cache_entry& entry)  {
-      const value_type delta = entry.current - entry.old;
-      entry.old = synchronize_rpc(key, delta);
-      entry.current = entry.old;
-    } // end of synchronize
+    // void synchronize(const key_type& key, cache_entry& entry)  {
+    //   const value_type delta = entry.current - entry.old;
+    //   entry.old = synchronize_rpc(key, delta);
+    //   entry.current = entry.old;
+    // } // end of synchronize
 
-
-    value_type synchronize_rpc(const key_type& key, const value_type& delta) {
-      if(is_local(key)) {
-        data_lock.lock();
-        typename data_map_type::iterator iter = data_map.find(key);
-        ASSERT_TRUE(iter != data_map.end());
-        const value_type ret_value = (iter->second += delta);
-        data_lock.unlock();
-        return ret_value;
-      } else {
-        return rpc.remote_request(owning_cpu(key), 
-                                  &delta_dht::synchronize_rpc, 
-                                  key, delta);
-      }
-    } // end of synchronize_rpc
+    // value_type synchronize_rpc(const key_type& key, const value_type& delta) {
+    //   if(is_local(key)) {
+    //     data_lock.lock();
+    //     typename data_map_type::iterator iter = data_map.find(key);
+    //     ASSERT_TRUE(iter != data_map.end());
+    //     const value_type ret_value = (iter->second += delta);
+    //     data_lock.unlock();
+    //     return ret_value;
+    //   } else {
+    //     return rpc.remote_request(owning_cpu(key), 
+    //                               &delta_dht::synchronize_rpc, 
+    //                               key, delta);
+    //   }
+    // } // end of synchronize_rpc
 
   }; // end of delta_dht
 

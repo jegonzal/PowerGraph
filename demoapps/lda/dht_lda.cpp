@@ -56,6 +56,7 @@
 
 struct topic_vector : public std::vector<topic_id_type> {
   typedef std::vector<topic_id_type> base; 
+  topic_vector(const size_t& ntopics = 0) : base(ntopics, 0) { }
   topic_vector& operator+=(const topic_vector& other) {
     const size_t max_size = std::max(base::size(), other.size());
     base::resize(max_size);
@@ -93,6 +94,7 @@ struct topic_vector : public std::vector<topic_id_type> {
     }
     return sum;
   }
+  void reset() { std::fill(base::begin(), base::end(), 0); }
   void load(graphlab::iarchive& arc) { 
     arc >> *dynamic_cast<base*>(this); 
   }
@@ -117,7 +119,7 @@ void run_gibbs(const size_t niters,
   // Preallocate the vector to store the conditional
   std::vector<double> conditional(ntopics, 0);
   size_t nchanges = 0;
-
+  topic_vector delta; delta.resize(ntopics);
   for(size_t i = 0; i < topics.size(); ++i) {
     // Get the word and document for the ith token
     const word_id_type w = corpus.tokens[i].word;
@@ -125,10 +127,11 @@ void run_gibbs(const size_t niters,
     const topic_id_type old_topic = topics[i];
 
     topic_vector& vec_n_dt(n_dt[d]);
-    topic_vector& vec_n_wt(n_wt[w]);
-    topic_vector& vec_n_t(n_t[0]);
+    topic_vector vec_n_wt(n_wt[w]);
+    topic_vector vec_n_t(n_t[0]);
 
     // resize the corresponding topic vectors if they are not currently allocated
+    if(vec_n_t.empty()) vec_n_t.resize(ntopics, 0);
     if(vec_n_dt.empty()) vec_n_dt.resize(ntopics, 0);
     if(vec_n_wt.empty()) vec_n_wt.resize(ntopics, 0);
 
@@ -157,12 +160,22 @@ void run_gibbs(const size_t niters,
     new_topic = graphlab::random::multinomial(conditional);      
     ASSERT_LT(new_topic, ntopics);
 
-    // Update the topic assignment and counters
-    topics[i] = new_topic;
-    if(new_topic != old_topic) nchanges++;
+    // UPdate the vectors
     ++vec_n_dt[new_topic]; 
     ++vec_n_wt[new_topic];
     ++vec_n_t[new_topic];
+
+
+    // Update the topic assignment and counters
+    topics[i] = new_topic;
+    if(new_topic != old_topic) {
+      nchanges++;
+      delta.reset();
+      ++delta[new_topic];
+      --delta[old_topic];
+      n_t.apply_delta(0, delta);
+      n_wt.apply_delta(w, delta);      
+    }
 
     if((i+1) % 100000 == 0) {
       std::cout << "(" << n_wt.procid() << ", "
@@ -171,8 +184,8 @@ void run_gibbs(const size_t niters,
                 << std::endl;
     }
   } // end of loop over tokens
-  n_wt.flush();
-  n_t.flush();
+  //n_wt.flush();
+  // n_t.flush();
   // n_wt.synchronize();
   // n_t.synchronize();
 } // end of run gibbs
@@ -191,6 +204,10 @@ int main(int argc, char** argv) {
   graphlab::init_param_from_mpi(rpc_parameters);
   graphlab::distributed_control dc(rpc_parameters);
  
+
+
+ 
+
   // Configure command line options
   std::string dictionary_fname("dictionary.txt");
   std::string counts_fname("counts.tsv");
@@ -241,10 +258,10 @@ int main(int argc, char** argv) {
   // Initialize the shared word and topic counts
   graphlab::delta_dht<word_id_type, topic_vector> n_wt(dc, corpus.nwords + 10);
   graphlab::delta_dht<char, topic_vector > n_t(dc, 2);
-  n_t.fresh_predicate().max_uses = 10000;
-  n_wt.fresh_predicate().max_uses = 1000;
   // Initialize the topic vector
-  n_t[0].resize(ntopics,0);
+  n_t.apply_delta(0, topic_vector(ntopics) );
+  n_t.set_max_uses(1000);
+  n_wt.set_max_uses(100);
   // for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
 
 

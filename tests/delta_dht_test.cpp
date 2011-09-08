@@ -54,8 +54,8 @@
 void basic_test(graphlab::distributed_control& dc) {
   ///! Create the dht 
   graphlab::delta_dht<std::string, int> counts(dc);
-  counts["cat"]++;
-  counts["dog"]++;
+  counts.apply_delta("cat", 1);
+  counts.apply_delta("dog", 1);
   counts.flush();
   dc.barrier();
   if(dc.procid() == 0) {
@@ -114,17 +114,18 @@ struct functor {
   void operator()() {
     std::cout << "Running sampler on machine " << dictionary.procid() << std::endl;
     const size_t n_word_draws = 10000;
-    // const size_t n_topic_draws = 1;
+    const size_t n_topic_draws = 2;
     const size_t n_topics = 1;
     size_t draws = 0;
     for(size_t i = 0; i < n_word_draws; ++i) {
       const word_id_type word(graphlab::random::gamma(10) * 1000.0);
       // const word_id_type word = 
       //   graphlab::random::fast_uniform<word_id_type>(0, 10000000);
-      topic_vector& vec = dictionary[word];
-      if(vec.size() != n_topics) vec.resize(n_topics);    
-      // for(size_t j = 0; j < n_topic_draws; ++j) 
-      //   vec[graphlab::random::fast_uniform<size_t>(0, n_topics-1)]++;
+      topic_vector original_vec, vec = dictionary[word];
+      if(vec.size() != n_topics) vec.resize(n_topics);
+      for(size_t j = 0; j < n_topic_draws; ++j) 
+        vec[graphlab::random::fast_uniform<size_t>(0, n_topics-1)]++;
+      dictionary.apply_delta(word, vec - original_vec);
       draws++;
     }
     const word_id_type lastword = graphlab::random::fast_uniform<word_id_type>(0, 100); 
