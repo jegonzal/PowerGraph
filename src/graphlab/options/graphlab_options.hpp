@@ -120,6 +120,8 @@ namespace graphlab {
       */
     } // end of constructor
 
+    virtual ~graphlab_options() {}
+
     //! Use distributed options instead of shared memory options
     void use_distributed_options() {
       engine_type = "dist_chromatic";
