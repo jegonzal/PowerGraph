@@ -92,6 +92,7 @@ public:
     ASSERT_EQ(m_nt.size(), old.m_nt.size());
     ASSERT_EQ(m_type, changed.m_type);
     ASSERT_EQ(m_type, old.m_type);
+    //    std::cout << "Running diff" << std::endl;
     for(size_t t = 0; t < m_nt.size(); ++t) 
       m_nt[t] += (changed.m_nt[t] - old.m_nt[t]);
     m_iterations += (changed.m_iterations - old.m_iterations);

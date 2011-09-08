@@ -25,6 +25,8 @@ public:
   gl::iupdate_functor::edge_set gather_edges() { 
     return gl::iupdate_functor::OUT_EDGES;
   }
+  
+  bool writable_gather() const { return true; }
 
   
   gl::iupdate_functor::edge_set scatter_edges() { 
