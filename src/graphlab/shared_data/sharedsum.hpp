@@ -112,7 +112,7 @@ namespace graphlab {
 
     cache_entry* create_cache_entry() const {
       cache_entry* entry_ptr = new cache_entry(value);
-      ASSERT_NE(entry_ptr, NULL);
+      ASSERT_TRUE(entry_ptr != NULL);
       sharedsum_impl::add_cache_entry(const_cast<sharedsum*>(this),
                                       entry_ptr);
       return entry_ptr;
@@ -123,7 +123,7 @@ namespace graphlab {
       cache_entry* entry_ptr = get_cache_entry();
       const bool is_cached = entry_ptr != NULL;
       if(is_cached) {
-        ASSERT_NE(entry_ptr, NULL);
+        ASSERT_TRUE(entry_ptr != NULL);
         if(entry_ptr->reads == lag) { 
           rwlock.readlock();
           entry_ptr->current += value - entry_ptr->old;
@@ -132,14 +132,14 @@ namespace graphlab {
           entry_ptr->reads = 0;
         }
       } else {
-        ASSERT_EQ(entry_ptr, NULL);
+        ASSERT_TRUE(entry_ptr == NULL);
         // if it is not cached we go ahead an force the creation of
         // a cache entry
         rwlock.readlock();
         entry_ptr = create_cache_entry();
         rwlock.unlock();
       }
-      ASSERT_NE(entry_ptr, NULL);
+      ASSERT_TRUE(entry_ptr != NULL);
       entry_ptr->reads++;
       return entry_ptr->current; 
     } // end of get
@@ -148,7 +148,7 @@ namespace graphlab {
       cache_entry* entry_ptr = get_cache_entry();
       const bool is_cached = entry_ptr != NULL;
       if(is_cached) {
-        ASSERT_NE(entry_ptr, NULL);
+        ASSERT_TRUE(entry_ptr != NULL);
         if(entry_ptr->writes == lag) { 
           rwlock.writelock();
           value += (entry_ptr->current - entry_ptr->old);
@@ -159,14 +159,14 @@ namespace graphlab {
           entry_ptr->reads = 0;
         }
       } else {
-        ASSERT_EQ(entry_ptr, NULL);
+        ASSERT_TRUE(entry_ptr == NULL);
         // if it is not cached we go ahead an force the creation of
         // a cache entry
         rwlock.readlock();
         entry_ptr = create_cache_entry();
         rwlock.unlock();
       }
-      ASSERT_NE(entry_ptr, NULL);
+      ASSERT_TRUE(entry_ptr != NULL);
       entry_ptr->writes++;
       return entry_ptr->current; 
     } // end of get 
@@ -180,7 +180,7 @@ namespace graphlab {
 
     //! The eviction interface
     void flush(icache_entry* ientry_ptr) {
-      ASSERT_NE(ientry_ptr, NULL);      
+      ASSERT_TRUE(ientry_ptr != NULL);      
       cache_entry* entry_ptr = static_cast<cache_entry*>(ientry_ptr);
       rwlock.writelock();
       value += (entry_ptr->current - entry_ptr->old);

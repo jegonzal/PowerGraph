@@ -655,7 +655,7 @@ namespace graphlab {
     ASSERT_TRUE(syncs.iglshared2sync.find(&shared) !=
                 syncs.iglshared2sync.end());
     record_type* record_ptr = syncs.iglshared2sync[&shared];
-    ASSERT_NE(record_ptr, NULL);
+    ASSERT_TRUE(record_ptr != NULL);
     background_sync(record_ptr);
     // block until sync is free
     join_threads(syncs.threads);        
@@ -1037,7 +1037,7 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   schedule_sync(typename sync_members::record* record_ptr) {
-    ASSERT_NE(record_ptr, NULL);
+    ASSERT_TRUE(record_ptr != NULL);
     const size_t ucount = last_update_count();
     const long negated_next_ucount = 
       -long(ucount + record_ptr->sync_interval); 
@@ -1054,7 +1054,7 @@ namespace graphlab {
   background_sync(typename sync_members::record* record_ptr) {
     const size_t MIN_SPAN(1);
     typedef typename sync_members::record record_type;
-    ASSERT_NE(record_ptr, NULL);
+    ASSERT_TRUE(record_ptr != NULL);
     // Get the record
     record_type& rec = *record_ptr;
     // Start the sync by grabbing the lock

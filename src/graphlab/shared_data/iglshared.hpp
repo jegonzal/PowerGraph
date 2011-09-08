@@ -56,6 +56,8 @@ namespace graphlab {
      */
     typedef void(*apply_function_type)(any& current_data, const any& param);
 
+    virtual ~iglshared() { }
+
     /**
      * Gets the value of the shared variable wrapped in an any.
      */
