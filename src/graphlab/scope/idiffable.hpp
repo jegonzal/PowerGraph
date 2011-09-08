@@ -47,6 +47,8 @@ namespace graphlab {
   class idiffable {
   public:
     virtual void apply_diff(const T& changed, const T& old) = 0;
+    virtual size_t lag() { return 100; }
+
   }; // end of class idiffable
 
 

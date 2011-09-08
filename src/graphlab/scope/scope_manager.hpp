@@ -165,7 +165,7 @@ namespace graphlab {
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
                            const bool is_center,
                            const boost::true_type&) {
-      const size_t MAX_WRITES = 100;
+      const size_t MAX_WRITES = graph.vertex_data(vid).lag();
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename cache_map_type::iterator iterator_type;
@@ -212,7 +212,7 @@ namespace graphlab {
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
                           const boost::true_type&) {
-      const size_t MAX_READS = 1000;
+      const size_t MAX_READS = graph.vertex_data(vid).lag();
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename cache_map_type::iterator iterator_type;

@@ -41,6 +41,19 @@
 
 
 
+
+extern size_t ntopics;
+extern size_t nwords;
+extern size_t ndocs;
+extern double alpha;
+extern double beta;
+extern size_t global_lag;
+extern std::vector< graphlab::glshared<count_type> > global_n_t;
+extern std::vector< graphlab::sharedsum<count_type> > shared_n_t;
+
+
+
+
 enum vertex_type {DOCUMENT, WORD};
 
 #ifdef DIFFABLE
@@ -55,6 +68,7 @@ class vertex_data {
 public:
   vertex_data(vertex_type type = DOCUMENT) : m_type(type), m_iterations(0) { }
  
+  size_t lag() { return global_lag; }
 
   void set_type(vertex_type new_type) { m_type = new_type; }
   const vertex_type& type() const { return m_type; }
@@ -139,13 +153,6 @@ class lda_update;
 typedef graphlab::types<graph_type, lda_update> gl;
 
 
-extern size_t ntopics;
-extern size_t nwords;
-extern size_t ndocs;
-extern double alpha;
-extern double beta;
-extern std::vector< graphlab::glshared<count_type> > global_n_t;
-extern std::vector< graphlab::sharedsum<count_type> > shared_n_t;
 
 
 

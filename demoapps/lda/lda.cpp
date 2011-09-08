@@ -27,6 +27,7 @@
 size_t ntopics = 50;
 size_t nwords = 0;
 size_t ndocs = 0;
+size_t global_lag = 100;
 double alpha(1.0/double(ntopics));
 double beta(0.1);
 
@@ -69,6 +70,8 @@ int main(int argc, char** argv) {
                        &ntopics, ntopics, "Number of topics");
   clopts.attach_option("niters",
                        &niters, niters, "Number of iterations");
+  clopts.attach_option("lag",
+                       &global_lag, global_lag, "Lag between commit");
   clopts.attach_option("alpha",
                        &alpha, alpha, "Alpha prior");
   clopts.attach_option("beta", 
