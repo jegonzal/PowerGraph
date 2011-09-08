@@ -5,7 +5,7 @@
 
 %% SET THIS!!
 % this should be the location of graphlab.a etc
-BINARY_DIRECTORY = [getenv('HOME') '/graphlabapi/graphlabapi/release/src/graphlab'];
+BINARY_DIRECTORY = [getenv('HOME') '/graphlab/graphlabapi/release/src/graphlab'];
 %%
 % Image dimensions and arity
 arity = 5;

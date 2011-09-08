@@ -27,4 +27,6 @@ function file_template_substitution(templatefile, targetfile, substs)
         end
         fprintf(destfile,'%s',line);
     end
+    fclose(destfile);
+    fclose(srcfile);
 end

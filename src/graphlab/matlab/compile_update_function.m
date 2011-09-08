@@ -384,7 +384,7 @@ cfg = emlcoder.CompilerOptions;
 cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
 cfg.EnableVariableSizing = true;
 
-emlcstring = ['emlc -s cfg -c -T RTW -d . -o updates -report'];
+emlcstring = ['emlc -s cfg -c -T RTW -d . -o updates'];
 % append all the update functions
 for i = 1:length(updatefunctions)
     emlcstring = [emlcstring ' ' updatefunctions{i} ' ' exinput];
