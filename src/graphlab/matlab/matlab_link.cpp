@@ -147,5 +147,5 @@ uint32_t emx_rand_int_uniform_fast(const uint32_t high_inclusive) {
 
 uint32_t emx_rand_multinomial(double* prob, uint32_t plength) {
   std::vector<double> p(prob, prob + plength);
-  return graphlab::random::multinomial(p);
+  return graphlab::random::multinomial(p) + 1;
 }
