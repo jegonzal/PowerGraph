@@ -21,12 +21,14 @@ public:
   void operator()(gl::iscope& scope, gl::icallback& callback) {
     //    std::cout << "Processing vertex: " << scope.vertex() << std::endl;
     ASSERT_GT(iters_remaining, 0);
+
+#ifndef USE_SHAREDSUM
     // Make a local copy of the global topic counts
     std::vector<count_type> local_n_t(ntopics);
     for(size_t t = 0; t < ntopics; ++t) 
       local_n_t[t] = global_n_t[t].get_val();
     const std::vector<count_type> old_global_n_t = local_n_t;
-    
+#endif
 
     // Get local data structures
     vertex_data& doc       = scope.vertex_data();

@@ -105,6 +105,12 @@ namespace graphlab {
 
   private:
 
+    graphlab::rwlock rwlock;
+    value_type value;
+    uint16_t lag;    
+
+  private:
+
     cache_entry* get_cache_entry() const {
       return static_cast<cache_entry*>
         (sharedsum_impl::get_cache_entry(const_cast<sharedsum*>(this)));
@@ -172,9 +178,6 @@ namespace graphlab {
     } // end of get 
 
 
-    graphlab::rwlock rwlock;
-    value_type value;
-    uint16_t lag;    
 
   public:
 

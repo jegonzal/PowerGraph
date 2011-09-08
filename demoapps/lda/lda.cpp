@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 
+#include <graphlab/shared_data/sharedsum.hpp>
 #include <graphlab.hpp>
 
 
@@ -28,7 +29,9 @@ size_t nwords = 0;
 size_t ndocs = 0;
 double alpha(1.0/double(ntopics));
 double beta(0.1);
+
 std::vector< graphlab::glshared<count_type> > global_n_t;
+std::vector< graphlab::sharedsum<count_type> > shared_n_t;
 
 
 
@@ -114,6 +117,7 @@ int main(int argc, char** argv) {
 
   // Initialize the global variables
   global_n_t.resize(ntopics);
+  shared_n_t.resize(ntopics);
 
 
   double runtime = core.start();

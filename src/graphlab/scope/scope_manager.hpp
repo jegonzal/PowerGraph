@@ -174,6 +174,7 @@ namespace graphlab {
       if(is_cached) {
         cache_entry_type& cache_entry = iter->second;        
         if(++cache_entry.writes > MAX_WRITES || is_center) {
+          //  std::cout << "Flushing" << std::endl;
           locks[vid].writelock();
           vertex_data_type& vdata = graph.vertex_data(vid);
           vdata.apply_diff(cache_entry.current, cache_entry.old);
@@ -211,7 +212,7 @@ namespace graphlab {
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
                           const boost::true_type&) {
-      const size_t MAX_READS = 100;
+      const size_t MAX_READS = 1000;
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename cache_map_type::iterator iterator_type;
