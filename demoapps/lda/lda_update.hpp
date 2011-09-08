@@ -22,13 +22,16 @@ public:
     //    std::cout << "Processing vertex: " << scope.vertex() << std::endl;
     ASSERT_GT(iters_remaining, 0);
 
-#ifndef USE_SHAREDSUM
     // Make a local copy of the global topic counts
     std::vector<count_type> local_n_t(ntopics);
+#ifdef SHAREDSUM
+    for(size_t t = 0; t < ntopics; ++t) 
+      local_n_t[t] = shared_n_t[t].val();
+#else
     for(size_t t = 0; t < ntopics; ++t) 
       local_n_t[t] = global_n_t[t].get_val();
-    const std::vector<count_type> old_global_n_t = local_n_t;
 #endif
+    const std::vector<count_type> old_global_n_t = local_n_t;
 
     // Get local data structures
     vertex_data& doc       = scope.vertex_data();
@@ -86,11 +89,17 @@ public:
         edata.set(t, n_dwt[t]);
       }
     } // end of for loop
-
+#ifdef SHAREDSUM
+    // update the global variables
+    for(size_t t = 0; t < ntopics; ++t) {
+      shared_n_t[t] += (local_n_t[t] - old_global_n_t[t]);
+    }
+#else
     // update the global variables
     for(size_t t = 0; t < ntopics; ++t) {
       global_n_t[t] += (local_n_t[t] - old_global_n_t[t]);
     }
+#endif
 
     // Reschedule self if necessary
     if(--iters_remaining > 0) 

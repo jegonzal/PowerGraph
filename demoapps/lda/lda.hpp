@@ -33,7 +33,7 @@
 #ifndef LDA_HPP
 #define LDA_HPP
 
-
+#include <graphlab/shared_data/sharedsum.hpp>
 #include <graphlab.hpp>
 
 #include "corpus.hpp"
@@ -145,6 +145,7 @@ extern size_t ndocs;
 extern double alpha;
 extern double beta;
 extern std::vector< graphlab::glshared<count_type> > global_n_t;
+extern std::vector< graphlab::sharedsum<count_type> > shared_n_t;
 
 
 
