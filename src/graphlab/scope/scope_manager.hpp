@@ -151,19 +151,21 @@ namespace graphlab {
     } // end of flush cache
 
 
-    void acquire_writelock(const size_t cpuid, const vertex_id_type vid) {
-      acquire_writelock(cpuid, vid, is_diffable());
+    void acquire_writelock(const size_t cpuid, const vertex_id_type vid, 
+                           const bool is_center = false) {
+      acquire_writelock(cpuid, vid, is_center, is_diffable());
     }
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
+                           const bool is_center,
                            const boost::false_type&) {
       locks[vid].writelock();
     }
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
+                           const bool is_center,
                            const boost::true_type&) {
       const size_t MAX_WRITES = 100;
-
       // First check the cache
       general_scope_type& scope = scopes[cpuid];
       typedef typename cache_map_type::iterator iterator_type;
@@ -171,14 +173,20 @@ namespace graphlab {
       const bool is_cached = iter != scope.cache.end();
       if(is_cached) {
         cache_entry_type& cache_entry = iter->second;        
-        if(++cache_entry.writes > MAX_WRITES) {
+        if(++cache_entry.writes > MAX_WRITES || is_center) {
           locks[vid].writelock();
           vertex_data_type& vdata = graph.vertex_data(vid);
           vdata.apply_diff(cache_entry.current, cache_entry.old);
-          cache_entry.current = vdata;
-          locks[vid].unlock();
-          cache_entry.old = cache_entry.current;
-          cache_entry.writes = cache_entry.reads = 0;
+          if(is_center) { // if it is the center vertex we evict it
+                          // from the cache and retain the write lock.
+            scope.cache.erase(vid);
+            return;
+          } else {
+            cache_entry.current = vdata;
+            locks[vid].unlock();
+            cache_entry.old = cache_entry.current;
+            cache_entry.writes = cache_entry.reads = 0;
+          }
         } 
       } else {       
         locks[vid].readlock();
@@ -290,7 +298,7 @@ namespace graphlab {
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curlocked && curv < inv  && curv < outv) {
-          acquire_writelock(cpuid, curv); // locks[curv].writelock();
+          acquire_writelock(cpuid, curv, true); // locks[curv].writelock();
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
@@ -314,7 +322,7 @@ namespace graphlab {
       }
       // just in case we never got around to locking it
       if (!curlocked) {
-        acquire_writelock(cpuid, curv); // locks[curv].writelock();
+        acquire_writelock(cpuid, curv, true); // locks[curv].writelock();
       }
       return scope;
     } // end of get_full_scope
@@ -344,7 +352,7 @@ namespace graphlab {
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curlocked && curv < inv  && curv < outv) {
-          acquire_writelock(cpuid, curv); // locks[curv].writelock();
+          acquire_writelock(cpuid, curv, true); // locks[curv].writelock();
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
@@ -368,7 +376,7 @@ namespace graphlab {
       }
       // just in case we never got around to locking it
       if (!curlocked) {
-        acquire_writelock(cpuid, curv); // locks[curv].writelock();
+        acquire_writelock(cpuid, curv, true); // locks[curv].writelock();
       }
       return scope;
     } // end of get edge scope
@@ -408,7 +416,7 @@ namespace graphlab {
       general_scope_type& scope = scopes[cpuid];      
       scope.init(&graph, v, consistency_model::VERTEX_CONSISTENCY);
       const vertex_id_type curv = scope.vertex();
-      acquire_writelock(cpuid, curv); // locks[curv].writelock();     
+      acquire_writelock(cpuid, curv, true); // locks[curv].writelock();     
       return scope;
     }
 
@@ -502,6 +510,8 @@ namespace graphlab {
       default:
         ASSERT_TRUE(false);
       }
+
+      // \todo: shrink the cache as needed
     } // end of release scope
 
 
