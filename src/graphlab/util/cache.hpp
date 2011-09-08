@@ -86,7 +86,8 @@ namespace graphlab {
       }
 
       
-      size_t size() { return cache_map.size(); }
+      size_t size() const { return cache_map.size(); }
+      size_t empty() const { return size() == 0; }
 
       iterator_type begin() { return cache_map.begin(); }
       iterator_type end() { return cache_map.end(); }
@@ -128,6 +129,11 @@ namespace graphlab {
       } // end of contains
 
 
+      // value_type* find(const key_type& key) { 
+
+      //   return cache_map.find(key); 
+      // }
+
       value_type& operator[](const key_type& key) {
         typedef typename cache_map_type::left_iterator iterator_type;
         iterator_type iter = cache_map.left.find(key);
@@ -146,7 +152,7 @@ namespace graphlab {
       } // end of oeprator[]
 
       const value_type& operator[](const key_type& key) const {
-        typedef typename cache_map_type::const_left_iterator iterator_type;
+        typedef typename cache_map_type::left_const_iterator iterator_type;
         iterator_type iter = cache_map.left.find(key);
         if(iter != cache_map.left.end()) { // already in cache
           // move it to the end
@@ -155,7 +161,7 @@ namespace graphlab {
           return iter->get_right();
         }
         logstream(LOG_FATAL) << "Key not found!" << std::endl;
-        return value_type();
+        assert(false);
       } // end of oeprator[]
 
       bool get(const key_type& key, value_type& ret_value) {
