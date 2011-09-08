@@ -108,3 +108,44 @@ void emx_add_task(HANDLE_TYPE handle, uint32_T vid, const char* fnname, double p
   }
 }
 
+
+uint32_t emx_rand_int() {
+  return graphlab::random::rand();
+}
+
+double emx_rand_double() {
+  return graphlab::random::rand01();
+}
+
+double emx_rand_gamma(double alpha) {
+  return graphlab::random::gamma(alpha);
+}
+
+
+bool emx_rand_bernoulli(double p) {
+  return graphlab::random::bernoulli(p);
+}
+
+
+bool emx_rand_bernoulli_fast(double p) {
+  return graphlab::random::fast_bernoulli(p);
+}
+
+
+double emx_rand_gaussian(double mean, double var) {
+  return graphlab::random::gaussian(mean, var);
+}
+
+
+uint32_t emx_rand_int_uniform(const uint32_t high_inclusive) {
+  return graphlab::random::uniform<uint32_t>(1, high_inclusive);
+}
+
+uint32_t emx_rand_int_uniform_fast(const uint32_t high_inclusive) {
+  return graphlab::random::fast_uniform<uint32_t>(1, high_inclusive);
+}
+
+uint32_t emx_rand_multinomial(double* prob, uint32_t plength) {
+  std::vector<double> p(prob, prob + plength);
+  return graphlab::random::multinomial(p);
+}

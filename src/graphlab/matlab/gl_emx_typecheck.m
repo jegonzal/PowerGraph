@@ -5,6 +5,15 @@
 %
 % gen returns code when can be used to instantiate a variable of this type
 % in an emx m file
+%
+% Return values are [d, status, gen]
+%   d: A version of the input example with all arrays replaced by emlcoder
+%      specifications
+%   status: 1 for success, 0 for failure
+%   gen: A matlab code fragment which if embedded into an EML function, 
+%        will allow the variable "genprefix" to be instantiated with the 
+%        same type as d
+%
 function [d, status, gen] = gl_emx_typecheck(d, genprefix)
     NL = sprintf('\n');
     if (~exist('genprefix','var'))

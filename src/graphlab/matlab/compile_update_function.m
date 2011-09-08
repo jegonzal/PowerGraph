@@ -259,7 +259,6 @@ oldpath = path;
 
 
 largearraydims = [];
-native_word_type = 'emlcoder.egs(handle_type__)';
 if (strcmp(computer, 'GLNXA64') ~= 1 && strcmp(computer, 'MACI64') ~= 1)
     largearraydims = ['-DMX_COMPAT_32'];
     handle_type__.low = uint32(0);
@@ -358,8 +357,10 @@ addpath(glmatlabdir);
 
 disp(['Generating Matlab<->Graphlab Link Functions']);
 
+link_functions = available_link_functions();
+
 % generate the get vertexdata and get edge data functions
-generate_link_functions(exvertex_, exedge_, genv, gene, [glmatlabdir,'/templates']);
+generate_link_functions(exvertex_, exedge_, genv, gene, [glmatlabdir,'/templates'], link_functions);
 
 disp(['EMLC generation']);
 
@@ -376,8 +377,8 @@ exinput = ['-eg {uint32(0), ' ...               % current vertex
           'emlcoder.egs(uint32(0),[Inf]), ' ... % inV
           'emlcoder.egs(uint32(0),[Inf]), ' ... % out edges
           'emlcoder.egs(uint32(0),[Inf]), ' ... % outV
-          native_word_type ', ' ...             % handle
-          '} '];                   
+          'emlcoder.egs(handle_type__)} '];     % handle
+                  
           
 cfg = emlcoder.CompilerOptions;
 cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
@@ -389,13 +390,13 @@ for i = 1:length(updatefunctions)
     emlcstring = [emlcstring ' ' updatefunctions{i} ' ' exinput];
 end
 
-% append the additional functions
-emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge,' native_word_type ' emlcoder.egs(double(0), [Inf])}'];
-emlcstring = [emlcstring ' get_vertex_data -eg {' native_word_type ', uint32(0)}'];
-emlcstring = [emlcstring ' get_edge_data -eg {' native_word_type ', uint32(0)}'];
-emlcstring = [emlcstring ' set_vertex_data -eg {' native_word_type ', uint32(0), exvertex}'];
-emlcstring = [emlcstring ' set_edge_data -eg {' native_word_type ', uint32(0), exedge}'];
-emlcstring = [emlcstring ' add_task -eg {' native_word_type ', uint32(0), emlcoder.egs(''a'', [Inf]), double(0)}'];
+% append the link functions
+for linkfn = link_functions
+    emlcstring = [emlcstring ' ' linkfn.name];
+    if (~isempty(linkfn.args)) 
+        emlcstring = [ emlcstring ' -eg {' linkfn.args '}' ];
+    end
+end
 emlcstring = [emlcstring ' matlab_link.h'];
 disp(['Issuing command: ' emlcstring]);
 eval(emlcstring);
