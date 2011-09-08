@@ -264,6 +264,9 @@ int main(int argc, char** argv) {
   n_wt.set_max_uses(100);
   // for(size_t t = 0; t < ntopics; ++t) n_t[t] = 0;
 
+  
+  graphlab::timer timer;
+  timer.start();
 
   // Run the gibbs sampler
   for(size_t iteration = 0; iteration < niters; ++iteration) {
@@ -275,8 +278,10 @@ int main(int argc, char** argv) {
   // Wait for all communication to finish
   dc.full_barrier();
 
-
-
+  
+  if(dc.procid() == 0) {
+    std::cout << "Runtime: " << timer.current_time() << std::endl; 
+  }
 
 
 
