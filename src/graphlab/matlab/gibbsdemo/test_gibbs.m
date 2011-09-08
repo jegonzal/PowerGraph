@@ -5,11 +5,11 @@
 
 %% SET THIS!!
 % this should be the location of graphlab.a etc
-BINARY_DIRECTORY = [getenv('HOME') '/graphlab/graphlabapi/release/src/graphlab'];
+BINARY_DIRECTORY = [getenv('HOME') '/graphlabapi/graphlabapi/release/src/graphlab'];
 %%
 % Image dimensions and arity
 arity = 5;
-imgdim = 100;
+imgdim = 300;
 %% generate images
 % This generates a clean rainbow image
 cleanimg = zeros(imgdim,imgdim);
@@ -25,7 +25,7 @@ end
 cleanimg(cleanimg >= arity) = arity - 1;
 
 % make noisy image by adding random gaussian noise
-noisyimg = cleanimg + randn(imgdim) * 0.3;
+noisyimg = cleanimg + randn(imgdim);
 %% display images
 figure;
 image(cleanimg / arity * 100);
@@ -41,7 +41,7 @@ for i = 1:imgdim
         % set the unary potential to be a gaussian pdf around the noisy image
         vtx.logunary = log(pdf('norm',0:(arity-1), noisyimg(i,j), 1)); 
         % Vertices are numbered from 1. Assign the vertex data.
-        vdata{(i-1)*100+j} = vtx;
+        vdata{(i-1)*imgdim+j} = vtx;
     end
 end
 
@@ -60,16 +60,16 @@ adj =sparse(length(vdata),length(vdata));
 for xi = 1:imgdim
     for xj = 1:imgdim
         if (xi - 1 >= 1) 
-            adj((xi-1)*100+xj, (xi-2)*100+xj) = 1;
+            adj((xi-1)*imgdim+xj, (xi-2)*imgdim+xj) = 1;
         end
         if (xi + 1 <= imgdim) 
-            adj((xi-1)*100+xj, (xi)*100+xj) = 1;
+            adj((xi-1)*imgdim+xj, (xi)*imgdim+xj) = 1;
         end
         if (xj - 1 >= 1) 
-            adj((xi-1)*100+xj, (xi-1)*100+xj-1) = 1;
+            adj((xi-1)*imgdim+xj, (xi-1)*imgdim+xj-1) = 1;
         end
         if (xj + 1 <= imgdim) 
-            adj((xi-1)*100+xj, (xi-1)*100+xj+1) = 1;
+            adj((xi-1)*imgdim+xj, (xi-1)*imgdim+xj+1) = 1;
         end
     end
 end
@@ -93,7 +93,7 @@ cd ..
 outputimg = zeros(imgdim);
 for i = 1:imgdim
     for j = 1:imgdim
-        outputimg(i,j) = v2{(i-1)*100+j}.sample;
+        outputimg(i,j) = v2{(i-1)*imgdim+j}.sample;
     end
 end
 figure;

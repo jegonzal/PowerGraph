@@ -5,7 +5,7 @@
 
 %% SET THIS!!
 % this should be the location of graphlab.a etc
-BINARY_DIRECTORY = [getenv('HOME') '/graphlab/graphlabapi/release/src/graphlab'];
+BINARY_DIRECTORY = [getenv('HOME') '/graphlabapi/graphlabapi/release/src/graphlab'];
 %%
 % Image dimensions and arity
 arity = 5;
@@ -43,7 +43,7 @@ for i = 1:imgdim
         % normalize
         vtx.unary = vtx.unary ./ sum(vtx.unary);
         % Vertices are numbered from 1. Assign the vertex data.
-        vdata{(i-1)*100+j} = vtx;
+        vdata{(i-1)*imgdim+j} = vtx;
     end
 end
 
@@ -64,16 +64,16 @@ adj =sparse(length(vdata),length(vdata));
 for xi = 1:imgdim
     for xj = 1:imgdim
         if (xi - 1 >= 1) 
-            adj((xi-1)*100+xj, (xi-2)*100+xj) = 1;
+            adj((xi-1)*imgdim+xj, (xi-2)*imgdim+xj) = 1;
         end
         if (xi + 1 <= imgdim) 
-            adj((xi-1)*100+xj, (xi)*100+xj) = 1;
+            adj((xi-1)*imgdim+xj, (xi)*imgdim+xj) = 1;
         end
         if (xj - 1 >= 1) 
-            adj((xi-1)*100+xj, (xi-1)*100+xj-1) = 1;
+            adj((xi-1)*imgdim+xj, (xi-1)*imgdim+xj-1) = 1;
         end
         if (xj + 1 <= imgdim) 
-            adj((xi-1)*100+xj, (xi-1)*100+xj+1) = 1;
+            adj((xi-1)*imgdim+xj, (xi-1)*imgdim+xj+1) = 1;
         end
     end
 end
@@ -97,7 +97,7 @@ cd ..
 outputimg = zeros(imgdim);
 for i = 1:imgdim
     for j = 1:imgdim
-        [c,idx] = max(v2{(i-1)*100+j}.belief);
+        [c,idx] = max(v2{(i-1)*imgdim+j}.belief);
         outputimg(i,j) = idx;
     end
 end
