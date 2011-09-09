@@ -58,6 +58,8 @@ public:
     prio += other.prio;
     accum += other.accum;
   }
+  
+  bool writable_scatter() { return false; }
 
   void gather(gl::iscope& scope, gl::icallback& callback, 
               gl::edge_id in_eid) {
@@ -180,16 +182,24 @@ int main(int argc, char** argv) {
   // Metrics  
   graphlab::metrics app_metrics("app::pagerank");
 
+ 
+
   // Setup the parser
   graphlab::command_line_options
     clopts("Run the PageRank algorithm.");
 
   // Add some command line options
   std::string graph_file;
+  std::string format = "metis";
   clopts.attach_option("graph",
                        &graph_file, graph_file,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
+  clopts.attach_option("format",
+                       &format, format,
+                       "The graph file format: {metis,jure,tsv}");
+
+
   clopts.attach_option("bound",
                        &termination_bound, termination_bound,
                        "residual termination threshold");
@@ -221,8 +231,15 @@ int main(int argc, char** argv) {
     make_toy_graph(core.graph());
   } else {
     // load the graph from the file
-    bool success = load_graph_from_metis_file(graph_file, core.graph());
-    if(!success) {
+    bool success = false;
+    if(format == "metis") {
+      success = load_graph_from_metis_file(graph_file, core.graph());
+    } else if(format == "jure") {
+      success = load_graph_from_jure_file(graph_file, core.graph());
+    } else {
+      success = load_graph_from_tsv_file(graph_file, core.graph());
+    }
+      if(!success) {
       std::cout << "Error in reading file: " << graph_file
                 << std::endl;
       return EXIT_FAILURE;

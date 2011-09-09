@@ -85,6 +85,8 @@ namespace graphlab {
       default_scope(default_scope_range) {
       if (default_scope == consistency_model::USE_DEFAULT)
         default_scope = consistency_model::EDGE_CONSISTENCY;
+      // for(size_t i = 0; i < scopes.size(); ++i) 
+      //   scopes[i].cache.rehash(graph.num_vertices());
     } // end of scope manager
 
 

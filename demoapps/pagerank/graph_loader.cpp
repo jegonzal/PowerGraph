@@ -246,6 +246,52 @@ bool load_graph_from_metis_file(const std::string& filename,
 } // end of load graph from metis file.
 
 
+bool load_graph_from_jure_file(const std::string& filename,
+                                pagerank_graph& graph) {
+  std::ifstream fin(filename.c_str());
+  if(!fin.good()) return false;
+  // Loop through file reading each line
+  while(fin.good() && !fin.eof()) {
+    if(fin.peek() == '#') {
+      std::string str;
+      std::getline(fin, str);
+      std::cout << str << std::endl;
+      continue;
+    }
+    size_t source = 0;
+    size_t target = 0;
+    fin >> source;
+    if(!fin.good()) break;
+    //  fin.ignore(1); // skip comma
+    fin >> target;
+    assert(fin.good());
+    // Ensure that the number of vertices is correct
+    if(source >= graph.num_vertices() ||
+       target >= graph.num_vertices())
+      graph.resize(std::max(source, target) + 1);
+    if(source != target) {
+      // Add the edge
+      const edge_data edata(1);
+      graph.add_edge(source, target, edata);
+    } else {
+      // add the self edge by updating the vertex weight
+      graph.vertex_data(source).self_weight = 1;
+    }       
+  }
+  std::cout 
+    << "Finished loading graph with: " << std::endl
+    << "\t Vertices: " << graph.num_vertices() << std::endl
+    << "\t Edges: " << graph.num_edges() << std::endl;
+
+
+
+  normalize_graph(graph);
+
+  return true;
+} // end of load graph from jure file
+
+
+
 
 /**
  * Load a graph file specified in the format:

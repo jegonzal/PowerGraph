@@ -125,6 +125,8 @@ void save_pagerank(const std::string& fname,
 bool load_graph_from_metis_file(const std::string& filename,
                                 pagerank_graph& graph);
 
+bool load_graph_from_jure_file(const std::string& filename,
+                               pagerank_graph& graph);
 
 
 /**

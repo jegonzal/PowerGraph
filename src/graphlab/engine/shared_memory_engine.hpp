@@ -807,7 +807,7 @@ namespace graphlab {
       run_once(cpuid);
     }
     // Flush the thread local cache associated with vertex data
-    scope_manager_ptr->flush_cache(cpuid);
+    // scope_manager_ptr->flush_cache(cpuid);
    
     logstream(LOG_INFO) 
       << "Thread " << cpuid << " finished." << std::endl;
