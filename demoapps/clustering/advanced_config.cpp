@@ -11,7 +11,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("datafile", &datafile, datafile, "Input matrix/tensor");
   clopts.add_positional("datafile");
 
-  clopts.attach_option("algorithm", &algorithm, algorithm, "ps.algorithm");
+  clopts.attach_option("algorithm", &algorithm, algorithm, "algorithm: 0=K-means, 1=Kmeans++, 2=Fuzzy K-mean, 3=LDA");
   clopts.add_positional("algorithm");
   
   clopts.attach_option("K", &K, K, "number of clusters");
@@ -41,6 +41,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("tfidf", &tfidf, tfidf, "tfidf weighting scheme applied to document/term matrix");
   clopts.attach_option("omp_support", &omp_support, omp_support, "OMP parallelization support");
   clopts.attach_option("lda_inner_em_iter", &em_max_inner_iter, em_max_inner_iter, "LDA inner EM max iterations");
+  clopts.attach_option("threshold", &threshold, threshold, "Convergence threshold");
 }
 
 void problem_setup::verify_setup(){

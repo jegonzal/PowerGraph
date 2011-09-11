@@ -173,7 +173,7 @@ int distance_measure;
    tfidf = false;
 
    /* for LDA */
-   em_max_inner_iter = 100;
+   em_max_inner_iter = 20;
  }
 
 
