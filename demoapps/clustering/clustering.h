@@ -98,7 +98,8 @@ struct clusters{
 enum runmodes{
    K_MEANS = 0,//K-means algo
    K_MEANS_PLUS_PLUS = 1, //initalization for K_means
-   K_MEANS_FUZZY = 2
+   K_MEANS_FUZZY = 2,
+   LDA = 3
 };
 
 #define MAX_RUNMODE 1
@@ -183,5 +184,7 @@ void load_matrix_market(const char * filename, graph_type * _g);
 void save_matrix_market_format(const char * filename);
 
 void test_math();
+
+void lda_main();
 #endif
 

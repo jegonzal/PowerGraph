@@ -74,6 +74,7 @@ void kmeans_update_function(gl_types::iscope &scope,
     case K_MEANS_FUZZY:
 	end_cluster = ps.K; break; //regular k-means, calculate distance to all cluster heads
     case K_MEANS_PLUS_PLUS: end_cluster = 1; break; //calculate distance of all point to current cluster
+    default: assert(false); 
   }
 
   for (int i=0; i< end_cluster; i++){

@@ -157,7 +157,7 @@ void add_vertices(graph_type * _g){
 	 break;
     }
 
-    vdata.datapoint.set_size(ps.N);
+    //vdata.datapoint.set_size(ps.N);
     if (ps.algorithm == K_MEANS_FUZZY)
 	vdata.distances = zeros(ps.K);
 

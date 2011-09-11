@@ -1,12 +1,15 @@
 project(GraphLab)
 
 if (ITPP-FOUND)
-#set(OMP_SUPPORT 1)
+set(OMP_SUPPORT 1)
   if (OMP_SUPPORT)
     add_definitions(-omp)
     add_definitions(-DOMP_SUPPORT)
   endif()
-  add_graphlab_executable(glcluster clustering.cpp advanced_config.cpp read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp distance.cpp sparse_math.cpp main.cpp kmeans_plus_plus.cpp dumpcluster.cpp tfidf.cpp)
+  add_graphlab_executable(glcluster clustering.cpp advanced_config.cpp 
+read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp distance.cpp   
+sparse_math.cpp main.cpp kmeans_plus_plus.cpp dumpcluster.cpp tfidf.cpp
+lda.cpp gamma.cpp)
 else()
   message(STATUS "ITPP not found. PMF will not be built")
 endif()

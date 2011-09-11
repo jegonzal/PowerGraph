@@ -33,6 +33,7 @@
 #include "unittest.hpp"
 #include "io.hpp"
 #include "../gabp/advanced_config.h"
+#include "lda.h"
 #ifdef OMP_SUPPORT
 #include "omp.h"
 #endif
@@ -52,7 +53,7 @@ using namespace std;
 advanced_config ac;
 problem_setup ps;
 
-const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means"};
+const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation"};
 const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER"};
 const char * countername[] = {"DISTANCE_CALCULTION"};
 
@@ -143,6 +144,10 @@ void add_tasks(){
      case K_MEANS_FUZZY:
        ps.glcore->add_tasks(um, kmeans_update_function, 1);
        break;
+;
+     case LDA:
+       ps.glcore->add_tasks(um, lda_em_update_function,1);  
+       break;
  }
 
 }
@@ -192,6 +197,7 @@ void init(){
     break;
 
    case K_MEANS_PLUS_PLUS:
+   case LDA:
     break;
 
   }
@@ -212,7 +218,8 @@ void run_graphlab(){
  * ==== SETUP AND START
  */
 void start(int argc, const char * argv[]) {
-   
+  
+  ps.gt.start();
   command_line_options clopts;
   ac.init_command_line_options(clopts);
   gl_types::core glcore;
@@ -231,13 +238,6 @@ void start(int argc, const char * argv[]) {
   printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
 
-  /*ac.scheduler = "round_robin"; //TODO
-  if (ac.scheduler == "round_robin"){
-    char schedulerstring[256];
-    sprintf(schedulerstring, "round_robin(max_iterations=1,block_size=1)");
-    clopts.set_scheduler_type(schedulerstring);
-    assert(ac.iter > 0);
-  }*/
   ps.verify_setup();
   
   ps.glcore->set_engine_options(clopts); 
@@ -304,7 +304,6 @@ void start(int argc, const char * argv[]) {
   ps.iiter--; 
  
   ps.g->finalize();  
-  ps.gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
     switch(ps.algorithm){
@@ -318,6 +317,10 @@ void start(int argc, const char * argv[]) {
       case K_MEANS_PLUS_PLUS:
          initialize_clusters();
      	 break;
+
+      case LDA:
+        lda_main();
+	break;
   }
 
 
@@ -344,7 +347,7 @@ void start(int argc, const char * argv[]) {
 void do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "Clustering Code (K-Means) written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "Clustering Code (K-Means/Fuzzy K-means/K-Means++/LDA) written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 
 #ifdef OMP_SUPPORT
   logstream(LOG_INFO)<<"Program compiled with OMP support\n";

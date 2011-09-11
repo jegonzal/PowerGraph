@@ -90,6 +90,9 @@ double movie_sparsity;
 
 bool FLOAT; //is data in float format
 
+/* for LDA */
+int em_max_inner_iter; //number of inner EM iterations
+
 int distance_measure;
 
   advanced_config(){
@@ -168,6 +171,9 @@ int distance_measure;
    distance_measure = 0;
    clusterdump = false;
    tfidf = false;
+
+   /* for LDA */
+   em_max_inner_iter = 100;
  }
 
 

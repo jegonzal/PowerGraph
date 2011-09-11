@@ -40,6 +40,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("clusterdump", &clusterdump, clusterdump, "dump cluster locations into a text file");
   clopts.attach_option("tfidf", &tfidf, tfidf, "tfidf weighting scheme applied to document/term matrix");
   clopts.attach_option("omp_support", &omp_support, omp_support, "OMP parallelization support");
+  clopts.attach_option("lda_inner_em_iter", &em_max_inner_iter, em_max_inner_iter, "LDA inner EM max iterations");
 }
 
 void problem_setup::verify_setup(){
