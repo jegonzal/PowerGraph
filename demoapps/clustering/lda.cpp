@@ -4,8 +4,8 @@
 
 extern problem_setup ps; 
 extern advanced_config ac;
-void accum_gammas (double **gammas, double *_gamma, int n, int K);
-void accum_betas (double **betas, double **q, int K, vertex_data & data);
+//void accum_gammas (double **gammas, double *_gamma, int n, int K);
+void accum_betas (double **betas, int K, vertex_data & data);
 double ** dmatrix (int rows, int cols);
 void free_dmatrix (double **matrix, int rows);
 void newton_alpha (double *alpha, double **gammas, int M, int K, int level);
@@ -17,7 +17,7 @@ int converged (double *u, double *v, int n, double threshold);
 
 double *alpha;
 double **beta;
-double *_gamma, **q, **gammas, **betas;
+double  **gammas, **betas;
     
 char * rtime (double t)
 {
@@ -42,7 +42,6 @@ int doublecmp (double *x, double *y)
 void
 lda_learn (double *alpha, double **beta)
 {
-	double *nt, *pnt, *ap;
 	double lik, plik = 0;
 	double z;
 	int i, j, n;
@@ -58,6 +57,9 @@ lda_learn (double *alpha, double **beta)
 	 *  initialize parameters
 	 *
 	 */
+
+        n=ps.M;
+
 	for (i = 0; i < ac.K; i++)
 		alpha[i] = itpp::randu();
 	for (i = 0, z = 0; i < ac.K; i++)
@@ -87,7 +89,7 @@ lda_learn (double *alpha, double **beta)
 	 *  initialize buffers
 	 *
 	 */
-	if ((q = dmatrix(ps.N, ac.K)) == NULL) {
+	/*if ((q = dmatrix(ps.N, ac.K)) == NULL) {
 		fprintf(stderr, "lda_learn:: cannot allocate q.\n");
 		return;
 	}
@@ -95,8 +97,8 @@ lda_learn (double *alpha, double **beta)
 	{
 		fprintf(stderr, "lda_learn:: cannot allocate _gamma.\n");
 		return;
-	}
-	if ((ap = (double *)calloc(ac.K, sizeof(double))) == NULL) {
+	}*/
+	/*if ((ap = (double *)calloc(ac.K, sizeof(double))) == NULL) {
 		fprintf(stderr, "lda_learn:: cannot allocate ap.\n");
 		return;
 	}
@@ -107,7 +109,7 @@ lda_learn (double *alpha, double **beta)
 	if ((pnt = (double*)calloc(ac.K, sizeof(double))) == NULL) {
 		fprintf(stderr, "lda_learn:: cannot allocate pnt.\n");
 		return;
-	}
+	}*/
 
 	printf("Number of documents          = %d\n", ps.M);
 	printf("Number of words              = %d\n", ps.N);
@@ -139,8 +141,8 @@ lda_learn (double *alpha, double **beta)
 		{
 			//vbem(dp, gamma, q, nt, pnt, ap,
 			//     alpha, (const double **)beta, dp->len, ac.K, ac.em_max_inner_iter);
-			accum_gammas(gammas, _gamma, i, ac.K);
-			accum_betas(betas, q, ac.K, ps.g->vertex_data(i));
+			//accum_gammas(gammas, _gamma, i, ac.K);
+			accum_betas(betas, ac.K, ps.g->vertex_data(i));
 		}
 		/*
 		 *  VB-M step
@@ -165,11 +167,7 @@ lda_learn (double *alpha, double **beta)
 			if (t < 5) {
 				free_dmatrix(gammas, n);
 				free_dmatrix(betas, ps.N);
-				free_dmatrix(q, ps.N);
-				free(_gamma);
-				free(ap);
-				free(nt);
-				free(pnt);
+				//free(_gamma);
 				printf("\nearly convergence. restarting..\n");
 				lda_learn (alpha, beta);
 				return;
@@ -190,27 +188,27 @@ lda_learn (double *alpha, double **beta)
 	
 	free_dmatrix(gammas, n);
 	free_dmatrix(betas, ps.N);
-	free_dmatrix(q, ps.N);
-	free(_gamma);
-	free(ap);
-	free(nt);
-	free(pnt);
+	//free_dmatrix(q, ps.N);
+	//free(_gamma);
+	//free(ap);
+	//free(nt);
+	//free(pnt);
 	
 	return;
 }
 
-void
+/*void
 accum_gammas (double **gammas, double *_gamma, int n, int K)
-{
+{*/
 	/* gammas(n,:) = gamma for Newton-Raphson of alpha */
-	int k;
+/*	int k;
 	for (k = 0; k < K; k++)
 		gammas[n][k] = _gamma[k];
 	return;
-}
+}*/
 
 void
-accum_betas (double **betas, double **q, int K, vertex_data & data)
+accum_betas (double **betas, int K, vertex_data & data)
 {
 	int i, k;
 	int n = data.datapoint.nnz();
@@ -219,7 +217,7 @@ accum_betas (double **betas, double **q, int K, vertex_data & data)
 		int id = data.datapoint.get_nz_index(i);
                 int cnt = (int)data.datapoint.get_nz_data(i);
 		for (k = 0; k < ac.K; k++)
-			betas[id][k] += q[i][k] * cnt;
+			betas[id][k] += data.distances[i*ac.K+k] * cnt;
         }
 }
 
@@ -296,7 +294,7 @@ void lda_em_update_function(gl_types::iscope & scope,
 {
 	int j, k, l;
 	double z;
-	double * ap, * nt, * pnt;
+	double * ap, * nt, * pnt, **q;
 
 	if ((ap = (double *)calloc(ac.K, sizeof(double))) == NULL) {
 		fprintf(stderr, "lda_learn:: cannot allocate ap.\n");
@@ -311,10 +309,18 @@ void lda_em_update_function(gl_types::iscope & scope,
 		return;
 	}
 
-
         vertex_data &data = scope.vertex_data();
         int L = data.datapoint.nnz();
 
+        if (data.distances.size() == 0)
+          data.distances = zeros(data.datapoint.nnz() * ac.K);
+
+	if ((q = dmatrix(L, ac.K)) == NULL) {
+		fprintf(stderr, "lda_learn:: cannot allocate q.\n");
+		return;
+	}
+       
+  
 	for (k = 0; k < ac.K; k++)
 		nt[k] = (double) L / ac.K;
 	
@@ -353,11 +359,22 @@ void lda_em_update_function(gl_types::iscope & scope,
 			pnt[k] = nt[k];
 	}
 	for (k = 0; k < ac.K; k++)
-		_gamma[k] = alpha[k] + nt[k];
+	//	_gamma[k] = alpha[k] + nt[k];
+        	gammas[scope.vertex()][k] = alpha[k] + nt[k]; 
+
+
+	for (int i = 0; i < L; i++){
+		for (k = 0; k < ac.K; k++)
+		    data.distances[i*ac.K+k] = q[i][k];
+			/*betas[id][k] += q[i][k] * cnt;*/
+        }
+
+
 
         free(ap);
         free(nt);
         free(pnt);	
+        free(q);
 	return;
 }
 
@@ -418,8 +435,6 @@ normalize_matrix_row (double **dst, double **src, int rows, int cols)
 void
 lda_main ()
 {
-       int nlex, dlenmax;
-
         /* allocate parameters */
         if ((alpha = (double *)calloc(ps.K, sizeof(double))) == NULL) {
                 fprintf(stderr, "lda:: cannot allocate alpha.\n");
@@ -432,7 +447,7 @@ lda_main ()
         
         lda_learn (alpha, beta);
 
-        free_dmatrix(beta, nlex);
+        free_dmatrix(beta, ps.N);
         free(alpha);
 }
 
