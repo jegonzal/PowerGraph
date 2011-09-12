@@ -115,11 +115,12 @@ enum initizliation_type{
 
 //counters for debugging running time of different modules
 enum countervals{
-   DISTANCE_CALCULATION
+   DISTANCE_CALCULATION=0,
+   LDA_NEWTON_METHOD=1,
+   LDA_ACCUM_BETA=2,
+   LDA_LIKELIHOOD=3,
+   LDA_NORMALIZE=4
 };
-
-
-
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;

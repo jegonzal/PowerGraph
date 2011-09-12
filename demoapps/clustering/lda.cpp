@@ -166,8 +166,7 @@ lda_learn (double *alpha, double **beta)
         int & t = ps.iiter;
 	for (t = 0; t < ac.iter; t++)
 	{
-		printf("iteration %d/%d..\t", t + 1, ac.iter);
-		fflush(stdout);
+		printf("%g) iteration %d/%d.. string E-Step\n", ps.gt.current_time(), t + 1, ac.iter);
 		/*
 		 *  VB-E step
 		 *
@@ -176,6 +175,7 @@ lda_learn (double *alpha, double **beta)
                 ps.glcore->start();
 	        ps.glcore->add_task_to_all(lda_em_update_function, 1);
 
+		printf("%g) iteration %d/%d.. accumulating beta\n", ps.gt.current_time(), t + 1, ac.iter);
 		/* iterate for data */
 		for (i = 0; i < ps.M; i++)
 		{
@@ -184,6 +184,7 @@ lda_learn (double *alpha, double **beta)
 			//accum_gammas(gammas, _gamma, i, ac.K);
 			accum_betas(betas, ac.K, ps.g->vertex_data(i));
 		}
+		printf("%g) iteration %d/%d.. starting M-step\n", ps.gt.current_time(), t + 1, ac.iter);
 		/*
 		 *  VB-M step
 		 *
@@ -221,7 +222,8 @@ lda_learn (double *alpha, double **beta)
 		 * ETA
 		 *
 		 */
-		printf("ETA:%s (%d sec/step)\r",
+		printf("%g) ETA:%s (%d sec/step)\r",
+		       ps.gt.current_time(),
 		       rtime(elapsed * ((double) ac.iter / (t + 1) - 1)),
 		       (int)((double) elapsed / (t + 1) + 0.5));
 	}
@@ -262,6 +264,7 @@ accum_gammas (double **gammas, double *_gamma, int n, int K)
 void
 accum_betas (double **betas, int K, vertex_data & data)
 {
+        graphlab::timer t; t.start();
 	int i, k;
 	int n = data.datapoint.nnz();
 
@@ -271,6 +274,7 @@ accum_betas (double **betas, int K, vertex_data & data)
 		for (k = 0; k < ac.K; k++)
 			betas[id][k] += data.distances[i*ac.K+k] * cnt;
         }
+	ps.counter[LDA_ACCUM_BETA] += t.current_time();
 }
 
 
@@ -311,6 +315,8 @@ lda_lik (double **beta, double **gammas, int m)
 	int i, j, k;
 	int n;
 	lik = 0;
+	graphlab::timer t; t.start();
+	
 	
 	if ((egammas = dmatrix(m, ac.K)) == NULL) {
 		fprintf(stderr, "lda_likelihood:: cannot allocate egammas.\n");
@@ -332,6 +338,7 @@ lda_lik (double **beta, double **gammas, int m)
 	}
 
 	free_dmatrix(egammas, m);
+        ps.counter[LDA_LIKELIHOOD] += t.current_time();
 	return lik;
 
 }
@@ -493,6 +500,7 @@ newton_alpha (double *alpha, double **gammas, int M, int K, int level)
 	double z, sh, hgz;
 	double psg, spg, gs;
 	double alpha0, palpha0;
+        graphlab::timer tt; tt.start();
 
 	/* allocate arrays */
 	if ((g = (double *)calloc(K, sizeof(double))) == NULL) {
@@ -515,16 +523,18 @@ newton_alpha (double *alpha, double **gammas, int M, int K, int level)
 	/* initialize */
 	if (level == 0)
 	{
+		double factor = M*K;
 		for (i = 0; i < K; i++) {
 			for (j = 0, z = 0; j < M; j++)
 				z += gammas[j][i];
-			alpha[i] = z / (M * K);
+			alpha[i] = z / factor;
 		}
 	} else {
+                double factor = M*K*pow(10,level);
 		for (i = 0; i < K; i++) {
 			for (j = 0, z = 0; j < M; j++)
 				z += gammas[j][i];
-			alpha[i] = z / (M * K * pow(10, level));
+			alpha[i] = z / factor;
 		}
 	}
 
@@ -571,6 +581,7 @@ newton_alpha (double *alpha, double **gammas, int M, int K, int level)
 					free(h);
 					free(pg);
 					free(palpha);
+					ps.counter[LDA_NEWTON_METHOD] += tt.current_time();
 					return newton_alpha(alpha, gammas, M, K, 1 + level);
 				}
 			}
@@ -580,6 +591,7 @@ newton_alpha (double *alpha, double **gammas, int M, int K, int level)
 			free(h);
 			free(pg);
 			free(palpha);
+			ps.counter[LDA_NEWTON_METHOD] += tt.current_time();
 			return;
 		} else
 			for (i = 0; i < K; i++)
@@ -587,7 +599,7 @@ newton_alpha (double *alpha, double **gammas, int M, int K, int level)
 		
 	}
 	fprintf(stderr, "newton:: maximum iteration reached. t = %d\n", t);
-	
+	ps.counter[LDA_NEWTON_METHOD] += tt.current_time();
 	return;
 
 }

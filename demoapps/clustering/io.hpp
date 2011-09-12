@@ -263,6 +263,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
     total += rc;
 
     //go over each rating (edges)
+    #pragma omp parallel for
     for (int i=0; i<rc; i++){
       if (!ac.zero) //usually we do not allow zero entries, unless --zero=true flag is set.
 	 assert(ed[i].weight != 0); 
@@ -277,8 +278,10 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
       //if sacling of rating values is requested to it here.
       if (ac.scalerating != 1.0)
 	     ed[i].weight /= ac.scalerating;
-  
-      vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
+   }  
+   
+   for (int i=0; i<rc; i++){ 
+     vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
       vdata.datapoint.add_elem(ed[i].to - matlab_offset, ed[i].weight);  
       if (ps.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
