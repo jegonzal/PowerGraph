@@ -177,6 +177,7 @@ lda_learn (double *alpha, double **beta)
 
 		printf("%g) iteration %d/%d.. accumulating beta\n", ps.gt.current_time(), t + 1, ac.iter);
 		/* iterate for data */
+                graphlab::timer tt; tt.start();
 		for (i = 0; i < ps.M; i++)
 		{
 			//vbem(dp, gamma, q, nt, pnt, ap,
@@ -184,6 +185,7 @@ lda_learn (double *alpha, double **beta)
 			//accum_gammas(gammas, _gamma, i, ac.K);
 			accum_betas(betas, ac.K, ps.g->vertex_data(i));
 		}
+		ps.counter[LDA_ACCUM_BETA] += tt.current_time();
 		printf("%g) iteration %d/%d.. starting M-step\n", ps.gt.current_time(), t + 1, ac.iter);
 		/*
 		 *  VB-M step
@@ -264,7 +266,6 @@ accum_gammas (double **gammas, double *_gamma, int n, int K)
 void
 accum_betas (double **betas, int K, vertex_data & data)
 {
-        graphlab::timer t; t.start();
 	int i, k;
 	int n = data.datapoint.nnz();
 
@@ -274,7 +275,6 @@ accum_betas (double **betas, int K, vertex_data & data)
 		for (k = 0; k < ac.K; k++)
 			betas[id][k] += data.distances[i*ac.K+k] * cnt;
         }
-	ps.counter[LDA_ACCUM_BETA] += t.current_time();
 }
 
 
@@ -468,7 +468,7 @@ normalize_matrix_row (double **dst, double **src, int rows, int cols)
                 for (j = 0, z = 0; j < cols; j++)
                         z += src[i][j];
                 for (j = 0; j < cols; j++)
-                        dst[i][j] = src[i][j] / z;
+                       dst[i][j] = src[i][j] / z;
         }
 }
 

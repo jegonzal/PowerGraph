@@ -1,6 +1,15 @@
 #ifndef _LDA_H
 #define _LDA_H
 
+
+
+/**
+ * This code implements Blei's LDA algorithm as described on:
+ * Blei, David M.; Ng, Andrew Y.; Jordan, Michael I (January 2003). Lafferty, John. ed. "Latent Dirichlet allocation". Journal of Machine Learning Research 3 (4â€“5): pp. 993â€“1022. doi:10.1162/jmlr.2003.3.4-5.993.
+ * The code is based on the code: http://chasen.org/~daiti-m/dist/lda/
+ * by Daichi Mochihashi.
+ *
+ * */
 double digamma(double x);
 double trigamma(double x);
 
