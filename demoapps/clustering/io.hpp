@@ -40,15 +40,26 @@ int read_edges(FILE * f, int nodes, graph_type * _g);
 
 
 void fill_output(){
+  
+   if (ac.algorithm == LDA)
+	return;
+  
    ps.output_clusters = zeros(ps.K, ps.N);
    for (int i=0; i<ps.K; i++)
      ps.output_clusters.set_row(i, ps.clusts.cluster_vec[i].location);
-   ps.output_assignements = zeros(ps.M);
-   for (int i=0; i< ps.M; i++){ 
-      vertex_data & data = ps.g->vertex_data(i);
-      ps.output_assignements[i] = data.current_cluster;
-   }
-
+     
+   int cols = 1;
+   if (ac.algorithm == K_MEANS_FUZZY)
+	cols = ac.K;
+   ps.output_assignements = zeros(ps.M, cols);
+     for (int i=0; i< ps.M; i++){ 
+        const vertex_data & data = ps.g->vertex_data(i);
+        if (ac.algorithm == K_MEANS){
+          ps.output_assignements.set(i,0, data.current_cluster);
+        } 
+	else if (ac.algorithm == K_MEANS_FUZZY) 
+          ps.output_assignements.set_row(i, data.distances);
+     }
 } 
 
 

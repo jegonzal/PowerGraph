@@ -149,7 +149,7 @@ public:
   graph_type* g;
 
   mat output_clusters;
-  vec output_assignements;
+  mat output_assignements;
   int total_assigned;
 
  problem_setup(){

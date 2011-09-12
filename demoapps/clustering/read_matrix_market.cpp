@@ -129,8 +129,13 @@ void save_matrix_market_format(const char * filename)
     mm_write_banner(f, matcode); 
     mm_write_mtx_crd_size(f, ps.M, 1, ps.M);
 
-    for (i=0; i<ps.M; i++)
-        fprintf(f, "%d %d %10.3g\n", i+1, 1, ps.output_assignements[i]);
+    int rows = ps.output_assignements.rows();
+    int cols = ps.output_assignements.cols();
+
+    for (i=0; i< rows; i++)
+    for (j=0; j< cols; j++)
+        if (ps.output_assignements.get(i,j) > 0)
+          fprintf(f, "%d %d %10.3g\n", i+1, j+1, ps.output_assignements.get(i,j));
 
     fclose(f);
 

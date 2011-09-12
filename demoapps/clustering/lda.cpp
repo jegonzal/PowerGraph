@@ -13,12 +13,21 @@ void normalize_matrix_col (double **dst, double **src, int rows, int cols);
 void normalize_matrix_row (double **dst, double **src, int rows, int cols);
 double lda_lik (double **beta, double **gammas, int m);
 int converged (double *u, double *v, int n, double threshold);
-
+void fill_output_lda();
 
 double *alpha;
 double **beta;
 double  **gammas, **betas;
-    
+
+scratch_buffer * scratch;
+
+scratch_buffer::~scratch_buffer(){
+    free(ap);
+    free(nt);
+    free(pnt);
+    free_dmatrix(q, ps.N);
+}
+
 char * rtime (double t)
 {
 	int hour, min, sec;
@@ -36,6 +45,34 @@ char * rtime (double t)
 int doublecmp (double *x, double *y)
 {
         return (*x == *y) ? 0 : ((*x < *y) ? 1 : -1);
+}
+
+void init_scratch_buffers(){
+
+      	if ((scratch = (scratch_buffer *)calloc(ac.ncpus, sizeof(scratch_buffer))) == NULL) {
+		fprintf(stderr, "lda_learn:: cannot allocate ap.\n");
+		return;
+	}
+
+        for (int i=0; i< ac.ncpus; i++){
+	if ((scratch[i].ap = (double *)calloc(ac.K, sizeof(double))) == NULL) {
+		fprintf(stderr, "lda_learn:: cannot allocate ap.\n");
+		return;
+	}
+	if ((scratch[i].nt = (double *)calloc(ac.K, sizeof(double))) == NULL) {
+		fprintf(stderr, "lda_learn:: cannot allocate nt.\n");
+		return;
+	}
+	if ((scratch[i].pnt = (double*)calloc(ac.K, sizeof(double))) == NULL) {
+		fprintf(stderr, "lda_learn:: cannot allocate pnt.\n");
+		return;
+	}
+	if ((scratch[i].q = dmatrix(ps.N, ac.K)) == NULL) {
+		fprintf(stderr, "lda_learn:: cannot allocate q.\n");
+		return;
+	}
+ 
+        }
 }
 
 
@@ -77,7 +114,7 @@ lda_learn (double *alpha, double **beta)
 	 *  initialize posteriors
 	 *
 	 */
-	if ((gammas = dmatrix(n, ac.K)) == NULL) {
+	if ((gammas = dmatrix(ps.M, ac.K)) == NULL) {
 		fprintf(stderr, "lda_learn:: cannot allocate gammas.\n");
 		return;
 	}
@@ -85,6 +122,9 @@ lda_learn (double *alpha, double **beta)
 		fprintf(stderr, "lda_learn:: cannot allocate betas.\n");
 		return;
 	}
+
+
+	init_scratch_buffers();
 	/*
 	 *  initialize buffers
 	 *
@@ -185,16 +225,28 @@ lda_learn (double *alpha, double **beta)
 		       rtime(elapsed * ((double) ac.iter / (t + 1) - 1)),
 		       (int)((double) elapsed / (t + 1) + 0.5));
 	}
-	
+ 
+
+        fill_output_lda();
+       
 	free_dmatrix(gammas, n);
 	free_dmatrix(betas, ps.N);
-	//free_dmatrix(q, ps.N);
-	//free(_gamma);
-	//free(ap);
-	//free(nt);
-	//free(pnt);
-	
+        free(scratch);	
 	return;
+}
+
+
+void fill_output_lda(){
+
+     ps.output_clusters = zeros(ps.K, ps.N);
+        //for (int i=0; i<ps.K; i++)
+        //  ps.output_clusters.set_row(i, ps.clusts.cluster_vec[i].location);
+     //TODO
+     //
+     ps.output_assignements = zeros(ps.M, ac.K);
+     for (int i=0; i< ps.M; i++){ 
+        ps.output_assignements.set_row(i,vec(gammas[i], ac.K));
+     }	
 }
 
 /*void
@@ -294,20 +346,9 @@ void lda_em_update_function(gl_types::iscope & scope,
 {
 	int j, k, l;
 	double z;
-	double * ap, * nt, * pnt, **q;
-
-	if ((ap = (double *)calloc(ac.K, sizeof(double))) == NULL) {
-		fprintf(stderr, "lda_learn:: cannot allocate ap.\n");
-		return;
-	}
-	if ((nt = (double *)calloc(ac.K, sizeof(double))) == NULL) {
-		fprintf(stderr, "lda_learn:: cannot allocate nt.\n");
-		return;
-	}
-	if ((pnt = (double*)calloc(ac.K, sizeof(double))) == NULL) {
-		fprintf(stderr, "lda_learn:: cannot allocate pnt.\n");
-		return;
-	}
+	
+	int thread_id = graphlab::thread::thread_id();
+        scratch_buffer & myscratch = scratch[thread_id];
 
         vertex_data &data = scope.vertex_data();
         int L = data.datapoint.nnz();
@@ -315,66 +356,58 @@ void lda_em_update_function(gl_types::iscope & scope,
         if (data.distances.size() == 0)
           data.distances = zeros(data.datapoint.nnz() * ac.K);
 
-	if ((q = dmatrix(L, ac.K)) == NULL) {
-		fprintf(stderr, "lda_learn:: cannot allocate q.\n");
-		return;
-	}
-       
-  
+        double L_over_K = (double)L / ac.K;
 	for (k = 0; k < ac.K; k++)
-		nt[k] = (double) L / ac.K;
+		myscratch.nt[k] = L_over_K;
 	
 	for (j = 0; j < ac.em_max_inner_iter; j++)
 	{
 		/* vb-estep */
 		for (k = 0; k < ac.K; k++)
-			ap[k] = exp(psi(alpha[k] + nt[k]));
+			myscratch.ap[k] = exp(psi(alpha[k] + myscratch.nt[k]));
+
 		/* accumulate q */
 		for (l = 0; l < L; l++){
 	                int pos = data.datapoint.get_nz_index(l);
 			for (k = 0; k < ac.K; k++)
-				q[l][k] = beta[pos][k] * ap[k];
+				myscratch.q[l][k] = beta[pos][k] * myscratch.ap[k];
                 }
 		/* normalize q */
 		for (l = 0; l < L; l++) {
 			z = 0;
 			for (k = 0; k < ac.K; k++)
-				z += q[l][k];
+				z += myscratch.q[l][k];
 			for (k = 0; k < ac.K; k++)
-				q[l][k] /= z;
+				myscratch.q[l][k] /= z;
 		}
 		/* vb-mstep */
 		for (k = 0; k < ac.K; k++) {
 			z = 0;
 			for (l = 0; l < L; l++){
 				int cnt = (int)data.datapoint.get_nz_data(l);
-				z += q[l][k] * cnt;
+				z += myscratch.q[l][k] * cnt;
                         }
-			nt[k] = z;
+			myscratch.nt[k] = z;
 		}
 		/* converge? */
-		if ((j > 0) && converged(nt, pnt, ac.K, 1.0e-2))
+		if ((j > 0) && converged(myscratch.nt, myscratch.pnt, ac.K, 1.0e-2))
 			break;
-		for (k = 0; k < ac.K; k++)
-			pnt[k] = nt[k];
-	}
+		//for (k = 0; k < ac.K; k++)
+		//	pnt[k] = myscratch.nt[k];
+	        memcpy(myscratch.pnt, myscratch.nt, ac.K*sizeof(double));
+        }
+
 	for (k = 0; k < ac.K; k++)
 	//	_gamma[k] = alpha[k] + nt[k];
-        	gammas[scope.vertex()][k] = alpha[k] + nt[k]; 
+        	gammas[scope.vertex()][k] = alpha[k] + myscratch.nt[k]; 
 
 
 	for (int i = 0; i < L; i++){
 		for (k = 0; k < ac.K; k++)
-		    data.distances[i*ac.K+k] = q[i][k];
+		    data.distances[i*ac.K+k] = myscratch.q[i][k];
 			/*betas[id][k] += q[i][k] * cnt;*/
         }
 
-
-
-        free(ap);
-        free(nt);
-        free(pnt);	
-        free(q);
 	return;
 }
 
