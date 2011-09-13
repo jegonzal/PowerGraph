@@ -353,6 +353,7 @@ void construct_graph(image& img,
       }
     } // end of for j in cols
   } // end of for i in rows
+  distributed_graph.compute_coloring();
   distributed_graph.finalize();  
 } // End of construct distributed_graph
 

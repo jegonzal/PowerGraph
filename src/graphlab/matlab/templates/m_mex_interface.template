@@ -38,16 +38,18 @@ try
 for i = 1:length(options.initial_schedule)
     options.initial_schedule(i).vertices = uint32(options.initial_schedule(i).vertices);
 end
-graphfileinput = ['graphinput_' (randi(20,[1,5])+'a'-1)];
-graphfileoutput = ['graphoutput_' (randi(20,[1,5])+'a'-1)];
+graphfileinput = [pwd filesep 'graphinput_' (randi(20,[1,5])+'a'-1)];
+graphfileoutput = [pwd filesep 'graphoutput_' (randi(20,[1,5])+'a'-1)];
 
 ret = %#SAVEMEX#%(vertexdata, adj_mat, edgedata, options, graphfileinput, 1);
 if ret == false
     return
 end
 
+[p,~,~] = fileparts(mfilename('fullpath'));
+
 % construct the binary call
-command = ['env LD_LIBRARY_PATH= ./%#BINARY#% --scheduler="' options.scheduler '" --ncpus=' num2str(options.ncpus) ...
+command = ['env LD_LIBRARY_PATH= ' p filesep '%#BINARY#% --scheduler="' options.scheduler '" --ncpus=' num2str(options.ncpus) ...
            ' --scope=' options.scope ' --ingraphfile=' graphfileinput ' --outgraphfile=' graphfileoutput];
 
 system(command);
