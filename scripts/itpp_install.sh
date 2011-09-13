@@ -72,10 +72,16 @@ function test_for_itpp {
     echo "Probe successful. ITPP should be functional"
     itppfound=1
   else
+    g++ $ITPPLIB itpp_tester.cpp -llapack -lblas > /dev/null 2> /dev/null
+    if [ -f a.out ] ; then
+    echo "Probe successful. ITPP should be functional"
+      itppfound=1
+    else
     #echo "ITPP not found."
     if [ ! -z $ITPPVERSION ]; then
       echo "There is a problem with your itpp installation."
       echo "itpp-config was found, but we are unable to link against itpp."
+    fi
     fi
   fi
 }
