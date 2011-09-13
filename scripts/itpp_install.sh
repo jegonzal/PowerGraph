@@ -72,7 +72,7 @@ function test_for_itpp {
     echo "Probe successful. ITPP should be functional"
     itppfound=1
   else
-    g++ $ITPPLIB itpp_tester.cpp -llapack -lblas > /dev/null 2> /dev/null
+    g++ $ITPPLIB -llapack -lblas itpp_tester.cpp > /dev/null 2> /dev/null
     if [ -f a.out ] ; then
     echo "Probe successful. ITPP should be functional"
       itppfound=1
