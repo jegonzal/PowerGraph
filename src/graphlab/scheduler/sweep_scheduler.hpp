@@ -73,8 +73,8 @@ namespace graphlab {
     typedef typename base::engine_type engine_type;
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;
-    //typedef shared_termination terminator_type;
-    typedef task_count_terminator terminator_type;
+    typedef shared_termination terminator_type;
+    // typedef task_count_terminator terminator_type;
 
     
   private:
@@ -105,7 +105,7 @@ namespace graphlab {
       index2vid(graph.num_vertices()), 
       vid2cpuid(graph.num_vertices()),
       cpu2index(ncpus),
-      vfun_set(graph.num_vertices()), term() {
+      vfun_set(graph.num_vertices()), term(ncpus) {
       // Construct the permutation
       for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
       std::string ordering = "shuffle";

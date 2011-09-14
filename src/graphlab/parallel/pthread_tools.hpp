@@ -40,7 +40,7 @@
 #include <graphlab/parallel/atomic.hpp>
 
  #undef _POSIX_SPIN_LOCKS
-#define _POSIX_SPIN_LOCKS -1
+//#define _POSIX_SPIN_LOCKS -1
 
 
 #define __likely__(x)       __builtin_expect((x),1)

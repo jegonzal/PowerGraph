@@ -874,9 +874,9 @@ namespace graphlab {
           // if(use_sched_yield) sched_yield();
           continue;
         }
-        // cancel the critical section
-        scheduler_ptr->terminator().cancel_critical_section(cpuid);
       }
+      // cancel the critical section
+      scheduler_ptr->terminator().cancel_critical_section(cpuid);
     } // end of while loop
 
     // ------------------- Run The Update Functor -------------------------- //
