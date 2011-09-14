@@ -149,7 +149,7 @@ void update_kmeans_clusters(){
          continue;
        else {
          assert(data.current_cluster >=0 && data.current_cluster < ps.K);
-         if ((ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter >= 1) || (ps.algorithm == K_MEANS)){
+         if ((ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter >= 1) || (ps.algorithm == K_MEANS && ps.init_type != INIT_KMEANS_PLUS_PLUS)){
            assert(data.prev_cluster >=0 && data.prev_cluster < ps.K);
            assert(data.prev_cluster != data.current_cluster);
          }
@@ -170,7 +170,7 @@ void update_kmeans_clusters(){
        }
    }
    int total_assigned =calc_cluster_centers();
-   ASSERT_EQ(total_assigned , ps.total_assigned);
+  
 
 }
  

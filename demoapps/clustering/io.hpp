@@ -288,12 +288,12 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
    for (int i=0; i<rc; i++){ 
      vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
       vdata.datapoint.add_elem(ed[i].to - matlab_offset, ed[i].weight);  
-      if (ps.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
+      if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
       }
       if (! vdata.reported){
          vdata.reported = true;
-         if (ps.algorithm == K_MEANS) 
+         if (ac.algorithm == K_MEANS) 
            ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
          ps.total_assigned++; //count the total number of non-zero rows we encountered
        }

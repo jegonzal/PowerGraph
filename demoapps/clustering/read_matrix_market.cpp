@@ -91,16 +91,26 @@ void load_matrix_market(const char * filename, graph_type *_g)
         fscanf(f, "%d %d %lg\n", &I, &J, &val);
         I--;  /* adjust from 1-based to 0-based */
         J--;
-        if (!ac.zero)
+         if (ac.scalerating != 1.0)
+	     val /= ac.scalerating;
+         if (!ac.zero)
 	   assert(val!=0 );
+        
         assert(I< M);
         assert(J< N);
         vertex_data & vdata = _g->vertex_data(I);
-        vdata.reported = true;
         vdata.datapoint.add_elem(J, val);   
+	if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
+           ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[J] += val;  
+        }
+        if (!vdata.reported){
+	      vdata.reported = true;
+              if (ac.algorithm == K_MEANS)
+	        ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
+              ps.total_assigned++;//count the total number of non-zero rows we encountered
+        }
     }
     ps.L = nz;
-
     fclose(f);
 
 }
@@ -128,10 +138,10 @@ void save_matrix_market_format(const char * filename)
     f = fopen((std::string(filename) + ".assignments.mtx").c_str(),"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
-    mm_write_mtx_crd_size(f, ps.M, 1, ps.M);
-
     int rows = ps.output_assignements.rows();
     int cols = ps.output_assignements.cols();
+
+    mm_write_mtx_crd_size(f, rows, cols, rows*cols);
 
     for (i=0; i< rows; i++)
     for (j=0; j< cols; j++)

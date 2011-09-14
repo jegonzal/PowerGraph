@@ -1,7 +1,7 @@
 project(GraphLab)
 
 if (ITPP-FOUND)
-set(OMP_SUPPORT 1)
+set(OMP_SUPPORT 0)
   if (OMP_SUPPORT)
     add_definitions(-omp)
     add_definitions(-DOMP_SUPPORT)

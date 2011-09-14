@@ -101,15 +101,21 @@ int calc_cluster_centers(){
 #pragma omp parallel for
 #endif    
      for (int i=0; i< ps.K; i++){
-         ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
-         ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
+         if (ps.clusts.cluster_vec[i].num_assigned_points == 0){
+	   if (ps.iiter == 0)
+	       assert(false);
+          }
+          else {
+              ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
+              ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
+          }
      }
      for (int i=0; i< ps.K; i++)
          total += ps.clusts.cluster_vec[i].num_assigned_points;
    }
   else if (ps.algorithm == K_MEANS_FUZZY){
 #ifdef OMP_SUPPORT
-//#pragma omp parallel for
+#pragma omp parallel for
 #endif
     for (int i=0; i< ps.K; i++){
        if (ps.iiter > 0){
@@ -128,6 +134,9 @@ int calc_cluster_centers(){
        ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
    }
  }
+
+  if (ac.algorithm == K_MEANS && ac.init_mode != INIT_KMEANS_PLUS_PLUS)
+      assert(total == ps.total_assigned);
   return total;
 
 }
