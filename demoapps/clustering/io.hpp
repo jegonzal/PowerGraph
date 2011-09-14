@@ -215,8 +215,13 @@ void load_graph(const char* filename, graph_type * _g, gl_types::core & glcore) 
   assert(rc==4); 
   rc=fread(&_K,1,4,f);//unused
   assert(rc==4);
-  if (!ac.supportgraphlabcf) 
-    assert(_K == 0); 
+  if (!ac.supportgraphlabcf){
+     if (_K != 0){
+       logstream(LOG_ERROR) << "Error reading binary file: " << filename << " header. 3rd int value shoud be reserved to be zero. If you are using sparse matrix market format do not forget to call the program with --matrixmarket=true flag" << std::endl;
+       exit(1);
+     }  
+   
+  }
   else assert(_K >= 1);
   assert(_M>=1 && _N>=1); 
   

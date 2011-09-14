@@ -71,7 +71,7 @@ void load_matrix_market(const char * filename, graph_type *_g)
        exit(1);
     }
 
-    ps.M = M; ps.N = N; ps.K = 1;
+    ps.M = M; ps.N = N; ps.K = ac.K;
 
     init();
     add_vertices(_g); 
@@ -96,6 +96,7 @@ void load_matrix_market(const char * filename, graph_type *_g)
         assert(I< M);
         assert(J< N);
         vertex_data & vdata = _g->vertex_data(I);
+        vdata.reported = true;
         vdata.datapoint.add_elem(J, val);   
     }
     ps.L = nz;

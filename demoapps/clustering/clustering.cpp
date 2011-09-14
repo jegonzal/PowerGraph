@@ -109,7 +109,7 @@ int calc_cluster_centers(){
    }
   else if (ps.algorithm == K_MEANS_FUZZY){
 #ifdef OMP_SUPPORT
-#pragma omp parallel for
+//#pragma omp parallel for
 #endif
     for (int i=0; i< ps.K; i++){
        if (ps.iiter > 0){
