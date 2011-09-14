@@ -19,7 +19,7 @@ function find_itpp_lib {
   fi
   # itpp-config exists. Probe for its version and location
   ITPPVERSION=`$itppconfig_pos --version`
-  ITPPLIB=`$itppconfig_pos --libs --static`
+  ITPPLIB=`$itppconfig_pos --static --libs --cflags`
   if [ ! -z $ITPPVERSION ] ; then
     echo "itpp $ITPPVERSION detected at at $ITPPLIB"
   else
