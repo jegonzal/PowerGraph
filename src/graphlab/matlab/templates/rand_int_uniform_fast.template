@@ -1,0 +1,4 @@
+function i = rand_int_uniform_fast(high) %#eml
+  i = uint32(0);
+  i = eml.ceval('emx_rand_int_uniform_fast', high);
+end

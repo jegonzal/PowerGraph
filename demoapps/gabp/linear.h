@@ -19,7 +19,7 @@ enum constant_offsets {GABP_PRIOR_MEAN_OFFSET = 0, //prior mean (b_i / A_ii)
 
 
 
-/** Vertex and edge data types **/
+/** Vertex data types for linear solvers**/
 struct vertex_data {
   sdouble prior_mean;  //prior mean (b_i / A_ii)
   sdouble prior_prec;   //prior precision P_ii = A_ii
@@ -36,6 +36,27 @@ struct vertex_data {
 
 };
 
+/** Vertex data type for matrix inverse **/
+struct vertex_data_inv {
+  sdouble * prior_mean;  //prior mean (b_i / A_ii)
+  sdouble prior_prec;   //prior precision P_ii = A_ii
+  sdouble * real;   //the real solution (if known) x = inv(A)*b for square matrix or x = pinv(A) for skinny matrix
+  sdouble * cur_mean; //intermediate value to store the mean \mu_i
+  sdouble cur_prec; // //current precision value P_i
+  sdouble * prev_mean; //  mean value from previous round (for convergence detection)
+  sdouble prev_prec; //precision value from previous round (for convergence detection)
+
+  vertex_data_inv(){ 
+     prev_mean = NULL;
+     cur_mean = NULL;
+     prior_mean = NULL;
+     real = NULL;
+     prior_prec = cur_prec = prev_prec = 0;
+   };
+
+};
+
+/** edge data type **/
 //edge is a scalar  non zero entry A_{ij} in the matrix A (row i, col j)
 struct edge_data {
   sdouble weight; //edge value
@@ -48,14 +69,30 @@ struct edge_data {
 
 };
 
+/** edge data type **/
+//edge is a scalar  non zero entry A_{ij} in the matrix A (row i, col j)
+struct edge_data_inv {
+  sdouble weight; //edge value
+  sdouble *mean; // message \mu_ij
+  sdouble prec; // message P_ij
+
+  edge_data_inv(){
+     weight = prec = 0;
+     mean= NULL;
+  }
+
+};
+
 
 enum algorithms{
    GaBP = 0, 
    JACOBI = 1,
    CONJUGATE_GRADIENT = 2,
+   GaBP_INV = 3,
+   LEAST_SQUARES = 4,
 };
 
-const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient"};
+const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares"};
 
 
 //counters for debugging running time of different modules
@@ -70,15 +107,20 @@ const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL"};
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
+graphlab::glshared<double> REAL_NORM_KEY;
+graphlab::glshared<double> RELATIVE_NORM_KEY;
+graphlab::glshared<size_t> ITERATION_KEY;
+graphlab::glshared<double> THRESHOLD_KEY;
+graphlab::glshared<bool> SUPPORT_NULL_VARIANCE_KEY;
+graphlab::glshared<bool> ROUND_ROBIN_KEY;
+graphlab::glshared<bool> DEBUG_KEY;
+graphlab::glshared<size_t> MAX_ITER_KEY;
 
-gl_types::glshared<double> REAL_NORM_KEY;
-gl_types::glshared<double> RELATIVE_NORM_KEY;
-gl_types::glshared<size_t> ITERATION_KEY;
-gl_types::glshared_const<double> THRESHOLD_KEY;
-gl_types::glshared_const<bool> SUPPORT_NULL_VARIANCE_KEY;
-gl_types::glshared_const<bool> ROUND_ROBIN_KEY;
-gl_types::glshared_const<bool> DEBUG_KEY;
-gl_types::glshared_const<size_t> MAX_ITER_KEY;
+
+typedef graphlab::graph<vertex_data_inv, edge_data_inv> graph_type_inv;
+typedef graphlab::types<graph_type_inv> gl_types_inv;
+graphlab::glshared<int> MATRIX_WIDTH_KEY;
+
 
 
 #endif

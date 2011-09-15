@@ -57,7 +57,7 @@ std::string get_local_ip_as_str() {
     ifAddrStruct=ifAddrStruct->ifa_next;
   }
   freeifaddrs(firstifaddr);
-  return "";
+  return "127.0.0.1";
 }
 
 uint32_t get_local_ip() {

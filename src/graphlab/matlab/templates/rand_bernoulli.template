@@ -1,0 +1,4 @@
+function i = rand_bernoulli(p) %#eml
+  i = double(0.0);
+  i = eml.ceval('emx_rand_bernoulli', p);
+end

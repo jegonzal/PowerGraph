@@ -620,3 +620,83 @@ shared_data.set_sync(l2norm_value,
 
 */
 
+/**
+\page parallel_object_intricacies Parallel Object Intricacies
+All the pthread wrapper objects are built to be easy to use for the "typical" case.
+i.e. 
+\code
+  mutex m;
+  m.lock()
+  ...
+  m.unlock()
+\endcode
+Will work as expected.
+
+What is a little more unusual is that
+\code
+  std::vector<mutex> m;
+  m.resize(100);
+\endcode
+Will also correctly produce a collection of 100 distinct mutexes. 
+In particular, the parallel objects can be stored in any container type and accessed directly.
+
+To support this, the parallel objects implement some unusual behavior for the copy constructor
+and operator=.
+
+In particular, the copy constructor for the parallel objects (say the mutex), does not actually 
+perform a copy, but simply performs regular construction. The reason for this design is that the 
+objects are themselves not intended to be copyable (otherwise complicated reference counting 
+is necessary); but yet again a copy constructor has to be specified for correct behavior of the mutex
+in STL containers. In particular, on some STL implementations, the vector resize function
+is equivalent to
+\code
+  std::vector<mutex> m;
+  m.resize(100, mutex());
+\endcode
+and the copy constructor is used to construct vector entries, using the default constructed
+mutex() as a template. Of course, to actually perform a copy is undesirable, yet again the copy 
+constructor must be  implemented. Therefore we provide a copy constructor which simply performs
+regular construction.
+
+Next, operator= is implemented, but is an empty function. operator= is necessary due to default 
+operator= instantiation in structs and classes. In particular:
+\code
+  struct s {
+    int i;
+    mutex m;
+  }
+\endcode
+implicitly generates a function
+\code
+s& s::operator=(const s& other) {
+  i = other.i;
+  m = other.m;
+}
+\endcode
+Of course given that the struct contains a mutex, s::operator= should not be used anyway. However,
+the function may still be instantiated and we would like to avoid a compile-time error. We therefore
+define a mutex::operator= which does nothing. This technically permits the following behavior:
+\code
+  struct protected_value {
+    int i;
+    mutex lock;
+  };
+  protected_value a, b;
+  a.i = 10;
+  b = a;
+\endcode
+In this case b.i will be assigned the value of a.i, but the mutex will not be copied, but is retained. 
+Even though, this is the desired behavior here, we do not recommend making use of it. operator=
+and the copy constructor for the struct protected_value should be explicitly written.
+
+This affects the
+ - \ref graphlab::rwlock
+ - \ref graphlab::mutex
+ - \ref graphlab::conditional
+ - \ref graphlab::spinlock
+ - \ref graphlab::simple_spinlock
+ - \ref graphlab::semaphore
+ - \ref graphlab::barrier
+ - \ref graphlab::cancellable_barrier
+*/
+

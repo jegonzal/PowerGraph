@@ -1,4 +1,6 @@
 function set_edge_data(handle, edge, edata) %#eml
+% EXTERN_VERTEX_STRUCT sets the type of local variable edata
 %#EXTERN_EDGE_STRUCT#%
+
 eml.ceval('emx_set_edge_data', handle, edge, eml.ref(edata));
 end

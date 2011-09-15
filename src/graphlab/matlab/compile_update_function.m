@@ -257,6 +257,19 @@ disp(['Working Directory:', workingdirectory]);
 olddir = pwd;
 oldpath = path;
 
+
+largearraydims = [];
+if (strcmp(computer, 'GLNXA64') ~= 1 && strcmp(computer, 'MACI64') ~= 1)
+    largearraydims = ['-DMX_COMPAT_32'];
+    handle_type__.low = uint32(0);
+    disp('Configuring for 32 bit system');
+else
+    handle_type__.high = uint32(0);
+    handle_type__.low = uint32(0);
+    disp('Configuring for 64 bit system');
+end
+
+
 % ---------- Stage 0 ------------------------------------
 % Workaround: There is an interesting issue if the edge
 % structure is exactly equivalent to the vertex structure, or a substructure
@@ -344,8 +357,10 @@ addpath(glmatlabdir);
 
 disp(['Generating Matlab<->Graphlab Link Functions']);
 
+link_functions = available_link_functions();
+
 % generate the get vertexdata and get edge data functions
-generate_link_functions(exvertex_, exedge_, genv, gene, [glmatlabdir,'/templates']);
+generate_link_functions(exvertex_, exedge_, genv, gene, [glmatlabdir,'/templates'], link_functions);
 
 disp(['EMLC generation']);
 
@@ -362,25 +377,26 @@ exinput = ['-eg {uint32(0), ' ...               % current vertex
           'emlcoder.egs(uint32(0),[Inf]), ' ... % inV
           'emlcoder.egs(uint32(0),[Inf]), ' ... % out edges
           'emlcoder.egs(uint32(0),[Inf]), ' ... % outV
-          'double(0.0)} '];                       % handle
+          'emlcoder.egs(handle_type__)} '];     % handle
+                  
           
 cfg = emlcoder.CompilerOptions;
 cfg.DynamicMemoryAllocation = 'AllVariableSizeArrays';
 cfg.EnableVariableSizing = true;
 
-emlcstring = ['emlc -s cfg -c -T RTW -d . -o updates -report'];
+emlcstring = ['emlc -s cfg -c -T RTW -d . -o updates'];
 % append all the update functions
 for i = 1:length(updatefunctions)
     emlcstring = [emlcstring ' ' updatefunctions{i} ' ' exinput];
 end
 
-% append the additional functions
-emlcstring = [emlcstring ' datatype_identifier -eg {exvertex, exedge, emlcoder.egs(double(0), [Inf])}'];
-emlcstring = [emlcstring ' get_vertex_data -eg {double(0), uint32(0)}'];
-emlcstring = [emlcstring ' get_edge_data -eg {double(0), uint32(0)}'];
-emlcstring = [emlcstring ' set_vertex_data -eg {double(0), uint32(0), exvertex}'];
-emlcstring = [emlcstring ' set_edge_data -eg {double(0), uint32(0), exedge}'];
-emlcstring = [emlcstring ' add_task -eg {double(0), uint32(0), emlcoder.egs(''a'', [Inf]), double(0)}'];
+% append the link functions
+for linkfn = link_functions
+    emlcstring = [emlcstring ' ' linkfn.name];
+    if (~isempty(linkfn.args)) 
+        emlcstring = [ emlcstring ' -eg {' linkfn.args '}' ];
+    end
+end
 emlcstring = [emlcstring ' matlab_link.h'];
 disp(['Issuing command: ' emlcstring]);
 eval(emlcstring);
@@ -417,11 +433,6 @@ str = '';
 for i = 1:length(allcfiles)
     str = [str allcfiles(i).name ' '];
     allcfilescellarray{i} = allcfiles(i).name;
-end
-
-largearraydims = [];
-if (strcmp(computer, 'GLNXA64') ~= 1)
-    largearraydims = ['-DMX_COMPAT_32'];
 end
 
 
@@ -464,7 +475,7 @@ generate_makefile( [workingdirectory '/Makefile_save'], ...
                        includepaths, ...
                        libpaths, ...
                        ['-DMEX_COMPILE -g -Wall -fno-strict-aliasing -D_GNU_SOURCE -fexceptions -fno-omit-frame-pointer -fopenmp -pthread ' optlevelstring ' ' largearraydims], ...
-                       '-lgraphlab_pic -lgraphlab_util_pic -lgraphlab_metis_pic -lgraphlab_GKlib_pic -lgomp', ...
+                       '-lgraphlab_pic -lgomp', ...
                        true);
 
 % -------------------------------------------------------------------------
@@ -484,7 +495,7 @@ generate_makefile( [workingdirectory '/Makefile_load'], ...
                        includepaths, ...
                        libpaths, ...
                        ['-DMEX_COMPILE -g -Wall -fno-strict-aliasing -D_GNU_SOURCE -fexceptions -pthread -fopenmp ' optlevelstring ' ' largearraydims], ...
-                       '-lgraphlab_pic -lgraphlab_util_pic -lgraphlab_metis_pic -lgraphlab_GKlib_pic -lgomp ', ...
+                       '-lgraphlab_pic -lgomp ', ...
                        true);
 
 % -------------------------------------------------------------------------
@@ -497,7 +508,7 @@ if (notcmalloc == 0)
     % checking for -ltcmalloc
     system('touch tcmallocprobe.cpp');
     [~,r] = system('g++ tcmallocprobe.cpp -ltcmalloc');
-    if (~isempty(strfind(r,'cannot find -ltcmalloc')))
+    if (~isempty(strfind(r,'-ltcmalloc')))
         disp('tcmalloc not found. It should be installed to obtain optimal performance.');
         disp('If Ubuntu, this can be installed using apt-get install libgoogle-perftools-dev');
     else
@@ -519,7 +530,7 @@ generate_makefile( [workingdirectory '/Makefile_bin'], ...
                        includepaths, ...
                        libpaths, ...
                        ['-g -Wall -fno-strict-aliasing -fno-omit-frame-pointer -pthread -fopenmp ' optlevelstring ' ' largearraydims], ...
-                       ['-lgraphlab -lgraphlab_util -lgraphlab_metis -lgraphlab_GKlib -lpthread -lboost_program_options -lgomp ' tcmalloclib], ...
+                       ['-lgraphlab -lpthread -lboost_program_options -lgomp ' tcmalloclib], ...
                        false, ...
                        'b_');
 

@@ -46,8 +46,9 @@
 #include "linear.h"
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
+#include "advanced_config.h"
 
-
+extern advanced_config config;
 
 /***
  * UPDATE FUNCTION
@@ -62,9 +63,9 @@ void gabp_update_function(gl_types::iscope &scope,
   gl_types::edge_list inedgeid = scope.in_edge_ids();
   gl_types::edge_list outedgeid = scope.out_edge_ids();
 
-  const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get();
-  const bool& round_robin = ROUND_ROBIN_KEY.get();
-  const bool& debug = DEBUG_KEY.get();
+  const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get_val();
+  const bool& round_robin = ROUND_ROBIN_KEY.get_val();
+  const bool& debug = DEBUG_KEY.get_val();
 
 
 
@@ -74,7 +75,7 @@ void gabp_update_function(gl_types::iscope &scope,
 
   //initialize accumlated values
   sdouble mu_i = vdata.prior_mean;
-  sdouble J_i = vdata.prior_prec;
+  sdouble J_i = vdata.prior_prec + config.regularization;
   if (!support_null_variance) assert(J_i != 0);
 
   /* CALCULATE new value */

@@ -1,4 +1,10 @@
-function datatype_identifier(vdata, edata, unused) %#eml
+function datatype_identifier(vdata, edata, handle) %#eml
+% Special function
+% ----------------
+% VERTEX_STRUCT and EDGE_STRUCT force creation of the vdata and edata structs
+% This function is also by the C side interface to identify the vertex and 
+% edge data types
+
 %#VERTEX_STRUCT#%
 %#EDGE_STRUCT#%
 end

@@ -24,12 +24,13 @@
 #ifndef _MATH_HPP
 #define _MATH_HPP
 
+#include "advanced_config.h"
 #include <graphlab/macros_def.hpp>
+
 int increment=2;
 double  c=1.0;
 double  d=0.0;
-extern bool debug;
-extern bool square;
+extern advanced_config config;
 int x_offset = -1, b_offset = -1, y_offset = -1, r_offset = -1;
 bool A_offset = false;
 extern uint n; 
@@ -41,6 +42,7 @@ gl_types::core * glcore;
 double runtime = 0;
 const char * names[]={"b","","r","p","x","Ap","t"};
 extern bool cg_noop;
+bool cg_noop = true;
 
 using namespace graphlab;
 std::vector<vertex_id_t> rows,cols;
@@ -52,7 +54,7 @@ void reset_offsets(){
   c=1.0; d=0.0;
   x_offset = b_offset = y_offset = r_offset = -1;
   A_offset = false;
-  if (debug)
+  if (config.debug)
 	  std::cout<<"reset offsets"<<std::endl;
 }
 
@@ -73,7 +75,7 @@ class DistVec{
    int end;
 
    void init(){
-     if (square || !transpose){
+     if (config.square || !transpose){
        start = 0;
        end = n;
      }
@@ -164,7 +166,7 @@ class DistVec{
   DistVec& operator=(const std::vector<double> & pvec){
     assert(offset >= 0);
     assert(pvec.size() == m || pvec.size() == n);
-    if (!square && pvec.size() == m){
+    if (!config.square && pvec.size() == m){
       transpose = true;
       start = n; end = m+n;
     }
@@ -190,7 +192,7 @@ class DistVec{
   }
 
   void debug_print(const char * name){
-     if (debug){
+     if (config.debug){
        std::cout<<name<<" ("<<names[offset]<<" "<<offset<<" [ " << end-start << "] ";
        for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  //TODO
          const vertex_data * data = &glcore->graph().vertex_data(i);
@@ -209,7 +211,7 @@ class DistVec{
      return *this;
   }
   DistVec& _transpose() { 
-     /*if (!square){
+     /*if (!config.square){
        start = n; end = m+n;
      }*/
      return *this;
@@ -269,7 +271,7 @@ class DistMat{
     }
     DistMat & _transpose(){
        transpose = true;
-       if (!square){
+       if (!config.square){
          start=n ; end = m+n;
        }
        else {
@@ -283,7 +285,7 @@ class DistMat{
 DistVec& DistVec::operator=(DistMat &mat){
   r_offset = offset;
   transpose = mat.transpose;
-  if (!transpose || square){
+  if (!transpose || config.square){
     start = 0; end = n;
   }
   else {
@@ -358,7 +360,7 @@ class DistDouble{
 
 int size(DistMat & A, int pos){
    assert(pos == 1 || pos == 2);
-   if (square || pos == 1)
+   if (config.square || pos == 1)
      return n;
    if (pos == 2){
      assert(m!= 0);
@@ -426,7 +428,7 @@ void Axb(gl_types::iscope &scope,
       val += (c * edge.weight * px[x_offset]);
     }
   
-    if (square)// add the diagonal term
+    if (config.square)// add the diagonal term
       val += (c* user.prior_prec * pr[x_offset]);
   }
  /***** COMPUTE r = c*I*x  *****/
@@ -465,7 +467,7 @@ void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
       val += (c * edge.weight * px[x_offset]);
     }
   
-    if (square)// add the diagonal term
+    if (config.square)// add the diagonal term
       val += (c* user.prior_prec * pr[x_offset]);
     }
    /***** COMPUTE r = c*I*x  *****/
@@ -487,7 +489,7 @@ void init_row_cols(){
     for (int i=0; i< (int)n; i++)
       rows.push_back(i);
 
-    if (square){
+    if (config.square){
       cols = rows;
     }
     else {

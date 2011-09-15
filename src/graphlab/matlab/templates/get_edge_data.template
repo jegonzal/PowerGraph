@@ -1,5 +1,10 @@
 function edata = get_edge_data(handle, edge) %#eml
+% GENVERTEX instantiates the local variable edata to look like the edge data type
+%           Only needed for local variables. Not needed for function arguments
 %#GENEDGE#%
+
+% EXTERN_EDGE_STRUCT sets the type of local variable edata
 %#EXTERN_EDGE_STRUCT#%
+
 eml.ceval('emx_get_edge_data', handle, edge, eml.ref(edata));
 end

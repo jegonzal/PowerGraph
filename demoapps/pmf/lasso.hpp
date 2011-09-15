@@ -27,7 +27,7 @@
 #ifndef _LASSO_HPP
 #define _LASSO_HPP
 
-extern bool debug;
+extern advanced_config ac;
 
 vec lasso(mat A, vec b, double lambda, int max_iter, int D){
 
@@ -40,13 +40,13 @@ vec lasso(mat A, vec b, double lambda, int max_iter, int D){
   bool ret = itpp::ls_solve(A, b, beta);
   assert(ret);
 
-  if (debug)
+  if (ac.debug)
      cout<<"initial beta is: " << beta << endl;
 
   for (int i=0; i< max_iter; i++){
 	for (int j=0; j<D; j++){
             vec proj = A*beta;
-            if (debug)
+            if (ac.debug)
                 cout<< " proj[j] " << proj[j] << " 2*beta[j] " << 2*beta[j] << " b[j] " << b[j] << endl;
             double S0 = proj[j] - 2*beta[j] - b[j];
             if (S0 > lambda)
@@ -56,7 +56,7 @@ vec lasso(mat A, vec b, double lambda, int max_iter, int D){
             else
 		beta[j] = 0;
 
-	    if (debug)
+	    if (ac.debug)
                cout<<" round " << i << " dim " << j << " S0: " << S0 << " beta: " << beta << endl;
 
         }

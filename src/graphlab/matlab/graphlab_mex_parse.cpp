@@ -189,12 +189,13 @@ int add_edges_from_sparse_adj(emx_graph &graph,
   mwIndex* ir = mxGetIr(adjmat);
   mwIndex* jc = mxGetJc(adjmat);
   double* pr = mxGetPr(adjmat);
-  int nedges = mxGetNzmax(adjmat);
 
-
-  mexPrintf("Edges: %d\n", nedges);
   
   int numcols = mxGetN(adjmat);
+  int nedges = jc[numcols];
+
+  mexPrintf("Edges: %d\n", nedges);
+
   // look for non-zero elements
   int i = 0;
   int j = 0;

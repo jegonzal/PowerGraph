@@ -26,15 +26,11 @@
 
 #include <graphlab.hpp>
 #include "math.hpp"
+#include "advanced_config.h"
 #include <graphlab/macros_def.hpp>
 
 extern uint32_t m,n;
 extern gl_types::core * glcore;
-extern bool debug;
-extern bool square;
-extern int cg_maxiter;
-extern bool cg_resid;
-extern bool cg_noop;
 
 void init_row_cols();
 
@@ -60,7 +56,7 @@ using namespace graphlab;
 end
 */
 
-double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
+double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff, advanced_config & config){
 
     glcore = _glcore;
     int tmp=n; n=m; m = tmp;
@@ -70,7 +66,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
     DistMat A;
     DistVec b(0,true), prec(1,true), r(2, true), p(3,true), x(4,true), Ap(5), t(6,true);
     //initialize startng guess
-    if (!square)
+    if (!config.square)
       x = ones(0.5,m);
     else
       x = ones(0.5,n);
@@ -85,7 +81,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
        rsold = r'*r;
     */
     r=-A*x+b; 
-    if (!square)
+    if (!config.square)
       r=A._transpose()*r;
     p = r;
     rsold = r._transpose()*r;
@@ -93,7 +89,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
      /*
      for i=1:size(A,1)
         Ap=A*p; 
-        if (~square)
+        if (~config.square)
           Ap=A'*Ap; 
         end             
         alpha=rsold/(p'*Ap); 
@@ -108,14 +104,14 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff){
     end
     */
 
-    for (int i=1; i <= std::min(cg_maxiter,size(A,1)); i++){
+    for (int i=1; i <= std::min(config.iter,size(A,1)); i++){
         Ap=A*p;
-        if (!square)
+        if (!config.square)
           Ap= A._transpose()*Ap;
         alpha = rsold/(p._transpose()*Ap);
         x=x+alpha*p;
    
-        if (cg_resid){
+        if (config.cg_resid){
           t=A*x-b;
           logstream(LOG_INFO)<<"Iteration " << i << " approximated solution redidual is " << norm(t).toDouble() << std::endl;
         }

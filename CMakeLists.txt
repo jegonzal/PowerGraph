@@ -347,29 +347,37 @@ endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 
 ### Set the debug flags ----------------------------------------------------->
 # Note: -fkeep-inline-functions significantly slows down the compilation
-set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0 -Wall -Winit-self -fopenmp") 
+if (HAVE_64_BIT MATCHES 1)
+  set(MARCH "x86-64")
+else()
+  set(MARCH "i686")
+endif()
+
+set(COMMON_FLAGS "-Wall -g -fopenmp")
+
+if (APPLE)
+  set(CMAKE_EXE_LINKER_FLAGS "${CNAME_EXE_LINKER_FLAGS} -Xlinker -no_pie")
+endif()
+
+set(CMAKE_CXX_FLAGS_DEBUG "-ggdb -O0 -march=${MARCH} -Winit-self ${COMMON_FLAGS}") 
 #-fno-implicit-templates")
 ### Set the release flags --------------------------------------------------->
 if (CROSS_COMPILE_32_BIT MATCHES 1)
   set(CMAKE_CXX_FLAGS_RELEASE 
-    "-m32 -O3 -Wall -Wextra -g -mtune=native -fopenmp")
-
+    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}")
   set(CMAKE_C_FLAGS_RELEASE 
-    "-m32 -O3 -Wall -Wextra -g -mtune=native -fopenmp")
-
+    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}")
 else(CROSS_COMPILE_32_BIT MATCHES 1)
   
   # Set the C compiler flags in release mode on 64bit systems
   set(CMAKE_C_FLAGS_RELEASE 
-    "-O3 -Wall -g -mtune=native -fopenmp")
-
+    "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}")
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O2 -Wall -g -mtune=native -pg -fopenmp")
-
+      "-O2 -march=${MARCH} -mtune=native -pg ${COMMON_FLAGS}")
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -Wall -g -mtune=native -fopenmp")
+      "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}")
   endif(COMPILE_PROFILING MATCHES 1)
 
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
@@ -477,7 +485,6 @@ macro(add_dist2_executable NAME)
       ${Boost_LIBRARIES}
       ${KYOTO_STATIC_LIBRARY}
       )
-
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
     # set_property(TARGET ${NAME} APPEND PROPERTY 

@@ -43,7 +43,7 @@ for i = 1:imgdim
         % normalize
         vtx.unary = vtx.unary ./ sum(vtx.unary);
         % Vertices are numbered from 1. Assign the vertex data.
-        vdata{(i-1)*100+j} = vtx;
+        vdata{(i-1)*imgdim+j} = vtx;
     end
 end
 
@@ -64,21 +64,21 @@ adj =sparse(length(vdata),length(vdata));
 for xi = 1:imgdim
     for xj = 1:imgdim
         if (xi - 1 >= 1) 
-            adj((xi-1)*100+xj, (xi-2)*100+xj) = 1;
+            adj((xi-1)*imgdim+xj, (xi-2)*imgdim+xj) = 1;
         end
         if (xi + 1 <= imgdim) 
-            adj((xi-1)*100+xj, (xi)*100+xj) = 1;
+            adj((xi-1)*imgdim+xj, (xi)*imgdim+xj) = 1;
         end
         if (xj - 1 >= 1) 
-            adj((xi-1)*100+xj, (xi-1)*100+xj-1) = 1;
+            adj((xi-1)*imgdim+xj, (xi-1)*imgdim+xj-1) = 1;
         end
         if (xj + 1 <= imgdim) 
-            adj((xi-1)*100+xj, (xi-1)*100+xj+1) = 1;
+            adj((xi-1)*imgdim+xj, (xi-1)*imgdim+xj+1) = 1;
         end
     end
 end
 %% compile update function
-compile_update_function({'bp_update'}, vdata{1},edata{1}, BINARY_DIRECTORY, 'bp', 'bp');
+compile_update_function({'bp_update'}, vdata{1},edata{1}, BINARY_DIRECTORY, 'bp', 'bp', 3);
 %% set options
 options.initial_schedule(1).update_function = 'bp_update';
 options.initial_schedule(1).vertices=uint32(1:(imgdim * imgdim));
@@ -97,7 +97,7 @@ cd ..
 outputimg = zeros(imgdim);
 for i = 1:imgdim
     for j = 1:imgdim
-        [c,idx] = max(v2{(i-1)*100+j}.belief);
+        [c,idx] = max(v2{(i-1)*imgdim+j}.belief);
         outputimg(i,j) = idx;
     end
 end

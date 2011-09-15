@@ -36,20 +36,15 @@
  *  Code written by Danny Bickson, CMU, June 2011
  * */
 
+extern advanced_config ac;
+extern problem_setup ps;
 
-extern string infile;
-extern int iiter, L, M, N, Le;
-extern bool ZERO;
-extern timer gt;
-extern graph_type validation_graph;
-extern bool debug;
+
 using namespace graphlab;
 using namespace itpp;
-extern mat U,V;
 int m; //number of iterations
 
 extern int svd_iter;
-
 void last_iter();
 double predict(const vertex_data& user, const vertex_data &movie, float rating, float & prediction);
 
@@ -72,21 +67,21 @@ int offset, offset2, offset3;
  *
  * */
 void init_lanczos(){
-   m = svd_iter;
+   m = ac.svd_iter;
    lancbeta = zeros(m+3);
    lancalpha = zeros(m+3);
    double sum = 0;
 
-  for (int i=M; i< M+N; i++){ 
-    vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    vertex_data * data = &ps.g->vertex_data(i);
     data->pvec = zeros(m+3);
-    data->pvec[1] = debug ? 0.5 : rand();
+    data->pvec[1] = ac.debug ? 0.5 : rand();
     sum += data->pvec[1]*data->pvec[1];
   }
 
   sum = sqrt(sum);
-  for (int i=M; i< M+N; i++){ 
-    vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    vertex_data * data = &ps.g->vertex_data(i);
     data->pvec[1] /= sum;
   }
 
@@ -105,7 +100,7 @@ void Axb(gl_types::iscope &scope,
  
   
   /* print statistics */
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1))){
+  if (ac.debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1))){
     printf("Axb: entering  node  %u \n",  (int)scope.vertex());   
     //debug_print_vec("V" , user.pvec, D);
   }
@@ -136,8 +131,8 @@ void Axb(gl_types::iscope &scope,
 #endif
   }
 
-  counter[SVD_MULT_A] += t.current_time();
-  if (debug&& (scope.vertex() == 0 || ((int)scope.vertex() == M-1))){
+  ps.counter[SVD_MULT_A] += t.current_time();
+  if (ac.debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1))){
     printf("Axb: computed value  %u %g \n",  (int)scope.vertex(), user.rmse);   
   }
 
@@ -156,7 +151,7 @@ void ATxb(gl_types::iscope &scope,
  
   
   /* print statistics */
-  if (debug&& ((int)scope.vertex() == M || ((int)scope.vertex() == M+N-1))){
+  if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
     printf("Axb: entering  node  %u \n",  (int)scope.vertex());   
     debug_print_vec("V" , user.pvec, m);
   }
@@ -189,9 +184,9 @@ void ATxb(gl_types::iscope &scope,
 
    user.rmse -= lancbeta[offset2] * user.pvec[offset3];
 
-   counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
+   ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
 
-  if (debug&& ((int)scope.vertex() == M || ((int)scope.vertex() == M+N-1))){
+  if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
     printf("Axb: computed value  %u %g beta: %g v %g \n",  (int)scope.vertex(), user.rmse,lancbeta[offset2],  user.pvec[offset3]);   
   }
 
@@ -205,12 +200,12 @@ double wTV(int j){
 
   timer t; t.start();
   double lancalpha = 0;
-  for (int i=M; i< M+N; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    const vertex_data * data = &ps.g->vertex_data(i);
     lancalpha+= data->rmse*data->pvec[j];
   }
-  counter[CALC_RMSE_Q] += t.current_time();
-  if (debug)
+  ps.counter[CALC_RMSE_Q] += t.current_time();
+  if (ac.debug)
 	cout<<"alpha: " << lancalpha<<endl;
 
   return lancalpha;
@@ -220,17 +215,17 @@ double w_lancalphaV(int j){
 
   timer t; t.start();
   double norm = 0;
-  if (debug)
+  if (ac.debug)
 	cout << "w: " ;
-  for (int i=M; i< M+N; i++){ 
-    vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    vertex_data * data = &ps.g->vertex_data(i);
     data->rmse -= lancalpha[j]*data->pvec[j];
-    if (debug && i-M<20)
+    if (ac.debug && i-ps.M<20)
 	cout<<data->rmse<<" ";
     norm += data->rmse*data->rmse;
   }
-  counter[CALC_RMSE_Q] += t.current_time();
-  if (debug){
+  ps.counter[CALC_RMSE_Q] += t.current_time();
+  if (ac.debug){
 	cout<<endl;
         cout<<"Beta: " << sqrt(norm) << endl;
   }
@@ -239,24 +234,24 @@ double w_lancalphaV(int j){
 
 void update_V(int j){
   timer t; t.start();
-  if (debug)
+  if (ac.debug)
 	cout<<"V: ";
-  for (int i=M; i< M+N; i++){ 
-    vertex_data * data = &g->vertex_data(i);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    vertex_data * data = &ps.g->vertex_data(i);
     data->pvec[j] = data->rmse / lancbeta[j];
-    if (debug && i-M<20)
+    if (ac.debug && i-ps.M<20)
 	cout<<data->pvec[j]<<" ";
   }
-  if (debug)
+  if (ac.debug)
 	cout<<endl;
-  counter[CALC_RMSE_Q] += t.current_time();
+  ps.counter[CALC_RMSE_Q] += t.current_time();
 }
 
 mat calc_V(){
-  mat V = zeros(M,m);
-  for (int i=M; i< M+N; i++){ 
-    const vertex_data * data = &g->vertex_data(i);
-    V.set_row(i-M, data->pvec.mid(1,m));
+  mat V = zeros(ps.M,m);
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    const vertex_data * data = &ps.g->vertex_data(i);
+    V.set_row(i-ps.M, data->pvec.mid(1,m));
   }
   return V;
 }
@@ -265,14 +260,14 @@ mat calc_V(){
 void lanczos(gl_types::core & glcore){
 
    std::vector<vertex_id_t> rows,cols;
-   for (int i=0; i< M; i++)
+   for (int i=0; i< ps.M; i++)
       rows.push_back(i);
-   for (int i=M; i< M+N; i++)
+   for (int i=ps.M; i< ps.M+ps.N; i++)
       cols.push_back(i);
  
 
    //for j=2:m+2
-   for (int j=1; j<= svd_iter+1; j++){
+   for (int j=1; j<= ac.svd_iter+1; j++){
         //w = A*V(:,j) 
         offset = j;
 	glcore.add_tasks(rows, Axb, 1);
@@ -324,9 +319,9 @@ void lanczos(gl_types::core & glcore){
 
 
  //exports computed eigenvalues and eigenvectors to file
- U=eigenvectors;
- V=zeros(1,eigenvalues.size());
- V.set_row(0,eigenvalues); 
+ ps.U=eigenvectors;
+ ps.V=zeros(1,eigenvalues.size());
+ ps.V.set_row(0,eigenvalues); 
 
 
 }

@@ -1,5 +1,10 @@
 function vdata = get_vertex_data(handle, vertex) %#eml
+% GENVERTEX instantiates the local variable vdata to look like the vertex data type
+%           Only needed for local variables. Not needed for function arguments
 %#GENVERTEX#%
+
+% EXTERN_VERTEX_STRUCT sets the type of local variable edata
 %#EXTERN_VERTEX_STRUCT#%
+
 eml.ceval('emx_get_vertex_data', handle, vertex, eml.ref(vdata));
 end

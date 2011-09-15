@@ -53,6 +53,7 @@ function print_help {
   echo "      --itpp_include_dir=[DIR] specify manually itpp include directories (path to itpp header files)."
   echo 
   echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
+  echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
   exit 1
 }
@@ -78,6 +79,7 @@ function unknown_option {
   exit 1
 }
 
+config_flags=""
 
 while [ $# -gt 0 ]
   do case $1 in
@@ -93,7 +95,8 @@ while [ $# -gt 0 ]
     --itpp)                 itpp=1 ;;
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
-    --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
+ #   --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
+    -D)                      config_flags="$config_flags -D $2"; shift ;;
     *) unknown_option $1 ;;
   esac
   shift

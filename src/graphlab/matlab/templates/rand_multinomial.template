@@ -1,0 +1,4 @@
+function i = rand_multinomial(d) %#eml
+  i = uint32(0);
+  i = eml.ceval('emx_rand_multinomial', d, length(d));
+end
