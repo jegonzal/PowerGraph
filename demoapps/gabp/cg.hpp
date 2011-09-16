@@ -26,11 +26,11 @@
 
 #include <graphlab.hpp>
 #include "math.hpp"
+#include "linear.h"
 #include "advanced_config.h"
 #include <graphlab/macros_def.hpp>
 
-extern uint32_t m,n;
-extern gl_types::core * glcore;
+extern problem_setup ps;
 
 void init_row_cols();
 
@@ -59,7 +59,7 @@ end
 double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff, advanced_config & config){
 
     glcore = _glcore;
-    int tmp=n; n=m; m = tmp;
+    int tmp=ps.n; ps.n=ps.m; ps.m = tmp;
     diff = NAN;
     init_row_cols();
 
@@ -67,9 +67,9 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff, a
     DistVec b(0,true), prec(1,true), r(2, true), p(3,true), x(4,true), Ap(5), t(6,true);
     //initialize startng guess
     if (!config.square)
-      x = ones(0.5,m);
+      x = ones(0.5,ps.m);
     else
-      x = ones(0.5,n);
+      x = ones(0.5,ps.n);
     
     DistDouble rsold, rnew, alpha;
 

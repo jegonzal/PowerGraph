@@ -2,7 +2,9 @@
 #define _LINEAR_H
 
 #include <graphlab.hpp>
-
+#ifdef HAS_ITPP
+#include <itpp/itbase.h>
+#endif
 
 //define sdouble as either float or double as needed
 typedef double sdouble;
@@ -84,15 +86,28 @@ struct edge_data_inv {
 };
 
 
-enum algorithms{
+
+struct vertex_data_shotgun{
+  bool active;
+  double x;
+#ifdef HAS_ITPP
+  itpp::sparse_vec A_cols;
+#endif
+};
+
+struct edge_data_shotgun{
+};
+
+enum runmodes{
    GaBP = 0, 
    JACOBI = 1,
    CONJUGATE_GRADIENT = 2,
    GaBP_INV = 3,
    LEAST_SQUARES = 4,
+   SHOTGUN_LASSO = 5,
+   SHOTGUN_LOGREG = 6
 };
 
-const char* algorithmnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares"};
 
 
 //counters for debugging running time of different modules
@@ -101,26 +116,45 @@ enum countervals{
    NODE_TRAVERSAL=1
 };
 
-#define MAX_COUNTER 2
-const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL"};
+class problem_setup{
+public:
 
+  runmodes algorithm; //type of algorithm
+  graphlab::timer gt;
+  int iiter;//count number of time zero node run
 
+  uint32_t m; // number of rows of A
+  uint32_t n; // number of cols of A
+  uint32_t e; // number of edges
+
+//performance counters
+#define MAX_COUNTER 20
+  double counter[MAX_COUNTER];
+  
+
+  //vectors for storing the output
+  std::vector<double> means;
+  std::vector<double> prec;
+
+ problem_setup(){
+
+  iiter = 1;//count number of time zero node run
+ /* Problem size */
+  m=n=e=0;
+
+//performance counters
+  memset(counter, 0, MAX_COUNTER*sizeof(double));
+}
+
+  void verify_setup(graphlab::command_line_options & clopts);
+
+};
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
-graphlab::glshared<double> REAL_NORM_KEY;
-graphlab::glshared<double> RELATIVE_NORM_KEY;
-graphlab::glshared<size_t> ITERATION_KEY;
-graphlab::glshared<double> THRESHOLD_KEY;
-graphlab::glshared<bool> SUPPORT_NULL_VARIANCE_KEY;
-graphlab::glshared<bool> ROUND_ROBIN_KEY;
-graphlab::glshared<bool> DEBUG_KEY;
-graphlab::glshared<size_t> MAX_ITER_KEY;
-
-
 typedef graphlab::graph<vertex_data_inv, edge_data_inv> graph_type_inv;
 typedef graphlab::types<graph_type_inv> gl_types_inv;
-graphlab::glshared<int> MATRIX_WIDTH_KEY;
-
+typedef graphlab::graph<vertex_data_shotgun, edge_data_shotgun> graph_type_shotgun;
+typedef graphlab::types<graph_type_shotgun> gl_types_shotgun;
 
 
 #endif

@@ -31,11 +31,11 @@ int increment=2;
 double  c=1.0;
 double  d=0.0;
 extern advanced_config config;
+extern problem_setup ps;
+
 int x_offset = -1, b_offset = -1, y_offset = -1, r_offset = -1;
 bool A_offset = false;
-extern uint n; 
-extern uint m;
-extern double counter[20];
+
 gl_types::core * glcore;
 #define MAX_PRINT_ITEMS 21
 #define MAX_OFFSET 7
@@ -77,11 +77,11 @@ class DistVec{
    void init(){
      if (config.square || !transpose){
        start = 0;
-       end = n;
+       end = ps.n;
      }
      else {
-       start = n;
-       end = m+n;
+       start = ps.n;
+       end = ps.m+ps.n;
      }
      debug_print(name);
    };
@@ -165,14 +165,14 @@ class DistVec{
 
   DistVec& operator=(const std::vector<double> & pvec){
     assert(offset >= 0);
-    assert(pvec.size() == m || pvec.size() == n);
-    if (!config.square && pvec.size() == m){
+    assert(pvec.size() == ps.m || pvec.size() == ps.n);
+    if (!config.square && pvec.size() == ps.m){
       transpose = true;
-      start = n; end = m+n;
+      start = ps.n; end = ps.m+ps.n;
     }
     else {
       transpose = false;
-      start = 0; end = n;
+      start = 0; end = ps.n;
     }
     
     for (int i=start; i< (int)end; i++){  
@@ -184,8 +184,13 @@ class DistVec{
     return *this;       
   }
 
+
   void to_vec(std::vector<double> & v){
-     for (int i=start; i<end; i++){
+    if (v.size() == 0){
+      v.resize(end-start);
+    }
+        
+    for (int i=start; i<end; i++){
          const vertex_data * data = &glcore->graph().vertex_data(i);        double * pv = (double*)data;
          v[i-start] = pv[offset];
      }
@@ -234,7 +239,7 @@ class DistMat{
 
     DistMat() { 
       start = 0; 
-      end = n; //@TODO
+      end = ps.n; //@TODO
       transpose = false;
     };
 
@@ -272,10 +277,10 @@ class DistMat{
     DistMat & _transpose(){
        transpose = true;
        if (!config.square){
-         start=n ; end = m+n;
+         start=ps.n ; end = ps.m+ps.n;
        }
        else {
-         start =0; end = n;
+         start =0; end = ps.n;
        }
        return *this;
     }
@@ -286,10 +291,10 @@ DistVec& DistVec::operator=(DistMat &mat){
   r_offset = offset;
   transpose = mat.transpose;
   if (!transpose || config.square){
-    start = 0; end = n;
+    start = 0; end = ps.n;
   }
   else {
-    start = n; end = m+n;
+    start = ps.n; end = ps.m+ps.n;
   }
   glcore->add_tasks((!mat.transpose)?rows:cols, Axb, 1);
   runtime += glcore->start();
@@ -361,10 +366,10 @@ class DistDouble{
 int size(DistMat & A, int pos){
    assert(pos == 1 || pos == 2);
    if (config.square || pos == 1)
-     return n;
+     return ps.n;
    if (pos == 2){
-     assert(m!= 0);
-     return m;
+     assert(ps.m!= 0);
+     return ps.m;
    }
    return -1;
 }
@@ -390,16 +395,16 @@ DistDouble norm(DistVec & vec){
 }
 
 gl_types::edge_list get_edges(const gl_types::iscope & scope){
-     return (scope.vertex() < n) ? scope.out_edge_ids(): scope.in_edge_ids();
+     return (scope.vertex() < ps.n) ? scope.out_edge_ids(): scope.in_edge_ids();
 }
 gl_types::edge_list get_edges(const graph_type *g, vertex_id_t i){
-     return (i < n) ? g->out_edge_ids(i) : g->in_edge_ids(i);
+     return (i < ps.n) ? g->out_edge_ids(i) : g->in_edge_ids(i);
 }
 const vertex_data& get_neighbor(const gl_types::iscope & scope, const edge_id_t oedgeid){
-     return (scope.vertex() < n) ? scope.neighbor_vertex_data(scope.target(oedgeid)) :  scope.neighbor_vertex_data(scope.source(oedgeid));
+     return (scope.vertex() < ps.n) ? scope.neighbor_vertex_data(scope.target(oedgeid)) :  scope.neighbor_vertex_data(scope.source(oedgeid));
 }
 const vertex_data& get_neighbor(const graph_type *g, const vertex_id_t i, const edge_id_t oedgeid){
-     return (i < n) ? g->vertex_data(g->target(oedgeid)) : g->vertex_data(g->source(oedgeid));
+     return (i < ps.n) ? g->vertex_data(g->target(oedgeid)) : g->vertex_data(g->source(oedgeid));
 }
  
 /***
@@ -442,7 +447,7 @@ void Axb(gl_types::iscope &scope,
   }
 
   pr[r_offset] = val;
-  counter[EDGE_TRAVERSAL] += t.current_time();
+  ps.counter[EDGE_TRAVERSAL] += t.current_time();
 }
 
 void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
@@ -481,20 +486,20 @@ void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
     }
      pr[r_offset] = val;
    }
-   counter[NODE_TRAVERSAL] += t.current_time();
+   ps.counter[NODE_TRAVERSAL] += t.current_time();
 }   
 
 void init_row_cols(){
       
-    for (int i=0; i< (int)n; i++)
+    for (int i=0; i< (int)ps.n; i++)
       rows.push_back(i);
 
     if (config.square){
       cols = rows;
     }
     else {
-      assert(m!= 0);
-      for (int i=n; i < (int)(m+n); i++)
+      assert(ps.m!= 0);
+      for (int i=ps.n; i < (int)(ps.m+ps.n); i++)
         cols.push_back(i);
     }
 }

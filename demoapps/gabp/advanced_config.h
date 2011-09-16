@@ -16,6 +16,8 @@ public:
   bool cg_resid;
  
   bool omp_support;
+
+  bool oldformat; //support for older binary file format
  
   //marix proprties
   bool zero;//allow zero entries in matrix?
@@ -95,7 +97,7 @@ int em_max_inner_iter; //number of inner EM iterations
 
 int distance_measure;
 
-  advanced_config(){
+advanced_config(){
     D = 20;
     K = 0;
     debug = true;
@@ -171,6 +173,8 @@ int distance_measure;
    distance_measure = 0;
    clusterdump = false;
    tfidf = false;
+
+   oldformat = false;
 
    /* for LDA */
    em_max_inner_iter = 20;
