@@ -217,7 +217,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
    }
     // compute regular least suqares
    else if (ps.algorithm != WEIGHTED_ALS){
-       bool ret = ls_solve_chol(Q*transpose(Q)+eDT*regularization, Q*vals, result);
+       bool ret = ls_solve(Q*transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
     } 
     //Weighted alternating least squares (see equations (6),(7) in paper 9)
@@ -230,7 +230,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 	 for (int j=0; j<numedges; j++)
              set_val(Q, i, j, get_val(Q, i,j)* weight[j]);
        mat A = Q*transpose(Q)+(eDT*regularization);
-       bool ret = ls_solve_chol(A, b, result);
+       bool ret = ls_solve(A, b, result);
        if (ac.debug)
           cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << b << "Q*W*Q'+eDT+Reg: " << A << endl;
        assert(ret);
