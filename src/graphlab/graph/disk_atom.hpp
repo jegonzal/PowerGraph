@@ -62,7 +62,7 @@ namespace graphlab {
    * "numlocalv" ==> uint64_t : the number of local vertices in the atom. \n
    * "numlocale" ==> uint64_t : the number of local edges in the atom. \n
    * v[vid] ==> archive of owner, vdata : The vertex data of vertex 'vid' \n
-   * e[srcv][destv] ==> archive of edata : The edge on the edge srcv --> destv \n
+   * e[hash] ==> archive of (uint64_t, uint64_t, edata)*: All edges on the edge srcv-->Destv hashing to this entry \n
    * i[vid] ==> uint64_t* : An array of in-vertices of vertex 'vid' \n
    * o[vid] ==> uint64_t* : An array of out-vertices of vertex 'vid' \n
    * c[vid] ==> uint32_t : Color of vertex 'vid' \n
@@ -92,7 +92,7 @@ namespace graphlab {
     atomic<uint64_t> numlocalv;
     atomic<uint64_t> numlocale;
     uint16_t atomid;
-    mutex mut;
+    mutex mut[511];
   
     std::string filename;
   
@@ -100,6 +100,26 @@ namespace graphlab {
       char c[10]; 
       unsigned char len = compress_int(i, c);
       return std::string(c + 10 - len, (std::streamsize)len); 
+    }
+
+    uint32_t rotate_right(uint32_t a, uint32_t shift) {
+      return a >> shift | a << (sizeof(a) * 8 - shift);
+    }
+
+    // compress into 128K buckets
+    inline uint32_t edge_hash_32(uint32_t srcv, uint32_t destv) {
+       // note that this is a 32 bit hash!
+       srcv ^= rotate_right(srcv, 20) ^ rotate_right(srcv, 12) ^
+               rotate_right(srcv, 7) ^ rotate_right(srcv, 4);
+
+       destv ^= rotate_right(destv, 20) ^ rotate_right(destv, 12) ^
+               rotate_right(destv, 7) ^ rotate_right(destv, 4);
+
+       return (srcv ^ destv) % 131071;
+    }
+    
+    inline uint32_t edge_hash(uint64_t srcv, uint64_t destv) {
+      return edge_hash_32((uint32_t)srcv, (uint32_t)destv);
     }
 
   public:
@@ -144,14 +164,15 @@ namespace graphlab {
   
   
     /**
-     * \brief Inserts vertex 'vid' into the file. If the vertex already exists,
-     * it will be overwritten.
+     * \brief Inserts vertex 'vid' into the file.
      */
     template <typename T>
-    void add_vertex(vertex_id_type vid, uint16_t owner, const T &vdata) {
+    bool add_vertex(vertex_id_type vid, uint16_t owner, 
+                    const T &vdata, bool hasdata = true, bool overwrite_if_exists = true) {
       std::stringstream strm;
       oarchive oarc(strm);    
-      oarc << owner << vdata;
+      oarc << owner;
+      if (hasdata) oarc << vdata;
       strm.flush();
       if (db.add("v"+id_to_str(vid), strm.str())) {
         uint64_t v64 = (uint64_t)vid;
@@ -159,11 +180,14 @@ namespace graphlab {
         cache_invalid = true;
         numv.inc();
         if (owner == atomid) numlocalv.inc();
+        return true;
       }
-      else {
+      else if (overwrite_if_exists){
         db.set("v"+id_to_str(vid), strm.str());
         cache_invalid = true;
+        return true;
       }
+      return false;
     }
   
   
@@ -185,12 +209,45 @@ namespace graphlab {
      * it will be overwritten.
      */
     template <typename T>
-    void add_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
-      std::stringstream strm;
-      oarchive oarc(strm);    
-      oarc << edata;
-      strm.flush();
-      if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), strm.str())) {
+    bool add_edge(vertex_id_type src, vertex_id_type target, const T &edata,
+                  bool hasdata = true, bool overwrite_if_exists = true) {
+      bool newedge = true;
+      std::string existing_bucket_data;
+      std::string key = "e"+id_to_str(edge_hash(src, target));
+      size_t mutexid = edge_hash(src, target) % 511;
+      mut[mutexid].lock();
+      
+      std::string edatastring;      
+      if (hasdata) {
+        std::stringstream edatastream;
+        oarchive oarc(edatastream);
+        oarc << edata;
+        edatastream.flush();
+        edatastring = edatastream.str();
+      } 
+      
+      // see if the bucket exists      
+      size_t cur_edatalen_offset = 0; // the offset of the edatalen if data already exists
+      if (db.get(key, &existing_bucket_data)) {
+        // bucket exists. See if the key is in it
+        boost::iostreams::stream<boost::iostreams::array_source> istrm(existing_bucket_data.c_str(), 
+                                                                 existing_bucket_data.length());   
+        iarchive iarc(istrm);
+        while(istrm.good()) {
+          vertex_id_type src_, target_;
+          iarc >> src_ >> target_;
+          size_t elen;
+          if (src_ == src && target_ == target) {
+            newedge = false;
+            cur_edatalen_offset = istrm.tellg();
+            break;
+          }
+          iarc >> elen;
+          istrm.ignore(elen);
+        }
+      }
+      
+      if (newedge) {
         // increment the number of edges
         nume.inc();
         // append to the adjacency entries
@@ -201,12 +258,39 @@ namespace graphlab {
         std::string iadj_key = "i"+id_to_str(target);
         uint64_t src64 = (uint64_t)src;
         db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
+        
+        std::stringstream strm;
+        oarchive oarc(strm);
+        oarc << src << target << edatastring.length();
+        strm.flush();
+        
+        db.append(key, strm.str());
+        db.append(key, edatastring);
         cache_invalid = true;
-      }
-      else {
-        db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
+        mut[mutexid].unlock();
+        return true;
+      }      
+      else if (overwrite_if_exists) {
+        boost::iostreams::stream<boost::iostreams::array_source> istrm(existing_bucket_data.c_str() + cur_edatalen_offset, 
+                                                                        existing_bucket_data.length());   
+        iarchive iarc(istrm);
+        size_t edatalen;
+        iarc >> edatalen;
+        size_t length_to_exclude = (size_t)(istrm.tellg()) + edatalen; 
+        // get the stored version of the data length
+        std::stringstream strm;
+        oarchive oarc(strm);
+        oarc << edatastring.length();
+        strm.flush();
+        
+        existing_bucket_data.replace(cur_edatalen_offset, length_to_exclude, strm.str() + edatastring);
+        db.set(key, existing_bucket_data);
         cache_invalid = true;
+        mut[mutexid].unlock();
+        return true;
       }
+      mut[mutexid].unlock();
+      return false;
     }
   
   
@@ -241,17 +325,6 @@ namespace graphlab {
       cache_invalid = true;
     }
   
-
-    /**
-     * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
-     * User must ensure that the file already contains this edge. 
-     * If user is unsure, add_edge should be used.
-     */
-    template <typename T>
-    void set_edge(vertex_id_type src, vertex_id_type target) {
-      db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
-      cache_invalid = true;
-    }
   
     /**
      * \brief Modifies an existing edge in the file. User must ensure that the file
@@ -259,12 +332,7 @@ namespace graphlab {
      */
     template <typename T>
     void set_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
-      std::stringstream strm;
-      oarchive oarc(strm);    
-      oarc << edata;
-      strm.flush();
-      db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
-      cache_invalid = true;
+      add_edge(src, target, edata, true, true);
     }
   
   
@@ -306,19 +374,30 @@ namespace graphlab {
      */
     template <typename T>
     bool get_edge(vertex_id_type src, vertex_id_type target, T &edata) {
-      std::string val;
-      std::string key = "e"+id_to_str(src)+"_"+id_to_str(target);
-      if (cache_invalid || cache.get(key, &val) == false) {
-        if (db.get(key, &val) == false) return false;
-      }
-      if (val.length() > 0) {
-        // there is edata
-        boost::iostreams::stream<boost::iostreams::array_source> 
-          istrm(val.c_str(), val.length());   
+      std::string existing_bucket_data;
+      std::string key = "e"+id_to_str(edge_hash(src, target));
+
+      // see if the bucket exists      
+      if (db.get(key, &existing_bucket_data)) {
+        // bucket exists. See if the key is in it
+        boost::iostreams::stream<boost::iostreams::array_source> istrm(existing_bucket_data.c_str(), 
+                                                                 existing_bucket_data.length());   
         iarchive iarc(istrm);
-        iarc >> edata;
+        while(istrm.good()) {
+          vertex_id_type src_, target_;
+          size_t elen;
+          iarc >> src_ >> target_ >> elen;
+          if (src_ == src && target_ == target) {
+            if (elen == 0) edata = T();
+            iarc >> edata;
+            return true;
+          }
+          else {
+            istrm.ignore(elen);
+          }
+        }
       }
-      return true;
+      return false;      
     }
 
 
