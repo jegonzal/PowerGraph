@@ -98,18 +98,21 @@ namespace graphlab {
 
 
   bool disk_atom::add_vertex_skip(disk_atom::vertex_id_type vid, uint16_t owner) {
+    mut[vid % 511].lock();
     std::stringstream strm;
     oarchive oarc(strm);    
     oarc << owner;
     strm.flush();
     if (db.add("v"+id_to_str(vid), strm.str())) {
       uint64_t v64 = (uint64_t)vid;
-      db.append("vidlist", 7, (char*)&v64, sizeof(v64));
+      db.append("_vidlist", 8, (char*)&v64, sizeof(v64));
       cache_invalid = true;
       numv.inc();
       if (owner == atomid) numlocalv.inc();
+      mut[vid % 511].unlock();
       return true;
     }
+    mut[vid % 511].unlock();
     return false;
   }
 
@@ -123,6 +126,7 @@ namespace graphlab {
 
 
   bool disk_atom::add_edge_skip(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
+    mut[(src ^ target) % 511].lock();
     if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""))) {
       // increment the number of edges
       nume.inc();
@@ -134,8 +138,10 @@ namespace graphlab {
       std::string iadj_key = "i"+id_to_str(target);
       uint64_t src64 = (uint64_t)src;
       db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
+      mut[(src ^ target) % 511].unlock();
       return true;
     }
+    mut[(src ^ target) % 511].unlock();
     return false;
   }
 
@@ -143,8 +149,8 @@ namespace graphlab {
     std::vector<disk_atom::vertex_id_type> ret;
     // read the entire vertex list
     std::string vidlist;
-    if (cache_invalid || cache.get(std::string("vidlist"), &vidlist) == false) {
-      if (db.get(std::string("vidlist"), &vidlist) == false) return ret;
+    if (cache_invalid || cache.get(std::string("_vidlist"), &vidlist) == false) {
+      if (db.get(std::string("_vidlist"), &vidlist) == false) return ret;
     }
     ASSERT_EQ(vidlist.size() % sizeof(uint64_t), 0);
     ret.resize(vidlist.size() / sizeof(uint64_t));

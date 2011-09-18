@@ -56,7 +56,7 @@ namespace graphlab {
    * 
    * The atom file is a Kyoto Cabinet data store and it contains the following keys:
    * 
-   * "vidlist" ==> uint64_t : the vertex after vertex 'vid' in a linked list of vertices \n
+   * "_vidlist" ==> uint64_t : the vertex after vertex 'vid' in a linked list of vertices \n
    * "numv" ==> uint64_t : the number of vertices in the atom \n
    * "nume" ==> uint64_t : the number of edges in the atom \n
    * "numlocalv" ==> uint64_t : the number of local vertices in the atom. \n
@@ -92,7 +92,7 @@ namespace graphlab {
     atomic<uint64_t> numlocalv;
     atomic<uint64_t> numlocale;
     uint16_t atomid;
-    mutex mut;
+    mutex mut[511];
   
     std::string filename;
   
@@ -149,13 +149,14 @@ namespace graphlab {
      */
     template <typename T>
     void add_vertex(vertex_id_type vid, uint16_t owner, const T &vdata) {
+      mut[vid % 511].lock();
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner << vdata;
       strm.flush();
       if (db.add("v"+id_to_str(vid), strm.str())) {
         uint64_t v64 = (uint64_t)vid;
-        db.append("vidlist", 7, (char*)&v64, sizeof(v64));
+        db.append("_vidlist", 8, (char*)&v64, sizeof(v64));
         cache_invalid = true;
         numv.inc();
         if (owner == atomid) numlocalv.inc();
@@ -164,6 +165,7 @@ namespace graphlab {
         db.set("v"+id_to_str(vid), strm.str());
         cache_invalid = true;
       }
+      mut[vid % 511].unlock();
     }
   
   
@@ -190,6 +192,7 @@ namespace graphlab {
       oarchive oarc(strm);    
       oarc << edata;
       strm.flush();
+      mut[(src ^ target) % 511].lock();
       if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), strm.str())) {
         // increment the number of edges
         nume.inc();
@@ -207,6 +210,7 @@ namespace graphlab {
         db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
         cache_invalid = true;
       }
+      mut[(src ^ target) % 511].unlock();
     }
   
   
