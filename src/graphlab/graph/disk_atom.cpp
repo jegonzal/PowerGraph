@@ -86,22 +86,57 @@ namespace graphlab {
   }
 
   void disk_atom::add_vertex(disk_atom::vertex_id_type vid, uint16_t owner) {
-    add_vertex(vid, owner, std::string(""), false, true);
+    if (!add_vertex_skip(vid, owner)) {
+      std::stringstream strm;
+      oarchive oarc(strm);    
+      oarc << owner;
+      strm.flush();
+      db.set("v"+id_to_str(vid), strm.str());
+      cache_invalid = true;
+    }
   }
 
 
   bool disk_atom::add_vertex_skip(disk_atom::vertex_id_type vid, uint16_t owner) {
-    return add_vertex(vid, owner, std::string(""), false, false);
+    std::stringstream strm;
+    oarchive oarc(strm);    
+    oarc << owner;
+    strm.flush();
+    if (db.add("v"+id_to_str(vid), strm.str())) {
+      uint64_t v64 = (uint64_t)vid;
+      db.append("vidlist", 7, (char*)&v64, sizeof(v64));
+      cache_invalid = true;
+      numv.inc();
+      if (owner == atomid) numlocalv.inc();
+      return true;
+    }
+    return false;
   }
 
 
   void disk_atom::add_edge(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
-    add_edge(src, target, std::string(""), false, true);
+    if (!add_edge_skip(src, target)) {
+      db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
+      cache_invalid = true;
+    }
   }
 
 
   bool disk_atom::add_edge_skip(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
-    return add_edge(src, target, std::string(""), false, false);
+    if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""))) {
+      // increment the number of edges
+      nume.inc();
+      // append to the adjacency entries
+      std::string oadj_key = "o"+id_to_str(src);
+      uint64_t target64 = (uint64_t)target;
+      db.append(oadj_key.c_str(), oadj_key.length(), (char*)&target64, sizeof(target64));
+    
+      std::string iadj_key = "i"+id_to_str(target);
+      uint64_t src64 = (uint64_t)src;
+      db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
+      return true;
+    }
+    return false;
   }
 
   std::vector<disk_atom::vertex_id_type> disk_atom::enumerate_vertices() {
