@@ -27,17 +27,16 @@
 #ifndef _COSAMP_HPP
 #define _COSAMP_HPP
 
-#include <itpp/base/sort.h>
+//#include <itpp/base/sort.h>
 
 
 
 ivec sort_union(ivec a, ivec b){
    ivec ab = concat(a,b);
-   Sort<int> sorter;
-   sorter.sort(0, ab.size()-1, ab);
-   for (int i=1; i< ab.size(); i++){
+   sort(ab);
+  for (int i=1; i< ab.size(); i++){
       if (ab[i] == ab[i-1])
-        ab.del(i);
+        del(ab,i);
    }
    return ab;
 }
@@ -58,26 +57,25 @@ vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D){
   vec v = u;
   int t=1;
   ivec T2;
-  Sort<double> sorter;
 
   while (t<max_iter){
-    ivec z = sorter.sort_index(0, u.size()-1, abs(Phi.transpose() * v));
+    ivec z = sort_index(abs(Phi.transpose() * v));
     z = reverse(z);
-    ivec Omega = z(0,2*K-1);
+    ivec Omega = head(z,2*K-1);
     ivec T=sort_union(Omega,T2);
-    mat phit=Phi.get_cols(T);
+    mat phit=get_cols(Phi, T);
     vec b;
-    bool ret = itpp::backslash(phit, u, b);
+    bool ret = ls_solve(phit, u, b);
     assert(ret);
     b= abs(b);
-    ivec z3 = sorter.sort_index(0, b.size()-1, b);
+    ivec z3 = sort_index(b);
     z3 = reverse(z3);
     Sest=zeros(D);
     for (int i=0; i< K; i++)
-       Sest.set(z3[i], b[z3[i]]);
-    ivec z2 = sorter.sort_index(0,Sest.size()-1, abs(Sest));
+       set_val(Sest, z3[i], b[z3[i]]);
+    ivec z2 = sort_index(abs(Sest));
     z2 = reverse(z2);
-    T2 = z2(0,K-1);
+    T2 = head(z2,K-1);
     v=u-Phi*Sest;
     double n2 = max(abs(v));
     if (n2 < tol1)
@@ -92,12 +90,13 @@ vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D){
 
 void test_cosamp(){
 
-   mat A="0.9528    0.5982    0.8368 ; 0.7041    0.8407    0.5187; 0.9539    0.4428    0.0222";
-   vec b=" 0.3759 0.8986 0.4290";
+   mat A= init_mat("0.9528    0.5982    0.8368 ; 0.7041    0.8407    0.5187; 0.9539    0.4428    0.0222", 3, 3);
+   vec b= init_vec(" 0.3759 0.8986 0.4290",3);
    int K=1;
    double epsilon =1e-3;
    vec ret = CoSaMP(A,b,K,10, epsilon,3);
-   double diff = norm(ret - vec("0 1.2032 0"));
+   vec right = init_vec("0 1.2032 0", 3);
+   double diff = norm(ret - right);
    assert(diff <1e-4);
 
 }

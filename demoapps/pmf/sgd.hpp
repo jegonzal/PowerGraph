@@ -40,7 +40,6 @@ extern advanced_config ac;
 extern problem_setup ps;
 
 using namespace graphlab;
-using namespace itpp;
 
 void last_iter();
 double predict(const vertex_data& user, const vertex_data &movie, float rating, float & prediction);

@@ -29,6 +29,9 @@
 #include "pmf.h"
 #include <graphlab/macros_def.hpp>
 
+//#include "Eigen/Dense"
+//using namespace Eigen;
+
 extern advanced_config ac;
 extern problem_setup ps;
 mat eDT; 
@@ -42,15 +45,17 @@ vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D);
 void init_pmf() {
   if (ps.BPTF)
     ps.pT=10;
-  eDT = itpp::eye(ac.D)*ps.pT;
-  vones = itpp::ones(ac.D);
+  eDT = eye(ac.D)*ps.pT;
+  vones = ones(ac.D);
   printf("pU=%g, pV=%g, pT=%g, D=%d\n", pU, pV, ps.pT,ac.D);  
 }
  
+
+
  
 // fill out the linear relation matrix (Q) between users/movies and movie/users
 inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i, vec * weights){
-      
+       
   if (!ac.zero)
   	assert(edge.weight != 0);
 
@@ -59,15 +64,19 @@ inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q
   }
   else {
     for (int j=0; j<ac.D; j++)
-      Q.set(j,i, pdata.pvec[j]); 
+      //Q.set(j,i, pdata.pvec[j]); 
+      Q(j,i) = pdata.pvec(j);
   }
  
-  vals[i] = edge.weight;
-  
+  //vals[i] = edge.weight;
+  vals(i) = edge.weight;  
+
   if (weights != NULL){
      if (!ac.zero) assert(edge.time!= 0);
-     weights->set( i, edge.time);
-     vals[i] *= edge.time;
+     //weights->set( i, edge.time);
+     (*weights)(i) = edge.time;
+     //vals[i] *= edge.time;
+     vals(i) *= edge.time;
   }
 }
  /***
@@ -106,6 +115,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   mat Q(ac.D,numedges); //linear relation matrix
   vec vals(numedges); //vector of ratings
   vec weight(numedges); // vector of weights (to be used in weighted ALS)
+
   int i=0;
 
   t.start(); 
@@ -125,7 +135,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         //and vector vals
         parse_edge(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS? &weight : NULL); 
         if (toprint && (i==0 || i == numedges-1))
-          std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
+          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
         i++;
 #ifndef GL_NO_MULT_EDGES
       }   
@@ -150,7 +160,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS ? &weight: NULL); 
         if (toprint/* && (i==0 || i == numedges-1)*/)
-          std::cout<<"set col: "<<i<<" " <<Q.get_col(i)<<" " <<std::endl;
+          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
 
         i++;
         float prediction;     
@@ -203,11 +213,11 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
        if (isuser)
 	  sparsity_level -= ac.user_sparsity;
        else sparsity_level -= ac.movie_sparsity;
-       result = CoSaMP(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, ceil(sparsity_level*(double)ac.D), ac.lasso_max_iter, 1e-4, ac.D); 
+       result = CoSaMP(Q*transpose(Q)+eDT*regularization, Q*vals, ceil(sparsity_level*(double)ac.D), ac.lasso_max_iter, 1e-4, ac.D); 
    }
     // compute regular least suqares
    else if (ps.algorithm != WEIGHTED_ALS){
-       bool ret = itpp::ls_solve_chol(Q*itpp::transpose(Q)+eDT*regularization, Q*vals, result);
+       bool ret = ls_solve_chol(Q*transpose(Q)+eDT*regularization, Q*vals, result);
        assert(ret);
     } 
     //Weighted alternating least squares (see equations (6),(7) in paper 9)
@@ -218,9 +228,9 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
        //instead, compute directly the product Q*W*Q'
        for (int i=0; i<ac.D; i++)
 	 for (int j=0; j<numedges; j++)
-             Q._elem(i,j)*= weight[j];
+             set_val(Q, i, j, get_val(Q, i,j)* weight[j]);
        mat A = Q*transpose(Q)+(eDT*regularization);
-       bool ret = itpp::ls_solve_chol(A, b, result);
+       bool ret = ls_solve_chol(A, b, result);
        if (ac.debug)
           cout<<" eDT : " << eDT << "reg: " << regularization << " Q*vals " << b << "Q*W*Q'+eDT+Reg: " << A << endl;
        assert(ret);
@@ -234,7 +244,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
     assert(Q.rows() == ac.D);
     t.start();
     mat iAi_;
-    bool ret =inv((isuser? A_U : A_V) + alpha *  Q*itpp::transpose(Q), iAi_);
+    bool ret =inv((isuser? A_U : A_V) + alpha *  Q*transpose(Q), iAi_);
     assert(ret);
     t.start();
     vec mui_ =  iAi_*((isuser? (A_U*mu_U) : (A_V*mu_V)) + alpha * Q * vals);

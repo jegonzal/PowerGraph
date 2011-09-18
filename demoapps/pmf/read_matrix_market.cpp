@@ -134,7 +134,7 @@ void save_matrix_market_format(const char * filename, mat U, mat V)
 
     for (i=0; i<ps.M; i++)
        for (j=0; j<ac.D; j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, U.get(i,j));
+        fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(U,i,j));
 
     fclose(f);
     f = fopen((std::string(filename) + ".V").c_str(),"w");
@@ -144,7 +144,7 @@ void save_matrix_market_format(const char * filename, mat U, mat V)
 
     for (i=0; i<ps.N; i++)
        for (j=0; j<ac.D; j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, V.get(i,j));
+        fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(V,i,j));
 
     fclose(f);
 

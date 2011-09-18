@@ -43,7 +43,6 @@ void fill_output(graph_type * g){
 }
 void fill_output(graph_type_inv * g){
 
-  double diff = 0;
   for (size_t i = 0; i < g->num_vertices(); i++){
     const vertex_data_inv& vdata = g->vertex_data(i);
        for (size_t j=0; j< g->num_vertices(); j++){
@@ -53,6 +52,14 @@ void fill_output(graph_type_inv * g){
   }
 }
 
+void fill_output(graph_type_shotgun * g){
+  for (size_t i = ps.m; i < g->num_vertices(); i++){
+    const vertex_data_shotgun& vdata = g->vertex_data(i);
+       ps.means.push_back(vdata.x);
+    }
+  
+ 
+}
 
 void write_output(){
 
@@ -106,8 +113,11 @@ void init_vertex_data(vertex_data_inv & data, double val, int offset, int nodes,
 }
 
 void init_vertex_data(vertex_data_shotgun & data, double val, int offset, int nodes, int i){
-      //TODO data.y = val;
-      
+     if (i < (int)ps.m){
+        data.y = val;
+     } 
+     else
+        data.x = val;
 }
 
 void init_vertex_data(vertex_data & data, double val, int offset, int nodes, int i){
@@ -226,11 +236,14 @@ void load_matrix_market_matrix(graph_type * g)
     }
 
     ps.m = M; ps.n = N; 
-    if (ps.m == ps.n)
+    if (ps.m == ps.n){
        config.square = true;
-    else 
+       ps.last_node = ps.n;
+    }
+    else {
        config.square = false;
-
+       ps.last_node = ps.n+ps.m;
+    }
     /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
     /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
     /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
@@ -260,13 +273,7 @@ void load_matrix_market_matrix(graph_type * g)
            init_prior_prec(data, val);
         }
 	else {
-          edge_data edge;
-          init_edge_data(edge, val);
-          g->add_edge(I, J+offset, edge);
-          if (!config.square) { //add the reverse edge as well
-        // Matlab export has ids starting from 1, ours start from 0
-            g->add_edge(J+offset, I, edge);
-          }
+          add_edge(val, I, J, g);
         }
         
    }
@@ -325,10 +332,12 @@ void load_data(graph_type * g){
   FILE * f = load_matrix_metadata(config.datafile.c_str());
   if (ps.m == ps.n){ //square matrix
      config.square = true;
+     ps.last_node = ps.n;
      load_square_matrix<graph_type, vertex_data, edge_data>(f, *g, config);
   }
   else {
      config.square = false;
+     ps.last_node = ps.m+ps.n;
      if (config.algorithm == JACOBI || config.algorithm == GaBP_INV){
         logstream(LOG_ERROR)<<" Jacobi/GaBP-INV can not run with non-square mastrix." << std::endl;
         exit(1);
@@ -435,21 +444,45 @@ struct graphlab_old_format{
   double weight;
 };
 
-void init_edge_data(edge_data & data, double val){
-   data.weight = val;
+void add_edge(double val, int from, int to, graph_type *g){
+   edge_data edge;
+   edge.weight = val;
    if (!config.zero)
       assert(val != 0);
+     
+   assert(from >= 0 && to >= 0);
+   assert(from < (int)ps.m && to < ps.last_node);
+   assert(from != to);
+    
+    // Matlab export has ids starting from 1, ours start from 0
+   g->add_edge(from, to, edge);
+   if (!config.square) { //add the reverse edge as well
+        // Matlab export has ids starting from 1, ours start from 0
+        g->add_edge(to, from, edge);
+   }
 }
-void init_edge_data(edge_data_inv & data, double val){
-      data.mean = new sdouble[ps.m];
-      memset(data.mean, 0, sizeof(sdouble)*ps.m);
-      data.weight =  val;
+void add_edge(double val, int from, int to, graph_type_inv *g){
+      edge_data_inv edge;
+      edge.mean = new sdouble[ps.m];
+      memset(edge.mean, 0, sizeof(sdouble)*ps.m);
+      edge.weight =  val;
       if (!config.zero)
         assert(val != 0);
-}
+      assert(from >= 0 && to >= 0);
+      assert(from < (int)ps.m && to < ps.last_node);
+      assert(from != to);
+  
+      // Matlab export has ids starting from 1, ours start from 0
+      g->add_edge(from, to, edge);
+  }
 
-void init_edge_data(edge_data_shotgun & data, double val){
+void add_edge(double val, int from, int to, graph_type_shotgun * g){
 
+      assert(from >= 0 && to >= 0);
+      assert(from < (int)ps.m && to < ps.last_node);
+      assert(from != to);
+      g->vertex_data(from).features.add_elem(to, val); 
+      g->vertex_data(to).features.add_elem(from, val); 
 }
 
 //read edges from file into the graph
@@ -481,18 +514,7 @@ int read_edges(FILE * f, int len, int offset, int nodes,
     total += rc;
    
     for (int i=0; i<rc; i++){
-      edge_data edge; 
-      init_edge_data(edge, ed[i].weight);
-      assert(ed[i].from >= 1 && ed[i].from <= nodes);
-      assert(ed[i].to >= 1 && ed[i].to <= nodes);
-      assert(ed[i].to != ed[i].from);
-  
-    // Matlab export has ids starting from 1, ours start from 0
-      g->add_edge(ed[i].from-1, ed[i].to-1, edge);
-      if (!config.square) { //add the reverse edge as well
-        // Matlab export has ids starting from 1, ours start from 0
-        g->add_edge(ed[i].to-1, ed[i].from-1, edge);
-      }
+      add_edge(ed[i].weight, ed[i].from-1, ed[i].to-1, g);
     }
     printf(".");
     fflush(0);
@@ -503,59 +525,6 @@ int read_edges(FILE * f, int len, int offset, int nodes,
   return e;
 }
 
-/*
-//read edges from file into the graph
-template<typename edatatype>
-int read_edges(FILE * f, int len, int offset, int nodes,
-               graph_type * g, advanced_config & config, bool symmetry = false){
-  assert(offset>=0 && offset < len);
-
-
-  unsigned int e,g0;
-  int rc = fread(&e,1,4,f);
-  assert(rc == 4);
-  if (!config.supportgraphlabcf){
-    rc = fread(&g0,1,4,f); //zero pad
-    assert(rc == 4);
-    assert(g0 == 0);
-  }
-  printf("Creating %d edges...\n", e);
-  assert(e>0);
-  int total = 0;
-  edatatype* ed = new edatatype[200000];
-  printf("symmetry: %d\n", symmetry);
-  int edgecount_in_file = e;
-  if (symmetry) edgecount_in_file /= 2;
-  while(true){
-    memset(ed, 0, 200000*sizeof(edatatype));
-    rc = (int)fread(ed, sizeof(edatatype),
-                    std::min(200000, edgecount_in_file - total), f);
-    total += rc;
-
-    for (int i=0; i<rc; i++){
-      //memset(tmp, 0, len/sizeof(sdouble));
-      edge_data tmp;
-      tmp.weight =  ed[i].weight;
-      if (!config.zero)
-        assert(ed[i].weight != 0);
-      assert(ed[i].from >= 1 && ed[i].from <= nodes);
-      assert(ed[i].to >= 1 && ed[i].to <= nodes);
-      assert(ed[i].to != ed[i].from);
-      // Matlab export has ids starting from 1, ours start from 0
-      g->add_edge(ed[i].from-1, ed[i].to-1, tmp);
-      if (!config.square) { //add the reverse edge as well
-        // Matlab export has ids starting from 1, ours start from 0
-        g->add_edge(ed[i].to-1, ed[i].from-1, tmp);
-      }
-    }
-    printf(".");
-    fflush(0);
-    if (rc == 0 || total >= edgecount_in_file)
-      break;
-  }
-  delete [] ed; ed = NULL;
-  return e;
-}*/
 
 FILE * load_matrix_metadata(const char * filename){
    printf("Loading %s\n", filename);
@@ -600,35 +569,6 @@ void load_square_matrix(FILE * f, graph_type& graph, advanced_config & config) {
   fclose(f);
 }
 
-/*
- *  READ A SQUARE INVERSE COV MATRIX A of size nxn
- *  Where the main digonal is the precision vector
- * */
-/*
-void load_square_matrix(FILE * f, graph_type_inv& graph, advanced_config & config) {
-
-  assert(m == n);
-  assert(n > 0);
-  //read the observation vector y of size n
-  read_nodes(f, sizeof(vertex_data)/sizeof(sdouble), GABP_PRIOR_MEAN_OFFSET,
-             n, &graph);
-
-  //unused, skip this vector to be in the right file offset
-  double * real = read_vec(f, n);
-  delete[] real;
-
-  //read the precition of size n (the main diagonal of the matrix A)
-  double * prec = read_vec(f, n);
-  assert(n == graph.num_vertices());
-  for (int i=0; i< (int)n; i++){
-     vertex_data_inv &data= graph.vertex_data(i);
-     data.prior_prec = prec[i];
-  }
-  delete[] prec;
-
-  e = read_edges<edata>(f, sizeof(edge_data)/sizeof(sdouble), 0, n, &graph, config);
-  fclose(f);
-}*/
 
 
 /**

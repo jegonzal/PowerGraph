@@ -6,22 +6,19 @@
 class advanced_config{
 
 public:
-  bool debug;
-  double threshold;
-  int syncinterval;
-  int iter;
-  int ncpus;
-  int algorithm;
+  bool debug;//debug mode - verbose
+  double threshold;//convergence threshold
+  int syncinterval;//sync interval - number of update functions between syncs
+  int iter;//total number of iterations
+  int ncpus;//number of cpus
+  int algorithm;//algorithm type
   int init_mode; //initialization mode used for clustering
-  bool cg_resid;
  
-  bool omp_support;
+  bool omp_support; //support for multithreading in serial (non graphlab) code
 
-  bool oldformat; //support for older binary file format
  
   //marix proprties
   bool zero;//allow zero entries in matrix?
-  bool isfloat;//input file in float format
   bool square;//is matrix square?
   int D; //width of factor matrices
 
@@ -30,7 +27,7 @@ public:
   bool clusterdump; //dump cluster locations into a text file
   bool tfidf; //deploy tf-idf transformation on matrix values
 
-  int unittest;
+  int unittest; //if not 0, runs unit testing
 
   //input output related stuff
   std::string datafile;
@@ -40,12 +37,13 @@ public:
   bool loadgraph; //load graph from a binary saved file
   bool savegraph; //save input file into graph binary file
   bool binaryoutput; //export the factors U,V,T to a binary file
-   
-  bool support_null_variance;
+  bool FLOAT; //is data in float format? if false, data in double format
+  bool isfloat;//input file in float format
+  bool oldformat; //support for older binary file format
+  bool supportgraphlabcf; //input is given in graphlab cf format (pmf format)
+  
   //bool round_robin;
-  bool supportgraphlabcf;
  bool stats; //print out statistics and exit
-  bool regnormal; //regular normalization
   bool aggregatevalidation; //use validation dataset as training data
   bool outputvalidation; //experimental: output validation results of kdd format
   bool printhighprecision; //print RMSE output with high precision
@@ -56,12 +54,16 @@ public:
   double minval; //minimal allowed value in matrix/tensor
   double maxval; //maximal allowed value in matrix/tensor
   std::string scheduler; 
-  bool mainfunc;
+  bool mainfunc; 
   bool manualgraphsetup; //if true, graph is loaded in user code and not by us
   double regularization;
+  
+/* variables for gaussian bp */
+bool support_null_variance;
 
 /* variables for ALS */
 double als_lambda;
+bool regnormal; //regular normalization
 
 /* variables of BPTF */
 int bptf_delay_alpha; //delay alpha sampling (optional, for BPTF)
@@ -76,7 +78,11 @@ float sgd_gamma; //step size
 float sgd_lambda; //starting step size
 float sgd_step_dec; //step decrement size
 
+/* variables for SVD */
 int svd_iter;
+  
+/* variables for CG */
+bool cg_resid;
 
 /* implicit ratings variables (see reference 10 in pmf.h) */
 float implicitratingweight;
@@ -90,11 +96,18 @@ int lasso_max_iter;
 double user_sparsity;
 double movie_sparsity;
 
-bool FLOAT; //is data in float format
 
 /* for LDA */
 int em_max_inner_iter; //number of inner EM iterations
 
+/* for shotgun */
+double shotgun_lambda;
+bool display_cost;
+int shotgun_max_linesearch_iter;
+double shotgun_beta;
+double shotgun_sigma;
+
+/* for clustering */
 int distance_measure;
 
 advanced_config(){
@@ -175,7 +188,14 @@ advanced_config(){
    tfidf = false;
 
    oldformat = false;
-
+   
+   /* for shotgun */
+   display_cost = false;
+   shotgun_lambda = 1;
+   shotgun_max_linesearch_iter = 20;
+   shotgun_beta = 0.5;
+   shotgun_sigma = 0.01;
+ 
    /* for LDA */
    em_max_inner_iter = 20;
  }

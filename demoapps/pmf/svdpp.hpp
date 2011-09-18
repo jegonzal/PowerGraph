@@ -57,7 +57,6 @@ double stepSize=8e-3;
 double regularization = 15e-3;
 
 using namespace graphlab;
-using namespace itpp;
 
 
 
@@ -65,7 +64,7 @@ void svd_init(){
    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", ac.D,stepSize,regularization);
    for (int i=0; i<ps.M+ps.N; i++){
        vertex_data & data = ps.g->vertex_data(i);
-       data.weight = ac.debug ? itpp::ones(ac.D) : itpp::randu(ac.D);
+       data.weight = ac.debug ? ones(ac.D) : randu(ac.D);
    } 
 }
 

@@ -37,7 +37,7 @@ vec lasso(mat A, vec b, double lambda, int max_iter, int D){
   assert(A.rows() == A.cols());
   assert(A.rows() == D);
   assert(b.size() == D);
-  bool ret = itpp::ls_solve(A, b, beta);
+  bool ret = ls_solve(A, b, beta);
   assert(ret);
 
   if (ac.debug)

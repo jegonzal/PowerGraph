@@ -36,8 +36,8 @@ void calc_T(int i){
   timer t; t.start();
   foreach (edge_id_t edge, edges[i]){
     if (k % batchSize == 0){
-      Q.zeros();
-      vals.zeros();
+      Q = zeros(batchSize, ac.D);
+      vals = zeros(batchSize);
       cnt = 1;
     }
 
@@ -95,7 +95,7 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!ps.BPTF){
       QQ = QQ+ 2*eDT;
-      bool ret = itpp::ls_solve(QQ, ps.pT*(t1 + vones*muT)+ RQ, out);
+      bool ret = ls_solve(QQ, ps.pT*(t1 + vones*muT)+ RQ, out);
       assert(ret);
     }
     //calc equation A.8 in Xiong paper
@@ -113,7 +113,7 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!ps.BPTF){
       QQ = QQ + eDT;
-      bool ret = itpp::ls_solve(QQ, ps.pT*tk_2 + RQ, out);
+      bool ret = ls_solve(QQ, ps.pT*tk_2 + RQ, out);
       assert(ret); 
     }
     //calc equation A.8 in Xiong paper
@@ -134,7 +134,7 @@ void calc_T(int i){
     //calc least squares estimation of time nodes
     if (!ps.BPTF){
       QQ = QQ + 2*eDT;
-      bool ret = itpp::ls_solve(QQ, ps.pT*tsum + RQ, out);
+      bool ret = ls_solve(QQ, ps.pT*tsum + RQ, out);
       assert(ret);
     }
     //calc equation A.8 in Xiong paper

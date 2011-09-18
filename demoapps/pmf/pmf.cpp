@@ -28,7 +28,6 @@
 #include <stdlib.h>
 
 #include "graphlab.hpp"
-#include "itppvecutils.hpp"
 #include "pmf.h"
 #include "prob.hpp"
 #include "bptf.hpp"
@@ -49,6 +48,7 @@
 #include "svdpp.hpp"
 #endif
 
+
 #include <graphlab/macros_def.hpp>
 
 const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix"};
@@ -63,7 +63,6 @@ const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
 
 
 using namespace graphlab;
-using namespace itpp;
 using namespace std;
 
 advanced_config ac;
@@ -98,7 +97,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
 
 //methods to compute the Root mean square error (RMSE)     
 float predict(const vec& x1, const vec& x2, const edge_data * edge, float rating, float & prediction){
-	prediction = dot(x1, x2);	
+   prediction = dot(x1, x2);	
    //return the squared error
    prediction = std::min((double)prediction, ac.maxval);
    prediction = std::max((double)prediction, ac.minval);
@@ -121,7 +120,7 @@ float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * ed
 
 	prediction = 0;
 	for (int i=0; i< v1.pvec.size(); i++){
-	   prediction += (v1.pvec[i] * v2.pvec[i] * v3->pvec.get(i));
+	   prediction += (v1.pvec[i] * v2.pvec[i] * v3->pvec[i]);
 	}
    prediction = std::min((double)prediction, ac.maxval);
    prediction = std::max((double)prediction, ac.minval);
@@ -473,7 +472,9 @@ void do_main(int argc, const char *argv[]){
 #ifdef GL_SVD_PP
   logstream(LOG_WARNING)<<"Code compiled with GL_SVD_PP flag - this mode only supports SVD++ run.\n";
 #endif
-
+#ifdef HAS_EIGEN
+  logstream(LOG_WARNING)<<"Program compiled with Eigen Support\n";
+#endif
    start(argc, argv);
 }
 

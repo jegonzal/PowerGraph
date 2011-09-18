@@ -90,9 +90,21 @@ struct edge_data_inv {
 struct vertex_data_shotgun{
   bool active;
   double x;
+  double xjneg;
+  double val;
+  double y;
+  double Ax;
+  double expAx;
 #ifdef HAS_ITPP
-  itpp::sparse_vec A_cols;
+  itpp::sparse_vec features;
 #endif
+
+
+  vertex_data_shotgun(){
+    active = true;
+    x = y = xjneg = Ax = val = 0;
+    expAx = 1;
+  }
 };
 
 struct edge_data_shotgun{
@@ -132,15 +144,25 @@ public:
   double counter[MAX_COUNTER];
   
 
+  //for shotgun logreg
+  bool cdn_all_zero; //we have reached an all zero solution
+  int cdn_neg_y; //number of negative training instances
+  int cdn_pos_y; //number of positive training instances
+  unsigned long long int shotgun_numshoots;
   //vectors for storing the output
   std::vector<double> means;
   std::vector<double> prec;
+
+  int last_node;
 
  problem_setup(){
 
   iiter = 1;//count number of time zero node run
  /* Problem size */
   m=n=e=0;
+ cdn_all_zero = false;
+  cdn_neg_y = cdn_pos_y = 0;
+  shotgun_numshoots = 0;
 
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));

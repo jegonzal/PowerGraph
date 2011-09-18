@@ -36,20 +36,20 @@ using namespace itpp;
 namespace graphlab {
 
 template<>
-oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
+inline oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
   arc << vec.length();
   serialize(arc, vec._data(), sizeof(double)*vec.length());
   return arc;
 }
 template<>
-oarchive& operator<< <itpp::Mat<double> > (oarchive& arc, const itpp::Mat<double> &mat) {
+inline oarchive& operator<< <itpp::Mat<double> > (oarchive& arc, const itpp::Mat<double> &mat) {
   arc << mat.rows() << mat.cols();
   serialize(arc, mat._data(), sizeof(double)*mat._datasize());  
   return arc;
 }
 
 template<>
-iarchive& operator>> <itpp::Vec<double> > (iarchive& arc, itpp::Vec<double> &vec) {
+inline iarchive& operator>> <itpp::Vec<double> > (iarchive& arc, itpp::Vec<double> &vec) {
   size_t vlength;
   arc >> vlength;
   vec.set_size(vlength);
@@ -58,7 +58,7 @@ iarchive& operator>> <itpp::Vec<double> > (iarchive& arc, itpp::Vec<double> &vec
 }
 
 template<>
-iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat) {
+inline iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat) {
   size_t rows, cols;
   arc >> rows >> cols;
   mat.set_size(rows,cols);
@@ -69,7 +69,7 @@ iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<double> &mat
 
 };
 
-void debug_print_vec(const char * name,const vec& _vec, int len){
+inline void debug_print_vec(const char * name,const vec& _vec, int len){
   printf("%s ) ", name);
   for (int i=0; i< len; i++)
     if (_vec[i] == 0)
@@ -84,20 +84,5 @@ inline void dot2(const vec&  x1, const vec& x3, mat & Q, int j, int len){
 	}
 }
 
-
-mat GenDiffMat(int K){
-    mat ret(K,K); 
-    ret.zeros();
-    for (int i=0; i<K; i++){
-        ret(i,i) = 2;
-    }
-    for (int i=1; i<K; i++){
-	ret(i-1,i) = -1;
-    }
-    for (int i=1; i<K; i++){
-	ret(i,i-1) = -1;
-    }
-   return ret;
-}
 
 #endif //_ITPP_VEC_UTILS_H

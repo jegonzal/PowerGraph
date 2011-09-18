@@ -114,10 +114,7 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
 
 
   // START GRAPHLAB *****
-  double runtime;
-  double diff = 0;
-
-  runtime= core.start();
+  double runtime = core.start();
   // POST-PROCESSING *****
   std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
 #ifdef HAS_ITPP
@@ -151,8 +148,32 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
   write_output();
 
   //TODO, measure qulity of solutio
-  return diff;
+  return 0;
 }
+
+template <typename coretype>
+double start_shotgun(graphlab::command_line_options &clopts, advanced_config &config){
+
+  assert(config.algorithm == GaBP_INV);
+  // Create a core
+  coretype core;
+  core.set_engine_options(clopts); // Set the engine options
+
+  // Load the graph --------------------------------------------------
+  load_data<gl_types_shotgun::graph, vertex_data_shotgun, edge_data_shotgun>(&core.graph());
+
+  // START GRAPHLAB *****
+  double runtime = core.start();
+  // POST-PROCESSING *****
+  std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
+
+  fill_output(&core.graph());
+
+  write_output();
+
+  return 0;
+}
+
 
 
 
@@ -277,6 +298,9 @@ int main(int argc,  char *argv[]) {
        break;
     case GaBP_INV:
        diff=start_inv<gl_types_inv::core>(clopts,config);
+       break;
+    case SHOTGUN_LOGREG:
+       diff=start_shotgun<gl_types_shotgun::core>(clopts, config);
        break;
   }
  

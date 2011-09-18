@@ -2,9 +2,6 @@
 #define PMF_H__
 
 //#define NDEBUG
-#include <itpp/itbase.h>
-#include <itpp/itstat.h>
-#include <itpp/stat/misc_stat.h>
 #include "graphlab.hpp"
 /**
 
@@ -50,7 +47,8 @@ For sparsity enforcing priors see:
 //#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
 //#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
-using namespace itpp;
+#include "mathlayer.hpp"
+#include "../gabp/advanced_config.h"
 
 
 //starts for holding edge data in file

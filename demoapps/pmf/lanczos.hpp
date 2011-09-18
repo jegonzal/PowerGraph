@@ -41,7 +41,6 @@ extern problem_setup ps;
 
 
 using namespace graphlab;
-using namespace itpp;
 int m; //number of iterations
 
 extern int svd_iter;
@@ -251,7 +250,7 @@ mat calc_V(){
   mat V = zeros(ps.M,m);
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = &ps.g->vertex_data(i);
-    V.set_row(i-ps.M, data->pvec.mid(1,m));
+    set_row(V, i-ps.M, head(data->pvec, m));
   }
   return V;
 }
@@ -303,25 +302,26 @@ void lanczos(gl_types::core & glcore){
 
  mat T=zeros(m+1,m+1);
  for (int i=1; i<=m; i++){
-   T.set(i-1,i-1,lancalpha[i]);
-   T.set(i-1,i,lancbeta[i+1]);
-   T.set(i,i-1,lancbeta[i+1]);
+   set_val(T,i-1,i-1,lancalpha[i]);
+   set_val(T,i-1,i,lancbeta[i+1]);
+   set_val(T,i,i-1,lancbeta[i+1]);
  }
- T.set(m,m,lancalpha[m+1]);
+ set_val(T,m,m,lancalpha[m+1]);
+
  mat Vectors=calc_V(); 
    
  vec eigenvalues; 
  mat eigenvectors;
  assert(eig_sym(T, eigenvalues, eigenvectors));
  cout << "Here are the computed eigenvalues, from larger to smaller" << endl;
- for (int i=0; i< min(eigenvalues.size(),20); i++)
+ for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[eigenvalues.size() - i - 1] << endl;
 
 
  //exports computed eigenvalues and eigenvectors to file
  ps.U=eigenvectors;
  ps.V=zeros(1,eigenvalues.size());
- ps.V.set_row(0,eigenvalues); 
+ set_row(ps.V,0,eigenvalues); 
 
 
 }

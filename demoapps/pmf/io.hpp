@@ -43,15 +43,15 @@ void fill_factors_uvt(){
    for (int i=0; i< ps.M+ps.N; i++){ 
       vertex_data & data = ps.g->vertex_data(i);
       if (i < ps.M)
-          ps.U.set_row(i, data.pvec);
+          set_row(ps.U, i, data.pvec);
       else
-        ps.V.set_row(i-ps.M, data.pvec);
+        set_row(ps.V, i-ps.M, data.pvec);
    }
 
    if (ps.tensor){ 
      ps.T = zeros(ps.K,ac.D);
      for (int i=0; i<ps.K; i++){
-        ps.T.set_row(i, ps.times[i].pvec);
+        set_row(ps.T, i, ps.times[i].pvec);
      }
     } 
   }
@@ -208,10 +208,18 @@ void export_uvt_to_binary_file(){
   rc = fwrite(&ac.D, 1, 4, f);
   assert(rc == 4);
 
+#ifdef HAS_EIGEN
+ /* f<<ps.U;
+  f<<ps.V;
+  if (ps.tensor)
+    f<<ps.T;
+*/ //TODO
+#else
   write_vec(f, ps.M*ac.D, ps.U._data());
   write_vec(f, ps.N*ac.D, ps.V._data());
   if (ps.tensor)
     write_vec(f, ps.K*ac.D, ps.T._data());
+#endif
 
   fclose(f); 
 
@@ -225,6 +233,7 @@ void export_uvt_to_itpp_file(){
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
+#ifndef HAS_EIGEN  
   it_file output(dfile);
   output << Name("User") << ps.U;
   output << Name("Movie") << ps.V;
@@ -232,6 +241,7 @@ void export_uvt_to_itpp_file(){
     output << Name("Time") << ps.T;
  }
   output.close();
+#endif
 }
 
 
@@ -252,6 +262,7 @@ void import_uvt_from_file(){
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
  printf("Loading factors U,V,T from file\n");
+ #ifndef HAS_EIGEN
  it_file input(dfile);
  input >> Name("User") >> U;
  input >> Name("Movie") >> V;
@@ -273,7 +284,7 @@ void import_uvt_from_file(){
         ps.times[i].pvec = T.get_row(i);
     }
  } 
- 
+ #endif //TODO
 }
 void verify_edges(graph_type * _g, testtype data_type){
 
@@ -329,7 +340,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   vertex_data vdata;
   // add M movie nodes (ps.tensor dim 1)
   for (int i=0; i<ps.M; i++){
-    vdata.pvec = ac.debug? (itpp::ones(ac.D)*0.1) : (itpp::randu(ac.D)*0.1);
+    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*0.1);
     _g->add_vertex(vdata);
     if (ac.debug && (i<= 5 || i == ps.M-1))
       debug_print_vec("U: ", vdata.pvec, ac.D);
@@ -337,7 +348,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   
   // add N user node (ps.tensor dim 2) 
   for (int i=0; i<ps.N; i++){
-    vdata.pvec = ac.debug? (itpp::ones(ac.D)*0.1) : (itpp::randu(ac.D)*0.1);
+    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*0.1);
     _g->add_vertex(vdata);
     if (ac.debug && (i<=5 || i==ps.N-1))
       debug_print_vec("V: ", vdata.pvec, ac.D);
@@ -346,7 +357,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   if (data_type==TRAINING && ps.tensor){
     //init times
     ps.times = new vertex_data[ps.K];
-    vec tones = itpp::ones(ac.D)*(ps.K==1?1:0.1);
+    vec tones = ones(ac.D)*(ps.K==1?1:0.1);
     //add T time node (ps.tensor dim 3)
     for (int i=0; i<ps.K; i++){
       ps.times[i].pvec =tones;

@@ -6,6 +6,7 @@ if (ITPP-FOUND)
   add_graphlab_executable(pmf pmf.cpp advanced_config.cpp read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp main.cpp)
   add_library(graphlabpmf STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp read_matrix_market.cpp) 
   ADD_DEFINITIONS(-fPIC)
+  ADD_DEFINITIONS(-I../../../deps/eigen-eigen-3.0.2/Eigen)
   add_library(graphlabpmf_pic STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp read_matrix_market.cpp )
   # test files
     add_graphlab_executable(itdiff itdiff.cpp)

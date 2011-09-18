@@ -120,7 +120,7 @@ double calc_obj(double res){
     for (int i=0; i<ps.K; i++){
       vec tmp = ps.times[i].pvec;
       sumT += pow(norm(tmp - vones, 2),2);
-      T.set_col(i, tmp);
+      set_col(T, i, tmp);
     }
     sumT *= ps.pT;
   }
@@ -176,10 +176,10 @@ void calc_stats(testtype type){
   int numedges = 0;
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
-      if (itpp::min(data->pvec) < minU)
-	 minU = itpp::min(data->pvec);
-      if (itpp::max(data->pvec) > maxU)
-	 maxU = itpp::max(data->pvec);
+      if (min(data->pvec) < minU)
+	 minU = min(data->pvec);
+      if (max(data->pvec) > maxU)
+	 maxU = max(data->pvec);
       if (gr->in_edge_ids(i).size() == 0)
 	 moviewithoutedges++;
     foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
@@ -212,10 +212,10 @@ void calc_stats(testtype type){
  }
  for (int i=0; i< ps.M; i++){ 
    const vertex_data * data = &gr->vertex_data(i);
-   if (itpp::min(data->pvec) < minV)
-     minV = itpp::min(data->pvec);
-   if (itpp::max(data->pvec) > maxV)
-     maxV = itpp::max(data->pvec);
+   if (min(data->pvec) < minV)
+     minV = min(data->pvec);
+   if (max(data->pvec) > maxV)
+     maxV = max(data->pvec);
 	 
    if (gr->out_edge_ids(i).size() == 0)
      userwithoutedges++;
