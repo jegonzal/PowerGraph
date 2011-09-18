@@ -54,8 +54,6 @@ namespace graphlab {
     cache_invalid = true;
     ASSERT_TRUE(db.open(filename));
     // get the pointers to the linked list of vertices
-    if (db.get("head_vid", 7, (char*)&head_vid, sizeof(head_vid)) == -1) head_vid = (uint64_t)(-1);
-    if (db.get("tail_vid", 7, (char*)&tail_vid, sizeof(tail_vid)) == -1) tail_vid = (uint64_t)(-1);
     if (db.get("numv", 4, (char*)&numv.value, sizeof(numv.value)) == -1) numv = 0;
     if (db.get("nume", 4, (char*)&nume.value, sizeof(nume.value)) == -1) nume = 0;
     if (db.get("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value)) == -1) numlocalv = 0;
@@ -80,8 +78,6 @@ namespace graphlab {
 
   void disk_atom::synchronize() {
     // update the linked list
-    db.set("head_vid", 7, (char*)&head_vid, sizeof(head_vid));
-    db.set("tail_vid", 7, (char*)&tail_vid, sizeof(tail_vid));
     db.set("numv", 4, (char*)&numv.value, sizeof(numv.value));
     db.set("nume", 4, (char*)&nume.value, sizeof(nume.value));
     db.set("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value));
@@ -107,22 +103,9 @@ namespace graphlab {
     oarc << owner;
     strm.flush();
     if (db.add("v"+id_to_str(vid), strm.str())) {
-      // first entry in linked list
-      mut.lock();
-      if (head_vid == (uint64_t)(-1)) {
-        head_vid = vid;
-        tail_vid = vid;
-        mut.unlock();
-      }
-      else {
-        // update linked list
-        std::string tail_next_key = "ll" + id_to_str(tail_vid);
-        tail_vid = vid;
-        mut.unlock();
-        db.set(tail_next_key.c_str(), tail_next_key.length(), 
-               (char*)&vid, sizeof(vid));
-        cache_invalid = true;
-      }
+      uint64_t v64 = (uint64_t)vid;
+      db.append("vidlist", 7, (char*)&v64, sizeof(v64));
+      cache_invalid = true;
       numv.inc();
       if (owner == atomid) numlocalv.inc();
       return true;
@@ -158,20 +141,15 @@ namespace graphlab {
 
   std::vector<disk_atom::vertex_id_type> disk_atom::enumerate_vertices() {
     std::vector<disk_atom::vertex_id_type> ret;
-    if (head_vid == (uint64_t)(-1)) return ret;
-    else {
-      uint64_t curvid = head_vid;
-      while(1) {
-        ret.push_back((disk_atom::vertex_id_type)(curvid));
-        std::string next_key = "ll" + id_to_str(curvid);
-        if (cache_invalid || 
-            cache.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
-          if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
-            break;
-          }
-        }
-      }
+    // read the entire vertex list
+    std::string vidlist;
+    if (cache_invalid || cache.get(std::string("vidlist"), &vidlist) == false) {
+      if (db.get(std::string("vidlist"), &vidlist) == false) return ret;
     }
+    ASSERT_EQ(vidlist.size() % sizeof(uint64_t), 0);
+    ret.resize(vidlist.size() / sizeof(uint64_t));
+    const uint64_t* arr = reinterpret_cast<const uint64_t*>(vidlist.c_str());
+    std::copy(arr, arr + ret.size(), ret.begin());
     return ret;
   }
 
@@ -192,38 +170,25 @@ namespace graphlab {
 
 
   std::map<uint16_t, uint32_t> disk_atom::enumerate_adjacent_atoms() {
+    std::vector<disk_atom::vertex_id_type> vids = enumerate_vertices();
     std::map<uint16_t, uint32_t> ret;
-    if (head_vid == (uint64_t)(-1)) return ret;
-    else {
-      uint64_t curvid = head_vid;
-      while(1) {
-        uint16_t owner;
-        get_vertex((disk_atom::vertex_id_type)curvid, owner);
-        if (owner != atomid) ret[owner]++;
-        std::string next_key = "ll" + id_to_str(curvid);
-        if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
-          break;
-        }
-      }
+    for (size_t i = 0;i < vids.size(); ++i) {
+      uint16_t owner;
+      get_vertex(vids[i], owner);
+      if (owner != atomid) ret[owner]++;
     }
     return ret;
   }
 
   disk_atom::vertex_color_type disk_atom::max_color() {
     disk_atom::vertex_color_type mcolor = 0;
-    if (head_vid == (uint64_t)(-1)) return mcolor;
-    else {
-      uint64_t curvid = head_vid;
-      while(1) {
-
-        disk_atom::vertex_color_type c = get_color(curvid);
-        if (c != disk_atom::vertex_color_type(-1)) {
-          mcolor = std::max(mcolor, c);
-        }
-        std::string next_key = "ll" + id_to_str(curvid);
-        if (db.get(next_key.c_str(), next_key.length(), (char*)&curvid, sizeof(curvid)) == -1) {
-          break;
-        }
+    
+    std::vector<disk_atom::vertex_id_type> vids = enumerate_vertices();
+    std::map<uint16_t, uint32_t> ret;
+    for (size_t i = 0;i < vids.size(); ++i) {
+      disk_atom::vertex_color_type c = get_color(vids[i]);
+      if (c != disk_atom::vertex_color_type(-1)) {
+        mcolor = std::max(mcolor, c);
       }
     }
     return mcolor;
@@ -303,8 +268,6 @@ namespace graphlab {
 
 
   void disk_atom::clear() {
-    head_vid = (uint64_t)(-1);   
-    tail_vid = (uint64_t)(-1);
     numv.value = 0;
     nume.value = 0;
     numlocalv.value = 0;

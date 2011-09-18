@@ -56,9 +56,7 @@ namespace graphlab {
    * 
    * The atom file is a Kyoto Cabinet data store and it contains the following keys:
    * 
-   * "head_vid" ==> uint64_t : the first vertex in a linked list of vertices \n
-   * "tail_vid" ==> uint64_t : the last vertex in a linked list of vertices \n
-   * "ll[vid]" ==> uint64_t : the vertex after vertex 'vid' in a linked list of vertices \n
+   * "vidlist" ==> uint64_t : the vertex after vertex 'vid' in a linked list of vertices \n
    * "numv" ==> uint64_t : the number of vertices in the atom \n
    * "nume" ==> uint64_t : the number of edges in the atom \n
    * "numlocalv" ==> uint64_t : the number of local vertices in the atom. \n
@@ -87,9 +85,6 @@ namespace graphlab {
     // with only one global invalidate flag
     //kyotocabinet::HashDB db;
   
-    /// a linked list of vertex IDs stored here
-    uint64_t head_vid;
-    uint64_t tail_vid;
     bool cache_invalid;
   
     atomic<uint64_t> numv;
@@ -159,22 +154,9 @@ namespace graphlab {
       oarc << owner << vdata;
       strm.flush();
       if (db.add("v"+id_to_str(vid), strm.str())) {
-        // first entry in linked list
-        mut.lock();
-        if (head_vid == (uint64_t)(-1)) {
-          head_vid = vid;
-          tail_vid = vid;
-          mut.unlock();
-        }
-        else {
-          // update linked list
-          std::string tail_next_key = "ll" + id_to_str(tail_vid);
-          tail_vid = vid;
-          mut.unlock();
-          db.set(tail_next_key.c_str(), tail_next_key.length(),
-                 (char*)&vid, sizeof(vid));
-          cache_invalid = true;
-        }
+        uint64_t v64 = (uint64_t)vid;
+        db.append("vidlist", 7, (char*)&v64, sizeof(v64));
+        cache_invalid = true;
         numv.inc();
         if (owner == atomid) numlocalv.inc();
       }
