@@ -164,8 +164,8 @@ namespace graphlab {
     std::vector<disk_atom::vertex_id_type> ret;
     // read the entire vertex list
     std::string vidlist;
-    if (const_in_mem && cache_get(std::string("_vidlist"), &vidlist) == false) {
-      return ret;
+    if (const_in_mem) {
+      if (cache_get(std::string("_vidlist"), &vidlist) == false) return ret;
     }
     else if (db.get(std::string("_vidlist"), &vidlist) == false) {
       return ret;
@@ -183,10 +183,10 @@ namespace graphlab {
     std::string val;
     std::string key = "v"+id_to_str(vid);
     
-    if (const_in_mem && cache_get(key, &val) == false) {
-      return false;
+    if (const_in_mem) {
+      if (cache_get(key, &val) == false) return false;
     }
-    else if (db.get("v"+id_to_str(vid), &val) == false) {
+    else if (db.get(key, &val) == false) {
       return false;
     }
 
@@ -229,13 +229,19 @@ namespace graphlab {
     std::string val;
     std::string key = "i"+id_to_str(vid);
     
-    if ((const_in_mem && cache_get(key, &val)) || db.get(key, &val)) {
-      const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
-      ASSERT_TRUE(val.length() % 8 == 0);
-      size_t numel = val.length() / 8;
-      ret.resize(numel);
-      for (size_t i = 0;i < numel; ++i) ret[i] = v[i];
+    if (const_in_mem) {
+      if (cache_get(key, &val) == false) return ret;
     }
+    else if (db.get(key, &val) == false) {
+      return ret;
+    }
+    
+    const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
+    ASSERT_TRUE(val.length() % 8 == 0);
+    size_t numel = val.length() / 8;
+    ret.resize(numel);
+    for (size_t i = 0;i < numel; ++i) ret[i] = v[i];
+
     return ret;    
   }
    
@@ -245,13 +251,20 @@ namespace graphlab {
     std::vector<disk_atom::vertex_id_type> ret;
     std::string val;
     std::string key = "o"+id_to_str(vid);
-    if ((const_in_mem && cache_get(key, &val)) || db.get(key, &val)) {
-      const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
-      size_t numel = val.length() / 8;
-      ASSERT_TRUE(val.length() % 8 == 0);
-      ret.resize(numel);
-      for (size_t i = 0;i < numel; ++i) ret[i] = v[i];
+    
+    if (const_in_mem) {
+      if (cache_get(key, &val) == false) return ret;
     }
+    else if (db.get(key, &val) == false) {
+      return ret;
+    }
+
+    const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
+    size_t numel = val.length() / 8;
+    ASSERT_TRUE(val.length() % 8 == 0);
+    ret.resize(numel);
+    for (size_t i = 0;i < numel; ++i) ret[i] = v[i];
+
     return ret;    
   }
 
@@ -261,12 +274,12 @@ namespace graphlab {
   disk_atom::get_color(disk_atom::vertex_id_type vid) {
     std::string key = "c" + id_to_str(vid);
     disk_atom::vertex_color_type  ret;
-    if (const_in_mem && 
-        cache_get(key.c_str(), key.length(), 
-                  (char*)&ret, sizeof(ret)) != -1) return ret;
-
-    if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) 
-      ret = disk_atom::vertex_color_type(-1);
+    if (const_in_mem) {
+     if (cache_get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) return disk_atom::vertex_color_type(-1);
+    }
+    else {
+      if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1)  return disk_atom::vertex_color_type(-1);
+    }
     return ret;
   }
 
@@ -281,10 +294,13 @@ namespace graphlab {
   uint16_t disk_atom::get_owner(disk_atom::vertex_id_type vid) {
     std::string key = "h" + id_to_str(vid);
     uint16_t ret;
-    if (const_in_mem && 
-        cache_get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) != -1) return ret;
-  
-    if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) ret = (uint16_t)(-1);
+    if (const_in_mem) { 
+      if (cache_get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) return (uint16_t)(-1);
+    }
+    else {
+      if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) return (uint16_t)(-1); 
+    }
+    
     return ret;
   }
 

@@ -330,8 +330,8 @@ namespace graphlab {
     bool get_edge(vertex_id_type src, vertex_id_type target, T &edata) {
       std::string val;
       std::string key = "e"+id_to_str(src)+"_"+id_to_str(target);
-      if (const_in_mem && cache_get(key, &val) == false) {
-        return false;
+      if (const_in_mem) {
+        if (cache_get(key, &val) == false) return false;
       }
       else if (db.get(key, &val) == false) {
         return false; 
