@@ -650,7 +650,7 @@ namespace graphlab {
       for (int i = 0;i < (int)atoms.size(); ++i) {
         std::string fname = atoms[i]->get_filename();
         // Make sure that this is not already a fast file
-        if (fname.length() >= 5 && fname.substr(fname.length() - 5, 5) != ".fast") {
+        if (fname.length() < 5 || fname.substr(fname.length() - 5, 5) != ".fast") {
           dynamic_cast<disk_atom*>(atoms[i])->build_memory_atom(atoms[i]->get_filename() + ".fast");
         }
       }
