@@ -1462,11 +1462,11 @@ namespace graphlab {
         if (fin.good() && fin.is_open()) {
           fin.close();
           atomfiles[i] = new memory_atom(fname + ".fast", 
-                                         atoms_in_curpart[i], true);
+                                         atoms_in_curpart[i]);
         }
         else {
           atomfiles[i] = new disk_atom(fname, 
-                                       atoms_in_curpart[i], true);
+                                       atoms_in_curpart[i]);
         }
         vertices_in_atom[i] = atomfiles[i]->enumerate_vertices();
       }

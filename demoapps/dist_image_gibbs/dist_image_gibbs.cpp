@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
             << "the graphlab framework." << std::endl;
 
   // set the global logger
-  global_logger().set_log_level(LOG_WARNING);
+  global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
 
   bool makegraph = false;
@@ -206,6 +206,7 @@ int main(int argc, char** argv) {
     graphlab::graph_partitioner::metis_partition(g, 64, parts);
     dg.create_from_graph(g, parts);
     dg.finalize();
+    dg.make_memory_atoms();
     return 0;
   }
 
