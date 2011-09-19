@@ -313,7 +313,9 @@ namespace graphlab {
       for (size_t i = 0;i < atoms.size(); ++i) {
         idx.atoms[i].protocol = "file";
         idx.atoms[i].file = atoms[i]->get_filename();
-        if (idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast") {
+        // if end with .fast, strip it out
+        if (idx.atoms[i].file.length() >= 5 && 
+            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast") {
           idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
         }
         idx.atoms[i].nverts = atoms[i]->num_local_vertices();
@@ -647,7 +649,8 @@ namespace graphlab {
       #pragma omp parallel for
       for (int i = 0;i < (int)atoms.size(); ++i) {
         std::string fname = atoms[i]->get_filename();
-        if (fname.substr(fname.length() - 5, 5) != ".fast") {
+        // Make sure that this is not already a fast file
+        if (fname.length() >= 5 && fname.substr(fname.length() - 5, 5) != ".fast") {
           dynamic_cast<disk_atom*>(atoms[i])->build_memory_atom(atoms[i]->get_filename() + ".fast");
         }
       }
