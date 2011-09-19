@@ -1455,8 +1455,7 @@ namespace graphlab {
       for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
         atoms_in_curpart_set.set_bit(atoms_in_curpart[i]);
         atomfiles[i] = new disk_atom(atomindex.atoms[atoms_in_curpart[i]].file, 
-                                     atoms_in_curpart[i]);
-        atomfiles[i]->precache();
+                                     atoms_in_curpart[i], true);
         vertices_in_atom[i] = atomfiles[i]->enumerate_vertices();
       }
     

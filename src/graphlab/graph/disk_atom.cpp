@@ -33,6 +33,7 @@
 
 #include <sstream>
 #include <map>
+#include <ios>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -44,14 +45,32 @@
 namespace graphlab {
 
   disk_atom::disk_atom(std::string filename, 
-                       uint16_t atomid):atomid(atomid),filename(filename) {
+                       uint16_t atomid, bool constant_in_memory):
+                          atomid(atomid),filename(filename),const_in_mem(constant_in_memory) {
+    if (const_in_mem) {
+      // try to load the fast file
+      std::ifstream fin((filename+".fast").c_str(), std::ios::binary);
+      if (fin.is_open() && fin.good()) {
+        iarchive iarc(fin);
+        iarc >> cache;
+      }
+      else {
+        open_db();
+        build_cache();
+      }
+    }
+    else {
+      open_db();
+    }
+  }
+
+  void disk_atom::open_db() {
     db.tune_options(storage_type::TLINEAR);
     db.tune_buckets(1000);
     db.tune_page(32768);
 #if __LP64__
     db.tune_map(256 * 1024 * 1024); // 256MB
 #endif
-    cache_invalid = true;
     ASSERT_TRUE(db.open(filename));
     // get the pointers to the linked list of vertices
     if (db.get("numv", 4, (char*)&numv.value, sizeof(numv.value)) == -1) numv = 0;
@@ -59,17 +78,7 @@ namespace graphlab {
     if (db.get("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value)) == -1) numlocalv = 0;
     if (db.get("numlocale", 9, (char*)&numlocale.value, sizeof(numlocale.value)) == -1) numlocale = 0;
   }
-
-  void disk_atom::precache() {
-    storage_type::Cursor* cur = db.cursor();
-    cur->jump();
-    std::string key, val;
-    while (cur->get(&key, &val, true)) {
-      cache.set(key, val);
-    }
-    delete cur;
-    cache_invalid = false;
-  }
+  
 
   disk_atom::~disk_atom() {
     synchronize();
@@ -86,18 +95,19 @@ namespace graphlab {
   }
 
   void disk_atom::add_vertex(disk_atom::vertex_id_type vid, uint16_t owner) {
+    ASSERT_FALSE(const_in_mem);
     if (!add_vertex_skip(vid, owner)) {
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner;
       strm.flush();
       db.set("v"+id_to_str(vid), strm.str());
-      cache_invalid = true;
     }
   }
 
 
   bool disk_atom::add_vertex_skip(disk_atom::vertex_id_type vid, uint16_t owner) {
+    ASSERT_FALSE(const_in_mem);
     mut[vid % 511].lock();
     std::stringstream strm;
     oarchive oarc(strm);    
@@ -106,7 +116,6 @@ namespace graphlab {
     if (db.add("v"+id_to_str(vid), strm.str())) {
       uint64_t v64 = (uint64_t)vid;
       db.append("_vidlist", 8, (char*)&v64, sizeof(v64));
-      cache_invalid = true;
       numv.inc();
       if (owner == atomid) numlocalv.inc();
       mut[vid % 511].unlock();
@@ -118,14 +127,15 @@ namespace graphlab {
 
 
   void disk_atom::add_edge(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
+    ASSERT_FALSE(const_in_mem);
     if (!add_edge_skip(src, target)) {
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
-      cache_invalid = true;
     }
   }
 
 
   bool disk_atom::add_edge_skip(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
+    ASSERT_FALSE(const_in_mem);
     mut[(src ^ target) % 511].lock();
     if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""))) {
       // increment the number of edges
@@ -149,9 +159,13 @@ namespace graphlab {
     std::vector<disk_atom::vertex_id_type> ret;
     // read the entire vertex list
     std::string vidlist;
-    if (cache_invalid || cache.get(std::string("_vidlist"), &vidlist) == false) {
-      if (db.get(std::string("_vidlist"), &vidlist) == false) return ret;
+    if (const_in_mem && cache_get(std::string("_vidlist"), &vidlist) == false) {
+      return ret;
     }
+    else if (db.get(std::string("_vidlist"), &vidlist) == false) {
+      return ret;
+    }
+    
     ASSERT_EQ(vidlist.size() % sizeof(uint64_t), 0);
     ret.resize(vidlist.size() / sizeof(uint64_t));
     const uint64_t* arr = reinterpret_cast<const uint64_t*>(vidlist.c_str());
@@ -163,10 +177,14 @@ namespace graphlab {
   bool disk_atom::get_vertex(disk_atom::vertex_id_type vid, uint16_t &owner) {
     std::string val;
     std::string key = "v"+id_to_str(vid);
-    if (cache_invalid || cache.get(key, &val) == false) {
-      if (db.get("v"+id_to_str(vid), &val) == false) return false;
+    
+    if (const_in_mem && cache_get(key, &val) == false) {
+      return false;
     }
-  
+    else if (db.get("v"+id_to_str(vid), &val) == false) {
+      return false;
+    }
+
     boost::iostreams::stream<boost::iostreams::array_source> 
       istrm(val.c_str(), val.length());   
     iarchive iarc(istrm);
@@ -205,7 +223,8 @@ namespace graphlab {
     std::vector<disk_atom::vertex_id_type> ret;
     std::string val;
     std::string key = "i"+id_to_str(vid);
-    if ((cache_invalid == false && cache.get(key, &val)) || db.get(key, &val)) {
+    
+    if ((const_in_mem && cache_get(key, &val)) || db.get(key, &val)) {
       const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
       ASSERT_TRUE(val.length() % 8 == 0);
       size_t numel = val.length() / 8;
@@ -221,7 +240,7 @@ namespace graphlab {
     std::vector<disk_atom::vertex_id_type> ret;
     std::string val;
     std::string key = "o"+id_to_str(vid);
-    if ((cache_invalid == false && cache.get(key, &val)) || db.get(key, &val)) {
+    if ((const_in_mem && cache_get(key, &val)) || db.get(key, &val)) {
       const uint64_t* v = reinterpret_cast<const uint64_t*>(val.c_str());
       size_t numel = val.length() / 8;
       ASSERT_TRUE(val.length() % 8 == 0);
@@ -237,8 +256,8 @@ namespace graphlab {
   disk_atom::get_color(disk_atom::vertex_id_type vid) {
     std::string key = "c" + id_to_str(vid);
     disk_atom::vertex_color_type  ret;
-    if (cache_invalid == false && 
-        cache.get(key.c_str(), key.length(), 
+    if (const_in_mem && 
+        cache_get(key.c_str(), key.length(), 
                   (char*)&ret, sizeof(ret)) != -1) return ret;
 
     if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) 
@@ -251,15 +270,14 @@ namespace graphlab {
                             disk_atom::vertex_color_type color) {
     std::string key = "c" + id_to_str(vid);
     db.set(key.c_str(), key.length(), (char*)&color, sizeof(color));
-    cache_invalid = true;
   }
 
 
   uint16_t disk_atom::get_owner(disk_atom::vertex_id_type vid) {
     std::string key = "h" + id_to_str(vid);
     uint16_t ret;
-    if (cache_invalid == false && 
-        cache.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) != -1) return ret;
+    if (const_in_mem && 
+        cache_get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) != -1) return ret;
   
     if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) ret = (uint16_t)(-1);
     return ret;
@@ -269,7 +287,6 @@ namespace graphlab {
   void disk_atom::set_owner(disk_atom::vertex_id_type vid, uint16_t owner) {
     std::string key = "h" + id_to_str(vid);
     db.set(key.c_str(), key.length(), (char*)&owner, sizeof(owner));
-    cache_invalid = true;
   }
 
 
@@ -281,6 +298,25 @@ namespace graphlab {
     db.clear();
   }
 
+  void disk_atom::build_cache() {
+    cache.clear();
+    storage_type::Cursor* cur = db.cursor();
+    cur->jump();
+    std::string key, val;
+    while (cur->get(&key, &val, true)) {
+      cache[key] = val;
+    }
+  }
+  
+  void disk_atom::build_fast_finalized_atom() {
+    build_cache();
+    std::string finalizedatom = filename + ".fast";  
+
+    std::ofstream fout(finalizedatom.c_str(), std::ios::binary);
+    oarchive oarc(fout);
+    oarc << cache;
+    fout.close();
+  }
 
 } // namespace graphlab
 

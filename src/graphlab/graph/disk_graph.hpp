@@ -165,21 +165,19 @@ namespace graphlab {
      * \note finalize() will always rebuild an atom index file irregardless of
      * which constructor is used.
      */
-    disk_graph(std::string fbasename, size_t numfiles){  
+    disk_graph(std::string fbasename, size_t numfiles, bool constgraph = false){  
       atoms.resize(numfiles);
       numv.value = 0;
       nume.value = 0;
       for (size_t i = 0;i < numfiles; ++i) {
-        atoms[i] = new disk_atom(fbasename + "." + tostr(i), i);
+        atoms[i] = new disk_atom(fbasename + "." + tostr(i), i, constgraph);
         numv.value += atoms[i]->num_local_vertices();
         nume.value += atoms[i]->num_local_edges();
       }
       indexfile = fbasename + ".idx";
       ncolors = vertex_color_type(-1);
     }
-  
-  
-    
+      
     /**
      * Opens a graph using 'atomindex' as the disk graph index file.
      * If the file 'atomindex' does not exist, an assertion failure will be issued
@@ -625,6 +623,13 @@ namespace graphlab {
     
     size_t num_atoms() const {
       return atoms.size();
+    }
+    
+    void make_const_atoms() {
+      #pragma omp parallel for
+      for (int i = 0;i < (int)atoms.size(); ++i) {
+        atoms[i]->build_fast_finalized_atom();
+      }
     }
   private:
     

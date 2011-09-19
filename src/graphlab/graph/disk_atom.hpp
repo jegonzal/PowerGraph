@@ -36,13 +36,13 @@
 
 #include <sstream>
 #include <map>
+#include <boost/unordered_map.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <kchashdb.h>
-#include <kccachedb.h>
 
 namespace graphlab {
   
@@ -81,11 +81,8 @@ namespace graphlab {
     typedef graph<bool,bool>::vertex_color_type vertex_color_type;
 
     storage_type db;
-    kyotocabinet::CacheDB cache;  // a REALLY simple cache of the db.
     // with only one global invalidate flag
     //kyotocabinet::HashDB db;
-  
-    bool cache_invalid;
   
     atomic<uint64_t> numv;
     atomic<uint64_t> nume;
@@ -95,17 +92,41 @@ namespace graphlab {
     mutex mut[511];
   
     std::string filename;
-  
+    bool const_in_mem;
+    boost::unordered_map<std::string, std::string> cache;
+    
     inline std::string id_to_str(uint64_t i) {
       char c[10]; 
       unsigned char len = compress_int(i, c);
       return std::string(c + 10 - len, (std::streamsize)len); 
     }
 
+    void open_db();
+    
+    bool cache_get(std::string key, std::string* val) const {
+      boost::unordered_map<std::string, std::string>::const_iterator i = cache.find(key);
+      if (i != cache.end()) {
+        (*val) = i->second;
+        return true;
+      }
+      return false;
+    }
+    
+    int cache_get(const char* key, size_t keylen, char* val, size_t vallen) const  {
+      boost::unordered_map<std::string, std::string>::const_iterator i = cache.find(std::string(key, keylen));
+      if (i != cache.end()) {
+        memcpy(val, i->second.c_str(), std::min(i->second.length(), vallen));
+        return (int)std::min(i->second.length(), vallen);
+      }
+      else {
+        return (-1);
+      }
+    }
+
   public:
    
     /// constructor. Accesses an atom stored at the filename provided
-    disk_atom(std::string filename, uint16_t atomid);
+    disk_atom(std::string filename, uint16_t atomid, bool constant_in_memory = false);
 
   
     ~disk_atom();
@@ -130,10 +151,6 @@ namespace graphlab {
      */
     void add_vertex(vertex_id_type vid, uint16_t owner);
   
-    /**
-     * Reads the entire hash table into cache
-     */
-    void precache();
   
     /**
      * \brief Inserts vertex 'vid' into the file without data.
@@ -149,6 +166,7 @@ namespace graphlab {
      */
     template <typename T>
     void add_vertex(vertex_id_type vid, uint16_t owner, const T &vdata) {
+      ASSERT_FALSE(const_in_mem);
       mut[vid % 511].lock();
       std::stringstream strm;
       oarchive oarc(strm);    
@@ -157,13 +175,11 @@ namespace graphlab {
       if (db.add("v"+id_to_str(vid), strm.str())) {
         uint64_t v64 = (uint64_t)vid;
         db.append("_vidlist", 8, (char*)&v64, sizeof(v64));
-        cache_invalid = true;
         numv.inc();
         if (owner == atomid) numlocalv.inc();
       }
       else {
         db.set("v"+id_to_str(vid), strm.str());
-        cache_invalid = true;
       }
       mut[vid % 511].unlock();
     }
@@ -188,6 +204,7 @@ namespace graphlab {
      */
     template <typename T>
     void add_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
+      ASSERT_FALSE(const_in_mem);
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << edata;
@@ -204,11 +221,9 @@ namespace graphlab {
         std::string iadj_key = "i"+id_to_str(target);
         uint64_t src64 = (uint64_t)src;
         db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
-        cache_invalid = true;
       }
       else {
         db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
-        cache_invalid = true;
       }
       mut[(src ^ target) % 511].unlock();
     }
@@ -221,12 +236,12 @@ namespace graphlab {
      */
     template <typename T>
     void set_vertex(vertex_id_type vid, uint16_t owner) {
+      ASSERT_FALSE(const_in_mem);
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner;
       strm.flush();
       db.set("v"+id_to_str(vid), strm.str());
-      cache_invalid = true;
     }
   
 
@@ -237,12 +252,12 @@ namespace graphlab {
      */
     template <typename T>
     void set_vertex(vertex_id_type vid, uint16_t owner, const T &vdata) {
+      ASSERT_FALSE(const_in_mem);
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << owner << vdata;
       strm.flush();
       db.set("v"+id_to_str(vid), strm.str());
-      cache_invalid = true;
     }
   
 
@@ -253,8 +268,8 @@ namespace graphlab {
      */
     template <typename T>
     void set_edge(vertex_id_type src, vertex_id_type target) {
+      ASSERT_FALSE(const_in_mem);
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
-      cache_invalid = true;
     }
   
     /**
@@ -263,12 +278,12 @@ namespace graphlab {
      */
     template <typename T>
     void set_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
+      ASSERT_FALSE(const_in_mem);
       std::stringstream strm;
       oarchive oarc(strm);    
       oarc << edata;
       strm.flush();
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), strm.str());
-      cache_invalid = true;
     }
   
   
@@ -289,12 +304,15 @@ namespace graphlab {
     bool get_vertex(vertex_id_type vid, uint16_t &owner, T &vdata) {
       std::string val;
       std::string key = "v"+id_to_str(vid);
-      if (cache_invalid || cache.get(key, &val) == false) {
-        if (db.get("v"+id_to_str(vid), &val) == false) return false;
+      if (const_in_mem && cache_get(key, &val) == false) {
+        return false;
       }
-    
+      else if (db.get(key, &val) == false) {
+        return false; 
+      }
+      
       boost::iostreams::stream<boost::iostreams::array_source> 
-        istrm(val.c_str(), val.length());   
+              istrm(val.c_str(), val.length());   
       iarchive iarc(istrm);
       iarc >> owner;
       // try to deserialize vdata if exists
@@ -312,9 +330,13 @@ namespace graphlab {
     bool get_edge(vertex_id_type src, vertex_id_type target, T &edata) {
       std::string val;
       std::string key = "e"+id_to_str(src)+"_"+id_to_str(target);
-      if (cache_invalid || cache.get(key, &val) == false) {
-        if (db.get(key, &val) == false) return false;
+      if (const_in_mem && cache_get(key, &val) == false) {
+        return false;
       }
+      else if (db.get(key, &val) == false) {
+        return false; 
+      }
+      
       if (val.length() > 0) {
         // there is edata
         boost::iostreams::stream<boost::iostreams::array_source> 
@@ -409,6 +431,10 @@ namespace graphlab {
     inline storage_type& get_db() {
       return db;
     }
+    
+    void build_cache();
+    void build_fast_finalized_atom();
+
   };
 
 }
