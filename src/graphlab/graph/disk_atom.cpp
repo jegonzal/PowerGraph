@@ -53,6 +53,11 @@ namespace graphlab {
       if (fin.is_open() && fin.good()) {
         iarchive iarc(fin);
         iarc >> cache;
+        if (cache_get("numv", 4, (char*)&numv.value, sizeof(numv.value)) == -1) numv = 0;
+        if (cache_get("nume", 4, (char*)&nume.value, sizeof(nume.value)) == -1) nume = 0;
+        if (cache_get("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value)) == -1) numlocalv = 0;
+        if (cache_get("numlocale", 9, (char*)&numlocale.value, sizeof(numlocale.value)) == -1) numlocale = 0;
+
       }
       else {
         open_db();
