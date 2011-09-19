@@ -112,11 +112,11 @@ namespace graphlab {
             // if has data, set the data
             istrm.peek();
             if (!istrm.eof()) {
-              VertexData vdata;
+              std::string vdata;
               iarc >> vdata;
               ASSERT_EQ(owner, idx);
               // this will overwrite all other "skipped" vertices
-              atomout.add_vertex(vid, owner, vdata);
+              atomout.add_vertex_with_data(vid, owner, vdata);
             }
             else {
               atomout.add_vertex_skip(vid, owner);
@@ -126,12 +126,7 @@ namespace graphlab {
             // edge
             std::pair<vertex_id_type, vertex_id_type> edge = edge_key_to_id(key);
             if (val.length() > 0) {
-              EdgeData edata;
-              boost::iostreams::stream<boost::iostreams::array_source> 
-                istrm(val.c_str(), val.length());   
-              iarchive iarc(istrm);
-              iarc >> edata;
-              atomout.add_edge(edge.first, edge.second, edata);
+              atomout.add_edge_with_data(edge.first, edge.second, val);
               atomout.inc_numlocale();
             }
             else {

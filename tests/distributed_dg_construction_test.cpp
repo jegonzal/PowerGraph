@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
   // everything after this is just for verification
   std::cout << "Checking constructed graph ... " << std::endl;
   if (dc.procid() == 0) {
-    disk_graph<float,double> graph("dg.idx");
+    disk_graph<float,double> graph(false, "dg.idx");
 
     ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
     ASSERT_EQ(graph.num_edges(), memgraph.num_edges());
