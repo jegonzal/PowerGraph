@@ -33,7 +33,7 @@
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/graph/graph.hpp>
-
+#include <graphlab/core_base.hpp>
 
 
 #include <graphlab/metrics/metrics.hpp>
@@ -88,7 +88,7 @@ namespace graphlab {
      clearing of all scheduler tasks.
   */
   template <typename VertexType, typename EdgeType>
-  class core {
+  class core : public core_base {
   public:
     typedef graphlab::types<graphlab::graph<VertexType, EdgeType> > types;
     typedef typename types::vertex_id vertex_id_type;
@@ -303,8 +303,9 @@ namespace graphlab {
       check_engine_modification();
       command_line_options clopts;
       bool success = clopts.parse(argc, argv);
-      ASSERT_TRUE(success);
-      return set_engine_options(clopts);
+      if (!success) return false;
+      set_engine_options(clopts);
+      return true;
     }
 
 
