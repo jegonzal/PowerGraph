@@ -30,9 +30,8 @@
  */
 
 
-#ifndef GRAPHLAB_DISK_ATOM_HPP
-#define GRAPHLAB_DISK_ATOM_HPP
-
+#ifndef GRAPHLAB_MEMORY_ATOM_HPP
+#define GRAPHLAB_MEMORY_ATOM_HPP
 
 #include <sstream>
 #include <map>
@@ -43,73 +42,81 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <graphlab/logger/logger.hpp>
-#include <kchashdb.h>
 
 namespace graphlab {
   
   /**
-   * Interface for reading and writing to an atom on disk
+   * Interface for reading and writing to an atom in memory
    * 
    * The atom serves 2 purposes.
    * First it provides a partition of the graph, including its ghost vertices.
    * Next, it provides an auxiliary hashtable distributed across all atom files, 
    *        identifying the owner of a vertex.
    * 
-   * The atom file is a Kyoto Cabinet data store and it contains the following keys:
-   * 
-   * "_vidlist" ==> uint64_t : the vertex after vertex 'vid' in a linked list of vertices \n
-   * "numv" ==> uint64_t : the number of vertices in the atom \n
-   * "nume" ==> uint64_t : the number of edges in the atom \n
-   * "numlocalv" ==> uint64_t : the number of local vertices in the atom. \n
-   * "numlocale" ==> uint64_t : the number of local edges in the atom. \n
-   * v[vid] ==> archive of owner, vdata : The vertex data of vertex 'vid' \n
-   * e[srcv][destv] ==> archive of edata : The edge on the edge srcv --> destv \n
-   * i[vid] ==> uint64_t* : An array of in-vertices of vertex 'vid' \n
-   * o[vid] ==> uint64_t* : An array of out-vertices of vertex 'vid' \n
-   * c[vid] ==> uint32_t : Color of vertex 'vid' \n
-   * 
    * Next the DHT entries are: \n
    * h[vid] ==> uint16_t : The atom file owning vertex vid.  \n
    * These are entirely independent of the previous keys.
    */
-  class disk_atom: public graph_atom {
-  public:
-    typedef kyotocabinet::TreeDB storage_type;
+  class memory_atom :public graph_atom {
   private:
 
     //! Todo: Fix ugly hack
     typedef graph<bool,bool>::vertex_id_type    vertex_id_type;
     typedef graph<bool,bool>::vertex_color_type vertex_color_type;
-
-    storage_type db;
-    // with only one global invalidate flag
-    //kyotocabinet::HashDB db;
   
     atomic<uint64_t> numv;
     atomic<uint64_t> nume;
     atomic<uint64_t> numlocalv;
     atomic<uint64_t> numlocale;
     uint16_t atomid;
-    mutex mut[511];
+    mutex mut;
   
+    mutex edgemut[511];
     std::string filename;
-    
-    inline std::string id_to_str(uint64_t i) {
-      char c[10]; 
-      unsigned char len = compress_int(i, c);
-      return std::string(c + 10 - len, (std::streamsize)len); 
-    }
+    /**
+      A collection of all the vertices in this atom
+    */
+    struct vertex_entry {
+      vertex_id_type vid;   /// ID of the veretx
+      uint16_t owner;       /// Owner of the veretx
+      vertex_color_type color;  /// color of the vertex
+      std::string vdata;        /// serialized vdata
+      std::map<vertex_id_type, std::string> outedges; /// keys(outedges) is all outedges.
+                                                      /// outedges[destv] contain data 
+                                                      /// on the edge curv-->destv
+      std::set<vertex_id_type> inedges;               /// The set of all in vertices. Data
+                                                      /// Is stored on the source end.
+      
+      vertex_entry(vertex_id_type vid = vertex_id_type(-1),
+                   uint16_t owner = uint16_t(-1),
+                   vertex_color_type color = vertex_color_type(-1),
+                   std::string vdata = std::string("")
+                   ):vid(vid), owner(owner), color(color), vdata(vdata) { }
 
-    void open_db();
+      inline void save(oarchive &oarc) const {
+        oarc << vid << color << owner << vdata << outedges << inedges;
+      }
+      inline void load(iarchive &iarc) {
+        iarc >> vid >> color >> owner >> vdata >> outedges >> inedges;
+      }
+
+    };
+
+    std::vector<vertex_entry> vertices;
+    boost::unordered_map<uint64_t, size_t> vidmap;  // constructed on load
     
+    boost::unordered_map<uint64_t, uint16_t> vid2owner_segment;
+
 
   public:
    
     /// constructor. Accesses an atom stored at the filename provided
-    disk_atom(std::string filename, uint16_t atomid);
+    memory_atom(std::string filename, uint16_t atomid);
 
   
-    ~disk_atom();
+    inline ~memory_atom() { 
+      synchronize();
+    }
   
     /// Increments the number of local edges stored in this atom
     inline void inc_numlocale() {
@@ -145,7 +152,6 @@ namespace graphlab {
      * it will be overwritten.
      */
     void add_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata);
-    
   
     /**
      * \brief Inserts edge src->target into the file without data. 
@@ -164,7 +170,7 @@ namespace graphlab {
      * \brief Inserts edge src->target into the file. If the edge already exists,
      * it will be overwritten.
      */
-    void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string& edata);
+    void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata);
   
   
     /**
@@ -181,7 +187,6 @@ namespace graphlab {
      * already contains this vertex. If user is unsure, add_vertex should be used.
      */
     void set_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata);
-  
 
     /**
      * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
@@ -189,7 +194,7 @@ namespace graphlab {
      * If user is unsure, add_edge should be used.
      */
     void set_edge(vertex_id_type src, vertex_id_type target);
-    
+  
     /**
      * \brief Modifies an existing edge in the file. User must ensure that the file
      * already contains this edge. If user is unsure, add_edge should be used.
@@ -211,14 +216,14 @@ namespace graphlab {
      * If there is no vertex data stored, vdata will not be modified.
      */
     bool get_vertex_data(vertex_id_type vid, uint16_t &owner, std::string &vdata);
-  
+    
     /**
      * \brief Reads a edge from the file returning results in 'owner' and 'vdata'.
      * Returns true if edge exists and false otherwise.
      * If there is no edge data stored, edata will not be modified.
      */
     bool get_edge_data(vertex_id_type src, vertex_id_type target, std::string &edata);
-
+    
 
     /**
      * \brief Returns a list of all the vertices in the file
@@ -299,10 +304,6 @@ namespace graphlab {
       return numlocale.value;
     }
   
-    /// Returns a reference to the underlying Kyoto Cabinet
-    inline storage_type& get_db() {
-      return db;
-    }
     
     void build_memory_atom();
 
@@ -311,4 +312,5 @@ namespace graphlab {
 }
 
 #endif
+
 

@@ -318,47 +318,6 @@ public:
       TS_TRACE("Making Constant Atoms");
       graph.make_const_atoms();
     }   
-    
-    {
-      timer ti;
-      ti.start();
-      
-      graphlab::disk_graph<vertex_data, edge_data> graph("dg3", 10, true);
-      
-      TS_TRACE("Checking constant graph");
-      TS_ASSERT_EQUALS(graph.num_vertices(), memgraph.num_vertices());
-      TS_ASSERT_EQUALS(graph.num_edges(), memgraph.num_edges());
-      for(vertex_id_t i = 0; i < num_verts; ++i) {
-        // get the outvertices for each vertex
-        std::vector<vertex_id_t> outv = graph.out_vertices(i);
-        std::vector<vertex_id_t> outvmem = memgraph.out_vertices(i);
-        // test if they are the same size
-        TS_ASSERT_EQUALS(outv.size(), outvmem.size());
-        std::sort(outv.begin(), outv.end());
-        std::sort(outvmem.begin(), outvmem.end());
-        // compare if the vector contents are identical
-        for (size_t j = 0;j < outv.size(); ++j) {
-          TS_ASSERT_EQUALS(outv[j], outvmem[j]);
-          // compare if the edge data is identical
-          edge_data ed1 = graph.get_edge_data(i, outv[j]);
-          edge_data ed2 = memgraph.edge_data(i, outvmem[j]);
-          TS_ASSERT_EQUALS(ed1.weight, ed2.weight);
-          TS_ASSERT_EQUALS(ed1.sum, ed2.sum);
-        }
-        
-        // repeat for in vertices
-        std::vector<vertex_id_t> inv = graph.in_vertices(i);
-        std::vector<vertex_id_t> invmem = memgraph.in_vertices(i);
-        // test if they are the same size
-        TS_ASSERT_EQUALS(inv.size(), invmem.size());
-        std::sort(inv.begin(), inv.end());
-        std::sort(invmem.begin(), invmem.end());
-        // compare if the vector contents are identical
-        for (size_t j = 0;j < inv.size(); ++j) {
-          TS_ASSERT_EQUALS(inv[j], invmem[j]);
-        }
-      }
-    }
   }
 
 };

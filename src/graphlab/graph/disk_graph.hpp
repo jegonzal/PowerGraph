@@ -40,6 +40,7 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/graph/disk_atom.hpp>
+#include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/macros_def.hpp>
@@ -170,7 +171,7 @@ namespace graphlab {
       numv.value = 0;
       nume.value = 0;
       for (size_t i = 0;i < numfiles; ++i) {
-        atoms[i] = new disk_atom(fbasename + "." + tostr(i), i, constgraph);
+        atoms[i] = new memory_atom(fbasename + "." + tostr(i), i);
         numv.value += atoms[i]->num_local_vertices();
         nume.value += atoms[i]->num_local_edges();
       }
@@ -626,10 +627,10 @@ namespace graphlab {
     }
     
     void make_const_atoms() {
-      #pragma omp parallel for
+/*      #pragma omp parallel for
       for (int i = 0;i < (int)atoms.size(); ++i) {
         atoms[i]->build_fast_finalized_atom();
-      }
+      }*/
     }
   private:
     
@@ -637,7 +638,7 @@ namespace graphlab {
   disk_graph(const disk_graph&);
     disk_graph& operator=(const disk_graph&);
     
-    mutable std::vector<disk_atom*> atoms;
+    mutable std::vector<graph_atom*> atoms;
     atomic<size_t> numv;
     atomic<size_t> nume;
     

@@ -63,6 +63,7 @@ add_library(graphlab STATIC
   util/timer.cpp
   util/generics/any.cpp
   util/command_line_options.cpp
+  graph/memory_atom.cpp
   graph/disk_atom.cpp
   graph/atom_index_file.cpp
   logger/logger.cpp
