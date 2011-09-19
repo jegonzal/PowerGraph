@@ -36,6 +36,7 @@
 #include <ios>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/graph/disk_atom.hpp>
@@ -364,8 +365,61 @@ namespace graphlab {
     db.clear();
   }
 
-  void build_memory_atom() {
+
+  disk_atom::vertex_id_type disk_atom::vertex_key_to_id(std::string s) {
+    vertex_id_type vid;
+    decompress_int<vertex_id_type>(s.c_str() + 1, vid);
+    return vid;
+  }
+
+
+  void disk_atom::build_memory_atom(std::string fname) {
+    memory_atom matom(fname, atomid);
+    std::vector<vertex_id_type> vertices = disk_atom::enumerate_vertices();
+    // add all the vertices
+    for (size_t i = 0; i < vertices.size(); ++i) {
+      uint16_t owner;
+      std::string vdata;
+      get_vertex_data(vertices[i], owner, vdata);
+      if (vdata.length() == 0) matom.add_vertex(vertices[i], owner);
+      else matom.add_vertex_with_data(vertices[i], owner, vdata);
+      
+      vertex_color_type c = get_color(vertices[i]);
+      if (c != vertex_color_type(-1)) matom.set_color(vertices[i], c);
+    }
     
+    // add all the edges
+    for (size_t i = 0; i < vertices.size(); ++i) {
+      std::vector<vertex_id_type> inv = disk_atom::get_in_vertices(vertices[i]); 
+      for (size_t j = 0;j < inv.size(); ++j) {
+        std::string edata;
+        disk_atom::get_edge_data(inv[j], vertices[i], edata);
+        if (edata.length() == 0) matom.add_edge(inv[j], vertices[i]);
+        else matom.add_edge_with_data(inv[j], vertices[i], edata);
+      }
+    }
+    
+    matom.set_numlocale(numlocale.value);
+    
+    // finally, add all the owner hashes
+    // open a cursor
+    std::string key, val;
+    storage_type::Cursor* cur = get_db().cursor();
+    cur->jump();
+
+    // begin iteration
+    while (cur->get_key(&key, false)) {
+      if (key[0] == 'h') {
+        vertex_id_type vid = vertex_key_to_id(key);       
+        cur->get_value(&val, true);
+        uint16_t owner= *reinterpret_cast<const uint16_t*>(val.c_str());
+        matom.set_owner(vid, owner);
+      }
+      else {
+        cur->step();
+      }
+    }
+    delete cur;
   }
 
 } // namespace graphlab

@@ -10,14 +10,27 @@ memory_atom::memory_atom(std::string filename, uint16_t atomid):atomid(atomid),f
   std::ifstream fin(filename.c_str(), std::ios::binary);
   if (fin.good() && fin.is_open()) {
     iarchive iarc(fin);
-    iarc >> vertices >> vidmap >> vid2owner_segment;
+    uint64_t nv,ne,nlv,nle;
+    iarc >> nv >> ne >> nlv >> nle 
+         >> vertices >> vidmap >> vid2owner_segment;
+    numv.value = nv;
+    nume.value = ne;
+    numlocalv.value = nlv;
+    numlocale.value = nle;
+    mutated = false;
+  }
+  else {
+    mutated = true;
   }
 }
 
 void memory_atom::add_vertex(vertex_id_type vid, uint16_t owner) {
+  mutated = true;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator iter = vidmap.find(vid);
   if (iter == vidmap.end()) {
+    numv.inc();
+    if (owner == atomid) numlocalv.inc();
     vertices.push_back(vertex_entry(vid, owner));
     vidmap[vid] = vertices.size() - 1;
   }
@@ -33,10 +46,13 @@ void memory_atom::add_vertex(vertex_id_type vid, uint16_t owner) {
  * Returns true if vertex was added.
  */
 bool memory_atom::add_vertex_skip(vertex_id_type vid, uint16_t owner) {
+  mutated = true;
   bool ret = false;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator iter = vidmap.find(vid);
   if (iter == vidmap.end()) {
+    numv.inc();
+    if (owner == atomid) numlocalv.inc();
     vertices.push_back(vertex_entry(vid, owner));
     vidmap[vid] = vertices.size() - 1;
     ret = true;
@@ -47,9 +63,12 @@ bool memory_atom::add_vertex_skip(vertex_id_type vid, uint16_t owner) {
 
 
 void memory_atom::add_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata) {
+  mutated = true;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator iter = vidmap.find(vid);
   if (iter == vidmap.end()) {
+    numv.inc();
+    if (owner == atomid) numlocalv.inc();
     vertices.push_back(vertex_entry(vid, owner, -1, vdata));
     vidmap[vid] = vertices.size() - 1;
   }
@@ -66,16 +85,17 @@ void memory_atom::add_vertex_with_data(vertex_id_type vid, uint16_t owner, const
  * Returns true if vertex was added.
  */
 void memory_atom::add_edge(vertex_id_type src, vertex_id_type target) {
+  mutated = true;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator srciter = vidmap.find(src);
   ASSERT_TRUE(srciter != vidmap.end());
   size_t vsrc = srciter->second;
   boost::unordered_map<uint64_t, size_t>::const_iterator destiter = vidmap.find(target);
-  ASSERT_TRUE(destiter != vidmap.end());
   size_t vtarget = destiter->second;
   mut.unlock();
   
   edgemut[vsrc % 511].lock();
+  if (vertices[vsrc].outedges.count(target) == 0) nume.inc();
   vertices[vsrc].outedges.insert(std::make_pair(target, std::string()));
   edgemut[vsrc % 511].unlock();
   edgemut[vtarget % 511].lock();
@@ -90,6 +110,7 @@ void memory_atom::add_edge(vertex_id_type src, vertex_id_type target) {
  * Returns true if vertex was added.
  */
 bool memory_atom::add_edge_skip(vertex_id_type src, vertex_id_type target) {
+  mutated = true;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator srciter = vidmap.find(src);
   ASSERT_TRUE(srciter != vidmap.end());
@@ -104,6 +125,7 @@ bool memory_atom::add_edge_skip(vertex_id_type src, vertex_id_type target) {
     edgemut[vsrc % 511].unlock();
     return false;
   }
+  nume.inc();
   vertices[vsrc].outedges.insert(std::make_pair(target, std::string()));
   edgemut[vsrc % 511].unlock();
   edgemut[vtarget % 511].lock();
@@ -114,6 +136,7 @@ bool memory_atom::add_edge_skip(vertex_id_type src, vertex_id_type target) {
 
 
 void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
+  mutated = true;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator srciter = vidmap.find(src);
   ASSERT_TRUE(srciter != vidmap.end());
@@ -124,6 +147,7 @@ void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, 
   mut.unlock();
   
   edgemut[vsrc % 511].lock();
+  if (vertices[vsrc].outedges.count(target) == 0) nume.inc();
   vertices[vsrc].outedges[target] = edata;
   edgemut[vsrc % 511].unlock();
   edgemut[vtarget % 511].lock();
@@ -134,8 +158,9 @@ void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, 
 
 
 void memory_atom::set_vertex(vertex_id_type vid, uint16_t owner) {
+  mutated = true;
   mut.lock();
-  boost::unordered_map<uint64_t, size_t>::iterator iter = vidmap.find(vid);
+  boost::unordered_map<uint64_t, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
   mut.unlock();
@@ -144,7 +169,7 @@ void memory_atom::set_vertex(vertex_id_type vid, uint16_t owner) {
 
 
 void memory_atom::set_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata) {
-
+  mutated = true;
   mut.lock();
   boost::unordered_map<uint64_t, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
@@ -157,11 +182,13 @@ void memory_atom::set_vertex_with_data(vertex_id_type vid, uint16_t owner, const
 
 
 void memory_atom::set_edge(vertex_id_type src, vertex_id_type target) {
+  mutated = true;
   add_edge(src, target);
 }
 
 
 void memory_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
+  mutated = true;
   add_edge_with_data(src, target, edata);
 }
 
@@ -284,6 +311,7 @@ memory_atom::vertex_color_type memory_atom::get_color(vertex_id_type vid) {
 
 
 void memory_atom::set_color(vertex_id_type vid, vertex_color_type color) {
+  mutated = true;
   std::vector<vertex_id_type> ret;
   boost::unordered_map<uint64_t, size_t>::const_iterator viter = vidmap.find(vid);
   if (viter == vidmap.end()) return;
@@ -301,24 +329,41 @@ vertex_color_type memory_atom::max_color() {
 }
 
 uint16_t memory_atom::get_owner(vertex_id_type vid) {
+  maplock.lock();
   boost::unordered_map<uint64_t, uint16_t>::const_iterator iter = vid2owner_segment.find(vid);
-  if (iter != vid2owner_segment.end()) return iter->second;
-  else return uint16_t(-1);
+  uint16_t ret = 0;
+  if (iter != vid2owner_segment.end()) ret = iter->second;
+  else ret = uint16_t(-1);
+  maplock.unlock();
+  return ret;
 }
 
 void memory_atom::set_owner(vertex_id_type vid, uint16_t owner) {
+  mutated = true;
+  maplock.lock();
   vid2owner_segment[vid] = owner;
+  maplock.unlock();
 }
 
 void memory_atom::clear() {
   vid2owner_segment.clear();
   vertices.clear();
+  vidmap.clear();
 }
 
 void memory_atom::synchronize() {
-  std::ofstream fout(filename.c_str(), std::ios::binary);
-  oarchive oarc(fout);
-  oarc << vertices << vidmap << vid2owner_segment;
+  if (mutated) {
+    std::ofstream fout(filename.c_str(), std::ios::binary);
+    oarchive oarc(fout);
+    uint64_t nv,ne,nlv,nle;
+    nv = numv.value;
+    ne = nume.value;
+    nlv = numlocalv.value;
+    nle = numlocale.value;
+  
+    oarc << nv << ne << nlv << nle
+         << vertices << vidmap << vid2owner_segment;
+  }
 }
     
 }

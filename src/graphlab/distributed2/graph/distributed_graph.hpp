@@ -53,6 +53,8 @@
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/graph/disk_atom.hpp>
+#include <graphlab/graph/memory_atom.hpp>
+#include <graphlab/graph/graph_atom.hpp>
 #include <graphlab/distributed2/graph/dgraph_edge_list.hpp>
 #include <graphlab/distributed2/graph/graph_local_store.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -1440,7 +1442,7 @@ namespace graphlab {
     
     
       // the atomfiles for the local fragment
-      std::vector<disk_atom*> atomfiles;
+      std::vector<graph_atom*> atomfiles;
       // for convenience take a reference to the list of atoms in this partition
       std::vector<size_t>& atoms_in_curpart = partitiontoatom[curpartition];
       dense_bitset atoms_in_curpart_set(atomindex.atoms.size()); // make a set vertion for quick lookup
@@ -1454,8 +1456,18 @@ namespace graphlab {
       vertices_in_atom.resize(atoms_in_curpart.size());
       for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
         atoms_in_curpart_set.set_bit(atoms_in_curpart[i]);
-        atomfiles[i] = new disk_atom(atomindex.atoms[atoms_in_curpart[i]].file, 
-                                     atoms_in_curpart[i], true);
+        // check if the in memory version is available
+        std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
+        std::ifstream fin((fname + ".fast").c_str());
+        if (fin.good() && fin.is_open()) {
+          fin.close();
+          atomfiles[i] = new memory_atom(fname + ".fast", 
+                                         atoms_in_curpart[i], true);
+        }
+        else {
+          atomfiles[i] = new disk_atom(fname, 
+                                       atoms_in_curpart[i], true);
+        }
         vertices_in_atom[i] = atomfiles[i]->enumerate_vertices();
       }
     

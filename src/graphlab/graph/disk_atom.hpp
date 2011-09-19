@@ -102,7 +102,7 @@ namespace graphlab {
 
     void open_db();
     
-
+    vertex_id_type vertex_key_to_id(std::string s);
   public:
    
     /// constructor. Accesses an atom stored at the filename provided
@@ -116,6 +116,10 @@ namespace graphlab {
       numlocale.inc();
     }
 
+    virtual void set_numlocale(uint64_t ne) {
+      numlocale.value = ne;
+    }
+    
     /// Gets the atom ID of this atom
     inline uint16_t atom_id() const {
       return atomid;
@@ -304,7 +308,7 @@ namespace graphlab {
       return db;
     }
     
-    void build_memory_atom();
+    void build_memory_atom(std::string fname);
 
   };
 
