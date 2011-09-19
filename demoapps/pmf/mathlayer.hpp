@@ -1,6 +1,36 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *  
+ *  Code written by Danny Bickson, CMU
+ */
+
 #ifndef MATH_LAYER_GRAPHLAB
 #define MATH_LAYER_GRAPHLAB
 
+
+
+
+/**
+ *
+ * SET OF WRAPPER FUNCTIONS TO ALLOW USING EIGEN
+ */
 //#define HAS_EIGEN
 #ifdef HAS_EIGEN
 
@@ -54,8 +84,7 @@ inline bool ls_solve(const mat &A, const vec &b, vec &result){
     return true;
 }
 inline bool chol(mat& sigma, mat& out){
-  //out = sigma.llt();
-  //TODO!!
+   out = sigma.llt();
    return true;
 }
 inline mat transpose(mat & A){
@@ -212,8 +241,19 @@ inline vec reverse(vec& a){
 inline ivec reverse(ivec& a){
    return a.reverse();
 }
+inline const double * data(const mat &A){
+  return A.data();
+}
+inline const double * data(const vec &v){
+  return v.data();
+}
 
 #else //eigen is not found
+/***
+ *
+ *  SET OF WRAPPER FUNCTIONS TO BE USED WITH IT++
+ *
+ * */
 #if defined(HAS_ITPP)
 
 #include <itpp/itbase.h>
@@ -270,8 +310,14 @@ inline ivec sort_index(vec& a){
 inline void set_val(vec & v, int pos, double val){
   v.set(pos, val);
 }
-inline mat get_cols(mat &A, ivec & ind){
+inline mat get_cols(const mat &A, const ivec & ind){
   return A.get_cols(ind);
+}
+inline const double * data(const mat &A){
+  return A._data();
+}
+inline const double * data(const vec &v){
+  return v._data();
 }
 #endif
 

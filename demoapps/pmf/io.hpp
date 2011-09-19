@@ -19,7 +19,6 @@
  *      http://www.graphlab.ml.cmu.edu
  *  
  *  Code written by Danny Bickson, CMU
- *  Any changes to the code must include this original license notice in full.
  */
 
 
@@ -36,6 +35,9 @@ extern problem_setup ps;
 void add_implicit_edges(graph_type * g);
 
 
+/**
+ * fill data structures used for writing output to file
+ */
 void fill_factors_uvt(){
  if (ps.algorithm != LANCZOS){
    ps.U = zeros(ps.M,ac.D);
@@ -60,21 +62,19 @@ void fill_factors_uvt(){
 
 template<typename edgedata>
 int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * _g, bool symmetry = false);
- //
-//The input prediction file should contain 6005940 lines, corresponding
-//to the 6005940 user-item pairs in the test set.
-//Each line contains a predicted score (a real number between 0 and 100).
-//The generated output file can be submitted to the KDD-Cup'11 evaluation
-//system.
-
-//write an output vector to file
-void write_vec(FILE * f, int len, double * array){
+ //write an output vector to file
+void write_vec(FILE * f, int len, const double * array){
   assert(f != NULL && array != NULL);
   fwrite(array, len, sizeof(double), f);
 }
 
 
-
+//
+//The input prediction file should contain 6005940 lines, corresponding
+//to the 6005940 user-item pairs in the test set.
+//Each line contains a predicted score (a real number between 0 and 100).
+//The generated output file can be submitted to the KDD-Cup'11 evaluation
+//system.
 void export_kdd_format(graph_type * _g, testtype type, bool dosave) {
 
   bool debugkdd = true;
@@ -208,18 +208,10 @@ void export_uvt_to_binary_file(){
   rc = fwrite(&ac.D, 1, 4, f);
   assert(rc == 4);
 
-#ifdef HAS_EIGEN
- /* f<<ps.U;
-  f<<ps.V;
+  write_vec(f, ps.M*ac.D, data(ps.U));
+  write_vec(f, ps.N*ac.D, data(ps.V));
   if (ps.tensor)
-    f<<ps.T;
-*/ //TODO
-#else
-  write_vec(f, ps.M*ac.D, ps.U._data());
-  write_vec(f, ps.N*ac.D, ps.V._data());
-  if (ps.tensor)
-    write_vec(f, ps.K*ac.D, ps.T._data());
-#endif
+    write_vec(f, ps.K*ac.D, data(ps.T));
 
   fclose(f); 
 
@@ -336,9 +328,12 @@ void set_num_edges(int val, testtype data_type){
   }  
 }
 
+/**
+ * Add the graph nodes. We have nodes for each row (user), column (movies) and time bins.
+ */
 void add_vertices(graph_type * _g, testtype data_type){
   vertex_data vdata;
-  // add M movie nodes (ps.tensor dim 1)
+  // add M user nodes (ps.tensor dim 1)
   for (int i=0; i<ps.M; i++){
     vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*0.1);
     _g->add_vertex(vdata);
@@ -346,7 +341,7 @@ void add_vertices(graph_type * _g, testtype data_type){
       debug_print_vec("U: ", vdata.pvec, ac.D);
   }
   
-  // add N user node (ps.tensor dim 2) 
+  // add N movie node (ps.tensor dim 2) 
   for (int i=0; i<ps.N; i++){
     vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*0.1);
     _g->add_vertex(vdata);
@@ -368,7 +363,9 @@ void add_vertices(graph_type * _g, testtype data_type){
   }
 }
 
-
+/**
+ * Verify that matrix size is consistent between training, validation and test files
+ */
 void verify_size(testtype data_type, int _M, int _N, int _K){
  if (data_type != TRAINING && ps.M != _M)
 	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << ps.M << " in " << testtypename[data_type] << std::endl;
