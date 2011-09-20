@@ -43,10 +43,7 @@
 #include "lasso.hpp"
 #include "cosamp.hpp"
 #include "../gabp/advanced_config.h"
-
-#ifdef GL_SVD_PP
 #include "svdpp.hpp"
-#endif
 
 
 #include <graphlab/macros_def.hpp>
@@ -70,47 +67,20 @@ problem_setup ps;
 
 
 
-
-
-/* Function declerations */ 
-void load_pmf_graph(const char* filename, graph_type * g, testtype flag,gl_types::core & glcore);    
-void calc_T(int id);    
-double calc_obj(double res);
-void last_iter();
-void export_kdd_format(graph_type * _g, testtype type, bool dosave);
-void calc_stats(testtype type);
-void lanczos(gl_types::core & glcore);
-void init_lanczos();
-void nmf_init();
-
-double get_rmse(const vertex_data & v){
-    return v.rmse;
- }
-
-#ifndef GL_SVD_PP
-void svd_init(){};
-void svd_plus_plus_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler){};
-#endif
-
-
-
-//methods to compute the Root mean square error (RMSE)     
-float predict(const vec& x1, const vec& x2, const edge_data * edge, float rating, float & prediction){
-   prediction = dot(x1, x2);	
-   //return the squared error
+float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, float rating, float & prediction){
+   //predict missing value based on dot product of movie and user iterms
+   prediction = dot(v1.pvec, v2.pvec);	
+   //truncate prediction to allowed values
    prediction = std::min((double)prediction, ac.maxval);
    prediction = std::max((double)prediction, ac.minval);
-	float sq_err = powf(prediction - rating, 2);
+   //return the squared error
+   float sq_err = powf(prediction - rating, 2);
    return sq_err;
 }
 
+template<typename vertex_data>
 double predict(const vertex_data& user, const vertex_data &movie, const edge_data * edge, float rating, float & prediction){
-#ifdef GL_SVD_PP	
-   return svd_predict(user, movie, edge, rating, prediction);
-#else
-   return predict(user.pvec, movie.pvec, edge, rating, prediction);
-#endif
+   return predict(user, movie, edge, rating, prediction);
 } 
 
 
@@ -118,6 +88,8 @@ float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * ed
 	if (v3 == NULL) //matrix	
 		return predict(v1,v2,edge, rating,prediction);
 
+	//else this is a tensor, compute prediction by the tensor
+	//product of the three vectors: user, movie and time bins
 	prediction = 0;
 	for (int i=0; i< v1.pvec.size(); i++){
 	   prediction += (v1.pvec[i] * v2.pvec[i] * v3->pvec[i]);
@@ -130,54 +102,25 @@ float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * ed
 }
 
   //constructor
-  vertex_data::vertex_data(){
+vertex_data::vertex_data(){
     pvec = zeros(ac.D);
     rmse = 0;
     num_edges = 0;
-#ifdef GL_SVD_PP
-    bias =0;
-    weight = zeros(ac.D);
-#endif
-  }
+}
 
-  void vertex_data::save(graphlab::oarchive& archive) const {  
+void vertex_data::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
     archive << rmse << num_edges; 
-#ifdef GL_SVD_PP
-    archive << bias << weight;
-#endif
-  }  
+}  
    
-  void vertex_data::load(graphlab::iarchive& archive) {  
+void vertex_data::load(graphlab::iarchive& archive) {  
      //TODO archive >> pvec;
-     archive >> rmse >> num_edges;  
-#ifdef GL_SVD_PP
-     archive >> bias >> weight;
-#endif
-  }
-
-
-/**
- * printout RMSE statistics after each iteration
- */
-void last_iter(){
-  printf("Entering last iter with %d\n", ps.iiter);
-
-  double res,res2;
-  double rmse = (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie(res) : agg_rmse_by_user(res);
-  //rmse=0;
-  printf(ac.printhighprecision ? 
-        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
-        "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
-        , ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,calc_obj(res),  rmse, calc_rmse_wrapper(&ps.validation_graph, true, res2));
-  ps.iiter++;
-
-  if (ps.BPTF)
-    last_iter_bptf(res);        
+   archive >> rmse >> num_edges;  
 }
 
 
-void add_tasks(gl_types::core & glcore){
+template<typename core>
+void add_tasks(core & glcore){
 
   std::vector<vertex_id_t> um;
   for (int i=0; i< ps.M+ps.N; i++)
@@ -185,31 +128,30 @@ void add_tasks(gl_types::core & glcore){
  
  // add update function for user and movie nodes (tensor dims 1+2) 
   switch (ps.algorithm){
-     case ALS_TENSOR_MULT:
      case ALS_MATRIX:
      case ALS_SPARSE_USR_FACTOR:
      case ALS_SPARSE_USR_MOVIE_FACTORS:
      case ALS_SPARSE_MOVIE_FACTOR:
      case BPTF_TENSOR:
-     case BPTF_TENSOR_MULT:
      case BPTF_MATRIX:
      case WEIGHTED_ALS:
        glcore.add_tasks(um, user_movie_nodes_update_function, 1);
+       break;
+
+     case SVD_PLUS_PLUS:
+       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
        break;
 
      case STOCHASTIC_GRADIENT_DESCENT:
        glcore.add_tasks(um, sgd_update_function, 1);
        break;
     
-     case SVD_PLUS_PLUS: 
-       glcore.add_tasks(um, svd_plus_plus_update_function, 1);
-       break;
-
      case LANCZOS:
      case NMF:
        //lanczos is unique since it has more than one update function
        //lanczos code is done later
        break;
+     default: assert(false);
  }
 
   // add update function for time nodes (dim 3)
@@ -219,19 +161,23 @@ void add_tasks(gl_types::core & glcore){
       tv.push_back(i);
     glcore.add_tasks(tv, time_node_update_function, 1);
   }
-
-
 }
 
+template<typename graph_type>
+void init(graph_type *g){
 
-void init(){
-
+  if (ps.tensor){
+    ps.dp = GenDiffMat(ps.K)*ps.pT;
+    if (ac.debug)
+      std::cout<<ps.dp<<std::endl;
+  }
+  
   if (ps.BPTF)
      init_self_pot(); 
 
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
-     svd_init(); break;
+     init(g); break;
 
    case LANCZOS: 
      init_lanczos(); break;
@@ -255,22 +201,23 @@ void init(){
 }
 
 
-void run_graphlab(gl_types::core &glcore,timer & gt ){
-        glcore.start();
-        // calculate final RMSE
-        double res, train_rmse =  agg_rmse_by_movie(res), res2;
-        double obj = calc_obj(res);
-        double validation_rmse = calc_rmse_wrapper(&ps.validation_graph, true, res2);
-        printf(ac.printhighprecision ? 
-              "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
-              "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
-              , obj,  train_rmse, validation_rmse);
-        double runtime = gt.current_time();
-        printf("Finished in %lf seconds\n", runtime);
-        if (ac.unittest > 0){
-            verify_result(obj, train_rmse, validation_rmse);
-        }
+template<typename core, typename graph_type, typename vertex_data>
+void run_graphlab(core &glcore, graph_type * validation_graph){
 
+     glcore.start();
+     // calculate final RMSE
+     double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
+     double obj = calc_obj<graph_type, vertex_data>(res);
+     double validation_rmse = calc_rmse_wrapper<graph_type, vertex_data>(validation_graph, true, res2);
+     printf(ac.printhighprecision ? 
+     "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
+     "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
+     , obj,  train_rmse, validation_rmse);
+     double runtime = ps.gt.current_time();
+     printf("Finished in %lf seconds\n", runtime);
+     if (ac.unittest > 0){
+        verify_result(obj, train_rmse, validation_rmse);
+     }
 }
 
 
@@ -278,48 +225,52 @@ void run_graphlab(gl_types::core &glcore,timer & gt ){
 /** 
  * ==== SETUP AND START
  */
-void start(int argc, const char * argv[]) {
+template<typename gl_types, typename core, typename graph_type, typename vertex_data, typename edge_data>
+void start(command_line_options& clopts) {
    
-  command_line_options clopts;
-  ac.init_command_line_options(clopts);
-  gl_types::core glcore;
-  if (ps.glcore == NULL)
-    ps.glcore = &glcore;
+    core glcore;
+    if (ps.glcore == NULL)
+      ps.glcore = &glcore;
 
-  if (ac.mainfunc){ //if called from main(), parse command line arguments
-    assert(clopts.parse(argc, argv));
+    if (ac.unittest > 0)
+        unit_testing(ac.unittest, clopts);
+   
+    ps.algorithm = (runmodes)ac.algorithm;
+    printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
-   if (ac.unittest > 0)
-      unit_testing(ac.unittest,clopts);
-  }
-  
-  ps.algorithm = (runmodes)ac.algorithm;
-  printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
+    if (ac.scheduler == "round_robin"){
+      char schedulerstring[256];
+      sprintf(schedulerstring, "round_robin(max_iterations=%d,block_size=1)", ac.iter);
+      clopts.set_scheduler_type(schedulerstring);
+      assert(ac.iter > 0);
+    }
+ 
+    graph_type &g = glcore.graph();
+    graph_type validation_graph;
+    graph_type test_graph; 
 
-  if (ac.scheduler == "round_robin"){
-    char schedulerstring[256];
-    sprintf(schedulerstring, "round_robin(max_iterations=%d,block_size=1)", ac.iter);
-    clopts.set_scheduler_type(schedulerstring);
-    assert(ac.iter > 0);
-  }
-  ps.verify_setup();
-  ps.glcore->set_engine_options(clopts); 
+    ps.verify_setup();
+    ps.glcore->set_engine_options(clopts); 
 
-  logger(LOG_INFO, "%s starting\n",runmodesname[ps.algorithm]);
-  //read the training data
-  printf("loading data file %s\n", ac.datafile.c_str());
-  if (!ac.manualgraphsetup){
-  if (!ac.loadgraph){
-    ps.g=&ps.glcore->graph();
-    load_pmf_graph(ac.datafile.c_str(), ps.g, TRAINING,* ps.glcore);
+    logger(LOG_INFO, "%s starting\n",runmodesname[ps.algorithm]);
+
+    //read the training data
+    printf("loading data file %s\n", ac.datafile.c_str());
+    if (!ac.manualgraphsetup){
+    if (!ac.loadgraph){
+    //ps.g=&ps.glcore->graph();
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>(ac.datafile.c_str(), &g, &g, TRAINING);
+    ps.set_graph(&g, TRAINING);
 
   //read the vlidation data (optional)
     printf("loading data file %s\n", (ac.datafile+"e").c_str());
-    load_pmf_graph((ac.datafile+"e").c_str(),&ps.validation_graph, VALIDATION, *ps.glcore);
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"e").c_str(),&g, &validation_graph, VALIDATION);
+    ps.set_graph(&validation_graph, VALIDATION);
 
   //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
-    load_pmf_graph((ac.datafile+"t").c_str(),&ps.test_graph, TEST, *ps.glcore);
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
+    ps.set_graph(&test_graph, TEST);
 
 
     if (ac.savegraph){
@@ -329,7 +280,7 @@ void start(int argc, const char * argv[]) {
         std::ofstream fout(filename, std::fstream::binary);
         graphlab::oarchive oarc(fout);
 	oarc << ps.M << ps.N << ps.K << ps.L << ps.Le << ps.Lt << ac.D;
-        oarc << *ps.g << ps.validation_graph << ps.test_graph;
+        oarc << g << validation_graph << test_graph;
         printf("Done!\n");
         fout.close();
 	exit(0);
@@ -342,42 +293,34 @@ void start(int argc, const char * argv[]) {
     graphlab::iarchive iarc(fin);
     iarc >> ps.M >> ps.N >> ps.K >> ps.L >> ps.Le >> ps.Lt >> ac.D;
     printf("Loading graph from file\n");
-    iarc >> ps.glcore->graph() >> ps.validation_graph >> ps.test_graph;
-    ps.g=&ps.glcore->graph();
+    iarc >> g >> validation_graph >> test_graph;
     printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", ps.M, ps.N, ps.K, ac.D);   
     printf("Creating %d edges (observed ratings)...\n", ps.L);
   }
   }
 
   if (ac.loadfactors){
-     import_uvt_from_file();
+     import_uvt_from_file<graph_type>();
   }
 
 
   if (ac.stats){
-    calc_stats(TRAINING);
-    calc_stats(VALIDATION);
-    calc_stats(TEST);
+    calc_stats<graph_type, vertex_data, edge_data>(TRAINING);
+    calc_stats<graph_type, vertex_data, edge_data>(VALIDATION);
+    calc_stats<graph_type, vertex_data, edge_data>(TEST);
     exit(0);
   }
 
-  if (ps.algorithm == ALS_TENSOR_MULT || ps.algorithm == ALS_MATRIX || ps.algorithm == ALS_SPARSE_USR_FACTOR || ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_MOVIE_FACTOR || ps.algorithm == WEIGHTED_ALS){
+  if (ps.isals){
     printf("setting regularization weight to %g\n", ac.als_lambda);
-    pU=pV=ac.als_lambda;
+    ps.pU=ps.pV=ac.als_lambda;
   }
-
-   if (ps.tensor){
-    ps.dp = GenDiffMat(ps.K)*ps.pT;
-    if (ac.debug)
-      std::cout<<ps.dp<<std::endl;
-  }
-  
-  add_tasks(*ps.glcore);
-
+    
+  add_tasks<core>(glcore);
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[ac.algorithm], ps.tensor?"tensor":"matrix", ps.M, ps.N, ps.K, ps.L, ac.D);
   
-  init();
+   init<graph_type>(&g);
 
    if (ac.datafile == "netflix" || ac.datafile == "netflix-r"){
        ac.minval = 1; ac.maxval = 5;
@@ -388,11 +331,11 @@ void start(int argc, const char * argv[]) {
 
    if (ps.algorithm != LANCZOS){
      double res, res2;
-     double rmse =  calc_rmse_wrapper(ps.g, false, res);
+     double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&g, false, res);
      printf(ac.printhighprecision ? 
            "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
            "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
-           , calc_obj(res), rmse, calc_rmse(&ps.validation_graph, true, res2));
+           , calc_obj<graph_type, vertex_data>(res), rmse, calc_rmse<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
   }
  
  
@@ -400,13 +343,13 @@ void start(int argc, const char * argv[]) {
     //sample hyper priors and noise level
     if (ac.bptf_delay_alpha < ps.iiter)
     	sample_alpha(ps.L);
-    sample_U();
-    sample_V();
+    sample_U<graph_type>();
+    sample_V<graph_type>();
     if (ps.tensor) 
       sample_T();
   }
 
-  ps.g->finalize();  
+  g.finalize();  
   ps.gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
@@ -422,23 +365,23 @@ void start(int argc, const char * argv[]) {
       case BPTF_MATRIX:
       case SVD_PLUS_PLUS:
       case STOCHASTIC_GRADIENT_DESCENT:
-         run_graphlab(*ps.glcore, ps.gt);
+         run_graphlab<core, graph_type, vertex_data>(glcore, &validation_graph);
          break;
      
      case LANCZOS:
-        lanczos(*ps.glcore); break;
+        lanczos<core>(glcore); break;
 
      case NMF:
-        nmf(ps.glcore); break;
+        nmf<core>(&glcore); break;
   }
 
  if (ps.algorithm != LANCZOS){
     /**** OUTPUT KDD FORMAT *****/
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2"){
       if (ac.outputvalidation) //experimental: output prediction of validation data
- 	     export_kdd_format(&ps.validation_graph, VALIDATION, true);
+ 	     export_kdd_format<graph_type, vertex_data, edge_data>(validation_graph, VALIDATION, true);
       else //output prediction of test data, as required by KDD 
-	     export_kdd_format(&ps.test_graph, TEST, true);
+	     export_kdd_format<graph_type, vertex_data, edge_data>(test_graph, TEST, true);
     }
  }
 
@@ -450,11 +393,11 @@ void start(int argc, const char * argv[]) {
 
   //write output matrices U,V,T to file
   if (ac.binaryoutput)
-     export_uvt_to_binary_file();
+     export_uvt_to_binary_file<graph_type, vertex_data>();
   else if (ac.matrixmarket)
-     export_uvt_to_matrixmarket();
+     export_uvt_to_matrixmarket<graph_type, vertex_data>();
   else // it++ output
-   export_uvt_to_itpp_file();
+   export_uvt_to_itpp_file<graph_type, vertex_data>();
 }
 
 
@@ -463,19 +406,46 @@ void do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
-#ifdef GL_NO_MULT_EDGES
-  logstream(LOG_WARNING)<<"Code compiled with GL_NO_MULT_EDGES flag - this mode does not support multiple edges between user and movie in different times\n";
-#endif
-#ifdef GL_NO_MCMC
-  logstream(LOG_WARNING)<<"Code compiled with GL_NO_MCMC flag - this mode does not support MCMC methods.\n";
-#endif
-#ifdef GL_SVD_PP
-  logstream(LOG_WARNING)<<"Code compiled with GL_SVD_PP flag - this mode only supports SVD++ run.\n";
-#endif
 #ifdef HAS_EIGEN
   logstream(LOG_WARNING)<<"Program compiled with Eigen Support\n";
 #endif
-   start(argc, argv);
+    command_line_options clopts;
+    ac.init_command_line_options(clopts);
+    if (ac.mainfunc){ //if called from main(), parse command line arguments
+      assert(clopts.parse(argc, argv));
+   }
+   
+   switch(ac.algorithm){
+      case ALS_TENSOR_MULT:
+      case BPTF_TENSOR_MULT:
+ 	start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);
+        break;
+ 
+      case SVD_PLUS_PLUS:
+        start<gl_types_svdpp, gl_types_svdpp::core, graph_type_svdpp, vertex_data_svdpp, edge_data>(clopts);
+        break;
+
+      case BPTF_TENSOR:
+      case BPTF_MATRIX:
+        start<gl_types_mcmc, gl_types_mcmc::core, graph_type_mcmc, vertex_data, edge_data_mcmc>(clopts);
+        break;
+ 
+      case ALS_MATRIX:
+      case ALS_SPARSE_USR_FACTOR:
+      case ALS_SPARSE_USR_MOVIE_FACTORS:
+      case ALS_SPARSE_MOVIE_FACTOR:
+      case WEIGHTED_ALS:
+      case STOCHASTIC_GRADIENT_DESCENT:
+      case LANCZOS:
+      case NMF:
+        start<gl_types, gl_types::core, graph_type, vertex_data, edge_data>(clopts);
+        break;
+
+      default:
+        assert(false);
+  }
+
+
 }
 
 

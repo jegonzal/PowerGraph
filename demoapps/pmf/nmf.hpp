@@ -192,13 +192,7 @@ void nmf_update_function(gl_types::iscope & scope,
     
    foreach(gl_types::edge_id oedgeid, outs) {
 
-#ifdef GL_NO_MULT_EDGES
       const edge_data & edge = scope.const_edge_data(oedgeid);
-#else
-      const multiple_edges edges = scope.const_edge_data(oedgeid);
-      for (int j=0; j< (int)edges.medges.size(); j++){  
-         const edge_data & edge = edges.medges[j];
-#endif
       double v = edge.weight;
       const vertex_data  & movie = get_neighbor(isuser, scope, oedgeid);
       float prediction;     
@@ -206,9 +200,6 @@ void nmf_update_function(gl_types::iscope & scope,
       int pos = isuser ? (scope.target(oedgeid) - ps.M) : scope.source(oedgeid); 
       buf[pos] = v/prediction;
       user.rmse += sq_err;
-#ifndef GL_NO_MULT_EDGES
-        }
-#endif
    }
   ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
@@ -244,30 +235,38 @@ void nmf_update_function(gl_types::iscope & scope,
 }
 
 void pre_user_iter(){
-
+   const graph_type *g = ps.g<graph_type>(TRAINING); 
    for (int i=0; i<ac.D; i++)
       x1[i] = 0;
 
    for (int i=ps.M; i<ps.M+ps.N; i++){
-    const vertex_data & data = ps.g->vertex_data(i);
+    const vertex_data & data = g->vertex_data(i);
     for (int i=0; i<ac.D; i++){
       x1[i] += data.pvec[i];
     }
   }
 }
 void pre_movie_iter(){
-   for (int i=0; i<ac.D; i++)
+
+  const graph_type *g = ps.g<graph_type>(TRAINING);    
+  for (int i=0; i<ac.D; i++)
       x2[i] = 0;
 
    for (int i=0; i<ps.M; i++){
-    const vertex_data & data = ps.g->vertex_data(i);
+    const vertex_data & data = g->vertex_data(i);
     for (int i=0; i<ac.D; i++){
       x2[i] += data.pvec[i];
     }
   }
 }
 
-void nmf(gl_types::core * _glcore){
+template<typename core>
+void nmf(core * glcore){
+   assert(false);
+}
+
+template<>
+void nmf<>(gl_types::core * _glcore){
 
    gl_types::core *glcore;
    glcore = _glcore;

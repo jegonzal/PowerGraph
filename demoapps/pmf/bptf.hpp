@@ -26,6 +26,7 @@
 
 #include "pmf.h"
 #include "../gabp/advanced_config.h"
+#include "io.hpp"
 
 //external global variables defined at pmf.cpp
 extern advanced_config ac;
@@ -64,11 +65,11 @@ mat GenDiffMat(int K){
 }
 
 
-void export_kdd_format(graph_type * _g, testtype type, bool dosave);
 /**
 * calc the A'A part of the least squares solution inv(A'A)*A'
 * for time nodes
 */
+template<typename graph_type>
 mat calc_MMT(int start_pos, int end_pos, vec &Umean){
 
   int batchSize = 1000;
@@ -83,7 +84,7 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
       cnt = 1;
     }
 
-    const vertex_data * data= &ps.g->vertex_data(i);
+    const vertex_data * data= &ps.g<graph_type>(TRAINING)->vertex_data(i);
      
     vec mean = data->pvec;
     Umean += mean;
@@ -108,6 +109,15 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
   assert(Umean.size() == ac.D);
   return MMT;
 }
+template<>
+mat calc_MMT<graph_type_svdpp>(int start_pos, int end_pos, vec &Umean){
+  assert(false);
+}
+template<>
+mat calc_MMT<graph_type>(int start_pos, int end_pos, vec &Umean){
+  assert(false);
+}
+
 
 
 void init_self_pot(){
@@ -168,11 +178,12 @@ void sample_alpha(double res2){
 
 // sample movie nodes hyperprior
 // according to equation A.3 in Xiong paper.
+template<typename graph_type>
 void sample_U(){
   assert(ps.BPTF);
 
   vec Umean;
-  mat UUT = calc_MMT(0,ps.M,Umean);
+  mat UUT = calc_MMT<graph_type>(0,ps.M,Umean);
   
   double beta0_ = beta0[0] + ps.M;
   vec mu0_ = (ps.M*Umean)/beta0_;
@@ -201,11 +212,12 @@ void sample_U(){
 
 // sample user nodes hyperprior
 // according to equation A.4 in Xiong paper
+template<typename graph_type>
 void sample_V(){
 
   assert(ps.BPTF);
   vec Vmean;
-  mat VVT = calc_MMT(ps.M, ps.M+ps.N, Vmean);   
+  mat VVT = calc_MMT<graph_type>(ps.M, ps.M+ps.N, Vmean);   
 
   double beta0_ = beta0[0] + ps.N;
   vec mu0_ = (ps.N*Vmean)/beta0_;
@@ -291,6 +303,7 @@ void sample_T(){
 /**
  * for BPTF: sample hyperprior and noise level at the end of each round
  */
+template<typename graph_type, typename vertex_data, typename edge_data>
 void last_iter_bptf(double res){
     if (ps.iiter >= ac.bptf_burn_in){
       printf("Finished burn-in period. starting to aggregate samples\n");
@@ -298,13 +311,13 @@ void last_iter_bptf(double res){
     t.start();
     if (ps.iiter > ac.bptf_delay_alpha)
     	sample_alpha(res);
-    sample_U();
-    sample_V();
+    sample_U<graph_type>();
+    sample_V<graph_type>();
     if (ps.tensor) 
       sample_T();
     ps.counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
-	export_kdd_format(&ps.test_graph, TEST, false);
+	export_kdd_format<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
     }
 }
 

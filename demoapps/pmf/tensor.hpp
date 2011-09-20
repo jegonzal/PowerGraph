@@ -4,11 +4,34 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
+
+
+template<typename graph_type, typename edge_data>
+const edge_data * find_edge(int time, const graph_type*g, edge_id_t edge){
+     return &g->edge_data(edge);
+}
+
+template<>
+const edge_data_mcmc * find_edge<>(int time, const graph_type_mult_edge*g, edge_id_t edge){
+//find the right edge which matches the current time
+     const multiple_edges * medges= &g->edge_data(edge);
+      const edge_data_mcmc *data = NULL;
+      for (int j=0; j< (int)medges->medges.size(); j++){
+        data = &medges->medges[j];
+        if (data->time == time)
+          return data;
+      }
+     return NULL;
+}
+
+
+ 
 #include <graphlab/macros_def.hpp>
 std::vector<edge_id_t> * edges;  //edge list for pointing from time nodes into their connected users/movies (for tensor)
 double muT = 1; //mean of time nodes
 
 // Calculate time nodes (for tensor)
+template<typename graph_type, typename vertex_data, typename edge_data>
 void calc_T(int i){
 
   assert(ps.tensor);
@@ -16,7 +39,7 @@ void calc_T(int i){
   assert(i >=0 && i < ps.K);
   if (ac.zero && edges[i].size() == 0){
      if (i == ps.K-1)
-        last_iter();
+        last_iter<graph_type, vertex_data, edge_data>();
     return;
   }
 
@@ -24,6 +47,9 @@ void calc_T(int i){
 
   if (ac.debug && (i==0 || i == ps.K-1))
     printf("node %d with Q size: %d %d\n", i, (int)edges[i].size(), (int)ac.D);
+
+
+  const graph_type * g = ps.g<graph_type>(TRAINING);
 
   int k=0;
   int batchSize = 100;
@@ -33,6 +59,7 @@ void calc_T(int i){
   vec RQ = zeros(ac.D);
   int cnt =0;
 
+
   timer t; t.start();
   foreach (edge_id_t edge, edges[i]){
     if (k % batchSize == 0){
@@ -41,24 +68,14 @@ void calc_T(int i){
       cnt = 1;
     }
 
-    //find the right edge which matches the current time
-#ifndef GL_NO_MULT_EDGES    
-     multiple_edges * medges= &ps.g->edge_data(edge);
-      edge_data data;
-      for (int j=0; j< (int)medges->medges.size(); j++){
-        data = medges->medges[j];
-        if (data.time == i)
-          break;
-      }
-#else
-     edge_data data= ps.g->edge_data(edge);
-#endif
-    assert(data.time == i);
+   const edge_data *data = find_edge<graph_type, edge_data>(i,g, edge);
+   assert(data != NULL);
+   assert(data->time == i); 
 
-    assert((int)ps.g->target(edge)>= ps.M);
-    assert((int)ps.g->source(edge)< ps.M);
-    vertex_data * v1 = &ps.g->vertex_data(ps.g->target(edge));
-    vertex_data * v2 = &ps.g->vertex_data(ps.g->source(edge));
+    assert((int)g->target(edge)>= ps.M);
+    assert((int)g->source(edge)< ps.M);
+    const vertex_data * v1 = &g->vertex_data(g->target(edge));
+    const vertex_data * v2 = &g->vertex_data(g->source(edge));
     vec ret = elem_mult(v1->pvec, v2->pvec);
      
     for (int s=0; s<ac.D; s++)
@@ -66,7 +83,7 @@ void calc_T(int i){
     if (ac.debug && (i==0 || i == ps.K-1) && (k == 0 || k == (int)edges[i].size() - 1))
       std::cout<<" clmn "<<k<< " vec: " << ret<<std::endl;
 
-    vals[k%batchSize] = data.weight;
+    vals[k%batchSize] = data->weight;
     k++;
 
     if ((cnt  == batchSize) || (cnt < batchSize && k == (int)edges[i].size()-1)){
@@ -94,8 +111,8 @@ void calc_T(int i){
     vec t1 = ps.times[1].pvec; 
     //calc least squares estimation of time nodes
     if (!ps.BPTF){
-      QQ = QQ+ 2*eDT;
-      bool ret = ls_solve(QQ, ps.pT*(t1 + vones*muT)+ RQ, out);
+      QQ = QQ+ 2*ps.eDT;
+      bool ret = ls_solve(QQ, ps.pT*(t1 + ps.vones*muT)+ RQ, out);
       assert(ret);
     }
     //calc equation A.8 in Xiong paper
@@ -112,7 +129,7 @@ void calc_T(int i){
     vec tk_2 = ps.times[ps.K-2].pvec; 
     //calc least squares estimation of time nodes
     if (!ps.BPTF){
-      QQ = QQ + eDT;
+      QQ = QQ + ps.eDT;
       bool ret = ls_solve(QQ, ps.pT*tk_2 + RQ, out);
       assert(ret); 
     }
@@ -133,7 +150,7 @@ void calc_T(int i){
     tsum = t1+t2;
     //calc least squares estimation of time nodes
     if (!ps.BPTF){
-      QQ = QQ + 2*eDT;
+      QQ = QQ + 2*ps.eDT;
       bool ret = ls_solve(QQ, ps.pT*tsum + RQ, out);
       assert(ret);
     }
@@ -156,7 +173,7 @@ void calc_T(int i){
   //}
 
   if (i == ps.K-1){
-    last_iter();
+    last_iter<graph_type, vertex_data, edge_data>();
   }
           
 
@@ -174,9 +191,48 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
     printf("entering time node  %d \n", id);   
   } 
   if (ps.K > 1)
-    calc_T(id); 
-  else last_iter();
+    calc_T<graph_type, vertex_data, edge_data>(id); 
+  else last_iter<graph_type, vertex_data, edge_data>();
 }
+// update function for time nodes
+// this function is called only in tensor mode
+void time_node_update_function(gl_types_mcmc::iscope &scope, gl_types_mcmc::icallback &scheduler) {
+
+  assert(ps.tensor);
+
+  int id = scope.vertex() - ps.M-ps.N;
+  assert(id >=0 && id < ps.K);	
+  if (ac.debug && (id == 0 || id == ps.K-1)){
+    printf("entering time node  %d \n", id);   
+  } 
+  if (ps.K > 1)
+    calc_T<graph_type_mcmc, vertex_data, edge_data_mcmc>(id); 
+  else last_iter<graph_type_mcmc, vertex_data, edge_data_mcmc>();
+}
+
+// update function for time nodes
+// this function is called only in tensor mode
+void time_node_update_function(gl_types_mult_edge::iscope &scope, gl_types_mult_edge::icallback &scheduler) {
+  assert(ps.tensor);
+
+  int id = scope.vertex() - ps.M-ps.N;
+  assert(id >=0 && id < ps.K);	
+  if (ac.debug && (id == 0 || id == ps.K-1)){
+    printf("entering time node  %d \n", id);   
+  } 
+  if (ps.K > 1)
+    calc_T<graph_type_mult_edge, vertex_data, edge_data_mcmc>(id); 
+  else last_iter<graph_type_mult_edge, vertex_data, multiple_edges>();
+}
+
+// update function for time nodes
+// this function is called only in tensor mode
+void time_node_update_function(gl_types_svdpp::iscope &scope, gl_types_svdpp::icallback &scheduler) {
+  assert(ps.tensor);
+}
+
+
+
 
 
 #include <graphlab/macros_undef.hpp>

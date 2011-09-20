@@ -71,8 +71,10 @@ void init_lanczos(){
    lancalpha = zeros(m+3);
    double sum = 0;
 
+  const graph_type *g = ps.g<graph_type>(TRAINING);
+
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
-    vertex_data * data = &ps.g->vertex_data(i);
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
     data->pvec[1] = ac.debug ? 0.5 : rand();
     sum += data->pvec[1]*data->pvec[1];
@@ -80,7 +82,7 @@ void init_lanczos(){
 
   sum = sqrt(sum);
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
-    vertex_data * data = &ps.g->vertex_data(i);
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec[1] /= sum;
   }
 
@@ -196,11 +198,12 @@ void ATxb(gl_types::iscope &scope,
 
  
 double wTV(int j){
+  const graph_type *g = ps.g<graph_type>(TRAINING);
 
   timer t; t.start();
   double lancalpha = 0;
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
-    const vertex_data * data = &ps.g->vertex_data(i);
+    const vertex_data * data = &g->vertex_data(i);
     lancalpha+= data->rmse*data->pvec[j];
   }
   ps.counter[CALC_RMSE_Q] += t.current_time();
@@ -211,13 +214,14 @@ double wTV(int j){
 
 }
 double w_lancalphaV(int j){
-
+  const graph_type *g = ps.g<graph_type>(TRAINING);
+  
   timer t; t.start();
   double norm = 0;
   if (ac.debug)
 	cout << "w: " ;
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
-    vertex_data * data = &ps.g->vertex_data(i);
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->rmse -= lancalpha[j]*data->pvec[j];
     if (ac.debug && i-ps.M<20)
 	cout<<data->rmse<<" ";
@@ -232,11 +236,13 @@ double w_lancalphaV(int j){
 }
 
 void update_V(int j){
+  const graph_type *g = ps.g<graph_type>(TRAINING); 
+
   timer t; t.start();
   if (ac.debug)
 	cout<<"V: ";
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
-    vertex_data * data = &ps.g->vertex_data(i);
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec[j] = data->rmse / lancbeta[j];
     if (ac.debug && i-ps.M<20)
 	cout<<data->pvec[j]<<" ";
@@ -247,16 +253,25 @@ void update_V(int j){
 }
 
 mat calc_V(){
+
+  const graph_type *g = ps.g<graph_type>(TRAINING); 
+  
   mat V = zeros(ps.M,m);
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
-    const vertex_data * data = &ps.g->vertex_data(i);
+    const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     set_row(V, i-ps.M, head(data->pvec, m));
   }
   return V;
 }
 
 
-void lanczos(gl_types::core & glcore){
+template<typename core>
+void lanczos(core & glcore){
+  assert(false);
+}
+
+template<>
+void lanczos<>(gl_types::core & glcore){
 
    std::vector<vertex_id_t> rows,cols;
    for (int i=0; i< ps.M; i++)
