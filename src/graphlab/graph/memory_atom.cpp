@@ -260,7 +260,7 @@ std::vector<memory_atom::vertex_id_type> memory_atom::enumerate_vertices() {
 
 std::map<uint16_t, uint32_t> memory_atom::enumerate_adjacent_atoms() {
   std::map<uint16_t, uint32_t> ret;
-  for (size_t i = 0; i < ret.size(); ++i) {
+  for (size_t i = 0; i < vertices.size(); ++i) {
     if (vertices[i].owner != atomid) {
       ++ret[vertices[i].owner];
     }

@@ -141,14 +141,14 @@ int main(int argc, char** argv) {
   timer ti;
   ti.start();
   // call the mr_disk_graph_construction function
-  mr_disk_graph_construction<graph_constructor,float, double>(dc, gc, 2, "dg", 16);
+  mr_disk_graph_construction<graph_constructor,float, double>(dc, gc, 2, "dg", 16, "/tmp", "./");
   // thats all!
   std::cout << "Completed in " << ti.current_time() << " s" << std::endl;
   //-----------------------------------------------------------------------
   
   // everything after this is just for verification
-  std::cout << "Checking constructed graph ... " << std::endl;
   if (dc.procid() == 0) {
+    std::cout << "Checking constructed graph ... " << std::endl;
     disk_graph<float,double> graph(false, "dg.idx");
 
     ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
@@ -185,9 +185,47 @@ int main(int argc, char** argv) {
         ASSERT_EQ(inv[j], invmem[j]);
       }
     }
-    
-    
+    graph.make_memory_atoms();
   }
   
+  if (dc.procid() == 0) {
+    std::cout << "Checking constructed fast graph ... " << std::endl;
+    disk_graph<float,double> graph(true, "dg.idx");
+
+    ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
+    ASSERT_EQ(graph.num_edges(), memgraph.num_edges());
+    for(vertex_id_type i = 0; i < num_verts; ++i) {
+      // get the outvertices for each vertex
+      std::vector<vertex_id_type> outv = graph.out_vertices(i);
+      std::vector<vertex_id_type> outvmem = memgraph.out_vertices(i);
+      // test if they are the same size
+      ASSERT_EQ(outv.size(), outvmem.size());
+      std::sort(outv.begin(), outv.end());
+      std::sort(outvmem.begin(), outvmem.end());
+      // compare if the vector contents are identical
+      float v1 = graph.get_vertex_data(i);
+      float v2 = memgraph.vertex_data(i);
+      ASSERT_EQ(v1, v2);
+      for (size_t j = 0;j < outv.size(); ++j) {
+        ASSERT_EQ(outv[j], outvmem[j]);
+        // compare if the edge data is identical
+        double ed1 = graph.get_edge_data(i, outv[j]);
+        double ed2 = memgraph.edge_data(i, outvmem[j]);
+        ASSERT_EQ(ed1, ed2);
+      }
+      
+      // repeat for in vertices
+      std::vector<vertex_id_type> inv = graph.in_vertices(i);
+      std::vector<vertex_id_type> invmem = memgraph.in_vertices(i);
+      // test if they are the same size
+      ASSERT_EQ(inv.size(), invmem.size());
+      std::sort(inv.begin(), inv.end());
+      std::sort(invmem.begin(), invmem.end());
+      // compare if the vector contents are identical
+      for (size_t j = 0;j < inv.size(); ++j) {
+        ASSERT_EQ(inv[j], invmem[j]);
+      }
+    }
+  }
   mpi_tools::finalize();
 }

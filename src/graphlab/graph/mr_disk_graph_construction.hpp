@@ -175,16 +175,34 @@ void mr_disk_graph_construction(distributed_control &dc,
                                 GraphConstructor &gc, 
                                 size_t max_per_node,
                                 std::string outputbasename,
-                                size_t numatoms) {
-  // lets all the machines here first.
+                                size_t numatoms,
+                                std::string localworkingdir = "./",
+                                std::string remoteworkingdir = "./") {
+  // make sure directory names end with "/"
+  if (localworkingdir.length() > 0) {
+    if (*(localworkingdir.rbegin()) != '/') localworkingdir += "/";
+  }
+  // make sure directory names end with "/"
+  if (remoteworkingdir.length() > 0) {
+    if (*(remoteworkingdir.rbegin()) != '/') remoteworkingdir += "/";
+  }
+  
+  
+  // lets get all the machines here first.
   dc.full_barrier();
   if (dc.procid() == 0) {
     logstream(LOG_INFO) << "Mapping over Graph Constructors..." << std::endl;
   }
+  
+  std::string atombase = outputbasename + "_" + tostr(dc.procid());    
+  std::string localatombase = localworkingdir + atombase;
+  std::string remoteatombase = remoteworkingdir + atombase;
+
   {
     // create the local disk graph
     // each machine saves to the same disk graph
-    disk_graph<VertexData, EdgeData> dg(outputbasename + "_" + tostr(dc.procid()), numatoms);
+    
+    disk_graph<VertexData, EdgeData> dg(localatombase, numatoms);
     dg.clear();
     /******* Map Phase ***********/
     thread_group thrgrp;
@@ -206,21 +224,51 @@ void mr_disk_graph_construction(distributed_control &dc,
     }
     dg.finalize();
   }
+  if (localworkingdir != remoteworkingdir) {
+    logstream(LOG_INFO) << dc.procid() << ": " << "Uploading stripe..." << std::endl;
+    std::string command = std::string("mv ") + localatombase + ".* " + remoteworkingdir;
+    logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
+    system(command.c_str());
+  }
+
   dc.barrier();
   if (dc.procid() == 0) {
-    logstream(LOG_INFO) << "Joining Atoms..." << std::endl;
+    logstream(LOG_INFO) << dc.procid() << ": " << "Joining Atoms..." << std::endl;
   }
   std::map<size_t, mr_disk_graph_construction_impl::atom_properties> atomprops;
   // split the atoms among the machines
   for (size_t i = dc.procid(); i < numatoms; i += dc.numprocs()) {
     // build a vector of all the parallel atoms
-    std::vector<std::string> atomfiles;
+    std::vector<std::string> atomfiles, localatomfiles, remoteatomfiles;
     for (size_t j = 0;j < dc.numprocs(); ++j) {
-      atomfiles.push_back(outputbasename + "_" + tostr(j) + "." + tostr(i));
+      std::string f = outputbasename + "_" + tostr(j) + "." + tostr(i);
+      atomfiles.push_back(f);
+      localatomfiles.push_back(localworkingdir + f);
+      remoteatomfiles.push_back(remoteworkingdir + f);
     }
     std::string finaloutput = outputbasename + "." + tostr(i);
+    std::string localfinaloutput = localworkingdir + finaloutput;
+    std::string remotefinaloutput = remoteworkingdir + finaloutput;
+    // collect the atoms I need to the local working directory
+    if (localworkingdir != remoteworkingdir) {
+      logstream(LOG_INFO) << dc.procid() << ": " << "Downloading partial atoms " << i << std::endl;
+      for (size_t j = 0; j < atomfiles.size(); ++j) {
+        std::string command = std::string("mv ") + remoteatomfiles[j] + " " + localatomfiles[j];
+        logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
+        system(command.c_str());
+      }
+    }
     atomprops[i] = 
-          mr_disk_graph_construction_impl::merge_parallel_disk_atom<VertexData, EdgeData>(atomfiles, finaloutput, i);
+          mr_disk_graph_construction_impl::merge_parallel_disk_atom<VertexData, EdgeData>(localatomfiles, localfinaloutput, i);
+          
+    // move final output back
+    if (localworkingdir != remoteworkingdir) {
+      logstream(LOG_INFO) << dc.procid() << ": " << "Uploading combined atom " << finaloutput << std::endl;
+      std::string command = std::string("mv ") + localfinaloutput + " " + remotefinaloutput;
+      logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
+      atomprops[i].filename = remotefinaloutput;
+      system(command.c_str());
+    }
   }
   dc.barrier();
   
@@ -245,7 +293,7 @@ void mr_disk_graph_construction(distributed_control &dc,
     // done! Now build the atom index
     ASSERT_EQ(atomprops.size(), numatoms);
     atom_index_file idxfile = mr_disk_graph_construction_impl::atom_index_from_properties(atomprops);
-    idxfile.write_to_file(outputbasename+".idx");
+    idxfile.write_to_file(remoteworkingdir + outputbasename+".idx");
   }
   dc.barrier();
   
