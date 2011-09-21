@@ -32,7 +32,6 @@
 
 #ifndef GRAPHLAB_GRAPH_LOCAL_STORE_HPP
 #define GRAPHLAB_GRAPH_LOCAL_STORE_HPP
-#include <graphlab/util/mmap_wrapper.hpp>
 #include <climits>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph.hpp>
@@ -42,9 +41,6 @@
 
 namespace graphlab {
   namespace dist_graph_impl {
-  
-
-#define PREFETCH_MERGE_LIMIT 4096
   
     //  template<typename VertexData, typename EdgeData> class graph_local_store;
 
@@ -81,14 +77,16 @@ namespace graphlab {
 
       struct vdata_store {
         VertexData data;
-        uint64_t version:63;
         bool modified:1;
+        bool snapshot_made:1; // set to false whenever the version number changes
+        uint64_t version:62;
       };
 
       struct edata_store {
         EdgeData data;
-        uint64_t version:63;
         bool modified:1;
+        bool snapshot_made:1; // set to false whenever the version number changes
+        uint64_t version:62;
       };
     
     public:
@@ -96,11 +94,10 @@ namespace graphlab {
       /**
        * Build a basic graph
        */
-      graph_local_store(): do_not_mmap(true), vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
+      graph_local_store(): vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
 
       void create_store(size_t create_num_verts, size_t create_num_edges,
-                        std::string vertexstorefile, std::string edgestorefile, bool do_not_mmap_ = true) { 
-        do_not_mmap = do_not_mmap_;
+                        std::string vertexstorefile, std::string edgestorefile) { 
         nvertices = create_num_verts;
         nedges = create_num_edges;
       
@@ -118,15 +115,13 @@ namespace graphlab {
         changeid = 0;
       
         // allocate the vdata and edata
-        setup_mmap();
+        allocate_graph_data();
       
       }
     
       ~graph_local_store() {
-        if (do_not_mmap) {
-          free(vertices);
-          free(edgedata);
-        }
+        free(vertices);
+        free(edgedata);
       }
       // METHODS =================================================================>
 
@@ -343,11 +338,13 @@ namespace graphlab {
       void set_vertex_version(vertex_id_type v, uint64_t version) {
         assert(v < nvertices);
         vertices[v].version = version;
+        vertices[v].snapshot_made = false;
       }
 
       void increment_vertex_version(vertex_id_type v) {
         assert(v < nvertices);
         ++vertices[v].version;
+        vertices[v].snapshot_made = false;
       }
 
       uint64_t vertex_version(vertex_id_type v) const{
@@ -360,6 +357,7 @@ namespace graphlab {
         locks[v].lock();
         vertices[v].data = data;
         vertices[v].version++;
+        vertices[v].snapshot_made = false;
         locks[v].unlock();
       }
 
@@ -370,6 +368,7 @@ namespace graphlab {
           vertices[v].data = data;
           vertices[v].version = version;
           vertices[v].modified = false;
+          vertices[v].snapshot_made = false;
         }
         locks[v].unlock();
       }
@@ -384,8 +383,18 @@ namespace graphlab {
         assert(v < nvertices);
         return vertices[v].modified;
       }
+      
+      void set_vertex_snapshot_made(vertex_id_type v, bool snapshot_made) {
+        assert(v < nvertices);
+        vertices[v].snapshot_made = snapshot_made;
+      }
 
-    
+      bool vertex_snapshot_made(vertex_id_type v) const{
+        assert(v < nvertices);
+        return vertices[v].snapshot_made;
+      }
+
+
       /** \brief Returns a reference to the data stored on the edge source->target. */
       EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
         assert(source < nvertices);
@@ -425,11 +434,13 @@ namespace graphlab {
       void set_edge_version(edge_id_type edge_id, uint64_t version) {
         assert(edge_id < nedges);
         edgedata[edge_id].version = version;
+        edgedata[edge_id].snapshot_made = false;
       }
 
       void increment_edge_version(edge_id_type edge_id) {
         assert(edge_id < nedges);
         ++edgedata[edge_id].version;
+        edgedata[edge_id].snapshot_made = false;
       }
     
       uint64_t edge_version(edge_id_type edge_id) const{
@@ -447,11 +458,22 @@ namespace graphlab {
         return edgedata[edge_id].modified;
       }
 
+      void set_edge_snapshot_made(edge_id_type edge_id, bool snapshot_made) {
+        assert(edge_id < nedges);
+        edgedata[edge_id].snapshot_made = snapshot_made;
+      }
+
+      bool edge_snapshot_made(edge_id_type edge_id) const{
+        assert(edge_id < nedges);
+        return edgedata[edge_id].snapshot_made;
+      }
+
       void increment_and_update_edge(edge_id_type e, EdgeData data) {
         assert(e < nedges);
         locks[target(e)].lock();
         edgedata[e].data = data;
         edgedata[e].version++;
+        edgedata[e].snapshot_made = false;
         locks[target(e)].unlock();
       }
 
@@ -462,11 +484,12 @@ namespace graphlab {
           edgedata[e].data = data;
           edgedata[e].version = version;
           edgedata[e].modified = false;
+          edgedata[e].snapshot_made = false;
         }
         locks[target(e)].unlock();
       }
 
-      size_t& edge_version(vertex_id_type source, vertex_id_type target) {
+      uint64_t edge_version(vertex_id_type source, vertex_id_type target) {
         assert(source < nvertices);
         assert(target < nvertices);
         std::pair<bool, edge_id_type> ans = find(source, target);
@@ -480,10 +503,10 @@ namespace graphlab {
         assert(target < nvertices);
         std::pair<bool, edge_id_type> ans = find(source, target);
         assert(ans.first);
-        ++edgedata[ans.second].version;
+        increment_edge_version(ans.second);
       }
 
-      size_t edge_version(vertex_id_type source, vertex_id_type target) const {
+      uint64_t edge_version(vertex_id_type source, vertex_id_type target) const {
         assert(source < nvertices);
         assert(target < nvertices);
         std::pair<bool, edge_id_type> ans = find(source, target);
@@ -612,9 +635,7 @@ namespace graphlab {
             >> vcolors
             >> finalized;
         // rebuild the map
-        delete vertexmmap;
-        delete edgemmap;
-        setup_mmap();
+        allocate_graph_data();
         deserialize(arc, vertices, sizeof(VertexData) * nvertices);
         deserialize(arc, edgedata, sizeof(EdgeData) * nedges);
       
@@ -674,74 +695,10 @@ namespace graphlab {
         fout.close();
       }
     
-      void flush() {
-        if (do_not_mmap == false) {
-          vertexmmap->sync_all();
-          edgemmap->sync_all();
-        }
-      }
-    
-      void background_flush() {
-        if (do_not_mmap == false) {
-          vertexmmap->background_sync_all();
-          edgemmap->background_sync_all();
-        }
-      }
     
       void zero_all() {
         memset(vertices, 0, sizeof(vdata_store) * nvertices);
         memset(edgedata, 0, sizeof(edata_store) * nedges);
-      }
-    
-      void compute_minimal_prefetch() {
-        minimal_prefetch_vertex.resize(nvertices);
-        minimal_prefetch_edge.resize(nvertices);
-        for (size_t v = 0;v < nvertices; ++v) {
-          std::map<void*, size_t> prefetchvertex;
-          std::map<void*, size_t> prefetchedge;
-          // first get a list of all the prefetch targets
-          prefetchvertex[vertices + v] = sizeof(VertexData);
-          for (size_t i = 0;i < in_edges[v].size(); ++i) {
-            prefetchvertex[vertices + edges[in_edges[v][i]].source()] = sizeof(VertexData);
-            prefetchedge[edgedata + in_edges[v][i]] = sizeof(EdgeData);
-          }
-          for (size_t i = 0;i < out_edges[v].size(); ++i) {
-            prefetchvertex[vertices + edges[out_edges[v][i]].target()] = sizeof(VertexData);
-            prefetchedge[edgedata + out_edges[v][i]] = sizeof(EdgeData);
-          }
-          reduce_prefetch_list(prefetchvertex);
-          reduce_prefetch_list(prefetchedge);
-        
-          minimal_prefetch_vertex[v].clear();
-          std::copy(prefetchvertex.begin(), prefetchvertex.end(),
-                    std::back_inserter(minimal_prefetch_vertex[v]));
-                  
-          minimal_prefetch_edge[v].clear(); 
-          std::copy(prefetchedge.begin(), prefetchedge.end(),
-                    std::back_inserter(minimal_prefetch_edge[v]));
-        }
-      }
-      void print_prefetch_list(vertex_id_type v) {
-        std::cout << "Vertex " << v << " prefetch list:\n";
-        std::cout << "Vertex: \n";
-        for (size_t i = 0;i < minimal_prefetch_vertex[v].size(); ++i) {
-          std::cout << "at idx: " << ((char*)minimal_prefetch_vertex[v][i].first - (char*)vertices) / sizeof(VertexData) 
-                    << " span "
-                    << minimal_prefetch_vertex[v][i].second / sizeof(VertexData) << "\n";
-        }
-        std::cout << "Edge: \n";
-        for (size_t i = 0;i < minimal_prefetch_edge[v].size(); ++i) {
-          std::cout << "at idx: " << ((char*)minimal_prefetch_edge[v][i].first - (char*)edgedata) / sizeof(EdgeData) 
-                    << " span "
-                    << minimal_prefetch_edge[v][i].second / sizeof(EdgeData) << "\n";      }
-      }
-      void prefetch_scope(vertex_id_type v) {
-        for (size_t i = 0;i < minimal_prefetch_vertex[v].size(); ++i) {
-          vertexmmap->prefetch(minimal_prefetch_vertex[v][i].first, minimal_prefetch_vertex[v][i].second);
-        }
-        for (size_t i = 0;i < minimal_prefetch_edge[v].size(); ++i) {
-          edgemmap->prefetch(minimal_prefetch_edge[v][i].first, minimal_prefetch_edge[v][i].second);
-        }
       }
     
     private:    
@@ -799,7 +756,6 @@ namespace graphlab {
       }
 
     
-      bool do_not_mmap;
     
       // PRIVATE DATA MEMBERS ===================================================>    
       /** The vertex data is simply a vector of vertex data 
@@ -812,7 +768,6 @@ namespace graphlab {
       std::string vertex_store_file;
       std::string edge_store_file;
     
-      mmap_wrapper *vertexmmap, *edgemmap;
     
       /** The edge data is a vector of edges where each edge stores its
           source, destination. */
@@ -827,8 +782,6 @@ namespace graphlab {
       /** The vertex colors specified by the user. **/
       std::vector< vertex_color_type > vcolors;  
     
-      std::vector<std::vector<std::pair<void*, size_t> > > minimal_prefetch_vertex; 
-      std::vector<std::vector<std::pair<void*, size_t> > > minimal_prefetch_edge;
       size_t nvertices;
       size_t nedges;
     
@@ -883,68 +836,10 @@ namespace graphlab {
         return -1;
       } // end of binary search 
 
-      void setup_mmap() {
- 
-        if (do_not_mmap == false) {
-          vertexmmap = new mmap_wrapper(vertex_store_file, sizeof(vdata_store) * nvertices);
-          edgemmap = new mmap_wrapper(edge_store_file, sizeof(edata_store) * nedges);
-          vertices = (vdata_store*)(vertexmmap->mapped_ptr());
-          edgedata = (edata_store*)(edgemmap->mapped_ptr());
-        }
-        else {
-          vertices = (vdata_store*)malloc(sizeof(vdata_store) * nvertices);
-          edgedata = (edata_store*)malloc(sizeof(edata_store) * nedges);
-        }
+      void allocate_graph_data() {
+        vertices = (vdata_store*)malloc(sizeof(vdata_store) * nvertices);
+        edgedata = (edata_store*)malloc(sizeof(edata_store) * nedges);
       }
-
-
-      std::pair<void*, size_t> merge_targets(std::pair<void*, size_t> lower,
-                                             std::pair<void*, size_t> higher) {
-        char* lowleftptr = (char*)lower.first;
-        char* lowrightptr = (char*)lower.first + lower.second;
-        char* highleftptr = (char*)higher.first;
-        char* highrightptr = (char*)higher.first + higher.second;
-        if (lowrightptr >= highleftptr && lowrightptr >= highrightptr) {
-          // new target intersects an existing target
-          return lower;
-        }
-        else if (lowrightptr + PREFETCH_MERGE_LIMIT >= highrightptr && 
-                 lowrightptr + PREFETCH_MERGE_LIMIT >= highrightptr) {
-          // see if we can extend the old target to include the new target.
-          // don't extend by more than PREFETCH_MERGE_LIMIT
-          // yes we do! extend
-          lower.second = (char*)highrightptr - (char*)lowleftptr;
-          return lower;
-        }
-        else {
-          return std::make_pair<void*, size_t>(NULL, 0);
-        }
-      }
-     
-      void reduce_prefetch_list(std::map<void*, size_t> &current) {
-        std::map<void*, size_t>::iterator iter = current.begin();
-        while(iter != current.end()) {
-          while(1) {
-            std::map<void*, size_t>::iterator next = iter;
-            next++;
-            if (next == current.end()) break;    
-            std::pair<void*, size_t> ret;
-            ret = merge_targets(std::make_pair<void*, size_t>(iter->first, iter->second),
-                                std::make_pair<void*, size_t>(next->first, next->second));
-          
-            if (ret.first != NULL) {
-              iter->second = ret.second;
-              current.erase(next);
-            }
-            else {
-              break;
-            }
-          }
-          ++iter;
-        }
-      }
-
-   
 
     }; // End of graph
 

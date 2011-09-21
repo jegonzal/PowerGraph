@@ -150,18 +150,13 @@ namespace graphlab {
     typedef EdgeData edge_data_type;
 
 
-    typedef dist_graph_impl::graph_local_store<VertexData, EdgeData>
-    graph_local_store_type;
+    typedef dist_graph_impl::graph_local_store<VertexData, EdgeData> graph_local_store_type;
     
-    typedef typename graph_local_store_type::vertex_id_type 
-    vertex_id_type;
-    typedef typename graph_local_store_type::vertex_color_type
-    vertex_color_type;
+    typedef typename graph_local_store_type::vertex_id_type vertex_id_type;
+    typedef typename graph_local_store_type::vertex_color_type vertex_color_type;
     
-    typedef typename graph_local_store_type::edge_id_type   
-    edge_id_type;
-    typedef typename graph_local_store_type::edge_list_type 
-    local_edge_list_type;
+    typedef typename graph_local_store_type::edge_id_type edge_id_type;
+    typedef typename graph_local_store_type::edge_list_type local_edge_list_type;
 
   
 
@@ -170,12 +165,9 @@ namespace graphlab {
     class edge_list {
     public:
 
-      typedef typename boost::function<edge_id_type (edge_id_type)> 
-      TransformType;
-      typedef typename boost::transform_iterator<TransformType, const edge_id_type*> 
-      iterator;
-      typedef typename boost::transform_iterator<TransformType, const edge_id_type*> 
-      const_iterator;
+      typedef typename boost::function<edge_id_type (edge_id_type)> TransformType;
+      typedef typename boost::transform_iterator<TransformType, const edge_id_type*> iterator;
+      typedef typename boost::transform_iterator<TransformType, const edge_id_type*> const_iterator;
       typedef edge_id_type value_type;
     private:
       
@@ -261,7 +253,6 @@ namespace graphlab {
     distributed_graph(distributed_control &dc, 
                       std::string indexfilename, 
                       bool do_not_load_data = false,
-                      bool do_not_mmap = true,
                       bool sliced_partitioning = false):
       rmi(dc, this),
       indexfilename(indexfilename),
@@ -270,9 +261,6 @@ namespace graphlab {
       pending_push_updates(true, 0),
       graph_metrics("distributed_graph"){
 
-      if (do_not_mmap == false) {
-        logstream(LOG_WARNING) << "Using MMAP for local storage is highly experimental" << std::endl;
-      }
                                 
       cur_proc_vector.push_back(rmi.procid());
       // read the atom index.
@@ -301,7 +289,7 @@ namespace graphlab {
       }
       dc.barrier();
       rmi.broadcast(atompartitions, dc.procid() == 0);
-      construct_local_fragment(atomindex, atompartitions, rmi.procid(), do_not_load_data, do_not_mmap);
+      construct_local_fragment(atomindex, atompartitions, rmi.procid(), do_not_load_data);
       rmi.barrier();
     }
 
@@ -404,10 +392,8 @@ namespace graphlab {
     find(vertex_id_type source, vertex_id_type target) const {
       std::pair<bool, edge_id_type> ret;
       // hmm. surprisingly tricky
-      typename global2localvid_type::const_iterator itersource = 
-        global2localvid.find(source);
-      typename global2localvid_type::const_iterator itertarget = 
-        global2localvid.find(target);
+      typename global2localvid_type::const_iterator itersource = global2localvid.find(source);
+      typename global2localvid_type::const_iterator itertarget = global2localvid.find(target);
       // both are local, I can find it
       if (itersource != global2localvid.end() && 
           itertarget != global2localvid.end()) {
@@ -631,6 +617,10 @@ namespace graphlab {
   
     bool localvid_is_ghost(vertex_id_type localvid) const {
       return localvid2owner[localvid] != rmi.procid();
+    }
+
+    procid_t localvid_to_owner(vertex_id_type localvid) const {
+      return localvid2owner[localvid];
     }
 
     bool is_owned(vertex_id_type vid) const{
@@ -1354,8 +1344,7 @@ namespace graphlab {
     graph_local_store_type localstore;
 
 
-    typedef boost::unordered_map<vertex_id_type, vertex_id_type> 
-    global2localvid_type;
+    typedef boost::unordered_map<vertex_id_type, vertex_id_type> global2localvid_type;
 
     /** all the mappings requried to move from global to local vid/eids
      *  We only store mappings if the vid/eid is in the local fragment
@@ -1424,8 +1413,7 @@ namespace graphlab {
     void construct_local_fragment(const atom_index_file &atomindex,
                                   std::vector<std::vector<size_t> > partitiontoatom,
                                   size_t curpartition,
-                                  bool do_not_load_data,
-                                  bool do_not_mmap) {
+                                  bool do_not_load_data) {
       timer loadtimer;
       loadtimer.start();
       // first make a map mapping atoms to machines
@@ -1572,8 +1560,7 @@ namespace graphlab {
       // now lets construct the graph structure
       localstore.create_store(local2globalvid.size(), nedges_to_create,
                               "vdata." + tostr(curpartition),
-                              "edata." + tostr(curpartition),
-                              do_not_mmap);
+                              "edata." + tostr(curpartition));
       localstore.zero_all();
       // create a course grained lock for vertex IDs
       // edge insertions should not touch the same vertex at the same time
@@ -1823,15 +1810,8 @@ namespace graphlab {
           ASSERT_EQ(localstore.edge_version(i), 1);
         }
       }
-      // flush the store
       logger(LOG_INFO, "Finalize");
       localstore.finalize();
-      logger(LOG_INFO, "Flush");
-      localstore.flush();
-      if (do_not_mmap == false) {
-        logger(LOG_INFO, "Prefetch computation"); 
-        localstore.compute_minimal_prefetch();
-      }
       logger(LOG_INFO, "Load complete.");
       rmi.comm_barrier();
       std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
@@ -1887,6 +1867,13 @@ namespace graphlab {
       return std::make_pair(iter1->second, iter2->second);
     }
   
+    graph_local_store_type& get_local_store() { 
+      return localstore;
+    }
+
+    const graph_local_store_type& get_local_store() const { 
+      return localstore;
+    }
  
     /**
        Constructs the request set for a scope synchronization
