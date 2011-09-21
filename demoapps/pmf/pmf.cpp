@@ -179,7 +179,7 @@ void init(graph_type *g){
 
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
-     init(g); break;
+     init_svd<graph_type>(g); break;
 
    case LANCZOS: 
      init_lanczos(); break;

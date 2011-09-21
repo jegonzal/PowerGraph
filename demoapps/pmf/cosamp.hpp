@@ -65,7 +65,7 @@ vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D){
     ivec T=sort_union(Omega,T2);
     mat phit=get_cols(Phi, T);
     vec b;
-    bool ret = ls_solve(phit, u, b);
+    bool ret = backslash(phit, u, b);
     assert(ret);
     b= abs(b);
     ivec z3 = sort_index(b);

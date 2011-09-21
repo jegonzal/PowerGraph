@@ -38,7 +38,23 @@ const static  int matlab_offset_user_movie = 1; //matlab array start from 1
 static  int matlab_offset_time = 1; //matlab arrays start from 1
 bool * flags = NULL;
 
+template<typename graph_type, typename vertex_data>
+void add_time_nodes(graph_type* _g){
+}; //nothing to be done here 
 
+template<>
+void add_time_nodes<graph_type,vertex_data>(graph_type* _g){
+    //init times
+    ps.times = new vertex_data[ps.K];
+    vec tones = ones(ac.D)*(ps.K==1?1:0.1);
+    //add T time node (ps.tensor dim 3)
+    for (int i=0; i<ps.K; i++){
+      ps.times[i].pvec =tones;
+      _g->add_vertex(ps.times[i]);
+      if (ac.debug && (i <= 5 || i == ps.K-1))
+        debug_print_vec("T: ", ps.times[i].pvec, ac.D);
+    }
+}
 /**
  * Add the graph nodes. We have nodes for each row (user), column (movies) and time bins.
  * 
@@ -62,24 +78,12 @@ void add_vertices(graph_type * _g, testtype data_type){
       debug_print_vec("V: ", vdata.pvec, ac.D);
   }
   
+  //add time nodes (if needed)
   if (data_type==TRAINING && ps.tensor){
-    //init times
-    ps.times = new vertex_data[ps.K];
-    vec tones = ones(ac.D)*(ps.K==1?1:0.1);
-    //add T time node (ps.tensor dim 3)
-    for (int i=0; i<ps.K; i++){
-      ps.times[i].pvec =tones;
-      _g->add_vertex(ps.times[i]);
-      if (ac.debug && (i <= 5 || i == ps.K-1))
-        debug_print_vec("T: ", ps.times[i].pvec, ac.D);
-    }
+    add_time_nodes<graph_type, vertex_data>(_g);
   }
 }
 
-template<>
-void add_vertices<graph_type_svdpp,vertex_data_svdpp>(graph_type_svdpp * _g, testtype data_type){
- assert(false);
-}
 template<typename graph_type, typename edge_data>
 void verify_edges(graph_type * _g, testtype data_type){
 

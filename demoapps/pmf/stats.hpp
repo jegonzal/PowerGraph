@@ -274,7 +274,11 @@ void predict_missing_value(const vertex_data& data,
 			   const vertex_data& pdata,
 			   const edge_data& edge,
 			   double &sq_err, int &e, int i);
-
+void predict_missing_value(const vertex_data_svdpp&data, 
+			   const vertex_data_svdpp& pdata, 
+		           edge_data& edge, 
+			   double & sq_err, int&e, int i);
+ 
 template<typename graph_type, typename vertex_data>
 void calc_rmse_edge(edge_id_t iedgeid, const graph_type *_g, double & rmse, const vertex_data&data, const vertex_data&pdata, int&e, int i){
 	   edge_data & edge = (edge_data&)_g->edge_data(iedgeid);

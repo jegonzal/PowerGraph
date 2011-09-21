@@ -126,10 +126,7 @@ void predict_missing_value(const vertex_data& data,
      e++;
 } 
 
-void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
-   assert(false);
-}
- 
+
 // fill out the linear relation matrix (Q) between users/movies and movie/users
 template<typename edge_data>
 inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i, vec * weights){

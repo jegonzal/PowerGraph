@@ -57,8 +57,6 @@ double stepSize=8e-3;
 double regularization = 15e-3;
 
 using namespace graphlab;
-graph_type_svdpp * g = NULL;
-graph_type_svdpp * validation_graph = NULL;
 
 //constructor
 vertex_data_svdpp::vertex_data_svdpp(){
@@ -81,12 +79,15 @@ void vertex_data_svdpp::load(graphlab::iarchive& archive) {
      archive >> bias >> weight;
 }
 
-void init(graph_type_svdpp *_g, graph_type_svdpp * _validation_graph){
-   g=_g;
-   validation_graph = _validation_graph;
+template<typename graph_type>
+void init_svd(graph_type* _g){
+  assert(false);
+}
+template<>
+void init_svd<graph_type_svdpp>(graph_type_svdpp *_g){
    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", ac.D,stepSize,regularization);
    for (int i=0; i<ps.M+ps.N; i++){
-       vertex_data_svdpp & data = g->vertex_data(i);
+       vertex_data_svdpp & data = _g->vertex_data(i);
        data.weight = ac.debug ? ones(ac.D) : randu(ac.D);
    } 
 }
@@ -106,10 +107,18 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
       return err*err; 
 }
 
+void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
+    float prediction = 0;
+    predict(data, pdata, &edge, NULL, edge.weight, prediction);
+    e++;
+}
+ 
 
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
-double calc_svd_rmse(graph_type_svdpp * _g, bool test, double & res){
+double calc_svd_rmse(const graph_type_svdpp * _g, bool test, double & res){
+
+     graph_type_svdpp * g = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TRAINING);
 
      if (test && ps.Le == 0)
        return NAN;
@@ -120,18 +129,18 @@ double calc_svd_rmse(graph_type_svdpp * _g, bool test, double & res){
      int nCases = 0;
 
      for (int i=0; i< ps.M; i++){
-       vertex_data_svdpp & usr = g->vertex_data(i);
+       vertex_data_svdpp & usr = (vertex_data_svdpp&)g->vertex_data(i);
        int n = usr.num_edges; //+1.0 ? //regularization
        usr.weight = zeros(ac.D);
        foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
-         vertex_data_svdpp & movie = g->vertex_data(g->target(oedgeid)); 
+         vertex_data_svdpp & movie = (vertex_data_svdpp&)g->vertex_data(g->target(oedgeid)); 
 	 usr.weight += movie.weight;
        }
        float usrnorm = float(1.0/sqrt(n));
        usr.weight *= usrnorm;
 
        foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
-         edge_data & item = _g->edge_data(oedgeid);
+         const edge_data & item = _g->edge_data(oedgeid);
          const vertex_data_svdpp & movie = g->vertex_data(_g->target(oedgeid)); 
          float estScore;
          sqErr += predict(usr, movie, NULL, NULL, item.weight, estScore);
@@ -149,7 +158,7 @@ void svd_post_iter(){
 
   double res,res2;
   double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(validation_graph, true, res2));
+  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
 
   itmFctrStep *= 0.9f;
   itmFctr2Step *= 0.9f;
