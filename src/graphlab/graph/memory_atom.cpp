@@ -24,6 +24,7 @@ memory_atom::memory_atom(std::string filename, uint16_t atomid):atomid(atomid),f
   }
 }
 
+
 void memory_atom::add_vertex(vertex_id_type vid, uint16_t owner) {
   mutated = true;
   mut.lock();
@@ -147,7 +148,10 @@ void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, 
   mut.unlock();
   
   edgemut[vsrc % 511].lock();
-  if (vertices[vsrc].outedges.count(target) == 0) nume.inc();
+  if (vertices[vsrc].outedges.count(target) == 0) {
+    nume.inc();
+    if (edata.length() > 0) numlocale.inc();
+  }
   vertices[vsrc].outedges[target] = edata;
   edgemut[vsrc % 511].unlock();
   edgemut[vtarget % 511].lock();
@@ -303,20 +307,26 @@ std::vector<memory_atom::vertex_id_type> memory_atom::get_in_vertices(vertex_id_
 
 
 memory_atom::vertex_color_type memory_atom::get_color(vertex_id_type vid) {
+  mut.lock();
+  vertex_color_type ret = vertex_color_type(-1);
   boost::unordered_map<uint64_t, size_t>::const_iterator viter = vidmap.find(vid);
-  if (viter == vidmap.end()) return vertex_color_type(-1);
-  
-  return vertices[viter->second].color;
+  if (viter != vidmap.end()) {
+    ret = vertices[viter->second].color;
+  }
+  mut.unlock();
+  return ret;
 }
 
 
 void memory_atom::set_color(vertex_id_type vid, vertex_color_type color) {
   mutated = true;
+  mut.lock();
   std::vector<vertex_id_type> ret;
   boost::unordered_map<uint64_t, size_t>::const_iterator viter = vidmap.find(vid);
-  if (viter == vidmap.end()) return;
-  
-  vertices[viter->second].color = color;
+  if (viter != vidmap.end()) {
+    vertices[viter->second].color = color;
+  }
+  mut.unlock();
 
 }
 

@@ -17,10 +17,6 @@ namespace graphlab {
     graph_atom() { };
     virtual ~graph_atom() { };
   
-    /// Increments the number of local edges stored in this atom
-    virtual void inc_numlocale() = 0;
-    virtual void set_numlocale(uint64_t ne) = 0;
-
     /// Gets the atom ID of this atom
     virtual uint16_t atom_id() const = 0;
   

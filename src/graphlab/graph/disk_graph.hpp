@@ -41,12 +41,20 @@
 #include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/graph/memory_atom.hpp>
+#include <graphlab/graph/write_only_disk_atom.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
   
+  struct disk_graph_atom_type {
+    enum atom_type {
+      DISK_ATOM,
+      MEMORY_ATOM,
+      WRITE_ONLY_ATOM
+    };
+  };
 
 
 
@@ -166,21 +174,27 @@ namespace graphlab {
      * \note finalize() will always rebuild an atom index file irregardless of
      * which constructor is used.
      */
-    disk_graph(std::string fbasename, size_t numfiles, bool use_memory_atom_if_available = false){  
+    disk_graph(std::string fbasename, size_t numfiles, 
+               disk_graph_atom_type::atom_type atype = disk_graph_atom_type::DISK_ATOM) {  
       atoms.resize(numfiles);
+      atomtype = atype;
       numv.value = 0;
       nume.value = 0;
+      
       for (size_t i = 0;i < numfiles; ++i) {
-        std::ifstream fin((fbasename + "." + tostr(i) + ".fast").c_str());
-        if (fin.is_open() && fin.good()) {
-          fin.close();
-          atoms[i] = new memory_atom(fbasename + "." + tostr(i) + ".fast", i);
-        }
-        else {
+        if (atomtype == disk_graph_atom_type::DISK_ATOM) {
           atoms[i] = new disk_atom(fbasename + "." + tostr(i), i);
+          numv.value += atoms[i]->num_local_vertices();
+          nume.value += atoms[i]->num_local_edges();
         }
-        numv.value += atoms[i]->num_local_vertices();
-        nume.value += atoms[i]->num_local_edges();
+        else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
+          atoms[i] = new memory_atom(fbasename + "." + tostr(i) + ".fast", i);
+          numv.value += atoms[i]->num_local_vertices();
+          nume.value += atoms[i]->num_local_edges();
+        }
+        else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
+          atoms[i] = new write_only_disk_atom(fbasename + "." + tostr(i) + ".dump", i);
+        }
       }
       indexfile = fbasename + ".idx";
       ncolors = vertex_color_type(-1);
@@ -191,7 +205,8 @@ namespace graphlab {
      * If the file 'atomindex' does not exist, an assertion failure will be issued
      * Use the other constructor to create a new disk graph.
      */    
-    disk_graph(bool use_memory_atom_if_available, std::string atomindex) {
+    disk_graph(disk_graph_atom_type::atom_type atype, std::string atomindex) {
+      atomtype = atype;
       indexfile = atomindex;
     
       atom_index_file idxfile;
@@ -204,20 +219,24 @@ namespace graphlab {
       nume.value = 0;
 
       for (size_t i = 0;i < idxfile.atoms.size(); ++i) {
-        ASSERT_EQ(idxfile.atoms[i].protocol, std::string("file"));
-        std::ifstream fin((idxfile.atoms[i].file + ".fast").c_str());
-        if (fin.is_open() && fin.good()) {
-          fin.close();
-          atoms[i] = new memory_atom(idxfile.atoms[i].file + ".fast", i);
-        }
-        else {
+        if (atomtype == disk_graph_atom_type::DISK_ATOM) {
           atoms[i] = new disk_atom(idxfile.atoms[i].file, i);
+          numv.value += atoms[i]->num_local_vertices();
+          nume.value += atoms[i]->num_local_edges();
         }
-        numv.value += atoms[i]->num_local_vertices();
-        nume.value += atoms[i]->num_local_edges();      
+        else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
+          atoms[i] = new memory_atom(idxfile.atoms[i].file + ".fast", i);
+          numv.value += atoms[i]->num_local_vertices();
+          nume.value += atoms[i]->num_local_edges();
+        }
+        else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
+          atoms[i] = new write_only_disk_atom(idxfile.atoms[i].file + ".dump", i);
+        }
       }
-      ASSERT_EQ(numv.value, idxfile.nverts);
-      ASSERT_EQ(nume.value, idxfile.nedges);
+      if (atomtype != disk_graph_atom_type::WRITE_ONLY_ATOM) {
+        ASSERT_EQ(numv.value, idxfile.nverts);
+        ASSERT_EQ(nume.value, idxfile.nedges);
+      }
     }
   
     void create_from_graph(const graph<VertexData, EdgeData> &g,
@@ -242,7 +261,6 @@ namespace graphlab {
         vertex_id_type source = g.source(i);
         uint16_t targetowner = partids[target] % atoms.size();
         uint16_t sourceowner = partids[source] % atoms.size();
-        atoms[targetowner]->inc_numlocale();
         // create ghosts
         if (sourceowner != targetowner) {
           if (atoms[sourceowner]->add_vertex_skip(target, targetowner)) {
@@ -315,7 +333,8 @@ namespace graphlab {
         idx.atoms[i].file = atoms[i]->get_filename();
         // if end with .fast, strip it out
         if (idx.atoms[i].file.length() >= 5 && 
-            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast") {
+            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast" ||
+            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump") {
           idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
         }
         idx.atoms[i].nverts = atoms[i]->num_local_vertices();
@@ -460,7 +479,6 @@ namespace graphlab {
       uint16_t sourceowner = atoms[source % atoms.size()]->get_owner(source);
       ASSERT_NE(targetowner, (uint16_t)(-1));
       ASSERT_NE(sourceowner, (uint16_t)(-1));
-      atoms[targetowner]->inc_numlocale();
       // create ghosts
       if (sourceowner != targetowner) {
         atoms[sourceowner]->add_vertex_skip(target, targetowner);
@@ -525,14 +543,16 @@ namespace graphlab {
                            vertex_id_type target, uint16_t targetowner,
                            const EdgeData& edata = EdgeData()) {
       nume.inc();
-      atoms[targetowner]->add_edge(source, target, edata);
-      atoms[targetowner]->inc_numlocale();
+      atoms[sourceowner]->add_vertex_skip(source, sourceowner);
+      atoms[targetowner]->add_vertex_skip(target, targetowner);
+
       // create ghosts
       if (sourceowner != targetowner) {
         atoms[sourceowner]->add_vertex_skip(target, targetowner);
         atoms[targetowner]->add_vertex_skip(source, sourceowner);
         atoms[sourceowner]->add_edge(source, target);
       }
+      atoms[targetowner]->add_edge(source, target, edata);
     }
     
     
@@ -651,10 +671,17 @@ namespace graphlab {
         std::string fname = atoms[i]->get_filename();
         // Make sure that this is not already a fast file
         if (fname.length() < 5 || fname.substr(fname.length() - 5, 5) != ".fast") {
-          dynamic_cast<disk_atom*>(atoms[i])->build_memory_atom(atoms[i]->get_filename() + ".fast");
+          if (typeid(*atoms[i]) == typeid(disk_atom)) {
+            dynamic_cast<disk_atom*>(atoms[i])->build_memory_atom(atoms[i]->get_filename() + ".fast");
+          }
+          else {
+            memory_atom matom(atoms[i]->get_filename() + ".fast", atoms[i]->atom_id());
+            dynamic_cast<write_only_disk_atom*>(atoms[i])->play_back(&matom);
+          }
         }
       }
     }
+    
   private:
     
     // block copies
@@ -669,6 +696,8 @@ namespace graphlab {
     
     std::string indexfile;
     vertex_color_type ncolors; // this is (-1) if it is not set
+    
+    disk_graph_atom_type::atom_type atomtype;
     
     void propagate_coloring() {
 #pragma omp parallel for

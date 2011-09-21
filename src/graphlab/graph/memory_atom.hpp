@@ -118,19 +118,7 @@ namespace graphlab {
     inline ~memory_atom() { 
       synchronize();
     }
-  
-    /// Increments the number of local edges stored in this atom
-    inline void inc_numlocale() {
-      mutated = true;
-      numlocale.inc();
-    }
-
-    void set_numlocale(uint64_t ne) {
-      mutated = true;
-      numlocale.value = ne;
-    }
-
-
+    
     /// Gets the atom ID of this atom
     inline uint16_t atom_id() const {
       return atomid;

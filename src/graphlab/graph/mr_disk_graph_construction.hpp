@@ -176,6 +176,7 @@ void mr_disk_graph_construction(distributed_control &dc,
                                 size_t max_per_node,
                                 std::string outputbasename,
                                 size_t numatoms,
+                                disk_graph_atom_type::atom_type atomtype,
                                 std::string localworkingdir = "./",
                                 std::string remoteworkingdir = "./") {
   // make sure directory names end with "/"
@@ -202,7 +203,7 @@ void mr_disk_graph_construction(distributed_control &dc,
     // create the local disk graph
     // each machine saves to the same disk graph
     
-    disk_graph<VertexData, EdgeData> dg(localatombase, numatoms);
+    disk_graph<VertexData, EdgeData> dg(localatombase, numatoms, disk_graph_atom_type::WRITE_ONLY_ATOM);
     dg.clear();
     /******* Map Phase ***********/
     thread_group thrgrp;
@@ -241,12 +242,15 @@ void mr_disk_graph_construction(distributed_control &dc,
     // build a vector of all the parallel atoms
     std::vector<std::string> atomfiles, localatomfiles, remoteatomfiles;
     for (size_t j = 0;j < dc.numprocs(); ++j) {
-      std::string f = outputbasename + "_" + tostr(j) + "." + tostr(i);
+      std::string f = outputbasename + "_" + tostr(j) + "." + tostr(i) + ".dump";
       atomfiles.push_back(f);
       localatomfiles.push_back(localworkingdir + f);
       remoteatomfiles.push_back(remoteworkingdir + f);
     }
     std::string finaloutput = outputbasename + "." + tostr(i);
+    
+
+    
     std::string localfinaloutput = localworkingdir + finaloutput;
     std::string remotefinaloutput = remoteworkingdir + finaloutput;
     // collect the atoms I need to the local working directory
@@ -259,12 +263,12 @@ void mr_disk_graph_construction(distributed_control &dc,
       }
     }
     atomprops[i] = 
-          mr_disk_graph_construction_impl::merge_parallel_disk_atom<VertexData, EdgeData>(localatomfiles, localfinaloutput, i);
+          mr_disk_graph_construction_impl::merge_parallel_disk_atom<VertexData, EdgeData>(localatomfiles, localfinaloutput, i, atomtype);
           
     // move final output back
     if (localworkingdir != remoteworkingdir) {
       logstream(LOG_INFO) << dc.procid() << ": " << "Uploading combined atom " << finaloutput << std::endl;
-      std::string command = std::string("mv ") + localfinaloutput + " " + remotefinaloutput;
+      std::string command = std::string("mv ") + localfinaloutput + "* " + remoteworkingdir;
       logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
       atomprops[i].filename = remotefinaloutput;
       system(command.c_str());

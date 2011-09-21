@@ -71,96 +71,43 @@ namespace graphlab {
     template <typename VertexData, typename EdgeData>
     atom_properties merge_parallel_disk_atom(std::vector<std::string> disk_atom_files, 
                                              std::string output_disk_atom,
-                                             size_t idx) {
-      std::vector<disk_atom*> atoms;
+                                             size_t idx,
+                                             disk_graph_atom_type::atom_type atomtype) {
+      std::vector<write_only_disk_atom*> atoms;
       atoms.resize(disk_atom_files.size());
   
       // open the atoms 
       for (size_t i = 0;i < disk_atom_files.size(); ++i) {
-        atoms[i] = new disk_atom(disk_atom_files[i], idx);
+        atoms[i] = new write_only_disk_atom(disk_atom_files[i], idx);
       }
 
       // create the output store
-      disk_atom atomout(output_disk_atom, idx);
-      atomout.clear();
+      graph_atom* atomout = NULL;
+      if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
+        output_disk_atom += ".fast";
+        atomout = new memory_atom(output_disk_atom, idx);
+      }
+      else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
+        output_disk_atom += ".dump";
+        atomout = new write_only_disk_atom(output_disk_atom, idx);
+      }
+      else if (atomtype == disk_graph_atom_type::DISK_ATOM) {
+        atomout = new disk_atom(output_disk_atom, idx);
+      }
+
+      atomout->clear();
 
       volatile uint32_t max_color = 0;
       // iterate through each database, joining the keys as we see it
 #pragma omp parallel for
       for (int i = 0;i < (int)atoms.size(); ++i) {
-        // open a cursor
-        std::string key, val;
-        disk_atom::storage_type::Cursor* cur = atoms[i]->get_db().cursor();
-        cur->jump();
-    
-        // begin iteration
-        while (cur->get(&key, &val, true)) {
-          ASSERT_GT(key.length(), 0);
-          char c = key[0];
-      
-          // we only need to track 4 entries
-          // v (vertex), e (edge) , c (color) and h (dht). 
-
-          if (c == 'v') {
-            // vertex.
-            boost::iostreams::stream<boost::iostreams::array_source> 
-              istrm(val.c_str(), val.length());   
-            iarchive iarc(istrm);
-            uint16_t owner;
-            iarc >> owner;
-            vertex_id_type vid = vertex_key_to_id(key);
-            // if has data, set the data
-            istrm.peek();
-            if (!istrm.eof()) {
-              std::string vdata;
-              iarc >> vdata;
-              ASSERT_EQ(owner, idx);
-              // this will overwrite all other "skipped" vertices
-              atomout.add_vertex_with_data(vid, owner, vdata);
-            }
-            else {
-              atomout.add_vertex_skip(vid, owner);
-            }
-          }
-          else if (c == 'e') {
-            // edge
-            std::pair<vertex_id_type, vertex_id_type> edge = edge_key_to_id(key);
-            if (val.length() > 0) {
-              atomout.add_edge_with_data(edge.first, edge.second, val);
-              atomout.inc_numlocale();
-            }
-            else {
-              atomout.add_edge_skip(edge.first, edge.second);
-            }
-          }
-          else if (c == 'c') {
-            // color
-            vertex_id_type vid = vertex_key_to_id(key);       
-            uint32_t color = *reinterpret_cast<const uint32_t*>(val.c_str());
-            atomout.set_color(vid, color);
-            while(max_color < color) {
-              uint32_t old_max_color = max_color;
-              uint32_t new_max_color = std::max(color, old_max_color);
-              // no op if no change
-              if (new_max_color == old_max_color || 
-                  atomic_compare_and_swap(max_color, old_max_color, new_max_color)) {
-                break;
-              }
-            }
-          }
-          else if (c == 'h') {
-            vertex_id_type vid = vertex_key_to_id(key);       
-            uint16_t owner= *reinterpret_cast<const uint16_t*>(val.c_str());
-            atomout.set_owner(vid, owner);
-          }
-        }
-        delete cur;
+        atoms[i]->play_back(atomout);
       }
-      atomout.synchronize();
+      atomout->synchronize();
       atom_properties ret;
-      ret.adjacent_atoms = atomout.enumerate_adjacent_atoms();
-      ret.num_local_vertices = atomout.num_local_vertices();
-      ret.num_local_edges = atomout.num_local_edges();
+      ret.adjacent_atoms = atomout->enumerate_adjacent_atoms();
+      ret.num_local_vertices = atomout->num_local_vertices();
+      ret.num_local_edges = atomout->num_local_edges();
       ret.max_color = max_color;
       ret.filename = output_disk_atom;
       //std::cout << idx << " " << ret.num_local_vertices << " " << ret.num_local_edges << "\n";
@@ -168,6 +115,7 @@ namespace graphlab {
       for (size_t i = 0;i < disk_atom_files.size(); ++i) {
         delete atoms[i];
       }
+      delete atomout;
       return ret;
     }
 

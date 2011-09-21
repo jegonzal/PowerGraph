@@ -110,16 +110,7 @@ namespace graphlab {
 
   
     ~disk_atom();
-  
-    /// Increments the number of local edges stored in this atom
-    inline void inc_numlocale() {
-      numlocale.inc();
-    }
-
-    virtual void set_numlocale(uint64_t ne) {
-      numlocale.value = ne;
-    }
-    
+      
     /// Gets the atom ID of this atom
     inline uint16_t atom_id() const {
       return atomid;

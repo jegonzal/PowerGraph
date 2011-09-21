@@ -133,6 +133,7 @@ namespace graphlab {
     if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), edata)) {
       // increment the number of edges
       nume.inc();
+      numlocale.inc();
       // append to the adjacency entries
       std::string oadj_key = "o"+id_to_str(src);
       uint64_t target64 = (uint64_t)target;
@@ -214,6 +215,9 @@ namespace graphlab {
     }
   
   void disk_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
+    std::string s;
+    db.get("e"+id_to_str(src)+"_"+id_to_str(target), &s);
+    if (s.length() == 0 && edata.length() > 0) numlocale.inc();
     db.set("e"+id_to_str(src)+"_"+id_to_str(target), edata);
   }
 
@@ -398,8 +402,6 @@ namespace graphlab {
         else matom.add_edge_with_data(inv[j], vertices[i], edata);
       }
     }
-    
-    matom.set_numlocale(numlocale.value);
     
     // finally, add all the owner hashes
     // open a cursor
