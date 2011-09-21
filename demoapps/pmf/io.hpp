@@ -40,10 +40,6 @@ bool * flags = NULL;
 
 template<typename graph_type, typename vertex_data>
 void add_time_nodes(graph_type* _g){
-}; //nothing to be done here 
-
-template<>
-void add_time_nodes<graph_type,vertex_data>(graph_type* _g){
     //init times
     ps.times = new vertex_data[ps.K];
     vec tones = ones(ac.D)*(ps.K==1?1:0.1);
@@ -54,6 +50,11 @@ void add_time_nodes<graph_type,vertex_data>(graph_type* _g){
       if (ac.debug && (i <= 5 || i == ps.K-1))
         debug_print_vec("T: ", ps.times[i].pvec, ac.D);
     }
+}; //nothing to be done here 
+
+template<>
+void add_time_nodes<graph_type_svdpp,vertex_data_svdpp>(graph_type_svdpp* _g){
+    assert(false);
 }
 /**
  * Add the graph nodes. We have nodes for each row (user), column (movies) and time bins.
