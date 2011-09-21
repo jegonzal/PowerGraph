@@ -135,6 +135,8 @@ void add_tasks(core & glcore){
      case BPTF_TENSOR:
      case BPTF_MATRIX:
      case WEIGHTED_ALS:
+     case BPTF_TENSOR_MULT:
+     case ALS_TENSOR_MULT:
        glcore.add_tasks(um, user_movie_nodes_update_function, 1);
        break;
 

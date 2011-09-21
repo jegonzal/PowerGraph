@@ -193,7 +193,7 @@ void sample_U(){
     cout<<"dMu:"<<dMu<<"beta0: "<<beta0[0]<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<" mu0_ " << mu0_<<endl;
   mat UmeanT = ps.M*(outer_product(Umean, Umean));
   assert(UmeanT.rows() == ac.D && UmeanT.cols() == ac.D);
-  mat dMuT = (beta0*ps.M/beta0_)*(outer_product(dMu, dMu));
+  mat dMuT = (beta0[0]*ps.M/beta0_)*(outer_product(dMu, dMu));
   mat iW0_ = iW0 + UUT - UmeanT + dMuT;
   mat W0_; 
   bool ret =inv(iW0_, W0_);
@@ -227,7 +227,7 @@ void sample_V(){
     cout<<"dMu:"<<dMu<<"beta0: "<<beta0[0]<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<endl;
   mat VmeanT = ps.N*(outer_product(Vmean, Vmean));
   assert(VmeanT.rows() == ac.D && VmeanT.cols() == ac.D);
-  mat dMuT =  (beta0*ps.N/beta0_)*outer_product(dMu, dMu);
+  mat dMuT =  (beta0[0]*ps.N/beta0_)*outer_product(dMu, dMu);
   mat iW0_ = iW0 + VVT - VmeanT + dMuT;
   mat W0_;
   bool ret = inv(iW0_, W0_);
@@ -274,7 +274,7 @@ void sample_T(){
 
   double beta0_ = beta0[0] + 1;
   vec pvec = ps.times[0].pvec; 
-  vec mu0_ = (pvec + beta0*mu0T)/beta0_;
+  vec mu0_ = (pvec + beta0*mu0T[0])/beta0_;
   double nu0_ = nu0 +ps.K;
   //vec dMu = mu0 - Umean;
   if (ac.debug){
@@ -282,8 +282,8 @@ void sample_T(){
   } 
 
   mat dT = calc_DT();
-  vec dTe = pvec - mu0T;
-  mat iW0_ = iW0T + dT*transpose(dT) + (beta0/beta0_)*(outer_product(dTe,dTe));
+  vec dTe = pvec - mu0T[0];
+  mat iW0_ = iW0T + dT*transpose(dT) + (beta0[0]/beta0_)*(outer_product(dTe,dTe));
   
   mat W0_;
   bool ret =inv(iW0_, W0_);
@@ -305,7 +305,7 @@ void sample_T(){
  */
 template<typename graph_type, typename vertex_data, typename edge_data>
 void last_iter_bptf(double res){
-    if (ps.iiter >= ac.bptf_burn_in){
+    if (ps.iiter == ac.bptf_burn_in){
       printf("Finished burn-in period. starting to aggregate samples\n");
     timer t;
     t.start();
