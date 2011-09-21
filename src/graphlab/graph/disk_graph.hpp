@@ -333,8 +333,8 @@ namespace graphlab {
         idx.atoms[i].file = atoms[i]->get_filename();
         // if end with .fast, strip it out
         if (idx.atoms[i].file.length() >= 5 && 
-            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast" ||
-            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump") {
+            (idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast" ||
+            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump")) {
           idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
         }
         idx.atoms[i].nverts = atoms[i]->num_local_vertices();
