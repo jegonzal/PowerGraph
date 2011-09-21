@@ -141,7 +141,8 @@ int main(int argc, char** argv) {
   timer ti;
   ti.start();
   // call the mr_disk_graph_construction function
-  mr_disk_graph_construction<graph_constructor,float, double>(dc, gc, 2, "dg", 16, "/tmp", "./");
+  mr_disk_graph_construction<graph_constructor,float, double>(dc, gc, 2, "dg", 16, 
+                                                              disk_graph_atom_type::DISK_ATOM, "/tmp", "./");
   // thats all!
   std::cout << "Completed in " << ti.current_time() << " s" << std::endl;
   //-----------------------------------------------------------------------
@@ -149,8 +150,7 @@ int main(int argc, char** argv) {
   // everything after this is just for verification
   if (dc.procid() == 0) {
     std::cout << "Checking constructed graph ... " << std::endl;
-    disk_graph<float,double> graph(false, "dg.idx");
-
+    disk_graph<float,double> graph(disk_graph_atom_type::DISK_ATOM, "dg.idx");
     ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
     ASSERT_EQ(graph.num_edges(), memgraph.num_edges());
     for(vertex_id_type i = 0; i < num_verts; ++i) {
@@ -190,7 +190,7 @@ int main(int argc, char** argv) {
   
   if (dc.procid() == 0) {
     std::cout << "Checking constructed fast graph ... " << std::endl;
-    disk_graph<float,double> graph(true, "dg.idx");
+    disk_graph<float,double> graph(disk_graph_atom_type::MEMORY_ATOM, "dg.idx");
 
     ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
     ASSERT_EQ(graph.num_edges(), memgraph.num_edges());
