@@ -268,7 +268,7 @@ void mr_disk_graph_construction(distributed_control &dc,
     // move final output back
     if (localworkingdir != remoteworkingdir) {
       logstream(LOG_INFO) << dc.procid() << ": " << "Uploading combined atom " << finaloutput << std::endl;
-      std::string command = std::string("mv ") + localfinaloutput + "* " + remoteworkingdir;
+      std::string command = std::string("mv ") + atomprops[i].filename + " " + remoteworkingdir;
       logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
       atomprops[i].filename = remotefinaloutput;
       system(command.c_str());

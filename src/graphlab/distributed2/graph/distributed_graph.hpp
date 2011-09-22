@@ -1016,7 +1016,7 @@ namespace graphlab {
      */
     size_t recompute_num_colors() {
       vertex_color_type max_color(0);
-      for(size_t i = 0; i < localstore.num_vertices(); ++i) {
+      for(size_t i = 0; i < local_vertices(); ++i) {
         max_color = std::max(max_color, localstore.color(i));
       }
       std::vector<vertex_color_type> proc2colors(rmi.numprocs());
@@ -1633,7 +1633,9 @@ namespace graphlab {
           uint16_t owneratom;
           ASSERT_TRUE(atomfiles[i]->get_vertex(globalvid, owneratom));
           localvid2owner[localvid] = atom2machine[owneratom];
-          localstore.color(localvid) = atomfiles[i]->get_color(globalvid);
+          if (owneratom == atomfiles[i]->atom_id()) {
+            localstore.color(localvid) = atomfiles[i]->get_color(globalvid);
+          }
           // if I own this vertex, set the global ownership to me
           if (localvid2owner[localvid] == rmi.procid()) {
             globalvid2owner.set(globalvid, rmi.procid());

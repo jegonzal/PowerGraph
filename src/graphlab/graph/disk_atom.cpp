@@ -62,8 +62,6 @@ namespace graphlab {
     // get the pointers to the linked list of vertices
     if (db.get("numv", 4, (char*)&numv.value, sizeof(numv.value)) == -1) numv = 0;
     if (db.get("nume", 4, (char*)&nume.value, sizeof(nume.value)) == -1) nume = 0;
-    if (db.get("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value)) == -1) numlocalv = 0;
-    if (db.get("numlocale", 9, (char*)&numlocale.value, sizeof(numlocale.value)) == -1) numlocale = 0;
   }
   
 
@@ -76,8 +74,6 @@ namespace graphlab {
     // update the linked list
     db.set("numv", 4, (char*)&numv.value, sizeof(numv.value));
     db.set("nume", 4, (char*)&nume.value, sizeof(nume.value));
-    db.set("numlocalv", 9, (char*)&numlocalv.value, sizeof(numlocalv.value));
-    db.set("numlocale", 9, (char*)&numlocale.value, sizeof(numlocale.value));
     db.synchronize();
   }
 
@@ -93,7 +89,6 @@ namespace graphlab {
 
 
   bool disk_atom::add_vertex_skip(disk_atom::vertex_id_type vid, uint16_t owner) {
-    mut[vid % 511].lock();
     std::stringstream strm;
     oarchive oarc(strm);    
     oarc << owner;
@@ -101,17 +96,13 @@ namespace graphlab {
     if (db.add("v"+id_to_str(vid), strm.str())) {
       uint64_t v64 = (uint64_t)vid;
       db.append("_vidlist", 8, (char*)&v64, sizeof(v64));
-      numv.inc();
-      if (owner == atomid) numlocalv.inc();
-      mut[vid % 511].unlock();
+      if (owner == atom_id()) numv.inc();
       return true;
     }
-    mut[vid % 511].unlock();
     return false;
   }
 
   void disk_atom::add_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata) {
-    mut[vid % 511].lock();
     std::stringstream strm;
     oarchive oarc(strm);    
     oarc << owner << vdata;
@@ -119,21 +110,29 @@ namespace graphlab {
     if (db.add("v"+id_to_str(vid), strm.str())) {
       uint64_t v64 = (uint64_t)vid;
       db.append("_vidlist", 8, (char*)&v64, sizeof(v64));
-      numv.inc();
-      if (owner == atomid) numlocalv.inc();
+      if (owner == atom_id()) numv.inc();
     }
     else {
       db.set("v"+id_to_str(vid), strm.str());
     }
-    mut[vid % 511].unlock();
   }
 
   void disk_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string& edata) {
-    mut[(src ^ target) % 511].lock();
     if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), edata)) {
       // increment the number of edges
-      nume.inc();
-      numlocale.inc();
+      
+      // target is definitely local. source may or may not be a ghost
+      if (edata.size() > 0) {
+        nume.inc();
+        add_vertex_skip(target, atom_id());
+        add_vertex_skip(src, (uint16_t)(-1));
+      }
+      else {
+        // src is local target is definitely a ghost
+        add_vertex_skip(src, atom_id());
+        add_vertex_skip(target, (uint16_t)(-1));
+      }
+      
       // append to the adjacency entries
       std::string oadj_key = "o"+id_to_str(src);
       uint64_t target64 = (uint64_t)target;
@@ -146,20 +145,21 @@ namespace graphlab {
     else {
       db.set("e"+id_to_str(src)+"_"+id_to_str(target), edata);
     }
-    mut[(src ^ target) % 511].unlock();
-  }
-  void disk_atom::add_edge(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
-    if (!add_edge_skip(src, target)) {
-      db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
-    }
   }
 
 
-  bool disk_atom::add_edge_skip(disk_atom::vertex_id_type src, disk_atom::vertex_id_type target) {
-    mut[(src ^ target) % 511].lock();
-    if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""))) {
+  void disk_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
+                                     vertex_id_type target, uint16_t targetowner, const std::string& edata) {
+    if (db.add("e"+id_to_str(src)+"_"+id_to_str(target), edata)) {
       // increment the number of edges
-      nume.inc();
+      
+      // target is definitely local. source may or may not be a ghost
+      if (edata.size() > 0) {
+        nume.inc();
+      }
+      add_vertex_skip(src, srcowner);
+      add_vertex_skip(target, targetowner);
+
       // append to the adjacency entries
       std::string oadj_key = "o"+id_to_str(src);
       uint64_t target64 = (uint64_t)target;
@@ -168,11 +168,10 @@ namespace graphlab {
       std::string iadj_key = "i"+id_to_str(target);
       uint64_t src64 = (uint64_t)src;
       db.append(iadj_key.c_str(), iadj_key.length(), (char*)&src64, sizeof(src64));
-      mut[(src ^ target) % 511].unlock();
-      return true;
     }
-    mut[(src ^ target) % 511].unlock();
-    return false;
+    else {
+      db.set("e"+id_to_str(src)+"_"+id_to_str(target), edata);
+    }
   }
 
   std::vector<disk_atom::vertex_id_type> disk_atom::enumerate_vertices() {
@@ -210,14 +209,9 @@ namespace graphlab {
     }
   
 
-  void disk_atom::set_edge(vertex_id_type src, vertex_id_type target) {
-      db.set("e"+id_to_str(src)+"_"+id_to_str(target), std::string(""));
-    }
-  
   void disk_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
     std::string s;
     db.get("e"+id_to_str(src)+"_"+id_to_str(target), &s);
-    if (s.length() == 0 && edata.length() > 0) numlocale.inc();
     db.set("e"+id_to_str(src)+"_"+id_to_str(target), edata);
   }
 
@@ -364,8 +358,6 @@ namespace graphlab {
   void disk_atom::clear() {
     numv.value = 0;
     nume.value = 0;
-    numlocalv.value = 0;
-    numlocale.value = 0;
     db.clear();
   }
 
@@ -398,10 +390,11 @@ namespace graphlab {
       for (size_t j = 0;j < inv.size(); ++j) {
         std::string edata;
         disk_atom::get_edge_data(inv[j], vertices[i], edata);
-        if (edata.length() == 0) matom.add_edge(inv[j], vertices[i]);
-        else matom.add_edge_with_data(inv[j], vertices[i], edata);
+        matom.add_edge_with_data(inv[j], vertices[i], edata);
       }
     }
+    ASSERT_EQ(matom.num_edges(), num_edges());
+    ASSERT_EQ(matom.num_vertices(), num_vertices());
     
     // finally, add all the owner hashes
     // open a cursor

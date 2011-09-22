@@ -90,7 +90,6 @@ namespace graphlab {
     atomic<uint64_t> numlocalv;
     atomic<uint64_t> numlocale;
     uint16_t atomid;
-    mutex mut[511];
   
     std::string filename;
     
@@ -143,24 +142,17 @@ namespace graphlab {
     
   
     /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists it will be overwritten.
-     */
-    void add_edge(vertex_id_type src, vertex_id_type target);
-  
-    /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists, nothing will be done.
-     * Returns true if edge was added.
-     */
-    bool add_edge_skip(vertex_id_type src, vertex_id_type target);
-  
-    /**
      * \brief Inserts edge src->target into the file. If the edge already exists,
      * it will be overwritten.
      */
     void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string& edata);
   
+    /**
+     * \brief Inserts edge src->target into the file. If the edge already exists,
+     * it will be overwritten.
+     */
+    void add_edge_with_data(vertex_id_type src, uint16_t srcowner,
+                            vertex_id_type target, uint16_t targetowner, const std::string& edata);
   
     /**
      * \brief Modifies an existing vertex in the file where no data is assigned to the 
@@ -177,13 +169,6 @@ namespace graphlab {
      */
     void set_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata);
   
-
-    /**
-     * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
-     * User must ensure that the file already contains this edge. 
-     * If user is unsure, add_edge should be used.
-     */
-    void set_edge(vertex_id_type src, vertex_id_type target);
     
     /**
      * \brief Modifies an existing edge in the file. User must ensure that the file
@@ -284,15 +269,6 @@ namespace graphlab {
       return nume.value;
     }
   
-    /// Number of vertices owned by this atom
-    inline uint64_t num_local_vertices() const {
-      return numlocalv.value;
-    }
-  
-    /// Number of edges owned by this atom
-    inline uint64_t num_local_edges() const {
-      return numlocale.value;
-    }
   
     /// Returns a reference to the underlying Kyoto Cabinet
     inline storage_type& get_db() {
