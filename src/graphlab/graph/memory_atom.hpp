@@ -69,7 +69,6 @@ namespace graphlab {
     uint16_t atomid;
     mutex mut;
     mutex maplock;
-    mutex edgemut[511];
     std::string filename;
     bool mutated;
     /**

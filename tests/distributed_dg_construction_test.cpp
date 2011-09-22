@@ -25,6 +25,7 @@
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
+#include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/graph/mr_disk_graph_construction.hpp>
 
@@ -142,7 +143,7 @@ int main(int argc, char** argv) {
   ti.start();
   // call the mr_disk_graph_construction function
   mr_disk_graph_construction<graph_constructor,float, double>(dc, gc, 2, "dg", 16, 
-                                                              disk_graph_atom_type::DISK_ATOM, "/tmp", "./");
+                                                              disk_graph_atom_type::MEMORY_ATOM, "/tmp", "./");
   // thats all!
   std::cout << "Completed in " << ti.current_time() << " s" << std::endl;
   //-----------------------------------------------------------------------
@@ -150,7 +151,7 @@ int main(int argc, char** argv) {
   // everything after this is just for verification
   if (dc.procid() == 0) {
     std::cout << "Checking constructed graph ... " << std::endl;
-    disk_graph<float,double> graph(disk_graph_atom_type::DISK_ATOM, "dg.idx");
+    disk_graph<float,double> graph(disk_graph_atom_type::MEMORY_ATOM, "dg.idx");
     ASSERT_EQ(graph.num_vertices(), memgraph.num_vertices());
     ASSERT_EQ(graph.num_edges(), memgraph.num_edges());
     for(vertex_id_type i = 0; i < num_verts; ++i) {

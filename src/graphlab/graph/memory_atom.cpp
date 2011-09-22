@@ -94,18 +94,14 @@ void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, 
     destiter = vidmap.find(target);
   }
   size_t vtarget = destiter->second;
-  mut.unlock();
   
-  edgemut[vsrc % 511].lock();
   if (vertices[vsrc].outedges.count(target) == 0) {
     if (edata.length() > 0) nume.inc();
     vertices[vsrc].outedges.insert(target);
   }
-  edgemut[vsrc % 511].unlock();
-  
-  edgemut[vtarget % 511].lock();
   vertices[vtarget].inedges.insert(std::make_pair(src, edata));
-  edgemut[vtarget % 511].unlock();
+  mut.unlock();
+
 }
 
 void memory_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
@@ -131,18 +127,13 @@ void memory_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
     destiter = vidmap.find(target);
   }
   size_t vtarget = destiter->second;
-  mut.unlock();
-  
-  edgemut[vsrc % 511].lock();
+
   if (vertices[vsrc].outedges.count(target) == 0) {
     if (edata.length() > 0) nume.inc();
     vertices[vsrc].outedges.insert(target);
   }
-  edgemut[vsrc % 511].unlock();
-  
-  edgemut[vtarget % 511].lock();
   vertices[vtarget].inedges.insert(std::make_pair(src, edata));
-  edgemut[vtarget % 511].unlock();
+  mut.unlock();
 }
 
 
@@ -182,15 +173,11 @@ void memory_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, 
   boost::unordered_map<vertex_id_t, size_t>::const_iterator destiter = vidmap.find(target);
   ASSERT_TRUE(destiter != vidmap.end());
   size_t vtarget = destiter->second;
-  mut.unlock();
-  
-  edgemut[vsrc % 511].lock();
+
   ASSERT_EQ(vertices[vsrc].outedges.count(target), 1);
-  edgemut[vsrc % 511].unlock();
-  
-  edgemut[vtarget % 511].lock();
   vertices[vtarget].inedges[src] = edata;
-  edgemut[vtarget % 511].unlock();
+  mut.unlock();
+
 }
 
 

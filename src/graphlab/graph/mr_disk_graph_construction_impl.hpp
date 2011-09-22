@@ -24,6 +24,7 @@
 #ifndef GRAPHLAB_MR_DISK_GRAPH_CONSTRUCTION_IMPL_HPP
 #define GRAPHLAB_MR_DISK_GRAPH_CONSTRUCTION_IMPL_HPP
 #include <map>
+#include <unistd.h>
 #include <omp.h>
 #include <graphlab/graph/disk_graph.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
@@ -60,11 +61,11 @@ namespace graphlab {
       std::map<uint16_t, uint32_t>  adjacent_atoms;
       void save(oarchive& oarc) const {
         oarc << num_local_vertices << num_local_edges
-             << max_color << filename << adjacent_atoms;
+             << max_color << filename << base_atom_filename << adjacent_atoms;
       }
       void load(iarchive& iarc) {
         iarc >> num_local_vertices >> num_local_edges
-             >> max_color >> filename >> adjacent_atoms;
+             >> max_color >> filename >> base_atom_filename >> adjacent_atoms;
       }
     };
 
@@ -87,13 +88,16 @@ namespace graphlab {
       graph_atom* atomout = NULL;
       if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
         output_disk_atom += ".fast";
+        unlink(output_disk_atom.c_str());
         atomout = new memory_atom(output_disk_atom, idx);
       }
       else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
         output_disk_atom += ".dump";
+        unlink(output_disk_atom.c_str());
         atomout = new write_only_disk_atom(output_disk_atom, idx);
       }
       else if (atomtype == disk_graph_atom_type::DISK_ATOM) {
+        unlink(output_disk_atom.c_str());
         atomout = new disk_atom(output_disk_atom, idx);
       }
 

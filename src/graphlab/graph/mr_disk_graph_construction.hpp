@@ -270,7 +270,7 @@ void mr_disk_graph_construction(distributed_control &dc,
       logstream(LOG_INFO) << dc.procid() << ": " << "Uploading combined atom " << finaloutput << std::endl;
       std::string command = std::string("mv ") + atomprops[i].filename + " " + remoteworkingdir;
       logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
-      atomprops[i].filename = remotefinaloutput;
+      atomprops[i].base_atom_filename = remotefinaloutput;
       system(command.c_str());
     }
   }
