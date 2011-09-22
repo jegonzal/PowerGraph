@@ -612,7 +612,10 @@ namespace graphlab {
       EdgeData ret;
       uint16_t owner = atoms[dest % atoms.size()]->get_owner(dest);
       ASSERT_NE(owner, (uint16_t)(-1));
-      ASSERT_TRUE(atoms[owner]->get_edge(src, dest, ret));
+      if (atoms[owner]->get_edge(src, dest, ret) == false) {
+        atoms[owner]->get_edge(src, dest, ret);
+        getchar();
+      }
       return ret;
     }
     
