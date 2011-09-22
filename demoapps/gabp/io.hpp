@@ -437,12 +437,39 @@ struct graphlab_cf_format{
   float time;
   float weight;
 };
+struct graphlab_cf_old_format{
+  int from;
+  int to;
+  double time;
+  double weight;
+};
+
 
 struct graphlab_old_format{
   int from;
   int to; 
   double weight;
 };
+
+template<typename graph_type, typename vertex_data>
+void add_vertices(graph_type& graph){
+     vertex_data data;
+     for (int i=0; i< (int)(ps.m+ps.n); i++){
+       graph.add_vertex(data);
+     }
+}
+
+template<>
+void add_vertices<graph_type_shotgun, vertex_data_shotgun>(graph_type_shotgun & graph){
+     vertex_data_shotgun data;
+     for (int i=0; i< (int)(ps.m+ps.n); i++){
+       //in this mode, there are no observations, since the input is only a matrix.
+       //in this case we invent observations at random
+       if (config.supportgraphlabcf && i < ps.m)
+          data.y = (drand48() < 0.5)? -1: 1;
+       graph.add_vertex(data);
+     }
+}
 
 void add_edge(double val, int from, int to, graph_type *g){
    edge_data edge;
@@ -487,13 +514,11 @@ void add_edge(double val, int from, int to, graph_type_shotgun * g){
 
 //read edges from file into the graph
 template<typename edatatype, typename graph_type, typename vertex_data, typename edge_data>
-int read_edges(FILE * f, int len, int offset, int nodes,
-               graph_type * g, advanced_config & config, bool symmetry = false){
-  assert(offset>=0 && offset < len);
+int read_edges(FILE * f, int nodes, graph_type * g, advanced_config & config){
   assert(nodes > 0);
 
   unsigned int e,g0;
-  int rc = fread(&e,1,4,f);
+  int rc = fread(&e,1,4,f); //read the number of edges
   assert(rc == 4);
   if (!config.supportgraphlabcf){
     rc = fread(&g0,1,4,f); //zero pad
@@ -504,9 +529,9 @@ int read_edges(FILE * f, int len, int offset, int nodes,
   assert(e>0);
   int total = 0;
   edatatype* ed = new edatatype[200000];
-  printf("symmetry: %d\n", symmetry);
   int edgecount_in_file = e;
-  if (symmetry) edgecount_in_file /= 2;
+
+  //add unioque edges
   while(true){
     memset(ed, 0, 200000*sizeof(edatatype));
     rc = (int)fread(ed, sizeof(edatatype),
@@ -539,8 +564,8 @@ FILE * load_matrix_metadata(const char * filename){
 }
 
 /*
- *  READ A SQUARE INVERSE COV MATRIX A of size nxn
- *  Where the main digonal is the precision vector
+ *  READ A SQUARE MATRIX A of size nxn
+ *  For Gapbe: the main digonal is the precision vector
  * */
 
 template <typename graph_type, typename vertex_data, typename edge_data>
@@ -563,9 +588,9 @@ void load_square_matrix(FILE * f, graph_type& graph, advanced_config & config) {
   dispatch_vec(0,ps.n,GABP_PRIOR_PREC_OFFSET, &graph, prec, ps.n, true);
 
   if (config.oldformat)
-    ps.e = read_edges<graphlab_old_format,graph_type, vertex_data, edge_data>(f, sizeof(edge_data)/sizeof(sdouble), 0, ps.n, &graph, config);
+    ps.e = read_edges<graphlab_old_format,graph_type, vertex_data, edge_data>(f, ps.n, &graph, config);
   else
-    ps.e = read_edges<edata,graph_type, vertex_data, edge_data>(f, sizeof(edge_data)/sizeof(sdouble), 0, ps.n, &graph, config);
+    ps.e = read_edges<edata,graph_type, vertex_data, edge_data>(f, ps.n, &graph, config);
   fclose(f);
 }
 
@@ -587,11 +612,12 @@ void load_non_square_matrix(FILE * f, graph_type& graph, advanced_config & confi
   if (config.supportgraphlabcf){ //read matrix factorization file (GraphLab collabrative filtering format)
      int tmp;
      fread(&tmp, 1, 4, f); //skip over time bin number 
-     vertex_data data;
-     for (int i=0; i< (int)(ps.m+ps.n); i++){
-       graph.add_vertex(data);
-     }
-     ps.e = read_edges<graphlab_cf_format, graph_type, vertex_data, edge_data>(f, sizeof(edge_data), 0, ps.n+ps.m, &graph, config);
+     add_vertices<graph_type, vertex_data>(graph);
+
+     if (config.oldformat)
+       ps.e = read_edges<graphlab_cf_old_format, graph_type, vertex_data, edge_data>(f, ps.n+ps.m, &graph, config);
+     else
+       ps.e = read_edges<graphlab_cf_format, graph_type, vertex_data, edge_data>(f, ps.n+ps.m, &graph, config);
   }
   else { //read A, x, y, from file
   
@@ -608,9 +634,9 @@ void load_non_square_matrix(FILE * f, graph_type& graph, advanced_config & confi
     dispatch_vec(0,ps.n+ps.m,GABP_PREV_MEAN_OFFSET, &graph, 1);
     dispatch_vec(0,ps.n+ps.m,GABP_PREV_PREC_OFFSET, &graph, 1);
     if (config.oldformat)
-       ps.e = read_edges<graphlab_old_format,graph_type, vertex_data, edge_data>(f, sizeof(edge_data), 0, ps.n+ps.m, &graph,config);
+       ps.e = read_edges<graphlab_old_format,graph_type, vertex_data, edge_data>(f, ps.n+ps.m, &graph,config);
     else
-       ps.e = read_edges<edata,graph_type, vertex_data, edge_data>(f, sizeof(edge_data), 0, ps.n+ps.m, &graph,config);
+       ps.e = read_edges<edata,graph_type, vertex_data, edge_data>(f, ps.n+ps.m, &graph,config);
   } 
   fclose(f);
 }

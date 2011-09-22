@@ -91,7 +91,6 @@ struct vertex_data_shotgun{
   bool active;
   double x;
   double xjneg;
-  double val;
   double y;
   double Ax;
   double expAx;
@@ -102,7 +101,7 @@ struct vertex_data_shotgun{
 
   vertex_data_shotgun(){
     active = true;
-    x = y = xjneg = Ax = val = 0;
+    x = y = xjneg = Ax = 0;
     expAx = 1;
   }
 };
@@ -159,7 +158,7 @@ public:
 
   iiter = 1;//count number of time zero node run
  /* Problem size */
-  m=n=e=0;
+
  cdn_all_zero = false;
   cdn_neg_y = cdn_pos_y = 0;
   shotgun_numshoots = 0;

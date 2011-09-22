@@ -26,13 +26,15 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("syncinterval", &syncinterval, syncinterval, "sync interval (number of update functions before convergen detection");
   clopts.attach_option("supportgraphlabcf", &supportgraphlabcf, supportgraphlabcf, "input is given in GraphLab collaborative filtering format");
-  clopts.attach_option("isfloat", &isfloat, isfloat, "input file is given in float format");
+  clopts.attach_option("float", &isfloat, isfloat, "input file is given in float format");
   clopts.attach_option("cg_resid", &cg_resid, cg_resid, "compute cg residual progress ");
   clopts.attach_option("zero", &zero, zero, "support sparse matrix entry containing zero val ");
   clopts.attach_option("unittest", &unittest, unittest, "unit testing ( allowed values: 1/2)");
   clopts.attach_option("supportnullvariance", &support_null_variance, support_null_variance, "GABP: support zero precision (infinite variance)"); 
   clopts.attach_option("regularization", &regularization, regularization, "regularization"); 
-  
+  clopts.attach_option("oldformat", &oldformat, oldformat, "support for old edge file format: [int, int, double]"); 
+  clopts.attach_option("shotgun_cost", &display_cost, display_cost, "shotgun: display cost function on each iteration"); 
+  clopts.attach_option("max_iter", &iter, iter, "maximal number of iterations");
 }
 
 void problem_setup::verify_setup(graphlab::command_line_options& clopts){
