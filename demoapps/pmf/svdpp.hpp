@@ -33,7 +33,7 @@
 
 #include "graphlab.hpp"
 #include <graphlab/macros_def.hpp>
-
+#include "pmf.h"
 
 extern advanced_config ac;
 extern problem_setup ps;
@@ -58,74 +58,43 @@ double regularization = 15e-3;
 
 using namespace graphlab;
 
+//constructor
+vertex_data_svdpp::vertex_data_svdpp(){
+    pvec = zeros(ac.D);
+    rmse = 0;
+    num_edges = 0;
+    bias =0;
+    weight = zeros(ac.D);
+}
 
+void vertex_data_svdpp::save(graphlab::oarchive& archive) const {  
+    ////TODO archive << pvec;
+    archive << rmse << num_edges; 
+    archive << bias << weight;
+  }  
+   
+void vertex_data_svdpp::load(graphlab::iarchive& archive) {  
+     //TODO archive >> pvec;
+     archive >> rmse >> num_edges;  
+     archive >> bias >> weight;
+}
 
-void svd_init(){
+template<typename graph_type>
+void init_svd(graph_type* _g){
+  assert(false);
+}
+template<>
+void init_svd<graph_type_svdpp>(graph_type_svdpp *_g){
    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", ac.D,stepSize,regularization);
    for (int i=0; i<ps.M+ps.N; i++){
-       vertex_data & data = ps.g->vertex_data(i);
+       vertex_data_svdpp & data = _g->vertex_data(i);
        data.weight = ac.debug ? ones(ac.D) : randu(ac.D);
    } 
 }
 
+float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, float rating, float & prediction){
+      assert(nothing == NULL);
 
-//calculate RMSE. This function is called only before and after grahplab is run.
-//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
-double calc_svd_rmse(graph_type * _g, bool test, double & res){
-
-     if (test && ps.Le == 0)
-       return NAN;
-      
-     
-     res = 0;
-     double sqErr =0;
-     int nCases = 0;
-
-#ifdef GL_NO_MULT_EDGES
-
-     for (int i=0; i< ps.M; i++){
-       vertex_data & usr = ps.g->vertex_data(i);
-       int n = usr.num_edges; //+1.0 ? //regularization
-       usr.weight = zeros(ac.D);
-       foreach(edge_id_t oedgeid, pa.g->out_edge_ids(i)) {
-         vertex_data & movie = pa.g->vertex_data(pa.g->target(oedgeid)); 
-	 usr.weight += movie.weight;
-       }
-       float usrnorm = float(1.0/sqrt(n));
-       usr.weight *= usrnorm;
-
-       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
-         edge_data & item = _g->edge_data(oedgeid);
-         vertex_data & movie = g->vertex_data(_g->target(oedgeid)); 
-         float estScore;
-         sqErr += svd_predict(usr, movie, NULL, item.weight, estScore);
-         nCases++;
-       }
-   }
-#endif //GL_NO_MULT_EDGES
-   res = sqErr;
-   assert(nCases == (test?ps.Le:ps.L));
-   return sqrt(sqErr/(double)nCases);
-}
-
-
-void svd_post_iter(){
-  printf("Entering last iter with %d\n", ps.iiter);
-
-  double res,res2;
-  double rmse = agg_rmse_by_user(res);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(&ps.validation_graph, true, res2));
-
-  itmFctrStep *= 0.9f;
-  itmFctr2Step *= 0.9f;
-  usrFctrStep *= 0.9f;
-  itmBiasStep *= 0.9f;
-  usrBiasStep *= 0.9f;
-
-  ps.iiter++;
-}
-
-float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction){
       //\hat(r_ui) = \mu + 
       prediction = ps.globalMean[0];
                  // + b_u  +    b_i +
@@ -138,17 +107,90 @@ float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_
       return err*err; 
 }
 
+void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
+    float prediction = 0;
+    predict(data, pdata, &edge, NULL, edge.weight, prediction);
+    e++;
+}
+ 
+
+//calculate RMSE. This function is called only before and after grahplab is run.
+//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
+double calc_svd_rmse(const graph_type_svdpp * _g, bool test, double & res){
+
+     graph_type_svdpp * g = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TRAINING);
+
+     if (test && ps.Le == 0)
+       return NAN;
+      
+     
+     res = 0;
+     double sqErr =0;
+     int nCases = 0;
+
+     for (int i=0; i< ps.M; i++){
+       vertex_data_svdpp & usr = (vertex_data_svdpp&)g->vertex_data(i);
+       int n = usr.num_edges; //+1.0 ? //regularization
+       usr.weight = zeros(ac.D);
+       foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
+         vertex_data_svdpp & movie = (vertex_data_svdpp&)g->vertex_data(g->target(oedgeid)); 
+	 usr.weight += movie.weight;
+       }
+       float usrnorm = float(1.0/sqrt(n));
+       usr.weight *= usrnorm;
+
+       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
+         const edge_data & item = _g->edge_data(oedgeid);
+         const vertex_data_svdpp & movie = g->vertex_data(_g->target(oedgeid)); 
+         float estScore;
+         sqErr += predict(usr, movie, NULL, NULL, item.weight, estScore);
+         nCases++;
+       }
+   }
+   res = sqErr;
+   assert(nCases == (test?ps.Le:ps.L));
+   return sqrt(sqErr/(double)nCases);
+}
 
 
+void svd_post_iter(){
+  printf("Entering last iter with %d\n", ps.iiter);
+
+  double res,res2;
+  double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
+  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
+
+  itmFctrStep *= 0.9f;
+  itmFctr2Step *= 0.9f;
+  usrFctrStep *= 0.9f;
+  itmBiasStep *= 0.9f;
+  usrBiasStep *= 0.9f;
+
+  ps.iiter++;
+}
+
+
+void svd_plus_plus_update_function(gl_types::iscope &scope, 
+			 gl_types::icallback &scheduler) {
+   assert(false); //mode not supported
+}
+void svd_plus_plus_update_function(gl_types_mult_edge::iscope &scope, 
+			 gl_types_mult_edge::icallback &scheduler) {
+   assert(false); //mode not supported
+} 
+void svd_plus_plus_update_function(gl_types_mcmc::iscope &scope, 
+			 gl_types_mcmc::icallback &scheduler) {
+   assert(false); //mode not supported
+} 
+ 
 /***
  * UPDATE FUNCTION
  */
-void svd_plus_plus_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler) {
+void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope, 
+			 gl_types_svdpp::icallback &scheduler) {
     
-#ifdef GL_NO_MULT_EDGES
   /* GET current vertex data */
-  vertex_data& user = scope.vertex_data();
+  vertex_data_svdpp& user = scope.vertex_data();
  
   
   /* print statistics */
@@ -166,8 +208,8 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
   }
 
 
-  gl_types::edge_list outs = scope.out_edge_ids();
-  gl_types::edge_list ins = scope.in_edge_ids();
+  gl_types_svdpp::edge_list outs = scope.out_edge_ids();
+  gl_types_svdpp::edge_list ins = scope.in_edge_ids();
   timer t;
 
   t.start(); 
@@ -178,7 +220,7 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
     user.weight = zeros(ac.D);
     
     foreach(graphlab::edge_id_t oedgeid, outs) {
-      vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
+      vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
       //sum_{j \in N(u)} y_j 
       user.weight += movie.weight; 
             
@@ -194,9 +236,9 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
    // main algorithm, see Koren's paper, just below below equation (16)
    foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
-      vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+      vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
-      user.rmse += svd_predict(user, movie, NULL, edge.weight, estScore); 
+      user.rmse += predict(user, movie, NULL, NULL, edge.weight, estScore); 
       // e_ui = r_ui - \hat{r_ui}
       float err = edge.weight - estScore;
       assert(!isnan(user.rmse));
@@ -220,20 +262,18 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
    //gamma7 
    double mult = itmFctr2Step*itmFctr2Reg;
    foreach(graphlab::edge_id_t oedgeid, outs){
-      vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+      vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       //y_j = y_j  +   gamma2*sqrt|N(u)| * q_i - gamma7 * y_j
       movie.weight +=  step                    -  mult  * movie.weight;
    }
 
 
-   counter[EDGE_TRAVERSAL] += t.current_time();
+   ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
    if (scope.vertex() == (uint)(ps.M-1))
   	svd_post_iter();
-   }
-#else
-   logstream(LOG_ERROR)<< " SVD++ is not supported with multiple edges between user and movie in different times. Uncomment the flag GL_NO_MULT_EDGES and recompile" << std::endl;
-#endif
+}
+
 }
 
 #include "graphlab/macros_undef.hpp"

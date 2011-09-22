@@ -177,7 +177,9 @@ public:
     // check the graph
     {
       TS_TRACE("Reloading graph");
-      graphlab::disk_graph<vertex_data, edge_data> graph(disk_graph_atom_type::DISK_ATOM, "dg1.idx");
+      graphlab::disk_graph_atom_type::atom_type atom_type = 
+        graphlab::disk_graph_atom_type::DISK_ATOM;
+      graphlab::disk_graph<vertex_data, edge_data> graph(atom_type, "dg1.idx");
       TS_ASSERT_EQUALS(graph.num_vertices(), memgraph.num_vertices());
       TS_ASSERT_EQUALS(graph.num_edges(), memgraph.num_edges());
       TS_TRACE("Checking graph");
@@ -326,7 +328,9 @@ public:
       ti.start();
       
       TS_TRACE("Loading in memory atom graph");
-      graphlab::disk_graph<vertex_data, edge_data> graph("dg3", 10, disk_graph_atom_type::MEMORY_ATOM);
+      graphlab::disk_graph_atom_type::atom_type atom_type = 
+        graphlab::disk_graph_atom_type::MEMORY_ATOM;
+      graphlab::disk_graph<vertex_data, edge_data> graph("dg3", 10, atom_type);
       
       TS_TRACE("Checking in memory atom graph");
       TS_ASSERT_EQUALS(graph.num_vertices(), memgraph.num_vertices());

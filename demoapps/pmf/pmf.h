@@ -1,8 +1,31 @@
+/* Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *  
+ *  Code written by Danny Bickson, CMU
+ */
+
 #ifndef PMF_H__	 
 #define PMF_H__
 
 //#define NDEBUG
 #include "graphlab.hpp"
+#include "graphlab/core_base.hpp"
 /**
 
  Probabalistic matrix/tensor factorization written Danny Bickson, CMU
@@ -73,11 +96,6 @@ struct vertex_data {
   float rmse; //root of mean square error
   int num_edges; //number of edges
 
-#ifdef GL_SVD_PP //data structure for svd++/svd only
-  float bias; //bias for this user/movie
-  vec weight; //weight vector for this user/movie
-#endif
-
   //constructor
   vertex_data();
 
@@ -86,38 +104,64 @@ struct vertex_data {
   void load(graphlab::iarchive& archive); 
 };
 
+
+struct vertex_data_svdpp {
+  vec pvec; //vector of learned values U,V,T
+  float rmse; //root of mean square error
+  int num_edges; //number of edges
+  float bias; //bias for this user/movie
+  vec weight; //weight vector for this user/movie
+
+  //constructor
+  vertex_data_svdpp();
+
+  void save(graphlab::oarchive& archive) const; 
+   
+  void load(graphlab::iarchive& archive); 
+};
+
+
 struct edge_data {
   float  weight;  //observation 
   float  time; //time of observation (for tensor algorithms)
-#ifndef GL_NO_MCMC  
-  float avgprd;
-#endif
   edge_data(){ 
 	weight = 0; 
 	time = 0; 
-#ifndef GL_NO_MCMC
-	avgprd = 0;
-#endif
-}
-
+  }
  void save(graphlab::oarchive& archive) const {  
     archive << weight << time; 
-#ifndef GL_NO_MCMC	
-	archive<< avgprd;; 
-#endif
   }  
    
   void load(graphlab::iarchive& archive) {  
     archive >> weight >> time;
-#ifndef GL_NO_MCMC
-     archive >> avgprd; 
-#endif 
+  }
+};
+
+struct edge_data_mcmc {
+  float  weight;  //observation 
+  float  time; //time of observation (for tensor algorithms)
+  float avgprd;
+
+  edge_data_mcmc(){ 
+	weight = 0; 
+	time = 0; 
+	avgprd = 0;
+  }
+
+ void save(graphlab::oarchive& archive) const {  
+    archive << weight << time; 
+    archive<< avgprd;; 
+  }  
+   
+  void load(graphlab::iarchive& archive) {  
+    archive >> weight >> time;
+    archive >> avgprd; 
   }
 };
 
 //containiner for handling multiple edge
 struct multiple_edges{
-  std::vector<edge_data> medges;
+  std::vector<edge_data_mcmc> medges;
  void save(graphlab::oarchive& archive) const {  
        archive << medges; 
   }  
@@ -127,11 +171,6 @@ struct multiple_edges{
   }
 };
 
-
-float svd_predict(const vertex_data& user, const vertex_data& movie, const edge_data * edge, float rating, float & prediction);
-float predict(const vec& x1, const vec& x2, const edge_data * edge, float rating, float & prediction);
-double predict(const vertex_data& user, const vertex_data &movie, const edge_data * edge, float rating, float & prediction);
-float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction);
 
 
  
@@ -164,7 +203,7 @@ enum runmodes{
    ALS_SPARSE_MOVIE_FACTOR = 12
 };
 
-#define MAX_RUNMODE 9
+#define MAX_RUNMODE 12
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -182,36 +221,35 @@ enum countervals{
 };
 
 
-//types of graph nodes
-enum colors{
-   COLOR_USER=0,
-   COLOR_MOVIE=1,
-   COLOR_TIME=2,
-   COLOR_LAST=3,
-};
-
-
-//model can support multiple ratings of user to the same movie in different times
-//or a single rating. Single rating will run faster.
-#ifndef GL_NO_MULT_EDGES
-typedef graphlab::graph<vertex_data, multiple_edges> graph_type;
-#else
+/***
+ * Different graph types for the different problems solved
+ * 1) graph_type_vdpp - for running svd++
+ * 2) graph_type_mcmc - for running mcmc methods
+ * 3) graph_type_mult_edges - for having support for multiple edges in different times. model can support multiple ratings of user to the same movie in different times or a single rating. Single rating will run faster.
+ * 4) graph_type - all other algorithms
+ */
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-#endif
 typedef graphlab::types<graph_type> gl_types;
 
+typedef graphlab::graph<vertex_data, multiple_edges> graph_type_mult_edge;
+typedef graphlab::types<graph_type_mult_edge> gl_types_mult_edge;
+
+typedef graphlab::graph<vertex_data_svdpp, edge_data> graph_type_svdpp;
+typedef graphlab::types<graph_type_svdpp> gl_types_svdpp;
+
+typedef graphlab::graph<vertex_data, edge_data_mcmc> graph_type_mcmc;
+typedef graphlab::types<graph_type_mcmc> gl_types_mcmc;
 
 
 
 
-double agg_rmse_by_movie(double & res);
-double agg_rmse_by_user(double & res);
-
-void svd_init();
-void svd_plus_plus_update_function(gl_types::iscope & scope, 
-      gl_types::icallback & scheduler);
 
 
+
+
+/***
+ * Class for  holding current information about the problem run
+ */
 class problem_setup{
 public:
 
@@ -228,22 +266,37 @@ public:
   int M,N,K,L;//training size: users, movies, times, number of edges
   int Le; //number of ratings in validation dataset 
   int Lt;//number of rating in test data set
-
+  int last_node; //index of last node
   bool tensor; //is this tensor or a matrix
-
+  bool isals; //is this algorithm an ALS variant
   double globalMean[3]; //store global mean of matrix/tensor entries
-  gl_types::core * glcore;
 
 //performance counters
 #define MAX_COUNTER 20
   double counter[MAX_COUNTER];
   
   vertex_data * times;
-  gl_types::iengine * engine;
-  graph_type* g;
-  graph_type validation_graph;
-  graph_type test_graph;
+  graphlab::core_base* glcore;
+  graph_type * gg[3];
+  graph_type_mcmc * g_mcmc[3];
+  graph_type_mult_edge * g_mult_edge[3];
+  graph_type_svdpp*g_svdpp[3];
 
+  vec vones;
+  mat eDT; 
+  double pU; //regularization for users
+  double pV; //regularization for movies
+
+
+  template<typename graph_type> const graph_type* g(testtype type);
+    
+  //template<typename graph_type> void set_graph(graph_type *g, testtype type);
+  void set_graph(graph_type*_g, testtype type){gg[type]=_g;};
+  void set_graph(graph_type_mcmc*_g, testtype type){g_mcmc[type]=_g;};
+  void set_graph(graph_type_svdpp*_g, testtype type){g_svdpp[type]=_g;};
+  void set_graph(graph_type_mult_edge*_g, testtype type){g_mult_edge[type]=_g;};
+
+  
  problem_setup(){
 
   BPTF = false; //is this a sampling MCMC algo?
@@ -256,28 +309,102 @@ public:
   Le = 0; //number of ratings in validation dataset 
   Lt = 0;//number of rating in test data set
 
+  pU = pV = 0;
   memset(globalMean,0,3*sizeof(double));  //store global mean of matrix/tensor entries
 
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));
   times = NULL;
   glcore = NULL;
-  engine = NULL;
-  g = NULL;
+  //engine = NULL;
+  memset(gg, 0, 3*sizeof(graph_type*));
+  memset(g_mcmc, 0, 3*sizeof(graph_type_mcmc*));
+  memset(g_mult_edge, 0, 3*sizeof(graph_type_mult_edge*));
+  memset(g_svdpp, 0, 3*sizeof(graph_type_svdpp*));
 }
 
   void verify_setup();
 
 };
 
-void do_main(int argc, const char * argv[]);
+extern advanced_config ac;
 
-void add_vertices(graph_type * _g, testtype data_type);
-void verify_edges(graph_type * _g, testtype data_type);
+void problem_setup::verify_setup(){
+  switch(algorithm){
+  // iterative matrix factorization using alternating least squares
+  // or SVD ++
+  case ALS_MATRIX:
+  case ALS_SPARSE_USR_FACTOR:
+  case ALS_SPARSE_USR_MOVIE_FACTORS:
+  case ALS_SPARSE_MOVIE_FACTOR:
+  case WEIGHTED_ALS:
+  case SVD_PLUS_PLUS:
+  case STOCHASTIC_GRADIENT_DESCENT:
+  case LANCZOS:
+  case NMF:
+    tensor = false; BPTF = false;
+    break;
+
+    // MCMC tensor factorization
+  case BPTF_TENSOR:
+    // tensor factorization , allow for multiple edges between user and movie in different times
+  case BPTF_TENSOR_MULT:
+    tensor = true; BPTF = true;
+   break;
+    //MCMC matrix factorization
+  case BPTF_MATRIX:
+    tensor = false; BPTF = true;
+    break;
+   // tensor factorization
+  case ALS_TENSOR_MULT:
+    tensor = true; BPTF = false;
+    break;
+  default:
+    assert(0);
+  }
+
+  if (algorithm == ALS_TENSOR_MULT || algorithm == ALS_MATRIX || algorithm == ALS_SPARSE_USR_FACTOR || algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || algorithm == ALS_SPARSE_MOVIE_FACTOR || algorithm == WEIGHTED_ALS)
+   isals = true;
+  else isals = false;
+ 
+
+  if (ac.bptf_delay_alpha != 0 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR))
+	logstream(LOG_WARNING) << "Delaying alpha (sampling of noise level) is ignored in non-MCMC methods" << std::endl;
+
+  if (ac.bptf_burn_in != 10 && (algorithm != BPTF_TENSOR_MULT && algorithm != BPTF_TENSOR && algorithm != BPTF_MATRIX))
+	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
+
+  if (ac.user_sparsity < 0.5 || ac.user_sparsity >= 1){
+	logstream(LOG_ERROR) << "user_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
+        exit(1);
+  }
+  if (ac.movie_sparsity < 0.5 || ac.movie_sparsity >= 1){
+	logstream(LOG_ERROR) << "movie_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
+        exit(1);
+  }
+
+}
+
+template<> const graph_type *problem_setup::g(testtype type){ return gg[type]; }
+template<> const graph_type_mcmc *problem_setup::g(testtype type){ return g_mcmc[type]; }
+template<> const graph_type_mult_edge *problem_setup::g(testtype type){ return g_mult_edge[type]; }
+template<> const graph_type_svdpp *problem_setup::g(testtype type){ return g_svdpp[type]; }
+
+
+ 
+
+/**
+ * functions forward declerations
+ */
+void do_main(int argc, const char * argv[]);
 void set_num_edges(int val, testtype data_type);
 void load_matrix_market(const char * filename, graph_type * _g, testtype data_type);
 void verify_size(testtype data_type, int M, int N, int K);
-void count_all_edges(graph_type * g);
 void save_matrix_market_format(const char * filename, mat U, mat V);
+float predict(const vertex_data& v1, const vertex_data & v2, const edge_data * edge, float rating, float & prediction);
+float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, float rating, float & prediction);
+float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction);
+
+
 #endif
 

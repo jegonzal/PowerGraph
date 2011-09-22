@@ -21,6 +21,8 @@
 *      its variants.  For example, use "%lf", "%lg", or "%le"
 *      when reading doubles, otherwise errors will occur.
 */
+#ifndef READ_MARTIRX_MARKET
+#define READ_MARTIRX_MARKET
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,9 +35,9 @@ extern advanced_config ac;
 extern problem_setup ps;
 extern const char * testtypename[];
 
+template<typename graph_type, typename vertex_data, typename edge_data>
 void load_matrix_market(const char * filename, graph_type *_g, testtype data_type)
 {
-#ifdef GL_NO_MULT_EDGES
     int ret_code;
     MM_typecode matcode;
     int M, N, nz;   
@@ -78,8 +80,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     }
 
     ps.M = M; ps.N = N; ps.K = 1;
+    ps.last_node = M+N;
     verify_size(data_type, M, N, 1);
-    add_vertices(_g, data_type); 
+    add_vertices<graph_type, vertex_data>(_g, data_type); 
 
     /* reseve memory for matrices */
 
@@ -92,7 +95,6 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
 
 
     edge_data edge;
-    edge.time = 0;
     for (i=0; i<nz; i++)
     {
         fscanf(f, "%d %d %lg\n", &I, &J, &val);
@@ -106,17 +108,20 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         _g->add_edge(I,J+ps.M,edge);
     }
     set_num_edges(nz, data_type);
-    verify_edges(_g, data_type);
-
-    count_all_edges(ps.g);
+    verify_edges<graph_type,edge_data>(_g, data_type);
+  
+    if (data_type == TRAINING || (ac.aggregatevalidation && data_type == VALIDATION)){
+      count_all_edges<graph_type>(_g);
+    }
 
     fclose(f);
-#else
-   logstream(LOG_ERROR) << "loading matrix market format is not supported with multiple edges between user and movie mode. Uncomment the flag GL_NO_MULT_EDGES and recompile" << std::endl;
-#endif
 
 }
-
+template<>
+ void load_matrix_market<graph_type_mult_edge, vertex_data, multiple_edges>(const char * filename, graph_type_mult_edge *_g, testtype data_type)
+{
+  assert(false);
+}
 void save_matrix_market_format(const char * filename, mat U, mat V)
 {
     MM_typecode matcode;                        
@@ -149,4 +154,4 @@ void save_matrix_market_format(const char * filename, mat U, mat V)
     fclose(f);
 
 }
-
+#endif //READ_MARTIRX_MARKET
