@@ -61,12 +61,13 @@ public:
      Instance "i" will store vertex IDs i, i+N, i+2N, etc.
      and edge IDs i, i+N, i+2N, etc.
   */
-  void begin(size_t i_, size_t max_) {
+  iteration_method begin(size_t i_, size_t max_) {
     std::cout << "begin: " << i_ << " " << max_ << std::endl;
     i = i_;
     max = max_;
     viterator = i;
     eiterator = i;
+    return ExternalIteration;
   }
   
   /**
