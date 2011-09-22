@@ -47,21 +47,25 @@ namespace graphlab {
       add_vertex_with_data(vid, owner, serialize_to_string(vdata));
     }
   
-  
     /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists it will be overwritten.
+     * \brief Inserts edge src->target into the file with data. 
+     * If the edge already exists, the data will be overwritten
      */
-    virtual void add_edge(vertex_id_type src, vertex_id_type target) = 0;
-  
-    /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists, nothing will be done.
-     * Returns true if edge was added.
-     */
-    virtual bool add_edge_skip(vertex_id_type src, vertex_id_type target) = 0;
-  
     virtual void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) = 0;
+    
+    virtual void add_edge_with_data(vertex_id_type src, uint16_t srcowner,
+                                    vertex_id_type target, uint16_t targetowner, const std::string &edata) = 0;
+    
+    
+    inline void add_edge(vertex_id_type src, vertex_id_type target) {
+      add_edge_with_data(src, target, "");
+    }
+    
+    inline void add_edge(vertex_id_type src, uint16_t srcowner,
+                         vertex_id_type target, uint16_t targetowner) {
+      add_edge_with_data(src, srcowner, target, targetowner, "");
+    }
+
     /**
      * \brief Inserts edge src->target into the file. If the edge already exists,
      * it will be overwritten.
@@ -69,6 +73,12 @@ namespace graphlab {
     template <typename T>
     void add_edge(vertex_id_type src, vertex_id_type target, const T &edata) {
       add_edge_with_data(src, target, serialize_to_string(edata));
+    }
+
+    template <typename T>
+    void add_edge(vertex_id_type src, uint16_t srcowner,
+                 vertex_id_type target, uint16_t targetowner, const T &edata) {
+      add_edge_with_data(src, srcowner, target, targetowner, serialize_to_string(edata));
     }
   
   
@@ -90,14 +100,6 @@ namespace graphlab {
       set_vertex_with_data(vid, owner, serialize_to_string(vdata));
     }
   
-
-    /**
-     * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
-     * User must ensure that the file already contains this edge. 
-     * If user is unsure, add_edge should be used.
-     */
-    virtual void set_edge(vertex_id_type src, vertex_id_type target) = 0;
-
     virtual void set_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &s) = 0;
   
     template <typename T>
@@ -201,12 +203,6 @@ namespace graphlab {
      */
     virtual uint64_t num_edges() const = 0;
   
-    /// Number of vertices owned by this atom
-    virtual uint64_t num_local_vertices() const = 0;
-  
-    /// Number of edges owned by this atom
-    virtual uint64_t num_local_edges() const = 0;
-
   };
 
 }

@@ -55,7 +55,8 @@ namespace graphlab {
       size_t num_local_vertices;
       size_t num_local_edges;
       size_t max_color;
-      std::string filename;
+      std::string filename; 
+      std::string base_atom_filename;  
       std::map<uint16_t, uint32_t>  adjacent_atoms;
       void save(oarchive& oarc) const {
         oarc << num_local_vertices << num_local_edges
@@ -70,9 +71,10 @@ namespace graphlab {
 
     template <typename VertexData, typename EdgeData>
     atom_properties merge_parallel_disk_atom(std::vector<std::string> disk_atom_files, 
-                                             std::string output_disk_atom,
+                                             std::string base_atom_filename,
                                              size_t idx,
                                              disk_graph_atom_type::atom_type atomtype) {
+
       std::vector<write_only_disk_atom*> atoms;
       atoms.resize(disk_atom_files.size());
   
@@ -80,7 +82,7 @@ namespace graphlab {
       for (size_t i = 0;i < disk_atom_files.size(); ++i) {
         atoms[i] = new write_only_disk_atom(disk_atom_files[i], idx);
       }
-
+      std::string output_disk_atom = base_atom_filename;
       // create the output store
       graph_atom* atomout = NULL;
       if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
@@ -106,10 +108,11 @@ namespace graphlab {
       atomout->synchronize();
       atom_properties ret;
       ret.adjacent_atoms = atomout->enumerate_adjacent_atoms();
-      ret.num_local_vertices = atomout->num_local_vertices();
-      ret.num_local_edges = atomout->num_local_edges();
+      ret.num_local_vertices = atomout->num_vertices();
+      ret.num_local_edges = atomout->num_edges();
       ret.max_color = max_color;
       ret.filename = output_disk_atom;
+      ret.base_atom_filename = base_atom_filename;
       //std::cout << idx << " " << ret.num_local_vertices << " " << ret.num_local_edges << "\n";
 
       for (size_t i = 0;i < disk_atom_files.size(); ++i) {
@@ -133,7 +136,7 @@ namespace graphlab {
         // i is the current atom index
         size_t i = iter->first;
         idx.atoms[i].protocol = "file";
-        idx.atoms[i].file = iter->second.filename;
+        idx.atoms[i].file = iter->second.base_atom_filename;
         idx.atoms[i].nverts = iter->second.num_local_vertices;
         idx.atoms[i].nedges = iter->second.num_local_edges;
         std::map<uint16_t, uint32_t>::const_iterator iteradj = iter->second.adjacent_atoms.begin();

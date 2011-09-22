@@ -75,29 +75,6 @@ namespace graphlab {
       mut.unlock();
     }
 
-    /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists it will be overwritten.
-     */
-    inline void add_edge(vertex_id_type src, vertex_id_type target) {
-      oarchive oarc(f);
-      mut.lock();
-      oarc << 'd' << src << target;
-      mut.unlock();
-    }
-  
-    /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists, nothing will be done.
-     * Returns true if edge was added.
-     */
-    inline bool add_edge_skip(vertex_id_type src, vertex_id_type target) {
-      oarchive oarc(f);
-      mut.lock();
-      oarc << 'e' << src << target;
-      mut.unlock();
-      return true;
-    }
   
     inline void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
       oarchive oarc(f);
@@ -105,6 +82,15 @@ namespace graphlab {
       oarc << 'f' << src << target << edata;
       mut.unlock();
     }
+  
+    void add_edge_with_data(vertex_id_type src, uint16_t srcowner,
+                           vertex_id_type target, uint16_t targetowner, const std::string &edata) {
+      oarchive oarc(f);
+      mut.lock();
+      oarc << 'd' << src << srcowner << target << targetowner <<  edata;
+      mut.unlock();
+    }
+
   
     inline void set_vertex(vertex_id_type vid, uint16_t owner) {
       oarchive oarc(f);
@@ -120,17 +106,6 @@ namespace graphlab {
       mut.unlock();
     }
 
-    /**
-     * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
-     * User must ensure that the file already contains this edge. 
-     * If user is unsure, add_edge should be used.
-     */
-    inline void set_edge(vertex_id_type src, vertex_id_type target) {
-      oarchive oarc(f);
-      mut.lock();
-      oarc << 'i' << src << target;
-      mut.unlock();
-    }
 
     inline void set_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &s) {
       oarchive oarc(f);
@@ -139,7 +114,7 @@ namespace graphlab {
       mut.unlock();
     }
   
-  
+
   
     inline bool get_vertex(vertex_id_type vid, uint16_t &owner) { ASSERT_FALSE(false); return true;}
   
@@ -241,18 +216,8 @@ namespace graphlab {
      */
     inline uint64_t num_edges() const { ASSERT_FALSE(false); return 0; }
   
-    /// Number of vertices owned by this atom
-    inline uint64_t num_local_vertices() const { ASSERT_FALSE(false); return 0; }
-  
-    /// Number of edges owned by this atom
-    inline uint64_t num_local_edges() const { ASSERT_FALSE(false); return 0; }
 
-    inline void play_back(graph_atom* atom) {
-      if (typeid(*atom) == typeid(disk_atom)) play_back_disk(dynamic_cast<disk_atom*>(atom));
-      if (typeid(*atom) == typeid(memory_atom)) play_back_memory(dynamic_cast<memory_atom*>(atom));
-    }
-    void play_back_disk(disk_atom* atom);
-    void play_back_memory(memory_atom* atom);
+    void play_back(graph_atom* atom);
   };
 
 }

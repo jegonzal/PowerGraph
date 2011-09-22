@@ -184,13 +184,13 @@ namespace graphlab {
       for (size_t i = 0;i < numfiles; ++i) {
         if (atomtype == disk_graph_atom_type::DISK_ATOM) {
           atoms[i] = new disk_atom(fbasename + "." + tostr(i), i);
-          numv.value += atoms[i]->num_local_vertices();
-          nume.value += atoms[i]->num_local_edges();
+          numv.value += atoms[i]->num_vertices();
+          nume.value += atoms[i]->num_edges();
         }
         else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atoms[i] = new memory_atom(fbasename + "." + tostr(i) + ".fast", i);
-          numv.value += atoms[i]->num_local_vertices();
-          nume.value += atoms[i]->num_local_edges();
+          numv.value += atoms[i]->num_vertices();
+          nume.value += atoms[i]->num_edges();
         }
         else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
           atoms[i] = new write_only_disk_atom(fbasename + "." + tostr(i) + ".dump", i);
@@ -221,13 +221,13 @@ namespace graphlab {
       for (size_t i = 0;i < idxfile.atoms.size(); ++i) {
         if (atomtype == disk_graph_atom_type::DISK_ATOM) {
           atoms[i] = new disk_atom(idxfile.atoms[i].file, i);
-          numv.value += atoms[i]->num_local_vertices();
-          nume.value += atoms[i]->num_local_edges();
+          numv.value += atoms[i]->num_vertices();
+          nume.value += atoms[i]->num_edges();
         }
         else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atoms[i] = new memory_atom(idxfile.atoms[i].file + ".fast", i);
-          numv.value += atoms[i]->num_local_vertices();
-          nume.value += atoms[i]->num_local_edges();
+          numv.value += atoms[i]->num_vertices();
+          nume.value += atoms[i]->num_edges();
         }
         else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
           atoms[i] = new write_only_disk_atom(idxfile.atoms[i].file + ".dump", i);
@@ -259,19 +259,10 @@ namespace graphlab {
       for (int i = 0;i < (int)(g.num_edges()); ++i) {
         vertex_id_type target = g.target(i);
         vertex_id_type source = g.source(i);
-        uint16_t targetowner = partids[target] % atoms.size();
         uint16_t sourceowner = partids[source] % atoms.size();
-        // create ghosts
-        if (sourceowner != targetowner) {
-          if (atoms[sourceowner]->add_vertex_skip(target, targetowner)) {
-            atoms[sourceowner]->set_color(target, g.color(target));
-          }
-          if (atoms[targetowner]->add_vertex_skip(source, sourceowner)) {
-            atoms[targetowner]->set_color(source, g.color(source));
-          }
-          atoms[sourceowner]->add_edge(source, target);
-        }
-        atoms[targetowner]->add_edge(source, target, g.edge_data(i));
+        uint16_t targetowner = partids[target] % atoms.size();
+        if (sourceowner != targetowner) atoms[sourceowner]->add_edge(source, sourceowner, target, targetowner);
+        atoms[targetowner]->add_edge(source, sourceowner, target, targetowner, g.edge_data(i));
       }
     
       numv.value = g.num_vertices();
@@ -337,8 +328,8 @@ namespace graphlab {
             idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump")) {
           idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
         }
-        idx.atoms[i].nverts = atoms[i]->num_local_vertices();
-        idx.atoms[i].nedges = atoms[i]->num_local_edges();
+        idx.atoms[i].nverts = atoms[i]->num_vertices();
+        idx.atoms[i].nedges = atoms[i]->num_edges();
         std::map<uint16_t, uint32_t> adj = atoms[i]->enumerate_adjacent_atoms();
         std::map<uint16_t, uint32_t>::iterator iter = adj.begin();
         while (iter != adj.end()) {
@@ -475,17 +466,12 @@ namespace graphlab {
     void add_edge(vertex_id_type source, vertex_id_type target, 
                   const EdgeData& edata = EdgeData()) {
       nume.inc();
-      uint16_t targetowner = atoms[target % atoms.size()]->get_owner(target);
       uint16_t sourceowner = atoms[source % atoms.size()]->get_owner(source);
-      ASSERT_NE(targetowner, (uint16_t)(-1));
       ASSERT_NE(sourceowner, (uint16_t)(-1));
-      // create ghosts
-      if (sourceowner != targetowner) {
-        atoms[sourceowner]->add_vertex_skip(target, targetowner);
-        atoms[targetowner]->add_vertex_skip(source, sourceowner);
-        atoms[sourceowner]->add_edge(source, target);
-      }
-      atoms[targetowner]->add_edge(source, target, edata);
+      uint16_t targetowner = atoms[target % atoms.size()]->get_owner(target);
+      ASSERT_NE(targetowner, (uint16_t)(-1));
+      if (sourceowner != targetowner) atoms[sourceowner]->add_edge(source, sourceowner, target, targetowner);
+      atoms[targetowner]->add_edge(source, sourceowner, target, targetowner, edata);
     }
 
 
@@ -542,17 +528,9 @@ namespace graphlab {
     void add_edge_explicit(vertex_id_type source, uint16_t sourceowner,
                            vertex_id_type target, uint16_t targetowner,
                            const EdgeData& edata = EdgeData()) {
-      nume.inc();
-      atoms[sourceowner]->add_vertex_skip(source, sourceowner);
-      atoms[targetowner]->add_vertex_skip(target, targetowner);
-
-      // create ghosts
-      if (sourceowner != targetowner) {
-        atoms[sourceowner]->add_vertex_skip(target, targetowner);
-        atoms[targetowner]->add_vertex_skip(source, sourceowner);
-        atoms[sourceowner]->add_edge(source, target);
-      }
-      atoms[targetowner]->add_edge(source, target, edata);
+      nume.inc(); 
+      if (sourceowner != targetowner) atoms[sourceowner]->add_edge(source, sourceowner, target, targetowner);
+      atoms[targetowner]->add_edge(source, sourceowner, target, targetowner, edata);
     }
     
     

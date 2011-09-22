@@ -66,8 +66,6 @@ namespace graphlab {
   
     atomic<uint64_t> numv;
     atomic<uint64_t> nume;
-    atomic<uint64_t> numlocalv;
-    atomic<uint64_t> numlocale;
     uint16_t atomid;
     mutex mut;
     mutex maplock;
@@ -82,11 +80,10 @@ namespace graphlab {
       uint16_t owner;       /// Owner of the veretx
       vertex_color_type color;  /// color of the vertex
       std::string vdata;        /// serialized vdata
-      std::map<vertex_id_type, std::string> outedges; /// keys(outedges) is all outedges.
-                                                      /// outedges[destv] contain data 
+      std::set<vertex_id_type> outedges; /// keys(outedges) is all outedges.
                                                       /// on the edge curv-->destv
-      std::set<vertex_id_type> inedges;               /// The set of all in vertices. Data
-                                                      /// Is stored on the source end.
+      std::map<vertex_id_type, std::string> inedges; /// The set of all in vertices. Data
+                                                      /// Is stored on the target end.
       
       vertex_entry(vertex_id_type vid = vertex_id_type(-1),
                    uint16_t owner = uint16_t(-1),
@@ -104,9 +101,9 @@ namespace graphlab {
     };
 
     std::vector<vertex_entry> vertices;
-    boost::unordered_map<uint64_t, size_t> vidmap;  // constructed on load
+    boost::unordered_map<vertex_id_type, size_t> vidmap;  
     
-    boost::unordered_map<uint64_t, uint16_t> vid2owner_segment;
+    boost::unordered_map<vertex_id_type, uint16_t> vid2owner_segment;
 
 
   public:
@@ -150,25 +147,19 @@ namespace graphlab {
     void add_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata);
   
     /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists it will be overwritten.
-     */
-    void add_edge(vertex_id_type src, vertex_id_type target);
-  
-    /**
-     * \brief Inserts edge src->target into the file without data. 
-     * If the edge already exists, nothing will be done.
-     * Returns true if edge was added.
-     */
-    bool add_edge_skip(vertex_id_type src, vertex_id_type target);
-  
-    /**
      * \brief Inserts edge src->target into the file. If the edge already exists,
      * it will be overwritten.
      */
     void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata);
   
   
+    /**
+     * \brief Modifies an existing edge in the file. User must ensure that the file
+     * already contains this edge. If user is unsure, add_edge should be used.
+     */
+    void add_edge_with_data(vertex_id_type src, uint16_t srcowner,
+                           vertex_id_type target, uint16_t targetowner, const std::string &edata);
+
     /**
      * \brief Modifies an existing vertex in the file where no data is assigned to the 
      * vertex. User must ensure that the file
@@ -184,12 +175,6 @@ namespace graphlab {
      */
     void set_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata);
 
-    /**
-     * \brief Modifies an existing edge in the file where no data is assigned to the edge. 
-     * User must ensure that the file already contains this edge. 
-     * If user is unsure, add_edge should be used.
-     */
-    void set_edge(vertex_id_type src, vertex_id_type target);
   
     /**
      * \brief Modifies an existing edge in the file. User must ensure that the file
@@ -288,16 +273,6 @@ namespace graphlab {
      */
     inline uint64_t num_edges() const {
       return nume.value;
-    }
-  
-    /// Number of vertices owned by this atom
-    inline uint64_t num_local_vertices() const {
-      return numlocalv.value;
-    }
-  
-    /// Number of edges owned by this atom
-    inline uint64_t num_local_edges() const {
-      return numlocale.value;
     }
   
     
