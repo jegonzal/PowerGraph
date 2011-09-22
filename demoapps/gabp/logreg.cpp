@@ -24,6 +24,7 @@
 //  
 // \author Aapo Kyrola akyrola@cs.cmu.edu
 // 
+
  
 //#include "common.h"
 #include "linear.h"
@@ -61,7 +62,7 @@ double logloss(double x) {
 
 double compute_llhood() {
      double llhood = 0;
-     for(size_t i=0; i<ps.m; i++) {
+     for(size_t i=ps.m; i<ps.last_node; i++) {
         vertex_data_shotgun & vdata = g->vertex_data(i);
         itpp::sparse_vec& row = vdata.features;
         double Ax=0;
@@ -109,7 +110,7 @@ inline void swap(graphlab::vertex_id_t &t1, graphlab::vertex_id_t &t2) { int tmp
 void logreg_cdn_derivandH(vertex_data_shotgun& vdata, double &G, double &H){
     G = H = 0;
     itpp::sparse_vec& col = vdata.features;
-    assert(col.size()>0);
+    assert(col.nnz()>0);
     for(int i=0; i<col.nnz(); i++) {
        int rowi = col.get_nz_index(i);
        double val = col.get_nz_data(i);
@@ -221,8 +222,8 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
   
     vertex_data_shotgun &vdata = scope.vertex_data();
 
-    if (!vdata.active || vdata.features.size() == 0){ 
-      vdata.val = 0; 
+    if (!vdata.active || vdata.features.nnz() == 0){ 
+      vdata.x = 0; 
       return;
     }
    
@@ -246,7 +247,7 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
        	} else if(Gp>Gmax_old/ps.m && Gn<-Gmax_old/ps.m) {
             // Remove
             vdata.active = false;
-	    vdata.val = 0;
+	    vdata.x = 0;
             return;
         }   
     } else if(xv > 0)
@@ -268,7 +269,7 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
     }
     
      if (std::abs(d) < 1e-12) {
-        vdata.val = 0;
+        vdata.x = 0;
         return;
     }
     // Small optimization
@@ -290,16 +291,17 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
             //#pragma omp parallel for
             for(int i=0; i<col.nnz(); i++) {
                 //logregprob->expAx.mul(col.idxs[i], exp(d * col.values[i]));
+                g->vertex_data(col.get_nz_index(i)).expAx*= exp(d* col.get_nz_data(i));
                 //TODO
             }
-	    vdata.val = std::abs(d);
+	    vdata.x = std::abs(d);
             return;
         }
         gamma *= 0.5;
         d *= 0.5;
     } while(++iter < config.shotgun_max_linesearch_iter); 
     recompute_expAx();
-    vdata.val = 0;
+    vdata.x = 0;
     return;
 }
 
@@ -325,7 +327,8 @@ void calc_and_print_objective(){
   */
 //void compute_logreg(shotgun_data * prob, double shotgun_lambda, double config.threshold, int config.iter, int config.display_cost, bool & ps.cdn_all_zero) {
 void compute_logreg(gl_types_shotgun::core & glcore){ 
-   
+
+    g = &glcore.graph();   
     ps.cdn_all_zero = false;
     //logregprob = prob;
     //double l1x, loglikelihood;
@@ -333,7 +336,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
     ps.shotgun_numshoots = 0;
 
     std::vector<graphlab::vertex_id_t> shuffled_indices(ps.n);
-    for (graphlab::vertex_id_t j=0; j<ps.n; j++) 
+    for (graphlab::vertex_id_t j=ps.m; j<ps.last_node; j++) 
 	shuffled_indices[j] = j;
 
     Gmax_old = 1e30;
@@ -399,7 +402,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
                    g->vertex_data(i).active = true;
                  active_size=ps.n;
                  recompute_expAx();
-                 continue;
+                 //continue;
             }
         }  
 
@@ -412,10 +415,10 @@ void compute_logreg(gl_types_shotgun::core & glcore){
      calc_and_print_objective();
    }
 
+
    //delete[] active;
   // delete[] xjneg;
   printf("Finished Shotgun CDN in %d ps.iiter\n", ps.iiter);
 }
-
 
 

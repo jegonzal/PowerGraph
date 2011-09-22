@@ -80,11 +80,17 @@ graphlab::glshared<int> MATRIX_WIDTH_KEY;
 
 void unittest(command_line_options & clopts);
 void verify_unittest_result(double diff);
+void compute_logreg(gl_types_shotgun::core & glcore); 
+
+
 
 // global variables
 
 advanced_config config;
 problem_setup ps;
+
+
+
 
 
 template <typename coretype>
@@ -154,7 +160,7 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
 template <typename coretype>
 double start_shotgun(graphlab::command_line_options &clopts, advanced_config &config){
 
-  assert(config.algorithm == GaBP_INV);
+  assert(config.algorithm == SHOTGUN_LOGREG);
   // Create a core
   coretype core;
   core.set_engine_options(clopts); // Set the engine options
@@ -162,8 +168,10 @@ double start_shotgun(graphlab::command_line_options &clopts, advanced_config &co
   // Load the graph --------------------------------------------------
   load_data<gl_types_shotgun::graph, vertex_data_shotgun, edge_data_shotgun>(&core.graph());
 
+  compute_logreg(core);
+
   // START GRAPHLAB *****
-  double runtime = core.start();
+  //double runtime = core.start();
   // POST-PROCESSING *****
   std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
 
@@ -244,6 +252,7 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
   switch(config.algorithm){
       case GaBP:
       case JACOBI:
+      case SHOTGUN_LOGREG:
         runtime= core.start();
         break;
 
@@ -302,6 +311,7 @@ int main(int argc,  char *argv[]) {
     case SHOTGUN_LOGREG:
        diff=start_shotgun<gl_types_shotgun::core>(clopts, config);
        break;
+    default: assert(false);
   }
  
   //print timing counters
