@@ -3,12 +3,20 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/logger/logger.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 
 namespace graphlab {
 
 memory_atom::memory_atom(std::string filename, uint16_t atomid):atomid(atomid),filename(filename) {
-  std::ifstream fin(filename.c_str(), std::ios::binary);
-  if (fin.good() && fin.is_open()) {
+  std::ifstream in_file(filename.c_str(), std::ios::binary);
+
+  if (in_file.good() && in_file.is_open()) {
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin; 
+    fin.push(boost::iostreams::gzip_decompressor());
+    fin.push(in_file);
+
     iarchive iarc(fin);
     uint64_t nv,ne;
     iarc >> nv >> ne
@@ -343,7 +351,11 @@ void memory_atom::clear() {
 
 void memory_atom::synchronize() {
   if (mutated) {
-    std::ofstream fout(filename.c_str(), std::ios::binary);
+    std::ofstream out_file(filename.c_str(), std::ios::binary);
+    boost::iostreams::filtering_stream<boost::iostreams::output> fout; 
+    fout.push(boost::iostreams::gzip_compressor());
+    fout.push(out_file);
+
     oarchive oarc(fout);
     uint64_t nv,ne;
     nv = numv.value;

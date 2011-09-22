@@ -16,10 +16,10 @@ function test_for_boost {
   rm -f a.out
   if [ -z $BOOST_ROOT ] ; then
     echo "BOOST_ROOT not defined. Probing in usual directories..."
-    g++ -L/usr/local/lib -I/usr/local/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
+    g++ -L/usr/local/lib -I/usr/local/include -lboost_iostreams -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
   else
     echo "Probing in $BOOST_ROOT"
-    g++ -L$BOOST_ROOT/lib -I$BOOST_ROOT/include -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
+    g++ -L$BOOST_ROOT/lib -I$BOOST_ROOT/include -lboost_iostreams -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
   fi
   if [ -f a.out ] ; then
     boostfound=1
@@ -93,7 +93,7 @@ else
     cd boost_1_46_1
     # build boost
     echo "Bootstrapping Boost..."
-    ./bootstrap.sh --with-libraries="filesystem,program_options,system" --prefix=$installprefix
+    ./bootstrap.sh --with-libraries="filesystem,program_options,system,iostreams" --prefix=$installprefix
     echo "Compiling Boost..."
     ./bjam --threading=multi --link=static --variant=release | tee bjamlog.txt
     if ! grep -q "were successfully built" bjamlog.txt ; then

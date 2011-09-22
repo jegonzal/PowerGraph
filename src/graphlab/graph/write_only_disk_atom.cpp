@@ -5,8 +5,14 @@
 namespace graphlab {
 
 void write_only_disk_atom::play_back(graph_atom* atom) {
-  f.close();
-  std::ifstream fin(filename.c_str(), std::ios::binary);
+  synchronize();
+  rawofile.close();
+
+  std::ifstream in_file(filename.c_str(), std::ios::binary);
+
+  boost::iostreams::filtering_stream<boost::iostreams::input> fin; 
+  fin.push(boost::iostreams::gzip_decompressor());
+  fin.push(in_file);
   // flush the commands
   iarchive iarc(fin);
   
@@ -58,8 +64,8 @@ void write_only_disk_atom::play_back(graph_atom* atom) {
       atom->set_owner(vid, owner);
     }
   }
-  fin.close();
-  f.open(filename.c_str(), std::ios::binary | std::ios::app);
+  in_file.close();
+  rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
 }
 
 }

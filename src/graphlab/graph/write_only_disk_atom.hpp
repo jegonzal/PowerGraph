@@ -9,6 +9,9 @@
 #include <graphlab/graph/graph_atom.hpp>
 #include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/graph/memory_atom.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 
 namespace graphlab {
   
@@ -20,12 +23,18 @@ namespace graphlab {
     std::string filename;
     uint16_t atomid;
     mutex mut;
-    std::ofstream f;
+
+    std::ofstream rawofile;
+    boost::iostreams::filtering_stream<boost::iostreams::output> f; 
+
+    
   public:
     /// constructor. Accesses an atom stored at the filename provided
     inline write_only_disk_atom(std::string filename, uint16_t atomid):
                                     filename(filename),atomid(atomid) {
-      f.open(filename.c_str(), std::ios::binary | std::ios::app);
+      rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
+      f.push(boost::iostreams::gzip_compressor());
+      f.push(rawofile);
     }
 
   
@@ -197,13 +206,15 @@ namespace graphlab {
 
     /// \brief empties the atom file
     inline void clear() { 
-      f.close();
-      f.open(filename.c_str(), std::ios::binary);
+      f.flush();
+      rawofile.close();
+      rawofile.open(filename.c_str(), std::ios::binary);
     };
   
     /// \brief Ensures the disk storage is up to date
     inline void synchronize() { 
       f.flush();
+      rawofile.flush();
     };
     
     /** \brief Return the total number of vertices stored in this atom, 
