@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
   
   
   dc_init_param param;
-  ASSERT_TRUE(init_param_from_env(param));
+  ASSERT_TRUE(init_param_from_mpi(param));
   // create distributed control
   distributed_control dc(param);
   
