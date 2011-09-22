@@ -75,7 +75,7 @@ endif()
 # Use the Boost libraries
 set(Boost_USE_STATIC_LIBS TRUE)
 find_package(Boost 1.39 COMPONENTS 
-  program_options; filesystem; system REQUIRED)
+  program_options; filesystem; system; iostreams REQUIRED)
 
 set(Boost_SHARED_LIBRARIES "")
 # Stupid hack because Cmake cannot seperate the shared from the static versions
