@@ -1185,6 +1185,15 @@ namespace graphlab {
       return final_ret;
     }
   
+  
+    graph_local_store_type& get_local_store() { 
+      return localstore;
+    }
+
+    const graph_local_store_type& get_local_store() const { 
+      return localstore;
+    }
+ 
     // synchronzation calls. These are called from the ghost side
     // to synchronize against the owner.
   
@@ -1869,14 +1878,6 @@ namespace graphlab {
       return std::make_pair(iter1->second, iter2->second);
     }
   
-    graph_local_store_type& get_local_store() { 
-      return localstore;
-    }
-
-    const graph_local_store_type& get_local_store() const { 
-      return localstore;
-    }
- 
     /**
        Constructs the request set for a scope synchronization
        the request type is a little strange , but it is for efficiency reasons.
