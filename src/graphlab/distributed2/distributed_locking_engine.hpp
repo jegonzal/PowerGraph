@@ -48,6 +48,8 @@
 #include <graphlab/distributed2/distributed_glshared_manager.hpp>
 #include <graphlab/distributed2/graph/dgraph_scope.hpp>
 #include <graphlab/distributed2/graph/graph_lock.hpp>
+#include <graphlab/distributed2/graph/chandy_misra_lock.hpp>
+#include <graphlab/distributed2/graph/distributed_mutex_lock.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -154,6 +156,7 @@ private:
   
   double barrier_time;
   size_t num_dist_barriers_called;
+
   
   async_consensus consensus;
   
@@ -184,8 +187,8 @@ private:
 
   // scheduler keeps a schedule over localvids
   Scheduler scheduler;
-  graph_lock<Graph> graphlock;
-
+  graph_lock<Graph>* graphlock;
+  int chandy_misra;
   /** the number of threads within the main loop when a thread has the
    * intention to leave, it must decrement this before entering the critical
    * section
@@ -224,7 +227,8 @@ private:
                             barrier_time(0.0),
                             consensus(dc, ncpus),
                             scheduler(this, graph, std::max(ncpus, size_t(1))),
-                            graphlock(dc, graph, true),
+                            graphlock(NULL),
+                            chandy_misra(0),
                             threads_alive(ncpus),
                             binary_vertex_tasks(graph.local_vertices()),
                             engine_metrics("engine"),
@@ -765,10 +769,10 @@ private:
           if (vertex_deferred_tasks[task.vertex()].lockrequested == false) {
             vertex_deferred_tasks[task.vertex()].lockrequested = true;
             if (strength_reduction == false || graph.color(globalvid) != weak_color) {
-              graphlock.scope_request(globalvid, handler, default_scope_range);
+              graphlock->scope_request(globalvid, handler, default_scope_range);
             }
             else {
-              graphlock.scope_request(globalvid, handler, scope_range::VERTEX_CONSISTENCY);
+              graphlock->scope_request(globalvid, handler, scope_range::VERTEX_CONSISTENCY);
             }
           }
           vertex_deferred_tasks[task.vertex()].lock.unlock();
@@ -806,10 +810,10 @@ private:
         vertex_deferred_tasks[curv].lockrequested = false;
         
         if (strength_reduction == false || graph.color(globalvid) != weak_color) {
-          graphlock.scope_unlock(globalvid, default_scope_range);
+          graphlock->scope_unlock(globalvid, default_scope_range);
         }
         else {
-          graphlock.scope_unlock(globalvid, scope_range::VERTEX_CONSISTENCY);
+          graphlock->scope_unlock(globalvid, scope_range::VERTEX_CONSISTENCY);
         }
         vertex_deferred_tasks[curv].lock.unlock();
       }
@@ -840,6 +844,12 @@ private:
   
   /** Execute the engine */
   void start() {
+    if (chandy_misra) {
+      graphlock = new chandy_misra_lock<Graph>(rmi.dc(), graph, true);
+    }
+    else {
+      graphlock = new distributed_mutex_lock<Graph>(rmi.dc(), graph, true);
+    }
     // generate colors then
     // wait for everyone to enter start    
     if (sync_scope_range == scope_range::FULL_CONSISTENCY &&
@@ -956,7 +966,8 @@ private:
     
     
     threads_alive.value = ncpus;
-
+    delete graphlock;
+    graphlock = NULL;
   }
   
   /**
@@ -971,6 +982,7 @@ private:
     /** \brief Update the scheduler options.  */
   void set_engine_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
+    opts.get_int_option("chandy_misra", chandy_misra);
     rmi.barrier();
   }
   
@@ -993,6 +1005,7 @@ private:
   
   static void print_options_help(std::ostream &out) {
     out << "max_deferred_tasks_per_node = [integer, default = 1000]\n";
+    out << "chandy_misra = [int, default = 0, If non-zero, uses the chandy misra locking method. Only supports edge scopes]\n";
   };
 
 

@@ -1924,8 +1924,6 @@ namespace graphlab {
                                                  edge_conditional_store &estore,
                                                  procid_t srcproc, size_t reply);
                           
-    friend class graph_lock<distributed_graph<VertexData, EdgeData> >;
- 
   
   
     /***********************************************************************

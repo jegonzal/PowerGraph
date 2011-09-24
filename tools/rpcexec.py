@@ -214,8 +214,8 @@ if (inscreen == 0):
   #endfor
 else:
   # create a new empty screen with the screen name
-  shell_wait_native("screen -d -m -S " + screenname)
-  shell_wait_native("screen -x %s -p 0 -X title %s" % (screenname, machines[0][0:8]))
+  shell_wait_native("screen -h 10000 -d -m -S " + screenname)
+  shell_wait_native("screen -h 10000 -x %s -p 0 -X title %s" % (screenname, machines[0][0:8]))
 
   # start a bunch of empty screens
   for i in range(nmachines - 1):

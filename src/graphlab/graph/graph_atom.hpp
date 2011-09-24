@@ -121,6 +121,7 @@ namespace graphlab {
     bool get_vertex(vertex_id_type vid, uint16_t &owner, T &vdata) {
       std::string s;
       bool ret = get_vertex_data(vid, owner, s);
+      if (ret == false || s.length() == 0) return false;
       deserialize_from_string(s, vdata);
       return ret;
     }
@@ -136,6 +137,7 @@ namespace graphlab {
     bool get_edge(vertex_id_type src, vertex_id_type target, T &edata) {
       std::string s;
       bool ret = get_edge_data(src, target, s);
+      if (ret == false || s.length() == 0) return false;
       deserialize_from_string(s, edata);
       return ret;
     }

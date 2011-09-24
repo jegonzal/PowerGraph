@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
             << "the graphlab framework." << std::endl;
 
   // set the global logger
-  global_logger().set_log_level(LOG_WARNING);
+  global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
 
   bool makegraph = false;
@@ -266,6 +266,7 @@ int main(int argc, char** argv) {
     std::vector<graphlab::graph_partitioner::part_id_type> parts;
     graphlab::graph_partitioner::metis_partition(g, 32, parts);
     dg.create_from_graph(g, parts);
+    dg.make_memory_atoms();
     dg.finalize();
     return 0;
   }
@@ -273,7 +274,9 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::init(argc, argv);
   
   graphlab::dc_init_param param;
-  ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  if(graphlab::init_param_from_env(param) == false) {
+    graphlab::init_param_from_mpi(param); 
+  }
   // create distributed control
   graphlab::distributed_control dc(param);
   // Create the distributed_graph --------------------------------------------------------->
