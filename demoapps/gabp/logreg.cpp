@@ -40,8 +40,7 @@
 
 extern problem_setup ps;
 extern advanced_config config;
-
-graph_type_shotgun *g = NULL;
+extern graph_type_shotgun *g;
 
 cas_array<double> Gmax;
 double Gmax_old;
@@ -69,7 +68,7 @@ double compute_llhood() {
         itpp::sparse_vec& row = vdata.features;
         double Ax=0;
         for(int j=0; j<row.nnz(); j++) {
-            assert(row.get_nz_index(j) < ps.n);
+            assert(row.get_nz_index(j) < (int)ps.n);
             Ax += g->vertex_data(ps.m+row.get_nz_index(j)).x*row.get_nz_data(j);
         }
         llhood -= logloss(-vdata.y*Ax);
@@ -82,7 +81,7 @@ double compute_llhood() {
 
     double penalty = 0.0;
     int l0 = 0;
-    for(size_t j=ps.m; j<ps.last_node; j++) {
+    for(size_t j=ps.m; j<(size_t)ps.last_node; j++) {
         penalty += std::fabs(g->vertex_data(j).x);
         l0 += (g->vertex_data(j).x != 0);
     }
@@ -116,8 +115,8 @@ void logreg_cdn_derivandH(vertex_data_shotgun& vdata, double &G, double &H){
     assert(col.nnz()>0);
     for(int i=0; i<col.nnz(); i++) {
        int rowi = col.get_nz_index(i);
+       assert(rowi>=0 && rowi < (int)ps.m); 
        double val = col.get_nz_data(i);
-       assert(rowi>=0 && rowi < ps.m); 
        double exp_wTxind = g->vertex_data(rowi).expAx;
 	double tmp1 = val/(1+exp_wTxind);
 	double tmp2 =  tmp1;
@@ -143,19 +142,12 @@ double logreg_cdn_Ldiff(vertex_data_shotgun & vdata, double diff){
     itpp::sparse_vec& col = vdata.features;
     for(int i=0; i<col.nnz(); i++) {
        int rowi = col.get_nz_index(i);
-       assert(rowi >= 0 && rowi < ps.m);
+       assert(rowi >= 0 && rowi < (int)ps.m);
        double dc = diff * col.get_nz_data(i);
        double expdiff = exp(dc);
-       assert(!isnan(expdiff));
        double expAXdiff = g->vertex_data(rowi).expAx * expdiff;
-       //assert(!isnan(logregprob->expAx[rowi]));
        assert(expAXdiff + expdiff != 0);
-       //double ds = log((expAXdiff+1.0)/(expAXdiff+expdiff));
        double ds = log(expAXdiff + 1.0) - log(expAXdiff+expdiff);
-        assert(!isnan(log(expAXdiff + 1.0)));
-       assert(!isnan(log(expAXdiff+expdiff)));
-       //if (isnan(ds))
-       //  ds = 0;
        sum +=  ds;
     } 
     if (std::isnan(sum)){
@@ -199,7 +191,8 @@ void initialize_all() {
     for(int i=ps.m; i<(int)(ps.m+ps.n); i++) {
         vertex_data_shotgun &vdata = g->vertex_data(i);
         itpp::sparse_vec& col = vdata.features;
-        for(int j=0; j<col.nnz(); j++) {
+        for(int j=0; j<col.nnz(); j++) { 
+             assert(col.get_nz_index(j) < ps.m);
             if (g->vertex_data(col.get_nz_index(j)).y == -1)
                 vdata.xjneg += col.get_nz_data(j);
         }
@@ -207,18 +200,20 @@ void initialize_all() {
 }
 
 void recompute_expAx() {
+    graphlab::timer t; t.start();
+
     //#pragma omp parallel for
     for(int i=0; i<(int)ps.m; i++) {
         double Ax=0;
         vertex_data_shotgun & vdata = g->vertex_data(i);
         itpp::sparse_vec &row = vdata.features;
         for(int j=0; j<row.nnz(); j++) {
-            assert(row.get_nz_index(j) < ps.n);
+            assert(row.get_nz_index(j) < (int)ps.n);
             Ax += g->vertex_data(ps.m+row.get_nz_index(j)).x*row.get_nz_data(j);
         }
         vdata.expAx = exp(Ax);
-        assert(!isnan(vdata.expAx));
     }
+    ps.counter[RECOMPUTE_EXP_AX_LOGREG] += t.current_time();
 }
  
 
@@ -230,7 +225,7 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
 //double shoot_cdn(int x_i, double shotgun_lambda) {
     // Compute d: (equation 29), i.e the solution to the quadratic approximation of the function 
     // for weight x_i
-    assert(scope.vertex() >= ps.m && scope.vertex() < ps.last_node); 
+    assert(scope.vertex() >= (graphlab::vertex_id_t)ps.m && scope.vertex() < (graphlab::vertex_id_t)ps.last_node); 
     vertex_data_shotgun &vdata = scope.vertex_data();
 
     if (!vdata.active || vdata.features.nnz() == 0){ 
@@ -302,10 +297,10 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
             //#pragma omp parallel for
             for(int i=0; i<col.nnz(); i++) {
                 //logregprob->expAx.mul(col.idxs[i], exp(d * col.values[i]));
+                assert(col.get_nz_index(i) < ps.m);
                 g->vertex_data(col.get_nz_index(i)).expAx*= exp(d* col.get_nz_data(i));
                 //TODO
             }
-	    //vdata.x = std::fabs(d);
             return;
         }
         gamma *= 0.5;
@@ -347,7 +342,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
     ps.shotgun_numshoots = 0;
 
     std::vector<graphlab::vertex_id_t> shuffled_indices(ps.n);
-    for (graphlab::vertex_id_t j=ps.m; j<ps.last_node; j++) 
+    for (graphlab::vertex_id_t j=ps.m; j<(graphlab::vertex_id_t)ps.last_node; j++) 
 	shuffled_indices[j-ps.m] = j;
 
     Gmax_old = 1e30;
@@ -389,7 +384,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
             break;
         }
         
-        for(graphlab::vertex_id_t i=ps.m; i<ps.last_node; i++) 
+        for(graphlab::vertex_id_t i=ps.m; i<(graphlab::vertex_id_t)ps.last_node; i++) 
           shuffled_indices[i] = i;
         
         active_size = ps.n;
@@ -410,7 +405,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
    		break;              
             } else {
                  Gmax_old = 1e30;
-                 for(size_t i=ps.m; i<ps.last_node; i++) 
+                 for(size_t i=ps.m; i<(size_t)ps.last_node; i++) 
                    g->vertex_data(i).active = true;
                  active_size=ps.n;
                  recompute_expAx();

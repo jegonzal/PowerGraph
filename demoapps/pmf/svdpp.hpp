@@ -241,7 +241,7 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
       user.rmse += predict(user, movie, NULL, NULL, edge.weight, estScore); 
       // e_ui = r_ui - \hat{r_ui}
       float err = edge.weight - estScore;
-      assert(!isnan(user.rmse));
+      assert(!std::isnan(user.rmse));
       vec itmFctr = movie.pvec;
       vec usrFactor = user.pvec;
    

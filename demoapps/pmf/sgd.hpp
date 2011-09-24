@@ -97,7 +97,7 @@ void sgd_update_function(gl_types::iscope &scope,
       float estScore;
       float sqErr = predict(user, movie, NULL, edge.weight, estScore);
       user.rmse += sqErr;
-      assert(!isnan(user.rmse));
+      assert(!std::isnan(user.rmse));
       float err = edge.weight - estScore;
       movie.pvec = movie.pvec + ac.sgd_gamma*(err*user.pvec - ac.sgd_lambda*movie.pvec);
       user.pvec = user.pvec + ac.sgd_gamma*(err*movie.pvec - ac.sgd_lambda*user.pvec);

@@ -2,6 +2,22 @@
 #include "../../libs/matrixmarket/mmio.h"
 #include "advanced_config.h"
 
+
+template<typename vertex_data>
+struct node_cache{
+   int from;
+   int to;
+   vertex_data *pfrom;
+   vertex_data *pto;
+
+   node_cache(){
+      from = to = -1;
+      pfrom = pto = NULL;
+   }
+
+};
+node_cache<vertex_data_shotgun> vnode_cache;
+
 extern problem_setup ps;
 extern advanced_config config;
 extern const char * runmodesnames[];
@@ -496,11 +512,25 @@ void add_edge(double val, int from, int to, graph_type_inv *g){
 
 void add_edge(double val, int from, int to, graph_type_shotgun * g){
 
-      assert(from >= 0 && from < ps.m);
-      assert(to >= ps.m && to < ps.last_node);
+      assert(from >= 0 && from < (int)ps.m);
+      assert(to >= ps.m && to < (int)ps.last_node);
       assert(from != to);
-      g->vertex_data(from).features.add_elem(to-ps.m, val); 
-      g->vertex_data(to).features.add_elem(from, val); 
+      if (vnode_cache.from == from){
+        vnode_cache.pfrom->features.add_elem(to-ps.m, val); 
+      }
+      else {
+       vnode_cache.pfrom = &g->vertex_data(from);
+       vnode_cache.from = from;  
+       vnode_cache.pfrom->features.add_elem(to-ps.m, val); 
+      }
+      if (vnode_cache.to == to){
+        vnode_cache.pto->features.add_elem(from, val);
+      }
+      else {
+        vnode_cache.to = to;
+        vnode_cache.pto = &g->vertex_data(to);   
+        vnode_cache.pto->features.add_elem(from, val); 
+      }
 }
 
 //read edges from file into the graph
@@ -620,7 +650,7 @@ void load_non_square_matrix(FILE * f, graph_type& graph, advanced_config & confi
     read_nodes<graph_type, vertex_data>(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_REAL_OFFSET,ps.n,&graph);
     
-    assert(graph.num_vertices() == ps.last_node);
+    assert((int)graph.num_vertices() == ps.last_node);
 
 
     //read the precision vector of size m+n (of both solution and observation)

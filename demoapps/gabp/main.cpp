@@ -44,7 +44,7 @@
 #include <cstdio>
 #include "linear.h"
 
-const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL"};
+const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL", "RECOMPUTE_EXP_AX_LOGREG"};
 const char* runmodesnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares", "Shotgun Lasso", "Shotgun Logreg"};
 
 
@@ -81,6 +81,7 @@ graphlab::glshared<int> MATRIX_WIDTH_KEY;
 void unittest(command_line_options & clopts);
 void verify_unittest_result(double diff);
 void compute_logreg(gl_types_shotgun::core & glcore); 
+void solveLasso(gl_types_shotgun::core & glcore); 
 
 
 
@@ -160,7 +161,7 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
 template <typename coretype>
 double start_shotgun(graphlab::command_line_options &clopts, advanced_config &config){
 
-  assert(config.algorithm == SHOTGUN_LOGREG);
+  assert(config.algorithm == SHOTGUN_LOGREG || config.algorithm == SHOTGUN_LASSO);
   // Create a core
   coretype core;
   core.set_engine_options(clopts); // Set the engine options
@@ -168,7 +169,9 @@ double start_shotgun(graphlab::command_line_options &clopts, advanced_config &co
   // Load the graph --------------------------------------------------
   load_data<gl_types_shotgun::graph, vertex_data_shotgun, edge_data_shotgun>(&core.graph());
 
+  if (config.algorithm == SHOTGUN_LOGREG)
   compute_logreg(core);
+  else solveLasso(core);
 
   // START GRAPHLAB *****
   //double runtime = core.start();
@@ -252,7 +255,6 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
   switch(config.algorithm){
       case GaBP:
       case JACOBI:
-      case SHOTGUN_LOGREG:
         runtime= core.start();
         break;
 
@@ -309,6 +311,7 @@ int main(int argc,  char *argv[]) {
        diff=start_inv<gl_types_inv::core>(clopts,config);
        break;
     case SHOTGUN_LOGREG:
+    case SHOTGUN_LASSO:
        diff=start_shotgun<gl_types_shotgun::core>(clopts, config);
        break;
     default: assert(false);

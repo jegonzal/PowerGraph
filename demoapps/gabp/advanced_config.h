@@ -107,6 +107,9 @@ int shotgun_max_linesearch_iter;
 double shotgun_beta;
 double shotgun_sigma;
 
+/* for shutgun lasso */
+int shotgun_reg_path_len; //regulariztion path length
+
 /* for clustering */
 int distance_measure;
 
@@ -195,6 +198,9 @@ advanced_config(){
    shotgun_max_linesearch_iter = 20;
    shotgun_beta = 0.5;
    shotgun_sigma = 0.01;
+
+   /* for shotgun lasso */
+   shotgun_reg_path_len = 0;
  
    /* for LDA */
    em_max_inner_iter = 20;
