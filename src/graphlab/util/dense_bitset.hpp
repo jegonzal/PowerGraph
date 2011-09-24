@@ -111,6 +111,15 @@ namespace graphlab {
       return __sync_fetch_and_or(array + arrpos, mask) & mask;
     }
     
+    //! Atomically xors a bit with 1
+    inline bool xor_bit(uint32_t b) {
+      // use CAS to set the bit
+      uint32_t arrpos, bitpos;
+      bit_to_pos(b, arrpos, bitpos);
+      const size_t mask(size_t(1) << size_t(bitpos)); 
+      return __sync_fetch_and_xor(array + arrpos, mask) & mask;
+    }
+    
     /** Set the bit at position b to true returning the old value.
         Unlike set_bit(), this uses a non-atomic set which is faster,
         but is unsafe if accessed by multiple threads.

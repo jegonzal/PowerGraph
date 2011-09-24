@@ -64,8 +64,7 @@ namespace graphlab {
     }    
     
     void swap_fork_owner(size_t forkid) {
-      if (forks_and_state.get(FORK_ID_OWNER(forkid))) forks_and_state.clear_bit(FORK_ID_OWNER(forkid));
-      else forks_and_state.set_bit(FORK_ID_OWNER(forkid));
+      forks_and_state.xor_bit(FORK_ID_OWNER(forkid));
     }
     
     void set_fork_owner(size_t forkid, vertex_id_t vid) {
@@ -108,7 +107,7 @@ namespace graphlab {
       // If the fork is clean, we wait.
       // if we are eating, we wait
       if (vertex_state[localvid].eating ||
-          forks_and_state.get(FORK_ID_DIRTY(forkid)) == false) {
+          (forks_and_state.get(FORK_ID_DIRTY(forkid)) == false)) {
         forks_and_state.set_bit(FORK_ID_REQUESTED(forkid));
         vertex_state[localvid].lock.unlock();
       }
@@ -154,43 +153,48 @@ namespace graphlab {
     void cancel_finalize(vertex_id_type localvid) {
       bool ready = false;
       boost::function<void(vertex_id_type)> cb = NULL;
-      vertex_state[localvid].lock.lock();
-      vertex_state[localvid].trying_to_lock = true;
-      vertex_state[localvid].eating = false;
-      vertex_state[localvid].callback_sent = false;
       std::vector<edge_id_type> forks_to_forward;
-#ifdef DISTRIBUTED_LOCK_DEBUG
-      logstream(LOG_DEBUG) << "Cacncelling Eating vid: " << dgraph.localvid_to_globalvid(localvid) << std::endl;
-#endif
-      // this is quite expensive...
-      foreach(edge_id_type forkid, dgraph.get_local_store().in_edge_ids(localvid)) {
-        if (fork_owner_is_source(forkid) == false &&
-            forks_and_state.get(FORK_ID_DIRTY(forkid)) &&
-            forks_and_state.get(FORK_ID_REQUESTED(forkid))) {
-          // someone asked for the fork. ok. lets disown the fork
-          vertex_state[localvid].pending++;
-          // clean fork
-          forks_and_state.clear_bit(FORK_ID_REQUESTED(forkid));
-          forks_and_state.clear_bit(FORK_ID_DIRTY(forkid));
-          swap_fork_owner(forkid);
-          forks_to_forward.push_back(forkid);
+        
+      vertex_state[localvid].lock.lock();
+      if (vertex_state[localvid].eating) {
+        vertex_state[localvid].trying_to_lock = true;
+        vertex_state[localvid].eating = false;
+        vertex_state[localvid].callback_sent = false;
+  #ifdef DISTRIBUTED_LOCK_DEBUG
+        logstream(LOG_DEBUG) << "Cacncelling Eating vid: " << dgraph.localvid_to_globalvid(localvid) << std::endl;
+  #endif
+        // this is quite expensive...
+        foreach(edge_id_type forkid, dgraph.get_local_store().in_edge_ids(localvid)) {
+          if (fork_owner_is_source(forkid) == false &&
+              forks_and_state.get(FORK_ID_DIRTY(forkid)) &&
+              forks_and_state.get(FORK_ID_REQUESTED(forkid))) {
+            // someone asked for the fork. ok. lets disown the fork
+            vertex_state[localvid].pending++;
+            // clean fork
+            forks_and_state.clear_bit(FORK_ID_REQUESTED(forkid));
+            forks_and_state.clear_bit(FORK_ID_DIRTY(forkid));
+            swap_fork_owner(forkid);
+            forks_to_forward.push_back(forkid);
+          }
+        }
+        // again for the out edges
+        foreach(edge_id_type forkid, dgraph.get_local_store().out_edge_ids(localvid)) {
+          if (fork_owner_is_source(forkid) &&
+              forks_and_state.get(FORK_ID_DIRTY(forkid)) &&
+              forks_and_state.get(FORK_ID_REQUESTED(forkid))) {
+            // someone asked for the fork. ok. lets disown the fork
+            vertex_state[localvid].pending++;
+            // clean fork
+            forks_and_state.clear_bit(FORK_ID_REQUESTED(forkid));
+            forks_and_state.clear_bit(FORK_ID_DIRTY(forkid));
+            swap_fork_owner(forkid);
+            forks_to_forward.push_back(forkid);
+          }
         }
       }
-      // again for the out edges
-      foreach(edge_id_type forkid, dgraph.get_local_store().out_edge_ids(localvid)) {
-        if (fork_owner_is_source(forkid) &&
-            forks_and_state.get(FORK_ID_DIRTY(forkid)) &&
-            forks_and_state.get(FORK_ID_REQUESTED(forkid))) {
-          // someone asked for the fork. ok. lets disown the fork
-          vertex_state[localvid].pending++;
-          // clean fork
-          forks_and_state.clear_bit(FORK_ID_REQUESTED(forkid));
-          forks_and_state.clear_bit(FORK_ID_DIRTY(forkid));
-          swap_fork_owner(forkid);
-          forks_to_forward.push_back(forkid);
-        }
+      else {
+        vertex_state[localvid].callback_sent = false;
       }
-      
       if (vertex_state[localvid].pending == 0) {
 #ifdef DISTRIBUTED_LOCK_DEBUG
       logstream(LOG_DEBUG) << "Ready vid: " << dgraph.localvid_to_globalvid(localvid) << std::endl;
@@ -256,12 +260,14 @@ namespace graphlab {
       foreach(edge_id_type eid, dgraph.get_local_store().in_edge_ids(localvid)) {
         // if we do not have the fork, we need to ask for it
         if (fork_owner_is_source(eid)) {
+          ASSERT_FALSE(forks_and_state.get(FORK_ID_REQUESTED(eid)));
           requests.push_back(std::make_pair(dgraph.get_local_store().source(eid), eid));
         }
       }
       foreach(edge_id_type eid, dgraph.get_local_store().out_edge_ids(localvid)) {
         // if we do not have the fork, we need to ask for it
         if (!fork_owner_is_source(eid)) {
+          ASSERT_FALSE(forks_and_state.get(FORK_ID_REQUESTED(eid)));
           requests.push_back(std::make_pair(dgraph.get_local_store().target(eid), eid));
         }
       }
@@ -352,7 +358,6 @@ namespace graphlab {
       // we now have the fork. make sure we actually do have the fork
       ASSERT_EQ(get_fork_owner(forkid), localvid);
       if (rerequest_fork) forks_and_state.set_bit(FORK_ID_REQUESTED(forkid));
-      else forks_and_state.clear_bit(FORK_ID_REQUESTED(forkid));
       vertex_state[localvid].pending--;
       if (vertex_state[localvid].pending == 0) {
 #ifdef DISTRIBUTED_LOCK_DEBUG
@@ -387,6 +392,8 @@ namespace graphlab {
       vertex_id_t local_altvid = src_localvid!=localvid ? src_localvid : target_localvid;
       // fork should be cleaned
       ASSERT_FALSE(forks_and_state.get(FORK_ID_DIRTY(forkid)));
+      
+      ASSERT_EQ(get_fork_owner(forkid), local_altvid);
 #ifdef DISTRIBUTED_LOCK_DEBUG
 //      logstream(LOG_DEBUG) << "Tx Fork " << forkid << ": " << localvid << "-->" << local_altvid << std::endl;
 #endif
@@ -518,6 +525,7 @@ namespace graphlab {
       }
       if (vertex_state[localvid].finalize_count == 0) {
         hasfailed = vertex_state[localvid].has_failed_finalize;
+        vertex_state[localvid].has_failed_finalize = false;
         if (hasfailed) {
           // revert back to the ready state
           vertex_state[localvid].pending = dgraph.localvid_to_replicas(localvid).size();
@@ -579,7 +587,6 @@ namespace graphlab {
       if (vertex_state[localvid].pending == 0) {
         done = true;
         vertex_state[localvid].finalize_count = dgraph.localvid_to_replicas(localvid).size();
-        vertex_state[localvid].has_failed_finalize = false;
       }
       vertex_state[localvid].lock.unlock();
       
@@ -643,7 +650,7 @@ namespace graphlab {
       ASSERT_FALSE(vertex_state[localvid].locking);
       vertex_state[localvid].locked = false;
       vertex_state[localvid].locking = true;
-      
+      vertex_state[localvid].has_failed_finalize = false;
       char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
       vertex_state[localvid].lock.unlock();
       
