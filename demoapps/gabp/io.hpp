@@ -100,7 +100,6 @@ void init_prior_prec(vertex_data_shotgun & data, double val){
 
 
 
-
 void init_vertex_data(vertex_data_inv & data, double val, int offset, int nodes, int i){
       assert(config.square);
       data.prior_mean = new sdouble[nodes];
@@ -114,10 +113,13 @@ void init_vertex_data(vertex_data_inv & data, double val, int offset, int nodes,
 
 void init_vertex_data(vertex_data_shotgun & data, double val, int offset, int nodes, int i){
      if (i < (int)ps.m){
-        data.y = val;
+        if (config.supportgraphlabcf)
+           data.y = (drand48() < 0.5 ? -1: 1);
+        else data.y = val;
      } 
-     else
-        data.x = val;
+     data.x = 0;
+     data.expAx = 1;
+     data.features.set_size(i < (int)ps.m ? ps.n: ps.m );
 }
 
 void init_vertex_data(vertex_data & data, double val, int offset, int nodes, int i){
@@ -368,8 +370,8 @@ void read_nodes(FILE * f, int len, int offset, int nodes,
     int rc = (int)fread(temp, sizeof(double), toread, f);
     //assert(rc == toread);
     remain -= rc;
-    vertex_data data;
     for (int i=0; i< rc; i++){
+      vertex_data data;
       init_vertex_data(data, temp[i], offset, nodes, i);     
       g->add_vertex(data);
     }
@@ -453,20 +455,9 @@ struct graphlab_old_format{
 
 template<typename graph_type, typename vertex_data>
 void add_vertices(graph_type& graph){
-     vertex_data data;
      for (int i=0; i< (int)(ps.m+ps.n); i++){
-       graph.add_vertex(data);
-     }
-}
-
-template<>
-void add_vertices<graph_type_shotgun, vertex_data_shotgun>(graph_type_shotgun & graph){
-     vertex_data_shotgun data;
-     for (int i=0; i< (int)(ps.m+ps.n); i++){
-       //in this mode, there are no observations, since the input is only a matrix.
-       //in this case we invent observations at random
-       if (config.supportgraphlabcf && i < ps.m)
-          data.y = (drand48() < 0.5)? -1: 1;
+       vertex_data data;
+       init_vertex_data(data, 1, GABP_PRIOR_MEAN_OFFSET, ps.last_node, i); 
        graph.add_vertex(data);
      }
 }
@@ -505,10 +496,10 @@ void add_edge(double val, int from, int to, graph_type_inv *g){
 
 void add_edge(double val, int from, int to, graph_type_shotgun * g){
 
-      assert(from >= 0 && to >= 0);
-      assert(from < (int)ps.m && to < ps.last_node);
+      assert(from >= 0 && from < ps.m);
+      assert(to >= ps.m && to < ps.last_node);
       assert(from != to);
-      g->vertex_data(from).features.add_elem(to, val); 
+      g->vertex_data(from).features.add_elem(to-ps.m, val); 
       g->vertex_data(to).features.add_elem(from, val); 
 }
 
@@ -628,11 +619,18 @@ void load_non_square_matrix(FILE * f, graph_type& graph, advanced_config & confi
     //read x (the real solution, if given) of size n
     read_nodes<graph_type, vertex_data>(f, sizeof(vertex_data)/sizeof(sdouble),
              GABP_REAL_OFFSET,ps.n,&graph);
+    
+    assert(graph.num_vertices() == ps.last_node);
+
+
     //read the precision vector of size m+n (of both solution and observation)
     double * prec = read_vec(f, ps.n+ps.m);
-    dispatch_vec(0,ps.n+ps.m,GABP_PRIOR_PREC_OFFSET, &graph, prec, ps.n+ps.m, true);
-    dispatch_vec(0,ps.n+ps.m,GABP_PREV_MEAN_OFFSET, &graph, 1);
-    dispatch_vec(0,ps.n+ps.m,GABP_PREV_PREC_OFFSET, &graph, 1);
+    if (config.algorithm != SHOTGUN_LOGREG){
+      dispatch_vec(0,ps.n+ps.m,GABP_PRIOR_PREC_OFFSET, &graph, prec, ps.n+ps.m, true);
+      dispatch_vec(0,ps.n+ps.m,GABP_PREV_MEAN_OFFSET, &graph, 1);
+      dispatch_vec(0,ps.n+ps.m,GABP_PREV_PREC_OFFSET, &graph, 1);
+    }
+
     if (config.oldformat)
        ps.e = read_edges<graphlab_old_format,graph_type, vertex_data, edge_data>(f, ps.n+ps.m, &graph,config);
     else

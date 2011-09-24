@@ -72,14 +72,14 @@ else
     if [ -z $always_yes ] ; then
       read
     fi
-    echo "Download Kyoto Cabinet 1.2.53 from http://fallabs.com/  ..."
+    echo "Download Kyoto Cabinet 1.2.70 from http://fallabs.com/  ..."
     #download kyoto cabinet
     rm kyotocabinet.tar.gz
-    download_file_with_forward http://fallabs.com/kyotocabinet/pkg/kyotocabinet-1.2.53.tar.gz kyotocabinet.tar.gz
+    download_file_with_forward http://fallabs.com/kyotocabinet/pkg/kyotocabinet-1.2.70.tar.gz kyotocabinet.tar.gz
     # If there is already a kyoto cabinet here. delete it
     echo "Cleaning up prior installations of Kyoto Cabinet..."
-    if [ -d "kyotocabinet-1.2.53" ] ; then
-      rm -rf kyotocabinet-1.2.53
+    if [ -d "kyotocabinet-1.2.70" ] ; then
+      rm -rf kyotocabinet-1.2.70
     fi
     if [ -d "include" ] ; then
       rm -rf include/kc*.h
@@ -90,7 +90,7 @@ else
     set -e
     tar -xzvf kyotocabinet.tar.gz
     # cd into kyoto cabinet directory
-    cd kyotocabinet-1.2.53
+    cd kyotocabinet-1.2.70
     # build kyoto cabinet
     echo "Configuring Kyoto Cabinet..."
     ./configure --prefix=$installprefix

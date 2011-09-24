@@ -353,7 +353,7 @@ void memory_atom::synchronize() {
   if (mutated) {
     std::ofstream out_file(filename.c_str(), std::ios::binary);
     boost::iostreams::filtering_stream<boost::iostreams::output> fout; 
-    fout.push(boost::iostreams::gzip_compressor());
+    fout.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::best_compression));
     fout.push(out_file);
 
     oarchive oarc(fout);
