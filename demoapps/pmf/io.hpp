@@ -357,7 +357,7 @@ void export_uvt_to_binary_file(){
   fill_factors_uvt<graph_type, vertex_data>();
 
   char dfile[256] = {0};
-  sprintf(dfile,"%s%d.out",ac.datafile.c_str(),ac.D);
+  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
   FILE * f = fopen(dfile, "w");
   assert(f!= NULL);
 
@@ -387,7 +387,7 @@ void export_uvt_to_itpp_file(){
   fill_factors_uvt<graph_type, vertex_data>();
 
   char dfile[256] = {0};
-  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
+  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
 #ifndef HAS_EIGEN  
   it_file output(dfile);
   output << Name("User") << ps.U;
@@ -403,7 +403,7 @@ template<typename graph_type, typename vertex_data>
 void export_uvt_to_matrixmarket(){
   fill_factors_uvt<graph_type, vertex_data>();
   char dfile[256] = {0};
-  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
+  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D,ps.iiter);
   if (ps.tensor)
     logstream(LOG_WARNING)<<" matrix market IO does not support tensor mode" << std::endl;
   save_matrix_market_format(dfile, ps.U, ps.V);  
@@ -695,6 +695,16 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type *g, graph_typ
 }
 
 
+template<typename graph_type, typename vertex_data>
+void write_output(){
+  //write output matrices U,V,T to file
+  if (ac.binaryoutput)
+     export_uvt_to_binary_file<graph_type, vertex_data>();
+  else if (ac.matrixmarket)
+     export_uvt_to_matrixmarket<graph_type, vertex_data>();
+  else // it++ output
+   export_uvt_to_itpp_file<graph_type, vertex_data>();
 
+}
 #include <graphlab/macros_undef.hpp>
 #endif

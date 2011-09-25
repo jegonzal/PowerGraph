@@ -274,7 +274,7 @@ void sample_T(){
 
   double beta0_ = beta0[0] + 1;
   vec pvec = ps.times[0].pvec; 
-  vec mu0_ = (pvec + beta0*mu0T[0])/beta0_;
+  vec mu0_ = (pvec + beta0[0]*mu0T[0])/beta0_;
   double nu0_ = nu0 +ps.K;
   //vec dMu = mu0 - Umean;
   if (ac.debug){
@@ -319,6 +319,8 @@ void last_iter_bptf(double res){
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
 	export_kdd_format<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
     }
+    if (ac.bptf_additional_output && ps.iiter >= ac.bptf_burn_in)
+      write_output<graph_type, vertex_data>();
 }
 
 

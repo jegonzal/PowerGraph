@@ -393,13 +393,7 @@ void start(command_line_options& clopts) {
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
   }
 
-  //write output matrices U,V,T to file
-  if (ac.binaryoutput)
-     export_uvt_to_binary_file<graph_type, vertex_data>();
-  else if (ac.matrixmarket)
-     export_uvt_to_matrixmarket<graph_type, vertex_data>();
-  else // it++ output
-   export_uvt_to_itpp_file<graph_type, vertex_data>();
+  write_output<graph_type, vertex_data>();
 }
 
 
