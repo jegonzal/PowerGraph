@@ -456,7 +456,7 @@ private:
 
  public: 
   
-  struct termination_evaluation{
+  struct termination_evaluation {
     size_t executed_tasks;
     bool terminator;
     bool timeout;
@@ -467,19 +467,15 @@ private:
                               force_stop(false) { }
                               
     void save(oarchive &oarc) const {
-      oarc << executed_tasks
-           << terminator
-           << timeout
-           << force_stop;
+      oarc << executed_tasks << terminator << timeout << force_stop;
     }
     
     void load(iarchive &iarc) {
-      iarc >> executed_tasks
-           >> terminator
-           >> timeout
-           >> force_stop;
+      iarc >> executed_tasks >> terminator >> timeout >> force_stop;
     }
-  };
+  }; // end of termination evaluation struct
+
+
 
   /**
    * Initialize the sync tasks. Called by start()
@@ -496,8 +492,8 @@ private:
   }
 
   /**
-   * Called whenever a vertex is executed.
-   * Accumulates the available syncs
+   * Called whenever a vertex is executed.  Accumulates the available
+   * syncs
    */
   void eval_syncs(vertex_id_t curvertex, iscope_type& scope, size_t threadid) {
     // go through all the active sync tasks
@@ -509,10 +505,13 @@ private:
     }
   }
 
-  /** Called at the end of the iteration. Called by all threads after a barrier*/
+  /** Called at the end of the iteration. Called by all threads after
+      a barrier*/
   void sync_end_iteration(size_t threadid) {
-    // merge and apply all the syncs. distribute the work among the threads
-    for (size_t curtask = threadid; curtask < active_sync_tasks.size(); curtask += ncpus) {
+    // merge and apply all the syncs. distribute the work among the
+    // threads
+    for (size_t curtask = threadid; curtask < active_sync_tasks.size(); 
+         curtask += ncpus) {
       sync_task* task = active_sync_tasks[curtask];
       task->mergeval = task->thread_intermediate[0];
       task->thread_intermediate[0] = task->zero;
@@ -521,7 +520,8 @@ private:
         task->merge_fun(task->mergeval, task->thread_intermediate[i]);
         task->thread_intermediate[i] = task->zero;
       }
-      // for efficiency, lets merge each sync task to the prefered machine
+      // for efficiency, lets merge each sync task to the prefered
+      // machine
     }
     
     reduction_barrier.wait();
@@ -640,12 +640,13 @@ private:
   bool reduction_stop;
   bool reduction_run;
   barrier reduction_barrier;
-  void reduction_thread(size_t threadid) {
-    dgraph_scope<Graph> scope;
 
-    while(1) {
+  void reduction_thread(size_t threadid) {
+    dgraph_scope<Graph> scope;    
+    while(true) {
       reduction_mut.lock();
-      while(reduction_stop == false && reduction_run == false) reduction_cond.wait(reduction_mut);
+      while(reduction_stop == false && reduction_run == false) 
+        reduction_cond.wait(reduction_mut);
       if (reduction_stop) {
         reduction_mut.unlock();
         break;
@@ -654,39 +655,46 @@ private:
       reduction_barrier.wait();
       reduction_run = false;
       if (active_sync_tasks.size() > 0) {
-        //if we get here, we must run a reduction
-        for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
-          vertex_deferred_tasks[i].lock.lock();
-        }
+        // Lock all the vertices on this machine that will be operated
+        // on by this thread
+        for (size_t i = threadid; i < graph.owned_vertices().size(); 
+             i += ncpus) 
+          vertex_deferred_tasks[i].lock.lock();        
+        // Synchronize the graph prior to running the sync
         if (sync_scope_range == scope_range::EDGE_CONSISTENCY) {
           graph.synchronize_all_edges(true);
           graph.wait_for_all_async_syncs();
-        }
-        else if (sync_scope_range == scope_range::FULL_CONSISTENCY) {
+        } else if (sync_scope_range == scope_range::FULL_CONSISTENCY) {
           graph.synchronize_all_scopes(true);
           graph.wait_for_all_async_syncs();
-        }
-        for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
+        }        
+        // Evaluate all the fold step of all the syncs that should be
+        // run at this point
+        for (size_t i = threadid; i < graph.owned_vertices().size(); 
+             i += ncpus) {
           scope.init(&graph, graph.owned_vertices()[i]);
           eval_syncs(graph.owned_vertices()[i], scope, threadid);
         }
+        // Wait for all threads to finish folding
         reduction_barrier.wait();
+        // Release the locks
         for (size_t i = threadid;i < graph.owned_vertices().size(); i += ncpus) {
           vertex_deferred_tasks[i].lock.unlock();
-        }
-        
+        }        
+        // wait for all sync threads to finish unlocking
         reduction_barrier.wait();
-
+        // complet the final merge and apply apply operations
         sync_end_iteration(threadid);
       }
+      // Wait for all threads to complete the previous syncs (if any)
       reduction_barrier.wait();
+
+      // The first thread then evaluates the termination conditions
+      // and rescheduels any syncs
       if (threadid == 0) {
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        numtasksdone = check_global_termination();
-
-        
-        compute_sync_schedule(numtasksdone);
-        
+        numtasksdone = check_global_termination();        
+        compute_sync_schedule(numtasksdone);        
         // if I am thread 0 on processor 0, I need to wake up the
         // the main thread which is waiting on a timer
         if (rmi.procid() == 0) {
@@ -697,6 +705,87 @@ private:
     }
   }
   
+
+  bool snapshot_alive;
+  void snapshot_thread() {
+    // The time of the last snapshot
+    size_t last_snapshot = graphlab::lowres_time_millis();
+    const size_t snapshot_interval_seconds = 10;
+    // Get the graph local store which is a local graph containing all
+    // the vertices stored on this machine.
+    typedef typename Graph::graph_local_store_type 
+      graph_local_store_type;
+    typedef typename graph_local_store_type::vertex_id_type 
+      local_vertex_id_type;
+    typedef typename graph_local_store_type::edge_id_type 
+      local_edge_id_type;
+    graph_local_store_type& graph_local_store = graph.get_local_store();
+    // loop while snapshots are are required
+    while(snapshot_alive) {
+      // try to sleep the durration of the snapshot interval \todo:
+      // change to a conditional wait with duration
+      sleep(1);
+      // If the snapshot system is no longer needed then return
+      // immediately
+      if(!snapshot_alive) return;
+      // Determine if the proper ammount of time has elapsed
+      const bool snapshot_required = 
+        (graphlab::lowres_time_millis() - last_snapshot) >  
+        snapshot_interval_seconds;
+      // If a snapshot is required enter the snapshot main loop
+      if(snapshot_required) {
+        // Lock all the vertices on this machine
+        for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
+          vertex_deferred_tasks[i].lock.lock();        
+
+        // Synchronize the local data in the graph
+        graph.synchronize_all_edges(true);
+
+        // Go ahead and open files for the snapshot
+        std::stringstream strm;
+        strm << "snapshot_journal_" << rmi.procid() 
+             << ".bin";
+        const std::string filename = strm.str();
+        std::ofstream snapshot_file(filename.c_str(), 
+                                    std::ios_base::binary |
+                                    std::ios_base::app |
+                                    std::ios_base::out);
+        ASSERT_TRUE(snapshot_file.good());
+        graphlab::oarchive oarc(snapshot_file);
+
+        // Wait for the syncs to finish
+        graph.wait_for_all_async_syncs();
+        
+        size_t items_added = 0;
+        // Save the local vertex data
+        for(local_vertex_id_type localvid = 0; 
+            localvid < graph_local_store.num_vertices(); ++localvid) {
+          if(graph_local_store.vertex_snapshot_req(localvid)) {
+            oarc << graph_local_store.vertex_data(localvid);
+            graph_local_store.set_vertex_snapshot_req(localvid, false);
+            ++items_added;
+          }
+        } // end of for loop over local vids
+        // Save the local edge data
+        for(local_edge_id_type localeid = 0; 
+            localeid < graph_local_store.num_edges(); ++localeid) {
+          if(graph_local_store.edge_snapshot_req(localeid)) {
+            oarc << graph_local_store.edge_data(localeid);
+            graph_local_store.set_edge_snapshot_req(localeid, false);
+            ++items_added;
+          }
+        } // end of for loop over local eids
+        snapshot_file.close();
+        std::cout << "Items added in snapshot: " << items_added << std::endl;
+
+        // free all the vertices on this machine
+        for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
+          vertex_deferred_tasks[i].lock.unlock();        
+      
+      } // end of if(snapshot_required)
+    } //end of while loop
+  } // end of snapshot thread
+
   
   
 
@@ -706,7 +795,9 @@ private:
     ready_vertices.enqueue(graph.globalvid_to_localvid(v));
   }
 
-  bool try_to_quit(size_t threadid, sched_status::status_enum& stat, update_task_type &task) {
+  bool try_to_quit(size_t threadid, 
+                   sched_status::status_enum& stat, 
+                   update_task_type &task) {
     threads_alive.dec();
     consensus.begin_done_critical_section();
     stat = scheduler.get_next_task(threadid, task);
@@ -714,13 +805,12 @@ private:
       bool ret = consensus.end_done_critical_section(true);
       threads_alive.inc();
       return ret;
-    }
-    else {
+    } else {
       consensus.end_done_critical_section(false);
       threads_alive.inc();
       return false;
     }
-  }
+  } // end of try to quit
   
   
   /**
@@ -736,7 +826,8 @@ private:
     dgraph_scope<Graph> scope;
     update_task_type task;
     
-    boost::function<void(vertex_id_t)> handler = boost::bind(&distributed_locking_engine<Graph, Scheduler>::vertex_is_ready, this, _1);
+    boost::function<void(vertex_id_t)> handler = 
+      boost::bind(&distributed_locking_engine<Graph, Scheduler>::vertex_is_ready, this, _1);
     while(1) {
       if (termination_reason != EXEC_UNSET) {
         consensus.force_done();
@@ -872,22 +963,25 @@ private:
     rmi.dc().full_barrier();
     // reset indices
     ti.start();
-    // spawn threads
+    // spawn worker threads
     thread_group thrgrp; 
     for (size_t i = 0;i < ncpus; ++i) {
       size_t aff = use_cpu_affinity ? i : -1;
-      thrgrp.launch(boost::bind(
-                            &distributed_locking_engine<Graph, Scheduler>::start_thread,
-                            this, i), aff);
+      thrgrp.launch(boost::bind(&distributed_locking_engine::start_thread,
+                                this, i), aff);
     }
-    
+    // spawn reduction threads
     thread_group thrgrp_reduction; 
     for (size_t i = 0;i < ncpus; ++i) {
       size_t aff = use_cpu_affinity ? i : -1;
-      thrgrp_reduction.launch(boost::bind(
-                            &distributed_locking_engine<Graph, Scheduler>::reduction_thread,
-                            this, i), aff);
+      thrgrp_reduction.
+        launch(boost::bind(&distributed_locking_engine::reduction_thread,
+                           this, i), aff);
     }
+    // spawn snapshot thread
+    snapshot_alive = true;
+    thrgrp_reduction.launch(boost::bind(&distributed_locking_engine::
+                                        snapshot_thread, this));
     
     std::map<double, size_t> upspertime;
     timer ti;
@@ -913,6 +1007,7 @@ private:
     thrgrp.join();          
     reduction_mut.lock();
     reduction_stop = true;
+    snapshot_alive = false;
     reduction_cond.broadcast();
     reduction_mut.unlock();
     thrgrp_reduction.join();    
