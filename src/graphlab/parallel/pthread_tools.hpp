@@ -546,7 +546,10 @@ namespace graphlab {
     
     ~cancellable_barrier() {}
     
-    
+    /**
+     * \warning: This barrier is safely NOT reusable with this cancel
+     * definition
+     */
     inline void cancel() {
       alive = false;
       c.broadcast();
