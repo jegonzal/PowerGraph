@@ -216,6 +216,31 @@ void recompute_expAx() {
     ps.counter[RECOMPUTE_EXP_AX_LOGREG] += t.current_time();
 }
  
+void recompute_partial_expAx(vertex_data_shotgun & vdata, double newval, double oldval) {
+    graphlab::timer t; t.start();
+
+    //#pragma omp parallel for
+    //for(int i=0; i<(int)ps.m; i++) {
+        //double Ax=0;
+        //vertex_data_shotgun & vdata = g->vertex_data(i);
+        //itpp::sparse_vec &row = vdata.features;
+        //for(int j=0; j<row.nnz(); j++) {
+        //    assert(row.get_nz_index(j) < (int)ps.n);
+        //    Ax += g->vertex_data(ps.m+row.get_nz_index(j)).x*row.get_nz_data(j);
+        //}
+        //vdata.expAx = exp(Ax);
+    //}
+    itpp::sparse_vec &col = vdata.features;
+    for (int j=0; j< col.nnz(); j++){
+       double A_ij = col.get_nz_data(j);
+       int rowi = col.get_nz_index(j);
+       vertex_data_shotgun & row = g->vertex_data(rowi);
+       row.expAx = (row.expAx / exp(oldval*A_ij)) * exp(newval*A_ij);
+    }
+    ps.counter[RECOMPUTE_EXP_AX_LOGREG] += t.current_time();
+}
+ 
+
 
 
 void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
@@ -233,7 +258,7 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
       return;
     }
    
- 
+    double oldval = vdata.x;
     double violation = 0.0;
     double xv = vdata.x;
     
@@ -306,7 +331,7 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
         gamma *= 0.5;
         d *= 0.5;
     } while(++iter < config.shotgun_max_linesearch_iter); 
-    recompute_expAx();
+    recompute_partial_expAx(vdata, vdata.x, oldval);
     //vdata.x = 0;
     return;
 }
@@ -386,7 +411,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
         }
         
         for(graphlab::vertex_id_t i=ps.m; i<(graphlab::vertex_id_t)ps.last_node; i++) 
-          shuffled_indices[i] = i;
+          shuffled_indices[i-ps.m] = i;
         
         active_size = ps.n;
         for(size_t s=0; s<active_size; s++) {
@@ -409,7 +434,7 @@ void compute_logreg(gl_types_shotgun::core & glcore){
                  for(size_t i=ps.m; i<(size_t)ps.last_node; i++) 
                    g->vertex_data(i).active = true;
                  active_size=ps.n;
-                 recompute_expAx();
+                 //recompute_partial_expAx(vdata, vdata.x, oldval);
                  //continue;
             }
         }  
