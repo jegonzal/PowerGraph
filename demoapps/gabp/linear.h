@@ -149,6 +149,8 @@ public:
   int cdn_neg_y; //number of negative training instances
   int cdn_pos_y; //number of positive training instances
   unsigned long long int shotgun_numshoots;
+  double last_cost; //keep track of last cost function
+
   //vectors for storing the output
   std::vector<double> means;
   std::vector<double> prec;

@@ -3,6 +3,7 @@
 
 extern advanced_config config;
 extern graphlab::glshared<int> MATRIX_WIDTH_KEY;
+extern problem_setup ps;
 
 void unittest(graphlab::command_line_options &clopts){
   if (config.unittest == 1){
@@ -75,6 +76,27 @@ void unittest(graphlab::command_line_options &clopts){
     MATRIX_WIDTH_KEY.set(3);
     clopts.set_scheduler_type("round_robin(max_iterations=20,block_size=1)");
  }
+ else if (config.unittest == 7){
+     logstream(LOG_WARNING)<< "Going to run Shotgun lasso with arcene dataset" << std::endl;
+    config.algorithm = SHOTGUN_LASSO;
+    config.datafile = "arcene";
+    config.threshold = 1e-5;
+    config.iter = 10;
+    config.display_cost = true;
+    clopts.set_ncpus(1);
+    config.shotgun_lambda = 1;
+ }
+ else if (config.unittest == 8){
+     logstream(LOG_WARNING)<< "Going to run Shotgun lasso with arcene dataset" << std::endl;
+    config.algorithm = SHOTGUN_LOGREG;
+    config.datafile = "arcene";
+    config.threshold = 1e-5;
+    config.iter = 10;
+    config.display_cost = true;
+    clopts.set_ncpus(1);
+    config.shotgun_lambda = 1;
+ }
+
 
 }
 
@@ -90,5 +112,10 @@ void verify_unittest_result(double diff){
    }
    else if (config.unittest == 4 || config.unittest == 5)
       assert(diff < 1e-14);
- 
+   else if (config.unittest == 7){
+      assert(pow(ps.last_cost - 97.3638, 2)< 1e-6);
+   }
+   else if (config.unittest == 8){
+      assert(pow(ps.last_cost - -65.1957, 2) <1e-6);
+   } 
 }

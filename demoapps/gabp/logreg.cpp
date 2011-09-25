@@ -320,6 +320,7 @@ void calc_and_print_objective(){
  if (l1x == 0)	
    ps.cdn_all_zero = true;
  printf("objective is: %g l1: %g loglikelihood %g l0: %d\n", obj, l1x, loglikelihood, l0); 
+  ps.last_cost = obj;
 }
 
 

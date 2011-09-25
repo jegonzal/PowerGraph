@@ -37,7 +37,7 @@ void initialize_feature(vertex_data_shotgun & vdata) {
     // Precompute covariance of a feature
     //feat.covar = 0;
     // Precompute (Ay)_i
-   vdata.Ax = 0; 
+   vdata.Ax = 0.0; 
    vdata.y = 0.0;
    for(int i=0; i<col.nnz(); i++) {
         vdata.Ax += powf(col.get_nz_data(i),2);
@@ -213,6 +213,7 @@ void main_optimization_loop(gl_types_shotgun::core &glcore){
           double l1x = 0, l2err = 0, l0x = 0;
           double obj = compute_objective(config.shotgun_lambda, l0x, &l1x, &l2err);
           printf("%g) Objective: %g L1 : %g L2err: %g L0: %d\n", ps.gt.current_time(), obj, l1x, l2err, (int)l0x);
+          ps.last_cost = obj;
         }
     } while (regularization_path_step >= 0);
     //delete[] delta;
