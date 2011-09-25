@@ -36,18 +36,16 @@ void initialize_feature(vertex_data_shotgun & vdata) {
 
     // Precompute covariance of a feature
     //feat.covar = 0;
+    // Precompute (Ay)_i
    vdata.Ax = 0; 
+   vdata.y = 0.0;
    for(int i=0; i<col.nnz(); i++) {
         vdata.Ax += powf(col.get_nz_data(i),2);
-    }
-    vdata.Ax *= 2;
-    
-    // Precompute (Ay)_i
-    vdata.y = 0.0;
-    for(int i=0; i<col.nnz(); i++) {
         vdata.y += col.get_nz_data(i)*g->vertex_data(col.get_nz_index(i)).y;
     }
+    vdata.Ax *= 2;
     vdata.y *= 2;
+    
 
 }
 
@@ -122,7 +120,8 @@ double get_term_threshold(int k, int K, double delta_threshold) {
   return (k == 0 ? delta_threshold  : (delta_threshold + k*(delta_threshold*50)/K));
 }
 
- double compute_objective(double _lambda, double * l1x = NULL, double * l2err = NULL) {
+ double compute_objective(double _lambda, double & l0x, double * l1x = NULL, double * l2err = NULL ) {
+
     double least_sqr = 0;
      
     //for(int i=0; i<lassoprob->ny; i++) {
@@ -136,8 +135,10 @@ double get_term_threshold(int k, int K, double delta_threshold) {
     double penalty = 0.0;
     //for(int i=0; i<lassoprob->nx; i++) {
     for (int i=ps.m; i< ps.last_node; i++){ 
+       vertex_data_shotgun & vdata = g->vertex_data(i);
        //penalty += std::abs(lassoprob->x[i]);
-       penalty += std::fabs(g->vertex_data(i).x);
+       penalty += std::fabs(vdata.x);
+       l0x += (vdata.x == 0.0);
     }
     if (l1x != NULL) *l1x = penalty;
     if (l2err != NULL) *l2err = least_sqr;
@@ -153,6 +154,8 @@ void main_optimization_loop(gl_types_shotgun::core &glcore){
     int regularization_path_length = (config.shotgun_reg_path_len <= 0 ? 1+(int)(ps.n/2000) : config.shotgun_reg_path_len);
     printf("regularization_path_length = %d\n",regularization_path_length);
 
+    ps.gt.start();   
+ 
     double lambda_max = compute_max_lambda();
     double lambda_min = config.shotgun_lambda;
     double alpha = pow(lambda_max/lambda_min, 1.0/(1.0*regularization_path_length));
@@ -207,9 +210,9 @@ void main_optimization_loop(gl_types_shotgun::core &glcore){
             regularization_path_step--; 
         }
         if (config.display_cost){
-          double l1x = 0, l2err = 0;
-          double obj = compute_objective(config.shotgun_lambda, &l1x, &l2err);
-          printf("Objective: %g L1 : %g L2err: %g\n", obj, l1x, l2err);
+          double l1x = 0, l2err = 0, l0x = 0;
+          double obj = compute_objective(config.shotgun_lambda, l0x, &l1x, &l2err);
+          printf("%g) Objective: %g L1 : %g L2err: %g L0: %d\n", ps.gt.current_time(), obj, l1x, l2err, (int)l0x);
         }
     } while (regularization_path_step >= 0);
     //delete[] delta;

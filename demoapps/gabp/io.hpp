@@ -516,20 +516,20 @@ void add_edge(double val, int from, int to, graph_type_shotgun * g){
       assert(to >= ps.m && to < (int)ps.last_node);
       assert(from != to);
       if (vnode_cache.from == from){
-        vnode_cache.pfrom->features.add_elem(to-ps.m, val); 
+        vnode_cache.pfrom->features.set_new(to-ps.m, val); 
       }
       else {
        vnode_cache.pfrom = &g->vertex_data(from);
        vnode_cache.from = from;  
-       vnode_cache.pfrom->features.add_elem(to-ps.m, val); 
+       vnode_cache.pfrom->features.set_new(to-ps.m, val); 
       }
       if (vnode_cache.to == to){
-        vnode_cache.pto->features.add_elem(from, val);
+        vnode_cache.pto->features.set_new(from, val);
       }
       else {
         vnode_cache.to = to;
         vnode_cache.pto = &g->vertex_data(to);   
-        vnode_cache.pto->features.add_elem(from, val); 
+        vnode_cache.pto->features.set_new(from, val); 
       }
 }
 
@@ -655,7 +655,7 @@ void load_non_square_matrix(FILE * f, graph_type& graph, advanced_config & confi
 
     //read the precision vector of size m+n (of both solution and observation)
     double * prec = read_vec(f, ps.n+ps.m);
-    if (config.algorithm != SHOTGUN_LOGREG){
+    if (config.algorithm == JACOBI || config.algorithm == GaBP || config.algorithm == CONJUGATE_GRADIENT || config.algorithm == GaBP_INV){
       dispatch_vec(0,ps.n+ps.m,GABP_PRIOR_PREC_OFFSET, &graph, prec, ps.n+ps.m, true);
       dispatch_vec(0,ps.n+ps.m,GABP_PREV_MEAN_OFFSET, &graph, 1);
       dispatch_vec(0,ps.n+ps.m,GABP_PREV_PREC_OFFSET, &graph, 1);
