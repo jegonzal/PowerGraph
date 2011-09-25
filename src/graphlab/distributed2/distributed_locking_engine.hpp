@@ -26,6 +26,8 @@
 
 #include <functional>
 #include <algorithm>
+#include <fstream>
+#include <iomanip>
 #include <ext/functional> // for select1st
 #include <boost/bind.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -125,6 +127,8 @@ private:
   
   /** The cause of the last termination condition */
   exec_status termination_reason;
+  size_t snapshot_interval_seconds;
+
 
   scope_range::scope_range_enum default_scope_range;
   scope_range::scope_range_enum sync_scope_range;
@@ -219,6 +223,7 @@ private:
                             strength_reduction(false),
                             weak_color(0),
                             termination_reason(EXEC_UNSET),
+                            snapshot_interval_seconds(0), 
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
@@ -710,7 +715,7 @@ private:
   void snapshot_thread() {
     // The time of the last snapshot
     size_t last_snapshot = graphlab::lowres_time_millis();
-    const size_t snapshot_interval_seconds = 10;
+
     // Get the graph local store which is a local graph containing all
     // the vertices stored on this machine.
     typedef typename Graph::graph_local_store_type 
@@ -730,10 +735,10 @@ private:
       if(!snapshot_alive) return;
       // Determine if the proper ammount of time has elapsed
       const bool snapshot_required = 
-        (graphlab::lowres_time_millis() - last_snapshot) >  
+        ((graphlab::lowres_time_millis() - last_snapshot) / 1000) >  
         snapshot_interval_seconds;
       // If a snapshot is required enter the snapshot main loop
-      if(snapshot_required) {
+      if(snapshot_interval_seconds > 0 && snapshot_required) {
         // Lock all the vertices on this machine
         for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
           vertex_deferred_tasks[i].lock.lock();        
@@ -743,7 +748,9 @@ private:
 
         // Go ahead and open files for the snapshot
         std::stringstream strm;
-        strm << "snapshot_journal_" << rmi.procid() 
+        strm << "snapshot_journal_" 
+             << std::setw(10) << std::setfill('0')
+             << rmi.procid() 
              << ".bin";
         const std::string filename = strm.str();
         std::ofstream snapshot_file(filename.c_str(), 
@@ -761,7 +768,7 @@ private:
         for(local_vertex_id_type localvid = 0; 
             localvid < graph_local_store.num_vertices(); ++localvid) {
           if(graph_local_store.vertex_snapshot_req(localvid)) {
-            oarc << graph_local_store.vertex_data(localvid);
+            oarc << 'v' << graph_local_store.vertex_data(localvid);
             graph_local_store.set_vertex_snapshot_req(localvid, false);
             ++items_added;
           }
@@ -770,7 +777,7 @@ private:
         for(local_edge_id_type localeid = 0; 
             localeid < graph_local_store.num_edges(); ++localeid) {
           if(graph_local_store.edge_snapshot_req(localeid)) {
-            oarc << graph_local_store.edge_data(localeid);
+            oarc << 'e' << graph_local_store.edge_data(localeid);
             graph_local_store.set_edge_snapshot_req(localeid, false);
             ++items_added;
           }
@@ -780,8 +787,9 @@ private:
 
         // free all the vertices on this machine
         for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
-          vertex_deferred_tasks[i].lock.unlock();        
-      
+          vertex_deferred_tasks[i].lock.unlock();      
+        // Mark the time of the last snapshot
+        last_snapshot = graphlab::lowres_time_millis();      
       } // end of if(snapshot_required)
     } //end of while loop
   } // end of snapshot thread
@@ -1078,6 +1086,7 @@ private:
   void set_engine_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
     opts.get_int_option("chandy_misra", chandy_misra);
+    opts.get_int_option("snapshot_interval", snapshot_interval_seconds); 
     rmi.barrier();
   }
   
