@@ -114,7 +114,17 @@ class cas_array {
         } while (!CAS(reinterpret_cast<long *>(&arr[idx]), *reinterpret_cast<volatile long *>(&prev), *reinterpret_cast<volatile long*>(&newval)));
     }
     
-
+     void mul(double * loc, double fact) {
+        volatile double prev;
+        volatile double newval;
+        volatile double oldval;
+        do {
+            prev = loc[0];
+            oldval = prev;
+            newval = prev*fact;
+        } while (!CAS(reinterpret_cast<long *>(loc), *reinterpret_cast<volatile long *>(&prev), *reinterpret_cast<volatile long*>(&newval)));
+    }
+ 
     
     void add(int idx, double delta) {
          assert(idx<len);
@@ -150,4 +160,19 @@ class cas_array {
       
 };
 
+    inline bool CAS(long *ptr, long oldv, long newv) {
+     return __sync_bool_compare_and_swap(ptr, oldv, newv);
+   } 
+        
+     inline void mul(double * loc, double fact) {
+        volatile double prev;
+        volatile double newval;
+        volatile double oldval;
+        do {
+            prev = loc[0];
+            oldval = prev;
+            newval = prev*fact;
+        } while (!CAS(reinterpret_cast<long *>(loc), *reinterpret_cast<volatile long *>(&prev), *reinterpret_cast<volatile long*>(&newval)));
+    }
+ 
 #endif

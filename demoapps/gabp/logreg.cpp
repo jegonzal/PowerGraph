@@ -23,6 +23,7 @@
 //      A Comparison of Optimization Methods and Software for Large-scale L1-regularized Linear Classification
 //  
 // \author Aapo Kyrola akyrola@cs.cmu.edu
+// adapted to GraphLab by Danny Bickson, CMU
 // 
 
  
@@ -32,12 +33,8 @@
 #include "advanced_config.h"
 #include "itpp/itbase.h"
 #include <assert.h>
-//shotgun_data * logregprob;
 
 // Parameters
-//double cdn_beta = 0.5;
-//double cdn_sigma = 0.01;
-
 extern problem_setup ps;
 extern advanced_config config;
 extern graph_type_shotgun *g;
@@ -45,12 +42,8 @@ extern graph_type_shotgun *g;
 cas_array<double> Gmax;
 double Gmax_old;
 double Gmax_init;
-bool shuffle = false;
-//double *  xjneg;
-//int ps.cdn_pos_y, ps.cdn_neg_y;
-//bool * active;
+bool shuffle = true;
 
-//int test_ratio = 10;
 double logloss(double x) {
      if (x > (-10) && x < 10) {
         return log(1 + exp(x));
@@ -235,7 +228,9 @@ void recompute_partial_expAx(vertex_data_shotgun & vdata, double newval, double 
        double A_ij = col.get_nz_data(j);
        int rowi = col.get_nz_index(j);
        vertex_data_shotgun & row = g->vertex_data(rowi);
-       row.expAx = (row.expAx / exp(oldval*A_ij)) * exp(newval*A_ij);
+       //row.expAx = (row.expAx / exp(oldval*A_ij)) * exp(newval*A_ij);
+       double fact = exp((newval - oldval)*A_ij);
+       mul(&row.expAx, fact); 
     }
     ps.counter[RECOMPUTE_EXP_AX_LOGREG] += t.current_time();
 }
