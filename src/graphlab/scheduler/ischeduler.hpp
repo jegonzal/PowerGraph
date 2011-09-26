@@ -77,10 +77,6 @@ namespace graphlab {
     typedef typename graph_type::vertex_id_type    vertex_id_type;
     typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::vertex_color_type vertex_color_type;
-
-
-    
-
     
     /// destructor
     virtual ~ischeduler() {};

@@ -83,8 +83,7 @@ namespace graphlab {
    * This class defines a basic shared_memory engine
    */
   template<typename Graph, typename UpdateFunctor>
-  class shared_memory_engine : 
-    public iengine<Graph, UpdateFunctor> {
+  class shared_memory_engine : public iengine<Graph, UpdateFunctor> {
     
   public:
 
@@ -92,7 +91,6 @@ namespace graphlab {
     typedef iengine<Graph, UpdateFunctor> iengine_base;
     typedef typename iengine_base::graph_type graph_type;
     typedef typename iengine_base::update_functor_type update_functor_type;
-    typedef typename iengine_base::iupdate_functor_type iupdate_functor_type;
     
 
     typedef typename iengine_base::vertex_id_type vertex_id_type;
@@ -178,7 +176,7 @@ namespace graphlab {
       char FALSE_CACHE_SHARING_PAD[64];
       thread_state_type(shared_memory_engine* engine_ptr = NULL,
                         ischeduler_type* ischeduler_ptr = NULL) : 
-        update_count(0), callback(engine_ptr, ischeduler_ptr) { }
+        update_count(0), callback(engine_ptr) { }
     }; //end of thread_state
     std::vector<thread_state_type> tls_array; 
 
@@ -443,8 +441,14 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   schedule(vertex_id_type vid,
            const update_functor_type& update_functor) { 
-    initialize_members();
-    ASSERT_TRUE(scheduler_ptr != NULL);
+    // If this is called externally (while the engine is not running)
+    // then we may need to initialize members.  However if the engine
+    // is currently running we will assume members are initialized and
+    // directly schedul the task.
+    if( exec_status != execution_status::RUNNING ) {
+      initialize_members();
+      ASSERT_TRUE(scheduler_ptr != NULL);
+    }
     scheduler_ptr->schedule(vid, update_functor);
   } // end of schedule
 
@@ -935,8 +939,8 @@ namespace graphlab {
     // get the callback
     callback_type& callback = tls_array[cpuid].callback;
     // Gather phase -----------------------------------------------------------
-    if(ufun.gather_edges() == iupdate_functor_type::IN_EDGES ||
-       ufun.gather_edges() == iupdate_functor_type::ALL_EDGES) {
+    if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
+       ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 
@@ -947,8 +951,8 @@ namespace graphlab {
         scope_manager_ptr->release_scope(cpuid, scope);
       }
     }
-    if(ufun.gather_edges() == iupdate_functor_type::OUT_EDGES ||
-       ufun.gather_edges() == iupdate_functor_type::ALL_EDGES) {
+    if(ufun.gather_edges() == update_functor_type::OUT_EDGES ||
+       ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 
@@ -968,8 +972,8 @@ namespace graphlab {
     scope_manager_ptr->release_scope(cpuid, scope);
 
     // Scatter phase ----------------------------------------------------------
-    if(ufun.scatter_edges() == iupdate_functor_type::IN_EDGES ||
-       ufun.scatter_edges() == iupdate_functor_type::ALL_EDGES) {
+    if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
+       ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 
@@ -980,8 +984,8 @@ namespace graphlab {
         scope_manager_ptr->release_scope(cpuid, scope);
       }
     }
-    if(ufun.scatter_edges() == iupdate_functor_type::OUT_EDGES ||
-       ufun.scatter_edges() == iupdate_functor_type::ALL_EDGES) {
+    if(ufun.scatter_edges() == update_functor_type::OUT_EDGES ||
+       ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
         general_scope_type& scope = 

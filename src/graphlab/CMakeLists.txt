@@ -5,7 +5,7 @@ project(GraphLab)
 
 subdirs(
   engine
-  # distributed2
+  distributed2
   graph
   gpu
   monitoring

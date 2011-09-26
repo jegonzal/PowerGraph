@@ -59,20 +59,19 @@ namespace graphlab {
     typedef typename engine_type::graph_type graph_type;
     typedef typename engine_type::update_functor_type update_functor_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;
-    typedef typename engine_type::ischeduler_type ischeduler_type;
+    //   typedef typename engine_type::ischeduler_type ischeduler_type;
 
   private:
     engine_type* engine_ptr;
-    ischeduler_type* scheduler_ptr;
+    // ischeduler_type* scheduler_ptr;
   public:
   
-    direct_callback(engine_type* engine_ptr = NULL,
-                    ischeduler_type* scheduler_ptr = NULL) :
-      engine_ptr(engine_ptr), scheduler_ptr(scheduler_ptr) { } 
+    direct_callback(engine_type* engine_ptr = NULL) :
+      engine_ptr(engine_ptr) { }
 
     void schedule(const vertex_id_type& vertex, 
                   const update_functor_type& update_fun) {
-      scheduler_ptr->schedule(vertex, update_fun);
+      engine_ptr->schedule(vertex, update_fun);
     }
 
     void schedule_in_neighbors(const vertex_id_type& vertex, 

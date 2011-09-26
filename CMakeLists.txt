@@ -594,6 +594,11 @@ set(GraphLab_LIBRARIES graphlab)
 # for lab branch.)
 subdirs(src tests)
 
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/nino_app)
+  subdirs(nino_app)
+endif()
+
+
 
 # if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
 #   subdirs(apps)
