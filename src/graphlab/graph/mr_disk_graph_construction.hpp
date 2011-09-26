@@ -133,7 +133,7 @@ class igraph_constructor {
     uint16_t location = vertex_to_atomid(vtx, numatoms);
     ASSERT_LT(location, numatoms);
     currentdg->add_vertex_unsafe(vtx, vdata, location);
-    currentdg->set_color(vtx, color);
+    currentdg->set_color_unsafe(vtx, color, location);
   }
   
   /**

@@ -541,6 +541,15 @@ namespace graphlab {
       // reset ncolors. we will need to recompute it on save
       ncolors = vertex_color_type(-1); 
     }
+
+    void set_color_unsafe(vertex_id_type vid, vertex_color_type color, uint16_t locationhint) {
+      uint16_t owner = locationhint;
+      ASSERT_NE(owner, (uint16_t)(-1));
+      atoms[owner]->set_color(vid, color);
+      // reset ncolors. we will need to recompute it on save
+      ncolors = vertex_color_type(-1); 
+    }
+
     
     /** \brief Returns the vertex color of a vertex.
         Coloring is only valid if compute_coloring() is called first.*/
