@@ -78,14 +78,14 @@ namespace graphlab {
       struct vdata_store {
         VertexData data;
         bool modified:1;
-        bool snapshot_made:1; // set to false whenever the version number changes
+        bool snapshot_req:1; // set to false whenever the version number changes
         uint64_t version:62;
       };
 
       struct edata_store {
         EdgeData data;
         bool modified:1;
-        bool snapshot_made:1; // set to false whenever the version number changes
+        bool snapshot_req:1; // set to false whenever the version number changes
         uint64_t version:62;
       };
     
@@ -338,13 +338,13 @@ namespace graphlab {
       void set_vertex_version(vertex_id_type v, uint64_t version) {
         assert(v < nvertices);
         vertices[v].version = version;
-        vertices[v].snapshot_made = false;
+        vertices[v].snapshot_req = true;
       }
 
       void increment_vertex_version(vertex_id_type v) {
         assert(v < nvertices);
         ++vertices[v].version;
-        vertices[v].snapshot_made = false;
+        vertices[v].snapshot_req = true;
       }
 
       uint64_t vertex_version(vertex_id_type v) const{
@@ -357,7 +357,7 @@ namespace graphlab {
         locks[v].lock();
         vertices[v].data = data;
         vertices[v].version++;
-        vertices[v].snapshot_made = false;
+        vertices[v].snapshot_req = true;
         locks[v].unlock();
       }
 
@@ -368,7 +368,7 @@ namespace graphlab {
           vertices[v].data = data;
           vertices[v].version = version;
           vertices[v].modified = false;
-          vertices[v].snapshot_made = false;
+          vertices[v].snapshot_req = true;
         }
         locks[v].unlock();
       }
@@ -384,14 +384,14 @@ namespace graphlab {
         return vertices[v].modified;
       }
       
-      void set_vertex_snapshot_made(vertex_id_type v, bool snapshot_made) {
+      void set_vertex_snapshot_req(vertex_id_type v, bool snapshot_req) {
         assert(v < nvertices);
-        vertices[v].snapshot_made = snapshot_made;
+        vertices[v].snapshot_req = snapshot_req;
       }
 
-      bool vertex_snapshot_made(vertex_id_type v) const{
+      bool vertex_snapshot_req(vertex_id_type v) const{
         assert(v < nvertices);
-        return vertices[v].snapshot_made;
+        return vertices[v].snapshot_req;
       }
 
 
@@ -434,13 +434,13 @@ namespace graphlab {
       void set_edge_version(edge_id_type edge_id, uint64_t version) {
         assert(edge_id < nedges);
         edgedata[edge_id].version = version;
-        edgedata[edge_id].snapshot_made = false;
+        edgedata[edge_id].snapshot_req = true;
       }
 
       void increment_edge_version(edge_id_type edge_id) {
         assert(edge_id < nedges);
         ++edgedata[edge_id].version;
-        edgedata[edge_id].snapshot_made = false;
+        edgedata[edge_id].snapshot_req = true;
       }
     
       uint64_t edge_version(edge_id_type edge_id) const{
@@ -458,14 +458,14 @@ namespace graphlab {
         return edgedata[edge_id].modified;
       }
 
-      void set_edge_snapshot_made(edge_id_type edge_id, bool snapshot_made) {
+      void set_edge_snapshot_req(edge_id_type edge_id, bool snapshot_req) {
         assert(edge_id < nedges);
-        edgedata[edge_id].snapshot_made = snapshot_made;
+        edgedata[edge_id].snapshot_req = snapshot_req;
       }
 
-      bool edge_snapshot_made(edge_id_type edge_id) const{
+      bool edge_snapshot_req(edge_id_type edge_id) const{
         assert(edge_id < nedges);
-        return edgedata[edge_id].snapshot_made;
+        return edgedata[edge_id].snapshot_req;
       }
 
       void increment_and_update_edge(edge_id_type e, EdgeData data) {
@@ -473,7 +473,7 @@ namespace graphlab {
         locks[target(e)].lock();
         edgedata[e].data = data;
         edgedata[e].version++;
-        edgedata[e].snapshot_made = false;
+        edgedata[e].snapshot_req = true;
         locks[target(e)].unlock();
       }
 
@@ -484,7 +484,7 @@ namespace graphlab {
           edgedata[e].data = data;
           edgedata[e].version = version;
           edgedata[e].modified = false;
-          edgedata[e].snapshot_made = false;
+          edgedata[e].snapshot_req = true;
         }
         locks[target(e)].unlock();
       }
