@@ -125,6 +125,11 @@ void add_tasks(core & glcore){
   std::vector<vertex_id_t> um;
   for (int i=0; i< ps.M+ps.N; i++)
     um.push_back(i);
+
+  if (ac.shuffle){
+    logstream(LOG_INFO) << "Shuffling tasks" << std::endl;
+    std::random_shuffle(um.begin(), um.end()-1);
+  } 
  
  // add update function for user and movie nodes (tensor dims 1+2) 
   switch (ps.algorithm){
@@ -206,7 +211,17 @@ void init(graph_type *g){
 template<typename core, typename graph_type, typename vertex_data>
 void run_graphlab(core &glcore, graph_type * validation_graph){
 
-     glcore.start();
+     logstream(LOG_INFO) << "starting with scheduler: " << ac.scheduler << std::endl;
+     if (ac.scheduler == "round_robin"){
+        glcore.start();
+     }
+     else {
+        for (int i=0; i< ac.iter; i++){
+            glcore.start();
+	    add_tasks<core>(glcore);
+        }
+
+     }
      // calculate final RMSE
      double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
      double obj = calc_obj<graph_type, vertex_data>(res);
@@ -409,6 +424,7 @@ void do_main(int argc, const char *argv[]){
     ac.init_command_line_options(clopts);
     if (ac.mainfunc){ //if called from main(), parse command line arguments
       assert(clopts.parse(argc, argv));
+      ac.scheduler = clopts.scheduler_type;
    }
    
    switch(ac.algorithm){

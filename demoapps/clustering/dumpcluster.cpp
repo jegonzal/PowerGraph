@@ -21,7 +21,7 @@ void print_point(FILE * f, vertex_data & data){
 
 void print_points_for_cluster(FILE * f, int cluster_id){
   for (int i=0; i< ps.M; i++){
-     vertex_data & data = ps.g->vertex_data(i);
+     vertex_data & data = ps.g<graph_type>()->vertex_data(i);
      if (data.current_cluster == cluster_id)
         print_point(f, data);
 
@@ -34,7 +34,7 @@ void find_radius(double * radius){
    
   memset(radius, 0, sizeof(double)*ac.K);
   for (int i=0; i<ps.M; i++){
-     vertex_data & data = ps.g->vertex_data(i);
+     vertex_data & data = ps.g<graph_type>()->vertex_data(i);
      if (radius[data.current_cluster] < data.min_distance)
        radius[data.current_cluster] = data.min_distance;
    }

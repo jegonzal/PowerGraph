@@ -61,11 +61,14 @@ const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_A
 /* Function declerations */ 
 void load_graph(const char* filename, graph_type * g,gl_types::core & glcore);    
 void last_iter();
-void initialize_clusters();
+void initialize_clusters(gl_types::core & glcore);
+void initialize_clusters(gl_types_kcores::core & glcore){ assert(false); }
 void dumpcluster();
 void tfidf_weighting();
 void plus_mul(vec& v1, sparse_vec &v2, double factor);
-
+void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler);
+void calc_initial_degree();
+void kcores_main();
 
   void vertex_data::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
@@ -82,7 +85,7 @@ double get_distance(const vertex_data & v){
 double calc_cost(){
      double cost = 0;
      for (int i=0; i< ps.M; i++){
-       const vertex_data & data = ps.g->vertex_data(i);
+       const vertex_data & data = ps.g<graph_type>()->vertex_data(i);
        cost += data.min_distance;
      }
    return cost;
@@ -124,7 +127,7 @@ int calc_cluster_centers(){
        //ps.clusts.cluster_vec[i].cur_sum_of_points = zeros(ps.K);
          double sum_u_i_j = 0;
          for (int j=0; j< ps.M; j++){
-            vertex_data & data = ps.g->vertex_data(j);
+            vertex_data & data = ps.g<graph_type>()->vertex_data(j);
 	    plus_mul(ps.clusts.cluster_vec[i].location, data.datapoint, data.distances[i]);
             sum_u_i_j += data.distances[i];
          }
@@ -141,7 +144,7 @@ int calc_cluster_centers(){
 
 }
 
-void add_tasks(){
+void add_tasks(gl_types::core & glcore){
 
   std::vector<vertex_id_t> um;
   for (int i=0; i< ps.M; i++)
@@ -151,15 +154,33 @@ void add_tasks(){
      case K_MEANS:
      case K_MEANS_PLUS_PLUS:
      case K_MEANS_FUZZY:
-       ps.glcore->add_tasks(um, kmeans_update_function, 1);
+       glcore.add_tasks(um, kmeans_update_function, 1);
        break;
 ;
      case LDA:
-       ps.glcore->add_tasks(um, lda_em_update_function,1);  
+       glcore.add_tasks(um, lda_em_update_function,1);  
        break;
- }
 
+     default: assert(false);
+  }
 }
+
+void add_tasks(gl_types_kcores::core & glcore){
+
+  std::vector<vertex_id_t> um;
+  for (int i=0; i< ps.M; i++)
+    um.push_back(i);
+ 
+  switch (ps.algorithm){
+     case KSHELL_DECOMPOSITION:
+       glcore.add_tasks(um, kcores_update_function, 1);
+       break;
+
+     default: assert(false);
+  }
+}
+
+
 
 
 
@@ -181,7 +202,7 @@ void init_random_cluster(){
    for (int i=0; i < ac.K; i++){
        int tries = 0;
        while(true){
-        ::plus(ps.clusts.cluster_vec[i].location,  ps.g->vertex_data(randi(0, ps.M-1)).datapoint);
+        ::plus(ps.clusts.cluster_vec[i].location,  ps.g<graph_type>()->vertex_data(randi(0, ps.M-1)).datapoint);
   	 if (sum(abs(ps.clusts.cluster_vec[i].location))>0)	
            break;
          tries++;
@@ -209,55 +230,48 @@ void init(){
    case LDA:
     break;
 
+
+   case KSHELL_DECOMPOSITION:
+     calc_initial_degree();
+     break; 
   }
 }
 
 
-void run_graphlab(){
+void run_graphlab(gl_types::core & glcore){
    for (int i=0; i< ac.iter; i++){
-    ps.glcore->start();
+    glcore.start();
     last_iter();
-    add_tasks();
+    add_tasks(glcore);
   }
 }
+
+void run_graphlab(gl_types_kcores::core & glcore){
+  assert(false);
+}
+
 
 
 
 /** 
  * ==== SETUP AND START
  */
-void start(int argc, const char * argv[]) {
+template<typename core, typename graph_type>
+void start(command_line_options & clopts) {
   
-  ps.gt.start();
-  command_line_options clopts;
-  ac.init_command_line_options(clopts);
-  gl_types::core glcore;
-  if (ps.glcore == NULL)
-    ps.glcore = &glcore;
-
-  if (ac.mainfunc){ //if called from main(), parse command line arguments
-    assert(clopts.parse(argc, argv));
-    ac.ncpus = clopts.get_ncpus();
-
-   if (ac.unittest > 0)
-      unit_testing(ac.unittest,clopts);
-  }
-  
-  ps.algorithm = (runmodes)ac.algorithm;
-  printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
-
-
+  core glcore;
+  glcore.set_engine_options(clopts); 
+  ps.set_core(&glcore);
   ps.verify_setup();
   
-  ps.glcore->set_engine_options(clopts); 
 
   logger(LOG_INFO, "%s starting\n",runmodesname[ps.algorithm]);
   //read the training data
   printf("loading data file %s\n", ac.datafile.c_str());
   if (!ac.manualgraphsetup){
   if (!ac.loadgraph){
-    ps.g=&ps.glcore->graph();
-    load_graph(ac.datafile.c_str(), ps.g,* ps.glcore);
+    ps.set_graph(&glcore.graph());
+    load_graph<graph_type>(ac.datafile.c_str(), &glcore.graph());
 
     if (ps.init_type == INIT_RANDOM_CLUSTER)
        init_random_cluster();
@@ -269,7 +283,7 @@ void start(int argc, const char * argv[]) {
         std::ofstream fout(filename, std::fstream::binary);
         graphlab::oarchive oarc(fout);
 	oarc << ps.M << ps.N << ps.K << ps.L;
-        oarc << *ps.g;
+        oarc << *ps.g<graph_type>();
         printf("Done!\n");
         fout.close();
 	exit(0);
@@ -282,15 +296,14 @@ void start(int argc, const char * argv[]) {
     graphlab::iarchive iarc(fin);
     iarc >> ps.M >> ps.N >> ps.K >> ps.L;
     printf("Loading graph from file\n");
-    iarc >> ps.glcore->graph();
-    ps.g=&ps.glcore->graph();
+    iarc >> *ps.g<graph_type>();
     printf("Matrix size is: ROWS %dx COLS %dx CLUSTERS %d ", ps.M, ps.N, ps.K);   
     printf("Creating %d nnz data entires...\n", ps.L);
   }
   }
 
   if (ac.loadfactors){
-     import_from_file();
+     //import_from_file();
   }
 
 
@@ -303,7 +316,7 @@ void start(int argc, const char * argv[]) {
   }
   
 
-  add_tasks();
+  add_tasks(glcore);
  
  
   printf("%s for (%d, %d, %d):%d.\n", runmodesname[ac.algorithm], ps.M, ps.N, ps.K, ps.L);
@@ -312,7 +325,7 @@ void start(int argc, const char * argv[]) {
   
   ps.iiter--; 
  
-  ps.g->finalize();  
+  ps.g<graph_type>()->finalize();  
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
     switch(ps.algorithm){
@@ -320,16 +333,20 @@ void start(int argc, const char * argv[]) {
       case K_MEANS_FUZZY:
          calc_cluster_centers();
          last_iter();
-         run_graphlab();
+         run_graphlab(glcore);
          break;
 
       case K_MEANS_PLUS_PLUS:
-         initialize_clusters();
+         initialize_clusters(glcore);
      	 break;
 
       case LDA:
         lda_main();
 	break;
+  
+      case KSHELL_DECOMPOSITION:
+        kcores_main();
+        break;
   }
 
 
@@ -344,11 +361,11 @@ void start(int argc, const char * argv[]) {
 
   //write output matrices U,V,T to file
   if (ac.binaryoutput)
-     export_to_binary_file();
+     export_to_binary_file<graph_type>();
   else if (ac.matrixmarket)
-     export_to_matrixmarket();
+     export_to_matrixmarket<graph_type>();
   else // it++ output
-   export_to_itpp_file();
+   export_to_itpp_file<graph_type>();
 }
 
 
@@ -361,7 +378,34 @@ void do_main(int argc, const char *argv[]){
 #ifdef OMP_SUPPORT
   logstream(LOG_INFO)<<"Program compiled with OMP support\n";
 #endif
-   start(argc, argv);
+
+  ps.gt.start();
+  command_line_options clopts;
+  ac.init_command_line_options(clopts);
+
+  if (ac.mainfunc){ //if called from main(), parse command line arguments
+    assert(clopts.parse(argc, argv));
+    ac.ncpus = clopts.get_ncpus();
+
+   if (ac.unittest > 0)
+      unit_testing(ac.unittest,clopts);
+  }
+  
+  ps.algorithm = (runmodes)ac.algorithm;
+  printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
+    switch(ps.algorithm){
+    case K_MEANS:
+    case K_MEANS_PLUS_PLUS:
+    case K_MEANS_FUZZY:
+    case LDA: 
+       start<gl_types::core, graph_type>(clopts);
+       break;
+
+    case KSHELL_DECOMPOSITION:
+       start<gl_types_kcores::core, graph_type_kcores>(clopts);
+       break;
+  }  
+
 }
 
 

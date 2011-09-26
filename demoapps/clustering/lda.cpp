@@ -183,7 +183,7 @@ lda_learn (double *alpha, double **beta)
 			//vbem(dp, gamma, q, nt, pnt, ap,
 			//     alpha, (const double **)beta, dp->len, ac.K, ac.em_max_inner_iter);
 			//accum_gammas(gammas, _gamma, i, ac.K);
-			accum_betas(betas, ac.K, ps.g->vertex_data(i));
+			accum_betas(betas, ac.K, ps.g<graph_type>()->vertex_data(i));
 		}
 		ps.counter[LDA_ACCUM_BETA] += tt.current_time();
 		printf("%g) iteration %d/%d.. starting M-step\n", ps.gt.current_time(), t + 1, ac.iter);
@@ -326,7 +326,7 @@ lda_lik (double **beta, double **gammas, int m)
 	
 	for (i = 0; i < ps.M; i++)
 	{
-	        vertex_data &data = ps.g->vertex_data(i);
+	        vertex_data &data = ps.g<graph_type>()->vertex_data(i);
 		n = data.datapoint.nnz();
 		for (j = 0; j < n; j++) {
 			int pos = data.datapoint.get_nz_index(j);

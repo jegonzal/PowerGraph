@@ -144,7 +144,7 @@ void update_kmeans_clusters(){
 
 
    for (int i=0; i< ps.M; i++){
-       vertex_data & data = ps.g->vertex_data(i);
+       vertex_data & data = ps.g<graph_type>()->vertex_data(i);
        if (!data.hot)
          continue;
        else {
@@ -169,9 +169,7 @@ void update_kmeans_clusters(){
            std::cout<<"in hot node: " << i << std::endl;
        }
    }
-   int total_assigned =calc_cluster_centers();
-  
-
+   calc_cluster_centers();
 }
  
 

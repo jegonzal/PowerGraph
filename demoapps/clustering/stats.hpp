@@ -37,7 +37,7 @@ double sum(sparse_vec & dvec);
 
 // calc statistics about matrix/tensor and exit  
 void calc_stats(){
-   graph_type * gr = ps.g;
+   graph_type * gr = ps.g<graph_type>();
 
   double avgval=0, minval=1e100, maxval=-1e100;
   int nz=0;

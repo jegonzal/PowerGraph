@@ -37,9 +37,12 @@ void init();
 
 template<typename edgedata>
 int read_edges(FILE * f, int nodes, graph_type * _g);
+template<typename edgedata>
+int read_edges(FILE * f, int nodes, graph_type_kcores * _g);
 
 
-void fill_output(){
+
+void fill_output(graph_type * g){
   
    if (ac.algorithm == LDA)
 	return;
@@ -53,7 +56,7 @@ void fill_output(){
 	cols = ac.K;
    ps.output_assignements = zeros(ps.M, cols);
      for (int i=0; i< ps.M; i++){ 
-        const vertex_data & data = ps.g->vertex_data(i);
+        const vertex_data & data = g->vertex_data(i);
         if (ac.algorithm == K_MEANS){
           ps.output_assignements.set(i,0, data.current_cluster);
         } 
@@ -61,6 +64,15 @@ void fill_output(){
           ps.output_assignements.set_row(i, data.distances);
      }
 } 
+void fill_output(graph_type_kcores * g){
+  
+     ps.output_assignements = zeros(ps.M, 1);
+     for (int i=0; i< ps.M; i++){ 
+        const kcores_data & data = g->vertex_data(i);
+        ps.output_assignements.set(i,0, data.kcore);
+     }
+} 
+
 
 
 
@@ -82,9 +94,10 @@ void write_vec(FILE * f, int len, double * array){
 // MATRIX K ( K x D doubles - optional, only for ps.tensor)
 // TOTAL FILE SIZE: 4 ints + (M+N+K)*D - for ps.tensor
 //                  4 ints + (M+N)*D - for matrix
+template<typename graph_type>
 void export_to_binary_file(){
 
-  fill_output();
+  fill_output(ps.g<graph_type>());
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(),ps.K);
@@ -105,9 +118,10 @@ void export_to_binary_file(){
 
 
 //OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
+template<typename graph_type>
 void export_to_itpp_file(){
 
-  fill_output();
+  fill_output(ps.g<graph_type>());
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
@@ -118,8 +132,10 @@ void export_to_itpp_file(){
 }
 
 
+template<typename graph_type>
 void export_to_matrixmarket(){
-  fill_output();
+  fill_output(ps.g<graph_type>());
+  
   char dfile[256] = {0};
   sprintf(dfile,"%s%d",ac.datafile.c_str(), ps.K);
   save_matrix_market_format(dfile);  
@@ -139,14 +155,13 @@ void import_from_file(){
  input.close();
  //saving output to file 
  for (int i=0; i< ps.M; i++){ 
-    vertex_data & data = ps.g->vertex_data(i);
+    vertex_data & data = ps.g<graph_type>()->vertex_data(i);
     data.current_cluster = assignments[i]; 
  }
  for (int i=0; i<ps.K; i++){
     ps.clusts.cluster_vec[i].location = clusters.get_row(i);
  }
 }
-
 
 void add_vertices(graph_type * _g){
   assert(ps.K > 0);
@@ -180,6 +195,16 @@ void add_vertices(graph_type * _g){
 }
 
 
+void add_vertices(graph_type_kcores * _g){
+  assert(ps.K > 0);
+  kcores_data vdata;
+  for (int i=0; i<ps.M; i++){
+    _g->add_vertex(vdata);
+ }
+  
+}
+
+
 /* function that reads the problem from file */
 /* Input format is:
  * M - number of matrix rows
@@ -192,7 +217,8 @@ void add_vertices(graph_type * _g){
  * [to] is an interger from 1 to N
  * [weight] float
  */
-void load_graph(const char* filename, graph_type * _g, gl_types::core & glcore) {
+template<typename graph_type>
+void load_graph(const char* filename, graph_type * _g) {
 
 
   if (ac.matrixmarket){
@@ -240,10 +266,65 @@ void load_graph(const char* filename, graph_type * _g, gl_types::core & glcore) 
       if (ac.FLOAT)
     val = read_edges<edge_float_cf>(f,ps.N,_g);
     else val = read_edges<edge_double_cf>(f,ps.N,_g);
-  }assert(val == ps.L);
+  }
+  assert(val == ps.L);
 
   fclose(f);
 }
+/**
+ * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
+ */
+template<typename edgedata>
+int read_edges(FILE * f, int column_dim, graph_type_kcores * _g){
+     
+  int matlab_offset = 1; //matlab array start from 1
+
+  unsigned int e;
+  int rc = fread(&e,1,4,f);
+  assert(rc == 4);
+  printf("Creating %d edges (observed ratings)...\n", e);
+  assert(e>0);
+
+  int total = 0;
+  edgedata* ed = new edgedata[200000];
+  int edgecount_in_file = e;
+  kcores_edge edge;
+  while(true){
+    rc = (int)fread(ed, sizeof(edgedata), std::min(200000, edgecount_in_file - total), f);
+    total += rc;
+
+    //go over each rating (edges)
+    #pragma omp parallel for
+    for (int i=0; i<rc; i++){
+      //verify node ids are in allowed range
+      assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= ps.M);
+      if (ac.supportgraphlabcf)
+        ed[i].to -= ps.M;
+      assert((int)ed[i].to >= matlab_offset && (int)ed[i].to <= ps.N);
+      ed[i].from = ed[i].from - matlab_offset;
+      ed[i].to = ed[i].to - matlab_offset;
+   }  
+   
+   for (int i=0; i<rc; i++){ 
+      edge.weight = ed[i].weight;
+      _g->add_edge(ed[i].from, ed[i].to, edge);
+      _g->add_edge(ed[i].to, ed[i].from, edge);
+    }
+      printf(".");
+      fflush(0);
+      if (rc == 0 || total >= edgecount_in_file)
+       break;
+
+  }
+  if (total != (int)e){
+      logstream(LOG_ERROR) << "Missing edges in file. Should be " << e << " but in file we counted only " << total << " edges. Please check your conversion script and verify the file is not truncated and edges are not missing. " << std::endl;
+  }
+  assert(total == (int)e);
+  delete [] ed; ed = NULL;
+  ps.L = e;
+  return e;
+}
+
 
 
 /**

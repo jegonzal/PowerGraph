@@ -113,6 +113,9 @@ int shotgun_reg_path_len; //regulariztion path length
 /* for clustering */
 int distance_measure;
 
+/* random shuffle order of execution? */
+bool shuffle;
+
 advanced_config(){
     D = 20;
     K = 0;
@@ -206,6 +209,8 @@ advanced_config(){
  
    /* for LDA */
    em_max_inner_iter = 20;
+
+   shuffle = false;
  }
 
 

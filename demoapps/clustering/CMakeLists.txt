@@ -9,7 +9,7 @@ set(OMP_SUPPORT 0)
   add_graphlab_executable(glcluster clustering.cpp advanced_config.cpp 
 read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp distance.cpp   
 sparse_math.cpp main.cpp kmeans_plus_plus.cpp dumpcluster.cpp tfidf.cpp
-lda.cpp gamma.cpp)
+lda.cpp gamma.cpp kcores.cpp)
 else()
   message(STATUS "ITPP not found. PMF will not be built")
 endif()

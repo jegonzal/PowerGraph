@@ -33,6 +33,81 @@ extern advanced_config ac;
 extern problem_setup ps;
 
 void init();
+void load_matrix_market(const char * filename, graph_type_kcores *_g)
+{
+    int ret_code;
+    MM_typecode matcode;
+    int M, N, nz;   
+    int i;
+
+    FILE * f = fopen(filename, "r");
+    if (f== NULL){
+	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
+	exit(1);
+    }
+
+    if (mm_read_banner(f, &matcode) != 0)
+    {
+        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
+        exit(1);
+    }
+
+    /*  This is how one can screen matrix types if their application */
+    /*  only supports a subset of the Matrix Market data types.      */
+
+    if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
+            mm_is_sparse(matcode) )
+    {
+        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+          "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
+        exit(1);
+    }
+
+    /* find out size of sparse matrix .... */
+
+    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
+       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
+       exit(1);
+    }
+
+    ps.M = M; ps.N = N; ps.K = ac.K;
+
+    init();
+    add_vertices(_g); 
+
+    /* reseve memory for matrices */
+
+    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
+    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
+    /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
+
+    int I,J; 
+    double val;
+
+
+    for (i=0; i<nz; i++)
+    {
+        fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        I--;  /* adjust from 1-based to 0-based */
+        J--;
+         if (ac.scalerating != 1.0)
+	     val /= ac.scalerating;
+         if (!ac.zero)
+	   assert(val!=0 );
+        
+        assert(I< M);
+        assert(J< N);
+        kcores_edge edge;
+        edge.weight = val;
+        _g->add_edge(I,J, edge);
+        _g->add_edge(J,I, edge);
+
+    }
+    ps.L = nz;
+    fclose(f);
+
+}
+
 
 void load_matrix_market(const char * filename, graph_type *_g)
 {
