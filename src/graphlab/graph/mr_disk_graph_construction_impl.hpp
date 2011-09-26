@@ -106,7 +106,7 @@ namespace graphlab {
       volatile uint32_t max_color = 0;
       // iterate through each database, joining the keys as we see it
 
-      for (size i = 0;i < atoms.size(); ++i) {
+      for (size_t i = 0;i < atoms.size(); ++i) {
         atoms[i]->play_back(atomout);
       }
       atomout->synchronize();
