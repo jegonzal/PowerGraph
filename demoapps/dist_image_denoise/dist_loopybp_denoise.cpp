@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
     img.save(noisy_fn.c_str());
     
     std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
-    gl_types::disk_graph dg("denoise", 32);
+    gl_types::disk_graph dg("denoise", 32, graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
     gl_types::memory_graph g;
 
     construct_graph(img, colors, sigma, g);
@@ -280,7 +280,7 @@ int main(int argc, char** argv) {
   // create distributed control
   graphlab::distributed_control dc(param);
   // Create the distributed_graph --------------------------------------------------------->
-  gl_types::distributed_core core(dc, "denoise.idx");
+  gl_types::distributed_core core(dc, "denoise.idx", graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
   // Set the engine options
   core.set_engine_options(clopts);
   core.build_engine();
