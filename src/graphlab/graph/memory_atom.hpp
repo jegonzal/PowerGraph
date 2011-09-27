@@ -35,6 +35,7 @@
 
 #include <sstream>
 #include <map>
+#include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/graph.hpp>
@@ -79,9 +80,9 @@ namespace graphlab {
       uint16_t owner;       /// Owner of the veretx
       vertex_color_type color;  /// color of the vertex
       std::string vdata;        /// serialized vdata
-      std::set<vertex_id_type> outedges; /// keys(outedges) is all outedges.
+      std::vector<vertex_id_type> outedges; /// keys(outedges) is all outedges.
                                                       /// on the edge curv-->destv
-      std::map<vertex_id_type, std::string> inedges; /// The set of all in vertices. Data
+      std::vector<std::pair<vertex_id_type, std::string> > inedges; /// The set of all in vertices. Data
                                                       /// Is stored on the target end.
       
       vertex_entry(vertex_id_type vid = vertex_id_type(-1),

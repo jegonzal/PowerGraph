@@ -64,6 +64,7 @@ void write_only_disk_atom::play_back(graph_atom* atom) {
       atom->set_owner(vid, owner);
     }
   }
+  fin.pop(); fin.pop();
   in_file.close();
   rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
 }

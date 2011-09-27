@@ -117,7 +117,7 @@ namespace graphlab {
       ret.max_color = max_color;
       ret.filename = output_disk_atom;
       ret.base_atom_filename = base_atom_filename;
-      //std::cout << idx << " " << ret.num_local_vertices << " " << ret.num_local_edges << "\n";
+      std::cout << "Combined atom " << idx << " " << ret.num_local_vertices << " " << ret.num_local_edges << "\n";
 
       for (size_t i = 0;i < disk_atom_files.size(); ++i) {
         delete atoms[i];
