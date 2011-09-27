@@ -198,7 +198,7 @@ void add_vertices(graph_type * _g){
 void add_vertices(graph_type_kcores * _g){
   assert(ps.K > 0);
   kcores_data vdata;
-  for (int i=0; i<ps.M; i++){
+  for (int i=0; i<ps.M + ps.N; i++){
     _g->add_vertex(vdata);
  }
   
@@ -298,11 +298,13 @@ int read_edges(FILE * f, int column_dim, graph_type_kcores * _g){
     for (int i=0; i<rc; i++){
       //verify node ids are in allowed range
       assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= ps.M);
-      if (ac.supportgraphlabcf)
-        ed[i].to -= ps.M;
-      assert((int)ed[i].to >= matlab_offset && (int)ed[i].to <= ps.N);
+      if (!ac.supportgraphlabcf)
+        ed[i].to += ps.M;
+      
+      assert((int)ed[i].to > ps.M && (int)ed[i].to <= ps.N + ps.M);
       ed[i].from = ed[i].from - matlab_offset;
       ed[i].to = ed[i].to - matlab_offset;
+      assert(ed[i].to != ed[i].from);
    }  
    
    for (int i=0; i<rc; i++){ 

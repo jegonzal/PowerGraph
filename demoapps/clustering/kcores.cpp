@@ -21,12 +21,26 @@ void calc_initial_degree(){
   }
 }
 
+void last_iter_kcores(){
+  int num_active = 0;
+  for (int i=0; i<ps.M+ps.N; i++){
+    if (g->vertex_data(i).active)
+	num_active++;
+  }
+  printf("Number of active nodes in round %d is %d\n", ps.iiter, num_active);
+}
+
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler){
+    bool last_node = false;
+    if (scope.vertex() == ps.M+ps.N-1)
+        last_node = true; 
 
     kcores_data & vdata = scope.vertex_data();
-    if (!vdata.active)
+    if (!vdata.active){
+       if (last_node)
+          last_iter_kcores();
        return;
-
+    }
     int cur_iter = ps.iiter + 1;
     if (vdata.degree <= cur_iter){
        vdata.active = false;
@@ -48,12 +62,16 @@ void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::ic
       }
     }
 
+
+   if elast_node)
+      last_iter_kcores();
 };
 
 
 void kcores_main(){
 
   ps.gt.start();
+  calc_initial_degree();
  
   for (int i=0; i< ac.iter; i++){
    ps.glcore_kcores->start();

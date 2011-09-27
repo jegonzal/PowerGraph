@@ -67,7 +67,6 @@ void dumpcluster();
 void tfidf_weighting();
 void plus_mul(vec& v1, sparse_vec &v2, double factor);
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler);
-void calc_initial_degree();
 void kcores_main();
 
   void vertex_data::save(graphlab::oarchive& archive) const {  
@@ -232,7 +231,6 @@ void init(){
 
 
    case KSHELL_DECOMPOSITION:
-     calc_initial_degree();
      break; 
   }
 }
