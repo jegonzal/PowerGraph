@@ -152,8 +152,8 @@ void memory_atom::set_vertex(vertex_id_type vid, uint16_t owner) {
   boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
-  mut.unlock();
   vertices[v].owner = owner;
+  mut.unlock();
 }
 
 
@@ -163,9 +163,9 @@ void memory_atom::set_vertex_with_data(vertex_id_type vid, uint16_t owner, const
   boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
-  mut.unlock();
   vertices[v].owner = owner;
   vertices[v].vdata = vdata;
+  mut.unlock();
 }
 
 
@@ -200,8 +200,8 @@ bool memory_atom::get_vertex(vertex_id_type vid, uint16_t &owner) {
     return false;
   }
   size_t v = iter->second;
-  mut.unlock();
   owner = vertices[v].owner;
+  mut.unlock();
   return true;
 }
 
@@ -216,10 +216,10 @@ bool memory_atom::get_vertex_data(vertex_id_type vid, uint16_t &owner, std::stri
     return false;
   }
   size_t v = iter->second;
-  mut.unlock();
   
   owner = vertices[v].owner;
   vdata = vertices[v].vdata;
+  mut.unlock();
   return true;
 }
 
@@ -236,11 +236,16 @@ bool memory_atom::get_edge_data(vertex_id_type src, vertex_id_type target, std::
     return false;
   }
   size_t vtarget = targetiter->second;
-  mut.unlock();
   std::map<vertex_id_type, std::string>::const_iterator iter = vertices[vtarget].inedges.find(src);
-  if (iter == vertices[vtarget].inedges.end()) return false;
-  edata = iter->second;
-  return true;
+  if (iter == vertices[vtarget].inedges.end()) {
+    return false;
+    mut.unlock();
+  }
+  else {
+    edata = iter->second;
+    mut.unlock();
+    return true;
+  }
 }
 
 
@@ -351,6 +356,7 @@ void memory_atom::clear() {
 
 void memory_atom::synchronize() {
   if (mutated) {
+    mut.lock();
     std::ofstream out_file(filename.c_str(), std::ios::binary);
     boost::iostreams::filtering_stream<boost::iostreams::output> fout; 
     fout.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::best_compression));
@@ -360,9 +366,10 @@ void memory_atom::synchronize() {
     uint64_t nv,ne;
     nv = numv.value;
     ne = nume.value;
-  
+    mutated = false;
     oarc << nv << ne
          << vertices << vidmap << vid2owner_segment;
+    mut.unlock();
   }
 }
     

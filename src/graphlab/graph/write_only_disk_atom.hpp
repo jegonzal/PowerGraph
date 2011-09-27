@@ -125,15 +125,15 @@ namespace graphlab {
   
 
   
-    inline bool get_vertex(vertex_id_type vid, uint16_t &owner) { ASSERT_FALSE(false); return true;}
+    inline bool get_vertex(vertex_id_type vid, uint16_t &owner) { ASSERT_TRUE(false); return true;}
   
-    inline bool get_vertex_data(vertex_id_type vid, uint16_t &owner, std::string &s) { ASSERT_FALSE(false); return true;}
+    inline bool get_vertex_data(vertex_id_type vid, uint16_t &owner, std::string &s) { ASSERT_TRUE(false); return true;}
 
-    inline bool get_edge_data(vertex_id_type src, vertex_id_t target, std::string &s) { ASSERT_FALSE(false); return true;}
+    inline bool get_edge_data(vertex_id_type src, vertex_id_t target, std::string &s) { ASSERT_TRUE(false); return true;}
 
 
     inline std::vector<vertex_id_type> enumerate_vertices() { 
-      ASSERT_FALSE(false); 
+      ASSERT_TRUE(false); 
       return std::vector<vertex_id_type>(); 
     }
   
@@ -143,7 +143,7 @@ namespace graphlab {
      * adjacent atom
      */
     inline std::map<uint16_t, uint32_t> enumerate_adjacent_atoms() { 
-      ASSERT_FALSE(false); 
+      ASSERT_TRUE(false); 
       return std::map<uint16_t, uint32_t>(); 
     }
   
@@ -151,7 +151,7 @@ namespace graphlab {
      * \brief Returns the set of incoming vertices of vertex 'vid'
      */
     inline std::vector<vertex_id_type> get_in_vertices(vertex_id_type vid) { 
-      ASSERT_FALSE(false); 
+      ASSERT_TRUE(false); 
       return std::vector<vertex_id_type>(); 
     }
    
@@ -160,7 +160,7 @@ namespace graphlab {
      * \brief Returns the set of outgoing vertices of vertex 'vid'
      */
     inline std::vector<vertex_id_type> get_out_vertices(vertex_id_type vid) { 
-      ASSERT_FALSE(false); 
+      ASSERT_TRUE(false); 
       return std::vector<vertex_id_type>(); 
     }
 
@@ -170,7 +170,7 @@ namespace graphlab {
      * Returns vertex_color_type(-1) if the entry does not exist
      */
     inline vertex_color_type get_color(vertex_id_type vid) { 
-      ASSERT_FALSE(false); 
+      ASSERT_TRUE(false); 
       return vertex_color_type(); 
     }
 
@@ -185,14 +185,14 @@ namespace graphlab {
     }
   
     /// Returns the largest color number
-    inline vertex_color_type max_color() { ASSERT_FALSE(false); return vertex_color_type(); }
+    inline vertex_color_type max_color() { ASSERT_TRUE(false); return vertex_color_type(); }
     
   
     /**
      * \brief Reads from the auxiliary hash table mapping vid ==> owner.
      * Returns (uint16_t)(-1) if the entry does not exist
      */
-    inline uint16_t get_owner(vertex_id_type vid) { ASSERT_FALSE(false); return 0; }
+    inline uint16_t get_owner(vertex_id_type vid) { ASSERT_TRUE(false); return 0; }
 
     /**
      * \brief Writes to the auxiliary hash table mapping vid ==> owner.
@@ -220,12 +220,12 @@ namespace graphlab {
     /** \brief Return the total number of vertices stored in this atom, 
      * whether or not the this atom actually owns the vertex.
      */
-    inline uint64_t num_vertices() const { ASSERT_FALSE(false); return 0; }
+    inline uint64_t num_vertices() const { ASSERT_TRUE(false); return 0; }
   
     /** \brief  Return the total number of edges stored in this atom, whether or 
      * not the this atom actually owns the edge.
      */
-    inline uint64_t num_edges() const { ASSERT_FALSE(false); return 0; }
+    inline uint64_t num_edges() const { ASSERT_TRUE(false); return 0; }
   
 
     void play_back(graph_atom* atom);
