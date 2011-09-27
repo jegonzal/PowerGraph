@@ -36,6 +36,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/util/generics/shuffle.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -80,6 +81,7 @@ namespace graphlab {
         bool modified:1;
         bool snapshot_req:1; // set to false whenever the version number changes
         uint64_t version:62;
+        vdata_store():modified(false),snapshot_req(false),version(0) { }
       };
 
       struct edata_store {
@@ -87,6 +89,7 @@ namespace graphlab {
         bool modified:1;
         bool snapshot_req:1; // set to false whenever the version number changes
         uint64_t version:62;
+        edata_store():modified(false),snapshot_req(false),version(0) { }
       };
     
     public:
@@ -94,10 +97,9 @@ namespace graphlab {
       /**
        * Build a basic graph
        */
-      graph_local_store(): vertices(NULL), edgedata(NULL), finalized(true), changeid(0) {  }
+      graph_local_store(): finalized(true), changeid(0) {  }
 
-      void create_store(size_t create_num_verts, size_t create_num_edges,
-                        std::string vertexstorefile, std::string edgestorefile) { 
+      void create_store(size_t create_num_verts, size_t create_num_edges) { 
         nvertices = create_num_verts;
         nedges = create_num_edges;
       
@@ -106,9 +108,6 @@ namespace graphlab {
         out_edges.resize(nvertices);
         vcolors.resize(nvertices);
         locks.resize(nvertices);
-      
-        vertex_store_file = vertexstorefile;
-        edge_store_file = edgestorefile;
       
 
         finalized = true;
@@ -120,8 +119,8 @@ namespace graphlab {
       }
     
       ~graph_local_store() {
-        free(vertices);
-        free(edgedata);
+        vertices.clear();
+        edgedata.clear();
       }
       // METHODS =================================================================>
 
@@ -277,6 +276,14 @@ namespace graphlab {
       } // end of rev_edge_id
 
   
+  
+      edge_id_type add_edge(vertex_id_type source, vertex_id_type target) {
+        nedges++;
+        edges.push_back(edge());
+        edgedata.push_back(edata_store());
+        add_edge(edges.size() - 1, source, target);
+        return edges.size() - 1;
+      }
     
       /**
        * \brief Creates an edge connecting vertex source to vertex target.  Any
@@ -321,6 +328,21 @@ namespace graphlab {
         finalized = false; 
       } // End of add edge
         
+    
+      /**
+       * Inserts a vertex. Very strictly sequential. 
+       */
+      vertex_id_t add_vertex(const VertexData &vdata) {
+        nvertices++;
+        vertices.push_back(vdata_store());
+        vertices[vertices.size() - 1].data = vdata;
+        in_edges.push_back(std::vector<edge_id_type>());
+        out_edges.push_back(std::vector<edge_id_type>());
+        vcolors.push_back(vertex_color_type(-1));
+        locks.push_back(spinlock());
+        return vertices.size() - 1;
+      }
+    
     
       /** \brief Returns a reference to the data stored on the vertex v. */
       VertexData& vertex_data(vertex_id_type v) {
@@ -633,11 +655,9 @@ namespace graphlab {
             >> in_edges
             >> out_edges
             >> vcolors
-            >> finalized;
-        // rebuild the map
-        allocate_graph_data();
-        deserialize(arc, vertices, sizeof(VertexData) * nvertices);
-        deserialize(arc, edgedata, sizeof(EdgeData) * nedges);
+            >> finalized
+            >> vertices
+            >> edgedata;
       
       } // end of load
 
@@ -650,11 +670,9 @@ namespace graphlab {
             << in_edges
             << out_edges
             << vcolors
-            << finalized;
-
-        serialize(arc, vertices, sizeof(VertexData) * nvertices);
-        serialize(arc, edgedata, sizeof(EdgeData) * nedges);
-          
+            << finalized
+            <<  vertices
+            << edgedata;
       } // end of save
     
 
@@ -695,12 +713,22 @@ namespace graphlab {
         fout.close();
       }
     
-    
-      void zero_all() {
-        memset(vertices, 0, sizeof(vdata_store) * nvertices);
-        memset(edgedata, 0, sizeof(edata_store) * nedges);
+      /**
+       * shuffles vertices such at
+       * new vertex i is previously vertex target[i]
+       * 
+       * The target vector will be destroyed
+       */
+      void shuffle_vertex_ids(std::vector<size_t> &target) {
+        // rewrite all the edges
+        for (size_t i = 0;i < edges.size(); ++i) {
+          edges[i]._source = target[edges[i]._source];
+          edges[i]._target = target[edges[i]._target];
+        }
+        
+        inplace_shuffle(vertices.begin(), vertices.end(), target);
       }
-    
+      
     private:    
       /** Internal edge class  */   
       struct edge {
@@ -760,13 +788,10 @@ namespace graphlab {
       // PRIVATE DATA MEMBERS ===================================================>    
       /** The vertex data is simply a vector of vertex data 
        */
-      vdata_store* vertices;
+      std::vector<vdata_store> vertices;
     
       /** Vector of edge data  */
-      edata_store* edgedata;
-    
-      std::string vertex_store_file;
-      std::string edge_store_file;
+      std::vector<edata_store> edgedata;
     
     
       /** The edge data is a vector of edges where each edge stores its
@@ -837,8 +862,8 @@ namespace graphlab {
       } // end of binary search 
 
       void allocate_graph_data() {
-        vertices = (vdata_store*)malloc(sizeof(vdata_store) * nvertices);
-        edgedata = (edata_store*)malloc(sizeof(edata_store) * nedges);
+        vertices.resize(nvertices);
+        edgedata.resize(nedges);
       }
 
     }; // End of graph

@@ -22,7 +22,7 @@
 
 
 #ifndef FROM_DISTRIBUTED_GRAPH_INCLUDE
-#warning "distributed_graph_synchronization.hpp should not be included directly."
+#warning "distributed_graph_impl.hpp should not be included directly."
 #warning "You should include only distributed_graph.hpp"
 #warning "I will fix this for you now, but don't do it again!"
 
