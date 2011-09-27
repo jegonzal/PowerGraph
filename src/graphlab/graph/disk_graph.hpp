@@ -304,41 +304,46 @@ namespace graphlab {
       for (size_t i = 0;i < atoms.size(); ++i) {
         atoms[i]->synchronize();
       }
-      // compute ncolors if missing
-      if (ncolors == vertex_color_type(-1)) {
-        ncolors = 0;
+      if (atomtype != disk_graph_atom_type::WRITE_ONLY_ATOM) {
+        // compute ncolors if missing
+        if (ncolors == vertex_color_type(-1)) {
+          ncolors = 0;
+          for (size_t i = 0;i < atoms.size(); ++i) {
+            ncolors = std::max(ncolors, atoms[i]->max_color());
+          }
+          ++ncolors;
+        }
+        // generate an atom index file
+        atom_index_file idx;
+        idx.nverts = num_vertices();
+        idx.nedges = num_edges();
+        idx.natoms = atoms.size();
+        idx.ncolors = ncolors;
+        idx.atoms.resize(atoms.size());
         for (size_t i = 0;i < atoms.size(); ++i) {
-          ncolors = std::max(ncolors, atoms[i]->max_color());
+          idx.atoms[i].protocol = "file";
+          idx.atoms[i].file = atoms[i]->get_filename();
+          // if end with .fast, strip it out
+          if (idx.atoms[i].file.length() >= 5 && 
+              (idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast" ||
+              idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump")) {
+            idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
+          }
+          idx.atoms[i].nverts = atoms[i]->num_vertices();
+          idx.atoms[i].nedges = atoms[i]->num_edges();
+          std::map<uint16_t, uint32_t> adj = atoms[i]->enumerate_adjacent_atoms();
+          std::map<uint16_t, uint32_t>::iterator iter = adj.begin();
+          while (iter != adj.end()) {
+            idx.atoms[i].adjatoms.push_back(iter->first);
+            idx.atoms[i].optional_weight_to_adjatoms.push_back(iter->second);
+            ++iter;
+          }
         }
-        ++ncolors;
+        idx.write_to_file(indexfile);
       }
-      // generate an atom index file
-      atom_index_file idx;
-      idx.nverts = num_vertices();
-      idx.nedges = num_edges();
-      idx.natoms = atoms.size();
-      idx.ncolors = ncolors;
-      idx.atoms.resize(atoms.size());
-      for (size_t i = 0;i < atoms.size(); ++i) {
-        idx.atoms[i].protocol = "file";
-        idx.atoms[i].file = atoms[i]->get_filename();
-        // if end with .fast, strip it out
-        if (idx.atoms[i].file.length() >= 5 && 
-            (idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast" ||
-            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump")) {
-          idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
-        }
-        idx.atoms[i].nverts = atoms[i]->num_vertices();
-        idx.atoms[i].nedges = atoms[i]->num_edges();
-        std::map<uint16_t, uint32_t> adj = atoms[i]->enumerate_adjacent_atoms();
-        std::map<uint16_t, uint32_t>::iterator iter = adj.begin();
-        while (iter != adj.end()) {
-          idx.atoms[i].adjatoms.push_back(iter->first);
-          idx.atoms[i].optional_weight_to_adjatoms.push_back(iter->second);
-          ++iter;
-        }
+      else {
+        logstream(LOG_WARNING) << "Atom index cannot be created for Write Only atoms" << std::endl;
       }
-      idx.write_to_file(indexfile);
     }
   
     /** \brief Get the number of vertices */
@@ -541,6 +546,15 @@ namespace graphlab {
       // reset ncolors. we will need to recompute it on save
       ncolors = vertex_color_type(-1); 
     }
+
+    void set_color_unsafe(vertex_id_type vid, vertex_color_type color, uint16_t locationhint) {
+      uint16_t owner = locationhint;
+      ASSERT_NE(owner, (uint16_t)(-1));
+      atoms[owner]->set_color(vid, color);
+      // reset ncolors. we will need to recompute it on save
+      ncolors = vertex_color_type(-1); 
+    }
+
     
     /** \brief Returns the vertex color of a vertex.
         Coloring is only valid if compute_coloring() is called first.*/

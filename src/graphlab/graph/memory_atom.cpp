@@ -103,11 +103,9 @@ void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, 
   }
   size_t vtarget = destiter->second;
   
-  if (vertices[vsrc].outedges.count(target) == 0) {
-    if (edata.length() > 0) nume.inc();
-    vertices[vsrc].outedges.insert(target);
-  }
-  vertices[vtarget].inedges.insert(std::make_pair(src, edata));
+  if (edata.length() > 0) nume.inc();
+  vertices[vsrc].outedges.push_back(target);
+  vertices[vtarget].inedges.push_back(std::make_pair(src, edata));
   mut.unlock();
 
 }
@@ -136,11 +134,9 @@ void memory_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
   }
   size_t vtarget = destiter->second;
 
-  if (vertices[vsrc].outedges.count(target) == 0) {
-    if (edata.length() > 0) nume.inc();
-    vertices[vsrc].outedges.insert(target);
-  }
-  vertices[vtarget].inedges.insert(std::make_pair(src, edata));
+  if (edata.length() > 0) nume.inc();
+  vertices[vsrc].outedges.push_back(target);
+  vertices[vtarget].inedges.push_back(std::make_pair(src, edata));
   mut.unlock();
 }
 
@@ -152,8 +148,8 @@ void memory_atom::set_vertex(vertex_id_type vid, uint16_t owner) {
   boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
-  mut.unlock();
   vertices[v].owner = owner;
+  mut.unlock();
 }
 
 
@@ -163,9 +159,9 @@ void memory_atom::set_vertex_with_data(vertex_id_type vid, uint16_t owner, const
   boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
-  mut.unlock();
   vertices[v].owner = owner;
   vertices[v].vdata = vdata;
+  mut.unlock();
 }
 
 
@@ -176,14 +172,17 @@ void memory_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, 
   mut.lock();
   boost::unordered_map<vertex_id_t, size_t>::const_iterator srciter = vidmap.find(src);
   ASSERT_TRUE(srciter != vidmap.end());
-  size_t vsrc = srciter->second;
   
   boost::unordered_map<vertex_id_t, size_t>::const_iterator destiter = vidmap.find(target);
   ASSERT_TRUE(destiter != vidmap.end());
   size_t vtarget = destiter->second;
 
-  ASSERT_EQ(vertices[vsrc].outedges.count(target), 1);
-  vertices[vtarget].inedges[src] = edata;
+  for (size_t i  =0;i < vertices[vtarget].inedges.size(); ++i) {
+    if (vertices[vtarget].inedges[i].first == src) {
+      vertices[vtarget].inedges[i].second = edata;
+      break;
+    }
+  }
   mut.unlock();
 
 }
@@ -200,8 +199,8 @@ bool memory_atom::get_vertex(vertex_id_type vid, uint16_t &owner) {
     return false;
   }
   size_t v = iter->second;
-  mut.unlock();
   owner = vertices[v].owner;
+  mut.unlock();
   return true;
 }
 
@@ -216,10 +215,10 @@ bool memory_atom::get_vertex_data(vertex_id_type vid, uint16_t &owner, std::stri
     return false;
   }
   size_t v = iter->second;
-  mut.unlock();
   
   owner = vertices[v].owner;
   vdata = vertices[v].vdata;
+  mut.unlock();
   return true;
 }
 
@@ -236,11 +235,20 @@ bool memory_atom::get_edge_data(vertex_id_type src, vertex_id_type target, std::
     return false;
   }
   size_t vtarget = targetiter->second;
-  mut.unlock();
-  std::map<vertex_id_type, std::string>::const_iterator iter = vertices[vtarget].inedges.find(src);
-  if (iter == vertices[vtarget].inedges.end()) return false;
-  edata = iter->second;
-  return true;
+  std::vector<std::pair<vertex_id_type, std::string> >::const_iterator iter = vertices[vtarget].inedges.begin();
+  while(iter != vertices[vtarget].inedges.end()) {
+    if (iter->first == src) break;
+    ++iter;
+  }
+  if (iter == vertices[vtarget].inedges.end()) {
+    return false;
+    mut.unlock();
+  }
+  else {
+    edata = iter->second;
+    mut.unlock();
+    return true;
+  }
 }
 
 
@@ -282,8 +290,8 @@ std::vector<memory_atom::vertex_id_type> memory_atom::get_in_vertices(vertex_id_
   boost::unordered_map<vertex_id_t, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
   if (vidmap_iter == vidmap.end()) return ret;
   size_t v = vidmap_iter->second;
-  
-  std::map<vertex_id_type, std::string>::const_iterator iter = vertices[v].inedges.begin();
+ 
+  std::vector<std::pair<vertex_id_type, std::string> >::const_iterator iter = vertices[v].inedges.begin(); 
   ret.reserve(vertices[v].inedges.size());
   
   while(iter != vertices[v].inedges.end()) {
@@ -349,20 +357,53 @@ void memory_atom::clear() {
   vidmap.clear();
 }
 
+struct pair_first_equality {
+  bool operator()(const std::pair<graph<bool,bool>::vertex_id_type , std::string> &a, 
+                const std::pair<graph<bool,bool>::vertex_id_type , std::string> &b) const {
+    return a.first == b.first;
+  }
+};
+struct pair_first_comparator {
+  bool operator()(const std::pair<graph<bool,bool>::vertex_id_type , std::string> &a, 
+                const std::pair<graph<bool,bool>::vertex_id_type , std::string> &b) const {
+    return a.first < b.first;
+  }
+};
+
 void memory_atom::synchronize() {
   if (mutated) {
+    mut.lock();
     std::ofstream out_file(filename.c_str(), std::ios::binary);
     boost::iostreams::filtering_stream<boost::iostreams::output> fout; 
-    fout.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::best_compression));
+    fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
+    size_t ge = 0;
+    nume.value = 0;
+    for (size_t i  =0;i < vertices.size(); ++i) {
+      std::sort(vertices[i].inedges.begin(), vertices[i].inedges.end(), pair_first_comparator());
+      std::vector<std::pair<vertex_id_type, std::string> >::iterator iter = 
+			std::unique(vertices[i].inedges.begin(), vertices[i].inedges.end(), pair_first_equality());
+      vertices[i].inedges.resize(iter - vertices[i].inedges.begin());
+      ge += vertices[i].inedges.size();
 
-    oarchive oarc(fout);
+      std::sort(vertices[i].outedges.begin(), vertices[i].outedges.end());
+
+      std::vector<vertex_id_type>::iterator iter2 = 
+              std::unique(vertices[i].outedges.begin(), vertices[i].outedges.end());
+      vertices[i].outedges.resize(iter2 - vertices[i].outedges.begin());
+ 
+      for (size_t j = 0;j < vertices[i].inedges.size(); ++j) nume.value += (vertices[i].inedges[j].second.length() > 0);
+    }
+
+    std::cout << "Atom: " << atom_id() << " Total #v = " << vidmap.size() << " #e = " << ge << std::endl;
+oarchive oarc(fout);
     uint64_t nv,ne;
     nv = numv.value;
     ne = nume.value;
-  
+    mutated = false;
     oarc << nv << ne
          << vertices << vidmap << vid2owner_segment;
+    mut.unlock();
   }
 }
     
