@@ -294,7 +294,7 @@ int read_edges(FILE * f, int column_dim, graph_type_kcores * _g){
     total += rc;
 
     //go over each rating (edges)
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int i=0; i<rc; i++){
       //verify node ids are in allowed range
       assert((int)ed[i].from >= matlab_offset && (int)ed[i].from <= ps.M);
@@ -310,7 +310,7 @@ int read_edges(FILE * f, int column_dim, graph_type_kcores * _g){
    for (int i=0; i<rc; i++){ 
       edge.weight = ed[i].weight;
       _g->add_edge(ed[i].from, ed[i].to, edge);
-      _g->add_edge(ed[i].to, ed[i].from, edge);
+      //_g->add_edge(ed[i].to, ed[i].from, edge);
     }
       printf(".");
       fflush(0);
