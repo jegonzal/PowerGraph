@@ -1,4 +1,4 @@
-#ifdef HAS_IPP
+#ifdef HAS_ITPP
 /*
    Copyright [2011] [Aapo Kyrola, Joseph Bradley, Danny Bickson, Carlos Guestrin / Carnegie Mellon University]
 
