@@ -33,7 +33,7 @@ namespace graphlab {
     inline write_only_disk_atom(std::string filename, uint16_t atomid):
                                     filename(filename),atomid(atomid) {
       rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
-      f.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::default_compression, 10*1024*1024));
+      f.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::default_compression, 1024*1024));
       f.push(rawofile);
     }
 
