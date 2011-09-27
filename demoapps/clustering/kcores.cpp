@@ -15,7 +15,7 @@ using namespace std;
 
 void calc_initial_degree(){
   g = ps.g<graph_type_kcores>();
-  for (int i=0; i<ps.M; i++){
+  for (int i=0; i<ps.M+ps.N; i++){
      kcores_data & data = g->vertex_data(i);
      data.degree = g->out_edge_ids(i).size();
   }
@@ -32,7 +32,7 @@ void last_iter_kcores(){
 
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler){
     bool last_node = false;
-    if (scope.vertex() == ps.M+ps.N-1)
+    if ((int)scope.vertex() == ps.M+ps.N-1)
         last_node = true; 
 
     kcores_data & vdata = scope.vertex_data();
@@ -60,10 +60,13 @@ void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::ic
         vdata.kcore = cur_iter;
         vdata.degree = 0;
       }
+      else {
+        vdata.degree = incoming;
+      }
     }
 
 
-   if elast_node)
+   if (last_node)
       last_iter_kcores();
 };
 
@@ -73,7 +76,7 @@ void kcores_main(){
   ps.gt.start();
   calc_initial_degree();
  
-  for (int i=0; i< ac.iter; i++){
+  for (ps.iiter=0; ps.iiter< ac.iter; ps.iiter++){
    ps.glcore_kcores->start();
    ps.glcore_kcores->add_task_to_all(kcores_update_function, 1);
  }

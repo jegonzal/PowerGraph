@@ -1,3 +1,4 @@
+
 /*
    Copyright [2011] [Aapo Kyrola, Joseph Bradley, Danny Bickson, Carlos Guestrin / Carnegie Mellon University]
 
@@ -29,6 +30,7 @@
  
 //#include "common.h"
 #include "linear.h"
+#ifdef HAS_ITPP
 #include "cas_array.h"
 #include "advanced_config.h"
 #include "itpp/itbase.h"
@@ -449,4 +451,4 @@ void compute_logreg(gl_types_shotgun::core & glcore){
   printf("Finished Shotgun CDN in %d ps.iiter\n", ps.iiter);
 }
 
-
+#endif

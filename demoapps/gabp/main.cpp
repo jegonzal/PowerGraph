@@ -169,9 +169,13 @@ double start_shotgun(graphlab::command_line_options &clopts, advanced_config &co
   // Load the graph --------------------------------------------------
   load_data<gl_types_shotgun::graph, vertex_data_shotgun, edge_data_shotgun>(&core.graph());
 
+#ifdef HAS_ITPP
   if (config.algorithm == SHOTGUN_LOGREG)
   compute_logreg(core);
   else solveLasso(core);
+#else
+  logstream(LOG_ERROR) << "itpp must be installed for running this algorithm!" << std::endl;
+#endif
 
   // START GRAPHLAB *****
   //double runtime = core.start();

@@ -1,3 +1,4 @@
+#ifdef HAS_IPP
 /*
    Copyright [2011] [Aapo Kyrola, Joseph Bradley, Danny Bickson, Carlos Guestrin / Carnegie Mellon University]
 
@@ -230,4 +231,4 @@ void solveLasso(gl_types_shotgun::core &  glcore){
     return;
 }
 
-
+#endif //HAS_IPP

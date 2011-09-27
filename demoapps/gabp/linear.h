@@ -2,6 +2,9 @@
 #define _LINEAR_H
 
 #include <graphlab.hpp>
+
+//#undef HAS_ITPP
+
 #ifdef HAS_ITPP
 #include <itpp/itbase.h>
 #endif

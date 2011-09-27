@@ -11,5 +11,5 @@ read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp distance.cpp
 sparse_math.cpp main.cpp kmeans_plus_plus.cpp dumpcluster.cpp tfidf.cpp
 lda.cpp gamma.cpp kcores.cpp)
 else()
-  message(STATUS "ITPP not found. PMF will not be built")
+  message(STATUS "ITPP not found. Clustering library will not be built")
 endif()
