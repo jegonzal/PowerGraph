@@ -274,7 +274,7 @@ void sample_T(){
 
   double beta0_ = beta0[0] + 1;
   vec pvec = ps.times[0].pvec; 
-  vec mu0_ = (pvec + beta0[0]*mu0T[0])/beta0_;
+  vec mu0_ = (pvec + beta0[0]*mu0T[0]*ps.vones)/beta0_;
   double nu0_ = nu0 +ps.K;
   //vec dMu = mu0 - Umean;
   if (ac.debug){
@@ -282,7 +282,7 @@ void sample_T(){
   } 
 
   mat dT = calc_DT();
-  vec dTe = pvec - mu0T[0];
+  vec dTe = pvec - mu0T[0]* ps.vones; // mu0T[0];
   mat iW0_ = iW0T + dT*transpose(dT) + (beta0[0]/beta0_)*(outer_product(dTe,dTe));
   
   mat W0_;

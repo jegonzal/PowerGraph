@@ -413,13 +413,14 @@ void export_uvt_to_matrixmarket(){
 //LOAD FACTORS FROM FILE
 template<typename graph_type>
 void import_uvt_from_file(){
+ 
 
+#ifndef HAS_EIGEN
  const graph_type * g =  ps.g<graph_type>(TRAINING);
  mat U,V,T;
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
  printf("Loading factors U,V,T from file\n");
- #ifndef HAS_EIGEN
  it_file input(dfile);
  input >> Name("User") >> U;
  input >> Name("Movie") >> V;
