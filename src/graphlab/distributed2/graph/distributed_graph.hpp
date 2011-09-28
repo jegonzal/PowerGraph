@@ -1342,8 +1342,7 @@ namespace graphlab {
     };
 
     typedef std::pair<block_synchronize_request2, 
-                      typename std::vector<vertex_id_type>::iterator>
-    request_veciter_pair_type;
+                      size_t> request_veciter_pair_type;
 
 
     /// RMI object
@@ -1433,6 +1432,21 @@ namespace graphlab {
                                   size_t curpartition,
                                   bool do_not_load_data);
   
+    /**
+      Internal utility function used by \ref construct_local_fragment_playback
+      Creates a vertex with globalvid 'globalvid' and belonging machine 'machine'.
+      If the vertex does not exist, the vertex will be created with vertex data vdata.
+      If the vertex already exists, and overwritedata = false, nothing will be done.
+      If the vertex already exists and overwritedata = true, the vertex data will be overwritten
+      with vdata.
+      
+      Returns the new localvid
+    */
+    vertex_id_type create_vertex_if_missing(vertex_id_type globalvid,
+                                        procid_t machine,
+                                        bool overwritedata = false,
+                                        const VertexData &vdata = VertexData());
+
     /**
     * Playback a limited dump file to the localstore, updating the
     * global/local VID mappings along the way.

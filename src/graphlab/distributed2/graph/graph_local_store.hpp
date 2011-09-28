@@ -97,7 +97,7 @@ namespace graphlab {
       /**
        * Build a basic graph
        */
-      graph_local_store(): finalized(true), changeid(0) {  }
+      graph_local_store(): nvertices(0),nedges(0), finalized(true), changeid(0) {  }
 
       void create_store(size_t create_num_verts, size_t create_num_edges) { 
         nvertices = create_num_verts;
@@ -725,8 +725,11 @@ namespace graphlab {
           edges[i]._source = target[edges[i]._source];
           edges[i]._target = target[edges[i]._target];
         }
-        
-        inplace_shuffle(vertices.begin(), vertices.end(), target);
+        std::vector<size_t> tmp = target;
+        inplace_shuffle(vertices.begin(), vertices.end(), tmp);
+        tmp = target;
+        inplace_shuffle(in_edges.begin(), in_edges.end(), tmp);
+        inplace_shuffle(out_edges.begin(), out_edges.end(), target);
       }
       
     private:    

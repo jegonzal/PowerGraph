@@ -51,6 +51,71 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   // owned vertices to the start
   shuffle_local_vertices_to_start();
   construct_ghost_auxiliaries();
+  std::cout << "Owned:";
+  for (size_t i = 0;i < ownedvertices.size(); ++i) std::cout << ownedvertices[i] << "\t";
+  std::cout << "\n";
+
+  std::cout << "Ghost:";
+  for (size_t i = 0;i < ghostvertices.size(); ++i) std::cout << ghostvertices[i] << "\t";
+  std::cout << "\n";
+
+  rmi.barrier();
+  logger(LOG_INFO, "Synchronizing ghost data...");
+  // shuffle for all the ghost data
+  push_all_owned_vertices_to_replicas();
+  rmi.dc().full_barrier();
+  logger(LOG_INFO, "vertices synchronized.");
+
+  push_all_owned_edges_to_replicas();
+  rmi.dc().full_barrier();
+  logger(LOG_INFO, "edges synchronized.");
+
+  logger(LOG_INFO, "Synchronization complete.");
+  rmi.dc().barrier();
+  logger(LOG_INFO, "Performing data verification.");
+  for (size_t i = 0;i < localstore.num_vertices(); ++i) {
+    ASSERT_EQ(localstore.vertex_version(i), 1);
+  }
+  for (size_t i = 0;i < localstore.num_edges(); ++i) {
+    ASSERT_EQ(localstore.edge_version(i), 1);
+  }
+  
+  logger(LOG_INFO, "Finalize");
+  localstore.finalize();
+  logger(LOG_INFO, "Load complete.");
+  rmi.comm_barrier();
+  std::cout << "Load complete in " << loadtimer.current_time() << std::endl;  
+}
+
+
+template <typename VertexData, typename EdgeData>
+typename distributed_graph<VertexData,EdgeData>::vertex_id_type 
+  distributed_graph<VertexData,EdgeData>::create_vertex_if_missing(vertex_id_type globalvid,
+                                                                      procid_t machine,
+                                                                      bool overwritedata,
+                                                                      const VertexData &vdata) {
+    typename global2localvid_type::const_iterator iter = global2localvid.find(globalvid);
+    // nope. Insert it.
+    if (iter == global2localvid.end()) {
+      // add the vertex
+      vertex_id_type localvid = localstore.add_vertex(vdata);
+      // update the vid mappings
+      global2localvid[globalvid] = localvid;
+      local2globalvid.push_back(globalvid);
+      ASSERT_EQ(local2globalvid.size(), localvid+1);
+      // update the owner tables
+      localvid2owner.push_back(machine);
+      if (machine == rmi.procid()) {
+        globalvid2owner.set(globalvid, rmi.procid());
+      }
+      return localvid;
+    }
+    else {
+      if (overwritedata) {
+        localstore.vertex_data(iter->second) = vdata;
+      }
+      return iter->second;
+    }
 }
 
 template <typename VertexData, typename EdgeData>
@@ -62,7 +127,7 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
   std::ifstream in_file(filename.c_str(), std::ios::binary);
 
   boost::iostreams::filtering_stream<boost::iostreams::input> fin; 
-  fin.push(boost::iostreams::gzip_decompressor());
+  fin.push(boost::iostreams::zlib_decompressor());
   fin.push(in_file);
   // flush the commands
   iarchive iarc(fin);
@@ -75,56 +140,37 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       // add vertex skip
       vertex_id_type vid; uint16_t owner;
       iarc >> vid >> owner;
-      // have we seen this vertex before?
-      typename global2localvid_type::const_iterator iter = global2localvid.find(vid);
-      // nope. Insert it.
-      if (iter == global2localvid.end()) {
-        vertex_id_t localvid = localstore.add_vertex(VertexData());
-        global2localvid[vid] = localvid;
-        local2globalvid.push_back(vid);
-        localvid2owner.push_back(atom2machine[owner]);
-        globalvid2owner.set(vid, rmi.procid());
-        if (owner == atomid) ownedvertices.push_back(vid);
-        else ghostvertices.push_back(vid);
-      }
+      create_vertex_if_missing(vid, atom2machine[owner]);
     } else if (command == 'c') {
       vertex_id_type vid; uint16_t owner; std::string data;
       iarc >> vid >> owner >> data;
       // deserialize it
       VertexData vd;
-      deserialize_from_string(data, vd);
-
-      // have we seen this vertex before?
-      typename global2localvid_type::const_iterator iter = global2localvid.find(vid);
-      // nope. Insert it.
-      if (iter == global2localvid.end()) {
-        vertex_id_t localvid = localstore.add_vertex(vd);
-        global2localvid[vid] = localvid;
-        local2globalvid.push_back(vid);
-        localvid2owner.push_back(atom2machine[owner]);
-        globalvid2owner.set(vid, rmi.procid());
-        if (owner == atomid) ownedvertices.push_back(vid);
-        else ghostvertices.push_back(vid);
-      }
-      else {
-        localstore.vertex_data(iter->second) = vd;
-      }
+      if (data.size() > 0) deserialize_from_string(data, vd);
+      vertex_id_type localvid = create_vertex_if_missing(vid, atom2machine[owner], data.size() > 0, vd);
+      localstore.set_vertex_version(localvid, 1);
     } else if (command == 'd') {
       vertex_id_type src; vertex_id_type target; std::string data;
       uint16_t srcowner, targetowner;
       iarc >> src >> srcowner >> target >> targetowner >> data;
       
       EdgeData ed;
-      deserialize_from_string(data, ed);
-
-      vertex_id_t localsrcvid = globalvid_to_localvid(src);
-      vertex_id_t localtargetvid = globalvid_to_localvid(target);
-      edge_id_t eid = localstore.add_edge(localsrcvid, localtargetvid);
-      localstore.edge_data(eid) = ed;
+      if (data.size() > 0) deserialize_from_string(data, ed);
+      
+      vertex_id_type localsrcvid =  create_vertex_if_missing(src, atom2machine[srcowner], false);
+      vertex_id_type localtargetvid = create_vertex_if_missing(target, atom2machine[targetowner], false);
+      std::pair<bool, edge_id_type> hasedge = localstore.find(localsrcvid, localtargetvid);
+      edge_id_type eid;
+      if (hasedge.first) eid = hasedge.second;
+      else eid = localstore.add_edge(localsrcvid, localtargetvid);
+      if (data.size() > 0)  {
+        localstore.edge_data(eid) = ed;
+        localstore.set_edge_version(eid, 1);
+      }
     } else if (command == 'k') {
       vertex_id_type vid; vertex_color_type color;
       iarc >> vid >> color;
-      vertex_id_t localvid = globalvid_to_localvid(vid);
+      vertex_id_type localvid = globalvid_to_localvid(vid);
       localstore.color(localvid) = color;
     } else if (command == 'l') {
       // ignored
@@ -145,17 +191,21 @@ void distributed_graph<VertexData,EdgeData>::shuffle_local_vertices_to_start() {
   // has to be shuffled
   
   std::vector<size_t> renumber(localvid2owner.size(), 0);
-  size_t cur = 0; 
-  for (size_t i = 0;i < localvid2owner.size(); ++i) {
-    if (localvid2owner[i] != rmi.procid()) {
-      renumber[cur] = i;
-      ++cur;
-      // advance cur through everything which is already in the right place
-      while(cur < localvid2owner.size() && 
-            localvid2owner[cur] == rmi.procid()) {
-        renumber[cur] = cur;
-        ++cur;
-      }
+
+  for (size_t i = 0;i < localvid2owner.size(); ++i) renumber[i] = i;
+  
+    // advance cur through everything which is already in the right place
+  {
+    int j = (int)(localvid2owner.size()) - 1;
+    int i = 0;
+    while (j > i) {
+      while(j > i && localvid2owner[i] == rmi.procid()) ++i;
+      while(j > i && localvid2owner[j] != rmi.procid()) --j;
+      if ( j <= i) break;
+      renumber[i] = j;
+      renumber[j] = i;
+      ++i;
+      --j;
     }
   }
   // for local2globalvid and localvid2owner, they are small 
@@ -168,13 +218,19 @@ void distributed_graph<VertexData,EdgeData>::shuffle_local_vertices_to_start() {
     if (isowned && localvid2owner[i] != rmi.procid()) {
       isowned = false;
     }
-    else if (isowned == false) {
-      ASSERT_MSG(localvid2owner[i] == rmi.procid(), "local VID invariant not preserved");
+    if (isowned == false) {
+      ASSERT_MSG(localvid2owner[i] != rmi.procid(), "local VID invariant not preserved");
     }
   }
-  
+  // shuffle global2localvid
+  typename global2localvid_type::iterator iter = global2localvid.begin();
+  while(iter != global2localvid.end()) {
+    iter->second = renumber[iter->second];
+    ++iter;
+  }
   localstore.shuffle_vertex_ids(renumber);
   // renumber array should now be sorted
   for (size_t i = 0;i < renumber.size(); ++i) ASSERT_EQ(renumber[i], i);
+  
 }
 #endif

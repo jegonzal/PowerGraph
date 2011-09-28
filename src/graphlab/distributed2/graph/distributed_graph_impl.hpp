@@ -190,19 +190,15 @@ synchronize_scope_construct_req(vertex_id_type vid,
                                          request_veciter_pair_type > &requests) {
   ASSERT_FALSE(is_ghost(vid));
   if (boundaryscopesset.find(vid) == boundaryscopesset.end()) return;
-
-  // now this is very annoying. A significant amount of code is identical here.
-  // whether with edge canonical numbering on or not. But I cannot refactor it
-  // easily because the types are different and I don't really want to introduce
-  // templates here for something so trivial.
   
   vertex_id_type localvid = global2localvid[vid];
   requests.clear();
+
   // I should have all the in-edges. but I need the in vertices.
   // need to track the vertices added so I don't add duplicate vertices
   // if the vertex has both in-out edges to this vertex.
   // trick! vids are ordered!
-
+  // go through all the in edges, and insert into requests
   foreach(edge_id_type localineid, localstore.in_edge_ids(localvid)) {
     vertex_id_type localsourcevid = localstore.source(localineid);
     if (localvid_is_ghost(localsourcevid)) {
@@ -218,7 +214,7 @@ synchronize_scope_construct_req(vertex_id_type vid,
         vs.data.first = localstore.vertex_data(localsourcevid);
         vs.data.second = localstore.vertex_version(localsourcevid);
       }
-      requests[sourceowner].second=req.vid.end();
+      requests[sourceowner].second=req.vid.size();
       req.vstore.push_back(vs);
     }
   }
@@ -231,7 +227,7 @@ synchronize_scope_construct_req(vertex_id_type vid,
       block_synchronize_request2 &req = requests[targetowner].first;
       // need to synchronize outgoing vertex and outgoing edge
       // do outgoing vertex first
-      if (std::binary_search(req.vid.begin(), requests[targetowner].second, 
+      if (std::binary_search(req.vid.begin(), req.vid.begin() + requests[targetowner].second, 
                              local2globalvid[localtargetvid]) == false) {
         req.vid.push_back(local2globalvid[localtargetvid]);
         req.vidversion.push_back(localstore.vertex_version(localtargetvid));

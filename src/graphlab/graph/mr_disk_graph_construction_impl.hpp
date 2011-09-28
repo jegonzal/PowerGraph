@@ -94,7 +94,7 @@ namespace graphlab {
       else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
         output_disk_atom += ".dump";
         unlink(output_disk_atom.c_str());
-        atomout = new write_only_disk_atom(output_disk_atom, idx);
+        atomout = new write_only_disk_atom(output_disk_atom, idx, false);
       }
       else if (atomtype == disk_graph_atom_type::DISK_ATOM) {
         unlink(output_disk_atom.c_str());

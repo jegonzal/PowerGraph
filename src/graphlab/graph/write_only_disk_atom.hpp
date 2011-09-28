@@ -11,7 +11,7 @@
 #include <graphlab/graph/memory_atom.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
 
 namespace graphlab {
   
@@ -30,20 +30,36 @@ namespace graphlab {
     // some tracking so I can get some basic aggregate reads
     size_t nverts;
     size_t nedges;
-    size_t maxcolor;
+    vertex_color_type maxcolor;
     std::map<uint16_t, uint32_t> adjatoms;
     
+    inline void open_file(bool clearfile) {
+      if (clearfile) {
+        rawofile.open(filename.c_str(), std::ios::binary);
+      }
+      else {
+        rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
+      }
+      f.push(boost::iostreams::zlib_compressor(boost::iostreams::zlib::default_compression, 1024*1024));
+      f.push(rawofile);
+    }
+    
+    inline void close_file() {
+      f.flush();
+      f.pop();
+      f.pop();
+      rawofile.close();
+    }
   public:
     /** constructor. Accesses an atom stored at the filename provided. Clears
      * the existing file if any
     */
-    inline write_only_disk_atom(std::string filename, uint16_t atomid):
+    inline write_only_disk_atom(std::string filename, uint16_t atomid, bool clearfile):
                                     filename(filename),atomid(atomid) {
-      rawofile.open(filename.c_str(), std::ios::binary);
-      f.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::default_compression, 1024*1024));
-      f.push(rawofile);
+      open_file(false);
       clear_tracking();
     }
+
 
     inline void clear_tracking() {
       nverts = 0;
@@ -54,7 +70,7 @@ namespace graphlab {
     }
   
     inline ~write_only_disk_atom() { 
-      synchronize();
+      close_file();
     }
 
     /// Gets the atom ID of this atom
@@ -74,7 +90,6 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       oarc << 'a' << vid << owner;
-      if (owner != atomid()) adjatoms[owner]++;
       mut.unlock();
     }
   
@@ -88,7 +103,6 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       oarc << 'b' << vid << owner;
-      if (owner != atomid()) adjatoms[owner]++;
       mut.unlock();
       return true;
     }
@@ -116,6 +130,8 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       if (edata.length() > 0) nedges++;
+      if (srcowner != atom_id()) adjatoms[srcowner]++;
+      if (targetowner != atom_id()) adjatoms[targetowner]++;
       oarc << 'd' << src << srcowner << target << targetowner <<  edata;
       mut.unlock();
     }
@@ -250,7 +266,6 @@ namespace graphlab {
      */
     inline uint64_t num_edges() const { return nedges; }
   
-
     void play_back(graph_atom* atom);
   };
 
