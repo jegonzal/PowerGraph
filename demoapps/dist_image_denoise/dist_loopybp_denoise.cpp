@@ -26,7 +26,7 @@
  * belief propagation in a pairwise markov random field to denoise a
  * synthetic noisy image.
  *
- *  \author Joseph Gonzalez
+ *  \author Joseph Gonzalez, Yucheng Low
  */
 
 // INCLUDES ===================================================================>
