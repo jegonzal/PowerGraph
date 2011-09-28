@@ -385,10 +385,9 @@ template<typename graph_type, typename vertex_data>
 void export_uvt_to_itpp_file(){
 
   fill_factors_uvt<graph_type, vertex_data>();
-
+#ifndef HAS_EIGEN
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
-#ifndef HAS_EIGEN  
   it_file output(dfile);
   output << Name("User") << ps.U;
   output << Name("Movie") << ps.V;
@@ -414,7 +413,6 @@ void export_uvt_to_matrixmarket(){
 template<typename graph_type>
 void import_uvt_from_file(){
  
-
 #ifndef HAS_EIGEN
  const graph_type * g =  ps.g<graph_type>(TRAINING);
  mat U,V,T;
@@ -432,17 +430,17 @@ void import_uvt_from_file(){
  for (int i=0; i< ps.M+ps.N; i++){ 
     vertex_data & data = (vertex_data&)g->vertex_data(i);
     if (i < ps.M)
-        data.pvec = U.get_row(i); 
+        data.pvec = get_row(U, i); 
    else
-        data.pvec = V.get_row(i-ps.M);
+        data.pvec = get_row(V, i-ps.M);
  }
 
  if (ps.tensor){ 
     for (int i=0; i<ps.K; i++){
-        ps.times[i].pvec = T.get_row(i);
+        ps.times[i].pvec = get_row(T, i);
     }
  } 
- #endif //TODO
+#endif
 }
 
 void set_num_edges(int val, testtype data_type){
