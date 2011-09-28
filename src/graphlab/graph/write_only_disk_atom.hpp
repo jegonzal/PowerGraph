@@ -27,16 +27,31 @@ namespace graphlab {
     std::ofstream rawofile;
     boost::iostreams::filtering_stream<boost::iostreams::output> f; 
 
+    // some tracking so I can get some basic aggregate reads
+    size_t nverts;
+    size_t nedges;
+    size_t maxcolor;
+    std::map<uint16_t, uint32_t> adjatoms;
     
   public:
-    /// constructor. Accesses an atom stored at the filename provided
+    /** constructor. Accesses an atom stored at the filename provided. Clears
+     * the existing file if any
+    */
     inline write_only_disk_atom(std::string filename, uint16_t atomid):
                                     filename(filename),atomid(atomid) {
-      rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
+      rawofile.open(filename.c_str(), std::ios::binary);
       f.push(boost::iostreams::gzip_compressor(boost::iostreams::zlib::default_compression, 1024*1024));
       f.push(rawofile);
+      clear_tracking();
     }
 
+    inline void clear_tracking() {
+      nverts = 0;
+      nedges = 0;
+      maxcolor = 0;
+      adjatoms.clear();
+      
+    }
   
     inline ~write_only_disk_atom() { 
       synchronize();
@@ -59,6 +74,7 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       oarc << 'a' << vid << owner;
+      if (owner != atomid()) adjatoms[owner]++;
       mut.unlock();
     }
   
@@ -72,6 +88,7 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       oarc << 'b' << vid << owner;
+      if (owner != atomid()) adjatoms[owner]++;
       mut.unlock();
       return true;
     }
@@ -81,6 +98,7 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       oarc << 'c' << vid << owner << data;
+      if (owner == atom_id()) nverts++;
       mut.unlock();
     }
 
@@ -88,6 +106,7 @@ namespace graphlab {
     inline void add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
       oarchive oarc(f);
       mut.lock();
+      if (edata.length() > 0) nedges++;
       oarc << 'f' << src << target << edata;
       mut.unlock();
     }
@@ -96,6 +115,7 @@ namespace graphlab {
                            vertex_id_type target, uint16_t targetowner, const std::string &edata) {
       oarchive oarc(f);
       mut.lock();
+      if (edata.length() > 0) nedges++;
       oarc << 'd' << src << srcowner << target << targetowner <<  edata;
       mut.unlock();
     }
@@ -143,8 +163,7 @@ namespace graphlab {
      * adjacent atom
      */
     inline std::map<uint16_t, uint32_t> enumerate_adjacent_atoms() { 
-      ASSERT_TRUE(false); 
-      return std::map<uint16_t, uint32_t>(); 
+      return adjatoms;
     }
   
     /**
@@ -181,11 +200,14 @@ namespace graphlab {
       oarchive oarc(f);
       mut.lock();
       oarc << 'k' << vid << color;
+      if (color != vertex_color_type(-1)) {
+        maxcolor = std::max(color, maxcolor);
+      }
       mut.unlock();
     }
   
     /// Returns the largest color number
-    inline vertex_color_type max_color() { ASSERT_TRUE(false); return vertex_color_type(); }
+    inline vertex_color_type max_color() { return maxcolor; }
     
   
     /**
@@ -209,6 +231,7 @@ namespace graphlab {
       f.flush();
       rawofile.close();
       rawofile.open(filename.c_str(), std::ios::binary);
+      clear_tracking();
     };
   
     /// \brief Ensures the disk storage is up to date
@@ -220,12 +243,12 @@ namespace graphlab {
     /** \brief Return the total number of vertices stored in this atom, 
      * whether or not the this atom actually owns the vertex.
      */
-    inline uint64_t num_vertices() const { ASSERT_TRUE(false); return 0; }
+    inline uint64_t num_vertices() const { return nverts; }
   
     /** \brief  Return the total number of edges stored in this atom, whether or 
      * not the this atom actually owns the edge.
      */
-    inline uint64_t num_edges() const { ASSERT_TRUE(false); return 0; }
+    inline uint64_t num_edges() const { return nedges; }
   
 
     void play_back(graph_atom* atom);
