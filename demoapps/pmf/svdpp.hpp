@@ -69,14 +69,14 @@ vertex_data_svdpp::vertex_data_svdpp(){
 
 void vertex_data_svdpp::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
-    archive << rmse << num_edges; 
-    archive << bias << weight;
+    archive << rmse << num_edges << bias; 
+    ///TODO archive << weight;
   }  
    
 void vertex_data_svdpp::load(graphlab::iarchive& archive) {  
      //TODO archive >> pvec;
-     archive >> rmse >> num_edges;  
-     archive >> bias >> weight;
+     archive >> rmse >> num_edges >> bias;  
+     //TODO archive >> weight;
 }
 
 template<typename graph_type>
@@ -100,7 +100,8 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
                  // + b_u  +    b_i +
       prediction += user.bias + movie.bias;
                  // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
-      prediction += movie.pvec*(user.pvec+user.weight);
+      vec ret = (movie.pvec*(user.pvec+user.weight));
+      prediction += (float)ret[0];
       prediction = std::min((double)prediction, (double)ac.maxval);
       prediction = std::max((double)prediction, (double)ac.minval);
       float err = rating - prediction;

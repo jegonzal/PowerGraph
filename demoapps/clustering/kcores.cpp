@@ -46,16 +46,14 @@ void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::ic
  
     kcores_data & vdata = scope.vertex_data();
     if (!vdata.active){
-       if (last_node)
-          last_iter_kcores();
-       return;
+       if (last_node) last_iter_kcores(); return;
     }
     int cur_iter = ps.iiter + 1;
     if (vdata.degree <= cur_iter){
        vdata.active = false;
        vdata.kcore = cur_iter;
        vdata.degree = 0;
-       return;
+       if (last_node) last_iter_kcores(); return;
     } 
      //handle user node
     if (iuser){
@@ -70,7 +68,6 @@ void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::ic
         vdata.active = false;
         vdata.kcore = cur_iter;
         vdata.degree = 0;
-        return;
       }
       else {
         vdata.degree = outgoing;
@@ -88,7 +85,6 @@ void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::ic
         vdata.active = false;
         vdata.kcore = cur_iter;
         vdata.degree = 0;
-        return;
       }
       else {
         vdata.degree = incoming;

@@ -84,9 +84,13 @@ inline bool ls_solve(const mat &A, const vec &b, vec &result){
     return true;
 }
 inline bool chol(mat& sigma, mat& out){
-   out = sigma.llt();
+   out = sigma.llt().matrixLLT();
    return true;
 }
+inline bool backslash(const mat& A, const vec & b, vec & x){
+   x = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
+   return true;
+} 
 inline mat transpose(mat & A){
    return A.transpose();
 }
