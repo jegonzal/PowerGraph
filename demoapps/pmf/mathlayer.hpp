@@ -34,6 +34,9 @@
 //#define HAS_EIGEN
 #ifdef HAS_EIGEN
 
+#include <iostream>
+#include <fstream>
+#include <ostream>
 
 #include "../../../deps/eigen-eigen-3.0.2/Eigen/Dense"
 #include "../../../deps/eigen-eigen-3.0.2/Eigen/Cholesky"
@@ -252,6 +255,75 @@ inline const double * data(const vec &v){
   return v.data();
 }
 
+class it_file{
+  std::filebuf fb;
+  std::ostream *os;
+  std::istream *is;
+  bool open;
+
+public:
+  it_file(const char * name){
+   fb.open (name, std::ios::out | std::ios::in);
+   os = new std::ostream(&fb);
+   is = new std::istream(&fb);
+  };
+
+  std::ostream & operator<<(std::string& str){
+   *os << str;
+   return *os;
+  }
+  std::ostream &operator<<(mat & A){
+   *os << A.rows() << A.cols();
+   for (int i=0; i< A.rows(); i++)
+      for (int j=0; j< A. cols(); j++)
+        *os << A(i,j);
+   return *os;
+  }
+  std::ostream &operator<<(vec & v){
+   *os << v.size();
+   for (int i=0; i< v.size(); i++)
+      *os << v(i);
+   return *os;
+  }
+ std::istream & operator>>(std::string & str){
+    *is >> str; //TODO
+    return *is;
+  }
+
+  std::istream &operator>>(mat & A){
+   int rows, cols;
+   *is >> rows >> cols;
+   A(rows, cols);
+   double val;
+   for (int i=0; i< A.rows(); i++)
+      for (int j=0; j< A. cols(); j++){
+        *is >> val;
+        A(i,j) = val;
+      }
+   return *is;
+  }
+  std::istream &operator>>(vec & v){
+   int size;
+   *is >> size;
+   v(size);
+   double val;
+   for (int i=0; i< v.size(); i++){
+      *is >> val;
+      v(i) = val;
+   }
+   return *is;
+  }
+
+
+  void close(){
+     fb.close();
+  }
+};
+
+  inline std::string Name(std::string str){
+    return str;
+  }
+ 
 #else //eigen is not found
 /***
  *
@@ -323,6 +395,7 @@ inline const double * data(const mat &A){
 inline const double * data(const vec &v){
   return v._data();
 }
+
 #endif
 
 #endif //eigen
