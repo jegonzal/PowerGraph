@@ -81,7 +81,7 @@ namespace graphlab {
   
       // open the atoms 
       for (size_t i = 0;i < disk_atom_files.size(); ++i) {
-        atoms[i] = new write_only_disk_atom(disk_atom_files[i], idx);
+        atoms[i] = new write_only_disk_atom(disk_atom_files[i], idx, false);
       }
       std::string output_disk_atom = base_atom_filename;
       // create the output store
@@ -94,7 +94,7 @@ namespace graphlab {
       else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
         output_disk_atom += ".dump";
         unlink(output_disk_atom.c_str());
-        atomout = new write_only_disk_atom(output_disk_atom, idx, false);
+        atomout = new write_only_disk_atom(output_disk_atom, idx, true);
       }
       else if (atomtype == disk_graph_atom_type::DISK_ATOM) {
         unlink(output_disk_atom.c_str());
