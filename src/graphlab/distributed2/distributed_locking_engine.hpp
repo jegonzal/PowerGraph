@@ -786,9 +786,9 @@ private:
       size_t numthreads = omp_get_num_threads();
       // Go ahead and open files for the snapshot
       std::stringstream strm;
-      strm << "snapshot_" << rmi.procid() << "_"
-            << std::setw(4) << std::setfill('0')
-            << snapshot_number
+      strm << "snapshot_" << std::setw(3) << std::setfill('0') 
+            << snapshot_number << "_p"
+            << std::setw(3) << rmi.procid()
             << ".part_" << thread_id+1 << "_of_" << numthreads
             << ".dump";
       const std::string filename = strm.str();
