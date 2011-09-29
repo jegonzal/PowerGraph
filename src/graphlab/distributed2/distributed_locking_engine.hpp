@@ -769,7 +769,9 @@ private:
     // immediately
   // Determine if the proper ammount of time has elapsed
     // Lock all the vertices on this machine
-    for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
+    int nvertex_deferred_tasks = int(vertex_deferred_tasks.size());
+#pragma omp parallel for
+    for (int i = 0; i < nvertex_deferred_tasks; ++i) 
       vertex_deferred_tasks[i].lock.lock();        
     
     reduction_services.barrier();
@@ -777,43 +779,49 @@ private:
     graph.synchronize_all_edges(true);
     graph.wait_for_all_async_syncs();
     
-    // Go ahead and open files for the snapshot
-    std::stringstream strm;
-    strm << "snapshot_journal_" << rmi.procid() << "_"
-          << std::setw(4) << std::setfill('0')
-          << snapshot_number
-          << ".dump";
-    const std::string filename = strm.str();
-    write_only_disk_atom atom(filename, rmi.procid(), true);
-    // Wait for the syncs to finish
+    int items_added = 0;
+    #pragma omp parallel reduction(+:items_added)
+    {
+      size_t thread_id = omp_get_thread_num();
+      size_t numthreads = omp_get_num_threads();
+      // Go ahead and open files for the snapshot
+      std::stringstream strm;
+      strm << "snapshot_" << rmi.procid() << "_"
+            << std::setw(4) << std::setfill('0')
+            << snapshot_number
+            << ".part_" << thread_id+1 << "_of_" << numthreads
+            << ".dump";
+      const std::string filename = strm.str();
+      write_only_disk_atom atom(filename, rmi.procid(), true);
+      // Wait for the syncs to finish
 
-    size_t items_added = 0;
-    // Save the local vertex data. Only take owned vertices
-    for(local_vertex_id_type localvid = 0; 
-        localvid < graph_local_store.num_vertices(); ++localvid) {
-      if(graph.localvid_is_ghost(localvid) == false &&
-         graph_local_store.vertex_snapshot_req(localvid)) {
-        atom.set_vertex_with_data(graph.localvid_to_globalvid(localvid),
-                                  graph.localvid_to_globalvid(localvid),
-                                  serialize_to_string(graph_local_store.vertex_data(localvid)));
-        graph_local_store.set_vertex_snapshot_req(localvid, false);
-        ++items_added;
-      }
-    } // end of for loop over local vids
-    
-    // Save the local edge data. Only take owned edges (target is owned)
-    for(local_edge_id_type localeid = 0; 
-        localeid < graph_local_store.num_edges(); ++localeid) {
-      if(graph.localvid_is_ghost(graph_local_store.target(localeid)) == false &&
-         graph_local_store.edge_snapshot_req(localeid)) {
-        atom.set_edge_with_data(graph.localvid_to_globalvid(graph_local_store.source(localeid)),
-                                graph.localvid_to_globalvid(graph_local_store.target(localeid)),
-                                serialize_to_string(graph_local_store.edge_data(localeid)));
-        graph_local_store.set_edge_snapshot_req(localeid, false);
-        ++items_added;
-      }
-    } // end of for loop over local eids
-    atom.synchronize();
+      // Save the local vertex data. Only take owned vertices
+      for(local_vertex_id_type localvid = thread_id; 
+          localvid < graph_local_store.num_vertices(); localvid+=numthreads) {
+        if(graph.localvid_is_ghost(localvid) == false &&
+          graph_local_store.vertex_snapshot_req(localvid)) {
+          atom.set_vertex_with_data(graph.localvid_to_globalvid(localvid),
+                                    graph.localvid_to_globalvid(localvid),
+                                    serialize_to_string(graph_local_store.vertex_data(localvid)));
+          graph_local_store.set_vertex_snapshot_req(localvid, false);
+          ++items_added;
+        }
+      } // end of for loop over local vids
+      
+      // Save the local edge data. Only take owned edges (target is owned)
+      for(local_edge_id_type localeid = thread_id; 
+          localeid < graph_local_store.num_edges(); localeid +=numthreads) {
+        if(graph.localvid_is_ghost(graph_local_store.target(localeid)) == false &&
+          graph_local_store.edge_snapshot_req(localeid)) {
+          atom.set_edge_with_data(graph.localvid_to_globalvid(graph_local_store.source(localeid)),
+                                  graph.localvid_to_globalvid(graph_local_store.target(localeid)),
+                                  serialize_to_string(graph_local_store.edge_data(localeid)));
+          graph_local_store.set_edge_snapshot_req(localeid, false);
+          ++items_added;
+        }
+      } // end of for loop over local eids
+      atom.synchronize();
+    }
     std::cout << "Snapshot "<< snapshot_number << " Items added in snapshot: " << items_added << std::endl;
     ++snapshot_number;
     // free all the vertices on this machine
