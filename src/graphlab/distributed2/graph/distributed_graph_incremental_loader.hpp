@@ -51,14 +51,14 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   // owned vertices to the start
   shuffle_local_vertices_to_start();
   construct_ghost_auxiliaries();
-  std::cout << "Owned:";
+ /* std::cout << "Owned:";
   for (size_t i = 0;i < ownedvertices.size(); ++i) std::cout << ownedvertices[i] << "\t";
   std::cout << "\n";
 
   std::cout << "Ghost:";
   for (size_t i = 0;i < ghostvertices.size(); ++i) std::cout << ghostvertices[i] << "\t";
   std::cout << "\n";
-
+*/
   rmi.barrier();
   logger(LOG_INFO, "Synchronizing ghost data...");
   // shuffle for all the ghost data
