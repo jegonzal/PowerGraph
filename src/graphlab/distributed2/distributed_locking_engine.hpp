@@ -44,6 +44,7 @@
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/schedulers/support/redirect_scheduler_callback.hpp>
 #include <graphlab/schedulers/support/binary_vertex_task_set.hpp>
+#include <graphlab/graph/write_only_disk_atom.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
@@ -127,8 +128,9 @@ private:
   
   /** The cause of the last termination condition */
   exec_status termination_reason;
-  size_t snapshot_interval_seconds;
-
+  size_t snapshot_interval_updates;
+  size_t last_snapshot;
+  size_t snapshot_number;
 
   scope_range::scope_range_enum default_scope_range;
   scope_range::scope_range_enum sync_scope_range;
@@ -206,6 +208,8 @@ private:
   metrics engine_metrics;
   
   size_t total_update_count;
+  
+  dc_services reduction_services;
  public:
   distributed_locking_engine(distributed_control &dc,
                                     Graph& graph,
@@ -223,7 +227,9 @@ private:
                             strength_reduction(false),
                             weak_color(0),
                             termination_reason(EXEC_UNSET),
-                            snapshot_interval_seconds(0), 
+                            snapshot_interval_updates(0), 
+                            last_snapshot(0),
+                            snapshot_number(0),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
@@ -238,6 +244,7 @@ private:
                             binary_vertex_tasks(graph.local_vertices()),
                             engine_metrics("engine"),
                             total_update_count(0),
+                            reduction_services(dc),
                             reduction_barrier(ncpus) { 
     graph.allocate_scope_callbacks();
     dc.barrier();
@@ -645,7 +652,8 @@ private:
   bool reduction_stop;
   bool reduction_run;
   barrier reduction_barrier;
-
+  bool reduction_locks_already_acquired;
+  
   void reduction_thread(size_t threadid) {
     dgraph_scope<Graph> scope;    
     while(true) {
@@ -659,20 +667,45 @@ private:
       reduction_mut.unlock();
       reduction_barrier.wait();
       reduction_run = false;
+      
+      // The first thread then evaluates the termination conditions
+      // and rescheduels any syncs
+      reduction_locks_already_acquired = false;
+      if (threadid == 0) {
+        //std::cout << rmi.procid() << ": End of all colors" << std::endl;
+        numtasksdone = check_global_termination();        
+        if (snapshot_interval_updates > 0  && 
+            numtasksdone >= last_snapshot + snapshot_interval_updates) {
+          reduction_locks_already_acquired = (active_sync_tasks.size() > 0);
+          perform_snapshot(active_sync_tasks.size() == 0);
+          last_snapshot = numtasksdone;
+        }
+      }
+
+      reduction_barrier.wait();
+      
       if (active_sync_tasks.size() > 0) {
         // Lock all the vertices on this machine that will be operated
         // on by this thread
-        for (size_t i = threadid; i < graph.owned_vertices().size(); 
-             i += ncpus) 
-          vertex_deferred_tasks[i].lock.lock();        
-        // Synchronize the graph prior to running the sync
-        if (sync_scope_range == scope_range::EDGE_CONSISTENCY) {
-          graph.synchronize_all_edges(true);
-          graph.wait_for_all_async_syncs();
-        } else if (sync_scope_range == scope_range::FULL_CONSISTENCY) {
-          graph.synchronize_all_scopes(true);
-          graph.wait_for_all_async_syncs();
-        }        
+        if (reduction_locks_already_acquired == false) {
+          for (size_t i = threadid; i < graph.owned_vertices().size(); i += ncpus) {
+            vertex_deferred_tasks[i].lock.lock();        
+          }
+          if (threadid == 0) reduction_services.barrier();
+        }
+        if (threadid == 0) {
+          // Synchronize the graph prior to running the sync
+          if (sync_scope_range == scope_range::EDGE_CONSISTENCY) {
+            if (reduction_locks_already_acquired == false) {
+              graph.synchronize_all_edges(true);
+              graph.wait_for_all_async_syncs();
+            }
+          } else if (sync_scope_range == scope_range::FULL_CONSISTENCY) {
+            graph.synchronize_all_scopes(true);
+            graph.wait_for_all_async_syncs();
+          }        
+        }
+        reduction_barrier.wait();
         // Evaluate all the fold step of all the syncs that should be
         // run at this point
         for (size_t i = threadid; i < graph.owned_vertices().size(); 
@@ -698,7 +731,6 @@ private:
       // and rescheduels any syncs
       if (threadid == 0) {
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        numtasksdone = check_global_termination();        
         compute_sync_schedule(numtasksdone);        
         // if I am thread 0 on processor 0, I need to wake up the
         // the main thread which is waiting on a timer
@@ -711,11 +743,9 @@ private:
   }
   
 
-  bool snapshot_alive;
-  void snapshot_thread() {
-    // The time of the last snapshot
-    size_t last_snapshot = graphlab::lowres_time_millis();
-
+  // if release_locks is false, this will not release the locks 
+  // acquired on the vertex_deferred_tasks
+  void perform_snapshot(bool release_locks = true) {
     // Get the graph local store which is a local graph containing all
     // the vertices stored on this machine.
     typedef typename Graph::graph_local_store_type 
@@ -725,73 +755,62 @@ private:
     typedef typename graph_local_store_type::edge_id_type 
       local_edge_id_type;
     graph_local_store_type& graph_local_store = graph.get_local_store();
-    // loop while snapshots are are required
-    while(snapshot_alive) {
-      // try to sleep the durration of the snapshot interval \todo:
-      // change to a conditional wait with duration
-      sleep(1);
-      // If the snapshot system is no longer needed then return
-      // immediately
-      if(!snapshot_alive) return;
-      // Determine if the proper ammount of time has elapsed
-      const bool snapshot_required = 
-        ((graphlab::lowres_time_millis() - last_snapshot) / 1000) >  
-        snapshot_interval_seconds;
-      // If a snapshot is required enter the snapshot main loop
-      if(snapshot_interval_seconds > 0 && snapshot_required) {
-        // Lock all the vertices on this machine
-        for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
-          vertex_deferred_tasks[i].lock.lock();        
+    // If the snapshot system is no longer needed then return
+    // immediately
+  // Determine if the proper ammount of time has elapsed
+    // Lock all the vertices on this machine
+    for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
+      vertex_deferred_tasks[i].lock.lock();        
+    
+    reduction_services.barrier();
+    // Synchronize the local data in the graph
+    graph.synchronize_all_edges(true);
+    graph.wait_for_all_async_syncs();
+    
+    // Go ahead and open files for the snapshot
+    std::stringstream strm;
+    strm << "snapshot_journal_" << rmi.procid() << "_"
+          << std::setw(4) << std::setfill('0')
+          << snapshot_number
+          << ".dump";
+    const std::string filename = strm.str();
+    write_only_disk_atom atom(filename, rmi.procid(), true);
+    // Wait for the syncs to finish
 
-        // Synchronize the local data in the graph
-        graph.synchronize_all_edges(true);
-
-        // Go ahead and open files for the snapshot
-        std::stringstream strm;
-        strm << "snapshot_journal_" 
-             << std::setw(10) << std::setfill('0')
-             << rmi.procid() 
-             << ".bin";
-        const std::string filename = strm.str();
-        std::ofstream snapshot_file(filename.c_str(), 
-                                    std::ios_base::binary |
-                                    std::ios_base::app |
-                                    std::ios_base::out);
-        ASSERT_TRUE(snapshot_file.good());
-        graphlab::oarchive oarc(snapshot_file);
-
-        // Wait for the syncs to finish
-        graph.wait_for_all_async_syncs();
-        
-        size_t items_added = 0;
-        // Save the local vertex data
-        for(local_vertex_id_type localvid = 0; 
-            localvid < graph_local_store.num_vertices(); ++localvid) {
-          if(graph_local_store.vertex_snapshot_req(localvid)) {
-            oarc << 'v' << graph_local_store.vertex_data(localvid);
-            graph_local_store.set_vertex_snapshot_req(localvid, false);
-            ++items_added;
-          }
-        } // end of for loop over local vids
-        // Save the local edge data
-        for(local_edge_id_type localeid = 0; 
-            localeid < graph_local_store.num_edges(); ++localeid) {
-          if(graph_local_store.edge_snapshot_req(localeid)) {
-            oarc << 'e' << graph_local_store.edge_data(localeid);
-            graph_local_store.set_edge_snapshot_req(localeid, false);
-            ++items_added;
-          }
-        } // end of for loop over local eids
-        snapshot_file.close();
-        std::cout << "Items added in snapshot: " << items_added << std::endl;
-
-        // free all the vertices on this machine
-        for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
-          vertex_deferred_tasks[i].lock.unlock();      
-        // Mark the time of the last snapshot
-        last_snapshot = graphlab::lowres_time_millis();      
-      } // end of if(snapshot_required)
-    } //end of while loop
+    size_t items_added = 0;
+    // Save the local vertex data. Only take owned vertices
+    for(local_vertex_id_type localvid = 0; 
+        localvid < graph_local_store.num_vertices(); ++localvid) {
+      if(graph.localvid_is_ghost(localvid) == false &&
+         graph_local_store.vertex_snapshot_req(localvid)) {
+        atom.set_vertex_with_data(graph.localvid_to_globalvid(localvid),
+                                  graph.localvid_to_globalvid(localvid),
+                                  serialize_to_string(graph_local_store.vertex_data(localvid)));
+        graph_local_store.set_vertex_snapshot_req(localvid, false);
+        ++items_added;
+      }
+    } // end of for loop over local vids
+    
+    // Save the local edge data. Only take owned edges (target is owned)
+    for(local_edge_id_type localeid = 0; 
+        localeid < graph_local_store.num_edges(); ++localeid) {
+      if(graph.localvid_is_ghost(graph_local_store.target(localeid)) == false &&
+         graph_local_store.edge_snapshot_req(localeid)) {
+        atom.set_edge_with_data(graph.localvid_to_globalvid(graph_local_store.source(localeid)),
+                                graph.localvid_to_globalvid(graph_local_store.target(localeid)),
+                                serialize_to_string(graph_local_store.edge_data(localeid)));
+        graph_local_store.set_edge_snapshot_req(localeid, false);
+        ++items_added;
+      }
+    } // end of for loop over local eids
+    atom.synchronize();
+    std::cout << "Snapshot "<< snapshot_number << " Items added in snapshot: " << items_added << std::endl;
+    ++snapshot_number;
+    // free all the vertices on this machine
+    if (release_locks) {
+      for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
+        vertex_deferred_tasks[i].lock.unlock();      
+    }
   } // end of snapshot thread
 
   
@@ -963,6 +982,8 @@ private:
     numsyncs.value = 0;
     num_dist_barriers_called = 0;
     numtasksdone = 0;
+    last_snapshot = 0;
+    snapshot_number = 0;
     reduction_stop = false; 
     reduction_run = false;
     threads_alive.value = ncpus;
@@ -986,10 +1007,8 @@ private:
         launch(boost::bind(&distributed_locking_engine::reduction_thread,
                            this, i), aff);
     }
-    // spawn snapshot thread
-    snapshot_alive = true;
-    thrgrp_reduction.launch(boost::bind(&distributed_locking_engine::
-                                        snapshot_thread, this));
+    
+    rmi.barrier();
     
     std::map<double, size_t> upspertime;
     timer ti;
@@ -1015,7 +1034,6 @@ private:
     thrgrp.join();          
     reduction_mut.lock();
     reduction_stop = true;
-    snapshot_alive = false;
     reduction_cond.broadcast();
     reduction_mut.unlock();
     thrgrp_reduction.join();    
@@ -1086,7 +1104,7 @@ private:
   void set_engine_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
     opts.get_int_option("chandy_misra", chandy_misra);
-    opts.get_int_option("snapshot_interval", snapshot_interval_seconds); 
+    opts.get_int_option("snapshot_interval", snapshot_interval_updates); 
     rmi.barrier();
   }
   
@@ -1110,6 +1128,7 @@ private:
   static void print_options_help(std::ostream &out) {
     out << "max_deferred_tasks_per_node = [integer, default = 1000]\n";
     out << "chandy_misra = [int, default = 0, If non-zero, uses the chandy misra locking method. Only supports edge scopes]\n";
+    out << "snapshot_interval = [integer, default = 0, If non-zero, snapshots approximately this many updates]\n";
   };
 
 

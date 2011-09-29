@@ -40,6 +40,7 @@ namespace graphlab {
       else {
         rawofile.open(filename.c_str(), std::ios::binary | std::ios::app);
       }
+      ASSERT_TRUE(rawofile.good());
       f.push(boost::iostreams::zlib_compressor(boost::iostreams::zlib::default_compression, 1024*1024));
       f.push(rawofile);
     }
