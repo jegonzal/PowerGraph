@@ -128,9 +128,16 @@ private:
   
   /** The cause of the last termination condition */
   exec_status termination_reason;
+  
+  /** Parameters for snapshot algorithm 1: synchronous snapshotting */
   size_t snapshot_interval_updates;
   size_t last_snapshot;
   size_t snapshot_number;
+  
+  /** Parameters for snapshot algorithm 2: asynchronous snapshotting */
+  size_t snapshot2_interval_updates;
+  size_t last_snapshot2;
+  size_t snapshot2_number;
 
   scope_range::scope_range_enum default_scope_range;
   scope_range::scope_range_enum sync_scope_range;
@@ -230,6 +237,9 @@ private:
                             snapshot_interval_updates(0), 
                             last_snapshot(0),
                             snapshot_number(0),
+                            snapshot2_interval_updates(0), 
+                            last_snapshot2(0),
+                            snapshot2_number(0),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
@@ -670,8 +680,8 @@ private:
       
       // The first thread then evaluates the termination conditions
       // and rescheduels any syncs
-      reduction_locks_already_acquired = false;
       if (threadid == 0) {
+        reduction_locks_already_acquired = false;
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
         numtasksdone = check_global_termination();        
         if (snapshot_interval_updates > 0  && 
@@ -984,6 +994,8 @@ private:
     numtasksdone = 0;
     last_snapshot = 0;
     snapshot_number = 0;
+    last_snapshot2 = 0;
+    snapshot2_number = 0;
     reduction_stop = false; 
     reduction_run = false;
     threads_alive.value = ncpus;
@@ -1104,7 +1116,8 @@ private:
   void set_engine_options(const scheduler_options& opts) {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
     opts.get_int_option("chandy_misra", chandy_misra);
-    opts.get_int_option("snapshot_interval", snapshot_interval_updates); 
+    opts.get_int_option("snapshot_interval", snapshot_interval_updates);
+    opts.get_int_option("snapshot2_interval", snapshot2_interval_updates); 
     rmi.barrier();
   }
   
@@ -1129,6 +1142,7 @@ private:
     out << "max_deferred_tasks_per_node = [integer, default = 1000]\n";
     out << "chandy_misra = [int, default = 0, If non-zero, uses the chandy misra locking method. Only supports edge scopes]\n";
     out << "snapshot_interval = [integer, default = 0, If non-zero, snapshots approximately this many updates]\n";
+    out << "snapshot2_interval = [integer, default = 0, Fully asynchronous snapshotting. If non-zero, snapshots approximately this many updates]\n";
   };
 
 
