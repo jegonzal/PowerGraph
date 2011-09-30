@@ -182,7 +182,7 @@ template<typename graph_type>
 void sample_U(){
   assert(ps.BPTF);
 
-  vec Umean;
+  vec Umean = zeros(ac.D);
   mat UUT = calc_MMT<graph_type>(0,ps.M,Umean);
   
   double beta0_ = beta0[0] + ps.M;
@@ -191,9 +191,10 @@ void sample_U(){
   vec dMu = - Umean;
   if (ac.debug)
     cout<<"dMu:"<<dMu<<"beta0: "<<beta0[0]<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<" mu0_ " << mu0_<<endl;
-  mat UmeanT = ps.M*(outer_product(Umean, Umean));
+
+  mat UmeanT = ps.M*Umean*Umean.transpose();
   assert(UmeanT.rows() == ac.D && UmeanT.cols() == ac.D);
-  mat dMuT = (beta0[0]*ps.M/beta0_)*(outer_product(dMu, dMu));
+  mat dMuT = (beta0[0]/beta0_)*UmeanT;
   mat iW0_ = iW0 + UUT - UmeanT + dMuT;
   mat W0_; 
   bool ret =inv(iW0_, W0_);
@@ -216,7 +217,7 @@ template<typename graph_type>
 void sample_V(){
 
   assert(ps.BPTF);
-  vec Vmean;
+  vec Vmean = zeros(ac.D);
   mat VVT = calc_MMT<graph_type>(ps.M, ps.M+ps.N, Vmean);   
 
   double beta0_ = beta0[0] + ps.N;
@@ -225,9 +226,9 @@ void sample_V(){
   vec dMu = - Vmean;
   if (ac.debug)
     cout<<"dMu:"<<dMu<<"beta0: "<<beta0[0]<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<endl;
-  mat VmeanT = ps.N*(outer_product(Vmean, Vmean));
+  mat VmeanT = ps.N*Vmean * Vmean.transpose();
   assert(VmeanT.rows() == ac.D && VmeanT.cols() == ac.D);
-  mat dMuT =  (beta0[0]*ps.N/beta0_)*outer_product(dMu, dMu);
+  mat dMuT =  (beta0[0]/beta0_)*VmeanT;
   mat iW0_ = iW0 + VVT - VmeanT + dMuT;
   mat W0_;
   bool ret = inv(iW0_, W0_);
@@ -283,7 +284,7 @@ void sample_T(){
 
   mat dT = calc_DT();
   vec dTe = pvec - mu0T[0]* ps.vones; // mu0T[0];
-  mat iW0_ = iW0T + dT*transpose(dT) + (beta0[0]/beta0_)*(outer_product(dTe,dTe));
+  mat iW0_ = iW0T + dT*transpose(dT) + (beta0[0]/beta0_)*(dTe*dTe.transpose());
   
   mat W0_;
   bool ret =inv(iW0_, W0_);
