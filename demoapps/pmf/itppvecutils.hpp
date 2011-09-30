@@ -34,7 +34,7 @@
 using namespace itpp;
 
 namespace graphlab {
-
+/*
 template<>
 inline oarchive& operator<< <itpp::Vec<double> > (oarchive& arc, const itpp::Vec<double> &vec) {
   arc << vec.length();
@@ -65,7 +65,7 @@ inline iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<doubl
   deserialize(arc, mat._data(), sizeof(double)*mat._datasize());   
   return arc;
 }
-
+*/
 
 };
 

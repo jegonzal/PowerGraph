@@ -31,7 +31,6 @@
  *
  * SET OF WRAPPER FUNCTIONS TO ALLOW USING EIGEN
  */
-#define HAS_EIGEN
 #ifdef HAS_EIGEN
 
 #include <iostream>
@@ -547,8 +546,12 @@ inline double dot_prod(vec &v1, vec & v2){
 inline double dot_prod(const sparse_vec &v1, const vec & v2){
   return v1*v2;
 }
-inline get_val(sparse_vec & v1, int i){
-  return v1[i];
+inline double get_val(sparse_vec & v1, int i){
+   FOR_ITERATOR(j, v1){
+      if (v1.get_nz_index(j) == i)
+         return v1.get_nz_data(j);
+   }
+   return 0;
 }
 inline double get_val(vec & v1, int i){
   return v1[i];
@@ -557,19 +560,19 @@ inline void set_div(sparse_vec&v, int i, double val){
   v.set(v.get_nz_index(i) ,v.get_nz_data(i) / val);
 }
 inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
-  sparse_vec ret(ps.N, v1.nnz() + v2.nnz());
+  sparse_vec ret; 
   for (int i=0; i< v1.nnz(); i++){
-      ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get(v2, v1.get_nz_index(i)));
+      ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get_val(v2, v1.get_nz_index(i)));
   }
   for (int i=0; i< v2.nnz(); i++){
-      ret.set_new(v2.get_nz_index(i), get(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
+      ret.set_new(v2.get_nz_index(i), get_val(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
   }
   return ret;
 }
 inline vec minus( sparse_vec &v1,  vec &v2){
-  vec ret = zeros(v2.size());
-  for (int i=0; i< v2.size(); i++){
-      ret.set(i, get(v1, i) - v2[i]);
+  vec ret = -v2;;
+  FOR_ITERATOR(i, v1){  
+    ret.set(v1.get_nz_index(i), ret.get(v1.get_nz_index(i)) + v1.get_nz_data(i));
   }
   return ret;
 }
@@ -585,7 +588,7 @@ inline void minus( vec &v1, sparse_vec &v2){
 }
 inline sparse_vec fabs( sparse_vec & dvec1){
    sparse_vec ret = dvec1;
-   FOR_ITERATOR(i, ret)
+   FOR_ITERATOR(i, ret){
        set_new(ret,get_nz_index(ret, i), fabs(get_nz_data(ret, i)));
    }
    return ret;
