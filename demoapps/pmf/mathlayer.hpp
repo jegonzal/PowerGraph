@@ -439,7 +439,20 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    }	
    return ret;
 };
-
+inline double abs_sum(mat& A){
+  double sum =0;
+  for (int i=0; i< A.rows(); i++)
+    for (int j=0; j< A.cols(); j++)
+      sum += fabs(A(i,j));
+  return sum;
+}
+inline vec sqrt(vec & v){
+   vec ret(v.size());
+   for (int i=0; i< v.size(); i++){
+      ret[i] = sqrt(v(i));
+   }
+   return ret;
+}
 #else //eigen is not found
 /***
  *
@@ -578,8 +591,9 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    return ret;
 	
 };
-
-
+inline double abs_sum(mat& A){
+   return sumsum(abs(A));
+}
 
 #endif
 
