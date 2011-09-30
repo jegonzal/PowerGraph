@@ -107,7 +107,11 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 # ENDIF(CUDA_FOUND)
 
 
-
+if (HAS_EIGEN)
+  message(STATUS "Found Eigen linear algebra package")
+else ()
+  message(STATUS "Eigen linear algebra package not found")
+endif()
 
 
 

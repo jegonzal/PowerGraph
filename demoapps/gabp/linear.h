@@ -2,12 +2,12 @@
 #define _LINEAR_H
 
 #include <graphlab.hpp>
-
+#include "../pmf/mathlayer.hpp"
 //#undef HAS_ITPP
 
-#ifdef HAS_ITPP
-#include <itpp/itbase.h>
-#endif
+//#ifdef HAS_ITPP
+//#include <itpp/itbase.h>
+////#endif
 
 //define sdouble as either float or double as needed
 typedef double sdouble;
@@ -97,9 +97,7 @@ struct vertex_data_shotgun{
   double y;
   double Ax;
   double expAx;
-#ifdef HAS_ITPP
-  itpp::sparse_vec features;
-#endif
+  sparse_vec features;
 
 
   vertex_data_shotgun(){

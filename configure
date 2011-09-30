@@ -19,6 +19,7 @@ INSTALL_DIR=/usr/local
 EXPERIMENTAL=false
 GRAPHLAB_HOME=$PWD
 
+
 ## Overwrite defaults if they are available
 if [ -f configure.deps ]; then
   source configure.deps
@@ -53,6 +54,9 @@ function print_help {
   echo "      --itpp_include_dir=[DIR] specify manually itpp include directories (path to itpp header files)."
   echo 
   echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
+  echo
+  echo "      --eigen                 Install Eigen linear algebra package "
+  echo
   echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
   exit 1
@@ -95,6 +99,7 @@ while [ $# -gt 0 ]
     --itpp)                 itpp=1 ;;
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
+    --eigen)		    install_eigen=1 ;;
  #   --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
     -D)                      config_flags="$config_flags -D $2"; shift ;;
     *) unknown_option $1 ;;
@@ -138,8 +143,11 @@ if [ ! -z $bootstrap ]; then
   source ./scripts/bootstrap.sh | tee -a $LOG_FILE
 fi
 
+if [ $install_eigen ]; then
+  source ./scripts/eigen_install.sh | tee -a $LOG_FILE
+  HAS_EIGEN=1;
 # Try to build itpp
-if [ ! -z $itpp ]; then
+elif [ ! -z $itpp ]; then
   source ./scripts/itpp_install.sh | tee -a $LOG_FILE
 fi
 
@@ -220,6 +228,9 @@ if [ ! -z $itpp_include_dir ]; then
    config_flags="$config_flags -D ITPP_INCLUDE_DIR:STRING=$itpp_include_dir"
 fi
 
+if [ ! -z $HAS_EIGEN ]; then
+   config_flags="$config_flags -D HAS_EIGEN:STRING=$HAS_EIGEN"
+fi
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
 set -e

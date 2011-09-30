@@ -385,17 +385,18 @@ template<typename graph_type, typename vertex_data>
 void export_uvt_to_itpp_file(){
 
   fill_factors_uvt<graph_type, vertex_data>();
-#ifndef HAS_EIGEN
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
   it_file output(dfile);
-  output << Name("User") << ps.U;
-  output << Name("Movie") << ps.V;
+  output << Name("User");
+  output << ps.U;
+  output << Name("Movie");
+  output << ps.V;
   if (ps.tensor){
-    output << Name("Time") << ps.T;
+    output << Name("Time");
+    output << ps.T;
  }
   output.close();
-#endif
 }
 
 template<typename graph_type, typename vertex_data>
@@ -413,17 +414,19 @@ void export_uvt_to_matrixmarket(){
 template<typename graph_type>
 void import_uvt_from_file(){
  
-#ifndef HAS_EIGEN
  const graph_type * g =  ps.g<graph_type>(TRAINING);
  mat U,V,T;
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
  printf("Loading factors U,V,T from file\n");
  it_file input(dfile);
- input >> Name("User") >> U;
- input >> Name("Movie") >> V;
+ input >> Name("User");
+ input >> U;
+ input >> Name("Movie");
+ input >> V;
   if (ps.tensor){
-    input >> Name("Time") >> T;
+    input >> Name("Time");
+    input >> T;
  }
  input.close();
  //saving output to file 
@@ -440,7 +443,6 @@ void import_uvt_from_file(){
         ps.times[i].pvec = get_row(T, i);
     }
  } 
-#endif
 }
 
 void set_num_edges(int val, testtype data_type){

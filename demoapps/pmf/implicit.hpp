@@ -54,7 +54,7 @@ void add_implicit_edges(graph_type * g){
           assert(to >= 0 && to < ps.N);
           flag_edges[to]=true;
       }
-      float toadd;
+      float toadd = 0;
       if (ac.implicitratingtype == "uniform")
 	toadd  = ac.implicitratingpercentage*ps.N;
       else if (ac.implicitratingtype == "user")

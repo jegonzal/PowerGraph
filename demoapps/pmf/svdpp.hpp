@@ -100,12 +100,7 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
                  // + b_u  +    b_i +
       prediction += user.bias + movie.bias;
                  // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
-#ifdef HAS_EIGEN      
-      vec ret = (movie.pvec*(user.pvec+user.weight));
-      prediction += (float)ret[0];
-#else
-      prediction += (movie.pvec*(user.pvec+user.weight));
-#endif
+      prediction += dot_prod(movie.pvec,(user.pvec+user.weight));
       prediction = std::min((double)prediction, (double)ac.maxval);
       prediction = std::max((double)prediction, (double)ac.minval);
       float err = rating - prediction;

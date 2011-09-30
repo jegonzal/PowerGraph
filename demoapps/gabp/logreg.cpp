@@ -30,10 +30,8 @@
  
 //#include "common.h"
 #include "linear.h"
-#ifdef HAS_ITPP
 #include "cas_array.h"
 #include "advanced_config.h"
-#include "itpp/itbase.h"
 #include <assert.h>
 
 // Parameters
@@ -60,11 +58,12 @@ double compute_llhood() {
      double llhood = 0;
      for(size_t i= 0; i<ps.m; i++) {
         vertex_data_shotgun & vdata = g->vertex_data(i);
-        itpp::sparse_vec& row = vdata.features;
+        sparse_vec& row = vdata.features;
         double Ax=0;
-        for(int j=0; j<row.nnz(); j++) {
-            assert(row.get_nz_index(j) < (int)ps.n);
-            Ax += g->vertex_data(ps.m+row.get_nz_index(j)).x*row.get_nz_data(j);
+        FOR_ITERATOR(j, row){
+        //for(int j=0; j<row.nnz(); j++) {
+            assert(get_nz_index(row, j) < (int)ps.n);
+            Ax += g->vertex_data(ps.m+get_nz_index(row, j)).x*get_nz_data(row,j);
         }
         llhood -= logloss(-vdata.y*Ax);
      }
@@ -106,12 +105,13 @@ inline void swap(graphlab::vertex_id_t &t1, graphlab::vertex_id_t &t2) { int tmp
 //inline void logreg_cdn_derivandH(double shotgun_lambda, int x_i, double &G, double& H) {
 void logreg_cdn_derivandH(vertex_data_shotgun& vdata, double &G, double &H){
     G = H = 0;
-    itpp::sparse_vec& col = vdata.features;
-    assert(col.nnz()>0);
-    for(int i=0; i<col.nnz(); i++) {
-       int rowi = col.get_nz_index(i);
+    sparse_vec& col = vdata.features;
+    assert(nnz(col)>0);
+    //for(int i=0; i<col.nnz(); i++) {
+    FOR_ITERATOR(i, col){
+       int rowi = get_nz_index(col, i);
        assert(rowi>=0 && rowi < (int)ps.m); 
-       double val = col.get_nz_data(i);
+       double val = get_nz_data(col, i);
        double exp_wTxind = g->vertex_data(rowi).expAx;
 	double tmp1 = val/(1+exp_wTxind);
 	double tmp2 =  tmp1;
@@ -134,11 +134,12 @@ void logreg_cdn_derivandH(vertex_data_shotgun& vdata, double &G, double &H){
 //inline double logreg_cdn_Ldiff(double shotgun_lambda, int x_i, double diff) {
 double logreg_cdn_Ldiff(vertex_data_shotgun & vdata, double diff){
     double sum = 0.0;
-    itpp::sparse_vec& col = vdata.features;
-    for(int i=0; i<col.nnz(); i++) {
-       int rowi = col.get_nz_index(i);
+    sparse_vec& col = vdata.features;
+    //for(int i=0; i<col.nnz(); i++) {
+    FOR_ITERATOR(i, col){
+       int rowi = get_nz_index(col, i);
        assert(rowi >= 0 && rowi < (int)ps.m);
-       double dc = diff * col.get_nz_data(i);
+       double dc = diff * get_nz_data(col, i);
        double expdiff = exp(dc);
        double expAXdiff = g->vertex_data(rowi).expAx * expdiff;
        assert(expAXdiff + expdiff != 0);
@@ -185,11 +186,12 @@ void initialize_all() {
     //#pragma omp parallel for
     for(int i=ps.m; i<(int)(ps.m+ps.n); i++) {
         vertex_data_shotgun &vdata = g->vertex_data(i);
-        itpp::sparse_vec& col = vdata.features;
-        for(int j=0; j<col.nnz(); j++) { 
-             assert(col.get_nz_index(j) < ps.m);
-            if (g->vertex_data(col.get_nz_index(j)).y == -1)
-                vdata.xjneg += col.get_nz_data(j);
+        sparse_vec& col = vdata.features;
+        //for(int j=0; j<col.nnz(); j++) { 
+        FOR_ITERATOR(j, col){
+             assert(get_nz_index(col, j) < (int)ps.m);
+            if (g->vertex_data(get_nz_index(col, j)).y == -1)
+                vdata.xjneg += get_nz_data(col, j);
         }
     }
 }
@@ -201,10 +203,11 @@ void recompute_expAx() {
     for(int i=0; i<(int)ps.m; i++) {
         double Ax=0;
         vertex_data_shotgun & vdata = g->vertex_data(i);
-        itpp::sparse_vec &row = vdata.features;
-        for(int j=0; j<row.nnz(); j++) {
-            assert(row.get_nz_index(j) < (int)ps.n);
-            Ax += g->vertex_data(ps.m+row.get_nz_index(j)).x*row.get_nz_data(j);
+        sparse_vec &row = vdata.features;
+        //for(int j=0; j<row.nnz(); j++) {
+        FOR_ITERATOR(j, row){
+            assert(get_nz_index(row, j) < (int)ps.n);
+            Ax += g->vertex_data(ps.m+get_nz_index(row, j)).x*get_nz_data(row, j);
         }
         vdata.expAx = exp(Ax);
     }
@@ -225,10 +228,11 @@ void recompute_partial_expAx(vertex_data_shotgun & vdata, double newval, double 
         //}
         //vdata.expAx = exp(Ax);
     //}
-    itpp::sparse_vec &col = vdata.features;
-    for (int j=0; j< col.nnz(); j++){
-       double A_ij = col.get_nz_data(j);
-       int rowi = col.get_nz_index(j);
+    sparse_vec &col = vdata.features;
+    //for (int j=0; j< col.nnz(); j++){
+    FOR_ITERATOR(j, col){
+       double A_ij = get_nz_data(col, j);
+       int rowi = get_nz_index(col, j);
        vertex_data_shotgun & row = g->vertex_data(rowi);
        //row.expAx = (row.expAx / exp(oldval*A_ij)) * exp(newval*A_ij);
        double fact = exp((newval - oldval)*A_ij);
@@ -250,7 +254,7 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
     assert(scope.vertex() >= (graphlab::vertex_id_t)ps.m && scope.vertex() < (graphlab::vertex_id_t)ps.last_node); 
     vertex_data_shotgun &vdata = scope.vertex_data();
 
-    if (!vdata.active || vdata.features.nnz() == 0){ 
+    if (!vdata.active || nnz(vdata.features) == 0){ 
       vdata.x = 0; 
       return;
     }
@@ -315,12 +319,13 @@ void shotgun_logreg_update_function(gl_types_shotgun::iscope & scope,
             // Found ok.
             vdata.x += d;
             // Update dot products (Ax)
-            itpp::sparse_vec &col = vdata.features;
+            sparse_vec &col = vdata.features;
             //#pragma omp parallel for
-            for(int i=0; i<col.nnz(); i++) {
+            FOR_ITERATOR(i, col){
+            //for(int i=0; i<col.nnz(); i++) {
                 //logregprob->expAx.mul(col.idxs[i], exp(d * col.values[i]));
-                assert(col.get_nz_index(i) < ps.m);
-                g->vertex_data(col.get_nz_index(i)).expAx*= exp(d* col.get_nz_data(i));
+                assert(get_nz_index(col, i) < (int)ps.m);
+                g->vertex_data(get_nz_index(col,i)).expAx*= exp(d* get_nz_data(col, i));
                 //TODO
             }
             return;
@@ -451,4 +456,3 @@ void compute_logreg(gl_types_shotgun::core & glcore){
   printf("Finished Shotgun CDN in %d ps.iiter\n", ps.iiter);
 }
 
-#endif

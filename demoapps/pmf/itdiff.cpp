@@ -20,21 +20,24 @@
  *
  */
 
-
-#include <itpp/itbase.h>
+#include "mathlayer.hpp"
 #include <cassert>
 #include <iostream>
-using namespace itpp;
+
 int main(int argc, char** argv) {
   assert(argc == 3);
   
   mat U1, U2, V1, V2;
   it_file input(argv[1]);
-  input >> Name("User") >> U1;
-  input >> Name("Movie") >> V1;
+  input >> Name("User");
+  input  >> U1;
+  input >> Name("Movie");
+  input  >> V1;
   it_file input2(argv[2]);
-  input2 >> Name("User") >> U2;
-  input2 >> Name("Movie") >> V2;
+  input2 >> Name("User");
+  input2  >> U2;
+  input2 >> Name("Movie");
+  input2 >> V2;
   
   assert(U1.cols() == U2.cols());
   assert(U1.rows() == U2.rows());
@@ -43,4 +46,5 @@ int main(int argc, char** argv) {
   
   assert(sumsum(U1 - U2) < U1.rows() * U1.cols() * 1E-10);
   assert(sumsum(V1 - V2) < V1.rows() * V1.cols() * 1E-10);
+  return 0;
 }

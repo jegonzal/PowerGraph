@@ -47,7 +47,6 @@
 */
 
 using namespace graphlab;
-using namespace itpp;
 using namespace std;
 
 advanced_config ac;

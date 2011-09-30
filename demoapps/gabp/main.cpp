@@ -70,9 +70,6 @@ graphlab::glshared<int> MATRIX_WIDTH_KEY;
 #include "io.hpp"
 #include "advanced_config.h"
 
-#ifdef HAS_ITPP
-#include <itpp/itbase.h>
-#endif
 
 #include <graphlab/macros_def.hpp>
 
@@ -124,14 +121,13 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
   double runtime = core.start();
   // POST-PROCESSING *****
   std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
-#ifdef HAS_ITPP
 
-  itpp::mat ret = itpp::zeros(core.graph().num_vertices(), core.graph().num_vertices());
+  mat ret = zeros(core.graph().num_vertices(), core.graph().num_vertices());
   for (size_t i = 0; i < core.graph().num_vertices(); i++){
     const vertex_data_inv& vdata = core.graph().vertex_data(i);
     
     for (int j=0; j< (int)core.graph().num_vertices(); j++){
-      ret.set(i,j,vdata.cur_mean[j]);
+      set_val(ret, i,j,vdata.cur_mean[j]);
     }   
 
    //diff += pow(vdata.real - vdata.cur_mean,2);
@@ -143,12 +139,11 @@ double start_inv(graphlab::command_line_options &clopts, advanced_config &config
     if (config.debug){
       std::cout<<ret<<std::endl;
       if (config.unittest == 6){
-         itpp::mat A = ("1.7011078828 0.4972882085 1.01358835; 0.4972882085 2.0077549 1.09088855; 1.01358835 1.09088855 2.690904500");
+         mat A = init_mat("1.7011078828 0.4972882085 1.01358835; 0.4972882085 2.0077549 1.09088855; 1.01358835 1.09088855 2.690904500", 3, 3);
          std::cout<<A*ret<<std::endl;
       }
          
    }
-#endif
 
   fill_output(&core.graph());
 
@@ -286,7 +281,9 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
 #ifdef ITPP
-  logstream(LOG_WARNING) << "it++ detected. adding support of conjugate gradient !" << std::endl;
+  logstream(LOG_WARNING) << "it++ detected." << std::endl;
+#elif defined(HAS_EIGEN)
+  logstream(LOG_WARNING) << "Eigen detected." << std::endl;
 #endif
   logstream(LOG_INFO) << "GraphLab Linear solver library code by Danny Bickson, CMU" << std::endl <<
                          "Send comments and bug reports to danny.bickson@gmail.com" << std::endl <<
