@@ -31,21 +31,26 @@
  *
  * SET OF WRAPPER FUNCTIONS TO ALLOW USING EIGEN
  */
-//#define HAS_EIGEN
+#define HAS_EIGEN
 #ifdef HAS_EIGEN
 
 #include <iostream>
 #include <fstream>
 #include <ostream>
 
-#include "../../../deps/eigen-eigen-3.0.2/Eigen/Dense"
-#include "../../../deps/eigen-eigen-3.0.2/Eigen/Cholesky"
-#include "../../../deps/eigen-eigen-3.0.2/Eigen/Eigenvalues"
+#include "Eigen/Dense"
+#define EIGEN_YES_I_KNOW_SPARSE_MODULE_IS_NOT_STABLE_YET
+#include "Eigen/Sparse"
+#include "Eigen/Cholesky"
+#include "Eigen/Eigenvalues"
+
+
 using namespace Eigen;
 
 typedef MatrixXd mat;
 typedef VectorXd vec;
 typedef VectorXi ivec;
+typedef SparseVector<double> sparse_vec;
 
 mat randn1(int dx, int dy, int col);
 
@@ -320,10 +325,36 @@ public:
   }
 };
 
-  inline std::string Name(std::string str){
+inline std::string Name(std::string str){
     return str;
   }
- 
+
+inline void set_size(sparse_vec &v, int size){
+  //did not find a way to declare vector dimension, yet
+}
+inline void set_new(sparse_vec&v, int ind, double val){
+  v.insert(ind) = val;
+} 
+inline int nnz(sparse_vec& v){
+  return v.nonZeros();
+}
+#define FOR_ITERATOR(i, v) \
+    for (sparse_vec::InnerIterator i(v); i; ++i)
+
+inline int get_nz_index(sparse_vec &v, sparse_vec::InnerIterator& i){
+  return i.index();
+}
+inline double get_nz_data(sparse_vec &v, sparse_vec::InnerIterator& i){
+  return i.value();
+}
+inline vec& pow(vec&v, int exponent){
+  for (int i=0; i< v.size(); i++)
+    v[i] = powf(v[i], exponent);
+  return v;
+}
+
+
+
 #else //eigen is not found
 /***
  *
@@ -395,6 +426,21 @@ inline const double * data(const mat &A){
 inline const double * data(const vec &v){
   return v._data();
 }
+inline void set_size(sparse_vec &v, int size){
+  v.set_size(size);
+}
+inline void set_new(sparse_vec&v, int ind, double val){
+  v.set_new(ind, val);
+} 
+#define FOR_ITERATOR(i, v) \
+    for (int i = 0; i < v.nnz(); i++)
+inline int get_nz_index(sparse_vec &v, int i){
+  return v.get_nz_index(i);
+}
+inline double get_nz_data(sparse_vec &v, int i){
+  return v.get_nz_data(i);
+}
+
 
 #endif
 

@@ -49,7 +49,7 @@ void calc_stats(){
       if (max(data->datapoint) > maxval)
 	 maxval = max(data->datapoint);
       
-      nz += ((sparse_vec)data->datapoint).nnz();
+      nz += nnz(data->datapoint);
       avgval += sum(data->datapoint);
   }
  

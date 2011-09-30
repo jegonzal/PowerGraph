@@ -135,9 +135,7 @@ void init_vertex_data(vertex_data_shotgun & data, double val, int offset, int no
      } 
      data.x = 0;
      data.expAx = 1;
-#ifdef HAS_ITPP     
-     data.features.set_size(i < (int)ps.m ? ps.n: ps.m );
-#endif
+     set_size(data.features, (i < (int)ps.m ? ps.n: ps.m ));
 }
 
 void init_vertex_data(vertex_data & data, double val, int offset, int nodes, int i){
@@ -515,26 +513,24 @@ void add_edge(double val, int from, int to, graph_type_inv *g){
 void add_edge(double val, int from, int to, graph_type_shotgun * g){
 
       assert(from >= 0 && from < (int)ps.m);
-      assert(to >= ps.m && to < (int)ps.last_node);
+      assert(to >= (int)ps.m && to < (int)ps.last_node);
       assert(from != to);
-#ifdef HAS_ITPP
       if (vnode_cache.from == from){
-        vnode_cache.pfrom->features.set_new(to-ps.m, val); 
+        set_new(vnode_cache.pfrom->features, to-ps.m, val); 
       }
       else {
        vnode_cache.pfrom = &g->vertex_data(from);
        vnode_cache.from = from;  
-       vnode_cache.pfrom->features.set_new(to-ps.m, val); 
+       set_new(vnode_cache.pfrom->features, to-ps.m, val); 
       }
       if (vnode_cache.to == to){
-        vnode_cache.pto->features.set_new(from, val);
+        set_new(vnode_cache.pto->features, from, val);
       }
       else {
         vnode_cache.to = to;
         vnode_cache.pto = &g->vertex_data(to);   
-        vnode_cache.pto->features.set_new(from, val); 
+        set_new(vnode_cache.pto->features, from, val); 
       }
-#endif
 }
 
 //read edges from file into the graph

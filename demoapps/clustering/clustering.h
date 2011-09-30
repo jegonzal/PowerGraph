@@ -4,13 +4,9 @@
 
 
 //#define NDEBUG
-#include <itpp/itbase.h>
-#include <itpp/itstat.h>
-#include <itpp/stat/misc_stat.h>
 #include "graphlab.hpp"
+#include "../pmf/mathlayer.hpp"
 #include "kcores.h"
-
-using namespace itpp;
 
 
 //structs for holding edge data in file

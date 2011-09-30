@@ -1,4 +1,3 @@
-#ifdef HAS_ITPP
 /*
    Copyright [2011] [Aapo Kyrola, Joseph Bradley, Danny Bickson, Carlos Guestrin / Carnegie Mellon University]
 
@@ -31,7 +30,7 @@ extern problem_setup ps;
 // Major optimization: always keep updated vector 'Ax'
  
 void initialize_feature(vertex_data_shotgun & vdata) {
-    itpp::sparse_vec& col = vdata.features;//lassoprob->A_cols[feat_idx];
+    sparse_vec& col = vdata.features;//lassoprob->A_cols[feat_idx];
     //feature& feat = lassoprob->feature_consts[feat_idx];
     //lassoprob->x[feat_idx] = 0.0;
 
@@ -40,11 +39,13 @@ void initialize_feature(vertex_data_shotgun & vdata) {
     // Precompute (Ay)_i
    vdata.Ax = 0.0; 
    vdata.y = 0.0;
-   for(int i=0; i<col.nnz(); i++) {
-        vdata.Ax += powf(col.get_nz_data(i),2);
-        vdata.y += col.get_nz_data(i)*g->vertex_data(col.get_nz_index(i)).y;
+   //for(int i=0; i< col.nnz(); i++) {
+   FOR_ITERATOR(i, col){
+        vdata.Ax += powf(get_nz_data(col, i),2);
+        vdata.y += get_nz_data(col, i)*g->vertex_data(get_nz_index(col, i)).y;
     }
     vdata.Ax *= 2;
+    assert(!std::isnan(vdata.Ax));
     vdata.y *= 2;
     
 
@@ -82,21 +83,23 @@ void shotgun_lasso_update_function(gl_types_shotgun::iscope & scope,
 
     // Compute dotproduct A'_i*(Ax)
     double AtAxj = 0.0;
-    itpp::sparse_vec& col = vdata.features;//lassoprob->A_cols[x_i];
-    int len=col.nnz();
-    for(int i=0; i<len; i++) {
-        AtAxj += col.get_nz_data(i) * g->vertex_data(col.get_nz_index(i)).Ax;
+    sparse_vec& col = vdata.features;//lassoprob->A_cols[x_i];
+    FOR_ITERATOR(i, col){
+    //for(int i=0; i<len; i++) {
+        AtAxj += get_nz_data(col, i) * g->vertex_data(get_nz_index(col, i)).Ax;
     }
     
     double S_j = 2 * AtAxj - vdata.Ax * oldvalue - vdata.y;//feat.covar * oldvalue - feat.Ay_i;
+    assert(vdata.Ax != 0);
     double newvalue = soft_threshold(config.shotgun_lambda,S_j)/vdata.Ax; //feat.covar;
     double delta = (newvalue - oldvalue);
     
     // Update ax
     if (delta != 0.0) {
-        for(int i=0; i<len; i++) {
+        //for(int i=0; i<len; i++) {
+        FOR_ITERATOR(i, col){
 	       //lassoprob->Ax.add(col.idxs[i], col.values[i] * delta);
-	       g->vertex_data(col.get_nz_index(i)).Ax += col.get_nz_data(i)*delta;
+	       g->vertex_data(get_nz_index(col, i)).Ax += get_nz_data(col, i)*delta;
         }
         
         //lassoprob->x[x_i] = newvalue;
@@ -231,4 +234,3 @@ void solveLasso(gl_types_shotgun::core &  glcore){
     return;
 }
 
-#endif //HAS_IPP
