@@ -134,10 +134,11 @@ inline mat init_mat(const char * string, int row, int col){
   char buf[2056];
   strcpy(buf, string);
   char *pch = strtok(buf," \r\n\t;");
-  while (pch != NULL)
-  {
-     out << atof(pch);
+  for (int i=0; i< row; i++){
+    for (int j=0; j< col; j++){
+     out(i,j) = atof(pch);
      pch = strtok (NULL, " \r\n\t;");
+    }
   }
   return out;
 }
@@ -146,11 +147,14 @@ inline vec init_vec(const char * string, int size){
   char buf[2056];
   strcpy(buf, string);
   char *pch = strtok (buf," \r\n\t;");
+  int i=0;
   while (pch != NULL)
   {
-     out << atof(pch);
+     out(i) =atof(pch);
      pch = strtok (NULL, " \r\n\t;");
+     i++;
   }
+  assert(i == size);
   return out;
 }
 inline double norm(const mat &A, int pow=2){
@@ -202,11 +206,17 @@ inline double max(const vec & a){
 inline vec randu(int size){
   return vec::Random(size);
 }
+inline double randu(){
+  return vec::Random(1)(0);
+}
 inline ivec randi(int size, int from, int to){
   ivec ret(size);
   for (int i=0; i<size; i++)
     ret[i]= internal::random<int>(from,to);
   return ret;
+}
+inline int randi(int from, int to){
+  return internal::random<int>(from,to);
 }
 inline ivec concat(const ivec&a, const ivec&b){ 
    ivec ret(a.size()+b.size());
@@ -261,62 +271,74 @@ inline const double * data(const vec &v){
 }
 
 class it_file{
-  std::filebuf fb;
-  std::ostream *os;
-  std::istream *is;
-  bool open;
+  std::fstream fb;
 
 public:
   it_file(const char * name){
-   fb.open (name, std::ios::out | std::ios::in);
-   os = new std::ostream(&fb);
-   is = new std::istream(&fb);
+   fb.open (name, std::fstream::in | std::fstream::out | std::fstream::binary);
+   assert(fb.is_open());
   };
 
-  std::ostream & operator<<(std::string& str){
-   *os << str;
-   return *os;
+  std::fstream & operator<<(const std::string str){
+   int size = str.size();
+   fb.write((char*)&size, sizeof(int));
+   fb.write(str.c_str(), size);
+   return fb;
   }
-  std::ostream &operator<<(mat & A){
-   *os << A.rows() << A.cols();
+  std::fstream &operator<<(mat & A){
+   int rows = A.rows(), cols = A.cols();
+   fb.write( (const char*)&rows, sizeof(int));
+   fb.write( (const char *)&cols, sizeof(int));
    for (int i=0; i< A.rows(); i++)
-      for (int j=0; j< A. cols(); j++)
-        *os << A(i,j);
-   return *os;
+      for (int j=0; j< A. cols(); j++){
+         double val = A(i,j);
+         fb.write( (const char *)&val, sizeof(double));
+   
+      }
+   return fb;
   }
-  std::ostream &operator<<(vec & v){
-   *os << v.size();
-   for (int i=0; i< v.size(); i++)
-      *os << v(i);
-   return *os;
+  std::fstream &operator<<(vec & v){
+   int size = v.size();
+   fb.write( (const char*)&size, sizeof(int));
+   for (int i=0; i< v.size(); i++){
+      double val = v(i);
+      fb.write( (const char *)&val, sizeof(double));
+   }
+   return fb;
   }
- std::istream & operator>>(std::string & str){
-    *is >> str; //TODO
-    return *is;
+ std::fstream & operator>>(std::string  str){
+    int size;
+    fb.read((char*)&size, sizeof(int));
+    char buf[256];
+    fb.read(buf, std::min(256,size));
+    assert(!strncmp(str.c_str(), buf, std::min(256,size)));
+    return fb;
   }
 
-  std::istream &operator>>(mat & A){
+  std::fstream &operator>>(mat & A){
    int rows, cols;
-   *is >> rows >> cols;
-   A(rows, cols);
+   fb.read( (char *)&rows, sizeof(int));
+   fb.read( (char *)&cols, sizeof(int));
+   A = mat(rows, cols);
    double val;
    for (int i=0; i< A.rows(); i++)
       for (int j=0; j< A. cols(); j++){
-        *is >> val;
+        fb.read((char*)&val, sizeof(double));
         A(i,j) = val;
       }
-   return *is;
+   return fb;
   }
-  std::istream &operator>>(vec & v){
+  std::fstream &operator>>(vec & v){
    int size;
-   *is >> size;
-   v(size);
+   fb.read((char*)&size, sizeof(int));
+   assert(size >0);
+   v = vec(size);
    double val;
    for (int i=0; i< v.size(); i++){
-      *is >> val;
+      fb.read((char*)& val, sizeof(double));
       v(i) = val;
    }
-   return *is;
+   return fb;
   }
 
 
@@ -325,10 +347,7 @@ public:
   }
 };
 
-inline std::string Name(std::string str){
-    return str;
-  }
-
+#define Name(a) std::string(a)
 inline void set_size(sparse_vec &v, int size){
   //did not find a way to declare vector dimension, yet
 }
@@ -347,13 +366,79 @@ inline int get_nz_index(sparse_vec &v, sparse_vec::InnerIterator& i){
 inline double get_nz_data(sparse_vec &v, sparse_vec::InnerIterator& i){
   return i.value();
 }
-inline vec& pow(vec&v, int exponent){
-  for (int i=0; i< v.size(); i++)
-    v[i] = powf(v[i], exponent);
-  return v;
+inline double get_nz_data(sparse_vec &v, int i){
+  assert(nnz(v) > i);
+  int cnt=0;
+  FOR_ITERATOR(j, v){
+    if (cnt == i){
+      return j.value();
+    }
+    cnt++;
+  }
+  return 0.0;
 }
+inline vec pow(vec&v, int exponent){
+  vec ret = vec(v.size());
+  for (int i=0; i< v.size(); i++)
+    ret[i] = powf(v[i], exponent);
+  return ret;
+}
+inline double dot_prod(sparse_vec &v1, sparse_vec & v2){
+  return v1.dot(v2);
+}
+inline double dot_prod(const vec &v1, const vec & v2){
+  return v1.dot(v2);
+}
+inline double dot_prod(sparse_vec &v1, const vec & v2){
+  double sum = 0;
+  for (int i=0; i< v2.size(); i++){
+    sum+= v2[i] * v1.coeffRef(i);
+  }
+  return sum;
+}
+inline vec cumsum(vec& v){
+  vec ret = v;
+  for (int i=1; i< v.size(); i++)
+     for (int j=0; j< i; j++)
+       ret(i) += v(j);
+  return ret;
+}
+inline double get_val(sparse_vec & v1, int i){ //TODO optimize performance
+  for (sparse_vec::InnerIterator it(v1); it; ++it)
+    if (it.index() == i)
+       return it.value();
 
-
+  return 0;
+} 
+inline double get_val(vec & v1, int i){
+  return v1(i);
+}
+inline void set_div(sparse_vec&v, sparse_vec::InnerIterator i, double val){
+   v.coeffRef(i.index()) /= val;
+}
+inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
+   return v1-v2;
+}
+inline vec minus( sparse_vec &v1,  vec &v2){
+   return v1-sparse_vec(v2);
+}
+inline void plus( vec &v1,  sparse_vec &v2){
+   FOR_ITERATOR(i, v2){
+     v1[i.index()] += i.value();
+   }
+}
+inline void minus( vec &v1, sparse_vec &v2){
+   FOR_ITERATOR(i, v2){
+      v1[i.index()] -= i.value();
+   }
+}
+inline sparse_vec fabs( sparse_vec & dvec1){
+   sparse_vec ret = dvec1;
+   FOR_ITERATOR(i, ret){
+      ret.coeffRef(i.index()) = fabs(i.value()); 
+   }	
+   return ret;
+};
 
 #else //eigen is not found
 /***
@@ -440,6 +525,60 @@ inline int get_nz_index(sparse_vec &v, int i){
 inline double get_nz_data(sparse_vec &v, int i){
   return v.get_nz_data(i);
 }
+inline double dot_prod(sparse_vec &v1, sparse_vec & v2){
+  return v1*v2;
+}
+inline double dot_prod(vec &v1, vec & v2){
+  return v1*v2;
+}
+inline double dot_prod(const sparse_vec &v1, const vec & v2){
+  return v1*v2;
+}
+inline get_val(sparse_vec & v1, int i){
+  return v1[i];
+}
+inline double get_val(vec & v1, int i){
+  return v1[i];
+}
+inline void set_div(sparse_vec&v, int i, double val){
+  v.set(v.get_nz_index(i) ,v.get_nz_data(i) / val);
+}
+inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
+  sparse_vec ret(ps.N, v1.nnz() + v2.nnz());
+  for (int i=0; i< v1.nnz(); i++){
+      ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get(v2, v1.get_nz_index(i)));
+  }
+  for (int i=0; i< v2.nnz(); i++){
+      ret.set_new(v2.get_nz_index(i), get(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
+  }
+  return ret;
+}
+inline vec minus( sparse_vec &v1,  vec &v2){
+  vec ret = zeros(v2.size());
+  for (int i=0; i< v2.size(); i++){
+      ret.set(i, get(v1, i) - v2[i]);
+  }
+  return ret;
+}
+inline void plus( vec &v1,  sparse_vec &v2){
+  FOR_ITERATOR(i, v2){ 
+     v1[get_nz_index(v2, i)] += get_nz_data(v2, i);
+  }
+}
+inline void minus( vec &v1, sparse_vec &v2){
+  FOR_ITERATOR(i, v2){ 
+     v1[get_nz_index(v2, i)] -= get_nz_data(v2, i);
+  }
+}
+inline sparse_vec fabs( sparse_vec & dvec1){
+   sparse_vec ret = dvec1;
+   FOR_ITERATOR(i, ret)
+       set_new(ret,get_nz_index(ret, i), fabs(get_nz_data(ret, i)));
+   }
+   return ret;
+	
+};
+
 
 
 #endif

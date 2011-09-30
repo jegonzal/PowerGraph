@@ -35,7 +35,7 @@ double calc_chebychev_distance( sparse_vec & datapoint,  sparse_vec &cluster){
    double ret = 0;
    FOR_ITERATOR(i, diff){
       ret = std::max(ret, fabs(get_nz_data(diff, i)));
-
+   }
    return ret;
 
 }
@@ -66,7 +66,7 @@ double calc_manhatten_distance( sparse_vec & datapoint,  vec &cluster){
 double calc_cosine_distance( sparse_vec & datapoint,  sparse_vec & cluster){
    double len_sqr1 = sum_sqr(datapoint);
    double len_sqr2 = sum_sqr(cluster);
-   double dotprod = datapoint*cluster;
+   double dotprod = dot_prod(datapoint,cluster);
    double denominator = sqrt(len_sqr1)*sqrt(len_sqr2);
    return 1.0 - dotprod / denominator; 
 }
@@ -74,7 +74,7 @@ double calc_cosine_distance( sparse_vec & datapoint,  sparse_vec & cluster){
 double calc_cosine_distance( sparse_vec & datapoint,  vec & cluster){
    double len_sqr1 = sum_sqr(datapoint);
    double len_sqr2 = sum_sqr(cluster);
-   double dotprod = datapoint*cluster;
+   double dotprod = dot_prod(datapoint,cluster);
    double denominator = sqrt(len_sqr1)*sqrt(len_sqr2);
    return 1.0 - dotprod / denominator; 
 }
@@ -103,9 +103,9 @@ double calc_distance(sparse_vec &datapoint,  vec & cluster, double sqr_sum){
 
 void test_distance(){
   sparse_vec v1;
-  v1.add_elem(1,1.0);
-  v1.add_elem(2,-3.5);
-  vec v2("1 2 3 4 5");
+  set_new(v1,1,1.0);
+  set_new(v1,2,-3.5);
+  vec v2 = init_vec("1 2 3 4 5", 5);
   ac.distance_measure = EUCLIDEAN;
   double ret = calc_distance(v1, v2);
   assert(powf(ret - 9.233092656309694,2) < 1e-10);

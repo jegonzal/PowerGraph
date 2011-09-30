@@ -38,8 +38,6 @@ extern const char * runmodesname[];
 void last_iter();
 double calc_cost();
 void update_kmeans_clusters();
-void plus( vec &v1,  sparse_vec &v2);
-void minus( vec &v1, sparse_vec &v2);
 int calc_cluster_centers();
 
 

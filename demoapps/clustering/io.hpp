@@ -49,7 +49,7 @@ void fill_output(graph_type * g){
   
    ps.output_clusters = zeros(ps.K, ps.N);
    for (int i=0; i<ps.K; i++)
-     ps.output_clusters.set_row(i, ps.clusts.cluster_vec[i].location);
+     set_row(ps.output_clusters, i, ps.clusts.cluster_vec[i].location);
      
    int cols = 1;
    if (ac.algorithm == K_MEANS_FUZZY)
@@ -58,10 +58,10 @@ void fill_output(graph_type * g){
      for (int i=0; i< ps.M; i++){ 
         const vertex_data & data = g->vertex_data(i);
         if (ac.algorithm == K_MEANS){
-          ps.output_assignements.set(i,0, data.current_cluster);
+          set_val( ps.output_assignements, i,0, data.current_cluster);
         } 
 	else if (ac.algorithm == K_MEANS_FUZZY) 
-          ps.output_assignements.set_row(i, data.distances);
+          set_row(ps.output_assignements, i, data.distances);
      }
 } 
 void fill_output(graph_type_kcores * g){
@@ -69,7 +69,7 @@ void fill_output(graph_type_kcores * g){
      ps.output_assignements = zeros(ps.M, 1);
      for (int i=0; i< ps.M; i++){ 
         const kcores_data & data = g->vertex_data(i);
-        ps.output_assignements.set(i,0, data.kcore);
+        set_val(ps.output_assignements,i,0, data.kcore);
      }
 } 
 
@@ -77,7 +77,7 @@ void fill_output(graph_type_kcores * g){
 
 
 //write an output vector to file
-void write_vec(FILE * f, int len, double * array){
+void write_vec(FILE * f, int len, const double * array){
   assert(f != NULL && array != NULL);
   fwrite(array, len, sizeof(double), f);
 }
@@ -110,8 +110,8 @@ void export_to_binary_file(){
   assert(rc == 4);
   rc = fwrite(&ps.K, 1, 4, f);
   assert(rc == 4);
-  write_vec(f, ps.K*ps.N, ps.output_clusters._data());
-  write_vec(f, ps.M, ps.output_assignements._data());
+  write_vec(f, ps.K*ps.N, data(ps.output_clusters));
+  write_vec(f, ps.M, data(ps.output_assignements));
   fclose(f); 
 
 }
@@ -126,8 +126,10 @@ void export_to_itpp_file(){
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
   it_file output(dfile);
-  output << Name("Clusters") << ps.output_clusters;
-  output << Name("Assignments") << ps.output_assignements;
+  output << Name("Clusters");
+  output << ps.output_clusters;
+  output << Name("Assignments");
+  output << ps.output_assignements;
   output.close();
 }
 
@@ -150,8 +152,10 @@ void import_from_file(){
  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
  printf("Loading clusters from file\n");
  it_file input(dfile);
- input >> Name("Clusters") >> clusters;
- input >> Name("Assignments") >> assignments;
+ input >> Name("Clusters");
+ input  >> clusters;
+ input >> Name("Assignments");
+ input >> assignments;
  input.close();
  //saving output to file 
  for (int i=0; i< ps.M; i++){ 
@@ -159,7 +163,7 @@ void import_from_file(){
     data.current_cluster = assignments[i]; 
  }
  for (int i=0; i<ps.K; i++){
-    ps.clusts.cluster_vec[i].location = clusters.get_row(i);
+    ps.clusts.cluster_vec[i].location = get_row(clusters,i);
  }
 }
 
@@ -183,7 +187,7 @@ void add_vertices(graph_type * _g){
 	 break;
     }
 
-    vdata.datapoint.set_size(ps.N);
+    set_size(vdata.datapoint, ps.N);
     if (ps.algorithm == K_MEANS_FUZZY)
 	vdata.distances = zeros(ps.K);
 
@@ -370,7 +374,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
    
    for (int i=0; i<rc; i++){ 
      vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
-      vdata.datapoint.add_elem(ed[i].to - matlab_offset, ed[i].weight);  
+      set_new( vdata.datapoint, ed[i].to - matlab_offset, ed[i].weight);  
       if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
       }

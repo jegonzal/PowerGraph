@@ -2,7 +2,7 @@
 #define _DISTANCE_H
 
 #include "graphlab.hpp"
-
+#include "../pmf/mathlayer.hpp"
 
 
 enum distance_measure{

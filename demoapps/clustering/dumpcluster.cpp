@@ -7,12 +7,12 @@ extern advanced_config ac;
 void print_point(FILE * f, vertex_data & data){
    fprintf(f, "\t[");
    bool first = true;
-   for (int i=0; i< data.datapoint.nnz(); i++){
+   FOR_ITERATOR(i, data.datapoint){
       if (!first){
 	fprintf(f, " ");
       }
       else first = false;
-      fprintf(f, "%d:%g", data.datapoint.get_nz_index(i), data.datapoint.get_nz_data(i));
+      fprintf(f, "%d:%g", get_nz_index(data.datapoint, i), get_nz_data(data.datapoint, i));
    }
    fprintf(f, "]\n");
 }

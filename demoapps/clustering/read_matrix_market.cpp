@@ -174,7 +174,7 @@ void load_matrix_market(const char * filename, graph_type *_g)
         assert(I< M);
         assert(J< N);
         vertex_data & vdata = _g->vertex_data(I);
-        vdata.datapoint.add_elem(J, val);   
+        set_new(vdata.datapoint,J, val);   
 	if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
            ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[J] += val;  
         }
@@ -207,7 +207,7 @@ void save_matrix_market_format(const char * filename)
 
     for (i=0; i<ps.K; i++)
        for (j=0; j<ps.N; j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, ps.output_clusters.get(i,j));
+        fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_clusters,i,j));
 
     fclose(f);
     f = fopen((std::string(filename) + ".assignments.mtx").c_str(),"w");
@@ -220,8 +220,8 @@ void save_matrix_market_format(const char * filename)
 
     for (i=0; i< rows; i++)
     for (j=0; j< cols; j++)
-        if (ps.output_assignements.get(i,j) > 0)
-          fprintf(f, "%d %d %10.3g\n", i+1, j+1, ps.output_assignements.get(i,j));
+        if (get_val(ps.output_assignements,i,j) > 0)
+          fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_assignements,i,j));
 
     fclose(f);
 

@@ -419,6 +419,8 @@ void do_main(int argc, const char *argv[]){
   logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 #ifdef HAS_EIGEN
   logstream(LOG_WARNING)<<"Program compiled with Eigen Support\n";
+#elif defined(HAS_ITPP)
+  logstream(LOG_WARNING)<<"Program compiled with it++ Support\n";
 #endif
     command_line_options clopts;
     ac.init_command_line_options(clopts);
