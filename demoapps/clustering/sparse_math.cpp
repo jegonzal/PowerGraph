@@ -79,6 +79,8 @@ void test_math(){
    assert(get_nz_data(v3,0) == 1.0);
    assert(get_nz_data(v3,1) == - 2.0);
    assert(nnz(v3)== 2);
+   assert(get_val(v1, 1) == 1.0);
+   assert(get_val(v2, 2) == 2.0);
 
    assert(sum(v1) == 1.0);
    assert(sum(v2) == 2.0);
@@ -134,7 +136,7 @@ void test_math(){
    assert(get_nz_data(v1, 0) == 1.0);
    set_new(v1, 18, 3.0);
    assert(get_nz_data(v1,1) == 3.0);
-   set_size(v1, 19);
+   //set_size(v1, 19);
  
    assert(get_val(v5,0) == 1.0);
    assert(get_val(v1,0) == 0); 
@@ -152,6 +154,7 @@ void test_math(){
 
    mat mymat = init_mat("1 2 3; 3 2 1; 1 2 3", 3, 3);
 
+   remove("stam");
    it_file saved("stam");
    saved << Name("vector");
    saved << v5;

@@ -537,6 +537,9 @@ inline int get_nz_index(sparse_vec &v, int i){
 inline double get_nz_data(sparse_vec &v, int i){
   return v.get_nz_data(i);
 }
+inline int nnz(sparse_vec & v){
+  return v.nnz();
+}
 inline double dot_prod(sparse_vec &v1, sparse_vec & v2){
   return v1*v2;
 }
@@ -544,6 +547,9 @@ inline double dot_prod(vec &v1, vec & v2){
   return v1*v2;
 }
 inline double dot_prod(const sparse_vec &v1, const vec & v2){
+  return v1*v2;
+}
+inline double dot_prod(vec &v1, sparse_vec & v2){
   return v1*v2;
 }
 inline double get_val(sparse_vec & v1, int i){
@@ -587,9 +593,9 @@ inline void minus( vec &v1, sparse_vec &v2){
   }
 }
 inline sparse_vec fabs( sparse_vec & dvec1){
-   sparse_vec ret = dvec1;
-   FOR_ITERATOR(i, ret){
-       set_new(ret,get_nz_index(ret, i), fabs(get_nz_data(ret, i)));
+   sparse_vec ret(dvec1.size(), dvec1.nnz());
+   FOR_ITERATOR(i, dvec1){
+       set_new(ret,get_nz_index(dvec1, i), fabs(get_nz_data(dvec1, i)));
    }
    return ret;
 	
