@@ -50,4 +50,11 @@ void problem_setup::verify_setup(){
    logstream(LOG_INFO) << "Setting cluster initialization mode to: " << inittypenames[ac.init_mode] << std::endl;
    ps.init_type = (initizliation_type)ac.init_mode;
    assert(K>0);
+
+   if (ac.algorithm == K_MEANS_FUZZY){
+      if (ps.init_type != INIT_RANDOM_CLUSTER){
+	 logstream(LOG_WARNING) << "With Fuzzy k-means, currently supported init method is init_random cluster" << std::endl;
+          ps.init_type = INIT_RANDOM_CLUSTER;
+      }
+   }
 }

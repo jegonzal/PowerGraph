@@ -40,6 +40,13 @@ double calc_cost();
 void update_kmeans_clusters();
 int calc_cluster_centers();
 
+void print(sparse_vec & vec){
+  FOR_ITERATOR(i, vec){
+    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+  }
+  std::cout<<std::endl;
+}
+
 
  /***
  * UPDATE FUNCTION
@@ -56,7 +63,8 @@ void kmeans_update_function(gl_types::iscope &scope,
   
  /* print statistics */
   if (toprint){
-    printf("entering data point %u, current cluster %d\n",  id, vdata.current_cluster);   
+    printf("entering data point %u, current cluster %d\n",  id, vdata.current_cluster);  
+    print(vdata.datapoint); 
   }
 
   if (!vdata.reported) //this matrix row have no non-zero entries, and thus ignored
@@ -77,8 +85,12 @@ void kmeans_update_function(gl_types::iscope &scope,
 
   for (int i=0; i< end_cluster; i++){
      vec & row = ps.clusts.cluster_vec[i].location;
+     if (toprint)
+        std::cout<<" cluster " << i << " location " << row << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr);
-     assert(dist >= 0 && !isnan(dist));
+     if (toprint)
+        std::cout<<" distance: " << dist << std::endl;
+     assert(dist >= 0 && !std::isnan(dist));
      if (ps.algorithm == K_MEANS_PLUS_PLUS || ps.algorithm == K_MEANS){
        if (min_dist > dist){
          min_dist = dist;
@@ -106,11 +118,19 @@ void kmeans_update_function(gl_types::iscope &scope,
     vdata.prev_cluster = vdata.current_cluster; 
     vdata.current_cluster = pos;
   }
+  /**
+ * See algo description in: http://www.cs.princeton.edu/courses/archive/fall08/cos436/Duda/C/fk_means.htm
+ * min_distance = \sum_j a(j,i)
+ * distance(j) = u(i,j)
+ * */
   else if (ps.algorithm == K_MEANS_FUZZY){
-     vdata.min_distance = sum(pow(vdata.distances,2));
-     assert(!isnan(vdata.min_distance) && vdata.min_distance > 0);
-     vdata.distances = pow(vdata.distances,2) / vdata.min_distance;
-  }
+     double factor = sum(pow(vdata.distances,2));
+     vdata.min_distance = factor/ps.K;
+     if (toprint)
+         std::cout<<id<<" distances are: " << pow(vdata.distances,2) << std::endl;
+     assert(!std::isnan(factor) && factor > 0);
+     vdata.distances = pow(vdata.distances,2) / factor;
+       }
 }
 
 

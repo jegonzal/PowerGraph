@@ -118,19 +118,24 @@ int calc_cluster_centers(){
 #ifdef OMP_SUPPORT
 #pragma omp parallel for
 #endif
+   /* see algo description in http://www.cs.princeton.edu/courses/archive/fall08/cos436/Duda/C/fk_means.htm . The below code replaces m_i with fuzzy mean of all examples in the cluster */
+   /* for each cluster 1...k */
     for (int i=0; i< ps.K; i++){
        if (ps.iiter > 0){
          ps.clusts.cluster_vec[i].location = zeros(ps.N);
          ps.clusts.cluster_vec[i].num_assigned_points = ps.M;
-       //ps.clusts.cluster_vec[i].cur_sum_of_points = zeros(ps.K);
          double sum_u_i_j = 0;
+         /* for each pot 1..M*/
          for (int j=0; j< ps.M; j++){
             vertex_data & data = ps.g<graph_type>()->vertex_data(j);
+            /* m_i = \sum u(j,i)^2 x_j */
 	    plus_mul(ps.clusts.cluster_vec[i].location, data.datapoint, data.distances[i]);
             sum_u_i_j += data.distances[i];
          }
          assert(sum_u_i_j > 0); 
          ps.clusts.cluster_vec[i].location /= sum_u_i_j;
+         if (ac.debug)
+           std::cout<<" cluster " << i << " is now on: " << ps.clusts.cluster_vec[i].location << std::endl;
        }
        ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
    }
