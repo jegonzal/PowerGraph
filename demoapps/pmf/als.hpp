@@ -37,7 +37,7 @@ extern advanced_config ac;
 extern problem_setup ps;
 extern const char * runmodesname[];
 
-vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D);
+vec CoSaMP(const mat &Phi, const vec &u, int K, int max_iter, double tol1, int D);
 
 void init_pmf() {
   if (ps.BPTF)

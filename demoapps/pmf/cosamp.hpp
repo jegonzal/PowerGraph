@@ -42,7 +42,7 @@ ivec sort_union(ivec a, ivec b){
 }
 
 
-vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D){
+vec CoSaMP(const mat & Phi, const vec & u, int K, int max_iter, double tol1, int D){
 
   assert(K<= 2*D);
   assert(K>=1);
@@ -61,7 +61,7 @@ vec CoSaMP(mat Phi, vec u, int K, int max_iter, double tol1, int D){
   while (t<max_iter){
     ivec z = sort_index(abs(Phi.transpose() * v));
     z = reverse(z);
-    ivec Omega = head(z,2*K-1);
+    ivec Omega = head(z,2*K);
     ivec T=sort_union(Omega,T2);
     mat phit=get_cols(Phi, T);
     vec b;

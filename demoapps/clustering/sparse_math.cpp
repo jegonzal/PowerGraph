@@ -178,4 +178,9 @@ void test_math(){
    assert(get_val(mymat2, 0, 0) == 1.0);
    assert(get_val(mymat2, 2, 2) == 3.0);
 
+
+   vec start = head(v5, 2);
+   assert(start.size() == 2);
+   assert(start[0] == 1);
+   assert(start[1] == 2);
 }
