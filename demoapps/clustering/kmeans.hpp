@@ -189,12 +189,16 @@ void update_kmeans_clusters(){
            assert(data.prev_cluster != data.current_cluster);
          }
          //add point mass into new cluster
+         if (ac.debug)
+           std::cout<<" adding point " << i << " into cluster " << data.current_cluster << std::endl;
          plus(ps.clusts.cluster_vec[data.current_cluster].cur_sum_of_points , data.datapoint);    
          ps.clusts.cluster_vec[data.current_cluster].num_assigned_points++;
          
          if (ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter < 2 && data.prev_cluster == -1){
          }
          else{ //remove point from old cluster
+           if (ac.debug)
+           std::cout<<" removing point " << i << " from old cluster " << data.prev_cluster << std::endl;
            minus(ps.clusts.cluster_vec[data.prev_cluster].cur_sum_of_points , data.datapoint);    
            ps.clusts.cluster_vec[data.prev_cluster].num_assigned_points--;
          }

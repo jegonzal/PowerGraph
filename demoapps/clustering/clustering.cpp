@@ -86,6 +86,7 @@ double calc_cost(){
        const vertex_data & data = ps.g<graph_type>()->vertex_data(i);
        cost += data.min_distance;
      }
+     ps.cost = cost;
    return cost;
 
 }
@@ -110,6 +111,8 @@ int calc_cluster_centers(){
               ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
               ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
           }
+          if (ac.debug)
+            std::cout<<"New cluster center is: " << ps.clusts.cluster_vec[i].location << std::endl;
      }
      for (int i=0; i< ps.K; i++)
          total += ps.clusts.cluster_vec[i].num_assigned_points;
@@ -339,7 +342,8 @@ void start(command_line_options & clopts) {
          if (ps.algorithm == K_MEANS_FUZZY){
             init_fuzzy_kmeans();
          }
-         //calc_cluster_centers();
+         else 
+           calc_cluster_centers();
          last_iter();
          run_graphlab(glcore);
          break;
