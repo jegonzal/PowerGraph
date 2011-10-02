@@ -6,7 +6,14 @@ else()
 
 endif()
 
+if (HAS_EIGEN)
+  set( lapack_found  1)
+elseif (HAS_ITPP)
+  set( lapack_found  1)
+endif()
+
+if (lapack_found)
 add_graphlab_executable(gabp main.cpp advanced_config.cpp unittest.cpp
 lasso.cpp
 ../../libs/matrixmarket/mmio.cpp logreg.cpp)
-
+endif()
