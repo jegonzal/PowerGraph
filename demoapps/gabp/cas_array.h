@@ -110,7 +110,7 @@ class cas_array {
             prev = arr[idx];
             oldval = prev;
             newval = prev*fact;
-            assert(!isnan(newval));
+            assert(!std::isnan(newval));
         } while (!CAS(reinterpret_cast<long *>(&arr[idx]), *reinterpret_cast<volatile long *>(&prev), *reinterpret_cast<volatile long*>(&newval)));
     }
     
