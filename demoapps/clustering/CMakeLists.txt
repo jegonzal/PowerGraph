@@ -1,5 +1,9 @@
 project(GraphLab)
-include_directories(../../deps/eigen-eigen-3.0.2/)
+if (HAS_EIGEN)
+  include_directories(../../deps/eigen-eigen-3.0.2/)
+  add_definitions(-DHAS_EIGEN)
+endif()
+
 set(OMP_SUPPORT 0)
   if (OMP_SUPPORT)
     add_definitions(-omp)

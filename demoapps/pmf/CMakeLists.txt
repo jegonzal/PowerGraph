@@ -5,6 +5,7 @@ project(GraphLab)
 if (HAS_EIGEN)
   include_directories(../../deps/eigen-eigen-3.0.2/)
   message(status "pointing pmf to eigen directories")
+  add_definitions(-DHAS_EIGEN)
 endif()
 
 if (HAS_EIGEN)
