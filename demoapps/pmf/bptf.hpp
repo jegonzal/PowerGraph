@@ -192,7 +192,7 @@ void sample_U(){
   if (ac.debug)
     cout<<"dMu:"<<dMu<<"beta0: "<<beta0[0]<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<" mu0_ " << mu0_<<endl;
 
-  mat UmeanT = ps.M*Umean*Umean.transpose();
+  mat UmeanT = ps.M*outer_product(Umean, Umean); //TODO: Umean * Umean.transpose();
   assert(UmeanT.rows() == ac.D && UmeanT.cols() == ac.D);
   mat dMuT = (beta0[0]/beta0_)*UmeanT;
   mat iW0_ = iW0 + UUT - UmeanT + dMuT;
@@ -226,7 +226,7 @@ void sample_V(){
   vec dMu = - Vmean;
   if (ac.debug)
     cout<<"dMu:"<<dMu<<"beta0: "<<beta0[0]<<" beta0_ "<<beta0_<<" nu0_ " <<nu0_<<endl;
-  mat VmeanT = ps.N*Vmean * Vmean.transpose();
+  mat VmeanT = ps.N*outer_product(Vmean, Vmean); //TODO Vmean * Vmean.transpose();
   assert(VmeanT.rows() == ac.D && VmeanT.cols() == ac.D);
   mat dMuT =  (beta0[0]/beta0_)*VmeanT;
   mat iW0_ = iW0 + VVT - VmeanT + dMuT;
@@ -284,7 +284,7 @@ void sample_T(){
 
   mat dT = calc_DT();
   vec dTe = pvec - mu0T[0]* ps.vones; // mu0T[0];
-  mat iW0_ = iW0T + dT*transpose(dT) + (beta0[0]/beta0_)*(dTe*dTe.transpose());
+  mat iW0_ = iW0T + dT*dT.transpose() + (beta0[0]/beta0_)*(outer_product(dTe, dTe)); //todo: dT*dT.transpose()
   
   mat W0_;
   bool ret =inv(iW0_, W0_);
@@ -308,6 +308,7 @@ template<typename graph_type, typename vertex_data, typename edge_data>
 void last_iter_bptf(double res){
     if (ps.iiter == ac.bptf_burn_in){
       printf("Finished burn-in period. starting to aggregate samples\n");
+    }
     timer t;
     t.start();
     if (ps.iiter > ac.bptf_delay_alpha)
@@ -319,7 +320,6 @@ void last_iter_bptf(double res){
     ps.counter[BPTF_SAMPLE_STEP] += t.current_time();
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
 	export_kdd_format<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
-    }
     if (ac.bptf_additional_output && ps.iiter >= ac.bptf_burn_in)
       write_output<graph_type, vertex_data>();
 }

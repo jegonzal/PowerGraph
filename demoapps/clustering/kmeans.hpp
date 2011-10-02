@@ -48,6 +48,19 @@ void print(sparse_vec & vec){
 }
 
 
+
+void init_fuzzy_kmeans(){
+  graph_type * g= ps.g<graph_type>();
+  for (int i=0; i< ps.M; i++){
+     vertex_data & vdata = g->vertex_data(i);
+     vdata.distances = randu(ac.K);
+     vdata.distances /= sum(vdata.distances);
+     if (ac.debug)
+       std::cout<<"Initial assignment of " << i << " is: " << vdata.distances << std::endl;
+     vdata.distances = pow(vdata.distances, 2);
+  }
+
+}
  /***
  * UPDATE FUNCTION
  */
@@ -124,13 +137,17 @@ void kmeans_update_function(gl_types::iscope &scope,
  * distance(j) = u(i,j)
  * */
   else if (ps.algorithm == K_MEANS_FUZZY){
-     double factor = sum(pow(vdata.distances,2));
-     vdata.min_distance = factor/ps.K;
+     vec old_distance = vdata.distances;
+     double factor = sum(pow(vdata.distances,-2));
+     vec normalized = pow(vdata.distances,-2) / factor;
+     vdata.distances = pow(normalized, 2);
      if (toprint)
-         std::cout<<id<<" distances are: " << pow(vdata.distances,2) << std::endl;
+         std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;
+     if (toprint)
+         std::cout<<" contribution to cost function is : " << elem_mult(vdata.distances, pow(old_distance,2))<<std::endl;
+     vdata.min_distance = dot(vdata.distances, pow(old_distance,2));
      assert(!std::isnan(factor) && factor > 0);
-     vdata.distances = pow(vdata.distances,2) / factor;
-       }
+   }
 }
 
 
