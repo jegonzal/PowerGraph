@@ -107,7 +107,7 @@ void test_distance(){
   set_new(v1,2,-3.5);
   vec v2 = init_vec("1 2 3 4 5", 5);
   ac.distance_measure = EUCLIDEAN;
-  double ret = calc_distance(v1, v2);
+  double ret = calc_distance(v1, v2, sum_sqr(v2));
   assert(powf(ret - 9.233092656309694,2) < 1e-10);
 
 }
