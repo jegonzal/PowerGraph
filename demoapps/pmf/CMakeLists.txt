@@ -4,10 +4,16 @@ project(GraphLab)
 
 if (HAS_EIGEN)
   include_directories(../../deps/eigen-eigen-3.0.2/)
-else()
-
+  message(status "pointing pmf to eigen directories")
 endif()
 
+if (HAS_EIGEN)
+  set(lapack_found 1)
+elseif(HAS_ITPP)
+  set(lapack_found 1)
+endif()
+
+if (lapack_found)
   add_graphlab_executable(pmf pmf.cpp advanced_config.cpp  ../../libs/matrixmarket/mmio.cpp main.cpp)
   add_library(graphlabpmf STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp ) 
   ADD_DEFINITIONS(-fPIC)
@@ -20,3 +26,4 @@ endif()
     ${CMAKE_CURRENT_BINARY_DIR}/smallteste COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest.out
     ${CMAKE_CURRENT_BINARY_DIR}/smalltest.out COPYONLY)
+endif()

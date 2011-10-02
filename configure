@@ -229,7 +229,7 @@ if [ ! -z $itpp_include_dir ]; then
 fi
 
 if [ ! -z $HAS_EIGEN ]; then
-   config_flags="$config_flags -D HAS_EIGEN:STRING=$HAS_EIGEN"
+   config_flags="$config_flags -D HAS_EIGEN:STRING=true"
 fi
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
