@@ -274,8 +274,14 @@ class it_file{
 
 public:
   it_file(const char * name){
-   fb.open (name, std::fstream::in | std::fstream::out | std::fstream::binary);
+   fb.open (name, std::fstream::in | std::fstream::out | std::fstream::app);
+   
+   if (!fb.is_open()){
+     perror("Failed opening file ");
+     printf("filename is: %s\n", name);
+   }
    assert(fb.is_open());
+  
   };
 
   std::fstream & operator<<(const std::string str){
