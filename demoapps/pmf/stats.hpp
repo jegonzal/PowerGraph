@@ -104,7 +104,7 @@ double calc_obj(double res){
     if (data->num_edges > 0){
       sumU += sum_sqr(data->pvec);
       if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_USR_FACTOR){
-	absSum += sum(abs(data->pvec));
+	absSum += abs_sum(data->pvec);
       } 
       user_sparsity += num_zeros(data->pvec);
       user_cnt++;
@@ -118,7 +118,7 @@ double calc_obj(double res){
     if (data->num_edges > 0 ){
       sumV += sum_sqr(data->pvec);
       if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_MOVIE_FACTOR){
-         absSum += sum(abs(data->pvec));
+         absSum += abs_sum(data->pvec);
       }  
       movie_sparsity += num_zeros(data->pvec);
       movie_cnt++;

@@ -143,8 +143,9 @@ if [ ! -z $bootstrap ]; then
   source ./scripts/bootstrap.sh | tee -a $LOG_FILE
 fi
 
-if [ $install_eigen ]; then
+if [ ! -z $install_eigen ]; then
   source ./scripts/eigen_install.sh `pwd` | tee -a $LOG_FILE
+  echo "Eigen setup OK"
   HAS_EIGEN=1;
 # Try to build itpp
 elif [ ! -z $itpp ]; then

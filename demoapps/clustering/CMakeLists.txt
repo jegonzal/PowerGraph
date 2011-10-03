@@ -10,9 +10,9 @@ set(OMP_SUPPORT 0)
     add_definitions(-DOMP_SUPPORT)
   endif()
 
-if (HAS_ITPP)
+if (HAS_EIGEN)
   set( lapack_found 1)
-elseif(HAS_EIGEN)
+elseif(ITPP-FOUND)
   set( lapack_found 1)
 endif()
 

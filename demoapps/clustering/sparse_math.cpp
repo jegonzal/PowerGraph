@@ -183,4 +183,28 @@ void test_math(){
    assert(start.size() == 2);
    assert(start[0] == 1);
    assert(start[1] == 2);
+
+   ivec delvec(4);
+   delvec[0] = 1;
+   delvec[1] = 2;
+   delvec[2] = 3;  
+   delvec[3] = 4;
+   del(delvec,3);
+   assert(delvec.size() == 3);
+   assert(delvec[0] == 1);
+   assert(delvec[1] == 2);
+   assert(delvec[2] == 3);
+   del(delvec,1);
+   assert(delvec.size() == 2);
+   assert(delvec[0] == 1);
+   assert(delvec[1] == 3);
+
+   ivec delvec2(4);
+   delvec2[0] = 1;
+   delvec2[1] = 2;
+   delvec2[2] = 3;
+   delvec2[3] = 4;
+   del(delvec2, 0);
+   assert(delvec2.size() == 3);
+   assert(delvec2[0] = 2);
 }

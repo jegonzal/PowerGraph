@@ -59,7 +59,7 @@ vec CoSaMP(const mat & Phi, const vec & u, int K, int max_iter, double tol1, int
   ivec T2;
 
   while (t<max_iter){
-    ivec z = sort_index(abs(Phi.transpose() * v));
+    ivec z = sort_index(fabs(Phi.transpose() * v));
     z = reverse(z);
     ivec Omega = head(z,2*K);
     ivec T=sort_union(Omega,T2);
@@ -67,17 +67,17 @@ vec CoSaMP(const mat & Phi, const vec & u, int K, int max_iter, double tol1, int
     vec b;
     bool ret = backslash(phit, u, b);
     assert(ret);
-    b= abs(b);
+    b= fabs(b);
     ivec z3 = sort_index(b);
     z3 = reverse(z3);
     Sest=zeros(D);
     for (int i=0; i< K; i++)
        set_val(Sest, z3[i], b[z3[i]]);
-    ivec z2 = sort_index(abs(Sest));
+    ivec z2 = sort_index(fabs(Sest));
     z2 = reverse(z2);
     T2 = head(z2,K-1);
     v=u-Phi*Sest;
-    double n2 = max(abs(v));
+    double n2 = max(fabs(v));
     if (n2 < tol1)
         break;
     t++;

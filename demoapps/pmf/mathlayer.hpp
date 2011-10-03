@@ -241,9 +241,8 @@ inline ivec sort_index(const vec&a){
   return ret;
 }
 inline void del(ivec&a, int i){
-   ivec ret(a.size() - 1);
-   ret << a.head(i-1), a.tail(a.size() -i-1);
-   a= ret;
+   memcpy(a.data()+i, a.data() + i+1, (a.size() - i - 1)*sizeof(int)); 
+   a.conservativeResize(a.size() - 1); //resize without deleting values!
 }
 inline mat get_cols(const mat&A, ivec & cols){
   mat a(A.rows(), cols.size());
@@ -445,11 +444,24 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    }	
    return ret;
 };
-inline double abs_sum(mat& A){
+inline vec fabs( const vec & dvec1){
+   vec ret(dvec1.size());
+   for (int i=0; i< dvec1.size(); i++){
+      ret(i) = fabs(dvec1(i));
+   }	
+   return ret;
+};
+inline double abs_sum(const mat& A){
   double sum =0;
   for (int i=0; i< A.rows(); i++)
     for (int j=0; j< A.cols(); j++)
       sum += fabs(A(i,j));
+  return sum;
+}
+inline double abs_sum(const vec &v){
+  double sum =0;
+  for (int i=0; i< v.size(); i++)
+      sum += fabs(v(i));
   return sum;
 }
 inline vec sqrt(vec & v){
@@ -607,10 +619,15 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    return ret;
 	
 };
+inline vec fabs(const vec & a){
+   return abs(a);
+}
 inline double abs_sum(mat& A){
    return sumsum(abs(A));
 }
-
+inline double abs_sum(const vec&v){
+  return sum(fabs(v));
+}
 #endif
 
 #endif //eigen

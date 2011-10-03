@@ -10,7 +10,7 @@ endif()
 
 if (HAS_EIGEN)
   set(lapack_found 1)
-elseif(HAS_ITPP)
+elseif(ITPP-FOUND)  
   set(lapack_found 1)
 endif()
 
