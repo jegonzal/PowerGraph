@@ -166,9 +166,10 @@ inline bool inv(const mat&A, mat &out){
    out = A.inverse();
    return true;
 }
-inline vec outer_product(const vec &a, const vec &b){
-  return a*b.transpose();
-}
+
+//to handle some mysterious eigen bug
+#define outer_product(a,b) a*b.transpose()
+
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
    VectorXcd eigs = T.eigenvalues();
    eigenvalues = eigs.real(); //TODO - what happen with complex

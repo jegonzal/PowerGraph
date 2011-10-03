@@ -16,9 +16,9 @@ endif()
 
 if (lapack_found)
   add_graphlab_executable(pmf pmf.cpp advanced_config.cpp  ../../libs/matrixmarket/mmio.cpp main.cpp)
-  add_library(graphlabpmf STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp ) 
-  ADD_DEFINITIONS(-fPIC)
-  add_library(graphlabpmf_pic STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp )
+#  add_library(graphlabpmf STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp ) 
+#  ADD_DEFINITIONS(-fPIC)
+#  add_library(graphlabpmf_pic STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp )
   # test files
     add_graphlab_executable(itdiff itdiff.cpp)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest
