@@ -11,10 +11,11 @@ _Box () {
 }
 
 function test_for_eigen {
-   if [ ! -d $1/deps/eigen-eigen-3.0.2/ ]; then
-      eigenfound=1;
-      echo "Eigen was found at: $1/deps/eigen-eigen-3.0.2/"
-   fi
+   echo "force install"
+   #if [ ! -d $1/deps/eigen-eigen-3.0.2/ ]; then
+   #   eigenfound=1;
+   #   echo "Eigen was found at: $1/deps/eigen-eigen-3.0.2/"
+   #fi
 }
 
 
