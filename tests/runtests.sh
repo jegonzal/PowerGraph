@@ -49,9 +49,8 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   cd ../demoapps/pmf
   echo "---------PMF-------------" >> $stdoutfname
   echo "---------PMF-------------" >> $stderrfname
-  ./pmf --show_version=true
-  
   OUTFILE=smalltest.out
+  ./pmf --show_version=true
   if [ $? -eq 2 ]; then
     echo "detected Eigen based pmf"
     OUTFILE=smalltest_eigen.out
