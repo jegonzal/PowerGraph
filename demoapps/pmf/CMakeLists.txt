@@ -28,8 +28,8 @@ if (lapack_found)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest.out
     ${CMAKE_CURRENT_BINARY_DIR}/smalltest.out COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest_eigen.out
-    ${CMAKE_CURRENT_BINARY_DIR}/smalltest.out COPYONLY)
-    cconfigure_file(${CMAKE_CURRENT_SOURCE_DIR}/als
+    ${CMAKE_CURRENT_BINARY_DIR}/smalltest_eigen.out COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/als
     ${CMAKE_CURRENT_BINARY_DIR}/als COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/alse
     ${CMAKE_CURRENT_BINARY_DIR}/alse COPYONLY)
