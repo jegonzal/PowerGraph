@@ -382,7 +382,7 @@ inline double get_nz_data(sparse_vec &v, int i){
   }
   return 0.0;
 }
-inline vec pow(vec&v, int exponent){
+inline vec pow(const vec&v, int exponent){
   vec ret = vec(v.size());
   for (int i=0; i< v.size(); i++)
     ret[i] = powf(v[i], exponent);
