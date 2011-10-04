@@ -53,8 +53,13 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   
   OUTFILE=smalltest.out
   if [ $? -eq 2 ]; then
+    echo "detected Eigen based pmf"
     OUTFILE=smalltest_eigen.out
+  else
+    echo "detected it++ based pmf"
   fi
+  ./pmf smalltest 0 --scheduler="round_robin(max_iterations=20,block_size=1)" --ncpus=1 --float=true >> $stdoutfname 2>> $stderrfname 
+  
   if ./itdiff smalltest-20-21.out $OUTFILE ; then
     echo "PASS TEST 1 (Alternating least sqaures)"
   else
