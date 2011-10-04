@@ -67,6 +67,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
 
   clopts.attach_option("shuffle", &shuffle, shuffle, "shuffle order of execution at random");
   clopts.attach_option("max_iter", &iter,iter, "maximal number of iterations (when round robin is used, used --scheduler=\"round_robin(max_iterations=XX,block_size=1)\")  ");
+  clopts.attach_option("show_version", &show_version, show_version, "show linear algebra package version and exist");
 }  
 
 

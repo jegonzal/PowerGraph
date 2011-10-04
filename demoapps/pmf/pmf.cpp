@@ -255,13 +255,13 @@ void start(command_line_options& clopts) {
     ps.algorithm = (runmodes)ac.algorithm;
     printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
-    if (ac.scheduler == "round_robin"){
+/*  if (ac.scheduler == "round_robin"){
       char schedulerstring[256];
       sprintf(schedulerstring, "round_robin(max_iterations=%d,block_size=1)", ac.iter);
       clopts.set_scheduler_type(schedulerstring);
       assert(ac.iter > 0);
     }
- 
+ */
     graph_type &g = glcore.graph();
     graph_type validation_graph;
     graph_type test_graph; 
@@ -413,23 +413,32 @@ void start(command_line_options& clopts) {
 
 
 
-void do_main(int argc, const char *argv[]){
+int do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+
+  int version = ITPP_SUPPORT;
 #ifdef HAS_EIGEN
   logstream(LOG_WARNING)<<"Program compiled with Eigen Support\n";
+  version = EIGEN_SUPPORT;
 #elif defined(HAS_ITPP)
   logstream(LOG_WARNING)<<"Program compiled with it++ Support\n";
 #endif
+
     command_line_options clopts;
     ac.init_command_line_options(clopts);
     if (ac.mainfunc){ //if called from main(), parse command line arguments
       assert(clopts.parse(argc, argv));
       ac.scheduler = clopts.scheduler_type;
-   }
-   
-   switch(ac.algorithm){
+   } 
+
+   //just display linear algebra package version and exit
+   if (ac.show_version)
+      return version;
+
+
+      switch(ac.algorithm){
       case ALS_TENSOR_MULT:
       case BPTF_TENSOR_MULT:
  	start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);
@@ -458,7 +467,7 @@ void do_main(int argc, const char *argv[]){
       default:
         assert(false);
   }
-
+  return EXIT_SUCCESS;
 
 }
 

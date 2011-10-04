@@ -49,8 +49,13 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   cd ../demoapps/pmf
   echo "---------PMF-------------" >> $stdoutfname
   echo "---------PMF-------------" >> $stderrfname
-  ./pmf  smalltest 0 --scheduler="round_robin(max_iterations=10)" --float=true --ncpus=1  >> $stdoutfname 2>> $stderrfname
-  if ./itdiff smalltest-20-21.out smalltest.out ; then
+  ./pmf --show_version=true
+  
+  OUTFILE=smalltest.out
+  if [ $? -eq 2 ]; then
+    OUTFILE=smalltest_eigen.out
+  fi
+  if ./itdiff smalltest-20-21.out $OUTFILE ; then
     echo "PASS TEST 1 (Alternating least sqaures)"
   else
     echo "FAIL: Output differs!"

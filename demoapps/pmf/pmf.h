@@ -186,7 +186,10 @@ enum testtype{
     TEST = 2
 };
 
-
+enum linear_algebra_support{
+  ITPP_SUPPORT = 1,
+  EIGEN_SUPPORT = 2
+};
 
 //run modes
 enum runmodes{
@@ -398,7 +401,7 @@ template<> const graph_type_svdpp *problem_setup::g(testtype type){ return g_svd
 /**
  * functions forward declerations
  */
-void do_main(int argc, const char * argv[]);
+int do_main(int argc, const char * argv[]);
 void set_num_edges(int val, testtype data_type);
 void load_matrix_market(const char * filename, graph_type * _g, testtype data_type);
 void verify_size(testtype data_type, int M, int N, int K);

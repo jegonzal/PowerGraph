@@ -116,6 +116,8 @@ int distance_measure;
 /* random shuffle order of execution? */
 bool shuffle;
 
+bool show_version;
+
 advanced_config(){
     D = 20;
     K = 0;
@@ -211,6 +213,8 @@ advanced_config(){
    em_max_inner_iter = 20;
 
    shuffle = false;
+
+   show_version = false;
  }
 
 
