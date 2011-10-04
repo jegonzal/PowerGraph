@@ -42,7 +42,7 @@ public:
   bool oldformat; //support for older binary file format
   bool supportgraphlabcf; //input is given in graphlab cf format (pmf format)
   
-  //bool round_robin;
+  bool round_robin;
  bool stats; //print out statistics and exit
   bool aggregatevalidation; //use validation dataset as training data
   bool outputvalidation; //experimental: output validation results of kdd format
@@ -134,7 +134,7 @@ advanced_config(){
     init_mode = 0;
     square = false;
     support_null_variance = false;
-    //round_robin = true;
+    round_robin = false;
     supportgraphlabcf = false;
     debug = false; //debug mode
     zero = false; //support edges with zero weight

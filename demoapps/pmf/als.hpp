@@ -272,6 +272,12 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
         if (toprint && (i==0 || i == numedges-1))
           std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
         i++;
+
+      if (!ac.round_robin){
+        gl_types::update_task task(scope.target(oedgeid), user_movie_nodes_update_function);
+          scheduler.add_task(task, 1);
+      }
+
     }
   }
 
@@ -294,8 +300,11 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
           cout<<"trmse: " << trmse << endl;
       //aggregate RMSE
        vdata.rmse += trmse; 
- 
-      
+
+       if (!ac.round_robin && trmse > 0.25){
+        gl_types::update_task task(scope.source(iedgeid), user_movie_nodes_update_function);
+          scheduler.add_task(task, 1);
+      }
     }
 
   }

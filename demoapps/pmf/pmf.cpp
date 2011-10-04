@@ -213,6 +213,7 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
 
      logstream(LOG_INFO) << "starting with scheduler: " << ac.scheduler << std::endl;
      if (ac.scheduler == "round_robin"){
+        ac.round_robin = true;
         glcore.start();
      }
      else {

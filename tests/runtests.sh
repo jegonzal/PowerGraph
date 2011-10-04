@@ -43,7 +43,7 @@ rm -f dg*
 echo 
 echo "Running application tests"
 echo "========================="
-echo "PMF..."
+echo "GraphLab collaborative filtering library..."
 if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   pushd . > /dev/null
   cd ../demoapps/pmf
@@ -68,21 +68,21 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
 
   ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 2 (alternating least squares)"
+     echo "PASS TEST 2 (Alternating least squares)"
   else
      echo "FAIL --unittest=1"
      exit 1
   fi
  ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 3"
+     echo "PASS TEST 3 (Weighted ALS)"
   else
      echo "FAIL --unittest=91 (weighted alternating least squares)"
      exit 1
   fi
  ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 4"
+     echo "PASS TEST 4 (CoSaMP)"
   else
      echo "FAIL --unittest=101 (CoSaMP)"
      exit 1
