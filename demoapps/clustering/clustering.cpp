@@ -86,6 +86,7 @@ double calc_cost(){
        const vertex_data & data = ps.g<graph_type>()->vertex_data(i);
        cost += data.min_distance;
      }
+     ps.cost = cost;
    return cost;
 
 }
@@ -110,6 +111,8 @@ int calc_cluster_centers(){
               ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
               ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
           }
+          if (ac.debug)
+            std::cout<<"New cluster center is: " << ps.clusts.cluster_vec[i].location << std::endl;
      }
      for (int i=0; i< ps.K; i++)
          total += ps.clusts.cluster_vec[i].num_assigned_points;
@@ -118,23 +121,28 @@ int calc_cluster_centers(){
 #ifdef OMP_SUPPORT
 #pragma omp parallel for
 #endif
+   /* see algo description in http://www.cs.princeton.edu/courses/archive/fall08/cos436/Duda/C/fk_means.htm . The below code replaces m_i with fuzzy mean of all examples in the cluster */
+   /* for each cluster 1...k */
     for (int i=0; i< ps.K; i++){
-       if (ps.iiter > 0){
+      //if (ps.iiter > 0){
          ps.clusts.cluster_vec[i].location = zeros(ps.N);
          ps.clusts.cluster_vec[i].num_assigned_points = ps.M;
-       //ps.clusts.cluster_vec[i].cur_sum_of_points = zeros(ps.K);
          double sum_u_i_j = 0;
+         /* for each pot 1..M*/
          for (int j=0; j< ps.M; j++){
             vertex_data & data = ps.g<graph_type>()->vertex_data(j);
-	    plus_mul(ps.clusts.cluster_vec[i].location, data.datapoint, data.distances[i]);
-            sum_u_i_j += data.distances[i];
+            /* m_i = \sum u(j,i)^2 x_j */
+	    plus_mul(ps.clusts.cluster_vec[i].location, data.datapoint, powf(data.distances[i], 1));
+            sum_u_i_j += powf(data.distances[i],1);
          }
          assert(sum_u_i_j > 0); 
          ps.clusts.cluster_vec[i].location /= sum_u_i_j;
-       }
-       ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
-   }
- }
+         if (ac.debug)
+           std::cout<<" cluster " << i << " is now on: " << ps.clusts.cluster_vec[i].location << std::endl;
+     //}    
+     ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
+    }
+  }
 
   if (ac.algorithm == K_MEANS && ac.init_mode != INIT_KMEANS_PLUS_PLUS)
       assert(total == ps.total_assigned);
@@ -192,7 +200,7 @@ void init_clusters(){
         ps.clusts.cluster_vec.push_back(a);
    }
 
-
+  
 }
 	
 
@@ -201,8 +209,11 @@ void init_random_cluster(){
        int tries = 0;
        while(true){
         ::plus(ps.clusts.cluster_vec[i].location,  ps.g<graph_type>()->vertex_data(randi(0, ps.M-1)).datapoint);
-  	 if (sum(abs(ps.clusts.cluster_vec[i].location))>0)	
-           break;
+  	 if (sum(abs(ps.clusts.cluster_vec[i].location))>0){	
+            if (ac.debug)
+              std::cout<<"Selected random cluster: " << i << " to be: " << ps.clusts.cluster_vec[i].location << std::endl;
+            break;
+         }
          tries++;
 	 if (tries > 100){
 	    logstream(LOG_ERROR)<<"Failed to assign non-zero cluster head"<<std::endl;
@@ -328,7 +339,11 @@ void start(command_line_options & clopts) {
     switch(ps.algorithm){
       case K_MEANS:
       case K_MEANS_FUZZY:
-         calc_cluster_centers();
+         if (ps.algorithm == K_MEANS_FUZZY){
+            init_fuzzy_kmeans();
+         }
+         else 
+           calc_cluster_centers();
          last_iter();
          run_graphlab(glcore);
          break;

@@ -143,8 +143,9 @@ if [ ! -z $bootstrap ]; then
   source ./scripts/bootstrap.sh | tee -a $LOG_FILE
 fi
 
-if [ $install_eigen ]; then
-  source ./scripts/eigen_install.sh | tee -a $LOG_FILE
+if [ ! -z $install_eigen ]; then
+  source ./scripts/eigen_install.sh `pwd` | tee -a $LOG_FILE
+  echo "Eigen setup OK"
   HAS_EIGEN=1;
 # Try to build itpp
 elif [ ! -z $itpp ]; then
@@ -229,7 +230,7 @@ if [ ! -z $itpp_include_dir ]; then
 fi
 
 if [ ! -z $HAS_EIGEN ]; then
-   config_flags="$config_flags -D HAS_EIGEN:STRING=$HAS_EIGEN"
+   config_flags="$config_flags -D HAS_EIGEN:STRING=true"
 fi
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 

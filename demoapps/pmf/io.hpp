@@ -387,6 +387,7 @@ void export_uvt_to_itpp_file(){
   fill_factors_uvt<graph_type, vertex_data>();
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
+  remove(dfile);
   it_file output(dfile);
   output << Name("User");
   output << ps.U;
@@ -406,6 +407,7 @@ void export_uvt_to_matrixmarket(){
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D,ps.iiter);
   if (ps.tensor)
     logstream(LOG_WARNING)<<" matrix market IO does not support tensor mode" << std::endl;
+  remove(dfile);
   save_matrix_market_format(dfile, ps.U, ps.V);  
  
 }

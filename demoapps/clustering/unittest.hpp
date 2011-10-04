@@ -16,7 +16,9 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
       case 1: //ALS: Final result. Obj=0.0114447, TRAIN RMSE= 0.0033 VALIDATION RMSE= 1.1005.
 	 break;
 
-
+      case 3:
+         assert(fabs(ps.cost - 0.522652) < 1e-5);
+         break;
    }
 }
 
@@ -35,6 +37,16 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       //ac.datafile = "als"; ps.algorithm = ALS_MATRIX; ac.algorithm = ALS_MATRIX; ac.FLOAT = true; ac.als_lambda = 0.001;
       //clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
    }*/
+   else if (unittest == 3){
+      ac.datafile = "cluster5x5";
+      ac.algorithm = K_MEANS_FUZZY;
+      ac.iter = 10;
+      ac.init_mode = 0;
+      ac.debug=true;
+      clopts.set_ncpus(1);
+      ac.K = 3;
+   
+   }
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);

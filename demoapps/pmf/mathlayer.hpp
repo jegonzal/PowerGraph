@@ -31,7 +31,6 @@
  *
  * SET OF WRAPPER FUNCTIONS TO ALLOW USING EIGEN
  */
-#define HAS_EIGEN
 #ifdef HAS_EIGEN
 
 #include <iostream>
@@ -167,9 +166,10 @@ inline bool inv(const mat&A, mat &out){
    out = A.inverse();
    return true;
 }
-inline vec outer_product(const vec &a, const vec &b){
-  return a*b.transpose();
-}
+
+//to handle some mysterious eigen bug
+#define outer_product(a,b) a*b.transpose()
+
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
    VectorXcd eigs = T.eigenvalues();
    eigenvalues = eigs.real(); //TODO - what happen with complex
@@ -241,9 +241,8 @@ inline ivec sort_index(const vec&a){
   return ret;
 }
 inline void del(ivec&a, int i){
-   ivec ret(a.size() - 1);
-   ret << a.head(i-1), a.tail(a.size() -i-1);
-   a= ret;
+   memcpy(a.data()+i, a.data() + i+1, (a.size() - i - 1)*sizeof(int)); 
+   a.conservativeResize(a.size() - 1); //resize without deleting values!
 }
 inline mat get_cols(const mat&A, ivec & cols){
   mat a(A.rows(), cols.size());
@@ -275,8 +274,14 @@ class it_file{
 
 public:
   it_file(const char * name){
-   fb.open (name, std::fstream::in | std::fstream::out | std::fstream::binary);
+   fb.open (name, std::fstream::in | std::fstream::out | std::fstream::app);
+   
+   if (!fb.is_open()){
+     perror("Failed opening file ");
+     printf("filename is: %s\n", name);
+   }
    assert(fb.is_open());
+  
   };
 
   std::fstream & operator<<(const std::string str){
@@ -439,7 +444,33 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    }	
    return ret;
 };
-
+inline vec fabs( const vec & dvec1){
+   vec ret(dvec1.size());
+   for (int i=0; i< dvec1.size(); i++){
+      ret(i) = fabs(dvec1(i));
+   }	
+   return ret;
+};
+inline double abs_sum(const mat& A){
+  double sum =0;
+  for (int i=0; i< A.rows(); i++)
+    for (int j=0; j< A.cols(); j++)
+      sum += fabs(A(i,j));
+  return sum;
+}
+inline double abs_sum(const vec &v){
+  double sum =0;
+  for (int i=0; i< v.size(); i++)
+      sum += fabs(v(i));
+  return sum;
+}
+inline vec sqrt(vec & v){
+   vec ret(v.size());
+   for (int i=0; i< v.size(); i++){
+      ret[i] = sqrt(v(i));
+   }
+   return ret;
+}
 #else //eigen is not found
 /***
  *
@@ -525,6 +556,9 @@ inline int get_nz_index(sparse_vec &v, int i){
 inline double get_nz_data(sparse_vec &v, int i){
   return v.get_nz_data(i);
 }
+inline int nnz(sparse_vec & v){
+  return v.nnz();
+}
 inline double dot_prod(sparse_vec &v1, sparse_vec & v2){
   return v1*v2;
 }
@@ -534,8 +568,15 @@ inline double dot_prod(vec &v1, vec & v2){
 inline double dot_prod(const sparse_vec &v1, const vec & v2){
   return v1*v2;
 }
-inline get_val(sparse_vec & v1, int i){
-  return v1[i];
+inline double dot_prod(vec &v1, sparse_vec & v2){
+  return v1*v2;
+}
+inline double get_val(sparse_vec & v1, int i){
+   FOR_ITERATOR(j, v1){
+      if (v1.get_nz_index(j) == i)
+         return v1.get_nz_data(j);
+   }
+   return 0;
 }
 inline double get_val(vec & v1, int i){
   return v1[i];
@@ -544,19 +585,19 @@ inline void set_div(sparse_vec&v, int i, double val){
   v.set(v.get_nz_index(i) ,v.get_nz_data(i) / val);
 }
 inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
-  sparse_vec ret(ps.N, v1.nnz() + v2.nnz());
+  sparse_vec ret; 
   for (int i=0; i< v1.nnz(); i++){
-      ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get(v2, v1.get_nz_index(i)));
+      ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get_val(v2, v1.get_nz_index(i)));
   }
   for (int i=0; i< v2.nnz(); i++){
-      ret.set_new(v2.get_nz_index(i), get(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
+      ret.set_new(v2.get_nz_index(i), get_val(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
   }
   return ret;
 }
 inline vec minus( sparse_vec &v1,  vec &v2){
-  vec ret = zeros(v2.size());
-  for (int i=0; i< v2.size(); i++){
-      ret.set(i, get(v1, i) - v2[i]);
+  vec ret = -v2;;
+  FOR_ITERATOR(i, v1){  
+    ret.set(v1.get_nz_index(i), ret.get(v1.get_nz_index(i)) + v1.get_nz_data(i));
   }
   return ret;
 }
@@ -571,16 +612,22 @@ inline void minus( vec &v1, sparse_vec &v2){
   }
 }
 inline sparse_vec fabs( sparse_vec & dvec1){
-   sparse_vec ret = dvec1;
-   FOR_ITERATOR(i, ret)
-       set_new(ret,get_nz_index(ret, i), fabs(get_nz_data(ret, i)));
+   sparse_vec ret(dvec1.size(), dvec1.nnz());
+   FOR_ITERATOR(i, dvec1){
+       set_new(ret,get_nz_index(dvec1, i), fabs(get_nz_data(dvec1, i)));
    }
    return ret;
 	
 };
-
-
-
+inline vec fabs(const vec & a){
+   return abs(a);
+}
+inline double abs_sum(mat& A){
+   return sumsum(abs(A));
+}
+inline double abs_sum(const vec&v){
+  return sum(fabs(v));
+}
 #endif
 
 #endif //eigen

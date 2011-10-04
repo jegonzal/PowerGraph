@@ -218,7 +218,7 @@ mat wishrnd(mat& sigma, double df){
    assert(c.rows() == n && c.cols() == n); 
    //cout<<a<<endl;
    //
-   assert(sumsum(abs(c))!= 0);
+   assert(abs_sum(c)!= 0);
    return c;
 }
 

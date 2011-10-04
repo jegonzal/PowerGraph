@@ -79,6 +79,8 @@ void test_math(){
    assert(get_nz_data(v3,0) == 1.0);
    assert(get_nz_data(v3,1) == - 2.0);
    assert(nnz(v3)== 2);
+   assert(get_val(v1, 1) == 1.0);
+   assert(get_val(v2, 2) == 2.0);
 
    assert(sum(v1) == 1.0);
    assert(sum(v2) == 2.0);
@@ -134,7 +136,7 @@ void test_math(){
    assert(get_nz_data(v1, 0) == 1.0);
    set_new(v1, 18, 3.0);
    assert(get_nz_data(v1,1) == 3.0);
-   set_size(v1, 19);
+   //set_size(v1, 19);
  
    assert(get_val(v5,0) == 1.0);
    assert(get_val(v1,0) == 0); 
@@ -152,6 +154,7 @@ void test_math(){
 
    mat mymat = init_mat("1 2 3; 3 2 1; 1 2 3", 3, 3);
 
+   remove("stam");
    it_file saved("stam");
    saved << Name("vector");
    saved << v5;
@@ -175,4 +178,33 @@ void test_math(){
    assert(get_val(mymat2, 0, 0) == 1.0);
    assert(get_val(mymat2, 2, 2) == 3.0);
 
+
+   vec start = head(v5, 2);
+   assert(start.size() == 2);
+   assert(start[0] == 1);
+   assert(start[1] == 2);
+
+   ivec delvec(4);
+   delvec[0] = 1;
+   delvec[1] = 2;
+   delvec[2] = 3;  
+   delvec[3] = 4;
+   del(delvec,3);
+   assert(delvec.size() == 3);
+   assert(delvec[0] == 1);
+   assert(delvec[1] == 2);
+   assert(delvec[2] == 3);
+   del(delvec,1);
+   assert(delvec.size() == 2);
+   assert(delvec[0] == 1);
+   assert(delvec[1] == 3);
+
+   ivec delvec2(4);
+   delvec2[0] = 1;
+   delvec2[1] = 2;
+   delvec2[2] = 3;
+   delvec2[3] = 4;
+   del(delvec2, 0);
+   assert(delvec2.size() == 3);
+   assert(delvec2[0] = 2);
 }

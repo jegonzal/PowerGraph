@@ -143,6 +143,8 @@ public:
   gl_types_kcores::core * glcore_kcores;
   clusters clusts;
 
+  double cost;
+
 //performance counters
 #define MAX_COUNTER 20
   double counter[MAX_COUNTER];
@@ -177,6 +179,7 @@ public:
   g_kcores = NULL;
   glcore_kcores = NULL;
   total_assigned = 0;
+  cost = 0;
 }
 
   void verify_setup();

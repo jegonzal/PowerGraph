@@ -40,7 +40,27 @@ double calc_cost();
 void update_kmeans_clusters();
 int calc_cluster_centers();
 
+void print(sparse_vec & vec){
+  FOR_ITERATOR(i, vec){
+    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+  }
+  std::cout<<std::endl;
+}
 
+
+
+void init_fuzzy_kmeans(){
+  graph_type * g= ps.g<graph_type>();
+  for (int i=0; i< ps.M; i++){
+     vertex_data & vdata = g->vertex_data(i);
+     vdata.distances = randu(ac.K);
+     vdata.distances /= sum(vdata.distances);
+     if (ac.debug)
+       std::cout<<"Initial assignment of " << i << " is: " << vdata.distances << std::endl;
+     vdata.distances = pow(vdata.distances, 2);
+  }
+
+}
  /***
  * UPDATE FUNCTION
  */
@@ -56,7 +76,8 @@ void kmeans_update_function(gl_types::iscope &scope,
   
  /* print statistics */
   if (toprint){
-    printf("entering data point %u, current cluster %d\n",  id, vdata.current_cluster);   
+    printf("entering data point %u, current cluster %d\n",  id, vdata.current_cluster);  
+    print(vdata.datapoint); 
   }
 
   if (!vdata.reported) //this matrix row have no non-zero entries, and thus ignored
@@ -77,8 +98,12 @@ void kmeans_update_function(gl_types::iscope &scope,
 
   for (int i=0; i< end_cluster; i++){
      vec & row = ps.clusts.cluster_vec[i].location;
+     if (toprint)
+        std::cout<<" cluster " << i << " location " << row << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr);
-     assert(dist >= 0 && !isnan(dist));
+     if (toprint)
+        std::cout<<" distance: " << dist << std::endl;
+     assert(dist >= 0 && !std::isnan(dist));
      if (ps.algorithm == K_MEANS_PLUS_PLUS || ps.algorithm == K_MEANS){
        if (min_dist > dist){
          min_dist = dist;
@@ -106,11 +131,23 @@ void kmeans_update_function(gl_types::iscope &scope,
     vdata.prev_cluster = vdata.current_cluster; 
     vdata.current_cluster = pos;
   }
+  /**
+ * See algo description in: http://www.cs.princeton.edu/courses/archive/fall08/cos436/Duda/C/fk_means.htm
+ * min_distance = \sum_j a(j,i)
+ * distance(j) = u(i,j)
+ * */
   else if (ps.algorithm == K_MEANS_FUZZY){
-     vdata.min_distance = sum(pow(vdata.distances,2));
-     assert(!isnan(vdata.min_distance) && vdata.min_distance > 0);
-     vdata.distances = pow(vdata.distances,2) / vdata.min_distance;
-  }
+     vec old_distance = vdata.distances;
+     double factor = sum(pow(vdata.distances,-2));
+     vec normalized = pow(vdata.distances,-2) / factor;
+     vdata.distances = pow(normalized, 2);
+     if (toprint)
+         std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;
+     if (toprint)
+         std::cout<<" contribution to cost function is : " << elem_mult(vdata.distances, pow(old_distance,2))<<std::endl;
+     vdata.min_distance = dot(vdata.distances, pow(old_distance,2));
+     assert(!std::isnan(factor) && factor > 0);
+   }
 }
 
 
@@ -152,12 +189,16 @@ void update_kmeans_clusters(){
            assert(data.prev_cluster != data.current_cluster);
          }
          //add point mass into new cluster
+         if (ac.debug)
+           std::cout<<" adding point " << i << " into cluster " << data.current_cluster << std::endl;
          plus(ps.clusts.cluster_vec[data.current_cluster].cur_sum_of_points , data.datapoint);    
          ps.clusts.cluster_vec[data.current_cluster].num_assigned_points++;
          
          if (ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter < 2 && data.prev_cluster == -1){
          }
          else{ //remove point from old cluster
+           if (ac.debug)
+           std::cout<<" removing point " << i << " from old cluster " << data.prev_cluster << std::endl;
            minus(ps.clusts.cluster_vec[data.prev_cluster].cur_sum_of_points , data.datapoint);    
            ps.clusts.cluster_vec[data.prev_cluster].num_assigned_points--;
          }
