@@ -823,7 +823,7 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_edges_to_replicas()
   for (size_t i = 0;i < blockpushes.size(); ++i) blockpushes[i].resize(rmi.numprocs());
   
   
-#pragma omp parallel for
+//#pragma omp parallel for
   for (long i = 0;i < (long)ghostvertices.size(); ++i) {
     int thrid = omp_get_thread_num();
     

@@ -53,6 +53,7 @@
 #include <graphlab/distributed2/graph/graph_lock.hpp>
 #include <graphlab/distributed2/graph/chandy_misra_lock.hpp>
 #include <graphlab/distributed2/graph/distributed_mutex_lock.hpp>
+#include <graphlab/distributed2/snapshot_task.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -82,9 +83,73 @@ class distributed_locking_engine:public iengine<Graph> {
 
   typedef redirect_scheduler_callback<Graph, 
                                       distributed_locking_engine<Graph, Scheduler> > callback_type;
+                                      
   typedef icallback<Graph> icallback_type;
-private:
 
+  /**
+    A special add task redirector for the snapshotter. Provides a 
+    serialized add_task interface, as well as access to some snapshotting parameters
+  */
+  struct snapshot2_scheduler_callback: public icallback<Graph> {
+   public:
+    distributed_locking_engine<Graph, Scheduler>* eng;
+    size_t threadid;
+    snapshot2_scheduler_callback(distributed_locking_engine<Graph, Scheduler>* eng,
+                                 size_t threadid): eng(eng), threadid(threadid) { }
+    
+    void add_task(update_task_type task, double priority) {
+      eng->snapshot2_add_task(task, priority);
+    }
+    void add_tasks(const std::vector<vertex_id_t>& vertices, 
+                   update_function_type func,
+                   double priority) {
+      ASSERT_MSG(false, "Unimplemented");
+    }
+    void force_abort() {
+      ASSERT_MSG(false, "Unimplemented");
+    }
+        
+    bool get_snapshot_token(vertex_id_t vid) {
+      return eng->snapshot2_tokens.get(eng->graph.globalvid_to_localvid(vid)) == 
+                    eng->snapshot2_sense;
+    }
+    
+    bool vertex_modified_since_last_snapshot(vertex_id_t vid) {
+      return eng->graph.get_local_store()
+                  .vertex_snapshot_req(eng->graph.globalvid_to_localvid(vid));
+    }
+    
+    bool edge_modified_since_last_snapshot(edge_id_t eid) {
+      return eng->graph.get_local_store().edge_snapshot_req(eid);
+    }
+    
+    void set_and_synchronize_token(vertex_id_t vid) {
+      eng->set_snapshot2_token(vid);
+      eng->broadcast_snapshot2_token(vid);
+    }
+    
+    void save_vertex(vertex_id_t vid, const typename Graph::vertex_data_type &vdata) {
+      vertex_id_t localvid = eng->graph.globalvid_to_localvid(vid);
+      eng->snapshot2_targets[threadid]->add_vertex_with_data(vid,
+                                                            eng->graph.localvid_to_source_atom(localvid),
+                                                            serialize_to_string(vdata));
+                                                            
+      eng->graph.get_local_store().set_vertex_snapshot_req(localvid, false);
+
+    }
+    
+    void save_edge(edge_id_t eid, vertex_id_t srcvid, vertex_id_t targetvid,
+                   const typename Graph::edge_data_type &edata) {
+      eng->snapshot2_targets[threadid]->add_edge_with_data(srcvid,
+                                                          eng->graph.globalvid_to_source_atom(srcvid),
+                                                          targetvid,
+                                                          eng->graph.globalvid_to_source_atom(targetvid),
+                                                          serialize_to_string(edata));
+      eng->graph.get_local_store().set_edge_snapshot_req(eid, false);
+    }
+
+  };
+  
  private:
   // the local rmi instance
   dc_dist_object<distributed_locking_engine<Graph, Scheduler> > rmi;
@@ -94,6 +159,7 @@ private:
 
   // a redirect scheduler call back which 
   callback_type callback;
+
   
   // The manager will automatically attach to all the glshared variables
   distributed_glshared_manager glshared_manager; 
@@ -135,9 +201,22 @@ private:
   size_t snapshot_number;
   
   /** Parameters for snapshot algorithm 2: asynchronous snapshotting */
+  mutex snapshot2_lock;
   size_t snapshot2_interval_updates;
   size_t last_snapshot2;
   size_t snapshot2_number;
+  atomic<size_t> snapshot2_remaining_vertices;
+  update_function_type snapshot2_update;
+  std::vector<write_only_disk_atom*> snapshot2_targets;
+  // this is EXTREMELY annoying. I need to tack on an additional bit of information
+  // to each vertex. But other than requiring intrusive access to user data,
+  // there is no easy way to this. Therefore I need to keep my own bitset and maintain
+  // my own data consistency... URGH
+  dense_bitset snapshot2_tokens;  
+  // the current sense flag. if token == sense, snapshot has been taken
+  bool snapshot2_sense;
+  
+
 
   scope_range::scope_range_enum default_scope_range;
   scope_range::scope_range_enum sync_scope_range;
@@ -165,7 +244,7 @@ private:
   size_t max_deferred_tasks;
 
   multi_blocking_queue<vertex_id_t> ready_vertices;
-
+  
   
   double barrier_time;
   size_t num_dist_barriers_called;
@@ -209,6 +288,8 @@ private:
   atomic<size_t> threads_alive;
   
   binary_vertex_task_set<Graph> binary_vertex_tasks;
+
+  
   
   size_t numtasksdone;
 
@@ -240,6 +321,8 @@ private:
                             snapshot2_interval_updates(0), 
                             last_snapshot2(0),
                             snapshot2_number(0),
+                            snapshot2_update(gl_impl::snapshot_update<Graph, snapshot2_scheduler_callback>),
+                            snapshot2_sense(false),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
@@ -616,7 +699,7 @@ private:
     termination_test[rmi.procid()].force_stop = force_stop;
     // gather all to 0.
     // machine 0 evaluates termiation
-    rmi.gather(termination_test, 0);
+    reduction_services.gather(termination_test, 0);
     // used to globally evaluate termination
     termination_evaluation aggregate;
     if (rmi.procid() == 0) {
@@ -644,7 +727,7 @@ private:
     // note this is OK because only machine 0 will have the right value for
     // executed_tasks. And everyone is receiving from machine 0
     std::pair<size_t, size_t> reason_and_task(treason, aggregate.executed_tasks);
-    rmi.broadcast(reason_and_task, rmi.procid() == 0);
+    reduction_services.broadcast(reason_and_task, rmi.procid() == 0);
     termination_reason = exec_status(reason_and_task.first);
     return reason_and_task.second;
   }
@@ -690,6 +773,34 @@ private:
           perform_snapshot(active_sync_tasks.size() == 0);
           last_snapshot = numtasksdone;
         }
+        
+        if (last_snapshot2 > numtasksdone) {
+          // this means a snapshot was initialized before
+          std::vector<size_t> remainingv(rmi.numprocs());
+          remainingv[rmi.procid()] = snapshot2_remaining_vertices.value;
+          reduction_services.all_gather(remainingv);
+          size_t total_remaining_v = 0;
+          for (size_t i = 0;i < remainingv.size(); ++i) {
+            total_remaining_v += remainingv[i];
+          }
+          if (rmi.procid() == 0) {
+            logstream(LOG_DEBUG) << "Un-snapshotted vertices: " << total_remaining_v << std::endl;
+          }
+          if (total_remaining_v == 0) {
+            last_snapshot2 = numtasksdone + snapshot2_interval_updates;
+          }
+        }
+        
+        if (snapshot2_interval_updates > 0 && 
+            numtasksdone >= last_snapshot2 + snapshot2_interval_updates) {
+                        
+          initialize_snapshot2(!snapshot2_sense, snapshot2_number + 1);
+          reduction_services.barrier();
+          schedule_snapshot2();
+          // set last snapshot2 so it will never be triggered
+          last_snapshot2 = std::numeric_limits<size_t>::max() - snapshot2_interval_updates;
+        }
+        
       }
 
       reduction_barrier.wait();
@@ -752,6 +863,16 @@ private:
     }
   }
   
+  std::string snapshot_filename(size_t snap_number, 
+                                size_t threadid, size_t numthreads) {
+      std::stringstream strm;
+      strm << "snapshot_" << std::setw(3) << std::setfill('0') 
+            << snap_number << "_p"
+            << std::setw(3) << rmi.procid()
+            << ".part_" << threadid+1 << "_of_" << numthreads
+            << ".dump";
+      return strm.str();
+  }
 
   // if release_locks is false, this will not release the locks 
   // acquired on the vertex_deferred_tasks
@@ -770,6 +891,7 @@ private:
   // Determine if the proper ammount of time has elapsed
     // Lock all the vertices on this machine
     int nvertex_deferred_tasks = int(vertex_deferred_tasks.size());
+    
 #pragma omp parallel for
     for (int i = 0; i < nvertex_deferred_tasks; ++i) 
       vertex_deferred_tasks[i].lock.lock();        
@@ -785,13 +907,7 @@ private:
       size_t thread_id = omp_get_thread_num();
       size_t numthreads = omp_get_num_threads();
       // Go ahead and open files for the snapshot
-      std::stringstream strm;
-      strm << "snapshot_" << std::setw(3) << std::setfill('0') 
-            << snapshot_number << "_p"
-            << std::setw(3) << rmi.procid()
-            << ".part_" << thread_id+1 << "_of_" << numthreads
-            << ".dump";
-      const std::string filename = strm.str();
+      const std::string filename = snapshot_filename(snapshot_number,thread_id,numthreads);
       write_only_disk_atom atom(filename, rmi.procid(), true);
       // Wait for the syncs to finish
 
@@ -800,8 +916,8 @@ private:
           localvid < graph_local_store.num_vertices(); localvid+=numthreads) {
         if(graph.localvid_is_ghost(localvid) == false &&
           graph_local_store.vertex_snapshot_req(localvid)) {
-          atom.set_vertex_with_data(graph.localvid_to_globalvid(localvid),
-                                    graph.localvid_to_globalvid(localvid),
+          atom.add_vertex_with_data(graph.localvid_to_globalvid(localvid),
+                                    graph.localvid_to_source_atom(localvid),
                                     serialize_to_string(graph_local_store.vertex_data(localvid)));
           graph_local_store.set_vertex_snapshot_req(localvid, false);
           ++items_added;
@@ -813,8 +929,12 @@ private:
           localeid < graph_local_store.num_edges(); localeid +=numthreads) {
         if(graph.localvid_is_ghost(graph_local_store.target(localeid)) == false &&
           graph_local_store.edge_snapshot_req(localeid)) {
-          atom.set_edge_with_data(graph.localvid_to_globalvid(graph_local_store.source(localeid)),
-                                  graph.localvid_to_globalvid(graph_local_store.target(localeid)),
+          vertex_id_t localsource = graph_local_store.source(localeid);
+          vertex_id_t localtarget = graph_local_store.target(localeid);
+          atom.add_edge_with_data(graph.localvid_to_globalvid(localsource),
+                                  graph.localvid_to_source_atom(localsource),
+                                  graph.localvid_to_globalvid(localtarget),
+                                  graph.localvid_to_source_atom(localtarget),
                                   serialize_to_string(graph_local_store.edge_data(localeid)));
           graph_local_store.set_edge_snapshot_req(localeid, false);
           ++items_added;
@@ -831,7 +951,74 @@ private:
     }
   } // end of snapshot thread
 
+
+/**
+  Asynchronous Snapshot implementation.
+  1: Node 0 must call initialize_snapshot2 on all nodes and wait for a reply
+  2: schedule_snapshot2() is then called on all nodes
+*/
+  void initialize_snapshot2(bool sense, size_t snapshot_number) {  
+    snapshot2_lock.lock();
+    for (size_t i = 0;i < snapshot2_targets.size(); ++i) {
+      snapshot2_targets[i] = new write_only_disk_atom(
+                                      snapshot_filename(snapshot_number, i, ncpus), 
+                                      rmi.procid(), 
+                                      true);
+    }
+    snapshot2_number = snapshot_number;
+    snapshot2_remaining_vertices.value = graph.owned_vertices().size();
+    // flip the sense last
+    snapshot2_lock.unlock();
+    snapshot2_sense = sense;
+
+    
+  }
+  void schedule_snapshot2() {
+      // schedule all vertices with a fake task
+    add_task_to_all_impl(snapshot2_update, 
+                         100.0);
+  }  
   
+  void broadcast_snapshot2_token(vertex_id_t globalvid) {
+    const std::vector<procid_t>& replicas = graph.globalvid_to_replicas(globalvid);
+    unsigned char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1); 
+    for (size_t i = 0; i < replicas.size(); ++i) {
+      if (replicas[i] != rmi.procid()) {
+        rmi.remote_call(replicas[i],
+                        &distributed_locking_engine<Graph, Scheduler>::set_snapshot2_token,
+                        globalvid);
+      }
+    }
+    rmi.dc().set_sequentialization_key(prevkey);
+  }
+  
+  void set_snapshot2_token(vertex_id_t globalvid) {
+    snapshot2_tokens.set(graph.globalvid_to_localvid(globalvid), snapshot2_sense);
+  }
+  
+  // a special version of add_task that ensures that the task is injected before
+  // the update function releases.
+  void snapshot2_add_task(update_task_type task, double priority) {
+    if (graph.is_owned(task.vertex())) {
+      // translate to local IDs
+      task =  update_task_type(graph.globalvid_to_localvid(task.vertex()), task.function());
+      ASSERT_LT(task.vertex(), vertex_deferred_tasks.size());
+      if (binary_vertex_tasks.add(task)) {
+        scheduler.add_task(task, priority);
+        if (threads_alive.value < ncpus) {
+          consensus.cancel_one();
+        }
+      }
+    }
+    else {
+      unsigned char prevkey = rmi.dc().set_sequentialization_key((task.vertex() % 254) + 1);
+      rmi.remote_call(graph.globalvid_to_owner(task.vertex()),
+                      &distributed_locking_engine<Graph, Scheduler>::snapshot2_add_task,
+                      task,
+                      priority);
+      rmi.dc().set_sequentialization_key(prevkey);
+    }
+  }
   
 
   /** Vertex i is ready. put it into the ready vertices set */
@@ -870,6 +1057,7 @@ private:
     // create the scope
     dgraph_scope<Graph> scope;
     update_task_type task;
+    snapshot2_scheduler_callback snapshot2_callback(this, threadid);
     
     boost::function<void(vertex_id_t)> handler = 
       boost::bind(&distributed_locking_engine<Graph, Scheduler>::vertex_is_ready, this, _1);
@@ -927,6 +1115,27 @@ private:
         ASSERT_LT(curv, vertex_deferred_tasks.size());
 
         vertex_deferred_tasks[curv].lock.lock();
+        // check for snapshot task first
+        if (snapshot2_interval_updates > 0 && 
+            binary_vertex_tasks.get(update_task_type(curv, snapshot2_update))) {
+          // am I scheduled?
+          if (snapshot2_tokens.get(curv) != snapshot2_sense) {
+            scope.init(&graph, globalvid);
+            ASSERT_TRUE(snapshot2_targets[threadid] != NULL);
+            snapshot2_update(scope, snapshot2_callback);
+            ASSERT_EQ(snapshot2_tokens.get(curv), snapshot2_sense);
+            if (snapshot2_remaining_vertices.dec() == 0) {
+              snapshot2_lock.lock();
+              for (size_t i = 0;i < snapshot2_targets.size(); ++i) {
+                delete snapshot2_targets[i];
+                snapshot2_targets[i] = NULL;
+              }
+              snapshot2_lock.unlock();
+              logger(LOG_DEBUG, "Local Snapshot complete!");
+            }
+          }
+          binary_vertex_tasks.remove(update_task_type(curv, snapshot2_update));
+        }
         while (!vertex_deferred_tasks[curv].updates.empty()) {
           update_function_type ut = vertex_deferred_tasks[curv].updates.front();
           vertex_deferred_tasks[curv].updates.pop_front();
@@ -935,12 +1144,13 @@ private:
           scope.init(&graph, globalvid);
           
           binary_vertex_tasks.remove(update_task_type(curv, ut));
-
-          // run the update function
-          ut(scope, callback);          
+          if (ut != snapshot2_update) {
+            // run the update function
+            ut(scope, callback);          
+            update_counts[threadid]++;
+          }
           //vertex_deferred_tasks[curv].lock.lock();
 
-          update_counts[threadid]++;
           num_deferred_tasks.dec();
         }
         vertex_deferred_tasks[curv].lockrequested = false;
@@ -1004,6 +1214,14 @@ private:
     snapshot_number = 0;
     last_snapshot2 = 0;
     snapshot2_number = 0;
+    snapshot2_remaining_vertices.value = 0;
+    snapshot2_sense = false;
+    // using snapshot 2
+    if (snapshot2_interval_updates > 0) {
+      snapshot2_tokens.resize(graph.get_local_store().num_vertices());
+      snapshot2_targets.resize(ncpus, NULL);
+      snapshot2_tokens.clear();
+    }
     reduction_stop = false; 
     reduction_run = false;
     threads_alive.value = ncpus;

@@ -92,6 +92,7 @@ template <typename VertexData, typename EdgeData>
 typename distributed_graph<VertexData,EdgeData>::vertex_id_type 
   distributed_graph<VertexData,EdgeData>::create_vertex_if_missing(vertex_id_type globalvid,
                                                                       procid_t machine,
+                                                                      uint16_t sourceatom,
                                                                       bool overwritedata,
                                                                       const VertexData &vdata) {
     typename global2localvid_type::const_iterator iter = global2localvid.find(globalvid);
@@ -105,6 +106,7 @@ typename distributed_graph<VertexData,EdgeData>::vertex_id_type
       ASSERT_EQ(local2globalvid.size(), localvid+1);
       // update the owner tables
       localvid2owner.push_back(machine);
+      localvid2atom.push_back(sourceatom);
       if (machine == rmi.procid()) {
         globalvid2owner.set(globalvid, rmi.procid());
       }
@@ -131,7 +133,7 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
   fin.push(in_file);
   // flush the commands
   iarchive iarc(fin);
-  
+
   while(fin.good()) {
     char command;
     fin >> command;
@@ -140,14 +142,14 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       // add vertex skip
       vertex_id_type vid; uint16_t owner;
       iarc >> vid >> owner;
-      create_vertex_if_missing(vid, atom2machine[owner]);
+      create_vertex_if_missing(vid, atom2machine[owner], owner);
     } else if (command == 'c') {
       vertex_id_type vid; uint16_t owner; std::string data;
       iarc >> vid >> owner >> data;
       // deserialize it
       VertexData vd;
       if (data.size() > 0) deserialize_from_string(data, vd);
-      vertex_id_type localvid = create_vertex_if_missing(vid, atom2machine[owner], data.size() > 0, vd);
+      vertex_id_type localvid = create_vertex_if_missing(vid, atom2machine[owner], owner, data.size() > 0, vd);
       localstore.set_vertex_version(localvid, 1);
     } else if (command == 'd') {
       vertex_id_type src; vertex_id_type target; std::string data;
@@ -157,8 +159,8 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       EdgeData ed;
       if (data.size() > 0) deserialize_from_string(data, ed);
       
-      vertex_id_type localsrcvid =  create_vertex_if_missing(src, atom2machine[srcowner], false);
-      vertex_id_type localtargetvid = create_vertex_if_missing(target, atom2machine[targetowner], false);
+      vertex_id_type localsrcvid =  create_vertex_if_missing(src, atom2machine[srcowner], srcowner, false);
+      vertex_id_type localtargetvid = create_vertex_if_missing(target, atom2machine[targetowner], targetowner, false);
       std::pair<bool, edge_id_type> hasedge = localstore.find(localsrcvid, localtargetvid);
       edge_id_type eid;
       if (hasedge.first) eid = hasedge.second;
@@ -212,6 +214,7 @@ void distributed_graph<VertexData,EdgeData>::shuffle_local_vertices_to_start() {
   // and we just do the renumbering out of place
   outofplace_shuffle(local2globalvid, renumber);
   outofplace_shuffle(localvid2owner, renumber);
+  outofplace_shuffle(localvid2atom, renumber);
   // check that invariance is good
   bool isowned = true;
   for (size_t i = 0;i < localvid2owner.size(); ++i) {

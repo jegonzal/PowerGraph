@@ -625,6 +625,13 @@ namespace graphlab {
       return localvid2owner[iter->second] != rmi.procid();
     }
   
+    uint16_t globalvid_to_source_atom(vertex_id_type globalvid) const {
+      return localvid2atom[globalvid_to_localvid(globalvid)];
+    }
+
+    uint16_t localvid_to_source_atom(vertex_id_type localvid) const {
+      return localvid2atom[localvid];
+    }
   
     bool localvid_is_ghost(vertex_id_type localvid) const {
       return localvid2owner[localvid] != rmi.procid();
@@ -1395,6 +1402,8 @@ namespace graphlab {
      * to its owner. Since this operation is quite frequently needed.
      */
     std::vector<procid_t> localvid2owner;
+    
+    std::vector<uint16_t> localvid2atom;
   
     /**
      * The number of vertices and edges in the entire graph so far.
@@ -1444,6 +1453,7 @@ namespace graphlab {
     */
     vertex_id_type create_vertex_if_missing(vertex_id_type globalvid,
                                         procid_t machine,
+                                        uint16_t sourceatom,
                                         bool overwritedata = false,
                                         const VertexData &vdata = VertexData());
 
@@ -1570,7 +1580,12 @@ namespace graphlab {
       }
       global2localvid.rehash(2 * global2localvid.size());
 
-
+      localvid2atom.resize(local2globalvid.size());
+      for (size_t i = 0;i < vertices_in_atom.size(); ++i) {
+        for (size_t j = 0; j < vertices_in_atom[i].size(); ++j) {
+          localvid2atom[global2localvid[vertices_in_atom[i][j]]] = atoms_in_curpart[i];
+        }
+      }
 
 
       logger(LOG_INFO, "Counting Edges");
@@ -1581,7 +1596,7 @@ namespace graphlab {
       std::vector<size_t> acc_edges_created_in_this_atom(atomfiles.size(), 0);
 #pragma omp parallel for reduction(+ : nedges_to_create)
       for (int i = 0;i < (int)(atomfiles.size()); ++i) {
-        std::vector<vertex_id_type> vertices = vertices_in_atom[i];
+        std::vector<vertex_id_type>& vertices = vertices_in_atom[i];
         foreach(vertex_id_type dest, vertices) {
           uint16_t destowneratom;
           ASSERT_TRUE(atomfiles[i]->get_vertex(dest, destowneratom));

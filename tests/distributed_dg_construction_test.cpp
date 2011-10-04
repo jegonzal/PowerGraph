@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
   ti.start();
   // call the mr_disk_graph_construction function
   mr_disk_graph_construction<graph_constructor,float, double>(dc, gc, 2, "dg", 16, 
-                                                              disk_graph_atom_type::MEMORY_ATOM, "/tmp", "./");
+                                                              disk_graph_atom_type::WRITE_ONLY_ATOM, "/tmp", "./");
   // thats all!
   std::cout << "Completed in " << ti.current_time() << " s" << std::endl;
   //-----------------------------------------------------------------------
