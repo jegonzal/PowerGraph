@@ -14,4 +14,5 @@ cd /tmp/graphlabapi
 cd release
 make -j8
 
-
+cd tests
+./runtests.sh
