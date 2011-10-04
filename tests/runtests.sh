@@ -57,7 +57,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
     exit 1
   fi
 
-  ./pmf --unittest 1 --ncpus=1 >> $stdoutfname 2>> $stderrfname 
+  ./pmf --unittest 1 --ncpus=1 --debug = true>> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 2 (alternating least squares)"
   else
