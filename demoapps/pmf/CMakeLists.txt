@@ -27,4 +27,12 @@ if (lapack_found)
     ${CMAKE_CURRENT_BINARY_DIR}/smallteste COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest.out
     ${CMAKE_CURRENT_BINARY_DIR}/smalltest.out COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/als
+    ${CMAKE_CURRENT_BINARY_DIR}/als COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/alse
+    ${CMAKE_CURRENT_BINARY_DIR}/alse COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/wals
+    ${CMAKE_CURRENT_BINARY_DIR}/wals COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/walse
+    ${CMAKE_CURRENT_BINARY_DIR}/walse COPYONLY)
 endif()

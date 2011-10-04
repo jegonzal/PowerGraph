@@ -60,8 +60,11 @@ void fill_output(graph_type * g){
         if (ac.algorithm == K_MEANS){
           set_val( ps.output_assignements, i,0, data.current_cluster);
         } 
-	else if (ac.algorithm == K_MEANS_FUZZY) 
-          set_row(ps.output_assignements, i, data.distances);
+	else if (ac.algorithm == K_MEANS_FUZZY){
+           double factor = sum(pow(data.distances,-2));
+           vec normalized = pow(data.distances,-2) / factor;
+           set_row(ps.output_assignements, i, normalized);
+        }
      }
 } 
 void fill_output(graph_type_kcores * g){

@@ -50,12 +50,35 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   echo "---------PMF-------------" >> $stdoutfname
   echo "---------PMF-------------" >> $stderrfname
   ./pmf  smalltest 0 --scheduler="round_robin(max_iterations=10)" --float=true --ncpus=1  >> $stdoutfname 2>> $stderrfname
-  if ./itdiff smalltest20.out smalltest.out ; then
-    echo "PASS"
+  if ./itdiff smalltest-20-21.out smalltest.out ; then
+    echo "PASS TEST 1 (Alternating least sqaures)"
   else
     echo "FAIL: Output differs!"
     exit 1
   fi
+
+  ./pmf --unittest 1 --ncpus=1 >> $stdoutfname 2>> $stderrfname 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 2 (alternating least squares)"
+  else
+     echo "FAIL --unittest=1"
+     exit 1
+  fi
+ ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 3"
+  else
+     echo "FAIL --unittest=91 (weighted alternating least squares)"
+     exit 1
+  fi
+ ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>> $stderrfname 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 4"
+  else
+     echo "FAIL --unittest=101 (CoSaMP)"
+     exit 1
+  fi
+   
   popd  > /dev/null
 else
   echo "PMF not found. "
