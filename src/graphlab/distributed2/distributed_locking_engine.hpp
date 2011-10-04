@@ -787,7 +787,7 @@ class distributed_locking_engine:public iengine<Graph> {
             logstream(LOG_DEBUG) << "Un-snapshotted vertices: " << total_remaining_v << std::endl;
           }
           if (total_remaining_v == 0) {
-            last_snapshot2 = numtasksdone + snapshot2_interval_updates;
+            last_snapshot2 = numtasksdone;
           }
         }
         
