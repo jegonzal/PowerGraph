@@ -354,7 +354,8 @@ void export_kdd_format(const graph_type & _g, testtype type, bool dosave) {
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_binary_file(){
 
-  fill_factors_uvt<graph_type, vertex_data>();
+  if (ps.algorithm != LANCZOS)
+    fill_factors_uvt<graph_type, vertex_data>();
 
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
@@ -384,7 +385,8 @@ void export_uvt_to_binary_file(){
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_itpp_file(){
 
-  fill_factors_uvt<graph_type, vertex_data>();
+  if (ps.algorithm != LANCZOS)
+     fill_factors_uvt<graph_type, vertex_data>();
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
   remove(dfile);
@@ -402,7 +404,8 @@ void export_uvt_to_itpp_file(){
 
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_matrixmarket(){
-  fill_factors_uvt<graph_type, vertex_data>();
+  if (ps.algorithm != LANCZOS)
+     fill_factors_uvt<graph_type, vertex_data>();
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D,ps.iiter);
   if (ps.tensor)

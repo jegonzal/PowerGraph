@@ -255,7 +255,7 @@ void print_w(bool rows){
   vec v = zeros(size);
   for (int i=start; i< end; i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-    v[i] = data->rmse;
+    v[i - start] = data->rmse;
   }
   cout<<"w is: " << v << endl;
 }

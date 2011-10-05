@@ -644,7 +644,7 @@ inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
   eigenvalues = reverse(eigenvalues);
   mat reverse_rows = zeros(eigenvectors.rows(), eigenvectors.cols());
   for (int i=0; i< eigenvectors.rows(); i++){
-    reverse_rows.set_row(i, eigenvectors.get_row(eigenvectors.size() - i - 1));
+    reverse_rows.set_row(i, eigenvectors.get_row(eigenvectors.rows() - i - 1));
   }
   eigenvectors = reverse_rows;
   return true;
