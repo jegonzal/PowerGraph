@@ -231,7 +231,7 @@ argc, char** argv) { itpp::vec v; return 0; }" ITPP-FOUND)
 
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 if (ITPP-FOUND)
-  link_libraries(itpp_debug)
+  link_libraries(itpp)
   add_definitions(-DHAS_ITPP)
   message(STATUS "ITPP found.")
 else()
