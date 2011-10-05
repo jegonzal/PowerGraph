@@ -1,6 +1,7 @@
 #!/bin/bash
 echo "===== install deps"
 echo $1
+echo "is apple? $3"
 
 source configure.deps
 

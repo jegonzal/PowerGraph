@@ -93,7 +93,11 @@ else
     cd kyotocabinet-1.2.70
     # build kyoto cabinet
     echo "Configuring Kyoto Cabinet..."
-    ./configure --prefix=$installprefix
+    if [ ! -z $install_eigen ]; then
+       ./configure --prefix=$installprefix --enable-opt=no
+    else
+       ./configure --prefix=$installprefix 
+    fi
     echo "Compiling Kyoto Cabinet..."
     make -j2
     
