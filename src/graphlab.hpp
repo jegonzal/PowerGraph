@@ -125,6 +125,7 @@ namespace graphlab {
     typedef graphlab::glshared_apply_ops glshared_apply_ops;
     typedef graphlab::glshared_merge_ops glshared_merge_ops;
 
+    typedef graphlab::any any;
 
     
     template<typename Scheduler, typename ScopeFactory>
