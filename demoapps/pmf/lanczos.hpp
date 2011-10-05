@@ -41,12 +41,10 @@ extern problem_setup ps;
 
 
 using namespace graphlab;
-int m; //number of iterations
 
-extern int svd_iter;
 void last_iter();
 double predict(const vertex_data& user, const vertex_data &movie, float rating, float & prediction);
-
+void verify_result(double a, double b, double c);
 
 
 //LANCZOS VARIABLES
@@ -66,7 +64,7 @@ int offset, offset2, offset3;
  *
  * */
 void init_lanczos(){
-   m = ac.svd_iter;
+   int m = ac.iter;
    lancbeta = zeros(m+3);
    lancalpha = zeros(m+3);
    double sum = 0;
@@ -84,8 +82,9 @@ void init_lanczos(){
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec[1] /= sum;
+    if (ac.debug && i- ps.M < 20)
+      cout<<"Initial V(:,2) is " << data->pvec[1] << endl;
   }
-
 }
 
 /***
@@ -118,18 +117,9 @@ void Axb(gl_types::iscope &scope,
   t.start(); 
 
    foreach(gl_types::edge_id oedgeid, outs) {
-#ifndef GL_NO_MULT_EDGES
-      multiple_edges & edges = scope.edge_data(oedgeid);
-      for (int j=0; j< (int)edges.medges.size(); j++){
-         edge_data & edge = edges.medges[j];
-#else
       edge_data & edge = scope.edge_data(oedgeid);
-#endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       user.rmse += edge.weight * movie.pvec[offset];
-#ifndef GL_NO_MULT_EDGES
-      }
-#endif
   }
 
   ps.counter[SVD_MULT_A] += t.current_time();
@@ -149,7 +139,7 @@ void ATxb(gl_types::iscope &scope,
 
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
- 
+  int m = ac.iter; 
   
   /* print statistics */
   if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
@@ -163,26 +153,17 @@ void ATxb(gl_types::iscope &scope,
     return; //if this user/movie have no ratings do nothing
   }
 
-
   gl_types::edge_list ins = scope.in_edge_ids();
   timer t;
   t.start(); 
 
    foreach(gl_types::edge_id iedgeid, ins) {
-#ifndef GL_NO_MULT_EDGES
-      multiple_edges & edges = scope.edge_data(iedgeid);
-      for (int j=0; j< (int)edges.medges.size(); j++){
-         edge_data & edge = edges.medges[j];
-#else
       edge_data & edge = scope.edge_data(iedgeid);
-#endif
       vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
       user.rmse += edge.weight * movie.rmse;
-#ifndef GL_NO_MULT_EDGES
-      }
-#endif
       }
 
+   assert(offset2 < m+2 && offset3 < m+2);
    user.rmse -= lancbeta[offset2] * user.pvec[offset3];
 
    ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
@@ -190,7 +171,6 @@ void ATxb(gl_types::iscope &scope,
   if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
     printf("Axb: computed value  %u %g beta: %g v %g \n",  (int)scope.vertex(), user.rmse,lancbeta[offset2],  user.pvec[offset3]);   
   }
-
 
 
 
@@ -256,13 +236,34 @@ mat calc_V(){
 
   const graph_type *g = ps.g<graph_type>(TRAINING); 
   
-  mat V = zeros(ps.M,m);
+  mat V = zeros(ps.M,ac.iter);
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-    set_row(V, i-ps.M, head(data->pvec, m));
+    set_row(V, i-ps.M, head(data->pvec, ac.iter));
   }
   return V;
 }
+
+
+void print_w(bool rows){
+
+  const graph_type *g = ps.g<graph_type>(TRAINING); 
+  
+  int size =rows? ps.M : ps.N;
+  int start=rows? 0 : ps.M;
+  int end = rows?ps.M : ps.M+ ps.N;
+  vec v = zeros(size);
+  for (int i=start; i< end; i++){ 
+    const vertex_data * data = (vertex_data*)&g->vertex_data(i);
+    v[i] = data->rmse;
+  }
+  cout<<"w is: " << v << endl;
+}
+
+
+
+
+
 
 
 template<typename core>
@@ -272,27 +273,31 @@ void lanczos(core & glcore){
 
 template<>
 void lanczos<>(gl_types::core & glcore){
-
-   std::vector<vertex_id_t> rows,cols;
+   
+  std::vector<vertex_id_t> rows,cols;
    for (int i=0; i< ps.M; i++)
       rows.push_back(i);
    for (int i=ps.M; i< ps.M+ps.N; i++)
       cols.push_back(i);
  
+   ac.iter--;
 
    //for j=2:m+2
-   for (int j=1; j<= ac.svd_iter+1; j++){
+   for (int j=1; j<= ac.iter+1; j++){
         //w = A*V(:,j) 
         offset = j;
 	glcore.add_tasks(rows, Axb, 1);
         glcore.start();
-
+	if (ac.debug)
+           print_w(true);
         //w = w - lancbeta(j)*V(:,j-1);
         offset2 = j;
         offset3 = j-1;
         glcore.add_tasks(cols, ATxb, 1);
 	glcore.start();
-
+        if (ac.debug)
+          print_w(false);
+       
         //lancalpha(j) = w'*V(:,j);
 	lancalpha[j] = wTV(j);
 
@@ -301,9 +306,8 @@ void lanczos<>(gl_types::core & glcore){
         lancbeta[j+1] = w_lancalphaV(j);
 
         //V(:,j+1) = w/lancbeta(j+1);
-        update_V(j+1);
-   }
-
+        update_V(j+1); 
+   } 
   /* 
  * T=sparse(m+1,m+1);
  * for i=2:m+1
@@ -314,7 +318,7 @@ void lanczos<>(gl_types::core & glcore){
  * T(m+1,m+1)=lancalpha(m+2);
  * V = V(:,2:end-1);
  */
-
+ int m = ac.iter;
  mat T=zeros(m+1,m+1);
  for (int i=1; i<=m; i++){
    set_val(T,i-1,i-1,lancalpha[i]);
@@ -322,23 +326,26 @@ void lanczos<>(gl_types::core & glcore){
    set_val(T,i,i-1,lancbeta[i+1]);
  }
  set_val(T,m,m,lancalpha[m+1]);
+ if (ac.debug && m < 100){
+    cout<<"Matrix T is: " << T << endl;
+ }
 
  mat Vectors=calc_V(); 
    
  vec eigenvalues; 
  mat eigenvectors;
- assert(eig_sym(T, eigenvalues, eigenvectors));
+ assert(::eig_sym(T, eigenvalues, eigenvectors));
  cout << "Here are the computed eigenvalues, from larger to smaller" << endl;
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[eigenvalues.size() - i - 1] << endl;
+	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
 
-
- //exports computed eigenvalues and eigenvectors to file
  ps.U=eigenvectors;
- ps.V=zeros(1,eigenvalues.size());
- set_row(ps.V,0,eigenvalues); 
+ ps.V=zeros(eigenvalues.size(),1);
+ set_col(ps.V,0,eigenvalues); 
 
-
+ if (ac.unittest > 0){
+   verify_result(0, 0, 0);
+ }
 }
 
 #include "graphlab/macros_undef.hpp"

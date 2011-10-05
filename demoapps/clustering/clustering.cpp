@@ -396,7 +396,8 @@ void do_main(int argc, const char *argv[]){
   ac.init_command_line_options(clopts);
 
   if (ac.mainfunc){ //if called from main(), parse command line arguments
-    assert(clopts.parse(argc, argv));
+    if (!clopts.parse(argc, argv))
+       return EXIT_FAILURE;
     ac.ncpus = clopts.get_ncpus();
 
    if (ac.unittest > 0)

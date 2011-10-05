@@ -137,8 +137,8 @@ void save_matrix_market_format(const char * filename, mat U, mat V)
     mm_write_banner(f, matcode); 
     mm_write_mtx_crd_size(f, ps.M, ac.D, ps.M*ac.D);
 
-    for (i=0; i<ps.M; i++)
-       for (j=0; j<ac.D; j++)
+    for (i=0; i<U.rows(); i++)
+       for (j=0; j<U.cols(); j++)
         fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(U,i,j));
 
     fclose(f);
@@ -147,8 +147,8 @@ void save_matrix_market_format(const char * filename, mat U, mat V)
     mm_write_banner(f, matcode); 
     mm_write_mtx_crd_size(f, ps.N, ac.D, ps.N*ac.D);
 
-    for (i=0; i<ps.N; i++)
-       for (j=0; j<ac.D; j++)
+    for (i=0; i<V.rows(); i++)
+       for (j=0; j<V.cols(); j++)
         fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(V,i,j));
 
     fclose(f);

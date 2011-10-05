@@ -250,9 +250,7 @@ void start(command_line_options& clopts) {
     if (ps.glcore == NULL)
       ps.glcore = &glcore;
 
-    if (ac.unittest > 0)
-        unit_testing(ac.unittest, clopts);
-   
+  
     ps.algorithm = (runmodes)ac.algorithm;
     printf("Setting run mode %s\n", runmodesname[ps.algorithm]);
 
@@ -276,7 +274,7 @@ void start(command_line_options& clopts) {
     printf("loading data file %s\n", ac.datafile.c_str());
     if (!ac.manualgraphsetup){
     if (!ac.loadgraph){
-    //ps.g=&ps.glcore->graph();
+    
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>(ac.datafile.c_str(), &g, &g, TRAINING);
     ps.set_graph(&g, TRAINING);
 
@@ -347,24 +345,24 @@ void start(command_line_options& clopts) {
        ac.minval = 0; ac.maxval = 100;
    }
 
+   double res = 0;
    if (ps.algorithm != LANCZOS){
-     double res, res2;
+     double res2 = 0;
      double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&g, false, res);
      printf(ac.printhighprecision ? 
            "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
            "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
            , calc_obj<graph_type, vertex_data>(res), rmse, calc_rmse<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
+  } else {
+     //In Lanczos, we limit the number of eigenvalues to matrix smaller dimension
+     if (ac.iter > ps.M || ac.iter > ps.N)
+       ac.iter = std::min(ps.M, ps.N);
   }
  
  
   if (ps.BPTF){
     //sample hyper priors and noise level
-    if (ac.bptf_delay_alpha < ps.iiter)
-    	sample_alpha(ps.L);
-    sample_U<graph_type>();
-    sample_V<graph_type>();
-    if (ps.tensor) 
-      sample_T();
+    sample_hyperpriors<graph_type>(res);
   }
 
   g.finalize();  
@@ -387,10 +385,12 @@ void start(command_line_options& clopts) {
          break;
      
      case LANCZOS:
-        lanczos<core>(glcore); break;
+        lanczos<core>(glcore); 
+        break;
 
      case NMF:
-        nmf<core>(&glcore); break;
+        nmf<core>(&glcore); 
+        break;
   }
 
  if (ps.algorithm != LANCZOS){
@@ -402,12 +402,7 @@ void start(command_line_options& clopts) {
 	     export_kdd_format<graph_type, vertex_data, edge_data>(test_graph, TEST, true);
     }
  }
-
-  //print timing counters
-  for (int i=0; i<MAX_COUNTER; i++){
-    if (ps.counter[i] > 0)
-    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
-  }
+  print_runtime_counters(); 
 
   write_output<graph_type, vertex_data>();
 }
@@ -430,7 +425,8 @@ int do_main(int argc, const char *argv[]){
     command_line_options clopts;
     ac.init_command_line_options(clopts);
     if (ac.mainfunc){ //if called from main(), parse command line arguments
-      assert(clopts.parse(argc, argv));
+      if (!clopts.parse(argc, argv))
+         return EXIT_FAILURE;
       ac.scheduler = clopts.scheduler_type;
    } 
 
@@ -438,8 +434,10 @@ int do_main(int argc, const char *argv[]){
    if (ac.show_version)
       return version;
 
-
-      switch(ac.algorithm){
+   if (ac.unittest > 0)
+        unit_testing(ac.unittest, clopts);
+ 
+   switch(ac.algorithm){
       case ALS_TENSOR_MULT:
       case BPTF_TENSOR_MULT:
  	start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);

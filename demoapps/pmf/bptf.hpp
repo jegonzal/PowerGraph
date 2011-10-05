@@ -301,6 +301,18 @@ void sample_T(){
    
 }
 
+template<typename graph_type>
+void sample_hyperpriors(double res){
+    timer t;
+    t.start();
+     if (ps.iiter > ac.bptf_delay_alpha)
+    	sample_alpha(res);
+    sample_U<graph_type>();
+    sample_V<graph_type>();
+    if (ps.tensor) 
+      sample_T();
+    ps.counter[BPTF_SAMPLE_STEP] += t.current_time();
+}
 /**
  * for BPTF: sample hyperprior and noise level at the end of each round
  */
@@ -309,15 +321,7 @@ void last_iter_bptf(double res){
     if (ps.iiter == ac.bptf_burn_in){
       printf("Finished burn-in period. starting to aggregate samples\n");
     }
-    timer t;
-    t.start();
-    if (ps.iiter > ac.bptf_delay_alpha)
-    	sample_alpha(res);
-    sample_U<graph_type>();
-    sample_V<graph_type>();
-    if (ps.tensor) 
-      sample_T();
-    ps.counter[BPTF_SAMPLE_STEP] += t.current_time();
+    sample_hyperpriors<graph_type>(res);
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
 	export_kdd_format<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
     if (ac.bptf_additional_output && ps.iiter >= ac.bptf_burn_in)

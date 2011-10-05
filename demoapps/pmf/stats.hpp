@@ -35,7 +35,17 @@ extern problem_setup ps;
 using namespace graphlab;
 
 extern const char * testtypename[];
+extern const char * countername[];
 extern std::vector<edge_id_t> * edges;
+
+
+void print_runtime_counters(){
+  //print timing counters
+  for (int i=0; i<MAX_COUNTER; i++){
+    if (ps.counter[i] > 0)
+    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
+  }
+}
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)

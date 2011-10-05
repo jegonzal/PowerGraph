@@ -37,4 +37,6 @@ if (lapack_found)
     ${CMAKE_CURRENT_BINARY_DIR}/wals COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/walse
     ${CMAKE_CURRENT_BINARY_DIR}/walse COPYONLY)
-endif()
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/lanczos2
+    ${CMAKE_CURRENT_BINARY_DIR}/lanczos2 COPYONLY)
+ endif()

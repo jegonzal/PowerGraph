@@ -104,6 +104,7 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
       prediction = std::min((double)prediction, (double)ac.maxval);
       prediction = std::max((double)prediction, (double)ac.minval);
       float err = rating - prediction;
+      assert(!std::isnan(err));
       return err*err; 
 }
 
@@ -249,6 +250,7 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
       movie.pvec += itmFctrStep*(err*(usrFactor +  user.weight)             - itmFctrReg*itmFctr);
       //p_u = p_u + gamma2    *(e_ui*q_i   -gamma7     *p_u)
       user.pvec += usrFctrStep*(err *itmFctr-usrFctrReg*usrFactor);
+      assert(!std::isnan(user.pvec[0]));
       step += err*itmFctr;
 
       //b_i = b_i + gamma1*(e_ui - gmma6 * b_i) 

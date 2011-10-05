@@ -166,13 +166,21 @@ inline bool inv(const mat&A, mat &out){
    out = A.inverse();
    return true;
 }
-
-//to handle some mysterious eigen bug
-#define outer_product(a,b) a*b.transpose()
-
+mat outer_product(const vec&a, const vec&b){
+   return a*b.transpose();
+}
+//Eigen does not sort eigenvalues, as done in matlab
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
    VectorXcd eigs = T.eigenvalues();
    eigenvalues = eigs.real(); //TODO - what happen with complex
+   ivec index = sort_index(eigenvalues);
+   sort(eigenvalues);
+   eigenvalues = eigenvalues.reverse();
+   mat T2 = zeros(T.rows(), T.cols());
+   for (int i=0; i< T.rows(); i++){
+      set_row(T2, index[i], get_row(T, i));
+   }   
+   T = T2;
    return true;
 }
 inline vec head(const vec& v, int num){
@@ -224,6 +232,9 @@ inline ivec concat(const ivec&a, const ivec&b){
    return ret;
 }
 inline void sort(ivec &a){
+   std::sort(a.data(), a.data()+a.size());
+}
+inline void sort(vec & a){
    std::sort(a.data(), a.data()+a.size());
 }
 inline ivec sort_index(const vec&a){
@@ -627,6 +638,16 @@ inline double abs_sum(mat& A){
 }
 inline double abs_sum(const vec&v){
   return sum(fabs(v));
+}
+inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
+  itpp::eig_sym(T,eigenvalues, eigenvectors);
+  eigenvalues = reverse(eigenvalues);
+  mat reverse_rows = zeros(eigenvectors.rows(), eigenvectors.cols());
+  for (int i=0; i< eigenvectors.rows(); i++){
+    reverse_rows.set_row(i, eigenvectors.get_row(eigenvectors.size() - i - 1));
+  }
+  eigenvectors = reverse_rows;
+  return true;
 }
 #endif
 
