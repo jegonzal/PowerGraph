@@ -1,8 +1,11 @@
 ## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
 if(APPLE)
-  set(CMAKE_C_COMPILER "gcc-4.2")	
-  set(CMAKE_CXX_COMPILER "c++-4.2")
+  if (HAS_EIGEN)
+  else(HAS_EIGEN)
+    set(CMAKE_C_COMPILER "gcc-4.2")	
+    set(CMAKE_CXX_COMPILER "c++-4.2")
+  endif(HAS_EIGEN)
 endif(APPLE)
 
 
@@ -578,9 +581,6 @@ ENDMACRO(add_jni_library)
 
 # ENDIF(MATLAB_FOUND)
 # ENDMACRO(add_mex_library)
-
-
-
 
 
 
