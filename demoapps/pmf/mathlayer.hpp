@@ -287,19 +287,29 @@ class it_file{
 
 public:
   it_file(const char * name){
-   fb.open (name, std::fstream::in | std::fstream::out | std::fstream::app);
+  fb.open(name, std::fstream::in);
+  fb.close();
+
+  if (fb.fail()){
+     fb.clear(std::fstream::failbit);
+     fb.open(name, std::fstream::out | std::fstream::trunc );
+  }
+  else {
+     fb.open(name, std::fstream::in);
+  }
    
    if (!fb.is_open()){
      perror("Failed opening file ");
      printf("filename is: %s\n", name);
+     assert(false);
    }
-   assert(fb.is_open());
   
   };
 
   std::fstream & operator<<(const std::string str){
    int size = str.size();
    fb.write((char*)&size, sizeof(int));
+   assert(!fb.fail());
    fb.write(str.c_str(), size);
    return fb;
   }
@@ -311,24 +321,32 @@ public:
       for (int j=0; j< A. cols(); j++){
          double val = A(i,j);
          fb.write( (const char *)&val, sizeof(double));
-   
+         assert(!fb.fail());
       }
    return fb;
   }
   std::fstream &operator<<(vec & v){
    int size = v.size();
    fb.write( (const char*)&size, sizeof(int));
+   assert(!fb.fail());
    for (int i=0; i< v.size(); i++){
       double val = v(i);
       fb.write( (const char *)&val, sizeof(double));
+      assert(!fb.fail());
    }
    return fb;
   }
  std::fstream & operator>>(std::string  str){
-    int size;
+    int size = -1;
     fb.read((char*)&size, sizeof(int));
+       if (fb.fail() || fb.eof()){
+       perror("Failed reading file");
+       assert(false);
+    }
+     
     char buf[256];
     fb.read(buf, std::min(256,size));
+    assert(!fb.fail());
     assert(!strncmp(str.c_str(), buf, std::min(256,size)));
     return fb;
   }
@@ -336,12 +354,15 @@ public:
   std::fstream &operator>>(mat & A){
    int rows, cols;
    fb.read( (char *)&rows, sizeof(int));
+   assert(!fb.fail());
    fb.read( (char *)&cols, sizeof(int));
+   assert(!fb.fail());
    A = mat(rows, cols);
    double val;
    for (int i=0; i< A.rows(); i++)
       for (int j=0; j< A. cols(); j++){
         fb.read((char*)&val, sizeof(double));
+        assert(!fb.fail());
         A(i,j) = val;
       }
    return fb;
@@ -349,11 +370,13 @@ public:
   std::fstream &operator>>(vec & v){
    int size;
    fb.read((char*)&size, sizeof(int));
+   assert(!fb.fail());
    assert(size >0);
    v = vec(size);
    double val;
    for (int i=0; i< v.size(); i++){
       fb.read((char*)& val, sizeof(double));
+     assert(!fb.fail());
       v(i) = val;
    }
    return fb;
