@@ -166,21 +166,43 @@ inline bool inv(const mat&A, mat &out){
    out = A.inverse();
    return true;
 }
-mat outer_product(const vec&a, const vec&b){
+inline mat outer_product(const vec&a, const vec&b){
    return a*b.transpose();
 }
+inline void sort(ivec &a){
+   std::sort(a.data(), a.data()+a.size());
+}
+inline void sort(vec & a){
+   std::sort(a.data(), a.data()+a.size());
+}
+inline ivec sort_index(const vec&a){
+  ivec ret(a.size()); 
+  std::vector<std::pair<double,int> > D;
+  // 	
+  D.reserve(a.size());
+  for (int i=0;i<a.size();i++)
+    D.push_back(std::make_pair<double,int>(a.coeff(i),i));
+  std::sort(D.begin(),D.end());
+  for (int i=0;i<a.size();i++)
+  { 
+    ret[i]=D[i].second;
+  } 
+  return ret;
+}
+
 //Eigen does not sort eigenvalues, as done in matlab
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
    VectorXcd eigs = T.eigenvalues();
    eigenvalues = eigs.real(); //TODO - what happen with complex
    ivec index = sort_index(eigenvalues);
    sort(eigenvalues);
-   eigenvalues = eigenvalues.reverse();
-   mat T2 = zeros(T.rows(), T.cols());
-   for (int i=0; i< T.rows(); i++){
-      set_row(T2, index[i], get_row(T, i));
+   vec eigenvalues2 = eigenvalues.reverse();
+   mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
+   for (int i=0; i< eigenvectors.rows(); i++){
+      set_row(T2, index[i], get_row(eigenvectors, i));
    }   
-   T = T2;
+   eigenvectors = T2;
+   eigenvalues = eigenvalues2;
    return true;
 }
 inline vec head(const vec& v, int num){
@@ -230,26 +252,6 @@ inline ivec concat(const ivec&a, const ivec&b){
    ivec ret(a.size()+b.size());
    ret << a,b;
    return ret;
-}
-inline void sort(ivec &a){
-   std::sort(a.data(), a.data()+a.size());
-}
-inline void sort(vec & a){
-   std::sort(a.data(), a.data()+a.size());
-}
-inline ivec sort_index(const vec&a){
-  ivec ret(a.size()); 
-  std::vector<std::pair<double,int> > D;
-  // 	
-  D.reserve(a.size());
-  for (int i=0;i<a.size();i++)
-    D.push_back(std::make_pair<double,int>(a.coeff(i),i));
-  std::sort(D.begin(),D.end());
-  for (int i=0;i<a.size();i++)
-  { 
-    ret[i]=D[i].second;
-  } 
-  return ret;
 }
 inline void del(ivec&a, int i){
    memcpy(a.data()+i, a.data() + i+1, (a.size() - i - 1)*sizeof(int)); 
