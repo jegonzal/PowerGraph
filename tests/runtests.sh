@@ -73,16 +73,23 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=1"
      exit 1
   fi
- ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
+  ./pmf --unittest 71 --ncpus=1 --debug=true --float=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 3 (Weighted ALS)"
+     echo "PASS TEST 3 (Lanczos)"
+  else
+     echo "FAIL --unittest=1"
+     exit 1
+  fi
+  ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 4 (Weighted ALS)"
   else
      echo "FAIL --unittest=91 (weighted alternating least squares)"
      exit 1
   fi
  ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 4 (CoSaMP)"
+     echo "PASS TEST 5 (CoSaMP)"
   else
      echo "FAIL --unittest=101 (CoSaMP)"
      exit 1

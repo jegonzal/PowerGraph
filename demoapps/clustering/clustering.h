@@ -193,7 +193,7 @@ static graphlab::glshared<clusters> CLUSTERS;
 
 
 
-void do_main(int argc, const char * argv[]);
+int do_main(int argc, const char * argv[]);
 
 void add_vertices(graph_type * _g);
 void add_vertices(graph_type_kcores * _g);

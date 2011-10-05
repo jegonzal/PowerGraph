@@ -382,7 +382,7 @@ void start(command_line_options & clopts) {
 
 
 
-void do_main(int argc, const char *argv[]){
+int do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   logstream(LOG_INFO)<< "Clustering Code (K-Means/Fuzzy K-means/K-Means++/LDA) written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
@@ -419,6 +419,8 @@ void do_main(int argc, const char *argv[]){
        break;
   }  
 
+
+  return EXIT_SUCCESS;
 }
 
 
