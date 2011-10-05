@@ -31,6 +31,8 @@ stdoutfname=$PWD/stdout.log
 stderrfname=$PWD/stderr.log
 rm -f $stdoutfname $stderrfname
 
+if [ $# -eq 0 ]; then
+
 echo "Running Standard unit tests"
 echo "==========================="
 ctest -O testlog.txt
@@ -39,11 +41,12 @@ ctest -O testlog.txt
 # delete extra generated files
 rm -f dg*
 
+fi
 
 echo 
 echo "Running application tests"
 echo "========================="
-echo "GraphLab collaborative filtering library..."
+echo "GraphLab collaborative filtering library"
 if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   pushd . > /dev/null
   cd ../demoapps/pmf
@@ -57,6 +60,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   else
     echo "detected it++ based pmf"
   fi
+  rm -f smalltest-20-21.out
   ./pmf smalltest 0 --scheduler="round_robin(max_iterations=20,block_size=1)" --ncpus=1 --float=true >> $stdoutfname 2>> $stderrfname 
   
   if ./itdiff smalltest-20-21.out $OUTFILE ; then
@@ -73,16 +77,16 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=1"
      exit 1
   fi
-  ./pmf --unittest 71 --ncpus=1 --debug=true --float=true >> $stdoutfname 2>> $stderrfname 
+  ./pmf --unittest 71 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 3 (Lanczos)"
   else
-     echo "FAIL --unittest=1"
+     echo "FAIL --unittest=71 (Lanczos)"
      exit 1
   fi
   ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 4 (Weighted ALS)"
+     echo "PASS TEST 5 (Weighted ALS)"
   else
      echo "FAIL --unittest=91 (weighted alternating least squares)"
      exit 1

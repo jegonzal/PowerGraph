@@ -402,9 +402,9 @@ void start(command_line_options& clopts) {
 	     export_kdd_format<graph_type, vertex_data, edge_data>(test_graph, TEST, true);
     }
  }
-  //print_runtime_counters(); 
+  print_runtime_counters(); 
 
-  //write_output<graph_type, vertex_data>();
+  write_output<graph_type, vertex_data>();
 }
 
 
