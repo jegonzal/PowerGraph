@@ -78,10 +78,11 @@ namespace graphlab {
       callback(engine),
       cpu_index(ncpus), cpu_color(ncpus), cpu_waiting(ncpus),
       max_iterations(0),
+      color_graph(true),
       update_function(NULL) {
       color.value = 0;
       // Verify the coloring
-      if (graph.valid_coloring() == false) {
+      if (color_graph && graph.valid_coloring() == false) {
         graph.compute_coloring();
       }
       // Initialize the chromatic blocks
@@ -216,6 +217,8 @@ namespace graphlab {
 
     void set_options(const scheduler_options &opts) {
       opts.get_int_option("max_iterations", max_iterations);
+      opts.get_int_option("color_graph", color_graph );
+
       any uf;
       if (opts.get_any_option("update_function", uf)) {
         update_function = uf.as<update_function_type>();
@@ -240,6 +243,7 @@ namespace graphlab {
     std::vector< cache_line_pad<size_t> > cpu_waiting;
 
     size_t max_iterations;
+    bool color_graph;
 
     update_function_type update_function;
 

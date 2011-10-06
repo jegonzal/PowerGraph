@@ -423,9 +423,9 @@ namespace graphlab {
     vertex_id_type add_vertex(const VertexData& vdata = VertexData() ) {
       vertices.push_back(vdata);
       // Resize edge maps
-      out_edges.resize(vertices.size());
-      in_edges.resize(vertices.size());
-      vcolors.resize(vertices.size());
+      out_edges.push_back(std::vector<edge_id_type>()); // resize(vertices.size());
+      in_edges.push_back(std::vector<edge_id_type>()); // resize(vertices.size());
+      vcolors.push_back(vertex_color_type()); // resize(vertices.size());
       return (vertex_id_type)vertices.size() - 1;
     } // End of add vertex;
 
