@@ -41,6 +41,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   logstream(LOG_INFO) << "Atoms on this machine: " << atoms_in_curpart.size() << std::endl;
   
   // initiate playback
+  #prgama omp parallel for
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
     logstream(LOG_DEBUG) << "Loading file: " << fname << '\t'
@@ -144,15 +145,19 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       // add vertex skip
       vertex_id_type vid; uint16_t owner;
       iarc >> vid >> owner;
+      alldatalock.lock();
       create_vertex_if_missing(vid, atom2machine[owner], owner);
+      alldatalock.unlock();
     } else if (command == 'c') {
       vertex_id_type vid; uint16_t owner; std::string data;
       iarc >> vid >> owner >> data;
       // deserialize it
       VertexData vd;
       if (data.size() > 0) deserialize_from_string(data, vd);
+      alldatalock.lock();
       vertex_id_type localvid = create_vertex_if_missing(vid, atom2machine[owner], owner, data.size() > 0, vd);
       localstore.set_vertex_version(localvid, 1);
+      alldatalock.unlock();
     } else if (command == 'd') {
       vertex_id_type src; vertex_id_type target; std::string data;
       uint16_t srcowner, targetowner;
@@ -160,7 +165,7 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       
       EdgeData ed;
       if (data.size() > 0) deserialize_from_string(data, ed);
-      
+      alldatalock.lock();
       vertex_id_type localsrcvid =  create_vertex_if_missing(src, atom2machine[srcowner], srcowner, false);
       vertex_id_type localtargetvid = create_vertex_if_missing(target, atom2machine[targetowner], targetowner, false);
       std::pair<bool, edge_id_type> hasedge = localstore.find(localsrcvid, localtargetvid);
@@ -171,11 +176,14 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
         localstore.edge_data(eid) = ed;
         localstore.set_edge_version(eid, 1);
       }
+      alldatalock.unlock();
     } else if (command == 'k') {
       vertex_id_type vid; vertex_color_type color;
       iarc >> vid >> color;
       vertex_id_type localvid = globalvid_to_localvid(vid);
+      alldatalock.lock();
       localstore.color(localvid) = color;
+      alldatalock.unlock();
     } else if (command == 'l') {
       // ignored
       vertex_id_type vid; uint16_t owner;
