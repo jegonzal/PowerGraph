@@ -126,18 +126,24 @@ endif( )
 
 
 
-# EXPERIMENTAL (distributed) Capabilities
-find_package(MPICH2)
-
-if(MPI_FOUND)
-  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-  add_definitions(-DHASMPI)
-else(MPI_FOUND)
-  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-endif(MPI_FOUND)
 
 
 if(EXPERIMENTAL)
+
+
+  # EXPERIMENTAL (distributed) Capabilities
+  find_package(MPICH2)
+  
+  if(MPI_FOUND)
+    message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+    add_definitions(-DHASMPI)
+  else(MPI_FOUND)
+    message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+  endif(MPI_FOUND)
+
+
+
+
   #Find zoltan library
   set(ZOLTAN_ROOT "/usr/local/glzoltan" CACHE STRING 
     "The path to zoltan/include and zoltan/lib")
