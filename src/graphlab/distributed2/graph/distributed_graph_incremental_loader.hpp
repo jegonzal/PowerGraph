@@ -43,6 +43,8 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   // initiate playback
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
+    logstream(LOG_DEBUG) << "Loading file: " << fname << '\t'
+                         << localstore.num_vertices() << std::endl;
     playback_dump(fname + ".dump", atoms_in_curpart[i], atom2machine, do_not_load_data);
   }
   
