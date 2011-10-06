@@ -1466,7 +1466,8 @@ namespace graphlab {
     void playback_dump(std::string filename,
                         size_t atomid,
                         std::vector<procid_t> atom2machine,
-                        bool do_not_load_data);
+                        bool do_not_load_data,
+                        std::vector<mutex>& edgelockset);
     
     /**
     * rearranges the local vertex IDs such that all owned vertices are

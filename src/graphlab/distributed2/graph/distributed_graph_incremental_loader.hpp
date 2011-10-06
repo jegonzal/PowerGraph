@@ -40,13 +40,16 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   // create the atom file readers
   logstream(LOG_INFO) << "Atoms on this machine: " << atoms_in_curpart.size() << std::endl;
   
+  std::vector<mutex> edgelockset;
+  edgelockset.resize(1 << 14);
+  
   // initiate playback
-  #pragma omp parallel for
+  #pragma omp parallel for num_threads(4)
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
     logstream(LOG_DEBUG) << "Loading file: " << fname << '\t'
                          << localstore.num_vertices() << std::endl;
-    playback_dump(fname + ".dump", atoms_in_curpart[i], atom2machine, do_not_load_data);
+    playback_dump(fname + ".dump", atoms_in_curpart[i], atom2machine, do_not_load_data, edgelockset);
   }
   
   // playback complete.
@@ -127,7 +130,8 @@ template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
                                       size_t atomid,
                                       std::vector<procid_t> atom2machine,
-                                      bool do_not_load_data) {
+                                      bool do_not_load_data,
+                                      std::vector<mutex>& edgelockset) {
 
   std::ifstream in_file(filename.c_str(), std::ios::binary);
 
@@ -168,6 +172,13 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       alldatalock.lock();
       vertex_id_type localsrcvid =  create_vertex_if_missing(src, atom2machine[srcowner], srcowner, false);
       vertex_id_type localtargetvid = create_vertex_if_missing(target, atom2machine[targetowner], targetowner, false);
+      alldatalock.unlock();
+      size_t locka = localsrcvid % edgelockset.size();
+      size_t lockb = localtargetvid % edgelockset.size();
+      
+      edgelockset[std::min(locka, lockb)].lock();
+      if (locka != lockb)  edgelockset[std::max(locka, lockb)].lock();
+      
       std::pair<bool, edge_id_type> hasedge = localstore.find(localsrcvid, localtargetvid);
       edge_id_type eid;
       if (hasedge.first) eid = hasedge.second;
@@ -176,12 +187,15 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
         localstore.edge_data(eid) = ed;
         localstore.set_edge_version(eid, 1);
       }
-      alldatalock.unlock();
+      
+      if (locka != lockb)  edgelockset[std::max(locka, lockb)].unlock();
+      edgelockset[std::min(locka, lockb)].unlock();
+
     } else if (command == 'k') {
       vertex_id_type vid; vertex_color_type color;
       iarc >> vid >> color;
-      vertex_id_type localvid = globalvid_to_localvid(vid);
       alldatalock.lock();
+      vertex_id_type localvid = globalvid_to_localvid(vid);
       localstore.color(localvid) = color;
       alldatalock.unlock();
     } else if (command == 'l') {
