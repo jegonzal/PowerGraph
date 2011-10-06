@@ -41,7 +41,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   logstream(LOG_INFO) << "Atoms on this machine: " << atoms_in_curpart.size() << std::endl;
   
   // initiate playback
-  #prgama omp parallel for
+  #pragma omp parallel for
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
     logstream(LOG_DEBUG) << "Loading file: " << fname << '\t'
