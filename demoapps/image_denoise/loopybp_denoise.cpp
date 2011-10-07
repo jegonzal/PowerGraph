@@ -296,7 +296,7 @@ int main(int argc, char** argv) {
 
 
   // Saving the output -------------------------------------------------------->
-  std::cout << "Rendering the cleaned image. " << std::endl;
+  /*std::cout << "Rendering the cleaned image. " << std::endl;
   if(pred_type == "map") {
     for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
       const vertex_data& vdata = core.graph().vertex_data(v);
@@ -314,7 +314,7 @@ int main(int argc, char** argv) {
   }
   std::cout << "Saving cleaned image. " << std::endl;
   img.save(pred_fn.c_str());
-
+ */
   std::cout << "Done!" << std::endl;
   return EXIT_SUCCESS;
 } // End of main

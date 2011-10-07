@@ -264,7 +264,7 @@ int main(int argc, char** argv) {
 
     construct_graph(img, colors, sigma, g);
     std::vector<graphlab::graph_partitioner::part_id_type> parts;
-    graphlab::graph_partitioner::metis_partition(g, 32, parts);
+    graphlab::graph_partitioner::random_partition(g, 32, parts);
     dg.create_from_graph(g, parts);
     dg.make_memory_atoms();
     dg.finalize();
@@ -330,7 +330,7 @@ int main(int argc, char** argv) {
 
 
     // Saving the output -------------------------------------------------------->
-    std::cout << "Rendering the cleaned image. " << std::endl;
+ /*   std::cout << "Rendering the cleaned image. " << std::endl;
     if(pred_type == "map") {
       for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
         const vertex_data& vdata = core.graph().get_vertex_data(v);
@@ -348,7 +348,7 @@ int main(int argc, char** argv) {
     }
     std::cout << "Saving cleaned image. " << std::endl;
     img.save(pred_fn.c_str());
-
+*/
     std::cout << "Done!" << std::endl;
   }
   graphlab::mpi_tools::finalize();
