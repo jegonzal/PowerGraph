@@ -10,10 +10,11 @@
 #else
 #include <graphlab/util/generics/shuffle.hpp>
 
+
 inline void count_vertices_and_edges(std::string filename,
                                       std::vector<procid_t> atom2machine,
                                       procid_t mymachine,
-                                      boost::unordered_set<vertex_id_t> &vertices,
+                                      std::set<vertex_id_t> &vertices,
                                       size_t &localedges) {
   localedges = 0;
 
@@ -118,7 +119,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   
   logstream(LOG_INFO) << "First pass: Counting size of local store " << std::endl;
   
-  std::vector<boost::unordered_set<vertex_id_type> > vertexset(omp_get_max_threads());
+  std::vector<std::set<vertex_id_type> > vertexset(omp_get_max_threads());
   atomic<size_t> numedges;
   
   #pragma omp parallel for
@@ -136,13 +137,14 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   }
   std::cout << std::endl;
   // create the vertex mapping
-  boost::unordered_set<vertex_id_type> allvertices;
+  std::set<vertex_id_type> allvertices;
   for (size_t i = 0;i < vertexset.size() ; ++i) {
-    std::copy(vertexset[i].begin(), vertexset[i].end(), 
-              std::inserter(allvertices, allvertices.begin()));
+    foreach(vertex_id_type vid, vertexset[i]) {
+      allvertices.insert(vid);
+    }
   }
   std::copy(allvertices.begin(), allvertices.end(), 
-            std::inserter(local2globalvid, local2globalvid.begin()));
+            std::inserter(local2globalvid, local2globalvid.end()));
             
   for (size_t i = 0; i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
   localvid2atom.resize(local2globalvid.size());
@@ -340,4 +342,5 @@ void distributed_graph<VertexData,EdgeData>::shuffle_local_vertices_to_start() {
   for (size_t i = 0;i < renumber.size(); ++i) ASSERT_EQ(renumber[i], i);
   
 }
+
 #endif
