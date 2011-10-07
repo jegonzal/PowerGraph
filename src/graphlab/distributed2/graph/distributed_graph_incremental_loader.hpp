@@ -80,6 +80,7 @@ typename distributed_graph<VertexData,EdgeData>::vertex_id_type
       localstore.vertex_data(iter->second) = vdata;
     }
     localvid2atom[iter->second] = sourceatom;
+    localvid2owner[iter->second] = machine;
     if (machine == rmi.procid()) {
       globalvid2owner.set(globalvid, rmi.procid());
     }
@@ -146,6 +147,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
             
   for (size_t i = 0; i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
   localvid2atom.resize(local2globalvid.size());
+  localvid2owner.resize(local2globalvid.size());
   
   logstream(LOG_INFO) <<  "Creating:" << local2globalvid.size() << " vertices," << numedges.value << " edges" << std::endl;
   // now lets construct the graph structure
