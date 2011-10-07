@@ -61,7 +61,6 @@ inline void count_vertices_and_edges(std::string filename,
       // ignored
     }
   }
-  std::cout << localedges << "\n";
   fin.pop();
   fin.pop();
   in_file.close();
