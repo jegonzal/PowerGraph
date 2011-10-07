@@ -61,6 +61,7 @@ inline void count_vertices_and_edges(std::string filename,
       // ignored
     }
   }
+  std::cout << localedges << "\n";
   fin.pop();
   fin.pop();
   in_file.close();
@@ -118,31 +119,37 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   logstream(LOG_INFO) << "First pass: Counting size of local store " << std::endl;
   
   std::vector<boost::unordered_set<vertex_id_type> > vertexset(omp_get_max_threads());
-  size_t numedges = 0;
+  atomic<size_t> numedges;
   
-  #pragma omp parallel for reduction(+ : numedges)
+  #pragma omp parallel for
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::cout << ".";
     std::cout.flush();
     std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
+    size_t ne;
     count_vertices_and_edges(fname + ".dump",
                               atom2machine,
                               rmi.procid(),
                               vertexset[omp_get_thread_num()],
-                              numedges);
+                              ne);
+    numedges.inc(ne);
   }
   std::cout << std::endl;
   // create the vertex mapping
+  boost::unordered_set<vertex_id_type> allvertices;
   for (size_t i = 0;i < vertexset.size() ; ++i) {
     std::copy(vertexset[i].begin(), vertexset[i].end(), 
-              std::inserter(local2globalvid, local2globalvid.begin()));
+              std::inserter(allvertices, allvertices.begin()));
   }
+  std::copy(allvertices.begin(), allvertices.end(), 
+            std::inserter(local2globalvid, local2globalvid.begin()));
+            
   for (size_t i = 0; i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
   localvid2atom.resize(local2globalvid.size());
   
-  logstream(LOG_INFO) <<  "Creating:" << local2globalvid.size() << " vertices," << numedges << " edges" << std::endl;
+  logstream(LOG_INFO) <<  "Creating:" << local2globalvid.size() << " vertices," << numedges.value << " edges" << std::endl;
   // now lets construct the graph structure
-  localstore.create_store(local2globalvid.size(), numedges);
+  localstore.create_store(local2globalvid.size(), numedges.value);
 
   // create all the vertices
 
