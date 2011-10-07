@@ -1451,11 +1451,11 @@ namespace graphlab {
       
       Returns the new localvid
     */
-    vertex_id_type create_vertex_if_missing(vertex_id_type globalvid,
-                                        procid_t machine,
-                                        uint16_t sourceatom,
-                                        bool overwritedata = false,
-                                        const VertexData &vdata = VertexData());
+    vertex_id_type incremental_loader_add_vertex(vertex_id_type globalvid,
+                                                  procid_t machine,
+                                                  uint16_t sourceatom,
+                                                  bool overwritedata = false,
+                                                  const VertexData &vdata = VertexData());
 
     /**
     * Playback a limited dump file to the localstore, updating the
@@ -1466,8 +1466,10 @@ namespace graphlab {
     void playback_dump(std::string filename,
                         size_t atomid,
                         std::vector<procid_t> atom2machine,
+                        procid_t mymachine,
                         bool do_not_load_data,
-                        std::vector<mutex>& edgelockset);
+                        std::vector<mutex>& edgelockset,
+                        atomic<edge_id_type> &edgecount);
     
     /**
     * rearranges the local vertex IDs such that all owned vertices are
