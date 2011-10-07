@@ -61,6 +61,8 @@ inline void count_vertices_and_edges(std::string filename,
       // ignored
     }
   }
+  fin.pop();
+  fin.pop();
   in_file.close();
 }
 
@@ -123,7 +125,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
     std::cout << ".";
     std::cout.flush();
     std::string fname = atomindex.atoms[atoms_in_curpart[i]].file;
-    count_vertices_and_edges(fname,
+    count_vertices_and_edges(fname + ".dump",
                               atom2machine,
                               rmi.procid(),
                               vertexset[omp_get_thread_num()],
@@ -273,6 +275,8 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       // ignored
     }
   }
+  fin.pop();
+  fin.pop();
   in_file.close();
 }
       
