@@ -301,7 +301,7 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
       //aggregate RMSE
        vdata.rmse += trmse; 
 
-       if (!ac.round_robin && trmse > 0.25){
+       if (!ac.round_robin && trmse > ac.threshold && ps.iiter < ac.iter){
         gl_types::update_task task(scope.source(iedgeid), user_movie_nodes_update_function);
           scheduler.add_task(task, 1);
       }

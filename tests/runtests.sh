@@ -47,6 +47,7 @@ echo
 echo "Running application tests"
 echo "========================="
 echo "GraphLab collaborative filtering library"
+somefailed=0
 if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   pushd . > /dev/null
   cd ../demoapps/pmf
@@ -66,44 +67,56 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   if ./itdiff smalltest-20-21.out $OUTFILE ; then
     echo "PASS TEST 1 (Alternating least sqaures)"
   else
+     somefailed=1
     echo "FAIL: Output differs!"
-    exit 1
   fi
 
   ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 2 (Alternating least squares)"
   else
+     somefailed=1
      echo "FAIL --unittest=1"
-     exit 1
   fi
   ./pmf --unittest 71 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 3 (Lanczos)"
   else
+     somefailed=1
      echo "FAIL --unittest=71 (Lanczos)"
-     exit 1
   fi
   ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 5 (Weighted ALS)"
+     echo "PASS TEST 4 (Weighted ALS)"
   else
+     somefailed=1
      echo "FAIL --unittest=91 (weighted alternating least squares)"
-     exit 1
   fi
  ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>> $stderrfname 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 5 (CoSaMP)"
   else
      echo "FAIL --unittest=101 (CoSaMP)"
-     exit 1
+     somefailed=1
   fi
    
   popd  > /dev/null
+
+  if [ $somefailed == 1 ]; then
+     echo "Some of the tests failed".
+     echo "Please email stdout.log and stderr.log to danny.bickson@gmail.com"
+     echo "Along with the output of ../config.log and ../configure.deps"
+     echo "Thanks for helping improve GraphLab!"
+  fi
+
+
 else
   echo "PMF not found. "
 fi
 echo
+
+
+
 
 if [ -f ../demoapps/demo/demo ]; then
   pushd . > /dev/null

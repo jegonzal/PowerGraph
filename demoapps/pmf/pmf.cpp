@@ -214,15 +214,8 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
      logstream(LOG_INFO) << "starting with scheduler: " << ac.scheduler << std::endl;
      if (ac.scheduler == "round_robin"){
         ac.round_robin = true;
-        glcore.start();
      }
-     else {
-        for (int i=0; i< ac.iter; i++){
-            glcore.start();
-	    add_tasks<core>(glcore);
-        }
-
-     }
+     glcore.start();
      // calculate final RMSE
      double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
      double obj = calc_obj<graph_type, vertex_data>(res);
