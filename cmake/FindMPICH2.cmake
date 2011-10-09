@@ -214,7 +214,7 @@ elseif (MPI_COMPILE_CMDLINE)
     if (MPI_LIB)
       list(APPEND MPI_LIBRARIES ${MPI_LIB})
     else (MPI_LIB)
-      message(SEND_ERROR "Unable to find MPI library ${LIB}")
+      message(WARNING "Unable to find MPI library ${LIB} but this may be ok (especially if its lib cr).")
     endif (MPI_LIB)
   endforeach(LIB)
   set(MPI_LIB "MPI_LIB-NOTFOUND" CACHE INTERNAL "Scratch variable for MPI detection" FORCE)
@@ -246,6 +246,7 @@ else (MPI_COMPILE_CMDLINE)
     /usr/local/include 
     /usr/include 
     /usr/include/mpi
+    /usr/include/mpich2
     /usr/local/mpi/include
     "C:/Program Files/MPICH/SDK/Include" 
     "$ENV{SystemDrive}/Program Files/MPICH2/include"
@@ -261,7 +262,7 @@ else (MPI_COMPILE_CMDLINE)
   
   find_library(MPI_LIBRARY 
     NAMES mpi mpich msmpi
-    PATHS /usr/lib /usr/local/lib /usr/local/mpi/lib
+    PATHS /usr/lib /usr/local/lib /usr/local/mpi/lib 
     "C:/Program Files/MPICH/SDK/Lib" 
     "$ENV{SystemDrive}/Program Files/MPICH/SDK/Lib"
     "$ENV{SystemDrive}/Program Files/Microsoft Compute Cluster Pack/Lib/${MS_MPI_ARCH_DIR}"
@@ -273,7 +274,7 @@ else (MPI_COMPILE_CMDLINE)
 
   find_library(MPI_EXTRA_LIBRARY 
     NAMES mpi++
-    PATHS /usr/lib /usr/local/lib /usr/local/mpi/lib
+    PATHS /usr/lib /usr/local/lib /usr/local/mpi/lib 
     "C:/Program Files/MPICH/SDK/Lib" 
     DOC "Extra MPI libraries to link against.")
 
