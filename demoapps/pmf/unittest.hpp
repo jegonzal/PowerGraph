@@ -37,7 +37,7 @@ eigenvalue 4 val: 0.0329737 */
          assert(obj < 0.021);
          //assert(pow(train_rmse - 0.0043,2)<1e-5);
          assert(train_rmse < 0.0044);
-         assert(validation_rmse < 0.0684);
+         assert(validation_rmse < 0.6840);
          //assert(pow(validation_rmse - 0.6344,2)<1e-3);
          break;
 

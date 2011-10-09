@@ -21,6 +21,7 @@
  */
 
 #include "mathlayer.hpp"
+#include "graphlab.hpp"
 #include <cassert>
 #include <iostream>
 
@@ -44,7 +45,9 @@ int main(int argc, char** argv) {
   assert(V1.cols() == V2.cols());
   assert(V1.rows() == V2.rows());
   
-  assert(sumsum(U1 - U2) < U1.rows() * U1.cols() * 1E-10);
-  assert(sumsum(V1 - V2) < V1.rows() * V1.cols() * 1E-10);
+  if (abs_sum(U1 - U2) > U1.rows() * U1.cols() * 1E-10)
+    logstream(LOG_WARNING) << "Itdiff got U diference of: " << abs_sum(U1-U2) << std::endl;
+  if (abs_sum(V1 - V2) > V1.rows() * V1.cols() * 1E-10)
+    logstream(LOG_WARNING) << "Itdiff got V d0iference of: " << abs_sum(V1-V2) << std::endl;
   return 0;
 }

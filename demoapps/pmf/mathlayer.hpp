@@ -658,7 +658,7 @@ inline sparse_vec fabs( sparse_vec & dvec1){
 inline vec fabs(const vec & a){
    return abs(a);
 }
-inline double abs_sum(mat& A){
+inline double abs_sum(const mat& A){
    return sumsum(abs(A));
 }
 inline double abs_sum(const vec&v){
