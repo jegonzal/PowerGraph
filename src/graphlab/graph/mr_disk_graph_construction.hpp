@@ -286,7 +286,7 @@ void mr_disk_graph_construction(distributed_control &dc,
     logstream(LOG_INFO) << dc.procid() << ": " << "Uploading stripe..." << std::endl;
     std::string command = std::string("mv ") + localatombase + ".* " + remoteworkingdir;
     logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
-    system(command.c_str());
+    const int error = system(command.c_str());
   } 
 
   dc.barrier();
@@ -317,7 +317,7 @@ void mr_disk_graph_construction(distributed_control &dc,
       for (size_t j = 0; j < atomfiles.size(); ++j) {
         std::string command = std::string("mv ") + remoteatomfiles[j] + " " + localatomfiles[j];
 //        logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
-        system(command.c_str());
+       const int error = system(command.c_str());
       }
     }
     atomprops[i] = 
@@ -329,7 +329,7 @@ void mr_disk_graph_construction(distributed_control &dc,
       std::string command = std::string("mv ") + atomprops[i].filename + " " + remoteworkingdir;
       logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
       atomprops[i].base_atom_filename = remotefinaloutput;
-      system(command.c_str());
+      const int error = system(command.c_str());
     }
   }
   }
