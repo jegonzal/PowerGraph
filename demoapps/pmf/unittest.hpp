@@ -49,7 +49,21 @@ eigenvalue 4 val: 0.0329737 */
          //assert(pow(validation_rmse - 0.6344,2)<1e-3);
          break;
 
-   }
+/* approximating U are: 28535.0331536      438144.684527      1024719.68412      10736707.7406
+ * approximating V are: 7403.36635196      474772.134702      1015578.79314      10736707.7571
+ */
+     case 132:
+         assert(pow(get_val(ps.T,0,0) - 28535,2) < 10);
+         assert(pow(get_val(ps.T,1,0) - 438144,2) < 10);
+         assert(pow(get_val(ps.T,2,0) - 1024719,2) < 10);
+         assert(pow(get_val(ps.T,3,0) - 10736707,2) < 10);
+         assert(pow(get_val(ps.T,0,1) - 7403,2) < 10);
+         assert(pow(get_val(ps.T,1,1) - 474772,2) < 10);
+         assert(pow(get_val(ps.T,2,1) - 1015578,2) < 10);
+         assert(pow(get_val(ps.T,3,1) - 10736707,2) < 10);
+         break;
+  
+    }
 }
 
 
@@ -76,8 +90,12 @@ void unit_testing(int unittest, command_line_options& clopts){
       exit(0);
    } 
    else if (unittest == 131){ //SVD
-     ac.datafile = "lanczos2"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.matrixmarket= true; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo");
+     ac.datafile = "lanczos2"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.matrixmarket= true; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo"); ac.iter=4;
    }
+  else if (unittest == 132){ //SVD
+     ac.datafile = "netflix"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.isfloat=false; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo"); ac.iter=3;
+   }
+  
     else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);
