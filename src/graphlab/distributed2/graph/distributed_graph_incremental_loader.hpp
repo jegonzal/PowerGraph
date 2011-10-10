@@ -79,12 +79,14 @@ typename distributed_graph<VertexData,EdgeData>::vertex_id_type
     if (overwritedata) {
       localstore.vertex_data(iter->second) = vdata;
     }
-    localvid2atom[iter->second] = sourceatom;
-    localvid2owner[iter->second] = machine;
-    if (machine == rmi.procid()) {
-      globalvid2owner.set(globalvid, rmi.procid());
+    if (localvid2atom[iter->second] == uint16_t(-1)) {
+      localvid2atom[iter->second] = sourceatom;
+      localvid2owner[iter->second] = machine;
+      if (machine == rmi.procid()) {
+        globalvid2owner.set(globalvid, rmi.procid());
+      }
     }
-      return iter->second;
+    return iter->second;
 }
 
   /** From the atoms listed in the atom index file, construct the local store
@@ -147,7 +149,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
             std::inserter(local2globalvid, local2globalvid.end()));
             
   for (size_t i = 0; i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
-  localvid2atom.resize(local2globalvid.size());
+  localvid2atom.resize(local2globalvid.size(), uint16_t(-1));
   localvid2owner.resize(local2globalvid.size());
   
   logstream(LOG_INFO) <<  "Creating:" << local2globalvid.size() << " vertices," << numedges.value << " edges" << std::endl;
@@ -158,7 +160,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
 
   // initiate playback
   logstream(LOG_INFO) << "Second pass: Loading data " << std::endl;
-  std::vector<mutex> edgelockset;
+  std::vector<simple_spinlock> edgelockset;
   edgelockset.resize(1 << 14);
   atomic<edge_id_t> edgecount(0);
   #pragma omp parallel for
@@ -222,7 +224,7 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
                                       std::vector<procid_t> atom2machine,
                                       procid_t mymachine,
                                       bool do_not_load_data,
-                                      std::vector<mutex>& edgelockset,
+                                      std::vector<simple_spinlock>& edgelockset,
                                       atomic<edge_id_type>& edgecounter) {
 
   std::ifstream in_file(filename.c_str(), std::ios::binary);

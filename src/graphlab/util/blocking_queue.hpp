@@ -48,7 +48,9 @@ namespace graphlab {
     mutex m_mutex;
     conditional m_conditional;
     conditional m_empty_conditional;
-    
+   
+    uint16_t sleeping;
+    uint16_t sleeping_on_empty;
     /**
      * Causes any threads currently blocking on a dequeue to wake up
      * and evaluate the state of the queue. If the queue is empty,
@@ -79,17 +81,69 @@ namespace graphlab {
   public:
     
     //! creates a blocking queue
-    blocking_queue() : m_alive(true) { }
+    blocking_queue() : m_alive(true),sleeping(0),sleeping_on_empty(0) { }
     
     //! Add an element to the blocking queue
     inline void enqueue(const T& elem) {
       m_mutex.lock();
       m_queue.push_back(elem);
       // Signal threads waiting on the queue
-      m_conditional.signal();
+      if (sleeping) m_conditional.signal();
       m_mutex.unlock();
     }
 
+
+    void begin_critical_section() {
+      m_mutex.lock();
+    }
+
+
+    bool is_alive() {
+      return m_alive;
+    }
+
+    inline std::pair<T, bool> try_dequeue_in_critical_section() {
+      T elem = T();
+      // Wait while the queue is empty and this queue is alive
+      if (m_queue.empty() || m_alive == false) {
+        return std::make_pair(elem, false);
+      }
+      else {
+        elem = m_queue.front();
+        m_queue.pop_front();
+        if (m_queue.empty() && sleeping_on_empty) {
+          m_empty_conditional.signal();
+        }
+        return std::make_pair(elem, true);
+      }
+    }
+
+    void end_critical_section() {
+     m_mutex.unlock();
+    }
+
+
+    inline std::pair<T, bool> dequeue_and_begin_critical_section_on_success() {
+      m_mutex.lock();
+      T elem = T();
+      bool success = false;
+      // Wait while the queue is empty and this queue is alive
+      while(m_queue.empty() && m_alive) {
+        sleeping++;
+        m_conditional.wait(m_mutex);
+        sleeping--;
+      }
+      // An element has been added or a signal was raised
+      if(!m_queue.empty()) {
+        success = true;
+        elem = m_queue.front();
+        m_queue.pop_front();
+        if (m_queue.empty() && sleeping_on_empty) {
+          m_empty_conditional.signal();
+        }
+      } 
+      return std::make_pair(elem, success);
+    }
     /**
      * Blocks until an element is available in the queue 
      * or until stop_blocking() is called.
@@ -106,14 +160,16 @@ namespace graphlab {
       bool success = false;
       // Wait while the queue is empty and this queue is alive
       while(m_queue.empty() && m_alive) {
+        sleeping++;
         m_conditional.wait(m_mutex);
+        sleeping--;
       }
       // An element has been added or a signal was raised
       if(!m_queue.empty()) {
         success = true;
         elem = m_queue.front();
         m_queue.pop_front();
-        if (m_queue.empty()) {
+        if (m_queue.empty() && sleeping_on_empty) {
           m_empty_conditional.signal();
         }
       } 
@@ -137,7 +193,7 @@ namespace graphlab {
       else {
         elem = m_queue.front();
         m_queue.pop_front();
-        if (m_queue.empty()) {
+        if (m_queue.empty() && sleeping_on_empty) {
           m_empty_conditional.signal();
         }
       }
@@ -197,7 +253,9 @@ namespace graphlab {
       m_mutex.lock();
       // if the queue still has elements in it while I am still alive, wait
       while (m_queue.empty() == false && m_alive == true) {
+        sleeping_on_empty++;
         m_empty_conditional.wait(m_mutex);
+        sleeping_on_empty--;
       }
       m_mutex.unlock();
       // if I am alive, the queue must be empty. i.e. success

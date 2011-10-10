@@ -1468,7 +1468,7 @@ namespace graphlab {
                         std::vector<procid_t> atom2machine,
                         procid_t mymachine,
                         bool do_not_load_data,
-                        std::vector<mutex>& edgelockset,
+                        std::vector<simple_spinlock>& edgelockset,
                         atomic<edge_id_type> &edgecount);
     
     /**

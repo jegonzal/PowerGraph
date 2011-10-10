@@ -141,7 +141,7 @@ void verify_edges<graph_type_mult_edge,multiple_edges>(graph_type_mult_edge * _g
  */
 template<typename graph_type, typename vertex_data>
 void fill_factors_uvt(){
- if (ps.algorithm != LANCZOS){
+ if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
    for (int i=0; i< ps.M+ps.N; i++){ 
@@ -354,7 +354,7 @@ void export_kdd_format(const graph_type & _g, testtype type, bool dosave) {
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_binary_file(){
 
-  if (ps.algorithm != LANCZOS)
+  if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
     fill_factors_uvt<graph_type, vertex_data>();
 
   char dfile[256] = {0};
@@ -385,7 +385,7 @@ void export_uvt_to_binary_file(){
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_itpp_file(){
 
-  if (ps.algorithm != LANCZOS)
+  if (ps.algorithm != LANCZOS && ps.algorithm != SVD) 
      fill_factors_uvt<graph_type, vertex_data>();
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
@@ -404,7 +404,7 @@ void export_uvt_to_itpp_file(){
 
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_matrixmarket(){
-  if (ps.algorithm != LANCZOS)
+  if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
      fill_factors_uvt<graph_type, vertex_data>();
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D,ps.iiter);

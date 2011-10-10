@@ -23,11 +23,19 @@ eigenvalue 1 val: 1.83558
 eigenvalue 2 val: 0.951951
 eigenvalue 3 val: 0.780815
 eigenvalue 4 val: 0.0329737 */
-         assert(pow(get_val(ps.V,0,0) - 17.1428,2) <1e-5);
-         assert(pow(get_val(ps.V,1,0) - 1.83558,2) <1e-5);
+         assert(pow(get_val(ps.V,4,0) - 17.1428,2) <1e-5);
+         assert(pow(get_val(ps.V,3,0) - 1.83558,2) <1e-5);
          assert(pow(get_val(ps.V,2,0) - 0.951951,2) <1e-5);
-         assert(pow(get_val(ps.V,3,0) - 0.780815,2) <1e-5);
-         assert(pow(get_val(ps.V,4,0) - 0.0329737,2)<1e-5);
+         assert(pow(get_val(ps.V,1,0) - 0.780815,2) <1e-5);
+         assert(pow(get_val(ps.V,0,0) - 0.0329737,2)<1e-5);
+
+/*   -0.1235    0.3194    0.7068   -0.3074   -0.5372
+   -0.4525    0.5548   -0.4707    0.3454   -0.3830
+    0.8323    0.1010   -0.0972    0.3109   -0.4370
+   -0.2942   -0.6665    0.1976    0.5373   -0.3761
+   -0.0279   -0.3684   -0.4800   -0.6332   -0.4819
+*/       assert(ps.U.rows() == 5 && ps.U.cols() == 5);
+         ASSERT_LE(norm(ps.U - init_mat("-0.1235    0.3194    0.7068   -0.3074   -0.5372 -0.4525    0.5548   -0.4707    0.3454   -0.3830 0.8323    0.1010   -0.0972    0.3109   -0.4370 -0.2942   -0.6665    0.1976    0.5373   -0.3761 -0.0279   -0.3684   -0.4800   -0.6332   -0.4819", 5, 5)) , 2);       
          break;
 
       case 91: //WEIGHTED_ALS: -Iter100... UV. objective=0.0207271, RMSE=0.0043/0.6344. Time to finish=0.00hr.
@@ -41,7 +49,21 @@ eigenvalue 4 val: 0.0329737 */
          //assert(pow(validation_rmse - 0.6344,2)<1e-3);
          break;
 
-   }
+/* approximating U are: 28535.0331536      438144.684527      1024719.68412      10736707.7406
+ * approximating V are: 7403.36635196      474772.134702      1015578.79314      10736707.7571
+ */
+     case 132:
+         assert(pow(get_val(ps.T,0,0) - 28535,2) < 10);
+         assert(pow(get_val(ps.T,1,0) - 438144,2) < 10);
+         assert(pow(get_val(ps.T,2,0) - 1024719,2) < 10);
+         assert(pow(get_val(ps.T,3,0) - 10736707,2) < 10);
+         assert(pow(get_val(ps.T,0,1) - 7403,2) < 10);
+         assert(pow(get_val(ps.T,1,1) - 474772,2) < 10);
+         assert(pow(get_val(ps.T,2,1) - 1015578,2) < 10);
+         assert(pow(get_val(ps.T,3,1) - 10736707,2) < 10);
+         break;
+  
+    }
 }
 
 
@@ -67,7 +89,14 @@ void unit_testing(int unittest, command_line_options& clopts){
       test_cosamp();
       exit(0);
    } 
-   else {
+   else if (unittest == 131){ //SVD
+     ac.datafile = "lanczos2"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.matrixmarket= true; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo"); ac.iter=4;
+   }
+  else if (unittest == 132){ //SVD
+     ac.datafile = "netflix"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.isfloat=false; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo"); ac.iter=3;
+   }
+  
+    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);
    }

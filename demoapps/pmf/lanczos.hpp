@@ -162,10 +162,10 @@ void ATxb(gl_types::iscope &scope,
       vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
       user.rmse += edge.weight * movie.rmse;
       }
+   
 
    assert(offset2 < m+2 && offset3 < m+2);
    user.rmse -= lancbeta[offset2] * user.pvec[offset3];
-
    ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
 
   if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
@@ -236,10 +236,10 @@ mat calc_V(){
 
   const graph_type *g = ps.g<graph_type>(TRAINING); 
   
-  mat V = zeros(ps.M,ac.iter);
+  mat V = zeros(ps.N,ac.iter+1);
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-    set_row(V, i-ps.M, head(data->pvec, ac.iter));
+    set_row(V, i-ps.M, mid(data->pvec, 1, ac.iter+1));
   }
   return V;
 }
@@ -257,13 +257,10 @@ void print_w(bool rows){
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     v[i - start] = data->rmse;
   }
-  cout<<"w is: " << v << endl;
+  cout<<"w is: " << mid(v,0,20) << endl;
+  if (end - start > 40)
+    cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
 }
-
-
-
-
-
 
 
 template<typename core>
@@ -339,7 +336,10 @@ void lanczos<>(gl_types::core & glcore){
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
 
- ps.U=eigenvectors;
+
+ ps.U=Vectors*eigenvectors;
+ if (ac.debug)
+   cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
  ps.V=zeros(eigenvalues.size(),1);
  set_col(ps.V,0,eigenvalues); 
 
