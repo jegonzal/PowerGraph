@@ -79,7 +79,7 @@ typename distributed_graph<VertexData,EdgeData>::vertex_id_type
     if (overwritedata) {
       localstore.vertex_data(iter->second) = vdata;
     }
-    if (localvid2atom[iter->second] != uint16_t(-1)) {
+    if (localvid2atom[iter->second] == uint16_t(-1)) {
       localvid2atom[iter->second] = sourceatom;
       localvid2owner[iter->second] = machine;
       if (machine == rmi.procid()) {
@@ -160,7 +160,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
 
   // initiate playback
   logstream(LOG_INFO) << "Second pass: Loading data " << std::endl;
-  std::vector<mutex> edgelockset;
+  std::vector<simple_spinlock> edgelockset;
   edgelockset.resize(1 << 14);
   atomic<edge_id_t> edgecount(0);
   #pragma omp parallel for
@@ -224,7 +224,7 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
                                       std::vector<procid_t> atom2machine,
                                       procid_t mymachine,
                                       bool do_not_load_data,
-                                      std::vector<mutex>& edgelockset,
+                                      std::vector<simple_spinlock>& edgelockset,
                                       atomic<edge_id_type>& edgecounter) {
 
   std::ifstream in_file(filename.c_str(), std::ios::binary);

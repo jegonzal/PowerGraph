@@ -103,7 +103,7 @@ void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
   free(e.c);
   
   while(1) {
-    std::pair<expqueue_entry, bool> data = sendqueue.try_dequeue();
+    std::pair<expqueue_entry, bool> data = sendqueue.try_dequeue_in_critical_section();
     if (data.second) {
       // has data
       if (length + data.first.len <= combine_upper_threshold) {
@@ -113,6 +113,7 @@ void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
         free(data.first.c);
       }
       else {
+        sendqueue.end_critical_section();
         // send the combined data
         comm->send(target, sendcombining, length);
         // and send what we just read
@@ -122,6 +123,7 @@ void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
       }
     }
     else {
+      sendqueue.end_critical_section();
       // no more data. just send what we have
       comm->send(target, sendcombining, length);
       break;
@@ -132,7 +134,7 @@ void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
 void dc_buffered_stream_send_expqueue::send_loop() {
   
   while (1) {
-    std::pair<expqueue_entry, bool> data = sendqueue.dequeue();
+    std::pair<expqueue_entry, bool> data = sendqueue.dequeue_and_begin_critical_section_on_success();
     if (data.second == false) break;
     
     // if the length is small (below the combining threshold
@@ -141,6 +143,7 @@ void dc_buffered_stream_send_expqueue::send_loop() {
       write_combining_send(data.first);        
     }
     else {
+      sendqueue.end_critical_section();
       comm->send(target, data.first.c, data.first.len);
       free(data.first.c);
     }
