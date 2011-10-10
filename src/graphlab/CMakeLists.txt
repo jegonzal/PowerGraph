@@ -91,6 +91,7 @@ add_library(graphlab STATIC
   rpc/dc_stream_receive.cpp
   rpc/dc_buffered_stream_send.cpp
   rpc/dc_buffered_stream_send_expqueue.cpp
+  rpc/dc_buffered_stream_send_multiqueue.cpp
   rpc/dc_buffered_stream_send_expqueue2.cpp
   rpc/dc_buffered_stream_receive.cpp
   rpc/dc.cpp

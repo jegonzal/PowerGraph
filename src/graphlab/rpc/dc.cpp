@@ -48,6 +48,7 @@
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue2.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send_multiqueue.hpp>
 
 #ifdef HAS_ZLIB
 #include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
@@ -309,6 +310,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   std::map<std::string,std::string> options = parse_options(initstring);
   bool buffered_send = false;
   bool buffered_recv = false;
+  bool buffered_multiqueue_send_single = false;
   bool buffered_queued_send = false;
   bool buffered_queued_send_single = false;
   bool compressed = false;
@@ -343,6 +345,18 @@ void distributed_control::init(const std::vector<std::string> &machines,
     }
     std::cerr << "Buffered Queued Send Option is ON." << std::endl;
   }
+  
+  if (options["buffered_multiqueue_send"] == "true" || 
+    options["buffered_multiqueue_send"] == "1" ||
+    options["buffered_multiqueue_send"] == "yes") {
+    buffered_multiqueue_send_single = true;
+    if (buffered_send == true) {
+      std::cerr << "buffered_multiqueue_send and buffered_send cannot be on simultaneously" << std::endl;
+      exit(1);
+    }
+    std::cerr << "Buffered Multiqueue Send Single Option is ON." << std::endl;
+  }
+
 
   if (options["buffered_queued_send_single"] == "true" || 
     options["buffered_queued_send_single"] == "1" ||
@@ -418,6 +432,11 @@ void distributed_control::init(const std::vector<std::string> &machines,
       else if (buffered_queued_send_single) {
         single_sender = true;
         if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue2(this, comm));
+        else senders.push_back(senders[0]);
+      }
+      else if (buffered_multiqueue_send_single) {
+        single_sender = true;
+        if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_multiqueue(this, comm, machines.size(), 4, machines.size() / 2));
         else senders.push_back(senders[0]);
       }
       else {
