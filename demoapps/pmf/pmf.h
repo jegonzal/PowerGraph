@@ -66,6 +66,9 @@ by: Rong Pan, Yunhong Zhou, Bin Cao, N. N. Liu, R. Lukose, M. Scholz, Qiang Yang
 For sparsity enforcing priors see:
 11) Xi Chen, Yanjun Qi, Bing Bai, Qihang Lin and Jaime Carbonell. Sparse Latent Semantic Analysis. In SIAM International Conference on Data Mining (SDM), 2011.
 
+SVD is implemented using two sided Lanczos, see:
+12) http://en.wikipedia.org/wiki/Singular_value_decomposition
+
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
@@ -205,7 +208,8 @@ enum runmodes{
    WEIGHTED_ALS = 9,
    ALS_SPARSE_USR_FACTOR = 10,
    ALS_SPARSE_USR_MOVIE_FACTORS = 11,
-   ALS_SPARSE_MOVIE_FACTOR = 12
+   ALS_SPARSE_MOVIE_FACTOR = 12,
+   SVD = 13 //simular value decompoistion via double sided Lanczos
 };
 
 #define MAX_RUNMODE 12
@@ -347,6 +351,7 @@ void problem_setup::verify_setup(){
   case STOCHASTIC_GRADIENT_DESCENT:
   case LANCZOS:
   case NMF:
+  case SVD:
     tensor = false; BPTF = false;
     break;
 

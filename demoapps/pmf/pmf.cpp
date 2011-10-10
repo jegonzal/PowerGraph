@@ -33,6 +33,7 @@
 #include "bptf.hpp"
 #include "sgd.hpp"
 #include "lanczos.hpp"
+#include "svd.hpp"
 #include "nmf.hpp"
 #include "als.hpp"
 #include "tensor.hpp"
@@ -48,7 +49,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix"};
+const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix", "SVD (Singular Value Decomposition)"};
 
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
@@ -155,6 +156,7 @@ void add_tasks(core & glcore){
     
      case LANCZOS:
      case NMF:
+     case SVD:
        //lanczos is unique since it has more than one update function
        //lanczos code is done later
        break;
@@ -184,11 +186,14 @@ void init(graph_type *g){
 
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
-     init_svd<graph_type>(g); break;
+     init_svdpp<graph_type>(g); break;
 
    case LANCZOS: 
      init_lanczos(); break;
-   
+  
+   case SVD:
+     init_svd(); break;
+ 
    case NMF:
       nmf_init(); break;
 
@@ -339,7 +344,7 @@ void start(command_line_options& clopts) {
    }
 
    double res = 0;
-   if (ps.algorithm != LANCZOS){
+   if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
      double res2 = 0;
      double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&g, false, res);
      printf(ac.printhighprecision ? 
@@ -381,12 +386,16 @@ void start(command_line_options& clopts) {
         lanczos<core>(glcore); 
         break;
 
+     case SVD:
+        svd<core>(glcore);
+        break;
+
      case NMF:
         nmf<core>(&glcore); 
         break;
   }
 
- if (ps.algorithm != LANCZOS){
+ if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
     /**** OUTPUT KDD FORMAT *****/
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2"){
       if (ac.outputvalidation) //experimental: output prediction of validation data
@@ -452,6 +461,7 @@ int do_main(int argc, const char *argv[]){
       case WEIGHTED_ALS:
       case STOCHASTIC_GRADIENT_DESCENT:
       case LANCZOS:
+      case SVD:
       case NMF:
         start<gl_types, gl_types::core, graph_type, vertex_data, edge_data>(clopts);
         break;

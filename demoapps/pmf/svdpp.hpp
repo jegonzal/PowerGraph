@@ -28,8 +28,8 @@
  */
 
 
-#ifndef __SVD_HPP
-#define __SVD_HPP
+#ifndef __SVDPP_HPP
+#define __SVDPP_HPP
 
 #include "graphlab.hpp"
 #include <graphlab/macros_def.hpp>
@@ -80,11 +80,11 @@ void vertex_data_svdpp::load(graphlab::iarchive& archive) {
 }
 
 template<typename graph_type>
-void init_svd(graph_type* _g){
+void init_svdpp(graph_type* _g){
   assert(false);
 }
 template<>
-void init_svd<graph_type_svdpp>(graph_type_svdpp *_g){
+void init_svdpp<graph_type_svdpp>(graph_type_svdpp *_g){
    fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", ac.D,stepSize,regularization);
    for (int i=0; i<ps.M+ps.N; i++){
        vertex_data_svdpp & data = _g->vertex_data(i);
@@ -279,4 +279,4 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 }
 
 #include "graphlab/macros_undef.hpp"
-#endif //__SVD_HPP
+#endif //__SVDPP_HPP

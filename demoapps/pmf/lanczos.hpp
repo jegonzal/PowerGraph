@@ -162,10 +162,10 @@ void ATxb(gl_types::iscope &scope,
       vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
       user.rmse += edge.weight * movie.rmse;
       }
+   
 
    assert(offset2 < m+2 && offset3 < m+2);
    user.rmse -= lancbeta[offset2] * user.pvec[offset3];
-
    ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
 
   if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){

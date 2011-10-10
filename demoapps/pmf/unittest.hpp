@@ -75,7 +75,10 @@ void unit_testing(int unittest, command_line_options& clopts){
       test_cosamp();
       exit(0);
    } 
-   else {
+   else if (unittest == 131){ //SVD
+     ac.datafile = "lanczos2"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.matrixmarket= true; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo");
+   }
+    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);
    }

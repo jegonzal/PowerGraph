@@ -318,7 +318,7 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
      if (test && ps.Le == 0)
        return NAN;
      
-     if (ps.algorithm == LANCZOS) //not implemented yet
+     if (ps.algorithm == LANCZOS || ps.algorithm == SVD) //not implemented yet
        return NAN;
  
      res = 0;
@@ -340,7 +340,7 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
 
 template<typename graph_type, typename vertex_data>
 double calc_rmse_wrapper(const graph_type* _g, bool test, double & res){
-   if (ps.algorithm == LANCZOS){
+   if (ps.algorithm == LANCZOS || ps.algorithm == SVD){
        res=-1; return -1; //not implemented yet
    }
    else return calc_rmse<graph_type, vertex_data>(_g, test, res);
