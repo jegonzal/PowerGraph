@@ -194,19 +194,23 @@ inline ivec sort_index(const vec&a){
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
    VectorXcd eigs = T.eigenvalues();
    eigenvalues = eigs.real(); //TODO - what happen with complex
-   ivec index = sort_index(eigenvalues);
-   sort(eigenvalues);
-   vec eigenvalues2 = eigenvalues.reverse();
-   mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
-   for (int i=0; i< eigenvectors.rows(); i++){
-      set_row(T2, index[i], get_row(eigenvectors, i));
-   }   
-   eigenvectors = T2;
-   eigenvalues = eigenvalues2;
+   eigenvectors = T.eigenvectors();
+   //ivec index = sort_index(eigenvalues);
+   //sort(eigenvalues);
+   //vec eigenvalues2 = eigenvalues.reverse();
+   //mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
+   //for (int i=0; i< eigenvectors.rows(); i++){
+   //   set_row(T2, index[i], get_row(eigenvectors, i));
+   //}   
+   //eigenvectors = T2;
+   //eigenvalues = eigenvalues2;
    return true;
 }
 inline vec head(const vec& v, int num){
    return v.head(num);
+}
+inline vec mid(const vec&v, int start, int num){
+   return v.segment(start, num);
 }
 inline ivec head(const ivec& v, int num){
    return v.head(num);
@@ -551,6 +555,9 @@ inline vec init_vec(const char * string, int size){
 inline vec head(const vec &v, int num){
   return v.mid(0,num);
 }
+inline vec mid(const vec&v, int start, int num){
+  return v.mid(start, num);
+}
 inline ivec head(const ivec &v, int num){
   return v.mid(0,num);
 }
@@ -666,12 +673,12 @@ inline double abs_sum(const vec&v){
 }
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
   itpp::eig_sym(T,eigenvalues, eigenvectors);
-  eigenvalues = reverse(eigenvalues);
-  mat reverse_rows = zeros(eigenvectors.rows(), eigenvectors.cols());
-  for (int i=0; i< eigenvectors.rows(); i++){
-    reverse_rows.set_row(i, eigenvectors.get_row(eigenvectors.rows() - i - 1));
-  }
-  eigenvectors = reverse_rows;
+  //eigenvalues = reverse(eigenvalues);
+  //mat reverse_rows = zeros(eigenvectors.rows(), eigenvectors.cols());
+  //for (int i=0; i< eigenvectors.rows(); i++){
+  //  reverse_rows.set_row(i, eigenvectors.get_row(eigenvectors.rows() - i - 1));
+  //}
+  //eigenvectors = reverse_rows;
   return true;
 }
 #endif

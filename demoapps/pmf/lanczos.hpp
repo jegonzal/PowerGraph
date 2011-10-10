@@ -236,10 +236,10 @@ mat calc_V(){
 
   const graph_type *g = ps.g<graph_type>(TRAINING); 
   
-  mat V = zeros(ps.M,ac.iter);
+  mat V = zeros(ps.N,ac.iter+1);
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-    set_row(V, i-ps.M, head(data->pvec, ac.iter));
+    set_row(V, i-ps.M, mid(data->pvec, 1, ac.iter+1));
   }
   return V;
 }
@@ -259,11 +259,6 @@ void print_w(bool rows){
   }
   cout<<"w is: " << v << endl;
 }
-
-
-
-
-
 
 
 template<typename core>
@@ -339,7 +334,10 @@ void lanczos<>(gl_types::core & glcore){
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
 
- ps.U=eigenvectors;
+
+ ps.U=Vectors*eigenvectors;
+ if (ac.debug)
+   cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
  ps.V=zeros(eigenvalues.size(),1);
  set_col(ps.V,0,eigenvalues); 
 
