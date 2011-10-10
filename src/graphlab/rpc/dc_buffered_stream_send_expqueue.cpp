@@ -97,37 +97,53 @@ void dc_buffered_stream_send_expqueue::send_data(procid_t target,
 
 
 void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
-  char sendcombining[combine_upper_threshold];
-  size_t length = e.len;
-  memcpy(sendcombining, e.c, e.len);
-  free(e.c);
-  
+  // fill new entries until I fill up the length
+  expqueue_entry entries[128];
+  entries[0] = e;
+  size_t numentries = 1;
+  size_t accumulated_length = e.len;
   while(1) {
     std::pair<expqueue_entry, bool> data = sendqueue.try_dequeue_in_critical_section();
     if (data.second) {
-      // has data
-      if (length + data.first.len <= combine_upper_threshold) {
-        // if resultant length is still below threshold, write into the combiner
-        memcpy(sendcombining + length, data.first.c , data.first.len);
-        length += data.first.len;
-        free(data.first.c);
-      }
-      else {
-        sendqueue.end_critical_section();
-        // send the combined data
-        comm->send(target, sendcombining, length);
-        // and send what we just read
-        comm->send(target, data.first.c, data.first.len);
-        free(data.first.c);
-        break;
-      }
+      entries[numentries] = data.first;
+      ++numentries;
+      accumulated_length += data.first.len;
+      if (numentries >= 128) break;
     }
     else {
-      sendqueue.end_critical_section();
-      // no more data. just send what we have
-      comm->send(target, sendcombining, length);
       break;
     }
+  }
+  sendqueue.end_critical_section();
+  
+  char sendcombining[combine_upper_threshold];
+  size_t length = 0;
+  // now send the stuff. stick them into the combining buffer.
+  for (size_t i = 0;i < numentries; ++i) {
+    // if length with the new entry exceeds my combining buffer length
+    // dump the combining buffer first and clear the buffer
+    if (length + entries[i].len > combine_upper_threshold) {
+      comm->send(target, sendcombining, length);
+      length = 0;
+    }
+
+      // if there is room in the combining buffer, write into the combining buffer
+    if (length + entries[i].len <= combine_upper_threshold) {
+      memcpy(sendcombining + length, entries[i].c , entries[i].len);
+      length += entries[i].len;
+      free(entries[i].c);
+    }
+    else {
+      // length should be 0 here
+      // too long for the combining buffer
+      // send it seperately
+      comm->send(target, entries[i].c, entries[i].len); 
+      free(entries[i].c);
+    }
+  }
+  
+  if (length > 0) {
+    comm->send(target, sendcombining, length);
   }
 }
 
