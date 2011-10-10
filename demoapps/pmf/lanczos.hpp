@@ -257,7 +257,9 @@ void print_w(bool rows){
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     v[i - start] = data->rmse;
   }
-  cout<<"w is: " << v << endl;
+  cout<<"w is: " << mid(v,0,20) << endl;
+  if (end - start > 40)
+    cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
 }
 
 
