@@ -48,7 +48,8 @@ namespace graphlab {
     mutex m_mutex;
     conditional m_conditional;
     conditional m_empty_conditional;
-    
+   
+    uint16_t sleeping;
     /**
      * Causes any threads currently blocking on a dequeue to wake up
      * and evaluate the state of the queue. If the queue is empty,
@@ -79,14 +80,14 @@ namespace graphlab {
   public:
     
     //! creates a blocking queue
-    blocking_queue() : m_alive(true) { }
+    blocking_queue() : m_alive(true),sleeping(0) { }
     
     //! Add an element to the blocking queue
     inline void enqueue(const T& elem) {
       m_mutex.lock();
       m_queue.push_back(elem);
       // Signal threads waiting on the queue
-      m_conditional.signal();
+      if (sleeping) m_conditional.signal();
       m_mutex.unlock();
     }
 
@@ -106,7 +107,9 @@ namespace graphlab {
       bool success = false;
       // Wait while the queue is empty and this queue is alive
       while(m_queue.empty() && m_alive) {
+        sleeping++;
         m_conditional.wait(m_mutex);
+        sleeping--;
       }
       // An element has been added or a signal was raised
       if(!m_queue.empty()) {
