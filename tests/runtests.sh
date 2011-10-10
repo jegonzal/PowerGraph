@@ -72,6 +72,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
     echo "FAIL: Output differs!"
   fi
   echo "********************TEST2************************" >> $stdoutfname
+  ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>> 1
   if [ $? -eq 0 ]; then
      echo "PASS TEST 2 (Alternating least squares)"
   else
@@ -79,7 +80,6 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=1"
   fi
   echo "********************TEST3************************" >> $stdoutfname
-  ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>> 1
   ./pmf --unittest 71 --ncpus=1 --debug=true >> $stdoutfname 2>> 1
   if [ $? -eq 0 ]; then
      echo "PASS TEST 3 (Lanczos)"
@@ -103,15 +103,23 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=101 (CoSaMP)"
      somefailed=1
   fi
-   
+  echo "********************TEST6************************" >> $stdoutfname
+ ./pmf --unittest 131  >> $stdoutfname 2>> 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 6 (SVD)"
+  else
+     echo "FAIL --unittest=131 (SVD)"
+     somefailed=1
+  fi
+ 
   popd  > /dev/null
 
   if [ $somefailed == 1 ]; then
      echo "**** FAILURE LOG **************" >> $stdoutfname
      echo "**** CONFIGURE.DEPS **************" >> $stdoutfname
-     cat ../configure.deps >> $stdoutfname
+     cat ../../configure.deps >> $stdoutfname
      echo "**** CONFIG.LOG **************" >> $stdoutfname
-     cat ../config.log >> $stdoutfname
+     cat ../../config.log >> $stdoutfname
      echo "**** SYSTEM STATS **************" >> $stdoutfname
      echo `date` >> $stdoutfname
      echo `uname -a` >> $stdoutfname

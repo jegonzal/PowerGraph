@@ -192,25 +192,27 @@ inline ivec sort_index(const vec&a){
 
 //Eigen does not sort eigenvalues, as done in matlab
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
-   VectorXcd eigs = T.eigenvalues();
-   eigenvalues = eigs.real(); //TODO - what happen with complex
-   eigenvectors = T.eigenvectors();
-   //ivec index = sort_index(eigenvalues);
-   //sort(eigenvalues);
-   //vec eigenvalues2 = eigenvalues.reverse();
-   //mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
-   //for (int i=0; i< eigenvectors.rows(); i++){
-   //   set_row(T2, index[i], get_row(eigenvectors, i));
-   //}   
-   //eigenvectors = T2;
-   //eigenvalues = eigenvalues2;
+   //
+   //Column  of the returned matrix is an eigenvector corresponding to eigenvalue number  as returned by eigenvalues(). The eigenvectors are normalized to have (Euclidean) norm equal to one.
+   SelfAdjointEigenSolver<mat> solver(T);
+   eigenvectors = solver.eigenvectors();
+   eigenvalues = solver.eigenvalues(); 
+   ivec index = sort_index(eigenvalues);
+   sort(eigenvalues);
+   vec eigenvalues2 = eigenvalues.reverse();
+   mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
+   for (int i=0; i< eigenvectors.cols(); i++){
+      set_col(T2, index[i], get_col(eigenvectors, i));
+   }   
+   eigenvectors = T2;
+   eigenvalues = eigenvalues2;
    return true;
 }
 inline vec head(const vec& v, int num){
    return v.head(num);
 }
 inline vec mid(const vec&v, int start, int num){
-   return v.segment(start, num);
+   return v.segment(start, std::min(num, (int)(v.size()-start)));
 }
 inline ivec head(const ivec& v, int num){
    return v.head(num);
@@ -673,12 +675,12 @@ inline double abs_sum(const vec&v){
 }
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
   itpp::eig_sym(T,eigenvalues, eigenvectors);
-  //eigenvalues = reverse(eigenvalues);
-  //mat reverse_rows = zeros(eigenvectors.rows(), eigenvectors.cols());
-  //for (int i=0; i< eigenvectors.rows(); i++){
-  //  reverse_rows.set_row(i, eigenvectors.get_row(eigenvectors.rows() - i - 1));
-  //}
-  //eigenvectors = reverse_rows;
+  eigenvalues = reverse(eigenvalues);
+  mat reverse_cols = zeros(eigenvectors.rows(), eigenvectors.cols());
+  for (int i=0; i< eigenvectors.cols(); i++){
+    reverse_cols.set_col(i, eigenvectors.get_col(eigenvectors.rows() - i - 1));
+  }
+  eigenvectors = reverse_cols;
   return true;
 }
 #endif
