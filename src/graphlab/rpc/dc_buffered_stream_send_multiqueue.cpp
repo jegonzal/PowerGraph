@@ -86,41 +86,58 @@ void dc_buffered_stream_send_multiqueue::send_data(procid_t target,
   hdr.sequentialization_key = dc->get_sequentialization_key();
   hdr.packet_type_mask = packet_type_mask;
   
-  
-  // whats the thread id?
-  size_t targetqueue = thread::thread_id() % queues[target].size();
-  
-  buffer_spec& targetbuffer = queues[target][targetqueue];
-  targetbuffer.lock.lock();
-  targetbuffer.buf.write(reinterpret_cast<char*>(&(hdr)), sizeof(packet_hdr));
-  targetbuffer.buf.write(data, len);
-  targetbuffer.len += len + sizeof(packet_hdr);
-  targetbuffer.lock.unlock();
+  std::streamsize numbytes_needed = sizeof(packet_hdr) + len;
+  multiqueue_entry eentry;
+  eentry.len = numbytes_needed;
+  eentry.c = (char*)malloc(numbytes_needed);
+  memcpy(eentry.c, &hdr, sizeof(packet_hdr));
+  memcpy(eentry.c + sizeof(packet_hdr), data, len);
+  sendqueues[target].enqueue(eentry);
 }
 
+void dc_buffered_stream_send_multiqueue::write_combining_send(size_t target,
+                                                              non_blocking_queue<multiqueue_entry> &q) {
+  // fill new entries until I fill up the length
+  const size_t combine_upper_threshold = 65536;
+  char sendcombining[combine_upper_threshold];
+  size_t length = 0;
+  while(1) {
+    std::pair<multiqueue_entry, bool> data = q.get_front();
+    if (data.second) {
+      // aggreaget length exceeds my buffer threshold
+      if (length + data.first.len > combine_upper_threshold) {
+        // length is 0, we have a big packet. Lets just send it.
+        if (length == 0) {
+          q.try_dequeue();
+          comm->send(target, data.first.c, data.first.len);
+          free(data.first.c);
+        }
+        else {
+          // we keep the stuff in the sendqueue
+          comm->send(target, sendcombining, length);
+        }
+        break;
+      }
+      else {
+        memcpy(sendcombining + length, data.first.c , data.first.len);
+        length += data.first.len;
+        q.try_dequeue();
+        free(data.first.c);
+      }
+    }
+    else {
+      // flush
+      if (length) comm->send(target, sendcombining, length);
+      break;
+    }
+  }
+}
 
 void dc_buffered_stream_send_multiqueue::send_loop(size_t sockrangelow, 
                                         size_t sockrangehigh) {
   while (!done) {
     for (size_t i = sockrangelow; i < sockrangehigh; ++i) {
-      for (size_t j = 0;j < queues[i].size(); ++j) {
-        buffer_spec& sourcebuffer = queues[i][j];
-        if (sourcebuffer.len > 0) {
-          sourcebuffer.lock.lock();
-          while(1) {
-            char* c = NULL;
-            std::streamsize len = sourcebuffer.buf.introspective_read(c, 512*1024);
-            if (len > 0) {
-              comm->send(i, c, len);
-            }
-            else {
-              break;
-            }
-          }
-          sourcebuffer.len = 0;
-          sourcebuffer.lock.unlock();
-        }
-      }
+       write_combining_send(i, sendqueues[i]);
     }
     sched_yield();
   }

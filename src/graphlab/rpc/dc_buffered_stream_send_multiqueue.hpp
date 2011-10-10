@@ -33,12 +33,17 @@
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/circular_char_buffer.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/util/blocking_queue.hpp>
+#include <graphlab/util/non_blocking_queue.hpp>
 #include <graphlab/logger/logger.hpp>
 namespace graphlab {
 class distributed_control;
 
 namespace dc_impl {
+
+struct multiqueue_entry{
+  char* c;
+  size_t len;
+};
 
 
 /**
@@ -60,13 +65,9 @@ class dc_buffered_stream_send_multiqueue: public dc_send{
   dc_buffered_stream_send_multiqueue(distributed_control* dc, 
                                      dc_comm_base *comm, 
                                      size_t nummachines,
-                                     size_t num_tls_queues,
                                      size_t num_polling_threads): dc(dc), 
                                     comm(comm), done(false) { 
-    queues.resize(nummachines);
-    for (size_t i = 0; i < nummachines; ++i) {
-      queues[i].resize(num_tls_queues);
-    }
+    sendqueues.resize(nummachines);
 
     // one threads for 2 sockets maximum
     if (num_polling_threads >= nummachines / 2) {
@@ -82,7 +83,7 @@ class dc_buffered_stream_send_multiqueue: public dc_send{
   }
   
   ~dc_buffered_stream_send_multiqueue() {
-    queues.clear();
+    sendqueues.clear();
   }
   
 
@@ -109,6 +110,9 @@ class dc_buffered_stream_send_multiqueue: public dc_send{
 
   void send_loop(size_t sockrangelow, size_t sockrangehigh);
   
+  void write_combining_send(size_t target, 
+                            non_blocking_queue<multiqueue_entry> &entry);
+  
   void shutdown();
   
   inline size_t bytes_sent() {
@@ -130,7 +134,7 @@ class dc_buffered_stream_send_multiqueue: public dc_send{
   thread_group pool;
 
   //all queues in queues[i] go to machine i
-  std::vector<std::vector<buffer_spec> > queues;
+  std::vector<non_blocking_queue<multiqueue_entry> > sendqueues;
 };
 
 
