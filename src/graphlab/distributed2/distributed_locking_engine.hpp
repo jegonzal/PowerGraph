@@ -1161,7 +1161,7 @@ class distributed_locking_engine:public iengine<Graph> {
       }
       else {
         upperlimit_exceeded = true;
-        lower_threshold  = num_deferred_tasks.value < max_deferred_tasks / 2;
+        lower_threshold  = max_deferred_tasks / 2;
       }
         
       while (termination_reason == EXEC_UNSET) {
@@ -1325,6 +1325,7 @@ class distributed_locking_engine:public iengine<Graph> {
     rmi.barrier();
     
     std::map<double, size_t> upspertime;
+    std::map<double, size_t> edgespertime;
     timer ti;
     ti.start();
     if (rmi.procid() == 0) {
@@ -1336,6 +1337,8 @@ class distributed_locking_engine:public iengine<Graph> {
         reduction_started_mut.lock();
         proc0_reduction_started = true;
         reduction_started_mut.unlock();
+        
+        double d = ti.current_time();
         for (size_t i = 1;i < rmi.numprocs(); ++i) {
           rmi.remote_call(i,
                           &distributed_locking_engine<Graph, Scheduler>::wake_up_reducer);
@@ -1346,10 +1349,11 @@ class distributed_locking_engine:public iengine<Graph> {
         while (proc0_reduction_started) reduction_started_cond.wait(reduction_started_mut);
         
         if (make_log.length() > 0) {
-          fout << ti.current_time() << ", " << numtasksdone << std::endl;
+          fout << d << ", " << numtasksdone << ", " << aggregate.touched_edges << std::endl;
           fout.flush();
         }
-        upspertime[ti.current_time()] = numtasksdone;
+        upspertime[d] = numtasksdone;
+        edgespertime[d] = aggregate.touched_edges;
         reduction_started_mut.unlock();
         sleep(1);
       }
@@ -1393,7 +1397,8 @@ class distributed_locking_engine:public iengine<Graph> {
       std::map<double, size_t>::const_iterator iter = upspertime.begin();
       while(iter != upspertime.end()) {
         engine_metrics.add_to_vector("updatecount_vector_t", iter->first);
-        engine_metrics.add_to_vector("updatecount_vector_v", iter->second);        
+        engine_metrics.add_to_vector("updatecount_vector_v", iter->second);
+        engine_metrics.add_to_vector("updatecount_vector_e", edgespertime[iter->first]);        
         ++iter;
       }
       engine_metrics.set("termination_reason", 
