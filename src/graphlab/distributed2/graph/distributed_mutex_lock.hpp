@@ -508,7 +508,7 @@ namespace graphlab {
         complete_release(released, numreleased, NULL);
         break;
       default:
-        assert(false);
+	break;
       }
     }
 

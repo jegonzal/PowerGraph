@@ -1105,7 +1105,7 @@ class distributed_locking_engine:public iengine<Graph> {
       // pick up a job to do
       std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
       
-      if (job.second) {
+      while (job.second) {
         // lets do it
         // curv is a localvid
         vertex_id_t curv = job.first;
@@ -1162,10 +1162,10 @@ class distributed_locking_engine:public iengine<Graph> {
           graphlock->scope_unlock(globalvid, scope_range::VERTEX_CONSISTENCY);
         }
         vertex_deferred_tasks[curv].lock.unlock();
+	
+	job = ready_vertices.try_dequeue(threadid);
       }
-      else {
-        sched_yield();
-      }
+      sched_yield();
     }
   }
   
