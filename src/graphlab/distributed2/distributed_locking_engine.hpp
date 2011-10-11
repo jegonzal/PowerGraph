@@ -808,6 +808,7 @@ class distributed_locking_engine:public iengine<Graph> {
           reduction_locks_already_acquired = (active_sync_tasks.size() > 0);
           perform_snapshot(active_sync_tasks.size() == 0);
           last_snapshot = numtasksdone;
+          snapshot_interval_updates = 0;
         }
         
         if (last_snapshot2 > numtasksdone) {
@@ -1168,7 +1169,7 @@ class distributed_locking_engine:public iengine<Graph> {
         // pick up a job to do
         std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
         while (termination_reason == EXEC_UNSET && 
-          job.second == false && num_deferred_tasks.value >= lower_threshold) {
+          job.second == false && num_deferred_tasks.value > lower_threshold) {
           sched_yield();
           job = ready_vertices.try_dequeue(threadid);
         }
