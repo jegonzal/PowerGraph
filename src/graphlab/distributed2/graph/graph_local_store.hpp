@@ -565,45 +565,87 @@ namespace graphlab {
         return vcolors[vertex];
       }
 
+      void set_all_color_to_invalid() {
+        for(vertex_id_type v = 0; v < num_vertices(); ++v) color(v) = vertex_color_type(-1);
+      }
+
+
 
       /** \brief This function constructs a heuristic coloring for the 
           graph and returns the number of colors */
-      size_t compute_coloring() {
+      size_t compute_coloring(bool reset_coloring = true) {
         // Reset the colors
-        for(vertex_id_type v = 0; v < num_vertices(); ++v) color(v) = 0;
+        if (reset_coloring) set_all_color_to_invalid();
         // construct a permuation of the vertices to use in the greedy
         // coloring. \todo Should probably sort by degree instead when
         // constructing greedy coloring.
-        std::vector<std::pair<vertex_id_type, vertex_id_type> > 
-          permutation(num_vertices());
+        std::vector<std::pair<vertex_id_type, vertex_id_type> > permutation;
 
-        for(vertex_id_type v = 0; v < num_vertices(); ++v) 
-          permutation[v] = std::make_pair(-num_in_neighbors(v), v);
-        //      std::random_shuffle(permutation.begin(), permutation.end());
-        std::sort(permutation.begin(), permutation.end());
-        // Recolor
         size_t max_color = 0;
+        for(vertex_id_type v = 0; v < num_vertices(); ++v) {
+          if (color(v) == vertex_color_type(-1)) {
+            permutation.push_back(std::make_pair(-num_in_neighbors(v), v));
+            color(v) = 0;
+          }
+          else {
+            max_color = std::max<size_t>(max_color, color(v));
+          }
+        }
+        //      std::random_shuffle(permutation.begin(), permutation.end());
+        //std::sort(permutation.begin(), permutation.end());
+
         std::set<vertex_color_type> neighbor_colors;
         for(size_t i = 0; i < permutation.size(); ++i) {
-          neighbor_colors.clear();
+          fixed_dense_bitset<256> bs;
+          bs.fill();
+          // first, a fast check using a bit set.
           const vertex_id_type& vid = permutation[i].second;
-          edge_list_type in_edges = in_edge_ids(vid);
+          vertex_color_type& vertex_color = color(vid);
           // Get the neighbor colors
-          foreach(edge_id_type eid, in_edges){
+          foreach(edge_id_type eid, in_edge_ids(vid)){
             const vertex_id_type& neighbor_vid = source(eid);
             const vertex_color_type& neighbor_color = color(neighbor_vid);
-            neighbor_colors.insert(neighbor_color);
+            if (neighbor_color < 256) bs.clear_bit_unsync(neighbor_color);
           }
-          // Find the lowest free color
-          vertex_color_type& vertex_color = color(vid);
-          foreach(vertex_color_type neighbor_color, neighbor_colors) {
-            if(vertex_color != neighbor_color) break;
-            else vertex_color++;
-            // Ensure no wrap around
-            assert(vertex_color != 0);                
+          foreach(edge_id_type eid, out_edge_ids(vid)){
+            const vertex_id_type& neighbor_vid = target(eid);
+            const vertex_color_type& neighbor_color = color(neighbor_vid);
+            if (neighbor_color < 256) bs.clear_bit_unsync(neighbor_color);
+          }
+          // if there is a color < 256 which works, we are done.
+          uint32_t candidate = 0;
+          if (bs.first_bit(candidate)) {
+              vertex_color = candidate;
+          }
+          else {
+            // otherwise, we switch to the slow version of the algorithm
+            // switch to the slow algorithm
+            neighbor_colors.clear();
+            // Get the neighbor colors
+            foreach(edge_id_type eid, in_edge_ids(vid)){
+              const vertex_id_type& neighbor_vid = source(eid);
+              const vertex_color_type& neighbor_color = color(neighbor_vid);
+              neighbor_colors.insert(neighbor_color);
+            }
+            foreach(edge_id_type eid, out_edge_ids(vid)){
+              const vertex_id_type& neighbor_vid = target(eid);
+              const vertex_color_type& neighbor_color = color(neighbor_vid);
+              neighbor_colors.insert(neighbor_color);
+            }
+            
+
+            vertex_color = 0;
+            foreach(vertex_color_type neighbor_color, neighbor_colors) {
+              if(vertex_color != neighbor_color) break;
+              else vertex_color++;
+              // Ensure no wrap around
+              ASSERT_NE(vertex_color, 0);                
+            }
           }
           max_color = std::max(max_color, size_t(vertex_color) );
+          
         }
+        
         // Return the NUMBER of colors
         return max_color + 1;           
       } // end of compute coloring

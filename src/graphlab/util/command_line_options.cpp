@@ -209,7 +209,10 @@ namespace graphlab {
                 << "If non-zero, snapshots approximately this many updates]\n"
                 << "snapshot2_interval = [integer, default = 0, "
                 << "Fully asynchronous snapshotting. If non-zero, "
-                << "snapshots approximately this many updates]\n";
+                << "snapshots approximately this many updates]\n"
+                << "strength_reduction = [integer, default = 0]\n"
+                << "priority_degree_limit = [integer, default = 0. If > 0, "
+                <<  "all vertices with more than this number of edges will have lock priority]\n";
       return false;
     } 
     set_ncpus(ncpus);

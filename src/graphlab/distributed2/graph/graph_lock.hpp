@@ -12,7 +12,8 @@ class graph_lock {
   typedef typename GraphType::vertex_id_type vertex_id_type;  
   virtual void scope_request(vertex_id_type globalvid,
                            boost::function<void(vertex_id_type)> handler,
-                           scope_range::scope_range_enum scopetype) = 0;
+                           scope_range::scope_range_enum scopetype,
+                           bool priority) = 0;
 
   virtual void scope_unlock(vertex_id_type globalvid,
                            scope_range::scope_range_enum scopetype) = 0;

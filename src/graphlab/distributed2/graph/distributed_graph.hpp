@@ -1028,6 +1028,45 @@ namespace graphlab {
       }
     }
 
+    
+    void color_graph() {
+      localstore.set_all_color_to_invalid();
+      rmi.barrier();
+      
+      for (procid_t i = 0;i < rmi.procid(); ++i) {
+        std::vector<std::pair<vertex_id_type, vertex_color_type> > received_assgs;
+        rmi.recv_from(i, received_assgs);
+        for (size_t i = 0;i < received_assgs.size(); ++i) {
+          localstore.color(globalvid_to_localvid(received_assgs[i].first)) = received_assgs[i].second;
+        }
+      }
+      
+      logger(LOG_INFO, "Coloring Graph.");
+      localstore.compute_coloring(false);
+      // broadcast ghost colors
+      std::vector<std::vector<std::pair<vertex_id_type, vertex_color_type> > > vcolors(rmi.numprocs());
+      
+      for (vertex_id_type i = 0;i < localstore.num_vertices(); ++i) {
+        const std::vector<procid_t>& replicas = localvid_to_replicas(i);
+        for (size_t j = 0; j < replicas.size(); ++j) {
+          if (replicas[j] > rmi.procid()) {
+            vcolors[replicas[j]].push_back(std::make_pair(localvid_to_globalvid(i), 
+                                                                          localstore.color(i)));
+          }
+          else if (replicas[j] < rmi.procid()) {
+            // If there a replica that has a lower ID, it must have already been sent 
+            // (i.e. the color was computed already by someone else)
+            break;
+          }
+        }
+      }
+      for (procid_t i = rmi.procid() + 1 ;i < rmi.numprocs(); ++i) {
+        rmi.send_to(i, vcolors[i]);
+      }      
+      rmi.barrier();
+      recompute_num_colors();
+    }
+
 
     /** 
      * Get (and cache) the number of colors

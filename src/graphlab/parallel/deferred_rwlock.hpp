@@ -67,6 +67,34 @@ class deferred_rwlock{
       tail = I;
     }
   }
+  inline void insert_queue_head(request *I) {
+    if (head == NULL) {
+      head = I;
+      tail = I;
+    }
+    else {
+      I->next = head;
+      head = I;
+    }
+  }
+  
+  inline bool writelock_priority(request *I) {
+    I->next = NULL;
+    I->lockclass = QUEUED_RW_LOCK_REQUEST_WRITE;
+    lock.lock();
+    if (reader_count == 0 && writer == false) {
+      // fastpath
+      writer = true;
+      lock.unlock();
+      return true;
+    }
+    else {
+      insert_queue_head(I);
+      lock.unlock();
+      return false;
+    }
+  }
+  
   inline bool writelock(request *I) {
     I->next = NULL;
     I->lockclass = QUEUED_RW_LOCK_REQUEST_WRITE;
@@ -146,6 +174,31 @@ class deferred_rwlock{
     else {
       // slow path. Insert into queue
       insert_queue(I);
+      if (head->lockclass == QUEUED_RW_LOCK_REQUEST_READ && writer == false) {
+        ret = complete_rdlock(released);
+      }
+      lock.unlock();
+      return ret;
+    }
+  }
+
+  inline size_t readlock_priority(request *I, request* &released)  {
+    released = NULL;
+    size_t ret = 0;
+    I->next = NULL;
+    I->lockclass = QUEUED_RW_LOCK_REQUEST_READ;
+    lock.lock();
+    // there are readers and no one is writing
+    if (head == NULL && writer == false) {
+      // fast path
+      ++reader_count;
+      lock.unlock();
+      released = I;
+      return 1;
+    }
+    else {
+      // slow path. Insert into queue
+      insert_queue_head(I);
       if (head->lockclass == QUEUED_RW_LOCK_REQUEST_READ && writer == false) {
         ret = complete_rdlock(released);
       }

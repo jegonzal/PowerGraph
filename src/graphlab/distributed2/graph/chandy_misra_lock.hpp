@@ -635,7 +635,8 @@ namespace graphlab {
     */
     void scope_request(vertex_id_type globalvid,
                        boost::function<void(vertex_id_type)> handler,
-                       scope_range::scope_range_enum scopetype) {
+                       scope_range::scope_range_enum scopetype,
+                       bool priority) {
 #ifdef DISTRIBUTED_LOCK_DEBUG
       logstream(LOG_DEBUG) << "scope request for "<< globalvid << std::endl;
 #endif

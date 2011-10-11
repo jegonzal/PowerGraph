@@ -216,6 +216,7 @@ class distributed_locking_engine:public iengine<Graph> {
   // the current sense flag. if token == sense, snapshot has been taken
   bool snapshot2_sense;
   
+  size_t priority_degree_limit;
 
 
   scope_range::scope_range_enum default_scope_range;
@@ -323,6 +324,7 @@ class distributed_locking_engine:public iengine<Graph> {
                             snapshot2_number(0),
                             snapshot2_update(gl_impl::snapshot_update<Graph, snapshot2_scheduler_callback>),
                             snapshot2_sense(false),
+                            priority_degree_limit(0),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
@@ -563,20 +565,22 @@ class distributed_locking_engine:public iengine<Graph> {
   
   struct termination_evaluation {
     size_t executed_tasks;
+    size_t pending_tasks;
     bool terminator;
     bool timeout;
     bool force_stop;
     termination_evaluation(): executed_tasks(0),
+                              pending_tasks(0),
                               terminator(false),
                               timeout(false),
                               force_stop(false) { }
                               
     void save(oarchive &oarc) const {
-      oarc << executed_tasks << terminator << timeout << force_stop;
+      oarc << executed_tasks << pending_tasks << terminator << timeout << force_stop;
     }
     
     void load(iarchive &iarc) {
-      iarc >> executed_tasks >> terminator >> timeout >> force_stop;
+      iarc >> executed_tasks >> pending_tasks >> terminator >> timeout >> force_stop;
     }
   }; // end of termination evaluation struct
 
@@ -677,7 +681,7 @@ class distributed_locking_engine:public iengine<Graph> {
 
   /** Checks all machines for termination and sets the termination reason.
       Also returns the number of update tasks completed globally */
-  size_t check_global_termination() {
+  std::pair<size_t, size_t> check_global_termination() {
     std::vector<termination_evaluation> termination_test;
     termination_test.resize(rmi.numprocs());
     
@@ -685,7 +689,7 @@ class distributed_locking_engine:public iengine<Graph> {
     size_t numupdates = 0;
     for (size_t i = 0; i < update_counts.size(); ++i) numupdates += update_counts[i];
     termination_test[rmi.procid()].executed_tasks = numupdates;
-  
+    termination_test[rmi.procid()].pending_tasks = num_deferred_tasks.value;
     if (timeout_millis > 0 && ti.current_time_millis() > timeout_millis) {
       termination_test[rmi.procid()].timeout = true;
     }
@@ -705,6 +709,7 @@ class distributed_locking_engine:public iengine<Graph> {
     if (rmi.procid() == 0) {
       for (size_t i = 0;i < termination_test.size(); ++i) {
         aggregate.executed_tasks += termination_test[i].executed_tasks;
+        aggregate.pending_tasks += termination_test[i].pending_tasks;
         aggregate.terminator |= termination_test[i].terminator;
         aggregate.timeout |= termination_test[i].timeout;
         aggregate.force_stop |= termination_test[i].force_stop;
@@ -729,7 +734,7 @@ class distributed_locking_engine:public iengine<Graph> {
     std::pair<size_t, size_t> reason_and_task(treason, aggregate.executed_tasks);
     reduction_services.broadcast(reason_and_task, rmi.procid() == 0);
     termination_reason = exec_status(reason_and_task.first);
-    return reason_and_task.second;
+    return std::make_pair(reason_and_task.second, aggregate.pending_tasks);
   }
 
   
@@ -749,6 +754,9 @@ class distributed_locking_engine:public iengine<Graph> {
   
   void reduction_thread(size_t threadid) {
     dgraph_scope<Graph> scope;    
+    
+    size_t numpendingtasks = 0;
+    
     while(true) {
       reduction_mut.lock();
       while(reduction_stop == false && reduction_run == false) 
@@ -766,7 +774,10 @@ class distributed_locking_engine:public iengine<Graph> {
       if (threadid == 0) {
         reduction_locks_already_acquired = false;
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        numtasksdone = check_global_termination();        
+        std::pair<size_t, size_t> termret = check_global_termination();        
+        numtasksdone = termret.first;
+        numpendingtasks = termret.second;
+        
         if (snapshot_interval_updates > 0  && 
             numtasksdone >= last_snapshot + snapshot_interval_updates) {
           reduction_locks_already_acquired = (active_sync_tasks.size() > 0);
@@ -856,7 +867,7 @@ class distributed_locking_engine:public iengine<Graph> {
         // if I am thread 0 on processor 0, I need to wake up the
         // the main thread which is waiting on a timer
         if (rmi.procid() == 0) {
-          std::cout << numtasksdone << " tasks done" << std::endl;
+          std::cout << numtasksdone << " tasks done. " << numpendingtasks << " pending." << std::endl;
           reduction_complete_signal();
         }
       }
@@ -1061,11 +1072,15 @@ class distributed_locking_engine:public iengine<Graph> {
     
     boost::function<void(vertex_id_t)> handler = 
       boost::bind(&distributed_locking_engine<Graph, Scheduler>::vertex_is_ready, this, _1);
+      
+    bool endgame_mode = false;
+    
     while(1) {
       if (termination_reason != EXEC_UNSET) {
         consensus.force_done();
         break;
       }
+      bool upperlimit_exceeded = false;
       // pick up a deferred task 
       if (num_deferred_tasks.value < max_deferred_tasks) {
         sched_status::status_enum stat = scheduler.get_next_task(threadid, task);
@@ -1074,7 +1089,10 @@ class distributed_locking_engine:public iengine<Graph> {
         if (stat == sched_status::EMPTY && num_deferred_tasks.value == 0) {
           bool ret = try_to_quit(threadid, stat, task);
           if (ret == true) break;
-          if (ret == false && stat == sched_status::EMPTY) continue;
+          if (ret == false && stat == sched_status::EMPTY) {
+            endgame_mode = true;
+            continue;
+          }
         }
         
         //if scheduler game me a task
@@ -1092,19 +1110,31 @@ class distributed_locking_engine:public iengine<Graph> {
           // if a lock was not requested. request for it
           if (vertex_deferred_tasks[task.vertex()].lockrequested == false) {
             vertex_deferred_tasks[task.vertex()].lockrequested = true;
+            bool priority = (priority_degree_limit > 0 && 
+                            graph.get_local_store().num_in_neighbors(task.vertex()) + 
+                            graph.get_local_store().num_out_neighbors(task.vertex()) >= priority_degree_limit);
+            
             if (strength_reduction == false || graph.color(globalvid) != weak_color) {
-              graphlock->scope_request(globalvid, handler, default_scope_range);
+              graphlock->scope_request(globalvid, handler, default_scope_range, priority);
             }
             else {
-              graphlock->scope_request(globalvid, handler, scope_range::VERTEX_CONSISTENCY);
+              graphlock->scope_request(globalvid, handler, scope_range::VERTEX_CONSISTENCY, priority);
             }
           }
           vertex_deferred_tasks[task.vertex()].lock.unlock();
         }
       }
+      else {
+        upperlimit_exceeded = true;
+      }
       // pick up a job to do
       std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
-      
+      while (job.second == false && num_deferred_tasks.value > 0 && (upperlimit_exceeded || endgame_mode)) {
+        sched_yield();
+        job = ready_vertices.try_dequeue(threadid);
+        if (num_deferred_tasks.value < max_deferred_tasks / 4) upperlimit_exceeded = false;
+      }
+        
       while (job.second) {
         // lets do it
         // curv is a localvid
@@ -1162,10 +1192,15 @@ class distributed_locking_engine:public iengine<Graph> {
           graphlock->scope_unlock(globalvid, scope_range::VERTEX_CONSISTENCY);
         }
         vertex_deferred_tasks[curv].lock.unlock();
-	
-	job = ready_vertices.try_dequeue(threadid);
+        
+        job = ready_vertices.try_dequeue(threadid);
+        // try to flush as long as there are at least a good number of pending tasks
+        while (job.second == false && num_deferred_tasks.value > 0 && (upperlimit_exceeded || endgame_mode)) {
+          sched_yield();
+          job = ready_vertices.try_dequeue(threadid);
+          if (num_deferred_tasks.value < max_deferred_tasks / 4) upperlimit_exceeded = false;
+        }
       }
-      sched_yield();
     }
   }
   
@@ -1217,6 +1252,8 @@ class distributed_locking_engine:public iengine<Graph> {
     snapshot2_remaining_vertices.value = 0;
     snapshot2_sense = false;
     // using snapshot 2
+    
+   
     if (snapshot2_interval_updates > 0) {
       snapshot2_tokens.resize(graph.get_local_store().num_vertices());
       snapshot2_targets.resize(ncpus, NULL);
@@ -1227,6 +1264,13 @@ class distributed_locking_engine:public iengine<Graph> {
     threads_alive.value = ncpus;
     proc0_reduction_started = false;
     std::fill(update_counts.begin(), update_counts.end(), 0);
+    
+    if (strength_reduction) {
+      logstream(LOG_INFO) << "Strength Reduction On!" << std::endl;
+      graph.color_graph();
+    }
+    logstream(LOG_INFO) << "max_deferred = " << max_deferred_tasks << std::endl; 
+    logstream(LOG_INFO) << "priority_degree_limit = " << priority_degree_limit << std::endl;
     rmi.dc().full_barrier();
     // reset indices
     ti.start();
@@ -1343,7 +1387,12 @@ class distributed_locking_engine:public iengine<Graph> {
     opts.get_int_option("max_deferred_tasks_per_node", max_deferred_tasks);
     opts.get_int_option("chandy_misra", chandy_misra);
     opts.get_int_option("snapshot_interval", snapshot_interval_updates);
-    opts.get_int_option("snapshot2_interval", snapshot2_interval_updates); 
+    opts.get_int_option("snapshot2_interval", snapshot2_interval_updates);
+    opts.get_int_option("priority_degree_limit", priority_degree_limit);
+    size_t sr = 0;
+    opts.get_int_option("strength_reduction", sr); 
+    strength_reduction = (sr > 0);
+    weak_color = 0;
     rmi.barrier();
   }
   
@@ -1366,9 +1415,12 @@ class distributed_locking_engine:public iengine<Graph> {
   
   static void print_options_help(std::ostream &out) {
     out << "max_deferred_tasks_per_node = [integer, default = 1000]\n";
+    out << "strength_reduction = [integer, default = 0]\n";
     out << "chandy_misra = [int, default = 0, If non-zero, uses the chandy misra locking method. Only supports edge scopes]\n";
     out << "snapshot_interval = [integer, default = 0, If non-zero, snapshots approximately this many updates]\n";
     out << "snapshot2_interval = [integer, default = 0, Fully asynchronous snapshotting. If non-zero, snapshots approximately this many updates]\n";
+    out << "priority_degree_limit = [integer, default = 0. If > 0, "
+        <<  "all vertices with more than this number of edges will have lock priority]\n";
   };
 
 

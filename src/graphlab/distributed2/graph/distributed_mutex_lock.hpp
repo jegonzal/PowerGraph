@@ -81,7 +81,8 @@ namespace graphlab {
     */
     void scope_request(vertex_id_type globalvid,
                        boost::function<void(vertex_id_type)> handler,
-                       scope_range::scope_range_enum scopetype) {
+                       scope_range::scope_range_enum scopetype,
+                       bool priority) {
 #ifdef DISTRIBUTED_LOCK_DEBUG
       logstream(LOG_DEBUG) << "scope request for "<< globalvid << std::endl;
 #endif
@@ -94,6 +95,7 @@ namespace graphlab {
       sparams.nextowneridx = 0;
       sparams.handler = handler;
       sparams.scopetype = scopetype;
+      sparams.priority = priority;
       scopelock_lock.lock();
       typename lazy_deque<scopelock_cont_params>::value_type* 
         ptr = scopelock_continuation.push_anywhere(sparams);
@@ -155,6 +157,7 @@ namespace graphlab {
       procid_t nextowneridx;
       scope_range::scope_range_enum scopetype;
       boost::function<void(vertex_id_type)> handler;
+      bool priority;
     };
 
     /**
@@ -168,6 +171,7 @@ namespace graphlab {
       __attribute__((may_alias)) size_t src_tag;   // holds a pointer to the caller's scope lock continuation
       scope_range::scope_range_enum scopetype;
       bool curlocked;
+      bool priority;
       deferred_rwlock::request req;
     } __attribute__ ((aligned (8))) ;
   
@@ -202,6 +206,7 @@ namespace graphlab {
     void partial_lock_request(procid_t destproc,
                               vertex_id_type globalvid,
                               scope_range::scope_range_enum scopetype,
+                              bool priority,
                               size_t scope_continuation_ptr) {
       // here I issue to call to the remote machine, 
       // but I must pass on enough information so that I can call the handler
@@ -212,6 +217,7 @@ namespace graphlab {
         partial_lock_request_impl(destproc, 
                                   globalvid, 
                                   (size_t)scopetype, 
+                                  priority,
                                   scope_continuation_ptr);
       }
       else {
@@ -220,6 +226,7 @@ namespace graphlab {
                         rmi.procid(),
                         globalvid,
                         (size_t)scopetype,
+                        priority,
                         scope_continuation_ptr);
       }
       
@@ -261,6 +268,7 @@ namespace graphlab {
           partial_lock_request(procs[curidx],
                                params.globalvid,
                                params.scopetype,
+                               params.priority,
                                (size_t)(ptr));
         }
         else {
@@ -291,6 +299,7 @@ namespace graphlab {
           partial_lock_request(rmi.procid(),
                                params.globalvid,
                                params.scopetype,
+                               params.priority,
                                (size_t)(ptr));
         }
         else {
@@ -323,6 +332,7 @@ namespace graphlab {
     void partial_lock_request_impl(procid_t srcproc,
                                    vertex_id_type globalvid,
                                    size_t scopetype,
+                                   bool priority,
                                    size_t src_tag) {
       // construct a partiallock_continuation
 #ifdef DISTRIBUTED_LOCK_DEBUG
@@ -332,6 +342,7 @@ namespace graphlab {
       plockparams.srcproc = srcproc;
       plockparams.inidx = 0;
       plockparams.outidx = 0;
+      plockparams.priority = priority;
       plockparams.src_tag = src_tag;
       plockparams.curlocked = false;
       plockparams.req.next = NULL;
@@ -384,6 +395,7 @@ namespace graphlab {
           if (dgraph.localvid_is_ghost(curv) == false &&
               issue_deferred_lock(curv, 
                                   params.req, 
+                                  params.priority,
                                   central_vertex_lock_type(params.scopetype)) == false) {
             return;
           }
@@ -394,6 +406,7 @@ namespace graphlab {
           if (dgraph.localvid_is_ghost(inv) == false &&
               issue_deferred_lock(inv, 
                                   params.req, 
+                                  params.priority,
                                   adjacent_vertex_lock_type(params.scopetype)) == false) {
             return;
           }
@@ -405,6 +418,7 @@ namespace graphlab {
           if (dgraph.localvid_is_ghost(outv) == false &&
               issue_deferred_lock(outv, 
                                   params.req, 
+                                  params.priority,
                                   adjacent_vertex_lock_type(params.scopetype)) == false) {
             return;
           }
@@ -416,6 +430,7 @@ namespace graphlab {
           if (dgraph.localvid_is_ghost(outv) == false &&
               issue_deferred_lock(outv, 
                                   params.req, 
+                                  params.priority,
                                   adjacent_vertex_lock_type(params.scopetype)) == false) {
             return;
           }
@@ -431,6 +446,7 @@ namespace graphlab {
         if (dgraph.localvid_is_ghost(curv) == false &&
             issue_deferred_lock(curv, 
                                 params.req, 
+                                params.priority,
                                 central_vertex_lock_type(params.scopetype)) == false) {
           return;
         }
@@ -464,7 +480,7 @@ namespace graphlab {
        continuation params may be invalid or even no longer exist.
     */
     bool issue_deferred_lock(size_t id, deferred_rwlock::request &req,
-                             scope_range::lock_type_enum locktype) {
+                             bool priority, scope_range::lock_type_enum locktype) {
       ASSERT_LT(id, locks.size());
       deferred_rwlock::request* released = NULL;
       size_t numreleased = 0;
@@ -473,14 +489,24 @@ namespace graphlab {
 #ifdef DISTRIBUTED_LOCK_DEBUG
         //       logstream(LOG_DEBUG) << "read lock on " << dgraph.local2globalvid[id] << std::endl;
 #endif
-        numreleased = locks[id].readlock(&req, released);
+        if (priority) {
+          numreleased = locks[id].readlock_priority(&req, released);
+        }
+        else {
+          numreleased = locks[id].readlock(&req, released);
+        }
 
         return complete_release(released, numreleased, &req);
       case scope_range::WRITE_LOCK:
 #ifdef DISTRIBUTED_LOCK_DEBUG
         //        logstream(LOG_DEBUG) << "write lock on " << dgraph.local2globalvid[id] << std::endl;
 #endif
-        return locks[id].writelock(&req);
+        if (priority) {
+          return locks[id].writelock(&req);
+        }
+        else {
+          return locks[id].writelock_priority(&req);
+        }
       default:
         return true;
       }
