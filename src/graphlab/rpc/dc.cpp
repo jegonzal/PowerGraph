@@ -436,7 +436,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
       }
       else if (buffered_multiqueue_send_single) {
         single_sender = true;
-        if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_multiqueue(this, comm, machines.size(), machines.size() / 2));
+        if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_multiqueue(this, comm, 
+                                                                                     machines.size(), 
+                                                                                     std::max((size_t)1, machines.size() / 4)));
         else senders.push_back(senders[0]);
       }
       else {

@@ -139,7 +139,7 @@ void dc_buffered_stream_send_multiqueue::send_loop(size_t sockrangelow,
     for (size_t i = sockrangelow; i < sockrangehigh; ++i) {
        write_combining_send(i, sendqueues[i]);
     }
-    sched_yield();
+    usleep(10);
   }
 }
 

@@ -26,7 +26,7 @@
 
 
 
-#include <list>
+#include <deque>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -42,7 +42,7 @@ namespace graphlab {
   
    private:
     
-    typedef typename std::list<T> queue_type;
+    typedef typename std::deque<T> queue_type;
 
     queue_type m_queue;
     simple_spinlock m_mutex;

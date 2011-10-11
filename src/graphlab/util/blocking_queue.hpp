@@ -27,6 +27,7 @@
 
 
 #include <list>
+#include <deque>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -41,7 +42,7 @@ namespace graphlab {
   class blocking_queue {
   private:
     
-    typedef typename std::list<T> queue_type;
+    typedef typename std::deque<T> queue_type;
 
     bool m_alive;
     queue_type m_queue;
@@ -141,7 +142,8 @@ namespace graphlab {
         if (m_queue.empty() && sleeping_on_empty) {
           m_empty_conditional.signal();
         }
-      } 
+      }
+      if (!success) m_mutex.unlock(); 
       return std::make_pair(elem, success);
     }
     /**

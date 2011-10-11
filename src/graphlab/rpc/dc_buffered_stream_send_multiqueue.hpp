@@ -70,9 +70,6 @@ class dc_buffered_stream_send_multiqueue: public dc_send{
     sendqueues.resize(nummachines);
 
     // one threads for 2 sockets maximum
-    if (num_polling_threads >= nummachines / 2) {
-      num_polling_threads = nummachines / 2;
-    }
     
     for (size_t i = 0;i < num_polling_threads; ++i) {
       size_t sock_range_low = (i * nummachines) / num_polling_threads;
