@@ -1172,7 +1172,7 @@ class distributed_locking_engine:public iengine<Graph> {
           sched_yield();
           job = ready_vertices.try_dequeue(threadid);
         }
-          
+        if (job.second == false) break;
         // lets do it
         // curv is a localvid
         vertex_id_t curv = job.first;
