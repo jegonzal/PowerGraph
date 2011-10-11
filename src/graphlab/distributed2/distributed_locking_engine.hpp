@@ -217,7 +217,7 @@ class distributed_locking_engine:public iengine<Graph> {
   bool snapshot2_sense;
   
   size_t priority_degree_limit;
-
+  size_t slow_eval_termination;
 
   scope_range::scope_range_enum default_scope_range;
   scope_range::scope_range_enum sync_scope_range;
@@ -325,6 +325,7 @@ class distributed_locking_engine:public iengine<Graph> {
                             snapshot2_update(gl_impl::snapshot_update<Graph, snapshot2_scheduler_callback>),
                             snapshot2_sense(false),
                             priority_degree_limit(0),
+                            slow_eval_termination(0),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
@@ -467,6 +468,9 @@ class distributed_locking_engine:public iengine<Graph> {
     if (graph.is_owned(task.vertex())) {
       // translate to local IDs
       task =  update_task_type(graph.globalvid_to_localvid(task.vertex()), task.function());
+      //if (graph.get_local_store().num_in_neighbors(task.vertex()) + 
+      //graph.get_local_store().num_out_neighbors(task.vertex()) > 1000) return;
+      
       ASSERT_LT(task.vertex(), vertex_deferred_tasks.size());
       if (binary_vertex_tasks.add(task)) {
         scheduler.add_task(task, priority);
@@ -512,6 +516,11 @@ class distributed_locking_engine:public iengine<Graph> {
    random::shuffle(perm);
    for (size_t i = 0;i < perm.size(); ++i) {
       size_t localvid = graph.globalvid_to_localvid(perm[i]);      
+      
+      //if (graph.get_local_store().num_in_neighbors(localvid) + 
+//        graph.get_local_store().num_out_neighbors(localvid) > 1000) continue;
+      
+      
       ASSERT_LT(localvid, vertex_deferred_tasks.size());
       if (binary_vertex_tasks.add(update_task_type(localvid, func))) {
         scheduler.add_task(update_task_type(localvid, func), priority);
@@ -726,6 +735,10 @@ class distributed_locking_engine:public iengine<Graph> {
       }
       else if (aggregate.force_stop) {
         termination_reason = EXEC_FORCED_ABORT;
+      }
+      else if (slow_eval_termination > 0 && 
+               aggregate.pending_tasks < slow_eval_termination && ti.current_time() > 10) {
+        termination_reason = EXEC_TASK_BUDGET_EXCEEDED;
       }
     }
     size_t treason = termination_reason;
@@ -1086,11 +1099,12 @@ class distributed_locking_engine:public iengine<Graph> {
         sched_status::status_enum stat = scheduler.get_next_task(threadid, task);
         // if there is nothing in the queue, and there are no deferred tasks to run
         // lets try to quit
+        if (stat == sched_status::EMPTY) endgame_mode = true;
+        
         if (stat == sched_status::EMPTY && num_deferred_tasks.value == 0) {
           bool ret = try_to_quit(threadid, stat, task);
           if (ret == true) break;
           if (ret == false && stat == sched_status::EMPTY) {
-            endgame_mode = true;
             continue;
           }
         }
@@ -1389,6 +1403,7 @@ class distributed_locking_engine:public iengine<Graph> {
     opts.get_int_option("snapshot_interval", snapshot_interval_updates);
     opts.get_int_option("snapshot2_interval", snapshot2_interval_updates);
     opts.get_int_option("priority_degree_limit", priority_degree_limit);
+    opts.get_int_option("slow_eval_termination", slow_eval_termination);
     size_t sr = 0;
     opts.get_int_option("strength_reduction", sr); 
     strength_reduction = (sr > 0);
@@ -1455,4 +1470,5 @@ class distributed_locking_engine:public iengine<Graph> {
 #include <graphlab/macros_undef.hpp>
 
 #endif // DISTRIBUTED_LOCKING_ENGINE_HPP
+
 

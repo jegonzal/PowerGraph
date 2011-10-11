@@ -1064,7 +1064,11 @@ namespace graphlab {
         rmi.send_to(i, vcolors[i]);
       }      
       rmi.barrier();
-      recompute_num_colors();
+      size_t nc = recompute_num_colors();
+      if (rmi.procid() == 0) {
+        logstream(LOG_INFO) << "Num Colors = " << nc << std::endl;
+      }
+      
     }
 
 

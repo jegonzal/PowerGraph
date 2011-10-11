@@ -127,12 +127,40 @@ class deferred_rwlock{
     released = head;
     size_t numcompleted = 1;
     head = head->next;
+    request* readertail = released;
     while (head != NULL && head->lockclass == QUEUED_RW_LOCK_REQUEST_READ) {
+      readertail = head;
       head = head->next;
       numcompleted++;
     }
     reader_count += numcompleted;
     if (head == NULL) tail = NULL;
+    
+    // now released is the head to a reader list
+    // and head is the head of a writer list
+    // I want to go through the writer list and extract all the readers
+    // this essentially 
+    // splits the list into two sections, one containing only readers, and 
+    // one containing only writers.
+    // (reader biased locking)
+    if (head != NULL) {
+      request* latestwriter = head;
+      request* cur = head->next;
+      while (1) {
+        if (cur->lockclass == QUEUED_RW_LOCK_REQUEST_WRITE) {
+          latestwriter = cur;
+        }
+        else {
+          readertail->next = cur;
+          readertail = cur;
+          reader_count++;
+          numcompleted++;
+          latestwriter->next = cur->next;
+        }
+        if (cur == tail) break;
+        cur=cur->next;
+      }
+    }
     return numcompleted;
   }
   
