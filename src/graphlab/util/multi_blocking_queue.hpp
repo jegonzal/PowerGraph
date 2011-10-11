@@ -154,7 +154,6 @@ namespace graphlab {
         if (id == allqueues.size()) id = 0;
       }
       return ret;
-
     }
 
     //! Return true if queue 'id' is empty

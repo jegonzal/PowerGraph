@@ -274,6 +274,7 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::init(argc, argv);
   
   graphlab::dc_init_param param;
+  param.initstring = param.initstring + ", buffered_multiqueue_send=1";
   if(graphlab::init_param_from_env(param) == false) {
     graphlab::init_param_from_mpi(param); 
   }
