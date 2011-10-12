@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ~/jegonzal/graphlabapi/release/apps/dist2_apps/webgraph_bp
+cd ~/graphlabapi/release/apps/dist2_apps/webgraph_bp
 make -j8
 cp * ~/bin
 

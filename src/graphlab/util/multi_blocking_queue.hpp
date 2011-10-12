@@ -94,7 +94,25 @@ namespace graphlab {
       if (queueref.handler_sleeping) queueref.m_conditional.signal();
       queueref.m_mutex.unlock();
     }
-    
+
+    //! Add an element to the blocking queue
+    inline void enqueue_to_head(const T& elem) {
+      // TODO: this can easily be done with some bit operations on the 
+      const size_t prod = 
+        random::fast_uniform<size_t>(0, num_queues * num_queues - 1);
+      size_t r1 = prod / num_queues;
+      size_t r2 = prod % num_queues;
+      size_t qidx = 
+        (allqueues[r1].numelem < allqueues[r2].numelem) ? r1 : r2;
+      single_queue& queueref = allqueues[qidx];
+      queueref.m_mutex.lock();
+      queueref.m_queue.push_front(elem);
+      queueref.numelem++;
+      if (queueref.handler_sleeping) queueref.m_conditional.signal();
+      queueref.m_mutex.unlock();
+    }
+
+
     //! Add an element to the blocking queue
     inline void enqueue_specific(const T& elem, size_t qidx_) {
       size_t qidx = qidx_ % num_queues;

@@ -54,7 +54,7 @@
 #include <graphlab/distributed2/graph/chandy_misra_lock.hpp>
 #include <graphlab/distributed2/graph/distributed_mutex_lock.hpp>
 #include <graphlab/distributed2/snapshot_task.hpp>
-
+#include <unistd.h>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
@@ -980,6 +980,7 @@ class distributed_locking_engine:public iengine<Graph> {
       } // end of for loop over local eids
       atom.synchronize();
     }
+    sync();
     std::cout << "Snapshot "<< snapshot_number << " Items added in snapshot: " << items_added << std::endl;
     ++snapshot_number;
     // free all the vertices on this machine
@@ -1062,7 +1063,12 @@ class distributed_locking_engine:public iengine<Graph> {
   /** Vertex i is ready. put it into the ready vertices set */
   void vertex_is_ready(vertex_id_t v) {
     //logstream(LOG_DEBUG) << "Enqueue: " << v << std::endl;
-    ready_vertices.enqueue(graph.globalvid_to_localvid(v));
+    if (graph.boundary_scopes_set().count(v)) {
+      ready_vertices.enqueue_to_head(graph.globalvid_to_localvid(v));
+    }
+    else {
+      ready_vertices.enqueue(graph.globalvid_to_localvid(v));
+    }
   }
 
   bool try_to_quit(size_t threadid, 
@@ -1162,7 +1168,6 @@ class distributed_locking_engine:public iengine<Graph> {
       }
       else {
         upperlimit_exceeded = true;
-        lower_threshold  = max_deferred_tasks / 2;
       }
         
       while (termination_reason == EXEC_UNSET) {
@@ -1199,6 +1204,7 @@ class distributed_locking_engine:public iengine<Graph> {
                 snapshot2_targets[i] = NULL;
               }
               snapshot2_lock.unlock();
+              sync();
               logger(LOG_DEBUG, "Local Snapshot complete!");
             }
           }
