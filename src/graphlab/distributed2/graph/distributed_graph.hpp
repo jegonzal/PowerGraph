@@ -2007,6 +2007,12 @@ namespace graphlab {
                                          std::map<procid_t, request_veciter_pair_type > &requests);   
  
  
+    /**
+       Constructs the request set for a synchronization of edges
+    */  
+    void synchronize_all_edges_construct_req(std::map<procid_t, 
+                                    block_synchronize_request2> &requests);
+    
     void update_vertex_data_and_version(vertex_id_type vid,
                                         vertex_conditional_store &estore);
   
