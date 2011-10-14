@@ -70,6 +70,7 @@ int bptf_delay_alpha; //delay alpha sampling (optional, for BPTF)
 int bptf_burn_in; //burn-in priod (for MCMC sampling - optional)
 double bptf_alpha;
 bool bptf_additional_output; //export factor matrices on each iteration (and not just at the end).
+
 /* Variables for SVD++ */
 float svdpp_step_dec;//step decrement size for SVD++
 

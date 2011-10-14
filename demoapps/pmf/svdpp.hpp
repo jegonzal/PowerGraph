@@ -161,11 +161,11 @@ void svd_post_iter(){
   double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
 
-  itmFctrStep *= 0.9f;
-  itmFctr2Step *= 0.9f;
-  usrFctrStep *= 0.9f;
-  itmBiasStep *= 0.9f;
-  usrBiasStep *= 0.9f;
+  itmFctrStep *= ac.svdpp_step_dec;
+  itmFctr2Step *= ac.svdpp_step_dec;
+  usrFctrStep *= ac.svdpp_step_dec;
+  itmBiasStep *= ac.svdpp_step_dec;
+  usrBiasStep *= ac.svdpp_step_dec;
 
   ps.iiter++;
 }
