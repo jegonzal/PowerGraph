@@ -109,7 +109,12 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     }
     set_num_edges(nz, data_type);
     verify_edges<graph_type,edge_data>(_g, data_type);
-  
+ 
+    //add implicit edges if requested
+    if (data_type == TRAINING && ac.implicitratingtype != "none")
+       add_implicit_edges<graph_type, edge_data>(_g);
+
+ 
     if (data_type == TRAINING || (ac.aggregatevalidation && data_type == VALIDATION)){
       count_all_edges<graph_type>(_g);
     }

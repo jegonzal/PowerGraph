@@ -40,7 +40,7 @@ eigenvalue 4 val: 0.780815
 
 
 
-/*   -0.1235    0.3194    0.7068   -0.3074   -0.5372
+   -0.1235    0.3194    0.7068   -0.3074   -0.5372
    -0.4525    0.5548   -0.4707    0.3454   -0.3830
     0.8323    0.1010   -0.0972    0.3109   -0.4370
    -0.2942   -0.6665    0.1976    0.5373   -0.3761
@@ -58,6 +58,9 @@ eigenvalue 4 val: 0.780815
          assert(train_rmse < 0.0044);
          assert(validation_rmse < 0.6840);
          //assert(pow(validation_rmse - 0.6344,2)<1e-3);
+         break;
+
+     case 92:
          break;
 
 /* approximating U are: 28535.0331536      438144.684527      1024719.68412      10736707.7406
@@ -95,6 +98,11 @@ void unit_testing(int unittest, command_line_options& clopts){
    else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
       ac.datafile = "wals"; ac.algorithm = WEIGHTED_ALS; ps.algorithm = WEIGHTED_ALS; ac.FLOAT = true; ac.als_lambda = 0.001;
       clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
+   }
+   else if (unittest == 92){ //WEIGHTED ALTERNATING LEAST SQUARES, IMPLICIT RATING
+      ac.datafile = "netflix"; ac.algorithm = WEIGHTED_ALS; ps.algorithm = WEIGHTED_ALS; ac.FLOAT = false; ac.als_lambda = 0.056;
+      ac.zero = true; ac.implicitratingtype = "uniform"; ac.implicitratingpercentage = 0.03; 
+      clopts.set_scheduler_type("round_robin(max_iterations=10,block_size=1)");
    }
    else if (unittest == 101){
       test_cosamp();
