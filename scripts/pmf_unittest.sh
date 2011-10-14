@@ -16,9 +16,12 @@ echo "TESTING "
 ./pmf netflix 6 --ncpus=8 --scheduler='round_robin(max_iterations=15,block_size=1)' --float=false 
 ./pmf netflix 7 --ncpus=8 --scheduler='round_robin(max_iterations=15,block_size=1)' --float=false 
 ./pmf netflix 8 --ncpus=8 --scheduler='round_robin(max_iterations=15,block_size=1)' --float=false 
+echo "Testing weighted als"
 ./pmf netflix 9 --ncpus=8 --scheduler='round_robin(max_iterations=15,block_size=1)' --float=false 
+echo "Testing sparse factor matrices"
 ./pmf netflix 10 --ncpus=8 --scheduler='round_robin(max_iterations=15,block_size=1)' --float=false 
 ./pmf netflix 11 --ncpus=8 --scheduler='round_robin(max_iterations=15,block_size=1)' --float=false 
-
+echo "Testing implicit ratings"
+./pmf --unittest=92
 
 
