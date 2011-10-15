@@ -100,7 +100,7 @@ namespace graphlab {
     distributed_core(distributed_control &dc, std::string atomindex,
                      disk_graph_atom_type::atom_type atomtype = disk_graph_atom_type::DISK_ATOM) :
       dc(dc),
-      mgraph(dc, atomindex, false, false, atomtype),
+      mgraph(dc, atomindex, false, true, atomtype),
       mengine(NULL),
       coremetrics("distributed_core"), reporter(new null_reporter) { }
   private:
