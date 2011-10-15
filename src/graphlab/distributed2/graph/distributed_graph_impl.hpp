@@ -175,7 +175,36 @@ synchronize_scope(vertex_id_type vid, bool async) {
   }  
 } // end of synchronize scope
 
+/**
+   * Constructs the request for synchronizing all edges
+   */
+template <typename VertexData, typename EdgeData>
+void distributed_graph<VertexData, EdgeData>::
+synchronize_all_edges_construct_req(std::map<procid_t, 
+                                    block_synchronize_request2> &requests) {
+  foreach(vertex_id_type vid, ghostvertices) {
+    foreach(edge_id_type eid, localstore.in_edge_ids(global2localvid[vid])) {
+      vertex_id_type localsourcevid = localstore.source(eid);
+      vertex_id_type localtargetvid = localstore.target(eid);
+      procid_t targetowner = localvid2owner[localtargetvid];
+      
+      block_synchronize_request2 &req = requests[targetowner];
 
+      req.srcdest.push_back(std::make_pair(local2globalvid[localsourcevid], vid));
+      req.edgeversion.push_back(localstore.edge_version(eid));
+ 
+      edge_conditional_store es;
+      es.hasdata = localstore.edge_modified(eid);
+      if (es.hasdata) {
+        localstore.set_edge_modified(eid, false);
+        es.data.first = localstore.edge_data(eid);
+        es.data.second = localstore.edge_version(eid);
+      }
+      req.estore.push_back(es);    
+    }
+  }
+}
+  
 
 
 
@@ -600,10 +629,47 @@ synchronize_all_vertices(bool async) {
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::
 synchronize_all_edges(bool async) {
-  foreach(vertex_id_type vid, ghostvertices) {
-    foreach(edge_id_type eid, localstore.in_edge_ids(global2localvid[vid])) {
-      synchronize_edge(eid, async);
+    // construct he requests
+  typedef std::map<procid_t, block_synchronize_request2> map_type;
+  map_type requests;
+  synchronize_all_edges_construct_req(requests);
+  
+  if (async) {
+    // if asynchronous, the reply goes to pending_async_updates
+    typename map_type::iterator iter;
+    iter = requests.begin();
+    size_t replytarget = reinterpret_cast<size_t>(&pending_async_updates);
+    pending_async_updates.flag.inc(requests.size());
+
+    while(iter != requests.end()) {
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::
+                      async_get_alot2,
+                      rmi.procid(),
+                      iter->second,
+                      replytarget,
+                      0);
+      ++iter;
     }
+  } else {
+    // otherwise we collect it into a local reply ret tye
+    dc_impl::reply_ret_type reply(true, 0);
+    typename map_type::iterator iter;
+    iter = requests.begin();
+    size_t replytarget = reinterpret_cast<size_t>(&reply);
+    reply.flag.inc(requests.size());
+
+    while(iter != requests.end()) {
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::
+                      async_get_alot2,
+                      rmi.procid(),
+                      iter->second,
+                      replytarget,
+                      0);
+      ++iter;
+    }
+    reply.wait();
   }
 }
 

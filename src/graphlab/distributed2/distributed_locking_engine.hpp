@@ -225,7 +225,10 @@ class distributed_locking_engine:public iengine<Graph> {
   scope_range::scope_range_enum default_scope_range;
   scope_range::scope_range_enum sync_scope_range;
 
-
+  double snapshot_begin_time;
+  double snapshot_lock_completion_time, snapshot_synchronization_time;
+  double snapshot_end_time;
+  size_t snapshot_sleeptime;
   /**
    * The set of tasks to have been pulled out of a scheduler
    * and is awaiting execution.
@@ -332,6 +335,7 @@ class distributed_locking_engine:public iengine<Graph> {
                             slow_eval_termination(0),
                             default_scope_range(scope_range::EDGE_CONSISTENCY),
                             sync_scope_range(scope_range::VERTEX_CONSISTENCY),
+                            snapshot_sleeptime(0),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
                             max_deferred_tasks(1000),
                             ready_vertices(ncpus),
@@ -930,15 +934,20 @@ class distributed_locking_engine:public iengine<Graph> {
     // Lock all the vertices on this machine
     int nvertex_deferred_tasks = int(vertex_deferred_tasks.size());
     
+    snapshot_begin_time = ti.current_time(); 
 #pragma omp parallel for
     for (int i = 0; i < nvertex_deferred_tasks; ++i) 
       vertex_deferred_tasks[i].lock.lock();        
-    
+     
+    snapshot_lock_completion_time = ti.current_time(); 
+
     reduction_services.barrier();
     // Synchronize the local data in the graph
     graph.synchronize_all_edges(true);
     graph.wait_for_all_async_syncs();
-    
+  
+    snapshot_synchronization_time = ti.current_time();  
+  
     int items_added = 0;
     #pragma omp parallel reduction(+:items_added)
     {
@@ -981,9 +990,12 @@ class distributed_locking_engine:public iengine<Graph> {
       atom.synchronize();
     }
     sync();
+    snapshot_end_time = ti.current_time();
     std::cout << "Snapshot "<< snapshot_number << " Items added in snapshot: " << items_added << std::endl;
     ++snapshot_number;
     // free all the vertices on this machine
+    if(rmi.procid() == 0 && snapshot_sleeptime > 0) sleep(snapshot_sleeptime);
+    rmi.barrier();
     if (release_locks) {
       for (size_t i = 0; i < vertex_deferred_tasks.size(); ++i) 
         vertex_deferred_tasks[i].lock.unlock();      
@@ -1290,6 +1302,10 @@ class distributed_locking_engine:public iengine<Graph> {
     snapshot2_number = 0;
     snapshot2_remaining_vertices.value = 0;
     snapshot2_sense = false;
+    snapshot_begin_time = 0.0;
+    snapshot_end_time = 0.0;
+    snapshot_lock_completion_time = 0.0;
+    snapshot_synchronization_time = 0.0;
     // using snapshot 2
     
    
@@ -1386,6 +1402,23 @@ class distributed_locking_engine:public iengine<Graph> {
     std::vector<double> barrier_times(rmi.numprocs(), 0);
     barrier_times[rmi.procid()] = barrier_time;
     rmi.gather(barrier_times, 0);
+
+    std::vector<double> sb(rmi.numprocs(), 0);
+    sb[rmi.procid()] = snapshot_begin_time;
+    rmi.gather(sb, 0);
+
+    std::vector<double> sl(rmi.numprocs(), 0);
+    sl[rmi.procid()] = snapshot_lock_completion_time;
+    rmi.gather(sl, 0);
+
+    std::vector<double> ss(rmi.numprocs(), 0);
+    ss[rmi.procid()] = snapshot_synchronization_time; 
+    rmi.gather(ss, 0);
+
+    std::vector<double> se(rmi.numprocs(), 0);
+    se[rmi.procid()] = snapshot_end_time; 
+    rmi.gather(se, 0);
+
     // get RMI statistics
     std::map<std::string, size_t> ret = rmi.gather_statistics();
 
@@ -1400,6 +1433,24 @@ class distributed_locking_engine:public iengine<Graph> {
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         engine_metrics.add_vector_entry("barrier_time", i, barrier_times[i]);
       }
+
+      for(size_t i = 0; i < sb.size(); ++i) {
+        engine_metrics.add_vector_entry("snapshot_begin", i, sb[i]);
+      }
+
+      for(size_t i = 0; i < sb.size(); ++i) {
+        engine_metrics.add_vector_entry("snapshot_locked", i, sl[i]);
+      }
+
+      for(size_t i = 0; i < sb.size(); ++i) {
+        engine_metrics.add_vector_entry("snapshot_sync", i, ss[i]);
+      }
+      for(size_t i = 0; i < sb.size(); ++i) {
+        engine_metrics.add_vector_entry("snapshot_end", i, se[i]);
+      }
+
+
+
 
       std::map<double, size_t>::const_iterator iter = upspertime.begin();
       while(iter != upspertime.end()) {
@@ -1447,6 +1498,7 @@ class distributed_locking_engine:public iengine<Graph> {
     opts.get_string_option("make_log", make_log);
     size_t sr = 0;
     opts.get_int_option("strength_reduction", sr); 
+    opts.get_int_option("snapshot_sleeptime", snapshot_sleeptime);
     strength_reduction = (sr > 0);
     weak_color = 0;
     rmi.barrier();

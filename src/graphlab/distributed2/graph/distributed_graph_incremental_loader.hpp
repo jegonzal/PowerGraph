@@ -18,7 +18,6 @@ inline void count_vertices_and_edges(std::string filename,
                                       size_t &localedges) {
   localedges = 0;
 
-  boost::unordered_set<vertex_id_t> ret;
   std::ifstream in_file(filename.c_str(), std::ios::binary);
   boost::iostreams::filtering_stream<boost::iostreams::input> fin; 
   fin.push(boost::iostreams::zlib_decompressor());
@@ -123,7 +122,11 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   
   std::vector<std::set<vertex_id_type> > vertexset(omp_get_max_threads());
   atomic<size_t> numedges;
+ 
+  mutex m; 
   
+  std::set<vertex_id_type> allvertices;
+  size_t ctr = 0;
   #pragma omp parallel for
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::cout << ".";
@@ -136,23 +139,29 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
                               vertexset[omp_get_thread_num()],
                               ne);
     numedges.inc(ne);
-  }
-  std::cout << std::endl;
-  // create the vertex mapping
-  std::set<vertex_id_type> allvertices;
-  for (size_t i = 0;i < vertexset.size() ; ++i) {
-    foreach(vertex_id_type vid, vertexset[i]) {
+    m.lock();
+    foreach(vertex_id_type vid, vertexset[omp_get_thread_num()]) {
       allvertices.insert(vid);
     }
+    ++ctr;
+    logstream(LOG_INFO) << ctr << " atoms = " << "#V = " << allvertices.size() << " #E = " << numedges.value << std::endl;
+    m.unlock();
+    vertexset[omp_get_thread_num()].clear();
   }
+
+
+  std::cout << std::endl;
+  
+
+  // create the vertex mapping
+  logstream(LOG_INFO) <<  "Creating:" << allvertices.size() << " vertices," << numedges.value << " edges" << std::endl;
   std::copy(allvertices.begin(), allvertices.end(), 
             std::inserter(local2globalvid, local2globalvid.end()));
-            
+  allvertices.clear(); 
   for (size_t i = 0; i < local2globalvid.size(); ++i) global2localvid[local2globalvid[i]] = i;
   localvid2atom.resize(local2globalvid.size(), uint16_t(-1));
   localvid2owner.resize(local2globalvid.size());
   
-  logstream(LOG_INFO) <<  "Creating:" << local2globalvid.size() << " vertices," << numedges.value << " edges" << std::endl;
   // now lets construct the graph structure
   localstore.create_store(local2globalvid.size(), numedges.value);
 
@@ -243,7 +252,8 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       // add vertex skip
       vertex_id_type vid; uint16_t owner;
       iarc >> vid >> owner;
-      incremental_loader_add_vertex(vid, atom2machine[owner], owner);
+      vertex_id_type localvid = incremental_loader_add_vertex(vid, atom2machine[owner], owner);
+      localstore.set_vertex_version(localvid, 1);
     } else if (command == 'c') {
       vertex_id_type vid; uint16_t owner; std::string data;
       iarc >> vid >> owner >> data;
