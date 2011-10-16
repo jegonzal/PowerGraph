@@ -103,6 +103,15 @@ namespace graphlab {
       return m_alive;
     }
 
+    void swap(queue_type &q) {
+      m_mutex.lock();
+      q.swap(m_queue);
+      if (m_queue.empty() && sleeping_on_empty) {
+        m_empty_conditional.signal();
+      }
+      m_mutex.unlock();
+    }
+
     inline std::pair<T, bool> try_dequeue_in_critical_section() {
       T elem = T();
       // Wait while the queue is empty and this queue is alive
@@ -146,6 +155,28 @@ namespace graphlab {
       if (!success) m_mutex.unlock(); 
       return std::make_pair(elem, success);
     }
+
+
+    inline bool wait_for_data() {
+
+      m_mutex.lock();
+      bool success = false;
+      // Wait while the queue is empty and this queue is alive
+      while(m_queue.empty() && m_alive) {
+        sleeping++;
+        m_conditional.wait(m_mutex);
+        sleeping--;
+      }
+      // An element has been added or a signal was raised
+      if(!m_queue.empty()) {
+        success = true;
+      } 
+      m_mutex.unlock();
+
+      return success; 
+    }
+
+
     /**
      * Blocks until an element is available in the queue 
      * or until stop_blocking() is called.
