@@ -896,7 +896,8 @@ class distributed_locking_engine:public iengine<Graph> {
       // and rescheduels any syncs
       if (threadid == 0) {
         //std::cout << rmi.procid() << ": End of all colors" << std::endl;
-        compute_sync_schedule(numtasksdone);        
+        compute_sync_schedule(numtasksdone);       
+        reduction_services.barrier(); 
         // if I am thread 0 on processor 0, I need to wake up the
         // the main thread which is waiting on a timer
         if (rmi.procid() == 0) {
@@ -1161,7 +1162,7 @@ class distributed_locking_engine:public iengine<Graph> {
           // translate the task back to globalids
           vertex_id_t globalvid = graph.localvid_to_globalvid(task.vertex());
   
-          // acquire the lock
+          // acquire ithe lock
           ASSERT_LT(task.vertex(), vertex_deferred_tasks.size());
           vertex_deferred_tasks[task.vertex()].lock.lock();
           // insert the task

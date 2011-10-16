@@ -245,12 +245,19 @@ void distributed_control::deferred_function_call(procid_t source, const dc_impl:
 
 void distributed_control::fcallhandler_loop(size_t id) {
   // pop an element off the queue
+//  float t = lowres_time_seconds();
   while(1) {
     std::pair<function_call_block, bool> entry;
     entry = fcallqueue.dequeue(id);
     // if the queue is empty and we should quit
     if (entry.second == false) return;
     
+/*    if (id == 0 && lowres_time_seconds() - t > 2)  {
+      t = lowres_time_seconds();
+      std::cout << "RPC backlog: ";
+      for (size_t i = 0 ; i < fcallqueue.get_num_queues();++i) std::cout << fcallqueue.size(i) << " ";
+      std::cout << std::endl;
+    }*/
     //create a stream containing all the data
     boost::iostreams::stream<boost::iostreams::array_source> 
                                 istrm(entry.first.data, entry.first.len);
