@@ -124,6 +124,55 @@ synchronize_edge(edge_id_type eid, bool async) {
 
 
 
+template <typename VertexData, typename EdgeData>
+void distributed_graph<VertexData, EdgeData>::
+synchronize_dirty_scope(vertex_id_type vid, bool async) {
+  // construct he requests
+  typedef request_veciter_pair_type pair_type;
+  typedef std::map<procid_t, pair_type> map_type;
+  map_type requests;
+  synchronize_scope_construct_req(vid, requests, true);
+  
+  if (async) {
+    // if asynchronous, the reply goes to pending_async_updates
+    typename map_type::iterator iter;
+    iter = requests.begin();
+    size_t replytarget = reinterpret_cast<size_t>(&pending_async_updates);
+    pending_async_updates.flag.inc(requests.size());
+
+    while(iter != requests.end()) {
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::
+                      async_get_alot2,
+                      rmi.procid(),
+                      iter->second.first,
+                      replytarget,
+                      0);
+      ++iter;
+    }
+  } else {
+    // otherwise we collect it into a local reply ret tye
+    dc_impl::reply_ret_type reply(true, 0);
+    typename map_type::iterator iter;
+    iter = requests.begin();
+    size_t replytarget = reinterpret_cast<size_t>(&reply);
+    reply.flag.inc(requests.size());
+
+    while(iter != requests.end()) {
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::
+                      async_get_alot2,
+                      rmi.procid(),
+                      iter->second.first,
+                      replytarget,
+                      0);
+      ++iter;
+    }
+
+    reply.wait();
+  }  
+}
+
 
 
 template <typename VertexData, typename EdgeData>
@@ -216,7 +265,8 @@ template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::
 synchronize_scope_construct_req(vertex_id_type vid, 
                                 std::map<procid_t, 
-                                         request_veciter_pair_type > &requests) {
+                                         request_veciter_pair_type > &requests,
+                                bool dirtyonly) {
   ASSERT_FALSE(is_ghost(vid));
   if (boundaryscopesset.find(vid) == boundaryscopesset.end()) return;
   
@@ -230,7 +280,7 @@ synchronize_scope_construct_req(vertex_id_type vid,
   // go through all the in edges, and insert into requests
   foreach(edge_id_type localineid, localstore.in_edge_ids(localvid)) {
     vertex_id_type localsourcevid = localstore.source(localineid);
-    if (localvid_is_ghost(localsourcevid)) {
+    if (localvid_is_ghost(localsourcevid) && (!dirtyonly || localstore.vertex_dirty(localsourcevid))) {
       // need to synchronize incoming vertex
       procid_t sourceowner = localvid2owner[localsourcevid];
       block_synchronize_request2 &req = requests[sourceowner].first;
@@ -252,7 +302,7 @@ synchronize_scope_construct_req(vertex_id_type vid,
     vertex_id_type localtargetvid = localstore.target(localouteid);
     procid_t targetowner = localvid2owner[localstore.target(localouteid)];
 
-    if (localvid_is_ghost(localtargetvid)) {
+    if (localvid_is_ghost(localtargetvid) && (!dirtyonly || localstore.vertex_dirty(localtargetvid))) {
       block_synchronize_request2 &req = requests[targetowner].first;
       // need to synchronize outgoing vertex and outgoing edge
       // do outgoing vertex first
@@ -290,34 +340,40 @@ synchronize_scope_construct_req(vertex_id_type vid,
 template <typename VertexData, typename EdgeData> 
 void distributed_graph<VertexData, EdgeData>::
 async_synchronize_scope_callback(vertex_id_type vid, 
+                                 bool dirtyonly,
                                  boost::function<void (void)> callback){
   vertex_id_type localvid = global2localvid[vid];
-  ASSERT_TRUE(scope_callbacks[localvid].callback == NULL);
-  ASSERT_TRUE(boundary_scopes_set().find(vid) != boundary_scopes_set().end());
-  // register the callback
-  scope_callbacks[localvid].callback = callback;
   // construct the requests
   typedef std::map<procid_t, request_veciter_pair_type > map_type; 
   map_type requests;
-  synchronize_scope_construct_req(vid, requests);
-  
-  //send the stuff
-  typename map_type::iterator iter;
-  iter = requests.begin();
-  
-  ASSERT_EQ(scope_callbacks[localvid].counter.value, 0);
-  scope_callbacks[localvid].counter.inc(requests.size());
-  while(iter != requests.end()) {
+  synchronize_scope_construct_req(vid, requests, dirtyonly);
+  if (requests.size() > 0) {
+    ASSERT_TRUE(scope_callbacks[localvid].callback == NULL);
+    ASSERT_TRUE(boundary_scopes_set().find(vid) != boundary_scopes_set().end());
+    // register the callback
+    scope_callbacks[localvid].callback = callback;
 
-    // the reply target is 0. see reply_alot2
-    rmi.remote_call(iter->first,
-                    &distributed_graph<VertexData, EdgeData>::
-                    async_get_alot2,
-                    rmi.procid(),
-                    iter->second.first,
-                    0,
-                    localvid);
-    ++iter;
+    //send the stuff
+    typename map_type::iterator iter;
+    iter = requests.begin();
+    
+    ASSERT_EQ(scope_callbacks[localvid].counter.value, 0);
+    scope_callbacks[localvid].counter.inc(requests.size());
+    while(iter != requests.end()) {
+  
+      // the reply target is 0. see reply_alot2
+      rmi.remote_call(iter->first,
+                      &distributed_graph<VertexData, EdgeData>::
+                      async_get_alot2,
+                      rmi.procid(),
+                      iter->second.first,
+                      0,
+                      localvid);
+      ++iter;
+    }
+  }
+  else {
+    callback();
   }
 } // end of async synchronize scope callback
 

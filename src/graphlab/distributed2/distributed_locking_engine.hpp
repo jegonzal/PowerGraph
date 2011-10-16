@@ -164,6 +164,8 @@ class distributed_locking_engine:public iengine<Graph> {
   // The manager will automatically attach to all the glshared variables
   distributed_glshared_manager glshared_manager; 
   
+  bool strict_scope;
+  
   /** Number of cpus to use */
   size_t ncpus; 
 
@@ -313,6 +315,7 @@ class distributed_locking_engine:public iengine<Graph> {
                             graph(graph),
                             callback(this),
                             glshared_manager(dc),
+                            strict_scope(true),
                             ncpus( std::max(ncpus, size_t(1)) ),
                             use_cpu_affinity(false),
                             update_counts(std::max(ncpus, size_t(1)), 0),
@@ -1279,10 +1282,16 @@ class distributed_locking_engine:public iengine<Graph> {
   /** Execute the engine */
   void start() {
     if (chandy_misra) {
-      graphlock = new chandy_misra_lock<Graph>(rmi.dc(), graph, true);
+      graphlock = new chandy_misra_lock<Graph>(rmi.dc(), 
+                                              graph, 
+                                              default_scope_range == scope_range::FULL_CONSISTENCY?false:strict_scope, 
+                                              true);
     }
     else {
-      graphlock = new distributed_mutex_lock<Graph>(rmi.dc(), graph, true);
+      graphlock = new distributed_mutex_lock<Graph>(rmi.dc(), 
+                                                    graph, 
+                                                    default_scope_range == scope_range::FULL_CONSISTENCY?false:strict_scope, 
+                                                    true);
     }
     // generate colors then
     // wait for everyone to enter start    
@@ -1500,6 +1509,7 @@ class distributed_locking_engine:public iengine<Graph> {
     opts.get_string_option("make_log", make_log);
     size_t sr = 0;
     opts.get_int_option("strength_reduction", sr); 
+    opts.get_int_option("strict_scope", strict_scope); 
     opts.get_int_option("snapshot_sleeptime", snapshot_sleeptime);
     strength_reduction = (sr > 0);
     weak_color = 0;

@@ -80,7 +80,9 @@ namespace graphlab {
         VertexData data;
         bool modified:1;
         bool snapshot_req:1; // set to false whenever the version number changes
-        uint64_t version:62;
+        bool dirty:1;        // only valid for ghosted data. 
+                             // set if a write lock was acquired on it. cleared when updated.
+        uint64_t version:61;
         vdata_store():modified(false),snapshot_req(false),version(0) { }
       };
 
@@ -390,6 +392,7 @@ namespace graphlab {
           vertices[v].data = data;
           vertices[v].version = version;
           vertices[v].modified = false;
+          vertices[v].dirty = false;
           vertices[v].snapshot_req = true;
         }
         locks[v].unlock();
@@ -405,6 +408,18 @@ namespace graphlab {
         assert(v < nvertices);
         return vertices[v].modified;
       }
+      
+
+      void set_vertex_dirty(vertex_id_type v, bool dirty) {
+        assert(v < nvertices);
+        vertices[v].dirty = dirty;
+      }
+
+      bool vertex_dirty(vertex_id_type v) const{
+        assert(v < nvertices);
+        return vertices[v].dirty;
+      }
+      
       
       void set_vertex_snapshot_req(vertex_id_type v, bool snapshot_req) {
         assert(v < nvertices);

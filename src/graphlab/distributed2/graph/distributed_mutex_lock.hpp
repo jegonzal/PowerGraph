@@ -67,8 +67,11 @@ namespace graphlab {
     typedef typename GraphType::edge_id_type   edge_id_type;
 
     distributed_mutex_lock(distributed_control &dc,
-               GraphType &dgraph, bool synchronize_data = false):dgraph(dgraph), 
-                                                                 rmi(dc, this), synchronize_data(synchronize_data) {
+               GraphType &dgraph, bool strict_scope = false, 
+                bool synchronize_data = false):dgraph(dgraph), 
+                                                rmi(dc, this), 
+                                                synchronize_data(synchronize_data),
+                                                strict_scope(strict_scope){
       locks.resize(dgraph.owned_vertices().size());
     }
 
@@ -197,7 +200,8 @@ namespace graphlab {
     lazy_deque<partiallock_cont_params> partiallock_continuation;
 
     bool synchronize_data;
-  
+    bool strict_scope;
+    
     /**
        partial lock request on the sending processor
        Requests a lock on the scope surrounding the vertex globalvid 
@@ -287,6 +291,7 @@ namespace graphlab {
           if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
             unsigned char prevkey = rmi.dc().set_sequentialization_key((params.globalvid % 254) + 1);
             dgraph.async_synchronize_scope_callback(params.globalvid, 
+                                                    strict_scope,
                                                     boost::bind(&distributed_mutex_lock<GraphType>::data_synchronize_reply, this, ptr));
             rmi.dc().set_sequentialization_key(prevkey);
           }
@@ -324,6 +329,7 @@ namespace graphlab {
           if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
             unsigned char prevkey = rmi.dc().set_sequentialization_key((params.globalvid % 254) + 1);
             dgraph.async_synchronize_scope_callback(params.globalvid, 
+                                                    strict_scope,
                                                     boost::bind(&distributed_mutex_lock<GraphType>::data_synchronize_reply, this, ptr));
             rmi.dc().set_sequentialization_key(prevkey);
 
@@ -373,6 +379,7 @@ namespace graphlab {
       }
     
       plockparams.localvid = dgraph.globalvid_to_localvid(globalvid);
+      dgraph.get_local_store().set_vertex_dirty(plockparams.localvid, true);
       // put it inside the partiallock continuation
       partiallock_lock.lock();
       typename lazy_deque<partiallock_cont_params>::value_type* 

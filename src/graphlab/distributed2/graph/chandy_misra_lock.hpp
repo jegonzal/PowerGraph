@@ -141,6 +141,7 @@ namespace graphlab {
       if (response) {
         vertex_state[localvid].trying_to_lock = false;
         vertex_state[localvid].eating = true;
+        dgraph.get_local_store().set_vertex_dirty(localvid, true);        
       }
 #ifdef DISTRIBUTED_LOCK_DEBUG
       logstream(LOG_DEBUG) << "Eating vid: " << dgraph.localvid_to_globalvid(localvid) << std::endl;
@@ -460,6 +461,7 @@ namespace graphlab {
     shm_chandy_misra_lock<GraphType> cmlock;
     dc_dist_object<chandy_misra_lock<GraphType> > rmi;
     bool synchronize_data;
+    bool strict_scope;
     
     std::vector<vertex_lock_state> vertex_state; 
 
@@ -562,6 +564,7 @@ namespace graphlab {
           if (synchronize_data && dgraph.on_boundary(globalvid)) {
             // ok... we need to do this one more time.
             dgraph.async_synchronize_scope_callback(globalvid, 
+                                                    strict_scope,
                                                     boost::bind(&chandy_misra_lock<GraphType>::lock_completion, this, localvid));
           }
           else {
@@ -629,9 +632,11 @@ namespace graphlab {
     
     chandy_misra_lock(distributed_control &dc,
                       GraphType &dgraph, 
+                      bool strict_scope = false,
                       bool synchronize_data = false):dgraph(dgraph),cmlock(dgraph), 
                                        rmi(dc, this), 
                                        synchronize_data(synchronize_data),
+                                       strict_scope(strict_scope),
                                        vertex_state(dgraph.get_local_store().num_vertices()){ }
 
     /**

@@ -1275,6 +1275,8 @@ namespace graphlab {
      * with their owners.
      */
     void synchronize_scope(vertex_id_type vid, bool async = false);   
+    
+    void synchronize_dirty_scope(vertex_id_type vid, bool async = false);   
   
     void allocate_scope_callbacks() {
       scope_callbacks.resize(local2globalvid.size());
@@ -1290,6 +1292,7 @@ namespace graphlab {
        vid must be on the boundary of the fragment. An assertion will be thrown otherwise.
     */
     void async_synchronize_scope_callback(vertex_id_type vid, 
+                                          bool dirtyonly,
                                           boost::function<void (void)>);
 
     /**
@@ -1999,7 +2002,8 @@ namespace graphlab {
        the second component of the pair can be ignored
     */
     void synchronize_scope_construct_req(vertex_id_type vid, 
-                                         std::map<procid_t, request_veciter_pair_type > &requests);   
+                                         std::map<procid_t, request_veciter_pair_type > &requests,
+                                         bool dirtyonly = false);   
  
  
     /**
