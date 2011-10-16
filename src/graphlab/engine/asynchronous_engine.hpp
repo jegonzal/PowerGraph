@@ -880,12 +880,12 @@ namespace graphlab {
           if ((updcount & APX_INTERVAL) == APX_INTERVAL) {
             apx_update_counts.inc(APX_INTERVAL + 1);
           }
-          ++updcount;
+          update_counts[cpuid]++;
         } 
         
         proc_in_update[cpuid].val = 0;
       } // end of while(true)
-      update_counts[cpuid] += updcount;
+      //update_counts[cpuid] += updcount;
       // loop until all processors are either
       // 1: here. or 
       // 2: waiting inside the evaluate_sync_queue function

@@ -89,14 +89,14 @@ void write_vec(FILE * f, int len, const double * array){
 
 
 
-//OUTPUT: SAVE FACTORS U,V,T to a binary file
+//OUTPUT: SAVE output ot a binary file
 
-// FORMAT:  M N K D (4 x ints)
-// MATRIX U ( M x D doubles)
-// MATRIX V ( N x D doubles)
-// MATRIX K ( K x D doubles - optional, only for ps.tensor)
-// TOTAL FILE SIZE: 4 ints + (M+N+K)*D - for ps.tensor
-//                  4 ints + (M+N)*D - for matrix
+// FORMAT:  M N K  (3 x ints)
+// MATRIX : output_clusters ( M x K doubles)
+// MATRIX : output_assignments ( N x 1 doubles).
+//          In case of FuzzyK-means or LDA, it is N x K doubles
+// TOTAL FILE SIZE: 3 ints + (M*K + N*1) 
+//                  3 ints + (M+N)*K - for fuzzy kmeans/LDA
 template<typename graph_type>
 void export_to_binary_file(){
 
@@ -113,8 +113,8 @@ void export_to_binary_file(){
   assert(rc == 4);
   rc = fwrite(&ps.K, 1, 4, f);
   assert(rc == 4);
-  write_vec(f, ps.K*ps.N, data(ps.output_clusters));
-  write_vec(f, ps.M, data(ps.output_assignements));
+  write_vec(f, ps.output_clusters.rows() * ps.output_clusters.cols(), data(ps.output_clusters));
+  write_vec(f, ps.output_assignements.rows() * ps.output_assignements.cols(), data(ps.output_assignements));
   fclose(f); 
 
 }
