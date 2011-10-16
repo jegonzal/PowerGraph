@@ -92,7 +92,7 @@ void dc_buffered_stream_send_expqueue::send_data(procid_t target,
   eentry.c = (char*)malloc(numbytes_needed);
   memcpy(eentry.c, &hdr, sizeof(packet_hdr));
   memcpy(eentry.c + sizeof(packet_hdr), data, len);
-  sendqueue.enqueue_conditional_signal(eentry, 32);
+  sendqueue.enqueue_conditional_signal(eentry, 1024);
 }
 
 
@@ -134,13 +134,15 @@ void dc_buffered_stream_send_expqueue::write_combining_send(std::deque<expqueue_
 void dc_buffered_stream_send_expqueue::send_loop() {
   float t = lowres_time_seconds(); 
   while (1) {
-    bool ret = sendqueue.timed_wait_for_data(100000, 32);
+    const size_t nanosecond_wait = 100000;
+    bool ret = sendqueue.timed_wait_for_data(nanosecond_wait, 1024);
     if (ret) {
       std::deque<expqueue_entry> stuff_to_send;
       sendqueue.swap(stuff_to_send);
       if (lowres_time_seconds() - t > 10) {
         t = lowres_time_seconds();
-        std::cout << dc->procid() << "->" << target << " send buffer = " << stuff_to_send.size() << std::endl;
+        std::cout << dc->procid() << "->" << target 
+                  << " send buffer = " << stuff_to_send.size() << std::endl;
       }
       write_combining_send(stuff_to_send);
     }
