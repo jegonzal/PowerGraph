@@ -53,7 +53,7 @@ void dumpcluster(){
    double * radius = new double[ac.K];
    find_radius(radius);
 
-    for (int i=0; i< ac.K; i++){
+    for (int i=0; i< (int)ps.clusts.cluster_vec.size(); i++){
       fprintf(f, "CL-%d { n=%d c=[", i, ps.clusts.cluster_vec[i].num_assigned_points);
        bool first = true;
         for (int j=0; j< ps.N; j++){

@@ -8,6 +8,16 @@
 #include "../pmf/mathlayer.hpp"
 #include "kcores.h"
 
+void knn_main();
+
+inline void print(sparse_vec & vec){
+  FOR_ITERATOR(i, vec){
+    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+  }
+  std::cout<<std::endl;
+}
+
+
 
 //structs for holding edge data in file
 
@@ -98,10 +108,20 @@ enum runmodes{
    K_MEANS_PLUS_PLUS = 1, //initalization for K_means
    K_MEANS_FUZZY = 2,
    LDA = 3,
-   KSHELL_DECOMPOSITION = 4
+   KSHELL_DECOMPOSITION = 4,
+   ITEM_KNN = 5,
+   USER_KNN = 6
 };
 
-#define MAX_RUNMODE 1
+//#define MAX_RUNMODE 1
+
+//data file types
+enum testtype{
+    TRAINING = 0,
+    VALIDATION = 1,
+    TEST = 2
+};
+
 
 
 enum initizliation_type{
@@ -151,14 +171,25 @@ public:
   
   gl_types::iengine * engine;
   graph_type* gg;
+  graph_type * test_graph;
+  graph_type * validation_graph;
   graph_type_kcores* g_kcores;
-
+  
   mat output_clusters;
   mat output_assignements;
   int total_assigned;
 
   template<typename graph_type> graph_type* g();
+  template<typename graph_type> graph_type* g(testtype type);
   void set_graph(graph_type*_g){gg=_g;};
+  void set_graph(testtype type, graph_type*_g){
+     switch(type){
+       case TRAINING: gg=_g; break;
+       case VALIDATION: validation_graph = _g; break;
+       case TEST: test_graph = _g; break;
+     }
+  }
+  void set_graph(testtype type, graph_type_kcores*_g){};
   void set_graph(graph_type_kcores*_g){g_kcores=_g;};
   void set_core(gl_types::core *_g){glcore=_g;};
   void set_core(gl_types_kcores::core *_g){glcore_kcores=_g;};
@@ -187,6 +218,14 @@ public:
 };
 template<> inline graph_type *problem_setup::g(){ return gg; }
 template<> inline graph_type_kcores *problem_setup::g(){ return g_kcores; }
+template<> inline graph_type *problem_setup::g(testtype type){ 
+   switch(type){
+      case TRAINING: return gg;
+      case VALIDATION: return validation_graph;
+      case TEST: return test_graph;
+   }
+}
+
 
 static graphlab::glshared<clusters> CLUSTERS;
 
