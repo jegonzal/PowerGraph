@@ -286,7 +286,6 @@ synchronize_scope_construct_req(vertex_id_type vid,
       block_synchronize_request2 &req = requests[sourceowner].first;
       req.vid.push_back(local2globalvid[localsourcevid]);
       req.vidversion.push_back(localstore.vertex_version(localsourcevid));
-      localstore.set_vertex_dirty(localsourcevid, false);
       vertex_conditional_store vs;
       vs.hasdata = localstore.vertex_modified(localsourcevid);
       if (vs.hasdata) {
@@ -311,7 +310,6 @@ synchronize_scope_construct_req(vertex_id_type vid,
                              local2globalvid[localtargetvid]) == false) {
         req.vid.push_back(local2globalvid[localtargetvid]);
         req.vidversion.push_back(localstore.vertex_version(localtargetvid));
-        localstore.set_vertex_dirty(localtargetvid, false);
         vertex_conditional_store vs;
         vs.hasdata = localstore.vertex_modified(localtargetvid);
         if (vs.hasdata) {

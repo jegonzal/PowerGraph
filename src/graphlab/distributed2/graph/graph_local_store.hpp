@@ -392,9 +392,9 @@ namespace graphlab {
           vertices[v].data = data;
           vertices[v].version = version;
           vertices[v].modified = false;
-          vertices[v].dirty = false;
           vertices[v].snapshot_req = true;
         }
+        vertices[v].dirty = false;
         locks[v].unlock();
       }
 
