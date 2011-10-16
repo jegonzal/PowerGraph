@@ -339,7 +339,7 @@ namespace graphlab {
         in_edges.push_back(std::vector<edge_id_type>());
         out_edges.push_back(std::vector<edge_id_type>());
         vcolors.push_back(vertex_color_type(-1));
-        locks.push_back(spinlock());
+        locks.push_back(simple_spinlock());
         return vertices.size() - 1;
       }
     
@@ -855,7 +855,7 @@ namespace graphlab {
       size_t nvertices;
       size_t nedges;
     
-      std::vector<spinlock> locks;
+      std::vector<simple_spinlock> locks;
     
       /** Mark whether the graph is finalized.  Graph finalization is a
           costly procedure but it can also dramatically improve

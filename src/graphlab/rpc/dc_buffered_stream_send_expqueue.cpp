@@ -96,49 +96,33 @@ void dc_buffered_stream_send_expqueue::send_data(procid_t target,
 }
 
 
-void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
+void dc_buffered_stream_send_expqueue::write_combining_send(std::deque<expqueue_entry> &stuff) {
   // fill new entries until I fill up the length
-  expqueue_entry entries[128];
-  entries[0] = e;
-  size_t numentries = 1;
-  size_t accumulated_length = e.len;
-  while(1) {
-    std::pair<expqueue_entry, bool> data = sendqueue.try_dequeue_in_critical_section();
-    if (data.second) {
-      entries[numentries] = data.first;
-      ++numentries;
-      accumulated_length += data.first.len;
-      if (numentries >= 128) break;
-    }
-    else {
-      break;
-    }
-  }
-  sendqueue.end_critical_section();
-  
   char sendcombining[combine_upper_threshold];
   size_t length = 0;
   // now send the stuff. stick them into the combining buffer.
-  for (size_t i = 0;i < numentries; ++i) {
+  while(!stuff.empty()){  
+    expqueue_entry ent = stuff.front();
+    stuff.pop_front();
     // if length with the new entry exceeds my combining buffer length
     // dump the combining buffer first and clear the buffer
-    if (length + entries[i].len > combine_upper_threshold) {
+    if (length + ent.len > combine_upper_threshold) {
       comm->send(target, sendcombining, length);
       length = 0;
     }
 
-      // if there is room in the combining buffer, write into the combining buffer
-    if (length + entries[i].len <= combine_upper_threshold) {
-      memcpy(sendcombining + length, entries[i].c , entries[i].len);
-      length += entries[i].len;
-      free(entries[i].c);
+    // if there is room in the combining buffer, write into the combining buffer
+    if (length + ent.len <= combine_upper_threshold) {
+      memcpy(sendcombining + length, ent.c , ent.len);
+      length += ent.len;
+      free(ent.c);
     }
     else {
       // length should be 0 here
       // too long for the combining buffer
       // send it seperately
-      comm->send(target, entries[i].c, entries[i].len); 
-      free(entries[i].c);
+      comm->send(target, ent.c, ent.len); 
+      free(ent.c);
     }
   }
   
@@ -150,19 +134,14 @@ void dc_buffered_stream_send_expqueue::write_combining_send(expqueue_entry e) {
 void dc_buffered_stream_send_expqueue::send_loop() {
   
   while (1) {
-    std::pair<expqueue_entry, bool> data = sendqueue.dequeue_and_begin_critical_section_on_success();
-    if (data.second == false) break;
-    
-    // if the length is small (below the combining threshold
-    // and if it fits in the combining buffer. Write it into the buffer
-    if (data.first.len <= combine_lower_threshold) {
-      write_combining_send(data.first);        
+    if (sendqueue.wait_for_data()) {
+      std::deque<expqueue_entry> stuff_to_send;
+      sendqueue.swap(stuff_to_send);
+      write_combining_send(stuff_to_send);
     }
     else {
-      sendqueue.end_critical_section();
-      comm->send(target, data.first.c, data.first.len);
-      free(data.first.c);
-    }
+      break;
+    } 
   }
 }
 

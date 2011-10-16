@@ -124,7 +124,7 @@ class dc_buffered_stream_send_expqueue: public dc_send{
   static const size_t combine_lower_threshold = 10240;
   static const size_t combine_upper_threshold = 65536;  // 1 packet
 
-  void write_combining_send(expqueue_entry e);
+  void write_combining_send(std::deque<expqueue_entry>& e);
 
 };
 
