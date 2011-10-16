@@ -258,8 +258,7 @@ namespace graphlab {
     inline int timedwait_ns(const mutex& mut, int ns) const {
       struct timespec timeout;
       struct timeval tv;
-      struct timezone tz;
-      gettimeofday(&tv, &tz);
+      gettimeofday(&tv, NULL);
       timeout.tv_nsec = (tv.tv_usec * 1000 + ns) % 1000000000;
       timeout.tv_sec = tv.tv_sec + (tv.tv_usec * 1000 + ns >= 1000000000);
       return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);

@@ -64,7 +64,10 @@ namespace graphlab {
           num_queues(num_queues), m_alive(true) { 
       init(num_queues);
     }
-    
+   
+    size_t get_num_queues() {
+      return num_queues;
+    } 
     /**
       an alternate initialization which can be called after construction.
       This is not safe once the queue is being used.
