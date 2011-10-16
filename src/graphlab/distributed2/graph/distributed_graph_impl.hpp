@@ -722,11 +722,12 @@ void distributed_graph<VertexData, EdgeData>::
 push_owned_vertex_to_replicas(vertex_id_type vid, bool async, bool untracked) {
   vertex_id_type localvid = global2localvid[vid];
   // get the replicas
-  const std::vector<procid_t>& replicas = localvid_to_replicas(localvid);
+  const fixed_dense_bitset<MAX_N_PROCS>& replicas = localvid_to_replicas(localvid);
+  size_t replica_size = replicas.popcount() ;
   // owner is a replica too. if there are no other replicas quit
-  if (replicas.size() <= 1) return;
+  if (replica_size <= 1) return;
   
-  dc_impl::reply_ret_type ret(true, replicas.size() - 1);
+  dc_impl::reply_ret_type ret(true, replica_size - 1);
   
   // if async, set the return reply to go to the global pending push updates
   size_t retptr;
@@ -735,7 +736,7 @@ push_owned_vertex_to_replicas(vertex_id_type vid, bool async, bool untracked) {
   }
   else {
     retptr = reinterpret_cast<size_t>(&pending_push_updates);
-    pending_push_updates.flag.inc(replicas.size() - 1);
+    pending_push_updates.flag.inc(replica_size - 1);
   }
   
   /**
@@ -751,19 +752,22 @@ push_owned_vertex_to_replicas(vertex_id_type vid, bool async, bool untracked) {
   vstore.data.first = localstore.vertex_data(localvid);
   vstore.data.second = localstore.vertex_version(localvid);
   
-  foreach(procid_t proc, replicas) {
-    if (proc != rmi.procid()) {
-#ifdef DGRAPH_DEBUG
-      logger(LOG_DEBUG, "Pushing vertex %d to proc %d", vid, proc);
-#endif
-      rmi.remote_call(proc,
-                      &distributed_graph<VertexData, EdgeData>::
-                      update_vertex_data_and_version_and_reply,
-                      vid,
-                      vstore,
-                      srcprocid,
-                      retptr);
-    }
+  uint32_t proc = 0;
+  if (replicas.first_bit(proc)) {
+    do{
+      if (proc != rmi.procid()) {
+  #ifdef DGRAPH_DEBUG
+        logger(LOG_DEBUG, "Pushing vertex %d to proc %d", vid, proc);
+  #endif
+        rmi.remote_call((procid_t)proc,
+                        &distributed_graph<VertexData, EdgeData>::
+                        update_vertex_data_and_version_and_reply,
+                        vid,
+                        vstore,
+                        srcprocid,
+                        retptr);
+      }
+    } while(replicas.next_bit(proc));
   }
   if (async == false && untracked == false)  ret.wait();
 }
@@ -846,7 +850,7 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_vertices_to_replica
 
     vertex_id_type localvid = global2localvid[vid];
     // get the replicas
-    const std::vector<procid_t>& replicas = localvid_to_replicas(localvid);
+    const fixed_dense_bitset<MAX_N_PROCS>& replicas = localvid_to_replicas(localvid);
     // owner is a replica too. if there are no other replicas quit
     if (replicas.size() <= 1) continue;
   
@@ -856,19 +860,22 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_vertices_to_replica
     vstore.hasdata = true;
     vstore.data.first = localstore.vertex_data(localvid);
     vstore.data.second = localstore.vertex_version(localvid);
-  
-    foreach(procid_t proc, replicas) {
-      if (proc != rmi.procid()) {
-        blockpushes[proc].vid.push_back(vid);
-        blockpushes[proc].vidversion.push_back(localstore.vertex_version(localvid));
-        blockpushes[proc].vstore.push_back(vstore);
-        if (blockpushes[proc].vid.size() >= 1024*1024/sizeof(VertexData)) {
-          rmi.remote_call(proc,
-                          &distributed_graph<VertexData, EdgeData>::update_alot2,
-                          blockpushes[proc]);
-          blockpushes[proc].clear();
+    
+    uint32_t proc = 0;
+    if (replicas.first_bit(proc)) {
+      do{
+        if (proc != rmi.procid()) {
+          blockpushes[proc].vid.push_back(vid);
+          blockpushes[proc].vidversion.push_back(localstore.vertex_version(localvid));
+          blockpushes[proc].vstore.push_back(vstore);
+          if (blockpushes[proc].vid.size() >= 1024*1024/sizeof(VertexData)) {
+            rmi.remote_call(proc,
+                            &distributed_graph<VertexData, EdgeData>::update_alot2,
+                            blockpushes[proc]);
+            blockpushes[proc].clear();
+          }
         }
-      }
+      } while(replicas.next_bit(proc));
     }
   }
 

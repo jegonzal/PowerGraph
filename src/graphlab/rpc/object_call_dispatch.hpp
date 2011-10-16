@@ -127,7 +127,7 @@ template<typename DcType,
  * and so all arguments must be provided.
  *
  */
-BOOST_PP_REPEAT(6, OBJECT_NONINTRUSIVE_DISPATCH_GENERATOR, _)
+BOOST_PP_REPEAT(7, OBJECT_NONINTRUSIVE_DISPATCH_GENERATOR, _)
 
 
 

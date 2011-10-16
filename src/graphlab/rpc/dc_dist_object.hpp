@@ -291,9 +291,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, FAST_CALL) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
  
 
   /*

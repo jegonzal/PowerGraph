@@ -92,7 +92,8 @@ namespace graphlab {
       sparams.globalvid = globalvid;
     
       sparams.localvid = dgraph.globalvid_to_localvid(globalvid);
-      sparams.nextowneridx = 0; //rmi.numprocs();
+      sparams.nextowneridx = 0;
+      dgraph.localvid_to_replicas(sparams.localvid).first_bit(sparams.nextowneridx);
       sparams.handler = handler;
       sparams.scopetype = scopetype;
       sparams.priority = priority;
@@ -127,19 +128,21 @@ namespace graphlab {
         // get all my replicas
 
         vertex_id_type localvid = dgraph.globalvid_to_localvid(globalvid);
-      
-        const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(localvid);
-        for (size_t i = 0;i < procs.size(); ++i) {
-          if (procs[i] == rmi.procid()) {
+
+        const fixed_dense_bitset<MAX_N_PROCS>& procs = dgraph.localvid_to_replicas(localvid);
+        uint32_t p = 0;
+        ASSERT_TRUE(procs.first_bit(p));
+        do {
+          if (p == rmi.procid()) {
             partial_unlock(globalvid, (size_t)scopetype);
           }
           else {
-            rmi.remote_call(procs[i],
+            rmi.remote_call(p,
                             &distributed_mutex_lock<GraphType>::partial_unlock,
                             globalvid,
                             (size_t)scopetype);
           }
-        }
+        } while(procs.next_bit(p));
         rmi.dc().set_sequentialization_key(prevkey);
       }
       else {
@@ -154,7 +157,7 @@ namespace graphlab {
     struct scopelock_cont_params {
       vertex_id_type globalvid;
       vertex_id_type localvid;
-      procid_t nextowneridx;
+      uint32_t nextowneridx;
       scope_range::scope_range_enum scopetype;
       boost::function<void(vertex_id_type)> handler;
       bool priority;
@@ -168,6 +171,7 @@ namespace graphlab {
       size_t outidx;      // the next out idx to consider in the in_edges/out_edges parallel iteration
       vertex_id_type localvid;
       procid_t srcproc;
+      fixed_dense_bitset<MAX_N_PROCS> procset;
       __attribute__((may_alias)) size_t src_tag;   // holds a pointer to the caller's scope lock continuation
       scope_range::scope_range_enum scopetype;
       bool curlocked;
@@ -203,8 +207,10 @@ namespace graphlab {
        (either owned or a ghost). When locks have been acquired the handler is
        called.
     */
-    void partial_lock_request(procid_t destproc,
+    void partial_lock_request(procid_t srcproc,
+                              procid_t destproc,
                               vertex_id_type globalvid,
+                              const fixed_dense_bitset<MAX_N_PROCS> &procset,
                               scope_range::scope_range_enum scopetype,
                               bool priority,
                               size_t scope_continuation_ptr) {
@@ -214,8 +220,9 @@ namespace graphlab {
       // fast track it if the destination processor is local
       if (destproc == rmi.procid()) {
         // fast track! If it is local, just call it directly
-        partial_lock_request_impl(destproc, 
-                                  globalvid, 
+        partial_lock_request_impl(srcproc, 
+                                  globalvid,
+                                  procset,
                                   (size_t)scopetype, 
                                   priority,
                                   scope_continuation_ptr);
@@ -223,8 +230,9 @@ namespace graphlab {
       else {
         rmi.remote_call(destproc,
                         &distributed_mutex_lock<GraphType>::partial_lock_request_impl,
-                        rmi.procid(),
+                        srcproc,
                         globalvid,
+                        procset,
                         (size_t)scopetype,
                         priority,
                         scope_continuation_ptr);
@@ -258,15 +266,18 @@ namespace graphlab {
       // do not need to if the adjacent lock type is no lock
       if (adjacent_vertex_lock_type(params.scopetype) != scope_range::NO_LOCK) {
         // the complicated case. I need to lock on my neighbors
-        const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(params.localvid);
-  
-        procid_t curidx = params.nextowneridx;  
-        if (curidx < procs.size()) {
-          ++params.nextowneridx;
+
+        const fixed_dense_bitset<MAX_N_PROCS>& procs = dgraph.localvid_to_replicas(params.localvid);
+        uint32_t curidx = params.nextowneridx;
+        if (curidx < rmi.numprocs()) {
+          // I am done after this
+          params.nextowneridx = rmi.numprocs();
           // process procs[curidx]
           // send a lock request, setting myself as the continuation
-          partial_lock_request(procs[curidx],
+          partial_lock_request(rmi.procid(),
+                               curidx,
                                params.globalvid,
+                               procs,
                                params.scopetype,
                                params.priority,
                                (size_t)(ptr));
@@ -296,8 +307,12 @@ namespace graphlab {
           // no I am not done
           ++params.nextowneridx;
           // issue a partial lock request to to the current machine
+          fixed_dense_bitset<MAX_N_PROCS> db;
+          db.set_bit_unsync(rmi.procid());
           partial_lock_request(rmi.procid(),
+                               rmi.procid(),
                                params.globalvid,
+                               db,
                                params.scopetype,
                                params.priority,
                                (size_t)(ptr));
@@ -331,6 +346,7 @@ namespace graphlab {
     */
     void partial_lock_request_impl(procid_t srcproc,
                                    vertex_id_type globalvid,
+                                   const fixed_dense_bitset<MAX_N_PROCS> &procset,
                                    size_t scopetype,
                                    bool priority,
                                    size_t src_tag) {
@@ -343,6 +359,8 @@ namespace graphlab {
       plockparams.inidx = 0;
       plockparams.outidx = 0;
       plockparams.priority = priority;
+      plockparams.procset = procset;
+      plockparams.procset.clear_bit_unsync(rmi.procid());
       plockparams.src_tag = src_tag;
       plockparams.curlocked = false;
       plockparams.req.next = NULL;
@@ -452,17 +470,31 @@ namespace graphlab {
         }
       }
     
-      // if we get here, the lock is complete
-      if (params.srcproc == rmi.procid()) {
-        partial_lock_completion(params.src_tag);
+      // if we get here, the lock is complete on this machine
+      // do we hand over to the next machine?
+      uint32_t nextmachine;
+      if (params.procset.first_bit(nextmachine)) {
+        // ok pass it on to the next machine
+        partial_lock_request(params.srcproc,
+                             nextmachine,
+                             dgraph.localvid_to_globalvid(params.localvid),
+                             params.procset,
+                             params.scopetype,
+                             params.priority,
+                             params.src_tag);        
       }
       else {
-#ifdef DISTRIBUTED_LOCK_DEBUG
-        logstream(LOG_DEBUG) << "Replying to successful remote lock of " << dgraph.local2globalvid[curv] << std::endl;
-#endif
-        rmi.remote_call(params.srcproc,
-                        &distributed_mutex_lock<GraphType>::partial_lock_completion,
-                        (size_t)params.src_tag);
+        if (params.srcproc == rmi.procid()) {
+          partial_lock_completion(params.src_tag);
+        }
+        else {
+  #ifdef DISTRIBUTED_LOCK_DEBUG
+          logstream(LOG_DEBUG) << "Replying to successful remote lock of " << dgraph.local2globalvid[curv] << std::endl;
+  #endif
+          rmi.remote_call(params.srcproc,
+                          &distributed_mutex_lock<GraphType>::partial_lock_completion,
+                          (size_t)params.src_tag);
+        }
       }
       partiallock_lock.lock();
       partiallock_continuation.erase(ptr);

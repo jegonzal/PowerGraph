@@ -528,7 +528,7 @@ namespace graphlab {
         vertex_state[localvid].has_failed_finalize = false;
         if (hasfailed) {
           // revert back to the ready state
-          vertex_state[localvid].pending = dgraph.localvid_to_replicas(localvid).size();
+          vertex_state[localvid].pending = dgraph.localvid_to_replicas(localvid).popcount();
         }
         done = true;
       }
@@ -539,17 +539,20 @@ namespace graphlab {
                 logstream(LOG_DEBUG) << "Finalize Failed "<< globalvid << std::endl;
           #endif
           char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
-          const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(localvid);
-          for (size_t i = 0;i < procs.size(); ++i) {
-            if (procs[i] == rmi.procid()) {
+          const fixed_dense_bitset<MAX_N_PROCS> procs = dgraph.localvid_to_replicas(localvid);
+          uint32_t p = 0;
+          ASSERT_TRUE(procs.first_bit(p));
+          
+          do {
+            if (p == rmi.procid()) {
               local_cancel_finalize(globalvid);
             }
             else {
-              rmi.remote_call(procs[i], 
+              rmi.remote_call((procid_t)(p), 
                               &chandy_misra_lock<GraphType>::local_cancel_finalize,
                               globalvid);
             }
-          }
+          } while(procs.next_bit(p));
           rmi.dc().set_sequentialization_key(prevkey);
         }
         else {
@@ -586,24 +589,27 @@ namespace graphlab {
       vertex_state[localvid].pending--;
       if (vertex_state[localvid].pending == 0) {
         done = true;
-        vertex_state[localvid].finalize_count = dgraph.localvid_to_replicas(localvid).size();
+        vertex_state[localvid].finalize_count = dgraph.localvid_to_replicas(localvid).popcount();
       }
       vertex_state[localvid].lock.unlock();
       
       if (done) {
         // issue finalize
-        const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(localvid);
+        const fixed_dense_bitset<MAX_N_PROCS>& procs = dgraph.localvid_to_replicas(localvid);
         char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
-        for (size_t i = 0;i < procs.size(); ++i) {
-          if (procs[i] == rmi.procid()) {
+        uint32_t p = 0;
+        ASSERT_TRUE(procs.first_bit(p));
+  
+        do{
+          if (p == rmi.procid()) {
             local_finalize_request(globalvid, rmi.procid());
           }
           else {
-            rmi.remote_call(procs[i], 
+            rmi.remote_call(p, 
                             &chandy_misra_lock<GraphType>::local_finalize_request, 
                             globalvid, rmi.procid());
           }
-        }
+        }while(procs.next_bit(p));
         rmi.dc().set_sequentialization_key(prevkey);
       }
     }
@@ -645,8 +651,8 @@ namespace graphlab {
       vertex_id_type localvid = dgraph.globalvid_to_localvid(globalvid);
       vertex_state[localvid].lock.lock();
       vertex_state[localvid].callback = handler;
-      const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(localvid);
-      vertex_state[localvid].pending = procs.size();
+      const fixed_dense_bitset<MAX_N_PROCS>& procs = dgraph.localvid_to_replicas(localvid);
+      vertex_state[localvid].pending = procs.popcount();
       ASSERT_FALSE(vertex_state[localvid].locked);
       ASSERT_FALSE(vertex_state[localvid].locking);
       vertex_state[localvid].locked = false;
@@ -655,16 +661,18 @@ namespace graphlab {
       char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
       vertex_state[localvid].lock.unlock();
       
-      for (size_t i = 0;i < procs.size(); ++i) {
-        if (procs[i] == rmi.procid()) {
+      uint32_t p = 0;
+      ASSERT_TRUE(procs.first_bit(p));
+      do {
+        if (p == rmi.procid()) {
           local_scope_request(globalvid, rmi.procid());
         }
         else {
-          rmi.remote_call(procs[i], 
+          rmi.remote_call(p, 
                           &chandy_misra_lock<GraphType>::local_scope_request, 
                           globalvid, rmi.procid());
         }
-      }
+      } while(procs.next_bit(p));
       
       rmi.dc().set_sequentialization_key(prevkey);
 
@@ -703,18 +711,20 @@ namespace graphlab {
       ASSERT_FALSE(vertex_state[localvid].locking);
       ASSERT_TRUE(vertex_state[localvid].locked);
       vertex_state[localvid].locked = false;
-      const std::vector<procid_t>& procs = dgraph.localvid_to_replicas(localvid);
+      const fixed_dense_bitset<MAX_N_PROCS>& procs = dgraph.localvid_to_replicas(localvid);
       ASSERT_EQ(vertex_state[localvid].pending, 0);
       vertex_state[localvid].lock.unlock();
       
-      for (size_t i = 0;i < procs.size(); ++i) {
-        if (procs[i] == rmi.procid()) {
+      uint32_t p = 0;
+      ASSERT_TRUE(procs.first_bit(p));
+      do{
+        if (p == rmi.procid()) {
           local_scope_unlock(globalvid);
         }
         else {
-          rmi.remote_call(procs[i],&chandy_misra_lock<GraphType>::local_scope_unlock, globalvid);
+          rmi.remote_call(p,&chandy_misra_lock<GraphType>::local_scope_unlock, globalvid);
         }
-      }      
+      }while(procs.next_bit(p));    
       rmi.dc().set_sequentialization_key(prevkey);
     }
   };

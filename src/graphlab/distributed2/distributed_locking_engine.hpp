@@ -1031,15 +1031,17 @@ class distributed_locking_engine:public iengine<Graph> {
   }  
   
   void broadcast_snapshot2_token(vertex_id_t globalvid) {
-    const std::vector<procid_t>& replicas = graph.globalvid_to_replicas(globalvid);
+    const fixed_dense_bitset<MAX_N_PROCS>& replicas = graph.globalvid_to_replicas(globalvid);
     unsigned char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1); 
-    for (size_t i = 0; i < replicas.size(); ++i) {
-      if (replicas[i] != rmi.procid()) {
-        rmi.remote_call(replicas[i],
+    uint32_t p = 0;
+    ASSERT_TRUE(replicas.first_bit(p));
+    do{
+      if (p != rmi.procid()) {
+        rmi.remote_call(p,
                         &distributed_locking_engine<Graph, Scheduler>::set_snapshot2_token,
                         globalvid);
       }
-    }
+    }while(replicas.next_bit(p));
     rmi.dc().set_sequentialization_key(prevkey);
   }
   

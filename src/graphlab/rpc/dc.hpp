@@ -52,6 +52,7 @@
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
+
 namespace graphlab {
 
 
@@ -98,6 +99,7 @@ struct dc_init_param{
 
 #define DEFAULT_NUMHANDLERTHREADS 8
 #define DEFAULT_COMMTYPE TCP_COMM
+#define MAX_N_PROCS 64
 
 // forward declaration for dc services
 class dc_services;

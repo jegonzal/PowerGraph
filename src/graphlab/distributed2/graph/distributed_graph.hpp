@@ -264,7 +264,6 @@ namespace graphlab {
       graph_metrics("distributed_graph"){
 
                                 
-      cur_proc_vector.push_back(rmi.procid());
       // read the atom index.
       atom_index_file atomindex;
       atomindex.read_from_file(indexfilename);
@@ -668,17 +667,12 @@ namespace graphlab {
     /** returns a vector of all processors having a replica of this globalvid
      *  This vector is guaranteed to be in sorted order of processors.
      */
-    const std::vector<procid_t>& localvid_to_replicas(vertex_id_type localvid) const {
-      if (localvid2ghostedprocs[localvid].empty()) {
-        return cur_proc_vector;
-      }
-      else {
-        return localvid2ghostedprocs[localvid];
-      }
+    const fixed_dense_bitset<MAX_N_PROCS>& localvid_to_replicas(vertex_id_type localvid) const {
+      return localvid2ghostedprocs[localvid];
     }
   
     /// returns a vector of all processors having a replica of this globalvid
-    const std::vector<procid_t>& globalvid_to_replicas(vertex_id_type globalvid) const {
+    const fixed_dense_bitset<MAX_N_PROCS>& globalvid_to_replicas(vertex_id_type globalvid) const {
       vertex_id_type localvid = globalvid_to_localvid(globalvid);
       return localvid_to_replicas(localvid);
     }
@@ -1047,17 +1041,20 @@ namespace graphlab {
       std::vector<std::vector<std::pair<vertex_id_type, vertex_color_type> > > vcolors(rmi.numprocs());
       
       for (vertex_id_type i = 0;i < localstore.num_vertices(); ++i) {
-        const std::vector<procid_t>& replicas = localvid_to_replicas(i);
-        for (size_t j = 0; j < replicas.size(); ++j) {
-          if (replicas[j] > rmi.procid()) {
-            vcolors[replicas[j]].push_back(std::make_pair(localvid_to_globalvid(i), 
-                                                                          localstore.color(i)));
-          }
-          else if (replicas[j] < rmi.procid()) {
-            // If there a replica that has a lower ID, it must have already been sent 
-            // (i.e. the color was computed already by someone else)
-            break;
-          }
+        const fixed_dense_bitset<MAX_N_PROCS>& replicas = localvid_to_replicas(i);
+        uint32_t j = 0;
+        if (replicas.first_bit(j)) {
+          do {
+            if (j > rmi.procid()) {
+              vcolors[j].push_back(std::make_pair(localvid_to_globalvid(i), 
+                                                  localstore.color(i)));
+            }
+            else if (j < rmi.procid()) {
+              // If there a replica that has a lower ID, it must have already been sent 
+              // (i.e. the color was computed already by someone else)
+              break;
+            }
+          } while(replicas.next_bit(j));
         }
       }
       for (procid_t i = rmi.procid() + 1 ;i < rmi.numprocs(); ++i) {
@@ -1432,8 +1429,7 @@ namespace graphlab {
     boost::unordered_set<vertex_id_type> boundaryscopesset;
     std::vector<vertex_id_type> boundaryscopes;
   
-    std::vector<std::vector<procid_t> > localvid2ghostedprocs;
-    std::vector<procid_t> cur_proc_vector;  // vector containing only 1 element. the current proc
+    std::vector<fixed_dense_bitset<MAX_N_PROCS> > localvid2ghostedprocs;
   
     /** To avoid requiring O(V) storage on each maching, the 
      * global_vid -> owner mapping cannot be stored in its entirely locally
@@ -1867,11 +1863,8 @@ namespace graphlab {
       std::vector<std::vector<vertex_id_type> > __ownedvertices__(omp_get_max_threads());
       std::vector<std::vector<vertex_id_type> > __ghostvertices__(omp_get_max_threads());
       std::vector<boost::unordered_set<vertex_id_type> > __boundaryscopesset__(omp_get_max_threads());
-      std::vector<dense_bitset> __ghostownerset__(omp_get_max_threads());
+      std::vector<fixed_dense_bitset<MAX_N_PROCS> > __ghostownerset__(omp_get_max_threads());
     
-      for (size_t i = 0;i < __ghostownerset__.size(); ++i) {
-        __ghostownerset__[i].resize(rmi.numprocs());
-      }
       spinlock ghostlock, boundarylock;
       // construct the vid->replica mapping
       // for efficiency reasons this only contains the maps for ghost vertices
@@ -1881,7 +1874,10 @@ namespace graphlab {
       // a vector containing only the current procid)
     
       localvid2ghostedprocs.resize(localvid2owner.size());
-    
+      for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
+        localvid2ghostedprocs[i].clear();
+        localvid2ghostedprocs[i].set_bit_unsync(rmi.procid());
+      }
 #pragma omp parallel for
       for (long i = 0;i < (long)localvid2owner.size(); ++i) {
         int thrnum = omp_get_thread_num();
@@ -1906,9 +1902,8 @@ namespace graphlab {
           }
           uint32_t b;
           ASSERT_TRUE(__ghostownerset__[thrnum].first_bit(b));
-          do {
-            localvid2ghostedprocs[i].push_back(b);
-          } while(__ghostownerset__[thrnum].next_bit(b));
+          localvid2ghostedprocs[i] = __ghostownerset__[thrnum];
+          localvid2ghostedprocs[i].set_bit_unsync(rmi.procid()); // make sure current bit is set
         }
         else {
           __ghostvertices__[thrnum].push_back(local2globalvid[i]);

@@ -105,7 +105,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
 /**
 Generates a function call issue. 3rd argument is a tuple (issue name, dispacther name)
 */
-BOOST_PP_REPEAT(6, REMOTE_CALL_ISSUE_GENERATOR,  (object_call_issue, _) )
+BOOST_PP_REPEAT(7, REMOTE_CALL_ISSUE_GENERATOR,  (object_call_issue, _) )
 
 
 
