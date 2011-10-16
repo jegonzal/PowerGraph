@@ -62,6 +62,8 @@
 namespace graphlab {
 
 namespace dc_impl {
+
+
 bool thrlocal_resizing_array_key_initialized = false;
 pthread_key_t thrlocal_resizing_array_key;
 
