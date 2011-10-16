@@ -91,12 +91,12 @@ void write_vec(FILE * f, int len, const double * array){
 
 //OUTPUT: SAVE output ot a binary file
 
-// FORMAT:  M N K  (3 x ints)
-// MATRIX : output_clusters ( M x K doubles)
-// MATRIX : output_assignments ( N x 1 doubles).
-//          In case of FuzzyK-means or LDA, it is N x K doubles
-// TOTAL FILE SIZE: 3 ints + (M*K + N*1) 
-//                  3 ints + (M+N)*K - for fuzzy kmeans/LDA
+// FORMAT:  M N K  (3 x ints, where M = number of data points, N = dimension of data point, K = number of clusters)
+// MATRIX : output_clusters ( K x N doubles)
+// MATRIX : output_assignments ( M x 1 doubles).
+//          In case of FuzzyK-means or LDA, it is M x K doubles
+// TOTAL FILE SIZE: 3 ints + (K*N + M*1) doubles
+//                  3 ints + (M+N)*K doubles - for fuzzy kmeans/LDA
 template<typename graph_type>
 void export_to_binary_file(){
 
