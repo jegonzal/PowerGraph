@@ -5,7 +5,7 @@
 
 namespace graphlab {
   template <typename T>
-  std::string serialize_to_string(const T &t) {
+  inline std::string serialize_to_string(const T &t) {
     std::stringstream strm;
     oarchive oarc(strm);
     oarc << t;
@@ -14,7 +14,7 @@ namespace graphlab {
   }
   
   template <typename T>
-  void deserialize_from_string(const std::string &s, T &t) {
+  inline void deserialize_from_string(const std::string &s, T &t) {
     boost::iostreams::stream<boost::iostreams::array_source> 
           istrm(s.c_str(), s.length());   
     iarchive iarc(istrm);
