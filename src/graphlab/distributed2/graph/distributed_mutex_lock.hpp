@@ -282,7 +282,6 @@ namespace graphlab {
       typename lazy_deque<scopelock_cont_params>::value_type* 
         ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);    
         scopelock_cont_params& params = ptr->first;
-        ASSERT_TRUE(params.num_syncs_pending.dec() > 0);
         dgraph.receive_external_update(data);
         
         if (synchronize_data == false || 
