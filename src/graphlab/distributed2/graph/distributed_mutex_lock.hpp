@@ -92,7 +92,7 @@ namespace graphlab {
       sparams.globalvid = globalvid;
     
       sparams.localvid = dgraph.globalvid_to_localvid(globalvid);
-      sparams.nextowneridx = rmi.numprocs();
+      sparams.nextowneridx = 0; //rmi.numprocs();
       sparams.handler = handler;
       sparams.scopetype = scopetype;
       sparams.priority = priority;
@@ -123,8 +123,6 @@ namespace graphlab {
           dgraph.synchronize_scope(globalvid, true);
         }
         
-        rmi.dc().set_sequentialization_key(prevkey);
-        return;
         // the complicated case. I need to unlock on my neighbors
         // get all my replicas
 
