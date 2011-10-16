@@ -252,7 +252,7 @@ class distributed_locking_engine:public iengine<Graph> {
   atomic<size_t> num_deferred_tasks;
   size_t max_deferred_tasks;
 
-  multi_blocking_queue<vertex_id_t> ready_vertices;
+  blocking_queue<vertex_id_t> ready_vertices;
   
   
   double barrier_time;
@@ -341,7 +341,6 @@ class distributed_locking_engine:public iengine<Graph> {
                             snapshot_sleeptime(0),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
                             max_deferred_tasks(1000),
-                            ready_vertices(ncpus),
                             barrier_time(0.0),
                             consensus(dc, ncpus),
                             scheduler(this, graph, std::max(ncpus, size_t(1))),
@@ -1190,11 +1189,11 @@ class distributed_locking_engine:public iengine<Graph> {
         
       while (termination_reason == EXEC_UNSET) {
         // pick up a job to do
-        std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
+        std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue();
         while (termination_reason == EXEC_UNSET && 
           job.second == false && num_deferred_tasks.value > lower_threshold) {
-          sched_yield();
-          job = ready_vertices.try_dequeue(threadid);
+          ready_vertices.try_timed_wait_for_data(1000000,ncpus);
+          job = ready_vertices.try_dequeue();
         }
         if (job.second == false) break;
         // lets do it

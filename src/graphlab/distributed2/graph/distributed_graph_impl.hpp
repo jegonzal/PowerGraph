@@ -990,7 +990,82 @@ void distributed_graph<VertexData, EdgeData>::push_all_owned_edges_to_replicas()
     }
   }
 }
+template <typename VertexData, typename EdgeData>
+std::string distributed_graph<VertexData, EdgeData>::
+external_push_ghost_scope_to_owner(vertex_id_type vid, 
+                                   uint64_t bloom_filter_selector_gvid) {
+  vertex_id_type localvid = global2localvid[vid];
+  block_synchronize_request2 requests;  
+  ASSERT_TRUE(localvid_is_ghost(localvid));
+  foreach(edge_id_type localouteid, localstore.out_edge_ids(localvid)) {
+    vertex_id_type target_localvid = localstore.target(localouteid);
+    ASSERT_FALSE(localvid_is_ghost(target_localvid));
+    vertex_id_type target_gvid = local2globalvid[target_localvid];
+    // if in the bloom filter
+    if (bloom_filter_selector_gvid & (1LL << (target_gvid % 64))) {
+      // add the vertex to the synchronize reply
+      {
+        requests.vid.push_back(target_gvid);
+        requests.vidversion.push_back(localstore.vertex_version(target_localvid));
+        vertex_conditional_store store;
+        store.hasdata = true;
+        store.data.first = localstore.vertex_data(target_localvid);
+        store.data.second = localstore.vertex_version(target_localvid);
+        requests.vstore.push_back(store);
+      }
+      {
+        // add the edge to the synchronize reply
+        requests.srcdest.push_back(std::make_pair(vid, target_gvid));
+        requests.edgeversion.push_back(localstore.edge_version(localouteid));
+        edge_conditional_store store;
+        store.hasdata = true;
+        store.data.first = localstore.edge_data(localouteid);
+        store.data.second = localstore.edge_version(localouteid);
+        requests.estore.push_back(store);
+      }
+    }
+  }
+  if (requests.vstore.size() == 0 && requests.estore.size() == 0) return "";
+  else {
+    // save the string
+    std::stringstream strm;
+    oarchive oarc(strm);
+    oarc << requests;
+    strm.flush();
+    return strm.str();
+  }
+}
+template <typename VertexData, typename EdgeData>
+void distributed_graph<VertexData, EdgeData>::receive_external_update(const std::string &s) {
+  if (s.length() > 0) {
+    block_synchronize_request2 req;
 
+    boost::iostreams::stream<boost::iostreams::array_source> istrm(s.c_str(), s.length());   
+    iarchive iarc(istrm);
+    iarc >> req;
+    update_alot2(req);
+  }
+}
+
+template <typename VertexData, typename EdgeData>
+uint64_t distributed_graph<VertexData, EdgeData>::get_owned_scope_dirty_bloom_filter(vertex_id_type vid) {
+  vertex_id_type localvid = globalvid_to_localvid(vid);
+  ASSERT_FALSE(localvid_is_ghost(localvid));
+  uint64_t bloom = 0;
+  foreach(edge_id_type localouteid, localstore.out_edge_ids(localvid)) {
+    vertex_id_type localother = localstore.target(localouteid);
+    if (localvid_is_ghost(localother) && localstore.vertex_dirty(localother)) {
+      bloom |= (1LL << (local2globalvid[localother] % 64));
+    }
+  }
+  foreach(edge_id_type localineid, localstore.in_edge_ids(localvid)) {
+    vertex_id_type localother = localstore.source(localineid);
+    if (localvid_is_ghost(localother) && localstore.vertex_dirty(localother)) {
+      bloom |= (1LL << (local2globalvid[localother] % 64));
+    }
+  }
+  return bloom;
+}
 
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::push_owned_scope_to_replicas(vertex_id_type vid, 

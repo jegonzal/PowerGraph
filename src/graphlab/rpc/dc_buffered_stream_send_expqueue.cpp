@@ -139,7 +139,7 @@ void dc_buffered_stream_send_expqueue::send_loop() {
     if (ret) {
       std::deque<expqueue_entry> stuff_to_send;
       sendqueue.swap(stuff_to_send);
-      if (lowres_time_seconds() - t > 10) {
+      if (lowres_time_seconds() - t > 100) {
         t = lowres_time_seconds();
         std::cout << dc->procid() << "->" << target 
                   << " send buffer = " << stuff_to_send.size() << std::endl;
