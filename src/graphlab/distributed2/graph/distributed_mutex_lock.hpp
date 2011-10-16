@@ -97,6 +97,11 @@ namespace graphlab {
       sparams.localvid = dgraph.globalvid_to_localvid(globalvid);
       sparams.nextowneridx = 0;
       dgraph.localvid_to_replicas(sparams.localvid).first_bit(sparams.nextowneridx);
+      // the number of syncs I need to receive. This will be #ghosts (popcount - 1) + 1.
+      // For simplicity, require the final caller to always decrement by one. Makes it 
+      // easier to figure out if I have received everything or not
+      sparams.num_syncs_pending.value = synchronize_data?dgraph.localvid_to_replicas(sparams.localvid).popcount():1;
+      sparams.neighbor_dirty_bloom = dgraph.get_owned_scope_dirty_bloom_filter(globalvid);
       sparams.handler = handler;
       sparams.scopetype = scopetype;
       sparams.priority = priority;
@@ -105,7 +110,7 @@ namespace graphlab {
         ptr = scopelock_continuation.push_anywhere(sparams);
       scopelock_lock.unlock();
     
-      continue_scope_lock(ptr);
+      continue_scope_lock(ptr, 1);
     }
 
     /**
@@ -161,6 +166,8 @@ namespace graphlab {
       vertex_id_type globalvid;
       vertex_id_type localvid;
       uint32_t nextowneridx;
+      uint64_t neighbor_dirty_bloom;
+      atomic<uint32_t> num_syncs_pending;
       scope_range::scope_range_enum scopetype;
       boost::function<void(vertex_id_type)> handler;
       bool priority;
@@ -174,6 +181,8 @@ namespace graphlab {
       size_t outidx;      // the next out idx to consider in the in_edges/out_edges parallel iteration
       vertex_id_type localvid;
       procid_t srcproc;
+      uint64_t neighbor_dirty_bloom;
+      uint32_t num_unsent_syncs;
       fixed_dense_bitset<MAX_N_PROCS> procset;
       __attribute__((may_alias)) size_t src_tag;   // holds a pointer to the caller's scope lock continuation
       scope_range::scope_range_enum scopetype;
@@ -214,6 +223,8 @@ namespace graphlab {
     void partial_lock_request(procid_t srcproc,
                               procid_t destproc,
                               vertex_id_type globalvid,
+                              uint64_t neighbor_dirty_bloom,
+                              uint32_t num_unsent_syncs,
                               const fixed_dense_bitset<MAX_N_PROCS> &procset,
                               scope_range::scope_range_enum scopetype,
                               bool priority,
@@ -224,8 +235,10 @@ namespace graphlab {
       // fast track it if the destination processor is local
       if (destproc == rmi.procid()) {
         // fast track! If it is local, just call it directly
-        partial_lock_request_impl(srcproc, 
+        partial_lock_request_impl(plock_req_impl_arguments(srcproc, 
                                   globalvid,
+                                  neighbor_dirty_bloom,
+                                  num_unsent_syncs),
                                   procset,
                                   (size_t)scopetype, 
                                   priority,
@@ -234,8 +247,10 @@ namespace graphlab {
       else {
         rmi.remote_call(destproc,
                         &distributed_mutex_lock<GraphType>::partial_lock_request_impl,
-                        srcproc,
+                        plock_req_impl_arguments(srcproc,
                         globalvid,
+                        neighbor_dirty_bloom,
+                        num_unsent_syncs),
                         procset,
                         (size_t)scopetype,
                         priority,
@@ -245,13 +260,13 @@ namespace graphlab {
     }
 
 
-    void partial_lock_completion(size_t scope_continuation_ptr) {
+    void partial_lock_completion(size_t scope_continuation_ptr, uint32_t num_unsent_syncs) {
       typename lazy_deque<scopelock_cont_params>::value_type* 
         ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);    
 #ifdef DISTRIBUTED_LOCK_DEBUG    
       logstream(LOG_DEBUG) << "Receiving successful remote lock of " << ptr->first.globalvid << std::endl;
 #endif
-      continue_scope_lock(ptr);
+      continue_scope_lock(ptr, num_unsent_syncs);
     }
 
     void data_synchronize_reply(typename lazy_deque<scopelock_cont_params>::value_type* ptr) {
@@ -263,7 +278,26 @@ namespace graphlab {
       scopelock_lock.unlock();
     }
   
-    void continue_scope_lock(typename lazy_deque<scopelock_cont_params>::value_type* ptr) {
+    void push_synchronization(size_t scope_continuation_ptr, const std::string& data) {
+      typename lazy_deque<scopelock_cont_params>::value_type* 
+        ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);    
+        scopelock_cont_params& params = ptr->first;
+        dgraph.receive_external_update(data);
+        
+        if (synchronize_data == false || 
+            params.num_syncs_pending.dec() == 0) {
+          
+          params.handler(params.globalvid);
+          scopelock_lock.lock();
+          scopelock_continuation.erase(ptr);
+          scopelock_lock.unlock();
+        }
+
+    }
+
+  
+    void continue_scope_lock(typename lazy_deque<scopelock_cont_params>::value_type* ptr,
+                             uint32_t num_unsent_syncs) {
       // for convenience, lets take a reference to the params
       scopelock_cont_params& params = ptr->first;
       // check if I need to actually lock my replicas
@@ -281,24 +315,21 @@ namespace graphlab {
           partial_lock_request(rmi.procid(),
                                curidx,
                                params.globalvid,
+                               params.neighbor_dirty_bloom,
+                               num_unsent_syncs,
                                procs,
                                params.scopetype,
                                params.priority,
                                (size_t)(ptr));
         }
         else {
-          // if I have to synchronize and if this vid is boundary
-          if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
-            unsigned char prevkey = rmi.dc().set_sequentialization_key((params.globalvid % 254) + 1);
-            dgraph.async_synchronize_scope_callback(params.globalvid, 
-                                                    strict_scope,
-                                                    boost::bind(&distributed_mutex_lock<GraphType>::data_synchronize_reply, this, ptr));
-            rmi.dc().set_sequentialization_key(prevkey);
-          }
-          else {
-            // I am done!
+          // finish the continuation by erasing the lazy_deque entry
+          // if synchronize data is set, issue one more continuation which
+          // goes to a global fuctnction
+          if (synchronize_data == false || 
+              params.num_syncs_pending.dec(num_unsent_syncs) == 0) {
+            
             params.handler(params.globalvid);
-            // finish the continuation by erasing the lazy_deque entry
             scopelock_lock.lock();
             scopelock_continuation.erase(ptr);
             scopelock_lock.unlock();
@@ -317,6 +348,8 @@ namespace graphlab {
           partial_lock_request(rmi.procid(),
                                rmi.procid(),
                                params.globalvid,
+                               params.neighbor_dirty_bloom,
+                               num_unsent_syncs,
                                db,
                                params.scopetype,
                                params.priority,
@@ -326,16 +359,9 @@ namespace graphlab {
           // finish the continuation by erasing the lazy_deque entry
           // if synchronize data is set, issue one more continuation which
           // goes to a global fuctnction
-          if (synchronize_data && dgraph.on_boundary(params.globalvid)) {
-            unsigned char prevkey = rmi.dc().set_sequentialization_key((params.globalvid % 254) + 1);
-            dgraph.async_synchronize_scope_callback(params.globalvid, 
-                                                    strict_scope,
-                                                    boost::bind(&distributed_mutex_lock<GraphType>::data_synchronize_reply, this, ptr));
-            rmi.dc().set_sequentialization_key(prevkey);
-
-          }
-          else {
-            // I am done!
+          if (synchronize_data == false || 
+              params.num_syncs_pending.dec(num_unsent_syncs) == 0) {
+            
             params.handler(params.globalvid);
             scopelock_lock.lock();
             scopelock_continuation.erase(ptr);
@@ -347,15 +373,46 @@ namespace graphlab {
 
 
 
+    struct plock_req_impl_arguments{
+      procid_t srcproc;
+      vertex_id_type globalvid;
+      uint64_t neighbor_dirty_bloom;
+      uint32_t num_unsent_syncs;
+      
+      plock_req_impl_arguments() { }
+      plock_req_impl_arguments( procid_t srcproc,
+                               vertex_id_type globalvid,
+                               uint64_t neighbor_dirty_bloom,
+                               uint32_t num_unsent_syncs):
+                                  srcproc(srcproc),
+                                  globalvid(globalvid),
+                                  neighbor_dirty_bloom(neighbor_dirty_bloom),
+                                  num_unsent_syncs(num_unsent_syncs) { };
+
+      
+      inline void save(oarchive &oarc) const {      
+        serialize(oarc, this, sizeof(plock_req_impl_arguments));
+      }
+
+      inline void load(iarchive &iarc) {
+        deserialize(iarc, this, sizeof(plock_req_impl_arguments));
+      }
+    };
+    
+
     /**
        lock request implementation on the receiving processor
     */
-    void partial_lock_request_impl(procid_t srcproc,
-                                   vertex_id_type globalvid,
+    void partial_lock_request_impl(plock_req_impl_arguments args,
                                    const fixed_dense_bitset<MAX_N_PROCS> &procset,
                                    size_t scopetype,
                                    bool priority,
                                    size_t src_tag) {
+      procid_t srcproc = args.srcproc;
+      vertex_id_type globalvid = args.globalvid;
+      uint64_t neighbor_dirty_bloom = args.neighbor_dirty_bloom;
+      uint32_t num_unsent_syncs = args.num_unsent_syncs;
+                                   
       // construct a partiallock_continuation
 #ifdef DISTRIBUTED_LOCK_DEBUG
       //  logstream(LOG_DEBUG) << rmi.procid() << ": p-lock request from "<< srcproc << " : " << globalvid << std::endl;
@@ -367,6 +424,8 @@ namespace graphlab {
       plockparams.priority = priority;
       plockparams.procset = procset;
       plockparams.procset.clear_bit_unsync(rmi.procid());
+      plockparams.neighbor_dirty_bloom = neighbor_dirty_bloom;
+      plockparams.num_unsent_syncs = num_unsent_syncs;
       plockparams.src_tag = src_tag;
       plockparams.curlocked = false;
       plockparams.req.next = NULL;
@@ -477,6 +536,21 @@ namespace graphlab {
         }
       }
     
+      // resolve the synchronization
+      if (params.srcproc != rmi.procid() && synchronize_data) {
+        std::string ret = dgraph.external_push_ghost_scope_to_owner(dgraph.localvid_to_globalvid(params.localvid),
+                                                                    params.neighbor_dirty_bloom);
+        if (ret.size() > 0) {
+          rmi.remote_call(params.srcproc,
+                         &distributed_mutex_lock<GraphType>::push_synchronization,
+                         params.src_tag,
+                         ret);
+        }
+        else {
+          params.num_unsent_syncs++;
+        }
+      }
+      
       // if we get here, the lock is complete on this machine
       // do we hand over to the next machine?
       uint32_t nextmachine;
@@ -485,6 +559,8 @@ namespace graphlab {
         partial_lock_request(params.srcproc,
                              nextmachine,
                              dgraph.localvid_to_globalvid(params.localvid),
+                             params.neighbor_dirty_bloom,
+                             params.num_unsent_syncs,
                              params.procset,
                              params.scopetype,
                              params.priority,
@@ -492,7 +568,7 @@ namespace graphlab {
       }
       else {
         if (params.srcproc == rmi.procid()) {
-          partial_lock_completion(params.src_tag);
+          partial_lock_completion(params.src_tag, params.num_unsent_syncs);
         }
         else {
   #ifdef DISTRIBUTED_LOCK_DEBUG
@@ -500,7 +576,8 @@ namespace graphlab {
   #endif
           rmi.remote_call(params.srcproc,
                           &distributed_mutex_lock<GraphType>::partial_lock_completion,
-                          (size_t)params.src_tag);
+                          (size_t)params.src_tag,
+                          params.num_unsent_syncs);
         }
       }
       partiallock_lock.lock();
