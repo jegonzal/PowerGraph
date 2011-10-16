@@ -380,8 +380,8 @@ void start(command_line_options & clopts) {
 
 
   if (ac.clusterdump){
-    if (ac.algorithm == LDA || ac.algorithm == K_MEANS_FUZZY)
-      logstream(LOG_WARNING) << "--dumpcluster=true flag can not be used with LDA/K_MEANS_FUZZY, skipping dumpcluster output" << std::endl;
+    if (ac.algorithm == LDA)
+      logstream(LOG_WARNING) << "--dumpcluster=true flag can not be used with LDA, skipping dumpcluster output" << std::endl;
     else dumpcluster();
   }
 
