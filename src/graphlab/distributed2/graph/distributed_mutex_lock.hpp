@@ -374,19 +374,19 @@ namespace graphlab {
 
 
     struct plock_req_impl_arguments{
+      procid_t srcproc;
       vertex_id_type globalvid;
       uint64_t neighbor_dirty_bloom;
-      procid_t srcproc;
       uint32_t num_unsent_syncs;
       
       plock_req_impl_arguments() { }
-      plock_req_impl_arguments(vertex_id_type globalvid,
+      plock_req_impl_arguments( procid_t srcproc,
+                               vertex_id_type globalvid,
                                uint64_t neighbor_dirty_bloom,
-                               procid_t srcproc,
                                uint32_t num_unsent_syncs):
+                                  srcproc(srcproc),
                                   globalvid(globalvid),
                                   neighbor_dirty_bloom(neighbor_dirty_bloom),
-                                  srcproc(srcproc),
                                   num_unsent_syncs(num_unsent_syncs) { };
 
       
