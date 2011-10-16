@@ -27,7 +27,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("savefactors", &savefactors, savefactors, "save factors to file");  
   clopts.attach_option("loadfactors", &loadfactors, loadfactors, "load factors from file");  
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
-  clopts.attach_option("binaryoutput", &binaryoutput, binaryoutput, "export U,V,T to a binary file"); 
+  clopts.attach_option("binaryoutput", &binaryoutput, binaryoutput, "export clusters and assignments into a binary file"); 
   clopts.attach_option("matrixmarket", &matrixmarket, matrixmarket, "give input in matrix market format"); 
  
   clopts.attach_option("scalerating", &scalerating, scalerating, "scale data by this factor");  

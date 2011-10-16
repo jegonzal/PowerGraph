@@ -51,7 +51,7 @@ void init_pmf() {
  */
 template<typename graph_type, typename vertex_data, typename edge_data>
 void last_iter(){
-  printf("Entering last iter with %d\n", ps.iiter);
+  printf("Entering last iter with %d total updates so far %u\n", ps.iiter, dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().last_update_count());
 
   double res,res2;
   double rmse = (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
