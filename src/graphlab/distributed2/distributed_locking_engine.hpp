@@ -1192,7 +1192,7 @@ class distributed_locking_engine:public iengine<Graph> {
         std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue();
         while (termination_reason == EXEC_UNSET && 
           job.second == false && num_deferred_tasks.value > lower_threshold) {
-          ready_vertices.try_timed_wait_for_data(1000000,ncpus);
+          ready_vertices.try_timed_wait_for_data(1000000,1);
           job = ready_vertices.try_dequeue();
         }
         if (job.second == false) break;
