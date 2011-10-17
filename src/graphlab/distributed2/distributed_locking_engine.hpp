@@ -252,7 +252,7 @@ class distributed_locking_engine:public iengine<Graph> {
   atomic<size_t> num_deferred_tasks;
   size_t max_deferred_tasks;
 
-  multi_blocking_queue<vertex_id_t> ready_vertices;
+  blocking_queue<vertex_id_t> ready_vertices;
   
   
   double barrier_time;
@@ -341,7 +341,6 @@ class distributed_locking_engine:public iengine<Graph> {
                             snapshot_sleeptime(0),
                             vertex_deferred_tasks(graph.owned_vertices().size()),
                             max_deferred_tasks(1000),
-                            ready_vertices(ncpus),
                             barrier_time(0.0),
                             consensus(dc, ncpus),
                             scheduler(this, graph, std::max(ncpus, size_t(1))),
@@ -665,7 +664,7 @@ class distributed_locking_engine:public iengine<Graph> {
         procid_t target = task->sharedvariable->preferred_machine();
         std::vector<any> gathervals(rmi.numprocs());
         gathervals[rmi.procid()] = task->mergeval;
-        rmi.gather(gathervals, target);
+        reduction_services.gather(gathervals, target, true);
 
         // now if I am target I need to do the final merge and apply
         if (target == rmi.procid()) {
@@ -730,7 +729,7 @@ class distributed_locking_engine:public iengine<Graph> {
     termination_test[rmi.procid()].force_stop = force_stop;
     // gather all to 0.
     // machine 0 evaluates termiation
-    reduction_services.gather(termination_test, 0);
+    reduction_services.gather(termination_test, 0, true);
     // used to globally evaluate termination
     aggregate = termination_evaluation();
     if (rmi.procid() == 0) {
@@ -764,7 +763,7 @@ class distributed_locking_engine:public iengine<Graph> {
     // note this is OK because only machine 0 will have the right value for
     // executed_tasks. And everyone is receiving from machine 0
     std::pair<size_t, size_t> reason_and_task(treason, aggregate.executed_tasks);
-    reduction_services.broadcast(reason_and_task, rmi.procid() == 0);
+    reduction_services.broadcast(reason_and_task, rmi.procid() == 0, true);
     termination_reason = exec_status(reason_and_task.first);
     return std::make_pair(reason_and_task.second, aggregate.pending_tasks);
   }
@@ -822,7 +821,7 @@ class distributed_locking_engine:public iengine<Graph> {
           // this means a snapshot was initialized before
           std::vector<size_t> remainingv(rmi.numprocs());
           remainingv[rmi.procid()] = snapshot2_remaining_vertices.value;
-          reduction_services.all_gather(remainingv);
+          reduction_services.all_gather(remainingv, true);
           size_t total_remaining_v = 0;
           for (size_t i = 0;i < remainingv.size(); ++i) {
             total_remaining_v += remainingv[i];
@@ -1190,11 +1189,11 @@ class distributed_locking_engine:public iengine<Graph> {
         
       while (termination_reason == EXEC_UNSET) {
         // pick up a job to do
-        std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue(threadid);
+        std::pair<vertex_id_t, bool> job = ready_vertices.try_dequeue();
         while (termination_reason == EXEC_UNSET && 
           job.second == false && num_deferred_tasks.value > lower_threshold) {
-          sched_yield();
-          job = ready_vertices.try_dequeue(threadid);
+          ready_vertices.try_timed_wait_for_data(1000000,1);
+          job = ready_vertices.try_dequeue();
         }
         if (job.second == false) break;
         // lets do it
@@ -1375,7 +1374,7 @@ class distributed_locking_engine:public iengine<Graph> {
         
         double d = ti.current_time();
         for (size_t i = 1;i < rmi.numprocs(); ++i) {
-          rmi.remote_call(i,
+          rmi.control_call(i,
                           &distributed_locking_engine<Graph, Scheduler>::wake_up_reducer);
         }
         wake_up_reducer();

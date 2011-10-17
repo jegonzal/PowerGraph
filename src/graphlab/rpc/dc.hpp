@@ -190,7 +190,7 @@ class distributed_control{
   thread_group fcallhandlers;
   
   /// a queue of functions to be executed
-  multi_blocking_queue<function_call_block> fcallqueue;
+  std::vector<blocking_queue<function_call_block> > fcallqueue;
   
   /// A map of function name to dispatch function. Used for "portable" calls
   dc_impl::dispatch_map_type portable_dispatch_call_map;

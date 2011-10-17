@@ -104,7 +104,6 @@ void export_to_binary_file(){
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(),ps.K);
-  logstream(LOG_INFO)<<"Writing binary output file: " << dfile << std::endl;
   FILE * f = fopen(dfile, "w");
   assert(f!= NULL);
 

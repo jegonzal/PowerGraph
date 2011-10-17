@@ -175,7 +175,7 @@ distributed_control::~distributed_control() {
   senders.clear();
   receivers.clear();
   // shutdown function call handlers
-  fcallqueue.stop_blocking();
+  for (size_t i = 0;i < fcallqueue.size(); ++i) fcallqueue[i].stop_blocking();
   fcallhandlers.join();
   logstream(LOG_INFO) << "Bytes Sent: " << bytessent << std::endl;
   logstream(LOG_INFO) << "Calls Sent: " << calls_sent() << std::endl;
@@ -232,16 +232,23 @@ void distributed_control::exec_function_call(procid_t source,
   }
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
 } 
- 
- 
+
+  const size_t buffer_size_wait = 1000; 
+  const size_t nano_wait = 100000;
+  
 void distributed_control::deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr,
                                                 char* buf, size_t len) {
+
   if (hdr.sequentialization_key == 0) {
-    fcallqueue.enqueue(function_call_block(source, hdr, buf, len));
+    // fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
+    //   enqueue_conditional_signal(function_call_block(source, hdr, buf, len), buffer_size_wait);
+    fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
+      enqueue(function_call_block(source, hdr, buf, len));
+
   }
   else {
-    fcallqueue.enqueue_specific(function_call_block(source, hdr, buf, len), 
-                                hdr.sequentialization_key);
+    fcallqueue[hdr.sequentialization_key % fcallqueue.size()].
+      enqueue(function_call_block(source, hdr, buf, len));
   }
 }
 
@@ -249,10 +256,15 @@ void distributed_control::fcallhandler_loop(size_t id) {
   // pop an element off the queue
 //  float t = lowres_time_seconds();
   while(1) {
-    std::pair<function_call_block, bool> entry;
-    entry = fcallqueue.dequeue(id);
-    // if the queue is empty and we should quit
-    if (entry.second == false) return;
+    fcallqueue[id].wait_for_data();
+    if (fcallqueue[id].is_alive() == false) break;
+
+    std::deque<function_call_block> q;
+    fcallqueue[id].swap(q);
+    while (!q.empty()) {
+      function_call_block entry;
+      entry = q.front();
+      q.pop_front();
     
 /*    if (id == 0 && lowres_time_seconds() - t > 2)  {
       t = lowres_time_seconds();
@@ -261,13 +273,14 @@ void distributed_control::fcallhandler_loop(size_t id) {
       std::cout << std::endl;
     }*/
     //create a stream containing all the data
-    boost::iostreams::stream<boost::iostreams::array_source> 
-                                istrm(entry.first.data, entry.first.len);
-    exec_function_call(entry.first.source, entry.first.hdr, istrm);
-    receivers[entry.first.source]->function_call_completed(entry.first.hdr.packet_type_mask);
-    free(entry.first.data);
+      boost::iostreams::stream<boost::iostreams::array_source> 
+                                  istrm(entry.data, entry.len);
+      exec_function_call(entry.source, entry.hdr, istrm);
+      receivers[entry.source]->function_call_completed(entry.hdr.packet_type_mask);
+      free(entry.data);
+    }
   }
-  std::cerr << "Handler " << id << " died." << std::endl;
+  //  std::cerr << "Handler " << id << " died." << std::endl;
 }
 
 
@@ -402,7 +415,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   }
   global_calls_sent.resize(machines.size());
   global_calls_received.resize(machines.size());
-  fcallqueue.init(numhandlerthreads);
+  fcallqueue.resize(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {

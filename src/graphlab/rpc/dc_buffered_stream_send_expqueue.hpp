@@ -65,10 +65,14 @@ Sender for the dc class.
 
 class dc_buffered_stream_send_expqueue: public dc_send{
  public:
-  dc_buffered_stream_send_expqueue(distributed_control* dc, dc_comm_base *comm, procid_t target): dc(dc), 
-                                    comm(comm), target(target), done(false) { 
-    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send_expqueue::send_loop, 
-                                      this));
+  dc_buffered_stream_send_expqueue(distributed_control* dc, 
+                                   dc_comm_base *comm, 
+                                   procid_t target) : 
+    dc(dc),  comm(comm), target(target), done(false), 
+    wait_count(1024000) { 
+    thr = launch_in_new_thread(boost::bind
+                               (&dc_buffered_stream_send_expqueue::send_loop, 
+                                this));
   }
   
   ~dc_buffered_stream_send_expqueue() {
@@ -116,8 +120,7 @@ class dc_buffered_stream_send_expqueue: public dc_send{
   thread thr;
   bool done;
   atomic<size_t> bytessent;
-  
-  
+  size_t wait_count;
   // parameters for write combining.
   // write combining will start if the data size is below the lower threshold
   // and continue until it reaches the upper threshold
