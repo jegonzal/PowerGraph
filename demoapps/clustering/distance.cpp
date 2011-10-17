@@ -80,6 +80,27 @@ double calc_cosine_distance( sparse_vec & datapoint,  vec & cluster){
 }
 
 
+double calc_distance(sparse_vec &datapoint,  sparse_vec & cluster, double sqr_sum){
+   switch(ac.distance_measure){
+      case EUCLIDEAN:          
+          return calc_euclidian_distance(datapoint, cluster, sqr_sum);
+      case CHEBYCHEV:
+          return calc_chebychev_distance(datapoint, cluster);
+      case COSINE:
+	  return calc_cosine_distance(datapoint, cluster);  
+      case MANHATTAN:
+          return calc_manhatten_distance(datapoint, cluster);
+      case MANAHOLIS:
+      case WEIGHTED_MANAHOLIS:
+      case WEIGHTED:
+      default:
+          logstream(LOG_ERROR)<< "distance measure " << ac.distance_measure<< "  not implemented yet" << std::endl;
+    }
+    return -1;
+
+}
+
+
 double calc_distance(sparse_vec &datapoint,  vec & cluster, double sqr_sum){
    switch(ac.distance_measure){
       case EUCLIDEAN:          

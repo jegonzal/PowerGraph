@@ -431,6 +431,7 @@ void svd<>(gl_types::core & glcore){
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(j+1); 
         update_V2(j+1); 
+        logstream(LOG_INFO) << "Finished iteration " << j << " in time: " << ps.gt.current_time() << std::endl;
    } 
   /* 
  * T=sparse(m+1,m+1);

@@ -31,11 +31,34 @@
 extern advanced_config ac;
 extern problem_setup ps;
 extern const char * runmodesname[];
+double sum_sqr(sparse_vec & v);
+
+vec wrap_answer(const vec& distances, const ivec& indices, int num){
+   vec ret = zeros(num*2);
+   for (int i=0; i< num; i++){
+      ret[2*i] = distances[i];
+      ret[2*i+1] = indices[i];
+   }
+   return ret;
+}
+
+void init_knn(){
+
+   if (ac.distance_measure != EUCLIDEAN)
+     return;
+
+   graph_type * training = ps.g<graph_type>(TRAINING);
+   for (int i=0; i< ps.M; i++){
+      vertex_data & data = training->vertex_data(i);
+      data.min_distance = sum_sqr(data.datapoint);
+   }
+
+}
 
  /***
  * UPDATE FUNCTION
  */
-void itemknn_update_function(gl_types::iscope &scope, 
+void knn_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler) {
     
 
@@ -54,82 +77,55 @@ void itemknn_update_function(gl_types::iscope &scope,
   if (!vdata.reported) //this matrix row have no non-zero entries, and thus ignored
      return;
 
-  double min_dist = 1e100;
-  int pos = -1;
   graphlab::timer t; t.start();
 
-  int end_cluster;
-  switch(ps.algorithm){
-    case K_MEANS: 
-    case K_MEANS_FUZZY:
-	end_cluster = ps.K; break; //regular k-means, calculate distance to all cluster heads
-    case K_MEANS_PLUS_PLUS: end_cluster = 1; break; //calculate distance of all point to current cluster
-    default: assert(false); 
+  vec distances = zeros(ps.M);
+  for (int i=0; i<ps.M; i++){
+      vertex_data & other = ps.g<graph_type>(TRAINING)->vertex_data(i);
+      distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance);
   }
 
-  for (int i=0; i< end_cluster; i++){
-     vec & row = ps.clusts.cluster_vec[i].location;
-     if (toprint)
-        std::cout<<" cluster " << i << " location " << row << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
-     double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr);
-     if (toprint)
-        std::cout<<" distance: " << dist << std::endl;
-     assert(dist >= 0 && !std::isnan(dist));
-     if (ps.algorithm == K_MEANS_PLUS_PLUS || ps.algorithm == K_MEANS){
-       if (min_dist > dist){
-         min_dist = dist;
-          pos = i;
-       }
-     }
-     else if (ps.algorithm == K_MEANS_FUZZY){
-	vdata.distances[i] = dist;
-     }
-  }  
-  ps.counter[DISTANCE_CALCULATION] += t.current_time();
+  ivec indices = sort_index(distances);
+  sort(distances); 
+  vdata.distances = wrap_answer(distances, indices, ps.K);
+  if (toprint)
+    printf("Closest is: %d with distance %g\n", (int)vdata.distances[1], vdata.distances[0]);
+}
 
+void copy_assignments(mat &a, const vec& distances, int i){
+   for (int j=0; j<ps.K; j++){
+     set_val(a,j, i, distances[j*2+1]);
+   }
+}
 
-  if (ps.algorithm == K_MEANS || ps.algorithm == K_MEANS_PLUS_PLUS){
-    assert(pos != -1);
-    if (pos != vdata.current_cluster){
-      vdata.hot=true;
-      if (toprint && (ps.algorithm == K_MEANS))
-        std::cout <<id<<" assigned to cluster: " << pos << std::endl;
-      else if (toprint && ps.algorithm == K_MEANS_PLUS_PLUS)
-        std::cout <<id<<" distance to current cluster is : " << min_dist << std::endl;
-    }
-
-    vdata.min_distance = min_dist;
-    vdata.prev_cluster = vdata.current_cluster; 
-    vdata.current_cluster = pos;
-  }
-  /**
- * See algo description in: http://www.cs.princeton.edu/courses/archive/fall08/cos436/Duda/C/fk_means.htm
- * min_distance = \sum_j a(j,i)
- * distance(j) = u(i,j)
- * */
-  else if (ps.algorithm == K_MEANS_FUZZY){
-     vec old_distance = vdata.distances;
-     double factor = sum(pow(vdata.distances,-2));
-     vec normalized = pow(vdata.distances,-2) / factor;
-     vdata.distances = pow(normalized, 2);
-     if (toprint)
-         std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;
-     if (toprint)
-         std::cout<<" contribution to cost function is : " << elem_mult(vdata.distances, pow(old_distance,2))<<std::endl;
-     vdata.min_distance = dot(vdata.distances, pow(old_distance,2));
-     assert(!std::isnan(factor) && factor > 0);
+void copy_distances(mat &a, const vec& distances, int i){
+   for (int j=0; j<ps.K; j++){
+     set_val(a,j, i, distances[j*2]);
    }
 }
 
 
+void prepare_output(){
 
+  graph_type * validation = ps.g<graph_type>(VALIDATION);
+  ps.output_assignements = zeros(ps.K, validation->num_vertices());
+  ps.output_clusters = zeros(ps.K, validation->num_vertices());
+  for (int i=0; i< (int)validation->num_vertices(); i++){
+     const vertex_data& data = validation->vertex_data(i);
+     copy_assignments(ps.output_assignements, data.distances, i);
+     copy_distances(ps.output_clusters, data.distances, i); 
+  }
+}
 
 
  
 void knn_main(){
 
+    init_knn();
+    ps.gt.start();
+    ps.glcore->start();
 
-
+    prepare_output();
 };
 
 

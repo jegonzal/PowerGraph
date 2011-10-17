@@ -40,13 +40,6 @@ double calc_cost();
 void update_kmeans_clusters();
 int calc_cluster_centers();
 
-void print(sparse_vec & vec){
-  FOR_ITERATOR(i, vec){
-    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
-  }
-  std::cout<<std::endl;
-}
-
 
 
 void init_fuzzy_kmeans(){
