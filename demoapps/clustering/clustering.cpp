@@ -251,6 +251,8 @@ void init(){
 
    case K_MEANS_PLUS_PLUS:
    case LDA:
+   case ITEM_KNN:
+   case USER_KNN:  
     break;
 
 
@@ -393,11 +395,20 @@ void start(command_line_options & clopts) {
       case KSHELL_DECOMPOSITION:
         kcores_main();
         break;
+
+      case ITEM_KNN:
+      case USER_KNN:
+       knn_main();
+       break;
   }
 
 
-  if (ac.clusterdump)
-     dumpcluster();
+  if (ac.clusterdump){
+    if (ac.algorithm == LDA)
+      logstream(LOG_WARNING) << "--dumpcluster=true flag can not be used with LDA, skipping dumpcluster output" << std::endl;
+    else dumpcluster();
+  }
+
 
   //print timing counters
   for (int i=0; i<MAX_COUNTER; i++){
@@ -445,6 +456,8 @@ int do_main(int argc, const char *argv[]){
     case K_MEANS_PLUS_PLUS:
     case K_MEANS_FUZZY:
     case LDA: 
+    case ITEM_KNN:
+    case USER_KNN:
        start<gl_types::core, graph_type>(clopts);
        break;
 
