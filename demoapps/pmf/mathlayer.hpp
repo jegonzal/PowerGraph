@@ -214,6 +214,9 @@ inline vec head(const vec& v, int num){
 inline vec mid(const vec&v, int start, int num){
    return v.segment(start, std::min(num, (int)(v.size()-start)));
 }
+inline vec tail(const vec&v,  int num){
+   return v.segment(v.size() - num, num);
+}
 inline ivec head(const ivec& v, int num){
    return v.head(num);
 }
@@ -486,6 +489,7 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    }	
    return ret;
 };
+
 inline vec fabs( const vec & dvec1){
    vec ret(dvec1.size());
    for (int i=0; i< dvec1.size(); i++){
@@ -560,6 +564,9 @@ inline vec head(const vec &v, int num){
 inline vec mid(const vec&v, int start, int num){
   return v.mid(start, num);
 }
+inline vec tail(const vec&v, int num){
+  return v.mid(v.size()-num, num);
+}
 inline ivec head(const ivec &v, int num){
   return v.mid(0,num);
 }
@@ -630,14 +637,15 @@ inline void set_div(sparse_vec&v, int i, double val){
   v.set(v.get_nz_index(i) ,v.get_nz_data(i) / val);
 }
 inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
-  sparse_vec ret; 
+/*  sparse_vec ret; 
   for (int i=0; i< v1.nnz(); i++){
       ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get_val(v2, v1.get_nz_index(i)));
   }
   for (int i=0; i< v2.nnz(); i++){
       ret.set_new(v2.get_nz_index(i), get_val(v1, v2.get_nz_index(i)) - v2.get_nz_data(i));
   }
-  return ret;
+  return ret;*/
+  return v1+(-v2);
 }
 inline vec minus( sparse_vec &v1,  vec &v2){
   vec ret = -v2;;
@@ -664,6 +672,7 @@ inline sparse_vec fabs( sparse_vec & dvec1){
    return ret;
 	
 };
+
 inline vec fabs(const vec & a){
    return abs(a);
 }

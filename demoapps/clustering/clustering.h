@@ -158,6 +158,7 @@ public:
   int M,N; //data size MxN matrix
   int K;//number of clusters
   int L;//number of non zero elements in data
+  int M_validation, M_test; //data points in validation and tests data
 
   gl_types::core * glcore;
   gl_types_kcores::core * glcore_kcores;
@@ -201,6 +202,7 @@ public:
 
  /* Problem size */
   M=N=K=L=0;
+  M_validation = M_test = 0;
 
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));
@@ -218,12 +220,14 @@ public:
 };
 template<> inline graph_type *problem_setup::g(){ return gg; }
 template<> inline graph_type_kcores *problem_setup::g(){ return g_kcores; }
+template<> inline graph_type_kcores *problem_setup::g(testtype type){ return g_kcores; }
 template<> inline graph_type *problem_setup::g(testtype type){ 
    switch(type){
       case TRAINING: return gg;
       case VALIDATION: return validation_graph;
       case TEST: return test_graph;
    }
+   return NULL;
 }
 
 
@@ -234,10 +238,10 @@ static graphlab::glshared<clusters> CLUSTERS;
 
 int do_main(int argc, const char * argv[]);
 
-void add_vertices(graph_type * _g);
-void add_vertices(graph_type_kcores * _g);
-void load_matrix_market(const char * filename, graph_type * _g);
-void load_matrix_market(const char * filename, graph_type_kcores * _g);
+void add_vertices(graph_type * _g, testtype type);
+void add_vertices(graph_type_kcores * _g, testtype type);
+void load_matrix_market(const char * filename, graph_type * _g, testtype type);
+void load_matrix_market(const char * filename, graph_type_kcores * _g, testtype type);
 void save_matrix_market_format(const char * filename);
 
 void test_math();

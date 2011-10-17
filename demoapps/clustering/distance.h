@@ -19,6 +19,7 @@ enum distance_measure{
 
 
 double calc_distance(sparse_vec & datapoint, vec &cluster, double sqr_sum = 0);
+double calc_distance(sparse_vec & datapoint, sparse_vec &cluster, double sqr_sum = 0);
 
 
 #endif //_DISTANCE_H

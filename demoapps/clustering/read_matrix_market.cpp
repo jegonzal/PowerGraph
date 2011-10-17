@@ -33,7 +33,7 @@ extern advanced_config ac;
 extern problem_setup ps;
 
 void init();
-void load_matrix_market(const char * filename, graph_type_kcores *_g)
+void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype type)
 {
     int ret_code;
     MM_typecode matcode;
@@ -42,6 +42,10 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g)
 
     FILE * f = fopen(filename, "r");
     if (f== NULL){
+        if (type ==VALIDATION && ac.algorithm != ITEM_KNN && ac.algorithm != USER_KNN)
+	   return;
+        if (type == TEST)
+           return;
 	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
 	exit(1);
     }
@@ -73,7 +77,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g)
     ps.M = M; ps.N = N; ps.K = ac.K;
 
     init();
-    add_vertices(_g); 
+    add_vertices(_g, type); 
 
     /* reseve memory for matrices */
 
@@ -88,6 +92,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g)
     for (i=0; i<nz; i++)
     {
         fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        //printf("Found row %d %d %g\n", I, J, val);        
         I--;  /* adjust from 1-based to 0-based */
         J--;
          if (ac.scalerating != 1.0)
@@ -95,8 +100,8 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g)
          if (!ac.zero)
 	   assert(val!=0 );
         
-        assert(I< M);
-        assert(J< N);
+        assert(I >= 0 && I< M);
+        assert(J >=0 && J< N);
         kcores_edge edge;
         edge.weight = val;
         _g->add_edge(I,J, edge);
@@ -109,7 +114,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g)
 }
 
 
-void load_matrix_market(const char * filename, graph_type *_g)
+void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 {
     int ret_code;
     MM_typecode matcode;
@@ -118,6 +123,10 @@ void load_matrix_market(const char * filename, graph_type *_g)
 
     FILE * f = fopen(filename, "r");
     if (f== NULL){
+        if (type == VALIDATION && ac.algorithm != ITEM_KNN && ac.algorithm != USER_KNN)
+           return;
+        if (type == TEST)
+           return;
 	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
 	exit(1);
     }
@@ -149,7 +158,7 @@ void load_matrix_market(const char * filename, graph_type *_g)
     ps.M = M; ps.N = N; ps.K = ac.K;
 
     init();
-    add_vertices(_g); 
+    add_vertices(_g, type); 
 
     /* reseve memory for matrices */
 
@@ -164,6 +173,7 @@ void load_matrix_market(const char * filename, graph_type *_g)
     for (i=0; i<nz; i++)
     {
         fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        //printf("%d) Found row %d %d %g\n", i, I, J, val);        
         I--;  /* adjust from 1-based to 0-based */
         J--;
          if (ac.scalerating != 1.0)
@@ -171,8 +181,8 @@ void load_matrix_market(const char * filename, graph_type *_g)
          if (!ac.zero)
 	   assert(val!=0 );
         
-        assert(I< M);
-        assert(J< N);
+        assert(I>=0 && I< M);
+        assert(J >=0 && J< N);
         vertex_data & vdata = _g->vertex_data(I);
         set_new(vdata.datapoint,J, val);   
 	if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points

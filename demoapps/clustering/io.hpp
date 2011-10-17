@@ -44,7 +44,7 @@ int read_edges(FILE * f, int nodes, graph_type_kcores * _g);
 
 void fill_output(graph_type * g){
   
-   if (ac.algorithm == LDA)
+   if (ac.algorithm == LDA || ac.algorithm == USER_KNN || ac.algorithm == ITEM_KNN)
 	return;
   
    ps.output_clusters = zeros(ps.K, ps.N);
@@ -171,11 +171,17 @@ void import_from_file(){
  }
 }
 
-void add_vertices(graph_type * _g){
+void add_vertices(graph_type * _g, testtype type){
   assert(ps.K > 0);
   vertex_data vdata;
+  int howmany = ps.M;
+  if (type == VALIDATION)
+    howmany = ps.M_validation;
+  else if (type == TEST)
+    howmany = ps.M_test;
+
   // add M movie nodes (ps.tensor dim 1)
-  for (int i=0; i<ps.M; i++){
+  for (int i=0; i< howmany; i++){
     switch (ps.init_type){
        case INIT_RANDOM:
          vdata.current_cluster = randi(0, ps.K-1);
@@ -203,7 +209,7 @@ void add_vertices(graph_type * _g){
 }
 
 
-void add_vertices(graph_type_kcores * _g){
+void add_vertices(graph_type_kcores * _g, testtype type){
   assert(ps.K > 0);
   kcores_data vdata;
   for (int i=0; i<ps.M + ps.N; i++){
@@ -226,18 +232,23 @@ void add_vertices(graph_type_kcores * _g){
  * [weight] float
  */
 template<typename graph_type>
-void load_graph(const char* filename, graph_type * _g) {
+void load_graph(const char* filename, graph_type * _g, testtype type) {
 
 
   if (ac.matrixmarket){
       printf("Loading Matrix Market file %s\n", filename);
-      load_matrix_market(filename, _g);
+      load_matrix_market(filename, _g, type);
       return;
   }
 
   printf("Loading %s\n", filename);
   FILE * f = fopen(filename, "r");
   if(f== NULL){
+        if (type == VALIDATION && ac.algorithm != USER_KNN && ac.algorithm != ITEM_KNN){
+            return;
+        }
+        if (type == TEST)
+            return;
 	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
 	exit(1);
   }
@@ -260,10 +271,19 @@ void load_graph(const char* filename, graph_type * _g) {
   assert(_M>=1 && _N>=1); 
   
 
-
-  ps.M=_M; ps.N= _N;
+  if (type == TRAINING){
+    ps.M=_M; ps.N= _N;
+  }
+  else if (type == VALIDATION){
+    assert(_N == ps.N);
+    ps.M_validation = _M;
+  }
+  else {
+    assert(_N == ps.N);
+    ps.M_test = _M;
+  }
   init();
-  add_vertices(_g);
+  add_vertices(_g, type);
  
   // read tensor non zero edges from file
   

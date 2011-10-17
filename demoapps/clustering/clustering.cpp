@@ -52,7 +52,7 @@ using namespace std;
 advanced_config ac;
 problem_setup ps;
 
-const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation"};
+const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn"};
 const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER"};
 const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_ACCUM_BETA", "LDA_LIKELIHOOD", "LDA_NORMALIZE"};
 
@@ -67,6 +67,9 @@ void tfidf_weighting();
 void plus_mul(vec& v1, sparse_vec &v2, double factor);
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler);
 void kcores_main();
+void knn_update_function(gl_types::iscope &scope, 
+			 gl_types::icallback &scheduler);
+ 
 
   void vertex_data::save(graphlab::oarchive& archive) const {  
     ////TODO archive << pvec;
@@ -152,8 +155,14 @@ int calc_cluster_centers(){
 
 void add_tasks(gl_types::core & glcore){
 
+  int start = 0;
+  int end = ps.M;
+  if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
+     end = ps.M_validation;
+  }
+
   std::vector<vertex_id_t> um;
-  for (int i=0; i< ps.M; i++)
+  for (int i=start; i< end; i++)
     um.push_back(i);
  
   switch (ps.algorithm){
@@ -165,6 +174,11 @@ void add_tasks(gl_types::core & glcore){
 ;
      case LDA:
        glcore.add_tasks(um, lda_em_update_function,1);  
+       break;
+
+     case ITEM_KNN:
+     case USER_KNN:
+       glcore.add_tasks(um, knn_update_function, 1);
        break;
 
      default: assert(false);
@@ -280,17 +294,24 @@ void start(command_line_options & clopts) {
   printf("loading data file %s\n", ac.datafile.c_str());
   if (!ac.manualgraphsetup){
   if (!ac.loadgraph){
-    ps.set_graph(TRAINING, &glcore.graph());
-    load_graph<graph_type>(ac.datafile.c_str(), &glcore.graph());
+    graph_type *training = &glcore.graph();
+    graph_type* validation = NULL;
 
-    if (ac.algorithm == ITEM_KNN){
-       graph_type * validation_graph = new graph_type();
-       ps.set_graph(VALIDATION, validation_graph);
-       load_graph<graph_type>((ac.datafile + "e").c_str(), validation_graph);
+    if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
+        validation = training;
+        training = new graph_type();
+    }
+      
+    ps.set_graph(TRAINING, training);
+    load_graph<graph_type>(ac.datafile.c_str(), training, TRAINING);
+
+    if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
+       ps.set_graph(VALIDATION, validation);
+       load_graph<graph_type>((ac.datafile + "e").c_str(), validation, VALIDATION);
 
        graph_type * test_graph = new graph_type();
        ps.set_graph(TEST, test_graph);
-       load_graph<graph_type>((ac.datafile + "t").c_str(), test_graph); 
+       load_graph<graph_type>((ac.datafile + "t").c_str(), test_graph, TEST); 
     } 
     
     if (ps.init_type == INIT_RANDOM_CLUSTER)
@@ -344,8 +365,11 @@ void start(command_line_options & clopts) {
 
   
   ps.iiter--; 
- 
-  ps.g<graph_type>()->finalize();  
+
+  testtype type = TRAINING;
+  if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN)
+     type = VALIDATION; 
+  ps.g<graph_type>(type)->finalize();  
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
     switch(ps.algorithm){
