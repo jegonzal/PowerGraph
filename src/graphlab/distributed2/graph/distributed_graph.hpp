@@ -1319,6 +1319,10 @@ namespace graphlab {
     uint64_t get_owned_scope_dirty_bloom_filter(vertex_id_type vid);
     void receive_external_update(const std::string &s);
   
+    
+    void push_modified_ghosts_in_scope_to_owner(vertex_id_type vid);
+    
+    
     /** Called from the owner side to synchronize the owner against ghosts. 
      * Pushes an owned vertex to all ghosts.
      */

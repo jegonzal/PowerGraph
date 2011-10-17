@@ -237,8 +237,6 @@ void init(){
 
    case K_MEANS_PLUS_PLUS:
    case LDA:
-   case ITEM_KNN:
-   case USER_KNN:  
     break;
 
 
@@ -280,19 +278,9 @@ void start(command_line_options & clopts) {
   printf("loading data file %s\n", ac.datafile.c_str());
   if (!ac.manualgraphsetup){
   if (!ac.loadgraph){
-    ps.set_graph(TRAINING, &glcore.graph());
+    ps.set_graph(&glcore.graph());
     load_graph<graph_type>(ac.datafile.c_str(), &glcore.graph());
 
-    if (ac.algorithm == ITEM_KNN){
-       graph_type * validation_graph = new graph_type();
-       ps.set_graph(VALIDATION, validation_graph);
-       load_graph<graph_type>((ac.datafile + "e").c_str(), validation_graph);
-
-       graph_type * test_graph = new graph_type();
-       ps.set_graph(TEST, test_graph);
-       load_graph<graph_type>((ac.datafile + "t").c_str(), test_graph); 
-    } 
-    
     if (ps.init_type == INIT_RANDOM_CLUSTER)
        init_random_cluster();
 
@@ -371,20 +359,11 @@ void start(command_line_options & clopts) {
       case KSHELL_DECOMPOSITION:
         kcores_main();
         break;
-
-      case ITEM_KNN:
-      case USER_KNN:
-       knn_main();
-       break;
   }
 
 
-  if (ac.clusterdump){
-    if (ac.algorithm == LDA)
-      logstream(LOG_WARNING) << "--dumpcluster=true flag can not be used with LDA, skipping dumpcluster output" << std::endl;
-    else dumpcluster();
-  }
-
+  if (ac.clusterdump)
+     dumpcluster();
 
   //print timing counters
   for (int i=0; i<MAX_COUNTER; i++){
@@ -432,8 +411,6 @@ int do_main(int argc, const char *argv[]){
     case K_MEANS_PLUS_PLUS:
     case K_MEANS_FUZZY:
     case LDA: 
-    case ITEM_KNN:
-    case USER_KNN:
        start<gl_types::core, graph_type>(clopts);
        break;
 

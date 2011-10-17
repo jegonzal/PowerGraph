@@ -93,6 +93,17 @@ namespace graphlab {
       m_mutex.unlock();
     }
 
+    //! Add an element to the blocking queue
+    inline void enqueue_to_head(const T& elem) {
+      m_mutex.lock();
+      m_queue.push_front(elem);
+      // Signal threads waiting on the queue
+      if (sleeping) m_conditional.signal();
+      m_mutex.unlock();
+    }
+
+
+
     inline void enqueue_conditional_signal(const T& elem, size_t signal_at_size) {
       m_mutex.lock();
       m_queue.push_back(elem);
@@ -188,6 +199,32 @@ namespace graphlab {
       return success; 
     }
 
+
+    /// Returns immediately of queue size is >= immedeiate_size
+    /// Otherwise, it will poll over 'ns' nanoseconds or on a signal
+    /// until queue is not empty.
+    inline bool try_timed_wait_for_data(size_t ns, size_t immediate_size) {
+      m_mutex.lock();
+      bool success = false;
+      // Wait while the queue is empty and this queue is alive
+      if (m_queue.size() < immediate_size) {
+        if (m_queue.empty() && m_alive) {
+          sleeping++;
+          m_conditional.timedwait_ns(m_mutex, ns);
+          sleeping--;
+        }
+      }
+      // An element has been added or a signal was raised
+      if(!m_queue.empty()) {
+        success = true;
+      }
+      m_mutex.unlock();
+
+      return success; 
+    }
+
+
+
     inline bool wait_for_data() {
 
       m_mutex.lock();
@@ -247,6 +284,7 @@ namespace graphlab {
     * returns [item, false] otherwise.
     */
     inline std::pair<T, bool> try_dequeue() {
+      if (m_queue.empty() || m_alive == false) return std::make_pair(T(), false);
       m_mutex.lock();
       T elem = T();
       // Wait while the queue is empty and this queue is alive
