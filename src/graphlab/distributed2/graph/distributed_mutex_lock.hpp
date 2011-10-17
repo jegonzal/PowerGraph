@@ -39,7 +39,7 @@ namespace graphlab {
 
   // #define COMPILER_WRITE_BARRIER asm volatile("":::"memory")
 #define COMPILER_WRITE_BARRIER
-  //#define DISTRIBUTED_LOCK_DEBUG
+//  #define DISTRIBUTED_LOCK_DEBUG
   /**
 
      The locking implementation is basically two families of continuations.
@@ -265,7 +265,7 @@ namespace graphlab {
       typename lazy_deque<scopelock_cont_params>::value_type* 
         ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);    
 #ifdef DISTRIBUTED_LOCK_DEBUG    
-      logstream(LOG_DEBUG) << "Receiving successful remote lock of " << ptr->first.globalvid << std::endl;
+      logstream(LOG_DEBUG) << "Receiving successful remote lock of " << ptr->first.globalvid << ": " << params.num_syncs_pending.value << std::endl;
 #endif
       continue_scope_lock(ptr, num_unsent_syncs);
     }
@@ -284,6 +284,9 @@ namespace graphlab {
         ptr = (typename lazy_deque<scopelock_cont_params>::value_type*)(scope_continuation_ptr);    
         scopelock_cont_params& params = ptr->first;
         dgraph.receive_external_update(data);
+ #ifdef DISTRIBUTED_LOCK_DEBUG    
+      logstream(LOG_DEBUG) << "Sync of " << ptr->first.globalvid << ": " << params.num_syncs_pending.value - 1 << std::endl;
+#endif
         
         if (params.num_syncs_pending.dec() == 0) {
           
@@ -302,7 +305,7 @@ namespace graphlab {
       scopelock_cont_params& params = ptr->first;
       // check if I need to actually lock my replicas
       // do not need to if the adjacent lock type is no lock
-      if (adjacent_vertex_lock_type(params.scopetype) != scope_range::NO_LOCK) {
+      if (1) {
         // the complicated case. I need to lock on my neighbors
 
         const fixed_dense_bitset<MAX_N_PROCS>& procs = dgraph.localvid_to_replicas(params.localvid);
@@ -326,6 +329,11 @@ namespace graphlab {
           // finish the continuation by erasing the lazy_deque entry
           // if synchronize data is set, issue one more continuation which
           // goes to a global fuctnction
+
+ #ifdef DISTRIBUTED_LOCK_DEBUG    
+      logstream(LOG_DEBUG) << "Completion of " << params.globalvid << ": " << params.num_syncs_pending.value - 1 << std::endl;
+#endif
+ 
           if (synchronize_data == false || 
               params.num_syncs_pending.dec(num_unsent_syncs) == 0) {
             
@@ -572,7 +580,7 @@ namespace graphlab {
         }
         else {
   #ifdef DISTRIBUTED_LOCK_DEBUG
-          logstream(LOG_DEBUG) << "Replying to successful remote lock of " << dgraph.local2globalvid[curv] << std::endl;
+          logstream(LOG_DEBUG) << "Replying to successful remote lock of " << dgraph.localvid_to_globalvid(params.localvid) << std::endl;
   #endif
           rmi.remote_call(params.srcproc,
                           &distributed_mutex_lock<GraphType>::partial_lock_completion,
