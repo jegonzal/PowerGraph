@@ -541,6 +541,28 @@ get_alot2(distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &r
 
 template <typename VertexData, typename EdgeData> 
 void distributed_graph<VertexData, EdgeData>::
+update_owned_data(distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &request) {
+  std::vector<vertex_conditional_store> vresponse(request.vid.size());
+  std::vector<edge_conditional_store> eresponse(request.srcdest.size());
+  for (size_t i = 0;i < request.vid.size(); ++i) {
+    if (request.vstore[i].hasdata)
+      get_vertex_if_version_less_than(request.vid[i], 
+                                      request.vidversion[i], 
+                                      request.vstore[i]);
+  }
+  for (size_t i = 0;i < request.srcdest.size(); ++i) {
+    if (request.estore[i].hasdata)
+    get_edge_if_version_less_than2(request.srcdest[i].first, 
+                                   request.srcdest[i].second, 
+                                   request.edgeversion[i], 
+                                   request.estore[i]);
+  }
+} // end of get_alot2
+
+
+
+template <typename VertexData, typename EdgeData> 
+void distributed_graph<VertexData, EdgeData>::
 async_get_alot2(procid_t srcproc,
                 distributed_graph<VertexData, EdgeData>::
                 block_synchronize_request2 &request,
@@ -1051,7 +1073,7 @@ push_modified_ghosts_in_scope_to_owner(vertex_id_type vid) {
   while(iter != requests.end()) {
     rmi.remote_call(iter->first,
 		    &distributed_graph<VertexData, EdgeData>::
-		    update_alot2,
+		    update_owned_data,
 		    iter->second.first);
     ++iter;
   }

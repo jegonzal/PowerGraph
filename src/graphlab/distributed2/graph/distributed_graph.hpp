@@ -2013,6 +2013,8 @@ namespace graphlab {
                                          std::map<procid_t, request_veciter_pair_type > &requests,
                                          bool dirtyonly = false);   
  
+  
+    update_owned_data(block_synchronize_request2 &request);
  
     /**
        Constructs the request set for a synchronization of edges
