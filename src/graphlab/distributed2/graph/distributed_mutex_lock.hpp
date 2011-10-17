@@ -130,6 +130,7 @@ namespace graphlab {
         unsigned char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
         if (synchronize_data && dgraph.on_boundary(globalvid)) {
           dgraph.push_modified_ghosts_in_scope_to_owner(globalvid);
+          //dgraph.synchronize_scope(globalvid, true);
         }
         
         // the complicated case. I need to unlock on my neighbors

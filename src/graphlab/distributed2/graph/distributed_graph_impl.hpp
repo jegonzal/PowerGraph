@@ -419,6 +419,7 @@ get_vertex_if_version_less_than(vertex_id_type vid,
   else if (local_vertex_version == vertexversion) {
     // if version is the same and there is data, store and increment the version    
     if (vdata.hasdata) {
+      //std::cout << "."; std::cout.flush();
       localstore.increment_and_update_vertex(localvid, vdata.data.first);
     }
   }
@@ -535,6 +536,27 @@ get_alot2(distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &r
   request.vidversion.clear();
   request.edgeversion.clear();
   return request;
+} // end of get_alot2
+
+
+
+template <typename VertexData, typename EdgeData> 
+void distributed_graph<VertexData, EdgeData>::
+update_owned_data(distributed_graph<VertexData, EdgeData>::block_synchronize_request2 &request) {
+  //std::cout << "u"; std::cout.flush();
+  std::vector<vertex_conditional_store> vresponse(request.vid.size());
+  std::vector<edge_conditional_store> eresponse(request.srcdest.size());
+  for (size_t i = 0;i < request.vid.size(); ++i) {
+     get_vertex_if_version_less_than(request.vid[i], 
+                                      request.vidversion[i], 
+                                      request.vstore[i]);
+  }
+  for (size_t i = 0;i < request.srcdest.size(); ++i) {
+    get_edge_if_version_less_than2(request.srcdest[i].first, 
+                                   request.srcdest[i].second, 
+                                   request.edgeversion[i], 
+                                   request.estore[i]);
+  }
 } // end of get_alot2
 
 
@@ -1042,7 +1064,7 @@ push_modified_ghosts_in_scope_to_owner(vertex_id_type vid) {
   typedef request_veciter_pair_type pair_type;
   typedef std::map<procid_t, pair_type> map_type;
   map_type requests;
-  synchronize_scope_construct_req(vid, requests, true);
+  synchronize_scope_construct_req(vid, requests);
 
   // if asynchronous, the reply goes to pending_async_updates
   typename map_type::iterator iter;
@@ -1051,7 +1073,7 @@ push_modified_ghosts_in_scope_to_owner(vertex_id_type vid) {
   while(iter != requests.end()) {
     rmi.remote_call(iter->first,
 		    &distributed_graph<VertexData, EdgeData>::
-		    update_alot2,
+		    update_owned_data,
 		    iter->second.first);
     ++iter;
   }

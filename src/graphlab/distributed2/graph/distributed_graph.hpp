@@ -737,9 +737,7 @@ namespace graphlab {
       if (localvid2owner[localvid] == rmi.procid()) {
         localstore.increment_vertex_version(localvid);
       }
-      else {    
-        localstore.set_vertex_modified(localvid, true);
-      }
+      localstore.set_vertex_modified(localvid, true);
     }
 
     void edge_is_modified(edge_id_type eid) {
@@ -748,9 +746,7 @@ namespace graphlab {
       if (localvid2owner[localtargetvid] == rmi.procid()) {
         localstore.increment_edge_version(eid);
       }
-      else {    
-        localstore.set_edge_modified(eid, true);
-      }
+      localstore.set_edge_modified(eid, true);
     }
 
     void __attribute__((__deprecated__)) vertex_clear_modified(vertex_id_type vid) {
@@ -2013,6 +2009,8 @@ namespace graphlab {
                                          std::map<procid_t, request_veciter_pair_type > &requests,
                                          bool dirtyonly = false);   
  
+  
+    void update_owned_data(block_synchronize_request2 &request);
  
     /**
        Constructs the request set for a synchronization of edges
