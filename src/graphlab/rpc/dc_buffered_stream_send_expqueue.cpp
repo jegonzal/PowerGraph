@@ -135,9 +135,14 @@ namespace graphlab {
       float t = lowres_time_seconds(); 
 
 
+
       size_t last_sent = 0;
-      size_t last_time = graphlab::lowres_time_millis();
+      graphlab::timer timer;
+      timer.start();
+      double last_time = timer.current_time();
       const size_t nanosecond_wait = 1000000;
+      const double nano2second = 1000*1000*1000;
+      const double second_wait = nanosecond_wait / nano2second;
       while (1) {
 
         bool ret = sendqueue.timed_wait_for_data(nanosecond_wait, wait_count);
@@ -156,10 +161,10 @@ namespace graphlab {
           
         }
 
-        if(graphlab::lowres_time_millis() - last_time >= (nanosecond_wait / 1000000)) {
+        if(timer.current_time() - last_time >= second_wait) {
           wait_count = (wait_count + last_sent)/2;
           last_sent = 0;
-          last_time = graphlab::lowres_time_millis();
+          last_time = timer.current_time();
         }
 
       }
