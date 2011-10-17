@@ -134,9 +134,10 @@ namespace graphlab {
     void dc_buffered_stream_send_expqueue::send_loop() {
       float t = lowres_time_seconds(); 
 
+
       size_t last_sent = 0;
       size_t last_time = graphlab::lowres_time_millis();
-      const size_t nanosecond_wait = 100000000;
+      const size_t nanosecond_wait = 1000000;
       while (1) {
 
         bool ret = sendqueue.timed_wait_for_data(nanosecond_wait, wait_count);
@@ -144,18 +145,15 @@ namespace graphlab {
         if (ret) {
           std::deque<expqueue_entry> stuff_to_send;
           sendqueue.swap(stuff_to_send);
-          if (lowres_time_seconds() - t > 100) {
-            t = lowres_time_seconds();
-            std::cout << dc->procid() << "->" << target 
-                      << " send buffer = " << stuff_to_send.size() 
-                      << "(" << wait_count << ")" << std::endl;
-        
-          }
           last_sent += stuff_to_send.size();
           write_combining_send(stuff_to_send);
-        }
-        else {
-          break;
+        } else  break;
+
+        if (lowres_time_seconds() - t > 100) {
+          t = lowres_time_seconds();
+          std::cout << dc->procid() << "->" << target << '\t'
+                    << "(" << wait_count << ")[" << last_sent << "]"  << std::endl;
+          
         }
 
         if(graphlab::lowres_time_millis() - last_time >= (nanosecond_wait / 1000000)) {
