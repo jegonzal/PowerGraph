@@ -1064,7 +1064,7 @@ push_modified_ghosts_in_scope_to_owner(vertex_id_type vid) {
   typedef request_veciter_pair_type pair_type;
   typedef std::map<procid_t, pair_type> map_type;
   map_type requests;
-  synchronize_scope_construct_req(vid, requests, true);
+  synchronize_scope_construct_req(vid, requests);
 
   // if asynchronous, the reply goes to pending_async_updates
   typename map_type::iterator iter;
