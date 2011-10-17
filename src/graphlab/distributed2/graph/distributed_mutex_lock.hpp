@@ -129,7 +129,7 @@ namespace graphlab {
     
         unsigned char prevkey = rmi.dc().set_sequentialization_key((globalvid % 254) + 1);
         if (synchronize_data && dgraph.on_boundary(globalvid)) {
-          dgraph.synchronize_scope(globalvid, true);
+          dgraph.push_modified_ghosts_in_scope_to_owner(globalvid);
         }
         
         // the complicated case. I need to unlock on my neighbors
@@ -284,8 +284,7 @@ namespace graphlab {
         scopelock_cont_params& params = ptr->first;
         dgraph.receive_external_update(data);
         
-        if (synchronize_data == false || 
-            params.num_syncs_pending.dec() == 0) {
+        if (params.num_syncs_pending.dec() == 0) {
           
           params.handler(params.globalvid);
           scopelock_lock.lock();

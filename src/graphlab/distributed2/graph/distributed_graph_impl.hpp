@@ -613,7 +613,6 @@ update_edge_data_and_version2(vertex_id_type source,
   if (estore.hasdata) {
     vertex_id_type localsourcevid = global2localvid[source];
     vertex_id_type localtargetvid = global2localvid[target];
-    ASSERT_NE(localvid2owner[localtargetvid], rmi.procid());
     std::pair<bool, edge_id_type> findret = 
       localstore.find(localsourcevid, localtargetvid);
     
@@ -636,11 +635,11 @@ void distributed_graph<VertexData, EdgeData>::
 update_alot2(distributed_graph<VertexData, EdgeData>::
              block_synchronize_request2 &request) {
   for (size_t i = 0;i < request.vid.size(); ++i) {
-    update_vertex_data_and_version(request.vid[i], request.vstore[i]);
+    if (request.vstore[i].hasdata) update_vertex_data_and_version(request.vid[i], request.vstore[i]);
   }
   
   for (size_t i = 0;i < request.srcdest.size(); ++i) {
-    update_edge_data_and_version2(request.srcdest[i].first, 
+    if (request.estore[i].hasdata) update_edge_data_and_version2(request.srcdest[i].first, 
                                   request.srcdest[i].second, request.estore[i]);
   }
 }
@@ -1035,6 +1034,29 @@ external_push_ghost_scope_to_owner(vertex_id_type vid,
     return strm.str();
   }
 }
+
+
+template <typename VertexData, typename EdgeData>
+void distributed_graph<VertexData, EdgeData>::
+push_modified_ghosts_in_scope_to_owner(vertex_id_type vid) {
+  typedef request_veciter_pair_type pair_type;
+  typedef std::map<procid_t, pair_type> map_type;
+  map_type requests;
+  synchronize_scope_construct_req(vid, requests, true);
+
+  // if asynchronous, the reply goes to pending_async_updates
+  typename map_type::iterator iter;
+  iter = requests.begin();
+  
+  while(iter != requests.end()) {
+    rmi.remote_call(iter->first,
+		    &distributed_graph<VertexData, EdgeData>::
+		    update_alot2,
+		    iter->second.first);
+    ++iter;
+  }
+}
+
 template <typename VertexData, typename EdgeData>
 void distributed_graph<VertexData, EdgeData>::receive_external_update(const std::string &s) {
   if (s.length() > 0) {
