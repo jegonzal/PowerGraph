@@ -117,6 +117,9 @@ int distance_measure;
 /* random shuffle order of execution? */
 bool shuffle;
 
+/* for KNN */
+double knn_sample_percent;
+
 bool show_version;
 
 advanced_config(){
@@ -216,6 +219,8 @@ advanced_config(){
    shuffle = false;
 
    show_version = false;
+
+   knn_sample_percent = 1.0;
  }
 
 

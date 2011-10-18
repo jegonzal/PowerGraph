@@ -34,7 +34,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in data");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in data");
   clopts.attach_option("unittest", &unittest, unittest, "unit testing. ");
-  clopts.attach_option("pmfformat", &supportgraphlabcf, supportgraphlabcf, "unit testing. ");
+  clopts.attach_option("pmfformat", &supportgraphlabcf, supportgraphlabcf, "input file of graphlab collaborative filtering library ");
   clopts.attach_option("float", &FLOAT, FLOAT, "data in float format (pmf data)"); 
   clopts.attach_option("printhighprecision", &printhighprecision, printhighprecision, "print RMSE output with high precision");
   clopts.attach_option("clusterdump", &clusterdump, clusterdump, "dump cluster locations into a text file");
@@ -43,6 +43,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("lda_inner_em_iter", &em_max_inner_iter, em_max_inner_iter, "LDA inner EM max iterations");
   clopts.attach_option("threshold", &threshold, threshold, "Convergence threshold");
   clopts.attach_option("distance_metric", &distance_measure, distance_measure, "distance metric");
+  clopts.attach_option("knn_sample_percent", &knn_sample_percent, knn_sample_percent, "knn sample percentage (0 -> 1)");
 }
 
 void problem_setup::verify_setup(){
@@ -58,4 +59,10 @@ void problem_setup::verify_setup(){
           ps.init_type = INIT_RANDOM_CLUSTER;
       }
    }
+  if (ac.knn_sample_percent != 1.0){
+     if (ps.algorithm != USER_KNN && ps.algorithm != ITEM_KNN){
+        logstream(LOG_WARNING) << "Knn sample percent has no effect" << std::endl;
+     }
+       
+  }
 }

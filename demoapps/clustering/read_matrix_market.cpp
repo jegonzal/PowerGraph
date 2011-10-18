@@ -185,6 +185,12 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
         assert(J >=0 && J< N);
         vertex_data & vdata = _g->vertex_data(I);
         set_new(vdata.datapoint,J, val);   
+
+        if (ps.algorithm == SVD_EXPERIMENTAL){
+          vertex_data & other = _g->vertex_data(J + ps.M);
+          set_new(other.datapoint, I, val);
+	  other.reported = true;
+        }
 	if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
            ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[J] += val;  
         }

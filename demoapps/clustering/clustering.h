@@ -11,8 +11,12 @@
 void knn_main();
 
 inline void print(sparse_vec & vec){
+  int cnt = 0;
   FOR_ITERATOR(i, vec){
     std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+    cnt++;
+    if (cnt >= 20)
+       break;
   }
   std::cout<<std::endl;
 }
@@ -110,7 +114,8 @@ enum runmodes{
    LDA = 3,
    KSHELL_DECOMPOSITION = 4,
    ITEM_KNN = 5,
-   USER_KNN = 6
+   USER_KNN = 6, 
+   SVD_EXPERIMENTAL = 7
 };
 
 //#define MAX_RUNMODE 1
@@ -138,7 +143,10 @@ enum countervals{
    LDA_NEWTON_METHOD=1,
    LDA_ACCUM_BETA=2,
    LDA_LIKELIHOOD=3,
-   LDA_NORMALIZE=4
+   LDA_NORMALIZE=4,
+   SVD_MULT_A=5,
+   SVD_MULT_A_TRANSPOSE=6,
+   CALC_RMSE_Q=7
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -178,6 +186,7 @@ public:
   
   mat output_clusters;
   mat output_assignements;
+  mat T; //for SVD_experimental
   int total_assigned;
 
   template<typename graph_type> graph_type* g();

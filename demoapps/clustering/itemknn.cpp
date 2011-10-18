@@ -52,7 +52,34 @@ void init_knn(){
       vertex_data & data = training->vertex_data(i);
       data.min_distance = sum_sqr(data.datapoint);
    }
+   graph_type * validation = ps.g<graph_type>(VALIDATION);
+   for (int i=0; i<ps.M_validation; i++){
+      vertex_data & data = validation->vertex_data(i);
+      data.min_distance = sum_sqr(data.datapoint);
+   }
+}
 
+
+void stats(){
+
+   double min=1e100, max=0, avg=0;
+   int cnt = 0;
+   graph_type * validation = ps.g<graph_type>(VALIDATION);
+   for (int i=0; i< ps.M_validation; i++){
+     vertex_data& data = validation->vertex_data(i);
+     if (data.distances.size() > 0){
+       min = std::min(min, data.distances[0]);
+       max = std::max(max, data.distances[0]);
+       if (isnan(data.distances[0]))
+          printf("bug: nan on %d\n", i);
+       else {
+         avg += data.distances[0];    
+         cnt++;
+       }
+     }
+   }
+
+  printf("Distance statistics: min %g max %g avg %g\n", min, max, avg/cnt);
 }
 
  /***
@@ -79,10 +106,17 @@ void knn_update_function(gl_types::iscope &scope,
 
   graphlab::timer t; t.start();
 
-  vec distances = zeros(ps.M);
-  for (int i=0; i<ps.M; i++){
-      vertex_data & other = ps.g<graph_type>(TRAINING)->vertex_data(i);
-      distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance);
+
+  vec distances = zeros(ps.M*ac.knn_sample_percent);
+  if (ac.knn_sample_percent == 1.0){
+     for (int i=0; i<ps.M*ac.knn_sample_percent; i++){
+        vertex_data & other = ps.g<graph_type>(TRAINING)->vertex_data(i);
+        distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
+     }
+  }
+  else for (int i=0; i<ps.M*ac.knn_sample_percent; i++){
+        vertex_data & other = ps.g<graph_type>(TRAINING)->vertex_data(randi(0, ps.M-1));
+        distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
   }
 
   ivec indices = sort_index(distances);
@@ -90,16 +124,20 @@ void knn_update_function(gl_types::iscope &scope,
   vdata.distances = wrap_answer(distances, indices, ps.K);
   if (toprint)
     printf("Closest is: %d with distance %g\n", (int)vdata.distances[1], vdata.distances[0]);
+
+
+  if (id % 10000 == 0)
+    printf("handling validation row %d\n", id);
 }
 
 void copy_assignments(mat &a, const vec& distances, int i){
-   for (int j=0; j<ps.K; j++){
+   for (int j=0; j<distances.size()/2; j++){
      set_val(a,j, i, distances[j*2+1]);
    }
 }
 
 void copy_distances(mat &a, const vec& distances, int i){
-   for (int j=0; j<ps.K; j++){
+   for (int j=0; j<distances.size()/2; j++){
      set_val(a,j, i, distances[j*2]);
    }
 }
@@ -124,7 +162,7 @@ void knn_main(){
     init_knn();
     ps.gt.start();
     ps.glcore->start();
-
+    stats();
     prepare_output();
 };
 

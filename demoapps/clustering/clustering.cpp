@@ -34,6 +34,8 @@
 #include "io.hpp"
 #include "../gabp/advanced_config.h"
 #include "lda.h"
+#include "lanczos.hpp"
+#include "svd.hpp"
 #ifdef OMP_SUPPORT
 #include "omp.h"
 #endif
@@ -52,9 +54,9 @@ using namespace std;
 advanced_config ac;
 problem_setup ps;
 
-const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn"};
+const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn", "SVD-EXPERIMENTAL"};
 const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER"};
-const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_ACCUM_BETA", "LDA_LIKELIHOOD", "LDA_NORMALIZE"};
+const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_ACCUM_BETA", "LDA_LIKELIHOOD", "LDA_NORMALIZE", "SVD_MULT_A", "SVD_MULT_A_TRANPOSE", "CALC_RMSE_Q"};
 
 
 /* Function declerations */ 
@@ -67,6 +69,7 @@ void tfidf_weighting();
 void plus_mul(vec& v1, sparse_vec &v2, double factor);
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler);
 void kcores_main();
+//void init_lanczos();
 void knn_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler);
  
@@ -181,7 +184,10 @@ void add_tasks(gl_types::core & glcore){
        glcore.add_tasks(um, knn_update_function, 1);
        break;
 
-     default: assert(false);
+     case SVD_EXPERIMENTAL:
+       break;
+
+      default: assert(false);
   }
 }
 
@@ -258,6 +264,9 @@ void init(){
 
    case KSHELL_DECOMPOSITION:
      break; 
+
+   case SVD_EXPERIMENTAL:
+     break;
   }
 }
 
@@ -400,6 +409,11 @@ void start(command_line_options & clopts) {
       case USER_KNN:
        knn_main();
        break;
+
+
+      case SVD_EXPERIMENTAL:
+       svd(glcore);
+       break;
   }
 
 
@@ -458,6 +472,7 @@ int do_main(int argc, const char *argv[]){
     case LDA: 
     case ITEM_KNN:
     case USER_KNN:
+    case SVD_EXPERIMENTAL:
        start<gl_types::core, graph_type>(clopts);
        break;
 

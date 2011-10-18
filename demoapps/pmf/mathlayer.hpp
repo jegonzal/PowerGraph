@@ -226,6 +226,9 @@ inline vec elem_mult(const vec&a, const vec&b){
       ret(i) *= b(i);
    return ret;
 }
+inline sparse_vec elem_mult(const sparse_vec&a, const sparse_vec&b){
+   return a.cwiseProduct(b);
+}
 inline double sum(const vec & a){
   return a.sum();
 }
@@ -510,6 +513,13 @@ inline double abs_sum(const vec &v){
       sum += fabs(v(i));
   return sum;
 }
+inline double sum(const sparse_vec &v){
+  double sum =0;
+  FOR_ITERATOR(i, v){
+      sum += i.value();
+  }
+  return sum;
+}
 inline vec sqrt(vec & v){
    vec ret(v.size());
    for (int i=0; i< v.size(); i++){
@@ -691,6 +701,14 @@ inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
   }
   eigenvectors = reverse_cols;
   return true;
+}
+
+inline double sum_sqr(sparse_vec & v){
+  double sum = 0;
+  FOR_ITERATOR(i, v){
+     sum+= powf(v.get_nz_data(i),2);
+  }
+  return sum;
 }
 #endif
 

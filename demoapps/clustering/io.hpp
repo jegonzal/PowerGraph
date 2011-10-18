@@ -44,7 +44,7 @@ int read_edges(FILE * f, int nodes, graph_type_kcores * _g);
 
 void fill_output(graph_type * g){
   
-   if (ac.algorithm == LDA || ac.algorithm == USER_KNN || ac.algorithm == ITEM_KNN)
+   if (ac.algorithm == LDA || ac.algorithm == USER_KNN || ac.algorithm == ITEM_KNN || ac.algorithm == SVD_EXPERIMENTAL)
 	return;
   
    ps.output_clusters = zeros(ps.K, ps.N);
@@ -104,6 +104,7 @@ void export_to_binary_file(){
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(),ps.K);
+  logstream(LOG_INFO)<<"Writing binary output file: " << dfile << std::endl;
   FILE * f = fopen(dfile, "w");
   assert(f!= NULL);
 
@@ -174,6 +175,9 @@ void add_vertices(graph_type * _g, testtype type){
   assert(ps.K > 0);
   vertex_data vdata;
   int howmany = ps.M;
+  if (ps.algorithm == SVD_EXPERIMENTAL)
+     howmany = ps.M+ps.N;
+
   if (type == VALIDATION)
     howmany = ps.M_validation;
   else if (type == TEST)
@@ -196,7 +200,7 @@ void add_vertices(graph_type * _g, testtype type){
 	 break;
     }
 
-    set_size(vdata.datapoint, ps.N);
+    set_size(vdata.datapoint, i < ps.M ? ps.N : ps.M);
     if (ps.algorithm == K_MEANS_FUZZY)
 	vdata.distances = zeros(ps.K);
 
@@ -248,7 +252,7 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
         }
         if (type == TEST)
             return;
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
+	logstream(LOG_ERROR) << " can not find input file " << filename << ". aborting " << std::endl;
 	exit(1);
   }
 
@@ -378,7 +382,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
     total += rc;
 
     //go over each rating (edges)
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int i=0; i<rc; i++){
       if (!ac.zero) //usually we do not allow zero entries, unless --zero=true flag is set.
 	 assert(ed[i].weight != 0); 
@@ -398,6 +402,12 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
    for (int i=0; i<rc; i++){ 
      vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
       set_new( vdata.datapoint, ed[i].to - matlab_offset, ed[i].weight);  
+      if (ps.algorithm == SVD_EXPERIMENTAL){
+          vertex_data & other = _g->vertex_data(ed[i].to - matlab_offset + ps.M);
+          set_new( other.datapoint, ed[i].to - matlab_offset, ed[i].weight);
+          other.reported = true;
+      }
+
       if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
       }

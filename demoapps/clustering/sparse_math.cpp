@@ -42,17 +42,6 @@ double max( sparse_vec & dvec){
   }
   return dmax;
 }
-double sum_sqr( sparse_vec & dvec){
- 
-  double sum = 0;
-
-  FOR_ITERATOR(i, dvec){
-     sum += (get_nz_data(dvec, i)*get_nz_data(dvec, i));
-  }
-  return sum;
-}
-
-
 void plus_mul( vec &v1,  sparse_vec &v2, double factor){
   FOR_ITERATOR(i, v2){  
     v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
