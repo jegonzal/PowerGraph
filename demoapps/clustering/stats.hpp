@@ -26,14 +26,11 @@
 #ifndef _STATS_HPP
 #define _STATS_HPP
 
+#include "clustering.h"
 #include <graphlab/macros_def.hpp>
 
 extern advanced_config ac;
 extern problem_setup ps;
-
-double min(sparse_vec & dvec);
-double max(sparse_vec & dvec);
-double sum(sparse_vec & dvec);
 
 // calc statistics about matrix/tensor and exit  
 void calc_stats(){

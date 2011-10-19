@@ -46,7 +46,7 @@ void init_fuzzy_kmeans(){
   graph_type * g= ps.g<graph_type>();
   for (int i=0; i< ps.M; i++){
      vertex_data & vdata = g->vertex_data(i);
-     vdata.distances = randu(ac.K);
+     vdata.distances = _randu(ac.K);
      vdata.distances /= sum(vdata.distances);
      if (ac.debug)
        std::cout<<"Initial assignment of " << i << " is: " << vdata.distances << std::endl;
@@ -90,7 +90,7 @@ void kmeans_update_function(gl_types::iscope &scope,
   }
 
   for (int i=0; i< end_cluster; i++){
-     vec & row = ps.clusts.cluster_vec[i].location;
+     flt_dbl_vec & row = ps.clusts.cluster_vec[i].location;
      if (toprint)
         std::cout<<" cluster " << i << " location " << row << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr, sum_sqr(vdata.datapoint));
@@ -130,9 +130,9 @@ void kmeans_update_function(gl_types::iscope &scope,
  * distance(j) = u(i,j)
  * */
   else if (ps.algorithm == K_MEANS_FUZZY){
-     vec old_distance = vdata.distances;
-     double factor = sum(pow(vdata.distances,-2));
-     vec normalized = pow(vdata.distances,-2) / factor;
+     flt_dbl_vec old_distance = vdata.distances;
+     flt_dbl factor = sum(pow(vdata.distances,-2));
+     flt_dbl_vec normalized = pow(vdata.distances,-2) / factor;
      vdata.distances = pow(normalized, 2);
      if (toprint)
          std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;

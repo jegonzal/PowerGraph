@@ -122,6 +122,8 @@ double knn_sample_percent;
 
 bool show_version;
 
+bool reduce_mem_consumption;
+
 advanced_config(){
     D = 20;
     K = 0;
@@ -221,6 +223,7 @@ advanced_config(){
    show_version = false;
 
    knn_sample_percent = 1.0;
+   reduce_mem_consumption = false;
  }
 
 

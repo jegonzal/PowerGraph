@@ -47,6 +47,10 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       ac.K = 3;
    
    }
+   else if (unittest == 4){
+     test_fmath();
+     exit(0);
+   }
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);

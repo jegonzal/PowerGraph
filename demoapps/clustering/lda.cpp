@@ -249,7 +249,7 @@ void fill_output_lda(){
      //
      ps.output_assignements = zeros(ps.M, ac.K);
      for (int i=0; i< ps.M; i++){ 
-        vec row(ac.K);
+        flt_dbl_vec row(ac.K);
         for (int j=0; j< ac.K; j++)
            row[j] = gammas[i][j];
         set_row(ps.output_assignements,i,row);

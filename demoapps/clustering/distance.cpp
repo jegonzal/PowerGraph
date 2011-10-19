@@ -5,26 +5,26 @@
 extern advanced_config ac;
 const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TONIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
 
-sparse_vec minus(sparse_vec & dvec1, sparse_vec & dvec2);
-vec minus(sparse_vec & dvec1, vec & dvec2);
-double sum_sqr(sparse_vec & dvec1);
-sparse_vec fabs(sparse_vec& dvec1);
-double sum(sparse_vec & dvec);
+sparse_flt_dbl_vec minus(sparse_flt_dbl_vec & dvec1, sparse_flt_dbl_vec & dvec2);
+vec minus(sparse_flt_dbl_vec & dvec1, vec & dvec2);
+flt_dbl sum_sqr(sparse_flt_dbl_vec & dvec1);
+sparse_flt_dbl_vec fabs(sparse_flt_dbl_vec& dvec1);
+flt_dbl sum(sparse_flt_dbl_vec & dvec);
 
-double calc_euclidian_distance( sparse_vec & datapoint,  sparse_vec &cluster, double sqr_sum, double sqr_sum0){
-  //sparse_vec diff = minus(datapoint , cluster);
+flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+  //sparse_flt_dbl_vec diff = minus(datapoint , cluster);
   //return sqrt(sum_sqr(diff));
-  sparse_vec mult = elem_mult(datapoint, cluster);
-  double diff = (sqr_sum + sqr_sum0 - 2*sum(mult));
+  sparse_flt_dbl_vec mult = elem_mult(datapoint, cluster);
+  flt_dbl diff = (sqr_sum + sqr_sum0 - 2*sum(mult));
   return sqrt(fabs(diff)); //because of numerical errors, diff may be negative
 }
 
 
-double calc_euclidian_distance( sparse_vec & datapoint,  vec &cluster, double sqr_sum, double sqr_sum0){
-  double dist = sqr_sum + sqr_sum0;
+flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+  flt_dbl dist = sqr_sum + sqr_sum0;
   //for (int i=0; i< datapoint.nnz(); i++){
   FOR_ITERATOR(i, datapoint){
-      double val = get_nz_data(datapoint, i);
+      flt_dbl val = get_nz_data(datapoint, i);
       int pos = get_nz_index(datapoint, i);
       dist -= 2*val*cluster[pos];
    }
@@ -33,53 +33,53 @@ double calc_euclidian_distance( sparse_vec & datapoint,  vec &cluster, double sq
   return sqrt(dist);
 }
 
-double calc_chebychev_distance( sparse_vec & datapoint,  sparse_vec &cluster){
-   sparse_vec diff = minus(datapoint , cluster);
-   double ret = 0;
+flt_dbl calc_chebychev_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster){
+   sparse_flt_dbl_vec diff = minus(datapoint , cluster);
+   flt_dbl ret = 0;
    FOR_ITERATOR(i, diff){
-      ret = std::max(ret, fabs(get_nz_data(diff, i)));
+      ret = std::max(ret, (flt_dbl)fabs(get_nz_data(diff, i)));
    }
    return ret;
 
 }
-double calc_chebychev_distance( sparse_vec & datapoint,  vec &cluster){
-   vec diff = minus(datapoint , cluster);
-   double ret = 0;
+flt_dbl calc_chebychev_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster){
+   flt_dbl_vec diff = minus(datapoint , cluster);
+   flt_dbl ret = 0;
    for (int i=0; i< diff.size(); i++)
-      ret = std::max(ret, fabs(diff[i]));
+      ret = std::max(ret, (flt_dbl)fabs(diff[i]));
 
    return ret;
 
 }
 
-double calc_manhatten_distance( sparse_vec & datapoint,  sparse_vec &cluster){
-   sparse_vec diff = minus(datapoint , cluster);
-   sparse_vec absvec = fabs(diff);
-   double ret = sum(absvec);
+flt_dbl calc_manhatten_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster){
+   sparse_flt_dbl_vec diff = minus(datapoint , cluster);
+   sparse_flt_dbl_vec absvec = fabs(diff);
+   flt_dbl ret = sum(absvec);
    return ret;
 
 }
-double calc_manhatten_distance( sparse_vec & datapoint,  vec &cluster){
-   vec diff = minus(datapoint , cluster);
-   double ret = sum(abs(diff));
+flt_dbl calc_manhatten_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster){
+   flt_dbl_vec diff = minus(datapoint , cluster);
+   flt_dbl ret = sum(fabs(diff));
    return ret;
 
 }
 
-double calc_cosine_distance( sparse_vec & datapoint,  sparse_vec & cluster, double sum_sqr, double sum_sqr0){
-   double dotprod = dot_prod(datapoint,cluster);
-   double denominator = sqrt(sum_sqr0)*sqrt(sum_sqr);
+flt_dbl calc_cosine_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec & cluster, flt_dbl sum_sqr, flt_dbl sum_sqr0){
+   flt_dbl dotprod = dot_prod(datapoint,cluster);
+   flt_dbl denominator = sqrt(sum_sqr0)*sqrt(sum_sqr);
    return 1.0 - dotprod / denominator; 
 }
 
-double calc_cosine_distance( sparse_vec & datapoint,  vec & cluster, double sum_sqr, double sum_sqr0){
-   double dotprod = dot_prod(datapoint,cluster);
-   double denominator = sqrt(sum_sqr0)*sqrt(sum_sqr);
+flt_dbl calc_cosine_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec & cluster, flt_dbl sum_sqr, flt_dbl sum_sqr0){
+   flt_dbl dotprod = dot_prod(datapoint,cluster);
+   flt_dbl denominator = sqrt(sum_sqr0)*sqrt(sum_sqr);
    return 1.0 - dotprod / denominator; 
 }
 
 
-double calc_distance(sparse_vec &datapoint,  sparse_vec & cluster, double sqr_sum, double sqr_sum0){
+flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
    switch(ac.distance_measure){
       case EUCLIDEAN:          
           return calc_euclidian_distance(datapoint, cluster, sqr_sum, sqr_sum0);
@@ -100,7 +100,7 @@ double calc_distance(sparse_vec &datapoint,  sparse_vec & cluster, double sqr_su
 }
 
 
-double calc_distance(sparse_vec &datapoint,  vec & cluster, double sqr_sum, double sqr_sum0){
+flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
    switch(ac.distance_measure){
       case EUCLIDEAN:          
           return calc_euclidian_distance(datapoint, cluster, sqr_sum, sqr_sum0);
@@ -137,18 +137,18 @@ v3 =
  *
  * */
 void test_distance(){
-  sparse_vec v1;
+  sparse_flt_dbl_vec v1;
   set_size(v1, 5);
   set_new(v1,1,1.0);
   set_new(v1,2,-3.5);
 
-  sparse_vec v3;
+  sparse_flt_dbl_vec v3;
   set_size(v3, 5);
   set_new(v3,1,0.5);
   set_new(v3,3,4);
-  vec v2 = init_vec("1 2 3 4 5", 5);
+  flt_dbl_vec v2 = init_vec("1 2 3 4 5", 5);
   ac.distance_measure = EUCLIDEAN;
-  double ret = calc_distance(v1, v2, sum_sqr(v2), sum_sqr(v1));
+  flt_dbl ret = calc_distance(v1, v2, sum_sqr(v2), sum_sqr(v1));
   assert(powf(ret - 9.233092656309694,2) < 1e-10);
 
   ret = calc_distance(v1, v1, sum_sqr(v1), sum_sqr(v1));

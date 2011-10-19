@@ -6,11 +6,34 @@
 //#define NDEBUG
 #include "graphlab.hpp"
 #include "../pmf/mathlayer.hpp"
+#include "mathlayerf.hpp"
+
+//#define USE_DOUBLE
+#ifdef USE_DOUBLE
+typedef double flt_dbl;
+typedef vec flt_dbl_vec;
+typedef sparse_vec sparse_flt_dbl_vec;
+typedef mat flt_dbl_mat;
+#define _randu randu
+#define vec2fvec(a) a
+#define fvec2vec(a) a
+#define fmat2mat(a) a
+#define mat2fmat(a) a
+#else
+typedef float flt_dbl;
+typedef fvec flt_dbl_vec;
+typedef sparse_fvec sparse_flt_dbl_vec;
+typedef fmat flt_dbl_mat;
+#define init_vec init_fvec
+#define _randu frandu
+#define zeros fzeros
+#endif
+
 #include "kcores.h"
 
 void knn_main();
 
-inline void print(sparse_vec & vec){
+inline void print(sparse_flt_dbl_vec & vec){
   int cnt = 0;
   FOR_ITERATOR(i, vec){
     std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
@@ -50,13 +73,13 @@ struct edge_double_cf{
 
 /** Vertex and edge data types **/
 struct vertex_data {
-  sparse_vec datapoint;
+  sparse_flt_dbl_vec datapoint;
   int current_cluster;
   int prev_cluster;
-  float min_distance;
+  flt_dbl min_distance;
   bool reported;
   bool hot;
-  vec distances;
+  flt_dbl_vec distances;
   bool clusterhead;
 
   //constructor
@@ -90,9 +113,9 @@ struct edge_data {
 
 
 struct cluster{
-  vec location;
+  flt_dbl_vec location;
   int num_assigned_points;
-  vec cur_sum_of_points;
+  flt_dbl_vec cur_sum_of_points;
   double sum_sqr;
   cluster(){
     num_assigned_points = 0;
@@ -184,9 +207,9 @@ public:
   graph_type * validation_graph;
   graph_type_kcores* g_kcores;
   
-  mat output_clusters;
-  mat output_assignements;
-  mat T; //for SVD_experimental
+  flt_dbl_mat output_clusters;
+  flt_dbl_mat output_assignements;
+  flt_dbl_mat T; //for SVD_experimental
   int total_assigned;
 
   template<typename graph_type> graph_type* g();
@@ -254,6 +277,7 @@ void load_matrix_market(const char * filename, graph_type_kcores * _g, testtype 
 void save_matrix_market_format(const char * filename);
 
 void test_math();
+void test_fmath();
 
 void lda_main();
 #endif

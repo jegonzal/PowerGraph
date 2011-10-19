@@ -66,7 +66,7 @@ void initialize_clusters(gl_types::core & glcore);
 void initialize_clusters(gl_types_kcores::core & glcore){ assert(false); }
 void dumpcluster();
 void tfidf_weighting();
-void plus_mul(vec& v1, sparse_vec &v2, double factor);
+void plus_mul(flt_dbl_vec& v1, sparse_flt_dbl_vec &v2, flt_dbl factor);
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler);
 void kcores_main();
 //void init_lanczos();
@@ -114,7 +114,7 @@ int calc_cluster_centers(){
 	       assert(false);
           }
           else {
-              ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / ps.clusts.cluster_vec[i].num_assigned_points;
+              ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / (flt_dbl)ps.clusts.cluster_vec[i].num_assigned_points;
               ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
           }
           if (ac.debug)
@@ -229,7 +229,7 @@ void init_random_cluster(){
        int tries = 0;
        while(true){
         ::plus(ps.clusts.cluster_vec[i].location,  ps.g<graph_type>()->vertex_data(randi(0, ps.M-1)).datapoint);
-  	 if (sum(abs(ps.clusts.cluster_vec[i].location))>0){	
+  	 if (abs_sum(ps.clusts.cluster_vec[i].location) > 0.0){	
             if (ac.debug)
               std::cout<<"Selected random cluster: " << i << " to be: " << ps.clusts.cluster_vec[i].location << std::endl;
             break;

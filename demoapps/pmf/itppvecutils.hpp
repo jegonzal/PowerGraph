@@ -69,20 +69,5 @@ inline iarchive& operator>> <itpp::Mat<double> > (iarchive& arc, itpp::Mat<doubl
 
 };
 
-inline void debug_print_vec(const char * name,const vec& _vec, int len){
-  printf("%s ) ", name);
-  for (int i=0; i< len; i++)
-    if (_vec[i] == 0)
-      printf("      0    ");
-    else printf("%12.4g    ", _vec[i]);
-  printf("\n");
-}
-
-inline void dot2(const vec&  x1, const vec& x3, mat & Q, int j, int len){
-	for (int i=0; i< len; i++){
-		Q.set(i,j,(x1[i] * x3[i]));
-	}
-}
-
 
 #endif //_ITPP_VEC_UTILS_H

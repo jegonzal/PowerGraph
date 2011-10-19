@@ -33,6 +33,7 @@ extern advanced_config ac;
 extern problem_setup ps;
 
 void init();
+void compact(graph_type *g);
 void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype type)
 {
     int ret_code;
@@ -204,6 +205,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     ps.L = nz;
     fclose(f);
 
+
+    if (ac.reduce_mem_consumption)
+      compact(_g);
 }
 
 void save_matrix_market_format(const char * filename)

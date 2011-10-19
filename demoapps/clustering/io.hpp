@@ -61,8 +61,8 @@ void fill_output(graph_type * g){
           set_val( ps.output_assignements, i,0, data.current_cluster);
         } 
 	else if (ac.algorithm == K_MEANS_FUZZY){
-           double factor = sum(pow(data.distances,-2));
-           vec normalized = pow(data.distances,-2) / factor;
+           flt_dbl factor = sum(pow(data.distances,-2));
+           flt_dbl_vec normalized = pow(data.distances,-2) / factor;
            set_row(ps.output_assignements, i, normalized);
         }
      }
@@ -83,6 +83,12 @@ void fill_output(graph_type_kcores * g){
 void write_vec(FILE * f, int len, const double * array){
   assert(f != NULL && array != NULL);
   fwrite(array, len, sizeof(double), f);
+}
+
+//write an output vector to file
+void write_vec(FILE * f, int len, const float * array){
+  assert(f != NULL && array != NULL);
+  fwrite(array, len, sizeof(float), f);
 }
 
 
@@ -131,9 +137,9 @@ void export_to_itpp_file(){
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
   it_file output(dfile);
   output << Name("Clusters");
-  output << ps.output_clusters;
+  output << fmat2mat(ps.output_clusters);
   output << Name("Assignments");
-  output << ps.output_assignements;
+  output << fmat2mat(ps.output_assignements);
   output.close();
 }
 
@@ -167,7 +173,7 @@ void import_from_file(){
     data.current_cluster = assignments[i]; 
  }
  for (int i=0; i<ps.K; i++){
-    ps.clusts.cluster_vec[i].location = get_row(clusters,i);
+    ps.clusts.cluster_vec[i].location = vec2fvec(get_row(clusters,i));
  }
 }
 
@@ -221,6 +227,16 @@ void add_vertices(graph_type_kcores * _g, testtype type){
   
 }
 
+void compact(graph_type_kcores *_g){
+}
+
+void compact(graph_type *_g){
+   for (int i=0; i< (int)_g->num_vertices(); i++){
+      compact(_g->vertex_data(i).datapoint);
+   }
+
+
+}
 
 /* function that reads the problem from file */
 /* Input format is:
@@ -299,6 +315,9 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
     else val = read_edges<edge_double_cf>(f,ps.N,_g);
   }
   assert(val == ps.L);
+
+  if (ac.reduce_mem_consumption)
+    compact(_g);
 
   fclose(f);
 }

@@ -49,7 +49,7 @@ using namespace Eigen;
 typedef MatrixXd mat;
 typedef VectorXd vec;
 typedef VectorXi ivec;
-typedef SparseVector<double> sparse_vec;
+typedef SparseVector<float> sparse_vec;
 
 mat randn1(int dx, int dy, int col);
 
@@ -541,6 +541,13 @@ inline vec sqrt(vec & v){
 #include "itppvecutils.hpp"
 using namespace itpp;
 
+//#undef sparse_vec
+//typedef Sparse_Vec<float> sparse_vec;
+
+inline void compact(sparse_vec & a){
+  //TODO
+}
+
 inline void set_val(mat& A, int row, int col, double val){
   A.set(row, col, val);
 }
@@ -566,6 +573,9 @@ inline mat init_mat(const char * string, int row, int col){
   return mat(string);
 }
 inline vec init_vec(const char * string, int size){
+  return vec(string);
+}
+inline vec init_dbl_vec(const char * string, int size){
   return vec(string);
 }
 inline vec head(const vec &v, int num){
@@ -707,6 +717,71 @@ inline double sum_sqr(sparse_vec & v){
   double sum = 0;
   FOR_ITERATOR(i, v){
      sum+= powf(v.get_nz_data(i),2);
+  }
+  return sum;
+}
+inline void debug_print_vec(const char * name,const vec& _vec, int len){
+  printf("%s ) ", name);
+  for (int i=0; i< len; i++)
+    if (_vec[i] == 0)
+      printf("      0    ");
+    else printf("%12.4g    ", _vec[i]);
+  printf("\n");
+}
+
+inline void dot2(const vec&  x1, const vec& x3, mat & Q, int j, int len){
+	for (int i=0; i< len; i++){
+		Q.set(i,j,(x1[i] * x3[i]));
+	}
+}
+inline void assign(vec & v1, sparse_vec & v2, int N){
+  v1 = zeros(N);
+  FOR_ITERATOR(i, v2){
+     v1[get_nz_index(v2, i)] = get_nz_data(v2, i);
+  }
+
+}
+
+inline double get(sparse_vec & v1, int pos){
+  FOR_ITERATOR(i, v1){
+     if (get_nz_index(v1, i) < pos)
+	continue;
+     else if (get_nz_index(v1, i) > pos)
+	break;
+     else if (get_nz_index(v1, i) == pos)
+	return get_nz_data(v1, i);
+  }
+  return 0;
+}
+
+
+inline double min( sparse_vec & dvec){
+ 
+  double dmin = 1e100;
+  FOR_ITERATOR(i, dvec){
+     dmin = std::min(dmin, get_nz_data(dvec, i));
+  }
+  return dmin;
+}
+
+inline double max( sparse_vec & dvec){
+ 
+  double dmax = -1e100;
+  FOR_ITERATOR(i, dvec){
+     dmax = std::max(dmax, get_nz_data(dvec, i));
+  }
+  return dmax;
+}
+inline void plus_mul( vec &v1,  sparse_vec &v2, double factor){
+  FOR_ITERATOR(i, v2){  
+    v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
+  }
+}
+
+inline double sum( sparse_vec & dvec){
+  double sum = 0;
+  FOR_ITERATOR(i, dvec){
+     sum += get_nz_data(dvec, i);
   }
   return sum;
 }

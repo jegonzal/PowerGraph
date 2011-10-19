@@ -33,8 +33,8 @@ extern problem_setup ps;
 extern const char * runmodesname[];
 double sum_sqr(sparse_vec & v);
 
-vec wrap_answer(const vec& distances, const ivec& indices, int num){
-   vec ret = zeros(num*2);
+flt_dbl_vec wrap_answer(const flt_dbl_vec& distances, const ivec& indices, int num){
+   flt_dbl_vec ret = zeros(num*2);
    for (int i=0; i< num; i++){
       ret[2*i] = distances[i];
       ret[2*i+1] = indices[i];
@@ -62,7 +62,7 @@ void init_knn(){
 
 void stats(){
 
-   double min=1e100, max=0, avg=0;
+   flt_dbl min=1e100, max=0, avg=0;
    int cnt = 0;
    graph_type * validation = ps.g<graph_type>(VALIDATION);
    for (int i=0; i< ps.M_validation; i++){
@@ -107,7 +107,7 @@ void knn_update_function(gl_types::iscope &scope,
   graphlab::timer t; t.start();
 
 
-  vec distances = zeros(ps.M*ac.knn_sample_percent);
+  flt_dbl_vec distances = zeros(ps.M*ac.knn_sample_percent);
   if (ac.knn_sample_percent == 1.0){
      for (int i=0; i<ps.M*ac.knn_sample_percent; i++){
         vertex_data & other = ps.g<graph_type>(TRAINING)->vertex_data(i);
@@ -130,13 +130,13 @@ void knn_update_function(gl_types::iscope &scope,
     printf("handling validation row %d\n", id);
 }
 
-void copy_assignments(mat &a, const vec& distances, int i){
+void copy_assignments(flt_dbl_mat &a, const flt_dbl_vec& distances, int i){
    for (int j=0; j<distances.size()/2; j++){
      set_val(a,j, i, distances[j*2+1]);
    }
 }
 
-void copy_distances(mat &a, const vec& distances, int i){
+void copy_distances(flt_dbl_mat &a, const flt_dbl_vec& distances, int i){
    for (int j=0; j<distances.size()/2; j++){
      set_val(a,j, i, distances[j*2]);
    }
