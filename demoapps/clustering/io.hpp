@@ -90,6 +90,19 @@ void write_vec(FILE * f, int len, const float * array){
   assert(f != NULL && array != NULL);
   fwrite(array, len, sizeof(float), f);
 }
+//write an output vector to file
+void read_vec(FILE * f, int len, double * array){
+  assert(f != NULL && array != NULL);
+  fread(array, len, sizeof(double), f);
+}
+
+//write an output vector to file
+void read_vec(FILE * f, int len, float * array){
+  assert(f != NULL && array != NULL);
+  fread(array, len, sizeof(float), f);
+}
+
+
 
 
 
