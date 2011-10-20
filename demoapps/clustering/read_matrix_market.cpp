@@ -88,7 +88,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
 
     int I,J; 
     double val;
-
+    int step = nz/10;
 
     for (i=0; i<nz; i++)
     {
@@ -107,7 +107,8 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
         edge.weight = val;
         _g->add_edge(I,J, edge);
         _g->add_edge(J,I, edge);
-
+        if (i % step == 0)
+          logstream(LOG_INFO) << "Matrix market read " << i << " edges" << std::endl;
     }
     ps.L = nz;
     fclose(f);
@@ -169,7 +170,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 
     int I,J; 
     double val;
-
+    int step=nz/10;
 
     for (i=0; i<nz; i++)
     {
@@ -201,7 +202,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 	        ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
               ps.total_assigned++;//count the total number of non-zero rows we encountered
         }
-    }
+        if (i % step == 0)
+          logstream(LOG_INFO) << "Matrix market read " << i << " edges" << std::endl;
+     }
     ps.L = nz;
     fclose(f);
 
