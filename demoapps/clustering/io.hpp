@@ -82,25 +82,68 @@ void fill_output(graph_type_kcores * g){
 //write an output vector to file
 void write_vec(FILE * f, int len, const double * array){
   assert(f != NULL && array != NULL);
-  fwrite(array, len, sizeof(double), f);
+  int total = 0;
+  
+  while(true){
+    int rc = fwrite(array+total, sizeof(double), len-total, f);
+    if (rc <= 0){
+      perror("write failed");
+      exit(1);
+    }
+    total += rc;
+    if (total >= len)
+      break;
+  }
 }
 
 //write an output vector to file
 void write_vec(FILE * f, int len, const float * array){
   assert(f != NULL && array != NULL);
-  fwrite(array, len, sizeof(float), f);
+  int total = 0;
+  while(true){
+    int rc = fwrite(array + total, sizeof(float), len-total, f); 
+    if (rc<= 0){
+       perror("write failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+      break;
+  }
 }
 //write an output vector to file
 void read_vec(FILE * f, int len, double * array){
   assert(f != NULL && array != NULL);
-  fread(array, len, sizeof(double), f);
-}
+  int total = 0;
+  while(true){
+    int rc = fread(array+total, sizeof(double), len-total, f);
+    if (rc <= 0){
+       perror("read failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+       break;
 
+  }
+}
 //write an output vector to file
 void read_vec(FILE * f, int len, float * array){
   assert(f != NULL && array != NULL);
-  fread(array, len, sizeof(float), f);
+  int total = 0;
+  while(true){
+    int rc = fread(array+total, sizeof(float), len-total, f);
+    if (rc <= 0){
+       perror("read failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+       break;
+
+  }
 }
+
 
 
 
