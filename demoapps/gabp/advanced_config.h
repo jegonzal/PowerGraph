@@ -81,6 +81,7 @@ float sgd_step_dec; //step decrement size
 
 /* variables for SVD */
 int svd_iter;
+bool svd_finalize;
   
 /* variables for CG */
 bool cg_resid;
@@ -224,6 +225,8 @@ advanced_config(){
 
    knn_sample_percent = 1.0;
    reduce_mem_consumption = false;
+
+   svd_finalize=true;
  }
 
 

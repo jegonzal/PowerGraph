@@ -45,6 +45,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("distance_metric", &distance_measure, distance_measure, "distance metric");
   clopts.attach_option("knn_sample_percent", &knn_sample_percent, knn_sample_percent, "knn sample percentage (0 -> 1)");
   clopts.attach_option("reduce_mem_consumption", &reduce_mem_consumption, reduce_mem_consumption, "reduce memory consumption (potentially slower run)");
+  clopts.attach_option("svd_finalize", &svd_finalize, svd_finalize, "SVD: compute eigendecomposition at the last step");
 }
 
 void problem_setup::verify_setup(){
