@@ -617,6 +617,9 @@ inline const double * data(const vec &v){
 inline void set_size(sparse_vec &v, int size){
   v.set_size(size);
 }
+inline void set_size(mat &a, int row, int col){
+  a.set_size(row, col);
+}
 inline void set_new(sparse_vec&v, int ind, double val){
   v.set_new(ind, val);
 } 

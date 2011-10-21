@@ -159,6 +159,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 
     ps.M = M; ps.N = N; ps.K = ac.K;
 
+    if (ps.algorithm == SVD_EXPERIMENTAL && ac.reduce_mem_consumption && ac.svd_compile_eigenvectors)
+      return;
+
+
     init();
     add_vertices(_g, type); 
 

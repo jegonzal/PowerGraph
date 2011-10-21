@@ -82,7 +82,8 @@ float sgd_step_dec; //step decrement size
 /* variables for SVD */
 int svd_iter;
 bool svd_finalize;
-  
+bool svd_compile_eigenvectors;  
+
 /* variables for CG */
 bool cg_resid;
 
@@ -227,6 +228,7 @@ advanced_config(){
    reduce_mem_consumption = false;
 
    svd_finalize=true;
+   svd_compile_eigenvectors=false;
  }
 
 

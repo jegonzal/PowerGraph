@@ -115,12 +115,24 @@ void load_vec(const char * name, flt_dbl_vec & v, int size){
   fclose(pfile);
 }
 
-void end_iter(){
-   pglobal_pvec->swap = false;
+void read_lanc_alpha_beta(int size){
+  load_vec((ac.datafile + "lancalpha").c_str(), lancalpha, size);
+  load_vec((ac.datafile + "lancalpha2").c_str(), lancalpha2, size);
+  load_vec((ac.datafile + "lancbeta").c_str(), lancbeta, size);
+  load_vec((ac.datafile + "lancbeta2").c_str(), lancbeta2, size);
+}
+
+
+void write_lanc_alpha_beta(){
    save_vec((ac.datafile + "lancalpha").c_str(), lancalpha);
    save_vec((ac.datafile + "lancalpha2").c_str(),lancalpha2);
    save_vec((ac.datafile + "lancbeta").c_str(), lancbeta);
    save_vec((ac.datafile + "lancbeta2").c_str(),lancbeta2);
+}
+
+void end_iter(){
+   pglobal_pvec->swap = false;
+   write_lanc_alpha_beta();
 }
 /**
  *
@@ -516,6 +528,77 @@ mat calc_V2(){
 
 void print_w(bool rows);
 
+void extract_eigenvectors(){
+ int m = ac.iter;
+ mat T=fmat2mat(zeros(m+1,m+1));
+
+ if (ac.svd_compile_eigenvectors){
+    read_lanc_alpha_beta(m+3);
+    pglobal_pvec = new global_pvec(ps.M+ps.N);
+ }
+
+ for (int i=1; i<=m; i++){
+   set_val(T,i-1,i-1,lancalpha[i]);
+   set_val(T,i-1,i,lancbeta[i+1]);
+   set_val(T,i,i-1,lancbeta[i+1]);
+ }
+ set_val(T,m,m,lancalpha[m+1]);
+
+ vec eigenvalues; 
+ mat eigenvectors;
+ assert(::eig_sym(T, eigenvalues, eigenvectors));
+ cout << "Here are the computed eigenvalues" << endl;
+ for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
+	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
+ 
+ if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
+    mat U=calc_V()*eigenvectors;
+    save_matrix((ac.datafile + ".U").c_str(), "U", U);
+    set_size(U, 0, 0);
+ }
+ else ps.U = mat2fmat(calc_V()*eigenvectors);    
+
+ if (ac.debug && ps.U.size() < 1000)
+   cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << (calc_V()*eigenvectors) << endl << " Eigenvectors (u) are: " << eigenvectors;
+
+
+ ps.T=zeros(T.rows(),2);
+ set_col(ps.T,0,vec2fvec(eigenvalues)); 
+
+ mat T2=fmat2mat(zeros(m+1,m+1));
+ for (int i=1; i<=m; i++){
+   set_val(T2,i-1,i-1,lancalpha2[i]);
+   set_val(T2,i-1,i,lancbeta2[i+1]);
+   set_val(T2,i,i-1,lancbeta2[i+1]);
+ }
+ set_val(T2,m,m,lancalpha2[m+1]);
+  if (ac.debug && m < 100){
+    cout<<"Matrix T is: " << T << " size of T: " << T.rows() << ":" << T.cols() << endl;
+    cout<<"Matrix T2 is: " << T2 << endl;
+ }
+ 
+ vec eigenvalues2; 
+ mat eigenvectors2;
+ assert(::eig_sym(T2, eigenvalues2, eigenvectors2));
+ cout << "Here are the computed eigenvalues: other side" << endl;
+ for (int i=0; i< std::min((int)eigenvalues2.size(),20); i++)
+	cout<<"eigenvalue2 " << i << " val: " << eigenvalues2[i] << endl;
+
+ if (ac.debug && ps.V.size() < 1000)
+   cout<<"Eigen vectors2 are:" << ps.V << endl << "V is: " << (calc_V2()*eigenvectors2) << endl << " Eigenvectors (u) are: " << eigenvectors2;
+
+ if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
+    mat V = calc_V2() * eigenvectors2;
+    save_matrix((ac.datafile + ".V").c_str(), "V", V);
+    set_size(V, 0, 0);
+ }
+ else ps.V = mat2fmat(calc_V2() * eigenvectors2); 
+ 
+ set_col(ps.T,1,vec2fvec(eigenvalues2)); 
+ if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
+    save_matrix((ac.datafile + ".D").c_str(), "D", fmat2mat(ps.T));
+ }
+}
 
 template<typename core>
 void svd(core & glcore){
@@ -524,7 +607,7 @@ void svd(core & glcore){
 
 template<>
 void svd<>(gl_types::core & glcore){
-   
+  
    init_svd();
 
    std::vector<vertex_id_t> rows,cols;
@@ -593,57 +676,7 @@ void svd<>(gl_types::core & glcore){
    swap_global_pvec();
 
  if (ac.svd_finalize){ 
- int m = ac.iter;
- mat T=fmat2mat(zeros(m+1,m+1));
- for (int i=1; i<=m; i++){
-   set_val(T,i-1,i-1,lancalpha[i]);
-   set_val(T,i-1,i,lancbeta[i+1]);
-   set_val(T,i,i-1,lancbeta[i+1]);
- }
- set_val(T,m,m,lancalpha[m+1]);
-
- ps.T=zeros(T.rows(),2);
-
- mat Vectors=calc_V(); 
- vec eigenvalues; 
- mat eigenvectors;
- assert(::eig_sym(T, eigenvalues, eigenvectors));
- cout << "Here are the computed eigenvalues" << endl;
- for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
-
- ps.U=mat2fmat(Vectors*eigenvectors);
- if (ac.debug && ps.U.size() < 1000)
-   cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
-
- set_col(ps.T,0,vec2fvec(eigenvalues)); 
-
- mat T2=fmat2mat(zeros(m+1,m+1));
- for (int i=1; i<=m; i++){
-   set_val(T2,i-1,i-1,lancalpha2[i]);
-   set_val(T2,i-1,i,lancbeta2[i+1]);
-   set_val(T2,i,i-1,lancbeta2[i+1]);
- }
- set_val(T2,m,m,lancalpha2[m+1]);
-  if (ac.debug && m < 100){
-    cout<<"Matrix T is: " << T << " size of T: " << T.rows() << ":" << T.cols() << endl;
-    cout<<"Matrix T2 is: " << T2 << endl;
- }
- 
- mat Vectors2=calc_V2(); 
- vec eigenvalues2; 
- mat eigenvectors2;
- assert(::eig_sym(T2, eigenvalues2, eigenvectors2));
- cout << "Here are the computed eigenvalues: other side" << endl;
- for (int i=0; i< std::min((int)eigenvalues2.size(),20); i++)
-	cout<<"eigenvalue2 " << i << " val: " << eigenvalues2[i] << endl;
-
-
- ps.V=mat2fmat(Vectors2*eigenvectors2);
- if (ac.debug && ps.V.size() < 1000)
-   cout<<"Eigen vectors2 are:" << ps.V << endl << "V is: " << Vectors2 << endl << " Eigenvectors (u) are: " << eigenvectors2;
-
- set_col(ps.T,1,vec2fvec(eigenvalues2)); 
+   extract_eigenvectors();
  }
 
  if (ac.unittest > 0){
