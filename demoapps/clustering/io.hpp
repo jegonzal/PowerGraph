@@ -87,6 +87,10 @@ void write_vec(FILE * f, int len, const double * array){
   while(true){
     int rc = fwrite(array+total, sizeof(double), len-total, f);
     if (rc <= 0){
+      if (errno == EINTR){
+         logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
+         continue;
+      }
       perror("write failed");
       exit(1);
     }
@@ -103,6 +107,10 @@ void write_vec(FILE * f, int len, const float * array){
   while(true){
     int rc = fwrite(array + total, sizeof(float), len-total, f); 
     if (rc<= 0){
+       if (errno == EINTR){
+          logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
+          continue;
+       }
        perror("write failed");
        exit(1);
     }
