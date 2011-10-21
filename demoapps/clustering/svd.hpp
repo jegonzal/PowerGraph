@@ -93,7 +93,7 @@ flt_dbl* find_pvec(int pos, int i, vertex_data* data){
   }
 }
 void swap_global_pvec(){
-   FILE * pfile = fopen(((ac.datafile + "swap") + boost::lexical_cast<std::string>(ps.iiter)).c_str(), "wb");
+   FILE * pfile = open_file(((ac.datafile + "swap") + boost::lexical_cast<std::string>(ps.iiter)).c_str(), "wb");
    write_vec(pfile, pglobal_pvec->size, pglobal_pvec->pvec[0]);
    fclose(pfile); 
    memcpy(pglobal_pvec->pvec[0], pglobal_pvec->pvec[1], pglobal_pvec->size*sizeof(flt_dbl));
@@ -102,20 +102,20 @@ void swap_global_pvec(){
 }
 
 void save_vec(const char * name, flt_dbl_vec & v){
-  FILE * pfile = fopen(name,"wb");
-  assert(pfile);
+  FILE * pfile = open_file(name,"wb");
   write_vec(pfile, v.size(), data(v));
   fclose(pfile);
 }
 void load_vec(const char * name, flt_dbl_vec & v, int size){
-  FILE * pfile = fopen(name, "r");
-  assert(pfile);
+  FILE * pfile = open_file(name, "r");
   v = zeros(size);
   read_vec(pfile, size, (flt_dbl*)data(v));
   fclose(pfile);
 }
 
 void read_lanc_alpha_beta(int size){
+  assert(ac.svd_compile_eigenvectors && ac.reduce_mem_consumption);
+  logstream(LOG_INFO) << "Loading alpha beta from file" << std::endl;
   load_vec((ac.datafile + "lancalpha").c_str(), lancalpha, size);
   load_vec((ac.datafile + "lancalpha2").c_str(), lancalpha2, size);
   load_vec((ac.datafile + "lancbeta").c_str(), lancbeta, size);
@@ -124,6 +124,8 @@ void read_lanc_alpha_beta(int size){
 
 
 void write_lanc_alpha_beta(){
+   assert(ac.reduce_mem_consumption);
+   logstream(LOG_INFO) << "Saving alpha beta to file" << std::endl;
    save_vec((ac.datafile + "lancalpha").c_str(), lancalpha);
    save_vec((ac.datafile + "lancalpha2").c_str(),lancalpha2);
    save_vec((ac.datafile + "lancbeta").c_str(), lancbeta);
@@ -131,6 +133,7 @@ void write_lanc_alpha_beta(){
 }
 
 void end_iter(){
+   assert(ac.reduce_mem_consumption);
    pglobal_pvec->swap = false;
    write_lanc_alpha_beta();
 }
@@ -406,6 +409,7 @@ void svd_ATxb2(gl_types::iscope &scope,
 
 void set_rmse(){
   const graph_type *g = ps.g<graph_type>(TRAINING);
+#pragma omp parallel for
   for (int i=0; i< ps.M+ps.N; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->rmse = data->pvec[0]; 
@@ -417,14 +421,12 @@ double wTV(int j);
 double wTV2(int j){
   graph_type *g = ps.g<graph_type>(TRAINING);
 
-  timer t; t.start();
   double lancalpha = 0;
   for (int i=0; i< ps.M; i++){ 
     vertex_data * data = &g->vertex_data(i);
     //lancalpha+= data->rmse*data->pvec[j];
     lancalpha+= data->rmse * *find_pvec(j, i, data);
   }
-  ps.counter[CALC_RMSE_Q] += t.current_time();
   if (ac.debug)
 	cout<<"alpha2: " << lancalpha<<endl;
 
@@ -436,19 +438,16 @@ double w_lancalphaV(int j);
 double w_lancalphaV2(int j){
   const graph_type *g = ps.g<graph_type>(TRAINING);
   
-  timer t; t.start();
   double norm = 0;
   if (ac.debug)
 	cout << "w: " ;
   for (int i=0; i< ps.M; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
-    //data->rmse -= lancalpha2[j]*data->pvec[j];
     data->rmse -= lancalpha2[j]* *find_pvec(j, i, data);
     if (ac.debug && i <20)
 	cout<<data->rmse<<" ";
     norm += data->rmse*data->rmse;
   }
-  ps.counter[CALC_RMSE_Q] += t.current_time();
   if (ac.debug){
 	cout<<endl;
         cout<<"Beta2: " << sqrt(norm) << endl;
@@ -462,20 +461,18 @@ void update_V(int j);
 void update_V2(int j){
   const graph_type *g = ps.g<graph_type>(TRAINING); 
 
-  timer t; t.start();
   if (ac.debug)
 	cout<<"V2: ";
+
+#pragma omp parallel for
   for (int i=0; i< ps.M; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
-    //data->pvec[j] = data->rmse / lancbeta2[j];
     *find_pvec(j, i, data) = data->rmse/ lancbeta2[j];
     if (ac.debug && i <20)
         cout << *find_pvec(j, i, data) << " ";
-//	cout<<data->pvec[j]<<" ";
   }
   if (ac.debug)
 	cout<<endl;
-  ps.counter[CALC_RMSE_Q] += t.current_time();
 }
 
 mat calc_V(){
@@ -532,12 +529,17 @@ void extract_eigenvectors(){
  int m = ac.iter;
  mat T=fmat2mat(zeros(m+1,m+1));
 
- if (ac.svd_compile_eigenvectors){
+ if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
     read_lanc_alpha_beta(m+3);
     pglobal_pvec = new global_pvec(ps.M+ps.N);
  }
 
- for (int i=1; i<=m; i++){
+ if (ac.debug){
+   debug_print_vec("lancalpha", lancalpha, 20);
+   debug_print_vec("lancbeta", lancbeta, 20);
+ } 
+
+for (int i=1; i<=m; i++){
    set_val(T,i-1,i-1,lancalpha[i]);
    set_val(T,i-1,i,lancbeta[i+1]);
    set_val(T,i,i-1,lancbeta[i+1]);
@@ -554,13 +556,15 @@ void extract_eigenvectors(){
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
     mat U=calc_V()*eigenvectors;
     save_matrix((ac.datafile + ".U").c_str(), "U", U);
-    set_size(U, 0, 0);
+    if (ac.debug && U.size() < 1000)
+      cout<<"Eigen vectors are:" << U << endl << "V is: " << (calc_V()*eigenvectors) << endl << " Eigenvectors (u) are: " << eigenvectors;
+   set_size(U, 0, 0);
  }
- else ps.U = mat2fmat(calc_V()*eigenvectors);    
-
- if (ac.debug && ps.U.size() < 1000)
-   cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << (calc_V()*eigenvectors) << endl << " Eigenvectors (u) are: " << eigenvectors;
-
+ else {
+    ps.U = mat2fmat(calc_V()*eigenvectors);    
+    if (ac.debug && ps.U.size() < 1000)
+      cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << (calc_V()*eigenvectors) << endl << " Eigenvectors (u) are: " << eigenvectors;
+ }
 
  ps.T=zeros(T.rows(),2);
  set_col(ps.T,0,vec2fvec(eigenvalues)); 
@@ -584,16 +588,19 @@ void extract_eigenvectors(){
  for (int i=0; i< std::min((int)eigenvalues2.size(),20); i++)
 	cout<<"eigenvalue2 " << i << " val: " << eigenvalues2[i] << endl;
 
- if (ac.debug && ps.V.size() < 1000)
-   cout<<"Eigen vectors2 are:" << ps.V << endl << "V is: " << (calc_V2()*eigenvectors2) << endl << " Eigenvectors (u) are: " << eigenvectors2;
-
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
     mat V = calc_V2() * eigenvectors2;
     save_matrix((ac.datafile + ".V").c_str(), "V", V);
+    if (ac.debug && V.size() < 1000)
+      cout<<"Eigen vectors2 are:" << V << endl << "V is: " << (calc_V2()*eigenvectors2) << endl << " Eigenvectors (u) are: " << eigenvectors2;
     set_size(V, 0, 0);
  }
- else ps.V = mat2fmat(calc_V2() * eigenvectors2); 
- 
+ else {
+   ps.V = mat2fmat(calc_V2() * eigenvectors2); 
+   if (ac.debug && ps.V.size() < 1000)
+     cout<<"Eigen vectors2 are:" << ps.V << endl << "V is: " << (calc_V2()*eigenvectors2) << endl << " Eigenvectors (u) are: " << eigenvectors2;
+ }
+
  set_col(ps.T,1,vec2fvec(eigenvalues2)); 
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
     save_matrix((ac.datafile + ".D").c_str(), "D", fmat2mat(ps.T));
