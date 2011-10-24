@@ -21,8 +21,8 @@
  *  Code written by Danny Bickson, CMU
  */
 
-#ifndef MATH_LAYER_GRAPHLAB
-#define MATH_LAYER_GRAPHLAB
+#ifndef MATH_LAYER_FLOAT_GRAPHLAB
+#define MATH_LAYER_FLOAT_GRAPHLAB
 
 
 
@@ -101,10 +101,10 @@ inline bool backslash(const mat& A, const vec & b, vec & x){
 inline mat transpose(mat & A){
    return A.transpose();
 }
-inline void set_val(mat &A, int row, int col, double val){
+inline void set_val(mat &A, int row, int col, float val){
   A(row, col) = val;
 }
-inline double get_val(const mat &A, int row, int col){
+inline float get_val(const mat &A, int row, int col){
   return A(row, col);
 }
 inline vec get_col(const mat& A, int col){
@@ -125,7 +125,7 @@ inline mat randn(int dx, int dy){
 inline void set_diag(mat &A, vec & v){
    A.diagonal()=v;
 }
-inline double sumsum(const mat & A){
+inline float sumsum(const mat & A){
    return A.sum();
 }
 inline mat init_mat(const char * string, int row, int col){
@@ -156,7 +156,7 @@ inline vec init_vec(const char * string, int size){
   assert(i == size);
   return out;
 }
-inline double norm(const mat &A, int pow=2){
+inline float norm(const mat &A, int pow=2){
      return A.squaredNorm();
 }
 inline mat inv(const mat&A){
@@ -177,11 +177,11 @@ inline void sort(vec & a){
 }
 inline ivec sort_index(const vec&a){
   ivec ret(a.size()); 
-  std::vector<std::pair<double,int> > D;
+  std::vector<std::pair<float,int> > D;
   // 	
   D.reserve(a.size());
   for (int i=0;i<a.size();i++)
-    D.push_back(std::make_pair<double,int>(a.coeff(i),i));
+    D.push_back(std::make_pair<float,int>(a.coeff(i),i));
   std::sort(D.begin(),D.end());
   for (int i=0;i<a.size();i++)
   { 
@@ -226,29 +226,29 @@ inline vec elem_mult(const vec&a, const vec&b){
       ret(i) *= b(i);
    return ret;
 }
-inline sparse_vec elem_mult(const sparse_vec&a, const sparse_vec&b){
+inline sparse_fvec elem_mult(const sparse_fvec&a, const sparse_fvec&b){
    return a.cwiseProduct(b);
 }
-inline double sum(const vec & a){
+inline float sum(const vec & a){
   return a.sum();
 }
-inline double sum_sqr(const vec & a){
+inline float sum_sqr(const vec & a){
   vec ret = a.array().pow(2);
   return ret.sum();
 }
-inline double trace(const mat & a){
+inline float trace(const mat & a){
   return a.trace();
 }
-inline double min(const vec &a){
+inline float min(const vec &a){
   return a.minCoeff();
 }
-inline double max(const vec & a){
+inline float max(const vec & a){
   return a.maxCoeff();
 }
 inline vec randu(int size){
   return vec::Random(size);
 }
-inline double randu(){
+inline float randu(){
   return vec::Random(1)(0);
 }
 inline ivec randi(int size, int from, int to){
@@ -275,10 +275,10 @@ inline mat get_cols(const mat&A, ivec & cols){
     set_col(a, i, get_col(A, cols[i]));
   return a;
 }
-inline void set_val(vec & v, int pos, double val){
+inline void set_val(vec & v, int pos, float val){
   v(pos) = val;
 }
-inline double dot(const vec&a, const vec& b){
+inline float dot(const vec&a, const vec& b){
    return a.dot(b);
 }
 inline vec reverse(vec& a){
@@ -287,10 +287,10 @@ inline vec reverse(vec& a){
 inline ivec reverse(ivec& a){
    return a.reverse();
 }
-inline const double * data(const mat &A){
+inline const float * data(const mat &A){
   return A.data();
 }
-inline const double * data(const vec &v){
+inline const float * data(const vec &v){
   return v.data();
 }
 
@@ -331,8 +331,8 @@ public:
    fb.write( (const char *)&cols, sizeof(int));
    for (int i=0; i< A.rows(); i++)
       for (int j=0; j< A. cols(); j++){
-         double val = A(i,j);
-         fb.write( (const char *)&val, sizeof(double));
+         float val = A(i,j);
+         fb.write( (const char *)&val, sizeof(float));
          assert(!fb.fail());
       }
    return fb;
@@ -342,8 +342,8 @@ public:
    fb.write( (const char*)&size, sizeof(int));
    assert(!fb.fail());
    for (int i=0; i< v.size(); i++){
-      double val = v(i);
-      fb.write( (const char *)&val, sizeof(double));
+      float val = v(i);
+      fb.write( (const char *)&val, sizeof(float));
       assert(!fb.fail());
    }
    return fb;
@@ -370,10 +370,10 @@ public:
    fb.read( (char *)&cols, sizeof(int));
    assert(!fb.fail());
    A = mat(rows, cols);
-   double val;
+   float val;
    for (int i=0; i< A.rows(); i++)
       for (int j=0; j< A. cols(); j++){
-        fb.read((char*)&val, sizeof(double));
+        fb.read((char*)&val, sizeof(float));
         assert(!fb.fail());
         A(i,j) = val;
       }
@@ -385,9 +385,9 @@ public:
    assert(!fb.fail());
    assert(size >0);
    v = vec(size);
-   double val;
+   float val;
    for (int i=0; i< v.size(); i++){
-      fb.read((char*)& val, sizeof(double));
+      fb.read((char*)& val, sizeof(float));
      assert(!fb.fail());
       v(i) = val;
    }
@@ -401,25 +401,25 @@ public:
 };
 
 #define Name(a) std::string(a)
-inline void set_size(sparse_vec &v, int size){
+inline void set_size(sparse_fvec &v, int size){
   //did not find a way to declare vector dimension, yet
 }
-inline void set_new(sparse_vec&v, int ind, double val){
+inline void set_new(sparse_fvec&v, int ind, float val){
   v.insert(ind) = val;
 } 
-inline int nnz(sparse_vec& v){
+inline int nnz(sparse_fvec& v){
   return v.nonZeros();
 }
 #define FOR_ITERATOR(i, v) \
-    for (sparse_vec::InnerIterator i(v); i; ++i)
+    for (sparse_fvec::InnerIterator i(v); i; ++i)
 
-inline int get_nz_index(sparse_vec &v, sparse_vec::InnerIterator& i){
+inline int get_nz_index(sparse_fvec &v, sparse_fvec::InnerIterator& i){
   return i.index();
 }
-inline double get_nz_data(sparse_vec &v, sparse_vec::InnerIterator& i){
+inline float get_nz_data(sparse_fvec &v, sparse_fvec::InnerIterator& i){
   return i.value();
 }
-inline double get_nz_data(sparse_vec &v, int i){
+inline float get_nz_data(sparse_fvec &v, int i){
   assert(nnz(v) > i);
   int cnt=0;
   FOR_ITERATOR(j, v){
@@ -436,14 +436,14 @@ inline vec pow(const vec&v, int exponent){
     ret[i] = powf(v[i], exponent);
   return ret;
 }
-inline double dot_prod(sparse_vec &v1, sparse_vec & v2){
+inline float dot_prod(sparse_fvec &v1, sparse_fvec & v2){
   return v1.dot(v2);
 }
-inline double dot_prod(const vec &v1, const vec & v2){
+inline float dot_prod(const vec &v1, const vec & v2){
   return v1.dot(v2);
 }
-inline double dot_prod(sparse_vec &v1, const vec & v2){
-  double sum = 0;
+inline float dot_prod(sparse_fvec &v1, const vec & v2){
+  float sum = 0;
   for (int i=0; i< v2.size(); i++){
     sum+= v2[i] * v1.coeffRef(i);
   }
@@ -456,71 +456,71 @@ inline vec cumsum(vec& v){
        ret(i) += v(j);
   return ret;
 }
-inline double get_val(sparse_vec & v1, int i){ //TODO optimize performance
-  for (sparse_vec::InnerIterator it(v1); it; ++it)
+inline float get_val(sparse_fvec & v1, int i){ //TODO optimize performance
+  for (sparse_fvec::InnerIterator it(v1); it; ++it)
     if (it.index() == i)
        return it.value();
 
   return 0;
 } 
-inline double get_val(vec & v1, int i){
+inline float get_val(vec & v1, int i){
   return v1(i);
 }
-inline void set_div(sparse_vec&v, sparse_vec::InnerIterator i, double val){
+inline void set_div(sparse_fvec&v, sparse_fvec::InnerIterator i, float val){
    v.coeffRef(i.index()) /= val;
 }
-inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
+inline sparse_fvec minus(sparse_fvec &v1,sparse_fvec &v2){
    return v1-v2;
 }
-inline vec minus( sparse_vec &v1,  vec &v2){
-   return v1-sparse_vec(v2);
+inline vec minus( sparse_fvec &v1,  fvec &v2){
+   return v1-sparse_fvec(v2);
 }
-inline void plus( vec &v1,  sparse_vec &v2){
+inline void plus( fvec &v1,  sparse_fvec &v2){
    FOR_ITERATOR(i, v2){
      v1[i.index()] += i.value();
    }
 }
-inline void minus( vec &v1, sparse_vec &v2){
+inline void minus( fvec &v1, sparse_fvec &v2){
    FOR_ITERATOR(i, v2){
       v1[i.index()] -= i.value();
    }
 }
-inline sparse_vec fabs( sparse_vec & dvec1){
-   sparse_vec ret = dvec1;
+inline sparse_fvec fabs( sparse_fvec & dvec1){
+   sparse_fvec ret = dvec1;
    FOR_ITERATOR(i, ret){
       ret.coeffRef(i.index()) = fabs(i.value()); 
    }	
    return ret;
 };
 
-inline vec fabs( const vec & dvec1){
+inline fvec fabs( const fvec & dvec1){
    vec ret(dvec1.size());
    for (int i=0; i< dvec1.size(); i++){
       ret(i) = fabs(dvec1(i));
    }	
    return ret;
 };
-inline double abs_sum(const mat& A){
-  double sum =0;
+inline float abs_sum(const fmat& A){
+  float sum =0;
   for (int i=0; i< A.rows(); i++)
     for (int j=0; j< A.cols(); j++)
       sum += fabs(A(i,j));
   return sum;
 }
-inline double abs_sum(const vec &v){
-  double sum =0;
+inline float abs_sum(const fvec &v){
+  float sum =0;
   for (int i=0; i< v.size(); i++)
       sum += fabs(v(i));
   return sum;
 }
-inline double sum(const sparse_vec &v){
-  double sum =0;
+inline float sum(const sparse_fvec &v){
+  float  sum =0;
   FOR_ITERATOR(i, v){
       sum += i.value();
   }
   return sum;
 }
-inline vec sqrt(vec & v){
+inline fvec sqrt(fvec & v){
    vec ret(v.size());
    for (int i=0; i< v.size(); i++){
       ret[i] = sqrt(v(i));
@@ -538,129 +538,139 @@ inline vec sqrt(vec & v){
 #include <itpp/itbase.h>
 #include <itpp/itstat.h>
 #include <itpp/stat/misc_stat.h>
-#include "itppvecutils.hpp"
 using namespace itpp;
 
-//#undef sparse_vec
-//typedef Sparse_Vec<float> sparse_vec;
-
-inline void compact(sparse_vec & a){
-  //TODO
+//#undef sparse_fvec
+typedef Sparse_Vec<float> sparse_fvec;
+typedef Vec<float> fvec;
+typedef Mat<float> fmat;
+inline void compact(sparse_fvec &v){
+   v.compact();
 }
+inline fvec fzeros(int size){
+  fvec ret(size);
+  for (int i=0; i< size; i++)
+    ret[i] = 0;
+  return ret;
+}
+inline fmat fzeros(int rows, int cols){
+  fmat ret(rows, cols);
+  for (int i=0; i< rows; i++)
+    for (int j=0; j< cols; j++)
+       ret.set(i,j,0);
 
-inline void set_val(mat& A, int row, int col, double val){
+  return ret;
+}
+inline void set_val(fmat& A, int row, int col, float val){
   A.set(row, col, val);
 }
-inline double get_val(const mat& A, int row, int col){
+inline float get_val(const fmat& A, int row, int col){
   return A.get(row, col);
 }
-inline vec get_col(mat& A, int col){
+inline float get_val(const fvec & v, int pos){
+  return v[pos];
+}
+inline fvec get_col(fmat& A, int col){
   return A.get_col(col);
 }
-inline vec get_row(mat& A, int row){
+inline fvec get_row(fmat& A, int row){
   return A.get_row(row);
 }
-inline void set_col(mat& A, int col, const vec & val){
+inline void set_col(fmat& A, int col, const fvec & val){
   A.set_col(col, val);
 }
-inline void set_row(mat& A, int row, const vec & val){
+inline void set_row(fmat& A, int row, const fvec & val){
   A.set_row(row, val);
 }
-inline void set_diag(mat &A, vec &v){
+inline void set_diag(fmat &A, fvec &v){
   A = diag(v);
 }
-inline mat init_mat(const char * string, int row, int col){
-  return mat(string);
+inline fvec init_fvec(const char * string, int size){
+  fvec out(size);
+  char buf[2056];
+  strcpy(buf, string);
+  char *pch = strtok (buf," \r\n\t;");
+  int i=0;
+  while (pch != NULL)
+  {
+     out[i] =(float)atof(pch);
+     pch = strtok (NULL, " \r\n\t;");
+     i++;
+  }
+  assert(i == size);
+  return out;
 }
-inline vec init_vec(const char * string, int size){
-  return vec(string);
+inline fmat init_fmat(const char * string, int row, int col){
+  fmat out(row, col);
+  char buf[2056];
+  strcpy(buf, string);
+  char *pch = strtok(buf," \r\n\t;");
+  for (int i=0; i< row; i++){
+    for (int j=0; j< col; j++){
+     out.set(i,j,(float) atof(pch));
+     pch = strtok (NULL, " \r\n\t;");
+    }
+  }
+  return out;
 }
-inline vec init_dbl_vec(const char * string, int size){
-  return vec(string);
-}
-inline vec head(const vec &v, int num){
+inline fvec head(const fvec &v, int num){
   return v.mid(0,num);
 }
-inline vec mid(const vec&v, int start, int num){
-  return v.mid(start, num);
+inline fvec mid(const fvec&v, int start, int num){
+  return v.mid(start, std::min(v.size(), num));
 }
-inline vec tail(const vec&v, int num){
+inline fvec tail(const fvec&v, int num){
   return v.mid(v.size()-num, num);
 }
-inline ivec head(const ivec &v, int num){
-  return v.mid(0,num);
-}
-inline ivec sort(ivec &a){
-   Sort<int> sorter;
-   sorter.sort(0, a.size()-1, a);
-   return a;
-}
-inline void del(ivec&a, int i){
-  a.del(i);
-}
-inline ivec sort_index(vec& a){
-  Sort<double> sorter;
-  return sorter.sort_index(0, a.size()-1, a);
-}
-inline void set_val(vec & v, int pos, double val){
+inline void set_val(fvec & v, int pos, float val){
   v.set(pos, val);
 }
-inline mat get_cols(const mat &A, const ivec & ind){
+inline fmat get_cols(const fmat &A, const ivec & ind){
   return A.get_cols(ind);
 }
-inline const double * data(const mat &A){
+inline const float * data(const fmat &A){
   return A._data();
 }
-inline const double * data(const vec &v){
+inline const float * data(const fvec &v){
   return v._data();
 }
-inline void set_size(sparse_vec &v, int size){
+inline void set_size(sparse_fvec &v, int size){
   v.set_size(size);
 }
-inline void set_size(mat &a, int row, int col){
-  a.set_size(row, col);
-}
-inline void set_new(sparse_vec&v, int ind, double val){
+inline void set_new(sparse_fvec&v, int ind, float val){
   v.set_new(ind, val);
 } 
-#define FOR_ITERATOR(i, v) \
-    for (int i = 0; i < v.nnz(); i++)
-inline int get_nz_index(sparse_vec &v, int i){
+inline int get_nz_index(sparse_fvec &v, int i){
   return v.get_nz_index(i);
 }
-inline double get_nz_data(sparse_vec &v, int i){
+inline float get_nz_data(sparse_fvec &v, int i){
   return v.get_nz_data(i);
 }
-inline int nnz(sparse_vec & v){
+inline int nnz(sparse_fvec & v){
   return v.nnz();
 }
-inline double dot_prod(sparse_vec &v1, sparse_vec & v2){
-  return v1*v2;
+inline float dot_prod(sparse_fvec &v1, sparse_fvec & v2){
+  return itpp::operator*(v1,v2);
 }
-inline double dot_prod(vec &v1, vec & v2){
-  return v1*v2;
+inline float dot_prod(const sparse_fvec &v1, const fvec & v2){
+  return itpp::operator*(v1,v2);
 }
-inline double dot_prod(const sparse_vec &v1, const vec & v2){
-  return v1*v2;
+inline float dot_prod(fvec &v1, sparse_fvec & v2){
+  return itpp::operator*(v1,v2);
 }
-inline double dot_prod(vec &v1, sparse_vec & v2){
-  return v1*v2;
-}
-inline double get_val(sparse_vec & v1, int i){
+inline float get_val(sparse_fvec & v1, int i){
    FOR_ITERATOR(j, v1){
       if (v1.get_nz_index(j) == i)
          return v1.get_nz_data(j);
    }
    return 0;
 }
-inline double get_val(vec & v1, int i){
-  return v1[i];
-}
-inline void set_div(sparse_vec&v, int i, double val){
+
+inline void set_div(sparse_fvec&v, int i, float val){
   v.set(v.get_nz_index(i) ,v.get_nz_data(i) / val);
 }
-inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
-/*  sparse_vec ret; 
+inline sparse_fvec minus(sparse_fvec &v1,sparse_fvec &v2){
+/*  sparse_fvec ret; 
   for (int i=0; i< v1.nnz(); i++){
       ret.set_new(v1.get_nz_index(i), v1.get_nz_data(i) - get_val(v2, v1.get_nz_index(i)));
   }
@@ -670,25 +680,25 @@ inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
   return ret;*/
   return v1+(-v2);
 }
-inline vec minus( sparse_vec &v1,  vec &v2){
-  vec ret = -v2;;
+inline fvec minus( sparse_fvec &v1,  fvec &v2){
+  fvec ret = -v2;;
   FOR_ITERATOR(i, v1){  
     ret.set(v1.get_nz_index(i), ret.get(v1.get_nz_index(i)) + v1.get_nz_data(i));
   }
   return ret;
 }
-inline void plus( vec &v1,  sparse_vec &v2){
+inline void plus( fvec &v1,  sparse_fvec &v2){
   FOR_ITERATOR(i, v2){ 
      v1[get_nz_index(v2, i)] += get_nz_data(v2, i);
   }
 }
-inline void minus( vec &v1, sparse_vec &v2){
+inline void minus( fvec &v1, sparse_fvec &v2){
   FOR_ITERATOR(i, v2){ 
      v1[get_nz_index(v2, i)] -= get_nz_data(v2, i);
   }
 }
-inline sparse_vec fabs( sparse_vec & dvec1){
-   sparse_vec ret(dvec1.size(), dvec1.nnz());
+inline sparse_fvec fabs( sparse_fvec & dvec1){
+   sparse_fvec ret(dvec1.size(), dvec1.nnz());
    FOR_ITERATOR(i, dvec1){
        set_new(ret,get_nz_index(dvec1, i), fabs(get_nz_data(dvec1, i)));
    }
@@ -696,56 +706,81 @@ inline sparse_vec fabs( sparse_vec & dvec1){
 	
 };
 
-inline vec fabs(const vec & a){
-   return abs(a);
+inline fvec fabs(const fvec & a){
+   fvec ret = fzeros(a.size());
+   for (int i=0; i< a.size(); i++)
+     ret[i] = fabs(a[i]);
+   return ret;
 }
-inline double abs_sum(const mat& A){
+inline fmat abs(const fmat & a){
+   fmat ret(a.rows(), a.cols());
+   for (int i=0; i< a.rows(); i++)
+     for (int j=0; j< a.cols(); j++)
+       ret.set(i,j,fabs(a.get(i,j)));
+   return ret;
+}
+inline float abs_isum(const fmat& A){
    return sumsum(abs(A));
 }
-inline double abs_sum(const vec&v){
+inline float abs_sum(const fvec&v){
   return sum(fabs(v));
 }
-inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
-  itpp::eig_sym(T,eigenvalues, eigenvectors);
-  eigenvalues = reverse(eigenvalues);
-  mat reverse_cols = zeros(eigenvectors.rows(), eigenvectors.cols());
-  for (int i=0; i< eigenvectors.cols(); i++){
-    reverse_cols.set_col(i, eigenvectors.get_col(eigenvectors.rows() - i - 1));
-  }
-  eigenvectors = reverse_cols;
-  return true;
-}
 
-inline double sum_sqr(sparse_vec & v){
-  double sum = 0;
+
+inline float sum_sqr(sparse_fvec & v){
+  float sum = 0;
   FOR_ITERATOR(i, v){
      sum+= powf(v.get_nz_data(i),2);
   }
   return sum;
 }
-inline void debug_print_vec(const char * name,const vec& _vec, int len){
+inline fvec pow(const fvec &v, float exponent){
+  fvec ret(v.size());
+  for (int i=0; i< v.size(); i++)
+    ret[i] = powf(v[i], exponent);
+  return ret;
+}
+inline fvec vec2fvec(const vec & a){
+  fvec ret(a.size());
+  for (int i=0; i< a.size(); i++)
+   ret[i] = (float)a[i];
+  return ret;
+}
+inline vec fvec2vec(const fvec & a){
+  vec ret(a.size());
+  for (int i=0; i< a.size(); i++)
+   ret[i] = (double)a[i];
+  return ret;
+}
+inline mat fmat2mat(const fmat  & a){
+  mat ret(a.rows(), a.cols());
+  for (int i=0; i< a.rows(); i++)
+    for (int j=0; j< a.cols(); j++)
+      ret.set(i,j,a.get(i,j));
+  return ret;
+}
+inline fmat mat2fmat(const mat  & a){
+  fmat ret(a.rows(), a.cols());
+  for (int i=0; i< a.rows(); i++)
+    for (int j=0; j< a.cols(); j++)
+      ret.set(i,j,a.get(i,j));
+  return ret;
+}
+
+
+inline fvec frandu(int size){
+  return vec2fvec(randu(size));
+}
+
+inline void debug_print_vec(const char * name,const fvec& _vec, int len){
   printf("%s ) ", name);
   for (int i=0; i< len; i++)
     if (_vec[i] == 0)
       printf("      0    ");
-    else printf("%12.4g    ", _vec[i]);
+    else printf("%12.4f    ", _vec[i]);
   printf("\n");
 }
-
-inline void dot2(const vec&  x1, const vec& x3, mat & Q, int j, int len){
-	for (int i=0; i< len; i++){
-		Q.set(i,j,(x1[i] * x3[i]));
-	}
-}
-inline void assign(vec & v1, sparse_vec & v2, int N){
-  v1 = zeros(N);
-  FOR_ITERATOR(i, v2){
-     v1[get_nz_index(v2, i)] = get_nz_data(v2, i);
-  }
-
-}
-
-inline double get(sparse_vec & v1, int pos){
+inline float get(sparse_fvec & v1, int pos){
   FOR_ITERATOR(i, v1){
      if (get_nz_index(v1, i) < pos)
 	continue;
@@ -756,39 +791,46 @@ inline double get(sparse_vec & v1, int pos){
   }
   return 0;
 }
-
-
-inline double min( sparse_vec & dvec){
+inline float min( sparse_fvec & dvec){
  
-  double dmin = 1e100;
+  float dmin = 1e100;
   FOR_ITERATOR(i, dvec){
      dmin = std::min(dmin, get_nz_data(dvec, i));
   }
   return dmin;
 }
 
-inline double max( sparse_vec & dvec){
+inline float max( sparse_fvec & dvec){
  
-  double dmax = -1e100;
+  float dmax = -1e100;
   FOR_ITERATOR(i, dvec){
      dmax = std::max(dmax, get_nz_data(dvec, i));
   }
   return dmax;
 }
-inline void plus_mul( vec &v1,  sparse_vec &v2, double factor){
+inline void plus_mul( fvec &v1,  sparse_fvec &v2, float factor){
   FOR_ITERATOR(i, v2){  
     v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
   }
 }
-
-inline double sum( sparse_vec & dvec){
-  double sum = 0;
+inline float sum( sparse_fvec & dvec){
+  float sum = 0;
   FOR_ITERATOR(i, dvec){
      sum += get_nz_data(dvec, i);
   }
   return sum;
 }
+inline void assign(fvec & v1, sparse_fvec & v2, int N){
+  v1 = fzeros(N);
+  FOR_ITERATOR(i, v2){
+     v1[get_nz_index(v2, i)] = get_nz_data(v2, i);
+  }
+
+}
+
+
+
 #endif
 
 #endif //eigen
-#endif //MATH_LAYER_GRAPHLAB
+#endif //MATH_LAYER_FLOAT_GRAPHLAB

@@ -40,7 +40,15 @@ int read_edges(FILE * f, int nodes, graph_type * _g);
 template<typename edgedata>
 int read_edges(FILE * f, int nodes, graph_type_kcores * _g);
 
-
+FILE * open_file(const char * name, const char * mode){
+  FILE * f = fopen(name, mode);
+  if (f == NULL){
+      perror("fopen failed");
+      logstream(LOG_ERROR) <<" Failed to open file" << name << std::endl;
+      exit(1);
+   }
+  return f;
+}
 
 void fill_output(graph_type * g){
   
@@ -82,15 +90,84 @@ void fill_output(graph_type_kcores * g){
 //write an output vector to file
 void write_vec(FILE * f, int len, const double * array){
   assert(f != NULL && array != NULL);
-  fwrite(array, len, sizeof(double), f);
+  int total = 0;
+  
+  while(true){
+    int rc = fwrite(array+total, sizeof(double), len-total, f);
+    if (rc <= 0){
+      if (errno == EINTR){
+         logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
+         continue;
+      }
+      perror("write failed");
+      exit(1);
+    }
+    total += rc;
+    if (total >= len)
+      break;
+  }
 }
 
 //write an output vector to file
 void write_vec(FILE * f, int len, const float * array){
   assert(f != NULL && array != NULL);
-  fwrite(array, len, sizeof(float), f);
+  int total = 0;
+  while(true){
+    int rc = fwrite(array + total, sizeof(float), len-total, f); 
+    if (rc<= 0){
+       if (errno == EINTR){
+          logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
+          continue;
+       }
+       perror("write failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+      break;
+  }
+}
+//write an output vector to file
+void read_vec(FILE * f, int len, double * array){
+  assert(f != NULL && array != NULL);
+  int total = 0;
+  while(true){
+    int rc = fread(array+total, sizeof(double), len-total, f);
+    if (rc <= 0){
+       perror("read failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+       break;
+
+  }
+}
+//write an output vector to file
+void read_vec(FILE * f, int len, float * array){
+  assert(f != NULL && array != NULL);
+  int total = 0;
+  while(true){
+    int rc = fread(array+total, sizeof(float), len-total, f);
+    if (rc <= 0){
+       perror("read failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+       break;
+
+  }
 }
 
+
+
+void save_matrix(const char * filename, const char * varname, const mat& pmat){
+  it_file output(filename);
+  output << Name(varname);
+  output << pmat;
+  output.close(); 
+}
 
 
 
@@ -111,9 +188,7 @@ void export_to_binary_file(){
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(),ps.K);
   logstream(LOG_INFO)<<"Writing binary output file: " << dfile << std::endl;
-  FILE * f = fopen(dfile, "w");
-  assert(f!= NULL);
-
+  FILE * f = open_file(dfile, "w");
   int rc = fwrite(&ps.M, 1, 4, f);
   assert(rc == 4);
   rc = fwrite(&ps.N, 1, 4, f);
@@ -301,6 +376,11 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
     assert(_N == ps.N);
     ps.M_test = _M;
   }
+
+  if (ps.algorithm == SVD_EXPERIMENTAL && ac.reduce_mem_consumption && ac.svd_compile_eigenvectors)
+    return;
+
+
   init();
   add_vertices(_g, type);
  

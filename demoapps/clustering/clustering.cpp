@@ -365,7 +365,11 @@ void start(command_line_options & clopts) {
     exit(0);
   }
   
-
+  if (ps.algorithm == SVD_EXPERIMENTAL && ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
+    extract_eigenvectors();
+    return;
+  }
+   
   add_tasks(glcore);
  
  
@@ -430,7 +434,12 @@ void start(command_line_options & clopts) {
     	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
   }
 
-  //write output matrices U,V,T to file
+
+  //to save memory output generation was done previously
+  if (ac.reduce_mem_consumption && ps.algorithm == SVD_EXPERIMENTAL && ac.svd_compile_eigenvectors)
+     return; 
+
+  //write output clusters and assignments to file
   if (ac.binaryoutput)
      export_to_binary_file<graph_type>();
   else if (ac.matrixmarket)

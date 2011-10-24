@@ -88,7 +88,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
 
     int I,J; 
     double val;
-
+    int step = nz/10;
 
     for (i=0; i<nz; i++)
     {
@@ -107,7 +107,8 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
         edge.weight = val;
         _g->add_edge(I,J, edge);
         _g->add_edge(J,I, edge);
-
+        if (i % step == 0)
+          logstream(LOG_INFO) << "Matrix market read " << i << " edges" << std::endl;
     }
     ps.L = nz;
     fclose(f);
@@ -158,6 +159,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 
     ps.M = M; ps.N = N; ps.K = ac.K;
 
+    if (ps.algorithm == SVD_EXPERIMENTAL && ac.reduce_mem_consumption && ac.svd_compile_eigenvectors)
+      return;
+
+
     init();
     add_vertices(_g, type); 
 
@@ -169,7 +174,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 
     int I,J; 
     double val;
-
+    int step=nz/10;
 
     for (i=0; i<nz; i++)
     {
@@ -201,7 +206,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 	        ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;
               ps.total_assigned++;//count the total number of non-zero rows we encountered
         }
-    }
+        if (i % step == 0)
+          logstream(LOG_INFO) << "Matrix market read " << i << " edges" << std::endl;
+     }
     ps.L = nz;
     fclose(f);
 
@@ -225,9 +232,10 @@ void save_matrix_market_format(const char * filename)
     mm_write_banner(f, matcode); 
     mm_write_mtx_crd_size(f, ps.K, ps.N, ps.K*ps.N);
 
-    for (i=0; i<ps.K; i++)
-       for (j=0; j<ps.N; j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_clusters,i,j));
+    for (i=0; i<ps.output_clusters.rows(); i++)
+       for (j=0; j<ps.output_clusters.cols(); j++)
+          if (get_val(ps.output_clusters,i,j) != 0)
+             fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_clusters,i,j));
 
     fclose(f);
     f = fopen((std::string(filename) + ".assignments.mtx").c_str(),"w");
@@ -240,7 +248,7 @@ void save_matrix_market_format(const char * filename)
 
     for (i=0; i< rows; i++)
     for (j=0; j< cols; j++)
-        if (get_val(ps.output_assignements,i,j) > 0)
+        if (get_val(ps.output_assignements,i,j) != 0)
           fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_assignements,i,j));
 
     fclose(f);
