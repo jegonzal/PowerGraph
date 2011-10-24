@@ -12,7 +12,7 @@ enum distance_measure{
    MANAHOLIS = 2,
    MANHATTAN = 3,
    MINKOWSKI = 4,
-   TONIMOTO = 5,
+   TANIMOTO = 5,
    WEIGHTED = 6,
    WEIGHTED_MANAHOLIS = 7,
    COSINE = 8

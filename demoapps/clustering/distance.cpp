@@ -11,6 +11,18 @@ flt_dbl sum_sqr(sparse_flt_dbl_vec & dvec1);
 sparse_flt_dbl_vec fabs(sparse_flt_dbl_vec& dvec1);
 flt_dbl sum(sparse_flt_dbl_vec & dvec);
 
+
+
+flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){ 
+  flt_dbl a_mult_b = datapoint * cluster;
+  return a_mult_b / (sqr_sum + sqr_sum0 - a_mult_b);
+}
+
+flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+  flt_dbl a_mult_b = datapoint * cluster;
+  return a_mult_b / (sqr_sum + sqr_sum0 - a_mult_b);
+}
+
 flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
   //sparse_flt_dbl_vec diff = minus(datapoint , cluster);
   //return sqrt(sum_sqr(diff));
@@ -89,7 +101,9 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & clust
 	  return calc_cosine_distance(datapoint, cluster, sqr_sum, sqr_sum0);  
       case MANHATTAN:
           return calc_manhatten_distance(datapoint, cluster);
-      case MANAHOLIS:
+      case TANIMOTO:
+          return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum0);
+       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:
       default:
@@ -110,6 +124,8 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  flt_dbl_vec & cluster, flt
 	  return calc_cosine_distance(datapoint, cluster, sqr_sum, sqr_sum0);  
       case MANHATTAN:
           return calc_manhatten_distance(datapoint, cluster);
+      case TANIMOTO:
+          return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum0);
       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:
@@ -164,6 +180,15 @@ void test_distance(){
   ret = calc_distance(v1, v3, sum_sqr(v1), sum_sqr(v3));
   assert(powf(ret - (1 - .0341), 2)<1e-8);
 
+  ac.distance_measure = TANIMOTO;
+  sparse_flt_dbl_vec v4;
+  set_size(v4,5);
+  set_new(v4, 1, 1);
+  set_new(v4, 3, 1);
+  flt_dbl_vec v5 = init_vec("0 1 1 1 1", 5);
+  ret = calc_distance(v4, v5, sum_sqr(v4), sum_sqr(v5));
+  assert(powf(ret - 0.5,2) <1e-8);
+  
 
 }
 
