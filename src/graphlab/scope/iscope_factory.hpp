@@ -37,6 +37,9 @@ namespace graphlab {
 
   template<typename Graph>
   class iscope_factory {
+  protected:
+    size_t ncpus;
+
   public:
 
 
@@ -47,7 +50,7 @@ namespace graphlab {
 
     /**  \note This constructor here does not actually do anything. It just exists
          to force the derived class constructors to look like this     */
-    iscope_factory(Graph& graph, size_t ncpus) {}
+    iscope_factory(Graph& graph, size_t _ncpus) : ncpus(_ncpus) {}
  
     virtual ~iscope_factory() {}
 

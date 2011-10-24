@@ -436,7 +436,7 @@ void init_shared_data(gl::core &core, size_t dim) {
 int main(int argc,  char *argv[]) {
 
   // sets the logging level of graphlab
-  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
 
   // Parse the command line using the command line options tool

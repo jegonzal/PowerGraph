@@ -80,9 +80,9 @@ namespace graphlab {
       locks.resize(graph.num_vertices());
       
       // preallocate the scopes
-      scopes.resize(ncpus);
+      scopes.resize(2 * ncpus);
       // create them to be some arbitrary scope type
-      for (size_t i = 0; i < ncpus;++i) {
+      for (size_t i = 0; i < scopes.size(); ++i) {
         scopes[i] = new general_scope_type(&graph, 0, this, 
                                            scope_range::FULL_CONSISTENCY);
       }
@@ -184,6 +184,7 @@ namespace graphlab {
       size_t inidx = 0;
       size_t outidx = 0;
 
+
       bool curlocked = false;
       vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
       vertex_id_type curv = scope->vertex();
@@ -213,6 +214,7 @@ namespace graphlab {
       if (!curlocked) {
         locks[curv].writelock();
       }
+
       return scope;
     }
 
@@ -224,8 +226,15 @@ namespace graphlab {
 
       vertex_id_type curv = scope->vertex();
       locks[curv].writelock();
-      
+
       return scope;
+    }
+
+
+    void acquire_range_lock(size_t start, size_t end) {
+        for (size_t i = start; i <= end; ++i) {
+          locks[i].readlock();
+        }
     }
 
     iscope_type* get_vertex_read_scope(size_t cpuid, vertex_id_type v) {
@@ -236,7 +245,6 @@ namespace graphlab {
 
       vertex_id_type curv = scope->vertex();
       locks[curv].readlock();
-      
       return scope;
     }
 
@@ -251,6 +259,7 @@ namespace graphlab {
 
       size_t inidx = 0;
       size_t outidx = 0;
+
 
       bool curlocked = false;
       vertex_id_type numv = (vertex_id_type)(graph.num_vertices());
@@ -363,6 +372,11 @@ namespace graphlab {
     void release_vertex_scope(general_scope_type* scope) {
       vertex_id_type curv = scope->vertex();
       locks[curv].unlock();
+    }
+
+    void release_range_lock(size_t start, size_t end) {
+      for (size_t i = start; i <= end; ++i)
+        locks[i].unlock();
     }
 
     void release_null_scope(general_scope_type* scope) {

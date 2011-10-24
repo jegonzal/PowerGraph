@@ -40,7 +40,7 @@ namespace graphlab {
     */
   template<typename T>
   class blocking_queue {
-  private:
+  protected:
     
     typedef typename std::deque<T> queue_type;
 
