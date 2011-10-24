@@ -475,51 +475,126 @@ void update_V2(int j){
 	cout<<endl;
 }
 
-mat calc_V(){
-
-  mat V = fmat2mat(zeros(ps.N,ac.iter+1));
+flt_dbl_mat calc_V(bool other_side){ 
  
-  if (!ac.reduce_mem_consumption){ 
-    const graph_type *g = ps.g<graph_type>(TRAINING); 
-    for (int i=ps.M; i< ps.M+ps.N; i++){ 
-      const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-      set_row(V, i-ps.M, fvec2vec(mid(data->pvec, 1, ac.iter+1)));
-    }
+  int start = ps.M;
+  int end = ps.M+ps.N;
+  if (other_side){
+    start = 0;
+    end = ps.M;
+  }
+  flt_dbl_mat V = zeros(end-start,ac.iter+1);
+
+  if (ac.debug)
+    logstream(LOG_INFO) << "Allocating a matrix of size: " << ((end-start)*ac.iter+1) <<  " time: " << ps.gt.current_time() << std::endl;
+  if (ac.debug)
+    logstream(LOG_INFO) << "Done! in time" << ps.gt.current_time() << std::endl; 
+  
+ if (!ac.reduce_mem_consumption){ 
+
+     const graph_type *g = ps.g<graph_type>(TRAINING); 
+     for (int i=start; i< end; i++){ 
+       const vertex_data * data = (vertex_data*)&g->vertex_data(i);
+      set_row(V, i-start, mid(data->pvec, 1, ac.iter+1));
+     }
   }
   else {
     for (int i=1; i<= ac.iter+1; i++){
       FILE * pfile = fopen(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
       read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
       fclose(pfile);
-      flt_dbl_vec col(pglobal_pvec->pvec[0] + ps.M, ps.N);
-      set_col(V, i-1, fvec2vec(col));
+      flt_dbl_vec col(pglobal_pvec->pvec[0] +start, end-start);
+      set_col(V, i-1, col);
     }
   }
-  return V;
+   return V;
 }
+/* 
+mat calc_V(bool other_side){
+
+  int start = ps.M;
+  int end = ps.M+ps.N;
+  if (other_side){
+    start = 0;
+    end = ps.M;
+  }
+
+  if (ac.debug)
+    logstream(LOG_INFO) << "Allocating a matrix of size: " << ((end-start)*ac.iter+1) <<  " time: " << ps.gt.current_time() << std::endl;
+  mat V = dbl_fzeros(end-start,ac.iter+1);
+  if (ac.debug)
+    logstream(LOG_INFO) << "Done! in time" << ps.gt.current_time() << std::endl; 
+
+    const graph_type *g = ps.g<graph_type>(TRAINING); 
+    for (int i=start; i< end; i++){ 
+      const vertex_data * data = (vertex_data*)&g->vertex_data(i);
+      set_row(V, i-start, fvec2vec(mid(data->pvec, 1, ac.iter+1)));
+    }
+  return V;
+}*/
 
 
+/*
+void calc_V_block(mat &V, int start, int end, bool other_side){
+  assert(start <= end);
+  int offset = ps.M;
+  int total = ps.N;
+  if (other_side){
+    offset = 0;
+    total = ps.M;
+  }
+
+
+  if (ac.debug)
+    logstream(LOG_INFO) << "Allocating a matrix of size: " << (total*(end-start)) <<  " time: " << ps.gt.current_time() << std::endl;
+  V = dbl_fzeros(total,end-start);
+
+  if (ac.debug)
+    logstream(LOG_INFO) << "Done! in time" << ps.gt.current_time() << std::endl; 
+
+  int size = ac.iter/10;
+  for (int i=start; i< end; i++){
+      FILE * pfile = open_file(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
+      read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
+      fclose(pfile);
+      flt_dbl_vec col(pglobal_pvec->pvec[0] + offset, total);
+      assert(i - start >= 0 && i - start < V.cols());
+      set_col(V, i-start, fvec2vec(col));
+      if (ac.debug && (i%size) == 0)
+        logstream(LOG_INFO) << "Read total of " << i << " columns at time " << ps.gt.current_time() << std::endl;
+  }
+}*/
+
+/*
 mat calc_V2(){
     
   mat V = fmat2mat(zeros(ps.M,ac.iter+1));
 
-  if (!ac.reduce_mem_consumption){
-    const graph_type *g = ps.g<graph_type>(TRAINING); 
-    for (int i=0; i< ps.M; i++){ 
-      const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-      set_row(V, i, fvec2vec(mid(data->pvec, 1, ac.iter+1)));
-    }
-  }
-  else {
-    for (int i=1; i<= ac.iter+1; i++){
-      FILE * pfile = fopen(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
-      read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
-      fclose(pfile);
-      flt_dbl_vec col(pglobal_pvec->pvec[0], ps.M);
-      set_col(V, i-1, fvec2vec(col));
-    }
+ const graph_type *g = ps.g<graph_type>(TRAINING); 
+ for (int i=0; i< ps.M; i++){ 
+   const vertex_data * data = (vertex_data*)&g->vertex_data(i);
+   set_row(V, i, fvec2vec(mid(data->pvec, 1, ac.iter+1)));
   }
   return V;
+}*/
+vec calc_eigenvalues(mat & T, bool other_side){
+ vec eigenvalues; 
+ mat eigenvectors;
+ assert(::eig_sym(T, eigenvalues, eigenvectors));
+ cout << "Here are the computed eigenvalues" << endl;
+ for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
+	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
+ 
+ flt_dbl_mat V = calc_V(other_side)*mat2fmat(eigenvectors);    
+ if (ac.debug && ps.U.size() < 1000){
+     cout<<"Eigen vectors are:" << V << endl << "V is: " << (calc_V(false)*mat2fmat(eigenvectors)) << endl << " Eigenvectors (u) are: " << eigenvectors;
+ }
+ if (!ac.reduce_mem_consumption)
+     (other_side ? ps.U : ps.V) = V;
+ else {
+   save_matrix((ac.datafile + (other_side ? ".U" : ".V")).c_str(), (other_side? "U" :"V"), V);
+ }
+ return eigenvalues;
 }
 
 
@@ -546,25 +621,7 @@ for (int i=1; i<=m; i++){
  }
  set_val(T,m,m,lancalpha[m+1]);
 
- vec eigenvalues; 
- mat eigenvectors;
- assert(::eig_sym(T, eigenvalues, eigenvectors));
- cout << "Here are the computed eigenvalues" << endl;
- for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
- 
- if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
-    mat U=calc_V()*eigenvectors;
-    save_matrix((ac.datafile + ".U").c_str(), "U", U);
-    if (ac.debug && U.size() < 1000)
-      cout<<"Eigen vectors are:" << U << endl << "V is: " << (calc_V()*eigenvectors) << endl << " Eigenvectors (u) are: " << eigenvectors;
-   set_size(U, 0, 0);
- }
- else {
-    ps.U = mat2fmat(calc_V()*eigenvectors);    
-    if (ac.debug && ps.U.size() < 1000)
-      cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << (calc_V()*eigenvectors) << endl << " Eigenvectors (u) are: " << eigenvectors;
- }
+ vec eigenvalues = calc_eigenvalues(T, false);
 
  ps.T=zeros(T.rows(),2);
  set_col(ps.T,0,vec2fvec(eigenvalues)); 
@@ -580,26 +637,8 @@ for (int i=1; i<=m; i++){
     cout<<"Matrix T is: " << T << " size of T: " << T.rows() << ":" << T.cols() << endl;
     cout<<"Matrix T2 is: " << T2 << endl;
  }
- 
- vec eigenvalues2; 
- mat eigenvectors2;
- assert(::eig_sym(T2, eigenvalues2, eigenvectors2));
- cout << "Here are the computed eigenvalues: other side" << endl;
- for (int i=0; i< std::min((int)eigenvalues2.size(),20); i++)
-	cout<<"eigenvalue2 " << i << " val: " << eigenvalues2[i] << endl;
 
- if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
-    mat V = calc_V2() * eigenvectors2;
-    save_matrix((ac.datafile + ".V").c_str(), "V", V);
-    if (ac.debug && V.size() < 1000)
-      cout<<"Eigen vectors2 are:" << V << endl << "V is: " << (calc_V2()*eigenvectors2) << endl << " Eigenvectors (u) are: " << eigenvectors2;
-    set_size(V, 0, 0);
- }
- else {
-   ps.V = mat2fmat(calc_V2() * eigenvectors2); 
-   if (ac.debug && ps.V.size() < 1000)
-     cout<<"Eigen vectors2 are:" << ps.V << endl << "V is: " << (calc_V2()*eigenvectors2) << endl << " Eigenvectors (u) are: " << eigenvectors2;
- }
+ vec eigenvalues2 = calc_eigenvalues(T2, true);
 
  set_col(ps.T,1,vec2fvec(eigenvalues2)); 
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
@@ -651,6 +690,7 @@ void svd<>(gl_types::core & glcore){
         if (ac.debug){
           print_w(false);
           print_w(true);
+          logstream(LOG_INFO) <<"Middle iteration " << ps.iiter << " in time: " << ps.gt.current_time() << std::endl;
         }
         //lancalpha(j) = w'*V(:,j);
 	lancalpha[ps.iiter] = wTV(ps.iiter);

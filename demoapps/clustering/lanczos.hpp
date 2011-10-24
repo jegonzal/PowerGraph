@@ -269,7 +269,7 @@ void print_w(bool rows){
   if (end - start > 40)
     cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
 }
-mat calc_V();
+flt_dbl_mat calc_V(bool other_side);
 
 template<typename core>
 void lanczos(core & glcore){
@@ -335,7 +335,7 @@ void lanczos<>(gl_types::core & glcore){
     cout<<"Matrix T is: " << T << endl;
  }
 
- mat Vectors=calc_V(); 
+ mat Vectors=fmat2mat(calc_V(false)); 
    
  vec eigenvalues; 
  mat eigenvectors;

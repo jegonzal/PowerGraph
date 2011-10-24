@@ -168,6 +168,13 @@ void save_matrix(const char * filename, const char * varname, const mat& pmat){
   output << pmat;
   output.close(); 
 }
+void save_matrix(const char * filename, const char * varname, const fmat& pmat){
+  FILE * pfile = open_file(filename, "wb");
+  for (int i=0; i< pmat.rows(); i++){
+    write_vec(pfile, pmat.cols(), data(pmat.get_row(i)));
+  }
+}
+
 
 
 
