@@ -1,10 +1,11 @@
 #include "clustering.h"
-
+#include "distance.h"
 #include "../gabp/advanced_config.h"
 
 extern problem_setup ps;
 extern advanced_config ac;
 extern const char * inittypenames[];
+extern const char * distance_measure_name[];
 
 void advanced_config::init_command_line_options(graphlab::command_line_options & clopts){
 
@@ -68,4 +69,7 @@ void problem_setup::verify_setup(){
      }
        
   }
+  if (ac.distance_measure != EUCLIDEAN)
+    logstream(LOG_INFO) << "Setting distance metric to : " << distance_measure_name[ac.distance_measure] << std::endl;
+
 }

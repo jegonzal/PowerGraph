@@ -3,7 +3,7 @@
 #include "../gabp/advanced_config.h"
 
 extern advanced_config ac;
-const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TONIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
+const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TANIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
 
 sparse_flt_dbl_vec minus(sparse_flt_dbl_vec & dvec1, sparse_flt_dbl_vec & dvec2);
 vec minus(sparse_flt_dbl_vec & dvec1, vec & dvec2);
