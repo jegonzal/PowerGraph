@@ -788,6 +788,12 @@ inline double sum( sparse_vec & dvec){
   }
   return sum;
 }
+inline vec dbl_fzeros(int size){ 
+  return itpp::zeros(size);
+}
+inline mat dbl_fzeros(int rows, int cols){
+  return itpp::zeros(rows, cols);
+}
 #endif
 
 #endif //eigen

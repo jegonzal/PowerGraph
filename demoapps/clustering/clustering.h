@@ -24,9 +24,9 @@ typedef float flt_dbl;
 typedef fvec flt_dbl_vec;
 typedef sparse_fvec sparse_flt_dbl_vec;
 typedef fmat flt_dbl_mat;
+#define zeros fzeros
 #define init_vec init_fvec
 #define _randu frandu
-#define zeros fzeros
 #endif
 
 #include "kcores.h"

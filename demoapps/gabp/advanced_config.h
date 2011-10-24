@@ -83,6 +83,7 @@ float sgd_step_dec; //step decrement size
 int svd_iter;
 bool svd_finalize;
 bool svd_compile_eigenvectors;  
+int svd_compile_eigenvectors_block_size;
 
 /* variables for CG */
 bool cg_resid;
@@ -229,6 +230,7 @@ advanced_config(){
 
    svd_finalize=true;
    svd_compile_eigenvectors=false;
+   svd_compile_eigenvectors_block_size=100;
  }
 
 
