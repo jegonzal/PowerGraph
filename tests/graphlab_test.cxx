@@ -181,16 +181,14 @@ public:
     global_logger().set_log_level(LOG_WARNING);
     global_logger().set_log_to_console(true);
     
-    const char* engine_types[] = {"async", "async_sim"};
+    const char* engine_types[] = {"async"};
     const char* scope_types[] = {"vertex", "edge", "full"};
     const char* schedulers[]  = {"fifo", "multiqueue_fifo", "priority", "multiqueue_priority", "sweep", "clustered_priority"};
     std::cout << "\n\n\n";
     std::cout << "engine\tscheduler\tscope\tncpus" << std::endl;
-    for (size_t e = 0;e < 2; ++e) {
+    for (size_t e = 0;e < 1; ++e) {
       for (size_t c = 0; c < 3; ++c) {
         for (size_t s = 0;s < 6; ++s) {
-          // skip async_sim + sweep/clustered. doesn't work
-          if (e == 1 && s >= 4) continue; 
           for (size_t n =1; n <= 4; ++n) {
             gl::core glcore;
             glcore.set_engine_type(engine_types[e]);
@@ -216,9 +214,9 @@ public:
     global_logger().set_log_to_console(true);
     std::cout << "\n\n\n";
     std::cout << "engine\tscheduler\tscope\tncpus\titerations" << std::endl;
-    const char* engine_types[] = {"async", "async_sim"};
+    const char* engine_types[] = {"async"};
     const char* scope_types[] = {"vertex", "edge", "full"};
-    for (size_t e = 0;e < 2; ++e) {
+    for (size_t e = 0;e < 1; ++e) {
       for (size_t c = 0; c < 3; ++c) {
         for (size_t n =1; n <= 4; ++n) {
           for (size_t iter = 1;iter < 4; ++iter) {
@@ -248,9 +246,9 @@ public:
     global_logger().set_log_to_console(true);
     std::cout << "\n\n\n";
     std::cout << "engine\tscheduler\tscope\tncpus\titerations" << std::endl;
-    const char* engine_types[] = {"async", "async_sim"};
+    const char* engine_types[] = {"async"};
     const char* scope_types[] = {"vertex", "edge", "full"};
-    for (size_t e = 0;e < 2; ++e) {
+    for (size_t e = 0;e < 1; ++e) {
       for (size_t c = 0; c < 3; ++c) {
         for (size_t n =1; n <= 4; ++n) {
           for (size_t iter = 1;iter < 4; ++iter) {

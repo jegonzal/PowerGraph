@@ -168,7 +168,7 @@ namespace graphlab {
       terminator(ncpus_),
       ncpus(ncpus_),
       verticespercluster(100),
-      partmethod(graph_partitioner::PARTITION_METIS) {
+      partmethod(graph_partitioner::PARTITION_BFS) {
       cpu_state.resize(ncpus);
       for (size_t i = 0; i < ncpus; ++i) {
         cpu_state[i].clusterid = -1;

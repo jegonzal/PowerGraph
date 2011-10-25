@@ -77,7 +77,7 @@ namespace graphlab {
           ("engine",
           boost_po::value<std::string>(&(enginetype))->
           default_value(enginetype),
-          "Options are {async, async_sim, synchronous}")
+          "Options are {async}")
           ("affinities",
           boost_po::value<bool>(&(cpuaffin))->
           default_value(cpuaffin),

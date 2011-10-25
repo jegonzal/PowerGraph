@@ -60,10 +60,7 @@ namespace graphlab {
                                size_t ncpus) {
       if(engine == "async") {
         typedef asynchronous_engine<Graph, Scheduler, ScopeFactory> engine_type;
-        return new engine_type(_graph, ncpus, engine_type::THREADED);
-      } if(engine == "async_sim") {
-        typedef asynchronous_engine<Graph, Scheduler, ScopeFactory> engine_type;
-        return new engine_type(_graph, ncpus, engine_type::SIMULATED);
+        return new engine_type(_graph, ncpus);
       } else {
         std::cout << "Invalid engine type: " << engine
                   << std::endl;
@@ -166,7 +163,7 @@ namespace graphlab {
      * Allocate an engine given the strings for the engine type, scope
      * factory, and scheduler.
      *
-     * \param engine  Type of engine to construct. {async, async_sim, synchronous}
+     * \param engine  Type of engine to construct. {async, synchronous}
      * \param scope    Type of scope to use.  {none, vertex, edge, full}
      * \param scheduler Type of scheduler to use synchronous, fifo, priority, sampling,
      *                 sweep, multiqueue_fifo, multiqueue_priority,

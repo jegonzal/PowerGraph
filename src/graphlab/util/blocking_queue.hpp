@@ -52,31 +52,6 @@ namespace graphlab {
    
     volatile uint16_t sleeping;
     volatile uint16_t sleeping_on_empty;
-    /**
-     * Causes any threads currently blocking on a dequeue to wake up
-     * and evaluate the state of the queue. If the queue is empty,
-     * the threads will return back to sleep immediately. If the queue
-     * is destroyed through stop_blocking, all threads will return. 
-     */
-    void signal() {
-      m_mutex.lock();
-      m_conditional.broadcast();
-      m_mutex.unlock();
-    }
-    
-    
-
-    /**
-     * Causes any threads blocking on "wait_until_empty()" to wake
-     * up and evaluate the state of the queue. If the queue is not empty,
-     * the threads will return back to sleep immediately. If the queue
-     * is empty, all threads will return.
-    */
-    void signal_blocking_empty() {
-      m_mutex.lock();
-      m_empty_conditional.broadcast();
-      m_mutex.unlock();
-    }    
 
 
   public:
@@ -365,10 +340,37 @@ namespace graphlab {
       return m_alive;
     }
     
+    /**
+     * Causes any threads currently blocking on a dequeue to wake up
+     * and evaluate the state of the queue. If the queue is empty,
+     * the threads will return back to sleep immediately. If the queue
+     * is destroyed through stop_blocking, all threads will return. 
+     */
+    void broadcast() {
+      m_mutex.lock();
+      m_conditional.broadcast();
+      m_mutex.unlock();
+    }
+    
+    
+
+    /**
+     * Causes any threads blocking on "wait_until_empty()" to wake
+     * up and evaluate the state of the queue. If the queue is not empty,
+     * the threads will return back to sleep immediately. If the queue
+     * is empty, all threads will return.
+    */
+    void broadcast_blocking_empty() {
+      m_mutex.lock();
+      m_empty_conditional.broadcast();
+      m_mutex.unlock();
+    }    
+
+    
     ~blocking_queue() {
       m_alive = false;
-      signal();
-      signal_blocking_empty();
+      broadcast();
+      broadcast_blocking_empty();
     }    
   }; // end of blocking_queue class
   
