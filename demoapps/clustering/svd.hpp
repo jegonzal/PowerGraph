@@ -475,7 +475,7 @@ void update_V2(int j){
 	cout<<endl;
 }
 
-flt_dbl_mat calc_V(bool other_side){ 
+flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){ 
  
   int start = ps.M;
   int end = ps.M+ps.N;
@@ -483,31 +483,45 @@ flt_dbl_mat calc_V(bool other_side){
     start = 0;
     end = ps.M;
   }
-  flt_dbl_mat V = zeros(end-start,ac.iter+1);
 
-  if (ac.debug)
-    logstream(LOG_INFO) << "Allocating a matrix of size: " << ((end-start)*ac.iter+1) <<  " time: " << ps.gt.current_time() << std::endl;
-  if (ac.debug)
-    logstream(LOG_INFO) << "Done! in time" << ps.gt.current_time() << std::endl; 
   
  if (!ac.reduce_mem_consumption){ 
-
+     flt_dbl_mat V = zeros(end-start,ac.iter+1);
      const graph_type *g = ps.g<graph_type>(TRAINING); 
      for (int i=start; i< end; i++){ 
        const vertex_data * data = (vertex_data*)&g->vertex_data(i);
       set_row(V, i-start, mid(data->pvec, 1, ac.iter+1));
      }
+     return V*eigenvectors;
   }
   else {
-    for (int i=1; i<= ac.iter+1; i++){
-      FILE * pfile = fopen(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
-      read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
-      fclose(pfile);
-      flt_dbl_vec col(pglobal_pvec->pvec[0] +start, end-start);
-      set_col(V, i-1, col);
-    }
-  }
-   return V;
+    int block_size = std::min(end-start, ac.svd_compile_eigenvectors_block_size);
+    int howmany = (end-start)/block_size;
+    int reminder = (end-start)%block_size;
+    if (reminder > 0)
+       howmany++;
+
+    for (int cnt=0; cnt < howmany; cnt++){
+      logstream(LOG_INFO) << "Processing block number " << cnt << " at time " << ps.gt.current_time() << std::endl;
+      flt_dbl_mat V = zeros(((cnt==howmany-1 && reminder>0) ? reminder : block_size), ac.iter+1);
+      for (int i=1; i<= ac.iter+1; i++){
+        FILE * pfile = open_file(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
+        read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
+        fclose(pfile);
+        assert(start+cnt*block_size < end);
+        flt_dbl_vec col(pglobal_pvec->pvec[0] +start+cnt*block_size, ((cnt==howmany-1 && reminder>0) ? reminder : block_size));
+        set_col(V, i-1, col);
+      }
+      it_file output((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str());
+      output << Name(other_side ? "U" : "V");
+      output << fmat2mat(V*eigenvectors);
+      output.close();
+ 
+      if (cnt == howmany-1)
+        return V*eigenvectors;
+   }
+ }
+ return zeros(1,1);
 }
 /* 
 mat calc_V(bool other_side){
@@ -585,15 +599,13 @@ vec calc_eigenvalues(mat & T, bool other_side){
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
  
- flt_dbl_mat V = calc_V(other_side)*mat2fmat(eigenvectors);    
- if (ac.debug && ps.U.size() < 1000){
-     cout<<"Eigen vectors are:" << V << endl << "V is: " << (calc_V(false)*mat2fmat(eigenvectors)) << endl << " Eigenvectors (u) are: " << eigenvectors;
- }
+ flt_dbl_mat V = calc_V(other_side,mat2fmat(eigenvectors));    
+
  if (!ac.reduce_mem_consumption)
-     (other_side ? ps.U : ps.V) = V;
- else {
-   save_matrix((ac.datafile + (other_side ? ".U" : ".V")).c_str(), (other_side? "U" :"V"), V);
- }
+     (other_side ? ps.output_clusters : ps.output_assignements) = V;
+
+ if (ac.debug && V.size() < 1000)
+     cout<<"V is: " << V << endl;
  return eigenvalues;
 }
 

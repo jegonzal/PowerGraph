@@ -30,8 +30,6 @@
 #define pvec distances
 #define rmse min_distance
 #define num_edges reported
-#define U output_clusters
-#define V output_assignements
 using namespace std;
 /**
  *
@@ -269,7 +267,7 @@ void print_w(bool rows){
   if (end - start > 40)
     cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
 }
-flt_dbl_mat calc_V(bool other_side);
+flt_dbl_mat calc_V(bool other_side, flt_dbl_mat& mat);
 
 template<typename core>
 void lanczos(core & glcore){
@@ -335,8 +333,7 @@ void lanczos<>(gl_types::core & glcore){
     cout<<"Matrix T is: " << T << endl;
  }
 
- mat Vectors=fmat2mat(calc_V(false)); 
-   
+ /*  
  vec eigenvalues; 
  mat eigenvectors;
  assert(::eig_sym(T, eigenvalues, eigenvectors));
@@ -344,13 +341,14 @@ void lanczos<>(gl_types::core & glcore){
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
 
+ mat Vectors=fmat2mat(calc_V(false, mat2fmat(eigenvectors))); 
 
- ps.U=mat2fmat(Vectors*eigenvectors);
+ ps.U=mat2famt(Vectors);
  if (ac.debug)
    cout<<"Eigen vectors are:" << ps.U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
  ps.V=zeros(eigenvalues.size(),1);
  set_col(ps.V,0,vec2fvec(eigenvalues)); 
-
+*/
  if (ac.unittest > 0){
    verify_result(0, 0, 0);
  }

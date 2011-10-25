@@ -230,7 +230,7 @@ advanced_config(){
 
    svd_finalize=true;
    svd_compile_eigenvectors=false;
-   svd_compile_eigenvectors_block_size=100;
+   svd_compile_eigenvectors_block_size=500000;
  }
 
 
