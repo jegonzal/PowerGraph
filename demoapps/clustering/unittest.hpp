@@ -51,6 +51,15 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
      test_fmath();
      exit(0);
    }
+   else if (unittest ==70){
+     ac.datafile = "lanczos2"; ac.algorithm = SVD_EXPERIMENTAL; ac.K = 2; ac.init_mode = 0; ac.matrixmarket = true;
+     ac.debug =true; 
+   }
+   else if (unittest == 71){
+//./glcluster  lanczos2 7 2 0 --matrixmarket=true --svd_compile_eigenvectors=true  --reduce_mem_consumption=true --debug=true --svd_compile_eigenvectors_block_size=1 
+     ac.datafile = "lanczos2"; ac.algorithm = SVD_EXPERIMENTAL; ac.K = 2; ac.init_mode = 0; ac.matrixmarket = true;
+     ac.svd_compile_eigenvectors_block_size = 1; ac.svd_compile_eigenvectors = true; ac.reduce_mem_consumption = true; ac.debug = true;
+   }
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);

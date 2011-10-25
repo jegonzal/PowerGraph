@@ -501,24 +501,31 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
     if (reminder > 0)
        howmany++;
 
+    save_matrix((ac.datafile + (other_side ? ".U.Eigen" : ".V.Eigen")).c_str(), "rb", eigenvectors);
+
     for (int cnt=0; cnt < howmany; cnt++){
       logstream(LOG_INFO) << "Processing block number " << cnt << " at time " << ps.gt.current_time() << std::endl;
-      flt_dbl_mat V = zeros(((cnt==howmany-1 && reminder>0) ? reminder : block_size), ac.iter+1);
+      int total = ((cnt==howmany-1 && reminder>0) ? reminder : block_size);
+      flt_dbl_mat V = zeros(total, ac.iter+1);
       for (int i=1; i<= ac.iter+1; i++){
+        if (ac.debug && i%100 == 0)
+          logstream(LOG_INFO) << " Reading column number " << i << " at time " << ps.gt.current_time() << std::endl;
         FILE * pfile = open_file(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
-        read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
+        read_vec(pfile, start+cnt*block_size, total, pglobal_pvec->pvec[0]+start+cnt*block_size);
         fclose(pfile);
         assert(start+cnt*block_size < end);
-        flt_dbl_vec col(pglobal_pvec->pvec[0] +start+cnt*block_size, ((cnt==howmany-1 && reminder>0) ? reminder : block_size));
+        flt_dbl_vec col(pglobal_pvec->pvec[0] +start+cnt*block_size, total);
         set_col(V, i-1, col);
       }
-      it_file output((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str());
-      output << Name(other_side ? "U" : "V");
-      output << fmat2mat(V*eigenvectors);
-      output.close();
+      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", V);
+      if (ac.debug && V.size() < 1000)
+         cout << "V is: " << V*eigenvectors << endl;
  
-      if (cnt == howmany-1)
-        return V*eigenvectors;
+      if (cnt == howmany-1){
+        if  (V.size() < 1000)
+          return V*eigenvectors;
+        else return zeros(1,1);
+      }
    }
  }
  return zeros(1,1);

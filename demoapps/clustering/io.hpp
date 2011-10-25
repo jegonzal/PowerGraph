@@ -159,6 +159,43 @@ void read_vec(FILE * f, int len, float * array){
 
   }
 }
+//write an output vector to file
+void read_vec(FILE * f, int start, int len, double * array){
+  assert(f != NULL && array != NULL);
+  int total = 0;
+  fseek(f, start*sizeof(double), SEEK_SET);
+  while(true){
+    int rc = fread(array+total, sizeof(double), len-total, f);
+    if (rc <= 0){
+       perror("read failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+       break;
+
+  }
+}
+
+
+
+//write an output vector to file
+void read_vec(FILE * f, int start, int len, float * array){
+  assert(f != NULL && array != NULL);
+  int total = 0;
+  fseek(f, start*sizeof(float), SEEK_SET);
+  while(true){
+    int rc = fread(array+total, sizeof(float), len-total, f);
+    if (rc <= 0){
+       perror("read failed");
+       exit(1);
+    }
+    total += rc;
+    if (total >= len)
+       break;
+
+  }
+}
 
 
 
@@ -170,10 +207,12 @@ void save_matrix(const char * filename, const char * varname, const mat& pmat){
 }
 void save_matrix(const char * filename, const char * varname, const fmat& pmat){
   FILE * pfile = open_file(filename, "wb");
-  for (int i=0; i< pmat.rows(); i++){
-    write_vec(pfile, pmat.cols(), data(pmat.get_row(i)));
-  }
-}
+  if (ac.debug)
+     logstream(LOG_INFO) << "Starting to save matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
+  write_vec(pfile, pmat.size(), data(pmat));
+  if (ac.debug)
+     logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
+ }
 
 
 
