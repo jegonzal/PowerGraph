@@ -28,7 +28,7 @@ typedef fmat flt_dbl_mat;
 #ifdef HAS_EIGEN
 #define FOR_ITERATOR_ FOR_ITERATOR2
 #else
-#define FOR_ITERATOR_ FOR_ITERATOR_
+#define FOR_ITERATOR_ FOR_ITERATOR
 #endif
 #define zeros fzeros
 #define init_vec init_fvec

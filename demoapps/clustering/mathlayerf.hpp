@@ -319,7 +319,7 @@ inline float get_nz_data(sparse_fvec &v, int i){
   }
   return 0.0;
 }
-inline void print(sparse_fvec & vec){
+inline void print(const sparse_fvec & vec){
   int cnt = 0;
   FOR_ITERATOR2(i, vec){
     std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
@@ -650,6 +650,14 @@ inline float abs_sum(const fvec&v){
   }
   return sum;
 }*/
+inline float sum_sqr(sparse_fvec & v){
+  double sum = 0;
+  FOR_ITERATOR(i, v){
+     sum+= powf(v.get_nz_data(i),2);
+  }
+  return sum;
+}
+
 inline fvec pow(const fvec &v, float exponent){
   fvec ret(v.size());
   for (int i=0; i< v.size(); i++)
@@ -745,6 +753,17 @@ inline void assign(fvec & v1, sparse_fvec & v2, int N){
 }
 inline fvec init_fvec(float * array, int size){
   return fvec(array, size);
+}
+
+inline void print(sparse_fvec & vec){
+  int cnt = 0;
+  FOR_ITERATOR(i, vec){
+    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+    cnt++;
+    if (cnt >= 20)
+       break;
+  }
+  std::cout<<std::endl;
 }
 
 
