@@ -270,7 +270,7 @@ void
 accum_betas (double **betas, int K, vertex_data & data)
 {
 	int k;
-        FOR_ITERATOR(i, data.datapoint){
+        FOR_ITERATOR_(i, data.datapoint){
 		int id = get_nz_index(data.datapoint, i);
                 int cnt = (int)get_nz_data(data.datapoint, i);
 		for (k = 0; k < ac.K; k++)
@@ -327,7 +327,7 @@ lda_lik (double **beta, double **gammas, int m)
 	for (i = 0; i < ps.M; i++)
 	{
 	        vertex_data &data = ps.g<graph_type>()->vertex_data(i);
-		FOR_ITERATOR(j, data.datapoint){
+		FOR_ITERATOR_(j, data.datapoint){
 			int pos = get_nz_index(data.datapoint, j);
 		        int cnt = get_nz_data(data.datapoint, j);
 			for (k = 0, z = 0; k < ac.K; k++)
@@ -374,7 +374,7 @@ void lda_em_update_function(gl_types::iscope & scope,
 
 		/* accumulate q */
                 l= 0;
-                FOR_ITERATOR(s, data.datapoint){
+                FOR_ITERATOR_(s, data.datapoint){
 	                int pos = get_nz_index(data.datapoint, s);
 			for (k = 0; k < ac.K; k++)
 				myscratch.q[l][k] = beta[pos][k] * myscratch.ap[k];
@@ -392,7 +392,7 @@ void lda_em_update_function(gl_types::iscope & scope,
 		for (k = 0; k < ac.K; k++) {
 			z = 0;
                         l = 0;
-                        FOR_ITERATOR(s, data.datapoint){
+                        FOR_ITERATOR_(s, data.datapoint){
 				int cnt = (int)get_nz_data(data.datapoint, s);
 				z += myscratch.q[l][k] * cnt;
                         }

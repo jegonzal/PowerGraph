@@ -232,7 +232,7 @@ void svd_Axb(gl_types::iscope &scope,
   t.start(); 
 
   // foreach(gl_types::edge_id oedgeid, outs) {
-  FOR_ITERATOR(i,user.datapoint){
+  FOR_ITERATOR_(i,user.datapoint){
       //edge_data & edge = scope.edge_data(oedgeid);
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
@@ -278,7 +278,7 @@ void svd_Axb2(gl_types::iscope &scope,
   timer t;
   t.start(); 
 
-  FOR_ITERATOR(i, user.datapoint){
+  FOR_ITERATOR_(i, user.datapoint){
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
       assert(index>=0 && index < ps.M);
@@ -330,7 +330,7 @@ void svd_ATxb(gl_types::iscope &scope,
    //foreach(gl_types::edge_id iedgeid, ins) {
    //   edge_data & edge = scope.edge_data(iedgeid);
    //   vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
-  FOR_ITERATOR(i, user.datapoint){
+  FOR_ITERATOR_(i, user.datapoint){
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
       assert(index >= 0 && index < ps.M);
@@ -381,7 +381,7 @@ void svd_ATxb2(gl_types::iscope &scope,
   timer t;
   t.start(); 
 
-  FOR_ITERATOR(i, user.datapoint){
+  FOR_ITERATOR_(i, user.datapoint){
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
       assert(index >=0 && index< ps.N);
@@ -514,7 +514,7 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
         read_vec(pfile, start+cnt*block_size, total, pglobal_pvec->pvec[0]+start+cnt*block_size);
         fclose(pfile);
         assert(start+cnt*block_size < end);
-        flt_dbl_vec col(pglobal_pvec->pvec[0] +start+cnt*block_size, total);
+        flt_dbl_vec col = init_vec(pglobal_pvec->pvec[0] +start+cnt*block_size, total);
         set_col(V, i-1, col);
       }
       save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", V);
@@ -661,7 +661,8 @@ for (int i=1; i<=m; i++){
 
  set_col(ps.T,1,vec2fvec(eigenvalues2)); 
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
-    save_matrix((ac.datafile + ".D").c_str(), "D", fmat2mat(ps.T));
+    mat Tout = fmat2mat(ps.T);
+    save_matrix((ac.datafile + ".D").c_str(), "D", Tout);
  }
 }
 

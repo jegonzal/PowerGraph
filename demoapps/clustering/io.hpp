@@ -200,6 +200,7 @@ void read_vec(FILE * f, int start, int len, float * array){
 
 
 void save_matrix(const char * filename, const char * varname, const mat& pmat){
+  remove(filename);
   it_file output(filename);
   output << Name(varname);
   output << pmat;
@@ -256,11 +257,14 @@ void export_to_itpp_file(){
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
+  remove(dfile);
   it_file output(dfile);
   output << Name("Clusters");
-  output << fmat2mat(ps.output_clusters);
+  mat a = fmat2mat(ps.output_clusters);
+  output << a; //DB: Eigen fails when trying to output << fmat2mat(ps.output_clusters)
   output << Name("Assignments");
-  output << fmat2mat(ps.output_assignements);
+  a= fmat2mat(ps.output_assignements);
+  output << a;
   output.close();
 }
 

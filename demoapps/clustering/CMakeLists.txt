@@ -11,7 +11,7 @@ set(OMP_SUPPORT 0)
   endif()
 
 if (HAS_EIGEN)
-  set( lapack_found 0) # clustering does not support eigen yet (becuase of experimental svd)
+  set( lapack_found 1) # clustering does not support eigen yet (becuase of experimental svd)
 elseif(ITPP-FOUND)
   set( lapack_found 1)
 endif()

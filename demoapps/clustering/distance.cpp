@@ -5,21 +5,15 @@
 extern advanced_config ac;
 const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TANIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
 
-sparse_flt_dbl_vec minus(sparse_flt_dbl_vec & dvec1, sparse_flt_dbl_vec & dvec2);
-vec minus(sparse_flt_dbl_vec & dvec1, vec & dvec2);
-flt_dbl sum_sqr(sparse_flt_dbl_vec & dvec1);
-sparse_flt_dbl_vec fabs(sparse_flt_dbl_vec& dvec1);
-flt_dbl sum(sparse_flt_dbl_vec & dvec);
-
 
 
 flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){ 
-  flt_dbl a_mult_b = datapoint * cluster;
+  flt_dbl a_mult_b = dot_prod(datapoint , cluster);
   return a_mult_b / (sqr_sum + sqr_sum0 - a_mult_b);
 }
 
 flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
-  flt_dbl a_mult_b = datapoint * cluster;
+  flt_dbl a_mult_b = dot_prod(datapoint, cluster);
   return a_mult_b / (sqr_sum + sqr_sum0 - a_mult_b);
 }
 
@@ -35,13 +29,16 @@ flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl
 flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
   flt_dbl dist = sqr_sum + sqr_sum0;
   //for (int i=0; i< datapoint.nnz(); i++){
-  FOR_ITERATOR(i, datapoint){
+  FOR_ITERATOR_(i, datapoint){
       flt_dbl val = get_nz_data(datapoint, i);
       int pos = get_nz_index(datapoint, i);
       dist -= 2*val*cluster[pos];
    }
-  if (fabs(dist) <1e-10)
-     dist = 0;
+  if (dist < 0){
+     logstream(LOG_WARNING)<<"Found a negative distance: " << dist << std::endl;
+      dist = 0;
+  
+  }
   return sqrt(dist);
 }
 

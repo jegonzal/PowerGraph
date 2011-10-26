@@ -14,6 +14,7 @@ typedef double flt_dbl;
 typedef vec flt_dbl_vec;
 typedef sparse_vec sparse_flt_dbl_vec;
 typedef mat flt_dbl_mat;
+#define FOR_ITERATOR_ FOR_ITERATOR
 #define _randu randu
 #define vec2fvec(a) a
 #define fvec2vec(a) a
@@ -24,6 +25,11 @@ typedef float flt_dbl;
 typedef fvec flt_dbl_vec;
 typedef sparse_fvec sparse_flt_dbl_vec;
 typedef fmat flt_dbl_mat;
+#ifdef HAS_EIGEN
+#define FOR_ITERATOR_ FOR_ITERATOR2
+#else
+#define FOR_ITERATOR_ FOR_ITERATOR_
+#endif
 #define zeros fzeros
 #define init_vec init_fvec
 #define _randu frandu
@@ -32,19 +38,6 @@ typedef fmat flt_dbl_mat;
 #include "kcores.h"
 
 void knn_main();
-
-inline void print(sparse_flt_dbl_vec & vec){
-  int cnt = 0;
-  FOR_ITERATOR(i, vec){
-    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
-    cnt++;
-    if (cnt >= 20)
-       break;
-  }
-  std::cout<<std::endl;
-}
-
-
 
 //structs for holding edge data in file
 

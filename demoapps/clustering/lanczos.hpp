@@ -120,7 +120,7 @@ void Axb(gl_types::iscope &scope,
   t.start(); 
 
   //   foreach(gl_types::edge_id oedgeid, outs) {
-  FOR_ITERATOR(i,user.datapoint){
+  FOR_ITERATOR_(i,user.datapoint){
       //edge_data & edge = scope.edge_data(oedgeid);
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
@@ -167,7 +167,7 @@ void ATxb(gl_types::iscope &scope,
   t.start(); 
 
    //foreach(gl_types::edge_id iedgeid, ins) {
-   FOR_ITERATOR(i, user.datapoint){
+   FOR_ITERATOR_(i, user.datapoint){
       //edge_data & edge = scope.edge_data(iedgeid);
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);

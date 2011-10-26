@@ -49,7 +49,7 @@ using namespace Eigen;
 typedef MatrixXd mat;
 typedef VectorXd vec;
 typedef VectorXi ivec;
-typedef SparseVector<float> sparse_vec;
+typedef SparseVector<double> sparse_vec;
 
 mat randn1(int dx, int dy, int col);
 
@@ -73,7 +73,11 @@ inline void debug_print_vec(const char * name,const vec& _vec, int len){
     else printf("%12.4g    ", _vec(i));
   printf("\n");
 }
-
+inline vec init_vec(const double * array, int size){
+  vec ret(size);
+  memcpy(ret.data(), array, size*sizeof(double));
+  return ret;
+}
 inline void dot2(const vec&  x1, const vec& x3, mat & Q, int j, int len){
 	for (int i=0; i< len; i++){
 		Q(i,j) = (x1(i) * x3(i));
@@ -156,6 +160,10 @@ inline vec init_vec(const char * string, int size){
   assert(i == size);
   return out;
 }
+inline vec init_dbl_vec(const char * string, int size){
+  return init_vec(string, size);
+}
+
 inline double norm(const mat &A, int pow=2){
      return A.squaredNorm();
 }
@@ -232,7 +240,11 @@ inline sparse_vec elem_mult(const sparse_vec&a, const sparse_vec&b){
 inline double sum(const vec & a){
   return a.sum();
 }
-inline double sum_sqr(const vec & a){
+template<typename T>
+double sum_sqr(const T& a);
+
+template<>
+inline double sum_sqr<vec>(const vec & a){
   vec ret = a.array().pow(2);
   return ret.sum();
 }
@@ -317,7 +329,6 @@ public:
    }
   
   };
-
   std::fstream & operator<<(const std::string str){
    int size = str.size();
    fb.write((char*)&size, sizeof(int));
@@ -337,7 +348,7 @@ public:
       }
    return fb;
   }
-  std::fstream &operator<<(vec & v){
+   std::fstream &operator<<(const vec & v){
    int size = v.size();
    fb.write( (const char*)&size, sizeof(int));
    assert(!fb.fail());
@@ -348,7 +359,7 @@ public:
    }
    return fb;
   }
- std::fstream & operator>>(std::string  str){
+  std::fstream & operator>>(std::string  str){
     int size = -1;
     fb.read((char*)&size, sizeof(int));
        if (fb.fail() || fb.eof()){
@@ -379,7 +390,7 @@ public:
       }
    return fb;
   }
-  std::fstream &operator>>(vec & v){
+   std::fstream &operator>>(vec & v){
    int size;
    fb.read((char*)&size, sizeof(int));
    assert(!fb.fail());
@@ -393,6 +404,7 @@ public:
    }
    return fb;
   }
+
 
 
   void close(){
@@ -410,15 +422,26 @@ inline void set_new(sparse_vec&v, int ind, double val){
 inline int nnz(sparse_vec& v){
   return v.nonZeros();
 }
-#define FOR_ITERATOR(i, v) \
-    for (sparse_vec::InnerIterator i(v); i; ++i)
-
 inline int get_nz_index(sparse_vec &v, sparse_vec::InnerIterator& i){
   return i.index();
 }
 inline double get_nz_data(sparse_vec &v, sparse_vec::InnerIterator& i){
   return i.value();
 }
+#define FOR_ITERATOR(i,v) \
+  for (sparse_vec::InnerIterator i(v); i; ++i)
+
+template<>
+inline double sum_sqr<sparse_vec>(const sparse_vec & a){
+  double sum=0;
+  FOR_ITERATOR(i,a){
+    sum+= powf(i.value(),2);
+  }
+  return sum;
+}
+
+
+
 inline double get_nz_data(sparse_vec &v, int i){
   assert(nnz(v) > i);
   int cnt=0;
@@ -429,6 +452,16 @@ inline double get_nz_data(sparse_vec &v, int i){
     cnt++;
   }
   return 0.0;
+}
+inline void print(sparse_vec & vec){
+  int cnt = 0;
+  FOR_ITERATOR(i, vec){
+    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+    cnt++;
+    if (cnt >= 20)
+       break;
+  }
+  std::cout<<std::endl;
 }
 inline vec pow(const vec&v, int exponent){
   vec ret = vec(v.size());
@@ -794,6 +827,20 @@ inline vec dbl_fzeros(int size){
 inline mat dbl_fzeros(int rows, int cols){
   return itpp::zeros(rows, cols);
 }
+inline void print(sparse_vec & vec){
+  int cnt = 0;
+  FOR_ITERATOR(i, vec){
+    std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
+    cnt++;
+    if (cnt >= 20)
+       break;
+  }
+  std::cout<<std::endl;
+}
+inline vec init_vec(double * array, int size){
+  return vec(array, size);
+}
+
 #endif
 
 #endif //eigen

@@ -222,7 +222,7 @@ void test_fmath(){
    sparse_fvec v6;
    set_size(v6, 4);
    set_new(v6, 3, 4.2);
-   FOR_ITERATOR(i, v6){
+   FOR_ITERATOR_(i, v6){
    set_div(v6, i, 2.0);
    }
    assert(powf(get_nz_data(v6, 0)- 2.1,2)<1e-10);

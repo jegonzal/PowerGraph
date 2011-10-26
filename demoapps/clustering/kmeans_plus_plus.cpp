@@ -9,7 +9,6 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
-flt_dbl sum_sqr(sparse_flt_dbl_vec & v1);
 void add_tasks(gl_types::core &glcore);
 void run_graphlab(gl_types::core & glcore);
 

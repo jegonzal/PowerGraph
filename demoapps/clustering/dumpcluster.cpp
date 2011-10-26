@@ -7,7 +7,7 @@ extern advanced_config ac;
 void print_point(FILE * f, vertex_data & data){
    fprintf(f, "\t[");
    bool first = true;
-   FOR_ITERATOR(i, data.datapoint){
+   FOR_ITERATOR_(i, data.datapoint){
       if (!first){
 	fprintf(f, " ");
       }
