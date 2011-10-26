@@ -457,7 +457,7 @@ void start(command_line_options & clopts) {
 int do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "Clustering Code (K-Means/Fuzzy K-means/K-Means++/LDA) written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "Clustering Code (K-Means/Fuzzy K-means/K-Means++/LDA/K-Core/Item-KNN/User-KNN) written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 
 #ifdef OMP_SUPPORT
   logstream(LOG_INFO)<<"Program compiled with OMP support\n";
