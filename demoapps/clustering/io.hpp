@@ -309,16 +309,21 @@ void add_vertices(graph_type * _g, testtype type){
   if (ps.algorithm == SVD_EXPERIMENTAL)
      howmany = ps.M+ps.N;
 
-  if (type == VALIDATION)
+  if (ps.algorithm == USER_KNN && type == VALIDATION)
     howmany = ps.M_validation;
-  else if (type == TEST)
+  else if (ps.algorithm == USER_KNN && type == TEST)
     howmany = ps.M_test;
-
+  else if (ps.algorithm == ITEM_KNN && type == VALIDATION)
+    howmany = ps.M_validation + ps.N_validation;
+  else if (ps.algorithm == ITEM_KNN && type == TEST)
+    howmany = ps.M_test + ps.N_test;
+  else if (ps.algorithm == ITEM_KNN && type == TRAINING)
+    howmany = ps.M+ps.N;
   // add M movie nodes (ps.tensor dim 1)
   for (int i=0; i< howmany; i++){
     switch (ps.init_type){
        case INIT_RANDOM:
-         vdata.current_cluster = randi(0, ps.K-1);
+         vdata.current_cluster = ::randi(0, ps.K-1);
          break;
        
        case INIT_ROUND_ROBIN:
@@ -419,8 +424,10 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
     ps.M=_M; ps.N= _N;
   }
   else if (type == VALIDATION){
-    assert(_N == ps.N);
+    if (ps.algorithm == USER_KNN) assert(_N == ps.N);
     ps.M_validation = _M;
+    ps.N_validation = _N;
+
   }
   else {
     assert(_N == ps.N);
@@ -551,7 +558,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
    for (int i=0; i<rc; i++){ 
      vertex_data & vdata = _g->vertex_data(ed[i].from - matlab_offset);
       set_new( vdata.datapoint, ed[i].to - matlab_offset, ed[i].weight);  
-      if (ps.algorithm == SVD_EXPERIMENTAL){
+      if (ps.algorithm == SVD_EXPERIMENTAL || ps.algorithm == ITEM_KNN){
           vertex_data & other = _g->vertex_data(ed[i].to - matlab_offset + ps.M);
           set_new( other.datapoint, ed[i].to - matlab_offset, ed[i].weight);
           other.reported = true;

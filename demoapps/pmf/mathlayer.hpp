@@ -840,6 +840,19 @@ inline void print(sparse_vec & vec){
 inline vec init_vec(double * array, int size){
   return vec(array, size);
 }
+/**
+ * It seems that it++ random number generator is not thread safe so
+ * we are using graphlab's
+ */
+inline ivec randi(int size, int from, int to){
+  ivec ret(size);
+  for (int i=0; i<size; i++)
+    ret[i]= graphlab::random::uniform<int>(from,to);
+  return ret;
+}
+inline int randi(int from, int to){
+  return graphlab::random::uniform<int>(from,to);
+}
 
 #endif
 

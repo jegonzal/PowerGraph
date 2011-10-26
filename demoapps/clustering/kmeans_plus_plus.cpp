@@ -17,7 +17,7 @@ using namespace std;
 void initialize_clusters(gl_types::core &glcore){
    int first = -1;
    while(true){
-     first = randi(0, ps.M-1);
+     first = ::randi(0, ps.M-1);
      if (!ps.g<graph_type>()->vertex_data(first).reported){
         logstream(LOG_WARNING) << " node " << first << " has no edges - can not be selcted to cluster head " << endl;
      }

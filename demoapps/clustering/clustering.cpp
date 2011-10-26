@@ -160,8 +160,12 @@ void add_tasks(gl_types::core & glcore){
 
   int start = 0;
   int end = ps.M;
-  if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
+  if (ac.algorithm == USER_KNN){
      end = ps.M_validation;
+  }
+  else if (ac.algorithm == ITEM_KNN){
+     start = ps.M_validation;
+     end = ps.N_validation+ps.M_validation;
   }
 
   std::vector<vertex_id_t> um;
@@ -228,7 +232,7 @@ void init_random_cluster(){
    for (int i=0; i < ac.K; i++){
        int tries = 0;
        while(true){
-        ::plus(ps.clusts.cluster_vec[i].location,  ps.g<graph_type>()->vertex_data(randi(0, ps.M-1)).datapoint);
+        ::plus(ps.clusts.cluster_vec[i].location,  ps.g<graph_type>()->vertex_data(::randi(0, ps.M-1)).datapoint);
   	 if (abs_sum(ps.clusts.cluster_vec[i].location) > 0.0){	
             if (ac.debug)
               std::cout<<"Selected random cluster: " << i << " to be: " << ps.clusts.cluster_vec[i].location << std::endl;

@@ -183,6 +183,7 @@ public:
   int K;//number of clusters
   int L;//number of non zero elements in data
   int M_validation, M_test; //data points in validation and tests data
+  int N_validation, N_test; //dimensions of validation /tets
 
   gl_types::core * glcore;
   gl_types_kcores::core * glcore_kcores;
