@@ -62,7 +62,7 @@ void add_implicit_edges(graph_type * g){
       if (ac.implicitratingtype == "uniform" && i == 0 && toadd < 1){
          logstream(LOG_WARNING) << "implicitratingpercentage given is too low, resulting in " << toadd << " new edges per node. No edges will be added." << std::endl;
       }
-      ivec newedges = randi(toadd,0,ps.N-1);
+      ivec newedges = ::randi(toadd,0,ps.N-1);
       assert(newedges.size() <= ps.N);
       for (int j=0; j< newedges.size(); j++){
 	 if (!flag_edges[newedges[j]]){

@@ -20,8 +20,8 @@
  *
  */
 
-#include "mathlayer.hpp"
 #include "graphlab.hpp"
+#include "mathlayer.hpp"
 #include <cassert>
 #include <iostream>
 
