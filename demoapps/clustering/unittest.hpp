@@ -55,6 +55,15 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
      ac.datafile = "lanczos2"; ac.algorithm = SVD_EXPERIMENTAL; ac.K = 2; ac.init_mode = 0; ac.matrixmarket = true;
      ac.debug =true; 
    }
+   else if (unittest == 50){
+//r netflix 5 2 0 --pmfformat=true --float=false --ncpus=8 --knn_sample_percent=0.8
+     ac.datafile = "netflix"; ac.algorithm = ITEM_KNN; ac.K = 2; ac.init_mode =0; ac.supportgraphlabcf = true; ac.isfloat=false; ac.ncpus=8; ac.knn_sample_percent=0.8;
+     clopts.set_ncpus(8);
+   }
+   else if (unittest == 51){
+     ac.datafile = "netflix"; ac.algorithm = USER_KNN; ac.K = 2; ac.init_mode =0; ac.supportgraphlabcf = true; ac.isfloat=false; ac.ncpus=8; ac.knn_sample_percent=0.02;
+     clopts.set_ncpus(8);
+   }
    else if (unittest == 71){
 //./glcluster  lanczos2 7 2 0 --matrixmarket=true --svd_compile_eigenvectors=true  --reduce_mem_consumption=true --debug=true --svd_compile_eigenvectors_block_size=1 
      ac.datafile = "lanczos2"; ac.algorithm = SVD_EXPERIMENTAL; ac.K = 2; ac.init_mode = 0; ac.matrixmarket = true;
