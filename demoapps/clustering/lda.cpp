@@ -13,7 +13,7 @@ void normalize_matrix_col (double **dst, double **src, int rows, int cols);
 void normalize_matrix_row (double **dst, double **src, int rows, int cols);
 double lda_lik (double **beta, double **gammas, int m);
 int converged (double *u, double *v, int n, double threshold);
-void fill_output_lda();
+//void fill_output_lda();
 
 double *alpha;
 double **beta;
@@ -231,7 +231,7 @@ lda_learn (double *alpha, double **beta)
 	}
  
 
-        fill_output_lda();
+        //fill_output_lda();
        
 	free_dmatrix(gammas, n);
 	free_dmatrix(betas, ps.N);
@@ -239,10 +239,10 @@ lda_learn (double *alpha, double **beta)
 	return;
 }
 
-
+/*
 void fill_output_lda(){
 
-     ps.output_clusters = zeros(ps.K, ps.N);
+     //ps.output_clusters = zeros(ps.K, ps.N);
         //for (int i=0; i<ps.K; i++)
         //  ps.output_clusters.set_row(i, ps.clusts.cluster_vec[i].location);
      //TODO
@@ -254,7 +254,7 @@ void fill_output_lda(){
            row[j] = gammas[i][j];
         set_row(ps.output_assignements,i,row);
      }	
-}
+}*/
 
 /*void
 accum_gammas (double **gammas, double *_gamma, int n, int K)
@@ -315,8 +315,10 @@ lda_lik (double **beta, double **gammas, int m)
 	double z, lik;
 	int i, k;
 	lik = 0;
-	graphlab::timer t; t.start();
-	
+        if (ps.iiter == ac.iter - 1)
+          ps.output_assignements = zeros(ps.M, ac.K);
+ 	graphlab::timer t; t.start();
+       	
 	
 	if ((egammas = dmatrix(m, ac.K)) == NULL) {
 		fprintf(stderr, "lda_likelihood:: cannot allocate egammas.\n");
@@ -332,6 +334,9 @@ lda_lik (double **beta, double **gammas, int m)
 		        int cnt = get_nz_data(data.datapoint, j);
 			for (k = 0, z = 0; k < ac.K; k++)
 				z += beta[pos][k] * egammas[i][k];
+                        if (ps.iiter == ac.iter - 1 ) //last iteration
+			    for (k = 0; k < ac.K; k++)
+                                set_val(ps.output_assignements,i,k, beta[pos][k]*egammas[i][k]);
 			lik += cnt * log(z);
 		}
 	}

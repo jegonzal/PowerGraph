@@ -259,12 +259,16 @@ void export_to_itpp_file(){
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
   remove(dfile);
   it_file output(dfile);
-  output << Name("Clusters");
-  mat a = fmat2mat(ps.output_clusters);
-  output << a; //DB: Eigen fails when trying to output << fmat2mat(ps.output_clusters)
-  output << Name("Assignments");
-  a= fmat2mat(ps.output_assignements);
-  output << a;
+  if (ps.output_clusters.size() > 0){
+    output << Name("Clusters");
+    mat a = fmat2mat(ps.output_clusters);
+    output << a; //DB: Eigen fails when trying to output << fmat2mat(ps.output_clusters)
+  }  
+  if (ps.output_assignements.size() > 0){
+    output << Name("Assignments");
+    mat a= fmat2mat(ps.output_assignements);
+    output << a;
+  }
   output.close();
 }
 
