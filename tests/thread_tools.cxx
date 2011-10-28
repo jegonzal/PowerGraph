@@ -3,6 +3,7 @@
 #include <graphlab/parallel/thread_pool.hpp>
 #include <graphlab/parallel/thread_flip_flop.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/util/timer.hpp>
 #include <boost/bind.hpp>
 
 using namespace graphlab;
@@ -158,18 +159,70 @@ void flip_flop_1() {
   flipflop.stop_blocking();
 }
 
+
+
+template<typename Mutex>
+void test_adaptive_mutex_helper(Mutex* mut, size_t* val) {
+  sleep(1);
+  for(size_t i = 0; i < 2000000; ++i) {
+    mut->lock(); 
+    *val += i; //size_t(log(i+1.0) + log(exp(i+1.0) + 1.0) + 1) ; 
+    mut->unlock();
+  }
+}
+
+void adaptive_mutex_test() {
+  const size_t nthreads = 2;
+  std::cout << std::endl;
+  thread_pool pool(nthreads);
+  {
+    timer ti;
+    ti.start();
+    typedef adaptive_mutex<0> mutex_type;
+    mutex_type mut;
+    size_t counter = 0;
+    for (size_t i = 0; i < nthreads; ++i) {
+      pool.launch(boost::bind(test_adaptive_mutex_helper<mutex_type>, &mut, &counter) );
+    }
+    pool.join();
+    std::cout << counter << std::endl;   
+    std::cout << ti.current_time() << std::endl;
+  }
+ 
+  {
+    timer ti;
+    ti.start();
+    typedef adaptive_mutex<1000000000> mutex_type;
+    mutex_type mut;
+    size_t counter = 0;
+    for (size_t i = 0; i < nthreads; ++i) {
+      pool.launch(boost::bind(test_adaptive_mutex_helper<mutex_type>, &mut, &counter) );
+    }
+    pool.join();
+    std::cout << counter << std::endl;
+    std::cout << ti.current_time() << std::endl;
+  }
+
+}
+
+
+
 class ThreadToolsTestSuite : public CxxTest::TestSuite {
 public:
-   void test_thread_group_exception(void) {
-    test_group_exception_forwarding();
-   }
+  // void test_thread_group_exception(void) {
+  //  test_group_exception_forwarding();
+  // }
 
-   void test_thread_pool(void) {
-    test_pool();
-   }
+  // void test_thread_pool(void) {
+  //  test_pool();
+  // }
    
-   void test_thread_pool_exception(void) {
-     test_pool_exception_forwarding();
-   }
+  // void test_thread_pool_exception(void) {
+  //   test_pool_exception_forwarding();
+  // }
+
+  void test_adaptive_mutex() {
+    adaptive_mutex_test();
+  }
 
 };

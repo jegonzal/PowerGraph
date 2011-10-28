@@ -57,13 +57,14 @@ namespace graphlab {
    * Simple wrapper around pthread's mutex.
    * Before you use, see \ref parallel_object_intricacies.
    */
-  class mutex {
+  template< size_t spin_count = 0 >
+  class adaptive_mutex {
   private:
     // mutable not actually needed
     mutable pthread_mutex_t m_mut;
   public:
     /// constructs a mutex
-    mutex() {
+    adaptive_mutex() {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
@@ -72,18 +73,19 @@ namespace graphlab {
         Required for compatibility with some STL implementations (LLVM).
         which use the copy constructor for vector resize, 
         rather than the standard constructor.    */
-    mutex(const mutex&) {
+    adaptive_mutex(const adaptive_mutex&) {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
 
     // not copyable
-    void operator=(const mutex& m) { }
+    void operator=(const adaptive_mutex& m) { }
     
     /// Acquires a lock on the mutex
     inline void lock() const {
+      for(size_t i = 0; i < spin_count; ++i) { if(try_lock()) return; }
       int error = pthread_mutex_lock( &m_mut  );
-      if (error) std::cout << "mutex.lock() error: " << error << std::endl;
+      // if (error) std::cout << "mutex.lock() error: " << error << std::endl;
       ASSERT_TRUE(!error);
     }
     /// Releases a lock on the mutex
@@ -95,12 +97,17 @@ namespace graphlab {
     inline bool try_lock() const {
       return pthread_mutex_trylock( &m_mut ) == 0;
     }
-    ~mutex(){
+    ~adaptive_mutex(){
       int error = pthread_mutex_destroy( &m_mut );
       ASSERT_TRUE(!error);
     }
     friend class conditional;
-  }; // End of Mutex
+  }; // End of Adaptive_Mutex
+  
+  typedef adaptive_mutex<0> mutex;
+
+
+
 
 #if _POSIX_SPIN_LOCKS >= 0
   /**
@@ -239,7 +246,8 @@ namespace graphlab {
     void operator=(const conditional& m) { }
 
     
-    /// Waits on condition. The mutex must already be acquired. Caller must be careful about spurious wakes.
+    /// Waits on condition. The mutex must already be acquired. Caller
+    /// must be careful about spurious wakes.
     inline void wait(const mutex& mut) const {
       int error = pthread_cond_wait(&m_cond, &mut.m_mut);
       ASSERT_TRUE(!error);
