@@ -38,6 +38,17 @@ const static  int matlab_offset_user_movie = 1; //matlab array start from 1
 static  int matlab_offset_time = 1; //matlab arrays start from 1
 bool * flags = NULL;
 
+FILE * open_file(const char * name, const char * mode){
+  FILE * f = fopen(name, mode);
+  if (f == NULL){
+      perror("fopen failed");
+      logstream(LOG_ERROR) <<" Failed to open file" << name << std::endl;
+      exit(1);
+   }
+  return f;
+}
+
+
 template<typename graph_type, typename vertex_data>
 void add_time_nodes(graph_type* _g){
     //init times
@@ -144,12 +155,15 @@ void fill_factors_uvt(){
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
+
    for (int i=0; i< ps.M+ps.N; i++){ 
       const vertex_data & data = ps.g<graph_type>(TRAINING)->vertex_data(i);
-      if (i < ps.M)
-          set_row(ps.U, i, data.pvec);
-      else
+      if (i < ps.M){
+        set_row(ps.U, i, data.pvec);
+      }
+      else {
         set_row(ps.V, i-ps.M, data.pvec);
+      }
    }
 
    if (ps.tensor){ 
@@ -159,6 +173,28 @@ void fill_factors_uvt(){
      }
     } 
   }
+} 
+
+/* prepare output for SVD++ algorithm */
+template<>
+void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
+   ps.U = zeros(ps.M,ac.D);
+   ps.V = zeros(ps.N,ac.D);
+   ps.svdpp_usr_bias = zeros(ps.M);
+   ps.svdpp_movie_bias = zeros(ps.N);
+      
+   for (int i=0; i< ps.M+ps.N; i++){ 
+      const vertex_data_svdpp & data = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
+      if (i < ps.M){
+         set_row(ps.U, i, data.pvec+ data.weight);
+         ps.svdpp_usr_bias[i] = data.bias;
+      }
+      else {
+        set_row(ps.V, i-ps.M, data.pvec);
+        ps.svdpp_movie_bias[i] = data.bias;
+      }
+   }
+
 } 
 
 
@@ -310,7 +346,7 @@ void export_kdd_format(const graph_type & _g, testtype type, bool dosave) {
     FILE * outFp = NULL;
     if (dosave){
       printf("Exporting KDD cup %s graph: %s\n", testtypename[type], (ac.datafile+"t.kdd.out").c_str());
-      outFp = fopen((ac.datafile+"t.kdd.out").c_str(), "w");
+      outFp = open_file((ac.datafile+"t.kdd.out").c_str(), "w");
       assert(outFp);
     }
     const int ExpectedTestSize = 6005940;
@@ -359,7 +395,7 @@ void export_uvt_to_binary_file(){
 
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
-  FILE * f = fopen(dfile, "w");
+  FILE * f = open_file(dfile, "w");
   assert(f!= NULL);
 
   int rc = fwrite(&ps.M, 1, 4, f);
@@ -371,11 +407,17 @@ void export_uvt_to_binary_file(){
   rc = fwrite(&ac.D, 1, 4, f);
   assert(rc == 4);
 
-  write_vec(f, ps.M*ac.D, data(ps.U));
-  write_vec(f, ps.N*ac.D, data(ps.V));
+  write_vec(f, ps.U.size(), data(ps.U));
+  write_vec(f, ps.V.size(), data(ps.V));
   if (ps.tensor)
-    write_vec(f, ps.K*ac.D, data(ps.T));
+    write_vec(f, ps.T.size(), data(ps.T));
 
+  if (ps.algorithm == SVD_PLUS_PLUS){
+    write_vec(f, ps.svdpp_usr_bias.size(), data(ps.svdpp_usr_bias));
+    write_vec(f, ps.svdpp_movie_bias.size(), data(ps.svdpp_movie_bias));
+    write_vec(f, 1, ps.globalMean); 
+  }
+   
   fclose(f); 
 
 }
@@ -398,9 +440,32 @@ void export_uvt_to_itpp_file(){
   if (ps.tensor){
     output << Name("Time");
     output << ps.T;
- }
+  }
   output.close();
 }
+//OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
+template<>
+void export_uvt_to_itpp_file<graph_type_svdpp,vertex_data_svdpp>(){
+
+  fill_factors_uvt<graph_type_svdpp, vertex_data_svdpp>();
+
+  char dfile[256] = {0};
+  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
+  remove(dfile);
+  it_file output(dfile);
+  output << Name("User");
+  output << ps.U;
+  output << Name("Movie");
+  output << ps.V;
+  output << Name("UserBias");
+  output << ps.svdpp_usr_bias;
+  output << Name("MovieBias");
+  output << ps.svdpp_movie_bias;
+  output << Name("GlobalMean");
+  output << ps.globalMean[0];
+  output.close();
+}
+
 
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_matrixmarket(){
