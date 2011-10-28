@@ -269,6 +269,8 @@ public:
   graphlab::timer gt;
   int iiter;//count number of time zero node run
   mat U,V,T; //for storing the output
+  vec svdpp_usr_bias;
+  vec svdpp_movie_bias;
   mat dp;
 
 /* Variables for PMF */
@@ -410,7 +412,7 @@ int do_main(int argc, const char * argv[]);
 void set_num_edges(int val, testtype data_type);
 void load_matrix_market(const char * filename, graph_type * _g, testtype data_type);
 void verify_size(testtype data_type, int M, int N, int K);
-void save_matrix_market_format(const char * filename, mat U, mat V);
+void save_matrix_market_format(const char * filename, mat &U, mat &V);
 float predict(const vertex_data& v1, const vertex_data & v2, const edge_data * edge, float rating, float & prediction);
 float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, float rating, float & prediction);
 float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction);
