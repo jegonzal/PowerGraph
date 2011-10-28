@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-hosts=( $( cat "hosts" ) )
+hosts=( $( cat ~/hosts ) )
 numhosts=${#hosts[@]}
 fileprefix=altavista
 dest_path=/mnt/webgraph
@@ -20,5 +20,12 @@ do
     echo $command
     eval $command
 done
+
+
+echo $hosts
+echo $numhosts
+echo $files
+echo $numfiles
+echo $dest_path
 
 
