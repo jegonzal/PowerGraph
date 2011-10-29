@@ -433,6 +433,8 @@ void export_uvt_to_itpp_file(){
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
   remove(dfile);
   it_file output(dfile);
+  /* for all other algos */
+  if (ps.algorithm != SVD){
   output << Name("User");
   output << ps.U;
   output << Name("Movie");
@@ -441,7 +443,21 @@ void export_uvt_to_itpp_file(){
     output << Name("Time");
     output << ps.T;
   }
+  }
+  else{ /* for SVD */
+    output << Name("U"); /* for conforming to wikipeida conversion i swap u and v*/
+    output << ps.V;
+    output << Name("V");
+    output << ps.U;
+    output << Name("EigenValues_AAT");
+    output << get_col(ps.T,0);
+    output << Name("EigenValues_ATA");
+    output << get_col(ps.T, 1);
+  }
+  
   output.close();
+  logstream(LOG_INFO) << "Saved output to file: " << dfile << " You can read it using the script itload.m available from http://graphloab.org/pmf.html " << std::endl;
+
 }
 //OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
 template<>

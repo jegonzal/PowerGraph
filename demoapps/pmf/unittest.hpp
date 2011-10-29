@@ -85,8 +85,9 @@ eigenvalue 4 val: 0.780815
 void unit_testing(int unittest, command_line_options& clopts){
 
    if (unittest == 1){ //ALTERNATING LEAST SQUARES
-      ac.datafile = "als"; ps.algorithm = ALS_MATRIX; ac.algorithm = ALS_MATRIX; ac.FLOAT = true; ac.als_lambda = 0.001;
+      ac.datafile = "als"; ps.algorithm = ALS_MATRIX; ac.algorithm = ALS_MATRIX; ac.FLOAT = true; ac.als_lambda = 0.001; ac.debug = true;
       clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
+      clopts.set_ncpus(1);
    }
    else if (unittest == 51){ //SVD++
     ac.datafile = "movielens"; ps.algorithm = SVD_PLUS_PLUS; ac.algorithm = SVD_PLUS_PLUS; clopts.set_ncpus(1); ac.debug = true; ac.maxval = 5; ac.minval = 1;

@@ -129,7 +129,7 @@ template<>
   assert(false);
 }
 
-void save_matrix_market_matrix(const char * filename, mat & a){
+void save_matrix_market_matrix(const char * filename, const mat & a){
     MM_typecode matcode;                        
     int i,j;
 
@@ -145,12 +145,14 @@ void save_matrix_market_matrix(const char * filename, mat & a){
 
     for (i=0; i<a.rows(); i++)
        for (j=0; j<a.cols(); j++)
-          if (get_val(a,i,j) > 0)
+          if (get_val(a,i,j) != 0)
                fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(a,i,j));
+    
+    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
 
 }
 
-void save_matrix_market_vector(const char * filename, vec & a){
+void save_matrix_market_vector(const char * filename, const vec & a){
     MM_typecode matcode;                        
     int i;
 
@@ -168,14 +170,24 @@ void save_matrix_market_vector(const char * filename, vec & a){
           if (a[i] > 0)
                fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
 
+    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
 }
 
 
 
 void save_matrix_market_format(const char * filename, mat &U, mat& V)
 {
-    save_matrix_market_matrix((std::string(filename) + ".V").c_str(),V);
-    save_matrix_market_matrix((std::string(filename) + ".U").c_str(),U);
+    if (ps.algorithm != SVD){
+      save_matrix_market_matrix((std::string(filename) + ".V").c_str(),V);
+      save_matrix_market_matrix((std::string(filename) + ".U").c_str(),U);
+    }
+    else {
+      save_matrix_market_matrix((std::string(filename) + ".V").c_str(),U); /* for conforming to wikipedia convention, I swap U and V*/
+      save_matrix_market_matrix((std::string(filename) + ".U").c_str(),V);
+      save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0));
+      save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1));
+    }
+
     if (ps.algorithm == SVD_PLUS_PLUS){
       save_matrix_market_vector((std::string(filename) + ".UserBias").c_str(),ps.svdpp_usr_bias);
       save_matrix_market_vector((std::string(filename) + ".MovieBias").c_str(),ps.svdpp_movie_bias);
