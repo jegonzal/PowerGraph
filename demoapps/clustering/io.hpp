@@ -242,7 +242,8 @@ void export_to_binary_file(){
   assert(rc == 4);
   rc = fwrite(&ps.K, 1, 4, f);
   assert(rc == 4);
-  write_vec(f, ps.output_clusters.rows() * ps.output_clusters.cols(), data(ps.output_clusters));
+  if (ps.output_clusters.size() > 0)
+    write_vec(f, ps.output_clusters.rows() * ps.output_clusters.cols(), data(ps.output_clusters));
   write_vec(f, ps.output_assignements.rows() * ps.output_assignements.cols(), data(ps.output_assignements));
   fclose(f); 
 
