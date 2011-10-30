@@ -92,7 +92,7 @@ void kmeans_update_function(gl_types::iscope &scope,
   for (int i=0; i< end_cluster; i++){
      flt_dbl_vec & row = ps.clusts.cluster_vec[i].location;
      if (toprint)
-        std::cout<<" cluster " << i << " location " << row << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
+        std::cout<<" cluster " << i << " location " << mid(row,0,std::min(row.size(),20)) << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr, sum_sqr(vdata.datapoint));
      if (toprint)
         std::cout<<" distance: " << dist << std::endl;
@@ -105,6 +105,7 @@ void kmeans_update_function(gl_types::iscope &scope,
      }
      else if (ps.algorithm == K_MEANS_FUZZY){
 	vdata.distances[i] = dist;
+        assert(!std::isnan(dist));
      }
   }  
   ps.counter[DISTANCE_CALCULATION] += t.current_time();
@@ -132,14 +133,19 @@ void kmeans_update_function(gl_types::iscope &scope,
   else if (ps.algorithm == K_MEANS_FUZZY){
      flt_dbl_vec old_distance = vdata.distances;
      flt_dbl factor = sum(pow(vdata.distances,-2));
+     assert(!std::isnan(factor) && factor > 0);
      flt_dbl_vec normalized = pow(vdata.distances,-2) / factor;
+     assert(!std::isnan(sum(normalized)));
+    
      vdata.distances = pow(normalized, 2);
      if (toprint)
          std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;
+     if (id == 4246&& toprint){
+         std::cout<<"something wrong";
+     }
      if (toprint)
          std::cout<<" contribution to cost function is : " << elem_mult(vdata.distances, pow(old_distance,2))<<std::endl;
      vdata.min_distance = dot(vdata.distances, pow(old_distance,2));
-     assert(!std::isnan(factor) && factor > 0);
    }
 }
 

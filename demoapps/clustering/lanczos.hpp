@@ -267,7 +267,7 @@ void print_w(bool rows){
   if (end - start > 40)
     cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
 }
-flt_dbl_mat calc_V(bool other_side, flt_dbl_mat& mat);
+//flt_dbl_mat calc_V(bool other_side, flt_dbl_mat& mat);
 
 template<typename core>
 void lanczos(core & glcore){

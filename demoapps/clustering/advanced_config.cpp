@@ -52,6 +52,12 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
 }
 
 void problem_setup::verify_setup(){
+
+   if (ac.datafile.size() == 0){
+      logstream(LOG_ERROR) << "Input file is not specified. Aborting run. " << std::endl;
+      exit(1);
+   }
+
    K = ac.K;
    algorithm = (runmodes)ac.algorithm;
    logstream(LOG_INFO) << "Setting cluster initialization mode to: " << inittypenames[ac.init_mode] << std::endl;
