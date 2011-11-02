@@ -126,7 +126,8 @@ namespace graphlab {
       return ret;
     }
   
-    virtual bool get_edge_data(vertex_id_type src, vertex_id_t target, std::string &s) = 0;
+    virtual bool get_edge_data(vertex_id_type src, vertex_id_type target, 
+                               std::string& s) = 0;
 
     /**
      * \brief Reads a edge from the file returning results in 'owner' and 'vdata'.
