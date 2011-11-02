@@ -9,12 +9,26 @@ const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "
 
 flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){ 
   flt_dbl a_mult_b = dot_prod(datapoint , cluster);
-  return a_mult_b / (sqr_sum + sqr_sum0 - a_mult_b);
+  flt_dbl div = (sqr_sum + sqr_sum0 - a_mult_b);
+  if (ac.debug && (div == 0 || a_mult_b/div < 0)){
+     logstream(LOG_ERROR) << "divisor is zeo: " << sqr_sum<< " " << sqr_sum0 << " " << a_mult_b << " " << std::endl;
+     print(datapoint);
+     print(cluster);
+     exit(1);
+  }
+  return a_mult_b/div;
 }
 
 flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
   flt_dbl a_mult_b = dot_prod(datapoint, cluster);
-  return a_mult_b / (sqr_sum + sqr_sum0 - a_mult_b);
+  flt_dbl div = (sqr_sum + sqr_sum0 - a_mult_b);
+  if (ac.debug && (div == 0 || a_mult_b/div < 0)){
+     logstream(LOG_ERROR) << "divisor is zeo: " << sqr_sum << " " << sqr_sum0 << " " << a_mult_b << " " << std::endl;
+     print(datapoint);
+     debug_print_vec("cluster", cluster, cluster.size());
+     exit(1);
+  }
+  return a_mult_b/div;
 }
 
 flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){

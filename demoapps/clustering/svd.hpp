@@ -62,16 +62,16 @@ flt_dbl_vec lancalpha2;
 extern int offset, offset2, offset3;
 
 struct global_pvec{
-   float** pvec;
+   flt_dbl** pvec;
    int size;
    bool swap;
    global_pvec(int _size){
      size = _size;
      swap = false;
-     pvec = new float*[2];
+     pvec = new flt_dbl*[2];
      for (int i=0; i<2; i++){
-      pvec[i] = new float[size];
-      memset(pvec[i], 0, size*sizeof(float));
+      pvec[i] = new flt_dbl[size];
+      memset(pvec[i], 0, size*sizeof(flt_dbl));
      }
    }
 };

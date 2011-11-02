@@ -34,6 +34,7 @@
 extern advanced_config ac;
 extern problem_setup ps;
 extern const char * testtypename[];
+FILE * open_file(const char * name, const char * mode);
 
 template<typename graph_type, typename vertex_data, typename edge_data>
 void load_matrix_market(const char * filename, graph_type *_g, testtype data_type)
@@ -127,8 +128,8 @@ template<>
 {
   assert(false);
 }
-void save_matrix_market_format(const char * filename, mat U, mat V)
-{
+
+void save_matrix_market_matrix(const char * filename, const mat & a){
     MM_typecode matcode;                        
     int i,j;
 
@@ -137,26 +138,59 @@ void save_matrix_market_format(const char * filename, mat U, mat V)
     mm_set_coordinate(&matcode);
     mm_set_real(&matcode);
 
-    FILE * f = fopen((std::string(filename) + ".U").c_str(),"w");
+    FILE * f = open_file(filename,"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
-    mm_write_mtx_crd_size(f, ps.M, ac.D, ps.M*ac.D);
+    mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
 
-    for (i=0; i<U.rows(); i++)
-       for (j=0; j<U.cols(); j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(U,i,j));
+    for (i=0; i<a.rows(); i++)
+       for (j=0; j<a.cols(); j++)
+          if (get_val(a,i,j) != 0)
+               fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(a,i,j));
+    
+    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
 
-    fclose(f);
-    f = fopen((std::string(filename) + ".V").c_str(),"w");
+}
+
+void save_matrix_market_vector(const char * filename, const vec & a){
+    MM_typecode matcode;                        
+    int i;
+
+    mm_initialize_typecode(&matcode);
+    mm_set_matrix(&matcode);
+    mm_set_coordinate(&matcode);
+    mm_set_real(&matcode);
+
+    FILE * f = open_file(filename,"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
-    mm_write_mtx_crd_size(f, ps.N, ac.D, ps.N*ac.D);
+    mm_write_mtx_crd_size(f, a.size(), 1, a.size());
 
-    for (i=0; i<V.rows(); i++)
-       for (j=0; j<V.cols(); j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(V,i,j));
+    for (i=0; i<a.size(); i++)
+          if (a[i] > 0)
+               fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
 
-    fclose(f);
+    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
+}
 
+
+
+void save_matrix_market_format(const char * filename, mat &U, mat& V)
+{
+    if (ps.algorithm != SVD){
+      save_matrix_market_matrix((std::string(filename) + ".V").c_str(),V);
+      save_matrix_market_matrix((std::string(filename) + ".U").c_str(),U);
+    }
+    else {
+      save_matrix_market_matrix((std::string(filename) + ".V").c_str(),U); /* for conforming to wikipedia convention, I swap U and V*/
+      save_matrix_market_matrix((std::string(filename) + ".U").c_str(),V);
+      save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0));
+      save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1));
+    }
+
+    if (ps.algorithm == SVD_PLUS_PLUS){
+      save_matrix_market_vector((std::string(filename) + ".UserBias").c_str(),ps.svdpp_usr_bias);
+      save_matrix_market_vector((std::string(filename) + ".MovieBias").c_str(),ps.svdpp_movie_bias);
+    }
 }
 #endif //READ_MARTIRX_MARKET
