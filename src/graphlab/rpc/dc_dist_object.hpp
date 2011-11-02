@@ -23,8 +23,8 @@
 
 #include <graphlab/rpc/dc.hpp>
 
-#ifndef DC_DIST_OBJECT_HPP
-#define DC_DIST_OBJECT_HPP
+#ifndef GRAPHLAB_DC_DIST_OBJECT_HPP
+#define GRAPHLAB_DC_DIST_OBJECT_HPP
 #include <vector>
 #include <string>
 #include <set>
@@ -121,7 +121,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
  public:
   dc_dist_object(distributed_control &dc_, T* owner, bool calltracking = false):
-                                dc_(dc_),owner(owner),calltracking(calltracking) {
+    dc_(dc_),owner(owner),calltracking(calltracking) {
     callssent.resize(dc_.numprocs());
     callsreceived.resize(dc_.numprocs());
     bytessent.resize(dc_.numprocs());

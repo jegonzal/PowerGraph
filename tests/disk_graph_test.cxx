@@ -52,7 +52,8 @@ struct edge_data {
 SERIALIZABLE_POD(edge_data);
 
 typedef graph<vertex_data, edge_data> graph_type;
-//typedef graph_type::vertex_id_type vertex_id_t;
+typedef graph_type::vertex_id_type vertex_id_t;
+
 
 vertex_data vertexdata_generator(vertex_id_t idx) {
   return vertex_data();
@@ -67,7 +68,8 @@ void edge_generator(vertex_id_t vid,
                     std::vector<edge_data>& outedata) {
   std::set<vertex_id_t> neighbors;
   for(size_t j = 0; j < degree; ++j) {
-    vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
+    vertex_id_t neighbor = 
+      (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
     if(neighbor != vid && neighbors.insert(neighbor).second) {
       outv.push_back(neighbor);
       outedata.push_back(edge_data());
@@ -153,14 +155,16 @@ public:
       graph.clear();
 
       graph.add_vertex_collection("coll", num_verts, vertexdata_generator);
-      for(vertex_id_t i = 0; i < num_verts; ++i) memgraph.add_vertex(vertex_data());
+      for(vertex_id_t i = 0; i < num_verts; ++i) 
+        memgraph.add_vertex(vertex_data());
       
       // create a random graph
       for(vertex_id_t i = 0; i < num_verts; ++i) {
         std::set<vertex_id_t> neighbors;
         
         for(size_t j = 0; j < degree; ++j) {
-          vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
+          vertex_id_t neighbor = 
+            (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
           if(neighbor != i && neighbors.insert(neighbor).second) {
             edge_data ed;
             ed.weight = i;
@@ -229,7 +233,9 @@ public:
     graph.add_vertex_collection("coll", num_verts, vertexdata_generator);
     // create a random graph
     graph.add_edge_indirect("coll", edge_generator<degree, num_verts>);
-    std::cerr << "add_edge_collection: " << num_verts << " * " << degree << " edges created in " << ti.current_time() << " s" << std::endl;
+    std::cerr << "add_edge_collection: " << num_verts << " * " 
+              << degree << " edges created in " << ti.current_time() 
+              << " s" << std::endl;
     
     TS_TRACE("Testing Coloring");
     ti.start();
@@ -265,7 +271,8 @@ public:
       std::set<vertex_id_t> neighbors;
       
       for(size_t j = 0; j < degree; ++j) {
-        vertex_id_t neighbor = (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
+        vertex_id_t neighbor = 
+          (vertex_id_t)graphlab::random::uniform<size_t>(0, num_verts - 1);
         if(neighbor != i && neighbors.insert(neighbor).second) {
           edge_data ed;
           ed.weight = i;

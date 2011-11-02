@@ -28,7 +28,8 @@
 #include <iostream>
 #include <boost/preprocessor.hpp>
 
-#define __DISTRIBUTED_SCHEDULER_LIST__                                              \
+/*
+#define __DISTRIBUTED_SCHEDULER_LIST__                                  \
   (("sweep", sweep_scheduler,                                           \
     "very fast dynamic scheduler. Scans all vertices in sequence, "     \
     "running all update tasks on each vertex evaluated."))              \
@@ -46,13 +47,19 @@
     "One or more Priority task queues is assigned to each processor, "  \
     "where the queues are stochastically load balanced. Like the "      \
     "priority scheduler, but less predictable, and much faster."))      
+*/
 
 
-#include <graphlab/schedulers/fifo_scheduler.hpp>
-#include <graphlab/schedulers/priority_scheduler.hpp>
-#include <graphlab/schedulers/sweep_scheduler.hpp>
-#include <graphlab/schedulers/multiqueue_fifo_scheduler.hpp>
-#include <graphlab/schedulers/multiqueue_priority_scheduler.hpp>
+#define __DISTRIBUTED_SCHEDULER_LIST__                                  \
+  (("fifo", fifo_scheduler,                                             \
+    "Standard FIFO task queue, poor parallelism, but task evaluation "  \
+    "sequence is highly predictable. Useful for debugging and testing.")) 
+
+#include <graphlab/scheduler/fifo_scheduler.hpp>
+// #include <graphlab/scheduler/priority_scheduler.hpp>
+// #include <graphlab/scheduler/sweep_scheduler.hpp>
+// #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
+// #include <graphlab/scheduler/multiqueue_priority_scheduler.hpp>
 
 namespace graphlab {
   /// get all the scheduler names

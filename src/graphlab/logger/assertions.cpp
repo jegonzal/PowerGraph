@@ -22,8 +22,8 @@
 
 
 #include <execinfo.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+#include <cstdlib>
 #include <unistd.h>
 
 /* Obtain a backtrace and print it to stderr. */
@@ -31,9 +31,10 @@ void __print_back_trace() {
   const size_t array_size(1024);
   void *array[array_size];
   int size;
-  
   size = backtrace(array, array_size);
   backtrace_symbols_fd(array, size, STDERR_FILENO);
+  std::cerr << "Use c++filt to process the output." << std::endl;
+
   // backtrace_symbols_fd(array, size, STDOUT_FILENO);
 }
 
