@@ -163,16 +163,17 @@ void flip_flop_1() {
 
 template<typename Mutex>
 void test_adaptive_mutex_helper(Mutex* mut, size_t* val) {
-  sleep(1);
-  for(size_t i = 0; i < 2000000; ++i) {
+  for(size_t i = 0; i < 20000000; ++i) {
     mut->lock(); 
-    *val += i; //size_t(log(i+1.0) + log(exp(i+1.0) + 1.0) + 1) ; 
+    *val += size_t(log(i+1.0) + log(exp(i+1.0) + 1.0) + 1) ; 
     mut->unlock();
   }
 }
 
+size_t counter = 0;
+
 void adaptive_mutex_test() {
-  const size_t nthreads = 2;
+  const size_t nthreads = 4;
   std::cout << std::endl;
   thread_pool pool(nthreads);
   {
@@ -180,7 +181,7 @@ void adaptive_mutex_test() {
     ti.start();
     typedef adaptive_mutex<0> mutex_type;
     mutex_type mut;
-    size_t counter = 0;
+
     for (size_t i = 0; i < nthreads; ++i) {
       pool.launch(boost::bind(test_adaptive_mutex_helper<mutex_type>, &mut, &counter) );
     }
@@ -192,9 +193,8 @@ void adaptive_mutex_test() {
   {
     timer ti;
     ti.start();
-    typedef adaptive_mutex<1000000000> mutex_type;
+    typedef adaptive_mutex<100> mutex_type;
     mutex_type mut;
-    size_t counter = 0;
     for (size_t i = 0; i < nthreads; ++i) {
       pool.launch(boost::bind(test_adaptive_mutex_helper<mutex_type>, &mut, &counter) );
     }
