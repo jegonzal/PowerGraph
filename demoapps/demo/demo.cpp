@@ -104,18 +104,6 @@ typedef double edge_data;
    edge data.  Here we define the type of the graph for convenience.  */
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
-/**
-   In order to take advantage of the types we must first predeclare the
-   update functor. */
-class update_functor;
-
-/**
-   Since graphlab is heavily templatized and can be inconvenient to use
-   in its standard form, the graphlab::types structure provides
-   convenient typedefed "shortcuts" to figure out the other graphlab
-   types easily.  */
-typedef graphlab::types<graph_type, update_functor> gl;
-
 
 /*
   Say if we are interested in having an incremental counter which provides
@@ -137,9 +125,9 @@ typedef graphlab::types<graph_type, update_functor> gl;
 */
 
 
-gl::glshared_const<size_t> NUM_VERTICES;
-gl::glshared<double> RED_PROPORTION;
-gl::glshared<size_t> NUM_FLIPS;
+graphlab::glshared_const<size_t> NUM_VERTICES;
+graphlab::glshared<double> RED_PROPORTION;
+graphlab::glshared<size_t> NUM_FLIPS;
 
 
 /**
@@ -180,15 +168,19 @@ gl::glshared<size_t> NUM_FLIPS;
    that here.
 
 */
-struct update_functor : public gl::iupdate_functor {
-  void operator()(gl::iscope& scope, gl::icallback& callback) {
+struct update_functor : 
+  public iupdate_functor<graph_type, update_functor> {
+  
+  
+  void operator()(graphlab::iscope<graph_type>& scope, 
+                  graphlab::icallback<graph_type, update_functor>& callback) {
     //scope.vertex_data allows me to grab a reference to the vertex data
     // on the graph
     vertex_data& curvdata = scope.vertex_data();
 
     // the in_edge_ids() function provide a vector of the edge ids of the edges
     // entering the current vertex
-    graph_type::edge_list_type in_edges = scope.in_edge_ids();
+    const graph_type::edge_list_type in_edges = scope.in_edge_ids();
     // a counter for the number of red neighbors
     size_t num_red_neighbors = 0;  
     for (size_t i = 0; i < in_edges.size(); ++i) {
@@ -235,7 +227,7 @@ struct update_functor : public gl::iupdate_functor {
     // all my neighboring vertices and add them as tasks.
     if (color_changed) {
       for (size_t i = 0; i < in_edges.size(); ++i) {
-        const gl::vertex_id sourcev = scope.source(in_edges[i]);
+        const graph_type::vertex_id_type sourcev = scope.source(in_edges[i]);
         // add the task the gl::update_task object takes a vertex id,
         // and the update function to execute on. add_task also takes
         // another argument, which is the priority of this task. This
@@ -250,7 +242,8 @@ struct update_functor : public gl::iupdate_functor {
     // that if I update myself again, I could switch colors. Therefore
     // I should add myself as a task
     if (is_deterministic == false) {
-      callback.schedule(scope.vertex(), update_functor());
+      const update_functor fun;
+      callback.schedule(scope.vertex(), fun);
     }
   }
 }; // end of update_functor
@@ -328,7 +321,7 @@ void init_graph(graph_type& g,
 
    \param accumulator The input and output of the fold/reduce operation.
 */       
-void reduce_red_proportion(gl::iscope& scope, double& acc) {
+void reduce_red_proportion(graphlab::iscope<graph_type>& scope, double& acc) {
   // each entry in the shared_data table is a special data type called
   // graphlab::any (which is derived and modified from boost::any).
   // This allows you to store arbitrary datatypes into the shared data table,
@@ -378,14 +371,15 @@ void merge_red_proportion(double& target, const double& source) {
    provide a simple function which extracts the information of interest
    from the vertex data. In this case, the numflips field.
 */
-size_t get_flips(gl::iscope& scope) {
+size_t get_flips(graphlab::iscope<graph_type>& scope) {
   return scope.vertex_data().numflips;
 }
 
 /**
    Here we create the shared data values
 */
-void init_shared_data(gl::core &core, size_t dim) {
+void init_shared_data(graphlab::core<graph_type, update_functor>& core, 
+                      size_t dim) {
   // the number of vertices is a constant and is just dim * dim
   // since this is a constant we will just use the "constant" part of the table
   // using the function add_constant(index, value)
@@ -423,7 +417,7 @@ void init_shared_data(gl::core &core, size_t dim) {
   
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
 
-  typedef gl::sync_ops::sum_group<size_t, get_flips> group_type;
+  typedef graphlab::sync_ops::sum_group<size_t, get_flips> group_type;
 
   core.engine().set_sync<group_type>(NUM_FLIPS,  
                                      128,
@@ -462,7 +456,7 @@ int main(int argc,  char *argv[]) {
 
   // create a graphlab core which contains the graph, shared data, and
   // engine
-  gl::core glcore;
+  graphlab::core<graph_type, update_functor> glcore;
 
   // Initialize the core with the command line arguments
   glcore.set_options(opts);

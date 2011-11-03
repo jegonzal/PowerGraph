@@ -120,16 +120,16 @@ namespace graphlab {
     typedef typename graph_type::vertex_id_type    vertex_id_type;
     typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::vertex_color_type vertex_color_type;
+    //! The edge data type associated with the graph
+    typedef typename graph_type::edge_list_type   edge_list_type;
 
 
     //! The vertex data type associated with the graph
-    typedef typename Graph::vertex_data_type vertex_data_type;
+    typedef typename graph_type::vertex_data_type vertex_data_type;
 
     //! The edge data type associated with the graph
-    typedef typename Graph::edge_data_type   edge_data_type;
+    typedef typename graph_type::edge_data_type   edge_data_type;
 
-    //! The edge data type associated with the graph
-    typedef typename Graph::edge_list_type   edge_list_type;
 
 
 
