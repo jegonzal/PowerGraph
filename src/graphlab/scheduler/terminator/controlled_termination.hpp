@@ -35,7 +35,7 @@
 
 #include <cassert>
 
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 
 namespace graphlab {
   /**

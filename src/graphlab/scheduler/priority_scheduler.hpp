@@ -46,10 +46,10 @@
 
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 
-#include <graphlab/engine/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -110,7 +110,8 @@ namespace graphlab {
     void start() { term.reset(); };
 
 
-    void schedule(vertex_id_type vid, 
+    void schedule(const size_t cpuid,
+                  const vertex_id_type vid, 
                   const update_functor_type& fun) {   
       queue_lock.lock();
       const bool first_add = vfun_set.add(vid, fun);
@@ -128,17 +129,17 @@ namespace graphlab {
     
     void schedule_all(const update_functor_type& fun) {
       for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(vid, fun);      
+        schedule(0, vid, fun);      
     } // end of schedule_all
 
-    void completed(size_t cpuid,
-                   vertex_id_type vid,
+    void completed(const size_t cpuid,
+                   const vertex_id_type vid,
                    const update_functor_type& fun) {
       term.completed_job();
     }
 
     /** Get the next element in the queue */
-    sched_status::status_enum get_next(size_t cpuid,
+    sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
       queue_lock.lock();

@@ -26,7 +26,7 @@
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 
 
 namespace graphlab {

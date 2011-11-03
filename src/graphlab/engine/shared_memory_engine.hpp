@@ -73,7 +73,7 @@
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/engine/callback/direct_callback.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -174,9 +174,10 @@ namespace graphlab {
       size_t update_count;
       callback_type callback;
       char FALSE_CACHE_SHARING_PAD[64];
-      thread_state_type(shared_memory_engine* engine_ptr = NULL,
+      thread_state_type(size_t thread_id = 0,
+                        shared_memory_engine* engine_ptr = NULL,
                         ischeduler_type* ischeduler_ptr = NULL) : 
-        update_count(0), callback(engine_ptr) { }
+        update_count(0), callback(thread_id, engine_ptr, ischeduler_ptr) { }
     }; //end of thread_state
     std::vector<thread_state_type> tls_array; 
 
@@ -423,8 +424,7 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   set_timeout(size_t timeout_in_seconds) {
-    termination.timeout_millis = 
-      timeout_in_seconds * 1000;
+    termination.timeout_millis = timeout_in_seconds * 1000;
   } // end of set_timeout
 
   template<typename Graph, typename UpdateFunctor> 
@@ -441,15 +441,10 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   schedule(vertex_id_type vid,
            const update_functor_type& update_functor) { 
-    // If this is called externally (while the engine is not running)
-    // then we may need to initialize members.  However if the engine
-    // is currently running we will assume members are initialized and
-    // directly schedul the task.
-    if( exec_status != execution_status::RUNNING ) {
-      initialize_members();
-      ASSERT_TRUE(scheduler_ptr != NULL);
-    }
-    scheduler_ptr->schedule(vid, update_functor);
+    initialize_members();
+    ASSERT_TRUE(scheduler_ptr != NULL);
+    const size_t cpuid = random::fast_uniform<size_t>(0, tls_array.size() - 1);
+    scheduler_ptr->schedule(cpuid, vid, update_functor);
   } // end of schedule
 
  
@@ -681,7 +676,8 @@ namespace graphlab {
     // need to do anything.
     if(nverts == graph.num_vertices() &&
        scope_manager_ptr != NULL &&
-       scheduler_ptr != NULL) {
+       scheduler_ptr != NULL &&
+       !tls_array.empty()) {
       return;
     } else {
       if(nverts != graph.num_vertices() && new_tasks_added) {
@@ -723,9 +719,13 @@ namespace graphlab {
       nverts = graph.num_vertices();
       // reset the execution status
       exec_status = execution_status::UNSET;
-      // reset the thread local state 
-      const thread_state_type starting_state(this, scheduler_ptr);
-      tls_array.resize(opts.get_ncpus(), starting_state );
+      // reset the thread local state
+      tls_array.resize(opts.get_ncpus());
+      for(size_t i = 0; i < tls_array.size(); ++i) {
+        const thread_state_type starting_state(i, this, scheduler_ptr);
+        tls_array[i] = starting_state;
+      }
+      
       
       // Initialize the syncs data structure
       syncs.lock.lock();     

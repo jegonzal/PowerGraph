@@ -76,14 +76,18 @@
     "running all update tasks on each vertex evaluated."))              \
   (("priority", priority_scheduler,                                     \
     "Standard Priority queue, poor parallelism, but task evaluation "   \
-    "sequence is highly predictable. Useful for debugging"))
+    "sequence is highly predictable. Useful for debugging"))            \
+  (("multiqueue_fifo", multiqueue_fifo_scheduler,                       \
+    "One or more FIFO task queues is assigned to each processor, "      \
+    "where the queues are stochastically load balanced. Like the "      \
+    "fifo scheduler, but less predictable, and much faster."))          
   
 
 #include <graphlab/scheduler/fifo_scheduler.hpp>
 #include <graphlab/scheduler/chromatic_scheduler.hpp>
 #include <graphlab/scheduler/sweep_scheduler.hpp>
 #include <graphlab/scheduler/priority_scheduler.hpp>
-
+#include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
 
 
 // #include <graphlab/scheduler/sampling_scheduler.hpp>
@@ -91,7 +95,7 @@
 
 
 // #include <graphlab/scheduler/splash_scheduler.hpp>
-// #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
+// 
 // #include <graphlab/scheduler/multiqueue_priority_scheduler.hpp>
 // #include <graphlab/scheduler/clustered_priority_scheduler.hpp>
 // #include <graphlab/graph/graph.hpp>

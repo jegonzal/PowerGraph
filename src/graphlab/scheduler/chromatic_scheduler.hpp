@@ -45,8 +45,8 @@
 
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
-#include <graphlab/engine/terminator/controlled_termination.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/controlled_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -137,7 +137,8 @@ namespace graphlab {
       term.reset();
     }
 
-    void schedule(vertex_id_type vid, 
+    void schedule(const size_t cpuid,
+                  const vertex_id_type vid, 
                   const update_functor_type& fun) {  
       // Does nothing
     }
@@ -157,7 +158,7 @@ namespace graphlab {
      *   executed
      *  \retval EMPTY Scheduler is empty
      */
-    sched_status::status_enum get_next(size_t cpuid, 
+    sched_status::status_enum get_next(const size_t cpuid, 
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {
       // See if we are waiting
@@ -209,8 +210,8 @@ namespace graphlab {
     /**
      * This is called after a task has been executed
      */
-    void completed(size_t cpuid, 
-                   vertex_id_type vid, 
+    void completed(const size_t cpuid, 
+                   const vertex_id_type vid, 
                    const update_functor_type& task) { } 
 
    

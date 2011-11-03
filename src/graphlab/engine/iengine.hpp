@@ -49,7 +49,7 @@
 #include <graphlab/update_functor/iupdate_functor.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/engine/callback/icallback.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/shared_data/iglshared.hpp>
 #include <graphlab/sync/isync.hpp>

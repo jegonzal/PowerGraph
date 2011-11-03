@@ -38,7 +38,7 @@
 #include <ostream>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/options/options_map.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 
 #include <graphlab/metrics/metrics.hpp>
 
@@ -92,7 +92,8 @@ namespace graphlab {
      * Adds an update task with a particular priority. 
      * This function may be called at anytime.
      */
-    virtual void schedule(vertex_id_type vid, 
+    virtual void schedule(const size_t cpuid,
+                          const vertex_id_type vid, 
                           const update_functor_type& fun) = 0;
     
     
@@ -114,7 +115,7 @@ namespace graphlab {
      *  \retval EMPTY There are no tasks available in the scheduler.
      */
     virtual sched_status::status_enum 
-    get_next(size_t cpuid,
+    get_next(const size_t cpuid,
              vertex_id_type& ret_vid,
              update_functor_type& ret_fun) = 0;
 
@@ -123,8 +124,8 @@ namespace graphlab {
     /**
      * This is called after a task has been executed
      */
-    virtual void completed(size_t cpuid,
-                           vertex_id_type vid,
+    virtual void completed(const size_t cpuid,
+                           const vertex_id_type vid,
                            const update_functor_type& fun) { }
 
 

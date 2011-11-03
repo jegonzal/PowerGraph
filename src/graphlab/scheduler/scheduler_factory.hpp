@@ -32,7 +32,7 @@
 // Schedulers
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 
 #include <boost/preprocessor.hpp>
 

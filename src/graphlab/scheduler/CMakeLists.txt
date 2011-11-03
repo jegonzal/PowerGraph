@@ -1,2 +1,4 @@
 project(GraphLab)
 
+subdirs(terminator)
+

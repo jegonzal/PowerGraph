@@ -36,10 +36,10 @@
 
 #include <graphlab/parallel/cache_line_pad.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/engine/terminator/iterminator.hpp>
+#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
-#include <graphlab/engine/terminator/shared_termination.hpp>
-#include <graphlab/engine/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/shared_termination.hpp>
+#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -123,21 +123,22 @@ namespace graphlab {
     }
 
 
-    void schedule(vertex_id_type vid, 
+    void schedule(const size_t cpuid,
+                  const vertex_id_type vid, 
                   const update_functor_type& fun) {      
       if(vfun_set.add(vid, fun)) term.new_job(vid2cpuid[vid]);       
     } // end of schedule
 
     void schedule_all(const update_functor_type& fun) {
       for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(vid, fun);      
+        schedule(0, vid, fun);      
     } // end of schedule_all    
       
 
     
     /** Get next dirty vertex in queue. Each cpu checks vertices with
         modulo num_cpus = cpuid */
-    sched_status::status_enum get_next(size_t cpuid,
+    sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
       const size_t start_index = cpu2index[cpuid];
@@ -162,8 +163,8 @@ namespace graphlab {
     } // end of get_next
     
     
-    void completed(size_t cpuid,
-                   vertex_id_type vid,
+    void completed(const size_t cpuid,
+                   const vertex_id_type vid,
                    const update_functor_type& fun) {
       term.completed_job();
     } // end of completed
