@@ -15,14 +15,6 @@
 #include "corpus.hpp"
 #include "lda.hpp"
 
-#ifdef FACTORIZED
-#include "lda_update_factorized.hpp"
-#else
-#include "lda_update.hpp"
-#endif
-
-
-
 
 #include <graphlab/macros_def.hpp>
 
@@ -39,7 +31,7 @@ double beta(0.1);
 std::vector< graphlab::glshared<count_type> > global_n_t;
 std::vector< graphlab::sharedsum<count_type> > shared_n_t;
 
-
+bool lda_update::use_factorized = false;
 
 
 
@@ -73,6 +65,9 @@ int main(int argc, char** argv) {
                        "Counts file");
   clopts.attach_option("ntopics", 
                        &ntopics, ntopics, "Number of topics");
+  clopts.attach_option("factorized", 
+                       &lda_update::use_factorized, lda_update::use_factorized, 
+                       "use factorized update functor");
   clopts.attach_option("niters",
                        &niters, niters, "Number of iterations");
   clopts.attach_option("lag",
@@ -109,7 +104,7 @@ int main(int argc, char** argv) {
   nwords = corpus.nwords;
 
   // Setup the core
-  gl::core core;
+  graphlab::core<graph_type, lda_update> core;
   core.set_options(clopts);
   std::cout << "Building Graph" << std::endl;
   load_graph(core.graph(), corpus, niters );
@@ -118,7 +113,7 @@ int main(int argc, char** argv) {
   // Schedule only the document vertices
   const size_t doc_offset = corpus.nwords;  
   for(size_t i = 0; i < corpus.ndocs; ++i) {
-    const gl::vertex_id doc_vid = doc_offset + i;
+    const graph_type::vertex_id_type doc_vid = doc_offset + i;
     ASSERT_LT(doc_vid, core.graph().num_vertices());
     core.schedule(doc_vid, lda_update(niters));
   }
@@ -139,14 +134,14 @@ int main(int argc, char** argv) {
 
 void load_graph(graph_type& graph, const corpus& data, size_t niters) {
   // Construct all the vertices
-  const gl::vertex_id nverts = data.nwords + data.ndocs;
+  const graph_type::vertex_id_type nverts = data.nwords + data.ndocs;
   std::cout << "Initializing vertices" << std::endl;
   graph.resize(nverts);
-  for(gl::vertex_id word_vid = 0; word_vid < data.nwords; ++word_vid) {
+  for(graph_type::vertex_id_type word_vid = 0; word_vid < data.nwords; ++word_vid) {
     graph.vertex_data(word_vid).set_type(WORD);
     graph.vertex_data(word_vid).init(ntopics, niters);
   }
-  for(gl::vertex_id doc_vid = data.nwords; doc_vid < nverts; ++doc_vid) {
+  for(graph_type::vertex_id_type doc_vid = data.nwords; doc_vid < nverts; ++doc_vid) {
     graph.vertex_data(doc_vid).set_type(DOCUMENT);
     graph.vertex_data(doc_vid).init(ntopics, niters);
   }

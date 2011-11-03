@@ -62,9 +62,16 @@ namespace graphlab {
   public:
     typedef Graph graph_type;
     typedef UpdateFunctor update_functor_type;
-    typedef typename graph_type::vertex_data_type vertex_data_type;
-    typedef typename graph_type::edge_data_type   edge_data_type;
-    typedef typename graph_type::edge_id_type     edge_id_type;
+
+    typedef typename graph_type::vertex_data_type  vertex_data_type;
+    typedef typename graph_type::vertex_id_type    vertex_id_type;   
+    typedef typename graph_type::vertex_color_type vertex_color_type;
+
+    typedef typename graph_type::edge_data_type    edge_data_type;
+    typedef typename graph_type::edge_id_type      edge_id_type;
+    typedef typename graph_type::edge_list_type    edge_list_type;
+
+   
     typedef iscope<graph_type> iscope_type;
     typedef icallback<graph_type, update_functor_type> icallback_type;
 

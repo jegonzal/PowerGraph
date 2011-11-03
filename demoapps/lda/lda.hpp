@@ -35,11 +35,12 @@
 
 #include <graphlab/shared_data/sharedsum.hpp>
 #include <graphlab.hpp>
-
 #include "corpus.hpp"
 
 
 
+
+#include <graphlab/macros_def.hpp>
 
 
 extern size_t ntopics;
@@ -152,18 +153,214 @@ public:
   
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
-class lda_update;
-
-typedef graphlab::types<graph_type, lda_update> gl;
 
 
+class lda_update : 
+  public graphlab::iupdate_functor<graph_type, lda_update> {
+  size_t iters_remaining;
+public:
+  typedef graphlab::iupdate_functor<graph_type, lda_update> base;
+  typedef base::iscope_type iscope_type;
+  typedef base::icallback_type icallback_type;
+  typedef base::edge_id_type edge_id_type;
+  typedef base::edge_list_type edge_list_type;
+  typedef base::vertex_id_type vertex_id_type;
+
+  static bool use_factorized;
+
+private:
+  std::vector<count_type> old_global_n_t;
+  std::vector<count_type> local_n_t;
+  
+
+public:
+
+  lda_update(const size_t iters = 100) : iters_remaining(iters) { } 
+    
+  void operator+=(const lda_update& other) { }
+  bool is_factorizable() const { return use_factorized; }
+  base::edge_set gather_edges() { return base::OUT_EDGES; }
+  bool writable_gather() const { return true; }
+  base::edge_set scatter_edges() { return base::NO_EDGES; }
+ 
+  void operator()(iscope_type& scope, icallback_type& callback) {
+    ASSERT_GT(iters_remaining, 0);
+    // Make a local copy of the global topic counts
+    std::vector<count_type> local_n_t(ntopics);
+#ifdef SHAREDSUM
+    for(size_t t = 0; t < ntopics; ++t) 
+      local_n_t[t] = shared_n_t[t].val();
+#else
+    for(size_t t = 0; t < ntopics; ++t) 
+      local_n_t[t] = global_n_t[t].get_val();
+#endif
+    const std::vector<count_type> old_global_n_t = local_n_t;
+
+    // Get local data structures
+    vertex_data& doc       = scope.vertex_data();
+    // only gather on a document
+    ASSERT_EQ(doc.type(), DOCUMENT);
+
+    // Loop over the words in the document (encoded by out edges)
+    const edge_list_type out_edges = scope.out_edge_ids();
+    std::vector<double> prob(ntopics); 
+    std::vector<count_type> n_dwt(ntopics);
+    double normalizer = 0; 
+    foreach(edge_id_type eid, out_edges) {
+      // Get the data ---------------------------------------------------------
+      const vertex_id_type word_vid = scope.target(eid);
+      const word_id_type word_id   = word_vid;
+      vertex_data& word      = scope.neighbor_vertex_data(word_vid);
+      edge_data& edata       = scope.edge_data(eid);
+      edata.init(ntopics); // ensure that the edge data is initialized
+      ASSERT_LT(word_id, nwords);      
+      ASSERT_EQ(word.type(), WORD);
+
+      // Compute the probability table ----------------------------------------
+      for(size_t t = 0; t < ntopics; ++t) {
+        // number of tokens from document d with topic t
+        const double n_dt = 
+          std::max(doc.get(t) - edata.get(t), 0);
+        // number of token with word w and topic t
+        const double n_wt = 
+          std::max(word.get(t) - edata.get(t), 0);
+        // number of tokens with topic t
+        const double n_t = 
+          std::max(local_n_t[t] - edata.get(t), 0);
+        // compute the final probability
+        prob[t] = (alpha + n_dt) * (beta + n_wt) / 
+          (beta * nwords + n_t);
+        normalizer += prob[t];
+      }
+      ASSERT_GT(normalizer, 0);
+      // Normalize the probability
+      for(size_t t = 0; t < ntopics; ++t) prob[t] /= normalizer;
+      
+      // Draw new topic assignments -------------------------------------------
+      n_dwt.clear(); n_dwt.resize(ntopics, 0);
+      for(count_type i = 0; i < edata.get_count(); ++i) {
+        const size_t topic_id = graphlab::random::multinomial(prob); 
+        ASSERT_LT(topic_id, ntopics);
+        n_dwt[topic_id]++;
+      }
+      
+      // Update all the tables ------------------------------------------------
+      for(size_t t = 0; t < ntopics; ++t) {
+        doc.add(t, n_dwt[t] - edata.get(t));
+        word.add(t, n_dwt[t] - edata.get(t));
+        local_n_t[t] += (n_dwt[t] - edata.get(t));
+        edata.set(t, n_dwt[t]);
+      }
+    } // end of for loop
+#ifdef SHAREDSUM
+    // update the global variables
+    for(size_t t = 0; t < ntopics; ++t) {
+      shared_n_t[t] += (local_n_t[t] - old_global_n_t[t]);
+    }
+#else
+    // update the global variables
+    for(size_t t = 0; t < ntopics; ++t) {
+      global_n_t[t] += (local_n_t[t] - old_global_n_t[t]);
+    }
+#endif
+
+    // Reschedule self if necessary
+    if(--iters_remaining > 0) 
+      callback.schedule(scope.vertex(), *this);
+    
+  } // end of operator()
+
+
+  void gather(iscope_type& scope, icallback_type& callback,
+              edge_id_type eid) {
+
+    if(local_n_t.empty()) {
+      local_n_t.resize(ntopics);
+      old_global_n_t.resize(ntopics);
+      for(size_t t = 0; t < ntopics; ++t) 
+        old_global_n_t[t] = local_n_t[t] = global_n_t[t].get_val();
+    }
+    
+
+    // Get the data ---------------------------------------------------------
+    // Get local data structures
+    vertex_data& doc       = scope.vertex_data();
+    // only gather on a document
+    ASSERT_EQ(doc.type(), DOCUMENT);
+
+    const vertex_id_type word_vid = scope.target(eid);
+    const word_id_type word_id   = word_vid;
+    vertex_data& word      = scope.neighbor_vertex_data(word_vid);
+    edge_data& edata       = scope.edge_data(eid);
+    edata.init(ntopics); // ensure that the edge data is initialized
+    ASSERT_LT(word_id, nwords);      
+    ASSERT_EQ(word.type(), WORD);
+
+    std::vector<double> prob(ntopics); 
+    std::vector<count_type> n_dwt(ntopics);
+    double normalizer = 0; 
+
+
+    // Compute the probability table ----------------------------------------
+    for(size_t t = 0; t < ntopics; ++t) {
+      // number of tokens from document d with topic t
+      const double n_dt = 
+        std::max(doc.get(t) - edata.get(t), 0);
+      // number of token with word w and topic t
+      const double n_wt = 
+        std::max(word.get(t) - edata.get(t), 0);
+      // number of tokens with topic t
+      const double n_t = 
+        std::max(local_n_t[t] - edata.get(t), 0);
+      // compute the final probability
+      prob[t] = (alpha + n_dt) * (beta + n_wt) / 
+        (beta * nwords + n_t);
+      normalizer += prob[t];
+    }
+    ASSERT_GT(normalizer, 0);
+    // Normalize the probability
+    for(size_t t = 0; t < ntopics; ++t) prob[t] /= normalizer;
+      
+    // Draw new topic assignments -------------------------------------------
+    n_dwt.clear(); n_dwt.resize(ntopics, 0);
+    for(count_type i = 0; i < edata.get_count(); ++i) {
+      const size_t topic_id = graphlab::random::multinomial(prob); 
+      ASSERT_LT(topic_id, ntopics);
+      n_dwt[topic_id]++;
+    }
+
+    // Update all the tables ------------------------------------------------
+    for(size_t t = 0; t < ntopics; ++t) {
+      doc.add(t, n_dwt[t] - edata.get(t));
+      word.add(t, n_dwt[t] - edata.get(t));
+      local_n_t[t] += (n_dwt[t] - edata.get(t));
+      edata.set(t, n_dwt[t]);
+    }
+
+    // Reschedule self if necessary
+    if(iters_remaining > 0) 
+      callback.schedule(scope.vertex(), lda_update(iters_remaining-1));
+
+  } // end of gather
+
+
+  
+  void apply(iscope_type& scope, icallback_type& callback) { 
+    ASSERT_EQ(global_n_t.size(), ntopics);
+    if(!local_n_t.empty()) {
+      // update the global variables
+      for(size_t t = 0; t < ntopics; ++t) {
+        global_n_t[t] += (local_n_t[t] - old_global_n_t[t]);
+      }    
+    }
+  }
+
+ 
+}; // end of lda_update
 
 
 
-
-
-
-
+#include <graphlab/macros_undef.hpp>
 
 
 #endif
