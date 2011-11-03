@@ -46,6 +46,13 @@ bool GLOBAL_FACTORIZED = false;
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
+
+  typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
+  typedef base::iscope_type     iscope_type;
+  typedef base::icallback_type  icallback_type;
+  typedef base::edge_list_type  edge_list_type;
+  typedef base::edge_id_type    edge_id_type;
+  typedef base::vertex_id_type  vertex_id_type;
 private:
   double prio;
   double accum;
@@ -65,8 +72,7 @@ public:
   
   bool writable_scatter() { return false; }
 
-  void operator()(graphlab::iscope<graph_type>& scope,
-                  graphlab::icallback<graph_type, pagerank_update>& callback) {                       
+  void operator()(iscope_type& scope, icallback_type& callback) {                       
     // Get the data associated with the vertex
     vertex_data& vdata = scope.vertex_data();
   
@@ -74,8 +80,8 @@ public:
     // contribution from a self-link.
     float sum = vdata.value * vdata.self_weight;
     // Loop over all in edges to this vertex
-    const graph_type::edge_list in_edges = scope.in_edge_ids();
-    foreach(graph_type::edge_id_type eid, in_edges) {
+    const edge_list_type in_edges = scope.in_edge_ids();
+    foreach(edge_id_type eid, in_edges) {
       // Get the neighobr vertex value
       const vertex_data& neighbor_vdata =
         scope.const_neighbor_vertex_data(scope.source(eid));
@@ -96,7 +102,7 @@ public:
     vdata.value = sum;
    
     // Schedule the neighbors as needed
-    foreach(graph_type::edge_id_type eid, scope.out_edge_ids()) {
+    foreach(edge_id_type eid, scope.out_edge_ids()) {
       edge_data& outedgedata = scope.edge_data(eid);    
       // Compute edge-specific residual by comparing the new value of
       // this vertex to the previous value seen by the neighbor
@@ -114,9 +120,8 @@ public:
 
 
 
-  void gather(graphlab::iscope<graph_type>& scope,
-              graphlab::icallback<graph_type, pagerank_update>& callback, 
-              graph_type::edge_id_type in_eid) {
+  void gather(iscope_type& scope, icallback_type& callback, 
+              edge_id_type in_eid) {
     // Get the neighobr vertex value
     const vertex_data& neighbor_vdata =
       scope.const_neighbor_vertex_data(scope.source(in_eid));
@@ -131,8 +136,7 @@ public:
     edata.old_source_value = neighbor_value;
   } // end of gather
 
-  void apply(graphlab::iscope<graph_type>& scope,
-             graphlab::icallback<graph_type, pagerank_update>& callback) {
+  void apply(iscope_type& scope, icallback_type& callback) {
     // Get the data associated with the vertex
     vertex_data& vdata = scope.vertex_data();
     // add the contribution from a self-link.
@@ -143,9 +147,8 @@ public:
     vdata.value = accum;
   } // end of apply
 
-  void scatter(graphlab::iscope<graph_type>& scope, 
-               graphlab::icallback<graph_type, pagerank_update>& callback, 
-               graph_type::edge_id_type out_eid) {
+  void scatter(iscope_type& scope, icallback_type& callback, 
+               edge_id_type out_eid) {
     // Get the data associated with the vertex
     const vertex_data& vdata = scope.const_vertex_data();
     // get the data associated with the out edge
