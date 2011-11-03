@@ -80,7 +80,7 @@ void stats(){
      if (data.distances.size() > 0){
        min = std::min(min, data.distances[0]);
        max = std::max(max, data.distances[0]);
-       if (isnan(data.distances[0]))
+       if (std::isnan(data.distances[0]))
           printf("bug: nan on %d\n", i);
        else {
          avg += data.distances[0];    
