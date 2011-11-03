@@ -169,7 +169,7 @@ graphlab::glshared<size_t> NUM_FLIPS;
 
 */
 struct update_functor : 
-  public iupdate_functor<graph_type, update_functor> {
+  public graphlab::iupdate_functor<graph_type, update_functor> {
   
   
   void operator()(graphlab::iscope<graph_type>& scope, 
@@ -417,7 +417,8 @@ void init_shared_data(graphlab::core<graph_type, update_functor>& core,
   
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
 
-  typedef graphlab::sync_ops::sum_group<size_t, get_flips> group_type;
+  typedef graphlab::sync_ops<graph_type>::
+    sum_group<size_t, get_flips> group_type;
 
   core.engine().set_sync<group_type>(NUM_FLIPS,  
                                      128,

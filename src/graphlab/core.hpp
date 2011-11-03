@@ -34,7 +34,7 @@
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/shared_memory_engine.hpp>
-#include <graphlab/core_base.hpp>
+// #include <graphlab/core_base.hpp>
 
 
 
@@ -48,11 +48,6 @@
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-
-  // Predecleration 
-  template<typename Graph, typename UpdateFunctor> struct types;
-  
-
 
   /**
      \brief A GraphLab core is the base (or core) data structure in GraphLab.
@@ -90,21 +85,21 @@ namespace graphlab {
      clearing of all scheduler tasks.
   */
   template <typename Graph, typename UpdateFunctor>
-  class core : public core_base {
+  class core {
   public:
     typedef Graph graph_type;
     typedef UpdateFunctor update_functor_type;
-    typedef typename graphlab::types<graph_type, update_functor_type> types;
     typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef typename graph_type::edge_id_type   edge_id_type;
     typedef typename graph_type::edge_list_type edge_list_type;
-
+    typedef shared_memory_engine<graph_type, update_functor_type>
+    engine_type;
 
   private:
     
     // graph and data objects
-    typename types::graph mgraph;
-    typename types::shared_memory_engine mengine;
+    graph_type mgraph;
+    engine_type mengine;
 
 
 
@@ -133,10 +128,10 @@ namespace graphlab {
     // } 
        
     /// \brief Get a modifiable reference to the graph associated with this core
-    typename types::graph& graph() { return mgraph; }
+    graph_type& graph() { return mgraph; }
 
     /// \brief Get a constant reference to the graph associated with this core
-    const typename types::graph& graph() const { return mgraph; }
+    const graph_type& graph() const { return mgraph; }
 
     /**
      * \brief Set the type of scheduler.
@@ -239,7 +234,7 @@ namespace graphlab {
      * Get a reference to the active engine.  If no engine exists one is
      * created.
      */
-    typename types::shared_memory_engine& engine() { return mengine; }
+    engine_type& engine() { return mengine; }
 
 
 

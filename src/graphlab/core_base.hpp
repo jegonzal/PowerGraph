@@ -25,9 +25,9 @@
 #define GRAPHLAB_CORE_BASE_HPP
 
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/engine_options.hpp>
 
-#include <graphlab/util/command_line_options.hpp>
+
+
 
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/scope/iscope.hpp>

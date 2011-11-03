@@ -258,32 +258,37 @@ void distributed_control::fcallhandler_loop(size_t id) {
   while(1) {
     fcallqueue[id].wait_for_data();
     if (fcallqueue[id].is_alive() == false) break;
-
+    
     std::deque<function_call_block> q;
     fcallqueue[id].swap(q);
     while (!q.empty()) {
       function_call_block entry;
       entry = q.front();
       q.pop_front();
-    
-/*    if (id == 0 && lowres_time_seconds() - t > 2)  {
-      t = lowres_time_seconds();
-      std::cout << "RPC backlog: ";
-      for (size_t i = 0 ; i < fcallqueue.get_num_queues();++i) std::cout << fcallqueue.size(i) << " ";
-      std::cout << std::endl;
-    }*/
-    //create a stream containing all the data
-    boost::iostreams::stream<boost::iostreams::array_source> 
-      istrm(entry.first.data, entry.first.len);
-    exec_function_call(entry.source, entry.hdr, istrm);
-    receivers[entry.source]->function_call_completed(entry.hdr.packet_type_mask);
-    delete [] entry.first.data;
+      
+      // if (id == 0 && lowres_time_seconds() - t > 2)  {
+      //   t = lowres_time_seconds();
+      //   std::cout << "RPC backlog: ";
+      //   for (size_t i = 0 ; i < fcallqueue.get_num_queues();++i) 
+      //     std::cout << fcallqueue.size(i) << " ";
+      //   std::cout << std::endl;
+      // }
+
+      //create a stream containing all the data
+      boost::iostreams::stream<boost::iostreams::array_source> 
+        istrm(entry.data, entry.len);
+      exec_function_call(entry.source, entry.hdr, istrm);
+      receivers[entry.source]->
+        function_call_completed(entry.hdr.packet_type_mask);
+      delete [] entry.data;
+    }
+    //  std::cerr << "Handler " << id << " died." << std::endl;
   }
-  //  std::cerr << "Handler " << id << " died." << std::endl;
 }
+  
 
-
-std::map<std::string, std::string> distributed_control::parse_options(std::string initstring) {
+std::map<std::string, std::string> 
+  distributed_control::parse_options(std::string initstring) {
   std::map<std::string, std::string> options;
   std::replace(initstring.begin(), initstring.end(), ',', ' ');
   std::replace(initstring.begin(), initstring.end(), ';', ' ');        
