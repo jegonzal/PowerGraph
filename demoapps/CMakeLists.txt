@@ -26,7 +26,7 @@ project(GraphLab)
 
 
 
-subdirs(demo pagerank lda)
+subdirs(demo pagerank lda image_denoise)
 
 
 

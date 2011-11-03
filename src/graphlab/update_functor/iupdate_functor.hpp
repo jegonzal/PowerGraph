@@ -79,6 +79,27 @@ namespace graphlab {
     
     virtual ~iupdate_functor() { }
 
+    /**
+     * Gets the scope range required by this update functor.  If not
+     * implemented by the derived class then the default scope range
+     * is returned.
+     */
+    virtual consistency_model::model_enum consistency() const {
+      return consistency_model::USE_DEFAULT;
+    }
+
+    /**
+     * When multiple update functors are scheduled to be run on the
+     * same function they are added. The default behavior is to simply
+     * ignore the later update functors.
+     */
+    virtual void operator+=(const update_functor_type& other) const { }
+
+    /**
+     * Get the priority of the update functor
+     */
+    virtual double priority() const { return double(1.0); }        
+  
     
 
     /**
@@ -121,33 +142,11 @@ namespace graphlab {
     virtual void apply(iscope_type& scope, icallback_type& callback) { };
     virtual void scatter(iscope_type& scope, icallback_type& callback,
                          edge_id_type eid) { };
-
-    
         
     //    virtual void operator()(iscope_type& scope, icallback_type& callback) = 0;
-
-    /**
-     * Gets the scope range required by this update functor.  If not
-     * implemented by the derived class then the default scope range
-     * is returned.
-     */
-    virtual consistency_model::model_enum consistency() const {
-      return consistency_model::USE_DEFAULT;
-    }
-
-    /**
-     * When multiple update functors are scheduled to be run on the
-     * same function they are added. The default behavior is to simply
-     * ignore the later update functors.
-     */
-    virtual void operator+=(const update_functor_type& other) const { }
-
-    /**
-     * Get the priority of the update functor
-     */
-    virtual double priority() const { return double(1.0); }        
-  }; 
-
+  
+  };  // end of iupdate_functor
+ 
 }; //end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 

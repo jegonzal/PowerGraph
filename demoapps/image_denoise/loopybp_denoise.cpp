@@ -80,53 +80,121 @@ struct vertex_data {
 
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-typedef graphlab::types<graph_type> gl_types;
 
-gl_types::glshared<graphlab::binary_factor> EDGE_FACTOR;
-gl_types::glshared<double> BOUND;
-gl_types::glshared<double> DAMPING;
+
+graphlab::binary_factor EDGE_FACTOR;
+double BOUND;
+double DAMPING;
 
 
 // GraphLab Update Function ===================================================>
 
-/** Construct denoising ising model based on the image */
-void construct_graph(image& img,
-                     size_t num_rings,
-                     double sigma,
-                     gl_types::graph& graph);
+
 
 /** 
  * The core belief propagation update function.  This update satisfies
  * the graphlab update_function interface.  
  */
-void bp_update(gl_types::iscope& scope, 
-               gl_types::icallback& scheduler);
+
+class bp_update : 
+  public graphlab::iupdate_functor<graph_type, bp_update> {
+ 
+  typedef graphlab::iupdate_functor<graph_type, bp_update> base;
+  typedef base::iscope_type      iscope_type;
+  typedef base::icallback_type   icallback_type;
+  typedef base::vertex_id_type   vertex_id_type;
+  typedef base::edge_id_type     edge_id_type;
+  typedef base::edge_list_type   edge_list_type;
+
+private:
+  double residual;
+
+public:
+
+  bp_update(double residual = 1000) : residual(residual) { }
+
+  double priority() const { return residual; }
+  void operator+=(const bp_update& other) { residual += other.residual; }
+
+  void operator()(iscope_type& scope, icallback_type& callback) {
+
+    // Grab the state from the scope
+    // ---------------------------------------------------------------->
+    // Get the vertex data
+    vertex_data& vdata = scope.vertex_data();
+  
+    // Get the in and out edges by reference
+    const edge_list_type in_edges  = scope.in_edge_ids();
+    const edge_list_type out_edges = scope.out_edge_ids();
+    assert(in_edges.size() == out_edges.size()); // Sanity check
+
+    // Compute the belief
+    // ---------------------------------------------------------------->
+    vdata.belief = vdata.potential;
+    foreach(const edge_id_type& ineid, in_edges) {   
+      // Receive the message
+      edge_data& edata = scope.edge_data(ineid);
+      edata.old_message = edata.message;
+      vdata.belief.times( edata.old_message );
+    }
+    vdata.belief.normalize(); // finally normalize the belief
+  
+    // Compute outbound messages
+    // ---------------------------------------------------------------->
+   
+  
+    // Send outbound messages
+    graphlab::unary_factor cavity, tmp_msg;
+    for(size_t i = 0; i < in_edges.size(); ++i) {
+      // Get the edge ids
+      const edge_id_type outeid = out_edges[i];
+      const edge_id_type ineid = in_edges[i];
+      // CLEVER HACK: Here we are expoiting the sorting of the edge ids
+      // to do fast O(1) time edge reversal
+      assert(scope.target(outeid) == scope.source(ineid));
+      // Get the in and out edge data
+      const edge_data& in_edge = scope.edge_data(ineid);
+      edge_data& out_edge = scope.edge_data(outeid);
+   
+      // Compute cavity
+      cavity = vdata.belief;
+      cavity.divide(in_edge.old_message); // Make the cavity a cavity
+      cavity.normalize();
+
+
+      // convolve cavity with the edge factor storing the result in the
+      // temporary message
+      tmp_msg.resize(out_edge.message.arity());
+      tmp_msg.var() = out_edge.message.var();
+      tmp_msg.convolve(EDGE_FACTOR, cavity);
+      tmp_msg.normalize();
+      
+      // Damp the message
+      tmp_msg.damp(out_edge.message, DAMPING);
+    
+      // Compute message residual
+      double residual = tmp_msg.residual(out_edge.old_message);
+    
+      // Assign the out message
+      out_edge.message = tmp_msg;
+      
+      if(residual > BOUND) {
+        callback.schedule(scope.target(outeid), bp_update(residual));
+      }    
+    }
+  } // end of operator()
+}; // end of class bp_update
+
+
+
+
+
+/** Construct denoising ising model based on the image */
+void construct_graph(image& img,
+                     size_t num_rings,
+                     double sigma,
+                     graph_type& graph);
                
-
-// Command Line Parsing =======================================================>
-
-struct options {
-  size_t ncpus;
-  double bound;
-  double damping;
-  size_t num_rings;
-  size_t rows;
-  size_t cols;
-  double sigma;
-  double lambda;
-  size_t splash_size;
-  std::string smoothing;
-  std::string engine;
-  std::string scope;
-  std::string scheduler;
-  std::string orig_fn;
-  std::string noisy_fn;
-  std::string pred_fn;
-  std::string pred_type;
-  std::string visualizer;
-  std::string partmethod;
-  size_t clustersize;
-};
 
 
 // MAIN =======================================================================>
@@ -140,8 +208,8 @@ int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
 
 
-  double bound = 1E-4;
-  double damping = 0.1;
+  BOUND = 1E-4;
+  DAMPING = 0.1;
   size_t colors = 5;
   size_t rows = 200;
   size_t cols = 200;
@@ -159,10 +227,10 @@ int main(int argc, char** argv) {
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Loopy BP image denoising");
   clopts.attach_option("bound",
-                       &bound, bound,
+                       &BOUND, BOUND,
                        "Residual termination bound");
   clopts.attach_option("damping",
-                       &damping, damping,
+                       &DAMPING, DAMPING,
                        "The amount of message damping (higher = more damping)");
   clopts.attach_option("colors",
                        &colors, colors,
@@ -208,8 +276,8 @@ int main(int argc, char** argv) {
 
   
   std::cout << "ncpus:          " << clopts.get_ncpus() << std::endl
-            << "bound:          " << bound << std::endl
-            << "damping:        " << damping << std::endl
+            << "bound:          " << BOUND << std::endl
+            << "damping:        " << DAMPING << std::endl
             << "colors:         " << colors << std::endl
             << "rows:           " << rows << std::endl
             << "cols:           " << cols << std::endl
@@ -244,9 +312,9 @@ int main(int argc, char** argv) {
   
   
   // Create the graph --------------------------------------------------------->
-  gl_types::core core;
+  graphlab::core<graph_type, bp_update> core;
   // Set the engine options
-  core.set_engine_options(clopts);
+  core.set_options(clopts);
   
   std::cout << "Constructing pairwise Markov Random Field. " << std::endl;
   construct_graph(img, colors, sigma, core.graph());
@@ -257,32 +325,28 @@ int main(int argc, char** argv) {
   std::cout << "Initializing shared edge agreement factor. " << std::endl;
 
   // dummy variables 0 and 1 and num_rings by num_rings
-  graphlab::binary_factor edge_potential(0, colors, 0, colors);
+  EDGE_FACTOR = graphlab::binary_factor(0, colors, 0, colors);
   // Set the smoothing type
   if(smoothing == "square") {
-    edge_potential.set_as_agreement(lambda);
+    EDGE_FACTOR.set_as_agreement(lambda);
   } else if (smoothing == "laplace") {
-    edge_potential.set_as_laplace(lambda);
+    EDGE_FACTOR.set_as_laplace(lambda);
   } else {
     std::cout << "Invalid smoothing stype!" << std::endl;
     return EXIT_FAILURE;
   }
-  std::cout << edge_potential << std::endl;
-  
-  EDGE_FACTOR.set(edge_potential);
-  BOUND.set(bound);
-  DAMPING.set(damping);
-  
+  std::cout << EDGE_FACTOR << std::endl;
+
+    
 
 
   // Running the engine ------------------------------------------------------->
-  core.sched_options().add_option("update_function",bp_update);
-
   std::cout << "Running the engine. " << std::endl;
 
   
   // Add the bp update to all vertices
-  core.add_task_to_all(bp_update, 100.0);
+  const bp_update initial_update(1000);
+  core.schedule_all(initial_update);
   // Starte the engine
   double runtime = core.start();
   
@@ -322,103 +386,12 @@ int main(int argc, char** argv) {
 
 
 
-// Implementations
-// ============================================================>
-void bp_update(gl_types::iscope& scope, 
-               gl_types::icallback& scheduler) {
-  //  std::cout << scope.vertex();;
-  //  std::getchar();
-
-  // Get the shared data
-  double bound = BOUND.get_val();
-  double damping = DAMPING.get_val();
-
-  // Grab the state from the scope
-  // ---------------------------------------------------------------->
-  // Get the vertex data
-  vertex_data& v_data = scope.vertex_data();
-  
-  // Get the in and out edges by reference
-  gl_types::edge_list in_edges = scope.in_edge_ids();
-  gl_types::edge_list out_edges = scope.out_edge_ids();
-  assert(in_edges.size() == out_edges.size()); // Sanity check
-
-  // Flip the old and new messages to improve safety when using the
-  // unsynch scope
-  foreach(graphlab::edge_id_t ineid, in_edges) {   
-    // Get the in and out edge data
-    edge_data& in_edge = scope.edge_data(ineid);
-    // Since we are about to receive the current message make it the
-    // old message
-    in_edge.old_message = in_edge.message;
-  }
-
-  // Compute the belief
-  // ---------------------------------------------------------------->
-  // Initialize the belief as the value of the factor
-  v_data.belief = v_data.potential;
-  foreach(graphlab::edge_id_t ineid, in_edges) {
-    // Get the message
-    const edge_data& e_data = scope.edge_data(ineid);
-    // Notice we now use the old message since neighboring vertices
-    // could be changing the new messages
-    v_data.belief.times( e_data.old_message );
-  }
-  v_data.belief.normalize(); // finally normalize the belief
-  
-  // Compute outbound messages
-  // ---------------------------------------------------------------->
-
-  boost::shared_ptr<const graphlab::binary_factor> edge_factor_ptr = EDGE_FACTOR.get_ptr();
-  const graphlab::binary_factor &edge_factor = *edge_factor_ptr;
-  
-  // Send outbound messages
-  graphlab::unary_factor cavity, tmp_msg;
-  for(size_t i = 0; i < in_edges.size(); ++i) {
-    // Get the edge ids
-    graphlab::edge_id_t outeid = out_edges[i];
-    graphlab::edge_id_t ineid = in_edges[i];
-    // CLEVER HACK: Here we are expoiting the sorting of the edge ids
-    // to do fast O(1) time edge reversal
-    assert(scope.target(outeid) == scope.source(ineid));
-    // Get the in and out edge data
-    const edge_data& in_edge = scope.edge_data(ineid);
-    edge_data& out_edge = scope.edge_data(outeid);
-    
-    // Compute cavity
-    cavity = v_data.belief;
-    cavity.divide(in_edge.old_message); // Make the cavity a cavity
-    cavity.normalize();
-
-
-    // convolve cavity with the edge factor storing the result in the
-    // temporary message
-    tmp_msg.resize(out_edge.message.arity());
-    tmp_msg.var() = out_edge.message.var();
-    tmp_msg.convolve(edge_factor, cavity);
-    tmp_msg.normalize();
-
-    // Damp the message
-    tmp_msg.damp(out_edge.message, damping);
-    
-    // Compute message residual
-    double residual = tmp_msg.residual(out_edge.old_message);
-    
-    // Assign the out message
-    out_edge.message = tmp_msg;
-    
-    if(residual > bound) {
-      gl_types::update_task task(scope.target(outeid), bp_update);      
-      scheduler.add_task(task, residual);
-    }    
-  }
-} // end of BP_update
 
 
 void construct_graph(image& img,
                      size_t num_rings,
                      double sigma,
-                     gl_types::graph& graph) {
+                     graph_type& graph) {
   // Construct a single blob for the vertex data
   vertex_data vdata;
   vdata.potential.resize(num_rings);
