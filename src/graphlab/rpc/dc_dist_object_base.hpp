@@ -34,6 +34,9 @@ Provides an interface for extracting and updating counters from dc_dist_objects
 */
 class dc_dist_object_base{
  public:
+
+  virtual ~dc_dist_object_base() { } 
+
   /// Increment the number of calls sent from this object
   virtual void inc_calls_sent(procid_t source) = 0;
   /// Increment the number of calls received by this object

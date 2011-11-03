@@ -4,26 +4,29 @@ project(GraphLab)
 
 
 subdirs(
- engine
- graph
- gpu
- monitoring
- parallel
- schedulers
- scope
- shared_data
- tasks
- util
- serialization
- logger
- metrics
- jni)
+  engine
+  distributed2
+  graph
+  gpu
+  monitoring
+  options
+  parallel
+  scheduler
+  scope
+  shared_data
+  sync
+  update_functor
+  util
+  serialization
+  logger
+  metrics)
 
-# if(YRL_EXPERIMENTAL)
-#   subdirs(yrl)
-# endif()
+if(YRL_EXPERIMENTAL)
+  subdirs(yrl)
+endif()
 
-include(metisextern.cmake)
+# Defines METIS_SOURCES
+include(extern/metisextern.cmake)
 
 #build graphlab_zoltan if available
 ## The current distributed build no longer uses zoltan
@@ -46,7 +49,7 @@ endif()
 
 if (ZLIB_FOUND)
   set(rpc_compressed rpc/dc_stream_receive_z.cpp
-                      rpc/dc_buffered_stream_send_expqueue_z.cpp)
+    rpc/dc_buffered_stream_send_expqueue_z.cpp)
 endif()
 
 if (MPI_FOUND)
@@ -58,12 +61,11 @@ IF (EXPERIMENTAL)
 endif()
 
 add_library(graphlab STATIC
-  ${metis_sources}
-  schedulers/scheduler_options.cpp
+  ${METIS_SOURCES}
+  options/command_line_options.cpp
+  options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
-  util/command_line_options.cpp
-  graph/memory_atom.cpp
   graph/disk_atom.cpp
   graph/write_only_disk_atom.cpp
   graph/atom_index_file.cpp
@@ -72,12 +74,13 @@ add_library(graphlab STATIC
   parallel/pthread_tools.cpp
   parallel/thread_pool.cpp
   util/random.cpp
-  schedulers/scheduler_list.cpp
+  scheduler/scheduler_list.cpp
   metrics/metrics.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/md5.cpp
+  shared_data/sharedsum.cpp
   ${mmap_allocator}
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
@@ -100,14 +103,15 @@ add_library(graphlab STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
+  rpc/delta_dht.cpp
   distributed2/distributed_scheduler_list.cpp
   ${rpc_compressed}
-)
+  )
 
 target_link_libraries(graphlab ${Boost_LIBRARIES})
 
 if (MPI_FOUND)
-target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+  target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
 endif()
 
 
@@ -121,8 +125,7 @@ endif()
 #build distributed graphlab
 add_library(graphlab_dist2 STATIC
     distributed2/distributed_glshared_base.cpp
-    distributed2/distributed_glshared_manager.cpp
-    distributed2/graph/dgraph_edge_list.cpp)
+    distributed2/distributed_glshared_manager.cpp)
 
 
 #build PIC versions of everything
@@ -131,7 +134,7 @@ get_target_property(graphlab_sources graphlab SOURCES)
 get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
 add_library(graphlab_pic STATIC ${graphlab_sources})
 set_target_properties(graphlab_pic PROPERTIES 
-                      COMPILE_FLAGS "${graphlab_flags} -fPIC")
+  COMPILE_FLAGS "${graphlab_flags} -fPIC")
 
 INSTALL(TARGETS 
   graphlab 
@@ -141,11 +144,11 @@ INSTALL(DIRECTORY matlab/
   DESTINATION include/graphlab/matlab
   FILES_MATCHING PATTERN "*" 
   PATTERN "*.sh" EXCLUDE
-)
+  )
 
 INSTALL(FILES matlab/get_mex_params.sh
-        DESTINATION include/graphlab/matlab
-        PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
+  DESTINATION include/graphlab/matlab
+  PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
 
 
 target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})

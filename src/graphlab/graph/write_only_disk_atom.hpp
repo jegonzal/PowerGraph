@@ -166,7 +166,9 @@ namespace graphlab {
   
     inline bool get_vertex_data(vertex_id_type vid, uint16_t &owner, std::string &s) { ASSERT_TRUE(false); return true;}
 
-    inline bool get_edge_data(vertex_id_type src, vertex_id_t target, std::string &s) { ASSERT_TRUE(false); return true;}
+    inline bool get_edge_data(vertex_id_type src, 
+                              vertex_id_type target, 
+                              std::string& s) { ASSERT_TRUE(false); return true;}
 
 
     inline std::vector<vertex_id_type> enumerate_vertices() { 

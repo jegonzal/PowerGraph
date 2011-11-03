@@ -39,7 +39,7 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
- #undef _POSIX_SPIN_LOCKS
+#undef _POSIX_SPIN_LOCKS
 #define _POSIX_SPIN_LOCKS -1
 
 
@@ -495,6 +495,12 @@ namespace graphlab {
     inline void writelock() const {
       pthread_rwlock_wrlock(&m_rwlock);
       //ASSERT_TRUE(!error);
+    }
+    inline bool try_readlock() const {
+      return pthread_rwlock_tryrdlock(&m_rwlock) == 0;
+    }
+    inline bool try_writelock() const {
+      return pthread_rwlock_trywrlock(&m_rwlock) == 0;
     }
     inline void unlock() const {
       pthread_rwlock_unlock(&m_rwlock);

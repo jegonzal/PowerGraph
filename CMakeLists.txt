@@ -45,29 +45,30 @@ if(NOT KC_ROOT)
   set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
 endif()
 
-# if(YRL_EXPERIMENTAL)
-#   message(STATUS 
-#     "\n"
-#     "===============================================================\n"
-#     "| Building Experimental Yahoo Labs Research Components.       |\n"
-#     "|                                                             |\n"
-#     "| These components are being included in the trunk to         |\n"
-#     "| facilitate rapid incorporation.  The primary features       |\n"
-#     "| under active development include:                           |\n"
-#     "|                                                             |\n"
-#     "|    a) An Hadoop interface for large graph construction.     |\n"
-#     "|    b) An Hadoop interface for launching GraphLab on         |\n"
-#     "|       hadoop based clouds                                   |\n"
-#     "|    c) An improved sync interface that is more similar to    |\n"
-#     "|       traditional map-reduce and provides more fine-grain   |\n"
-#     "|       control over sync activation.                         |\n"
-#     "|                                                             |\n" 
-#     "===============================================================")
-#   add_definitions(-DYRL_EXPERIMENTAL)
-#   message(STATUS "Using Avro Path: " ${AVRO_ROOT})
-#   include_directories(${AVRO_ROOT}/include)
-#   link_directories(${AVRO_ROOT}/lib)
-# endif()
+if(YRL_EXPERIMENTAL)
+  message(STATUS 
+    "\n"
+    "===============================================================\n"
+    "| Building Experimental Yahoo Labs Research Components.       |\n"
+    "|                                                             |\n"
+    "| These components are being included in the trunk to         |\n"
+    "| facilitate rapid incorporation.  The primary features       |\n"
+    "| under active development include:                           |\n"
+    "|                                                             |\n"
+    "|    a) An Hadoop interface for large graph construction.     |\n"
+    "|    b) An Hadoop interface for launching GraphLab on         |\n"
+    "|       hadoop based clouds                                   |\n"
+    "|    c) An improved sync interface that is more similar to    |\n"
+    "|       traditional map-reduce and provides more fine-grain   |\n"
+    "|       control over sync activation.                         |\n"
+    "|                                                             |\n" 
+    "===============================================================")
+  add_definitions(-DYRL_EXPERIMENTAL)
+
+  #message(STATUS "Using Avro Path: " ${AVRO_ROOT})
+  #include_directories(${AVRO_ROOT}/include)
+  #link_directories(${AVRO_ROOT}/lib)
+endif()
 
 
 
@@ -354,6 +355,9 @@ endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
 ## IMPORTANT: we currently assume a GCC compiler when setting flags
 # if(CMAKE_COMPILER_IS_GNUCXX)
 
+## -march=native is not supported on <= gcc-4.2 (i.e., Breaks Mac
+## build);
+
 ### Set the debug flags ----------------------------------------------------->
 # Note: -fkeep-inline-functions significantly slows down the compilation
 if (HAVE_64_BIT MATCHES 1)
@@ -600,10 +604,15 @@ set(GraphLab_LIBRARIES graphlab)
 # for lab branch.)
 subdirs(src tests)
 
-
-if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
-  subdirs(apps)
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/nino_app)
+  subdirs(nino_app)
 endif()
+
+
+
+# if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
+#   subdirs(apps)
+# endif()
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
   subdirs(demoapps)
 endif()

@@ -49,6 +49,7 @@ struct edge_data {
   size_t sum;
 };
 
+class update_functor { };
 
 
 class GraphTestSuite: public CxxTest::TestSuite {
@@ -124,7 +125,7 @@ public:
     timer ti;
     ti.start();
     typedef graph<char, char> graph_type;
-    typedef types< graph_type > gl;
+    typedef types< graph_type, update_functor > gl;
     typedef graph_type::vertex_id_type vertex_id_type;
     typedef graph_type::edge_id_type edge_id_type;
     size_t num_verts = 10000;
@@ -159,7 +160,7 @@ public:
   void test_partition() {
     typedef graph<char, char> graph_type;
     typedef graph_type::vertex_id_type vertex_id_type;
-    typedef types< graph_type > gl;
+    typedef types< graph_type, update_functor > gl;
     // make a 100x100 grid
     size_t dim = 100;
     gl::graph g(dim * dim);

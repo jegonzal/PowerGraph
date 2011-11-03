@@ -90,8 +90,7 @@ namespace graphlab {
           return distribution_type(min, max)(real_rng);
         }
       };
-
-    };
+    }; // end of namespace distributions
 
     /**
      * The generator class is the base underlying type used to
