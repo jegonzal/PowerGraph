@@ -275,8 +275,8 @@ void distributed_control::fcallhandler_loop(size_t id) {
     //create a stream containing all the data
     boost::iostreams::stream<boost::iostreams::array_source> 
       istrm(entry.first.data, entry.first.len);
-    exec_function_call(entry.first.source, entry.first.hdr, istrm);
-    receivers[entry.first.source]->function_call_completed(entry.first.hdr.packet_type_mask);
+    exec_function_call(entry.source, entry.hdr, istrm);
+    receivers[entry.source]->function_call_completed(entry.hdr.packet_type_mask);
     delete [] entry.first.data;
   }
   //  std::cerr << "Handler " << id << " died." << std::endl;
