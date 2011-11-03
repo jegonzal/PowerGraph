@@ -93,25 +93,16 @@ std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
 
 
 //! The type of graph used in this program
-typedef graphlab::graph<vertex_data, edge_data> pagerank_graph;
-
-//! Predeclar the pagerank update functor
-class pagerank_update;
-
-/**
- * The collection of graphlab types restricted to the graph type used
- * in this program.
- */
-typedef graphlab::types<pagerank_graph, pagerank_update> gl;
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 
 //! Save the graph to tsv file
 void save_edges_as_tsv(const std::string& fname, 
-                       const pagerank_graph& graph);
+                       const graph_type& graph);
 
 //! save the pagerank as a tsv file
 void save_pagerank(const std::string& fname,
-                   const pagerank_graph& graph);
+                   const graph_type& graph);
 
 /**
  * Load a graph in metis format
@@ -123,10 +114,10 @@ void save_pagerank(const std::string& fname,
  *
  */
 bool load_graph_from_metis_file(const std::string& filename,
-                                pagerank_graph& graph);
+                                graph_type& graph);
 
 bool load_graph_from_jure_file(const std::string& filename,
-                               pagerank_graph& graph);
+                               graph_type& graph);
 
 
 /**
@@ -143,12 +134,12 @@ bool load_graph_from_jure_file(const std::string& filename,
  * The file should not contain repeated edges.
  */
 bool load_graph_from_tsv_file(const std::string& filename,
-                              pagerank_graph& graph);
+                              graph_type& graph);
 
 /**
  * Makes a small to graph.
  */
-void make_toy_graph(pagerank_graph& graph);
+void make_toy_graph(graph_type& graph);
 
 
 
