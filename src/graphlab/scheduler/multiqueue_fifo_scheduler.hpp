@@ -69,7 +69,8 @@ namespace graphlab {
 
 
     typedef std::queue<vertex_id_type> taskqueue_t;
-    typedef task_count_termination terminator_type;
+    typedef controlled_termination terminator_type;
+
 
     
 

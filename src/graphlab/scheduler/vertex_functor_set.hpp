@@ -56,9 +56,10 @@ namespace graphlab {
     
     class vfun_type {
     private:
+      update_functor_type functor;
       spinlock lock;
       bool is_set;
-      update_functor_type functor;
+
     public:
       vfun_type() : is_set(false) { }
       /** returns true if set for the first time */
