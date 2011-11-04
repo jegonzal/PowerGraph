@@ -36,7 +36,7 @@
 #include <graphlab/monitoring/monitoring_includes.hpp>
 #include <graphlab/parallel/parallel_includes.hpp>
 #include <graphlab/scheduler/scheduler_includes.hpp>
-#include <graphlab/scope/scope_includes.hpp>
+#include <graphlab/context/context_includes.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/shared_data/shared_data_includes.hpp>
 #include <graphlab/sync/sync_includes.hpp>

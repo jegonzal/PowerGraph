@@ -21,9 +21,9 @@
  */
 
 
-#include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/consistency_model.hpp>
-#include <graphlab/scope/idiffable.hpp>
+#include <graphlab/context/icontext.hpp>
+#include <graphlab/context/consistency_model.hpp>
+#include <graphlab/context/idiffable.hpp>
 
 
 

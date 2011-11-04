@@ -1,0 +1,267 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+/**
+ * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
+ * reserved.  
+ *
+ * Contributed under the iCLA for:
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *
+ */
+
+
+#ifndef GRAPHLAB_CONTEXT_HPP
+#define GRAPHLAB_CONTEXT_HPP
+
+//#include <boost/bind.hpp>
+
+#include <graphlab/context/icontext.hpp>
+
+
+
+#include <graphlab/macros_def.hpp>
+namespace graphlab {
+
+
+
+  /**
+   * This defines a general scope type 
+   */
+  template<typename Engine>
+  class context :
+    public icontext<typename Engine::graph_type, 
+                    typename Engine::update_functor_type> {
+  public:
+   
+
+    typedef Engine engine_type;
+    typedef typename engine_type::graph_type graph_type;
+    typedef typename engine_type::update_functor_type update_functor_type;
+    typedef typename engine_type::ischeduler_type ischeduler_type;
+
+    typedef typename graph_type::vertex_id_type      vertex_id_type;
+    typedef typename graph_type::vertex_color_type   vertex_color_type;
+    typedef typename graph_type::edge_id_type        edge_id_type;
+    typedef typename graph_type::vertex_data_type    vertex_data_type;
+    typedef typename graph_type::edge_data_type      edge_data_type;
+    typedef typename graph_type::edge_list_type      edge_list_type;
+    
+  private:    
+    /** the cpuid of this context */
+    size_t cpuid;
+    /** a pointer to the engine */
+    engine_type* engine_ptr;
+    /** A pointer to the scheduler */
+    ischeduler_type* ischeduler_ptr;
+    /** A pointer to the underlying graph datastructure */
+    graph_type* graph_ptr;
+    
+    /** The vertex that this graph represents*/
+    vertex_id_type vid;
+
+    /** The consistency model that this context ensures */
+    consistency_model::model_enum _consistency;
+ 
+  public:
+
+    // Cache related members --------------------------------------------------
+    struct cache_entry {
+      vertex_data_type old;
+      vertex_data_type current;
+      uint16_t reads, writes;
+      cache_entry() : reads(0), writes(0) { }
+    };
+    typedef std::map<vertex_id_type, cache_entry> cache_map_type;
+  
+    cache_map_type cache;
+
+  public:
+    
+    /** 
+     * \brief construct an icontext from a graph This is called by the
+     * engine when creating an icontext to be passed into an update
+     * function.
+     */
+    context(size_t cpuid = -1,
+            engine_type* engine_ptr = NULL,
+            ischeduler_type* ischeduler_ptr = NULL,
+            graph_type* graph_ptr = NULL) :
+      cpuid(cpuid),
+      engine_ptr(engine_ptr), ischeduler_ptr(ischeduler_ptr), graph_ptr(graph_ptr), 
+      vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY) { }
+    
+
+    void init(const vertex_id_type vertex, 
+              consistency_model::model_enum consistency) {
+      vid = vertex;
+      _consistency = consistency;
+    } // end of init_vertex
+
+    vertex_data_type& vertex_data(const vertex_id_type vid) {
+      typedef typename cache_map_type::iterator iterator_type;
+      iterator_type iter = cache.find(vid);
+      if(iter != cache.end()) {
+        return iter->second.current;
+      } else {
+        return graph_ptr->vertex_data(vid);
+      }
+    }
+
+    const vertex_data_type& vertex_data(const vertex_id_type vid) const {
+      typedef typename cache_map_type::const_iterator iterator_type;
+      iterator_type iter = cache.find(vid);
+      if(iter != cache.end()) {
+        return iter->second.current;
+      } else {
+        return graph_ptr->vertex_data(vid);
+      }
+    }
+
+
+
+    vertex_data_type& vertex_data() {
+      return vertex_data(vid);
+    }
+
+    const vertex_data_type& vertex_data() const {
+      return vertex_data(vid);
+    }
+
+    const vertex_data_type& const_vertex_data() const {
+      return vertex_data(vid);
+    }
+
+    vertex_data_type& neighbor_vertex_data(vertex_id_type vid) {
+      return vertex_data(vid);
+    }
+
+    const vertex_data_type& 
+    neighbor_vertex_data(vertex_id_type vid) const {
+      return vertex_data(vid);
+    }
+
+    const vertex_data_type& 
+    const_neighbor_vertex_data(vertex_id_type vid) const {
+      return vertex_data(vid);
+    }
+
+    edge_data_type& edge_data(edge_id_type eid) {
+      return graph_ptr->edge_data(eid);  
+    }
+
+    const edge_data_type& edge_data(edge_id_type eid) const {
+      return graph_ptr->edge_data(eid);  
+    }
+
+    const edge_data_type& const_edge_data(edge_id_type eid) const {
+      return graph_ptr->edge_data(eid);  
+    }
+
+    void commit() { }
+
+    size_t num_vertices() const { return graph_ptr->num_vertices(); }
+
+    vertex_color_type color() const { return graph_ptr->get_color(vid); }
+    
+    vertex_id_type vertex_id() const { return vid; }
+
+    edge_id_type edge(vertex_id_type source,
+                      vertex_id_type target) const {
+      return graph_ptr->edge_id(source, target);
+    }
+
+    bool edge_exists(vertex_id_type source,
+                     vertex_id_type target) const {
+      return graph_ptr->find(source, target).first;
+    }
+
+    edge_id_type reverse_edge(edge_id_type eid) const {      
+      return graph_ptr->rev_edge_id(eid);
+    }
+
+    edge_list_type in_edge_ids() const {
+      return graph_ptr->in_edge_ids(vid);
+    }
+
+    edge_list_type in_edge_ids(vertex_id_type v) const {
+      return graph_ptr->in_edge_ids(v);
+    }
+
+    edge_list_type out_edge_ids() const {
+      return graph_ptr->out_edge_ids(vid);
+    }
+
+    edge_list_type out_edge_ids(vertex_id_type v) const {
+      return graph_ptr->out_edge_ids(v);
+    }
+
+    //! Get the source vertex of the edge id argument
+    vertex_id_type source(edge_id_type edge_id) const {
+      return graph_ptr->source(edge_id);
+    }
+
+    //! get the target vertex of the edge id argument
+    vertex_id_type target(edge_id_type edge_id) const {
+      return graph_ptr->target(edge_id);
+    }
+    
+
+    //! Get the consistency model under which this context was acquired
+    consistency_model::model_enum consistency() const { 
+      return _consistency;
+    }
+
+    void schedule(const vertex_id_type& vertex, 
+                  const update_functor_type& update_fun) {
+      ischeduler_ptr->schedule(cpuid, vertex, update_fun);
+    }
+
+    void schedule_in_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun) {
+      const edge_list_type edges = graph_ptr->in_edge_ids(vertex);
+      foreach(const edge_id_type& eid, edges) 
+        schedule(graph_ptr->source(eid), update_fun);
+    }
+
+    void schedule_out_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun) {
+      const edge_list_type edges = graph_ptr->out_edge_ids(vertex);
+      foreach(const edge_id_type& eid, edges) 
+        schedule(graph_ptr->target(eid), update_fun);
+    }
+    
+    /**
+     * Calling this function will force the engine to abort
+     * immediately
+     */
+    void terminate() {
+      engine_ptr->stop();
+    };
+
+  }; // end of context
+
+} // end of graphlab namespace
+#include <graphlab/macros_undef.hpp>
+
+#endif
+

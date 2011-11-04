@@ -36,7 +36,6 @@
 
 
 #include <graphlab/logger/logger.hpp>
-#include <graphlab/scope/iscope.hpp>
 #include <graphlab/sync/isync.hpp>
 
 
@@ -46,9 +45,10 @@ namespace graphlab {
 
 
   namespace sync_defaults {
-    template<typename ScopeType, typename Accum>
-    void fold(ScopeType& iscope, Accum& accum) {
-      accum += Accum(iscope);
+
+    template<typename VertexData, typename Accum>
+    void fold(const VertexData& vdata, Accum& accum) {
+      accum += Accum(vdata);
     } // end of default_apply
 
     template<typename T, typename Accum>
@@ -64,8 +64,7 @@ namespace graphlab {
 
 
     typedef isync<Graph> isync_type;
-    typedef typename isync_type::iscope_type iscope_type;
-
+    typedef typename Graph::vertex_data_type vertex_data_type;
     //! The target should supply = operation
     typedef glshared<T> glshared_type;
     typedef T           contained_type;
@@ -74,10 +73,11 @@ namespace graphlab {
     
 
     /** 
-     * The map function takes a scope and extracts the relevant
+     * The map function takes a vertex data and extracts the relevant
      * information into the result object.
      */
-    typedef void(*fold_function_type)(iscope_type& scope, Accum& result);
+    typedef void(*fold_function_type)(const vertex_data_type& vertex, 
+                                      Accum& result);
 
     /**
      *  The apply function manipulates the partial sum and assigns it
@@ -109,7 +109,7 @@ namespace graphlab {
     fold_sync(glshared_type& target,
               const accumulator_type& zero = accumulator_type(0),
               fold_function_type fold_function = 
-              (sync_defaults::fold<iscope_type, Accum>),
+              (sync_defaults::fold<vertex_data_type, Accum>),
               apply_function_type apply_function = 
               (sync_defaults::apply<T, Accum>) ) :
       target(target), zero(zero), acc(zero),
@@ -122,8 +122,8 @@ namespace graphlab {
     
     isync_type* clone() const { return new fold_sync(*this); }
     void clear() { acc = zero; }
-    void operator+=(iscope_type& scope) { 
-      fold_function(scope, acc); 
+    void operator+=(const vertex_data_type& vdata) { 
+      fold_function(vdata, acc); 
     }
     void operator+=(const isync_type& iother) {
       const fold_sync& other = 

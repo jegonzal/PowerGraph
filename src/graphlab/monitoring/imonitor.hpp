@@ -33,7 +33,7 @@
 
 
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/scope/iscope.hpp>
+
 
 namespace graphlab {
   
@@ -44,8 +44,6 @@ namespace graphlab {
     typedef Engine engine_type;
     typedef typename engine_type::graph_type graph_type;
     typedef typename engine_type::update_functor_type update_functor_type;
-    typedef typename engine_type::iscope_type iscope_type;
-
     typedef typename graph_type::vertex_id_type vertex_id_type;
 
 
@@ -53,13 +51,12 @@ namespace graphlab {
     virtual void init(engine_type* engine) { }
     
     /* Engine calls */
-    virtual void engine_task_execute_start(const update_functor_type& ufun,
-                                           iscope_type* scope, 
+    virtual void engine_task_execute_start(vertex_id_type vid, 
+                                           const update_functor_type& ufun,
                                            size_t cpuid) { }
     
     virtual void engine_task_execute_finished(vertex_id_type vid,
                                               const update_functor_type& ufun,
-                                              iscope_type* scope, 
                                               size_t cpuid) { }
     
     virtual void engine_worker_starts(size_t cpuid) { }

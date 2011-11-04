@@ -12,7 +12,7 @@ subdirs(
   options
   parallel
   scheduler
-  scope
+  context
   shared_data
   sync
   update_functor

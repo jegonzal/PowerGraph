@@ -24,31 +24,31 @@
 #ifndef GRAPHLAB_SYNC_OPS
 #define GRAPHLAB_SYNC_OPS
 
-#include <graphlab/scope/iscope.hpp>
+
 
 
 namespace graphlab {
 
   template<typename Graph>
   struct sync_ops {
-    typedef iscope<Graph> iscope_type;
+    typedef typename Graph::vertex_data_type vertex_data_type;
 
-    template<typename Accum, Accum(*MapFun)(iscope_type& scope)>
+    template<typename Accum, Accum(*MapFun)(const vertex_data_type& vdata)>
     struct sum_group {
       Accum acc;
       sum_group() : acc() {}
       sum_group(const Accum& acc) : acc(acc) { }
-      sum_group(iscope_type& scope) : acc(MapFun(scope)) { }
+      sum_group(const vertex_data_type& vdata) : acc(MapFun(vdata)) { }
       operator Accum () const { return acc; }
       void operator+=(const sum_group& other) { acc += other.acc; }
     };      
 
-    template<typename Accum, Accum(*MapFun)(iscope_type& scope)>
+    template<typename Accum, Accum(*MapFun)(const vertex_data_type& vdata)>
     struct max_group {
       Accum acc;
       max_group() : acc() {}
       max_group(const Accum& acc) : acc(acc) { }
-      max_group(iscope_type& scope) : acc(MapFun(scope)) { }
+      max_group(const vertex_data_type& vdata) : acc(MapFun(vdata)) { }
       operator Accum() { return acc; }
       void operator+=(const max_group& other) { 
         acc = std::max(acc, other.acc); }

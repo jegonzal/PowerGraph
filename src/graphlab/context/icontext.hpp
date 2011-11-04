@@ -23,12 +23,12 @@
 
 /** \file 
  *
- * This file describes the iscope interface as well as the the
- * scope_range_enum.
+ * This file describes the icontext interface as well as the the
+ * context_range_enum.
  *
  */
-#ifndef GRAPHLAB_SCOPE_HPP
-#define GRAPHLAB_SCOPE_HPP
+#ifndef GRAPHLAB_ICONTEXT_HPP
+#define GRAPHLAB_ICONTEXT_HPP
 
 #include <set>
 #include <vector>
@@ -36,7 +36,7 @@
 
 #include <graphlab/graph/graph.hpp>
 
-#include <graphlab/scope/consistency_model.hpp>
+#include <graphlab/context/consistency_model.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -89,8 +89,8 @@ namespace graphlab {
   } // end of adjacent_vertex_lock_type
 
 
-  inline bool scope_is_subset_of(consistency_model::model_enum A,
-                                 consistency_model::model_enum B) {
+  inline bool context_is_subset_of(consistency_model::model_enum A,
+                                   consistency_model::model_enum B) {
     /*
       if (A==consistency_model::READ_CONSISTENCY && B ==
       consistency_model::VERTEX_CONSISTENCY) return false; else return
@@ -99,7 +99,7 @@ namespace graphlab {
     return (!(A==consistency_model::READ_CONSISTENCY 
               && B == consistency_model::VERTEX_CONSISTENCY)) 
       && (A < B);
-  } // end of scope_is_subset_of
+  } // end of context_is_subset_of
 
 
 
@@ -108,73 +108,73 @@ namespace graphlab {
    * \brief represents the data associated with a vertex its adjacent
    * edges and neighbors.
    *
-   * The update function is passed an instance of iscope and is uses
+   * The update function is passed an instance of icontext and is uses
    * that instance to obtain information about the graph structure and
    * to read and modify the graph data.
    */
-  template<typename Graph>
-  class iscope {
+  template<typename Graph, typename UpdateFunctor>
+  class icontext {
   public:
-    //! The type of graph that the iscope operates on
-    typedef Graph graph_type;
+    //! The type of graph that the icontext operates on
+    typedef Graph           graph_type;
+    typedef UpdateFunctor   update_functor_type;
     typedef typename graph_type::vertex_id_type    vertex_id_type;
     typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::vertex_color_type vertex_color_type;
     //! The edge data type associated with the graph
-    typedef typename graph_type::edge_list_type   edge_list_type;
-
-
+    typedef typename graph_type::edge_list_type    edge_list_type;
     //! The vertex data type associated with the graph
-    typedef typename graph_type::vertex_data_type vertex_data_type;
-
+    typedef typename graph_type::vertex_data_type  vertex_data_type;
     //! The edge data type associated with the graph
-    typedef typename graph_type::edge_data_type   edge_data_type;
-
+    typedef typename graph_type::edge_data_type    edge_data_type;
 
 
 
   public:    
-
-    /** 
-     * \brief construct an iscope from a graph This is called by the
-     * engine when creating an iscope to be passed into an update
-     * function.
-     */
-    iscope(Graph* graph_ptr = NULL, vertex_id_type vertex = -1,
-           consistency_model::model_enum consistency = 
-           consistency_model::EDGE_CONSISTENCY) : 
-      _graph_ptr(graph_ptr), _vertex(vertex), 
-      _consistency(consistency) { }
     
-    /** iscope destructor */
-    virtual ~iscope() { }
+    /** icontext destructor */
+    virtual ~icontext() { }
     
-    /**
-     * \brief commits all changes.
-     * This is called by the engine after the update function returns.
-     */
-    virtual void commit() { }
-
     /**
      * Get the number of vertices in the graph
      */
-    size_t num_vertices() const {
-      assert(_graph_ptr != NULL);
-      return _graph_ptr->num_vertices();  
-    }
+    virtual size_t num_vertices() const  = 0; 
 
-    vertex_color_type color() const {
-      return _graph_ptr->get_color(_vertex);
-    }
-    
+    // /**
+    //  * \brief Returns the mode of the context. 
+    //  *
+    //  * Contexts can be used on single edges (as in a gather or
+    //  * scatter) or for the entire vertex (as in conventional update
+    //  * functors).  If the context is in edge mode then edge_id() is
+    //  * defined.
+    //  */
+    // virtual mode_type mode() const = 0;
+        
     /**
-     * \brief Returns the vertex id of the base vertex in this scope.
+     * \brief Returns the vertex id of the base vertex in this context.
      *
      * This method is used by the update function to get the base
-     * vertex of the scope.  The base vertex is the vertex that the
+     * vertex of the context.  The base vertex is the vertex that the
      * update function is being applied to.
      */
-    vertex_id_type vertex() const { return _vertex; }
+    virtual vertex_id_type vertex_id() const = 0;
+        
+    // /**
+    //  * \brief Returns the edge id of this context when used as an edge
+    //  * context.
+    //  *
+    //  * This method is used by the update function to get the edge of
+    //  * this context when it is being used in a gather or scatter
+    //  * operation.
+    //  */
+    // virtual edge_id_type edge_id() const = 0;
+
+
+    /**
+     * \brief Get the vertex color of the base vertx in this context
+     */
+    virtual vertex_color_type color() const = 0;
+
 
     /** 
      * \brief edge lookup from source target pair to edge id.
@@ -182,13 +182,8 @@ namespace graphlab {
      * This is used to get structural information from the graph.  If
      * the edge is not present this method will fail. 
      */
-    edge_id_type edge(vertex_id_type source,
-                      vertex_id_type target) const {
-      assert(_graph_ptr != NULL);
-      // No cheating
-      // assert(source == _vertex || target == _vertex);
-      return _graph_ptr->edge_id(source, target);
-    }
+    virtual edge_id_type edge(vertex_id_type source,
+                              vertex_id_type target) const = 0;
 
     /**
      * \brief test whether an edge is present
@@ -196,39 +191,24 @@ namespace graphlab {
      * This method tests whether the edge exists.  If the edge exists
      * this method returns true.  
      */
-    bool edge_exists(vertex_id_type source,
-                     vertex_id_type target) const {
-      assert(_graph_ptr != NULL);
-      // No cheating
-      // assert(source == _vertex || target == _vertex);
-      return _graph_ptr->find(source, target).first;
-    }
+    virtual bool edge_exists(vertex_id_type source,
+                             vertex_id_type target) const  = 0;
     
-
     /**
      * \brief Get the reverse edge.
      *
      * Get the reverse edge id.  If no such edge exists this method
      * will fail. 
      */
-    edge_id_type reverse_edge(edge_id_type eid) const {      
-      assert(_graph_ptr != NULL);      
-      //       // No cheating
-      //       assert(_graph_ptr->source(eid) == _vertex ||
-      //              _graph_ptr->target(eid) == _vertex);
-      return _graph_ptr->rev_edge_id(eid);
-    }
+    virtual edge_id_type reverse_edge(edge_id_type eid) const  = 0;
 
     /** 
-     * \brief get all in edges to the base vertex of this scope. 
+     * \brief get all in edges to the base vertex of this context. 
      * 
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list_type in_edge_ids() const {
-      assert(_graph_ptr != NULL);
-      return _graph_ptr->in_edge_ids(_vertex);
-    }
+    virtual edge_list_type in_edge_ids() const = 0;
 
     /** 
      * \brief get all in edge ids to the vertex argument
@@ -236,22 +216,15 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list_type in_edge_ids(vertex_id_type v) const {
-      assert(_graph_ptr != NULL);
-      return _graph_ptr->in_edge_ids(v);
-    }
-
+    virtual edge_list_type in_edge_ids(vertex_id_type v) const = 0;
 
     /** 
-     * \brief get all out edge ids to the base vertex of this scope
+     * \brief get all out edge ids to the base vertex of this context
      *
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list_type out_edge_ids() const {
-      assert(_graph_ptr != NULL);
-      return _graph_ptr->out_edge_ids(_vertex);
-    }
+    virtual edge_list_type out_edge_ids() const = 0;
 
     /** 
      * \brief get all out ede ids to the vertex argument.
@@ -259,28 +232,16 @@ namespace graphlab {
      * This method returns an immutable vector of edge ids sorted in
      * order of <source id, dest id> pairs.
      */
-    edge_list_type out_edge_ids(vertex_id_type v) const {
-      assert(_graph_ptr != NULL);
-      return _graph_ptr->out_edge_ids(v);
-    }
+    virtual edge_list_type out_edge_ids(vertex_id_type v) const = 0;
 
     //! Get the source vertex of the edge id argument
-    vertex_id_type source(edge_id_type edge_id) const {
-      //      assert(_graph_ptr != NULL);
-      return _graph_ptr->source(edge_id);
-    }
+    virtual vertex_id_type source(edge_id_type edge_id) const = 0;
 
     //! get the target vertex of the edge id argument
-    vertex_id_type target(edge_id_type edge_id) const {
-      //       assert(_graph_ptr != NULL);
-      return _graph_ptr->target(edge_id);
-    }
+    virtual vertex_id_type target(edge_id_type edge_id) const = 0; 
     
-
-    //! Get the consistency model under which this scope was acquired
-    consistency_model::model_enum consistency() const { 
-      return _consistency;
-    }
+    //! Get the consistency model under which this context was acquired
+    virtual consistency_model::model_enum consistency() const = 0; 
 
     /**
      * \brief Get a mutable reference to the data associated with the
@@ -291,9 +252,7 @@ namespace graphlab {
      * Therefore if the vertex data does not need to be mutable use
      * the const reference version of vertex_data.
      */
-    virtual vertex_data_type& vertex_data() {
-      return _graph_ptr->vertex_data(_vertex);
-    }
+    virtual vertex_data_type& vertex_data() = 0;
 
     /**
      * \brief Get an immutable reference to the data associated with
@@ -301,9 +260,7 @@ namespace graphlab {
      * \deprecated use const_vertex_data
      * This should be called if the data does not need to be modified.
      */
-    virtual const vertex_data_type& vertex_data() const {
-      return const_vertex_data();
-    }
+    virtual const vertex_data_type& vertex_data() const = 0;
     
     /**
      * \brief Get an immutable reference to the data associated with
@@ -311,10 +268,7 @@ namespace graphlab {
      *
      * This should be called if the data does not need to be modified.
      */    
-    virtual const vertex_data_type& const_vertex_data() const {
-      return _graph_ptr->vertex_data(_vertex);
-    }
-    
+    virtual const vertex_data_type& const_vertex_data() const = 0; 
     
     /**
      * \brief Get a mutable reference to the data associated with the
@@ -325,9 +279,7 @@ namespace graphlab {
      * const version of this function should be used to permit further
      * optimization.
      */
-    virtual edge_data_type& edge_data(edge_id_type eid) {
-      return _graph_ptr->edge_data(eid);
-    }
+    virtual edge_data_type& edge_data(edge_id_type eid) = 0;
 
     /**
      * \brief Get an immutable reference to the data associated with
@@ -336,10 +288,7 @@ namespace graphlab {
      * This should only be invoked on edges that are adjacent to the
      * base vertex. 
      */
-    virtual const edge_data_type& edge_data(edge_id_type eid) const {
-      return const_edge_data(eid);
-    }
-    
+    virtual const edge_data_type& edge_data(edge_id_type eid) const = 0;    
     
     /**
      * \brief Get an immutable reference to the data associated with
@@ -347,9 +296,7 @@ namespace graphlab {
      *
      * This should be called if the data does not need to be modified.
      */    
-    virtual const edge_data_type& const_edge_data(edge_id_type eid) const {
-      return _graph_ptr->edge_data(eid);
-    }
+    virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0; 
     
     /**
      * \brief get a mutable reference to the data associated with a
@@ -362,9 +309,7 @@ namespace graphlab {
      * const version of this function should be called to permit
      * further optimization by the graphlab engine.
      */
-    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) {
-      return _graph_ptr->vertex_data(vertex);
-    }
+    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) = 0; 
 
     /**
      * \brief get an immutable reference to the data associated with a
@@ -374,12 +319,8 @@ namespace graphlab {
      * vertices. Unfortunately, due to the Log(d) lookup required to
      * enforce the adjacency constraint we do not check at this time.
      */
-    virtual const vertex_data_type& 
-    neighbor_vertex_data(vertex_id_type vertex) const {
-      return const_neighbor_vertex_data(vertex);
-    }
+    virtual const vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) const = 0;
         
-
     /**
      * \brief get an immutable reference to the data associated with a
      * neighboring vertex.
@@ -389,35 +330,49 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vertex) const {
-      return _graph_ptr->vertex_data(vertex);
-    }
+    const_neighbor_vertex_data(vertex_id_type vertex) const = 0;
 
 
     /**
-       Experimental scope upgrade scheme. Returns true if scope upgrade is 
-       successful. If this ever returns false, you are hosed. Should work
-       with general_scope. Note that after scope_upgrade is called, any graph
-       data within the scope may change due to a race between releasing and 
-       reacquiring the upgraded scope.
-    */
-    virtual bool 
-    experimental_scope_upgrade(consistency_model::model_enum newrange) { 
-      return false;
-    }
+     * Adds a task to execute the update function on the vertex with
+     * the given priority.
+     */
+    virtual void schedule(const vertex_id_type& vertex, 
+                          const update_functor_type& update_fun) = 0;    
 
-  protected:
-    /** A pointer to the underlying graph datastructure */
-    Graph* _graph_ptr;
 
-    /** The vertex that this graph represents*/
-    vertex_id_type _vertex;
+    /**
+     * Schedule an update on all the neighbors of a particular vertex
+     */
+    virtual void schedule_in_neighbors(const vertex_id_type& vertex, 
+                                       const update_functor_type& update_fun) = 0;
 
-    /** The consistency model that this scope ensures */
-    consistency_model::model_enum _consistency;
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
+                                        const update_functor_type& update_fun) = 0;
+                                                  
+    /**
+     * Calling this function will force the engine to abort
+     * immediately
+     */
+    virtual void terminate() = 0;
+ 
+    // /**
+    //    Experimental context upgrade scheme. Returns true if context upgrade is 
+    //    successful. If this ever returns false, you are hosed. Should work
+    //    with general_context. Note that after context_upgrade is called, any graph
+    //    data within the context may change due to a race between releasing and 
+    //    reacquiring the upgraded context.
+    // */
+    // virtual bool 
+    // experimental_context_upgrade(consistency_model::model_enum newrange) { 
+    //   return false;
+    // }
     
 
-  }; // end of iscope
+  }; // end of icontexty
   
 } // end of namespace
 #include <graphlab/macros_undef.hpp>

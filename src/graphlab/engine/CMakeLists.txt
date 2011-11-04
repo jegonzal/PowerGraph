@@ -1,4 +1,4 @@
 project(GraphLab)
 
-subdirs(callback)
+# subdirs(callback)
 

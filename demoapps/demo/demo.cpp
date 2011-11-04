@@ -170,17 +170,16 @@ graphlab::glshared<size_t> NUM_FLIPS;
 */
 struct update_functor : 
   public graphlab::iupdate_functor<graph_type, update_functor> {
+  typedef graphlab::iupdate_functor<graph_type, update_functor> base;
   
-  
-  void operator()(graphlab::iscope<graph_type>& scope, 
-                  graphlab::icallback<graph_type, update_functor>& callback) {
-    //scope.vertex_data allows me to grab a reference to the vertex data
+  void operator()(base::icontext_type& context) {
+    //context.vertex_data allows me to grab a reference to the vertex data
     // on the graph
-    vertex_data& curvdata = scope.vertex_data();
+    vertex_data& curvdata = context.vertex_data();
 
     // the in_edge_ids() function provide a vector of the edge ids of the edges
     // entering the current vertex
-    const graph_type::edge_list_type in_edges = scope.in_edge_ids();
+    const graph_type::edge_list_type in_edges = context.in_edge_ids();
     // a counter for the number of red neighbors
     size_t num_red_neighbors = 0;  
     for (size_t i = 0; i < in_edges.size(); ++i) {
@@ -190,14 +189,14 @@ struct update_functor :
       // of the edge 'eid'. The source(eid) function provides me with the
       // source vertex.. Since I am looking at in_edges, the source vertex
       // will be my adjacent vertices
-      size_t sourcev = scope.source(eid);
+      size_t sourcev = context.source(eid);
       // the neighbor_vertex_data() function allow me to read the vertex data
       // of a vertex adjacent to the current vertex.
       // since I am not going to change this data, I can just grab a const
       // reference. You should always try to use const references whenever
       // you know that you will definitely not be changing the data, since
       // GraphLab could make use of this knowledge to perform other optimizations
-      const vertex_data& nbrvertex = scope.neighbor_vertex_data(sourcev);
+      const vertex_data& nbrvertex = context.neighbor_vertex_data(sourcev);
       // if red, add to our counter
       if (nbrvertex.color) ++num_red_neighbors;
     }
@@ -227,7 +226,7 @@ struct update_functor :
     // all my neighboring vertices and add them as tasks.
     if (color_changed) {
       for (size_t i = 0; i < in_edges.size(); ++i) {
-        const graph_type::vertex_id_type sourcev = scope.source(in_edges[i]);
+        const graph_type::vertex_id_type sourcev = context.source(in_edges[i]);
         // add the task the gl::update_task object takes a vertex id,
         // and the update function to execute on. add_task also takes
         // another argument, which is the priority of this task. This
@@ -235,7 +234,7 @@ struct update_functor :
         // course, is only used by the priority schedulers. In this
         // demo app, we don't really care about the priority, so we
         // will just set it to 1.0
-        callback.schedule(sourcev, update_functor());
+        context.schedule(sourcev, update_functor());
       }
     }
     // now if I flipped myself based on a random number. This means
@@ -243,7 +242,7 @@ struct update_functor :
     // I should add myself as a task
     if (is_deterministic == false) {
       const update_functor fun;
-      callback.schedule(scope.vertex(), fun);
+      context.schedule(context.vertex_id(), fun);
     }
   }
 }; // end of update_functor
@@ -317,18 +316,18 @@ void init_graph(graph_type& g,
    This is the reducer for the RED_PROPORTION sync.
    We just count the number of red verices.
 
-   \param scope The scope on the vertex we are currently accessing
+   \param context The context on the vertex we are currently accessing
 
    \param accumulator The input and output of the fold/reduce operation.
 */       
-void reduce_red_proportion(graphlab::iscope<graph_type>& scope, double& acc) {
+void reduce_red_proportion(const vertex_data& vdata, double& acc) {
   // each entry in the shared_data table is a special data type called
   // graphlab::any (which is derived and modified from boost::any).
   // This allows you to store arbitrary datatypes into the shared data table,
   // with the minor caveat that the user must know EXACTLY what is the data
   // type stored at each entry. In this case, we will simply
   // store doubles.
-  if (scope.vertex_data().color) acc += 1.0;
+  if (vdata.color) acc += 1.0;
 }
 
 /**
@@ -371,8 +370,8 @@ void merge_red_proportion(double& target, const double& source) {
    provide a simple function which extracts the information of interest
    from the vertex data. In this case, the numflips field.
 */
-size_t get_flips(graphlab::iscope<graph_type>& scope) {
-  return scope.vertex_data().numflips;
+size_t get_flips(const vertex_data& vdata) {
+  return vdata.numflips;
 }
 
 /**
@@ -440,7 +439,7 @@ int main(int argc,  char *argv[]) {
   graphlab::random::nondet_seed();
 
   // Parse the command line using the command line options tool
-  // and scope type on the command line
+  // and context type on the command line
   graphlab::command_line_options opts;
   
   size_t dimensions = 20;

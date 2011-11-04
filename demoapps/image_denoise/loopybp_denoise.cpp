@@ -100,8 +100,7 @@ class bp_update :
   public graphlab::iupdate_functor<graph_type, bp_update> {
  
   typedef graphlab::iupdate_functor<graph_type, bp_update> base;
-  typedef base::iscope_type      iscope_type;
-  typedef base::icallback_type   icallback_type;
+  typedef base::icontext_type      icontext_type;
   typedef base::vertex_id_type   vertex_id_type;
   typedef base::edge_id_type     edge_id_type;
   typedef base::edge_list_type   edge_list_type;
@@ -116,16 +115,16 @@ public:
   double priority() const { return residual; }
   void operator+=(const bp_update& other) { residual += other.residual; }
 
-  void operator()(iscope_type& scope, icallback_type& callback) {
+  void operator()(icontext_type& context) {
 
-    // Grab the state from the scope
+    // Grab the state from the context
     // ---------------------------------------------------------------->
     // Get the vertex data
-    vertex_data& vdata = scope.vertex_data();
+    vertex_data& vdata = context.vertex_data();
   
     // Get the in and out edges by reference
-    const edge_list_type in_edges  = scope.in_edge_ids();
-    const edge_list_type out_edges = scope.out_edge_ids();
+    const edge_list_type in_edges  = context.in_edge_ids();
+    const edge_list_type out_edges = context.out_edge_ids();
     assert(in_edges.size() == out_edges.size()); // Sanity check
 
     // Compute the belief
@@ -133,7 +132,7 @@ public:
     vdata.belief = vdata.potential;
     foreach(const edge_id_type& ineid, in_edges) {   
       // Receive the message
-      edge_data& edata = scope.edge_data(ineid);
+      edge_data& edata = context.edge_data(ineid);
       edata.old_message = edata.message;
       vdata.belief.times( edata.old_message );
     }
@@ -151,10 +150,10 @@ public:
       const edge_id_type ineid = in_edges[i];
       // CLEVER HACK: Here we are expoiting the sorting of the edge ids
       // to do fast O(1) time edge reversal
-      assert(scope.target(outeid) == scope.source(ineid));
+      assert(context.target(outeid) == context.source(ineid));
       // Get the in and out edge data
-      const edge_data& in_edge = scope.edge_data(ineid);
-      edge_data& out_edge = scope.edge_data(outeid);
+      const edge_data& in_edge = context.edge_data(ineid);
+      edge_data& out_edge = context.edge_data(outeid);
    
       // Compute cavity
       cavity = vdata.belief;
@@ -179,7 +178,7 @@ public:
       out_edge.message = tmp_msg;
       
       if(residual > BOUND) {
-        callback.schedule(scope.target(outeid), bp_update(residual));
+        context.schedule(context.target(outeid), bp_update(residual));
       }    
     }
   } // end of operator()

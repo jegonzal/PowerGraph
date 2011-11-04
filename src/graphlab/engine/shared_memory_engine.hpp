@@ -56,8 +56,8 @@
 
 #include <graphlab/graph/graph.hpp>
 
-#include <graphlab/scope/iscope.hpp>
-#include <graphlab/scope/scope_manager.hpp>
+#include <graphlab/context/icontext.hpp>
+#include <graphlab/context/context_manager.hpp>
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
@@ -72,7 +72,7 @@
 
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/execution_status.hpp>
-#include <graphlab/engine/callback/direct_callback.hpp>
+
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -92,14 +92,17 @@ namespace graphlab {
     typedef typename iengine_base::graph_type graph_type;
     typedef typename iengine_base::update_functor_type update_functor_type;
     
+    typedef typename graph_type::vertex_data_type vertex_data_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
+    typedef typename graph_type::edge_id_type   edge_id_type;
+    typedef typename graph_type::edge_list_type edge_list_type;
 
-    typedef typename iengine_base::vertex_id_type vertex_id_type;
-    typedef typename iengine_base::edge_id_type   edge_id_type;
-    typedef typename iengine_base::edge_list_type edge_list_type;
-
-    typedef ischeduler<shared_memory_engine> ischeduler_type;
-    typedef typename iengine_base::iscope_type iscope_type;
-    typedef general_scope<Graph> general_scope_type;
+    typedef ischeduler<shared_memory_engine>      ischeduler_type;
+    
+    typedef typename iengine_base::icontext_type  icontext_type;
+    typedef context<shared_memory_engine>         context_type;
+    typedef context_manager<shared_memory_engine> context_manager_type;
+   
    
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
@@ -110,9 +113,8 @@ namespace graphlab {
     // typedef typename iengine_base::merge_function_type merge_function_type;
 
     
-    typedef direct_callback<shared_memory_engine> callback_type;
+
     
-    typedef scope_manager<graph_type> scope_manager_type;
     
   private:
 
@@ -130,8 +132,8 @@ namespace graphlab {
      */
     size_t nverts;
     
-    //! The scope factory
-    scope_manager_type* scope_manager_ptr;
+    //! The context factory
+    context_manager_type* context_manager_ptr;
     
     //! The scheduler
     ischeduler_type* scheduler_ptr;
@@ -172,12 +174,7 @@ namespace graphlab {
      */
     struct thread_state_type {
       size_t update_count;
-      callback_type callback;
       char FALSE_CACHE_SHARING_PAD[64];
-      thread_state_type(size_t thread_id = 0,
-                        shared_memory_engine* engine_ptr = NULL,
-                        ischeduler_type* ischeduler_ptr = NULL) : 
-        update_count(0), callback(thread_id, engine_ptr, ischeduler_ptr) { }
     }; //end of thread_state
     std::vector<thread_state_type> tls_array; 
 
@@ -214,10 +211,10 @@ namespace graphlab {
         //! If true the syncs form a barrier durring execution
         bool barrier;
         record(isync_type* sync_ptr) :
-          sync_ptr(sync_ptr), 
-          sync_interval(0),
-          begin_vid(0), end_vid(0),
-          subtasks_remaining(0) { ASSERT_TRUE(sync_ptr != NULL); }
+        sync_ptr(sync_ptr), 
+        sync_interval(0),
+        begin_vid(0), end_vid(0),
+        subtasks_remaining(0) { ASSERT_TRUE(sync_ptr != NULL); }
         ~record() { clear(); }
         void clear(const bool need_lock = true) {
           if(need_lock) lock.lock();
@@ -334,8 +331,8 @@ namespace graphlab {
                   const Accum& zero = Accum(),                
                   void(*apply_function)(T& lvalue, const Accum& rvalue) =
                   (sync_defaults::apply<T, Accum >),
-                  void(*fold_function)(iscope_type& scope, Accum& acc) = 
-                  (sync_defaults::fold<iscope_type, Accum>),
+                  void(*fold_function)(const vertex_data_type& vdata, Accum& acc) = 
+                  (sync_defaults::fold<vertex_data_type, Accum>),
                   vertex_id_type begin_vid = 0,
                   vertex_id_type end_vid = 
                   std::numeric_limits<vertex_id_type>::max());
@@ -365,8 +362,8 @@ namespace graphlab {
                                  size_t cpuid); 
     
     void evaluate_factorized_update_functor(vertex_id_type vid,
-                                              update_functor_type& ufun,
-                                              size_t cpuid);
+                                            update_functor_type& ufun,
+                                            size_t cpuid);
     
 
     
@@ -396,15 +393,15 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   shared_memory_engine<Graph, UpdateFunctor>::
   shared_memory_engine(graph_type& graph) : 
-    graph(graph), 
-    nverts(graph.num_vertices()),
-    scope_manager_ptr(NULL),
-    scheduler_ptr(NULL),
-    new_tasks_added(false),
-    threads(opts.get_ncpus()),
-    exec_status(execution_status::UNSET),
-    exception_message(NULL),   
-    start_time_millis(0) {
+  graph(graph), 
+  nverts(graph.num_vertices()),
+  context_manager_ptr(NULL),
+  scheduler_ptr(NULL),
+  new_tasks_added(false),
+  threads(opts.get_ncpus()),
+  exec_status(execution_status::UNSET),
+  exception_message(NULL),   
+  start_time_millis(0) {
     
   } // end of constructor
 
@@ -431,7 +428,7 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   set_task_budget(size_t max_tasks) {
-     termination.task_budget = max_tasks; 
+    termination.task_budget = max_tasks; 
   } // end of set_timeout
 
 
@@ -443,7 +440,7 @@ namespace graphlab {
            const update_functor_type& update_functor) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
-    const size_t cpuid = random::fast_uniform<size_t>(0, tls_array.size() - 1);
+    const size_t cpuid = random::fast_uniform<size_t>(0, threads.size() - 1);
     scheduler_ptr->schedule(cpuid, vid, update_functor);
   } // end of schedule
 
@@ -477,9 +474,9 @@ namespace graphlab {
   clear() {
     join_all_threads();
     // Delete any local datastructures if necessary
-    if(scope_manager_ptr != NULL) {
-      delete scope_manager_ptr;
-      scope_manager_ptr = NULL;
+    if(context_manager_ptr != NULL) {
+      delete context_manager_ptr;
+      context_manager_ptr = NULL;
     }
     if(scheduler_ptr != NULL) {
       if(new_tasks_added) {
@@ -515,7 +512,7 @@ namespace graphlab {
 
     // Check internal data-structures
     ASSERT_EQ(graph.num_vertices(), nverts);
-    ASSERT_TRUE(scope_manager_ptr != NULL);
+    ASSERT_TRUE(context_manager_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
     ASSERT_EQ(tls_array.size(), opts.get_ncpus());
     ASSERT_EQ(syncs.vlocks.size(), nverts);
@@ -603,7 +600,7 @@ namespace graphlab {
            bool barrier,
            const Accum& zero,
            void(*apply_function)(T& lvalue, const Accum& rvalue),
-           void(*fold_function)(iscope_type& scope, Accum& acc),
+           void(*fold_function)(const vertex_data_type& vdata, Accum& acc),
            vertex_id_type begin_vid,
            vertex_id_type end_vid) {
     // Update the syncs map
@@ -648,7 +645,7 @@ namespace graphlab {
     syncs.lock.lock();
     // \todo: barrier should be an engine parameter
     syncs.vlocks.resize(graph.num_vertices());
-    syncs.threads.set_nthreads(opts.get_ncpus());    
+    syncs.threads.resize(opts.get_ncpus());    
     // lookup the glshared 
     ASSERT_TRUE(syncs.iglshared2sync.find(&shared) !=
                 syncs.iglshared2sync.end());
@@ -675,7 +672,7 @@ namespace graphlab {
     // If everything is already properly initialized then we don't
     // need to do anything.
     if(nverts == graph.num_vertices() &&
-       scope_manager_ptr != NULL &&
+       context_manager_ptr != NULL &&
        scheduler_ptr != NULL &&
        !tls_array.empty()) {
       return;
@@ -687,17 +684,7 @@ namespace graphlab {
       } 
       // Force a reset and start over
       clear();
-      // construct the scope factory
-      ASSERT_TRUE(scope_manager_ptr == NULL);
-      const consistency_model::model_enum scope_range =
-        consistency_model::from_string(opts.get_scope_type());
-      scope_manager_ptr = 
-        new scope_manager_type(graph, 
-                               opts.get_ncpus(),
-                               scope_range);
-      ASSERT_TRUE(scope_manager_ptr != NULL);
-
-
+      
       // construct the scheduler
       ASSERT_TRUE(scheduler_ptr == NULL);
       scheduler_ptr = scheduler_factory<shared_memory_engine>::
@@ -706,13 +693,25 @@ namespace graphlab {
                       graph,
                       opts.get_ncpus());
       ASSERT_TRUE(scheduler_ptr != NULL);
+
+      // construct the context factory
+      ASSERT_TRUE(context_manager_ptr == NULL);
+      const consistency_model::model_enum context_range =
+        consistency_model::from_string(opts.get_scope_type());
+      context_manager_ptr = 
+        new context_manager_type(this,
+                                 scheduler_ptr,
+                                 &graph,
+                                 opts.get_ncpus(),
+                                 context_range);
+      ASSERT_TRUE(context_manager_ptr != NULL);
       
       // Determine if the engine should use affinities
       std::string affinity = "false";
       opts.engine_args.get_string_option("affinity", affinity);
       const bool use_cpu_affinities = affinity == "true";
       // construct the thread pool
-      threads.set_nthreads(opts.get_ncpus());
+      threads.resize(opts.get_ncpus());
       threads.set_cpu_affinity(use_cpu_affinities);
 
       // reset the number of vertices
@@ -721,16 +720,11 @@ namespace graphlab {
       exec_status = execution_status::UNSET;
       // reset the thread local state
       tls_array.resize(opts.get_ncpus());
-      for(size_t i = 0; i < tls_array.size(); ++i) {
-        const thread_state_type starting_state(i, this, scheduler_ptr);
-        tls_array[i] = starting_state;
-      }
-      
       
       // Initialize the syncs data structure
       syncs.lock.lock();     
       syncs.vlocks.resize(graph.num_vertices());
-      syncs.threads.set_nthreads(opts.get_ncpus());
+      syncs.threads.resize(opts.get_ncpus());
       syncs.lock.unlock();
     }
       
@@ -811,7 +805,7 @@ namespace graphlab {
       run_once(cpuid);
     }
     // Flush the thread local cache associated with vertex data
-    // scope_manager_ptr->flush_cache(cpuid);
+    // context_manager_ptr->flush_cache(cpuid);
    
     logstream(LOG_INFO) 
       << "Thread " << cpuid << " finished." << std::endl;
@@ -899,7 +893,7 @@ namespace graphlab {
     syncs.vlocks[vid].unlock();
 
     // ----------------------- Post Update Code ---------------------------- //   
-    // Mark scope as completed in the scheduler
+    // Mark context as completed in the scheduler
     scheduler_ptr->completed(cpuid, vid, ufun);
     // Record an increase in the update counts
     ASSERT_LT(cpuid, tls_array.size());
@@ -914,17 +908,15 @@ namespace graphlab {
   evaluate_update_functor(vertex_id_type vid,
                           update_functor_type& ufun, 
                           size_t cpuid) {              
-    // Get the scope
-    general_scope_type& scope = 
-      scope_manager_ptr->get_scope(cpuid, vid, ufun.consistency());
-    // get the callback
-    callback_type& callback = tls_array[cpuid].callback;
+    // Get the context
+    context_type& context = 
+      context_manager_ptr->get_context(cpuid, vid, ufun.consistency());
     // Apply the update functor
-    ufun(scope, callback);
-    // Finish any pending transactions in the scope
-    scope.commit();
-    // Release the scope (and all corresponding locks)
-    scope_manager_ptr->release_scope(cpuid, scope); 
+    ufun(context);
+    // Finish any pending transactions in the context
+    context.commit();
+    // Release the context (and all corresponding locks)
+    context_manager_ptr->release_context(cpuid, context); 
   }
 
 
@@ -936,64 +928,62 @@ namespace graphlab {
                                      update_functor_type& ufun,
                                      size_t cpuid) {
     //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
-    // get the callback
-    callback_type& callback = tls_array[cpuid].callback;
     // Gather phase -----------------------------------------------------------
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
-        general_scope_type& scope = 
-          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid, 
-                                                   ufun.writable_gather());
-        ufun.gather(scope, callback, eid);
-        scope.commit();
-        scope_manager_ptr->release_scope(cpuid, scope);
+        context_type& context = 
+          context_manager_ptr->get_single_edge_context(cpuid, vid, eid, 
+                                                       ufun.writable_gather());
+        ufun.gather(context, eid);
+        context.commit();
+        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
       }
     }
     if(ufun.gather_edges() == update_functor_type::OUT_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
-        general_scope_type& scope = 
-          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid, 
-                                                   ufun.writable_gather());
-        ufun.gather(scope, callback, eid);
-        scope.commit();
-        scope_manager_ptr->release_scope(cpuid, scope);
+        context_type& context = 
+          context_manager_ptr->get_single_edge_context(cpuid, vid, eid, 
+                                                       ufun.writable_gather());
+        ufun.gather(context, eid);
+        context.commit();
+        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
       }
     }
 
     // Apply phase ------------------------------------------------------------
-    general_scope_type& scope = 
-      scope_manager_ptr->get_vertex_scope(cpuid, vid);
-    ufun.apply(scope, callback);
-    scope.commit();
-    scope_manager_ptr->release_scope(cpuid, scope);
+    context_type& context = 
+      context_manager_ptr->get_vertex_context(cpuid, vid);
+    ufun.apply(context);
+    context.commit();
+    context_manager_ptr->release_context(cpuid, context);
 
     // Scatter phase ----------------------------------------------------------
     if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
-        general_scope_type& scope = 
-          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid,
-                                                   ufun.writable_scatter());
-        ufun.scatter(scope, callback, eid);
-        scope.commit();
-        scope_manager_ptr->release_scope(cpuid, scope);
+        context_type& context = 
+          context_manager_ptr->get_single_edge_context(cpuid, vid, eid,
+                                                       ufun.writable_scatter());
+        ufun.scatter(context, eid);
+        context.commit();
+        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
       }
     }
     if(ufun.scatter_edges() == update_functor_type::OUT_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edge_ids(vid);
       foreach(const edge_id_type eid, edges) {
-        general_scope_type& scope = 
-          scope_manager_ptr->get_single_edge_scope(cpuid, vid, eid,
-                                                   ufun.writable_scatter());
-        ufun.scatter(scope, callback, eid);
-        scope.commit();
-        scope_manager_ptr->release_scope(cpuid, scope);
+        context_type& context = 
+          context_manager_ptr->get_single_edge_context(cpuid, vid, eid,
+                                                       ufun.writable_scatter());
+        ufun.scatter(context, eid);
+        context.commit();
+        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
       }
     }
   } // end of evaluate_update_functor
@@ -1007,7 +997,7 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue() {
-    typedef typename sync_members::record record_type;
+    typedef typename sync_members::record sync_record_type;
     // if the engine is no longer running or there is nothing in the
     // sync queue then we terminate early
     if(exec_status != execution_status::RUNNING ||
@@ -1019,12 +1009,12 @@ namespace graphlab {
     const long negated_next_ucount = syncs.queue.top().second;
     ASSERT_LE(negated_next_ucount, 0);
     const size_t next_ucount = size_t(-negated_next_ucount);
-    const size_t last_ucount = last_update_count();
+    const size_t ucount = last_update_count();
     // if we have more updates than the next update count for this
     // task then run it
-    if(next_ucount < last_ucount) {
+    if(next_ucount < ucount) {
       // Get the key and then remove the task from the queue
-      record_type* record_ptr = syncs.queue.pop().first;
+      sync_record_type* record_ptr = syncs.queue.pop().first;
       ASSERT_TRUE(record_ptr != NULL);
       background_sync(record_ptr);
     } else { 
@@ -1128,13 +1118,10 @@ namespace graphlab {
     for(vertex_id_type vid = subtask_ptr->begin_vid;
         vid < subtask_ptr->end_vid; 
         ++vid) {
-      // Get the scope;
-      general_scope<Graph> scope(&graph, vid, 
-                                 consistency_model::VERTEX_CONSISTENCY);
       syncs.vlocks[vid].lock();
       // Apply the sync operation
-      local_sync += scope;
-      // // Release the locks if we are not barriering
+      local_sync += graph.vertex_data(vid);
+      // // Release the locks if we are not using barriers
       if(!record.barrier) syncs.vlocks[vid].unlock();
     }
     // add the accumulator to the master

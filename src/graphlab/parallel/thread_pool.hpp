@@ -100,13 +100,13 @@ namespace graphlab {
     /**
      * Set the number of threads in the queue
      */
-    void set_nthreads(size_t nthreads);
-
+    void resize(size_t nthreads);
+    
     /**
      * Get the number of threads
      */
-    size_t get_nthreads() const;
-    
+    size_t size() const;
+
 
     /**
      * Changes the CPU affinity. Note that pthread does not provide

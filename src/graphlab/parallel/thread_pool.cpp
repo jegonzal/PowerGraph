@@ -38,7 +38,7 @@ namespace graphlab {
   } // end of thread_pool
 
 
-  void thread_pool::set_nthreads(size_t nthreads) {
+  void thread_pool::resize(size_t nthreads) {
     // if the current pool size does not equal the requested number of
     // threads shut the pool down and startup with correct number of
     // threads.  \todo: If the pool size is too small just add
@@ -66,7 +66,7 @@ namespace graphlab {
   } // end of set_nthreads
 
 
-  size_t thread_pool::get_nthreads() const { return pool_size; }
+  size_t thread_pool::size() const { return pool_size; }
 
 
   /**

@@ -160,8 +160,8 @@ class lda_update :
   size_t iters_remaining;
 public:
   typedef graphlab::iupdate_functor<graph_type, lda_update> base;
-  typedef base::iscope_type iscope_type;
-  typedef base::icallback_type icallback_type;
+  typedef base::icontext_type icontext_type;
+
   typedef base::edge_id_type edge_id_type;
   typedef base::edge_list_type edge_list_type;
   typedef base::vertex_id_type vertex_id_type;
@@ -183,7 +183,7 @@ public:
   bool writable_gather() const { return true; }
   base::edge_set scatter_edges() { return base::NO_EDGES; }
  
-  void operator()(iscope_type& scope, icallback_type& callback) {
+  void operator()(icontext_type& context) {
     ASSERT_GT(iters_remaining, 0);
     // Make a local copy of the global topic counts
     std::vector<count_type> local_n_t(ntopics);
@@ -197,21 +197,21 @@ public:
     const std::vector<count_type> old_global_n_t = local_n_t;
 
     // Get local data structures
-    vertex_data& doc       = scope.vertex_data();
+    vertex_data& doc       = context.vertex_data();
     // only gather on a document
     ASSERT_EQ(doc.type(), DOCUMENT);
 
     // Loop over the words in the document (encoded by out edges)
-    const edge_list_type out_edges = scope.out_edge_ids();
+    const edge_list_type out_edges = context.out_edge_ids();
     std::vector<double> prob(ntopics); 
     std::vector<count_type> n_dwt(ntopics);
     double normalizer = 0; 
     foreach(edge_id_type eid, out_edges) {
       // Get the data ---------------------------------------------------------
-      const vertex_id_type word_vid = scope.target(eid);
+      const vertex_id_type word_vid = context.target(eid);
       const word_id_type word_id   = word_vid;
-      vertex_data& word      = scope.neighbor_vertex_data(word_vid);
-      edge_data& edata       = scope.edge_data(eid);
+      vertex_data& word      = context.neighbor_vertex_data(word_vid);
+      edge_data& edata       = context.edge_data(eid);
       edata.init(ntopics); // ensure that the edge data is initialized
       ASSERT_LT(word_id, nwords);      
       ASSERT_EQ(word.type(), WORD);
@@ -266,13 +266,12 @@ public:
 
     // Reschedule self if necessary
     if(--iters_remaining > 0) 
-      callback.schedule(scope.vertex(), *this);
+      context.schedule(context.vertex_id(), *this);
     
   } // end of operator()
 
 
-  void gather(iscope_type& scope, icallback_type& callback,
-              edge_id_type eid) {
+  void gather(icontext_type& context, edge_id_type eid) {
 
     if(local_n_t.empty()) {
       local_n_t.resize(ntopics);
@@ -284,14 +283,14 @@ public:
 
     // Get the data ---------------------------------------------------------
     // Get local data structures
-    vertex_data& doc       = scope.vertex_data();
+    vertex_data& doc       = context.vertex_data();
     // only gather on a document
     ASSERT_EQ(doc.type(), DOCUMENT);
 
-    const vertex_id_type word_vid = scope.target(eid);
+    const vertex_id_type word_vid = context.target(eid);
     const word_id_type word_id   = word_vid;
-    vertex_data& word      = scope.neighbor_vertex_data(word_vid);
-    edge_data& edata       = scope.edge_data(eid);
+    vertex_data& word      = context.neighbor_vertex_data(word_vid);
+    edge_data& edata       = context.edge_data(eid);
     edata.init(ntopics); // ensure that the edge data is initialized
     ASSERT_LT(word_id, nwords);      
     ASSERT_EQ(word.type(), WORD);
@@ -339,13 +338,13 @@ public:
 
     // Reschedule self if necessary
     if(iters_remaining > 0) 
-      callback.schedule(scope.vertex(), lda_update(iters_remaining-1));
+      context.schedule(context.vertex_id(), lda_update(iters_remaining-1));
 
   } // end of gather
 
 
   
-  void apply(iscope_type& scope, icallback_type& callback) { 
+  void apply(icontext_type& context) {
     ASSERT_EQ(global_n_t.size(), ntopics);
     if(!local_n_t.empty()) {
       // update the global variables

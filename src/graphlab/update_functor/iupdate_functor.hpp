@@ -39,21 +39,11 @@
 
 
 // #include <boost/type_traits.hpp>
-#include <graphlab/scope/iscope.hpp>
-#include <graphlab/engine/callback/icallback.hpp>
-
-
+#include <graphlab/context/icontext.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-  // /**
-  //  * type deduction
-  //  */
-  // template<typename G, typename U, template T<G, U> > 
-  // struct is_factorizable : public boost::false_type { }; 
-  // template<typename G, typename U, template T< typename G, typename U> >
-  // struct is_factorizable<G, U, iupdate_functor<G,U>::factorizble > : 
-  //   public boost::true_type { }; 
+
 
 
 
@@ -72,16 +62,15 @@ namespace graphlab {
     typedef typename graph_type::edge_list_type    edge_list_type;
 
    
-    typedef iscope<graph_type> iscope_type;
-    typedef icallback<graph_type, update_functor_type> icallback_type;
+    typedef icontext<graph_type, update_functor_type> icontext_type;
 
     enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
     
     virtual ~iupdate_functor() { }
 
     /**
-     * Gets the scope range required by this update functor.  If not
-     * implemented by the derived class then the default scope range
+     * Gets the context range required by this update functor.  If not
+     * implemented by the derived class then the default context range
      * is returned.
      */
     virtual consistency_model::model_enum consistency() const {
@@ -99,51 +88,44 @@ namespace graphlab {
      * Get the priority of the update functor
      */
     virtual double priority() const { return double(1.0); }        
-  
-    
 
     /**
      * The main part of an update functor
      */
-    virtual void operator()(iscope_type& scope, 
-                            icallback_type& callback) {
+    virtual void operator()(icontext_type& context) {
       // Gather
       if(gather_edges() == IN_EDGES || gather_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, scope.in_edge_ids()) 
-          gather(scope, callback, eid);
+        foreach(const edge_id_type eid, context.in_edge_ids()) 
+          gather(context, eid);
       }
       if(gather_edges() == OUT_EDGES || gather_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, scope.out_edge_ids()) 
-          gather(scope, callback, eid);
+        foreach(const edge_id_type eid, context.out_edge_ids()) 
+          gather(context, eid);
       }
       // Apply
-      apply(scope, callback);
+      apply(context);
       // scatter
       if(scatter_edges() == IN_EDGES || scatter_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, scope.in_edge_ids()) 
-          scatter(scope, callback, eid);
+        foreach(const edge_id_type eid, context.in_edge_ids()) 
+          scatter(context, eid);
       }
       if(scatter_edges() == OUT_EDGES || scatter_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, scope.out_edge_ids()) 
-          scatter(scope, callback, eid);
+        foreach(const edge_id_type eid, context.out_edge_ids()) 
+          scatter(context, eid);
       }
     } // end of operator()
 
     virtual bool is_factorizable() const { return false; }
-    
+
     virtual bool writable_gather() const { return false; }
     virtual bool writable_scatter() const { return true; }
     
     virtual edge_set gather_edges() const { return IN_EDGES; }
     virtual edge_set scatter_edges() const { return OUT_EDGES; }
     
-    virtual void gather(iscope_type& scope, icallback_type& callback,
-                        edge_id_type eid) { };
-    virtual void apply(iscope_type& scope, icallback_type& callback) { };
-    virtual void scatter(iscope_type& scope, icallback_type& callback,
-                         edge_id_type eid) { };
-        
-    //    virtual void operator()(iscope_type& scope, icallback_type& callback) = 0;
+    virtual void gather(icontext_type& context, edge_id_type eid) { };
+    virtual void apply(icontext_type& context) { };
+    virtual void scatter(icontext_type& context, edge_id_type eid) { };
   
   };  // end of iupdate_functor
  

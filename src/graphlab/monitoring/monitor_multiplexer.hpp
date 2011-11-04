@@ -28,7 +28,6 @@
 
 
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/scope/iscope.hpp>
 #include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/macros_def.hpp>
 
@@ -51,7 +50,6 @@ namespace graphlab {
     typedef typename imonitor_type::update_functor_type update_functor_type;
     typedef typename imonitor_type::graph_type graph_type;
     typedef typename imonitor_type::iengine_type iengine_type;
-    typedef typename imonitor_type::iscope_type iscope_type;
     typedef typename imonitor_type::vertex_id_type vertex_id_type;
 
    
@@ -83,20 +81,19 @@ namespace graphlab {
     }
     
     /* Engine calls */
-    void engine_task_execute_start(const update_functor_type& ufun,
-                                   iscope_type* scope, 
+    void engine_task_execute_start(vertex_id_type vid,
+                                   const update_functor_type& ufun,
                                    size_t cpuid) {
       foreach (imonitor_type* child, children) {
-        child->engine_task_execute_start(ufun, scope, cpuid);
+        child->engine_task_execute_start(vid, ufun, cpuid);
       }                                      
     }
     
     void engine_task_execute_finished(vertex_id_type vid,
                                       const update_functor_type& ufun,
-                                      iscope_type* scope, 
                                       size_t cpuid) {
       foreach (imonitor_type* child, children) {
-        child->engine_task_execute_finished(vid, ufun, scope, cpuid);
+        child->engine_task_execute_finished(vid, ufun, cpuid);
       }                                      
     }
     

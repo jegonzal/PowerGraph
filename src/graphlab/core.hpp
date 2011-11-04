@@ -31,7 +31,6 @@
 
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scope/iscope.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/shared_memory_engine.hpp>
 // #include <graphlab/core_base.hpp>

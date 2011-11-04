@@ -48,8 +48,7 @@ class pagerank_update :
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
 
   typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
-  typedef base::iscope_type     iscope_type;
-  typedef base::icallback_type  icallback_type;
+  typedef base::icontext_type icontext_type;
   typedef base::edge_list_type  edge_list_type;
   typedef base::edge_id_type    edge_id_type;
   typedef base::vertex_id_type  vertex_id_type;
@@ -72,22 +71,22 @@ public:
   
   bool writable_scatter() { return false; }
 
-  void operator()(iscope_type& scope, icallback_type& callback) {                       
+  void operator()(icontext_type& context) {
     // Get the data associated with the vertex
-    vertex_data& vdata = scope.vertex_data();
+    vertex_data& vdata = context.vertex_data();
   
     // Sum the incoming weights; start by adding the 
     // contribution from a self-link.
     float sum = vdata.value * vdata.self_weight;
     // Loop over all in edges to this vertex
-    const edge_list_type in_edges = scope.in_edge_ids();
+    const edge_list_type in_edges = context.in_edge_ids();
     foreach(edge_id_type eid, in_edges) {
       // Get the neighobr vertex value
       const vertex_data& neighbor_vdata =
-        scope.const_neighbor_vertex_data(scope.source(eid));
+        context.const_neighbor_vertex_data(context.source(eid));
       const double neighbor_value = neighbor_vdata.value;    
       // Get the edge data for the neighbor
-      edge_data& edata = scope.edge_data(eid);
+      edge_data& edata = context.edge_data(eid);
       // Compute the contribution of the neighbor
       double contribution = edata.weight * neighbor_value;    
       // Add the contribution to the sum
@@ -97,13 +96,13 @@ public:
     }
 
     // compute the jumpweight
-    sum = random_reset_prob/scope.num_vertices() + 
+    sum = random_reset_prob/context.num_vertices() + 
       (1-random_reset_prob)*sum;
     vdata.value = sum;
    
     // Schedule the neighbors as needed
-    foreach(edge_id_type eid, scope.out_edge_ids()) {
-      edge_data& outedgedata = scope.edge_data(eid);    
+    foreach(edge_id_type eid, context.out_edge_ids()) {
+      edge_data& outedgedata = context.edge_data(eid);    
       // Compute edge-specific residual by comparing the new value of
       // this vertex to the previous value seen by the neighbor
       // vertex.
@@ -112,22 +111,21 @@ public:
         std::fabs(outedgedata.old_source_value - vdata.value);
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > termination_bound) {
-        callback.schedule(scope.target(eid), 
-                          pagerank_update(residual));
+        context.schedule(context.target(eid), 
+                         pagerank_update(residual));
       }
     }
   } // end of operator()
 
 
 
-  void gather(iscope_type& scope, icallback_type& callback, 
-              edge_id_type in_eid) {
+  void gather(icontext_type& context, edge_id_type in_eid) {
     // Get the neighobr vertex value
     const vertex_data& neighbor_vdata =
-      scope.const_neighbor_vertex_data(scope.source(in_eid));
+      context.const_neighbor_vertex_data(context.source(in_eid));
     const double neighbor_value = neighbor_vdata.value;    
     // Get the edge data for the neighbor
-    edge_data& edata = scope.edge_data(in_eid);
+    edge_data& edata = context.edge_data(in_eid);
     // Compute the contribution of the neighbor
     const double contribution = edata.weight * neighbor_value;    
     // Add the contribution to the sum
@@ -136,23 +134,22 @@ public:
     edata.old_source_value = neighbor_value;
   } // end of gather
 
-  void apply(iscope_type& scope, icallback_type& callback) {
+  void apply(icontext_type& context) {
     // Get the data associated with the vertex
-    vertex_data& vdata = scope.vertex_data();
+    vertex_data& vdata = context.vertex_data();
     // add the contribution from a self-link.
     accum += vdata.value * vdata.self_weight;
     // add the random reset probability
-    accum = random_reset_prob/scope.num_vertices() + 
+    accum = random_reset_prob/context.num_vertices() + 
       (1-random_reset_prob)*accum;
     vdata.value = accum;
   } // end of apply
 
-  void scatter(iscope_type& scope, icallback_type& callback, 
-               edge_id_type out_eid) {
+  void scatter(icontext_type& context, edge_id_type out_eid) {
     // Get the data associated with the vertex
-    const vertex_data& vdata = scope.const_vertex_data();
+    const vertex_data& vdata = context.const_vertex_data();
     // get the data associated with the out edge
-    const edge_data& outedgedata = scope.const_edge_data(out_eid);    
+    const edge_data& outedgedata = context.const_edge_data(out_eid);    
     // Compute edge-specific residual by comparing the new value of this
     // vertex to the previous value seen by the neighbor vertex.
     double residual =
@@ -160,7 +157,7 @@ public:
       std::fabs(outedgedata.old_source_value - vdata.value);
     // If the neighbor changed sufficiently add to scheduler.
     if(residual > termination_bound) {
-      callback.schedule(scope.target(out_eid), pagerank_update(residual));
+      context.schedule(context.target(out_eid), pagerank_update(residual));
     }
   } // end of scatter
   

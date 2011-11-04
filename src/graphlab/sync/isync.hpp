@@ -37,9 +37,6 @@
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
-#include <graphlab/scope/iscope.hpp>
-
-
 
 
 namespace graphlab {
@@ -59,7 +56,6 @@ namespace graphlab {
   class isync {
   public:
     typedef Graph graph_type;
-    typedef iscope<graph_type> iscope_type;
     typedef typename Graph::vertex_data_type vertex_data_type;
 
 
@@ -78,7 +74,7 @@ namespace graphlab {
     /**
      * Add the scope to the current partial sum
      */
-    virtual void operator+=(iscope_type& vdata) = 0;
+    virtual void operator+=(const vertex_data_type& vdata) = 0;
 
     /**
      * Add another partial sum to this partial sum.
