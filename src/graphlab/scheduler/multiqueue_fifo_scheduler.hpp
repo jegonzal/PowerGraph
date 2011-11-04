@@ -70,9 +70,7 @@ namespace graphlab {
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;
 
-
     typedef std::deque<vertex_id_type> queue_type;
-    
 
   private:
 
@@ -94,8 +92,10 @@ namespace graphlab {
                               size_t ncpus,
                               const options_map& opts) :
       vfun_set(graph.num_vertices()), 
-      sub_queue_size(1000), 
-      in_queues(ncpus), out_queues(ncpus), term(ncpus) {  }
+      sub_queue_size(100), 
+      in_queues(ncpus), out_queues(ncpus), term(ncpus) { 
+      opts.get_int_option("queuesize", sub_queue_size);
+    }
 
     void start() { term.reset(); }
    
