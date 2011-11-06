@@ -951,6 +951,7 @@ namespace graphlab {
         // Block until the update threads signal the sync condition.
         std::pair<size_t, bool> syncid_succ = task_exec_queue.poll_till_pop();
         if (syncid_succ.second == false) return;
+        syndid = syncid_succ.first;
 
         ScopeFactory* scope_manager = get_scope_manager();
         // Each syncer tries to acquire its share of the graph.
