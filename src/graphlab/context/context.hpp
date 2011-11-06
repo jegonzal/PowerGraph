@@ -180,6 +180,7 @@ namespace graphlab {
     void commit() { }
 
     size_t num_vertices() const { return graph_ptr->num_vertices(); }
+    size_t num_edges() const { return graph_ptr->num_edges(); }
 
     vertex_color_type color() const { return graph_ptr->get_color(vid); }
     

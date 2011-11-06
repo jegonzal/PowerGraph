@@ -51,7 +51,7 @@
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/shared_data/iglshared.hpp>
-#include <graphlab/sync/isync.hpp>
+
 
 // #include <graphlab/metrics/metrics.hpp>
 
@@ -116,11 +116,6 @@ namespace graphlab {
 
     //! The type of context 
     typedef icontext<graph_type, update_functor_type> icontext_type;
-
-    typedef void(*merge_function_type)(any& merge_dest,
-                                       const any& merge_src);
-
-    typedef isync<graph_type> isync_type;
 
     
     /**

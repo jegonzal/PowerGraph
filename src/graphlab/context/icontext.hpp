@@ -34,6 +34,7 @@
 #include <vector>
 #include <cassert>
 
+#include <graphlab/contex/iglobal_context.hpp>
 #include <graphlab/graph/graph.hpp>
 
 #include <graphlab/context/consistency_model.hpp>
@@ -104,6 +105,10 @@ namespace graphlab {
 
 
 
+
+
+
+
   /**
    * \brief represents the data associated with a vertex its adjacent
    * edges and neighbors.
@@ -113,7 +118,7 @@ namespace graphlab {
    * to read and modify the graph data.
    */
   template<typename Graph, typename UpdateFunctor>
-  class icontext {
+  class icontext : iglobal_context {
   public:
     //! The type of graph that the icontext operates on
     typedef Graph           graph_type;
@@ -128,27 +133,11 @@ namespace graphlab {
     //! The edge data type associated with the graph
     typedef typename graph_type::edge_data_type    edge_data_type;
 
-
-
   public:    
     
     /** icontext destructor */
     virtual ~icontext() { }
     
-    /**
-     * Get the number of vertices in the graph
-     */
-    virtual size_t num_vertices() const  = 0; 
-
-    // /**
-    //  * \brief Returns the mode of the context. 
-    //  *
-    //  * Contexts can be used on single edges (as in a gather or
-    //  * scatter) or for the entire vertex (as in conventional update
-    //  * functors).  If the context is in edge mode then edge_id() is
-    //  * defined.
-    //  */
-    // virtual mode_type mode() const = 0;
         
     /**
      * \brief Returns the vertex id of the base vertex in this context.
@@ -159,17 +148,7 @@ namespace graphlab {
      */
     virtual vertex_id_type vertex_id() const = 0;
         
-    // /**
-    //  * \brief Returns the edge id of this context when used as an edge
-    //  * context.
-    //  *
-    //  * This method is used by the update function to get the edge of
-    //  * this context when it is being used in a gather or scatter
-    //  * operation.
-    //  */
-    // virtual edge_id_type edge_id() const = 0;
-
-
+ 
     /**
      * \brief Get the vertex color of the base vertx in this context
      */
@@ -353,11 +332,6 @@ namespace graphlab {
     virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
                                         const update_functor_type& update_fun) = 0;
                                                   
-    /**
-     * Calling this function will force the engine to abort
-     * immediately
-     */
-    virtual void terminate() = 0;
  
     // /**
     //    Experimental context upgrade scheme. Returns true if context upgrade is 

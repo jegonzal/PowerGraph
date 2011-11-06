@@ -125,9 +125,9 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 */
 
 
-graphlab::glshared_const<size_t> NUM_VERTICES;
-graphlab::glshared<double> RED_PROPORTION;
-graphlab::glshared<size_t> NUM_FLIPS;
+// graphlab::glshared_const<size_t> NUM_VERTICES;
+// graphlab::glshared<double> RED_PROPORTION;
+// graphlab::glshared<size_t> NUM_FLIPS;
 
 
 /**
@@ -387,16 +387,17 @@ void init_shared_data(graphlab::core<graph_type, update_functor>& core,
   // practice to explicitly state the data type of the value you are storing
   // (size_t here). You will see this theme alot in all uses of the shared
   // data table
-  NUM_VERTICES.set(dim*dim);
+  core.engine().set_global("NUM_VERTICES", size_t(dim*dim));
  
+
   // create the sync for the red_proportion entriy
-  
-  core.engine().set_sync<double>(RED_PROPORTION,                         
-                                 128,
-                                 false,
-                                 0,                                 
+  core.engine().set_global("RED_PROPORTION", size_t(0));
+  core.engine().set_sync<double>("red_prop",                         
                                  apply_red_proportion,
-                                 reduce_red_proportion);
+                                 reduce_red_proportion,                                 
+                                 128,
+                                 0,                                 
+                                 false);
 
 
 
@@ -416,12 +417,12 @@ void init_shared_data(graphlab::core<graph_type, update_functor>& core,
   
   // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
 
-  typedef graphlab::sync_ops<graph_type>::
-    sum_group<size_t, get_flips> group_type;
+  // typedef graphlab::sync_ops<graph_type>::
+  //   sum_group<size_t, get_flips> group_type;
 
-  core.engine().set_sync<group_type>(NUM_FLIPS,  
-                                     128,
-                                     true);
+  // core.engine().set_sync<group_type>(NUM_FLIPS,  
+  //                                    128,
+  //                                    true);
 
 }
 
