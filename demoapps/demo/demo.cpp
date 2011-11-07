@@ -22,25 +22,21 @@
 
 
 /**
-
-   This demo provides a synthetic application which makes use a good
-   number of GraphLab concepts. Note that this demo app is
-   intentionally built to use as many of graphlab concepts as
-   possible. This may not be typical for most GraphLab applications.
-
+   This demo provides a synthetic application which intentionally uses
+   most of the GraphLab V2 features.  Most GraphLab applications will
+   not use all of these features.
 
    Picture of grid model:
 
-   x----x----x
-   |    |    |
-   x----o----o
-   |    |    |
-   o----x----x
-
+      x----x----x
+      |    |    |
+      x----o----o
+      |    |    |
+      o----x----x
 
    Given a DIMxDIM undirected grid graph where each vertex is assigned
-   a random color, either black or red (represented as a boolean
-   value) Each vertex then makes a local random decision:
+   a random color, either black or red.  Each vertex then makes a
+   local random decision:
 
    - become red with probabilty proportionate to the number of red
    neighbors
@@ -64,6 +60,7 @@
 // includes the entire graphlab framework
 #include <graphlab.hpp>
 
+// A simple enum describing the two possible colors
 enum color_type {RED, BLACK};
 
 /**
@@ -85,19 +82,20 @@ enum color_type {RED, BLACK};
    as a struct), save/load functions must be written for the datatype.
    */
 struct vertex_data {
-  size_t     numflips;
+  size_t     num_flips;
   color_type color; 
 };
 
 
-/** In this example, we do not need edge data. However GraphLab
-    currently does not have a mechanism to completely disable the use of
-    edge data.  Therefore, we will just put an arbitrary small
-    placeholder type on the edges.
-
-    Note that we do not need to write a save/load function here since
-    GraphLab's serializer already understands basic datatypes. */
-typedef double edge_data;
+/** 
+ * In this example, we do not need edge data. However GraphLab
+ * currently does not have a mechanism to completely disable the use
+ * of edge data.  Therefore, we will just put an empty struct as the
+ * edge type.  
+ */
+struct edge_data { 
+  // No edge data required
+};
 
 
 /**
@@ -106,44 +104,24 @@ typedef double edge_data;
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 
-/*
-  Say if we are interested in having an incremental counter which provides
-  the total number of flips executed so far, as well as a ratio of the total
-  number of red vertices vs black vertices.
-  we can do this via the shared data manager's Sync mechanism.
- 
-  The Sync mechanism allows you to build a 'Fold / Reduce' operation
-  across all the vertices in the graph, and store the results in the
-  Shared Data object. The Shared Data table is essentially a big table
-  mapping integer ids -> arbitrary data types
-
-  First we need to define the entries of the table. The data we need are:
-  - the total number of vertices (constant)
-  - red vertex proportion      (synced)
-  - the total number of flips    (synced)
-  
-  We will therefore define 3 entries in the Shared Data table.
-*/
-
-
-
 
 /**
+   Now we can begin to write the update function class. GraphLab V2
+   supports only one update function but since the update function is
+   now a class and can hold state, it is easy to simulate multiple
+   different update functions.
 
-   Now we can begin to write the update function. This is the standard
-   form of an update function. You may specify more than one update
-   function, but we only need one for this application.
+   \param context 
 
-   \param scope
-   The scope provides access to a local neighborhood of a graph.
-   The scope is centered on a particular vertex, ( scope.vertex() ), and includes
-   all adjacent edges and vertices. \
-   \ 
-   All vertices are identified by an unsigned integer type
-   vertex_id_type, and all edges are similarly identified by an unsigned
-   integer type edge_id_type.  GraphLab guarantees that all vertices are
-   sequentially numbered from 0 (so the largest vertex id is
-   |num_vertices| - 1), and similarly for edges.  All edges are directed.
+   The context provides access to a local neighborhood of a vertex
+   (context.vertex_id()) in the graph.  The context includes all
+   adjacent edges and vertices.  All vertex and edge ids are
+   identified by the vertex_id_type and edge_id_type.
+
+
+   GraphLab guarantees that all vertices are sequentially numbered
+   from 0 (so the largest vertex id is |num_vertices| - 1), and
+   similarly for edges.  All edges are directed.
 
    \param scheduler
    There are two basic types of schedulers.
@@ -168,55 +146,57 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 */
 struct update_functor : 
   public graphlab::iupdate_functor<graph_type, update_functor> {
+  // the base iupdate_functor type used to access types needed in this
+  // function.
   typedef graphlab::iupdate_functor<graph_type, update_functor> base;
   
   void operator()(base::icontext_type& context) {
-    //context.vertex_data allows me to grab a reference to the vertex data
-    // on the graph
+    //context.vertex_data allows me to grab a reference to the vertex
+    // data on the graph
     vertex_data& curvdata = context.vertex_data();
-
-    // the in_edge_ids() function provide a vector of the edge ids of the edges
-    // entering the current vertex
+    // the in_edge_ids() function provide a vector of the edge ids of
+    // the edges entering the current vertex
     const graph_type::edge_list_type in_edges = context.in_edge_ids();
     // a counter for the number of red neighbors
     size_t num_red_neighbors = 0;  
     for (size_t i = 0; i < in_edges.size(); ++i) {
       // eid is the current edge id
-      size_t eid = in_edges[i];    
+      graph_type::edge_id_type eid = in_edges[i];    
       // the target(eid) function allows to get the vertex at the destination
       // of the edge 'eid'. The source(eid) function provides me with the
       // source vertex.. Since I am looking at in_edges, the source vertex
       // will be my adjacent vertices
-      size_t sourcev = context.source(eid);
-      // the neighbor_vertex_data() function allow me to read the vertex data
-      // of a vertex adjacent to the current vertex.
-      // since I am not going to change this data, I can just grab a const
-      // reference. You should always try to use const references whenever
-      // you know that you will definitely not be changing the data, since
-      // GraphLab could make use of this knowledge to perform other optimizations
+      graph_type::vertex_id_type sourcev = context.source(eid);
+      // the neighbor_vertex_data() function allow me to read the
+      // vertex data of a vertex adjacent to the current vertex.
+      // since I am not going to change this data, I can just grab a
+      // const reference. You should always try to use const
+      // references whenever you know that you will definitely not be
+      // changing the data, since GraphLab could make use of this
+      // knowledge to perform other optimizations
       const vertex_data& nbrvertex = context.neighbor_vertex_data(sourcev);
       // if red, add to our counter
-      if (nbrvertex.color) ++num_red_neighbors;
+      if (nbrvertex.color == RED) ++num_red_neighbors;
     }
     // get the total number of neighbors we have
-    size_t num_neighbors = in_edges.size();
+    const double num_neighbors = in_edges.size();
 
     // Determine the new color by drawing a random number.  There are 2
     // functions. rand01() provides a random floating point number
     // between 0 and 1. rand_int(max) provides a random integer between
     // 0 and max inclusive
     color_type new_color = 
-      (graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors))?
+      graphlab::random::bernoulli(num_red_neighbors / num_neighbors)?
       RED : BLACK;
   
     // Determine if the coin was deterministic probability 1 or 0 of
     // landing red
-    bool is_deterministic =
+    const bool is_deterministic =
       num_neighbors == num_red_neighbors || num_red_neighbors == 0;
 
     // see if I flip and update the current vertex data.
-    bool color_changed = new_color != curvdata.color;
-    if (color_changed) ++curvdata.numflips;
+    const bool color_changed = (new_color != curvdata.color);
+    if (color_changed) ++curvdata.num_flips;
 
     // Assign the new color
     curvdata.color = new_color;
@@ -259,7 +239,7 @@ void init_graph(graph_type& g,
   for (size_t i = 0;i < dim * dim; ++i) {
     // create the vertex data, randomizing the color
     vertex_data vdata;
-    vdata.numflips = 0;
+    vdata.num_flips = 0;
     vdata.color = (graphlab::random::bernoulli())? RED : BLACK;
     // create the vertex
     g.add_vertex(vdata);
@@ -323,20 +303,16 @@ class accumulator :
 private:
   size_t red_count, flips_count;
 public:
-  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> 
-  base;
-
+  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> base;
   accumulator() : red_count(0), flips_count(0) { }
-
   void operator()(base::icontext_type& context) {
     red_count += (context.vertex_data().color == RED)? 1 : 0;
-    flips_count += context.vertex_data().numflips;
+    flips_count += context.vertex_data().num_flips;
   }
   void operator+=(const accumulator& other) { 
     red_count += other.red_count; 
     flips_count += other.flips_count; 
   }
-
   void finalize(base::iglobal_context_type& context) {
     const size_t numvertices = context.num_vertices();
     const double proportion = double(red_count) / numvertices;
@@ -348,22 +324,6 @@ public:
     context.set_global("NUM_FLIPS", flips_count);
   }
 }; // end of  accumulator
-
-
-/**
-   Here we create the shared data values
-*/
-void init_shared_data(graphlab::core<graph_type, update_functor>& core, 
-                      size_t dim) {
-
-  // create the sync for the red_proportion entriy
-  accumulator initial_accum;
-  size_t sync_interval = 100;
-  core.add_sync("sync", initial_accum,  sync_interval);
-  core.add_global("NUM_FLIPS", 0);
-
-}
-
 
 
 
@@ -402,8 +362,14 @@ int main(int argc,  char *argv[]) {
   
   // call init_graph to create the graph
   init_graph(glcore.graph(), dimensions);
-  // call create shared_data to create the shared data
-  init_shared_data(glcore, dimensions);
+
+  // Initialize the shared data.
+  accumulator initial_accum;
+  size_t sync_interval = 100;  
+  glcore.add_sync("sync", initial_accum, sync_interval);
+  glcore.add_global("NUM_FLIPS", size_t(0));
+  glcore.add_global("RED_PROPORTION", double(0));
+
 
   // since we are using a task scheduler, we need to
   // to create tasks. otherwise the engine will just terminate immediately
