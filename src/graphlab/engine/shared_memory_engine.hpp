@@ -181,6 +181,15 @@ namespace graphlab {
     termination_members termination;
 
 
+    // Global Values ----------------------------------------------------------
+    struct global_record { 
+      mutex lock; 
+      graphlab::any value;
+    }; // end of global_record
+
+    typedef std::map<std::string, global_record> global_map_type;
+    global_map_type global_records;
+
     // Global Aggregates ------------------------------------------------------
     struct isync {
       size_t interval;
@@ -193,9 +202,8 @@ namespace graphlab {
                             context_type context, size_t ncpus, size_t cpuid) = 0;
     }; // end of isync
     
-    template<typename T, typename Accum >
+    template<typename Accum >
     struct sync : public isync {
-      typedef T           contained_type;
       typedef Accum       accumulator_type;
       using isync::begin_vid;
       using isync::end_vid;
@@ -211,19 +219,11 @@ namespace graphlab {
                     context_type context, size_t ncpus, size_t cpuid);
     }; // end of sync
 
-    struct global_record { 
-      mutex lock; 
-      graphlab::any value;
-      isync* sync;
-      global_record() : sync(NULL) { }
-      ~global_record() { if(sync != NULL) { delete sync; sync = NULL; } }
-    }; // end of global_record
-
-    typedef std::map<std::string, global_record> global_map_type;
-    global_map_type global_records;
 
     std::vector<mutex> sync_vlocks;
     mutex sync_master_lock;
+    typedef std::map<std::string, isync*> sync_map_type;
+    sync_map_type sync_map;
     typedef mutable_queue<std::string, long> sync_queue_type;   
     sync_queue_type sync_queue;
     thread_pool sync_threads;
@@ -299,9 +299,8 @@ namespace graphlab {
 
 
     //! \brief Registers a sync with the engine.
-    template<typename T, typename Accum >
-    void add_sync(const std::string& key,
-                  const T& initial_value,
+    template<typename Accum>
+    void add_sync(const std::string& key,            
                   const Accum& zero,                 
                   size_t sync_interval,
                   bool use_barrier = false,
@@ -345,7 +344,7 @@ namespace graphlab {
 
     void evaluate_sync_queue();
     void launch_sync_prelocked(const std::string& str, 
-                                global_record& record);
+                               isync* sync);
     void schedule_sync_prelocked(const std::string& key, size_t sync_interval);
 
 
@@ -495,14 +494,14 @@ namespace graphlab {
 
     // -------------------------- Initialize Syncs ------------------------- //
     {
-      typedef typename global_map_type::value_type pair_type;
+      typedef typename sync_map_type::value_type pair_type;
       sync_master_lock.lock();
       sync_queue.clear();
-      foreach(const pair_type& pair, global_records) {        
+      foreach(const pair_type& pair, sync_map) {        
         // If their is a sync associated with the global record and
         // the sync has a non-zero interval than schedule it.
-        if(pair.second.sync != NULL && pair.second.sync->interval > 0) 
-          schedule_sync_prelocked(pair.first, pair.second.sync->interval);
+        if(pair.second != NULL && pair.second->interval > 0) 
+          schedule_sync_prelocked(pair.first, pair.second->interval);
       }
       sync_master_lock.unlock();
     } // end of initialize syncs
@@ -566,10 +565,6 @@ namespace graphlab {
     global_record& record = global_records[key];
     // Set the initial value (this can change the type)
     record.value = value;
-    // Clear the old sync if it existed
-    if(record.sync != NULL) { delete record.sync; record.sync = NULL; }
-    // remove from the scheduling queue
-    sync_queue.remove(key);
   } //end of set_global
 
 
@@ -617,26 +612,26 @@ namespace graphlab {
 
 
   template<typename Graph, typename UpdateFunctor> 
-  template<typename T, typename Accum>
+  template<typename Accum>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
   add_sync(const std::string& key,
-           const T& initial_value,
            const Accum& zero,                 
            size_t sync_interval,
            bool use_barrier,
            vertex_id_type begin_vid,
            vertex_id_type end_vid) {
-    // Create a new record of the type T in the global registry
-    add_global(key, initial_value);
-    global_record& record = global_records[key];
-    ASSERT_TRUE(record.sync == NULL);
+    isync*& sync = sync_map[key];
+    // Clear the old sync and remove from scheduling queue
+    if(sync != NULL) { delete sync; sync = NULL; }
+    sync_queue.remove(key);
+    ASSERT_TRUE(sync == NULL);
     // Attach a new sync type
-    record.sync = new sync<T, Accum>(zero);
-    record.sync->interval    = sync_interval;
-    record.sync->use_barrier = use_barrier;
-    record.sync->begin_vid   = begin_vid;
-    record.sync->end_vid     = end_vid;
+    sync = new shared_memory_engine::sync<Accum>(zero);
+    sync->interval    = sync_interval;
+    sync->use_barrier = use_barrier;
+    sync->begin_vid   = begin_vid;
+    sync->end_vid     = end_vid;
   }// end of add_sync
 
 
@@ -646,18 +641,19 @@ namespace graphlab {
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
   sync_now(const std::string& key) {
-    typename global_map_type::iterator iter = global_records.find(key);
-    if(iter == global_records.end()) {
+    typename sync_map_type::iterator iter = sync_map.find(key);
+    if(iter == sync_map.end()) {
       logstream(LOG_FATAL) 
-        << "Key \"" << key << "\" is not in global map!"
+        << "Key \"" << key << "\" is not in sync map!"
         << std::endl;
       return;
     }
-    global_record& record = iter->second;
+    isync* sync = iter->second;
+    ASSERT_NE(sync, NULL);
     // The current implementation will lead to a deadlock if called
     // from within an update function
     sync_master_lock.lock();
-    launch_sync_prelocked(key, record);
+    launch_sync_prelocked(key, sync);
     sync_master_lock.unlock();
   } // end of sync_now
 
@@ -998,12 +994,12 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   launch_sync_prelocked(const std::string& key,
-                        global_record& record) { 
-    ASSERT_TRUE(record.sync != NULL);
+                        isync* sync) { 
+    ASSERT_NE(sync, NULL);
     graphlab::barrier barrier(sync_threads.size());
     for(size_t i = 0; i < sync_threads.size(); ++i) {
       const boost::function<void (void)> sync_function = 
-        boost::bind(&(isync::run_sync), record.sync, 
+        boost::bind(&(isync::run_sync), sync, 
                     key, &barrier, &sync_vlocks, 
                     context_type(this, &graph, scheduler_ptr, i),
                     sync_threads.size(), i);
@@ -1034,19 +1030,20 @@ namespace graphlab {
     if(next_ucount < ucount) { // Run the actual sync
       const std::string key = sync_queue.top().first;
       sync_queue.pop();
-      global_record& record = global_records[key];
-      launch_sync_prelocked(key, record);
+      isync* sync = sync_map[key];
+      ASSERT_NE(sync, NULL);
+      launch_sync_prelocked(key, sync);
       // Reschedule the sync record
-      schedule_sync_prelocked(key, record.sync->interval);
+      schedule_sync_prelocked(key, sync->interval);
     }    
     sync_master_lock.unlock();    
   } // end of evaluate_sync_queue
 
   
   template<typename Graph, typename UpdateFunctor> 
-  template<typename T, typename Accum>
+  template<typename Accum>
   void
-  shared_memory_engine<Graph, UpdateFunctor>::sync<T, Accum>::
+  shared_memory_engine<Graph, UpdateFunctor>::sync<Accum>::
   run_sync(const std::string key,
            const graphlab::barrier* barrier_ptr,
            const std::vector<mutex>* sync_vlocks_ptr,

@@ -391,16 +391,15 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    template<typename T, typename Accum >
-    void add_sync(const std::string& key,
-                  const T& initial_value,
+    template<typename Accum>
+    void add_sync(const std::string& key,           
                   const Accum& zero,                 
                   size_t sync_interval,
                   bool use_barrier = false,
                   vertex_id_type begin_vid = 0,
                   vertex_id_type end_vid = 
                   std::numeric_limits<vertex_id_type>::max()) {
-      engine().add_sync(key, initial_value, zero, sync_interval,
+      engine().add_sync(key, zero, sync_interval,
                         use_barrier, begin_vid, end_vid);
     }    
 

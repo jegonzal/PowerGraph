@@ -357,11 +357,9 @@ void init_shared_data(graphlab::core<graph_type, update_functor>& core,
                       size_t dim) {
 
   // create the sync for the red_proportion entriy
-  double initial_value = 0;
   accumulator initial_accum;
   size_t sync_interval = 100;
-  core.add_sync("RED_PROPORTION", initial_value, initial_accum,
-                         sync_interval);
+  core.add_sync("sync", initial_accum,  sync_interval);
   core.add_global("NUM_FLIPS", 0);
 
 }
@@ -422,7 +420,7 @@ int main(int argc,  char *argv[]) {
   // since it is possible for the engine to terminate in between syncs
   // if we want to get a correct value for the syncs we should run them again
   // we can do his with
-  glcore.sync_now("RED_PROPORTION");
+  glcore.sync_now("sync");
 
   // now we can look the values using the get() function
   size_t numberofflips = 0;
