@@ -464,9 +464,7 @@ namespace graphlab {
   class rwlock {
   private:
     mutable pthread_rwlock_t m_rwlock;
-    // not copyable
-    void operator=(const rwlock& m) { }
-  public:
+   public:
     rwlock() {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
       ASSERT_TRUE(!error);
@@ -475,7 +473,10 @@ namespace graphlab {
       int error = pthread_rwlock_destroy(&m_rwlock);
       ASSERT_TRUE(!error);
     }
-    
+ 
+    // not copyable
+    void operator=(const rwlock& m) { }
+   
     /** 
      * \todo: Remove!  
      *
@@ -487,6 +488,7 @@ namespace graphlab {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
       ASSERT_TRUE(!error);
     }
+
     inline void readlock() const {
       pthread_rwlock_rdlock(&m_rwlock);
       //ASSERT_TRUE(!error);
@@ -539,8 +541,7 @@ namespace graphlab {
 
     // not copyconstructible
     cancellable_barrier(const cancellable_barrier&) { }
-    // not copyable
-    void operator=(const cancellable_barrier& m) { }
+
 
   public:
     /// Construct a barrier which will only fall when numthreads enter
@@ -551,6 +552,9 @@ namespace graphlab {
       barrier_release = true;
       alive = true;
     }
+
+    // not copyable
+    void operator=(const cancellable_barrier& m) { }
     
     /**
      * \warning: This barrier is safely NOT reusable with this cancel
