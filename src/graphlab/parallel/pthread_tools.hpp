@@ -610,26 +610,20 @@ namespace graphlab {
   class barrier {
   private:
     mutable pthread_barrier_t m_barrier;
-    
-
     // not copyconstructable
     barrier(const barrier&) { }
-
   public:
     /// Construct a barrier which will only fall when numthreads enter
-    barrier(size_t numthreads) { pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }
-    
+    barrier(size_t numthreads) { 
+      pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }    
     // not copyable
     void operator=(const barrier& m) { }
-
-    
     ~barrier() { pthread_barrier_destroy(&m_barrier); }
     /// Wait on the barrier until numthreads has called wait
     inline void wait() const { pthread_barrier_wait(&m_barrier); }
   };
 
-#else
-   
+#else   
    /* In some systems, pthread_barrier is not available.
    */
   typedef cancellable_barrier barrier;

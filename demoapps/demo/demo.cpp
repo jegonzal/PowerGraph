@@ -39,17 +39,17 @@
 
 
    Given a DIMxDIM undirected grid graph where each vertex is assigned
-   a random color, either black or white (represented as a boolean
+   a random color, either black or red (represented as a boolean
    value) Each vertex then makes a local random decision:
 
-   - become white with probabilty proportionate to the number of white
+   - become red with probabilty proportionate to the number of red
    neighbors
 
    - become black with probabilty proportionate to the number of black
    neighbors
 
    Clearly, the two stable outcomes are where all vertices are black,
-   or where all vertices are white. We are interested in knowing how
+   or where all vertices are red. We are interested in knowing how
    many flips each vertex took on average.
 
    Also, since GraphLab only has directed edges, we will build the
@@ -64,6 +64,7 @@
 // includes the entire graphlab framework
 #include <graphlab.hpp>
 
+enum color_type {RED, BLACK};
 
 /**
    First we will design the graph data. For each vertex, we will need
@@ -84,8 +85,8 @@
    as a struct), save/load functions must be written for the datatype.
    */
 struct vertex_data {
-  size_t numflips;
-  bool color;     // black == FALSE, red == TRUE,
+  size_t     numflips;
+  color_type color; 
 };
 
 
@@ -125,9 +126,6 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 */
 
 
-// graphlab::glshared_const<size_t> NUM_VERTICES;
-// graphlab::glshared<double> RED_PROPORTION;
-// graphlab::glshared<size_t> NUM_FLIPS;
 
 
 /**
@@ -207,8 +205,9 @@ struct update_functor :
     // functions. rand01() provides a random floating point number
     // between 0 and 1. rand_int(max) provides a random integer between
     // 0 and max inclusive
-    bool new_color =
-      graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
+    color_type new_color = 
+      (graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors))?
+      RED : BLACK;
   
     // Determine if the coin was deterministic probability 1 or 0 of
     // landing red
@@ -261,8 +260,7 @@ void init_graph(graph_type& g,
     // create the vertex data, randomizing the color
     vertex_data vdata;
     vdata.numflips = 0;
-    if (graphlab::random::bernoulli())  vdata.color = true;
-    else vdata.color = false;
+    vdata.color = (graphlab::random::bernoulli())? RED : BLACK;
     // create the vertex
     g.add_vertex(vdata);
   }
@@ -320,109 +318,51 @@ void init_graph(graph_type& g,
 
    \param accumulator The input and output of the fold/reduce operation.
 */       
-void reduce_red_proportion(const vertex_data& vdata, double& acc) {
-  // each entry in the shared_data table is a special data type called
-  // graphlab::any (which is derived and modified from boost::any).
-  // This allows you to store arbitrary datatypes into the shared data table,
-  // with the minor caveat that the user must know EXACTLY what is the data
-  // type stored at each entry. In this case, we will simply
-  // store doubles.
-  if (vdata.color) acc += 1.0;
-}
+class accumulator :
+  public graphlab::iaccumulator<graph_type, update_functor, accumulator> {
+private:
+  size_t red_count, flips_count;
+public:
+  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> 
+  base;
 
-/**
-   This is the apply for the RED_PROPORTION sync.
-   We divide the accumulated value by the number of vertices
+  accumulator() : red_count(0), flips_count(0) { }
 
-   \param current_data The current (old) value in the shared data table entry.
-   Overwriting this will update the shared data table entry
+  void operator()(base::icontext_type& context) {
+    red_count += (context.vertex_data().color == RED)? 1 : 0;
+    flips_count += context.vertex_data().numflips;
+  }
+  void operator+=(const accumulator& other) { 
+    red_count += other.red_count; 
+    flips_count += other.flips_count; 
+  }
 
-   \param new_data The result of the reduce operation on all the vertices.
-*/       
-void apply_red_proportion(double& current_data, 
-                          const double& accum) {
-  // get the number of vertices from the constant section of the shared data
-  const size_t numvertices = NUM_VERTICES.get_val();
-  // compute the proportion
-  const double proportion = accum / numvertices;
-  // here we can output something as a progress monitor
-  std::cout << "Red Proportion: " << proportion << std::endl;
-  // write the final result into the shared data table
-  current_data = accum;
-}
+  void finalize(base::iglobal_context_type& context) {
+    const size_t numvertices = context.num_vertices();
+    const double proportion = double(red_count) / numvertices;
+    // here we can output something as a progress monitor
+    std::cout << "Red Proportion: " << proportion << std::endl
+              << "Num Flips: " << flips_count << std::endl;
+    // write the final result into the shared data table
+    context.set_global("RED_PROPORTION", proportion);
+    context.set_global("NUM_FLIPS", flips_count);
+  }
+}; // end of  accumulator
 
-
-/**
-   This is the merge function for the RED_PROPORTION sync
-   Since it is just a sum, intermediate results simply add`
-*/
-void merge_red_proportion(double& target, const double& source) {
-  target += source;
-}
-
-
-
-/**
-   GraphLab provides a number of predefined syncing operations which allow
-   simple reductions / applies to be implemented very quickly. 
-   We will implement the NUM_FLIPS entry using one of these predefined
-   operations. The predefined operations typically require the user to
-   provide a simple function which extracts the information of interest
-   from the vertex data. In this case, the numflips field.
-*/
-size_t get_flips(const vertex_data& vdata) {
-  return vdata.numflips;
-}
 
 /**
    Here we create the shared data values
 */
 void init_shared_data(graphlab::core<graph_type, update_functor>& core, 
                       size_t dim) {
-  // the number of vertices is a constant and is just dim * dim
-  // since this is a constant we will just use the "constant" part of the table
-  // using the function add_constant(index, value)
-  //
-  // Since the 'any' allows you to store any datatype, it is therefore good
-  // practice to explicitly state the data type of the value you are storing
-  // (size_t here). You will see this theme alot in all uses of the shared
-  // data table
-  core.engine().set_global("NUM_VERTICES", size_t(dim*dim));
- 
 
   // create the sync for the red_proportion entriy
-  core.engine().set_global("RED_PROPORTION", size_t(0));
-  core.engine().set_sync<double>("red_prop",                         
-                                 apply_red_proportion,
-                                 reduce_red_proportion,                                 
-                                 128,
-                                 0,                                 
-                                 false);
-
-
-
-
-  // for the number of flips counter, we will demonstrate
-  // the use of GraphLab's predefined reduce and apply operations
-  // we will use set_sync as usual, but using something different for the
-  // reduce and apply functions
-
-  // glshared_sync_ops::sum<size_t, get_flip> is a predefined reduce operation
-  // which sums over all the result of running get_flip() on all the vertex
-  // data. The first template field (size_t) is the type of the accumulator.
-
-  // glshared_apply_ops::identity<size_t> is the identity apply which directly
-  // writes the result of the reduction into the shared data table entry.
-  // The template field (size_t) is the type of the entry.
-  
-  // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
-
-  // typedef graphlab::sync_ops<graph_type>::
-  //   sum_group<size_t, get_flips> group_type;
-
-  // core.engine().set_sync<group_type>(NUM_FLIPS,  
-  //                                    128,
-  //                                    true);
+  double initial_value = 0;
+  accumulator initial_accum;
+  size_t sync_interval = 100;
+  core.add_sync("RED_PROPORTION", initial_value, initial_accum,
+                         sync_interval);
+  core.add_global("NUM_FLIPS", 0);
 
 }
 
@@ -482,12 +422,13 @@ int main(int argc,  char *argv[]) {
   // since it is possible for the engine to terminate in between syncs
   // if we want to get a correct value for the syncs we should run them again
   // we can do his with
-  glcore.sync_now(NUM_FLIPS);
-  glcore.sync_now(RED_PROPORTION);
+  glcore.sync_now("RED_PROPORTION");
 
   // now we can look the values using the get() function
-  size_t numberofflips = NUM_FLIPS.get_val();
-  double redprop = RED_PROPORTION.get_val();
+  size_t numberofflips = 0;
+  glcore.get_global("NUM_FLIPS", numberofflips);
+  double redprop = 0;
+  glcore.get_global("RED_PROPORTION", redprop);
 
   // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;

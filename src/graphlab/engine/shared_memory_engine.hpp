@@ -99,10 +99,6 @@ namespace graphlab {
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
 
-
-    
-
-    
     
   private:
 
@@ -138,7 +134,6 @@ namespace graphlab {
      * unecessary overhead.
      */
     thread_pool threads;   
-
 
     /**
      * The execution status describes the current state of the engine.
@@ -186,57 +181,52 @@ namespace graphlab {
     termination_members termination;
 
 
+    // Global Aggregates ------------------------------------------------------
     struct isync {
-      mutex lock;
-      size_t sync_interval;
+      size_t interval;
       vertex_id_type begin_vid, end_vid;
       bool use_barrier;
       virtual ~isync() { }
-      virtual void run_sync(shared_memory_engine* engine, size_t cpuid);
+      virtual void run_sync(const std::string key,
+                            const graphlab::barrier* barrier_ptr,
+                            const std::vector<mutex>* sync_vlocks_ptr,
+                            context_type context, size_t ncpus, size_t cpuid) = 0;
     }; // end of isync
-
     
     template<typename T, typename Accum >
     struct sync : public isync {
       typedef T           contained_type;
       typedef Accum       accumulator_type;
-      std::string key;
-      accumulator_type zero;
-      fold_function_type fold_function;
-      apply_function_type apply_function;
-      void run_sync(shared_memory_engine* engine, size_t cpuid);
+      using isync::begin_vid;
+      using isync::end_vid;
+      using isync::use_barrier;
+      const accumulator_type zero;
+      accumulator_type shared_accumulator;
+      mutex lock;
+      sync(const accumulator_type& zero) : zero(zero), 
+                                           shared_accumulator(zero) { }
+      void run_sync(const std::string key,
+                    const graphlab::barrier* barrier_ptr,
+                    const std::vector<mutex>* sync_vlocks_ptr,
+                    context_type context, size_t ncpus, size_t cpuid);
     }; // end of sync
 
-    //! global shared data
-    struct global_members {
-      struct record { 
-        mutex lock; 
-        graphlab::any value;
-        isync* sync;
-        ~record() { if(sync != NULL) { delete sync; sync = NULL; } }
-      };
-      typedef std::map<std::string, record> map_type;
-      map_type records;
-      std::vector<mutex> sync_vlocks;
-      typedef mutable_queue<std::string, long> queue_type;   
-      queue_type queue;
-      thread_pool threads;
-    };
-    global_members globals;
+    struct global_record { 
+      mutex lock; 
+      graphlab::any value;
+      isync* sync;
+      global_record() : sync(NULL) { }
+      ~global_record() { if(sync != NULL) { delete sync; sync = NULL; } }
+    }; // end of global_record
 
+    typedef std::map<std::string, global_record> global_map_type;
+    global_map_type global_records;
 
-    //! All sync related variables
-    struct sync_members {
-      //! This lock is held while a sync is proceeding
-      mutex lock;
-      //! map from key2sync
-      typedef std::map<std::string, record> map_type;   
-      map_type key2sync;
-      typedef mutable_queue<record*, long> queue_type;   
-      queue_type queue;
-      thread_pool threads;
-    }; // end of sync members
-    sync_members syncs;
+    std::vector<mutex> sync_vlocks;
+    mutex sync_master_lock;
+    typedef mutable_queue<std::string, long> sync_queue_type;   
+    sync_queue_type sync_queue;
+    thread_pool sync_threads;
 
 
     
@@ -290,30 +280,31 @@ namespace graphlab {
     //! \brief Get the current engine options for this engine
     const graphlab_options& get_options() { return opts; } 
 
+    //! Add a global entry 
+    template< typename T >
+    void add_global(const std::string& key, const T& value);
+
+    //! Change the value of a global entry
     template< typename T >
     void set_global(const std::string& key, const T& value);
 
-    template< typename T >
-    void safe_set_global(const std::string& key, const T& value);
-
+    //! Get a copy of the value of a global entry
     template< typename T >
     void get_global(const std::string& key, T& ret_value) const;
 
+
+    //! Apply a functor to a global entry (within a lock)
     template< typename T, typename Fun >
-    void safe_apply_global(const std::string& key, const Fun& fun);
+    void apply_global(const std::string& key, const Fun& fun);
 
 
     //! \brief Registers a sync with the engine.
     template<typename T, typename Accum >
-    void set_sync(const std::string& key,
-                  const T& initial_value, 
-                  void(*apply_function)(T& lvalue, const Accum& rvalue) = 
-                  (sync_members::template sync<T, Accum>::default_apply),                  
-                  void(*fold_function)(const vertex_data_type& vdata, Accum& acc),
-                  = (sync_members::template sync<vertex_data_type, Accum>::default_fold),
-                  const Accum& zero = Accum(),                
-                  size_t sync_interval = 100,
-                  bool barrier = false,
+    void add_sync(const std::string& key,
+                  const T& initial_value,
+                  const Accum& zero,                 
+                  size_t sync_interval,
+                  bool use_barrier = false,
                   vertex_id_type begin_vid = 0,
                   vertex_id_type end_vid = 
                   std::numeric_limits<vertex_id_type>::max());
@@ -326,6 +317,11 @@ namespace graphlab {
     void clear();
 
   private:
+    friend class context<shared_memory_engine>;
+    //! Get the global data and lock
+    std::pair<mutex*, any*> get_global_pair(const std::string& key); 
+
+    
     void initialize_members();
 
     
@@ -347,17 +343,10 @@ namespace graphlab {
                                             size_t cpuid);
     
 
-    
     void evaluate_sync_queue();
-
-    /**
-     * Add a sync to the scheduling queue.  This should be called
-     * while holding the sync.lock.
-     */
-    void schedule_sync(typename sync_members::record& record);
-    void background_sync(typename sync_members::record& record);
-    void run_sync_subtask(typename sync_members::subtask* subtask_ptr);
-
+    void launch_sync_prelocked(const std::string& str, 
+                                global_record& record);
+    void schedule_sync_prelocked(const std::string& key, size_t sync_interval);
 
 
     void evaluate_termination_conditions(size_t cpuid);
@@ -374,19 +363,15 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   shared_memory_engine<Graph, UpdateFunctor>::
   shared_memory_engine(graph_type& graph) : 
-  graph(graph), 
-  nverts(graph.num_vertices()),
-  context_manager_ptr(NULL),
-  scheduler_ptr(NULL),
-  new_tasks_added(false),
-  threads(opts.get_ncpus()),
-  exec_status(execution_status::UNSET),
-  exception_message(NULL),   
-  start_time_millis(0) {
-    
-  } // end of constructor
-
-
+    graph(graph), 
+    nverts(graph.num_vertices()),
+    context_manager_ptr(NULL),
+    scheduler_ptr(NULL),
+    new_tasks_added(false),
+    threads(opts.get_ncpus()),
+    exec_status(execution_status::UNSET),
+    exception_message(NULL),   
+    start_time_millis(0) { } // end of constructor
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -496,7 +481,7 @@ namespace graphlab {
     ASSERT_TRUE(context_manager_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
     ASSERT_EQ(tls_array.size(), opts.get_ncpus());
-    ASSERT_EQ(syncs.vlocks.size(), nverts);
+    ASSERT_EQ(sync_vlocks.size(), nverts);
         
     // -------------------- Reset Internal Counters ------------------------ //
     for(size_t i = 0; i < tls_array.size(); ++i) { // Reset thread local state
@@ -510,14 +495,16 @@ namespace graphlab {
 
     // -------------------------- Initialize Syncs ------------------------- //
     {
-      typedef typename sync_members::map_type::value_type pair_type;
-      typedef typename sync_members::record record_type;
-      syncs.lock.lock();
-      syncs.queue.clear();
-      foreach(pair_type& pair, syncs.key2sync) {
-        schedule_sync(pair.second);
+      typedef typename global_map_type::value_type pair_type;
+      sync_master_lock.lock();
+      sync_queue.clear();
+      foreach(const pair_type& pair, global_records) {        
+        // If their is a sync associated with the global record and
+        // the sync has a non-zero interval than schedule it.
+        if(pair.second.sync != NULL && pair.second.sync->interval > 0) 
+          schedule_sync_prelocked(pair.first, pair.second.sync->interval);
       }
-      syncs.lock.unlock();
+      sync_master_lock.unlock();
     } // end of initialize syncs
         
     // ------------------------ Start the engine --------------------------- //
@@ -573,10 +560,16 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
-  void 
+  void
   shared_memory_engine<Graph, UpdateFunctor>::
-  set_global(const std::string& key, const T& value) {
-    globals.records[key].value = value;
+  add_global(const std::string& key, const T& value) {
+    global_record& record = global_records[key];
+    // Set the initial value (this can change the type)
+    record.value = value;
+    // Clear the old sync if it existed
+    if(record.sync != NULL) { delete record.sync; record.sync = NULL; }
+    // remove from the scheduling queue
+    sync_queue.remove(key);
   } //end of set_global
 
 
@@ -584,39 +577,22 @@ namespace graphlab {
   template<typename T>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  safe_set_global(const std::string& key, const T& value) {
-    typename global_members::map_type::iterator iter = 
-      globals.records.find(key);
-    if(iter == globals.records.end()) {
-      logstream(LOG_FATAL) << "Key \"" << key << "\" is not in global map!"
-                            << std::endl;
+  set_global(const std::string& key, const T& value) {
+    typename global_map_type::iterator iter = global_records.find(key);
+    if(iter == global_records.end()) {
+      logstream(LOG_FATAL) 
+        << "Key \"" << key << "\" is not in global map!"
+        << std::endl;
       return;
     }
-    typename global_members::record& rec = iter->second;
+    // Update the actual record atomically 
+    global_record& rec = iter->second;
     rec.lock.lock();
-    rec.value = value;
+    // It is not legal to change the records type once it is set.
+    graphlab::any& anyref = rec.value;
+    anyref.as<T>() = value;
     rec.lock.unlock();
   } //end of safe_set_global
-
-
-  template<typename Graph, typename UpdateFunctor> 
-  template<typename T, typename Fun>
-  void 
-  shared_memory_engine<Graph, UpdateFunctor>::
-  safe_apply_global(const std::string& key, const Fun& fun) {
-    typename global_members::map_type::iterator iter = 
-      globals.records.find(key);
-    if(iter == globals.records.end()) {
-      logstream(LOG_FATAL) << "Key \"" << key << "\" is not in global map!"
-                            << std::endl;
-      return;
-    }
-    typename global_members::record& rec = iter->second;
-    rec.lock.lock();
-    graphlab::any& anyref = rec.value; 
-    fun( anyref.as<T>() );
-    rec.lock.unlock();
-  } //end of safe_apply_global
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -624,77 +600,65 @@ namespace graphlab {
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
   get_global(const std::string& key, T& ret_value) const {
-    typename global_members::map_type::const_iterator iter = 
-      globals.records.find(key);
-    if(iter == globals.records.end()) {
-      logstream(LOG_FATAL) << "Key \"" << key << "\" is not in global map!"
-                            << std::endl;
+    typename global_map_type::const_iterator iter = global_records.find(key);
+    if(iter == global_records.end()) {
+      logstream(LOG_FATAL) 
+        << "Key \"" << key << "\" is not in global map!"
+        << std::endl;
       return;
     }
-    const typename global_members::record& rec = iter->second;
+    // Get the global record
+    const global_record& rec = iter->second;
     rec.lock.lock();
-    graphlab::any& anyref = rec.value; 
-    ret_value = anyref.as<T> ( );
+    const graphlab::any& anyref = rec.value;
+    ret_value = anyref.as<T>();
     rec.lock.unlock();
   } //end of get_global
-
-
-
 
 
   template<typename Graph, typename UpdateFunctor> 
   template<typename T, typename Accum>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  set_sync(const std::string& key,
-           void(*apply_function)(T& lvalue, const Accum& rvalue),
-           void(*fold_function)(const vertex_data_type& vdata, Accum& acc),      
+  add_sync(const std::string& key,
+           const T& initial_value,
+           const Accum& zero,                 
            size_t sync_interval,
-           const Accum& zero,
-           bool barrier,
+           bool use_barrier,
            vertex_id_type begin_vid,
            vertex_id_type end_vid) {
-      // Update the syncs map
-      syncs.lock.lock();
-      typedef typename sync_members::record record_type;
-      record_type& record = syncs.key2sync[&key];
-      record.clear();
-      // Initialize the rest of the record
-      record.sync_interval = sync_interval;
-      record.begin_vid = begin_vid;
-      record.end_vid = end_vid;
-      record.use_barrier = barrier;
-      // Construct a local isync
-      typedef sync<T, Accum> sync_type;    
-      isync* sync_ptr = new sync_type();
-      record->sync_ptr = sync_ptr;
-      sync_ptr->key = key;
-      sync_ptr->engine_ptr = this;
-      sync_ptr->zero = zero;
-      sync_ptr->acc = zero;
-      sync_ptr->fold_function  = fold_function;
-      sync_ptr->apply_function = apply_function;   
-      syncs.lock.unlock();
-    }// end of set_sync
+    // Create a new record of the type T in the global registry
+    add_global(key, initial_value);
+    global_record& record = global_records[key];
+    ASSERT_TRUE(record.sync == NULL);
+    // Attach a new sync type
+    record.sync = new sync<T, Accum>(zero);
+    record.sync->interval    = sync_interval;
+    record.sync->use_barrier = use_barrier;
+    record.sync->begin_vid   = begin_vid;
+    record.sync->end_vid     = end_vid;
+  }// end of add_sync
 
 
+  
   
   template<typename Graph, typename UpdateFunctor> 
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
   sync_now(const std::string& key) {
-    typedef typename sync_members::record record_type;
-    syncs.lock.lock();
-    // \todo: barrier should be an engine parameter
-    syncs.vlocks.resize(graph.num_vertices());
-    syncs.threads.resize(opts.get_ncpus());    
-    // lookup the key
-    ASSERT_TRUE(syncs.key2sync.find(&key) !=
-                syncs.key2sync.end());
-    record_type& record = syncs.key2sync[&key];
-    background_sync(record);
-    // block until sync is free
-    join_threads(syncs.threads);        
+    typename global_map_type::iterator iter = global_records.find(key);
+    if(iter == global_records.end()) {
+      logstream(LOG_FATAL) 
+        << "Key \"" << key << "\" is not in global map!"
+        << std::endl;
+      return;
+    }
+    global_record& record = iter->second;
+    // The current implementation will lead to a deadlock if called
+    // from within an update function
+    sync_master_lock.lock();
+    launch_sync_prelocked(key, record);
+    sync_master_lock.unlock();
   } // end of sync_now
 
 
@@ -704,6 +668,21 @@ namespace graphlab {
   ///////////////// Private Methods ///////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
+  template<typename Graph, typename UpdateFunctor> 
+  std::pair<mutex*, any*>
+  shared_memory_engine<Graph, UpdateFunctor>::
+  get_global_pair(const std::string& key) {
+    typename global_map_type::iterator iter = global_records.find(key);
+    if(iter == global_records.end()) {
+      logstream(LOG_FATAL) 
+        << "Key \"" << key << "\" is not in global map!"
+        << std::endl;
+      return std::pair<mutex*, any*>(NULL, NULL);
+    }
+    // Get the global record
+    global_record& rec = iter->second;
+    return std::pair<mutex*, any*>(&rec.lock, &rec.value);
+  }
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -720,7 +699,8 @@ namespace graphlab {
     } else {
       if(nverts != graph.num_vertices() && new_tasks_added) {
         logstream(LOG_WARNING) 
-          << "The was modified after adding tasks! All tasks will be removed."
+          << "The graph was modified after adding tasks! "
+          << "All previously scheduled tasks will be removed!"
           << std::endl;
       } 
       // Force a reset and start over
@@ -735,7 +715,7 @@ namespace graphlab {
                       opts.get_ncpus());
       ASSERT_TRUE(scheduler_ptr != NULL);
 
-      // construct the context factory
+      // construct the context manager
       ASSERT_TRUE(context_manager_ptr == NULL);
       const consistency_model::model_enum context_range =
         consistency_model::from_string(opts.get_scope_type());
@@ -757,18 +737,20 @@ namespace graphlab {
 
       // reset the number of vertices
       nverts = graph.num_vertices();
+
       // reset the execution status
       exec_status = execution_status::UNSET;
+
       // reset the thread local state
       tls_array.resize(opts.get_ncpus());
-      
-      // Initialize the syncs data structure
-      syncs.lock.lock();     
-      syncs.vlocks.resize(graph.num_vertices());
-      syncs.threads.resize(opts.get_ncpus());
-      syncs.lock.unlock();
-    }
-      
+      for(size_t i = 0; i < tls_array.size(); ++i) 
+        tls_array[i].update_count = 0;
+
+      // Initialize the sync data structures
+      sync_vlocks.resize(graph.num_vertices());
+      sync_threads.resize(opts.get_ncpus());
+      sync_queue.clear();
+    }      
   } // end of initialize_members
 
 
@@ -801,7 +783,7 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   join_all_threads() {
     join_threads(threads);
-    join_threads(syncs.threads);
+    join_threads(sync_threads);
   } // end of join_all_threads
 
 
@@ -828,12 +810,9 @@ namespace graphlab {
         // killall the running threads
         exception_message = error_str;
         exec_status = execution_status::EXCEPTION;
-        join_successful = false;
       } 
     }
   } // end of join_threads
-
-
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -846,14 +825,10 @@ namespace graphlab {
       run_once(cpuid);
     }
     // Flush the thread local cache associated with vertex data
-    // context_manager_ptr->flush_cache(cpuid);
-   
+    // context_manager_ptr->flush_cache(cpuid);   
     logstream(LOG_INFO) 
       << "Thread " << cpuid << " finished." << std::endl;
   } // end of thread_mainloop
-
-
-
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -869,10 +844,6 @@ namespace graphlab {
   } // end of run_simulated
 
 
-
-
-
-
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
@@ -881,13 +852,11 @@ namespace graphlab {
     // -------------------- Execute Sync Operations ------------------------ //
     // Evaluate pending sync operations
     evaluate_sync_queue();
-
     // --------------- Evaluate Termination Conditions --------------------- //
     // Evaluate the available termination conditions and if the
     // program is finished simply return
     evaluate_termination_conditions(cpuid);
     if(exec_status != execution_status::RUNNING);
-
     // -------------------- Get Next Update Functor ------------------------ //
     // Get the next task from the scheduler
     vertex_id_type vid(-1);
@@ -918,12 +887,11 @@ namespace graphlab {
       scheduler_ptr->terminator().cancel_critical_section(cpuid);
     } // end of while loop
 
-    // ------------------- Run The Update Functor -------------------------- //
-    
+    // ------------------- Run The Update Functor -------------------------- //    
     ASSERT_EQ(stat, sched_status::NEW_TASK);
     ASSERT_LT(vid, graph.num_vertices());
     // Grab the sync lock
-    syncs.vlocks[vid].lock();
+    sync_vlocks[vid].lock();
     // Call the correct update functor
     if(ufun.is_factorizable()) {
       evaluate_factorized_update_functor(vid, ufun, cpuid);
@@ -931,15 +899,13 @@ namespace graphlab {
       evaluate_update_functor(vid, ufun, cpuid);
     }
     // release the lock
-    syncs.vlocks[vid].unlock();
-
+    sync_vlocks[vid].unlock();
     // ----------------------- Post Update Code ---------------------------- //   
     // Mark context as completed in the scheduler
     scheduler_ptr->completed(cpuid, vid, ufun);
     // Record an increase in the update counts
     ASSERT_LT(cpuid, tls_array.size());
-    tls_array[cpuid].update_count++;     
-      
+    tls_array[cpuid].update_count++;           
   } // end of run_once
 
   // unfactorized version
@@ -959,7 +925,6 @@ namespace graphlab {
     // Release the context (and all corresponding locks)
     context_manager_ptr->release_context(cpuid, context); 
   }
-
 
   // Factorized version
   template<typename Graph, typename UpdateFunctor> 
@@ -994,14 +959,12 @@ namespace graphlab {
         context_manager_ptr->release_single_edge_context(cpuid, context, eid);
       }
     }
-
     // Apply phase ------------------------------------------------------------
     context_type& context = 
       context_manager_ptr->get_vertex_context(cpuid, vid);
     ufun.apply(context);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
-
     // Scatter phase ----------------------------------------------------------
     if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
@@ -1031,6 +994,23 @@ namespace graphlab {
 
   
 
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  launch_sync_prelocked(const std::string& key,
+                        global_record& record) { 
+    ASSERT_TRUE(record.sync != NULL);
+    graphlab::barrier barrier(sync_threads.size());
+    for(size_t i = 0; i < sync_threads.size(); ++i) {
+      const boost::function<void (void)> sync_function = 
+        boost::bind(&(isync::run_sync), record.sync, 
+                    key, &barrier, &sync_vlocks, 
+                    context_type(this, &graph, scheduler_ptr, i),
+                    sync_threads.size(), i);
+      sync_threads.launch(sync_function);
+    }
+    join_threads(sync_threads);
+  } // end of launch sync prelocked
 
 
 
@@ -1038,174 +1018,236 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue() {
-    typedef typename sync_members::record record_type;
     // if the engine is no longer running or there is nothing in the
     // sync queue then we terminate early
-    if(exec_status != execution_status::RUNNING ||
-       syncs.queue.empty()) return;
+    if(exec_status != execution_status::RUNNING || sync_queue.empty()) return;
     // Try to grab the lock if we fail just return
-    if(!syncs.lock.try_lock()) return;
-    // ASSERT: the lock has been aquired
-    // Test for a task at the top of the queue
-    const long negated_next_ucount = syncs.queue.top().second;
+    if(!sync_master_lock.try_lock()) return;
+    // ASSERT: the lock has been aquired. Test for a task at the top
+    // of the queue
+    const long negated_next_ucount = sync_queue.top().second;
     ASSERT_LE(negated_next_ucount, 0);
     const size_t next_ucount = size_t(-negated_next_ucount);
     const size_t ucount = last_update_count();
     // if we have more updates than the next update count for this
     // task then run it
-    if(next_ucount < ucount) {
-      // Get the key and then remove the task from the queue
-      record_type& record = syncs.queue.pop().first;
-      background_sync(record);
-    } else { 
-      // Otherwsie the next thing to do is not ready yet so just
-      // release the lock and let the thread continue.
-      syncs.lock.unlock();
-    }
+    if(next_ucount < ucount) { // Run the actual sync
+      const std::string key = sync_queue.top().first;
+      sync_queue.pop();
+      global_record& record = global_records[key];
+      launch_sync_prelocked(key, record);
+      // Reschedule the sync record
+      schedule_sync_prelocked(key, record.sync->interval);
+    }    
+    sync_master_lock.unlock();    
   } // end of evaluate_sync_queue
+
+  
+  template<typename Graph, typename UpdateFunctor> 
+  template<typename T, typename Accum>
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::sync<T, Accum>::
+  run_sync(const std::string key,
+           const graphlab::barrier* barrier_ptr,
+           const std::vector<mutex>* sync_vlocks_ptr,
+           context_type context, size_t ncpus, size_t cpuid) { 
+    // Thread zero must initialize the the final shared accumulator
+    const size_t nverts = context.num_vertices();
+    const std::vector<mutex>& sync_vlocks = *sync_vlocks_ptr;
+    const graphlab::barrier& barrier = *barrier_ptr;  
+    // Compute partitioning of vertices over threads
+    // Compute the true begin and end.
+    const size_t global_begin = std::min(nverts, size_t(begin_vid));;
+    const size_t global_end = std::min(nverts, size_t(end_vid));
+    ASSERT_LE(global_begin, global_end);
+    ASSERT_LE(global_end, nverts);
+    // Compute the span of each subtask.  The span should not be less
+    // than some minimal span.
+    const size_t MIN_SPAN(1);    
+    const vertex_id_type span = (global_end - global_begin)/ncpus + MIN_SPAN;    
+    // Shadow the global begin
+    const size_t true_begin_vid = std::min(cpuid*span, nverts);
+    const size_t true_end_vid = std::min((cpuid+1)*span, nverts);
+
+    // If Barriers are in place go ahead and lock all update functions
+    if(use_barrier){
+      for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) 
+        sync_vlocks[vid].lock();
+      barrier.wait(); 
+    }
+    
+    // construct the local (to this thread) accumulator and context
+    accumulator_type local_accum;
+    // Do map computation;
+    for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) {
+      if(!use_barrier) sync_vlocks[vid].lock();
+      context.init(vid, consistency_model::EDGE_CONSISTENCY);
+      local_accum(context);     
+      if(!use_barrier) sync_vlocks[vid].unlock();
+    }
+    context.commit();
+    // Merge with master
+    lock.lock(); shared_accumulator += local_accum; lock.unlock();
+    barrier.wait();  // Wait until all merges are complete
+    
+    if(cpuid == 0) {
+      // Recast the context as a global context.  This ensures that
+      // the user implements finalize correctly;
+      shared_accumulator.finalize(context);
+      context.commit();
+      // Zero out the shared accumulator for the next run
+      shared_accumulator = zero;
+    }
+    barrier.wait();   
+    // If Barriers are in place go ahead and lock all update functions
+    if(use_barrier){
+      for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) 
+        sync_vlocks[vid].unlock();
+      barrier.wait(); 
+    }    
+  } // end of run sync
 
 
 
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
-  schedule_sync(typename sync_members::record& record) {
+  schedule_sync_prelocked(const std::string& key, size_t sync_interval) {
     const size_t ucount = last_update_count();
-    const long negated_next_ucount = 
-      -long(ucount + record.sync_interval); 
-    syncs.queue.push(&record, negated_next_ucount);
+    const long negated_next_ucount = -long(ucount + sync_interval); 
+    sync_queue.push(key, negated_next_ucount);
   }; // end of schedule_sync
 
 
 
 
 
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  background_sync(typename sync_members::record& record) {
-    const size_t MIN_SPAN(1);
-    typedef typename sync_members::record record_type;
-    // Start the sync by grabbing the lock
-    record.lock.lock();
-    // Zero the current master accumulator
-    record.sync_ptr->clear();
-    // Compute the true begin and end.  Note that if we find that
-    // the user set begin == end then we will assume the user just
-    // wants to run on all vertices in the graph.
-    vertex_id_type true_begin = 
-      std::min(graph.num_vertices(), size_t(record.begin_vid));;
-    vertex_id_type true_end = 
-      std::min(graph.num_vertices(), size_t(record.end_vid));
-    // if(true_begin == true_end) {
-    //   true_begin = 0; true_end = graph.num_vertices();
-    // } 
-    ASSERT_LT(true_begin, true_end);
-    ASSERT_LE(true_end, graph.num_vertices());
-    // Compute the span of each subtask.  The span should not be
-    // less than some minimal span.
-    const vertex_id_type span = 
-      std::max((true_end - true_begin)/opts.get_ncpus(), MIN_SPAN);
-    ASSERT_GT(span, 0);
-    // Launch threads to compute the fold on each span.
-    for(vertex_id_type vid = true_begin;
-        vid < true_end; vid += span) {
-      // Create a subtask that will be passed to the thread
-      typedef typename sync_members::subtask subtask_type;
-      subtask_type* subtask_ptr =
-        new subtask_type(&record, record.sync_ptr->clone());
-      ASSERT_TRUE(subtask_ptr != NULL);
-      subtask_ptr->begin_vid = vid;
-      subtask_ptr->end_vid = std::min(vid + span, true_end);
-      ASSERT_LT(subtask_ptr->begin_vid, subtask_ptr->end_vid);
-      ASSERT_LE(subtask_ptr->end_vid, graph.num_vertices());
-      // Increment the active subtasks
-      record.subtasks_remaining++;
-      // Add the function to the thread pool
-      const boost::function<void (void)> run_function = 
-        boost::bind(&shared_memory_engine::run_sync_subtask, 
-                    this, subtask_ptr);
-      syncs.threads.launch(run_function);        
-    } 
-    // Release the locks to allow subtasks to commit their results.
-    record.lock.unlock();
-  }; // end of background_sync
+  // template<typename Graph, typename UpdateFunctor> 
+  // void
+  // shared_memory_engine<Graph, UpdateFunctor>::
+  // background_sync(typename sync_members::record& record) {
+  //   const size_t MIN_SPAN(1);
+  //   typedef typename sync_members::record record_type;
+  //   // Start the sync by grabbing the lock
+  //   record.lock.lock();
+  //   // Zero the current master accumulator
+  //   record.sync_ptr->clear();
+  //   // Compute the true begin and end.  Note that if we find that
+  //   // the user set begin == end then we will assume the user just
+  //   // wants to run on all vertices in the graph.
+  //   vertex_id_type true_begin = 
+  //     std::min(graph.num_vertices(), size_t(record.begin_vid));;
+  //   vertex_id_type true_end = 
+  //     std::min(graph.num_vertices(), size_t(record.end_vid));
+  //   // if(true_begin == true_end) {
+  //   //   true_begin = 0; true_end = graph.num_vertices();
+  //   // } 
+  //   ASSERT_LT(true_begin, true_end);
+  //   ASSERT_LE(true_end, graph.num_vertices());
+  //   // Compute the span of each subtask.  The span should not be
+  //   // less than some minimal span.
+  //   const vertex_id_type span = 
+  //     std::max((true_end - true_begin)/opts.get_ncpus(), MIN_SPAN);
+  //   ASSERT_GT(span, 0);
+  //   // Launch threads to compute the fold on each span.
+  //   for(vertex_id_type vid = true_begin;
+  //       vid < true_end; vid += span) {
+  //     // Create a subtask that will be passed to the thread
+  //     typedef typename sync_members::subtask subtask_type;
+  //     subtask_type* subtask_ptr =
+  //       new subtask_type(&record, record.sync_ptr->clone());
+  //     ASSERT_TRUE(subtask_ptr != NULL);
+  //     subtask_ptr->begin_vid = vid;
+  //     subtask_ptr->end_vid = std::min(vid + span, true_end);
+  //     ASSERT_LT(subtask_ptr->begin_vid, subtask_ptr->end_vid);
+  //     ASSERT_LE(subtask_ptr->end_vid, graph.num_vertices());
+  //     // Increment the active subtasks
+  //     record.subtasks_remaining++;
+  //     // Add the function to the thread pool
+  //     const boost::function<void (void)> run_function = 
+  //       boost::bind(&shared_memory_engine::run_sync_subtask, 
+  //                   this, subtask_ptr);
+  //     syncs.threads.launch(run_function);        
+  //   } 
+  //   // Release the locks to allow subtasks to commit their results.
+  //   record.lock.unlock();
+  // }; // end of background_sync
   
 
 
 
 
 
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  run_sync_subtask(typename sync_members::subtask* subtask_ptr) {
-    ASSERT_TRUE(subtask_ptr != NULL);
-    ASSERT_TRUE(subtask_ptr->record_ptr != NULL);
-    ASSERT_TRUE(subtask_ptr->sync_ptr != NULL);
-    ASSERT_LT(subtask_ptr->begin_vid, subtask_ptr->end_vid);
-    ASSERT_LE(subtask_ptr->end_vid, graph.num_vertices());
-    // Get a reference to the isync
-    isync& local_sync = *(subtask_ptr->sync_ptr);
-    // Get the master record
-    typedef typename sync_members::record record_type;
-    record_type& record = *(subtask_ptr->record_ptr);
-    // Loop over all vertices applying the sync
-    for(vertex_id_type vid = subtask_ptr->begin_vid;
-        vid < subtask_ptr->end_vid; 
-        ++vid) {
-      syncs.vlocks[vid].lock();
-      // Apply the sync operation
-      local_sync += graph.vertex_data(vid);
-      // // Release the locks if we are not using barriers
-      if(!record.use_barrier) syncs.vlocks[vid].unlock();
-    }
-    // add the accumulator to the master
-    record.lock.lock();
-    *(record.sync_ptr) += local_sync;
-    record.subtasks_remaining--;
-    const bool last_thread = record.subtasks_remaining == 0;
-    record.lock.unlock();
-    /**
-     * If this is the last thread than we must:
-     *
-     *   0) Apply the final result
-     *  
-     *   1) free the syncs.vlocks on all vertices if we are running in
-     *   barrier mode.
-     *
-     *   2) Reschedule this sync task to be run again
-     * 
-     *   3) Trigger any other syncs that may have been pending
-     *
-     */
-    if(last_thread) {
-      record.lock.lock();
-      // Step 0: 
-      record.sync_ptr->apply();
-      // Step 1:
-      if(record.use_barrier) {
-        // release all the locks
-        for(vertex_id_type vid = 0; vid < syncs.vlocks.size(); ++vid)
-          syncs.vlocks[vid].unlock();
-      }
-      // Step 2:
-      if(exec_status == execution_status::RUNNING) {
-        schedule_sync(subtask_ptr->record_ptr);
-      }
-      // Release the lock on the record
-      record.lock.unlock();
-      // Free the master lock to allow other syncs to proceed
-      syncs.lock.unlock();
-      // Step 3:
-      if(exec_status == execution_status::RUNNING) {
-        evaluate_sync_queue();
-      }
-    }
-    // free the subtask aggregator and the subtask itself
-    delete subtask_ptr;
-    subtask_ptr = NULL;
-  } // end of run_sync_subtask
+  // template<typename Graph, typename UpdateFunctor> 
+  // void
+  // shared_memory_engine<Graph, UpdateFunctor>::
+  // run_sync_subtask(typename sync_members::subtask* subtask_ptr) {
+  //   ASSERT_TRUE(subtask_ptr != NULL);
+  //   ASSERT_TRUE(subtask_ptr->record_ptr != NULL);
+  //   ASSERT_TRUE(subtask_ptr->sync_ptr != NULL);
+  //   ASSERT_LT(subtask_ptr->begin_vid, subtask_ptr->end_vid);
+  //   ASSERT_LE(subtask_ptr->end_vid, graph.num_vertices());
+  //   // Get a reference to the isync
+  //   isync& local_sync = *(subtask_ptr->sync_ptr);
+  //   // Get the master record
+  //   typedef typename sync_members::record record_type;
+  //   record_type& record = *(subtask_ptr->record_ptr);
+  //   // Loop over all vertices applying the sync
+  //   for(vertex_id_type vid = subtask_ptr->begin_vid;
+  //       vid < subtask_ptr->end_vid; 
+  //       ++vid) {
+  //     syncs.vlocks[vid].lock();
+  //     // Apply the sync operation
+  //     local_sync += graph.vertex_data(vid);
+  //     // // Release the locks if we are not using barriers
+  //     if(!record.use_barrier) syncs.vlocks[vid].unlock();
+  //   }
+  //   // add the accumulator to the master
+  //   record.lock.lock();
+  //   *(record.sync_ptr) += local_sync;
+  //   record.subtasks_remaining--;
+  //   const bool last_thread = record.subtasks_remaining == 0;
+  //   record.lock.unlock();
+  //   /**
+  //    * If this is the last thread than we must:
+  //    *
+  //    *   0) Apply the final result
+  //    *  
+  //    *   1) free the syncs.vlocks on all vertices if we are running in
+  //    *   barrier mode.
+  //    *
+  //    *   2) Reschedule this sync task to be run again
+  //    * 
+  //    *   3) Trigger any other syncs that may have been pending
+  //    *
+  //    */
+  //   if(last_thread) {
+  //     record.lock.lock();
+  //     // Step 0: 
+  //     record.sync_ptr->apply();
+  //     // Step 1:
+  //     if(record.use_barrier) {
+  //       // release all the locks
+  //       for(vertex_id_type vid = 0; vid < syncs.vlocks.size(); ++vid)
+  //         syncs.vlocks[vid].unlock();
+  //     }
+  //     // Step 2:
+  //     if(exec_status == execution_status::RUNNING) {
+  //       schedule_sync(subtask_ptr->record_ptr);
+  //     }
+  //     // Release the lock on the record
+  //     record.lock.unlock();
+  //     // Free the master lock to allow other syncs to proceed
+  //     syncs.lock.unlock();
+  //     // Step 3:
+  //     if(exec_status == execution_status::RUNNING) {
+  //       evaluate_sync_queue();
+  //     }
+  //   }
+  //   // free the subtask aggregator and the subtask itself
+  //   delete subtask_ptr;
+  //   subtask_ptr = NULL;
+  // } // end of run_sync_subtask
 
 
 

@@ -35,6 +35,7 @@
 
 //#include <boost/bind.hpp>
 
+#include <graphlab/context/iglobal_context.hpp>
 #include <graphlab/context/icontext.hpp>
 
 
@@ -48,13 +49,14 @@ namespace graphlab {
    * This defines a general scope type 
    */
   template<typename Engine>
-  class context :
+  class context : 
     public icontext<typename Engine::graph_type, 
                     typename Engine::update_functor_type> {
   public:
    
 
     typedef Engine engine_type;
+
     typedef typename engine_type::graph_type graph_type;
     typedef typename engine_type::update_functor_type update_functor_type;
     typedef typename engine_type::ischeduler_type ischeduler_type;
@@ -67,14 +69,15 @@ namespace graphlab {
     typedef typename graph_type::edge_list_type      edge_list_type;
     
   private:    
-    /** the cpuid of this context */
-    size_t cpuid;
     /** a pointer to the engine */
     engine_type* engine_ptr;
-    /** A pointer to the scheduler */
-    ischeduler_type* ischeduler_ptr;
     /** A pointer to the underlying graph datastructure */
-    graph_type* graph_ptr;
+    graph_type* graph_ptr;   
+    /** A pointer to the scheduler */
+    ischeduler_type* scheduler_ptr;
+    /** the cpuid of this context */
+    size_t cpuid;
+
     
     /** The vertex that this graph represents*/
     vertex_id_type vid;
@@ -102,20 +105,26 @@ namespace graphlab {
      * engine when creating an icontext to be passed into an update
      * function.
      */
-    context(size_t cpuid = -1,
-            engine_type* engine_ptr = NULL,
-            ischeduler_type* ischeduler_ptr = NULL,
-            graph_type* graph_ptr = NULL) :
-      cpuid(cpuid),
-      engine_ptr(engine_ptr), ischeduler_ptr(ischeduler_ptr), graph_ptr(graph_ptr), 
+    context(engine_type* engine_ptr = NULL,
+            graph_type* graph_ptr = NULL,
+            ischeduler_type* scheduler_ptr = NULL,
+            size_t cpuid = -1) :
+      engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
+      scheduler_ptr(scheduler_ptr), cpuid(cpuid),
       vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY) { }
     
 
     void init(const vertex_id_type vertex, 
-              consistency_model::model_enum consistency) {
+              consistency_model::model_enum consistency) {             
       vid = vertex;
       _consistency = consistency;
     } // end of init_vertex
+
+    size_t num_vertices() const { return graph_ptr->num_vertices(); }
+    size_t num_edges() const { return graph_ptr->num_edges(); }
+    void terminate() { engine_ptr->stop(); }
+
+   
 
     vertex_data_type& vertex_data(const vertex_id_type vid) {
       typedef typename cache_map_type::iterator iterator_type;
@@ -179,9 +188,6 @@ namespace graphlab {
 
     void commit() { }
 
-    size_t num_vertices() const { return graph_ptr->num_vertices(); }
-    size_t num_edges() const { return graph_ptr->num_edges(); }
-
     vertex_color_type color() const { return graph_ptr->get_color(vid); }
     
     vertex_id_type vertex_id() const { return vid; }
@@ -231,10 +237,11 @@ namespace graphlab {
     consistency_model::model_enum consistency() const { 
       return _consistency;
     }
+    
 
     void schedule(const vertex_id_type& vertex, 
                   const update_functor_type& update_fun) {
-      ischeduler_ptr->schedule(cpuid, vertex, update_fun);
+      scheduler_ptr->schedule(cpuid, vertex, update_fun);
     }
 
     void schedule_in_neighbors(const vertex_id_type& vertex, 
@@ -250,14 +257,11 @@ namespace graphlab {
       foreach(const edge_id_type& eid, edges) 
         schedule(graph_ptr->target(eid), update_fun);
     }
-    
-    /**
-     * Calling this function will force the engine to abort
-     * immediately
-     */
-    void terminate() {
-      engine_ptr->stop();
-    };
+
+  protected:
+    std::pair<mutex*, any*> get_any_pair(const std::string& key) {
+      return engine_ptr->get_global_pair(key);
+    } // end of get_any_pair    
 
   }; // end of context
 

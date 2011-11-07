@@ -34,7 +34,7 @@
 #include <vector>
 #include <cassert>
 
-#include <graphlab/contex/iglobal_context.hpp>
+#include <graphlab/context/iglobal_context.hpp>
 #include <graphlab/graph/graph.hpp>
 
 #include <graphlab/context/consistency_model.hpp>
@@ -118,7 +118,7 @@ namespace graphlab {
    * to read and modify the graph data.
    */
   template<typename Graph, typename UpdateFunctor>
-  class icontext : iglobal_context {
+  class icontext : public iglobal_context {
   public:
     //! The type of graph that the icontext operates on
     typedef Graph           graph_type;

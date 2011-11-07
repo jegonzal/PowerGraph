@@ -97,7 +97,7 @@ namespace graphlab {
         default_consistency = consistency_model::EDGE_CONSISTENCY;
       // Initialize all the contexts
       for(size_t i = 0; i < contexts.size(); ++i) {
-        contexts[i] = context_type(i, engine_ptr, ischeduler_ptr, graph_ptr);
+        contexts[i] = context_type(engine_ptr, graph_ptr, ischeduler_ptr, i);
       }
     } // end of context manager
 

@@ -44,23 +44,24 @@ namespace graphlab {
   class iglobal_context {
   public:
     virtual ~iglobal_context() { }
+
     virtual size_t num_vertices() const = 0;
     virtual size_t num_edges() const = 0;
     
     template<typename T>
     void set_global(const std::string& key, const T& value) {
       std::pair<graphlab::mutex*, graphlab::any*> pair = get_any_pair(key);
-      pair->first->lock();
-      pair->second->as<T>() = value;
-      pair->first->unlock();
+      pair.first->lock();
+      pair.second->as<T>() = value;
+      pair.first->unlock();
     }
 
     template<typename T>
     void get_global(const std::string& key, T& ret_value) const {
       std::pair<graphlab::mutex*, graphlab::any*> pair = get_any_pair(key);
-      pair->first->lock();
-      ret_value = pair->second->as<T>(); 
-      pair->first->unlock();
+      pair.first->lock();
+      ret_value = pair.second->as<T>(); 
+      pair.first->unlock();
     }
 
     /**

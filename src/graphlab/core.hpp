@@ -336,6 +336,26 @@ namespace graphlab {
     //   engine().report_metrics(get_reporter());
     // }
     
+
+    //! Add a global entry 
+    template< typename T >
+    void add_global(const std::string& key, const T& value) {
+      engine().add_global(key, value); 
+    }
+
+    //! Change the value of a global entry
+    template< typename T >
+    void set_global(const std::string& key, const T& value) {
+      engine().set_global(key, value);
+    }
+
+    //! Get a copy of the value of a global entry
+    template< typename T >
+    void get_global(const std::string& key, T& ret_value) {
+      engine().get_global(key, ret_value);
+    }
+
+
     /**
      * \brief Registers a sync with the engine.
      *
@@ -371,25 +391,25 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    // void set_sync(iglshared& shared,
-    //               typename types::iengine::sync_function_type sync,
-    //               iglshared::apply_function_type apply,
-    //               const any& zero,
-    //               size_t sync_interval = 0,
-    //               typename types::iengine::merge_function_type merge = NULL,
-    //               vertex_id_type rangelow = 0,
-    //               vertex_id_type rangehigh = -1) { 
-    //   engine().set_sync(shared, sync, apply, zero, 
-    //                     sync_interval, merge, rangelow, rangehigh);
-    // }
-    
+    template<typename T, typename Accum >
+    void add_sync(const std::string& key,
+                  const T& initial_value,
+                  const Accum& zero,                 
+                  size_t sync_interval,
+                  bool use_barrier = false,
+                  vertex_id_type begin_vid = 0,
+                  vertex_id_type end_vid = 
+                  std::numeric_limits<vertex_id_type>::max()) {
+      engine().add_sync(key, initial_value, zero, sync_interval,
+                        use_barrier, begin_vid, end_vid);
+    }    
 
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    void sync_now(iglshared& shared) { 
-      engine().sync_now(shared);
+    void sync_now(const std::string& key) { 
+      engine().sync_now(key);
     };
 
 

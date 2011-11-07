@@ -23,4 +23,5 @@
 
 
 #include <graphlab/update_functor/iupdate_functor.hpp>
+#include <graphlab/update_functor/iaccumulator.hpp>
 
