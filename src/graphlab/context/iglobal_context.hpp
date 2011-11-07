@@ -61,7 +61,7 @@ namespace graphlab {
     }
 
     template<typename T>
-    void get_global(const std::string& key, T& ret_value, size_t index = 0) const {
+    void get_global(const std::string& key, T& ret_value, size_t index = 0) {
       std::pair<std::vector<spinlock>*, any*> pair = get_global_pair(key);
       const std::vector<spinlock>& locks = *pair.first;
       // Get the actual value [ This could generate a dynamic cast error]

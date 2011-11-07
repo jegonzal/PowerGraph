@@ -1082,7 +1082,7 @@ namespace graphlab {
     }
     
     // construct the local (to this thread) accumulator and context
-    accumulator_type local_accum;
+    accumulator_type local_accum(zero);
     // Do map computation;
     for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) {
       if(!use_barrier) sync_vlocks[vid].lock();
