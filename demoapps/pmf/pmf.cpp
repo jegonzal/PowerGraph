@@ -27,7 +27,9 @@
 #include <cstdio>
 #include <stdlib.h>
 
-#include "graphlab.hpp"
+#include <graphlab.hpp>
+
+
 #include "pmf.h"
 #include "prob.hpp"
 #include "bptf.hpp"

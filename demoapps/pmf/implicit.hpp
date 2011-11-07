@@ -49,7 +49,7 @@ void add_implicit_edges(graph_type * g){
    bool *flag_edges = new bool[ps.N];
    for (int i=0; i< ps.M; i++){
       memset(flag_edges, 0, ps.N*sizeof(bool));
-      foreach(gl_types::edge_id oedgeid, g->out_edge_ids(i)) {
+      foreach(typename graph_type::edge_id_type oedgeid, g->out_edge_ids(i)) {
           int to = g->target(oedgeid)-ps.M;
           assert(to >= 0 && to < ps.N);
           flag_edges[to]=true;

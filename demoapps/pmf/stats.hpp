@@ -36,7 +36,7 @@ using namespace graphlab;
 
 extern const char * testtypename[];
 extern const char * countername[];
-extern std::vector<edge_id_t> * edges;
+extern std::vector<graph_type::edge_id_type> * edges;
 
 
 void print_runtime_counters(){
@@ -49,13 +49,13 @@ void print_runtime_counters(){
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
-int count_edges(gl_types::edge_list es, const graph_type *_g){
+int count_edges(graph_type::edge_list_type es, const graph_type *_g){
    return es.size();
 }
-int count_edges(gl_types_mcmc::edge_list es, const graph_type_mcmc *_g){
+int count_edges(graph_type_mcmc::edge_list_type es, const graph_type_mcmc *_g){
    return es.size();
 }
-int count_edges(gl_types_svdpp::edge_list es, const graph_type_svdpp *_g){
+int count_edges(graph_type_svdpp::edge_list_type es, const graph_type_svdpp *_g){
    return es.size();
 }
 
@@ -172,7 +172,7 @@ void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewit
 	 maxU = max(data->pvec);
       if (gr->in_edge_ids(i).size() == 0)
 	 moviewithoutedges++;
-    foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
+      foreach(typename graph_type::edge_id_type iedgeid, gr->in_edge_ids(i)) {
 	edge_data & data = (edge_data&)gr->edge_data(iedgeid);
 	numedges++;
 	avgval += data.weight;
@@ -199,7 +199,7 @@ void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_
 	 maxU = max(data->pvec);
       if (gr->in_edge_ids(i).size() == 0)
 	 moviewithoutedges++;
-    foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
+      foreach(graph_type_mult_edge::edge_id_type iedgeid, gr->in_edge_ids(i)) {
       const multiple_edges & edges = gr->edge_data(iedgeid);
          //vertex_data * pdata = &gr->vertex_data(gr->source(iedgeid)); 
       for (int j=0; j< (int)edges.medges.size(); j++){     
@@ -290,7 +290,8 @@ void predict_missing_value(const vertex_data_svdpp&data,
 			   double & sq_err, int&e, int i);
  
 template<typename graph_type, typename vertex_data>
-void calc_rmse_edge(edge_id_t iedgeid, const graph_type *_g, double & rmse, const vertex_data&data, const vertex_data&pdata, int&e, int i){
+void calc_rmse_edge(typename graph_type::edge_id_type iedgeid, const graph_type *_g, double & rmse, 
+                    const vertex_data& data, const vertex_data& pdata, int&e, int i){
 	   edge_data & edge = (edge_data&)_g->edge_data(iedgeid);
            double sq_err;
            predict_missing_value(data, pdata, edge, sq_err, e, i);
@@ -298,7 +299,7 @@ void calc_rmse_edge(edge_id_t iedgeid, const graph_type *_g, double & rmse, cons
 } 
 
 template<>
-void calc_rmse_edge<graph_type_mult_edge, vertex_data>(edge_id_t iedgeid, const graph_type_mult_edge *_g, double & rmse, const vertex_data & data, const vertex_data & pdata, int &e, int i){
+void calc_rmse_edge<graph_type_mult_edge, vertex_data>(graph_type_mult_edge::edge_id_type iedgeid, const graph_type_mult_edge *_g, double & rmse, const vertex_data & data, const vertex_data & pdata, int &e, int i){
          const multiple_edges & edges = _g->edge_data(iedgeid);
          for (int j=0; j< (int)edges.medges.size(); j++){       
            edge_data_mcmc & edge = (edge_data_mcmc&)edges.medges[j];
@@ -326,7 +327,7 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
      int e = 0;
      for (int i=ps.M; i< ps.M+ps.N; i++){
        const vertex_data & data = ps.g<graph_type>(TRAINING)->vertex_data(i);
-       foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
+       foreach(typename graph_type::edge_id_type iedgeid, _g->in_edge_ids(i)) {
          const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->source(iedgeid)); 
          calc_rmse_edge<graph_type, vertex_data>(iedgeid, _g, RMSE, data, pdata, e, i);       
      }

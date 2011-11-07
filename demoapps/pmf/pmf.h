@@ -24,8 +24,8 @@
 #define PMF_H__
 
 //#define NDEBUG
-#include "graphlab.hpp"
-#include "graphlab/core_base.hpp"
+#include <graphlab.hpp>
+
 
 
 /**
@@ -238,16 +238,10 @@ enum countervals{
  * 4) graph_type - all other algorithms
  */
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-typedef graphlab::types<graph_type> gl_types;
-
 typedef graphlab::graph<vertex_data, multiple_edges> graph_type_mult_edge;
-typedef graphlab::types<graph_type_mult_edge> gl_types_mult_edge;
-
 typedef graphlab::graph<vertex_data_svdpp, edge_data> graph_type_svdpp;
-typedef graphlab::types<graph_type_svdpp> gl_types_svdpp;
-
 typedef graphlab::graph<vertex_data, edge_data_mcmc> graph_type_mcmc;
-typedef graphlab::types<graph_type_mcmc> gl_types_mcmc;
+
 
 
 
@@ -287,7 +281,7 @@ public:
   double counter[MAX_COUNTER];
   
   vertex_data * times;
-  graphlab::core_base* glcore;
+  void* glcore;
   graph_type * gg[3];
   graph_type_mcmc * g_mcmc[3];
   graph_type_mult_edge * g_mult_edge[3];

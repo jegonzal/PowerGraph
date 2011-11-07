@@ -101,7 +101,7 @@ void verify_edges(graph_type * _g, testtype data_type){
 
   //verify edges
   for (int i=ps.M; i < ps.M+ps.N; i++){
-    foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
+    foreach(typename graph_type::edge_id_type eid, _g->in_edge_ids(i)){          
       int from = _g->source(eid);
       int to = _g->target(eid);
       assert(from < ps.M);
@@ -123,7 +123,7 @@ void verify_edges<graph_type_mult_edge,multiple_edges>(graph_type_mult_edge * _g
 
   //verify edges
   for (int i=ps.M; i < ps.M+ps.N; i++){
-    foreach(graphlab::edge_id_t eid, _g->in_edge_ids(i)){          
+    foreach(graph_type_mult_edge::edge_id_type eid, _g->in_edge_ids(i)){          
      const  multiple_edges & tedges= _g->edge_data(eid);
       int from = _g->source(eid);
       int to = _g->target(eid);
@@ -217,7 +217,7 @@ void truncate_and_scale(float & prediction){
 	
 template<typename graph_type, typename vertex_data, typename edge_data>
 void kdd_all_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, FILE * outFp, bool dosave){
-      foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
+  foreach(typename graph_type::edge_id_type iedgeid, _g.out_edge_ids(i)) {
           const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
 	  const edge_data & edge = _g.edge_data(iedgeid);
           
@@ -247,7 +247,7 @@ void kdd_all_prediction(const graph_type &g, const graph_type & _g, const vertex
 void kdd_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPreds, FILE * outFp, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
        int n = data.num_edges; //+1.0 ? //regularization
        data.weight = zeros(ac.D);
-       foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
+       foreach(graph_type_svdpp::edge_id_type oedgeid, g.out_edge_ids(i)) {
          vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
 	 data.weight += movie.weight;
        }
@@ -261,7 +261,7 @@ void kdd_predict(vertex_data & data, int i, int& lineNum, double& sumPreds, FILE
 }
 
 void kdd_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, FILE * outFp, bool dosave, const graph_type_mcmc& g, const graph_type_mcmc &_g){
-      foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
+  foreach(graph_type_mcmc::edge_id_type iedgeid, _g.out_edge_ids(i)) {
         const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
 	  edge_data_mcmc & edge = (edge_data_mcmc&)_g.edge_data(iedgeid);
           
@@ -295,7 +295,7 @@ void kdd_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, FILE 
 }
 
 void kdd_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, FILE * outFp, bool dosave, const graph_type_mult_edge&g, const graph_type_mult_edge &_g){
-      foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
+  foreach(graph_type_mult_edge::edge_id_type iedgeid, _g.out_edge_ids(i)) {
         const multiple_edges & edges = _g.edge_data(iedgeid);
         const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
         for (int j=0; j< (int)edges.medges.size(); j++){  
@@ -629,7 +629,7 @@ void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testt
      val = read_mult_edges<edge_float, graph_type, edge_data>(f,ps.M+ps.N, data_type, g, _g);
 
   if (data_type==TRAINING && ps.tensor && ps.K>1) 
-    edges = new std::vector<edge_id_t>[ps.K]();
+    edges = new std::vector<typename graph_type::edge_id_t>[ps.K]();
 
   set_num_edges(val, data_type);
   verify_edges<graph_type, edge_data>(_g, data_type);
@@ -691,7 +691,7 @@ void add_edge(int i, edgedata &ed, graph_type *g, graph_type *_g, multiple_edges
       edge_data_mcmc edge;
      
       verify_edge<edgedata,edge_data_mcmc>(ed, edge, i, type); 
-       std::pair<bool, edge_id_t> ret;
+      std::pair<bool, typename graph_type::edge_id_type> ret;
       if (flags[(int)ed.from-matlab_offset_user_movie] == true && flags[(int)ed.to-matlab_offset_user_movie] == true){
         ret = _g->find((int)ed.from-matlab_offset_user_movie, (int)ed.to-matlab_offset_user_movie);
       }
