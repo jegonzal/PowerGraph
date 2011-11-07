@@ -339,20 +339,20 @@ namespace graphlab {
 
     //! Add a global entry 
     template< typename T >
-    void add_global(const std::string& key, const T& value) {
-      engine().add_global(key, value); 
+    void add_global(const std::string& key, const T& value, size_t size = 1) {
+      engine().add_global(key, value, size); 
     }
 
     //! Change the value of a global entry
     template< typename T >
-    void set_global(const std::string& key, const T& value) {
-      engine().set_global(key, value);
+    void set_global(const std::string& key, const T& value, size_t index = 0) {
+      engine().set_global(key, value, index);
     }
 
     //! Get a copy of the value of a global entry
     template< typename T >
-    void get_global(const std::string& key, T& ret_value) {
-      engine().get_global(key, ret_value);
+    void get_global(const std::string& key, T& ret_value, size_t index = 0) {
+      engine().get_global(key, ret_value, index);
     }
 
 

@@ -259,7 +259,7 @@ namespace graphlab {
     }
 
   protected:
-    std::pair<mutex*, any*> get_any_pair(const std::string& key) {
+    std::pair<std::vector<spinlock>*, any*> get_global_pair(const std::string& key) {
       return engine_ptr->get_global_pair(key);
     } // end of get_any_pair    
 

@@ -57,6 +57,7 @@
 #include <graphlab/graph/graph.hpp>
 
 #include <graphlab/context/icontext.hpp>
+#include <graphlab/context/iglobal_context.hpp>
 #include <graphlab/context/context_manager.hpp>
 
 #include <graphlab/scheduler/ischeduler.hpp>
@@ -183,10 +184,9 @@ namespace graphlab {
 
     // Global Values ----------------------------------------------------------
     struct global_record { 
-      mutex lock; 
-      graphlab::any value;
+      std::vector<spinlock> locks;
+      graphlab::any values;
     }; // end of global_record
-
     typedef std::map<std::string, global_record> global_map_type;
     global_map_type global_records;
 
@@ -282,15 +282,15 @@ namespace graphlab {
 
     //! Add a global entry 
     template< typename T >
-    void add_global(const std::string& key, const T& value);
+    void add_global(const std::string& key, const T& value, size_t size);
 
     //! Change the value of a global entry
     template< typename T >
-    void set_global(const std::string& key, const T& value);
+    void set_global(const std::string& key, const T& value, size_t index);
 
     //! Get a copy of the value of a global entry
     template< typename T >
-    void get_global(const std::string& key, T& ret_value) const;
+    void get_global(const std::string& key, T& ret_value, size_t index) const;
 
 
     //! Apply a functor to a global entry (within a lock)
@@ -318,7 +318,7 @@ namespace graphlab {
   private:
     friend class context<shared_memory_engine>;
     //! Get the global data and lock
-    std::pair<mutex*, any*> get_global_pair(const std::string& key); 
+    std::pair<std::vector<spinlock>*, any*> get_global_pair(const std::string& key); 
 
     
     void initialize_members();
@@ -561,10 +561,12 @@ namespace graphlab {
   template<typename T>
   void
   shared_memory_engine<Graph, UpdateFunctor>::
-  add_global(const std::string& key, const T& value) {
+  add_global(const std::string& key, const T& value, size_t size = 1) {
     global_record& record = global_records[key];
     // Set the initial value (this can change the type)
-    record.value = value;
+    typedef std::vector<T> vector_type;
+    record.values = vector_type(size, value);
+    record.locks.resize(size);
   } //end of set_global
 
 
@@ -572,7 +574,7 @@ namespace graphlab {
   template<typename T>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  set_global(const std::string& key, const T& value) {
+  set_global(const std::string& key, const T& value, size_t index = 0) {
     typename global_map_type::iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
       logstream(LOG_FATAL) 
@@ -580,21 +582,23 @@ namespace graphlab {
         << std::endl;
       return;
     }
-    // Update the actual record atomically 
-    global_record& rec = iter->second;
-    rec.lock.lock();
-    // It is not legal to change the records type once it is set.
-    graphlab::any& anyref = rec.value;
-    anyref.as<T>() = value;
-    rec.lock.unlock();
-  } //end of safe_set_global
+    global_record& record = iter->second;
+    typedef std::vector<T> vector_type;
+    graphlab::any& any_ref = record.values;
+    vector_type& values = any_ref.as<vector_type>();
+    ASSERT_EQ(values.size(), record.locks.size());
+    ASSERT_LT(index, values.size());
+    record.locks[index].lock();
+    values[index] = value; 
+    record.locks[index].unlock();
+  } // end of set_global
 
 
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  get_global(const std::string& key, T& ret_value) const {
+  get_global(const std::string& key, T& ret_value, size_t index = 0) const {
     typename global_map_type::const_iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
       logstream(LOG_FATAL) 
@@ -602,12 +606,15 @@ namespace graphlab {
         << std::endl;
       return;
     }
-    // Get the global record
-    const global_record& rec = iter->second;
-    rec.lock.lock();
-    const graphlab::any& anyref = rec.value;
-    ret_value = anyref.as<T>();
-    rec.lock.unlock();
+    const global_record& record = iter->second;
+    typedef std::vector<T> vector_type;
+    const graphlab::any& any_ref = record.values;
+    const vector_type& values = any_ref.as<vector_type>();
+    ASSERT_EQ(values.size(), record.locks.size());
+    ASSERT_LT(index, values.size());
+    record.locks[index].lock();
+    ret_value = values[index];
+    record.locks[index].unlock();
   } //end of get_global
 
 
@@ -666,7 +673,7 @@ namespace graphlab {
   /////////////////////////////////////////////////////////////////////////////
 
   template<typename Graph, typename UpdateFunctor> 
-  std::pair<mutex*, any*>
+  std::pair<std::vector<spinlock>*, any*>
   shared_memory_engine<Graph, UpdateFunctor>::
   get_global_pair(const std::string& key) {
     typename global_map_type::iterator iter = global_records.find(key);
@@ -674,11 +681,11 @@ namespace graphlab {
       logstream(LOG_FATAL) 
         << "Key \"" << key << "\" is not in global map!"
         << std::endl;
-      return std::pair<mutex*, any*>(NULL, NULL);
+      return std::pair<std::vector<spinlock>*, any*>(NULL, NULL);
     }
     // Get the global record
     global_record& rec = iter->second;
-    return std::pair<mutex*, any*>(&rec.lock, &rec.value);
+    return std::make_pair(&rec.locks, &rec.values);
   }
 
 

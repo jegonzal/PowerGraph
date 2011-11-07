@@ -49,19 +49,27 @@ namespace graphlab {
     virtual size_t num_edges() const = 0;
     
     template<typename T>
-    void set_global(const std::string& key, const T& value) {
-      std::pair<graphlab::mutex*, graphlab::any*> pair = get_any_pair(key);
-      pair.first->lock();
-      pair.second->as<T>() = value;
-      pair.first->unlock();
+    void set_global(const std::string& key, const T& value, size_t index = 0) {
+      std::pair<std::vector<spinlock>*, any*> pair = get_global_pair(key);
+      std::vector<spinlock>& locks = *pair.first;
+      // Get the actual value [ This could generate a dynamic cast error]
+      std::vector<T>& values = pair.second->as< std::vector<T> > ();
+      ASSERT_EQ(locks.size(), values.size());
+      ASSERT_LT(index, values.size());
+      // Update the value
+      locks[index].lock(); values[index] = value; locks[index].unlock();
     }
 
     template<typename T>
-    void get_global(const std::string& key, T& ret_value) const {
-      std::pair<graphlab::mutex*, graphlab::any*> pair = get_any_pair(key);
-      pair.first->lock();
-      ret_value = pair.second->as<T>(); 
-      pair.first->unlock();
+    void get_global(const std::string& key, T& ret_value, size_t index = 0) const {
+      std::pair<std::vector<spinlock>*, any*> pair = get_global_pair(key);
+      const std::vector<spinlock>& locks = *pair.first;
+      // Get the actual value [ This could generate a dynamic cast error]
+      const std::vector<T>& values = pair.second->as< std::vector<T> > ();
+      ASSERT_EQ(locks.size(), values.size());
+      ASSERT_LT(index, values.size());
+      // Update the value
+      locks[index].lock(); ret_value = values[index]; locks[index].unlock();
     }
 
     /**
@@ -73,7 +81,7 @@ namespace graphlab {
 
   protected:
 
-    virtual std::pair<mutex*, any*>  get_any_pair(const std::string& key) = 0;
+    virtual std::pair<std::vector<spinlock>*, any*> get_global_pair(const std::string& key) = 0;
   }; // end of iglobal_context
 
   
