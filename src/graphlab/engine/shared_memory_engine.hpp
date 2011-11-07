@@ -584,8 +584,11 @@ namespace graphlab {
     }
     global_record& record = iter->second;
     typedef std::vector<T> vector_type;
-    graphlab::any& any_ref = record.values;
-    vector_type& values = any_ref.as<vector_type>();
+    
+    // graphlab::any& any_ref = record.values;
+    // vector_type& values = any_ref.as<vector_type>();
+    vector_type& values = record.values.template as<vector_type>();
+   
     ASSERT_EQ(values.size(), record.locks.size());
     ASSERT_LT(index, values.size());
     record.locks[index].lock();
@@ -608,8 +611,9 @@ namespace graphlab {
     }
     const global_record& record = iter->second;
     typedef std::vector<T> vector_type;
-    const graphlab::any& any_ref = record.values;
-    const vector_type& values = any_ref.as<vector_type>();
+    // const graphlab::any& any_ref = record.values;
+    // const vector_type& values = any_ref.as<vector_type>();
+    const vector_type& values = record.values.template as<vector_type>();
     ASSERT_EQ(values.size(), record.locks.size());
     ASSERT_LT(index, values.size());
     record.locks[index].lock();
