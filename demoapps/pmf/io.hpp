@@ -577,7 +577,7 @@ void verify_size(testtype data_type, int _M, int _N, int _K){
  * [time] is an integer from 1 to K (for weighted ALS this is the weight, which is float)
  * [weight] - this is the rating, which is float. Rating is assumed non-zero unless the --zero=true flas is on 
  */
-template<typename graph_type, typename gl_types, typename vertex_data, typename edge_data>
+template<typename graph_type, typename vertex_data, typename edge_data>
 void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testtype data_type) {
 
 

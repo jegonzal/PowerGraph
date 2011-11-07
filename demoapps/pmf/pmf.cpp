@@ -125,7 +125,7 @@ void vertex_data::load(graphlab::iarchive& archive) {
 template<typename core>
 void add_tasks(core & glcore){
 
-  std::vector<vertex_id_t> um;
+  std::vector<graph_type::vertex_id_type> um;
   for (int i=0; i< ps.M+ps.N; i++)
     um.push_back(i);
 
@@ -179,13 +179,13 @@ template<typename graph_type>
 void init(graph_type *g){
 
   if (ps.tensor){
-    ps.dp = GenDiffMat(ps.K)*ps.pT;
+    //ps.dp = GenDiffMat(ps.K)*ps.pT;
     if (ac.debug)
       std::cout<<ps.dp<<std::endl;
   }
   
-  if (ps.BPTF)
-     init_self_pot(); 
+  //if (ps.BPTF)
+     //init_self_pot(); 
 
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
@@ -244,7 +244,7 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
 /** 
  * ==== SETUP AND START
  */
-template<typename gl_types, typename core, typename graph_type, typename vertex_data, typename edge_data>
+template<typename core, typename graph_type, typename vertex_data, typename edge_data>
 void start(command_line_options& clopts) {
    
     core glcore;
@@ -267,7 +267,7 @@ void start(command_line_options& clopts) {
     graph_type test_graph; 
 
     ps.verify_setup();
-    ps.glcore->set_engine_options(clopts); 
+    glcore.set_engine_options(clopts); 
 
     logger(LOG_INFO, "%s starting\n",runmodesname[ps.algorithm]);
 
@@ -276,17 +276,17 @@ void start(command_line_options& clopts) {
     if (!ac.manualgraphsetup){
     if (!ac.loadgraph){
     
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>(ac.datafile.c_str(), &g, &g, TRAINING);
+    load_pmf_graph<graph_type,vertex_data,edge_data>(ac.datafile.c_str(), &g, &g, TRAINING);
     ps.set_graph(&g, TRAINING);
 
   //read the vlidation data (optional)
     printf("loading data file %s\n", (ac.datafile+"e").c_str());
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"e").c_str(),&g, &validation_graph, VALIDATION);
+    load_pmf_graph<graph_type,vertex_data,edge_data>((ac.datafile+"e").c_str(),&g, &validation_graph, VALIDATION);
     ps.set_graph(&validation_graph, VALIDATION);
 
   //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
+    load_pmf_graph<graph_type,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
     ps.set_graph(&test_graph, TEST);
 
 
@@ -466,7 +466,7 @@ int do_main(int argc, const char *argv[]){
       case LANCZOS:
       case SVD:
       case NMF:
-        start<gl_types, gl_types::core, graph_type, vertex_data, edge_data>(clopts);
+        start<graph_type::core, graph_type, vertex_data, edge_data>(clopts);
         break;
 
       default:
