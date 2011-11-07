@@ -31,22 +31,22 @@
 
 
 #include "pmf.h"
-#include "prob.hpp"
-#include "bptf.hpp"
-#include "sgd.hpp"
-#include "lanczos.hpp"
-#include "svd.hpp"
-#include "nmf.hpp"
+//#include "prob.hpp"
+//#include "bptf.hpp"
+//#include "sgd.hpp"
+//#include "lanczos.hpp"
+//#include "svd.hpp"
+//#include "nmf.hpp"
 #include "als.hpp"
-#include "tensor.hpp"
+//#include "tensor.hpp"
 #include "unittest.hpp"
 #include "io.hpp"
 #include "stats.hpp"
-#include "implicit.hpp"
-#include "lasso.hpp"
-#include "cosamp.hpp"
+//#include "implicit.hpp"
+//#include "lasso.hpp"
+//#include "cosamp.hpp"
 #include "../gabp/advanced_config.h"
-#include "svdpp.hpp"
+//#include "svdpp.hpp"
 
 
 #include <graphlab/macros_def.hpp>
@@ -148,14 +148,15 @@ void add_tasks(core & glcore){
        glcore.add_tasks(um, user_movie_nodes_update_function, 1);
        break;
 
-     case SVD_PLUS_PLUS:
+     /*case SVD_PLUS_PLUS:
        glcore.add_tasks(um, svd_plus_plus_update_function, 1);
        break;
 
      case STOCHASTIC_GRADIENT_DESCENT:
        glcore.add_tasks(um, sgd_update_function, 1);
        break;
-    
+    */
+
      case LANCZOS:
      case NMF:
      case SVD:
@@ -166,12 +167,12 @@ void add_tasks(core & glcore){
  }
 
   // add update function for time nodes (dim 3)
-  if (ps.tensor){
+  /*if (ps.tensor){
     std::vector<vertex_id_t> tv;
     for (int i=ps.M+ps.N; i< ps.M+ps.N+ps.K; i++)
       tv.push_back(i);
     glcore.add_tasks(tv, time_node_update_function, 1);
-  }
+  }*/
 }
 
 template<typename graph_type>
@@ -188,16 +189,16 @@ void init(graph_type *g){
 
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
-     init_svdpp<graph_type>(g); break;
+     //init_svdpp<graph_type>(g); break;
 
    case LANCZOS: 
-     init_lanczos(); break;
+     //init_lanczos(); break;
   
    case SVD:
-     init_svd(); break;
+     //init_svd(); break;
  
    case NMF:
-      nmf_init(); break;
+      //nmf_init(); break;
 
    case ALS_MATRIX:
    case ALS_TENSOR_MULT:
@@ -362,7 +363,7 @@ void start(command_line_options& clopts) {
  
   if (ps.BPTF){
     //sample hyper priors and noise level
-    sample_hyperpriors<graph_type>(res);
+    //sample_hyperpriors<graph_type>(res);
   }
 
   g.finalize();  
@@ -384,7 +385,7 @@ void start(command_line_options& clopts) {
          run_graphlab<core, graph_type, vertex_data>(glcore, &validation_graph);
          break;
      
-     case LANCZOS:
+     /*case LANCZOS:
         lanczos<core>(glcore); 
         break;
 
@@ -394,7 +395,7 @@ void start(command_line_options& clopts) {
 
      case NMF:
         nmf<core>(&glcore); 
-        break;
+        break;*/
   }
 
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
@@ -442,7 +443,7 @@ int do_main(int argc, const char *argv[]){
         unit_testing(ac.unittest, clopts);
  
    switch(ac.algorithm){
-      case ALS_TENSOR_MULT:
+/*      case ALS_TENSOR_MULT:
       case BPTF_TENSOR_MULT:
  	start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);
         break;
@@ -455,7 +456,7 @@ int do_main(int argc, const char *argv[]){
       case BPTF_MATRIX:
         start<gl_types_mcmc, gl_types_mcmc::core, graph_type_mcmc, vertex_data, edge_data_mcmc>(clopts);
         break;
- 
+ */
       case ALS_MATRIX:
       case ALS_SPARSE_USR_FACTOR:
       case ALS_SPARSE_USR_MOVIE_FACTORS:
