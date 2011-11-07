@@ -464,7 +464,8 @@ namespace graphlab {
   class rwlock {
   private:
     mutable pthread_rwlock_t m_rwlock;
-
+    // not copyable
+    void operator=(const rwlock& m) { }
   public:
     rwlock() {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
@@ -475,19 +476,17 @@ namespace graphlab {
       ASSERT_TRUE(!error);
     }
     
-    /** Copy constructor which does not copy. Do not use!
-        Required for compatibility with some STL implementations (LLVM).
-        which use the copy constructor for vector resize, 
-        rather than the standard constructor.    */
+    /** 
+     * \todo: Remove!  
+     *
+     * Copy constructor which does not copy. Do not use!  Required for
+     * compatibility with some STL implementations (LLVM).  which use
+     * the copy constructor for vector resize, rather than the
+     * standard constructor.  */
     rwlock(const rwlock &) {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
       ASSERT_TRUE(!error);
     }
-    
-    // not copyable
-    void operator=(const rwlock& m) { }
-
-    
     inline void readlock() const {
       pthread_rwlock_rdlock(&m_rwlock);
       //ASSERT_TRUE(!error);
@@ -529,19 +528,19 @@ namespace graphlab {
    */
   class cancellable_barrier {
   private:
-    mutex m;
-    int needed;
-    int called;
-    conditional c;
+    graphlab::mutex mutex;
+    graphlab::conditional conditional;
+    mutable int needed;
+    mutable int called;   
     
-    bool barrier_sense;
-    bool barrier_release;
+    mutable bool barrier_sense;
+    mutable bool barrier_release;
     bool alive;
-    // we need the following to protect against spurious wakeups
-  
 
     // not copyconstructible
     cancellable_barrier(const cancellable_barrier&) { }
+    // not copyable
+    void operator=(const cancellable_barrier& m) { }
 
   public:
     /// Construct a barrier which will only fall when numthreads enter
@@ -553,46 +552,36 @@ namespace graphlab {
       alive = true;
     }
     
-    // not copyable
-    void operator=(const cancellable_barrier& m) { }
-
-    
-    ~cancellable_barrier() {}
-    
     /**
      * \warning: This barrier is safely NOT reusable with this cancel
      * definition
      */
     inline void cancel() {
       alive = false;
-      c.broadcast();
+      conditional.broadcast();
     }
-    
     /// Wait on the barrier until numthreads has called wait
-    inline void wait() {
+    inline void wait() const {
       if (!alive) return;
-      m.lock();
+      mutex.lock();
       // set waiting;
       called++;
       bool listening_on = barrier_sense;
-      
       if (called == needed) {
         // if I have reached the required limit, wait up. Set waiting
         // to 0 to make sure everyone wakes up
-
         called = 0;
         barrier_release = barrier_sense;
         barrier_sense = !barrier_sense;
         // clear all waiting
-        c.broadcast();
-      }
-      else {
+        conditional.broadcast();
+      } else {
         // while no one has broadcasted, sleep
-        while(barrier_release != listening_on && alive) c.wait(m);
+        while(barrier_release != listening_on && alive) conditional.wait(mutex);
       }
-      m.unlock();
+      mutex.unlock();
     }
-  };
+  }; // end of conditional
   
 
 

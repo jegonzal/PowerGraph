@@ -621,17 +621,18 @@ namespace graphlab {
            bool use_barrier,
            vertex_id_type begin_vid,
            vertex_id_type end_vid) {
-    isync*& sync = sync_map[key];
+    isync*& sync_ptr = sync_map[key];
     // Clear the old sync and remove from scheduling queue
-    if(sync != NULL) { delete sync; sync = NULL; }
+    if(sync_ptr != NULL) { delete sync_ptr; sync_ptr = NULL; }
     sync_queue.remove(key);
-    ASSERT_TRUE(sync == NULL);
+    ASSERT_TRUE(sync_ptr == NULL);
     // Attach a new sync type
-    sync = new shared_memory_engine::sync<Accum>(zero);
-    sync->interval    = sync_interval;
-    sync->use_barrier = use_barrier;
-    sync->begin_vid   = begin_vid;
-    sync->end_vid     = end_vid;
+    typedef sync<Accum> sync_type;
+    sync_ptr = new sync_type(zero);
+    sync_ptr->interval    = sync_interval;
+    sync_ptr->use_barrier = use_barrier;
+    sync_ptr->begin_vid   = begin_vid;
+    sync_ptr->end_vid     = end_vid;
   }// end of add_sync
 
 
