@@ -63,8 +63,8 @@ void last_iter(){
         , ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,calc_obj<graph_type, vertex_data>(res),  rmse, calc_rmse_wrapper<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
   ps.iiter++;
 
-  if (ps.BPTF)
-    last_iter_bptf<graph_type, vertex_data, edge_data>(res);        
+  //if (ps.BPTF)
+  //  last_iter_bptf<graph_type, vertex_data, edge_data>(res);        
 }
 
 
@@ -202,7 +202,7 @@ void compute_least_squares(mat & Q, vec & vals, vec & weight, vec & result, bool
   {
     //COMPUTE LEAST SQUARES (BPTF)
     //according to equation A.6 or A.7 in Xiong paper.
-    assert(Q.rows() == ac.D);
+    /*assert(Q.rows() == ac.D);
     t.start();
     mat iAi_;
     bool ret =inv((isuser? A_U : A_V) + alpha *  Q*transpose(Q), iAi_);
@@ -214,7 +214,7 @@ void compute_least_squares(mat & Q, vec & vals, vec & weight, vec & result, bool
     t.start();
     result = mvnrndex(mui_, iAi_, ac.D); 
     assert(result.size() == ac.D);
-    ps.counter[BPTF_MVN_RNDEX] += t.current_time();
+    ps.counter[BPTF_MVN_RNDEX] += t.current_time();*/
   }
 
   if (toprint){
@@ -419,7 +419,7 @@ public:
  /***
  * UPDATE FUNCTION
  */
-template<>
+/*template<>
 class user_movie_nodes_update_function<graph_type_mlt_edge> : 
   public graphlab::iupdate_functor<graph_type_mlt_edge, 
                                    user_movie_nodes_update_function<graph_type_mlt_edge> > {
@@ -429,13 +429,11 @@ public:
 
   void operator()(typename base::icontext& context) {
     
-    /* GET current vertex data */
     vertex_data& vdata = context.vertex_data();
     
     int id = context.vertex_id();
     bool toprint = ac.debug && (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1)); 
     bool isuser = id < ps.M;
-    /* print statistics */
     if (toprint){
       printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
       debug_print_vec((isuser ? "V " : "U") , vdata.pvec, ac.D);
@@ -486,7 +484,7 @@ public:
           edge_data_mcmc& edge = medges.medges[j];
           //go over each rating by user
           parse_edge<edge_data_mcmc>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS ? &weight: NULL); 
-          if (toprint/* && (i==0 || i == numedges-1)*/)
+          if (toprint)
             std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
           
           double trmse;
@@ -513,7 +511,7 @@ public:
     
   } // end of operator
 }; // end of update funciton for mlt_edge
-
+*/
 
 
 

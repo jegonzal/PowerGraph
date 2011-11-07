@@ -478,7 +478,7 @@ void export_uvt_to_itpp_file<graph_type_svdpp,vertex_data_svdpp>(){
   output << Name("MovieBias");
   output << ps.svdpp_movie_bias;
   output << Name("GlobalMean");
-  output << ps.globalMean[0];
+  /*output << ps.globalMean[0];*/
   output.close();
 }
 
