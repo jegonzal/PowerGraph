@@ -38,7 +38,8 @@
 #include <graphlab.hpp>
 
 
-/// Declare Constants --------------------------------------------------------->
+/// Declare Constants
+/// --------------------------------------------------------->
 
 // Constants for the algorithm. Better way would be to
 // pass them in the shared_data to the update function, but for
@@ -46,99 +47,49 @@
 
 // The termination bound
 extern double termination_bound; // Defined in pagerank.cpp
+
 // PageRank random reset probability
 extern double random_reset_prob; // Defined in pagerank.cpp
 
-/// Define Core Data Types---------------------------------------------------->
+/// Define Core Data
+/// Types---------------------------------------------------->
 /**
  * Edge data represents the weight as well as the weight times the
  * last value of the source vertex when the target value was computed.
  */
 struct edge_data {
   float weight;
-  float old_source_value;
-  edge_data(float weight = 1) :
-    weight(weight), old_source_value(0) { } 
+  edge_data(float weight = 1) : weight(weight) { } 
 }; // End of edge data
 
-
-#ifdef DIFFABLE
-/**
- * Stores the value and the self weight
- */
-struct vertex_data : public graphlab::idiffable<vertex_data> {
-  float value;
-  float self_weight; // GraphLab does not support edges from vertex to itself, so
-  // we save weight of vertex's self-edge in the vertex data
-  vertex_data(float value = 1) : value(value), self_weight(0) { }
-  void apply_diff(const vertex_data& changed, const vertex_data& old) {
-    value += (changed.value - old.value);
-  }
-}; // End of vertex data
-#else
 /**
  * Stores the value and the self weight
  */
 struct vertex_data {
-  float value;
-  float self_weight; // GraphLab does not support edges from vertex to itself, so
-  // we save weight of vertex's self-edge in the vertex data
-  vertex_data(float value = 1) : value(value), self_weight(0) { }
+  float value, old_value, self_weight; 
+  vertex_data(float value = 1) : 
+    value(value), old_value(0), self_weight(0) { }
 }; // End of vertex data
-#endif
+
 
 std::ostream& operator<<(std::ostream& out, const edge_data& edata);
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
 
-
-
 //! The type of graph used in this program
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-
-
 //! Save the graph to tsv file
 void save_edges_as_tsv(const std::string& fname, 
                        const graph_type& graph);
-
 //! save the pagerank as a tsv file
 void save_pagerank(const std::string& fname,
                    const graph_type& graph);
 
-/**
- * Load a graph in metis format
- * line  0: 5 7
- * line  1: 1 2
- * line  2: 3
- *         ...
- * line  5: 5
- *
- */
 bool load_graph_from_metis_file(const std::string& filename,
                                 graph_type& graph);
-
 bool load_graph_from_jure_file(const std::string& filename,
                                graph_type& graph);
-
-
-/**
- * Predecleration of the graph file loading function.  Defined at
- * bottom of file for clarity.
- *
- * Load a graph file specified in the format:
- *
- *   source_id <tab> target_id <tab> weight
- *   source_id <tab> target_id <tab> weight
- *   source_id <tab> target_id <tab> weight
- *               ....
- *
- * The file should not contain repeated edges.
- */
 bool load_graph_from_tsv_file(const std::string& filename,
                               graph_type& graph);
-
-/**
- * Makes a small to graph.
- */
 void make_toy_graph(graph_type& graph);
 
 

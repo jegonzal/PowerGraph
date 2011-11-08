@@ -36,8 +36,9 @@
 #include <graphlab/macros_def.hpp>
 
 double termination_bound = 1e-5;
-double random_reset_prob = 0.15;   // PageRank random reset probability
-bool GLOBAL_FACTORIZED = false;
+double random_reset_prob = 0.15;
+bool delta_functor       = false;
+bool global_factorized   = false;
 
 
 
@@ -46,116 +47,92 @@ bool GLOBAL_FACTORIZED = false;
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
-
   typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
-  typedef base::icontext_type icontext_type;
+  typedef base::icontext_type   icontext_type;
   typedef base::edge_list_type  edge_list_type;
   typedef base::edge_id_type    edge_id_type;
   typedef base::vertex_id_type  vertex_id_type;
 private:
-  double prio;
   double accum;
 public:
 
-  pagerank_update(const double& prio = 0) : 
-    prio(prio), accum(0) { }
-
-  double priority() const { return prio; }
-
-  void operator+=(const pagerank_update& other) { 
-    prio += other.prio;
-    accum += other.accum;
-  }
-
-  bool is_factorizable() const { return GLOBAL_FACTORIZED; }
-  
+  pagerank_update(const double& prio = 0) : accum(0) { }
+  double priority() const { return std::fabs(accum); }
+  void operator+=(const pagerank_update& other) { accum += other.accum; }
+  bool is_factorizable() const { return global_factorized; }
+  bool writable_gather() { return false; }
   bool writable_scatter() { return false; }
 
-  void operator()(icontext_type& context) {
-    // Get the data associated with the vertex
-    vertex_data& vdata = context.vertex_data();
-  
-    // Sum the incoming weights; start by adding the 
-    // contribution from a self-link.
-    float sum = vdata.value * vdata.self_weight;
-    // Loop over all in edges to this vertex
-    const edge_list_type in_edges = context.in_edge_ids();
-    foreach(edge_id_type eid, in_edges) {
-      // Get the neighobr vertex value
-      const vertex_data& neighbor_vdata =
-        context.const_neighbor_vertex_data(context.source(eid));
-      const double neighbor_value = neighbor_vdata.value;    
-      // Get the edge data for the neighbor
-      edge_data& edata = context.edge_data(eid);
-      // Compute the contribution of the neighbor
-      double contribution = edata.weight * neighbor_value;    
-      // Add the contribution to the sum
-      sum += contribution;
-      // Remember this value as last read from the neighbor
-      edata.old_source_value = neighbor_value;
-    }
-
-    // compute the jumpweight
-    sum = random_reset_prob/context.num_vertices() + 
-      (1-random_reset_prob)*sum;
-    vdata.value = sum;
-   
-    // Schedule the neighbors as needed
+  void reschedule_neighbors(icontext_type& context, double old_value) {
+    const vertex_data& vdata = context.vertex_data();
     foreach(edge_id_type eid, context.out_edge_ids()) {
-      edge_data& outedgedata = context.edge_data(eid);    
-      // Compute edge-specific residual by comparing the new value of
-      // this vertex to the previous value seen by the neighbor
-      // vertex.
-      double residual =
-        outedgedata.weight *
-        std::fabs(outedgedata.old_source_value - vdata.value);
+      const edge_data& outedgedata = context.const_edge_data(eid);    
+      const double residual = 
+        outedgedata.weight * (vdata.value - old_value);
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > termination_bound) {
         context.schedule(context.target(eid), 
                          pagerank_update(residual));
       }
     }
+  } // end of reschedule neighbors
+
+  void delta_functor_update(icontext_type& context) { 
+    vertex_data& vdata = context.vertex_data();
+    const double old_value = vdata.value;
+    vdata.old_value += accum;
+    vdata.value = 
+      random_reset_prob/context.num_vertices() +
+      (1-random_reset_prob) *
+      (vdata.old_value + vdata.value*vdata.self_weight);
+    reschedule_neighbors(context, old_value);
+  } // end of delta_functor_update
+
+  void operator()(icontext_type& context) {
+    // if it is a delta function then use the delta function update
+    if(delta_functor) { delta_functor_update(context); return; }    
+    // Get the data associated with the vertex
+    vertex_data& vdata = context.vertex_data();  
+    float sum = vdata.value * vdata.self_weight;
+    const edge_list_type in_edges = context.in_edge_ids();
+    foreach(edge_id_type eid, in_edges) {
+      const vertex_data& neighbor_vdata =
+        context.const_neighbor_vertex_data(context.source(eid));
+      const double neighbor_value = neighbor_vdata.value;    
+      edge_data& edata = context.edge_data(eid);
+      double contribution = edata.weight * neighbor_value;    
+      sum += contribution;
+    }
+    sum = random_reset_prob/context.num_vertices() + 
+      (1-random_reset_prob)*sum;
+    const double old_value = vdata.value;
+    vdata.value = sum;
+    reschedule_neighbors(context, old_value);
   } // end of operator()
 
-
-
   void gather(icontext_type& context, edge_id_type in_eid) {
-    // Get the neighobr vertex value
     const vertex_data& neighbor_vdata =
       context.const_neighbor_vertex_data(context.source(in_eid));
     const double neighbor_value = neighbor_vdata.value;    
-    // Get the edge data for the neighbor
     edge_data& edata = context.edge_data(in_eid);
-    // Compute the contribution of the neighbor
     const double contribution = edata.weight * neighbor_value;    
-    // Add the contribution to the sum
     accum += contribution;
-    // Remember this value as last read from the neighbor
-    edata.old_source_value = neighbor_value;
   } // end of gather
 
   void apply(icontext_type& context) {
-    // Get the data associated with the vertex
     vertex_data& vdata = context.vertex_data();
-    // add the contribution from a self-link.
     accum += vdata.value * vdata.self_weight;
-    // add the random reset probability
     accum = random_reset_prob/context.num_vertices() + 
       (1-random_reset_prob)*accum;
+    vdata.old_value = vdata.value;
     vdata.value = accum;
   } // end of apply
 
   void scatter(icontext_type& context, edge_id_type out_eid) {
-    // Get the data associated with the vertex
     const vertex_data& vdata = context.const_vertex_data();
-    // get the data associated with the out edge
-    const edge_data& outedgedata = context.const_edge_data(out_eid);    
-    // Compute edge-specific residual by comparing the new value of this
-    // vertex to the previous value seen by the neighbor vertex.
-    double residual =
-      outedgedata.weight *
-      std::fabs(outedgedata.old_source_value - vdata.value);
-    // If the neighbor changed sufficiently add to scheduler.
+    const edge_data& edata   = context.const_edge_data(out_eid);    
+    const double residual = 
+      edata.weight*(vdata.old_value - vdata.value);
     if(residual > termination_bound) {
       context.schedule(context.target(out_eid), pagerank_update(residual));
     }
