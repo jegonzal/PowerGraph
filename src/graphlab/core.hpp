@@ -292,12 +292,20 @@ namespace graphlab {
     /**
      * \brief Add a single update function to a single vertex.
      */
-    void schedule(vertex_id_type vid,
+    void schedule(vertex_id_type vid, const update_functor_type& fun) {
+      mengine.schedule(vid, fun);
+    }
+
+    /**
+     * \brief Add an update function to a vector of vertices
+     */
+    void schedule(const std::vector<vertex_id_type>& vid,
                   const update_functor_type& fun) {
       mengine.schedule(vid, fun);
     }
 
-
+    
+    
 
     /**
      * \brief Add the given function to all vertices using the given priority
