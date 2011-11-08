@@ -32,7 +32,7 @@
 
 
 std::ostream& operator<<(std::ostream& out, const edge_data& edata) {
-  out << "(w: " << edata.weight << ", ov: " << edata.old_source_value << ")";
+  out << "(w: " << edata.weight << ")";
   return out;
 }
 
