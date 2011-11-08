@@ -125,25 +125,27 @@ public:
     timer ti;
     ti.start();
     typedef graph<char, char> graph_type;
-    typedef types< graph_type, update_functor > gl;
     typedef graph_type::vertex_id_type vertex_id_type;
     typedef graph_type::edge_id_type edge_id_type;
     size_t num_verts = 10000;
     size_t degree = 100;
     TS_TRACE("Constructing random graph");
-    gl::graph graph(num_verts);
+    graph_type graph(num_verts);
 
     // create a random graph
     for(vertex_id_type i = 0; i < num_verts; ++i) {
       std::set<vertex_id_type> neighbors;
       
       for(size_t j = 0; j < degree; ++j) {
-        vertex_id_type neighbor = vertex_id_type(graphlab::random::uniform<vertex_id_type>(0, num_verts - 1));
-        if(neighbor != i && neighbors.insert(neighbor).second) graph.add_edge(i, neighbor);
+        vertex_id_type neighbor = 
+          vertex_id_type(graphlab::random::uniform<vertex_id_type>(0, num_verts - 1));
+        if(neighbor != i && 
+           neighbors.insert(neighbor).second) graph.add_edge(i, neighbor);
       }
     }
     graph.finalize();
-    std::cerr << num_verts << " * " << degree << " edges created in " << ti.current_time() << " s" << std::endl;
+    std::cerr << num_verts << " * " << degree 
+              << " edges created in " << ti.current_time() << " s" << std::endl;
     TS_TRACE("Testing Coloring");
     graph.compute_coloring();
     
@@ -159,18 +161,21 @@ public:
                                
   void test_partition() {
     typedef graph<char, char> graph_type;
-    typedef graph_type::vertex_id_type vertex_id_type;
-    typedef types< graph_type, update_functor > gl;
+    typedef graph_type::vertex_id_type vertex_id_type;   
     // make a 100x100 grid
     size_t dim = 100;
-    gl::graph g(dim * dim);
+    graph_type g(dim * dim);
     
     for (size_t i = 0;i < dim; ++i) {
       for (size_t j = 0;j < dim - 1; ++j) {
-        g.add_edge((vertex_id_type)(dim * i + j), (vertex_id_type)(dim * i + j + 1), char(1));
-        g.add_edge((vertex_id_type)(dim * i + j + 1), (vertex_id_type)(dim * i + j), char(1));
-        g.add_edge((vertex_id_type)(dim * j + i), (vertex_id_type)(dim * (j + 1) + i), char(1));
-        g.add_edge((vertex_id_type)(dim * (j + 1) + i), (vertex_id_type)(dim * j + i), char(1));
+        g.add_edge(vertex_id_type(dim * i + j), 
+                   vertex_id_type(dim * i + j + 1), char(1));
+        g.add_edge(vertex_id_type(dim * i + j + 1), 
+                   vertex_id_type(dim * i + j), char(1));
+        g.add_edge(vertex_id_type(dim * j + i), 
+                   vertex_id_type(dim * (j + 1) + i), char(1));
+        g.add_edge(vertex_id_type(dim * (j + 1) + i), 
+                   (vertex_id_type)(dim * j + i), char(1));
       }
     }
     g.finalize();    
