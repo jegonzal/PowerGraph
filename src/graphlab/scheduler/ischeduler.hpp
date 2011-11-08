@@ -95,6 +95,7 @@ namespace graphlab {
     virtual void schedule(const size_t cpuid,
                           const vertex_id_type vid, 
                           const update_functor_type& fun) = 0;
+
     
     
     /** 

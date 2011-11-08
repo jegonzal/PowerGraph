@@ -257,6 +257,11 @@ namespace graphlab {
     void schedule(vertex_id_type vid,
                   const update_functor_type& update_functor);
 
+    //! \brief Adds an update task with a particular priority.
+    void schedule(const std::vector<vertex_id_type>& vid,
+                  const update_functor_type& update_functor);
+
+
  
     //! \brief Apply update function to all the vertices in the graph
     void schedule_all(const update_functor_type& update_functor);
@@ -407,6 +412,19 @@ namespace graphlab {
     ASSERT_TRUE(scheduler_ptr != NULL);
     const size_t cpuid = random::fast_uniform<size_t>(0, threads.size() - 1);
     scheduler_ptr->schedule(cpuid, vid, update_functor);
+  } // end of schedule
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  schedule(const std::vector<vertex_id_type>& vids,
+           const update_functor_type& update_functor) { 
+    initialize_members();
+    ASSERT_TRUE(scheduler_ptr != NULL);
+    foreach(const vertex_id_type& vid, vids) {
+      const size_t cpuid = random::fast_uniform<size_t>(0, threads.size() - 1);
+      scheduler_ptr->schedule(cpuid, vid, update_functor);
+    }
   } // end of schedule
 
  
