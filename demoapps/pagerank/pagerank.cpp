@@ -54,11 +54,11 @@ public:
   void operator+=(const pagerank_update& other) { 
     prio = std::max(prio, other.prio);
   }
-  void operator()(icontext_type& context) {
+  void operator()(base::icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
     // Compute weighted sum of neighbors
     float sum = vdata.value * vdata.self_weight;    
-    foreach(edge_id_type eid, context.in_edge_ids()) 
+    foreach(base::edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
         context.neighbor_vertex_data(context.source(eid)).value;
     // Add random reset probability
@@ -66,8 +66,8 @@ public:
       (1-RANDOM_RESET_PROBABILITY)*sum;
     const float old_value = vdata.value;
     vdata.value = sum;
-    foreach(edge_id_type eid, context.out_edge_ids()) {    
-      const double residual = context.edge_data(eid).weight * 
+    foreach(base::edge_id_type eid, context.out_edge_ids()) {    
+      const float residual = context.edge_data(eid).weight * 
         std::fabs(vdata.value - old_value);
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > ACCURACY) {
