@@ -88,13 +88,11 @@ public:
 
   void delta_functor_update(icontext_type& context) { 
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    const float old_value = vdata.value;
-    vdata.old_value += accum;
-    vdata.value = 
-      RANDOM_RESET_PROBABILITY/context.num_vertices() +
-      (1-RANDOM_RESET_PROBABILITY) *
-      (vdata.old_value + vdata.value*vdata.self_weight);
-    reschedule_neighbors(context, old_value);
+    vdata.old_value = vdata.value;
+    vdata.value +=
+      ((1-RANDOM_RESET_PROBABILITY)/
+       (1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight)) * accum;
+    reschedule_neighbors(context);
   } // end of delta_functor_update
 
 
@@ -103,16 +101,17 @@ public:
     if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
-    float sum = vdata.value * vdata.self_weight;    
+    float sum = 0;
     foreach(base::edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
         context.neighbor_vertex_data(context.source(eid)).value;
+    const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 
     // Add random reset probability
-    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*sum;
     vdata.old_value = vdata.value;
-    vdata.value = sum;
-    reschedule_neighbors(context, vdata.old_value);
+    vdata.value = 
+      RANDOM_RESET_PROBABILITY/(context.num_vertices()*self_term) +
+      sum * (1-RANDOM_RESET_PROBABILITY)/self_term;
+    reschedule_neighbors(context);
   } // end of operator()  
 
   // Reset the accumulator before running the gather
@@ -132,7 +131,7 @@ public:
 
   // Update the center vertex
   void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data();
+    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     accum += vdata.value * vdata.self_weight;
     accum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
       (1-RANDOM_RESET_PROBABILITY)*accum;
@@ -145,23 +144,15 @@ public:
     const vertex_data& vdata = context.const_vertex_data();
     const edge_data& edata   = context.const_edge_data(out_eid);    
     const double residual = 
-      edata.weight*(vdata.old_value - vdata.value);
+      edata.weight*(vdata.value - vdata.old_value);
     if(std::fabs(residual) > ACCURACY) {
       context.schedule(context.target(out_eid), pagerank_update(residual));
     }
   } // end of scatter
 
 private:
-  void reschedule_neighbors(icontext_type& context, double old_value) {
-    const vertex_data& vdata = context.vertex_data();
-    foreach(edge_id_type eid, context.out_edge_ids()) {
-      const edge_data& outedgedata = context.const_edge_data(eid);    
-      const float residual = outedgedata.weight * (vdata.value - old_value);
-      // If the neighbor changed sufficiently add to scheduler.
-      if(std::fabs(residual) > ACCURACY) {
-        context.schedule(context.target(eid), pagerank_update(residual));
-      }
-    }
+  void reschedule_neighbors(icontext_type& context) {
+    foreach(edge_id_type eid, context.out_edge_ids()) scatter(context, eid);
   } // end of reschedule neighbors
   
 }; // end of pagerank update functor
@@ -213,7 +204,17 @@ int main(int argc, char** argv) {
   }
 
   // Run the PageRank ---------------------------------------------------------
-  core.schedule_all(pagerank_update(0));
+  double initial_delta = 0;
+  if(UPDATE_STYLE == DELTA) {
+    std::cout << "changing initial delta" << std::endl;
+    initial_delta = RANDOM_RESET_PROBABILITY / 
+      (core.graph().num_vertices() * (1-RANDOM_RESET_PROBABILITY));
+    for(graph_type::vertex_id_type vid = 0; vid < core.graph().num_vertices();
+        ++vid) {
+      core.graph().vertex_data(vid).value = 0;
+    }
+  }
+  core.schedule_all(pagerank_update(initial_delta));
   double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;
