@@ -45,8 +45,13 @@ namespace graphlab {
 
 
 
-
-
+  
+  /**
+   * This interface should be used as the base class of all user
+   * defined update functors.
+   *
+   *  \todo: Provide detailed explanation of standard usage pattern.
+   */
   template<typename Graph, typename UpdateFunctor> 
   class iupdate_functor {    
   public:
@@ -64,6 +69,10 @@ namespace graphlab {
    
     typedef icontext<graph_type, update_functor_type> icontext_type;
 
+    /**
+     * The set of edges that are operated on during gather and scatter
+     * operations.
+     */
     enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
     
     virtual ~iupdate_functor() { }
@@ -87,45 +96,85 @@ namespace graphlab {
     /**
      * Get the priority of the update functor
      */
-    virtual double priority() const { return double(1.0); }        
+    virtual double priority() const { return double(0); }        
 
     /**
      * The main part of an update functor
      */
-    virtual void operator()(icontext_type& context) {
-      // Gather
-      if(gather_edges() == IN_EDGES || gather_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, context.in_edge_ids()) 
-          gather(context, eid);
-      }
-      if(gather_edges() == OUT_EDGES || gather_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, context.out_edge_ids()) 
-          gather(context, eid);
-      }
-      // Apply
-      apply(context);
-      // scatter
-      if(scatter_edges() == IN_EDGES || scatter_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, context.in_edge_ids()) 
-          scatter(context, eid);
-      }
-      if(scatter_edges() == OUT_EDGES || scatter_edges() == ALL_EDGES) {
-        foreach(const edge_id_type eid, context.out_edge_ids()) 
-          scatter(context, eid);
-      }
-    } // end of operator()
+    virtual void operator()(icontext_type& context) { 
+      logstream(LOG_FATAL) 
+        << "Operator() not implemented!" << std::endl;
+    } 
 
+    /**
+     * Returns true if the factorized (gather, apply, scatter) version
+     * of the update functor is to be used.
+     */
     virtual bool is_factorizable() const { return false; }
 
+    /**
+     * Returns true of the adjacent edge and vertex are modified
+     * during gather.
+     */
     virtual bool writable_gather() const { return false; }
+
+    /**
+     * Returns true of the adjacent edge and vertex are modified
+     * during the gather.
+     */
     virtual bool writable_scatter() const { return true; }
     
+    /**
+     * Returns the set of edges to gather 
+     */
     virtual edge_set gather_edges() const { return IN_EDGES; }
+
+    /**
+     * Returns the set of edges to scatter
+     */
     virtual edge_set scatter_edges() const { return OUT_EDGES; }
     
-    virtual void gather(icontext_type& context, edge_id_type eid) { };
-    virtual void apply(icontext_type& context) { };
-    virtual void scatter(icontext_type& context, edge_id_type eid) { };
+    /**
+     * Init gather is called before gathering
+     */
+    virtual void init_gather() { };
+
+    /**
+     * Gather is called on all gather_edges() and may be called in
+     * parallel.  The merge() operation is used to join update
+     * functors.
+     */
+    virtual void gather(icontext_type& context, edge_id_type eid) { 
+      logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
+    };
+
+    /**
+     * Merges update functors during the gather process.
+     */
+    virtual void merge(const update_functor_type& other) {
+      logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
+    }
+
+    /**
+     * Apply is called within the vertex consistency model on the
+     * center vertex after all gathers have completed.
+     */
+    virtual void apply(icontext_type& context) { 
+      logstream(LOG_FATAL) << "Apply not implemented!" << std::endl;
+    };
+    
+    /**
+     * Init scatter is called prior to running scatter
+     */
+    virtual void init_scatter() { }
+    
+    /**
+     * Scatter is invoked on all scatter_edges() after calling
+     * init_scatter() and may be called in parallel.
+     */
+    virtual void scatter(icontext_type& context, edge_id_type eid) { 
+      logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
+    }
   
   };  // end of iupdate_functor
  
