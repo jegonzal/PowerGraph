@@ -35,26 +35,6 @@
 
 #include <graphlab/macros_def.hpp>
 
-
-/**
- * The type of update to use for pagerank
- *  
- *  Basic updates correspond to the classic GraphLab v1 style of
- *  scoped computation
- *
- *  Delta updates use GraphLab v2 functors to send commutative
- *  associative "messages" to vertices
- *
- *  Factorized updates use GraphLab v2 factorized functors to
- *  decompose a PageRank update over the edges of a vertex.
- */
-enum update_style {BASIC, DELTA, FACTORIZED};
-update_style str2update_style(std::string str);
-std::string update_style2str(update_style style);
-
-//! Global variable determining update style
-update_style UPDATE_STYLE = BASIC;
-
 //! Global random reset probability
 double RANDOM_RESET_PROBABILITY = 0.15;
 
@@ -67,96 +47,35 @@ double ACCURACY = 1e-5;
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
   typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
-  typedef base::icontext_type   icontext_type;
-  typedef base::edge_list_type  edge_list_type;
-  typedef base::edge_id_type    edge_id_type;
-  typedef base::vertex_id_type  vertex_id_type;
-private:
-  double accum;
+  float prio;
 public:
-
-  pagerank_update(const double& prio = 0) : accum(0) { }
-  double priority() const { return std::fabs(accum); }
-  void operator+=(const pagerank_update& other) { accum += other.accum; }
-  bool is_factorizable() const { return UPDATE_STYLE == FACTORIZED; }
-  bool writable_gather() { return false; }
-  bool writable_scatter() { return false; }
-
-  void reschedule_neighbors(icontext_type& context, double old_value) {
-    const vertex_data& vdata = context.vertex_data();
-    foreach(edge_id_type eid, context.out_edge_ids()) {
-      const edge_data& outedgedata = context.const_edge_data(eid);    
-      const double residual = 
-        outedgedata.weight * (vdata.value - old_value);
+  pagerank_update(const float& prio = 0) : prio(prio) { }
+  double priority() const { return prio; }
+  void operator+=(const pagerank_update& other) { 
+    prio = std::max(prio, other.prio);
+  }
+  void operator()(icontext_type& context) {
+    vertex_data& vdata = context.vertex_data(); 
+    // Compute weighted sum of neighbors
+    float sum = vdata.value * vdata.self_weight;    
+    foreach(edge_id_type eid, context.in_edge_ids()) 
+      sum += context.edge_data(eid).weight * 
+        context.neighbor_vertex_data(context.source(eid)).value;
+    // Add random reset probability
+    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
+      (1-RANDOM_RESET_PROBABILITY)*sum;
+    const float old_value = vdata.value;
+    vdata.value = sum;
+    foreach(edge_id_type eid, context.out_edge_ids()) {    
+      const double residual = context.edge_data(eid).weight * 
+        std::fabs(vdata.value - old_value);
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > ACCURACY) {
         context.schedule(context.target(eid), 
                          pagerank_update(residual));
       }
     }
-  } // end of reschedule neighbors
-
-  void delta_functor_update(icontext_type& context) { 
-    vertex_data& vdata = context.vertex_data();
-    const double old_value = vdata.value;
-    vdata.old_value += accum;
-    vdata.value = 
-      RANDOM_RESET_PROBABILITY/context.num_vertices() +
-      (1-RANDOM_RESET_PROBABILITY) *
-      (vdata.old_value + vdata.value*vdata.self_weight);
-    reschedule_neighbors(context, old_value);
-  } // end of delta_functor_update
-
-  void operator()(icontext_type& context) {
-    // if it is a delta function then use the delta function update
-    if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }    
-    // Get the data associated with the vertex
-    vertex_data& vdata = context.vertex_data();  
-    float sum = vdata.value * vdata.self_weight;
-    const edge_list_type in_edges = context.in_edge_ids();
-    foreach(edge_id_type eid, in_edges) {
-      const vertex_data& neighbor_vdata =
-        context.const_neighbor_vertex_data(context.source(eid));
-      const double neighbor_value = neighbor_vdata.value;    
-      edge_data& edata = context.edge_data(eid);
-      double contribution = edata.weight * neighbor_value;    
-      sum += contribution;
-    }
-    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*sum;
-    const double old_value = vdata.value;
-    vdata.value = sum;
-    reschedule_neighbors(context, old_value);
-  } // end of operator()
-
-  void gather(icontext_type& context, edge_id_type in_eid) {
-    const vertex_data& neighbor_vdata =
-      context.const_neighbor_vertex_data(context.source(in_eid));
-    const double neighbor_value = neighbor_vdata.value;    
-    edge_data& edata = context.edge_data(in_eid);
-    const double contribution = edata.weight * neighbor_value;    
-    accum += contribution;
-  } // end of gather
-
-  void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data();
-    accum += vdata.value * vdata.self_weight;
-    accum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*accum;
-    vdata.old_value = vdata.value;
-    vdata.value = accum;
-  } // end of apply
-
-  void scatter(icontext_type& context, edge_id_type out_eid) {
-    const vertex_data& vdata = context.const_vertex_data();
-    const edge_data& edata   = context.const_edge_data(out_eid);    
-    const double residual = 
-      edata.weight*(vdata.old_value - vdata.value);
-    if(residual > ACCURACY) {
-      context.schedule(context.target(out_eid), pagerank_update(residual));
-    }
-  } // end of scatter
-  
+  } // end of operator()  
 }; // end of pagerank update functor
 
 
@@ -182,21 +101,14 @@ int main(int argc, char** argv) {
   clopts.attach_option("resetprob",
                        &RANDOM_RESET_PROBABILITY, RANDOM_RESET_PROBABILITY,
                        "Random reset probability");
-  clopts.attach_option("type",
-                       &update_type, update_type,
-                       "The graphlab update type {basic, delta, factorized}");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  UPDATE_STYLE = str2update_style(update_type); 
   std::cout << "Termination bound:  " << ACCURACY 
             << std::endl
             << "Reset probability:  " << RANDOM_RESET_PROBABILITY
-            << std::endl
-            << "Update style:       " << update_style2str(UPDATE_STYLE)
-            << std::endl;
-  
+            << std::endl;  
   // Setup the GraphLab execution core and load graph -------------------------
   graphlab::core<graph_type, pagerank_update> core;
   core.set_options(clopts); // attach the command line options to the core
@@ -206,7 +118,7 @@ int main(int argc, char** argv) {
   }
 
   // Run the PageRank ---------------------------------------------------------
-  core.schedule_all(pagerank_update(0));
+  core.schedule_all(pagerank_update(100));
   double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;
@@ -232,32 +144,3 @@ int main(int argc, char** argv) {
 
   return EXIT_SUCCESS;
 } // End of main
-
-
-
-
-
-
-
-update_style str2update_style(std::string str) {
-  if(str == "basic") return BASIC;  
-  else if(str == "delta") return DELTA;
-  else if(str == "factorized") return FACTORIZED;
-  else {
-    logstream(LOG_WARNING) 
-      << "Invalid update style \"" << str 
-      <<"\" reverting to basic!" << std::endl;
-    return BASIC;
-  }  
-} // end of str2update_style;
-
-
-
-std::string update_style2str(update_style style) {
-  switch(style) {
-  case BASIC: { return "basic"; }
-  case DELTA: { return "delta"; }
-  case FACTORIZED: { return "factorized"; }
-  }
-  return "";
-} // end of str2update_style;
