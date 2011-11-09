@@ -37,15 +37,7 @@
 
 
 
-/**
- * This global shared pointer is used to allow all the update
- * functions in the subthreads to access the mrf.
- */
-mrf_graph_type* shared_mrf_ptr;
-mrf_vertex_data& get_mrf_vdata(vertex_id_t vid) {
-  ASSERT_NE(shared_mrf_ptr, NULL);
-  return shared_mrf_ptr->vertex_data(vid);
-};
+
 
 
 
@@ -151,39 +143,13 @@ void run_jtsplash_sampler(mrf_graph_type& mrf_graph,
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void jtree_sample_update(jtree_gl::iscope& scope,
-                         jtree_gl::icallback& callback) {
+void jtree_update::operator()(base::icontext_type& context) {
   typedef factorized_model::factor_map_t factor_map_t;
+  ASSERT_NE(mrf_ptr, NULL);
+  mrf_graph_type& mrf = *mrf_ptr;
     
   // get the vertex data
-  jtree_vertex_data& vdata = scope.vertex_data();
+  jtree_vertex_data& vdata = context.vertex_data();
     
   // get thread local storage to reduce hit on allocator
   pgibbs_tls& tls = get_pgibbs_tls();
@@ -215,7 +181,7 @@ void jtree_sample_update(jtree_gl::iscope& scope,
       assignment_t conditional_asg;
       for(size_t i = 0; i < conditional_args.num_vars(); ++i) {
         const mrf_vertex_data& mrf_vdata = 
-          get_mrf_vdata(conditional_args.var(i).id());
+          mrf.vertex_data(conditional_args.var(i).id());
         ASSERT_EQ(mrf_vdata.tree_info.tree_id, NULL_VID);
         //        ASSERT_FALSE(mrf_vdata.tree_info.in_tree);
         conditional_asg &= 
@@ -236,8 +202,8 @@ void jtree_sample_update(jtree_gl::iscope& scope,
   // receive any unreceived messages
   size_t received_neighbors = 0;
   if(!vdata.calibrated) {
-    foreach(edge_id_t in_eid, scope.in_edge_ids()) {
-      jtree_edge_data& in_edata = scope.edge_data(in_eid);
+    foreach(edge_id_t in_eid, context.in_edge_ids()) {
+      jtree_edge_data& in_edata = context.edge_data(in_eid);
       // if the message has been calibrated but not received
       if(in_edata.calibrated && !in_edata.received) {
         // receive message and mark as calibrated
@@ -250,27 +216,27 @@ void jtree_sample_update(jtree_gl::iscope& scope,
     } // end of receive all in messages
       // if all messages have been received then set as calibrated
     vdata.calibrated = 
-      received_neighbors == scope.in_edge_ids().size();
+      received_neighbors == context.in_edge_ids().size();
   } else {
-    received_neighbors = scope.in_edge_ids().size();
+    received_neighbors = context.in_edge_ids().size();
   }
 
 
   //////////////////////////////////////////////////////////////////
   // send any unset messages 
   // if we have recieve enough in messages
-  if(received_neighbors + 1 >= scope.in_edge_ids().size()) {
+  if(received_neighbors + 1 >= context.in_edge_ids().size()) {
     factor_t& cavity(tls.cavity);
-    foreach(edge_id_t out_eid, scope.out_edge_ids()) {
-      jtree_edge_data& out_edata = scope.edge_data(out_eid);
-      edge_id_t rev_eid = scope.reverse_edge(out_eid);
+    foreach(edge_id_t out_eid, context.out_edge_ids()) {
+      jtree_edge_data& out_edata = context.edge_data(out_eid);
+      edge_id_t rev_eid = context.reverse_edge(out_eid);
       // if the out message is not calibrated try to calibrate it:
       if(!out_edata.calibrated) {
         bool ready_to_send = true;
         // check that all in messages (except the one we want to
         // send) have been recieved
-        foreach(edge_id_t in_eid, scope.in_edge_ids()) {
-          const jtree_edge_data& in_edata = scope.const_edge_data(in_eid);
+        foreach(edge_id_t in_eid, context.in_edge_ids()) {
+          const jtree_edge_data& in_edata = context.const_edge_data(in_eid);
           // if the in edge has not been received and is not from
           // the destination of the out edge then we cannot send
           if(!in_edata.received && rev_eid != in_eid) {
@@ -282,7 +248,7 @@ void jtree_sample_update(jtree_gl::iscope& scope,
           // if we are ready to send then compute message
         if(ready_to_send) {
           cavity = vdata.factor;
-          const jtree_edge_data& in_edata = scope.const_edge_data(rev_eid);
+          const jtree_edge_data& in_edata = context.const_edge_data(rev_eid);
           // construct cavity if necessary
           if(in_edata.received) {
             cavity /= in_edata.message;
@@ -294,7 +260,7 @@ void jtree_sample_update(jtree_gl::iscope& scope,
           out_edata.message.normalize();
           out_edata.calibrated = true;
           // schedule the reception of the message
-          callback.add_task(scope.target(out_eid), jtree_sample_update, 1.0);      
+          callback.add_task(context.target(out_eid), jtree_sample_update, 1.0);      
         } // end of if ready to send
       } // end of if not calibrated
     } // end of loop over outbound messages
@@ -313,16 +279,16 @@ void jtree_sample_update(jtree_gl::iscope& scope,
 
     // find the parent
     bool parent_found = false;
-    foreach(edge_id_t out_eid, scope.out_edge_ids()) {       
+    foreach(edge_id_t out_eid, context.out_edge_ids()) {       
       const jtree_vertex_data& parent_vdata = 
-        scope.const_neighbor_vertex_data(scope.target(out_eid));
+        context.const_neighbor_vertex_data(context.target(out_eid));
       if(parent_vdata.sampled) {
         ASSERT_TRUE(parent_vdata.calibrated);
         ASSERT_FALSE(parent_found);
         parent_found = true;
         to_parent_eid = out_eid;
         const jtree_edge_data& parent_edata = 
-          scope.const_edge_data(to_parent_eid);
+          context.const_edge_data(to_parent_eid);
         parent_asg = 
           parent_vdata.asg.restrict(parent_edata.variables);
         ASSERT_EQ(parent_asg.args(), parent_edata.variables);            
@@ -392,10 +358,10 @@ void jtree_sample_update(jtree_gl::iscope& scope,
     vdata.sampled = true;
 
     // Reschedule unsampled neighbors
-    foreach(edge_id_t out_eid, scope.out_edge_ids()) {
+    foreach(edge_id_t out_eid, context.out_edge_ids()) {
       if(out_eid != to_parent_eid) {
-        const vertex_id_t neighbor_vid = scope.target(out_eid);
-        ASSERT_LT(neighbor_vid, scope.num_vertices());
+        const vertex_id_t neighbor_vid = context.target(out_eid);
+        ASSERT_LT(neighbor_vid, context.num_vertices());
         callback.add_task(neighbor_vid, 
                           jtree_sample_update, 
                           1.0);

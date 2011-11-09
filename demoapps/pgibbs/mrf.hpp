@@ -49,6 +49,7 @@
 
 #include "factorized_model.hpp"
 
+
 struct mrf_vertex_data {
   //! Problem specific variables
   variable_t               variable;
@@ -56,49 +57,30 @@ struct mrf_vertex_data {
   size_t                   asg;
   //! The vector of factor_ids associated with this vertex
   std::vector<factor_id_t> factor_ids;
-
   //! Current belief estimate
   factor_t                 belief;
   //! The number of times this vertex has been sampled
   size_t                   nsamples;
   //! The number of itmes this vertex has changed its value
   size_t                   nchanges;
-
   //! Properties associated with the tree
   struct tree_info_type {
-    bool           in_tree; 
-    vertex_id_t    tree_id;
-    vertex_id_t    height;
     double         priority;
+    size_t         tree_id;
+    size_t         height;
+    bool           in_tree; 
     tree_info_type () : 
-      in_tree(false),
-      tree_id(NULL_VID),
-      height(0),
-      priority(-1) { }
+      priority(-1), tree_id(-1), height(0), in_tree(false) { }
     void save(graphlab::oarchive& arc) const {
-      arc << in_tree 
-          << tree_id
-          << height
-          << priority;
+      arc << in_tree << tree_id << height << priority;
     }
     void load(graphlab::iarchive& arc) {
-      arc >> in_tree
-          >> tree_id
-          >> height
-          >> priority;
+      arc >> in_tree >> tree_id >> height >> priority;
     }
   };
-
   //! tree info
   tree_info_type tree_info;
-  
-  
-  
-  mrf_vertex_data() :
-    asg(0),
-    nsamples(0),
-    nchanges(0) { }
-
+  mrf_vertex_data() : asg(0), nsamples(0), nchanges(0) { }
   mrf_vertex_data(const variable_t& variable,
                   const std::set<factor_id_t>& factor_ids_set) :
     variable(variable),
@@ -112,28 +94,16 @@ struct mrf_vertex_data {
     // Require that factor ids be non empty
     ASSERT_FALSE(factor_ids.empty());
   }
-
   void save(graphlab::oarchive& arc) const {
-    arc << variable
-        << asg
-        << factor_ids
-        << belief
-        << nsamples
-        << nchanges
-        << tree_info;
+    arc << variable << asg << factor_ids << belief << nsamples
+        << nchanges << tree_info;
   }
-
   void load(graphlab::iarchive& arc) {
-    arc >> variable
-        >> asg
-        >> factor_ids
-        >> belief
-        >> nsamples
-        >> nchanges
-        >> tree_info;
-  }
-  
+    arc >> variable >> asg >> factor_ids >> belief >> nsamples
+        >> nchanges >> tree_info;
+  }  
 }; // End of mrf vertex data
+
 
 /**
  * The data associated with each directed edge in the pairwise markov
@@ -145,38 +115,21 @@ struct mrf_edge_data {
   void load(graphlab::iarchive &arc) { }
 };
 
-// define the graph type:
 typedef graphlab::graph< mrf_vertex_data, mrf_edge_data> mrf_graph_type;
-
-typedef graphlab::types<mrf_graph_type> mrf_gl;
-
-
 
 /** Save the beliefs stored in the graph */
 void save_beliefs(const mrf_graph_type& mrf,
                   const std::string& filename);
 
-
-
 void save_asg(const mrf_graph_type& mrf,
               const std::string& filename);
-
-
-
-
 
 /** Construct an MRF from the factorized model */
 void mrf_from_factorized_model(const factorized_model& model,
                                mrf_graph_type& mrf);
 
-
-
-
-
 //! Compute the unormalized likelihood of the current assignment
 double unnormalized_loglikelihood(const mrf_graph_type& mrf);
-
-
 
 void draw_mrf(const size_t experiment_id,
               const std::string& base_name, 

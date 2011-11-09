@@ -36,10 +36,12 @@
  *
  **/
 bool jtree_list::
-extend(const vertex_id_t elim_vertex,
+extend(const mrf_graph_type::vertex_id_type elim_vertex,
        const mrf_graph_type& mrf,
        const size_t max_tree_width,
        const size_t max_factor_size) {
+  typedef mrf_graph_type::edge_id_type edge_id_type;
+  typedef mrf_graph_type::vertex_id_type vertex_id_type;
   // sanity check: The vertex to eliminate should not have already
   // been eliminated
   ASSERT_FALSE( contains(elim_vertex) );
@@ -54,8 +56,8 @@ extend(const vertex_id_t elim_vertex,
   size_t factor_size = 
     std::max(mrf.vertex_data(elim_vertex).variable.size(),
              uint32_t(1));
-  foreach(const edge_id_t ineid, mrf.in_edge_ids(elim_vertex)) {
-    const vertex_id_t vid = mrf.source(ineid);
+  foreach(const edge_id_type ineid, mrf.in_edge_ids(elim_vertex)) {
+    const vertex_id_type vid = mrf.source(ineid);
     const bool is_in_jtree = contains(vid);
     // if the neighbor is in the set of vertices being eliminated
     if(is_in_jtree) {      
@@ -71,8 +73,8 @@ extend(const vertex_id_t elim_vertex,
   }
 
   // Determine the parent of this clique -------------------------
-  vertex_id_t parent_id = 0;
-  foreach(vertex_id_t vid, clique.vertices)
+  vertex_id_type parent_id = 0;
+  foreach(vertex_id_type vid, clique.vertices)
     parent_id = std::max(parent_id, elim_time_lookup(vid));
   clique.parent = parent_id;
 

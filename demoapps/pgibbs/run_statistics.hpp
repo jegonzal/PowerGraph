@@ -38,10 +38,11 @@ struct run_statistics {
     min_samples(std::numeric_limits<size_t>::max()), max_samples(0) { }
   run_statistics(const mrf_graph_type& mrf) :
     nsamples(0), nchanges(0), loglik(0.0),
-    min_samples(std::numeric_limits<size_t>::max()), max_samples(0){
+    min_samples(std::numeric_limits<size_t>::max()), max_samples(0) {
+    typedef mrf_graph_type::vertex_id_type vertex_id_type;
     // Compute the unnormalized log likelihood
     loglik = unnormalized_loglikelihood(mrf);
-    for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+    for(vertex_id_type vid = 0; vid < mrf.num_vertices(); ++vid) {
       const mrf_vertex_data& vdata = mrf.vertex_data(vid);
       nsamples += vdata.nsamples;
       nchanges += vdata.nchanges;

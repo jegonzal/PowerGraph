@@ -32,9 +32,8 @@
 
 
 
-void single_gibbs_update(mrf_gl::iscope& scope, 
-                         mrf_gl::icallback& scheduler) {
-  mrf_vertex_data& vdata = scope.vertex_data();
+void gibbs_update::operator()(base::icontext_type& context) {
+  mrf_vertex_data& vdata = context.vertex_data();
   //TODO: switch to use tls
   factor_t belief(vdata.variable);
   belief.uniform();
@@ -45,7 +44,7 @@ void single_gibbs_update(mrf_gl::iscope& scope,
     assignment_t conditional_asg = factor.args() - vdata.variable;
     for(size_t i = 0; i < conditional_asg.num_vars(); ++i) {
       const mrf_vertex_data& other_vdata = 
-	scope.const_neighbor_vertex_data(conditional_asg.args().var(i).id());
+	context.const_neighbor_vertex_data(conditional_asg.args().var(i).id());
       assert(conditional_asg.args().var(i) == other_vdata.variable);
       conditional_asg.set_asg_at(i, other_vdata.asg);
     }
@@ -71,7 +70,7 @@ void single_gibbs_update(mrf_gl::iscope& scope,
 // }
 
 
-void run_chromatic_sampler(mrf_gl::core& core, 
+void run_chromatic_sampler(graphlab::core<mrf_graph_type, gibbs_update>& core,
                            const std::string& chromatic_results_fn,
                            const std::vector<double>& runtimes,
                            const bool draw_images) {
@@ -79,13 +78,11 @@ void run_chromatic_sampler(mrf_gl::core& core,
   core.set_scheduler_type("chromatic");
   core.set_scope_type("null");
 
-  size_t ncpus = core.engine().get_ncpus();
+  const size_t ncpus = core.get_options().get_ncpus();
 
-  // Disable sched yield to prevent thread sleeping at the end of a
-  // color
-  core.engine().set_sched_yield(false);
   // Use fixed update function
-  core.sched_options().add_option("update_function", single_gibbs_update);
+  gibbs_update ufun;
+  core.schedule_all( ufun );
   
   double total_runtime = 0;
   double actual_total_runtime = 0;

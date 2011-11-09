@@ -56,18 +56,11 @@ const size_t MAX_TREEWIDTH = 32;
 const size_t MAX_DIM = MAX_TREEWIDTH + 1;
 
 // Basic graphical model typedefs
-typedef graphlab::vertex_id_t           vertex_id_t;
-typedef graphlab::edge_id_t             edge_id_t;
 typedef uint32_t                        factor_id_t;
 typedef graphlab::discrete_variable     variable_t;
 typedef graphlab::table_factor<MAX_DIM> factor_t;
 typedef factor_t::domain_type           domain_t;
 typedef factor_t::assignment_type       assignment_t;
-
-
-// Represents a null VID in the tree
-const vertex_id_t NULL_VID = -1;
-const edge_id_t NULL_EID = -1;
 
 
 

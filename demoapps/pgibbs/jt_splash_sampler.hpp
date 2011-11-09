@@ -40,10 +40,11 @@
 
 // Including Standard Libraries
 
-#include <graphlab.hpp>
+
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/timer.hpp>
 
+#include <graphlab.hpp>
 
 #include "factorized_model.hpp"
 #include "mrf.hpp"
@@ -101,8 +102,14 @@ void run_jtsplash_sampler(mrf_graph_type& mrf_graph,
  * using the messages and the conditioned parents, it samples each
  * clique constructing new assignments to each variable.
  */
-void jtree_sample_update(jtree_gl::iscope& scope,
-                         jtree_gl::icallback& callback);
+class jtree_update :
+  public graphlab::iupdate_functor<jtree_graph_type, jtree_update> {
+public:  
+  typedef graphlab::iupdate_functor<jtree_graph_type, jtree_update> base;
+  jtree_update(mrf_graph_type* mrf_ptr = NULL) : mrf_ptr(mrf_ptr) { }
+  mrf_graph_type* mrf_ptr;
+  void operator()(base::icontext_type& context);
+}; // end of class jtree_update
 
 
 
@@ -126,7 +133,86 @@ struct termination_condition {
 
 
 //! Predecleration 
-class jt_worker;
+//! The jt worker executes splashes sequential within each thread.
+class jt_builder : 
+  public graphlab::iupdate_functor<mrf_graph_type, jt_builder>{
+public:
+  typedef graphlab::iupdate_functor<mrf_graph_type, jt_builder> base;
+
+  struct splash_state {
+    size_t worker_id;
+    splash_settings settings;
+    // Tree building data structures 
+    size_t root_index;
+    const std::vector<vertex_id_t>* root_perm_ptr;
+    vertex_id_t current_root;
+    //! track termination
+    termination_condition* terminator_ptr;
+    mrf_graph_type* graph_ptr;
+    //! Track the collisions with the roots
+    size_t ncollisions;
+    //! Local junction tree graphlab core
+    jtree_gl::core jt_core;
+    /**
+     * Local jt list used to build on the structure of the
+     * jt_core.graph()
+     */
+    jtree_list jt_list;
+    /**
+     * Local data structures to reduce thread contention
+     */
+    std::deque<vertex_id_t> bfs_queue;
+    graphlab::mutable_queue<size_t, double> priority_queue;
+    boost::unordered_set<vertex_id_t> visited;
+    factor_t clique_factor;
+    factor_t product_of_marginals_factor;
+    factor_t conditional_factor;
+    factor_t marginal_factor;
+  };
+
+  std::set<splash_state*> state_set;
+  jt_worker(splash_state* state_ptr = NULL);
+  void operator+=(const jt_builder& other);
+
+
+
+
+
+
+  //! The main loop
+  void run();
+  
+private:
+  //! Construct a single splash
+  size_t splash_once();
+  //! advance the root
+  void advance_root();
+  /**
+   * Grab this vertex into the tree owned by worker id
+   */
+  bool is_vertex_available(vertex_id_t vid);
+  /**
+   * Grab this vertex into the tree owned by worker id
+   */
+  bool try_grab_vertex(iscope_type& scope);
+  /**
+   * Release the vertex
+   */
+  void release_vertex(iscope_type& scope);
+
+
+  double score_vertex(vertex_id_t vid);
+  double score_vertex_l1_diff(vertex_id_t vid);
+  double score_vertex_log_odds(vertex_id_t vid);
+  double score_vertex_lik(vertex_id_t vid);
+
+  void grow_bfs_jtree();
+  void grow_prioritized_jtree();
+};  // End of JT worker
+
+
+
+
 
 /**
  * The jt_splash_sampler implements the junction tree based Gibbs
@@ -189,91 +275,6 @@ private:
 
 
 
-//! The jt worker executes splashes sequential within each thread.
-class jt_worker {
-public:
-  //! The scope factory type
-  typedef jt_splash_sampler::scope_factory_type 
-  scope_factory_type;
-  typedef scope_factory_type::iscope_type iscope_type;
-  
-public:
-  size_t worker_id;
-  splash_settings settings;
-  scope_factory_type* scope_factory_ptr;
-  // Tree building data structures 
-  size_t root_index;
-  const std::vector<vertex_id_t>* root_perm_ptr;
-  vertex_id_t current_root;
-  //! track termination
-  termination_condition* terminator_ptr;
-  //! Track the collisions with the roots
-  size_t ncollisions;
-  //! Local junction tree graphlab core
-  jtree_gl::core jt_core;
-
-  /**
-   * Local jt list used to build on the structure of the
-   * jt_core.graph()
-   */
-  jtree_list jt_list;
-
-
-  jt_worker(size_t worker_id, 
-            const splash_settings& spsettings,
-            scope_factory_type& sf, 
-            const std::vector<vertex_id_t>& root_perm,
-            termination_condition& terminator);
-private:
-  //! jt_worker is not copyable
-  jt_worker(const jt_worker& other);
-  //! jt_worker is not copyable
-  jt_worker& operator=(const jt_worker& other);
-public:
-
-  //! The main loop
-  void run();
-  
-private:
-  //! Construct a single splash
-  size_t splash_once();
-  //! advance the root
-  void advance_root();
-  /**
-   * Grab this vertex into the tree owned by worker id
-   */
-  bool is_vertex_available(vertex_id_t vid);
-  /**
-   * Grab this vertex into the tree owned by worker id
-   */
-  bool try_grab_vertex(iscope_type& scope);
-  /**
-   * Release the vertex
-   */
-  void release_vertex(iscope_type& scope);
-  /**
-   * This function computes the value of adding the vertex to the tree
-   *
-   */
-  factor_t clique_factor;
-  factor_t product_of_marginals_factor;
-  factor_t conditional_factor;
-  factor_t marginal_factor;
-
-  double score_vertex(vertex_id_t vid);
-  double score_vertex_l1_diff(vertex_id_t vid);
-  double score_vertex_log_odds(vertex_id_t vid);
-  double score_vertex_lik(vertex_id_t vid);
-
-  /**
-   * Local data structures to reduce thread contention
-   */
-  std::deque<vertex_id_t> bfs_queue;
-  graphlab::mutable_queue<size_t, double> priority_queue;
-  boost::unordered_set<vertex_id_t> visited;
-  void grow_bfs_jtree();
-  void grow_prioritized_jtree();
-};  // End of JT worker
 
 
 

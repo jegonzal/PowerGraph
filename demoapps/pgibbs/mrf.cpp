@@ -85,6 +85,8 @@ void save_asg(const mrf_graph_type& mrf,
 /** Construct an MRF from the factorized model */
 void mrf_from_factorized_model(const factorized_model& model,
                                mrf_graph_type& mrf) {
+  typedef mrf_graph_type::vertex_id_type vertex_id_type;
+  typedef mrf_graph_type::edge_id_type   edge_id_type;
   ///======================================================================
   // Add all the variables
   factor_t conditional, belief;
@@ -112,7 +114,7 @@ void mrf_from_factorized_model(const factorized_model& model,
     //   double& logP = vdata.belief.logP(vdata.asg);
     //   logP = log(exp(logP) + 1.0);
     // }
-    const vertex_id_t vid = mrf.add_vertex(vdata);
+    const vertex_id_type vid = mrf.add_vertex(vdata);
     // We require variable ids to match vertex id (this simplifies a
     // lot of stuff).
     ASSERT_EQ(vid, variable.id());
@@ -122,7 +124,7 @@ void mrf_from_factorized_model(const factorized_model& model,
   ///======================================================================
   // Add all the edges
   const factorized_model::factor_map_t& factors(model.factors());
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+  for(vertex_id_type vid = 0; vid < mrf.num_vertices(); ++vid) {
     const mrf_vertex_data& vdata = mrf.vertex_data(vid);
     // Compute all the neighbors of this vertex by looping over all
     // the variables in all the factors that contain this vertex
@@ -138,7 +140,7 @@ void mrf_from_factorized_model(const factorized_model& model,
     // For each of those variables add an edge from this varaible to
     // that variable
     foreach(const variable_t neighbor_variable, neighbors) {
-      const vertex_id_t neighbor_vid = neighbor_variable.id();
+      const vertex_id_type neighbor_vid = neighbor_variable.id();
       mrf_edge_data edata;
       mrf.add_edge(vid, neighbor_vid, edata);      
     }
@@ -160,6 +162,7 @@ void mrf_from_factorized_model(const factorized_model& model,
 
 //! Compute the unormalized likelihood of the current assignment
 double unnormalized_loglikelihood(const mrf_graph_type& mrf) {
+  typedef mrf_graph_type::vertex_id_type vertex_id_type;
   double sum = 0;
   //  size_t num_factors = SHARED_FACTORS.get().size();
   size_t num_factors = SHARED_FACTORS_PTR->size();
@@ -171,7 +174,7 @@ double unnormalized_loglikelihood(const mrf_graph_type& mrf) {
     domain_t dom = factor.args();
     assignment_t asg;
     for(size_t i = 0; i < dom.num_vars(); ++i) {
-      const vertex_id_t vid = dom.var(i).id();
+      const vertex_id_type vid = dom.var(i).id();
       const mrf_vertex_data& vdata = mrf.vertex_data(vid);
       ASSERT_EQ(vdata.variable, dom.var(i));
       asg &= assignment_t(vdata.variable, vdata.asg);
@@ -196,12 +199,13 @@ double unnormalized_loglikelihood(const mrf_graph_type& mrf) {
 void draw_mrf(const size_t experiment_id,
               const std::string& base_name, 
               const mrf_graph_type& mrf) {
+  typedef mrf_graph_type::vertex_id_type vertex_id_type;
   size_t rows = std::sqrt(mrf.num_vertices());
   std::cout << "Rows: " << rows << std::endl;
   image img(rows, rows);
   std::vector<double> values(1);
   factor_t belief;
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {
+  for(vertex_id_type vid = 0; vid < mrf.num_vertices(); ++vid) {
     const mrf_vertex_data& vdata = mrf.vertex_data(vid);
     belief = vdata.belief;
     belief.normalize();
@@ -212,17 +216,17 @@ void draw_mrf(const size_t experiment_id,
   img.pixel(1) = mrf.vertex_data(0).variable.size()-1;
   img.save(make_filename(base_name + "_pred_", ".pgm", experiment_id).c_str());
   
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+  for(vertex_id_type vid = 0; vid < mrf.num_vertices(); ++vid) {   
     img.pixel(vid) = mrf.vertex_data(vid).nsamples;
   }
   img.save(make_filename(base_name + "_updates_", ".pgm", experiment_id).c_str());
   
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+  for(vertex_id_type vid = 0; vid < mrf.num_vertices(); ++vid) {   
     img.pixel(vid) = mrf.vertex_data(vid).nsamples == 0;
   }
   img.save(make_filename(base_name + "_unsampled_", ".pgm", experiment_id).c_str());
   
-  for(vertex_id_t vid = 0; vid < mrf.num_vertices(); ++vid) {   
+  for(vertex_id_type vid = 0; vid < mrf.num_vertices(); ++vid) {   
     img.pixel(vid) = mrf.vertex_data(vid).asg;
   }
   img.pixel(0) = 0;
