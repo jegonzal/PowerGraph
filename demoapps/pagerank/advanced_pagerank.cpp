@@ -74,7 +74,6 @@ class pagerank_update :
 private:
   float accum;
 public:
-
   pagerank_update(const float& accum = 0) : accum(accum) { }
   double priority() const { return std::fabs(accum); }
   void operator+=(const pagerank_update& other) { accum += other.accum; }
@@ -88,7 +87,7 @@ public:
   bool writable_scatter() { return false; }
 
   void delta_functor_update(icontext_type& context) { 
-    vertex_data& vdata = context.vertex_data();
+    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     const float old_value = vdata.value;
     vdata.old_value += accum;
     vdata.value = 
@@ -102,7 +101,7 @@ public:
   void operator()(base::icontext_type& context) {
     // if it is a delta function then use the delta function update
     if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
-    vertex_data& vdata = context.vertex_data(); 
+    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     float sum = vdata.value * vdata.self_weight;    
     foreach(base::edge_id_type eid, context.in_edge_ids()) 
@@ -147,7 +146,7 @@ public:
     const edge_data& edata   = context.const_edge_data(out_eid);    
     const double residual = 
       edata.weight*(vdata.old_value - vdata.value);
-    if(residual > ACCURACY) {
+    if(std::fabs(residual) > ACCURACY) {
       context.schedule(context.target(out_eid), pagerank_update(residual));
     }
   } // end of scatter
@@ -157,12 +156,10 @@ private:
     const vertex_data& vdata = context.vertex_data();
     foreach(edge_id_type eid, context.out_edge_ids()) {
       const edge_data& outedgedata = context.const_edge_data(eid);    
-      const float residual = 
-        outedgedata.weight * (vdata.value - old_value);
+      const float residual = outedgedata.weight * (vdata.value - old_value);
       // If the neighbor changed sufficiently add to scheduler.
-      if(residual > ACCURACY) {
-        context.schedule(context.target(eid), 
-                         pagerank_update(residual));
+      if(std::fabs(residual) > ACCURACY) {
+        context.schedule(context.target(eid), pagerank_update(residual));
       }
     }
   } // end of reschedule neighbors
@@ -230,10 +227,11 @@ int main(int argc, char** argv) {
   std::vector<graph_type::vertex_id_type> top_pages;
   get_top_pages(core.graph(), 5, top_pages);
   for(size_t i = 0; i < top_pages.size(); ++i) {
-    std::cout << top_pages[i] << ":\t"
-              << core.graph().vertex_data(top_pages[i]).value 
-              << std::endl;              
+    std::cout << std::setw(10) << top_pages[i] << ":" << std::setw(10) 
+              << core.graph().vertex_data(top_pages[i]).value << std::setw(10) 
+              << core.graph().vertex_data(top_pages[i]).nupdates << std::endl;
   }
+
 
   // Write the pagerank vector
   std::cout << "Saving pagerank vector." << std::endl;

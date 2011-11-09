@@ -44,9 +44,10 @@
  * Stores the value and the self weight
  */
 struct vertex_data {
+  uint32_t nupdates;
   float value, old_value, self_weight; 
   vertex_data(float value = 1) : 
-    value(value), old_value(0), self_weight(0) { }
+    nupdates(0), value(value), old_value(0), self_weight(0) { }
 }; // End of vertex data
 //! Print the vertex data
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);

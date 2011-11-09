@@ -29,6 +29,8 @@
  *  http://en.wikipedia.org/wiki/Pagerank
  */
 
+#include <iomanip>
+
 #include "pagerank.hpp"
 
 
@@ -53,7 +55,7 @@ public:
   double priority() const { return prio; }
   void operator+=(const pagerank_update& other) { prio += other.prio; }
   void operator()(base::icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); 
+    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     float sum = vdata.value * vdata.self_weight;    
     foreach(base::edge_id_type eid, context.in_edge_ids()) 
@@ -68,10 +70,8 @@ public:
       const float residual = context.edge_data(eid).weight * 
         std::fabs(vdata.value - vdata.old_value);
       // If the neighbor changed sufficiently add to scheduler.
-      if(residual > ACCURACY) {
-        context.schedule(context.target(eid), 
-                         pagerank_update(residual));
-      }
+      if(residual > ACCURACY) 
+        context.schedule(context.target(eid), pagerank_update(residual));      
     }
   } // end of operator()  
 }; // end of pagerank update functor
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
   }
 
   // Run the PageRank ---------------------------------------------------------
-  core.schedule_all(pagerank_update(100));
+  core.schedule_all(pagerank_update(0));
   double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;
@@ -130,9 +130,9 @@ int main(int argc, char** argv) {
   std::vector<graph_type::vertex_id_type> top_pages;
   get_top_pages(core.graph(), 5, top_pages);
   for(size_t i = 0; i < top_pages.size(); ++i) {
-    std::cout << top_pages[i] << ":\t"
-              << core.graph().vertex_data(top_pages[i]).value 
-              << std::endl;              
+    std::cout << std::setw(10) << top_pages[i] << ":" << std::setw(10) 
+              << core.graph().vertex_data(top_pages[i]).value << std::setw(10) 
+              << core.graph().vertex_data(top_pages[i]).nupdates << std::endl;
   }
 
   // Write the pagerank vector
