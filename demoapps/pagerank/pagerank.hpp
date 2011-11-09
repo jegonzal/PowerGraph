@@ -38,29 +38,7 @@
 #include <graphlab.hpp>
 
 
-/// Declare Constants
-/// --------------------------------------------------------->
-
-// Constants for the algorithm. Better way would be to
-// pass them in the shared_data to the update function, but for
-// the simplicity of this example, we simply define them here.
-
-// The termination bound
-extern double termination_bound; // Defined in pagerank.cpp
-
-// PageRank random reset probability
-extern double random_reset_prob; // Defined in pagerank.cpp
-
-/// Define Core Data
-/// Types---------------------------------------------------->
-/**
- * Edge data represents the weight as well as the weight times the
- * last value of the source vertex when the target value was computed.
- */
-struct edge_data {
-  float weight;
-  edge_data(float weight = 1) : weight(weight) { } 
-}; // End of edge data
+/// Types------------------------------------------------------------------>
 
 /**
  * Stores the value and the self weight
@@ -70,26 +48,59 @@ struct vertex_data {
   vertex_data(float value = 1) : 
     value(value), old_value(0), self_weight(0) { }
 }; // End of vertex data
-
-
-std::ostream& operator<<(std::ostream& out, const edge_data& edata);
+//! Print the vertex data
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
+
+
+/**
+ * Edge data represents the weight as well as the weight times the
+ * last value of the source vertex when the target value was computed.
+ */
+struct edge_data {
+  float weight;
+  edge_data(float weight = 1) : weight(weight) { } 
+}; // End of edge data
+//! Print the edge data
+std::ostream& operator<<(std::ostream& out, const edge_data& edata);
+
 
 //! The type of graph used in this program
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
+
+
+
+/// Utility routines defined in utility.cpp ------------------------------->
+
 //! Save the graph to tsv file
-void save_edges_as_tsv(const std::string& fname, 
-                       const graph_type& graph);
-//! save the pagerank as a tsv file
+void save_graph_as_edge_list(const std::string& fname, 
+                             const graph_type& graph);
+
+//! save the pagerank vector as a tsv file
 void save_pagerank(const std::string& fname,
                    const graph_type& graph);
 
+//! Return the ids of the top k pages
+void get_top_pages(const graph_type& graph, size_t num_pages,
+                   std::vector<graph_type::vertex_id_type>& ret);
+
+
+
+//! Load the graph from a file with a given format
+bool load_graph(const std::string& filename,
+                const std::string& format,
+                graph_type& graph);
+
+
+//! Load the graph from a metis (adjacency format file)
 bool load_graph_from_metis_file(const std::string& filename,
                                 graph_type& graph);
+//! Load the graph in Jure Leskovec's file format
 bool load_graph_from_jure_file(const std::string& filename,
                                graph_type& graph);
+//! Load the graph from a tab separated file
 bool load_graph_from_tsv_file(const std::string& filename,
                               graph_type& graph);
+//! Make a toy graph to quickly test pagerank
 void make_toy_graph(graph_type& graph);
 
 

@@ -2,7 +2,6 @@ project(GraphLab)
 
 
 
-add_graphlab_executable(pagerank pagerank.cpp graph_loader.cpp)
+add_graphlab_executable(pagerank pagerank.cpp utility.cpp)
 
-add_graphlab_executable(diffable_pagerank pagerank.cpp graph_loader.cpp)
-set_target_properties(diffable_pagerank PROPERTIES COMPILE_FLAGS -DDIFFABLE)
+

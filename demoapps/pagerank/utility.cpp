@@ -30,17 +30,32 @@
 
 
 
-
 std::ostream& operator<<(std::ostream& out, const edge_data& edata) {
-  out << "(w: " << edata.weight << ")";
+  out << "E(w: " << edata.weight << ")";
   return out;
 }
-
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
-  out << "(v: " << vdata.value << ", w: " << vdata.self_weight << ")";
+  out << "V(v: " << vdata.value << ", w: " << vdata.self_weight << ")";
   return out;
 }
+
+void save_graph_as_edge_list(const std::string& fname,
+                             const graph_type& graph) {
+  std::ofstream fout; 
+  fout.open(fname.c_str()); 
+  fout << std::setprecision(10);
+  for(graph_type::vertex_id_type vid = 0; 
+      vid < graph.num_vertices(); ++vid) {
+    fout << vid << '\t' << vid << '\t' 
+         << graph.vertex_data(vid).self_weight << "\n";
+    foreach(graph_type::edge_id_type eid, graph.out_edge_ids(vid)) {
+      fout << vid << '\t' << graph.target(eid) << '\t' 
+           << graph.edge_data(eid).weight << "\n";
+    }
+  }
+  fout.close();
+} // end of save graph as edge list
 
 
 
@@ -56,22 +71,56 @@ void save_pagerank(const std::string& fname,
   fout.close();
 } // end of save_pagerank
 
-void save_edges_as_tsv(const std::string& fname,
-                       const graph_type& graph) {
-  std::ofstream fout; 
-  fout.open(fname.c_str()); 
-  fout << std::setprecision(10);
-  for(graph_type::vertex_id_type vid = 0; 
-      vid < graph.num_vertices(); ++vid) {
-    fout << vid << '\t' << vid << '\t' 
-         << graph.vertex_data(vid).self_weight << "\n";
-    foreach(graph_type::edge_id_type eid, graph.out_edge_ids(vid)) {
-      fout << vid << '\t' << graph.target(eid) << '\t' 
-           << graph.edge_data(eid).weight << "\n";
-    }
+
+void get_top_pages(const graph_type& graph, size_t num_pages,
+                   std::vector<graph_type::vertex_id_type>& ret) {
+  typedef std::pair<float, graph_type::vertex_id_type> pair_type;
+  std::priority_queue<pair_type> top;
+  for(graph_type::vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
+    const graph_type::vertex_data_type& vdata = graph.vertex_data(vid);
+    top.push(std::make_pair(-vdata.value, vid));
+    if(top.size() > num_pages) top.pop();
   }
-  fout.close();
-} // end of write graph as tsv
+  if(top.empty()) return;
+  ret.resize(top.size());
+  for(size_t i = top.size()-1; i < top.size(); --i) {
+    ret[i] = top.top().second;
+    top.pop();
+  }
+} // end of top pages
+
+
+
+
+bool load_graph(const std::string& filename,
+                const std::string& format,
+                graph_type& graph) {
+  if(filename.empty()) { 
+    std::cout << "No graph file was provided so we will make a toy graph." 
+              << std::endl;
+    make_toy_graph(graph);
+    return true;
+  } else {
+    // load the graph from the file
+    bool success = false;
+    std::cout << "Loading: " << filename << std::endl;
+    if(format == "metis") {
+      std::cout << "\t using format: " << format << std::endl;
+      success = load_graph_from_metis_file(filename, graph);
+    } else if(format == "jure") {
+      std::cout << "\t using format: " << format << std::endl;
+      success = load_graph_from_jure_file(filename, graph);
+    } else if(format == "tsv") {
+      std::cout << "\t using format: " << format << std::endl;
+      success = load_graph_from_tsv_file(filename, graph);
+    } else {
+      logstream(LOG_WARNING) 
+        << "Unsupported format \"" << format << "\"!" << std::endl;
+    }
+    return success;
+  }
+} // end of generic load graph
+
 
 
 
