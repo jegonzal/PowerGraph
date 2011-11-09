@@ -351,6 +351,12 @@ namespace graphlab {
       engine().add_global(key, value, size); 
     }
 
+    //! Add a global entry 
+    template< typename T >
+    void add_global_const(const std::string& key, const T& value, size_t size = 1) {
+      engine().add_global_const(key, value, size); 
+    }
+
     //! Change the value of a global entry
     template< typename T >
     void set_global(const std::string& key, const T& value, size_t index = 0) {

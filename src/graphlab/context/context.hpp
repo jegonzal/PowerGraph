@@ -122,6 +122,7 @@ namespace graphlab {
 
     size_t num_vertices() const { return graph_ptr->num_vertices(); }
     size_t num_edges() const { return graph_ptr->num_edges(); }
+    size_t num_updates() const { return engine_ptr->last_update_count(); } 
     void terminate() { engine_ptr->stop(); }
 
    
@@ -259,9 +260,16 @@ namespace graphlab {
     }
 
   protected:
-    std::pair<std::vector<spinlock>*, any*> get_global_pair(const std::string& key) {
-      return engine_ptr->get_global_pair(key);
+    void get_global(const std::string& key, 
+                    bool& ret_is_const,
+                    std::vector<spinlock>*& ret_locks_ptr,
+                    graphlab::any*& ret_values_ptr) {
+      return engine_ptr->get_global(key, 
+                                    ret_is_const,
+                                    ret_locks_ptr,
+                                    ret_values_ptr);
     } // end of get_any_pair    
+
 
   }; // end of context
 

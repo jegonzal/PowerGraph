@@ -102,7 +102,8 @@ namespace graphlab {
     } // end of context manager
 
 
-    void set_default_consistency(consistency_model::model_enum default_consistency_range) {
+    void set_default_consistency(consistency_model::model_enum 
+                                 default_consistency_range) {
       default_consistency = default_consistency_range;
       if (default_consistency == consistency_model::USE_DEFAULT) 
         default_consistency = consistency_model::EDGE_CONSISTENCY;

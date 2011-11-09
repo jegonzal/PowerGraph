@@ -186,6 +186,7 @@ namespace graphlab {
     struct global_record { 
       std::vector<spinlock> locks;
       graphlab::any values;
+      bool is_const;
     }; // end of global_record
     typedef std::map<std::string, global_record> global_map_type;
     global_map_type global_records;
@@ -253,21 +254,31 @@ namespace graphlab {
     size_t last_update_count() const;
         
     
-    //! \brief Adds an update task with a particular priority.
+    /**
+     * Schedule the exeuction of an update functor on a particular
+     * vertex.  
+     */
     void schedule(vertex_id_type vid,
                   const update_functor_type& update_functor);
 
-    //! \brief Adds an update task with a particular priority.
+    /**
+     * Schedule the execution of an update functor on a collection of
+     * vertices
+     */
     void schedule(const std::vector<vertex_id_type>& vid,
                   const update_functor_type& update_functor);
 
 
  
-    //! \brief Apply update function to all the vertices in the graph
+    /**
+     * Schedule the execution of an update functor on all the vertices
+     * in the graph.
+     */
     void schedule_all(const update_functor_type& update_functor);
 
-
-    //! \brief associate a termination function with this engine.
+    /**
+     * \brief associate a termination function with this engine.
+     */
     void add_termination_condition(termination_function_type term);
 
     //!  remove all associated termination functions
@@ -279,28 +290,46 @@ namespace graphlab {
     //! \brief set a limit on the number of tasks that may be executed.
     void set_task_budget(size_t max_tasks = 0);
 
-    //! \brief Update the engine options.  
+    /**
+     * \brief Update the engine options.  
+     *
+     * Setting the engine options will cause all existing state,
+     * including scheduled update functors, to be cleared.
+     */
     void set_options(const graphlab_options& newopts);
 
     //! \brief Get the current engine options for this engine
     const graphlab_options& get_options() { return opts; } 
 
-    //! Add a global entry 
+    /**
+     * Define a global mutable variable (or vector of variables).
+     *
+     * \param key the name of the variable (vector)
+     * \param value the initial value for the variable (vector)
+     * \param size the initial size of the global vector (default = 1)
+     * 
+     */
     template< typename T >
-    void add_global(const std::string& key, const T& value, size_t size);
+    void add_global(const std::string& key, const T& value, 
+                    size_t size = 1);
+
+    /**
+     * Define a global constant.
+     */
+    template< typename T >
+    void add_global_const(const std::string& key, const T& value, 
+                          size_t size = 1);
+
 
     //! Change the value of a global entry
     template< typename T >
-    void set_global(const std::string& key, const T& value, size_t index);
+    void set_global(const std::string& key, const T& value, 
+                    size_t index = 0);
 
     //! Get a copy of the value of a global entry
     template< typename T >
-    void get_global(const std::string& key, T& ret_value, size_t index) const;
-
-
-    //! Apply a functor to a global entry (within a lock)
-    template< typename T, typename Fun >
-    void apply_global(const std::string& key, const Fun& fun);
+    void get_global(const std::string& key, T& ret_value, 
+                    size_t index = 0) const;
 
 
     //! \brief Registers a sync with the engine.
@@ -323,7 +352,10 @@ namespace graphlab {
   private:
     friend class context<shared_memory_engine>;
     //! Get the global data and lock
-    std::pair<std::vector<spinlock>*, any*> get_global_pair(const std::string& key); 
+    void get_global(const std::string& key,      
+                    bool& ret_is_const,
+                    std::vector<spinlock>*& ret_locks_ptr,
+                    graphlab::any*& ret_values_ptr); 
 
     
     void initialize_members();
@@ -579,11 +611,25 @@ namespace graphlab {
   template<typename T>
   void
   shared_memory_engine<Graph, UpdateFunctor>::
-  add_global(const std::string& key, const T& value, size_t size = 1) {
+  add_global(const std::string& key, const T& value, size_t size) {
     global_record& record = global_records[key];
     // Set the initial value (this can change the type)
     typedef std::vector<T> vector_type;
     record.values = vector_type(size, value);
+    record.is_const = false;
+    record.locks.resize(size);
+  } //end of set_global
+
+  template<typename Graph, typename UpdateFunctor> 
+  template<typename T>
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  add_global_const(const std::string& key, const T& value, size_t size) {
+    global_record& record = global_records[key];
+    // Set the initial value (this can change the type)
+    typedef std::vector<T> vector_type;
+    record.values = vector_type(size, value);
+    record.is_const = true;
     record.locks.resize(size);
   } //end of set_global
 
@@ -592,7 +638,7 @@ namespace graphlab {
   template<typename T>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  set_global(const std::string& key, const T& value, size_t index = 0) {
+  set_global(const std::string& key, const T& value, size_t index) {
     typename global_map_type::iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
       logstream(LOG_FATAL) 
@@ -601,8 +647,7 @@ namespace graphlab {
       return;
     }
     global_record& record = iter->second;
-    typedef std::vector<T> vector_type;
-    
+    typedef std::vector<T> vector_type;    
     // graphlab::any& any_ref = record.values;
     // vector_type& values = any_ref.as<vector_type>();
     vector_type& values = record.values.template as<vector_type>();
@@ -619,7 +664,7 @@ namespace graphlab {
   template<typename T>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  get_global(const std::string& key, T& ret_value, size_t index = 0) const {
+  get_global(const std::string& key, T& ret_value, size_t index) const {
     typename global_map_type::const_iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
       logstream(LOG_FATAL) 
@@ -695,19 +740,24 @@ namespace graphlab {
   /////////////////////////////////////////////////////////////////////////////
 
   template<typename Graph, typename UpdateFunctor> 
-  std::pair<std::vector<spinlock>*, any*>
+  void
   shared_memory_engine<Graph, UpdateFunctor>::
-  get_global_pair(const std::string& key) {
+  get_global(const std::string& key, 
+             bool& ret_is_const,
+             std::vector<spinlock>*& ret_locks_ptr,
+             graphlab::any*& ret_values_ptr) {
     typename global_map_type::iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
       logstream(LOG_FATAL) 
-        << "Key \"" << key << "\" is not in global map!"
+        << "Key \"" << key << "\" is not in the global map!"
         << std::endl;
-      return std::pair<std::vector<spinlock>*, any*>(NULL, NULL);
+      ret_locks_ptr = NULL; ret_values_ptr = NULL; return;
     }
     // Get the global record
     global_record& rec = iter->second;
-    return std::make_pair(&rec.locks, &rec.values);
+    ret_is_const = rec.is_const;
+    ret_locks_ptr = &rec.locks;
+    ret_values_ptr = &rec.values;
   }
 
 
