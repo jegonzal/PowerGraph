@@ -72,33 +72,24 @@ class pagerank_update :
   typedef base::edge_id_type    edge_id_type;
   typedef base::vertex_id_type  vertex_id_type;
 private:
-  double accum;
+  float accum;
 public:
 
-  pagerank_update(const double& prio = 0) : accum(0) { }
+  pagerank_update(const float& accum = 0) : accum(accum) { }
   double priority() const { return std::fabs(accum); }
   void operator+=(const pagerank_update& other) { accum += other.accum; }
   bool is_factorizable() const { return UPDATE_STYLE == FACTORIZED; }
+  graphlab::consistency_model::model_enum consistency() const {
+    if(UPDATE_STYLE == DELTA) 
+      return graphlab::consistency_model::VERTEX_CONSISTENCY;
+    else return graphlab::consistency_model::USE_DEFAULT;
+  }
   bool writable_gather() { return false; }
   bool writable_scatter() { return false; }
 
-  void reschedule_neighbors(icontext_type& context, double old_value) {
-    const vertex_data& vdata = context.vertex_data();
-    foreach(edge_id_type eid, context.out_edge_ids()) {
-      const edge_data& outedgedata = context.const_edge_data(eid);    
-      const double residual = 
-        outedgedata.weight * (vdata.value - old_value);
-      // If the neighbor changed sufficiently add to scheduler.
-      if(residual > ACCURACY) {
-        context.schedule(context.target(eid), 
-                         pagerank_update(residual));
-      }
-    }
-  } // end of reschedule neighbors
-
   void delta_functor_update(icontext_type& context) { 
     vertex_data& vdata = context.vertex_data();
-    const double old_value = vdata.value;
+    const float old_value = vdata.value;
     vdata.old_value += accum;
     vdata.value = 
       RANDOM_RESET_PROBABILITY/context.num_vertices() +
@@ -107,37 +98,40 @@ public:
     reschedule_neighbors(context, old_value);
   } // end of delta_functor_update
 
-  void operator()(icontext_type& context) {
+
+  void operator()(base::icontext_type& context) {
     // if it is a delta function then use the delta function update
-    if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }    
-    // Get the data associated with the vertex
-    vertex_data& vdata = context.vertex_data();  
-    float sum = vdata.value * vdata.self_weight;
-    const edge_list_type in_edges = context.in_edge_ids();
-    foreach(edge_id_type eid, in_edges) {
-      const vertex_data& neighbor_vdata =
-        context.const_neighbor_vertex_data(context.source(eid));
-      const double neighbor_value = neighbor_vdata.value;    
-      edge_data& edata = context.edge_data(eid);
-      double contribution = edata.weight * neighbor_value;    
-      sum += contribution;
-    }
+    if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
+    vertex_data& vdata = context.vertex_data(); 
+    // Compute weighted sum of neighbors
+    float sum = vdata.value * vdata.self_weight;    
+    foreach(base::edge_id_type eid, context.in_edge_ids()) 
+      sum += context.edge_data(eid).weight * 
+        context.neighbor_vertex_data(context.source(eid)).value;
+    // Add random reset probability
     sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
       (1-RANDOM_RESET_PROBABILITY)*sum;
-    const double old_value = vdata.value;
+    vdata.old_value = vdata.value;
     vdata.value = sum;
-    reschedule_neighbors(context, old_value);
-  } // end of operator()
+    reschedule_neighbors(context, vdata.old_value);
+  } // end of operator()  
 
+  // Reset the accumulator before running the gather
+  void init_gather() { accum = 0; }
+
+  // Run the gather operation over all in edges
   void gather(icontext_type& context, edge_id_type in_eid) {
     const vertex_data& neighbor_vdata =
       context.const_neighbor_vertex_data(context.source(in_eid));
     const double neighbor_value = neighbor_vdata.value;    
     edge_data& edata = context.edge_data(in_eid);
-    const double contribution = edata.weight * neighbor_value;    
-    accum += contribution;
+    accum += edata.weight * neighbor_value;    
   } // end of gather
 
+  // Merge two pagerank_update accumulators after running gather
+  void merge(const pagerank_update& other) { accum += other.accum; }
+
+  // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data();
     accum += vdata.value * vdata.self_weight;
@@ -147,6 +141,7 @@ public:
     vdata.value = accum;
   } // end of apply
 
+  // Reschedule neighbors
   void scatter(icontext_type& context, edge_id_type out_eid) {
     const vertex_data& vdata = context.const_vertex_data();
     const edge_data& edata   = context.const_edge_data(out_eid);    
@@ -156,6 +151,21 @@ public:
       context.schedule(context.target(out_eid), pagerank_update(residual));
     }
   } // end of scatter
+
+private:
+  void reschedule_neighbors(icontext_type& context, double old_value) {
+    const vertex_data& vdata = context.vertex_data();
+    foreach(edge_id_type eid, context.out_edge_ids()) {
+      const edge_data& outedgedata = context.const_edge_data(eid);    
+      const float residual = 
+        outedgedata.weight * (vdata.value - old_value);
+      // If the neighbor changed sufficiently add to scheduler.
+      if(residual > ACCURACY) {
+        context.schedule(context.target(eid), 
+                         pagerank_update(residual));
+      }
+    }
+  } // end of reschedule neighbors
   
 }; // end of pagerank update functor
 

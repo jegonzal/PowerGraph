@@ -1011,6 +1011,7 @@ namespace graphlab {
                                      size_t cpuid) {
     //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // Gather phase -----------------------------------------------------------
+    ufun.init_gather();
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
@@ -1041,6 +1042,7 @@ namespace graphlab {
     ufun.apply(context);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
+    ufun.init_scatter();
     // Scatter phase ----------------------------------------------------------
     if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
