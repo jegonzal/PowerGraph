@@ -18,10 +18,6 @@ subdirs(
   logger
   metrics)
 
-if(YRL_EXPERIMENTAL)
-  subdirs(yrl)
-endif()
-
 # Defines METIS_SOURCES
 include(extern/metisextern.cmake)
 
