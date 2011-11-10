@@ -34,7 +34,9 @@
 #ifndef GRAPHLAB_PAGERANK_HPP
 #define GRAPHLAB_PAGERANK_HPP
 
+#include <vector>
 #include <string>
+
 #include <graphlab.hpp>
 
 
@@ -52,7 +54,6 @@ struct vertex_data {
 //! Print the vertex data
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
 
-
 /**
  * Edge data represents the weight as well as the weight times the
  * last value of the source vertex when the target value was computed.
@@ -67,6 +68,13 @@ std::ostream& operator<<(std::ostream& out, const edge_data& edata);
 
 //! The type of graph used in this program
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
+
+
+
+
+
+
+
 
 
 

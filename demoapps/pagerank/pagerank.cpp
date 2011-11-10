@@ -117,10 +117,13 @@ int main(int argc, char** argv) {
 
   // Run the PageRank ---------------------------------------------------------
   core.schedule_all(pagerank_update(0));
-  double runtime = core.start();  // Run the engine
+  const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;
   std::cout << "Updates executed: " << core.last_update_count() 
+            << std::endl;
+  std::cout << "Update Rate (updates/second): " 
+            << core.last_update_count() / runtime
             << std::endl;
 
  
@@ -130,7 +133,7 @@ int main(int argc, char** argv) {
   std::vector<graph_type::vertex_id_type> top_pages;
   get_top_pages(core.graph(), 5, top_pages);
   for(size_t i = 0; i < top_pages.size(); ++i) {
-    std::cout << std::setw(10) << top_pages[i] << ":" << std::setw(10) 
+    std::cout << std::setw(10) << top_pages[i] << ":\t" << std::setw(10) 
               << core.graph().vertex_data(top_pages[i]).value << std::setw(10) 
               << core.graph().vertex_data(top_pages[i]).nupdates << std::endl;
   }

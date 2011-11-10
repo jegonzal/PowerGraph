@@ -145,7 +145,7 @@ public:
     const edge_data& edata   = context.const_edge_data(out_eid);    
     const double residual = 
       edata.weight*(vdata.value - vdata.old_value);
-    if(std::fabs(residual) > ACCURACY) {
+    if(std::fabs(residual) > ACCURACY || vdata.nupdates == 1) {
       context.schedule(context.target(out_eid), pagerank_update(residual));
     }
   } // end of scatter
@@ -167,6 +167,7 @@ int main(int argc, char** argv) {
   std::string graph_file;
   std::string format = "metis";
   std::string update_type = "basic";
+  size_t topk = 5;
   clopts.attach_option("graph",
                        &graph_file, graph_file,
                        "The graph file.  If none is provided "
@@ -183,6 +184,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("type",
                        &update_type, update_type,
                        "The graphlab update type {basic, delta, factorized}");
+  clopts.attach_option("topk",
+                       &topk, topk,
+                       "The number of top pages to display at the end.");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -215,10 +219,13 @@ int main(int argc, char** argv) {
     }
   }
   core.schedule_all(pagerank_update(initial_delta));
-  double runtime = core.start();  // Run the engine
+  const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;
   std::cout << "Updates executed: " << core.last_update_count() 
+            << std::endl;
+  std::cout << "Update Rate (updates/second): " 
+            << core.last_update_count() / runtime
             << std::endl;
 
  
@@ -226,11 +233,17 @@ int main(int argc, char** argv) {
   // Output Results -----------------------------------------------------------
   // Output the top 5 pages
   std::vector<graph_type::vertex_id_type> top_pages;
-  get_top_pages(core.graph(), 5, top_pages);
+  get_top_pages(core.graph(), topk, top_pages);
   for(size_t i = 0; i < top_pages.size(); ++i) {
-    std::cout << std::setw(10) << top_pages[i] << ":" << std::setw(10) 
-              << core.graph().vertex_data(top_pages[i]).value << std::setw(10) 
-              << core.graph().vertex_data(top_pages[i]).nupdates << std::endl;
+    const vertex_data& vdata = core.graph().vertex_data(top_pages[i]);
+    std::cout << std::setw(10) << top_pages[i] << ":\t" 
+              << std::setw(10) << vdata.value << '\t'
+              << std::setw(10) << vdata.nupdates << '\t'
+              << std::setw(10) 
+              << core.graph().num_in_neighbors(top_pages[i]) << '\t'
+              << std::setw(10) 
+              << core.graph().num_out_neighbors(top_pages[i])
+              << std::endl;
   }
 
 

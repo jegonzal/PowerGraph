@@ -67,7 +67,8 @@
 #define __SCHEDULER_LIST__                                              \
   (("fifo", fifo_scheduler,                                             \
     "Standard FIFO task queue, poor parallelism, but task evaluation "  \
-    "sequence is highly predictable. Useful for debugging and testing.")) \
+    "sequence is highly predictable. "                                  \
+    "Useful for debugging and testing."))                               \
   (("chromatic", chromatic_scheduler,                                   \
     "a scheduler which performs #iterations sweeps of the graph using " \
     "a graph color ordering."))                                         \
@@ -77,6 +78,11 @@
   (("priority", priority_scheduler,                                     \
     "Standard Priority queue, poor parallelism, but task evaluation "   \
     "sequence is highly predictable. Useful for debugging"))            \
+  (("queued_fifo", queued_fifo_scheduler,                               \
+    "This scheduler maintains a shared FIFO queue of FIFO queues. "     \
+    "Each thread maintains its own smaller in and out queues. When a "  \
+    "threads out queue is too large (greater than \"queuesize\") then " \
+    "the thread puts its out queue at the end of the master queue."))   \
   (("multiqueue_fifo", multiqueue_fifo_scheduler,                       \
     "One or more FIFO task queues is assigned to each processor, "      \
     "where the queues are stochastically load balanced. Like the "      \
@@ -87,6 +93,7 @@
 #include <graphlab/scheduler/chromatic_scheduler.hpp>
 #include <graphlab/scheduler/sweep_scheduler.hpp>
 #include <graphlab/scheduler/priority_scheduler.hpp>
+#include <graphlab/scheduler/queued_fifo_scheduler.hpp>
 #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
 
 
