@@ -3,11 +3,11 @@
 #include <vector>
 #include <algorithm>
 #include <cxxtest/TestSuite.h>
-#include <util/fast_multinomial.hpp>
-#include <parallel/pthread_tools.hpp>
+#include <graphlab/util/fast_multinomial.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 
 
-#include <macros_def.hpp>
+#include <graphlab/macros_def.hpp>
 
 
 class FastMultinomialTestSuite: public CxxTest::TestSuite {
@@ -150,7 +150,7 @@ class FastMultinomialTestSuite: public CxxTest::TestSuite {
   }
 
 
-  class worker : public graphlab::runnable {
+  class worker {
   public:
     size_t id;
     size_t nsamples;
@@ -176,7 +176,7 @@ class FastMultinomialTestSuite: public CxxTest::TestSuite {
   }; // end of worker
 
   
-  class biased_worker : public graphlab::runnable {
+  class biased_worker  {
   public:
     size_t id;
     size_t nsamples;
@@ -225,7 +225,7 @@ class FastMultinomialTestSuite: public CxxTest::TestSuite {
         workers[i].count.resize(num_asg, 0);
         workers[i].multi = &multi;
         workers[i].id = i;
-        threads.launch(&(workers[i]));
+        threads.launch(boost::bind(&worker::run, &workers[i]));
       }
       threads.join();
 
@@ -272,7 +272,7 @@ class FastMultinomialTestSuite: public CxxTest::TestSuite {
         workers[i].count.resize(num_asg, 0);
         workers[i].multi = &multi;
         workers[i].id = i;
-        threads.launch(&(workers[i]));
+        threads.launch(boost::bind(&biased_worker::run, &workers[i]));
       }
       threads.join();
 

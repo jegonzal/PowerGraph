@@ -18,6 +18,7 @@ ADD_CXXTEST(random_test.cxx)
 ADD_CXXTEST(factor_test.cxx)
 ADD_CXXTEST(small_map_test.cxx)
 ADD_CXXTEST(small_set_test.cxx)
+ADD_CXXTEST(fast_multinomial_test.cxx)
 
 
 # ADD_CXXTEST(graphlab_test.cxx)
