@@ -86,7 +86,11 @@
   (("multiqueue_fifo", multiqueue_fifo_scheduler,                       \
     "One or more FIFO task queues is assigned to each processor, "      \
     "where the queues are stochastically load balanced. Like the "      \
-    "fifo scheduler, but less predictable, and much faster."))          
+    "fifo scheduler, but less predictable, and much faster."))          \
+  (("multiqueue_priority", multiqueue_priority_scheduler,               \
+    "One or more Priority task queues is assigned to each processor, "  \
+    "where the queues are stochastically load balanced. Like the "      \
+    "priority scheduler, but less predictable, and much faster."))          
   
 
 #include <graphlab/scheduler/fifo_scheduler.hpp>
@@ -95,6 +99,7 @@
 #include <graphlab/scheduler/priority_scheduler.hpp>
 #include <graphlab/scheduler/queued_fifo_scheduler.hpp>
 #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
+#include <graphlab/scheduler/multiqueue_priority_scheduler.hpp>
 
 
 // #include <graphlab/scheduler/sampling_scheduler.hpp>

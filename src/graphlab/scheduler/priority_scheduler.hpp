@@ -120,17 +120,12 @@ namespace graphlab {
     void schedule(const size_t cpuid,
                   const vertex_id_type vid, 
                   const update_functor_type& fun) {   
-      queue_lock.lock();
-      const bool first_add = vfun_set.add(vid, fun);
-      if(first_add) {
+      double priority = 0;
+      queue_lock.lock();            
+      if(vfun_set.add(vid, fun, priority)) {
         term.new_job(cpuid);
-        pqueue.push(vid, fun.priority());
-      } else {
-        // Update the priority queue
-        const std::pair<bool, double> pair = vfun_set.priority(vid);
-        ASSERT_TRUE(pair.first);
-        pqueue.update(vid, pair.second);
-      }
+        pqueue.push(vid, priority);
+      } else { pqueue.update(vid, priority); }
       queue_lock.unlock();
     } // end of add_task
     
@@ -150,18 +145,16 @@ namespace graphlab {
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
       queue_lock.lock();
-      const bool success = !pqueue.empty();
-      if(success && pqueue.top().second > min_priority) {        
+      if(!pqueue.empty() && 
+         pqueue.top().second >= min_priority) {        
         ret_vid = pqueue.pop().first;
         const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
-        ASSERT_TRUE(get_success);        
+        ASSERT_TRUE(get_success);     
+        queue_lock.unlock();
+        return sched_status::NEW_TASK;
       }
       queue_lock.unlock();
-      if(success) {
-        return sched_status::NEW_TASK;
-      } else {
-        return sched_status::EMPTY;
-      }
+      return sched_status::EMPTY;     
     } // end of get_next_task
 
     iterminator& terminator() { return term; }
