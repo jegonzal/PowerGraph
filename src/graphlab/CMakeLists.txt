@@ -11,6 +11,7 @@ subdirs(
   options
   parallel
   scheduler
+  shared_data
   context
   update_functor
   util
@@ -20,19 +21,6 @@ subdirs(
 
 # Defines METIS_SOURCES
 include(extern/metisextern.cmake)
-
-#build graphlab_zoltan if available
-## The current distributed build no longer uses zoltan
-# IF(ZOLTAN_FOUND)
-#   add_library(graphlab_zoltan
-#               distributed2/graph/partitioning/adjacency_list.cpp
-#               distributed2/graph/partitioning/partitioning_tools.cpp)
-# #   TARGET_LINK_LIBRARIES(graphlab_zoltan 
-# #     ${MPI_LIBRARY} 
-# #     ${MPI_EXTRA_LIBRARY}
-# #     ${ZOLTAN_LIBS})
-# ENDIF()
-
 
 
 #build the graphlab library
@@ -73,6 +61,7 @@ add_library(graphlab STATIC
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/md5.cpp
+  shared_data/sharedsum.cpp
   ${mmap_allocator}
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
