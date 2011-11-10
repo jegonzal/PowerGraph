@@ -32,16 +32,46 @@
 #include <graphlab.hpp>
 
 
-using namespace graphlab;
-
 typedef double vertex_data_type;
 typedef double edge_data_type;
-typedef graphlab::core<vertex_data_type, edge_data_type> core_type;
+typedef graphlab::graph<vertex_data_type, edge_data_type> graph_type;
+
+
+class update_function :
+  public graphlab::iupdate_functor<graph_type, update_function> {
+public:
+
+  void operator()(icontext_type& context) { 
+    namespace random = graphlab::random;    
+    context.vertex_data() += 
+      (double)random::uniform<int>(0,9) +
+      (double)random::fast_uniform<int>(0,9) +
+      (double)random::uniform<char>(0, 2) +
+      (double)random::fast_uniform<char>(0, 2) +
+      (double)random::uniform<uint32_t>(0, 5) +
+      (double)random::fast_uniform<uint32_t>(0, 5) +
+      (double)(random::rand() % 10) +
+      (double)random::uniform<size_t>(0,9) +
+      (double)random::fast_uniform<size_t>(0, 10) +
+      (double)random::uniform<double>(0,1) +
+      (double)random::fast_uniform<double>(0,1) +
+      (double)random::uniform<float>(0,1) +
+      (double)random::fast_uniform<float>(0,1) +
+      (double)random::gamma() +
+      (double)random::gaussian();
+    std::vector<double> weights(5);
+    for(size_t i = 0; i < weights.size(); ++i) {
+      weights[i] = random::uniform<double>(0,1);
+    }
+    context.vertex_data() += (double)random::multinomial(weights);                 
+  } // end of operator()
+}; // end of update_functor
+
 
 template<typename NumType>
 void uniform_speed(const size_t max_iter) {
   NumType sum(0);
-  timer ti;
+  graphlab::timer ti;
   ti.start();
   for(size_t i = 0; i < max_iter; ++i) {
     sum += (NumType)(graphlab::random::uniform<NumType>(0, 10));
@@ -54,37 +84,6 @@ void uniform_speed(const size_t max_iter) {
   double fast_time = ti.current_time();
   std::cout << slow_time << ", " << fast_time << std::endl; 
 }
-
-
-static void update_function(core_type::types::iscope& scope,
-                            core_type::types::icallback& callback) {
-  namespace random = graphlab::random;
-
-  scope.vertex_data() += 
-    (double)random::uniform<int>(0,9) +
-    (double)random::fast_uniform<int>(0,9) +
-    (double)random::uniform<char>(0, 2) +
-    (double)random::fast_uniform<char>(0, 2) +
-    (double)random::uniform<uint32_t>(0, 5) +
-    (double)random::fast_uniform<uint32_t>(0, 5) +
-    (double)(random::rand() % 10) +
-    (double)random::uniform<size_t>(0,9) +
-    (double)random::fast_uniform<size_t>(0, 10) +
-    (double)random::uniform<double>(0,1) +
-    (double)random::fast_uniform<double>(0,1) +
-    (double)random::uniform<float>(0,1) +
-    (double)random::fast_uniform<float>(0,1) +
-    (double)random::gamma() +
-    (double)random::gaussian();
-  std::vector<double> weights(5);
-  for(size_t i = 0; i < weights.size(); ++i) {
-    weights[i] = random::uniform<double>(0,1);
-  }
-  scope.vertex_data() += (double)random::multinomial(weights);                 
-
-}
-
-
 
 
 class thread_worker {
@@ -124,7 +123,6 @@ std::vector<int> operator+(const std::vector<int>& v1,
 
 class RandomTestSuite: public CxxTest::TestSuite {
   size_t iterations;
- 
   
   public:
 
@@ -146,7 +144,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     std::vector<thread_worker> workers(10);
     for(size_t i = 0; i < workers.size(); ++i) 
       workers[i].values.resize(num_iterations);
-    thread_group threads;
+    graphlab::thread_group threads;
     for(size_t i = 0; i < workers.size(); ++i) {
       threads.launch(boost::bind(&thread_worker::run, &(workers[i])));
     }
@@ -165,23 +163,22 @@ class RandomTestSuite: public CxxTest::TestSuite {
 
 
   void test_randomness_in_engine() {
-    core_type core;
+    graphlab::core<graph_type, update_function> core;
     for(size_t i = 0; i < 32; ++i) 
       core.graph().add_vertex(vertex_data_type(0));
-    for(core_type::vertex_id_type i = 0; i+1 < core.graph().num_vertices(); ++i) {
+    for(graph_type::vertex_id_type i = 0; i+1 < core.graph().num_vertices(); ++i) {
       core.graph().add_edge(i, i+1, edge_data_type(1));
       core.graph().add_edge(i+1, i, edge_data_type(2));
     }
     core.graph().compute_coloring();
-    core.set_scheduler_type("chromatic");
+    core.set_scheduler_type("chromatic(max_iterations=2)");
     core.set_scope_type("none");
     core.set_ncpus(4);
-    core.sched_options().add_option("update_function", update_function);
+    core.schedule_all(update_function());
     for(size_t i = 0; i < 3; ++i) {
-      core.sched_options().add_option("max_iterations", 2);
       std::cout << "--------------------------------" << std::endl;
       core.start();
-      for(core_type::vertex_id_type i = 0; i < core.graph().num_vertices(); ++i) {
+      for(graph_type::vertex_id_type i = 0; i < core.graph().num_vertices(); ++i) {
         std::cout << core.graph().vertex_data(i) << "\t";
       }
       std::cout << std::endl;
@@ -224,7 +221,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     
     std::cout << "gaussian: ";
     double sum = 0;
-    timer time;
+    graphlab::timer time;
     time.start();
     for(size_t i = 0; i < MAX_ITER; ++i) 
       sum += random::gaussian();

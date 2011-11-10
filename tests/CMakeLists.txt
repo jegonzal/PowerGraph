@@ -14,7 +14,12 @@ ADD_CXXTEST(sharedsum_test.cxx)
 add_dist2_executable(delta_dht_test delta_dht_test.cpp)
 
 
-# ADD_CXXTEST(randomtest.cxx)
+ADD_CXXTEST(random_test.cxx)
+ADD_CXXTEST(factor_test.cxx)
+ADD_CXXTEST(small_map_test.cxx)
+ADD_CXXTEST(small_set_test.cxx)
+
+
 # ADD_CXXTEST(graphlab_test.cxx)
 # ADD_CXXTEST(serializetests.cxx)
 # ADD_CXXTEST(thread_tools.cxx)
