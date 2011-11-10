@@ -561,10 +561,10 @@ inline double sum(const sparse_vec &v){
   }
   return sum;
 }
-inline vec sqrt(vec & v){
+inline vec sqrt(const vec & v){
    vec ret(v.size());
    for (int i=0; i< v.size(); i++){
-      ret[i] = sqrt(v(i));
+      ret[i] = std::sqrt(v(i));
    }
    return ret;
 }
@@ -861,7 +861,9 @@ inline ivec randi(int size, int from, int to){
 inline int randi(int from, int to){
   return graphlab::random::uniform<int>(from,to);
 }
-
+inline vec sqrt(const vec & v){
+  return itpp::sqrt(v);
+}
 #endif
 
 #endif //eigen

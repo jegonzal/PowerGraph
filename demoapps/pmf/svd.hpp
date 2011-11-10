@@ -489,8 +489,8 @@ void svd<>(gl_types::core & glcore){
    cout<<"Eigen vectors2 are:" << ps.V << endl << "V is: " << Vectors2 << endl << " Eigenvectors (u) are: " << eigenvectors2;
 
  ps.T=zeros(eigenvalues.size(),2);
- set_col(ps.T,0,sqrt(fabs(eigenvalues))); //should be all positive eigenvalues, but because of some accuracy error sometimes
- set_col(ps.T,1,sqrt(fabs(eigenvalues2))); //we get small negative numbers
+ set_col(ps.T,0,::sqrt(fabs(eigenvalues))); //should be all positive eigenvalues, but because of some accuracy error sometimes
+ set_col(ps.T,1,::sqrt(fabs(eigenvalues2))); //we get small negative numbers
 
  if (ac.unittest > 0){
    verify_result(0, 0, 0);

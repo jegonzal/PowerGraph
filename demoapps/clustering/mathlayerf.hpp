@@ -433,7 +433,7 @@ inline float sum(const sparse_fvec &v){
 inline fvec sqrt(fvec & v){
    fvec ret(v.size());
    for (int i=0; i< v.size(); i++){
-      ret[i] = sqrt(v(i));
+      ret[i] = std::sqrt(v(i));
    }
    return ret;
 }
