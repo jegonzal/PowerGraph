@@ -20,31 +20,21 @@
  *
  */
 
-/**
- * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved.  
- *
- * Contributed under the iCLA for:
- *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
- *
- */
-
-
 
 /**
- * This class defines a basic priority scheduler.
+ * \author jegonzal This class defines a multiqueue version of the
+ * priority scheduler.
  **/
 #ifndef GRAPHLAB_PRIORITY_SCHEDULER_HPP
 #define GRAPHLAB_PRIORITY_SCHEDULER_HPP
 
+#include <queue>
 #include <cmath>
+#include <cassert>
 
+#include <graphlab/parallel/pthread_tools.hpp>
 
 #include <graphlab/util/mutable_queue.hpp>
-#include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/parallel/atomic.hpp>
-
-
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
@@ -53,28 +43,13 @@
 #include <graphlab/options/options_map.hpp>
 
 
-
-// #include <graphlab/logger/assertions.hpp>
-// #include <graphlab/graph/graph.hpp>
-// #include <graphlab/scope/iscope.hpp>
-// 
-// #include <graphlab/tasks/update_task.hpp>
-// #include <graphlab/schedulers/ischeduler.hpp>
-// #include <graphlab/parallel/pthread_tools.hpp>
-// #include <graphlab/schedulers/support/direct_callback.hpp>
-// #include <graphlab/schedulers/support/vertex_task_set.hpp>
-// #include <graphlab/util/task_count_termination.hpp>
-
-//#include <bitmagic/bm.h>
-
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-   /** \ingroup group_schedulers
-    */
+  /** \ingroup group_schedulers
+   */
   template<typename Engine>
-  class priority_scheduler : public ischeduler<Engine> {
-
+  class priority_scheduler : public ischeduler<Engine> {  
   public:
 
     typedef ischeduler<Engine> base;
@@ -83,85 +58,119 @@ namespace graphlab {
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;
 
-    typedef mutable_queue<vertex_id_type, double> priority_queue_type;
 
+    typedef mutable_queue<vertex_id_type, double> queue_type;
 
   private:
-
-    /** The vertex functor set */
     vertex_functor_set<engine_type> vfun_set;
-    /** The lock on the priority queue */
-    mutex queue_lock;     
-    
+    std::vector<queue_type> queues;
+    std::vector<spinlock>   locks;
+    size_t multi;
+    std::vector<size_t>     current_queue;
+
     /** Max priority */
     double min_priority;
 
-    /** The queue over vertices */
-    priority_queue_type pqueue;
-      
-    /** Used to assess termination */
+    // Terminator
     critical_termination term;
-    
-    
+ 
+
+
   public:
-    
+
     priority_scheduler(const graph_type& graph, 
                        size_t ncpus,
                        const options_map& opts) :
-      vfun_set(graph.num_vertices()), 
-      min_priority(-std::numeric_limits<double>::max()),
-      term(ncpus) { 
-      opts.get_double_option("min_priority", min_priority);
-    }       
+      vfun_set(graph.num_vertices()), multi(0),
+      current_queue(ncpus), min_priority(-std::numeric_limits<double>::max()),
+      term(ncpus) {     
+      const bool is_set = opts.get_double_option("min_priority", min_priority);
+      if(is_set) {
+        logstream(LOG_INFO) << "The minimum scheduling priority was set to " 
+                            << min_priority << std::endl;
+      }
+      opts.get_int_option("multi", multi);
+      const size_t nqueues = std::max(multi*ncpus, size_t(1));
+      if(multi > 0) {
+        logstream(LOG_INFO) << "Using " << multi 
+                            << " queues per thread." << std::endl;
+      }
+      queues.resize(nqueues);
+      locks.resize(nqueues);
+    }
 
-    void start() { term.reset(); };
-
+    void start() { term.reset(); }
+   
 
     void schedule(const size_t cpuid,
                   const vertex_id_type vid, 
-                  const update_functor_type& fun) {   
+                  const update_functor_type& fun) {      
+      const size_t idx = vid % queues.size();
       double priority = 0;
-      queue_lock.lock();            
-      if(vfun_set.add(vid, fun, priority)) {
+      locks[idx].lock(); 
+      if (vfun_set.add(vid, fun, priority)) {
         term.new_job(cpuid);
-        pqueue.push(vid, priority);
-      } else { pqueue.update(vid, priority); }
-      queue_lock.unlock();
-    } // end of add_task
-    
+        queues[idx].push(vid, priority); 
+      } else { queues[idx].update(vid, priority); }
+      locks[idx].unlock();
+    } // end of schedule
+
     void schedule_all(const update_functor_type& fun) {
-      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(0, vid, fun);      
+      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid) 
+        schedule( vid % current_queue.size(), vid, fun);
     } // end of schedule_all
 
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
-                   const update_functor_type& fun) {
-      term.completed_job();
-    }
+                   const update_functor_type& fun) { term.completed_job(); }
+
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
-                                       update_functor_type& ret_fun) {         
-      queue_lock.lock();
-      if(!pqueue.empty() && 
-         pqueue.top().second >= min_priority) {        
-        ret_vid = pqueue.pop().first;
-        const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
-        ASSERT_TRUE(get_success);     
-        queue_lock.unlock();
-        return sched_status::NEW_TASK;
+                                       update_functor_type& ret_fun) {
+      /* Check all of my queues for a task */
+      for(size_t i = 0; i < multi; ++i) {
+        const size_t idx = (++current_queue[cpuid] % multi) + cpuid * multi;
+        locks[idx].lock();
+        if(!queues[idx].empty() && 
+           queues[idx].top().second >= min_priority) {
+          ret_vid = queues[idx].pop().first;
+          const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+          ASSERT_TRUE(get_success);
+          locks[idx].unlock();
+          return sched_status::NEW_TASK;          
+        }
+        locks[idx].unlock();
       }
-      queue_lock.unlock();
+      /* Check all the queues */
+      for(size_t i = 0; i < queues.size(); ++i) {
+        const size_t idx = ++current_queue[cpuid] % queues.size();
+        if(!queues[idx].empty()) { // quick pretest
+          locks[idx].lock();
+          if(!queues[idx].empty() && 
+             queues[idx].top().second >= min_priority) {
+            ret_vid = queues[idx].pop().first;
+            const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+            ASSERT_TRUE(get_success);
+            locks[idx].unlock();
+            return sched_status::NEW_TASK;          
+          }
+          locks[idx].unlock();
+        }
+      }
       return sched_status::EMPTY;     
     } // end of get_next_task
 
     iterminator& terminator() { return term; }
 
-    static void print_options_help(std::ostream &out) { };
+    static void print_options_help(std::ostream& out) { 
+      out << "\t mult=3: number of queues per thread.\n" 
+          << "\t min_priority=-infty Minimum priority required "
+          << "\t    to run the update functor" << std::endl;
+    }
 
-  }; // end of priority_queue class
+  }; // end of class priority scheduler
 
 
 } // end of namespace graphlab

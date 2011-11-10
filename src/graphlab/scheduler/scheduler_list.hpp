@@ -82,15 +82,7 @@
     "This scheduler maintains a shared FIFO queue of FIFO queues. "     \
     "Each thread maintains its own smaller in and out queues. When a "  \
     "threads out queue is too large (greater than \"queuesize\") then " \
-    "the thread puts its out queue at the end of the master queue."))   \
-  (("multiqueue_fifo", multiqueue_fifo_scheduler,                       \
-    "One or more FIFO task queues is assigned to each processor, "      \
-    "where the queues are stochastically load balanced. Like the "      \
-    "fifo scheduler, but less predictable, and much faster."))          \
-  (("multiqueue_priority", multiqueue_priority_scheduler,               \
-    "One or more Priority task queues is assigned to each processor, "  \
-    "where the queues are stochastically load balanced. Like the "      \
-    "priority scheduler, but less predictable, and much faster."))          
+    "the thread puts its out queue at the end of the master queue."))   
   
 
 #include <graphlab/scheduler/fifo_scheduler.hpp>
@@ -98,8 +90,7 @@
 #include <graphlab/scheduler/sweep_scheduler.hpp>
 #include <graphlab/scheduler/priority_scheduler.hpp>
 #include <graphlab/scheduler/queued_fifo_scheduler.hpp>
-#include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
-#include <graphlab/scheduler/multiqueue_priority_scheduler.hpp>
+
 
 
 // #include <graphlab/scheduler/sampling_scheduler.hpp>

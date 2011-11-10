@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
   }
 
   // Run the PageRank ---------------------------------------------------------
-  double initial_delta = 0;
+  double initial_delta = 1;
   if(UPDATE_STYLE == DELTA) {
     std::cout << "changing initial delta" << std::endl;
     initial_delta = RANDOM_RESET_PROBABILITY / 
