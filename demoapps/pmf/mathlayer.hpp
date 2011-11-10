@@ -359,6 +359,10 @@ public:
    }
    return fb;
   }
+  std::fstream & operator<<(const double &v){
+    fb.write((const char*)&v, sizeof(double));
+    return fb;
+  }
   std::fstream & operator>>(std::string  str){
     int size = -1;
     fb.read((char*)&size, sizeof(int));
@@ -405,7 +409,11 @@ public:
    return fb;
   }
 
-
+  std::fstream &operator>>(double &v){
+    fb.read((char*)&v, sizeof(double));
+     assert(!fb.fail());
+     return fb;
+  }
 
   void close(){
      fb.close();

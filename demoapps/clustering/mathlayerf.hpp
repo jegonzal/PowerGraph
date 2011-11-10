@@ -558,7 +558,7 @@ inline void set_size(sparse_fvec &v, int size){
 inline void set_new(sparse_fvec&v, int ind, float val){
   v.set_new(ind, val);
 } 
-inline int get_nz_index(const sparse_fvec &v, int i){
+inline int get_nz_index(sparse_fvec &v, int i){
   return v.get_nz_index(i);
 }
 inline float get_nz_data(sparse_fvec &v, int i){
