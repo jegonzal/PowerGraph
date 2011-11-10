@@ -90,9 +90,12 @@ namespace graphlab {
 
     /** The vertex functor set */
     vertex_functor_set<engine_type> vfun_set;
-
     /** The lock on the priority queue */
-    spinlock queue_lock;     
+    mutex queue_lock;     
+    
+    /** Max priority */
+    double min_priority;
+
     /** The queue over vertices */
     priority_queue_type pqueue;
       
@@ -105,7 +108,11 @@ namespace graphlab {
     priority_scheduler(const graph_type& graph, 
                        size_t ncpus,
                        const options_map& opts) :
-      vfun_set(graph.num_vertices()), term(ncpus) { }       
+      vfun_set(graph.num_vertices()), 
+      min_priority(-std::numeric_limits<double>::max()),
+      term(ncpus) { 
+      opts.get_double_option("min_priority", min_priority);
+    }       
 
     void start() { term.reset(); };
 
@@ -144,10 +151,10 @@ namespace graphlab {
                                        update_functor_type& ret_fun) {         
       queue_lock.lock();
       const bool success = !pqueue.empty();
-      if(success) {
+      if(success && pqueue.top().second > min_priority) {        
         ret_vid = pqueue.pop().first;
         const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
-        ASSERT_TRUE(get_success);                
+        ASSERT_TRUE(get_success);        
       }
       queue_lock.unlock();
       if(success) {

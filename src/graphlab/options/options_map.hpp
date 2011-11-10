@@ -148,15 +148,28 @@ namespace graphlab {
     /**
      * Reads a float option
      */
-    template <typename FloatType>
     inline bool get_float_option(const std::string& opt, 
-                                 FloatType& val) const {
+                                 float& val) const {
       std::map<std::string, option_values>::const_iterator i = 
         options.find(opt);
       if (i == options.end()) return false;
       val = i->second.dblval;
       return true;
     }
+
+    /**
+     * Reads a double option
+     */
+    inline bool get_double_option(const std::string& opt, 
+                                  double& val) const {
+      std::map<std::string, option_values>::const_iterator i = 
+        options.find(opt);
+      if (i == options.end()) return false;
+      val = i->second.dblval;
+      return true;
+    }
+
+
 
     /**
      * Reads an any option
