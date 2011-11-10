@@ -183,7 +183,7 @@ mat wishrnd(mat& sigma, double df){
        //cout<<seq<<endl;
        vec ret = chi2rnd(seq, n);
        //cout<<ret<<endl;
-       ret = sqrt(ret);
+       ret = ::sqrt(ret);
        //assert(ret.size() == n);
        //cout<<ret<<endl;
        if (ret.size() == 1) // a scalar variable

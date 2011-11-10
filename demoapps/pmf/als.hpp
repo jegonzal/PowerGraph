@@ -183,7 +183,7 @@ void compute_least_squares(mat & Q, vec & vals, vec & weight, vec & result, bool
     //Weighted alternating least squares (see equations (6),(7) in paper 9)
     else {
        vec b = Q*vals;
-       weight = sqrt(weight);
+       weight = ::sqrt(weight);
        //avoid explicit creation of W = diag(W) because it is wasteful in memory.
        //instead, compute directly the product Q*W*Q'
        for (int i=0; i<ac.D; i++)
