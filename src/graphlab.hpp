@@ -38,18 +38,12 @@
 #include <graphlab/scheduler/scheduler_includes.hpp>
 #include <graphlab/context/context_includes.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/shared_data/shared_data_includes.hpp>
-#include <graphlab/sync/sync_includes.hpp>
 #include <graphlab/update_functor/update_functor_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
 #include <graphlab/core.hpp>
 
 
-// #ifdef YRL_EXPERIMENTAL
-// #include <graphlab/yrl/yrl_includes.hpp>
-// #endif
 
-#include <graphlab/types.hpp>
 
 
 #endif

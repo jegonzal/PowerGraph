@@ -50,10 +50,7 @@
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
-#include <graphlab/shared_data/iglshared.hpp>
 
-
-// #include <graphlab/metrics/metrics.hpp>
 
 
 

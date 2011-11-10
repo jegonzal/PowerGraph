@@ -25,23 +25,12 @@
 #define GRAPHLAB_CORE_HPP
 
 
-#include <graphlab/types.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/options/command_line_options.hpp>
-
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/shared_memory_engine.hpp>
-// #include <graphlab/core_base.hpp>
 
-
-
-// #include <graphlab/metrics/metrics.hpp>
-// #include <graphlab/metrics/reporters/null_reporter.hpp>
-// #include <graphlab/metrics/reporters/basic_reporter.hpp>
-// #include <graphlab/metrics/reporters/file_reporter.hpp>
-// #include <graphlab/metrics/reporters/html_reporter.hpp>
 
 
 
