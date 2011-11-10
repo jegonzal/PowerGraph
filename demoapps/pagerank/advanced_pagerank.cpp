@@ -66,11 +66,7 @@ double ACCURACY = 1e-5;
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
-  typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
-  typedef base::icontext_type   icontext_type;
-  typedef base::edge_list_type  edge_list_type;
-  typedef base::edge_id_type    edge_id_type;
-  typedef base::vertex_id_type  vertex_id_type;
+  typedef graphlab::iupdate_functor<graph_type, pagerank_update> base; 
 private:
   float accum;
 public:
