@@ -92,7 +92,7 @@ void kmeans_update_function(gl_types::iscope &scope,
   for (int i=0; i< end_cluster; i++){
      flt_dbl_vec & row = ps.clusts.cluster_vec[i].location;
      if (toprint)
-        std::cout<<" cluster " << i << " location " << mid(row,0,std::min(row.size(),20)) << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
+        std::cout<<" cluster " << i << " location " << mid(row,0,std::min((int)row.size(),20)) << " sum sqr " << ps.clusts.cluster_vec[i].sum_sqr << std::endl;
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr, sum_sqr(vdata.datapoint));
      if (toprint)
         std::cout<<" distance: " << dist << std::endl;

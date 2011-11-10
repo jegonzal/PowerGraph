@@ -640,7 +640,7 @@ for (int i=1; i<=m; i++){
  }
  set_val(T,m,m,lancalpha[m+1]);
 
- vec eigenvalues = calc_eigenvalues(T, false);
+ vec eigenvalues = sqrt(fabs(calc_eigenvalues(T, false)));
 
  ps.T=zeros(T.rows(),2);
  set_col(ps.T,0,vec2fvec(eigenvalues)); 
@@ -657,7 +657,7 @@ for (int i=1; i<=m; i++){
     cout<<"Matrix T2 is: " << T2 << endl;
  }
 
- vec eigenvalues2 = calc_eigenvalues(T2, true);
+ vec eigenvalues2 = sqrt(fabs(calc_eigenvalues(T2, true)));
 
  set_col(ps.T,1,vec2fvec(eigenvalues2)); 
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){

@@ -67,14 +67,14 @@ eigenvalue 4 val: 0.780815
  * approximating V are: 7403.36635196      474772.134702      1015578.79314      10736707.7571
  */
      case 132:
-         assert(pow(get_val(ps.T,3,0) - 28535,2) < 10);
-         assert(pow(get_val(ps.T,2,0) - 438144,2) < 10);
-         assert(pow(get_val(ps.T,1,0) - 1024719,2) < 10);
-         assert(pow(get_val(ps.T,0,0) - 10736707,2) < 10);
-         assert(pow(get_val(ps.T,3,1) - 7403,2) < 10);
-         assert(pow(get_val(ps.T,2,1) - 474772,2) < 10);
-         assert(pow(get_val(ps.T,1,1) - 1015578,2) < 10);
-         assert(pow(get_val(ps.T,0,1) - 10736707,2) < 10);
+         assert(pow(get_val(ps.T,3,0) - sqrt(28535),2) < 10);
+         assert(pow(get_val(ps.T,2,0) - sqrt(438144),2) < 10);
+         assert(pow(get_val(ps.T,1,0) - sqrt(1024719),2) < 10);
+         assert(pow(get_val(ps.T,0,0) - sqrt(10736707),2) < 10);
+         assert(pow(get_val(ps.T,3,1) - sqrt(7403),2) < 10);
+         assert(pow(get_val(ps.T,2,1) - sqrt(474772),2) < 10);
+         assert(pow(get_val(ps.T,1,1) - sqrt(1015578),2) < 10);
+         assert(pow(get_val(ps.T,0,1) - sqrt(10736707),2) < 10);
          break;
   
     }

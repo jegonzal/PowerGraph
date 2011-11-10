@@ -319,7 +319,10 @@ inline float get_nz_data(sparse_fvec &v, int i){
   }
   return 0.0;
 }
-inline void print(const sparse_fvec & vec){
+
+
+
+inline void print(sparse_fvec & vec){
   int cnt = 0;
   FOR_ITERATOR2(i, vec){
     std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
@@ -442,7 +445,6 @@ inline void assign(fvec & v1, sparse_fvec & v2, int N){
 
 }
 
-
 #else //eigen is not found
 /***
  *
@@ -556,7 +558,7 @@ inline void set_size(sparse_fvec &v, int size){
 inline void set_new(sparse_fvec&v, int ind, float val){
   v.set_new(ind, val);
 } 
-inline int get_nz_index(sparse_fvec &v, int i){
+inline int get_nz_index(const sparse_fvec &v, int i){
   return v.get_nz_index(i);
 }
 inline float get_nz_data(sparse_fvec &v, int i){
