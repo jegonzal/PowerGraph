@@ -49,7 +49,7 @@
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 
-#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -97,7 +97,7 @@ namespace graphlab {
     priority_queue_type pqueue;
       
     /** Used to assess termination */
-    task_count_terminator term;
+    critical_termination term;
     
     
   public:
@@ -105,7 +105,7 @@ namespace graphlab {
     priority_scheduler(const graph_type& graph, 
                        size_t ncpus,
                        const options_map& opts) :
-      vfun_set(graph.num_vertices()) { }       
+      vfun_set(graph.num_vertices()), term(ncpus) { }       
 
     void start() { term.reset(); };
 
@@ -116,7 +116,7 @@ namespace graphlab {
       queue_lock.lock();
       const bool first_add = vfun_set.add(vid, fun);
       if(first_add) {
-        term.new_job();
+        term.new_job(cpuid);
         pqueue.push(vid, fun.priority());
       } else {
         // Update the priority queue

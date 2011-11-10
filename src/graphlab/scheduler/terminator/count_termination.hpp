@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_TASK_COUNT_TERMINATOR_HPP
-#define GRAPHLAB_TASK_COUNT_TERMINATOR_HPP
+#ifndef GRAPHLAB_COUNT_TERMINATION_HPP
+#define GRAPHLAB_COUNT_TERMINATION_HPP
 
 #include <cassert>
 
@@ -43,17 +43,17 @@ namespace graphlab {
    * - If (end_critical_section() returns true, the scheduler can terminate.
    * Otherwise it must loop again.
    */
-  class task_count_terminator : public iterminator {
+  class count_termination : public iterminator {
     atomic<size_t> newtaskcount;
     atomic<size_t> finishedtaskcount;
     bool forced_abort; //signal computation is aborted
 
   public:
-    task_count_terminator() : newtaskcount(0), 
+    count_termination() : newtaskcount(0), 
                                finishedtaskcount(0), 
                                forced_abort(false) { }
     
-    ~task_count_terminator(){ }
+    ~count_termination(){ }
 
     void begin_critical_section(size_t cpuid) { }
     void cancel_critical_section(size_t cpuid)  { }

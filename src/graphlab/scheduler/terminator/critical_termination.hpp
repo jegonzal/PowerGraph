@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_SHARED_TERMINATION_HPP
-#define GRAPHLAB_SHARED_TERMINATION_HPP
+#ifndef GRAPHLAB_CRITICAL_TERMINATION_HPP
+#define GRAPHLAB_CRITICAL_TERMINATION_HPP
 
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
@@ -41,9 +41,9 @@ namespace graphlab {
      - If (end_critical_section() returns true, the scheduler can terminate.
      Otherwise it must loop again.
   */
-  class shared_termination : public iterminator {
+  class critical_termination : public iterminator {
   public:
-    shared_termination(size_t ncpus) :
+    critical_termination(size_t ncpus) :
       numactive(ncpus),
       ncpus(ncpus),
       done(false),

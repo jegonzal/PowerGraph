@@ -51,7 +51,7 @@
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 
-#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/count_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -82,7 +82,7 @@ namespace graphlab {
     vertex_functor_set<engine_type> vfun_set;
     std::queue<vertex_id_type> queue; 
     spinlock queue_lock; 
-    task_count_terminator term;
+    count_termination term;
 
 
 

@@ -38,20 +38,8 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
-#include <graphlab/scheduler/terminator/shared_termination.hpp>
-#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
-
-
-// #include <graphlab/util/synchronized_queue.hpp>
-// #include <graphlab/tasks/update_task.hpp>
-// #include <graphlab/schedulers/ischeduler.hpp>
-// #include <graphlab/parallel/pthread_tools.hpp>
-// #include <graphlab/schedulers/support/direct_callback.hpp>
-// #include <graphlab/schedulers/support/vertex_task_set.hpp>
-// #include <graphlab/util/shared_termination.hpp>
-
-// #include <graphlab/parallel/atomic.hpp>
 
 
 
@@ -73,8 +61,8 @@ namespace graphlab {
     typedef typename base::engine_type engine_type;
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;
-    typedef shared_termination terminator_type;
-    // typedef task_count_terminator terminator_type;
+    typedef critical_termination terminator_type;
+
 
     
   private:

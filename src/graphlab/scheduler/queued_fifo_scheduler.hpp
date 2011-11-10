@@ -36,7 +36,7 @@
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 
-#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 
 
@@ -74,7 +74,7 @@ namespace graphlab {
     std::vector<queue_type> in_queues;
     std::vector<queue_type> out_queues;
     // Terminator
-    shared_termination term;
+    critical_termination term;
 
   public:
 
