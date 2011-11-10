@@ -160,21 +160,6 @@ void normalize_graph(graph_type& graph) {
   }
   std::cout << "Finished normalizing edges." << std::endl;
 
-  //Normalize the vertices
-  //  app_metrics.start_time("normalize");
-  std::cout << "Randomizing initial pagerank values." << std::endl;
-  double sum = 0;
-  for(size_t i = 0; i < graph.num_vertices(); ++i) {
-    // graph.vertex_data(i).value = 
-    //   graphlab::random::rand01() + 1;
-    sum += graph.vertex_data(i).value;
-  }
-  for(size_t i = 0; i < graph.num_vertices(); ++i) {
-    graph.vertex_data(i).value = 
-      graph.vertex_data(i).value / sum;
-  }
-  std::cout << "Finished Randomization." << std::endl;
-  // app_metrics.stop_time("normalize");
 } // end of normalize_graph
 
 

@@ -81,14 +81,20 @@ public:
   }
   bool writable_gather() { return false; }
   bool writable_scatter() { return false; }
-
+  edge_set gather_edges() const { return IN_EDGES; }
+  edge_set scatter_edges() const {
+    return accum > ACCURACY ? OUT_EDGES : NO_EDGES;
+  }
   void delta_functor_update(icontext_type& context) { 
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    vdata.old_value = vdata.value;
     vdata.value +=
       ((1-RANDOM_RESET_PROBABILITY)/
        (1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight)) * accum;
-    reschedule_neighbors(context);
+    accum = (vdata.value - vdata.old_value);
+    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
+      vdata.old_value = vdata.value;
+      reschedule_neighbors(context);
+    }
   } // end of delta_functor_update
 
 
@@ -103,11 +109,14 @@ public:
         context.neighbor_vertex_data(context.source(eid)).value;
     const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 
     // Add random reset probability
-    vdata.old_value = vdata.value;
     vdata.value = 
       RANDOM_RESET_PROBABILITY/(context.num_vertices()*self_term) +
       sum * (1-RANDOM_RESET_PROBABILITY)/self_term;
-    reschedule_neighbors(context);
+    accum = (vdata.value - vdata.old_value);
+    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
+      vdata.old_value = vdata.value;
+      reschedule_neighbors(context);
+    }
   } // end of operator()  
 
   // Reset the accumulator before running the gather
@@ -128,22 +137,23 @@ public:
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    accum += vdata.value * vdata.self_weight;
-    accum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*accum;
-    vdata.old_value = vdata.value;
-    vdata.value = accum;
+    const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 
+    vdata.value = 
+      RANDOM_RESET_PROBABILITY/(context.num_vertices()*self_term) +
+      accum * (1-RANDOM_RESET_PROBABILITY)/self_term;
+    accum = vdata.value - vdata.old_value;
+    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
+      vdata.old_value = vdata.value;    
+      reschedule_neighbors(context);
+    }
   } // end of apply
 
-  // Reschedule neighbors
+  // Reschedule neighbors 
   void scatter(icontext_type& context, edge_id_type out_eid) {
-    const vertex_data& vdata = context.const_vertex_data();
     const edge_data& edata   = context.const_edge_data(out_eid);    
-    const double residual = 
-      edata.weight*(vdata.value - vdata.old_value);
-    if(std::fabs(residual) > ACCURACY || vdata.nupdates == 1) {
-      context.schedule(context.target(out_eid), pagerank_update(residual));
-    }
+    context.schedule(context.target(out_eid), 
+                     pagerank_update(accum*edata.weight));
+    
   } // end of scatter
 
 private:
@@ -257,6 +267,12 @@ int main(int argc, char** argv) {
 
 
 
+
+
+
+
+
+
 update_style str2update_style(std::string str) {
   if(str == "basic") return BASIC;  
   else if(str == "delta") return DELTA;
@@ -268,8 +284,6 @@ update_style str2update_style(std::string str) {
     return BASIC;
   }  
 } // end of str2update_style;
-
-
 
 std::string update_style2str(update_style style) {
   switch(style) {
