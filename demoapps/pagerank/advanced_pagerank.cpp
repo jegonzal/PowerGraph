@@ -66,7 +66,6 @@ double ACCURACY = 1e-5;
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
-  typedef graphlab::iupdate_functor<graph_type, pagerank_update> base; 
 private:
   float accum;
 public:
@@ -98,13 +97,13 @@ public:
   } // end of delta_functor_update
 
 
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     // if it is a delta function then use the delta function update
     if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     float sum = 0;
-    foreach(base::edge_id_type eid, context.in_edge_ids()) 
+    foreach(edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
         context.neighbor_vertex_data(context.source(eid)).value;
     const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 

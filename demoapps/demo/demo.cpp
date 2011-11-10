@@ -146,11 +146,7 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 */
 struct update_functor : 
   public graphlab::iupdate_functor<graph_type, update_functor> {
-  // the base iupdate_functor type used to access types needed in this
-  // function.
-  typedef graphlab::iupdate_functor<graph_type, update_functor> base;
-  
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     //context.vertex_data allows me to grab a reference to the vertex
     // data on the graph
     vertex_data& curvdata = context.vertex_data();

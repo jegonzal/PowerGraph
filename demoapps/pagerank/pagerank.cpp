@@ -48,17 +48,16 @@ double ACCURACY = 1e-5;
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
-  typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
   float prio;
 public:
   pagerank_update(const float& prio = 0) : prio(prio) { }
   double priority() const { return prio; }
   void operator+=(const pagerank_update& other) { prio += other.prio; }
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     float sum = vdata.value * vdata.self_weight;    
-    foreach(base::edge_id_type eid, context.in_edge_ids()) 
+    foreach(edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
         context.neighbor_vertex_data(context.source(eid)).value;
     // Add random reset probability
@@ -66,7 +65,7 @@ public:
       (1-RANDOM_RESET_PROBABILITY)*sum;
     vdata.old_value = vdata.value;
     vdata.value = sum;
-    foreach(base::edge_id_type eid, context.out_edge_ids()) {    
+    foreach(edge_id_type eid, context.out_edge_ids()) {    
       const float residual = context.edge_data(eid).weight * 
         std::fabs(vdata.value - vdata.old_value);
       // If the neighbor changed sufficiently add to scheduler.
