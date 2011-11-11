@@ -16,10 +16,10 @@ function test_for_boost {
   rm -f a.out
   if [ -z $BOOST_ROOT ] ; then
     echo "BOOST_ROOT not defined. Probing in usual directories..."
-    g++ -L/usr/local/lib -I/usr/local/include -lboost_iostreams -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
+    g++ boost_tester.cpp -L/usr/local/lib -I/usr/local/include -lboost_iostreams -lboost_program_options -lboost_filesystem -lboost_system 
   else
     echo "Probing in $BOOST_ROOT"
-    g++ -L$BOOST_ROOT/lib -I$BOOST_ROOT/include -lboost_iostreams -lboost_program_options -lboost_filesystem -lboost_system boost_tester.cpp > /dev/null 2> /dev/null
+    g++ boost_tester.cpp -L$BOOST_ROOT/lib -I$BOOST_ROOT/include -lboost_iostreams -lboost_program_options -lboost_filesystem -lboost_system  
   fi
   if [ -f a.out ] ; then
     boostfound=1
