@@ -96,7 +96,11 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
         //printf("Found row %d %d %g\n", I, J, val);        
         I--;  /* adjust from 1-based to 0-based */
         J--;
-         if (ac.scalerating != 1.0)
+        if (I<=0 || J<= 0){
+          logstream(LOG_ERROR) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
+          exit(1);
+        }
+ if (ac.scalerating != 1.0)
 	     val /= ac.scalerating;
          if (!ac.zero)
 	   assert(val!=0 );

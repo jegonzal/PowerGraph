@@ -99,6 +99,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     for (i=0; i<nz; i++)
     {
         fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        if (I<=0 || J<= 0){
+          logstream(LOG_ERROR) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
+          exit(1);
+        }
         I--;  /* adjust from 1-based to 0-based */
         J--;
         edge.weight = val;
