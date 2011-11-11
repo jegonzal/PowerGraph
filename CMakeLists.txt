@@ -491,7 +491,6 @@ macro(add_dist2_executable NAME)
   if(MPI_FOUND)
     add_executable(${NAME} ${ARGN})
     target_link_libraries(${NAME} 
-      graphlab_dist2 
       graphlab
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} 

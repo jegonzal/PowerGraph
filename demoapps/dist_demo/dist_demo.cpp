@@ -88,6 +88,9 @@ struct vertex_data {
 };
 SERIALIZABLE_POD(vertex_data);
 
+// A simple enum describing the two possible colors
+enum color_type {RED, BLACK};
+
 
 /** In this example, we do not need edge data. However GraphLab
 currently does not have a mechanism to completely disable the use of
@@ -103,14 +106,6 @@ typedef char edge_data;
 The GraphLab graph is templatized over the vertex data as well as the
 edge data.  Here we define the type of the graph for convenience.  */
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-
-/**
-Since graphlab is heavily templatized and can be inconvenient to use
-in its standard form, the graphlab::types structure provides
-convenient typedefed "shortcuts" to figure out the other graphlab
-types easily.  */
-typedef graphlab::distributed_types<graph_type> gl;
-
 
 /**
 
@@ -148,84 +143,90 @@ tasks remaining. (See the comments in update_function for details).
 There are other methods for terminating execution, such as registering a
 termination evaluator with the engine, but we are not going to describe
 that here.
-
 */
-void update_function(gl::iscope& scope,
-                     gl::icallback& scheduler) {
-  //scope.vertex_data allows me to grab a reference to the vertex data
-  // on the graph
-  vertex_data& curvdata = scope.vertex_data();
 
-
-  // the in_edge_ids() function provide a vector of the edge ids of the edges
-  // entering the current vertex
-  gl::edge_list in_edges = scope.in_edge_ids();
-  // a counter for the number of red neighbors
-  size_t num_red_neighbors = 0;  
-  for (size_t i = 0; i < in_edges.size(); ++i) {
-    // eid is the current edge id
-    size_t eid = in_edges[i];    
-    // the target(eid) function allows to get the vertex at the destination
-    // of the edge 'eid'. The source(eid) function provides me with the
-    // source vertex.. Since I am looking at in_edges, the source vertex
-    // will be my adjacent vertices
-    size_t sourcev = scope.source(eid);
-    // the neighbor_vertex_data() function allow me to read the vertex data
-    // of a vertex adjacent to the current vertex.
-    // since I am not going to change this data, I can just grab a const
-    // reference. You should always try to use const references whenever
-    // you know that you will definitely not be changing the data, since
-    // GraphLab could make use of this knowledge to perform other optimizations
-    const vertex_data& nbrvertex = scope.neighbor_vertex_data(sourcev);
-    // if red, add to our counter
-    if (nbrvertex.color) ++num_red_neighbors;
-  }
-  // get the total number of neighbors we have
-  size_t num_neighbors = in_edges.size();
-
-  // Determine the new color by drawing a random number.  There are 2
-  // functions. rand01() provides a random floating point number
-  // between 0 and 1. rand_int(max) provides a random integer between
-  // 0 and max inclusive
-  bool new_color =
-    graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
+struct update_functor : 
+  public graphlab::iupdate_functor<graph_type, update_functor> {
+  // the base iupdate_functor type used to access types needed in this
+  // function.
+  typedef graphlab::iupdate_functor<graph_type, update_functor> base;
   
-  // Determine if the coin was deterministic probability 1 or 0 of
-  // landing red
-  bool is_deterministic =
-    num_neighbors == num_red_neighbors || num_red_neighbors == 0;
-
-  // see if I flip and update the current vertex data.
-  bool color_changed = new_color != curvdata.color;
-  if (color_changed) ++curvdata.numflips;
-
-  // Assign the new color
-  curvdata.color = new_color;
-
-  // If I flipped, all my neighbors could be affected, loop through
-  // all my neighboring vertices and add them as tasks.
-  if (color_changed) {
+  void operator()(base::icontext_type& context) {
+    //context.vertex_data allows me to grab a reference to the vertex
+    // data on the graph
+    vertex_data& curvdata = context.vertex_data();
+    // the in_edge_ids() function provide a vector of the edge ids of
+    // the edges entering the current vertex
+    const graph_type::edge_list_type in_edges = context.in_edge_ids();
+    // a counter for the number of red neighbors
+    size_t num_red_neighbors = 0;  
     for (size_t i = 0; i < in_edges.size(); ++i) {
-      size_t sourcev = scope.source(in_edges[i]);
-      // add the task
-      // the gl::update_task object takes a vertex id, and the update function
-      // to execute on. add_task also takes another argument, which is
-      // the priority of this task. This value should be strictly > 0.
-      // The priority parameter of course, is only used by the priority
-      // schedulers. In this demo app, we don't really care about the
-      // priority, so we will just set it to 1.0      
-      scheduler.add_task(gl::update_task(sourcev, update_function),
-                        1.0);
+      // eid is the current edge id
+      graph_type::edge_id_type eid = in_edges[i];    
+      // the target(eid) function allows to get the vertex at the destination
+      // of the edge 'eid'. The source(eid) function provides me with the
+      // source vertex.. Since I am looking at in_edges, the source vertex
+      // will be my adjacent vertices
+      graph_type::vertex_id_type sourcev = context.source(eid);
+      // the neighbor_vertex_data() function allow me to read the
+      // vertex data of a vertex adjacent to the current vertex.
+      // since I am not going to change this data, I can just grab a
+      // const reference. You should always try to use const
+      // references whenever you know that you will definitely not be
+      // changing the data, since GraphLab could make use of this
+      // knowledge to perform other optimizations
+      const vertex_data& nbrvertex = context.neighbor_vertex_data(sourcev);
+      // if red, add to our counter
+      if (nbrvertex.color == RED) ++num_red_neighbors;
+    }
+    // get the total number of neighbors we have
+    const double num_neighbors = in_edges.size();
+
+    // Determine the new color by drawing a random number.  There are 2
+    // functions. rand01() provides a random floating point number
+    // between 0 and 1. rand_int(max) provides a random integer between
+    // 0 and max inclusive
+    color_type new_color = 
+      graphlab::random::bernoulli(num_red_neighbors / num_neighbors)?
+      RED : BLACK;
+  
+    // Determine if the coin was deterministic probability 1 or 0 of
+    // landing red
+    const bool is_deterministic =
+      num_neighbors == num_red_neighbors || num_red_neighbors == 0;
+
+    // see if I flip and update the current vertex data.
+    const bool color_changed = (new_color != curvdata.color);
+    if (color_changed) ++curvdata.num_flips;
+
+    // Assign the new color
+    curvdata.color = new_color;
+
+    // If I flipped, all my neighbors could be affected, loop through
+    // all my neighboring vertices and add them as tasks.
+    if (color_changed) {
+      for (size_t i = 0; i < in_edges.size(); ++i) {
+        const graph_type::vertex_id_type sourcev = context.source(in_edges[i]);
+        // add the task the gl::update_task object takes a vertex id,
+        // and the update function to execute on. add_task also takes
+        // another argument, which is the priority of this task. This
+        // value should be strictly > 0.  The priority parameter of
+        // course, is only used by the priority schedulers. In this
+        // demo app, we don't really care about the priority, so we
+        // will just set it to 1.0
+        context.schedule(sourcev, update_functor());
+      }
+    }
+    // now if I flipped myself based on a random number. This means
+    // that if I update myself again, I could switch colors. Therefore
+    // I should add myself as a task
+    if (is_deterministic == false) {
+      const update_functor fun;
+      context.schedule(context.vertex_id(), fun);
     }
   }
-  // now if I flipped myself based on a random number. This means that if I
-  // update myself again, I could switch colors. Therefore I should
-  // add myself as a task
-  if (is_deterministic == false) {
-    scheduler.add_task(gl::update_task(scope.vertex(), update_function),
-                        1.0);
-  }
-}
+}; // end of update_functor
+
 
 /**
   In this function, we construct the grid graph
@@ -273,29 +274,6 @@ void init_graph(gl::memory_graph & g,
   g.finalize();
 }
 
-/*
- Say if we are interested in having an incremental counter which provides
- the total number of flips executed so far, as well as a ratio of the total
- number of red vertices vs black vertices.
- we can do this via the shared data manager's Sync mechanism.
- 
- The Sync mechanism allows you to build a 'Fold / Reduce' operation
- across all the vertices in the graph, and store the results in the
- Shared Data object. The Shared Data table is essentially a big table
- mapping integer ids -> arbitrary data types
-
- First we need to define the entries of the table. The data we need are:
-  - the total number of vertices (constant)
-  - red vertex proportion      (synced)
-  - the total number of flips    (synced)
-  
- We will therefore define 3 entries in the Shared Data table.
-*/
-
-
-gl::distributed_glshared<size_t> NUM_VERTICES;
-gl::distributed_glshared<double> RED_PROPORTION;
-gl::distributed_glshared<size_t> NUM_FLIPS;
 
 
 
@@ -315,120 +293,41 @@ gl::distributed_glshared<size_t> NUM_FLIPS;
 // the NUM_VERTICES table entry
 
 /**
-This is the reducer for the RED_PROPORTION sync.
-We just count the number of red verices.
+   This is the reducer for the RED_PROPORTION sync.
+   We just count the number of red verices.
 
-\param scope The scope on the vertex we are currently accessing
+   \param context The context on the vertex we are currently accessing
 
-\param accumulator The input and output of the fold/reduce operation.
+   \param accumulator The input and output of the fold/reduce operation.
 */       
-void reduce_red_proportion(gl::iscope& scope,
-                           graphlab::any& accumulator) {
-  // each entry in the shared_data table is a special data type called
-  // graphlab::any (which is derived and modified from boost::any).
-  // This allows you to store arbitrary datatypes into the shared data table,
-  // with the minor caveat that the user must know EXACTLY what is the data
-  // type stored at each entry. In this case, we will simply
-  // store doubles.
-  if (scope.vertex_data().color) accumulator.as<double>() += 1.0;
-}
-
-/**
-This is the apply for the RED_PROPORTION sync.
-We divide the accumulated value by the number of vertices
-
-\param current_data The current (old) value in the shared data table entry.
-                    Overwriting this will update the shared data table entry
-
-\param new_data The result of the reduce operation on all the vertices.
-*/       
-void apply_red_proportion(graphlab::any& current_data, 
-                          const graphlab::any& new_data) {
-  // get the number of vertices from the constant section of the shared data
-  size_t numvertices = NUM_VERTICES.get_val();
-
-  // new_data is the reduced result, which is the number of red vertices
-  double numred = new_data.as<double>();
-  // compute the proportion
-  double proportion = numred / numvertices;
-  // here we can output something as a progress monitor
-  std::cout << "Red Proportion: " << proportion << std::endl;
-  // write the final result into the shared data table
-  current_data.as<double>() = proportion;
-}
+class accumulator :
+  public graphlab::iaccumulator<graph_type, update_functor, accumulator> {
+private:
+  size_t red_count, flips_count;
+public:
+  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> base;
+  accumulator() : red_count(0), flips_count(0) { }
+  void operator()(base::icontext_type& context) {
+    red_count += (context.vertex_data().color == RED)? 1 : 0;
+    flips_count += context.vertex_data().num_flips;
+  }
+  void operator+=(const accumulator& other) { 
+    red_count += other.red_count; 
+    flips_count += other.flips_count; 
+  }
+  void finalize(base::iglobal_context_type& context) {
+    const size_t numvertices = context.num_vertices();
+    const double proportion = double(red_count) / numvertices;
+    // here we can output something as a progress monitor
+    std::cout << "Red Proportion: " << proportion << std::endl
+              << "Num Flips: " << flips_count << std::endl;
+    // write the final result into the shared data table
+    context.set_global("RED_PROPORTION", proportion);
+    context.set_global("NUM_FLIPS", flips_count);
+  }
+}; // end of  accumulator
 
 
-/**
- This is the merge function for the RED_PROPORTION sync
- Since it is just a sum, intermediate results simply add`
-*/
-void merge_red_proportion(graphlab::any& target, 
-                          const graphlab::any& source) {
-  target.as<double>() += source.as<double>();
-}
-
-
-
-/**
-  GraphLab provides a number of predefined syncing operations which allow
-  simple reductions / applies to be implemented very quickly. 
-  We will implement the NUM_FLIPS entry using one of these predefined
-  operations. The predefined operations typically require the user to
-  provide a simple function which extracts the information of interest
-  from the vertex data. In this case, the numflips field.
-*/
-size_t get_flip(const vertex_data &v) {
-  return v.numflips;
-}
-
-/**
-  Here we create the shared data values
-*/
-void init_shared_data(gl::distributed_core &core, size_t dim) {
-  // the number of vertices is a constant and is just dim * dim
-  // since this is a constant we will just use the "constant" part of the table
-  // using the function add_constant(index, value)
-  //
-  // Since the 'any' allows you to store any datatype, it is therefore good
-  // practice to explicitly state the data type of the value you are storing
-  // (size_t here). You will see this theme alot in all uses of the shared
-  // data table
-  NUM_VERTICES.set(dim*dim);
- 
-  // create the sync for the red_proportion entriy
-
-  core.set_sync(RED_PROPORTION,       // The value we are syncing
-                reduce_red_proportion, // the reduce function
-                apply_red_proportion,  // the apply function
-                double(0),             // the initial value for the fold/reduce
-                128,                   // syncing frequency.in #updates
-                merge_red_proportion); // merge function
-
-
-
-  // for the number of flips counter, we will demonstrate
-  // the use of GraphLab's predefined reduce and apply operations
-  // we will use set_sync as usual, but using something different for the
-  // reduce and apply functions
-
-  // glshared_sync_ops::sum<size_t, get_flip> is a predefined reduce operation
-  // which sums over all the result of running get_flip() on all the vertex
-  // data. The first template field (size_t) is the type of the accumulator.
-
-  // glshared_apply_ops::identity<size_t> is the identity apply which directly
-  // writes the result of the reduction into the shared data table entry.
-  // The template field (size_t) is the type of the entry.
-  
-  // glshared_merge_ops::sum<size_t> simply returns the sum of intermediate results
-
-  core.set_sync(NUM_FLIPS,  
-               gl::glshared_sync_ops::sum<size_t, get_flip>,
-               gl::glshared_apply_ops::identity<size_t>,
-               size_t(0),
-               128,
-               gl::glshared_merge_ops::sum<size_t>);
-
-}
 
 
 
@@ -486,13 +385,17 @@ int main(int argc,  char *argv[]) {
   // Initialize the core with the command line arguments
   glcore.set_engine_options(opts);
   glcore.build_engine();
-  // call create shared_data to create the shared data
-  init_shared_data(glcore, dimensions);
+
+  glcore.add_sync("sync", initial_accum, sync_interval);
+  glcore.add_global("NUM_FLIPS", size_t(0));
+  glcore.add_global("RED_PROPORTION", double(0));
+
 
   // since we are using a task scheduler, we need to
   // to create tasks. otherwise the engine will just terminate immediately
   // there are DIM * DIM vertices
-  glcore.add_task_to_all(update_function, 1.0);
+  const update_functor functor;
+  glcore.schedule_all( functor );
   
   // Run the graphlab engine 
   double runtime = glcore.start();

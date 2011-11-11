@@ -25,34 +25,19 @@
 #define GRAPHLAB_DISTRIBUTED_CORE_HPP
 
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/engine_options.hpp>
 #include <graphlab/distributed2/distributed2_includes.hpp>
-#include <graphlab/util/command_line_options.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/rpc/dc_init_from_env.hpp>
-
-#include <graphlab/schedulers/ischeduler.hpp>
-#include <graphlab/scope/iscope.hpp>
 #include <graphlab/graph/graph.hpp>
-
-
-
-#include <graphlab/metrics/metrics.hpp>
-#include <graphlab/metrics/reporters/null_reporter.hpp>
-#include <graphlab/metrics/reporters/basic_reporter.hpp>
-#include <graphlab/metrics/reporters/file_reporter.hpp>
-#include <graphlab/metrics/reporters/html_reporter.hpp>
 
 
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-  // Predecleration 
-  template<typename Graph> struct distributed_types;
-  
 
 
   /**
@@ -88,10 +73,15 @@ namespace graphlab {
     seperately. This behavior is documented in each function. The user must
     take care to obey this requirement or it may result in unexpected behavior.
   */
-  template <typename VertexType, typename EdgeType>
+  template <typename Graph, typename UpdateFunctor>
   class distributed_core {
   public:
-    typedef graphlab::distributed_types<graphlab::distributed_graph<VertexType, EdgeType> > distributed_types;
+    typedef Graph graph_type;
+    typedef UpdateFunctor update_functor_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
+    typedef typename graph_type::edge_id_type   edge_id_type;
+    typedef typename graph_type::edge_list_type edge_list_type;
+
 
   public:
     /** default constructor. Graph is constructed using the atom index.
@@ -101,8 +91,7 @@ namespace graphlab {
                      disk_graph_atom_type::atom_type atomtype = disk_graph_atom_type::DISK_ATOM) :
       dc(dc),
       mgraph(dc, atomindex, false, true, atomtype),
-      mengine(NULL),
-      coremetrics("distributed_core"), reporter(new null_reporter) { }
+      mengine(NULL) { }
   private:
     //! Core is not copyable
     distributed_core(const distributed_core& other);
@@ -116,24 +105,23 @@ namespace graphlab {
      * All machines must call simultaneously.
      */
     ~distributed_core() { 
-      if (meopts.get_metrics_type() != "none") {        
-        // Write options to metrics
-        fill_metrics();
-        report_metrics();
-      }
       delete mengine;
-      delete reporter;
     } 
-       
+
+    void set_engine_type(const std::string& engine_type) {
+      bool success = opts.set_engine_type(engine_type);
+      ASSERT_TRUE(success);
+    }
+
     /** Get a modifiable reference to the graph associated with this core
      * This function is parallel.
      */
-    typename distributed_types::distributed_graph& graph() { return mgraph; }
+    graph_type& graph() { return mgraph; }
 
     /** Get a constant reference to the graph associated with this core
      * This function is parallel.
      */
-    const typename distributed_types::distributed_graph& graph() const { return mgraph; }
+    const graph_type& graph() const { return mgraph; }
 
     /**
      * \brief Set the type of scheduler.
@@ -141,8 +129,7 @@ namespace graphlab {
      * All machines must call simultaneously.
      */
     void set_scheduler_type(const std::string& scheduler_type) {
-      ASSERT_EQ(mengine, NULL);
-      bool success = meopts.set_scheduler_type(scheduler_type);
+      bool success = opts.set_scheduler_type(scheduler_type);
       ASSERT_TRUE(success);
     }
 
@@ -161,53 +148,9 @@ namespace graphlab {
      *
      * See \ref Scopes for details
      */
-    void set_scope_type(const std::string& scope_type) {
-      ASSERT_EQ(mengine, NULL);
-      bool success = meopts.set_scope_type(scope_type);
-      ASSERT_TRUE(success);
-    }
-
-
-    /**
-     * \brief Set the engine type.
-     *
-     * The engine must not be constructed yet. 
-     * All machines must call simultaneously.
-     *
-     *  \li \b "dist_locking" Distributed engine with consistency ensured 
-     *                        through locking
-     *  \li \b "dist_chromatic" Distributed engien with consistency ensured
-     *                          through coloring
-     */
-    void set_engine_type(const std::string& engine_type) {
-      ASSERT_EQ(mengine, NULL);
-      bool success = meopts.set_engine_type(engine_type);
-      ASSERT_TRUE(success);
-    }
-    
-    /**
-     * \brief Sets the output format of any recorded metrics
-     *  This function is parallel.
-     * 
-     *  \li \b "none" No reporting
-     *  \li \b "basic" Outputs to screen
-     *  \li \b "file" Outputs to a text file graphlab_metrics.txt
-     *  \li \b "html" Outputs to a html file graphlab_metrics.html
-     */
-    void set_metrics_type(const std::string& metrics_type) {
-      bool metrics_set_success = meopts.set_metrics_type(metrics_type);
-      ASSERT_TRUE(metrics_set_success);
-      
-      delete reporter;
-      if (meopts.get_metrics_type() == "file") {
-        reporter = new file_reporter("graphlab_metrics.txt");
-      } else if (meopts.get_metrics_type() == "html") {
-        reporter = new  html_reporter("graphlab_metrics.html");
-      } else if (meopts.get_metrics_type() == "basic") {
-        reporter = new basic_reporter;
-      } else {
-        reporter = new null_reporter;
-      }
+    void set_scope_type(const std::string& scope_str) {
+      graphlab_options opts = mengine.get_options();
+      opts.set_scope_type(scope_str);
     }
 
     
@@ -219,8 +162,8 @@ namespace graphlab {
      *
      */
     void set_ncpus(size_t ncpus) {
-      ASSERT_EQ(mengine, NULL);
-      meopts.set_ncpus(ncpus);
+      graphlab_options opts = mengine.get_options();
+      opts.set_ncpus(ncpus);
     }
 
 
@@ -229,9 +172,32 @@ namespace graphlab {
      * build_engine() must be called prior to this.
      * This function is parallel.
      */
-    typename distributed_types::iengine& engine() {
+    typename graphlab::iengine<Graph,UpdateFunctor>& engine() {
       ASSERT_NE(mengine, NULL);
       return *mengine; 
+    }
+
+
+    /**
+     * \brief Set the engine options by passing in an engine options object.
+     */
+    void set_options(const graphlab_options& opts) {
+      mengine.set_options(opts);
+    }
+
+    const graphlab_options& get_options() const { 
+      return mengine.get_options();
+    }
+
+    /**
+     * \brief Set the engine options by simply parsing the command line
+     * arguments. 
+     */
+    bool parse_options(int argc, char **argv) {
+      command_line_options clopts;
+      bool success = clopts.parse(argc, argv);
+      ASSERT_TRUE(success);
+      opts = clopts;
     }
 
 
@@ -245,82 +211,10 @@ namespace graphlab {
     bool build_engine() {
       ASSERT_EQ(mengine, NULL);
       // create the engine
-      mengine = distributed_engine_factory::new_engine(dc, meopts, mgraph);
+      mengine = distributed_engine_factory::new_engine(dc, opts.get_engine_type(), mgraph, opts.get_ncpus());
       if(mengine == NULL) return false;
-      mengine->set_engine_options(meopts.get_engine_options());
       return true;
     }
-
-    /**
-     * \brief Set the engine options by passing in an engine options object.
-     * The engine must not be constructed yet. 
-     * All machines must call simultaneously.
-     */
-    void set_engine_options(const engine_options& opts) {
-      ASSERT_EQ(mengine, NULL);
-      meopts = opts;
-      
-      delete reporter;
-      if (meopts.get_metrics_type() == "file") {
-        reporter = new file_reporter("graphlab_metrics.txt");
-      } else if (meopts.get_metrics_type() == "html") {
-        reporter = new  html_reporter("graphlab_metrics.html");
-      } else if (meopts.get_metrics_type() == "basic") {
-        reporter = new basic_reporter;
-      } else {
-        reporter = new null_reporter;
-      }
-    }
-
-    /**
-     * \brief Gets the reporter
-     * This function is parallel.
-     */
-    imetrics_reporter& get_reporter() {
-      return *reporter;
-    }
-
-    /**
-     * \brief Returns the engine options
-     * This function is parallel
-     */
-    const engine_options& get_engine_options() const { 
-      return meopts;
-    }
-
-    /**
-     * \brief Returns a modifiable reference to the scheduler options
-     * 
-     * This function is parallel <b> but> any modifications to the options must be 
-     * made the same way across all machines.
-     */
-    scheduler_options& sched_options() {
-      return meopts.get_scheduler_options();
-    }
-
-    /**
-     * \brief Returns a constant reference to the scheduler options
-     * This function is parallel
-     */
-    const scheduler_options& sched_options() const{
-      return meopts.get_scheduler_options();
-    }
-
-
-    /**
-     * \brief Set the engine options by simply parsing the command line
-     * arguments. 
-     * The engine must not be constructed yet. 
-     * All machines must call simultaneously.
-     */
-    bool parse_engine_options(int argc, char **argv) {
-      ASSERT_EQ(mengine, NULL);
-      command_line_options clopts;
-      bool success = clopts.parse(argc, argv);
-      ASSERT_TRUE(success);
-      return set_engine_options(clopts);
-    }
-
 
     /**
      * \brief Run the engine until a termination condition is reached or
@@ -336,7 +230,7 @@ namespace graphlab {
         ASSERT_NE(mengine, NULL);
       }
       // merge in options from command line and other manually set options
-      mengine->set_scheduler_options( meopts.get_scheduler_options() );
+      mengine->set_scheduler_options( opts.get_scheduler_options() );
       graphlab::timer ti;
       ti.start();
       mengine->start();
@@ -346,47 +240,29 @@ namespace graphlab {
 
     /**
      * \brief Add a single update function to a single vertex.
-     * This function is parallel. Engine must have been constructed
-     * using build_engine() prior to calling this function.
      */
-    void add_task(vertex_id_t vertex,
-                  typename distributed_types::update_function func,
-                  double priority) {
-      typename distributed_types::update_task task(vertex, func);
-      add_task(task, priority);
-    }
-
-
-    /**
-     * \brief Add a single task with a fixed priority.
-     * This function is parallel. Engine must have been constructed
-     * using build_engine() prior to calling this function.
-     */
-    void add_task(typename distributed_types::update_task task, double priority) {
-      engine().add_task(task, priority);
+    void schedule(vertex_id_type vid, const update_functor_type& fun) {
+      mengine.schedule(vid, fun);
     }
 
     /**
-     * \brief Add the update function to all the veritces in the provided
-     * vector with the given priority.
-     * This function is parallel. Engine must have been constructed
-     * using build_engine() prior to calling this function.
+     * \brief Add an update function to a vector of vertices
      */
-    void add_tasks(const std::vector<vertex_id_t>& vertices, 
-                   typename distributed_types::update_function func, double priority) {
-      engine().add_tasks(vertices, func, priority);
+    void schedule(const std::vector<vertex_id_type>& vid,
+                  const update_functor_type& fun) {
+      mengine.schedule(vid, fun);
     }
 
+    
+    
 
     /**
      * \brief Add the given function to all vertices using the given priority
-     * This function is parallel. Engine must have been constructed
-     * using build_engine() prior to calling this function.
      */
-    void add_task_to_all(typename distributed_types::update_function func, 
-                         double priority) {
-      engine().add_task_to_all(func, priority);
+    void schedule_all(const update_functor_type& fun) {
+      mengine.schedule_all(fun);
     }
+    
     
     /**
      * \brief Get the number of updates executed by the engine
@@ -398,41 +274,31 @@ namespace graphlab {
       return mengine->last_update_count();
     }
     
-    /**
-     * \brief Fills the metrics with the engine options.
-     * This function is parallel.
-     */
-    void fill_metrics() {
-      coremetrics.set("ncpus", meopts.get_ncpus());
-      coremetrics.set("engine", meopts.get_engine_type());
-      coremetrics.set("scope", meopts.get_scope_type());
-      coremetrics.set("scheduler", meopts.get_scheduler_type());
-      coremetrics.set("affinities", meopts.get_cpu_affinities() ? "true" : "false");
-      coremetrics.set("schedyield", meopts.get_sched_yield() ? "true" : "false");
-      coremetrics.set("compile_flags", meopts.get_compile_flags());
+    
+
+    //! Add a global entry 
+    template< typename T >
+    void add_global(const std::string& key, const T& value, size_t size = 1) {
+      engine().add_global(key, value, size); 
     }
 
-    /**
-     * \brief Clears all recorded metrics. This function is parallel.
-     */  
-    void reset_metrics() {
-      coremetrics.clear();
-      if (mengine) engine().reset_metrics();
+    //! Change the value of a global entry
+    template< typename T >
+    void set_global(const std::string& key, const T& value, size_t index = 0) {
+      engine().set_global(key, value, index);
     }
-      
-    /**
-       \brief Outputs the recorded metrics. This function is parallel.
-    */
-    void report_metrics() {
-      coremetrics.report(get_reporter());
-      engine().report_metrics(get_reporter());
+
+    //! Get a copy of the value of a global entry
+    template< typename T >
+    void get_global(const std::string& key, T& ret_value, size_t index = 0) {
+      engine().get_global(key, ret_value, index);
     }
-    
+
+
     /**
      * \brief Registers a sync with the engine.
      *
-     * Registers a sync with the engine. All machines must call simultaneously.
-     * 
+     * Registers a sync with the engine.
      * The sync will be performed approximately every "interval" updates,
      * and will perform a reduction over all vertices from rangelow
      * to rangehigh inclusive.
@@ -452,7 +318,9 @@ namespace graphlab {
      *                     update function calls before the sync is reevaluated.
      *                     If 0, the sync will only be evaluated once
      *                     at engine start,  and will never be evaluated again.
-     * \param merge Combined intermediate reduction value. Required.
+     *                     Defaults to 0.
+     * \param merge Combined intermediate reduction value. defaults to NULL.
+     *              in which case, it will not be used.
      * \param rangelow he lower range of vertex id to start syncing.
      *                 The range is inclusive. i.e. vertex with id 'rangelow'
      *                 and vertex with id 'rangehigh' will be included.
@@ -462,37 +330,35 @@ namespace graphlab {
      *                  and vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    void set_sync(distributed_glshared_base& shared,
-                  typename distributed_types::iengine::sync_function_type sync,
-                  glshared_base::apply_function_type apply,
-                  const any& zero,
-                  size_t sync_interval ,
-                  typename distributed_types::iengine::merge_function_type merge ,
-                  vertex_id_t rangelow = 0,
-                  vertex_id_t rangehigh = -1) { 
-      engine().set_sync(shared, sync, apply, zero, 
-                        sync_interval, merge, rangelow, rangehigh);
-      
-    }
-    
+    template<typename Accum>
+    void add_sync(const std::string& key,           
+                  const Accum& zero,                 
+                  size_t sync_interval,
+                  bool use_barrier = false,
+                  vertex_id_type begin_vid = 0,
+                  vertex_id_type end_vid = 
+                  std::numeric_limits<vertex_id_type>::max()) {
+      engine().add_sync(key, zero, sync_interval,
+                        use_barrier, begin_vid, end_vid);
+    }    
 
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
-     * Not implemented.
      */
-    void sync_now(glshared_base& shared) ;
+    void sync_now(const std::string& key) { 
+      engine().sync_now(key);
+    };
+
+    
   private:
 
 
     distributed_control& dc;
     // graph and data objects
-    typename distributed_types::distributed_graph mgraph;
-    engine_options meopts;
-    typename distributed_types::iengine *mengine;
-    
-    metrics coremetrics;
-    imetrics_reporter* reporter;
+    graph_type mgraph;
+    iengine<Graph,UpdateFunctor> *mengine;    
+    graphlab_options opts;
   };
 
 }

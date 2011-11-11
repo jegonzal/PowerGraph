@@ -106,7 +106,7 @@ namespace graphlab {
 
   public:
     /** Initialize the per vertex task set */
-    vertex_functor_set(size_t num_vertices) :
+    vertex_functor_set(size_t num_vertices = 0) :
       vfun_set(num_vertices) { }
 
     /**

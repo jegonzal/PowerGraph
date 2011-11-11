@@ -107,15 +107,6 @@ namespace graphlab {
     virtual void set_engine_type(const std::string& engine_type) = 0;
     
     /**
-     * \brief Sets the output format of any recorded metrics
-     *  \li \b "none" No reporting
-     *  \li \b "basic" Outputs to screen
-     *  \li \b "file" Outputs to a text file graphlab_metrics.txt
-     *  \li \b "html" Outputs to a html file graphlab_metrics.html
-     */
-    virtual void set_metrics_type(const std::string& metrics_type) = 0;
-
-    /**
        \brief Destroys a created engine (if any).
     */
     virtual void reset() = 0;

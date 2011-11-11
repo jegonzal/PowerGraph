@@ -64,7 +64,7 @@ namespace graphlab {
    
     typedef icontext<graph_type, update_functor_type> icontext_type;
 
-    enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
+    enum edge_set {NO_EDGES = 0, IN_EDGES = 1, OUT_EDGES = 2, ALL_EDGES = 3};
     
     virtual ~iupdate_functor() { }
 
