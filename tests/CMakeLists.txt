@@ -24,7 +24,7 @@ ADD_CXXTEST(fast_multinomial_test.cxx)
 # ADD_CXXTEST(graphlab_test.cxx)
 # ADD_CXXTEST(serializetests.cxx)
 # ADD_CXXTEST(thread_tools.cxx)
-# add_executable(anytests anytests.cpp)
+add_executable(anytests anytests.cpp)
 # add_executable(anytests_loader anytests_loader.cpp)
 
 # if (MPI_FOUND)

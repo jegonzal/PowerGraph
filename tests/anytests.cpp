@@ -79,6 +79,7 @@ void is10(const graphlab::any a) {
 }
 
 int main(int argc, char** argv) {
+  std::cout << "Beginning anytests" << std::endl;
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   std::ofstream f;
@@ -118,5 +119,6 @@ int main(int argc, char** argv) {
   f.close();
   
   TestClass3 t3;
-  any tmp = t3;
+  any tmp(t3);
+  std::cout << "Finished anytests" << std::endl;
 }
