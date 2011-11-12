@@ -116,6 +116,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
 
   if [ $somefailed == 1 ]; then
      echo "**** FAILURE LOG **************" >> $stdoutfname
+     cat $stderrfname >> $stdoutfname
      echo "**** CONFIGURE.DEPS **************" >> $stdoutfname
      cat ../../configure.deps >> $stdoutfname
      echo "**** CONFIG.LOG **************" >> $stdoutfname
