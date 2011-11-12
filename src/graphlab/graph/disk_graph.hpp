@@ -183,9 +183,14 @@ namespace graphlab {
       
       for (size_t i = 0;i < numfiles; ++i) {
         if (atomtype == disk_graph_atom_type::DISK_ATOM) {
+#ifdef HAS_KYOTO
           atoms[i] = new disk_atom(fbasename + "." + tostr(i), i);
           numv.value += atoms[i]->num_vertices();
           nume.value += atoms[i]->num_edges();
+#else
+          logger(LOG_FATAL, "Disk Atom not compiled. Requires Kyoto Cabinet");
+          ASSERT_TRUE(false);
+#endif
         }
         else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atoms[i] = new memory_atom(fbasename + "." + tostr(i) + ".fast", i);
@@ -220,9 +225,14 @@ namespace graphlab {
 
       for (size_t i = 0;i < idxfile.atoms.size(); ++i) {
         if (atomtype == disk_graph_atom_type::DISK_ATOM) {
+#ifdef HAS_KYOTO
           atoms[i] = new disk_atom(idxfile.atoms[i].file, i);
           numv.value += atoms[i]->num_vertices();
           nume.value += atoms[i]->num_edges();
+#else
+          logger(LOG_FATAL, "Disk Atom not compiled. Requires Kyoto Cabinet");
+          ASSERT_TRUE(false);
+#endif
         }
         else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atoms[i] = new memory_atom(idxfile.atoms[i].file + ".fast", i);
@@ -658,9 +668,13 @@ namespace graphlab {
         std::string fname = atoms[i]->get_filename();
         // Make sure that this is not already a fast file
         if (fname.length() < 5 || fname.substr(fname.length() - 5, 5) != ".fast") {
+#ifdef HAS_KYOTO
           if (typeid(*atoms[i]) == typeid(disk_atom)) {
             dynamic_cast<disk_atom*>(atoms[i])->build_memory_atom(atoms[i]->get_filename() + ".fast");
           }
+#else
+          if(0) { }
+#endif
           else {
             std::string mfile = fname.substr(0, fname.length() - 5) + ".fast";
             memory_atom matom(mfile, atoms[i]->atom_id());

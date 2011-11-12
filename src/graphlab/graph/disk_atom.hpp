@@ -29,6 +29,9 @@
  *
  */
 
+#ifndef HAS_KYOTO
+#define GRAPHLAB_DISK_ATOM_HPP
+#endif
 
 #ifndef GRAPHLAB_DISK_ATOM_HPP
 #define GRAPHLAB_DISK_ATOM_HPP

@@ -8,7 +8,10 @@ include_directories( . )
 
 
 ADD_CXXTEST(graph_test.cxx)
+
+if (Kyoto-FOUND)
 ADD_CXXTEST(disk_graph_test.cxx)
+endif()
 
 ADD_CXXTEST(randomtest.cxx)
 ADD_CXXTEST(graphlab_test.cxx)

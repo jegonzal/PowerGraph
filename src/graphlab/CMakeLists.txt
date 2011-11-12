@@ -57,6 +57,10 @@ IF (EXPERIMENTAL)
   set(mmap_allocator util/mmap_allocator.cpp)
 endif()
 
+if (Kyoto-FOUND)
+  set(disk_graph_files graph/disk_atom.cpp)
+endif()
+
 add_library(graphlab STATIC
   ${metis_sources}
   schedulers/scheduler_options.cpp
@@ -64,7 +68,7 @@ add_library(graphlab STATIC
   util/generics/any.cpp
   util/command_line_options.cpp
   graph/memory_atom.cpp
-  graph/disk_atom.cpp
+  ${disk_graph_files}
   graph/write_only_disk_atom.cpp
   graph/atom_index_file.cpp
   logger/logger.cpp

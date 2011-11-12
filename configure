@@ -45,6 +45,8 @@ function print_help {
   echo
   echo "      --force_kc_install      This forces a Kyoto Cabinet installation even if Kyoto Cabinet is detected."
   echo
+  echo "      --no_kc                 Disables Kyoto Cabinet even if found. " 
+  echo
   echo "      --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
   echo 
   echo "      --experimental          Turns on undocumented experimental distributed capabilities. "
@@ -94,6 +96,7 @@ while [ $# -gt 0 ]
     --force_cmake_install)  force_cmake_install=1 ;;
     --force_boost_install)  force_boost_install=1 ;;
     --force_kc_install)     force_kc_install=1 ;;
+    --no_kc)                no_kc=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --experimental)         experimental=1 ;;
     --itpp)                 itpp=1 ;;
@@ -208,6 +211,12 @@ fi
 if [ ! -z $KC_ROOT ]; then
     config_flags="$config_flags -D KC_ROOT:STRING=$KC_ROOT"
 fi
+
+if [ ! -z $no_kc ]; then
+    config_flags="$config_flags -D NO_KC:BOOL=1"
+fi
+
+
 
 if [ ! -z $EXPERIMENTAL ]; then
     config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"

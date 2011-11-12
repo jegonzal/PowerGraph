@@ -199,26 +199,34 @@ else()
 endif()
 
 
-
-find_library(KYOTO_SHARED_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
-find_path(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
-if (KYOTO_SHARED_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
-  message(FATAL_ERROR "Kyoto Cabinet not found. Run bootstrap!")
-endif()
-
-if (KYOTO_INCLUDE_DIR MATCHES KYOTO_INCLUDE_DIR-NOTFOUND)
-  message(FATAL_ERROR "Kyoto Cabinet includes not found. Run bootstrap!")
+if(NO_KC)
+  message(STATUS "Kyoto Cabinet disabled. Disk Graph will not be built!")
+  set(Kyoto-NOTFOUND 1)
+  set(Kyoto-FOUND)
 else()
-  message(STATUS "Kyoto Cabinet Found")
+  find_library(KYOTO_SHARED_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
+  find_path(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
+  if (KYOTO_SHARED_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
+    message(STATUS "Kyoto Cabinet not found. Disk Graph will not be built!")
+    set(Kyoto-NOTFOUND 1)
+    set(Kyoto-FOUND)
+  else()
+    if (KYOTO_INCLUDE_DIR MATCHES KYOTO_INCLUDE_DIR-NOTFOUND)
+      message(STATUS "Kyoto Cabinet includes not found. Disk Graph will not be built!")
+      set(Kyoto-NOTFOUND 1)
+      set(Kyoto-FOUND)
+    else()
+      set(Kyoto-FOUND 1)
+      set(Kyoto-NOTFOUND)
+      message(STATUS "Kyoto Cabinet Found")
+      # get the static version
+      string(REGEX REPLACE "\\${CMAKE_SHARED_LIBRARY_SUFFIX}$" ".a" KYOTO_STATIC_LIBRARY ${KYOTO_SHARED_LIBRARY})
+      message(STATUS "Kyoto Cabinet: ${KYOTO_STATIC_LIBRARY}" )
+      include_directories(${KYOTO_INCLUDE_DIR})
+      add_definitions(-DHAS_KYOTO)
+    endif()
+  endif()
 endif()
-# get the static version
-string(REGEX REPLACE "\\${CMAKE_SHARED_LIBRARY_SUFFIX}$" ".a" KYOTO_STATIC_LIBRARY ${KYOTO_SHARED_LIBRARY})
-message(STATUS "Kyoto Cabinet: ${KYOTO_STATIC_LIBRARY}" )
-
-
-include_directories(${KYOTO_INCLUDE_DIR})
-
-
 check_library_exists(z zlibVersion "" ZLIB_FOUND)
 if (ZLIB_FOUND)
   add_definitions(-DHAS_ZLIB)

@@ -48,7 +48,12 @@ if [ -z $IN_BOOTSTRAP ]; then
 else
   echo "Probing for Kyoto Cabinet..."
   installprefix=$PWD
-  test_for_kc
+
+  if [ -z $no_kc ]; then
+    test_for_kc
+  else
+    echo "Kyoto Cabinet check disabled"
+  fi 
   # test if there is an existing installation
   if [ ! -z $force_kc_install ] || [ -z $kcfound ]; then
     KC_ROOT=$installprefix
@@ -57,7 +62,8 @@ else
       echo "Existing installation of kc found in $KC_ROOT"
     fi
   fi
-  if [ ! -z $force_kc_install ] || [ -z $kcfound ]; then
+#  if [ ! -z $force_kc_install ] || [ -z $kcfound ]; then
+  if [ ! -z $force_kc_install ]; then
 
     echo " ==================== Kyoto Cabinet Not Found ! ==================== "
     echo
