@@ -104,6 +104,8 @@ void test_any_vector() {
     ASSERT_EQ(value.as<size_t>(), i);
     ASSERT_EQ(vec2.as<size_t>(i), i);
     ASSERT_EQ(vec2.as<size_t>()[i], i);
+    ++value.as<size_t>();
+    vec2.set(i, value);
   }
 
   any_vector vec3 = vec2;

@@ -423,8 +423,9 @@ namespace graphlab {
       void set(const size_t index, const any& other) {
         if(other.type() != type()) {
           logstream(LOG_FATAL) 
-            << "Cannot assign " << other.type().name() << " to a vector of "
-            << type().name() << "!" << std::endl;
+            << "Cannot assign " << std::string(other.type().name()) 
+            << " to a vector of "
+            << std::string(type().name()) << "!" << std::endl;
         } else { contents[index] = other.as<ValueType>(); }
       }
       void resize(const size_t new_size) { contents.resize(new_size); }
