@@ -569,7 +569,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
           other.reported = true;
       }
 
-      if (ac.algorithm == K_MEANS){ //compute mean for each cluster by summing assigned points
+      if (ac.algorithm == K_MEANS && ac.init_mode != INIT_KMEANS_PLUS_PLUS){ //compute mean for each cluster by summing assigned points
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
       }
       if (! vdata.reported){

@@ -16,7 +16,7 @@ flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_v
      print(cluster);
      exit(1);
   }
-  return a_mult_b/div;
+  return 1.0 - a_mult_b/div;
 }
 
 flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
@@ -28,7 +28,7 @@ flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cl
      debug_print_vec("cluster", cluster, cluster.size());
      exit(1);
   }
-  return a_mult_b/div;
+  return 1.0 - a_mult_b/div;
 }
 
 flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){

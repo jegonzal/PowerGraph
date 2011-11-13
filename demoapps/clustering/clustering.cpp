@@ -317,6 +317,11 @@ void start(command_line_options & clopts) {
       
     ps.set_graph(TRAINING, training);
     load_graph<graph_type>(ac.datafile.c_str(), training, TRAINING);
+    if (ac.K > ps.M){
+      logstream(LOG_WARNING)<<"Number of requested clusters " << ac.K << " > Number of data points " << ps.M << " resetting number of clusters to " << ps.M << std::endl;
+      ac.K = ps.M;
+    }
+      
 
     if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
        ps.set_graph(VALIDATION, validation);
