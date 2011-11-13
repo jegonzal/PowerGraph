@@ -61,7 +61,18 @@ void initialize_clusters(gl_types::core &glcore){
       assert(sum(distances) != 0);
       distances = distances / sum(distances); //normalize to one
       distances = cumsum(distances);
-      double loc = randu();
+
+      
+      double loc;
+
+      while(true){ 
+        loc = randu();
+        //D.B: avoid a crazy heizenbug where becuase of numerical error sum of distance is a bit lower than one
+        //and loc is larger than the sum, so no node is choosen
+        if (loc < distances[ps.M])
+           break;
+       }
+
       for (int j=0; j< ps.M; j++){
         if (loc >= distances[j] && loc < distances[j+1]){
           thenode = j; 
@@ -70,6 +81,7 @@ void initialize_clusters(gl_types::core &glcore){
           break;
         }
       }
+
       assert(thenode != -1);
       cluster cur_clust;
       assign(cur_clust.location,ps.g<graph_type>()->vertex_data(thenode).datapoint, ps.N);
