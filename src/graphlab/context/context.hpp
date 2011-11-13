@@ -88,15 +88,17 @@ namespace graphlab {
   public:
 
     // Cache related members --------------------------------------------------
-    struct cache_entry {
+    // vertex data cache
+    struct vdata_cache_entry {
       vertex_data_type old;
       vertex_data_type current;
       uint16_t reads, writes;
-      cache_entry() : reads(0), writes(0) { }
+      vdata_cache_entry() : reads(0), writes(0) { }
     };
-    typedef std::map<vertex_id_type, cache_entry> cache_map_type;
-  
-    cache_map_type cache;
+    typedef std::map<vertex_id_type, vdata_cache_entry> vdata_cache_map_type;  
+    vdata_cache_map_type vdata_cache;
+
+
 
   public:
     
@@ -128,9 +130,9 @@ namespace graphlab {
    
 
     vertex_data_type& vertex_data(const vertex_id_type vid) {
-      typedef typename cache_map_type::iterator iterator_type;
-      iterator_type iter = cache.find(vid);
-      if(iter != cache.end()) {
+      typedef typename vdata_cache_map_type::iterator iterator_type;
+      iterator_type iter = vdata_cache.find(vid);
+      if(iter != vdata_cache.end()) {
         return iter->second.current;
       } else {
         return graph_ptr->vertex_data(vid);
@@ -138,9 +140,9 @@ namespace graphlab {
     }
 
     const vertex_data_type& vertex_data(const vertex_id_type vid) const {
-      typedef typename cache_map_type::const_iterator iterator_type;
-      iterator_type iter = cache.find(vid);
-      if(iter != cache.end()) {
+      typedef typename vdata_cache_map_type::const_iterator iterator_type;
+      iterator_type iter = vdata_cache.find(vid);
+      if(iter != vdata_cache.end()) {
         return iter->second.current;
       } else {
         return graph_ptr->vertex_data(vid);

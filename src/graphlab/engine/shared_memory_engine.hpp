@@ -919,9 +919,8 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   thread_mainloop(size_t cpuid) {  
-    while(exec_status == execution_status::RUNNING) {
-      run_once(cpuid);
-    }
+    while(exec_status == execution_status::RUNNING) { run_once(cpuid); }
+    context_manager_ptr->flush_cache(cpuid);
   } // end of thread_mainloop
 
 
@@ -935,6 +934,9 @@ namespace graphlab {
       const size_t cpuid = random::fast_uniform<size_t>(0, last_cpuid);
       run_once(cpuid);
     }
+    // flush the final cache
+    for(size_t i = 0; i < opts.get_ncpus(); ++i) 
+      context_manager_ptr->flush_cache(i);
   } // end of run_simulated
 
 
