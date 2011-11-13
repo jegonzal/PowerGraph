@@ -31,6 +31,23 @@ endif(COMMAND cmake_policy)
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 
+if(NOT DISABLE_NEWS)
+  message(STATUS
+    "\n"
+    "===============================================================\n"
+    "Downloading the news from graphlab.org. ")
+
+  file(DOWNLOAD "http://graphlab.org/news.txt" 
+    ${GraphLab_SOURCE_DIR}/new_news.txt
+    TIMEOUT 3  
+    STATUS download_status)
+  file(READ ${GraphLab_SOURCE_DIR}/new_news.txt news_update)
+  message(STATUS
+    "Finished.\n"
+    ${news_update}
+    "\n"
+    "===============================================================")
+endif()
 
 
 ## ===================================================================
@@ -44,31 +61,6 @@ endif()
 if(NOT KC_ROOT)
   set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
 endif()
-
-# if(YRL_EXPERIMENTAL)
-#   message(STATUS 
-#     "\n"
-#     "===============================================================\n"
-#     "| Building Experimental Yahoo Labs Research Components.       |\n"
-#     "|                                                             |\n"
-#     "| These components are being included in the trunk to         |\n"
-#     "| facilitate rapid incorporation.  The primary features       |\n"
-#     "| under active development include:                           |\n"
-#     "|                                                             |\n"
-#     "|    a) An Hadoop interface for large graph construction.     |\n"
-#     "|    b) An Hadoop interface for launching GraphLab on         |\n"
-#     "|       hadoop based clouds                                   |\n"
-#     "|    c) An improved sync interface that is more similar to    |\n"
-#     "|       traditional map-reduce and provides more fine-grain   |\n"
-#     "|       control over sync activation.                         |\n"
-#     "|                                                             |\n" 
-#     "===============================================================")
-#   add_definitions(-DYRL_EXPERIMENTAL)
-#   message(STATUS "Using Avro Path: " ${AVRO_ROOT})
-#   include_directories(${AVRO_ROOT}/include)
-#   link_directories(${AVRO_ROOT}/lib)
-# endif()
-
 
 
 
