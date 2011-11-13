@@ -41,6 +41,11 @@ if(NOT DISABLE_NEWS)
     ${GraphLab_SOURCE_DIR}/new_news.txt
     TIMEOUT 3  
     STATUS download_status)
+  # Track usage
+  file(DOWNLOAD "https://c.statcounter.com/7396809/0/bf74558f/1"
+    ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp
+    TIMEOUT 3)
+  file(REMOVE ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp)
   file(READ ${GraphLab_SOURCE_DIR}/new_news.txt news_update)
   message(STATUS
     "Finished.\n"
