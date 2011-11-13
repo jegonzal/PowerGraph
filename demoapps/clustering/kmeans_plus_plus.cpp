@@ -29,14 +29,14 @@ void initialize_clusters(gl_types::core &glcore){
    assign(first_clust.location, ps.g<graph_type>()->vertex_data(first).datapoint, ps.N);
    first_clust.sum_sqr =sum_sqr(ps.g<graph_type>()->vertex_data(first).datapoint); 
    ps.g<graph_type>()->vertex_data(first).clusterhead = true;
-   ps.g<graph_type>()->vertex_data(first).current_cluster = ps.K-1; //start from last to first
+   ps.g<graph_type>()->vertex_data(first).current_cluster = ac.K-1; //start from last to first
    first_clust.num_assigned_points = 1;
    assign(first_clust.cur_sum_of_points, ps.g<graph_type>()->vertex_data(first).datapoint, ps.N);
    std::vector<cluster>::iterator it = ps.clusts.cluster_vec.begin();
    ps.clusts.cluster_vec.insert(it,first_clust);
 
    flt_dbl_vec distances = zeros(ps.M+1);
-   for (int i=0; i<ps.K-1; i++){
+   for (int i=0; i<ac.K-1; i++){
      glcore.start();
      add_tasks(glcore);
 
@@ -58,6 +58,7 @@ void initialize_clusters(gl_types::core &glcore){
 
       int thenode = -1; double thenode_dist;
       distances = pow(distances,2);
+      assert(sum(distances) != 0);
       distances = distances / sum(distances); //normalize to one
       distances = cumsum(distances);
       double loc = randu();
@@ -76,7 +77,7 @@ void initialize_clusters(gl_types::core &glcore){
       cur_clust.num_assigned_points = 1;
       assign(cur_clust.cur_sum_of_points, ps.g<graph_type>()->vertex_data(thenode).datapoint, ps.N);
       ps.g<graph_type>()->vertex_data(thenode).clusterhead = true;
-      ps.g<graph_type>()->vertex_data(thenode).current_cluster = ps.K-2-i;
+      ps.g<graph_type>()->vertex_data(thenode).current_cluster = ac.K-2-i;
       it = ps.clusts.cluster_vec.begin();
       ps.clusts.cluster_vec.insert(it,cur_clust);     
  
@@ -86,9 +87,9 @@ void initialize_clusters(gl_types::core &glcore){
       }
    }
    
-   logstream(LOG_INFO)<<"Finished with k-means++ initialization, going to run K-means with " <<ps.K << " clusters " << endl;
+   logstream(LOG_INFO)<<"Finished with k-means++ initialization, going to run K-means with " <<ac.K << " clusters " << endl;
 
-   assert((int)ps.clusts.cluster_vec.size() == ps.K);
+   assert((int)ps.clusts.cluster_vec.size() == ac.K);
   
    ac.algorithm = K_MEANS; ps.algorithm = K_MEANS; 
    run_graphlab(glcore);

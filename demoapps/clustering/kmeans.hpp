@@ -89,6 +89,13 @@ void kmeans_update_function(gl_types::iscope &scope,
     default: assert(false); 
   }
 
+  //if this point was selected as clusterhead, no need to calculate distance to other nodes at the first round
+  if (ps.algorithm == K_MEANS && ps.iiter == 0 && vdata.clusterhead){
+    min_dist = 0;
+    assert(vdata.current_cluster != -1);
+    pos = vdata.current_cluster;
+  }
+  else {
   for (int i=0; i< end_cluster; i++){
      flt_dbl_vec & row = ps.clusts.cluster_vec[i].location;
      if (toprint)
@@ -109,12 +116,13 @@ void kmeans_update_function(gl_types::iscope &scope,
      }
   }  
   ps.counter[DISTANCE_CALCULATION] += t.current_time();
-
+  }
 
   if (ps.algorithm == K_MEANS || ps.algorithm == K_MEANS_PLUS_PLUS){
     assert(pos != -1);
     if (pos != vdata.current_cluster){
-      vdata.hot=true;
+      if (ps.algorithm == K_MEANS)
+        vdata.hot=true;
       if (toprint && (ps.algorithm == K_MEANS))
         std::cout <<id<<" assigned to cluster: " << pos << std::endl;
       else if (toprint && ps.algorithm == K_MEANS_PLUS_PLUS)
@@ -122,8 +130,10 @@ void kmeans_update_function(gl_types::iscope &scope,
     }
 
     vdata.min_distance = min_dist;
-    vdata.prev_cluster = vdata.current_cluster; 
-    vdata.current_cluster = pos;
+    if (ps.algorithm != K_MEANS_PLUS_PLUS){
+      vdata.prev_cluster = vdata.current_cluster; 
+      vdata.current_cluster = pos;
+    }
   }
   /**
  * See algo description in: http://www.cs.princeton.edu/courses/archive/fall08/cos436/Duda/C/fk_means.htm
@@ -182,7 +192,9 @@ void update_kmeans_clusters(){
        if (!data.hot)
          continue;
        else {
-         assert(data.current_cluster >=0 && data.current_cluster < ps.K);
+         if (ac.debug)
+           std::cout<<"in hot node: " << i << std::endl;
+          assert(data.current_cluster >=0 && data.current_cluster < ps.K);
          if ((ps.init_type == INIT_KMEANS_PLUS_PLUS && ps.iiter >= 1) || (ps.algorithm == K_MEANS && ps.init_type != INIT_KMEANS_PLUS_PLUS)){
            assert(data.prev_cluster >=0 && data.prev_cluster < ps.K);
            assert(data.prev_cluster != data.current_cluster);
@@ -203,9 +215,7 @@ void update_kmeans_clusters(){
          }
      
          data.hot = false;  
-         if (ac.debug)
-           std::cout<<"in hot node: " << i << std::endl;
-       }
+      }
    }
    calc_cluster_centers();
 }

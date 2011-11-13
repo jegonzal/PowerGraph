@@ -12,13 +12,13 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("datafile", &datafile, datafile, "Input matrix/tensor");
   clopts.add_positional("datafile");
 
-  clopts.attach_option("algorithm", &algorithm, algorithm, "algorithm: 0=K-means, 1=Kmeans++, 2=Fuzzy K-mean, 3=LDA");
+  clopts.attach_option("algorithm", &algorithm, algorithm, "algorithm: 0=K-means, 1=Kmeans++, 2=Fuzzy K-mean, 3=LDA 4=K-Shell decomposition, 5=Item-KNN, 6=User-KNN, 7 = SVD (experimental)");
   clopts.add_positional("algorithm");
   
   clopts.attach_option("K", &K, K, "number of clusters");
   clopts.add_positional("K");  
 
-  clopts.attach_option("init_mode", &init_mode, init_mode, "Initialization: 0 = random, 1= round_robin, 2 = kmeans++");
+  clopts.attach_option("init_mode", &init_mode, init_mode, "Initialization: 0 = random, 1= round_robin, 2 = kmeans++, 3=random cluster");
   clopts.add_positional("init_mode");
   clopts.attach_option("max_iter", &iter, iter, "Maximum number if iterations");
   clopts.attach_option("debug", &debug, debug, "Display debug output. (optional)");
@@ -79,4 +79,10 @@ void problem_setup::verify_setup(){
   if (ac.distance_measure != EUCLIDEAN)
     logstream(LOG_INFO) << "Setting distance metric to : " << distance_measure_name[ac.distance_measure] << std::endl;
 
+  if (ac.init_mode == INIT_KMEANS_PLUS_PLUS && ac.algorithm != K_MEANS_PLUS_PLUS){
+     logstream(LOG_WARNING) << "When running with --init_mode=2 (Kmeans++), algorithm should be Kmeans++ (--algorithm=1)" << std::endl;
+     ac.algorithm = K_MEANS_PLUS_PLUS;
+  }
+
+ 
 }
