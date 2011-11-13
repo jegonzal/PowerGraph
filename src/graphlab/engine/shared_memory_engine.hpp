@@ -51,7 +51,7 @@
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/logger/logger.hpp>
 
-#include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/generics/any_vector.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 
 #include <graphlab/graph/graph.hpp>
@@ -185,7 +185,7 @@ namespace graphlab {
     // Global Values ----------------------------------------------------------
     struct global_record { 
       std::vector<spinlock> locks;
-      graphlab::any values;
+      graphlab::any_vector values;
       bool is_const;
     }; // end of global_record
     typedef std::map<std::string, global_record> global_map_type;
@@ -353,11 +353,22 @@ namespace graphlab {
     friend class context<shared_memory_engine>;
     //! Get the global data and lock
     void get_global(const std::string& key,      
-                    bool& ret_is_const,
-                    std::vector<spinlock>*& ret_locks_ptr,
-                    graphlab::any*& ret_values_ptr); 
+                    graphlab::any_vector*& ret_values_ptr,
+                    bool& ret_is_const); 
 
-    
+    //! Get the global data and lock
+    void acquire_global_lock(const std::string& key,      
+                             size_t index = 0);
+    //! Release the global data lock
+    void release_global_lock(const std::string& key,      
+                             size_t index = 0);
+
+
+    /**
+     * Initialize all the engine members.  This is called before
+     * running the engine or populating the schedule.  Repeated calls
+     * will only initialize once (unless the graph or options change).
+     */
     void initialize_members();
 
     
@@ -648,10 +659,7 @@ namespace graphlab {
     }
     global_record& record = iter->second;
     typedef std::vector<T> vector_type;    
-    // graphlab::any& any_ref = record.values;
-    // vector_type& values = any_ref.as<vector_type>();
-    vector_type& values = record.values.template as<vector_type>();
-   
+    vector_type& values = record.values.template as<T>();
     ASSERT_EQ(values.size(), record.locks.size());
     ASSERT_LT(index, values.size());
     record.locks[index].lock();
@@ -674,9 +682,7 @@ namespace graphlab {
     }
     const global_record& record = iter->second;
     typedef std::vector<T> vector_type;
-    // const graphlab::any& any_ref = record.values;
-    // const vector_type& values = any_ref.as<vector_type>();
-    const vector_type& values = record.values.template as<vector_type>();
+    const vector_type& values = record.values.template as<T>();
     ASSERT_EQ(values.size(), record.locks.size());
     ASSERT_LT(index, values.size());
     record.locks[index].lock();
@@ -742,23 +748,43 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
-  get_global(const std::string& key, 
-             bool& ret_is_const,
-             std::vector<spinlock>*& ret_locks_ptr,
-             graphlab::any*& ret_values_ptr) {
+  get_global(const std::string& key,                         
+             graphlab::any_vector*& ret_values_ptr,
+             bool& ret_is_const) {
     typename global_map_type::iterator iter = global_records.find(key);
-    if(iter == global_records.end()) {
-      logstream(LOG_FATAL) 
-        << "Key \"" << key << "\" is not in the global map!"
-        << std::endl;
-      ret_locks_ptr = NULL; ret_values_ptr = NULL; return;
+    if(iter == global_records.end()) ret_values_ptr = NULL;
+    else {
+      // Get the global record
+      global_record& rec = iter->second;
+      ret_is_const = rec.is_const;      
+      ret_values_ptr = &rec.values;
     }
+  } // end of get_global
+
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  acquire_global_lock(const std::string& key, size_t index) {
+    typename global_map_type::iterator iter = global_records.find(key);
+    ASSERT_TRUE(iter != global_records.end());
     // Get the global record
     global_record& rec = iter->second;
-    ret_is_const = rec.is_const;
-    ret_locks_ptr = &rec.locks;
-    ret_values_ptr = &rec.values;
+    ASSERT_LT(index, rec.locks.size());
+    rec.locks[index].lock();
   }
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  release_global_lock(const std::string& key, size_t index) {
+    typename global_map_type::iterator iter = global_records.find(key);
+    ASSERT_TRUE(iter != global_records.end());
+    // Get the global record
+    global_record& rec = iter->second;
+    ASSERT_LT(index, rec.locks.size());
+    rec.locks[index].unlock();
+  } // end of release global lock
 
 
   template<typename Graph, typename UpdateFunctor> 

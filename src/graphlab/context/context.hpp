@@ -260,14 +260,21 @@ namespace graphlab {
     }
 
   protected:
-    void get_global(const std::string& key, 
-                    bool& ret_is_const,
-                    std::vector<spinlock>*& ret_locks_ptr,
-                    graphlab::any*& ret_values_ptr) {
-      return engine_ptr->get_global(key, 
-                                    ret_is_const,
-                                    ret_locks_ptr,
-                                    ret_values_ptr);
+
+    void acquire_lock(const std::string& key, size_t index = 0) { 
+      engine_ptr->acquire_global_lock(key, index); 
+    }
+
+    void release_lock(const std::string& key, size_t index = 0) { 
+      engine_ptr->release_global_lock(key, index); 
+    }
+
+    void commit_change(const std::string& key, size_t index = 0) { }
+
+    void get_global(const std::string& key,                                       
+                    graphlab::any_vector*& ret_vec_ptr,
+                    bool& ret_is_const) {
+      engine_ptr->get_global(key, ret_vec_ptr, ret_is_const);
     } // end of get_any_pair    
 
 

@@ -22,21 +22,22 @@
 
 
 #include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/generics/any_vector.hpp>
 
 namespace graphlab {
 
 
   /**
-   * Define the static registry for any
+   * Define the static registry for any_vector
    */
-  any::registry_map_type& any::get_global_registry() {
-    static any::registry_map_type global_registry;
+  any_vector::registry_map_type& any_vector::get_global_registry() {
+    static any_vector::registry_map_type global_registry;
     return global_registry;
   }
 
 
 
-  any::iholder* any::iholder::load(iarchive_soft_fail &arc) {
+  any_vector::iholder* any_vector::iholder::load(iarchive_soft_fail &arc) {
     registry_map_type& global_registry = get_global_registry();
     uint64_t idload;
     arc >> idload;
@@ -55,11 +56,10 @@ namespace graphlab {
     return iter->second(arc);
   }
   
-
 } // end of namespace graphlab
 
 
-std::ostream& operator<<(std::ostream& out, const graphlab::any& any) {
-  return any.print(out);
-} // end of operator << for any
+std::ostream& operator<<(std::ostream& out, const graphlab::any_vector& any_vector) {
+  return any_vector.print(out);
+} // end of operator << for any_vector
 

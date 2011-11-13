@@ -32,7 +32,7 @@
 
 #include <string>
 
-#include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/generics/any_vector.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 
@@ -66,27 +66,27 @@ namespace graphlab {
      */
     template<typename T>
     void set_global(const std::string& key, const T& value, size_t index = 0) {
+      graphlab::any_vector* any_vec_ptr(NULL);
       bool is_const = true;
-      std::vector<spinlock>* locks_ptr;
-      graphlab::any* values_ptr;
-      get_global(key, is_const, locks_ptr, values_ptr);
-      if(locks_ptr == NULL || values_ptr == NULL) {
+      get_global(key, any_vec_ptr, is_const);
+      if(any_vec_ptr == NULL) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" does not exist!" 
           << std::endl;
+        return;
       }
       if(is_const) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key 
           << "\" refers to a constant variable and cannot be set!" << std::endl;
+        return;
       }      
-      std::vector<spinlock>& locks = *locks_ptr;
+      ASSERT_LT(index, any_vec_ptr->size());
+      acquire_lock(key, index);
       // Get the actual value [ This could generate a dynamic cast error]
-      std::vector<T>& values = values_ptr->as< std::vector<T> > ();
-      ASSERT_EQ(locks.size(), values.size());
-      ASSERT_LT(index, values.size());
-      // Update the value
-      locks[index].lock(); values[index] = value; locks[index].unlock();
+      any_vec_ptr->as<T>(index) = value;
+      commit_change(key, index);
+      release_lock(key, index);
     } // end of set global
 
     /**
@@ -95,27 +95,27 @@ namespace graphlab {
     template<typename T>
     void increment_global(const std::string& key, const T& delta, 
                           size_t index = 0) {
+      graphlab::any_vector* any_vec_ptr(NULL);
       bool is_const = true;
-      std::vector<spinlock>* locks_ptr;
-      graphlab::any* values_ptr;
-      get_global(key, is_const, locks_ptr, values_ptr);
-      if(locks_ptr == NULL || values_ptr == NULL) {
+      get_global(key, any_vec_ptr, is_const);
+      if(any_vec_ptr == NULL) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" does not exist!" 
           << std::endl;
+        return;
       }
       if(is_const) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key 
           << "\" refers to a constant variable and cannot be set!" << std::endl;
+        return;
       }      
-      std::vector<spinlock>& locks = *locks_ptr;
+      ASSERT_LT(index, any_vec_ptr->size());
+      acquire_lock(key, index);
       // Get the actual value [ This could generate a dynamic cast error]
-      std::vector<T>& values = values_ptr->as< std::vector<T> > ();
-      ASSERT_EQ(locks.size(), values.size());
-      ASSERT_LT(index, values.size());
-      // Update the value
-      locks[index].lock(); values[index] += delta; locks[index].unlock();
+      any_vec_ptr->as<T>(index) += delta;
+      commit_change(key,index);
+      release_lock(key, index);
     } // end of increment global
 
     /**
@@ -123,24 +123,20 @@ namespace graphlab {
      */
     template<typename T>
     void get_global(const std::string& key, T& ret_value, size_t index = 0) {
+      graphlab::any_vector* any_vec_ptr(NULL);
       bool is_const = true;
-      std::vector<spinlock>* locks_ptr;
-      graphlab::any* values_ptr;
-      get_global(key, is_const, locks_ptr, values_ptr);
-      if(locks_ptr == NULL || values_ptr == NULL) {
+      get_global(key, any_vec_ptr, is_const);
+      if(any_vec_ptr == NULL) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" does not exist!" 
           << std::endl;
+        return;
       }
-      std::vector<spinlock>& locks = *locks_ptr;
+      ASSERT_LT(index, any_vec_ptr->size());
+      acquire_lock(key, index);
       // Get the actual value [ This could generate a dynamic cast error]
-      std::vector<T>& values = values_ptr->as< std::vector<T> > ();
-      ASSERT_EQ(locks.size(), values.size());
-      ASSERT_LT(index, values.size());
-      // Get the value.  If it is constant we don't need the locks
-      if(!is_const) locks[index].lock(); 
-      ret_value = values[index]; 
-      if(!is_const) locks[index].unlock();
+      ret_value = any_vec_ptr->as<T>(index);
+      release_lock(key, index);
     } // end of get global
 
 
@@ -149,25 +145,23 @@ namespace graphlab {
      */
     template<typename T>
     const T& get_global_const(const std::string& key, size_t index = 0) {
+      graphlab::any_vector* any_vec_ptr(NULL);
       bool is_const = true;
-      std::vector<spinlock>* locks_ptr;
-      graphlab::any* values_ptr;
-      get_global(key, is_const, locks_ptr, values_ptr);
-      if(locks_ptr == NULL || values_ptr == NULL) {
+      get_global(key, any_vec_ptr, is_const);
+      if(any_vec_ptr == NULL) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" does not exist!" 
           << std::endl;
+        return;
       }
       if(!is_const) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" is not a constant!" 
           << std::endl;
       }      
-      std::vector<spinlock>& locks = *locks_ptr;
+      ASSERT_LT(index, any_vec_ptr->size());
       // Get the actual value [ This could generate a dynamic cast error]
-      std::vector<T>& values = values_ptr->as< std::vector<T> > ();
-      ASSERT_LT(index, values.size());
-      return values[index]; 
+      return any_vec_ptr->as<T>(index);
     } // end of get global const
 
 
@@ -180,13 +174,38 @@ namespace graphlab {
   protected:
 
     /**
-     * Get the internal information needed to access a global
-     * variable.
+     * Acquire the lock on a particular entry in a global table. 
      */
-    virtual void get_global(const std::string& key,      
-                            bool& ret_is_const,
-                            std::vector<spinlock>*& ret_locks_ptr,
-                            graphlab::any*& ret_values_ptr) = 0;
+    virtual void acquire_lock(const std::string& key, size_t index = 0) = 0;
+
+    /**
+     * Get the global table for a particular key.  This will be called
+     * before acquiring the lock but no entires will be touched until
+     * the lock has been acquired.  
+     *
+     * If the entry is not present in the table then the ret_vec_ptr
+     * should be set to NULL. 
+     *
+     * Some tables are strictly constant an therefore ret_is_const
+     * should return true in these cases.  If an entry is strictly
+     * const then it cannot be set and users can take references to
+     * that entry.
+     */
+    virtual void get_global(const std::string& key, 
+                            any_vector*& ret_vec_ptr,
+                            bool& ret_is_const) = 0;
+
+    /**
+     * Commit change is called if the entry at the location index has
+     * been modified.  This is called while holding the lock on that
+     * location.
+     */
+    virtual void commit_change(const std::string& key, size_t index = 0) = 0;
+
+    /**
+     * Release the lock on a particular entry in a global table.
+     */
+    virtual void release_lock(const std::string& key, size_t index = 0) = 0;
 
 
 

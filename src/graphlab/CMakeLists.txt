@@ -47,6 +47,7 @@ add_library(graphlab STATIC
   options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
+  util/generics/any_vector.cpp
   graph/disk_atom.cpp
   graph/write_only_disk_atom.cpp
   graph/atom_index_file.cpp
