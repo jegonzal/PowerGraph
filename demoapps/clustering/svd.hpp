@@ -501,8 +501,10 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
     if (reminder > 0)
        howmany++;
 
+    logstream(LOG_INFO) << "Setting omp threads to: " << ac.ncpus << std::endl;
+    omp_set_num_threads(ac.ncpus);
     save_matrix((ac.datafile + (other_side ? ".U.Eigen" : ".V.Eigen")).c_str(), "rb", eigenvectors);
-
+#pragma omp parallel for
     for (int cnt=0; cnt < howmany; cnt++){
       logstream(LOG_INFO) << "Processing block number " << cnt << " at time " << ps.gt.current_time() << std::endl;
       int total = ((cnt==howmany-1 && reminder>0) ? reminder : block_size);
@@ -517,15 +519,15 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
         flt_dbl_vec col = init_vec(pglobal_pvec->pvec[0] +start+cnt*block_size, total);
         set_col(V, i-1, col);
       }
-      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", V);
+      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", V*eigenvectors);
       if (ac.debug && V.size() < 1000)
          cout << "V is: " << V*eigenvectors << endl;
  
-      if (cnt == howmany-1){
+      /*if (cnt == howmany-1){
         if  (V.size() < 1000)
           return V*eigenvectors;
         else return zeros(1,1);
-      }
+      }*/
    }
  }
  return zeros(1,1);
