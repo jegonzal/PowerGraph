@@ -47,7 +47,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
 	   return;
         if (type == TEST)
            return;
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
+	logstream(LOG_ERROR) << " can not find input file: " << filename << ". aborting " << std::endl;
 	exit(1);
     }
 
@@ -75,8 +75,15 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
        exit(1);
     }
 
+    if (type ==TRAINING){
     ps.M = M; ps.N = N; ps.K = ac.K;
-
+    }
+    else if (type ==VALIDATION){
+      ps.M_validation = M; ps.N_validation = N;
+    }
+    else if (type == TEST){
+      ps.M_test = M; ps.N_test = N;
+    }
     init();
     add_vertices(_g, type); 
 
@@ -161,8 +168,16 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
        exit(1);
     }
 
-    ps.M = M; ps.N = N; ps.K = ac.K;
-
+    if (type ==  TRAINING){
+      ps.M = M; ps.N = N; ps.K = ac.K;
+    }
+    else if (type ==VALIDATION){
+      ps.M_validation = M; ps.N_validation = N;
+    }
+    else if (type == TEST){
+      ps.M_test = M; ps.N_test = N;
+    }
+ 
     if (ps.algorithm == SVD_EXPERIMENTAL && ac.reduce_mem_consumption && ac.svd_compile_eigenvectors)
       return;
 
