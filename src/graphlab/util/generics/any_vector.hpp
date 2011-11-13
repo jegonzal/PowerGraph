@@ -156,7 +156,8 @@ namespace graphlab {
       virtual std::ostream& print(std::ostream& out) const = 0;
       virtual bool empty() const = 0;
       virtual size_t size() const = 0;
-      virtual any operator[](const size_t index) const = 0;
+      virtual any get(const size_t index) const = 0;
+      virtual void set(const size_t index, const any& other) = 0;
       virtual void resize(const size_t new_size) = 0;
     };
     iholder* contents;
@@ -214,17 +215,18 @@ namespace graphlab {
 
     /// Extracts a reference to the contents of the any_vector as a type of
     /// ValueType
-    any operator[](const size_t index) const {
+    any get(const size_t index) const {      
       DASSERT_FALSE(unset());
-      return (*contents)[index];
+      ASSERT_LT(index, contents->size());
+      return contents->get(index);
     }
 
     /// Extracts a reference to the contents of the any_vector as a type of
     /// ValueType
-    any at(const size_t index) const {      
+    void set(const size_t index, const any& other) const {      
       DASSERT_FALSE(unset());
       ASSERT_LT(index, contents->size());
-      return (*contents)[index];
+      contents->set(index, other);
     }
 
 
@@ -283,7 +285,6 @@ namespace graphlab {
       } else { any_vector(rhs).swap(*this); }
       return *this;
     }    
-
     /**
      * Update the contents of this any_vector to match the type of the other
      * any_vector.
@@ -418,7 +419,14 @@ namespace graphlab {
       }
       bool empty() const { return contents.empty(); }
       size_t size() const { return contents.size(); }
-      any operator[](const size_t index) const { return any(contents[index]); }
+      any get(const size_t index) const { return any(contents[index]); }
+      void set(const size_t index, const any& other) {
+        if(other.type() != type()) {
+          logstream(LOG_FATAL) 
+            << "Cannot assign " << other.type().name() << " to a vector of "
+            << type().name() << "!" << std::endl;
+        } else { contents[index] = other.as<ValueType>(); }
+      }
       void resize(const size_t new_size) { contents.resize(new_size); }
 
       /** The actual deserialization function for this holder type */

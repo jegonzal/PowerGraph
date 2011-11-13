@@ -51,6 +51,8 @@ struct TestClass1{
   }
 };
 
+
+
 class TestClass2{
 public:
   int i;
@@ -84,7 +86,7 @@ void test_any_vector() {
   any_vector vec(10, size_t(3));
   ASSERT_EQ(vec.size(), 10);
   for(size_t i = 0; i < vec.size(); ++i) {
-    graphlab::any value = vec[i];
+    graphlab::any value = vec.get(i);
     ASSERT_EQ(value.as<size_t>(), 3);
     ASSERT_EQ(vec.as<size_t>(i), 3);
     ASSERT_EQ(vec.as<size_t>()[i], 3);
@@ -98,10 +100,10 @@ void test_any_vector() {
   any_vector vec2;
   iarc >> vec2;
   for(size_t i = 0; i < vec.size(); ++i) {
-    graphlab::any value = vec[i];
+    graphlab::any value = vec2.get(i);
     ASSERT_EQ(value.as<size_t>(), i);
-    ASSERT_EQ(vec.as<size_t>(i), i);
-    ASSERT_EQ(vec.as<size_t>()[i], i);
+    ASSERT_EQ(vec2.as<size_t>(i), i);
+    ASSERT_EQ(vec2.as<size_t>()[i], i);
   }
 
   any_vector vec3 = vec2;
