@@ -32,6 +32,26 @@ set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 
 
+## Download News update
+if(NOT DISABLE_NEWS)
+  message(STATUS
+    "\n"
+    "===============================================================\n"
+    "Downloading the news from graphlab.org: ")
+
+  file(DOWNLOAD "http://graphlab.org/news.txt" 
+    ${GraphLab_SOURCE_DIR}/new_news.txt
+    TIMEOUT 3  
+    STATUS download_status)
+  file(READ ${GraphLab_SOURCE_DIR}/new_news.txt news_update)
+  message(STATUS
+    "Finished.\n"
+    ${news_update}
+    "\n"
+    "===============================================================")
+endif()
+
+
 
 ## ===================================================================
 # Process command line arguments defined using cmake -D arg=val
