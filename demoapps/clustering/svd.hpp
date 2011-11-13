@@ -501,17 +501,17 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
     if (reminder > 0)
        howmany++;
 
-    logstream(LOG_INFO) << "Setting omp threads to: " << ac.ncpus << std::endl;
+    //save_matrix((ac.datafile + (other_side ? ".U.Eigen" : ".V.Eigen")).c_str(), "rb", eigenvectors);
     omp_set_num_threads(ac.ncpus);
-    save_matrix((ac.datafile + (other_side ? ".U.Eigen" : ".V.Eigen")).c_str(), "rb", eigenvectors);
+    
 #pragma omp parallel for
     for (int cnt=0; cnt < howmany; cnt++){
-      logstream(LOG_INFO) << "Processing block number " << cnt << " at time " << ps.gt.current_time() << std::endl;
+      logstream(LOG_INFO) << cnt << ") Processing block number " << cnt << " at time " << ps.gt.current_time() << std::endl;
       int total = ((cnt==howmany-1 && reminder>0) ? reminder : block_size);
       flt_dbl_mat V = zeros(total, ac.iter+1);
       for (int i=1; i<= ac.iter+1; i++){
         if (ac.debug && i%100 == 0)
-          logstream(LOG_INFO) << " Reading column number " << i << " at time " << ps.gt.current_time() << std::endl;
+          logstream(LOG_INFO) << cnt << ") Reading column number " << i << " at time " << ps.gt.current_time() << std::endl;
         FILE * pfile = open_file(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
         read_vec(pfile, start+cnt*block_size, total, pglobal_pvec->pvec[0]+start+cnt*block_size);
         fclose(pfile);
@@ -523,7 +523,7 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
       if (ac.debug && V.size() < 1000)
          cout << "V is: " << V*eigenvectors << endl;
  
-      /*if (cnt == howmany-1){
+     /* if (cnt == howmany-1){
         if  (V.size() < 1000)
           return V*eigenvectors;
         else return zeros(1,1);

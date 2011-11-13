@@ -209,7 +209,7 @@ void save_matrix(const char * filename, const char * varname, const mat& pmat){
 void save_matrix(const char * filename, const char * varname, const fmat& pmat){
   FILE * pfile = open_file(filename, "wb");
   if (ac.debug)
-     logstream(LOG_INFO) << "Starting to save matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
+     logstream(LOG_INFO) << "Starting to save matrix " << filename << " of size " << pmat.rows() << " x " << pmat.cols() << " at time: " << ps.gt.current_time() << std::endl;
   write_vec(pfile, pmat.size(), data(pmat));
   if (ac.debug)
      logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
