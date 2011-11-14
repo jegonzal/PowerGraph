@@ -32,30 +32,29 @@ set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 
 
-## Download News update
-if(NOT DISABLE_NEWS)
-  message(STATUS
-    "\n"
-    "===============================================================\n"
-    "Downloading the news from graphlab.org: ")
-
-  file(DOWNLOAD "http://graphlab.org/news.txt" 
-    ${GraphLab_SOURCE_DIR}/new_news.txt
-    TIMEOUT 3  
-    STATUS download_status)
-  # Track usage v2 news url
-  file(DOWNLOAD "http://c.statcounter.com/7396904/0/a1b29b21/1/"
-    ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp
-    TIMEOUT 5
-    STATUS dlstatus) 
-  file(REMOVE ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp)
-  file(READ ${GraphLab_SOURCE_DIR}/new_news.txt news_update)
-  message(STATUS
-    "Finished.\n"
-    ${news_update}
-    "\n"
-    "===============================================================")
-endif()
+# ## Download News update
+# if(NOT DISABLE_NEWS)
+#   message(STATUS
+#     "\n"
+#     "===============================================================\n"
+#     "Downloading the news from graphlab.org: ")
+#   file(DOWNLOAD "http://graphlab.org/news.txt" 
+#     ${GraphLab_SOURCE_DIR}/new_news.txt
+#     TIMEOUT 3  
+#     STATUS download_status)
+#   # Track usage v2 news url
+#   file(DOWNLOAD "http://c.statcounter.com/7396904/0/a1b29b21/1/"
+#     ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp
+#     TIMEOUT 3
+#     STATUS dlstatus) 
+#   file(REMOVE ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp)
+#   file(READ ${GraphLab_SOURCE_DIR}/new_news.txt news_update)
+#   message(STATUS
+#     "Finished.\n"
+#     ${news_update}
+#     "\n"
+#     "===============================================================")
+# endif()
 
 
 
