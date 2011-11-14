@@ -166,6 +166,8 @@ void prepare_output(){
      copy_assignments(ps.output_assignements, data.distances, i);
      copy_distances(ps.output_clusters, data.distances, i); 
   }
+  ps.output_clusters = transpose(ps.output_clusters);
+  ps.output_assignements = transpose(ps.output_assignements);
 }
 
 

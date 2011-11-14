@@ -203,6 +203,10 @@ public:
   
   flt_dbl_mat output_clusters;
   flt_dbl_mat output_assignements;
+  bool output_assignements_integer;
+  std::string output_assignements_comment;
+  std::string output_clusters_comment;
+
   flt_dbl_mat T; //for SVD_experimental
   int total_assigned;
 
@@ -225,6 +229,8 @@ public:
 
   algorithm = K_MEANS; //type of algorithm
   iiter = 1;//count number of time zero node run
+
+  output_assignements_integer = false;
 
  /* Problem size */
   M=N=K=L=0;

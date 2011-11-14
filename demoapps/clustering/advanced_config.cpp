@@ -84,5 +84,46 @@ void problem_setup::verify_setup(){
      ac.algorithm = K_MEANS_PLUS_PLUS;
   }
 
- 
+  output_assignements_comment = "%%GraphLab clustering library output file\n";
+  output_clusters_comment = output_assignements_comment;
+
+  switch(algorithm){
+    case USER_KNN:
+    case ITEM_KNN:
+      output_assignements_comment += std::string("%%This file includes the ") + boost::lexical_cast<std::string>(ac.K) + std::string(" closest points to each user/item where the points are numbered between 0 to max_point-1\n");
+      output_clusters_comment += std::string("%%This file includes the distances (using ") + std::string(distance_measure_name[ac.distance_measure]) +
+		                 std::string(") to each point in the assignemnets file\n");
+      break;
+
+   case K_MEANS_PLUS_PLUS:
+   case K_MEANS:
+      output_assignements_comment += std::string("%%This file contains cluster assignment for each of the data points\n");
+      output_clusters_comment += std::string("%%This file contains clusters center for each of the ") + boost::lexical_cast<std::string>(ac.K) + std::string("clusters\n");
+      break;
+
+
+   case K_MEANS_FUZZY:
+      output_clusters_comment += std::string( "%%This file contains ") + boost::lexical_cast<std::string>(ac.K) + std::string(" cluster locations for fuzzy k-means\n");
+      output_assignements_comment += std::string("%%This file contains weighted assignemtns of each data point to each fizzy cluster\n");
+      break;
+
+
+   default:
+      break;
+   };
+
+
+
+  switch(algorithm){
+     case K_MEANS_PLUS_PLUS:
+     case K_MEANS:
+     case ITEM_KNN:
+     case USER_KNN:
+       output_assignements_integer = true; // is the output integer or float?
+       break;
+
+     default:
+       output_assignements_integer = false;
+
+  } 
 }

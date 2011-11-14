@@ -236,7 +236,10 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
      glcore.start();
      // calculate final RMSE
      double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
-     double obj = calc_obj<graph_type, vertex_data>(res);
+     
+     double obj = -1;
+     if (ps.algorithm != TIME_SVD_PLUS_PLUS) 
+        obj = calc_obj<graph_type, vertex_data>(res);
      double validation_rmse = calc_rmse_wrapper<graph_type, vertex_data>(validation_graph, true, res2);
      printf(ac.printhighprecision ? 
      "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
