@@ -285,7 +285,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
                sumY += sum(movie.weight); //y
            }
             graph_type_svdpp * validation = (graph_type_svdpp*)ps.g<graph_type_svdpp>(VALIDATION);
-            if (validation != NULL){
+            if (validation != NULL && validation->num_vertices() > 0){
             foreach(graphlab::edge_id_t oedgeid, validation->out_edge_ids(id)){
                 //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
 		vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
@@ -294,7 +294,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
             }
 	    
             graph_type_svdpp * test = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TEST);
-            if (test != NULL){
+            if (test != NULL && test->num_vertices() > 0){
             foreach(graphlab::edge_id_t oedgeid, test->out_edge_ids(id)){
                 //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
 		vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
@@ -390,7 +390,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
             //for(unsigned int j=0; j < 4; ++j) {
 
 	    //graph_type_svdpp * validation = ps.g<graph_type_svdpp>(VALIDATION);
-            if (validation != NULL){
+            if (validation != NULL && validation->num_vertices() > 0){
             foreach(graphlab::edge_id_t oedgeid, validation->out_edge_ids(id)){
                 //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
 		vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
@@ -408,7 +408,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
                     y[item_idx][k] += lrate * (rRuNum * sum[k]- garma*y[item_idx][k]);
                 }
             }*/
-            if (test != NULL){
+            if (test != NULL && test->num_vertices() > 0){
             foreach(graphlab::edge_id_t oedgeid, test->out_edge_ids(id)){
                 //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
 		vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
@@ -496,7 +496,7 @@ void time_svd_post_iter(){
 
   double res,res2;
   double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_time_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
+  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "time-SVD++", ps.iiter,  rmse, calc_time_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
 
   lrate *= 0.9;
   ps.iiter++;

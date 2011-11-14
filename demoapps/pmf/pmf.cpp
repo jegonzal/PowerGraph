@@ -157,6 +157,7 @@ void add_tasks(core & glcore){
 
      case TIME_SVD_PLUS_PLUS:
        glcore.add_tasks(um, time_svd_plus_plus_update_function, 1);
+       break;
 
      case STOCHASTIC_GRADIENT_DESCENT:
        glcore.add_tasks(um, sgd_update_function, 1);
@@ -356,14 +357,14 @@ void start(command_line_options& clopts) {
    }
 
    double res = 0;
-   if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
+   if (ps.algorithm != LANCZOS && ps.algorithm != SVD && ps.algorithm != TIME_SVD_PLUS_PLUS){
      double res2 = 0;
      double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&g, false, res);
      printf(ac.printhighprecision ? 
            "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
            "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
            , calc_obj<graph_type, vertex_data>(res), rmse, calc_rmse<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
-  } else {
+  } else if (ps.algorithm == LANCZOS || ps.algorithm == SVD){
      //In Lanczos, we limit the number of eigenvalues to matrix smaller dimension
      if (ac.iter > ps.M || ac.iter > ps.N)
        ac.iter = std::min(ps.M, ps.N);
@@ -427,7 +428,7 @@ void start(command_line_options& clopts) {
 int do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/time-SVD++/SGD/Lanczos/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 
   int version = ITPP_SUPPORT;
 #ifdef HAS_EIGEN
