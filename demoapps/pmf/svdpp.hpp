@@ -51,9 +51,6 @@ float itmFctr2Reg = 1e-2f;
 
 extern advanced_config ac;
 extern problem_setup ps;
-
-double bestValidSqErr=DBL_MAX;
-double stepSize=8e-3;
 double regularization = 15e-3;
 
 using namespace graphlab;
@@ -85,7 +82,7 @@ void init_svdpp(graph_type* _g){
 }
 template<>
 void init_svdpp<graph_type_svdpp>(graph_type_svdpp *_g){
-   fprintf(stderr, "SVD++ %d factors (rate=%2.2e, reg=%2.2e)\n", ac.D,stepSize,regularization);
+   fprintf(stderr, "SVD++ %d factors\n", ac.D);
    for (int i=0; i<ps.M+ps.N; i++){
        vertex_data_svdpp & data = _g->vertex_data(i);
        data.weight = ac.debug ? ones(ac.D) : randu(ac.D);

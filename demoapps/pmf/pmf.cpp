@@ -45,11 +45,11 @@
 #include "cosamp.hpp"
 #include "../gabp/advanced_config.h"
 #include "svdpp.hpp"
-
+#include "timesvdpp.hpp"
 
 #include <graphlab/macros_def.hpp>
 
-const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix", "SVD (Singular Value Decomposition)"};
+const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix", "SVD (Singular Value Decomposition)", "Koren's time-SVD++"};
 
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
@@ -124,7 +124,12 @@ template<typename core>
 void add_tasks(core & glcore){
 
   std::vector<vertex_id_t> um;
-  for (int i=0; i< ps.M+ps.N; i++)
+  int start = 0;
+  int end = ps.M+ps.N;
+  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS)
+     end = ps.M;
+
+  for (int i=start; i< end; i++)
     um.push_back(i);
 
   if (ac.shuffle){
@@ -150,6 +155,10 @@ void add_tasks(core & glcore){
        glcore.add_tasks(um, svd_plus_plus_update_function, 1);
        break;
 
+     case TIME_SVD_PLUS_PLUS:
+       glcore.add_tasks(um, time_svd_plus_plus_update_function, 1);
+       break;
+
      case STOCHASTIC_GRADIENT_DESCENT:
        glcore.add_tasks(um, sgd_update_function, 1);
        break;
@@ -164,11 +173,12 @@ void add_tasks(core & glcore){
  }
 
   // add update function for time nodes (dim 3)
-  if (ps.tensor){
+  if (ps.tensor && ps.algorithm != TIME_SVD_PLUS_PLUS){
     std::vector<vertex_id_t> tv;
     for (int i=ps.M+ps.N; i< ps.M+ps.N+ps.K; i++)
       tv.push_back(i);
-    glcore.add_tasks(tv, time_node_update_function, 1);
+
+      glcore.add_tasks(tv, time_node_update_function, 1);
   }
 }
 
@@ -187,6 +197,9 @@ void init(graph_type *g){
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
      init_svdpp<graph_type>(g); break;
+
+   case TIME_SVD_PLUS_PLUS:
+     init_time_svdpp<graph_type>(g); break;
 
    case LANCZOS: 
      init_lanczos(); break;
@@ -344,14 +357,14 @@ void start(command_line_options& clopts) {
    }
 
    double res = 0;
-   if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
+   if (ps.algorithm != LANCZOS && ps.algorithm != SVD && ps.algorithm != TIME_SVD_PLUS_PLUS){
      double res2 = 0;
      double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&g, false, res);
      printf(ac.printhighprecision ? 
            "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
            "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
            , calc_obj<graph_type, vertex_data>(res), rmse, calc_rmse<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
-  } else {
+  } else if (ps.algorithm == LANCZOS || ps.algorithm == SVD){
      //In Lanczos, we limit the number of eigenvalues to matrix smaller dimension
      if (ac.iter > ps.M || ac.iter > ps.N)
        ac.iter = std::min(ps.M, ps.N);
@@ -379,6 +392,7 @@ void start(command_line_options& clopts) {
       case BPTF_MATRIX:
       case SVD_PLUS_PLUS:
       case STOCHASTIC_GRADIENT_DESCENT:
+      case TIME_SVD_PLUS_PLUS:
          run_graphlab<core, graph_type, vertex_data>(glcore, &validation_graph);
          break;
      
@@ -414,7 +428,7 @@ void start(command_line_options& clopts) {
 int do_main(int argc, const char *argv[]){
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/SGD/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
+  logstream(LOG_INFO)<< "PMF/BPTF/ALS/SVD++/time-SVD++/SGD/Lanczos/SVD Code written By Danny Bickson, CMU\nSend bug reports and comments to danny.bickson@gmail.com\n";
 
   int version = ITPP_SUPPORT;
 #ifdef HAS_EIGEN
@@ -446,6 +460,7 @@ int do_main(int argc, const char *argv[]){
         break;
  
       case SVD_PLUS_PLUS:
+      case TIME_SVD_PLUS_PLUS:
         start<gl_types_svdpp, gl_types_svdpp::core, graph_type_svdpp, vertex_data_svdpp, edge_data>(clopts);
         break;
 

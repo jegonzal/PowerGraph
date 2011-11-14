@@ -44,7 +44,7 @@ For SVD++ see algorithm and explanations:
 4) Koren, Yehuda. "Factorization meets the neighborhood: a multifaceted collaborative filtering model." In Proceeding of the 14th ACM SIGKDD 
 international conference on Knowledge discovery and data mining, 426434. ACM, 2008. http://portal.acm.org/citation.cfm?id=1401890.1401944
 
-For SGD, see algorhtm:
+For SGD, see algorithm:
 5) Matrix Factorization Techniques for Recommender Systems
 Yehuda Koren, Robert Bell, Chris Volinsky
 In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
@@ -56,7 +56,7 @@ For Lanczos algorithm (SVD) see:
 For NMF (non-negative matrix factorization) see:
 8) Lee, D..D., and Seung, H.S., (2001), 'Algorithms for Non-negative Matrix Factorization', Adv. Neural Info. Proc. Syst. 13, 556-562.
 
-For Weigted alternating least squares see:
+For Weighted alternating least squares see:
 9) Rong Pan, Yunhong Zhou, Bin Cao, Nathan N. Liu, Rajan Lukose, Martin Scholz, and Qiang Yang. 2008. One-Class Collaborative Filtering. In Proceedings of the 2008 Eighth IEEE International Conference on Data Mining (ICDM '08). IEEE Computer Society, Washington, DC, USA, 502-511. 
 
 For implicit collaborative filering see:
@@ -69,11 +69,11 @@ For sparsity enforcing priors see:
 SVD is implemented using two sided Lanczos, see:
 12) http://en.wikipedia.org/wiki/Singular_value_decomposition
 
+Koren time-SVD++ is described in the paper:
+13) Yehuda Koren. 2009. Collaborative filtering with temporal dynamics. In Proceedings of the 15th ACM SIGKDD international conference on Knowledge discovery and data mining (KDD '09). ACM, New York, NY, USA, 447-456. DOI=10.1145/1557019.1557072 
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie
-//#define GL_NO_MCMC //comment this flag, if you want to have support for MCMC methods (BPTF)
-//#define GL_SVD_PP //comment this flag, if you are not running svd++ algorithm
 
 #include "mathlayer.hpp"
 #include "../gabp/advanced_config.h"
@@ -209,7 +209,8 @@ enum runmodes{
    ALS_SPARSE_USR_FACTOR = 10,
    ALS_SPARSE_USR_MOVIE_FACTORS = 11,
    ALS_SPARSE_MOVIE_FACTOR = 12,
-   SVD = 13 //simular value decompoistion via double sided Lanczos
+   SVD = 13, //simular value decompoistion via double sided Lanczos
+   TIME_SVD_PLUS_PLUS = 14 //time-SVD++ (see reference 12)
 };
 
 #define MAX_RUNMODE 12
@@ -285,8 +286,9 @@ public:
 //performance counters
 #define MAX_COUNTER 20
   double counter[MAX_COUNTER];
-  
+ 
   vertex_data * times;
+  vertex_data_svdpp * times_svdpp;
   graphlab::core_base* glcore;
   graph_type * gg[3];
   graph_type_mcmc * g_mcmc[3];
@@ -326,6 +328,7 @@ public:
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));
   times = NULL;
+  times_svdpp = NULL;
   glcore = NULL;
   //engine = NULL;
   memset(gg, 0, 3*sizeof(graph_type*));
@@ -369,6 +372,7 @@ void problem_setup::verify_setup(){
     break;
    // tensor factorization
   case ALS_TENSOR_MULT:
+  case TIME_SVD_PLUS_PLUS:
     tensor = true; BPTF = false;
     break;
   default:

@@ -65,7 +65,12 @@ void add_time_nodes(graph_type* _g){
 
 template<>
 void add_time_nodes<graph_type_svdpp,vertex_data_svdpp>(graph_type_svdpp* _g){
-    assert(false);
+    assert(ps.K > 1);
+    ps.times_svdpp = new vertex_data_svdpp[ps.K];
+    //add T time node (ps.tensor dim 3)
+    for (int i=0; i<ps.K; i++){
+      _g->add_vertex(ps.times_svdpp[i]);
+    }
 }
 /**
  * Add the graph nodes. We have nodes for each row (user), column (movies) and time bins.
@@ -595,7 +600,8 @@ void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testt
   }
 
   if(data_type==TRAINING && f== NULL){
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
+        perror("failed fopen() with error: ");
+	logstream(LOG_ERROR) << " can not load input file: " << filename << " . aborting " << std::endl;
 	exit(1);
   }
 
