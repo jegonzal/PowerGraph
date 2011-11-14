@@ -519,7 +519,8 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
         flt_dbl_vec col = init_vec(pglobal_pvec->pvec[0] +start+cnt*block_size, total);
         set_col(V, i-1, col);
       }
-      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", V*eigenvectors);
+      flt_dbl_mat blockmat = V*eigenvectors;
+      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", blockmat);
       if (ac.debug && V.size() < 1000)
          cout << "V is: " << V*eigenvectors << endl;
  
