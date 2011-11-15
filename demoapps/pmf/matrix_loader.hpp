@@ -46,6 +46,7 @@ bool load_graph(const std::string& fname,
                 const double test_prop,
                 Graph& graph,
                 std::vector< matrix_entry<Graph> >& test_set) {
+  typedef typename Graph::vertex_data_type vertex_data_type;
 
   return false;
 } // end of load graph

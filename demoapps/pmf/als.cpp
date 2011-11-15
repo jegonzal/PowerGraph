@@ -65,7 +65,8 @@ struct vertex_data {
     for(int i = 0; i < latent.size(); ++i) arc >> latent(i);
     arc >> rmse;
   }
-};
+}; // end of vertex data
+
 struct edge_data {
   float observation, weight;
   edge_data() : observation(0), weight(1)  { } 
@@ -114,6 +115,9 @@ public:
       Xty += neighbor.latent * (edata.observation * edata.weight);
       XtX += neighbor.latent.transpose() * (neighbor.latent * edata.weight);
     }
+    // Add regularization
+    const double& lambda = context.get_global_const<double>("lambda");
+    for(int i = 0; i < nlatent; ++i) XtX(i,i) += lambda;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
@@ -149,9 +153,10 @@ int main(int argc, char** argv) {
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string matrix_file;
-  std::string format = "tsv";
+  std::string format = "matrixmarket";
   double tolerance = 1e-2;
   double holdout = 0.1;
+  double lambda = 1;
   size_t nlatent = 10;
   clopts.attach_option("matrix",
                        &matrix_file, matrix_file,
@@ -160,10 +165,11 @@ int main(int argc, char** argv) {
   clopts.add_positional("matrix");
   clopts.attach_option("format",
                        &format, format,
-                       "The matrix file format: {metis, jure, tsv}");
-  clopts.attach_option("nlatent",
+                       "The matrix file format: {matrixmarket, binary}");
+  clopts.attach_option("D",
                        &nlatent, nlatent,
                        "Number of latent parameters to use.");
+  clopts.attach_option("lambda", &lambda, lambda, "ALS regularization weight"); 
   clopts.attach_option("tol",
                        &tolerance, tolerance,
                        "residual termination threshold");
@@ -189,7 +195,7 @@ int main(int argc, char** argv) {
   // Set global variables -----------------------------------------------------
   core.add_global_const("tolerance", tolerance);
   core.add_global_const("nlatent", nlatent);
-
+  core.add_global_const("lambda", lambda);
   // Run the PageRank ---------------------------------------------------------
   core.schedule_all(als_update(10000));
   const double runtime = core.start();  // Run the engine
@@ -211,7 +217,7 @@ int main(int argc, char** argv) {
       std::pow((entry.edata.observation - prediction),2);
     weight += entry.edata.weight;
   }
-  std::cout << "Error: " << (error/weight) << std::endl;
+  std::cout << "Error: " << std::sqrt(error/weight) << std::endl;
 
 
   return EXIT_SUCCESS;

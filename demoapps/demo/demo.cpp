@@ -299,9 +299,8 @@ class accumulator :
 private:
   size_t red_count, flips_count;
 public:
-  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> base;
   accumulator() : red_count(0), flips_count(0) { }
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     red_count += (context.vertex_data().color == RED)? 1 : 0;
     flips_count += context.vertex_data().num_flips;
   }
@@ -309,7 +308,7 @@ public:
     red_count += other.red_count; 
     flips_count += other.flips_count; 
   }
-  void finalize(base::iglobal_context_type& context) {
+  void finalize(iglobal_context_type& context) {
     const size_t numvertices = context.num_vertices();
     const double proportion = double(red_count) / numvertices;
     // here we can output something as a progress monitor
