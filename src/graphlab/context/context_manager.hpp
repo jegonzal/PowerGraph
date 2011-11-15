@@ -69,8 +69,8 @@ namespace graphlab {
     typedef typename graph_type::edge_list_type  edge_list_type;
     typedef typename graph_type::vertex_data_type vertex_data_type;
  
-    typedef typename context_type::vdata_cache_map_type vdata_cache_map_type;
-    typedef typename context_type::vdata_cache_entry vdata_cache_entry_type;
+    typedef typename context_type::cache_map_type cache_map_type;
+    typedef typename context_type::cache_entry cache_entry_type;
     typedef boost::is_base_of< idiffable<vertex_data_type>, vertex_data_type> is_diffable;
     
   private:
@@ -148,21 +148,21 @@ namespace graphlab {
     void flush_cache(size_t cpuid, const boost::false_type&) { 
       // Check that all the caches are empty (they must be)
       foreach(const context_type& context, contexts)
-        ASSERT_EQ(context.vdata_cache.size(), 0);
+        ASSERT_EQ(context.cache.size(), 0);
     } // end of flush_cache
 
     void flush_cache(size_t cpuid, const boost::true_type&) {
-      vdata_cache_map_type& vdata_cache = contexts[cpuid].vdata_cache;
-      typedef typename vdata_cache_map_type::value_type cache_pair_type;
-      foreach(const cache_pair_type& pair, vdata_cache) {
+      cache_map_type& cache = contexts[cpuid].cache;
+      typedef typename cache_map_type::value_type cache_pair_type;
+      foreach(const cache_pair_type& pair, cache) {
         const vertex_id_type vid = pair.first;
-        const vdata_cache_entry_type& entry = pair.second;
+        const cache_entry_type& entry = pair.second;
         locks[vid].writelock();
         graph_ptr->vertex_data(vid).apply_diff(entry.current, entry.old);
         locks[vid].unlock();        
       }
       // Empty the cache
-      vdata_cache.clear();
+      cache.clear();
     } // end of flush cache
 
 
@@ -183,11 +183,11 @@ namespace graphlab {
       const size_t MAX_WRITES = graph_ptr->vertex_data(vid).lag();
       // First check the cache
       context_type& context = contexts[cpuid];
-      typedef typename vdata_cache_map_type::iterator iterator_type;
-      iterator_type iter = context.vdata_cache.find(vid);
-      const bool is_cached = iter != context.vdata_cache.end();
+      typedef typename cache_map_type::iterator iterator_type;
+      iterator_type iter = context.cache.find(vid);
+      const bool is_cached = iter != context.cache.end();
       if(is_cached) {
-        vdata_cache_entry_type& cache_entry = iter->second;        
+        cache_entry_type& cache_entry = iter->second;        
         if(++cache_entry.writes > MAX_WRITES || is_center) {
           //  std::cout << "Flushing" << std::endl;
           locks[vid].writelock();
@@ -207,7 +207,7 @@ namespace graphlab {
       } else {       
         locks[vid].readlock();
         // create a cache entry
-        vdata_cache_entry_type& cache_entry = context.cache[vid];
+        cache_entry_type& cache_entry = context.cache[vid];
         cache_entry.current = graph_ptr->vertex_data(vid);
         locks[vid].unlock();
         cache_entry.old = cache_entry.current;
@@ -230,11 +230,11 @@ namespace graphlab {
       const size_t MAX_READS = graph_ptr->vertex_data(vid).lag();
       // First check the cache
       context_type& context = contexts[cpuid];
-      typedef typename vdata_cache_map_type::iterator iterator_type;
+      typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = context.cache.find(vid);
       const bool is_cached = iter != context.cache.end();
       if(is_cached) {
-        vdata_cache_entry_type& cache_entry = iter->second;        
+        cache_entry_type& cache_entry = iter->second;        
         if(++cache_entry.reads > MAX_READS) {        
           locks[vid].readlock();
           const vertex_data_type& vdata = graph_ptr->vertex_data(vid);
@@ -246,7 +246,7 @@ namespace graphlab {
         // Try to get the write lock
         locks[vid].readlock();
         // create a cache entry
-        vdata_cache_entry_type& cache_entry = context.cache[vid];
+        cache_entry_type& cache_entry = context.cache[vid];
         cache_entry.current = graph_ptr->vertex_data(vid);
         locks[vid].unlock();
         cache_entry.old = cache_entry.current;        
@@ -272,7 +272,7 @@ namespace graphlab {
                       const boost::true_type&) {
       // First check the cache
       context_type& context = contexts[cpuid];
-      typedef typename vdata_cache_map_type::iterator iterator_type;
+      typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = context.cache.find(vid);
       const bool is_cached = iter != context.cache.end();
       if(is_cached) return;
@@ -496,6 +496,12 @@ namespace graphlab {
       context.init(v, consistency_model::NULL_CONSISTENCY);
       return context;
     }
+
+    /**
+     * Get a global context 
+     */
+    iglobal_context& get_global_context(size_t cpuid) { return contexts[cpuid]; }
+
 
 
 

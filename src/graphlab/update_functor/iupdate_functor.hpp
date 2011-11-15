@@ -68,6 +68,7 @@ namespace graphlab {
 
    
     typedef icontext<graph_type, update_functor_type> icontext_type;
+    typedef iglobal_context iglobal_context_type;
 
     /**
      * The set of edges that are operated on during gather and scatter
@@ -137,7 +138,7 @@ namespace graphlab {
     /**
      * Init gather is called before gathering
      */
-    virtual void init_gather() { };
+    virtual void init_gather(iglobal_context_type& context) { };
 
     /**
      * Gather is called on all gather_edges() and may be called in
@@ -163,10 +164,6 @@ namespace graphlab {
       logstream(LOG_FATAL) << "Apply not implemented!" << std::endl;
     };
     
-    /**
-     * Init scatter is called prior to running scatter
-     */
-    virtual void init_scatter() { }
     
     /**
      * Scatter is invoked on all scatter_edges() after calling

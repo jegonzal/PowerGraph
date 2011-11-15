@@ -28,8 +28,7 @@ size_t global_lag = 100;
 double alpha(1.0/double(ntopics));
 double beta(0.1);
 
-std::vector< graphlab::glshared<count_type> > global_n_t;
-std::vector< graphlab::sharedsum<count_type> > shared_n_t;
+
 
 bool lda_update::use_factorized = false;
 
@@ -119,9 +118,7 @@ int main(int argc, char** argv) {
   }
 
   // Initialize the global variables
-  global_n_t.resize(ntopics);
-  shared_n_t.resize(ntopics);
-
+  core.add_global("n_t", size_t(0), ntopics);
 
   double runtime = core.start();
   std::cout << "Runtime: " << runtime << std::endl;
@@ -138,12 +135,12 @@ void load_graph(graph_type& graph, const corpus& data, size_t niters) {
   std::cout << "Initializing vertices" << std::endl;
   graph.resize(nverts);
   for(graph_type::vertex_id_type word_vid = 0; word_vid < data.nwords; ++word_vid) {
-    graph.vertex_data(word_vid).set_type(WORD);
-    graph.vertex_data(word_vid).init(ntopics, niters);
+    graph.vertex_data(word_vid).type = WORD;
+    graph.vertex_data(word_vid).n_t.resize(ntopics, 0);
   }
   for(graph_type::vertex_id_type doc_vid = data.nwords; doc_vid < nverts; ++doc_vid) {
-    graph.vertex_data(doc_vid).set_type(DOCUMENT);
-    graph.vertex_data(doc_vid).init(ntopics, niters);
+    graph.vertex_data(doc_vid).type = DOCUMENT;
+    graph.vertex_data(doc_vid).n_t.resize(ntopics,0);
   }
   const size_t doc_offset = data.nwords;
   typedef corpus::token token_type;

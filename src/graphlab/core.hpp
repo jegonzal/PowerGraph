@@ -354,8 +354,8 @@ namespace graphlab {
 
     //! Get a copy of the value of a global entry
     template< typename T >
-    void get_global(const std::string& key, T& ret_value, size_t index = 0) {
-      engine().get_global(key, ret_value, index);
+    T get_global(const std::string& key, size_t index = 0) {
+      return engine().get_global<T>(key, index);
     }
 
 

@@ -328,8 +328,7 @@ namespace graphlab {
 
     //! Get a copy of the value of a global entry
     template< typename T >
-    void get_global(const std::string& key, T& ret_value, 
-                    size_t index = 0) const;
+    T get_global(const std::string& key, size_t index = 0) const;
 
 
     //! \brief Registers a sync with the engine.
@@ -670,15 +669,14 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
-  void 
+  T
   shared_memory_engine<Graph, UpdateFunctor>::
-  get_global(const std::string& key, T& ret_value, size_t index) const {
+  get_global(const std::string& key, size_t index) const {
     typename global_map_type::const_iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
       logstream(LOG_FATAL) 
         << "Key \"" << key << "\" is not in global map!"
-        << std::endl;
-      return;
+        << std::endl;      
     }
     const global_record& record = iter->second;
     typedef std::vector<T> vector_type;
@@ -686,8 +684,9 @@ namespace graphlab {
     ASSERT_EQ(values.size(), record.locks.size());
     ASSERT_LT(index, values.size());
     record.locks[index].lock();
-    ret_value = values[index];
+    T ret_value = values[index];
     record.locks[index].unlock();
+    return ret_value;
   } //end of get_global
 
 
@@ -1031,7 +1030,10 @@ namespace graphlab {
                                      size_t cpuid) {
     //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // Gather phase -----------------------------------------------------------
-    ufun.init_gather();
+    {
+      iglobal_context& context = context_manager_ptr->get_global_context(cpuid);
+      ufun.init_gather(context);
+    }
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edge_ids(vid);
@@ -1062,7 +1064,6 @@ namespace graphlab {
     ufun.apply(context);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
-    ufun.init_scatter();
     // Scatter phase ----------------------------------------------------------
     if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
@@ -1192,7 +1193,8 @@ namespace graphlab {
     if(cpuid == 0) {
       // Recast the context as a global context.  This ensures that
       // the user implements finalize correctly;
-      shared_accumulator.finalize(context);
+      iglobal_context& global_context = context;
+      shared_accumulator.finalize(global_context);
       context.commit();
       // Zero out the shared accumulator for the next run
       shared_accumulator = zero;

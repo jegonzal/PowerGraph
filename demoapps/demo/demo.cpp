@@ -385,10 +385,8 @@ int main(int argc,  char *argv[]) {
   glcore.sync_now("sync");
 
   // now we can look the values using the get() function
-  size_t numberofflips = 0;
-  glcore.get_global("NUM_FLIPS", numberofflips);
-  double redprop = 0;
-  glcore.get_global("RED_PROPORTION", redprop);
+  size_t numberofflips = glcore.get_global<size_t>("NUM_FLIPS");
+  double redprop = glcore.get_global<size_t>("RED_PROPORTION");
 
   // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;

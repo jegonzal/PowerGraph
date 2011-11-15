@@ -42,6 +42,8 @@ namespace graphlab {
 
 
   class iglobal_context {
+    std::map<std::string, any_vector> local_map;
+
   public:
     virtual ~iglobal_context() { }
 
@@ -60,7 +62,35 @@ namespace graphlab {
      * to this point.
      */
     virtual size_t num_updates() const = 0;
+
     
+    /**
+     * Test whether the particular key is globally defined
+     */
+    bool is_global(const std::string& key) {
+      graphlab::any_vector* any_vec_ptr(NULL);
+      bool is_const = true;
+      get_global(key, any_vec_ptr, is_const);
+      return any_vec_ptr != NULL;
+    } // end of is_global
+
+
+    /**
+     * Get the size of a particular key
+     */
+    size_t global_size(const std::string& key) {
+      graphlab::any_vector* any_vec_ptr(NULL);
+      bool is_const = true;
+      get_global(key, any_vec_ptr, is_const);
+      if(any_vec_ptr == NULL) {
+        logstream(LOG_FATAL) 
+          << "The global variable \"" << key << "\" does not exist!" 
+          << std::endl;
+      }
+      return any_vec_ptr->size();
+    } // end of global_size
+
+  
     /**
      * Atomically set a global value
      */
@@ -88,6 +118,7 @@ namespace graphlab {
       commit_change(key, index);
       release_lock(key, index);
     } // end of set global
+
 
     /**
      * Atomically increment a global value
@@ -118,25 +149,26 @@ namespace graphlab {
       release_lock(key, index);
     } // end of increment global
 
+
     /**
      * Atomically get a global value
      */
     template<typename T>
-    void get_global(const std::string& key, T& ret_value, size_t index = 0) {
+    T get_global(const std::string& key, size_t index = 0) {
       graphlab::any_vector* any_vec_ptr(NULL);
       bool is_const = true;
       get_global(key, any_vec_ptr, is_const);
       if(any_vec_ptr == NULL) {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" does not exist!" 
-          << std::endl;
-        return;
+          << std::endl;        
       }
       ASSERT_LT(index, any_vec_ptr->size());
       acquire_lock(key, index);
       // Get the actual value [ This could generate a dynamic cast error]
-      ret_value = any_vec_ptr->as<T>(index);
+      T value(any_vec_ptr->as<T>(index));
       release_lock(key, index);
+      return value;
     } // end of get global
 
 
@@ -169,6 +201,64 @@ namespace graphlab {
      * Force the engine to stop executing additional update functions.
      */
     virtual void terminate() = 0;
+
+
+    /**
+     * Test whether the local member is available
+     */
+    bool is_local(const std::string& key) {
+      return local_map.find(key) != local_map.end();
+    }
+
+    /**
+     * Get the size of a local member
+     */
+    size_t local_size(const std::string& key) {     
+      if(!is_local(key)) {
+        logstream(LOG_FATAL) 
+          << "The local variable \"" << key << "\" does not exist!" 
+          << std::endl;
+      }      
+      return local_map[key].size();
+    } // end of add local
+
+    /**
+     * Add an entry to the local storage
+     */
+    template<typename T>
+    void add_local(const std::string& key, const T& intial_value, 
+                   size_t size = 1) {     
+      local_map[key].resize(size, intial_value);
+    } // end of add local
+
+    /**
+     * Get a reference to the local member
+     */
+    template<typename T>
+    T& get_local(const std::string& key, size_t index = 0) {     
+      if(!is_local(key)) {
+        logstream(LOG_FATAL) 
+          << "The local variable \"" << key << "\" does not exist!" 
+          << std::endl;
+      }
+      any_vector& vec = local_map[key];
+      ASSERT_LT(index, vec.size());
+      return vec.as<T>(index);
+    } // end of get_local
+
+    /**
+     * Get a reference to the local vector
+     */
+    template<typename T>
+    std::vector<T>& get_local_vec(const std::string& key) {     
+      if(!is_local(key)) {
+        logstream(LOG_FATAL) 
+          << "The local variable \"" << key << "\" does not exist!" 
+          << std::endl;
+      }
+      any_vector& vec = local_map[key];
+      return vec.as<T>();
+    } // end of get_local
 
 
   protected:

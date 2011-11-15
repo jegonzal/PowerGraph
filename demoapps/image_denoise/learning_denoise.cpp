@@ -138,11 +138,19 @@ public:
   
     // Compute outbound messages
     // ---------------------------------------------------------------->
-    graphlab::binary_factor edge_factor;
-    context.get_global("EDGE_FACTOR", edge_factor);
-  
+    graphlab::binary_factor edge_factor = 
+      context.get_global<graphlab::binary_factor>("EDGE_FACTOR");
+
+    // Use cached memory spaces for cavity and tmp msg
+    if(!context.is_local("cavity")) {
+      context.add_local("cavity", graphlab::unary_factor());
+      context.add_local("tmp_msg", graphlab::unary_factor());
+    }
+    graphlab::unary_factor& cavity = 
+      context.get_local<graphlab::unary_factor>("cavity");
+    graphlab::unary_factor& tmp_msg = 
+      context.get_local<graphlab::unary_factor>("tmp_msg");
     // Send outbound messages
-    graphlab::unary_factor cavity, tmp_msg;
     for(size_t i = 0; i < in_edges.size(); ++i) {
       // Get the edge ids
       const edge_id_type outeid = out_edges[i];
@@ -234,8 +242,8 @@ public:
   accumulator(size_t arity) : counts(arity, arity) { counts.set_as_agreement(0); }
   void operator()(base::icontext_type& context) {
     // get the current edge factor
-    graphlab::binary_factor edge_factor;
-    context.get_global("EDGE_FACTOR", edge_factor);
+    graphlab::binary_factor edge_factor = 
+      context.get_global<graphlab::binary_factor>("EDGE_FACTOR");
     const graph_type::edge_list_type in_edges = context.in_edge_ids();
     const graph_type::edge_list_type out_edges = context.out_edge_ids();
     ASSERT_EQ(in_edges.size(), out_edges.size()); // Sanity check
@@ -284,10 +292,10 @@ public:
   }
   void finalize(base::iglobal_context_type& context) {
     // get the current edge factor
-    graphlab::binary_factor edge_factor;
-    context.get_global("EDGE_FACTOR", edge_factor);
-    graphlab::binary_factor true_counts;
-    context.get_global("TRUE_COUNTS", true_counts);
+    graphlab::binary_factor edge_factor =
+      context.get_global<graphlab::binary_factor>("EDGE_FACTOR");
+    graphlab::binary_factor true_counts =
+      context.get_global<graphlab::binary_factor>("TRUE_COUNTS");
     // perform the IPF update
     // note that BP+IPF can be quite unstable.
     // (We do recommend the gradient update in practice)
@@ -470,8 +478,8 @@ int main(int argc, char** argv) {
   std::cout << "Running the engine. " << std::endl;
 
  
-  graphlab::binary_factor oldedgepot;
-  core.get_global("EDGE_FACTOR", oldedgepot);
+  graphlab::binary_factor oldedgepot = 
+    core.get_global<graphlab::binary_factor>("EDGE_FACTOR");
   graphlab::timer ti;
   ti.start();
   // loop it a few times
@@ -483,8 +491,8 @@ int main(int argc, char** argv) {
     // Start the engine
     core.start();
     update_count += core.last_update_count();
-    graphlab::binary_factor newedgepot;
-    core.get_global("EDGE_FACTOR", oldedgepot);
+    graphlab::binary_factor newedgepot =
+      core.get_global<graphlab::binary_factor>("EDGE_FACTOR");
     std::cout << newedgepot;
     if (binary_factor_equal(oldedgepot, newedgepot)) break;
     oldedgepot = newedgepot;
