@@ -67,7 +67,8 @@ std::ostream& operator<<(std::ostream& out, const edge_data& edata);
 
 
 //! The type of graph used in this program
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+//typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 
 
@@ -79,7 +80,6 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 
 /// Utility routines defined in utility.cpp ------------------------------->
-
 //! Save the graph to tsv file
 void save_graph_as_edge_list(const std::string& fname, 
                              const graph_type& graph);

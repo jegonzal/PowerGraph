@@ -26,10 +26,4 @@ project(GraphLab)
 
 
 
-subdirs(demo pagerank lda image_denoise pmf)
-
-
-
-
-
-
+subdirs(graph2test demo pagerank lda image_denoise pmf)

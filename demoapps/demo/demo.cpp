@@ -101,7 +101,7 @@ struct edge_data {
 /**
    The GraphLab graph is templatized over the vertex data as well as the
    edge data.  Here we define the type of the graph for convenience.  */
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 
 
