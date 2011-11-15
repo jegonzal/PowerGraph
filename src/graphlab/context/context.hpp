@@ -261,6 +261,14 @@ namespace graphlab {
         schedule(graph_ptr->target(eid), update_fun);
     }
 
+    void schedule_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun) {
+      schedule_in_neighbors(vertex, update_fun);
+      schedule_out_neighbors(vertex, update_fun);
+    }
+
+
+
   protected:
 
     void acquire_lock(const std::string& key, size_t index = 0) { 
