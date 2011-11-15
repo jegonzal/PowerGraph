@@ -332,18 +332,14 @@ namespace graphlab {
     virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
                                         const update_functor_type& update_fun) = 0;
                                                   
- 
-    // /**
-    //    Experimental context upgrade scheme. Returns true if context upgrade is 
-    //    successful. If this ever returns false, you are hosed. Should work
-    //    with general_context. Note that after context_upgrade is called, any graph
-    //    data within the context may change due to a race between releasing and 
-    //    reacquiring the upgraded context.
-    // */
-    // virtual bool 
-    // experimental_context_upgrade(consistency_model::model_enum newrange) { 
-    //   return false;
-    // }
+
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    virtual void schedule_neighbors(const vertex_id_type& vertex, 
+                                    const update_functor_type& update_fun) = 0;
+                                                  
+
     
 
   }; // end of icontexty

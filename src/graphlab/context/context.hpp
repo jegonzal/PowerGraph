@@ -262,7 +262,7 @@ namespace graphlab {
     }
 
     void schedule_neighbors(const vertex_id_type& vertex, 
-                               const update_functor_type& update_fun) {
+                            const update_functor_type& update_fun) {
       schedule_in_neighbors(vertex, update_fun);
       schedule_out_neighbors(vertex, update_fun);
     }

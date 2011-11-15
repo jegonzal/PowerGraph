@@ -47,6 +47,7 @@ bool load_graph(const std::string& fname,
                 Graph& graph,
                 std::vector< matrix_entry<Graph> >& test_set) {
 
+  return false;
 } // end of load graph
 
 

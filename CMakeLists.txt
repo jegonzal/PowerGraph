@@ -1,11 +1,8 @@
 ## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
 if(APPLE)
-  if (HAS_EIGEN)
-  else(HAS_EIGEN)
-    set(CMAKE_C_COMPILER "gcc-4.2")	
-    set(CMAKE_CXX_COMPILER "c++-4.2")
-  endif(HAS_EIGEN)
+  set(CMAKE_C_COMPILER "gcc-4.2")	
+  set(CMAKE_CXX_COMPILER "c++-4.2")
 endif(APPLE)
 
 
@@ -29,6 +26,10 @@ endif(COMMAND cmake_policy)
 # Determine where additional GraphLab specific cmake modules are
 # defined
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
+
+if(HAS_EIGEN)
+
+endif()
 
 
 
@@ -138,8 +139,10 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 if (HAS_EIGEN)
   message(STATUS "Found Eigen linear algebra package")
+  include_directories(${GraphLab_SOURCE_DIR}/deps/eigen-eigen-3.0.2)
 else ()
-  message(STATUS "Eigen linear algebra package not found")
+  message(STATUS "Eigen linear algebra package not found.")
+  message(STATUS "Eigen is only required for the matrix factorization apps.")
 endif()
 
 

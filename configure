@@ -146,7 +146,7 @@ fi
 if [ ! -z $install_eigen ]; then
   source ./scripts/eigen_install.sh `pwd` | tee -a $LOG_FILE
   echo "Eigen setup OK"
-  HAS_EIGEN=1;
+  echo "HAS_EIGEN=true"      >> configure.deps
 # Try to build itpp
 elif [ ! -z $itpp ]; then
   source ./scripts/itpp_install.sh | tee -a $LOG_FILE

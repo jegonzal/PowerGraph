@@ -184,7 +184,6 @@ namespace graphlab {
         logstream(LOG_FATAL) 
           << "The global variable \"" << key << "\" does not exist!" 
           << std::endl;
-        return;
       }
       if(!is_const) {
         logstream(LOG_FATAL) 
