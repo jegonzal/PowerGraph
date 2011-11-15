@@ -144,7 +144,7 @@ if [ ! -z $bootstrap ]; then
 fi
 
 if [ ! -z $install_eigen ]; then
-  source ./scripts/eigen_install.sh `pwd` | tee -a $LOG_FILE
+  source ./scripts/eigen_install.sh  | tee -a $LOG_FILE
   echo "Eigen setup OK"
   echo "HAS_EIGEN=true"      >> configure.deps
 # Try to build itpp
