@@ -23,19 +23,114 @@
  */
 
 
-#ifndef _ALS_HPP
-#define _ALS_HPP
+#ifndef ALS_HPP
+#define ALS_HPP
 
-#include "pmf.h"
-#include "stats.hpp"
-#include <graphlab/macros_def.hpp>
+#include <graphlab.hpp>
 
-//#include "Eigen/Dense"
-//using namespace Eigen;
 
-extern advanced_config ac;
-extern problem_setup ps;
-extern const char * runmodesname[];
+
+/***
+ * UPDATE FUNCTION
+ */
+template<typename graph_type>
+class user_movie_nodes_update_function : 
+  public graphlab::iupdate_functor<graph_type, user_movie_nodes_update_function<graph_type> > {
+public:
+  typedef graphlab::iupdate_functor<graph_type, user_movie_nodes_update_function> base;
+  typedef typename graph_type::edge_id_type edge_id_type;
+  typedef typename graph_type::edge_list_type edge_list_type;
+  void operator()(typename base::icontext_type& context) {
+    /* GET current vertex data */
+    vertex_data& vdata = context.vertex_data();
+    
+    int id = context.vertex_id();
+    bool toprint = ac.debug && (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1)); 
+    bool isuser = id < ps.M;
+    /* print statistics */
+    if (toprint){
+      printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
+      debug_print_vec((isuser ? "V " : "U") , vdata.pvec, ac.D);
+    }
+    
+    vdata.rmse = 0;
+    
+    int numedges = vdata.num_edges;
+    if (numedges == 0){
+      if (!ps.tensor && (int)context.vertex_id() == ps.M+ps.N-1)
+        last_iter<graph_type, user_movie_nodes_update_function>();
+      
+      return; //if this user/movie have no ratings do nothing
+    }
+    
+    edge_list_type outs = context.out_edge_ids();
+    edge_list_type ins = context.in_edge_ids();
+    timer t;
+    mat Q(ac.D,numedges); //linear relation matrix
+    vec vals(numedges); //vector of ratings
+    vec weight(numedges); // vector of weights (to be used in weighted ALS)
+    
+    int i=0;
+    
+    t.start(); 
+    //USER NODES    
+    if (isuser){
+      foreach(edge_id_type oedgeid, outs) {
+        const vertex_data  & pdata = context.const_neighbor_vertex_data(context.target(oedgeid)); 
+        edge_data & edge = context.edge_data(oedgeid);
+        //go over each rating of a movie and put the movie vector into the matrix Q
+        //and vector vals
+        parse_edge<edge_data>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS? &weight : NULL); 
+        if (toprint && (i==0 || i == numedges-1))
+          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
+        i++;
+        if (!ac.round_robin){
+          user_movie_nodes_update_function fun;
+          context.schedule(context.target(oedgeid), fun);
+          //scheduler.add_task(task, 1);
+        }   
+      }
+    } else {
+      //MOVIE NODES
+      foreach(edge_id_type iedgeid, ins) {
+        const vertex_data & pdata = context.const_neighbor_vertex_data(context.source(iedgeid)); 
+        edge_data & edge = context.edge_data(iedgeid);
+        //go over each rating by user
+        parse_edge<edge_data>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS ? &weight: NULL); 
+        if (toprint/* && (i==0 || i == numedges-1)*/)
+          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
+      
+        double trmse;
+        predict_missing_value(vdata, pdata, edge, trmse, i, id); 
+        if (toprint)
+          cout<<"trmse: " << trmse << endl;
+        //aggregate RMSE
+        vdata.rmse += trmse; 
+        
+        if (!ac.round_robin && trmse > ac.threshold && ps.iiter < ac.iter){
+          user_movie_nodes_update_function fun;
+          context.schedule(context.source(iedgeid), fun);
+          // scheduler.add_task(task, 1);
+        }
+      }
+    }
+    assert(i == numedges);
+    ps.counter[EDGE_TRAVERSAL] += t.current_time();
+    
+    vec result;
+    compute_least_squares(Q, vals, weight, result, isuser, toprint, numedges);
+    vdata.pvec = result;
+    
+    //calc post round tasks
+    if (!ps.tensor && (int)context.vertex_id() == ps.M+ps.N-1)
+      last_iter<graph_type, user_movie_nodes_update_function>();
+
+  } // end of operator()
+}; // end of class user_movie_nodes_update_function
+
+
+
+
 
 vec CoSaMP(const mat &Phi, const vec &u, int K, int max_iter, double tol1, int D);
 
@@ -327,198 +422,8 @@ public:
 }; // end of class user_movie_nodes_update_function
 
 
-/***
- * UPDATE FUNCTION
- */
-/*template<>
-  class user_movie_nodes_update_function<graph_type_mcmc> : 
-  public graphlab::iupdate_functor<graph_type_mcmc, 
-  user_movie_nodes_update_function<graph_type_mcmc> > {
-  public:
-  typedef graphlab::iupdate_functor<graph_type_mcmc, 
-  user_movie_nodes_update_function<graph_type_mcmc> > base;
-
-  void operator()(base::icontext_type& context) {
-  vertex_data& vdata = context.vertex_data();
-    
-  int id = context.vertex_id();
-  bool toprint = ac.debug && (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1)); 
-  bool isuser = id < ps.M;
-  if (toprint){
-  printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
-  debug_print_vec((isuser ? "V " : "U") , vdata.pvec, ac.D);
-  }
-    
-  vdata.rmse = 0;
-    
-  int numedges = vdata.num_edges;
-  if (numedges == 0){
-  if (!ps.tensor && (int)context.vertex_id() == ps.M+ps.N-1)
-  last_iter<graph_type_mcmc, vertex_data, edge_data_mcmc, user_movie_nodes_update_function>();      
-  return; //if this user/movie have no ratings do nothing
-  }
-
-
-  graph_type_mcmc::edge_list_type outs = context.out_edge_ids();
-  graph_type_mcmc::edge_list_type ins = context.in_edge_ids();
-  timer t;
-  mat Q(ac.D,numedges); //linear relation matrix
-  vec vals(numedges); //vector of ratings
-  vec weight(numedges); // vector of weights (to be used in weighted ALS)
-    
-  int i=0;
-    
-  t.start(); 
-  //USER NODES    
-  if (isuser){ 
-  foreach(graph_type_mcmc::edge_id_type oedgeid, outs) {
-  const vertex_data  & pdata = context.const_neighbor_vertex_data(context.target(oedgeid)); 
-  edge_data_mcmc & edge = context.edge_data(oedgeid);
-  //go over each rating of a movie and put the movie vector into the matrix Q
-  //and vector vals
-  parse_edge<edge_data_mcmc>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS? &weight : NULL); 
-  if (toprint && (i==0 || i == numedges-1))
-  std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
-  i++;
-  }
-  } else {
-  //MOVIE NODES
-  foreach(graph_type_mcmc::edge_id_type iedgeid, ins) {
-  const vertex_data & pdata = context.const_neighbor_vertex_data(context.source(iedgeid)); 
-  edge_data_mcmc & edge = context.edge_data(iedgeid);
-  //go over each rating by user
-  parse_edge<edge_data_mcmc>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS ? &weight: NULL); 
-  if (toprint)
-  std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
-
-  double trmse;
-  predict_missing_value(vdata, pdata, edge, trmse, i, id); 
-  if (toprint)
-  cout<<"trmse: " << trmse << endl;
-  //aggregate RMSE
-  vdata.rmse += trmse; 
-  }
-  }
-  assert(i == numedges);
-  ps.counter[EDGE_TRAVERSAL] += t.current_time();
-    
-  vec result;
-  compute_least_squares(Q, vals, weight, result, isuser, toprint, numedges);
-  vdata.pvec = result;
-    
-  //calc post round tasks
-  if (!ps.tensor && (int)context.vertex_id() == ps.M+ps.N-1)
-  last_iter<graph_type_mcmc, vertex_data, edge_data_mcmc, user_movie_nodes_update_function>();
-    
-  } // end of operator ()
-  }; // end of mcmc update
-*/
-
-
-// void user_movie_nodes_update_function(gl_types_svdpp::icontext &context, 
-//                                       gl_types_svdpp::icallback &scheduler){
-//    assert(false);
-// }
- 
-/***
- * UPDATE FUNCTION
- */
-/*template<>
-  class user_movie_nodes_update_function<graph_type_mlt_edge> : 
-  public graphlab::iupdate_functor<graph_type_mlt_edge, 
-  user_movie_nodes_update_function<graph_type_mlt_edge> > {
-  public:
-  typedef graphlab::iupdate_functor<graph_type_mlt_edge, 
-  user_movie_nodes_update_function<graph_type_mlt_edge> > base;
-
-  void operator()(typename base::icontext& context) {
-    
-  vertex_data& vdata = context.vertex_data();
-    
-  int id = context.vertex_id();
-  bool toprint = ac.debug && (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1)); 
-  bool isuser = id < ps.M;
-  if (toprint){
-  printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
-  debug_print_vec((isuser ? "V " : "U") , vdata.pvec, ac.D);
-  }
-    
-  vdata.rmse = 0;
-    
-  int numedges = vdata.num_edges;
-  if (numedges == 0){
-  if (!ps.tensor && (int)context.vertex_id() == ps.M+ps.N-1)
-  last_iter<graph_type_mult_edge, vertex_data, edge_data_mcmc>();
-      
-  return; //if this user/movie have no ratings do nothing
-  }
-    
-    
-  graph_type_mult_edge::edge_list_type outs = context.out_edge_ids();
-  graph_type_mult_edge::edge_list_type ins = context.in_edge_ids();
-  timer t;
-  mat Q(ac.D,numedges); //linear relation matrix
-  vec vals(numedges); //vector of ratings
-  vec weight(numedges); // vector of weights (to be used in weighted ALS)
-    
-  int i=0;
-    
-  t.start(); 
-  //USER NODES    
-  if (isuser){
-  foreach(graph_type_mult_edge::edge_id_type oedgeid, outs) {
-  const vertex_data  & pdata = context.const_neighbor_vertex_data(context.target(oedgeid)); 
-  multiple_edges &medges =context.edge_data(oedgeid);
-  for (int j=0; j< (int)medges.medges.size(); j++){
-  edge_data_mcmc& edge = medges.medges[j];
-  //go over each rating of a movie and put the movie vector into the matrix Q
-  //and vector vals
-  parse_edge<edge_data_mcmc>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS? &weight : NULL); 
-  if (toprint && (i==0 || i == numedges-1))
-  std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
-  i++;
-  }   
-  }
-  } else {
-  //MOVIE NODES
-  foreach(graph_type_mult_edge::edge_id_type iedgeid, ins) {   
-  const vertex_data & pdata = context.const_neighbor_vertex_data(context.source(iedgeid)); 
-  multiple_edges & medges =context.edge_data(iedgeid);
-  for (int j=0; j< (int)medges.medges.size(); j++){
-  edge_data_mcmc& edge = medges.medges[j];
-  //go over each rating by user
-  parse_edge<edge_data_mcmc>(edge, pdata, Q, vals, i, ps.algorithm == WEIGHTED_ALS ? &weight: NULL); 
-  if (toprint)
-  std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
-          
-  double trmse;
-  predict_missing_value(vdata, pdata, edge, trmse, i, id); 
-  if (toprint)
-  cout<<"trmse: " << trmse << endl;
-  //aggregate RMSE
-  vdata.rmse += trmse; 
-          
-  }
-  }
-  }
-  assert(i == numedges);
-  ps.counter[EDGE_TRAVERSAL] += t.current_time();
-    
-  vec result;
-  compute_least_squares(Q, vals, weight, result, isuser, toprint, numedges);    
-  //store new result
-  vdata.pvec =  result;
-    
-  //calc post round tasks
-  if (!ps.tensor && (int)context.vertex_id() == ps.M+ps.N-1)
-  last_iter<graph_type_mult_edge, vertex_data, edge_data_mcmc>();
-    
-  } // end of operator
-  }; // end of update funciton for mlt_edge
-*/
-
 
 
 
 #include <graphlab/macros_undef.hpp>
-#endif //_ALS_HPP
+#endif //ALS_HPP
