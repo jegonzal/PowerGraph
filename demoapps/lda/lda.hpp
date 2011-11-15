@@ -152,7 +152,7 @@ public:
       // Get the data ---------------------------------------------------------
       const vertex_id_type word_vid = context.target(eid);
       const word_id_type word_id = word_vid; ASSERT_LT(word_id, nwords);      
-      vertex_data& word = context.neighbor_vertex_data(word_vid);
+      vertex_data& word = context.vertex_data(word_vid);
       ASSERT_EQ(word.type, WORD);
       if(word.n_t.size() != ntopics) word.n_t.resize(ntopics);
       edge_data& edata = context.edge_data(eid);
@@ -231,7 +231,7 @@ public:
 
     const vertex_id_type word_vid = context.target(eid);
     const word_id_type word_id = word_vid; ASSERT_LT(word_id, nwords);      
-    vertex_data& word      = context.neighbor_vertex_data(word_vid);
+    vertex_data& word      = context.vertex_data(word_vid);
     ASSERT_EQ(word.type, WORD);
     edge_data& edata = context.edge_data(eid);
     if(edata.n_t.size() != ntopics) edata.n_t.resize(ntopics);          

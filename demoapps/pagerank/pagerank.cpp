@@ -59,7 +59,7 @@ public:
     float sum = vdata.value * vdata.self_weight;    
     foreach(edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
-        context.neighbor_vertex_data(context.source(eid)).value;
+        context.const_vertex_data(context.source(eid)).value;
     // Add random reset probability
     sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
       (1-RANDOM_RESET_PROBABILITY)*sum;

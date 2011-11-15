@@ -288,17 +288,17 @@ namespace graphlab {
      * const version of this function should be called to permit
      * further optimization by the graphlab engine.
      */
-    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) = 0; 
+    virtual vertex_data_type& vertex_data(vertex_id_type vertex) = 0; 
 
     /**
      * \brief get an immutable reference to the data associated with a
      * neighboring vertex.
-     * \deprecated Use const_neighbor_vertex_data
+     * \deprecated Use const_vertex_data
      * This function should only be invoked on neighboring
      * vertices. Unfortunately, due to the Log(d) lookup required to
      * enforce the adjacency constraint we do not check at this time.
      */
-    virtual const vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) const = 0;
+    virtual const vertex_data_type& vertex_data(vertex_id_type vertex) const = 0;
         
     /**
      * \brief get an immutable reference to the data associated with a
@@ -309,7 +309,7 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vertex) const = 0;
+    const_vertex_data(vertex_id_type vertex) const = 0;
 
 
     /**

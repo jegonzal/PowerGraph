@@ -105,7 +105,7 @@ public:
     float sum = 0;
     foreach(edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
-        context.neighbor_vertex_data(context.source(eid)).value;
+        context.const_vertex_data(context.source(eid)).value;
     const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 
     // Add random reset probability
     vdata.value = 
@@ -124,7 +124,7 @@ public:
   // Run the gather operation over all in edges
   void gather(icontext_type& context, edge_id_type in_eid) {
     const vertex_data& neighbor_vdata =
-      context.const_neighbor_vertex_data(context.source(in_eid));
+      context.const_vertex_data(context.source(in_eid));
     const double neighbor_value = neighbor_vdata.value;    
     edge_data& edata = context.edge_data(in_eid);
     accum += edata.weight * neighbor_value;    

@@ -170,7 +170,7 @@ struct update_functor :
       // references whenever you know that you will definitely not be
       // changing the data, since GraphLab could make use of this
       // knowledge to perform other optimizations
-      const vertex_data& nbrvertex = context.neighbor_vertex_data(sourcev);
+      const vertex_data& nbrvertex = context.vertex_data(sourcev);
       // if red, add to our counter
       if (nbrvertex.color == RED) ++num_red_neighbors;
     }

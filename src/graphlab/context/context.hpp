@@ -163,17 +163,7 @@ namespace graphlab {
       return vertex_data(vid);
     }
 
-    vertex_data_type& neighbor_vertex_data(vertex_id_type vid) {
-      return vertex_data(vid);
-    }
-
-    const vertex_data_type& 
-    neighbor_vertex_data(vertex_id_type vid) const {
-      return vertex_data(vid);
-    }
-
-    const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vid) const {
+    const vertex_data_type& const_vertex_data(vertex_id_type vid) const {
       return vertex_data(vid);
     }
 

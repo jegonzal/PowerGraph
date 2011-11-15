@@ -258,7 +258,7 @@ public:
         context.const_edge_data(ineid).message;
       // belief at v
       const graphlab::unary_factor& blfv = 
-        context.const_neighbor_vertex_data(srcv).belief;
+        context.const_vertex_data(srcv).belief;
       // get the message from u->v. requires the reverse edge
       const graph_type::edge_id_type outeid = context.reverse_edge(ineid);
       const graphlab::unary_factor &msguv = 
