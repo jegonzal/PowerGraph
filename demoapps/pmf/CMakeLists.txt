@@ -5,9 +5,9 @@ project(GraphLab)
 
 
 
-
-add_graphlab_executable(als als.cpp matrixmarket/mmio.cpp)
-
+if(HAS_EIGEN)
+  add_graphlab_executable(als als.cpp matrixmarket/mmio.cpp)
+endif()
   
 
   #   add_graphlab_executable(pmf pmf.cpp advanced_config.cpp  ../../libs/matrixmarket/mmio.cpp main.cpp)
