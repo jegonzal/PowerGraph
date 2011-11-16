@@ -290,11 +290,13 @@ void calc_normalized_mse(){
     gamp_struct var(vdata,i);
     for (int j=0; j< config.D; j++){
       diff_norm += pow(var.X_true[j] - var.X_mean[j],2);
-      X_norm += powf(var.X_mean[i],2);
+      X_norm += pow(var.X_mean[j],2);
     }
   }
   diff_norm = sqrt(diff_norm);
-  X_norm = sqrt(diff_norm);
+  X_norm = sqrt(X_norm);
+  if (config.debug)
+     std::cout<<"Diff norm is: " << diff_norm << " X_NORM IS: " << X_norm << std::endl;
   logstream(LOG_INFO) << "MMSE (db) is: " << 20*log10(diff_norm / X_norm) << " X_norm is: " << X_norm << std::endl;
 }
 
@@ -346,8 +348,8 @@ void load_data_gamp(graph_type_gamp * g){
     ps.gamp_theta = values[2];
     ps.gamp_psi = values[3];
     ps.gamp_eps = values[4];
-    ps.m = (uint)values[5];
-    ps.n = (uint)values[6];
+    ps.m = (uint)values[6];
+    ps.n = (uint)values[5];
     config.D = (int)values[7];
     X_mean = zeros(ps.m,config.D);
 
