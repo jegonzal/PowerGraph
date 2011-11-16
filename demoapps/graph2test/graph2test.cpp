@@ -10,8 +10,9 @@ struct vertex_data {
 };
 
 struct edge_data { 
-  float random;
-  edge_data (float f) : random(f){}
+  int from; 
+  int to;
+  edge_data (int f, int t) : from(f), to(t) {}
 };
 
 typedef graphlab::graph2<vertex_data, edge_data> graph_type2;
@@ -45,14 +46,16 @@ void size_test(graph_type1& g1, graph_type2& g2, unsigned int N = 1000) {
   }
 
   std::cout << "Adding edges..." << std::endl;
-  edge_data edata(0.0);
   for (size_t i = 0; i < N; ++i) {
     for (size_t j = 0; j < i; ++j) {
-      g2.add_edge(i,j, edata);
-      g2.add_edge(j,i, edata);
 
-      g1.add_edge(i,j,edata);
-      g1.add_edge(j,i,edata);
+      edge_data iedata(i,j);
+      edge_data oedata(j,i);
+      g2.add_edge(i,j, iedata);
+      g2.add_edge(j,i, oedata);
+
+      g1.add_edge(i,j,iedata);
+      g1.add_edge(j,i,oedata);
       ++num_edge;
     }
   }
@@ -96,17 +99,17 @@ void grid_graph_test(graph_type2& g) {
 
   // create the edges. The add_edge(i,j,edgedata) function creates
   // an edge from i->j. with the edgedata attached.   edge_data edata;
-  edge_data edata(0.0);
 
   for (size_t i = 0;i < dim; ++i) {
     for (size_t j = 0;j < dim - 1; ++j) {
       // add the horizontal edges in both directions
-      g.add_edge(dim * i + j, dim * i + j + 1, edata);
-      g.add_edge(dim * i + j + 1, dim * i + j, edata);
+      //
+      g.add_edge(dim * i + j, dim * i + j + 1, edge_data(dim*i+j, dim*i+j+1));
+      g.add_edge(dim * i + j + 1, dim * i + j, edge_data(dim*i+j+1, dim*i+j));
 
       // add the vertical edges in both directions
-      g.add_edge(dim * j + i, dim * (j + 1) + i, edata);
-      g.add_edge(dim * (j + 1) + i, dim * j + i, edata);
+      g.add_edge(dim * j + i, dim * (j + 1) + i, edge_data(dim*j+i, dim*(j+1)+i));
+      g.add_edge(dim * (j + 1) + i, dim * j + i, edge_data(dim*(j+1)+i, dim*j+i));
       num_edge += 4;
     }
   }
@@ -195,6 +198,50 @@ void grid_graph_test(graph_type2& g) {
   }
   printf("+ Pass test: in_edge_ids, out_edge_ids\n\n");
 
+
+  printf("Test iterate over in/out_edges and get edge data: \n");
+
+  for (vertex_id_type i = 0; i < num_vertices; ++i) {
+    const edge_list& out_eids = g.out_edge_ids(i);
+    const edge_list& in_eids = g.in_edge_ids(i);
+    printf("Test v: %u\n", i);
+    printf("In edge ids: ");
+    foreach(edge_id_type in, in_eids) std::cout << in << "(" << g.edge_data(in).from << ","<< g.edge_data(in).to << ") ";
+    std::cout <<std::endl;
+    foreach(edge_id_type out, out_eids) std::cout << out << "(" << g.edge_data(out).from << "," << g.edge_data(out).to << ") ";
+    std::cout <<std::endl;
+
+    foreach(edge_id_type eid, out_eids) {
+      vertex_id_type o = g.target(eid);
+      edge_data edata = g.edge_data(eid);
+      ASSERT_EQ(edata.from, i);
+      ASSERT_EQ(edata.to, o);
+    }
+
+    foreach(edge_id_type eid, in_eids) {
+      vertex_id_type o = g.source(eid);
+      edge_data edata = g.edge_data(eid);
+      ASSERT_EQ(edata.from, o);
+      ASSERT_EQ(edata.to, i);
+    }
+
+    for(size_t j = 0; j < out_eids.size(); ++j) {
+      edge_id_type eid = out_eids[j];
+      vertex_id_type o = g.target(eid);
+      edge_data edata = g.edge_data(eid);
+      ASSERT_EQ(edata.from, i);
+      ASSERT_EQ(edata.to, o);
+    }
+
+    for(size_t j = 0; j < in_eids.size(); ++j) {
+      edge_id_type eid = in_eids[j];
+      vertex_id_type o = g.source(eid);
+      edge_data edata = g.edge_data(eid);
+      ASSERT_EQ(edata.from, o);
+      ASSERT_EQ(edata.to, i);
+    }
+  }
+  printf("+ Pass test: iterate edgelist and get data. :) \n");
   std::cout << "-----------End Grid Test--------------------" << std::endl;
 }
 
@@ -233,7 +280,7 @@ int main(int argc,  char *argv[]) {
   glcore1.set_options(opts);
   glcore2.set_options(opts);
 
-  size_test(glcore1.graph(), glcore2.graph(), 1000);
+//  size_test(glcore1.graph(), glcore2.graph(), 1000);
 
   grid_graph_test(glcore2.graph());
 }

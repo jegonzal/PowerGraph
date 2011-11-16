@@ -266,14 +266,22 @@ namespace graphlab {
         size_t num_in_neighbors(vertex_id_type v) const {
           ASSERT_LT(v, num_vertices);
           size_t begin = CSC_dst[v];
-          size_t end = (v == num_vertices-1) ? num_edges: CSC_dst[v+1];
+          if (begin >= num_edges) return 0;
+
+          size_t search = v+1;
+          while (search < num_vertices && CSC_dst[search] >= num_edges) ++search;
+          size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
           return (end-begin);
         }
 
         size_t num_out_neighbors(vertex_id_type v) const {
           ASSERT_LT(v, num_vertices);
           size_t begin = CSR_src[v];
-          size_t end = (v == num_vertices-1) ? num_edges: CSR_src[v+1];
+          if (begin >= num_edges) return 0;
+
+          size_t search = v+1;
+          while (search < num_vertices && CSR_src[search] >= num_edges) ++search;
+          size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
           return (end-begin);
         }
 
@@ -281,7 +289,11 @@ namespace graphlab {
           ASSERT_LT(v, num_vertices);
           std::vector<vertex_id_type> ret;
           size_t begin = CSC_dst[v];
-          size_t end = (v == num_vertices-1) ? num_edges: CSC_dst[v+1];
+          if (begin >= num_edges) return ret;
+
+          size_t search = v+1;
+          while (search < num_vertices && CSC_dst[search] >= num_edges) ++search;
+          size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
           for (size_t i = begin; i < end; ++i) {
             ret.push_back(CSC_src[i]);
           }
@@ -292,7 +304,11 @@ namespace graphlab {
           ASSERT_LT(v, num_vertices);
           std::vector<vertex_id_type> ret;
           size_t begin = CSR_src[v];
-          size_t end = (v == num_vertices-1) ? num_edges: CSR_src[v+1];
+          if (begin >= num_edges) return ret;
+
+          size_t search = v+1;
+          while (search < num_vertices && CSR_src[search] >= num_edges) ++search;
+          size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
           for (size_t i = begin; i < end; ++i) {
             ret.push_back(CSR_dst[i]);
           }
@@ -302,14 +318,25 @@ namespace graphlab {
         edge_list in_edge_ids(vertex_id_type v) const {
           ASSERT_LT(v, num_edges); 
           size_t begin = CSC_dst[v];
-          size_t end = (v == num_vertices-1) ? num_edges: CSC_dst[v+1];
+
+          // Return empty edge list if v has no in edges.
+          if (begin >= num_edges) return edge_list();
+
+          size_t search = v+1;
+          while (search < num_vertices && CSC_dst[search] >= num_edges) ++search;
+          size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
           return edge_list(&(c2r_map[begin]), (end-begin));
         }
 
         edge_list out_edge_ids(vertex_id_type v) const {
           ASSERT_LT(v, num_edges);
           edge_id_type begin = CSR_src[v];
-          edge_id_type end = (v == num_vertices-1) ? num_edges: CSR_src[v+1];
+          // Return empty edge list if v has no out edges.
+          if (begin >= num_edges) return edge_list();
+
+          size_t search = v+1;
+          while (search < num_vertices && CSR_src[search] >= num_edges) ++search;
+          edge_id_type end = (search >= num_vertices) ? num_edges: CSR_src[search];
           return edge_list(begin, end);
         }
 
@@ -460,7 +487,10 @@ namespace graphlab {
 
           public:
             /** \brief Construct an empty edge list */
-            edge_list() : begin_ptr(NULL), end_ptr(NULL), is_lazy(false) { }
+            edge_list() : is_lazy(false) {
+              begin_ptr.uiter.normalIter = NULL;
+              end_ptr.uiter.normalIter = NULL;
+            }
 
             /** \brief Construct an edge list from an std vector */
             edge_list(const std::vector<edge_id_type>& edges) :

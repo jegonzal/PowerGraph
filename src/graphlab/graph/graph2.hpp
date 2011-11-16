@@ -173,7 +173,11 @@ namespace graphlab {
 
     /** \brief Get the number of edges */
     size_t num_edges() const {
-      return gstore.edge_size();
+      if (finalized) {
+       return gstore.edge_size();
+      } else {
+        return edges_tmp.size();
+      }
     } // end of num edges
 
 
@@ -335,6 +339,7 @@ namespace graphlab {
     
     /** \brief Returns a constant reference to the data stored on the edge e */
     const EdgeData& edge_data(edge_id_type edge_id) const {
+      ASSERT_LT(edge_id, num_edges());
       return gstore.edge_data_list[edge_id]; 
     }
 
