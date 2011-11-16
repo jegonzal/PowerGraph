@@ -235,7 +235,8 @@ namespace graphlab {
     /// ValueType
     template<typename ValueType>
     ValueType& as(const size_t index) {
-      DASSERT_TRUE(type() == typeid(ValueType));
+      ASSERT_MSG(type() == typeid(ValueType), 
+                 "%s != %s", type().name(), typeid(ValueType).name());
       DASSERT_FALSE(unset());
       return static_cast<holder<ValueType> *>(contents)->contents[index];
     }
@@ -244,7 +245,8 @@ namespace graphlab {
     /// type of ValueType
     template<typename ValueType>
     inline const ValueType& as(const size_t index) const{
-      DASSERT_TRUE(type() == typeid(ValueType));
+      ASSERT_MSG(type() == typeid(ValueType), 
+                 "%s != %s", type().name(), typeid(ValueType).name());
       DASSERT_FALSE(unset());
       return static_cast< holder<ValueType> *>(contents)->contents[index];
     }
@@ -254,7 +256,8 @@ namespace graphlab {
     /// ValueType
     template<typename ValueType>
     std::vector<ValueType>& as() {
-      DASSERT_TRUE(type() == typeid(ValueType));
+      ASSERT_MSG(type() == typeid(ValueType), 
+                 "%s != %s", type().name(), typeid(ValueType).name());
       DASSERT_FALSE(unset());
       return static_cast<holder<ValueType> *>(contents)->contents;
     }

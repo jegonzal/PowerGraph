@@ -6,7 +6,7 @@ project(GraphLab)
 
 
 
-add_graphlab_executable(als als.cpp)
+add_graphlab_executable(als als.cpp matrixmarket/mmio.cpp)
 
   
 
