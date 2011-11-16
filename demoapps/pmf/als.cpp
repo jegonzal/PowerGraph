@@ -51,12 +51,12 @@ typedef Eigen::VectorXd vec;
 /** Vertex and edge data types **/
 struct vertex_data {
   vec latent; //! vector of learned values 
-  double rmse; //!root of mean square error
+  double squared_error; //!root of mean square error
   double residual;
   size_t nupdates; //! the number of times the vertex was updated
   //constructor
   vertex_data() : 
-    rmse(std::numeric_limits<double>::max()), 
+    squared_error(std::numeric_limits<double>::max()), 
     residual(std::numeric_limits<double>::max()), 
     nupdates(0) { }
   void save(graphlab::oarchive& arc) const { }
@@ -87,7 +87,7 @@ public:
   void operator+=(const als_update& other) { residual += other.residual; }
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
-    vdata.rmse = 0; vdata.residual = 0; ++vdata.nupdates;
+    vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     const edge_list_type out_eids = context.out_edge_ids();
     const edge_list_type in_eids  = context.in_edge_ids();
     // If there are no neighbors just return
@@ -107,28 +107,28 @@ public:
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
       const edge_data& edata = context.const_edge_data(eid);
       // Update the X'X and X'y (eigen calls are too slow)
-      // Xty += neighbor.latent * (edata.observation * edata.weight);
-      // XtX += (neighbor.latent * neighbor.latent.transpose()) * edata.weight;
+      // Xty += neighbor.latent*(edata.observation*edata.weight);
+      // XtX += (neighbor.latent*neighbor.latent.transpose()) * edata.weight;
       for(size_t i = 0; i < nlatent; ++i) {
-        Xty(i) += neighbor.latent(i) * (edata.observation * edata.weight);
+        Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
         for(size_t j = 0; j < nlatent; ++j) 
           XtX(i,j) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
       }
     }
     // Add regularization
     const double& lambda = context.get_global_const<double>("lambda");
-    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda * eids.size());
+    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda);
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
-    vdata.residual = 
-      std::sqrt((old_latent - vdata.latent).dot(old_latent - vdata.latent))/
-      double(nlatent);
+    // Compute the residual change in the latent factor -----------------------
+    vdata.residual = 0;
+    for(size_t i = 0; i < nlatent; ++i)
+      vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
+    vdata.residual /= nlatent;
     // Update the rmse and reschedule neighbors -------------------------------
     const double tolerance = context.get_global_const<double>("tolerance");
-    vdata.rmse = 0;
-    double weight = 0;
-    double squared_error = 0;
+    vdata.squared_error = 0;
     foreach(const edge_id_type eid, eids) {
       // get the neighbor id
       const vertex_id_type neighbor_id = is_in_eids? 
@@ -137,13 +137,11 @@ public:
       const edge_data& edata = context.const_edge_data(eid);
       const double pred = vdata.latent.dot(neighbor.latent);
       const double error = std::fabs(edata.observation - pred);
-      squared_error += error*error*edata.weight;
-      weight += edata.weight;
+      vdata.squared_error += error*error;
       // Reschedule neighbors ------------------------------------------------
       if( error > tolerance && vdata.residual > tolerance) 
         context.schedule(neighbor_id, als_update(residual));
     }
-    vdata.rmse = std::sqrt(squared_error / weight);
   } // end of operator()
 }; // end of class user_movie_nodes_update_function
 
@@ -164,8 +162,12 @@ public:
     if((context.in_edge_ids().size() + 
         context.out_edge_ids().size()) == 0)
       return;
-    rmse += vdata.rmse;
-    max_rmse = std::max(max_rmse, vdata.rmse);
+    rmse += vdata.squared_error;
+    const size_t num_edges = context.in_edge_ids().size() +
+      context.out_edge_ids().size();
+    max_rmse = 
+      std::max(max_rmse, 
+               std::sqrt(vdata.squared_error/num_edges));
     residual += vdata.residual;
     max_residual = std::max(max_residual, vdata.residual);
     min_updates = std::min(min_updates, vdata.nupdates);
@@ -183,7 +185,7 @@ public:
   }
   void finalize(iglobal_context_type& context) {
     std::cout 
-      << std::setw(10) << (rmse /(2 * context.num_edges())) << '\t'
+      << std::setw(10) << sqrt(rmse /(2*context.num_edges())) << '\t'
       << std::setw(10) << max_rmse << '\t'
       << std::setw(10) << (residual / context.num_vertices()) << '\t'
       << std::setw(10) << max_residual << '\t'
@@ -210,7 +212,7 @@ int main(int argc, char** argv) {
   double tolerance = 1e-2;
   double holdout = 0.1;
   size_t nlatent = 10;
-  double lambda = 1;
+  double lambda = 0.065;
   size_t freq = 100000;
   clopts.attach_option("matrix",
                        &matrix_file, matrix_file,
