@@ -44,8 +44,8 @@
 #include <cstdio>
 #include "linear.h"
 
-const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL", "RECOMPUTE_EXP_AX_LOGREG"};
-const char* runmodesnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares", "Shotgun Lasso", "Shotgun Logreg"};
+const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL", "RECOMPUTE_EXP_AX_LOGREG", "GAMP_MULT_A", "GAMP_MULT_AT"};
+const char* runmodesnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares", "Shotgun Lasso", "Shotgun Logreg", "Generalized Approximate Message Passing (GAMP)"};
 
 
 graphlab::glshared<double> REAL_NORM_KEY;
@@ -79,7 +79,7 @@ void unittest(command_line_options & clopts);
 void verify_unittest_result(double diff);
 void compute_logreg(gl_types_shotgun::core & glcore); 
 void solveLasso(gl_types_shotgun::core & glcore); 
-
+void gamp_main(gl_types_gamp::core &glcore);
 
 
 // global variables
@@ -184,6 +184,28 @@ double start_shotgun(graphlab::command_line_options &clopts, advanced_config &co
   return 0;
 }
 
+
+template <typename coretype>
+double start_gamp(graphlab::command_line_options &clopts, advanced_config &config){
+
+  assert(config.algorithm == GAMP);
+  // Create a core
+  coretype core;
+  core.set_engine_options(clopts); // Set the engine options
+
+  // Load the graph --------------------------------------------------
+  load_data<gl_types_gamp::graph, vertex_data_gamp, edge_data_gamp>(&core.graph());
+
+#ifdef HAS_ITPP
+  gamp_main(core);
+#else
+  logstream(LOG_ERROR) << "itpp must be installed for running this algorithm!" << std::endl;
+#endif
+
+  std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
+
+  return 0;
+}
 
 
 
@@ -308,13 +330,20 @@ int main(int argc,  char *argv[]) {
     case CONJUGATE_GRADIENT:
        diff=start<gl_types::core>(clopts,config);
        break;
+
     case GaBP_INV:
        diff=start_inv<gl_types_inv::core>(clopts,config);
        break;
+
     case SHOTGUN_LOGREG:
     case SHOTGUN_LASSO:
        diff=start_shotgun<gl_types_shotgun::core>(clopts, config);
        break;
+
+    case GAMP:
+       diff=start_gamp<gl_types_gamp::core>(clopts, config);
+       break;
+
     default: assert(false);
   }
  

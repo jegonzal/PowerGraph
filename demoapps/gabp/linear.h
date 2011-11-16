@@ -33,6 +33,7 @@ struct vertex_data {
   sdouble cur_prec; // //current precision value P_i
   sdouble prev_mean; //  mean value from previous round (for convergence detection)
   sdouble prev_prec; //precision value from previous round (for convergence detection)
+  sdouble zero; //pad to x8
 
   vertex_data(){ 
      prev_mean = 1000;
@@ -110,6 +111,14 @@ struct vertex_data_shotgun{
 struct edge_data_shotgun{
 };
 
+struct vertex_data_gamp{
+   vec data;
+};
+
+struct edge_data_gamp{
+};
+
+
 enum runmodes{
    GaBP = 0, 
    JACOBI = 1,
@@ -117,7 +126,8 @@ enum runmodes{
    GaBP_INV = 3,
    LEAST_SQUARES = 4,
    SHOTGUN_LASSO = 5,
-   SHOTGUN_LOGREG = 6
+   SHOTGUN_LOGREG = 6,
+   GAMP = 7
 };
 
 
@@ -126,7 +136,9 @@ enum runmodes{
 enum countervals{
    EDGE_TRAVERSAL=0,
    NODE_TRAVERSAL=1,
-   RECOMPUTE_EXP_AX_LOGREG=2
+   RECOMPUTE_EXP_AX_LOGREG=2,
+   GAMP_MULT_A=3,
+   GAMP_MULT_AT=4
 };
 
 class problem_setup{
@@ -143,7 +155,6 @@ public:
 //performance counters
 #define MAX_COUNTER 20
   double counter[MAX_COUNTER];
-  
 
   //for shotgun logreg
   bool cdn_all_zero; //we have reached an all zero solution
@@ -151,6 +162,14 @@ public:
   int cdn_pos_y; //number of positive training instances
   unsigned long long int shotgun_numshoots;
   double last_cost; //keep track of last cost function
+
+
+  //for gamp
+  double gamp_theta;
+  double gamp_lam;
+  double gamp_phi;
+  double gamp_psi;
+  double gamp_eps;
 
   //vectors for storing the output
   std::vector<double> means;
@@ -180,7 +199,8 @@ typedef graphlab::graph<vertex_data_inv, edge_data_inv> graph_type_inv;
 typedef graphlab::types<graph_type_inv> gl_types_inv;
 typedef graphlab::graph<vertex_data_shotgun, edge_data_shotgun> graph_type_shotgun;
 typedef graphlab::types<graph_type_shotgun> gl_types_shotgun;
-
+typedef graphlab::graph<vertex_data_gamp, edge_data_gamp> graph_type_gamp;
+typedef graphlab::types<graph_type_gamp> gl_types_gamp;
 
 #endif
 

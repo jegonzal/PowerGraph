@@ -366,6 +366,15 @@ void load_data(graph_type * g){
 }
 
 
+void load_data_gamp(graph_type_gamp *g);
+
+
+
+template<>
+void load_data<graph_type_gamp, vertex_data_gamp, edge_data_gamp>(graph_type_gamp* g){
+    load_data_gamp(g);
+ }
+
 
 #define BUFSIZE 500000
 template <typename graph_type, typename vertex_data>

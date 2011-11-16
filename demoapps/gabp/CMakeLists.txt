@@ -14,6 +14,6 @@ endif()
 
 if (lapack_found)
 add_graphlab_executable(gabp main.cpp advanced_config.cpp unittest.cpp
-lasso.cpp
+lasso.cpp gamp.cpp
 ../../libs/matrixmarket/mmio.cpp logreg.cpp)
 endif()

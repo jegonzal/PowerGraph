@@ -73,6 +73,14 @@ inline void debug_print_vec(const char * name,const vec& _vec, int len){
     else printf("%12.4g    ", _vec(i));
   printf("\n");
 }
+inline void debug_print_vec(const char * name,const double* _vec, int len){
+  printf("%s ) ", name);
+  for (int i=0; i< len; i++)
+    if (_vec(i) == 0)
+      printf("      0    ");
+    else printf("%12.4g    ", _vec(i));
+  printf("\n");
+}
 inline vec init_vec(const double * array, int size){
   vec ret(size);
   memcpy(ret.data(), array, size*sizeof(double));
@@ -765,6 +773,14 @@ inline double sum_sqr(sparse_vec & v){
   return sum;
 }
 inline void debug_print_vec(const char * name,const vec& _vec, int len){
+  printf("%s ) ", name);
+  for (int i=0; i< len; i++)
+    if (_vec[i] == 0)
+      printf("      0    ");
+    else printf("%12.4g    ", _vec[i]);
+  printf("\n");
+}
+inline void debug_print_vec(const char * name,const double* _vec, int len){
   printf("%s ) ", name);
   for (int i=0; i< len; i++)
     if (_vec[i] == 0)
