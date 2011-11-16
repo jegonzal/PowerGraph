@@ -106,13 +106,18 @@ public:
         context.source(eid) : context.target(eid);
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
       const edge_data& edata = context.const_edge_data(eid);
-      // Update the X'X and X'y
-      Xty += neighbor.latent * (edata.observation * edata.weight);
-      XtX += (neighbor.latent * neighbor.latent.transpose()) * edata.weight;
+      // Update the X'X and X'y (eigen calls are too slow)
+      // Xty += neighbor.latent * (edata.observation * edata.weight);
+      // XtX += (neighbor.latent * neighbor.latent.transpose()) * edata.weight;
+      for(size_t i = 0; i < nlatent; ++i) {
+        Xty(i) += neighbor.latent(i) * (edata.observation * edata.weight);
+        for(size_t j = 0; j < nlatent; ++j) 
+          XtX(i,j) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
+      }
     }
     // Add regularization
     const double& lambda = context.get_global_const<double>("lambda");
-    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += lambda;
+    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda * eids.size());
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
@@ -206,7 +211,7 @@ int main(int argc, char** argv) {
   double holdout = 0.1;
   size_t nlatent = 10;
   double lambda = 1;
-  size_t freq = 10000;
+  size_t freq = 100000;
   clopts.attach_option("matrix",
                        &matrix_file, matrix_file,
                        "The file containing the matrix. If none is provided"
@@ -228,6 +233,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("freq",
                        &freq, freq,
                        "The number of updates between rmse calculations");
+  clopts.set_scheduler_type("sweep");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -278,16 +284,16 @@ int main(int argc, char** argv) {
             << std::endl;
   
   // Output Results -----------------------------------------------------------
-  double error = 0, weight = 0;
+  double squared_error = 0, weight = 0;
   foreach(const matrix_entry_type& entry, test_set) {
     const vertex_data& v1 = core.graph().vertex_data(entry.source);
     const vertex_data& v2 = core.graph().vertex_data(entry.target);
     const double prediction = v1.latent.dot(v2.latent);
-    error = entry.edata.weight * 
-      std::pow((entry.edata.observation - prediction),2);
+    const double error = entry.edata.observation - prediction;
+    squared_error = entry.edata.weight * error * error;
     weight += entry.edata.weight;
   }
-  std::cout << "Error: " << std::sqrt(error/weight) << std::endl;
+  std::cout << "Test Error: " << std::sqrt(squared_error/weight) << std::endl;
 
 
   return EXIT_SUCCESS;
