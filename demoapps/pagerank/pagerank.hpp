@@ -75,10 +75,6 @@ typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 
 
-
-
-
-
 /// Utility routines defined in utility.cpp ------------------------------->
 //! Save the graph to tsv file
 void save_graph_as_edge_list(const std::string& fname, 

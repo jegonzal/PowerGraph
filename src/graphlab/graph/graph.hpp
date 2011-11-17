@@ -146,6 +146,9 @@ namespace graphlab {
     /// Type for vertex colors 
     typedef vertex_id_type vertex_color_type;
     
+    // Compatible with the icontext interface.
+    class vertex_list {};
+    typedef vertex_list vertex_list_type;
     
     /** This class defines a set of edges */
     class edge_list {
@@ -692,6 +695,12 @@ namespace graphlab {
       }
       return ret;
     }
+
+    // Compatible with the icontext interfase. Should never be used.
+    vertex_list in_vertices_list(vertex_id_type v) const {
+      ASSERT_TRUE(false);
+      return vertex_list();
+    }
     
     /** \brief Get the set of out vertices of vertex v */
     std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
@@ -701,7 +710,12 @@ namespace graphlab {
       }
       return ret;
     }
-    
+
+    // Compatible with the icontext interfase. Should never be used.
+    vertex_list out_vertices_list(vertex_id_type v) const {
+      ASSERT_TRUE(false);
+      return vertex_list();
+    }
     
     /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {

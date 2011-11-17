@@ -24,6 +24,23 @@ struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_fu
 struct update_functor1 : public graphlab::iupdate_functor<graph_type1, update_functor1> {
 };
 
+void sparseGraphtest (graph_type2& g) {
+  size_t num_v = 5000000;
+  for (size_t i = 0; i < num_v; ++i)
+  {
+    vertex_data vdata;
+    g.add_vertex(vdata);
+  }
+  g.add_edge(1,3,edge_data(1,3));
+  g.add_edge(2,5,edge_data(2,5));
+  g.add_edge(5,8,edge_data(5,8));
+  g.add_edge(8,9,edge_data(8,9));
+  g.finalize();
+  for (size_t i = 0; i < 4; ++i)
+    std::cout << g.source(i) << " ";
+  std::cout << std::endl;
+}
+
 
 void size_test(graph_type1& g1, graph_type2& g2, unsigned int N = 1000) {
   g2.resetMem();
@@ -280,8 +297,8 @@ int main(int argc,  char *argv[]) {
   glcore1.set_options(opts);
   glcore2.set_options(opts);
 
-//  size_test(glcore1.graph(), glcore2.graph(), 1000);
-
-  grid_graph_test(glcore2.graph());
+  size_test(glcore1.graph(), glcore2.graph(), 1000);
+  //sparseGraphtest(glcore2.graph());
+ // grid_graph_test(glcore2.graph());
 }
 #include <graphlab/macros_undef.hpp>

@@ -55,8 +55,12 @@ public:
   void operator+=(const pagerank_update& other) { prio += other.prio; }
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
+
     // Compute weighted sum of neighbors
     float sum = vdata.value * vdata.self_weight;    
+
+    /* Iterate over edge_id_list and get source is slow in graph2 */
+    /*
     foreach(edge_id_type eid, context.in_edge_ids()) 
       sum += context.edge_data(eid).weight * 
         context.const_vertex_data(context.source(eid)).value;
@@ -71,6 +75,23 @@ public:
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > ACCURACY) 
         context.schedule(context.target(eid), pagerank_update(residual));      
+    }*/
+
+    /* Iterate over in/out vertex_list and get edge_data is faster. Only supported by graph2. */
+    vertex_id_type vid = context.vertex_id();
+    foreach (vertex_id_type in_id, context.in_vertices_list())
+      sum += context.edge_data(in_id, vid).weight * context.const_vertex_data(in_id).value;
+
+    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
+      (1-RANDOM_RESET_PROBABILITY)*sum;
+    vdata.old_value = vdata.value;
+    vdata.value = sum;
+
+    foreach (vertex_id_type out_id, context.out_vertices_list()) {
+      const float residual = context.edge_data(vid, out_id).weight *
+        std::fabs(vdata.value - vdata.old_value);
+      if (residual > ACCURACY)
+        context.schedule(out_id, pagerank_update(residual));
     }
   } // end of operator()  
 }; // end of pagerank update functor

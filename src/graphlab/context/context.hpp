@@ -67,6 +67,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_data_type    vertex_data_type;
     typedef typename graph_type::edge_data_type      edge_data_type;
     typedef typename graph_type::edge_list_type      edge_list_type;
+    typedef typename graph_type::vertex_list_type    vertex_list_type;
     
   private:    
     /** a pointer to the engine */
@@ -179,6 +180,17 @@ namespace graphlab {
       return graph_ptr->edge_data(eid);  
     }
 
+    edge_data_type& edge_data(vertex_id_type source,
+        vertex_id_type target) {
+      return graph_ptr->edge_data(source, target);
+    }
+
+    const edge_data_type& edge_data(vertex_id_type source,
+        vertex_id_type target) const {
+      return graph_ptr->edge_data(source, target);
+    }
+
+
     void commit() { }
 
     vertex_color_type color() const { return graph_ptr->get_color(vid); }
@@ -213,6 +225,22 @@ namespace graphlab {
 
     edge_list_type out_edge_ids(vertex_id_type v) const {
       return graph_ptr->out_edge_ids(v);
+    }
+
+    std::vector<vertex_id_type> in_vertices() const {
+      return graph_ptr->in_vertices(vid);
+    }
+
+    vertex_list_type in_vertices_list() const {
+      return graph_ptr->in_vertices_list(vid);
+    }
+
+    std::vector<vertex_id_type> out_vertices() const {
+      return graph_ptr->out_vertices(vid);
+    }
+
+    vertex_list_type out_vertices_list() const {
+      return graph_ptr->out_vertices_list(vid);
     }
 
     //! Get the source vertex of the edge id argument

@@ -300,9 +300,11 @@ bool load_graph_from_jure_file(const std::string& filename,
     << "\t Vertices: " << graph.num_vertices() << std::endl
     << "\t Edges: " << graph.num_edges() << std::endl;
 
-
-
   normalize_graph(graph);
+
+  std::cout
+    << "Graph storage size: " << (double)graph.get_graph_size() /(1024*1024) << "MB" << std::endl;
+
 
   return true;
 } // end of load graph from jure file

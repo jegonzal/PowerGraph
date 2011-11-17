@@ -92,9 +92,14 @@ namespace graphlab {
 
     /** The type of the edge list */
     typedef typename gstore_type::edge_list edge_list;
+    
+    /** The type of the vertex list */
+    typedef typename gstore_type::vertex_list vertex_list;
 
     /** Interface for iupdate functor.*/
     typedef typename gstore_type::edge_list edge_list_type;
+
+    typedef typename gstore_type::vertex_list vertex_list_type;
 
     typedef typename gstore_type::edge edge;
     
@@ -315,7 +320,7 @@ namespace graphlab {
       // We must find the edge!
       ASSERT_TRUE(ans.first);
       // the edge id should be valid!
-      ASSERT_LT(ans.second, gstore.num_edges());
+      ASSERT_LT(ans.second, num_edges());
       return gstore.edge_data_list[ans.second];
     } // end of edge_data(u,v)
     
@@ -328,7 +333,7 @@ namespace graphlab {
       // We must find the edge!
       ASSERT_TRUE(ans.first);
       // the edge id should be valid!
-      ASSERT_LT(ans.second, gstore.num_edges());
+      ASSERT_LT(ans.second, num_edges());
       return gstore.edge_data_list[ans.second];
     } // end of edge_data(u,v)
 
@@ -462,6 +467,15 @@ namespace graphlab {
     std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
       return gstore.out_vertices(v);;
     }
+
+    vertex_list in_vertices_list(vertex_id_type v) const {
+      return gstore.in_vertices_list(v);
+    }
+
+    vertex_list out_vertices_list(vertex_id_type v) const {
+      return gstore.out_vertices_list(v);
+    }
+
     
     
     /** \brief count the number of times the graph was cleared and rebuilt */
@@ -529,7 +543,7 @@ namespace graphlab {
     void save_adjacency(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
       ASSERT_TRUE(fout.good());
-      for(size_t i = 0; i < gstore.num_edges; ++i) {
+      for(size_t i = 0; i < num_edges; ++i) {
         fout << gstore.source(i) << ", " << gstore.target(i) << "\n";
         ASSERT_TRUE(fout.good());
       }          
