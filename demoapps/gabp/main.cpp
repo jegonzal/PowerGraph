@@ -44,7 +44,7 @@
 #include <cstdio>
 #include "linear.h"
 
-const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL", "RECOMPUTE_EXP_AX_LOGREG", "GAMP_MULT_A", "GAMP_MULT_AT"};
+const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL", "RECOMPUTE_EXP_AX_LOGREG", "GAMP_MULT_A", "GAMP_MULT_AT", "GAMP_VEC_A", "GAMP_VEC_AT"};
 const char* runmodesnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares", "Shotgun Lasso", "Shotgun Logreg", "Generalized Approximate Message Passing (GAMP)"};
 
 

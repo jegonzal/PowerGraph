@@ -122,6 +122,10 @@ bool shuffle;
 
 /* for KNN */
 double knn_sample_percent;
+  
+/* for fuzzy k-means*/
+double fuzzy_exponent;
+
 
 bool show_version;
 
@@ -220,6 +224,9 @@ advanced_config(){
  
    /* for LDA */
    em_max_inner_iter = 20;
+
+   /* for fuzzy k-means */
+   fuzzy_exponent = 2.0;
 
    shuffle = false;
 

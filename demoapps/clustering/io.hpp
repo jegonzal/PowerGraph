@@ -258,6 +258,7 @@ void export_to_itpp_file(){
 
   char dfile[256] = {0};
   sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
+  logstream(LOG_INFO)<<"Writing output to file " << dfile << ". You can read it in Matlab/octave using the script itload.m found on http://graphlab.org/itload.m" << std::endl;
   remove(dfile);
   it_file output(dfile);
   if (ps.output_clusters.size() > 0){

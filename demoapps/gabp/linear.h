@@ -138,7 +138,9 @@ enum countervals{
    NODE_TRAVERSAL=1,
    RECOMPUTE_EXP_AX_LOGREG=2,
    GAMP_MULT_A=3,
-   GAMP_MULT_AT=4
+   GAMP_MULT_AT=4,
+   GAMP_VEC_A=5,
+   GAMP_VEC_AT=6
 };
 
 class problem_setup{

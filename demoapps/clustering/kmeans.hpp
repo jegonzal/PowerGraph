@@ -142,17 +142,14 @@ void kmeans_update_function(gl_types::iscope &scope,
  * */
   else if (ps.algorithm == K_MEANS_FUZZY){
      flt_dbl_vec old_distance = vdata.distances;
-     flt_dbl factor = sum(pow(vdata.distances,-2));
+     flt_dbl factor = sum(pow(vdata.distances,-2/(ac.fuzzy_exponent-1)));
      assert(!std::isnan(factor) && factor > 0);
-     flt_dbl_vec normalized = pow(vdata.distances,-2) / factor;
+     flt_dbl_vec normalized = pow(vdata.distances,-2/(ac.fuzzy_exponent-1)) / factor;
      assert(!std::isnan(sum(normalized)));
     
-     vdata.distances = pow(normalized, 2);
+     vdata.distances = pow(normalized, ac.fuzzy_exponent);
      if (toprint)
          std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;
-     if (id == 4246&& toprint){
-         std::cout<<"something wrong";
-     }
      if (toprint)
          std::cout<<" contribution to cost function is : " << elem_mult(vdata.distances, pow(old_distance,2))<<std::endl;
      vdata.min_distance = dot(vdata.distances, pow(old_distance,2));

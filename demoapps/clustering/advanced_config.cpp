@@ -49,6 +49,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("svd_finalize", &svd_finalize, svd_finalize, "SVD: compute eigendecomposition at the last step");
   clopts.attach_option("svd_compile_eigenvectors", &svd_compile_eigenvectors, svd_compile_eigenvectors, "SVD: compile eigen vectors from swap file");
   clopts.attach_option("svd_compile_eigenvectors_block_size", &svd_compile_eigenvectors_block_size, svd_compile_eigenvectors_block_size, "SVD: compile eigen vectors rows blocking size");
+  clopts.attach_option("fuzzy_exponent", &fuzzy_exponent, fuzzy_exponent, "Fuzzy K-means exponent (between 1.01 -> 2)");
 }
 
 void problem_setup::verify_setup(){

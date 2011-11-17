@@ -187,6 +187,8 @@ void gamp_obs_update_function(gl_types_gamp::iscope &scope,
         obs.P_var[i] +=  pow(fabs(obs.A_i[k]),2) * (var.X_var[i] + pow(var.X_mean[i],2)) ;
       }
   }
+  ps.counter[GAMP_MULT_A] += t.current_time();
+  t.start();
 
 
   for (int i=0; i< config.D; i++){
@@ -199,8 +201,8 @@ void gamp_obs_update_function(gl_types_gamp::iscope &scope,
      // S_mean = S_var.*(Y-P_mean);
      obs.S_mean[i] = obs.S_var[i] *(obs.Y[i] - obs.P_mean[i]);
   }
+  ps.counter[GAMP_VEC_A] += t.current_time(); 
  
-  ps.counter[GAMP_MULT_A] += t.current_time();
 
   if (config.debug && (id == (int)ps.m || id == (int)(ps.m+ps.n-1))){
     printf("gamp: computed obs node  %u\n", id);   
@@ -248,28 +250,30 @@ void gamp__update_function(gl_types_gamp::iscope &scope,
       }
   }
 
+  ps.counter[GAMP_MULT_AT] += t.current_time();
+  t.start();
 
   for (int i=0; i< config.D; i++){
-     //R_var = 1./(A_
-     //mean2'*S_var + eps);
+     //R_var = 1./(A_mean2'*S_var + eps);
      var.R_var[i] = 1.0 / (var.R_var[i] + ps.gamp_eps);
      //R_mean = X_mean + R_var.*(A_mean'*S_mean);
      var.R_mean[i] = var.X_mean[i] + var.R_var[i] * var.R_mean[i];
      //gam = (R_.var*theta + phi.*R_mean)./(R_var+phi);
-     var.gam[i] = (var.R_var[i]*ps.gamp_theta + ps.gamp_phi*var.R_mean[i]) / (var.R_var[i] + ps.gamp_phi);
+     double rvar_plus_phi = var.R_var[i] + ps.gamp_psi;
+     var.gam[i] = (var.R_var[i]*ps.gamp_theta + ps.gamp_phi*var.R_mean[i]) / rvar_plus_phi;
      //nu = phi.*R_./(R_var+phi);
-     var.nu[i] = ps.gamp_phi*var.R_var[i] / (var.R_var[i] + ps.gamp_phi);
+     var.nu[i] = ps.gamp_phi*var.R_var[i] / rvar_plus_phi;
      //pi = 1./(1+(1-lam)./lam .*sqrt((R_+phi)./R_var) .* exp( ...
-     var.pi[i] = 1.0 / (1.0 + (1.0 - ps.gamp_lam) / ps.gamp_lam * sqrt((var.R_var[i]+ps.gamp_phi)/var.R_var[i]) * exp( \
+     var.pi[i] = 1.0 / (1.0 + (1.0 - ps.gamp_lam) / ps.gamp_lam * sqrt(rvar_plus_phi/var.R_var[i]) * exp( \
       //  -(R_mean.^2)./(2*R_) + ((R_mean-theta).^2)./(2*(phi+R_var)) ));
-        -(powf(var.R_mean[i],2)) / (2*var.R_var[i]) + (powf(var.R_mean[i] - ps.gamp_theta,2)) / (2*(ps.gamp_phi+var.R_var[i])) ));
+        -(powf(var.R_mean[i],2)) / (2*var.R_var[i]) + (powf(var.R_mean[i] - ps.gamp_theta,2)) / (2*rvar_plus_phi) ));
      //X_mean = pi.*gam;
      var.X_mean[i] = var.pi[i] * var.gam[i];
       //X_ = pi.*(nu+gam.^2) - (pi.*gam).^2;
      var.X_var[i] = var.pi[i] * (var.nu[i]+ pow(var.gam[i],2)) - pow(var.pi[i] * var.gam[i],2);
   }
- 
-  ps.counter[GAMP_MULT_AT] += t.current_time();
+
+  ps.counter[GAMP_VEC_AT] += t.current_time(); 
 
   if (config.debug && (id == 0 || id == ps.m-1)){
     var.print();
@@ -348,8 +352,8 @@ void load_data_gamp(graph_type_gamp * g){
     ps.gamp_theta = values[2];
     ps.gamp_psi = values[3];
     ps.gamp_eps = values[4];
-    ps.m = (uint)values[6];
-    ps.n = (uint)values[5];
+    ps.m = (uint)values[5];
+    ps.n = (uint)values[6];
     config.D = (int)values[7];
     X_mean = zeros(ps.m,config.D);
 

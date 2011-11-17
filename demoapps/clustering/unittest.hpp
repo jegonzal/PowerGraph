@@ -19,6 +19,18 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
       case 3:
          assert(fabs(ps.cost - 0.522652) < 1e-5);
          break;
+
+
+      case 101:
+         //three clusters, 0->19, 20-> 39, 40 -> 59,
+	 assert(ps.output_assignements[0] == 0);
+         assert(ps.output_assignements[19] == 0);
+      	 assert(ps.output_assignements[20] == 2);
+         assert(ps.output_assignements[39] == 2);
+       	 assert(ps.output_assignements[40] == 1);
+         assert(ps.output_assignements[59] == 1);
+	 break;
+        
    }
 }
 
@@ -69,11 +81,21 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
      ac.datafile = "lanczos2"; ac.algorithm = SVD_EXPERIMENTAL; ac.K = 2; ac.init_mode = 0; ac.matrixmarket = true;
      ac.svd_compile_eigenvectors_block_size = 1; ac.svd_compile_eigenvectors = true; ac.reduce_mem_consumption = true; ac.debug = true;
    }
+  else if (unittest == 101){
+//./glcluster clive_test 0 3 1 --pmfformat=true --float=true --distance_metric=8
+      ac.datafile = "clive_test";
+      ac.algorithm = K_MEANS;
+      ac.K = 3;
+      ac.init_mode = 1;
+      ac.supportgraphlabcf = true;
+      ac.isfloat = true;
+      ac.distance_metric = 8;
+   }
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
       exit(1);
    }
-}
+ }
 
 
 
