@@ -208,9 +208,9 @@ int main(int argc, char** argv) {
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string matrix_file;
+  std::string test_file;
   std::string format = "matrixmarket";
   double tolerance = 1e-2;
-  double holdout = 0.1;
   size_t nlatent = 10;
   double lambda = 0.065;
   size_t freq = 100000;
@@ -219,6 +219,11 @@ int main(int argc, char** argv) {
                        "The file containing the matrix. If none is provided"
                        "then a toy matrix will be created");
   clopts.add_positional("matrix");
+  clopts.attach_option("test",
+                       &test_file, test_file,
+                       "The file containing the test.");
+  clopts.add_positional("test");
+
   clopts.attach_option("format",
                        &format, format,
                        "The matrix file format: {matrixmarket, binary}");
@@ -229,10 +234,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("tol",
                        &tolerance, tolerance,
                        "residual termination threshold");
-  clopts.attach_option("holdout",
-                       &holdout, holdout,
-                       "The proportion of the data to use for testing.");
-  clopts.attach_option("freq",
+    clopts.attach_option("freq",
                        &freq, freq,
                        "The number of updates between rmse calculations");
   clopts.set_scheduler_type("sweep");
@@ -246,13 +248,21 @@ int main(int argc, char** argv) {
   core.set_options(clopts); // attach the command line options to the core
   typedef matrix_entry<graph_type> matrix_entry_type;
   matrix_descriptor desc;
-  std::vector< matrix_entry_type > test_set;
   std::cout << "Loading graph-------------------------------" << std::endl;
   const bool success = 
-    load_graph(matrix_file, format, holdout, desc, core.graph(), test_set);
+    load_graph(matrix_file, format, desc, core.graph());
   if(!success) {
     std::cout << "Error in reading file: " << matrix_file << std::endl;
     return EXIT_FAILURE;
+  }
+  std::vector< matrix_entry_type > test_set;
+  if(!test_file.empty()) {
+    matrix_descriptor desc;
+    const bool success =  load_matrixmarket(test_file, desc, test_set);
+    if(!success) {
+      std::cout << "Error in reading test file: " << test_file << std::endl;
+      return EXIT_FAILURE;
+    }
   }
   std::cout << "Randomizing initial latent factors----------" << std::endl;
   initialize_vertex_data(nlatent, core.graph());

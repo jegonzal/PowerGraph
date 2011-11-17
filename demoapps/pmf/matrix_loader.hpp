@@ -57,13 +57,65 @@ struct matrix_entry {
 
 
 
+template<typename Graph>
+bool load_matrixmarket(const std::string& fname,
+                             matrix_descriptor& desc,
+                             std::vector< matrix_entry<Graph> >& test_set) {
+  typedef Graph graph_type;
+  typedef typename graph_type::vertex_id_type vertex_id_type;
+  typedef typename graph_type::edge_data_type edge_data_type;
+  typedef matrix_entry<graph_type> matrix_entry_type;
+
+  // Open the file 
+  FILE* fptr = fopen(fname.c_str(), "r");
+  if(fptr == NULL) {
+    logstream(LOG_ERROR) << "Unable to open file " << fname << std::endl;
+    return false;
+  }
+  // read Matrix market header
+  MM_typecode matcode;
+  if(mm_read_banner(fptr, &matcode)) {
+    logstream(LOG_ERROR) << "Unable to read banner" << std::endl;
+    return false;
+  }
+  // Screen header type
+  if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
+    logstream(LOG_ERROR) 
+      << "Sorry, this application does not support matrixmarket type: "
+      <<  mm_typecode_to_str(matcode) << std::endl;
+    return false;
+  }
+  // load the matrix descriptor
+  if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
+    logstream(LOG_ERROR) << "Error reading dimensions" << std::endl;
+  }
+  std::cout << "Rows:      " << desc.rows << std::endl
+            << "Cols:      " << desc.cols << std::endl
+            << "Nonzeros:  " << desc.nonzeros << std::endl;
+  std::cout << "Constructing all vertices." << std::endl;
+   std::cout << "Adding edges." << std::endl;
+  for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
+    int row = 0, col = 0;  double val = 0;
+    if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
+      logstream(LOG_ERROR) 
+        << "Error reading file on line: " << i << std::endl;
+      return false;
+    } --row; --col;
+    ASSERT_LT(row, desc.rows);
+    ASSERT_LT(col, desc.cols);
+    const vertex_id_type source = row;
+    const vertex_id_type target = col + desc.rows;
+    const edge_data_type edata(val);
+    test_set.push_back(matrix_entry_type(source, target, edata));
+  } // end of for loop  
+  return true;
+} // end of load matrixmarket graph
+
 
 template<typename Graph>
 bool load_matrixmarket_graph(const std::string& fname,
-                             const double test_prop,
                              matrix_descriptor& desc,
-                             Graph& graph,
-                             std::vector< matrix_entry<Graph> >& test_set) {
+                             Graph& graph) {
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_data_type edge_data_type;
@@ -110,12 +162,9 @@ bool load_matrixmarket_graph(const std::string& fname,
     const vertex_id_type source = row;
     const vertex_id_type target = col + desc.rows;
     const edge_data_type edata(val);
-    if(graphlab::random::rand01() < test_prop) 
-      test_set.push_back(matrix_entry_type(source, target, edata));
-    else graph.add_edge(source, target, edata);
+    graph.add_edge(source, target, edata);
   } // end of for loop  
-  std::cout << "Graph size:    " << graph.num_edges() << std::endl
-            << "Test set size: " << test_set.size() << std::endl;
+  std::cout << "Graph size:    " << graph.num_edges() << std::endl;
   graph.finalize();
   return true;
 } // end of load matrixmarket graph
@@ -123,10 +172,8 @@ bool load_matrixmarket_graph(const std::string& fname,
 
 template<typename Graph>
 bool load_tsv_graph(const std::string& fname,
-                    const double test_prop,
                     matrix_descriptor& desc,
-                    Graph& graph,
-                    std::vector< matrix_entry<Graph> >& test_set) {  
+                    Graph& graph) {  
   return false;
 } // end of laod tsv graph
 
@@ -134,14 +181,12 @@ bool load_tsv_graph(const std::string& fname,
 template<typename Graph>
 bool load_graph(const std::string& fname,
                 const std::string& format,
-                const double test_prop,
                 matrix_descriptor& desc,
-                Graph& graph,
-                std::vector< matrix_entry<Graph> >& test_set) {
+                Graph& graph) {
   if(format == "matrixmarket") 
-    return load_matrixmarket_graph(fname, test_prop, desc, graph, test_set);
+    return load_matrixmarket_graph(fname, desc, graph);
   else if(format == "tsv")
-    return load_tsv_graph(fname, test_prop, desc, graph, test_set);
+    return load_tsv_graph(fname, desc, graph);
   else std::cout << "Invalid file format!" << std::endl;
   return false;
 } // end of load graph
