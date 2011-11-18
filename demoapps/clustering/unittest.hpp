@@ -23,12 +23,12 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
 
       case 101:
          //three clusters, 0->19, 20-> 39, 40 -> 59,
-	 assert(ps.output_assignements[0] == 0);
-         assert(ps.output_assignements[19] == 0);
-      	 assert(ps.output_assignements[20] == 2);
-         assert(ps.output_assignements[39] == 2);
-       	 assert(ps.output_assignements[40] == 1);
-         assert(ps.output_assignements[59] == 1);
+	 assert(get_val(ps.output_assignements,0,0) == 0);
+         assert(get_val(ps.output_assignements,19,0)== 0);
+      	 assert(get_val(ps.output_assignements,20,0) == 2);
+         assert(get_val(ps.output_assignements,39,0) == 2);
+       	 assert(get_val(ps.output_assignements,40,0) == 1);
+         assert(get_val(ps.output_assignements,59,0) == 1);
 	 break;
         
    }
@@ -88,8 +88,8 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       ac.K = 3;
       ac.init_mode = 1;
       ac.supportgraphlabcf = true;
-      ac.isfloat = true;
-      ac.distance_metric = 8;
+      ac.FLOAT = true;
+      ac.distance_measure = 8;
    }
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
