@@ -55,9 +55,13 @@ function print_help {
   echo
   echo "      --itpp_include_dir=[DIR] specify manually itpp include directories (path to itpp header files)."
   echo 
-  echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
+  echo "      --itpp_static_link_dir=[DIR]   specify manually static itpp link dir (path to libitpp.a lib)."
   echo
-  echo "      --eigen                 Install Eigen linear algebra package "
+  echo "      --itpp_dynamic_link_dir=[DIR]   specify manually dynamic itpp link dir (path to libitpp.so lib)."
+  echo
+  echo "      --itpp_lapack_dir=[DIR]   specify manually lapack dir (path to liblapack.so lib)."
+  echo
+   echo "      --eigen                 Install Eigen linear algebra package "
   echo
   echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
@@ -101,7 +105,9 @@ while [ $# -gt 0 ]
     --experimental)         experimental=1 ;;
     --itpp)                 itpp=1 ;;
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
-    --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
+    --itpp_static_link_dir=*)       itpp_static_link_dir=${1##--itpp_static_link_dir=} ;;
+    --itpp_dynamic_link_dir=*)      itpp_dynamic_link_dir=${1##--itpp_dynamic_link_dir=} ;;
+    --itpp_lapack_dir=*)    itpp_lapack_dir=${1##--itpp_lapack_dir=} ;;
     --eigen)		    install_eigen=1 ;;
  #   --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
     -D)                      config_flags="$config_flags -D $2"; shift ;;
@@ -230,13 +236,19 @@ fi
 # fi
 
 
-if [ ! -z $itpp_link_dir ]; then
-    config_flags="$config_flags -D ITPP_LINK_DIR:STRING=$itpp_link_dir"
+if [ ! -z $itpp_static_link_dir ]; then
+    config_flags="$config_flags -D ITPP_STATIC_LINK_DIR:STRING=$itpp_static_link_dir"
 fi
-
+if [ ! -z $itpp_dynamic_link_dir ]; then
+    config_flags="$config_flags -D ITPP_DYNAMIC_LINK_DIR:STRING=$itpp_dynamic_link_dir"
+fi
 if [ ! -z $itpp_include_dir ]; then
    config_flags="$config_flags -D ITPP_INCLUDE_DIR:STRING=$itpp_include_dir"
 fi
+if [ ! -z $itpp_lapack_dir ]; then
+   config_flags="$config_flags -D ITPP_LAPACK_DIR:STRING=$itpp_lapack_dir"
+fi
+
 
 if [ ! -z $HAS_EIGEN ]; then
    config_flags="$config_flags -D HAS_EIGEN:STRING=true"
