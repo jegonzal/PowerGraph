@@ -30,7 +30,17 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
        	 assert(get_val(ps.output_assignements,40,0) == 1);
          assert(get_val(ps.output_assignements,59,0) == 1);
 	 break;
-        
+
+      case 102:
+         //three clusters, 0->19, 20-> 39, 40 -> 59,
+	 assert(get_val(ps.output_assignements,0,0) > 0.9);
+         assert(get_val(ps.output_assignements,19,0) > 0.9);
+      	 assert(get_val(ps.output_assignements,20,1) > 0.9);
+         assert(get_val(ps.output_assignements,39,1) > 0.9);
+       	 assert(get_val(ps.output_assignements,40,2) > 0.9);
+         assert(get_val(ps.output_assignements,59,2) > 0.9);
+	 break;
+         
    }
 }
 
@@ -90,6 +100,17 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       ac.supportgraphlabcf = true;
       ac.FLOAT = true;
       ac.distance_measure = 8;
+   }
+   else if (unittest == 102){
+ //clive_test 2 3 0 --pmfformat=true --float=true --fuzzy_exponent=1.1 --debug=true --max_iter=10 --ncpus=1
+      ac.datafile = "clive_test";
+      ac.algorithm = K_MEANS_FUZZY;
+      ac.K = 3;
+      ac.init_mode = 0;
+      ac.supportgraphlabcf = true;
+      ac.FLOAT = true;
+      ac.fuzzy_exponent = 1.3;
+
    }
    else {
       logstream(LOG_ERROR) << " Unit test mode " << unittest << " is not supported yet! " << std::endl;
