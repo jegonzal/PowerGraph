@@ -76,7 +76,7 @@ inline void debug_print_vec(const char * name,const vec& _vec, int len){
 inline void debug_print_vec(const char * name,const double* _vec, int len){
   printf("%s ) ", name);
   for (int i=0; i< len; i++)
-    if (_vec(i) == 0)
+    if (_vec[i] == 0)
       printf("      0    ");
     else printf("%12.4g    ", _vec(i));
   printf("\n");
