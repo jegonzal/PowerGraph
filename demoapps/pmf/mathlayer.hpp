@@ -631,7 +631,7 @@ inline vec head(const vec &v, int num){
   return v.mid(0,num);
 }
 inline vec mid(const vec&v, int start, int num){
-  return v.mid(start, num);
+  return v.mid(start, std::min(num, v.size() - start));
 }
 inline vec tail(const vec&v, int num){
   return v.mid(v.size()-num, num);
