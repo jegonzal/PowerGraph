@@ -59,20 +59,24 @@ void fill_output(graph_type * g){
    for (int i=0; i<ps.K; i++)
      set_row(ps.output_clusters, i, ps.clusts.cluster_vec[i].location);
      
+   if (ps.algorithm == K_MEANS_FUZZY)
+     return;
+
    int cols = 1;
-   if (ac.algorithm == K_MEANS_FUZZY)
-	cols = ac.K;
+   //if (ac.algorithm == K_MEANS_FUZZY)
+   //	cols = ac.K;
    ps.output_assignements = zeros(ps.M, cols);
      for (int i=0; i< ps.M; i++){ 
         const vertex_data & data = g->vertex_data(i);
         if (ac.algorithm == K_MEANS){
           set_val( ps.output_assignements, i,0, data.current_cluster);
         } 
-	else if (ac.algorithm == K_MEANS_FUZZY){
-           flt_dbl factor = sum(pow(data.distances,-2));
-           flt_dbl_vec normalized = pow(data.distances,-2) / factor;
+	/*else if (ac.algorithm == K_MEANS_FUZZY){
+           flt_dbl factor = sum(pow(data.distances,-2/(ac.fuzzy_exponent -1)));
+           flt_dbl_vec normalized = pow(data.distances,-2/(ac.fuzzy_exponent-1)) / factor;
            set_row(ps.output_assignements, i, normalized);
-        }
+     		assert(!std::isnan(sum(normalized)));
+        }*/
      }
 } 
 void fill_output(graph_type_kcores * g){

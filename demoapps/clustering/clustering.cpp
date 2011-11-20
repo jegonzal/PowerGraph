@@ -145,6 +145,7 @@ int calc_cluster_centers(){
          ps.clusts.cluster_vec[i].location /= sum_u_i_j;
          if (ac.debug)
            std::cout<<" cluster " << i << " is now on: " << ps.clusts.cluster_vec[i].location << std::endl;
+
      //}    
      ps.clusts.cluster_vec[i].sum_sqr = sum_sqr(ps.clusts.cluster_vec[i].location);
     }
@@ -224,7 +225,9 @@ void init_clusters(){
         ps.clusts.cluster_vec.push_back(a);
    }
 
-  
+   if (ps.algorithm == K_MEANS_FUZZY){
+      ps.output_assignements = zeros(ps.M, ac.K);
+   }
 }
 	
 

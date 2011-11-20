@@ -125,7 +125,7 @@ double knn_sample_percent;
   
 /* for fuzzy k-means*/
 double fuzzy_exponent;
-
+double fuzzy_scatter;
 
 bool show_version;
 
@@ -227,6 +227,7 @@ advanced_config(){
 
    /* for fuzzy k-means */
    fuzzy_exponent = 2.0;
+   fuzzy_scatter = 0.1;
 
    shuffle = false;
 

@@ -46,7 +46,9 @@ void init_fuzzy_kmeans(){
   graph_type * g= ps.g<graph_type>();
   for (int i=0; i< ps.M; i++){
      vertex_data & vdata = g->vertex_data(i);
-     vdata.distances = _randu(ac.K);
+     for (int j=0; j< ac.K; j++)
+       vdata.distances[j] =(flt_dbl)(1.0/ac.K);
+     vdata.distances += (_randu(ac.K)*((flt_dbl)ac.fuzzy_scatter));
      vdata.distances /= sum(vdata.distances);
      if (ac.debug)
        std::cout<<"Initial assignment of " << i << " is: " << vdata.distances << std::endl;
@@ -148,10 +150,13 @@ void kmeans_update_function(gl_types::iscope &scope,
      assert(!std::isnan(sum(normalized)));
     
      vdata.distances = pow(normalized, ac.fuzzy_exponent);
-     if (toprint)
+     if (toprint){
          std::cout<<id<<" distances (uphi) are: " << vdata.distances << std::endl << " normalized (U) " << normalized << std::endl;
-     if (toprint)
          std::cout<<" contribution to cost function is : " << elem_mult(vdata.distances, pow(old_distance,2))<<std::endl;
+     }
+     if (ps.iiter == ac.iter-1) //record result. assumes round robin sheduler
+       set_row(ps.output_assignements, id, normalized);
+
      vdata.min_distance = dot(vdata.distances, pow(old_distance,2));
    }
 }
