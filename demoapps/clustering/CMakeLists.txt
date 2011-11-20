@@ -21,5 +21,7 @@ if (lapack_found)
 read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp distance.cpp   
 sparse_math.cpp main.cpp kmeans_plus_plus.cpp dumpcluster.cpp tfidf.cpp
 lda.cpp gamma.cpp kcores.cpp itemknn.cpp)
-endif()
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/clive_test
+    ${CMAKE_CURRENT_BINARY_DIR}/clive_test COPYONLY)
+ endif()
 

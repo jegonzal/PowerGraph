@@ -63,6 +63,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   fi
   rm -f smalltest-20-21.out
   echo "********************TEST1************************" >> $stdoutfname
+  echo "********************TEST1************************" >> $stderrfname
   ./pmf smalltest 0 --scheduler="round_robin(max_iterations=20,block_size=1)" --ncpus=1 --float=true --debug=true >> $stdoutfname 2>> 1 
   
   if ./itdiff smalltest-20-21.out $OUTFILE ; then
@@ -72,6 +73,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
     echo "FAIL: Output differs!"
   fi
   echo "********************TEST2************************" >> $stdoutfname
+  echo "********************TEST2************************" >> $stderrfname
   ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>> 1
   if [ $? -eq 0 ]; then
      echo "PASS TEST 2 (Alternating least squares)"
@@ -80,6 +82,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=1"
   fi
   echo "********************TEST3************************" >> $stdoutfname
+  echo "********************TEST3************************" >> $stderrfname
   ./pmf --unittest 71 --ncpus=1 --debug=true >> $stdoutfname 2>> 1
   if [ $? -eq 0 ]; then
      echo "PASS TEST 3 (Lanczos)"
@@ -88,6 +91,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=71 (Lanczos)"
   fi
   echo "********************TEST4************************" >> $stdoutfname
+  echo "********************TEST4************************" >> $stderrfname
   ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>> 1
   if [ $? -eq 0 ]; then
      echo "PASS TEST 4 (Weighted ALS)"
@@ -96,6 +100,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=91 (weighted alternating least squares)"
   fi
   echo "********************TEST5************************" >> $stdoutfname
+  echo "********************TEST5************************" >> $stderrfname
  ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>> 1 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 5 (CoSaMP)"
@@ -104,6 +109,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      somefailed=1
   fi
   echo "********************TEST6************************" >> $stdoutfname
+  echo "********************TEST6************************" >> $stderrfname
  ./pmf --unittest 131  >> $stdoutfname 2>> 1 
   if [ $? -eq 0 ]; then
      echo "PASS TEST 6 (SVD)"
@@ -111,6 +117,51 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "FAIL --unittest=131 (SVD)"
      somefailed=1
   fi
+  popd > /dev/null
+
+else
+  echo "PMF not found. "
+fi
+echo
+
+
+
+echo "GraphLab clustring library"
+if [ -f ../demoapps/clustering/glcluster ]; then
+  pushd . > /dev/null
+  cd ../demoapps/clustering
+  echo "---------CLUSTERING-------------" >> $stdoutfname
+  echo "---------CLUSTERING-------------" >> $stderrfname
+  echo "********************TEST1************************" >> $stdoutfname
+  echo "********************TEST1************************" >> $stderrfname
+  ./glcluster --unittest 1  $stdoutfname 2>> 1
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 1 (Math functions)"
+  else
+     somefailed=1
+     echo "FAIL --unittest=1 (Math functions)"
+  fi
+  echo "********************TEST2************************" >> $stdoutfname
+  echo "********************TEST2************************" >> $stderrfname
+  ./glcluster --unittest 2 >> $stdoutfname 2>> 1
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 2 (Distance functions)"
+  else
+     somefailed=1
+     echo "FAIL --unittest=2 (Distance functions)"
+  fi
+  echo "********************TEST3************************" >> $stdoutfname
+  echo "********************TEST3************************" >> $stderrfname
+  ./glcluster --unittest 4 >> $stdoutfname 2>> 1
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 3 (Floating point math functions)"
+  else
+     somefailed=1
+     echo "FAIL --unittest=3 (Floating point math functions)"
+  fi
+else
+  echo "Clustering library not found. "
+fi
  
   popd  > /dev/null
 
@@ -129,12 +180,6 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
      echo "Please email stdout.log to danny.bickson@gmail.com"
      echo "Thanks for helping improve GraphLab!"
   fi
-
-
-else
-  echo "PMF not found. "
-fi
-echo
 
 
 
