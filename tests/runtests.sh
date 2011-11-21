@@ -40,7 +40,7 @@ if [ $dbgpath -eq 1 ]; then
   if [ $relpath -eq 1 ]; then
     if [ $propath -eq 1 ]; then
 	echo "This test must be run from either ./release/tests/, ./debug/tests/, or ./profile/tests/ in Graphlab root folder"
-        echo "Please compile GraphLab first, using the instructions on http://graphlab.org/download.html and try again"
+        echo "Please compile GraphLab first, using the instructions on http://graphlab.org/download.html and try again from the approprite folder"
         exit 1
     fi 
   fi
