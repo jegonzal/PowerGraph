@@ -310,17 +310,17 @@ void add_vertices_gamp(mat &A, mat &X_true, mat &X_mean, mat &X_var, mat &Y, gra
        node.data=zeros(calc_size(i)); 
        if (i < ps.m){
           gamp_struct var(node, i);
-          memcpy(var.X_true, data(X_true.get_row(i)), config.D*sizeof(double)); 
-          memcpy(var.X_mean, data(X_mean.get_row(i)), config.D*sizeof(double)); 
-          memcpy(var.X_var, data(X_var.get_row(i)), config.D*sizeof(double)); 
-	  memcpy(var.AT_i, data(A.get_row(i)), ps.n*sizeof(double));
+          memcpy(var.X_true, data(get_row(X_true,i)), config.D*sizeof(double)); 
+          memcpy(var.X_mean, data(get_row(X_mean,i)), config.D*sizeof(double)); 
+          memcpy(var.X_var, data(get_row(X_var,i)), config.D*sizeof(double)); 
+	  memcpy(var.AT_i, data(get_row(A,i)), ps.n*sizeof(double));
           if (config.debug && (i == 0 || i == ps.m-1))
 		var.print();
       }
        else {
           gamp_struct obs(node, i);
-          memcpy(obs.Y, data(Y.get_row(i-ps.m)), config.D*sizeof(double)); 
-	  memcpy(obs.A_i, data(A.get_col(i-ps.m)), ps.m*sizeof(double));
+          memcpy(obs.Y, data(get_row(Y,i-ps.m)), config.D*sizeof(double)); 
+	  memcpy(obs.A_i, data(get_col(A,i-ps.m)), ps.m*sizeof(double));
           if (config.debug && (i == ps.m || i == ps.m+ps.n-1))
                 obs.print();
        }
