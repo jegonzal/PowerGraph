@@ -331,7 +331,7 @@ void add_vertices_gamp(mat &A, mat &X_true, mat &X_mean, mat &X_var, mat &Y, gra
 void load_data_gamp(graph_type_gamp * g){
     mat A,Y, X_true, X_mean, X_var;
     vec values;
-    it_file input(config.datafile);
+    it_file input(config.datafile.c_str());
     input >> Name("A_mean");
     input >> A;
     input >> Name("Y");
