@@ -209,20 +209,20 @@ void adaptive_mutex_test() {
 
 class ThreadToolsTestSuite : public CxxTest::TestSuite {
 public:
-  // void test_thread_group_exception(void) {
-  //  test_group_exception_forwarding();
-  // }
-
-  // void test_thread_pool(void) {
-  //  test_pool();
-  // }
-   
-  // void test_thread_pool_exception(void) {
-  //   test_pool_exception_forwarding();
-  // }
-
-  void test_adaptive_mutex() {
-    adaptive_mutex_test();
+  void test_thread_group_exception(void) {
+   test_group_exception_forwarding();
   }
+
+  void test_thread_pool(void) {
+   test_pool();
+  }
+   
+  void test_thread_pool_exception(void) {
+    test_pool_exception_forwarding();
+  }
+
+//   void test_adaptive_mutex() {
+//     adaptive_mutex_test();
+//   }
 
 };
