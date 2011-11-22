@@ -19,10 +19,8 @@ typedef graphlab::graph2<vertex_data, edge_data> graph_type2;
 typedef graphlab::graph<vertex_data, edge_data> graph_type1;
 typedef graph_type2::edge_list edge_list;
 
-struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_functor2> {
-};
-struct update_functor1 : public graphlab::iupdate_functor<graph_type1, update_functor1> {
-};
+struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_functor2> { };
+struct update_functor1 : public graphlab::iupdate_functor<graph_type1, update_functor1> { };
 
 void sparseGraphtest (graph_type2& g) {
   size_t num_v = 5000000;

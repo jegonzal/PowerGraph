@@ -84,7 +84,7 @@ namespace graphlab {
       vfun_set(graph.num_vertices()), 
       sub_queue_size(100), 
       in_queues(ncpus), out_queues(ncpus), term(ncpus) { 
-      opts.get_int_option("queuesize", sub_queue_size);
+      opts.get_option("queuesize", sub_queue_size);
     }
 
     void start() { term.reset(); }

@@ -84,12 +84,12 @@ namespace graphlab {
       vfun_set(graph.num_vertices()), multi(0),
       current_queue(ncpus), min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {     
-      const bool is_set = opts.get_double_option("min_priority", min_priority);
+      const bool is_set = opts.get_option("min_priority", min_priority);
       if(is_set) {
         logstream(LOG_INFO) << "The minimum scheduling priority was set to " 
                             << min_priority << std::endl;
       }
-      opts.get_int_option("multi", multi);
+      opts.get_option("multi", multi);
       const size_t nqueues = std::max(multi*ncpus, size_t(1));
       if(multi > 0) {
         logstream(LOG_INFO) << "Using " << multi 

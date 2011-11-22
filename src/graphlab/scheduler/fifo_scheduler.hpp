@@ -86,7 +86,7 @@ namespace graphlab {
                    const options_map& opts) :
       vfun_set(graph.num_vertices()), multi(0),
       current_queue(ncpus), term(ncpus) {     
-      opts.get_int_option("multi", multi);
+      opts.get_option("multi", multi);
       const size_t nqueues = std::max(multi*ncpus, size_t(1));
       if(multi > 0) {
         logstream(LOG_INFO) << "Using " << multi 

@@ -830,7 +830,7 @@ namespace graphlab {
       
       // Determine if the engine should use affinities
       std::string affinity = "false";
-      opts.engine_args.get_string_option("affinity", affinity);
+      opts.engine_args.get_option("affinity", affinity);
       const bool use_cpu_affinities = affinity == "true";
       if(use_cpu_affinities) 
         logstream(LOG_INFO) << "Using cpu affinities." << std::endl;

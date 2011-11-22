@@ -66,18 +66,15 @@ namespace graphlab {
     inline void add_option_str(const std::string &opt, 
                                const std::string &val) {
       options[opt].strval = val;
-      try{
+      try {
         options[opt].intval = boost::lexical_cast<size_t>(val);
-      }
-      catch(boost::bad_lexical_cast &) {
-        options[opt].intval = 0;
-      }
-      try{
+      } catch(boost::bad_lexical_cast& error) {options[opt].intval = 0; }
+      try {
         options[opt].dblval = boost::lexical_cast<double>(val);
-      }
-      catch(boost::bad_lexical_cast &) {
-        options[opt].dblval = 0.0;
-      }
+      } catch(boost::bad_lexical_cast& error) { options[opt].dblval = 0.0; }
+      try {
+        options[opt].boolval = boost::lexical_cast<bool>(val);
+      } catch(boost::bad_lexical_cast& error) { options[opt].boolval = false; }
       options[opt].anyval = val;
     }
 
@@ -89,28 +86,28 @@ namespace graphlab {
      */
     template <typename T>
     typename boost::disable_if_c<boost::is_function<T>::value, void>::type
-    add_option(const std::string &opt, const T &val) {
+    add_option(const std::string& opt, const T& val) {
       if (boost::is_convertible<T, std::string>::value) {
         add_option_str(opt, robust_cast<std::string>(val));
-      }
-      else {
-        options[opt].strval = robust_cast<std::string>(val);
-        options[opt].intval = robust_cast<size_t>(val);
-        options[opt].dblval = robust_cast<double>(val);
-        options[opt].anyval = val;
+      } else {
+        options[opt].strval  = robust_cast<std::string>(val);
+        options[opt].intval  = robust_cast<size_t>(val);
+        options[opt].dblval  = robust_cast<double>(val);
+        options[opt].boolval = robust_cast<bool>(val);
+        options[opt].anyval  = val;
       }
     }
 
     template <typename T>
     typename boost::enable_if_c<boost::is_function<T>::value, void>::type
-    add_option(const std::string &opt, const T &val) {
+    add_option(const std::string& opt, const T& val) {
       if (boost::is_convertible<T, std::string>::value) {
         add_option_str(opt, robust_cast<std::string>(val));
-      }
-      else {
+      } else {
         options[opt].strval = robust_cast<std::string>(val);
         options[opt].intval = robust_cast<size_t>(val);
         options[opt].dblval = robust_cast<double>(val);
+        options[opt].boolval = robust_cast<bool>(val);
         options[opt].anyval = &val;
       }
     }
@@ -123,23 +120,30 @@ namespace graphlab {
     /**
      * Reads a string option
      */
-    inline bool get_string_option(const std::string& opt, 
-                                  std::string& val) const {
-      std::map<std::string, option_values>::const_iterator i = 
-        options.find(opt);
+    inline bool get_option(const std::string& opt, std::string& val) const {
+      std::map<std::string, option_values>::const_iterator i = options.find(opt);
       if (i == options.end()) return false;
       val = i->second.strval;
       return true;
     }
 
+   /**
+     * Reads a string option
+     */
+    inline bool get_option(const std::string& opt, bool& val) const {
+      std::map<std::string, option_values>::const_iterator i = options.find(opt);
+      if (i == options.end()) return false;
+      val = i->second.boolval;
+      return true;
+    }
+
+
     /**
      * Reads a integer option
      */
     template <typename IntType>
-    inline bool get_int_option(const std::string& opt, 
-                               IntType& val) const {
-      std::map<std::string, option_values>::const_iterator i = 
-        options.find(opt);
+    inline bool get_option(const std::string& opt, IntType& val) const {
+      std::map<std::string, option_values>::const_iterator i = options.find(opt);
       if (i == options.end()) return false;
       val = i->second.intval;
       return true;
@@ -148,10 +152,8 @@ namespace graphlab {
     /**
      * Reads a float option
      */
-    inline bool get_float_option(const std::string& opt, 
-                                 float& val) const {
-      std::map<std::string, option_values>::const_iterator i = 
-        options.find(opt);
+    inline bool get_option(const std::string& opt, float& val) const {
+      std::map<std::string, option_values>::const_iterator i = options.find(opt);
       if (i == options.end()) return false;
       val = i->second.dblval;
       return true;
@@ -160,10 +162,8 @@ namespace graphlab {
     /**
      * Reads a double option
      */
-    inline bool get_double_option(const std::string& opt, 
-                                  double& val) const {
-      std::map<std::string, option_values>::const_iterator i = 
-        options.find(opt);
+    inline bool get_option(const std::string& opt, double& val) const {
+      std::map<std::string, option_values>::const_iterator i = options.find(opt);
       if (i == options.end()) return false;
       val = i->second.dblval;
       return true;
@@ -174,9 +174,8 @@ namespace graphlab {
     /**
      * Reads an any option
      */
-    inline bool get_any_option(const std::string& opt, any &val) const {
-      std::map<std::string, option_values>::const_iterator i = 
-        options.find(opt);
+    inline bool get_option(const std::string& opt, any &val) const {
+      std::map<std::string, option_values>::const_iterator i = options.find(opt);
       if (i == options.end()) return false;
       val = i->second.anyval;
       return true;
@@ -186,9 +185,7 @@ namespace graphlab {
      * Erases an option
      */
     template <typename T>
-    inline void erase_option(const std::string &opt) {
-      options.erase(opt);
-    }
+    inline void erase_option(const std::string &opt) { options.erase(opt); }
 
     /**
      * Combines two options. Warns if options intersects
@@ -200,8 +197,8 @@ namespace graphlab {
         std::set<std::string>::const_iterator i = commonopts.begin();
         while(i != commonopts.end()) {
           std::string myval, otherval;
-          this->get_string_option(*i, myval);
-          other.get_string_option(*i, otherval);
+          this->get_option(*i, myval);
+          other.get_option(*i, otherval);
           if (myval != otherval) {
             logger(LOG_WARNING,
                    "Common options detected between options set\n"
@@ -247,6 +244,7 @@ namespace graphlab {
       std::string strval;
       size_t intval;
       double dblval;
+      bool boolval;
       any anyval;
     };
 
