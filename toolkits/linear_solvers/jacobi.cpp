@@ -34,12 +34,17 @@
 
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <iostream>
+#include "graphlab.hpp"
+#include "../shared/io.hpp"
+#include "../shared/types.hpp"
+using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
 
 bool debug = false;
 
-typedef double real_type;
 
 struct vertex_data {
   real_type y, Aii;
@@ -49,13 +54,15 @@ struct vertex_data {
     if(debug) std::cout << "hello" << std::endl;
   }
   void add_self_edge(double value) { Aii = value; }
-  void update_value(double value) { y = value; }
+  void set_val(double value) { y = value; }
+  double get_output(){ return pred_x; }
 }; // end of vertex_data
 
 struct edge_data {
   real_type weight;
   edge_data(double weight = 0) : weight(weight) { }
 };
+
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 /***
@@ -64,35 +71,35 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
  */
 struct jacobi_update :
   public graphlab::iupdate_functor<graph_type, jacobi_update> {
-  void operator()(context_type& context) {
+  void operator()(icontext_type& context) {
     /* GET current vertex data */
     vertex_data& vdata = context.vertex_data();
     edge_list_type outedgeid = context.out_edge_ids();
 
     //store last round values
-    vdata.prev_mean = vdata.cur_mean;
+    vdata.prev_x = vdata.pred_x;
 
     //initialize accumlated values in x_i
-    real_type& x_i = vdata.x;
+    real_type& x_i = vdata.pred_x;
     const real_type& A_ii = vdata.Aii;
     assert(A_ii != 0);
 
     if (debug) 
-      std::cout << "entering node " << context.vertex() 
-                << " P=" << vdata.prior_prec 
-                << " u=" << vdata.prior_mean << std::endl;
+      std::cout << "entering node " << context.vertex_id() 
+                << " P=" << vdata.Aii 
+                << " u=" << vdata.prev_x << std::endl;
   
     for(size_t i = 0; i < outedgeid.size(); ++i) {
       edge_data& out_edge = context.edge_data(outedgeid[i]);
       const vertex_data & other = 
-        context.neighbor_vertex_data(context.target(outedgeid[i]));
-      x_i -= out_edge.weight * other.cur_mean;
+        context.const_vertex_data(context.target(outedgeid[i]));
+      x_i -= out_edge.weight * other.pred_x;
     }
     x_i /= A_ii;
     if (debug)
-      std::cout << context.vertex()<< ") x_i: " << x_i << std::endl;
+      std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
   }
-} // end of update_functor
+}; // end of update_functor
 
 
 
@@ -131,7 +138,6 @@ public:
 
 
 
-
 int main(int argc,  char *argv[]) {
   
   global_logger().set_log_level(LOG_INFO);
@@ -139,13 +145,15 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile;
+  std::string datafile, yfile;
   std::string format = "mm";
   real_type threshold = 1e-5;
   size_t sync_interval = 10000;
-  clopts.attach_option("data", &datafile, 
-                       "Binary input file (as created by the save_c_gl.m script)");
+  clopts.attach_option("data", &datafile, datafile,
+                       "matrix A input file");
   clopts.add_positional("data");
+  clopts.attach_option("yfile", &yfile, yfile,
+                       "vector y input file");
   clopts.attach_option("threshold", &threshold, threshold, "termination threshold.");
   clopts.add_positional("threshold");
   clopts.attach_option("format", &format, format, "matrix format");
@@ -178,71 +186,27 @@ int main(int argc,  char *argv[]) {
   matrix_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
-  load_y_values(yfile, format, matrix_info, core.graph());
+  load_vector(yfile, format, matrix_info, core.graph());
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(jacobi_update());
 
- // Initialize the shared data --------------------------------------
-  // Set syncs
-  //
-  switch(config.algorithm){
-     case JACOBI:
-     case GaBP:
-      if (config.syncinterval > 0){
-       core.set_sync(REAL_NORM_KEY,
-                gl_types::glshared_sync_ops::sum<double, get_real_norm>,
-                apply_func_real,
-                double(0),  config.syncinterval,
-                gl_types::glshared_merge_ops::sum<double>);
-
-        core.set_sync(RELATIVE_NORM_KEY,
-                gl_types::glshared_sync_ops::sum<double, get_relative_norm>,
-                apply_func_relative,
-                double(0),  config.syncinterval,
-                gl_types::glshared_merge_ops::sum<double>);
-
-  	core.engine().add_terminator(termination_condition);
-     }
-  }
-  // Create an atomic entry to track iterations (as necessary)
-  ITERATION_KEY.set(0);
-  // Set all cosntants
-  THRESHOLD_KEY.set(config.threshold);
-  SUPPORT_NULL_VARIANCE_KEY.set(config.support_null_variance);
-  DEBUG_KEY.set(config.debug);
-  MAX_ITER_KEY.set(config.iter);
-
-  // START GRAPHLAB *****
-  double runtime;
-  double diff = 0;
-
-  switch(config.algorithm){
-      case GaBP:
-      case JACOBI:
-        runtime= core.start();
-        break;
-
-      case CONJUGATE_GRADIENT:
-        runtime = cg(&core,ps.means,diff,config);
-        break;
-  }
-  // POST-PROCESSING *****
-  std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
-
-  fill_output(&core.graph());
-
-  write_output();
-
-   return diff; 
-  //print timing counters
-  for (int i=0; i<MAX_COUNTER; i++){
-    if (ps.counter[i] > 0)
-    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
-   }
-
-   verify_unittest_result(diff);
   
+  double runtime= core.start();
+  // POST-PROCESSING *****
+ 
+  std::cout << "Jacobi finished in " << runtime << std::endl;
+
+  vec ret = fill_output(&core.graph(), matrix_info);
+
+  write_output_vector(datafile + "x.out", format, ret);
+
+  //print timing counters
+  /*for (int i=0; i<MAX_COUNTER; i++){
+    if (counter[i] > 0)
+    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
+   }*/
+
    return EXIT_SUCCESS;
 }
 
