@@ -37,25 +37,15 @@
 
 #include <graphlab/macros_def.hpp>
 
+
 /*
- * store the size of the matrix
+ * open a file and verify open success
  */
-struct matrix_descriptor {
-  int rows, cols, nonzeros;
-  matrix_descriptor() : rows(0), cols(0), nonzeros(0) { }
-  bool is_square(){ return rows == cols; }
-  int get_start_node(bool rows){ if (is_square()) return 0; else return rows?0:rows; }
-  int get_end_node(bool rows){ if (is_square()) return rows; else return rows?rows:rows+cols; }
-  int howmany(bool rows){ if (is_square()) return rows; else return rows?rows:cols; }
-
-}; // end of matrix descriptor
-
 FILE * open_file(const char * name, const char * mode){
   FILE * f = fopen(name, mode);
   if (f == NULL){
       perror("fopen failed");
-      logstream(LOG_ERROR) <<" Failed to open file" << name << std::endl;
-      exit(1);
+      logstream(LOG_FATAL) <<" Failed to open file" << name << std::endl;
    }
   return f;
 }
