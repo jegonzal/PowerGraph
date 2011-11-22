@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "graph_loader.hpp"
+
+
+
 
 #include <graphlab/macros_def.hpp>
 
@@ -53,8 +57,11 @@ int main(int argc, char** argv) {
   // Parse input
   graphlab::command_line_options clopts("Run Shortest Path Algorithm.");
   std::string graph_file;
+  std::string format = "jure";
   clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.");
+  clopts.attach_option("format", &format, format,
+                       "File format.");
   clopts.add_positional("graph");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing input." << std::endl;
@@ -66,7 +73,7 @@ int main(int argc, char** argv) {
   core.set_options(clopts);
   
   std::cout << "Loading graph from file" << std::endl;
-  const bool success = load_graph_from_file(graph_file, core.graph());
+  const bool success = load_graph(graph_file, format, core.graph());
   if(!success) {
     std::cout << "Error in reading file: " << graph_file
               << std::endl;
@@ -88,51 +95,6 @@ int main(int argc, char** argv) {
 }
 
 
-
-// file format from BFS test
-#define MAGIC_WORD  0x10102048
-bool load_graph_from_file(const std::string& fname, 
-                          graph_type& graph) {
-  graphlab::binary_input_stream bin(fname.c_str());
-  if(!bin.good()) return false;
-
-  // write it 4B wise?
-  uint32_t key = 0; bin.read(key);
-  if (key != MAGIC_WORD) {
-    std::cout << "Invalid file format!" << std::endl;
-    return false;
-  }
-
-  bin.read(key); const bool need_back = key;
-  assert(!need_back);
-  
-  uint32_t nverts = 0;
-  bin.read(nverts);
-  uint32_t nedges = 0;
-  bin.read(nedges);
-
-  std::cout << "Nverts:  " << nverts << std::endl;
-  std::cout << "Nedges:  " << nedges << std::endl;  
-
-  std::vector<uint32_t> offsets(nverts + 1, -1);
-  bin.read_vector(offsets);
-
-  graph.resize(nverts);
-  for(size_t i = 0; i < nverts; ++i) {
-    const size_t from = offsets[i];
-    const size_t to = offsets[i+1]; 
-    for(size_t j = from; j < to; ++j) {
-      const graph_type::vertex_id_type from_node = i;
-      uint32_t to_node = -1; bin.read(to_node);
-      if ((from_node == 2187551) && (to_node == 2868359)) {
-        std::cout << "invalid node id!" << std::endl;
-      }
-      graph.add_edge(from_node, to_node);
-    }
-  }
-  graph.finalize();
-  return true;
-} // end of load graph from file
 
 
 
