@@ -123,12 +123,8 @@ struct edge_data {
 };
 
 // Graph type defintiions
-typedef graphlab::graph<vertex_data, edge_data> coem_graph;
-typedef coem_graph graph_type;
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graph_type::vertex_id_type vertex_id_type;
-typedef graph_type::edge_id_type edge_id_type;
-typedef graph_type::edge_list_type edge_list_type;
-typedef graphlab::types<graph_type> gl_types;
 
 // Accuracy 
 float TARGET_PRECISION = 1e-5;
@@ -155,133 +151,153 @@ glshared_const<size_t> NUM_NPS;
 glshared_const<size_t> NUM_CTX;
 glshared_const<size_t> NUM_CATS;
 
-// Forward declarations
-void loadCategories();
-std::map<std::string, vertex_id_type>  loadVertices(gl_types::core& core, short typemask, FILE * f);
-void prepare(gl_types::core& core);
-void load(gl_types::core& core);
-void loadEdges(gl_types::core& core, FILE * fcont_to_nps, 
-               std::map<std::string, vertex_id_type>& nps_map,
-               std::map<std::string, vertex_id_type>& ctx_map);
-void setseeds(gl_types::core& core, std::map<std::string, vertex_id_type>& nps_map);
-void loadAndConvertToBin(gl_types::core& core, std::string binfile);
-void output_results(gl_types::core& core);
+
+
+
 
 /// ====== UPDATE FUNCTION ======= ///
-void coem_update_function(gl_types::iscope& scope, 
-                          gl_types::icallback& scheduler) {
-                          
-  /* A optimization. Use thred-local lookup-table for faster computation. */
-  std::vector<vertex_id_type> vlookup = *vertex_lookups[thread::thread_id()];
-  vlookup.clear();
-   
-  /* Get shared vars. These are just constants. */
-  float param_m = PARAM_M.get();
-  size_t num_nps = NUM_NPS.get();
-  size_t num_ctxs = NUM_CTX.get();
-  size_t num_cats = NUM_CATS.get();
-   
-  /* Get vertex data */
-  vertex_data& vdata =   scope.vertex_data();
-   
-  /* We use directed edges as indirected, so either this vertex has only incoming  
-     or outgoing vertices.  */
-  bool use_outgoing = (scope.in_edge_ids().size()==0);
-  edge_list_type edge_ids = 
-    (use_outgoing ? scope.out_edge_ids() : scope.in_edge_ids());
-   
-  if (edge_ids.size() == 0) {
-    //printf("Warning : dangling node %d %s\n", scope.vertex(), vdata.text);
-    return;
-  }	
-   
-  bool is_np = (vdata.flags & TYPEMASK) == NP_MASK;
-  bool was_first_run = false;
-   
-  unsigned int vtype_total = (is_np ? num_nps : num_ctxs);
-  unsigned int vtype_other_total = (is_np ? num_ctxs : num_nps); 
+class coem_update :
+  public graphlab::iupdate_functor<graph_type, coem_update> {
+  float resid;
+public:
+  coem_update(float resid = 1.0) : resid(resid) { }
+  double priority() const { return resid; }
+  void operator+=(const coem_update& other) { resid += other.resid; }
+
+  void operator()(icontext_type& context) {                          
+    /* A optimization. Use thred-local lookup-table for faster computation. */
+    std::vector<vertex_id_type> vlookup = 
+      *vertex_lookups[thread::thread_id()];
+    vlookup.clear();
     
-  /* First check is my normalizer precomputed. If not, do it. */
-  if (vdata.normalizer == 0.0) {
-    float norm = param_m * vtype_other_total;
+    /* Get shared vars. These are just constants. */
+    float param_m = PARAM_M.get();
+    size_t num_nps = NUM_NPS.get();
+    size_t num_ctxs = NUM_CTX.get();
+    size_t num_cats = NUM_CATS.get();
+   
+    /* Get vertex data */
+    vertex_data& vdata =   context.vertex_data();
+   
+    /* We use directed edges as indirected, so either this vertex has only incoming  
+     or outgoing vertices.  */
+    bool use_outgoing = (context.in_edge_ids().size()==0);
+    edge_list_type edge_ids = 
+      (use_outgoing ? context.out_edge_ids() : context.in_edge_ids());
+    
+    if (edge_ids.size() == 0) {
+      //printf("Warning : dangling node %d %s\n", context.vertex(), vdata.text);
+      return;
+    }	
+    
+    bool is_np = (vdata.flags & TYPEMASK) == NP_MASK;
+    bool was_first_run = false;
+    
+    unsigned int vtype_total = (is_np ? num_nps : num_ctxs);
+    unsigned int vtype_other_total = (is_np ? num_ctxs : num_nps); 
+    
+    /* First check is my normalizer precomputed. If not, do it. */
+    if (vdata.normalizer == 0.0) {
+      float norm = param_m * vtype_other_total;
+      foreach(edge_id_type eid, edge_ids) {
+        const edge_data& edata = context.const_edge_data(eid);
+        const vertex_data& nb_vdata = 
+          context.const_vertex_data(use_outgoing ? 
+                                    context.target(eid) :
+                                    context.source(eid));
+        norm += TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+      }
+      vdata.normalizer = norm;
+      was_first_run = true; // Used to cause update to all neighbors
+      // regardless of residual
+      if (context.vertex_id()%20000 == 0)	
+        printf("%d Computed normalizer: %lf \n", context.vertex_id(), norm);
+    }
+    
+    /***** COMPUTE NEW VALUE *****/
+    float tmp[200];  // assume max 200 cats
+    assert(num_cats<200);
+    for(int i=0; i<200; i++) tmp[i] = param_m;
+    
+    // Compute weighted averages of neighbors' beliefs.
     foreach(edge_id_type eid, edge_ids) {
-      const edge_data& edata = scope.const_edge_data(eid);
-      const vertex_data& nb_vdata = 
-        scope.const_neighbor_vertex_data(use_outgoing ? 
-                                         scope.target(eid) :
-                                         scope.source(eid));
-      norm += TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+      const edge_data& edata = context.const_edge_data(eid);
+      vertex_id_type nbvid = use_outgoing ? context.target(eid) : context.source(eid);
+      const vertex_data& nb_vdata = context.const_vertex_data(nbvid);
+      for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
+        tmp[cat_id] += nb_vdata.p[cat_id] * 
+          TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+      }
+      vlookup.push_back(nbvid); 
     }
-    vdata.normalizer = norm;
-    was_first_run = true; // Used to cause update to all neighbors
-                          // regardless of residual
-    if (scope.vertex()%20000 == 0)	
-      printf("%d Computed normalizer: %lf \n", scope.vertex(), norm);
-  }
-	
-  /***** COMPUTE NEW VALUE *****/
-  float tmp[200];  // assume max 200 cats
-  assert(num_cats<200);
-  for(int i=0; i<200; i++) tmp[i] = param_m;
-	
-  // Compute weighted averages of neighbors' beliefs.
-  foreach(edge_id_type eid, edge_ids) {
-    const edge_data& edata = scope.const_edge_data(eid);
-    vertex_id_type nbvid = use_outgoing ? scope.target(eid) : scope.source(eid);
-    const vertex_data& nb_vdata = scope.const_neighbor_vertex_data(nbvid);
+    // Normalize and write data
+    float residual = 0.0;
     for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
-      tmp[cat_id] += nb_vdata.p[cat_id] * 
-        TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
-    }
-    vlookup.push_back(nbvid); 
-  }
-  // Normalize and write data
-  float residual = 0.0;
-  for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
-    tmp[cat_id] /= vdata.normalizer;
-		 
-    /* I am seed for this category? */
-    if (!((vdata.p[cat_id] == POSSEEDPROB) || 
-          vdata.p[cat_id] == NEGSEEDPROB)) {
-      residual += std::fabs(tmp[cat_id] - vdata.p[cat_id]);
-      vdata.p[cat_id] = tmp[cat_id];
-    }  else {
-      // I am seed - do not change
-      if (vdata.p[cat_id] == POSSEEDPROB) {
-        assert((vdata.flags & SEEDMASK) != 0); 
-      }
-    }
-  }
-	
+      tmp[cat_id] /= vdata.normalizer;
       
-  // Round robin scheduler does not use dynamic scheduling, so we can
-  // skip it.
-  if (!ROUNDROBIN) {
-    int sz = edge_ids.size();
-    // Write data to edges and schedule if threshold reached
-    double randomNum = graphlab::random::rand01();
-    for(int l = 0; l<sz; l++) {
-      vertex_id_type nbvid = vlookup[l];
-      gl_types::update_task task(nbvid, coem_update_function);
-      edge_id_type eid = edge_ids[l];
-      const edge_data& edata = scope.const_edge_data(eid);
-           
-      const vertex_data nb_vdata = scope.const_neighbor_vertex_data(nbvid);
-      float neighbor_residual = 
-        (nb_vdata.normalizer == 0.0f ? 1.0 : 
-         residual * 
-         TFIDF(edata.cooccurence_count, 
-               vdata.nbcount, vtype_other_total) / 
-         nb_vdata.normalizer);	
-      // Stochastically schedule neighbor if change is less than
-      // predetermined threshold.
-      if ((neighbor_residual/TARGET_PRECISION >= randomNum) || 
-          was_first_run) {
-        scheduler.add_task(task, neighbor_residual);
+      /* I am seed for this category? */
+      if (!((vdata.p[cat_id] == POSSEEDPROB) || 
+            vdata.p[cat_id] == NEGSEEDPROB)) {
+        residual += std::fabs(tmp[cat_id] - vdata.p[cat_id]);
+      vdata.p[cat_id] = tmp[cat_id];
+      }  else {
+        // I am seed - do not change
+        if (vdata.p[cat_id] == POSSEEDPROB) {
+          assert((vdata.flags & SEEDMASK) != 0); 
+        }
       }
     }
-  }
-}
+    
+    
+    // Round robin scheduler does not use dynamic scheduling, so we can
+    // skip it.
+    if (!ROUNDROBIN) {
+      int sz = edge_ids.size();
+      // Write data to edges and schedule if threshold reached
+      double randomNum = graphlab::random::rand01();
+      for(int l = 0; l<sz; l++) {
+        vertex_id_type nbvid = vlookup[l];
+        edge_id_type eid = edge_ids[l];
+        const edge_data& edata = context.const_edge_data(eid);
+        
+        const vertex_data nb_vdata = context.const_vertex_data(nbvid);
+        float neighbor_residual = 
+          (nb_vdata.normalizer == 0.0f ? 1.0 : 
+           residual * 
+           TFIDF(edata.cooccurence_count, 
+                 vdata.nbcount, vtype_other_total) / 
+           nb_vdata.normalizer);	
+        // Stochastically schedule neighbor if change is less than
+        // predetermined threshold.
+        if ((neighbor_residual/TARGET_PRECISION >= randomNum) || 
+            was_first_run) {
+          context.schedule(nbvid, coem_update(neighbor_residual));
+        }
+      }
+    }
+  } // end operator()
+}; // end of coem_update
+
+
+
+typedef graphlab::core<graph_type, coem_update> core_type;
+
+
+
+// Forward declarations
+void loadCategories();
+std::map<std::string, vertex_id_type> 
+loadVertices(core_type& core, short typemask, FILE * f);
+
+void prepare(core_type& core);
+void load(core_type& core);
+void loadEdges(core_type& core, FILE * fcont_to_nps, 
+               std::map<std::string, vertex_id_type>& nps_map,
+               std::map<std::string, vertex_id_type>& ctx_map);
+void setseeds(core_type& core, std::map<std::string, vertex_id_type>& nps_map);
+void loadAndConvertToBin(core_type& core, std::string binfile);
+void output_results(core_type& core);
+
 
  
 int ncats = 0;
@@ -308,7 +324,7 @@ int main(int argc,  char ** argv) {
 
  
   // Create a graphlab core
-  gl_types::core core;
+  core_type core;
   
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing input." << std::endl;
@@ -316,7 +332,7 @@ int main(int argc,  char ** argv) {
   }
   
   // Set the engine options
-  core.set_engine_options(clopts);
+  core.set_options(clopts);
   
   // TODO: do not hard-code
   npsfile     = root + "/cat_nps.txt";
@@ -344,7 +360,7 @@ int main(int argc,  char ** argv) {
  
   /* Special handling for round_robin */
   if (clopts.get_scheduler_type() == "round_robin") {
-    core.add_task_to_all(coem_update_function, 1.0);
+    core.schedule_all(coem_update(1.0));
     ROUNDROBIN = true;
   }
    
@@ -367,7 +383,7 @@ bool cmp(vertex_data * a, vertex_data * b) {
 //
 // Writes top 50 noun phrases for each entity category.
 //
-void output_results(gl_types::core& core) {
+void output_results(core_type& core) {
   int cat_id = 0;
   int n = core.graph().num_vertices();
 
@@ -403,7 +419,7 @@ void output_results(gl_types::core& core) {
 // Graph Loading functionality. Not documented!
 //
 
-void load(gl_types::core& core) {
+void load(core_type& core) {
   // Load categories
   loadCategories();
 	
@@ -427,7 +443,7 @@ void load(gl_types::core& core) {
   }       
 }
 
-void prepare(gl_types::core& core) {
+void prepare(core_type& core) {
   // Set register shared data
   /* M is used for "smoothing" */
   float m = 0.01;
@@ -480,7 +496,7 @@ void prepare(gl_types::core& core) {
       // Start with contexts
       
       if (!ROUNDROBIN) {
-      	core.add_task(gl_types::update_task(i, coem_update_function), 1.0); 
+      	core.schedule(i, coem_update());
       }
       ntasks++;
     } else assert(false);
@@ -510,7 +526,8 @@ void FIXLINE(char * s) {
 }
 
 
-std::map<std::string, vertex_id_type>  loadVertices(gl_types::core& core, short typemask, FILE * f) {
+std::map<std::string, vertex_id_type>  
+loadVertices(core_type& core, short typemask, FILE * f) {
   /* Allocation size depends on number of categories */
   int vsize = sizeof(vertex_data) + categories.size()*sizeof(float);
   map<std::string, vertex_id_type> map;
@@ -566,7 +583,7 @@ void loadCategories() {
   closedir(dp);
 }
 
-void setseeds(gl_types::core& core, std::map<std::string, vertex_id_type>& nps_map) {
+void setseeds(core_type& core, std::map<std::string, vertex_id_type>& nps_map) {
   short catid = 0;
   size_t num_of_seeds=0;
   foreach(std::string cat, categories) {
@@ -609,7 +626,7 @@ void setseeds(gl_types::core& core, std::map<std::string, vertex_id_type>& nps_m
   std::cout << "Num of seeds (pos): " << num_of_seeds << std::endl;
 }
 
-void loadEdges(gl_types::core& core, FILE * fcont_to_nps, 
+void loadEdges(core_type& core, FILE * fcont_to_nps, 
                std::map<std::string, vertex_id_type>& nps_map,
                std::map<std::string, vertex_id_type>& ctx_map) {
   size_t MAXBUF = 5*1000000;
@@ -755,7 +772,7 @@ void loadEdges(gl_types::core& core, FILE * fcont_to_nps,
 }
 
 // Load data and convert to binary format for faster loading.
-void loadAndConvertToBin(gl_types::core& core, std::string binfile) {
+void loadAndConvertToBin(core_type& core, std::string binfile) {
   /* Open files */
   FILE * fnps = fopen(npsfile.c_str(), "r");
   assert(fnps != NULL);
