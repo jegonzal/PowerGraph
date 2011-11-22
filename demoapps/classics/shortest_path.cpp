@@ -11,12 +11,12 @@
 
 
 struct vertex_data {
-  double dist;
-  vertex_data() : dist(std::numeric_limits<double>::max()) { }
+  float dist;
+  vertex_data() : dist(std::numeric_limits<float>::max()) { }
 }; // end of vertex_data
 
 struct edge_data { 
-  double dist; 
+  float dist; 
   edge_data() : dist(1) { } 
 }; // end of edge data
 
