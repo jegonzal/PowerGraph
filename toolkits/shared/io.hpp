@@ -22,24 +22,58 @@
  */
 
 
-#ifndef MATRIX_LOADER_HPP
-#define MATRIX_LOADER_HPP
+#ifndef IO_HPP
+#define IO_HPP
 
 #include <omp.h>
 #include <vector>
 
 
-#include "matrixmarket/mmio.h"
-
+#include "mmio.h"
+#include "mathlayer.hpp"
+#include "types.hpp"
 #include <graphlab.hpp>
 
 
 #include <graphlab/macros_def.hpp>
 
+/*
+ * store the size of the matrix
+ */
 struct matrix_descriptor {
   int rows, cols, nonzeros;
   matrix_descriptor() : rows(0), cols(0), nonzeros(0) { }
+  bool is_square(){ return rows == cols; }
+  int get_start_node(bool rows){ if (is_square()) return 0; else return rows?0:rows; }
+  int get_end_node(bool rows){ if (is_square()) return rows; else return rows?rows:rows+cols; }
+  int howmany(bool rows){ if (is_square()) return rows; else return rows?rows:cols; }
+
 }; // end of matrix descriptor
+
+FILE * open_file(const char * name, const char * mode){
+  FILE * f = fopen(name, mode);
+  if (f == NULL){
+      perror("fopen failed");
+      logstream(LOG_ERROR) <<" Failed to open file" << name << std::endl;
+      exit(1);
+   }
+  return f;
+}
+
+
+/*
+ * extract the output from node data ito a vector of values
+ */
+template<typename graph_type>
+vec  fill_output(graph_type * g, matrix_descriptor & matrix_info){
+  typedef typename graph_type::vertex_data_type vertex_data_type;
+
+  vec out = zeros(matrix_info.howmany(false));
+  for (int i = matrix_info.get_start_node(false); i < matrix_info.get_end_node(false); i++){
+    out[i] = g->vertex_data(i).get_output();
+  }
+  return out;
+}
 
 template<typename Graph>
 struct matrix_entry {
@@ -67,11 +101,8 @@ bool load_matrixmarket(const std::string& fname,
   typedef matrix_entry<graph_type> matrix_entry_type;
 
   // Open the file 
-  FILE* fptr = fopen(fname.c_str(), "r");
-  if(fptr == NULL) {
-    logstream(LOG_ERROR) << "Unable to open file " << fname << std::endl;
-    return false;
-  }
+  FILE* fptr = open_file(fname.c_str(), "r");
+  
   // read Matrix market header
   MM_typecode matcode;
   if(mm_read_banner(fptr, &matcode)) {
@@ -122,11 +153,8 @@ bool load_matrixmarket_graph(const std::string& fname,
   typedef matrix_entry<graph_type> matrix_entry_type;
 
   // Open the file 
-  FILE* fptr = fopen(fname.c_str(), "r");
-  if(fptr == NULL) {
-    logstream(LOG_ERROR) << "Unable to open file " << fname << std::endl;
-    return false;
-  }
+  FILE* fptr = open_file(fname.c_str(), "r");
+  
   // read Matrix market header
   MM_typecode matcode;
   if(mm_read_banner(fptr, &matcode)) {
@@ -193,21 +221,143 @@ bool load_graph(const std::string& fname,
   return false;
 } // end of load graph
 
+template <typename graph_type>
+void load_matrix_market_vector(const std::string & filename, const matrix_descriptor & desc, graph_type & g)
+{
+    typedef typename graph_type::vertex_data_type vertex_data;
+    
+    int ret_code;
+    MM_typecode matcode;
+    int M, N, nz;   
+    int i;
+
+    FILE * f = open_file(filename.c_str(), "r");
+    if (f== NULL){
+	logstream(LOG_ERROR) << " can not find input file " << filename << ". aborting " << std::endl;
+	exit(1);
+    }
+
+    if (mm_read_banner(f, &matcode) != 0)
+    {
+        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
+        exit(1);
+    }
+
+    /*  This is how one can screen matrix types if their application */
+    /*  only supports a subset of the Matrix Market data types.      */
+
+    if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
+            mm_is_sparse(matcode) )
+    {
+        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+          "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
+        exit(1);
+    }
+
+    /* find out size of sparse matrix .... */
+
+    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
+       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
+       exit(1);
+    }
+
+
+    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
+    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
+    /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
+
+    int row,col; 
+    double val;
+
+    for (i=0; i<nz; i++)
+    {
+        int rc = fscanf(f, "%d %d %lg\n", &row, &col, &val);
+        if (rc != 3){
+	  logstream(LOG_FATAL) << "Failed reading input file: " << filename << "Problm at data row " << i << " (not including header and comment lines)" << std::endl;
+
+        }
+        row--;  /* adjust from 1-based to 0-based */
+        col--;
+        //some users have gibrish in text file - better check both I and J are >=0 as well
+        assert(row >=0 && row< M);
+        assert(col >= 0 && col< N);
+        //set observation value
+        vertex_data & vdata = g.vertex_data(row);
+        vdata.set_val(val);
+    }
+    fclose(f);
+
+}
+
 
 template<typename Graph>
-bool load_y_values(const std::string& fname,
+void load_vector(const std::string& fname,
                    const std::string& format,
                    const matrix_descriptor& desc,
                    Graph& graph) {
 
-  return false;
+  if (format == "matrixmarket"){
+     load_matrix_market_vector(fname, desc, graph);
+     return;
+  }
+  else assert(false); //TODO other formats
+
+}
+
+void save_matrix_market_format_vector(const std::string datafile, const vec & output)
+{
+    MM_typecode matcode;                        
+
+    mm_initialize_typecode(&matcode);
+    mm_set_matrix(&matcode);
+    mm_set_coordinate(&matcode);
+    mm_set_real(&matcode);
+
+    FILE * f = fopen(datafile.c_str(),"w");
+    assert(f != NULL);
+    mm_write_banner(f, matcode); 
+    mm_write_mtx_crd_size(f, output.size(), 1, output.size());
+
+    for (int j=0; j<(int)output.size(); j++)
+        fprintf(f, "%d %d %10.3g\n", j+1, 1, output[j]);
+
+    fclose(f);
 }
 
 
+//read a vector from file and return an array
+inline double * read_vec(FILE * f, size_t len){
+  double * vec = new double[len];
+  assert(vec != NULL);
+  int rc = fread(vec, len, sizeof(double), f);
+  assert(rc == (int)len);
+  return vec;
+}
+//write an output vector to file
+inline void write_vec(const FILE * f, const int len, const double * array){
+  assert(f != NULL && array != NULL);
+  int rc = fwrite(array, len, sizeof(double), (FILE*)f);
+  assert(rc == len);
+}
 
 
+inline void write_output_vector_binary(const std::string & datafile, const vec& output){
 
+   FILE * f = open_file(datafile.c_str(), "w");
+   std::cout<<"Writing result to file: "<<datafile<<std::endl;
+   std::cout<<"You can read the file in Matlab using the load_c_gl.m matlab script"<<std::endl;
+   write_vec(f, output.size(), &output[0]);
+   fclose(f);
+}
 
+inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output){
+
+  if (format == "binary")
+    write_output_vector_binary(datafile, output);
+  else if (format == "matrixmarket")
+    save_matrix_market_format_vector(datafile, output); 
+  else assert(false);
+}
 
 
 #include <graphlab/macros_undef.hpp>
