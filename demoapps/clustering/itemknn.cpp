@@ -31,7 +31,8 @@
 extern advanced_config ac;
 extern problem_setup ps;
 extern const char * runmodesname[];
-double sum_sqr(sparse_vec & v);
+//double sum_sqr(sparse_vec & v);
+const int matlab_offset = 1;
 
 flt_dbl_vec wrap_answer(const flt_dbl_vec& distances, const ivec& indices, int num){
    flt_dbl_vec ret = zeros(num*2);
@@ -143,15 +144,17 @@ void knn_update_function(gl_types::iscope &scope,
     printf("handling validation row %d\n", id);
 }
 
-void copy_assignments(flt_dbl_mat &a, const flt_dbl_vec& distances, int i){
-   for (int j=0; j<distances.size()/2; j++){
-     set_val(a,j, i, distances[j*2+1]);
+void copy_assignments(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation){
+   bool reported = validation->vertex_data(i).reported;
+   for (int j=0; j<ac.K; j++){
+     set_val(a,j, i, reported? distances[j*2+1]+matlab_offset : -1);
    }
 }
 
-void copy_distances(flt_dbl_mat &a, const flt_dbl_vec& distances, int i){
-   for (int j=0; j<distances.size()/2; j++){
-     set_val(a,j, i, distances[j*2]);
+void copy_distances(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation){
+   bool reported = validation->vertex_data(i).reported;
+   for (int j=0; j<ac.K; j++){
+     set_val(a,j, i, reported? distances[j*2] : -1);
    }
 }
 
@@ -163,8 +166,8 @@ void prepare_output(){
   ps.output_clusters = zeros(ps.K, validation->num_vertices());
   for (int i=0; i< (int)validation->num_vertices(); i++){
      const vertex_data& data = validation->vertex_data(i);
-     copy_assignments(ps.output_assignements, data.distances, i);
-     copy_distances(ps.output_clusters, data.distances, i); 
+     copy_assignments(ps.output_assignements, data.distances, i, validation);
+     copy_distances(ps.output_clusters, data.distances, i, validation); 
   }
   ps.output_clusters = transpose(ps.output_clusters);
   ps.output_assignements = transpose(ps.output_assignements);

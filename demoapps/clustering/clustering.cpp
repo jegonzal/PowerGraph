@@ -57,7 +57,7 @@ problem_setup ps;
 const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn", "SVD-EXPERIMENTAL"};
 const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER"};
 const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_ACCUM_BETA", "LDA_LIKELIHOOD", "LDA_NORMALIZE", "SVD_MULT_A", "SVD_MULT_A_TRANPOSE", "CALC_RMSE_Q"};
-
+const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
 
 /* Function declerations */ 
 void load_graph(const char* filename, graph_type * g,gl_types::core & glcore);    
@@ -373,7 +373,9 @@ void start(command_line_options & clopts) {
     tfidf_weighting();
 
   if (ac.stats){
-    calc_stats();
+    calc_stats(TRAINING);
+    if (ps.M_validation > 0)
+      calc_stats(VALIDATION);
     exit(0);
   }
   

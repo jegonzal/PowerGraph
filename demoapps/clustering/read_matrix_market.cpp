@@ -262,7 +262,7 @@ void save_matrix_market_format(const char * filename)
              fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_clusters,i,j));
 
     fclose(f);
-    logstream(LOG_INFO)<<"Writing output to sparse matrix market file " << filename <<"clusters.mtx" << ". You can read it in Matlab/octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
+    logstream(LOG_INFO)<<"Writing output to sparse matrix market file " << filename <<".clusters.mtx" << ". You can read it in Matlab/octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
     f = fopen((std::string(filename) + ".assignments.mtx").c_str(),"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
@@ -282,7 +282,7 @@ void save_matrix_market_format(const char * filename)
         else fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_assignements,i,j));
 
     fclose(f);
-    logstream(LOG_INFO)<<"Writing output to sparse matrix market file " << filename <<"assignments.mtx" << ". You can read it in Matlab/octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
+    logstream(LOG_INFO)<<"Writing output to sparse matrix market file " << filename <<".assignments.mtx" << ". You can read it in Matlab/octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
  
 }
 

@@ -27,7 +27,7 @@ flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_
                                         sqr_sum - intersection,
                                         sqr_sum0,
                                         datapoint.size() - sqr_sum0);
-    return 1.0 - 1.0 / (1.0 + logLikelihood);
+    return 1.0 / (1.0 + logLikelihood);
 }
 
 flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
@@ -36,7 +36,7 @@ flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_ve
                                         sqr_sum - intersection,
                                         sqr_sum0,
                                         datapoint.size() - sqr_sum0);
-   return 1.0 - 1.0 / (1.0 + logLikelihood);
+   return 1.0 / (1.0 + logLikelihood);
 }
 
 

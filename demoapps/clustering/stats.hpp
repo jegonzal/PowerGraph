@@ -32,26 +32,43 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
+extern const char * testtypename[];
+
 // calc statistics about matrix/tensor and exit  
-void calc_stats(){
-   graph_type * gr = ps.g<graph_type>();
+void calc_stats(testtype type){
+   graph_type * gr = ps.g<graph_type>(type);
 
   double avgval=0, minval=1e100, maxval=-1e100;
   int nz=0;
- 
-  for (int i=0; i< ps.M; i++){ 
+  int reported =0;
+  int col_reported = 0; 
+
+  for (int i=0; i< (type == TRAINING ? ps.M: ps.M_validation); i++){ 
     vertex_data * data = &gr->vertex_data(i);
       if (min(data->datapoint) < minval)
 	 minval = min(data->datapoint);
       if (max(data->datapoint) > maxval)
 	 maxval = max(data->datapoint);
-      
+      if (data->reported)
+	 reported++;
+
       nz += nnz(data->datapoint);
       avgval += sum(data->datapoint);
   }
  
+ for (uint i=(type ==TRAINING? ps.M: ps.M_validation); i < gr->num_vertices(); i++){
+    vertex_data * data = &gr->vertex_data(i);
+    if (data->reported)
+        col_reported++;
+
+  }
+ 
  avgval /= (double)nz;
- printf("Avg matrix value %g min val %g max value %g\n", avgval, minval, maxval);
+ printf("%s Matrix size is %d rows %d cols %d nnz\n", testtypename[type], ps.M, ps.N, ps.L);
+ printf("Avg matrix value %g min val %g max value %g\n", avgval, minval, maxval); 
+ printf("Rows with non-zero entries: %d\n", reported);
+ if (col_reported > 0)
+   printf("Cols with non-zero entries: %d\n", col_reported);
  assert(nz == ps.L);
 }
 

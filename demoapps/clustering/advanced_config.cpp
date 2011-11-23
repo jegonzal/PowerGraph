@@ -92,9 +92,10 @@ void problem_setup::verify_setup(){
   switch(algorithm){
     case USER_KNN:
     case ITEM_KNN:
-      output_assignements_comment += std::string("%%This file includes the ") + boost::lexical_cast<std::string>(ac.K) + std::string(" closest points to each user/item where the points are numbered between 0 to max_point-1\n%%First column = data point number, Second Column is the index 1..K, Third column is the closest data point\n");
+      output_assignements_comment += std::string("%%This file includes the ") + boost::lexical_cast<std::string>(ac.K) + std::string(" closest points to each user/item where the points are numbered between 1 to max_point\n%%First column = data point number, Second Column is the index 1..K, Third column is the closest data point\n%%Note that -1 assignemnt means the point had no non-zero feature and thus not assigned to any other point\n");
       output_clusters_comment += std::string("%%This file includes the distances (using ") + std::string(distance_measure_name[ac.distance_measure]) +
-		                 std::string(") to each point in the assignemnets file\n%%First column is data point number, second column is the index 1..K, third column is the distance\n");
+		                 std::string(") to each point in the assignemnets file\n%%First column is data point number, second column is the index 1..K \
+	, third column is the distance\n%%Note that -1 means that this point was not assigned to any other close point since it has all zero features\n");
       break;
 
    case K_MEANS_PLUS_PLUS:
