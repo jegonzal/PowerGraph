@@ -145,7 +145,7 @@ void kmeans_update_function(gl_types::iscope &scope,
   else if (ps.algorithm == K_MEANS_FUZZY){
      flt_dbl_vec old_distance = vdata.distances;
      flt_dbl factor = sum(pow(vdata.distances,-2/(ac.fuzzy_exponent-1)));
-     if (factor == 0 && max(vdata.distances) > 0 && ac.fuzzy_exponent < 2)
+     if (factor == 0 && ac.fuzzy_exponent < 2)
         logstream(LOG_FATAL) << " Numerical overflow detected. Try to increase fuzzy exponent size. Current exponent is: " << ac.fuzzy_exponent << " maximal exponent is 2."<< std::endl;
      assert(!std::isnan(factor) && factor > 0);
      flt_dbl_vec normalized = pow(vdata.distances,-2/(ac.fuzzy_exponent-1)) / factor;
