@@ -145,11 +145,17 @@ void kmeans_update_function(gl_types::iscope &scope,
   else if (ps.algorithm == K_MEANS_FUZZY){
      flt_dbl_vec old_distance = vdata.distances;
      flt_dbl factor = sum(pow(vdata.distances,-2/(ac.fuzzy_exponent-1)));
-     if (factor == 0 && ac.fuzzy_exponent < 2)
-        logstream(LOG_FATAL) << " Numerical overflow detected. Try to increase fuzzy exponent size. Current exponent is: " << ac.fuzzy_exponent << " maximal exponent is 2."<< std::endl;
+     if (factor < 1e-10 && ac.fuzzy_exponent < 2)
+        logstream(LOG_FATAL) << " Numeric overflow detected. Try to increase fuzzy exponent size. Current exponent is: " << ac.fuzzy_exponent << " maximal exponent is 2."<< std::endl;
      assert(!std::isnan(factor) && factor > 0);
      flt_dbl_vec normalized = pow(vdata.distances,-2/(ac.fuzzy_exponent-1)) / factor;
-     assert(!std::isnan(sum(normalized)));
+     if (std::isnan(sum(normalized))){
+        if (ac.fuzzy_exponent < 2)
+          logstream(LOG_FATAL) << " Numeric overflow detected. Try to increase fuzzy exponent size. Current exponent is: " << ac.fuzzy_exponent << " maximal exponent is 2."<< std::endl;
+	else 
+	  logstream(LOG_FATAL) << "Unknown numeric error occured. Please email GraphLab support with your dataset. " << std::endl;
+     }
+
     
      vdata.distances = pow(normalized, ac.fuzzy_exponent);
      if (toprint){
