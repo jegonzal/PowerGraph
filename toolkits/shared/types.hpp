@@ -18,6 +18,8 @@ struct matrix_descriptor {
   int get_end_node(bool rows){ if (is_square()) return rows; else return rows?rows:rows+cols; }
   // get howmany row/column nodes
   int howmany(bool rows){ if (is_square()) return rows; else return rows?rows:cols; }
+  // how many total nodes
+  int total(){ if (is_square()) return rows; else return rows+cols; }
 
 }; // end of matrix descriptor
 

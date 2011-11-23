@@ -17,13 +17,13 @@
  *
  *      http://www.graphlab.ml.cmu.edu
  *  
- *  Code written by Danny Bickson, CMU
- *  Any changes to the code must include this original license notice in full.
  */
 
 
 #ifndef IO_HPP
 #define IO_HPP
+
+
 
 #include <omp.h>
 #include <vector>
@@ -37,6 +37,8 @@
 
 #include <graphlab/macros_def.hpp>
 
+
+extern bool debug;
 
 /*
  * open a file and verify open success
@@ -166,10 +168,13 @@ bool load_matrixmarket_graph(const std::string& fname,
             << "Cols:      " << desc.cols << std::endl
             << "Nonzeros:  " << desc.nonzeros << std::endl;
   std::cout << "Constructing all vertices." << std::endl;
-  graph.resize(desc.rows + desc.cols);
+  graph.resize(desc.total());
+  bool is_square = desc.is_square();
+
   std::cout << "Adding edges." << std::endl;
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
-    int row = 0, col = 0;  double val = 0;
+    int row = 0, col = 0;  
+    double val = 0;
     if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
       logstream(LOG_ERROR) 
         << "Error reading file on line: " << i << std::endl;
@@ -177,15 +182,22 @@ bool load_matrixmarket_graph(const std::string& fname,
     } --row; --col;
     ASSERT_LT(row, desc.rows);
     ASSERT_LT(col, desc.cols);
+    ASSERT_GE(row, 0);
+    ASSERT_GE(col, 0);
     const vertex_id_type source = row;
-    const vertex_id_type target = col + desc.rows;
+    const vertex_id_type target = col + is_square ? 0 : desc.rows;
     const edge_data_type edata(val);
-    if(source != target) 
+
+    if (debug && desc.nonzeros < 100)
+      logstream(LOG_INFO)<<"Adding an edge: " << row << "->" << col << " with val: " << std::endl;
+
+    if(is_square && source == target) 
+      graph.vertex_data(source).add_self_edge(val);
+    else
       graph.add_edge(source, target, edata);
-    else graph.vertex_data(source).add_self_edge(val);
   } // end of for loop  
   std::cout << "Graph size:    " << graph.num_edges() << std::endl;
-  graph.finalize();
+  //graph.finalize();
   return true;
 } // end of load matrixmarket graph
 

@@ -86,7 +86,7 @@ struct jacobi_update :
 
     if (debug) 
       std::cout << "entering node " << context.vertex_id() 
-                << " P=" << vdata.Aii 
+                << " A_ii=" << vdata.Aii 
                 << " u=" << vdata.prev_x << std::endl;
   
     for(size_t i = 0; i < outedgeid.size(); ++i) {
@@ -98,6 +98,8 @@ struct jacobi_update :
     x_i /= A_ii;
     if (debug)
       std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
+
+    context.schedule(context.vertex_id(), *this);
   }
 }; // end of update_functor
 
