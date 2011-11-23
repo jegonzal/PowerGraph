@@ -15,7 +15,8 @@ enum distance_measure{
    TANIMOTO = 5,
    WEIGHTED = 6,
    WEIGHTED_MANAHOLIS = 7,
-   COSINE = 8
+   COSINE = 8,
+   LOGLIKELIHOOD = 9
 };
 
 

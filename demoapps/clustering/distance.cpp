@@ -3,7 +3,41 @@
 #include "../gabp/advanced_config.h"
 
 extern advanced_config ac;
-const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TANIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE"};
+const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TANIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE", "LOGLIKELIHOOD"};
+
+
+
+
+
+double safeLog(double d) {
+    return d <= 0.0 ? 0.0 : log(d);
+}
+double logL(double p, double k, double n) {
+    return k * safeLog(p) + (n - k) * safeLog(1.0 - p);
+}
+
+double twoLogLambda(double k1, double k2, double n1, double n2) {
+    double p = (k1 + k2) / (n1 + n2);
+    return 2.0 * (logL(k1 / n1, k1, n1) + logL(k2 / n2, k2, n2) - logL(p, k1, n1) - logL(p, k2, n2));
+}
+
+flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){ 
+   flt_dbl intersection = dot_prod(datapoint , cluster);
+   flt_dbl logLikelihood = twoLogLambda(intersection,
+                                        sqr_sum - intersection,
+                                        sqr_sum0,
+                                        datapoint.size() - sqr_sum0);
+    return 1.0 - 1.0 / (1.0 + logLikelihood);
+}
+
+flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+  flt_dbl intersection = dot_prod(datapoint, cluster);
+  flt_dbl logLikelihood = twoLogLambda(intersection,
+                                        sqr_sum - intersection,
+                                        sqr_sum0,
+                                        datapoint.size() - sqr_sum0);
+   return 1.0 - 1.0 / (1.0 + logLikelihood);
+}
 
 
 
@@ -114,7 +148,9 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & clust
           return calc_manhatten_distance(datapoint, cluster);
       case TANIMOTO:
           return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum0);
-       case MANAHOLIS:
+      case LOGLIKELIHOOD:
+          return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum0);
+      case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:
       default:
@@ -137,6 +173,8 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  flt_dbl_vec & cluster, flt
           return calc_manhatten_distance(datapoint, cluster);
       case TANIMOTO:
           return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum0);
+      case LOGLIKELIHOOD:
+          return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum0);
       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:
@@ -199,7 +237,9 @@ void test_distance(){
   flt_dbl_vec v5 = init_vec("0 1 1 1 1", 5);
   ret = calc_distance(v4, v5, sum_sqr(v4), sum_sqr(v5));
   assert(powf(ret - 0.5,2) <1e-8);
-  
+
+  ac.distance_measure = LOGLIKELIHOOD;
+  assert(powf(calc_distance(v4, v4, sum_sqr(v4), sum_sqr(v4)),1)<1e-8);  
 
 }
 
