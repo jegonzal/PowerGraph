@@ -81,6 +81,7 @@ struct jacobi_update :
 
     //initialize accumlated values in x_i
     real_type& x_i = vdata.pred_x;
+    x_i = vdata.y;
     const real_type& A_ii = vdata.Aii;
     assert(A_ii != 0);
 

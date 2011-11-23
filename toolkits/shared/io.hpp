@@ -185,11 +185,11 @@ bool load_matrixmarket_graph(const std::string& fname,
     ASSERT_GE(row, 0);
     ASSERT_GE(col, 0);
     const vertex_id_type source = row;
-    const vertex_id_type target = col + is_square ? 0 : desc.rows;
+    const vertex_id_type target = col + (is_square ? 0 : desc.rows);
     const edge_data_type edata(val);
 
     if (debug && desc.nonzeros < 100)
-      logstream(LOG_INFO)<<"Adding an edge: " << row << "->" << col << " with val: " << std::endl;
+      logstream(LOG_INFO)<<"Adding an edge: " << source << "->" << target << " with val: " << std::endl;
 
     if(is_square && source == target) 
       graph.vertex_data(source).add_self_edge(val);
@@ -282,7 +282,7 @@ void load_matrix_market_vector(const std::string & filename, const matrix_descri
         col--;
         //some users have gibrish in text file - better check both I and J are >=0 as well
         assert(row >=0 && row< M);
-        assert(col >= 0 && col< N);
+        assert(col == 0);
         //set observation value
         vertex_data & vdata = g.vertex_data(row);
         vdata.set_val(val);
