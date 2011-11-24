@@ -44,7 +44,7 @@ using namespace graphlab;
 #include <graphlab/macros_def.hpp>
 
 bool debug = false;
-
+double regularization = 0;
 
 struct vertex_data {
   real_type y, Aii;
@@ -53,8 +53,13 @@ struct vertex_data {
                   prev_x(std::numeric_limits<real_type>::max()) {
     if(debug) std::cout << "hello" << std::endl;
   }
-  void add_self_edge(double value) { Aii = value; }
-  void set_val(double value) { y = value; }
+  void add_self_edge(double value) { Aii = value + regularization; }
+  void set_val(double value, int type) { 
+     if (type == 1) 
+       y = value; 
+     else if (type == 2)
+       real_x = value;
+  }
   double get_output(){ return pred_x; }
 }; // end of vertex_data
 
@@ -114,8 +119,8 @@ private:
   real_type real_norm, relative_norm;
 public:
   accumulator() : 
-    real_norm(std::numeric_limits<real_type>::max()), 
-    relative_norm(std::numeric_limits<real_type>::max()) { }
+    real_norm(0), 
+    relative_norm(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.const_vertex_data();
     real_norm += std::pow(vdata.pred_x - vdata.real_x,2);
@@ -133,7 +138,8 @@ public:
     context.set_global("REAL_NORM", real_norm);
     context.set_global("RELATIVE_NORM", relative_norm);
     const real_type threshold = context.get_global<real_type>("THRESHOLD");
-    if(real_norm < threshold) context.terminate();
+    if(relative_norm < threshold) 
+      context.terminate();
   }
 }; // end of  accumulator
 
@@ -148,8 +154,8 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile, yfile;
-  std::string format = "mm";
+  std::string datafile, yfile, xfile;
+  std::string format = "matrixmarket";
   real_type threshold = 1e-5;
   size_t sync_interval = 10000;
   clopts.attach_option("data", &datafile, datafile,
@@ -157,14 +163,17 @@ int main(int argc,  char *argv[]) {
   clopts.add_positional("data");
   clopts.attach_option("yfile", &yfile, yfile,
                        "vector y input file");
-  clopts.attach_option("threshold", &threshold, threshold, "termination threshold.");
+  clopts.attach_option("xfile", &xfile, xfile,
+                       "vector x input file (optional)");
+   clopts.attach_option("threshold", &threshold, threshold, "termination threshold.");
   clopts.add_positional("threshold");
   clopts.attach_option("format", &format, format, "matrix format");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("syncinterval", 
                        &sync_interval, sync_interval, 
                        "sync interval (number of update functions before convergen detection");
-
+  clopts.attach_option("regularization", &regularization, regularization, 
+	               "regularization added to the main diagonal");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -189,12 +198,20 @@ int main(int argc,  char *argv[]) {
   matrix_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph());
+  load_vector(yfile, format, matrix_info, core.graph(), 1);
+  std::cout << "Load x values" << std::endl;
+  load_vector(xfile, format, matrix_info, core.graph(), 2);
+
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(jacobi_update());
 
-  
+  accumulator acum;
+  core.add_sync("sync", acum, sync_interval);
+  core.add_global("REAL_NORM", double(0));
+  core.add_global("RELATIVE_NORM", double(0));
+  core.add_global("THRESHOLD", threshold); 
+ 
   double runtime= core.start();
   // POST-PROCESSING *****
  

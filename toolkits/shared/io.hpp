@@ -43,9 +43,9 @@ extern bool debug;
 /*
  * open a file and verify open success
  */
-FILE * open_file(const char * name, const char * mode){
+FILE * open_file(const char * name, const char * mode, bool optional = false){
   FILE * f = fopen(name, mode);
-  if (f == NULL){
+  if (f == NULL && !optional){
       perror("fopen failed");
       logstream(LOG_FATAL) <<" Failed to open file" << name << std::endl;
    }
@@ -224,7 +224,7 @@ bool load_graph(const std::string& fname,
 } // end of load graph
 
 template <typename graph_type>
-void load_matrix_market_vector(const std::string & filename, const matrix_descriptor & desc, graph_type & g)
+void load_matrix_market_vector(const std::string & filename, const matrix_descriptor & desc, graph_type & g, int type)
 {
     typedef typename graph_type::vertex_data_type vertex_data;
     
@@ -233,10 +233,12 @@ void load_matrix_market_vector(const std::string & filename, const matrix_descri
     int M, N, nz;   
     int i;
 
-    FILE * f = open_file(filename.c_str(), "r");
-    if (f== NULL){
-	logstream(LOG_ERROR) << " can not find input file " << filename << ". aborting " << std::endl;
-	exit(1);
+    logstream(LOG_INFO) <<"Going to read matrix market vector from input file: " << filename << std::endl;
+  
+    FILE * f = open_file(filename.c_str(), "r", type == 2);
+    //if optional file not found return
+    if (f== NULL && type == 2){
+       return;
     }
 
     if (mm_read_banner(f, &matcode) != 0)
@@ -285,7 +287,7 @@ void load_matrix_market_vector(const std::string & filename, const matrix_descri
         assert(col == 0);
         //set observation value
         vertex_data & vdata = g.vertex_data(row);
-        vdata.set_val(val);
+        vdata.set_val(val, type);
     }
     fclose(f);
 
@@ -296,10 +298,11 @@ template<typename Graph>
 void load_vector(const std::string& fname,
                    const std::string& format,
                    const matrix_descriptor& desc,
-                   Graph& graph) {
+                   Graph& graph, 
+		   int type) {
 
   if (format == "matrixmarket"){
-     load_matrix_market_vector(fname, desc, graph);
+     load_matrix_market_vector(fname, desc, graph, type);
      return;
   }
   else assert(false); //TODO other formats
