@@ -93,7 +93,8 @@ struct jacobi_update :
     if (debug) 
       std::cout << "entering node " << context.vertex_id() 
                 << " A_ii=" << vdata.Aii 
-                << " u=" << vdata.prev_x << std::endl;
+                << " prev_x=" << vdata.prev_x 
+                << " y: " << vdata.y << std::endl;
   
     for(size_t i = 0; i < outedgeid.size(); ++i) {
       edge_data& out_edge = context.edge_data(outedgeid[i]);
@@ -123,8 +124,10 @@ public:
     relative_norm(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.const_vertex_data();
-    real_norm += std::pow(vdata.pred_x - vdata.real_x,2);
-    relative_norm += std::pow(vdata.pred_x - vdata.prev_x, 2);
+    real_norm = std::pow(vdata.pred_x - vdata.real_x,2);
+    relative_norm = std::pow(vdata.pred_x - vdata.prev_x, 2);
+    if (debug)
+	std::cout << "Real_norm: " << real_norm << "relative norm: " <<relative_norm << std::endl;
   }
   void operator+=(const accumulator& other) { 
     real_norm += other.real_norm; 
