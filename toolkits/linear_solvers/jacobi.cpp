@@ -50,7 +50,7 @@ struct vertex_data {
   real_type y, Aii;
   real_type pred_x, real_x, prev_x;
   vertex_data() : y(0), Aii(1), pred_x(0), real_x(0), 
-                  prev_x(std::numeric_limits<real_type>::max()) {
+                  prev_x(-1) {
     if(debug) std::cout << "hello" << std::endl;
   }
   void add_self_edge(double value) { Aii = value + regularization; }
