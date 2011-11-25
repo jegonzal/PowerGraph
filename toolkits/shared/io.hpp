@@ -60,7 +60,7 @@ template<typename graph_type>
 vec  fill_output(graph_type * g, matrix_descriptor & matrix_info){
   typedef typename graph_type::vertex_data_type vertex_data_type;
 
-  vec out = zeros(matrix_info.howmany(false));
+  vec out = zeros(matrix_info.num_nodes(false));
   for (int i = matrix_info.get_start_node(false); i < matrix_info.get_end_node(false); i++){
     out[i] = g->vertex_data(i).get_output();
   }

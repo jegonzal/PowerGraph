@@ -1,9 +1,9 @@
 ## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
-if(APPLE)
-  set(CMAKE_C_COMPILER "gcc-4.2")	
-  set(CMAKE_CXX_COMPILER "c++-4.2")
-endif(APPLE)
+if(DEFINED SET_C_COMPILER)
+  set(CMAKE_C_COMPILER ${SET_C_COMPILER})	
+  set(CMAKE_CXX_COMPILER ${SET_C_COMPILER})
+endif()
 
 
 
@@ -28,7 +28,7 @@ endif(COMMAND cmake_policy)
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
 if(HAS_EIGEN)
-
+add_definitions(-DHAS_EIGEN)
 endif()
 
 
