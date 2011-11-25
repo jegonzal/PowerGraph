@@ -46,6 +46,12 @@ using namespace graphlab;
 bool debug = false;
 double regularization = 0;
 
+enum jacobi_fields{
+  JACOBI_REAL_X = 1,
+  JACOBI_Y = 2
+};
+
+
 struct vertex_data {
   real_type y, Aii;
   real_type pred_x, real_x, prev_x;
@@ -54,10 +60,11 @@ struct vertex_data {
     if(debug) std::cout << "hello" << std::endl;
   }
   void add_self_edge(double value) { Aii = value + regularization; }
-  void set_val(double value, int type) { 
-     if (type == 1) 
+
+  void set_val(double value, int field_type) { 
+     if (field_type == JACOBI_REAL_X) 
        y = value; 
-     else if (type == 2)
+     else if (field_type == JACOBI_Y)
        real_x = value;
   }
   double get_output(){ return pred_x; }
@@ -161,6 +168,8 @@ int main(int argc,  char *argv[]) {
   std::string format = "matrixmarket";
   real_type threshold = 1e-5;
   size_t sync_interval = 10000;
+  int unittest = 0;
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -168,7 +177,7 @@ int main(int argc,  char *argv[]) {
                        "vector y input file");
   clopts.attach_option("xfile", &xfile, xfile,
                        "vector x input file (optional)");
-   clopts.attach_option("threshold", &threshold, threshold, "termination threshold.");
+  clopts.attach_option("threshold", &threshold, threshold, "termination threshold.");
   clopts.add_positional("threshold");
   clopts.attach_option("format", &format, format, "matrix format");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
@@ -177,6 +186,8 @@ int main(int argc,  char *argv[]) {
                        "sync interval (number of update functions before convergen detection");
   clopts.attach_option("regularization", &regularization, regularization, 
 	               "regularization added to the main diagonal");
+  clopts.attach_option("unittest", &unittest, unittest, 
+		       "unit testing 0=None, 1=3x3 matrix");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -193,18 +204,25 @@ int main(int argc,  char *argv[]) {
     << "Currently implemented algorithms are: Gaussian Belief Propagation, "
     << "Jacobi method, Conjugate Gradient" << std::endl;
 
+
+
   // Create a core
   graphlab::core<graph_type, jacobi_update> core;
   core.set_options(clopts); // Set the engine options
 
-  std::cout << "Load Graph" << std::endl;
+  //unit testing
+  if (unittest == 1){
+    datafile = "A"; yfile = "y"; xfile = "x"; sync_interval = 120;
+  }
+
+  std::cout << "Load matrix A" << std::endl;
   matrix_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), 1);
+  load_vector(yfile, format, matrix_info, core.graph(), JACOBI_REAL_X, false);
   std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), 2);
-
+  load_vector(xfile, format, matrix_info, core.graph(), JACOBI_Y, true);
+  
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(jacobi_update());
@@ -224,11 +242,10 @@ int main(int argc,  char *argv[]) {
 
   write_output_vector(datafile + "x.out", format, ret);
 
-  //print timing counters
-  /*for (int i=0; i<MAX_COUNTER; i++){
-    if (counter[i] > 0)
-    	printf("Performance counters are: %d) %s, %g\n",i, countername[i], ps.counter[i]); 
-   }*/
+
+  if (unittest == 1){
+    //TODO verify real_norm
+  }
 
    return EXIT_SUCCESS;
 }

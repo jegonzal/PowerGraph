@@ -145,6 +145,7 @@ bool load_matrixmarket_graph(const std::string& fname,
   typedef matrix_entry<graph_type> matrix_entry_type;
 
   // Open the file 
+  logstream(LOG_INFO) << "Reading matrix market file: " << fname << std::endl;
   FILE* fptr = open_file(fname.c_str(), "r");
   
   // read Matrix market header
@@ -224,7 +225,7 @@ bool load_graph(const std::string& fname,
 } // end of load graph
 
 template <typename graph_type>
-void load_matrix_market_vector(const std::string & filename, const matrix_descriptor & desc, graph_type & g, int type)
+void load_matrix_market_vector(const std::string & filename, const matrix_descriptor & desc, graph_type & g, int type, bool optional_field)
 {
     typedef typename graph_type::vertex_data_type vertex_data;
     
@@ -235,9 +236,9 @@ void load_matrix_market_vector(const std::string & filename, const matrix_descri
 
     logstream(LOG_INFO) <<"Going to read matrix market vector from input file: " << filename << std::endl;
   
-    FILE * f = open_file(filename.c_str(), "r", type == 2);
+    FILE * f = open_file(filename.c_str(), "r", optional_field);
     //if optional file not found return
-    if (f== NULL && type == 2){
+    if (f== NULL && optional_field){
        return;
     }
 
@@ -299,10 +300,11 @@ void load_vector(const std::string& fname,
                    const std::string& format,
                    const matrix_descriptor& desc,
                    Graph& graph, 
-		   int type) {
+		   int type,
+		   bool optional_field) {
 
   if (format == "matrixmarket"){
-     load_matrix_market_vector(fname, desc, graph, type);
+     load_matrix_market_vector(fname, desc, graph, type, optional_field);
      return;
   }
   else assert(false); //TODO other formats
