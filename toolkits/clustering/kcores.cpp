@@ -45,7 +45,9 @@ using namespace graphlab;
 
 bool debug = false;
 int max_iter = 50;
-int * stats_per_round = NULL;
+ivec active_nodes_num;
+ivec active_links_num;
+
 int iiter = 0; //current iteration
 
 enum kcore_output_fields{
@@ -79,10 +81,15 @@ struct edge_data {
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
+  int active = 0;
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
      data.degree = g->out_edge_ids(i).size() + g->in_edge_ids(i).size();
+     data.active = data.degree > 0;
+     if (data.active)
+       active++;
   }
+  printf("Total active nodes: %d\n", active);
 }
 
 
@@ -96,18 +103,18 @@ class accumulator :
   public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
 private:
   int num_active;
+  int links;
 public:
-  accumulator() : num_active(0) { }
+  accumulator() : num_active(0), links(0) { }
 
   void operator()(icontext_type& context) {
     vertex_data & vdata = context.vertex_data();
     int cur_iter = iiter + 1;
-    if (vdata.degree <= cur_iter){
+    /*if (vdata.degree <= cur_iter){
        vdata.active = false;
        vdata.kcore = cur_iter;
        vdata.degree = 0;
-    } 
-    int links= 0;
+    } */
     edge_list_type outedgeid = context.out_edge_ids();
     edge_list_type inedgeid = context.in_edge_ids();
 
@@ -135,13 +142,17 @@ public:
 
   void operator+=(const accumulator& other) { 
     num_active += other.num_active;
+    links += other.links;
   }
 
   void finalize(iglobal_context_type& context) {
    printf("Number of active nodes in round %d is %d\n", iiter, num_active);
-   stats_per_round[iiter] = num_active;
+   active_nodes_num[iiter] = num_active;
+   printf("Number of active links in round %d is %d\n", iiter, links);
+   active_links_num[iiter] = links;
+
    if (iiter >= 2)
-    printf("Nodes removed from core in this round %d\n", stats_per_round[iiter] - stats_per_round[iiter-1]);
+    printf("Nodes removed from core in this round %d\n", active_nodes_num[iiter] - active_nodes_num[iiter-1]);
 
    if (num_active == 0)
      context.terminate(); 
@@ -178,7 +189,8 @@ int main(int argc,  char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  stats_per_round = new int[max_iter];
+  active_nodes_num = ivec(max_iter);
+  active_links_num = ivec(max_iter);
 
   logstream(LOG_WARNING)
     << "Eigen detected. (This is actually good news!)" << std::endl;
@@ -218,9 +230,13 @@ int main(int argc,  char *argv[]) {
   for (iiter=0; iiter< max_iter; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
     core.sync_now("sync");
+    if (active_nodes_num[iiter] == 0)
+	break;
   }
  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
+
+  write_output_vector(datafile + ".kcores.out", format, active_nodes_num);
 
   vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
   write_output_vector(datafile + "x.out", format, ret);

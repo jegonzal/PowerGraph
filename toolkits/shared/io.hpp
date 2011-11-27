@@ -342,14 +342,36 @@ void load_vector(const std::string& fname,
 
 }
 
+inline void write_row(int row, int col, double val, FILE * f){
+    fprintf(f, "%d %d %10.3g\n", row, col, val);
+}
+
+inline void write_row(int row, int col, int val, FILE * f){
+    fprintf(f, "%d %d %d\n", row, col, val);
+}
+
+template<typename T>
+inline void set_typecode(MM_typecode & matcore);
+
+template<>
+inline void set_typecode<vec>(MM_typecode & matcode){
+   mm_set_real(&matcode);
+}
+
+template<>
+inline void set_typecode<ivec>(MM_typecode & matcode){
+  mm_set_integer(&matcode);
+}
+
+
+template<typename vec>
 void save_matrix_market_format_vector(const std::string datafile, const vec & output)
 {
     MM_typecode matcode;                        
-
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
     mm_set_coordinate(&matcode);
-    mm_set_real(&matcode);
+    set_typecode<vec>(matcode);
 
     FILE * f = fopen(datafile.c_str(),"w");
     assert(f != NULL);
@@ -357,7 +379,7 @@ void save_matrix_market_format_vector(const std::string datafile, const vec & ou
     mm_write_mtx_crd_size(f, output.size(), 1, output.size());
 
     for (int j=0; j<(int)output.size(); j++)
-        fprintf(f, "%d %d %10.3g\n", j+1, 1, output[j]);
+      write_row(j+1, 1, output[j], f);
 
     fclose(f);
 }
@@ -371,6 +393,8 @@ inline double * read_vec(FILE * f, size_t len){
   assert(rc == (int)len);
   return vec;
 }
+
+
 //write an output vector to file
 inline void write_vec(const FILE * f, const int len, const double * array){
   assert(f != NULL && array != NULL);
@@ -378,7 +402,16 @@ inline void write_vec(const FILE * f, const int len, const double * array){
   assert(rc == len);
 }
 
+//write an output vector to file
+inline void write_vec(const FILE * f, const int len, const int * array){
+  assert(f != NULL && array != NULL);
+  int rc = fwrite(array, len, sizeof(int), (FILE*)f);
+  assert(rc == len);
+}
 
+
+
+template<typename vec>
 inline void write_output_vector_binary(const std::string & datafile, const vec& output){
 
    FILE * f = open_file(datafile.c_str(), "w");
@@ -388,6 +421,7 @@ inline void write_output_vector_binary(const std::string & datafile, const vec& 
    fclose(f);
 }
 
+template<typename vec>
 inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output){
 
   if (format == "binary")
