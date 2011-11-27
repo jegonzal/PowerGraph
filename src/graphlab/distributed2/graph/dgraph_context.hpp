@@ -204,6 +204,15 @@ class dgraph_context: public icontext<typename Engine::graph_type,
 
 
   edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {
+    if (target == _vertex) {
+      inedges_modified = true;
+    } else if (graph_ptr->is_owned(target) == false){
+      remote_outedges_modified = true;
+    } else {
+      owned_outedges_modified = true;
+    }
+    graph_ptr->edge_is_modified(graph_ptr->find(source, target).second);
+
     return graph_ptr->edge_data(source, target);
   }
 
@@ -221,6 +230,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   }
 
   vertex_data_type& vertex_data(vertex_id_type vertex) {
+    if (vertex == _vertex) return vertex_data();
     if (graph_ptr->is_owned(vertex) == false) {
       remote_nbr_vertices_modified = true;
     } else {

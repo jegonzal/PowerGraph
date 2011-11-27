@@ -101,8 +101,8 @@ struct vertex_data {
  */
 struct edge_data { 
   // No edge data required
-  void save(graphlab::oarchive &oarc) const { }
-  void load(graphlab::iarchive &iarc) { }
+  void save(graphlab::oarchive &oarc) const { oarc << 0; }
+  void load(graphlab::iarchive &iarc) { int i; iarc >> i; ASSERT_EQ(i, 0); }
 };
 
 
@@ -179,7 +179,7 @@ struct update_functor :
       // references whenever you know that you will definitely not be
       // changing the data, since GraphLab could make use of this
       // knowledge to perform other optimizations
-      const vertex_data& nbrvertex = context.vertex_data(sourcev);
+      const vertex_data& nbrvertex = context.const_vertex_data(sourcev);
       // if red, add to our counter
       if (nbrvertex.color == RED) ++num_red_neighbors;
     }
@@ -283,6 +283,9 @@ public:
     context.set_global("RED_PROPORTION", proportion);
     context.set_global("NUM_FLIPS", flips_count);
   }
+  
+  void save(graphlab::oarchive &oarc) const { oarc << red_count << flips_count; }
+  void load(graphlab::iarchive &iarc) { iarc >> red_count >> flips_count; }
 }; // end of  accumulator
 
 
@@ -326,6 +329,7 @@ void init_graph(memory_graph_type& g,
     }
   }
 
+  g.compute_coloring();
   // the graph is now constructed
   // we need to call finalize. 
   g.finalize();
@@ -426,14 +430,20 @@ int main(int argc,  char *argv[]) {
   // output the graph
   // note that here we take advantage of the fact that vertex insertion
   // gives sequential numberings
-  size_t ctr = 0;
-  for (size_t i = 0;i < dimensions; ++i) {
-    for (size_t j = 0;j < dimensions; ++j) {
-      std::cout << size_t(glcore.graph().get_vertex_data(ctr).color) << " ";
-      ++ctr;
+  std::vector<vertex_data> allv = glcore.graph().collect_vertices(0);
+  dc.barrier();
+  if (dc.procid() == 0) {
+    size_t ctr = 0;
+    for (size_t i = 0;i < dimensions; ++i) {
+      for (size_t j = 0;j < dimensions; ++j) {
+        std::cout << size_t(allv[ctr].color) << " ";
+        ++ctr;
+      }
+      std::cout << std::endl;
     }
-    std::cout << std::endl;
   }
+  dc.barrier();
+  graphlab::mpi_tools::finalize();
 
 }
 

@@ -381,6 +381,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                   vertex_id_type end_vid = 
                   std::numeric_limits<vertex_id_type>::max()) {
     sync_task st;
+    st.key = key;
     st.sync_interval = sync_interval;
     st.next_time = 0;
     st.rangelow = begin_vid;
@@ -476,70 +477,39 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
    * Initialize the sync tasks. Called by start()
    */
   void init_syncs() {
-//     active_sync_tasks.clear();
-//     // setup the intermediate values. initialize them to zero
-//     for (size_t i = 0;i < sync_tasks.size(); ++i) {
-//       sync_tasks[i].thread_intermediate.clear();
-//       sync_tasks[i].thread_intermediate.resize(ncpus, sync_tasks[i].zero);
-//       // everyone runs at the start even if scheduling interval is 0
-//       active_sync_tasks.push_back(&(sync_tasks[i]));
-//     }
+     active_sync_tasks.clear();
+     shared_data.reset_all_syncs();
+     for (size_t i = 0;i < sync_tasks.size(); ++i) {
+       // everyone runs at the start even if scheduling interval is 0
+       active_sync_tasks.push_back(&(sync_tasks[i]));
+     }
   }
 
   /**
    * Called whenever a vertex is executed.
    * Accumulates the available syncs
    */
-  void eval_syncs(vertex_id_type curvertex, context_type& scope, size_t threadid) {
-//     // go through all the active sync tasks
-//     foreach(sync_task* task, active_sync_tasks) {
-//       // if in range, sync!
-//       if (task->rangelow <= curvertex && curvertex <= task->rangehigh) {
-//         task->sync_fun(scope, task->thread_intermediate[threadid]);
-//       }
-//     }
+  void eval_syncs(vertex_id_type curvertex, 
+                  context_type& context, 
+                  size_t threadid) {
+     // go through all the active sync tasks
+     foreach(sync_task* task, active_sync_tasks) {
+       // if in range, sync!
+       if (task->rangelow <= curvertex && curvertex <= task->rangehigh) {
+         shared_data.accumulate(task->key, &context, threadid);
+       }
+     }
   }
 
   /** Called at the end of the iteration. Called by all threads after a barrier*/
-  void sync_end_iteration(size_t threadid) {
-//     // merge and apply all the syncs. distribute the work among the threads
-//     for (size_t curtask = threadid; curtask < active_sync_tasks.size(); curtask += ncpus) {
-//       sync_task* task = active_sync_tasks[curtask];
-//       task->mergeval = task->thread_intermediate[0];
-//       task->thread_intermediate[0] = task->zero;
-//       for(size_t i = 1; i < task->thread_intermediate.size(); ++i) {
-//         task->merge_fun(task->mergeval, task->thread_intermediate[i]);
-//         task->thread_intermediate[i] = task->zero;
-//       }
-//       // zero out the intermediate
-//       task->thread_intermediate.clear();
-//       task->thread_intermediate.resize(ncpus, sync_tasks[curtask].zero);
-//       // for efficiency, lets merge each sync task to the prefered machine
-//     }
-//     
-//     thread_color_barrier.wait();
-// 
-//     // one thread of each machine participates in |active_sync_tasks| gathers
-//     if (threadid == 0) {
-//       for (size_t i = 0;i < active_sync_tasks.size(); ++i) {
-//         sync_task* task = active_sync_tasks[i];
-//         procid_t target = task->sharedvariable->preferred_machine();
-//         std::vector<any> gathervals(rmi.numprocs());
-//         gathervals[rmi.procid()] = task->mergeval;
-//         rmi.gather(gathervals, target);
-// 
-//         // now if I am target I need to do the final merge and apply
-//         if (target == rmi.procid()) {
-//           task->mergeval = gathervals[0];
-//           for (size_t i = 1; i < gathervals.size(); ++i) {
-//             task->merge_fun(task->mergeval, gathervals[i]);
-//           }
-//           // apply!!!
-//           task->sharedvariable->apply(task->apply_fun, task->mergeval);
-//           numsyncs.inc();
-//         }
-//       }
-//     }
+  void sync_end_iteration(size_t threadid, context_type& globalcontext) {
+    if (threadid == 0) {
+      foreach(sync_task* task, active_sync_tasks) {
+        shared_data.finalize(task->key, &globalcontext);
+      }
+      shared_data.wait_for_all_communication();
+      shared_data.reset_all_syncs();
+    }
     thread_color_barrier.wait();
   }
 
@@ -710,7 +680,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       }
 
 
-      sync_end_iteration(threadid);
+      sync_end_iteration(threadid, context);
       thread_color_barrier.wait();
       if (threadid == 0) {
         ti.start();

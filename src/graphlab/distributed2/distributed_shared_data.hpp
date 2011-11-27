@@ -29,6 +29,8 @@ class distributed_shared_data {
     virtual void reset() = 0;
     virtual void accumulate(ContextType* context,
                             size_t threadid) = 0;
+    virtual void finalize(ContextType* context,
+                dc_dist_object<distributed_shared_data<ContextType> >& rmi) = 0;
   }; // end of isync
   
   template<typename Accum >
@@ -214,16 +216,32 @@ class distributed_shared_data {
     sync_map[key]->reset();
   }
 
+  void reset_all_syncs() {
+    typename std::map<std::string, isync*>::iterator iter = sync_map.begin();
+    while (iter != sync_map.end()) {
+      iter->second->reset();
+      ++iter;
+    }
+  }
+
+  void wait_for_all_communication() {
+    rmi.full_barrier();
+  }
+
   void accumulate(std::string key, 
                   ContextType* context,
                   size_t threadid) {
-    sync_map[key]->accumulate(context, threadid);
+    typename std::map<std::string, isync*>::iterator iter = sync_map.find(key);
+    ASSERT_TRUE(iter != sync_map.end());
+    iter->second->accumulate(context, threadid);
   }
   
   /// Must be called on all machines simultaneously
   void finalize(std::string key, 
                 ContextType* context) {
-    sync_map[key]->finalize(context, rmi);
+    typename std::map<std::string, isync*>::iterator iter = sync_map.find(key);
+    ASSERT_TRUE(iter != sync_map.end());
+    iter->second->finalize(context, rmi);
   }
   
   void acquire_lock(const std::string& key, size_t index = 0) {

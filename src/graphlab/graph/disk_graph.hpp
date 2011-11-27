@@ -745,7 +745,8 @@ namespace graphlab {
       nparts = std::max<size_t>(nparts, parts[i]);
     }
     ++nparts;
-    disk_graph<VertexData, EdgeData> dg(basename, nparts + 1);
+    disk_graph<VertexData, EdgeData> dg(basename, nparts + 1, 
+                              graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
     dg.create_from_graph(g, parts);
     dg.finalize();
   }                           
