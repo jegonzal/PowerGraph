@@ -204,8 +204,10 @@ int main(int argc,  char *argv[]) {
   matrix_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_6);
 
+  calc_initial_degree(&core.graph(), matrix_info);
+
   //std::cout << "Schedule all vertices" << std::endl;
-  //core.schedule_all(jacobi_update());
+  core.schedule_all(kcore_update());
  
   accumulator acum;
   core.add_sync("sync", acum, 1000);
@@ -214,11 +216,11 @@ int main(int argc,  char *argv[]) {
   graphlab::timer mytimer; mytimer.start();
 
   for (iiter=0; iiter< max_iter; iiter++){
-    logstream(LOG_INFO)<<"Going to run k-cores iteration " << iiter << std::endl;
+    logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
     core.sync_now("sync");
   }
  
-  std::cout << "Jacobi finished in " << mytimer.current_time() << std::endl;
+  std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
 
   vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
   write_output_vector(datafile + "x.out", format, ret);
