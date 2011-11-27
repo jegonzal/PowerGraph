@@ -34,7 +34,7 @@ memory_atom::memory_atom(std::string filename, uint16_t atomid):atomid(atomid),f
 void memory_atom::add_vertex(vertex_id_type vid, uint16_t owner) {
   if (!add_vertex_skip(vid, owner)) {
     mut.lock();
-    boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+    boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
     vertices[iter->second].owner = owner;
     mutated = true;
     mut.unlock();
@@ -50,7 +50,7 @@ bool memory_atom::add_vertex_skip(vertex_id_type vid, uint16_t owner) {
   mutated = true;
   bool ret = false;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
   if (iter == vidmap.end()) {
     if (owner == atom_id()) numv.inc();
     vertices.push_back(vertex_entry(vid, owner));
@@ -65,7 +65,7 @@ bool memory_atom::add_vertex_skip(vertex_id_type vid, uint16_t owner) {
 void memory_atom::add_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata) {
   mutated = true;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
   if (iter == vidmap.end()) {
     if (owner == atom_id()) numv.inc();
     vertices.push_back(vertex_entry(vid, owner, -1, vdata));
@@ -82,7 +82,7 @@ void memory_atom::add_vertex_with_data(vertex_id_type vid, uint16_t owner, const
 void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
   mutated = true;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator srciter = vidmap.find(src);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator srciter = vidmap.find(src);
 
   if (srciter == vidmap.end()) {
     mut.unlock();
@@ -93,7 +93,7 @@ void memory_atom::add_edge_with_data(vertex_id_type src, vertex_id_type target, 
   }
   size_t vsrc = srciter->second;
   
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator destiter = vidmap.find(target);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator destiter = vidmap.find(target);
   if (destiter == vidmap.end()) {
     mut.unlock();
     if (edata.size() > 0) add_vertex_skip(target, atom_id());     // target is definitely local
@@ -115,7 +115,7 @@ void memory_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
                                      const std::string &edata) {
   mutated = true;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator srciter = vidmap.find(src);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator srciter = vidmap.find(src);
 
   if (srciter == vidmap.end()) {
     mut.unlock();
@@ -125,7 +125,7 @@ void memory_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
   }
   size_t vsrc = srciter->second;
   
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator destiter = vidmap.find(target);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator destiter = vidmap.find(target);
   if (destiter == vidmap.end()) {
     mut.unlock();
     add_vertex_skip(target, targetowner);
@@ -145,7 +145,7 @@ void memory_atom::add_edge_with_data(vertex_id_type src, uint16_t srcowner,
 void memory_atom::set_vertex(vertex_id_type vid, uint16_t owner) {
   mutated = true;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
   vertices[v].owner = owner;
@@ -156,7 +156,7 @@ void memory_atom::set_vertex(vertex_id_type vid, uint16_t owner) {
 void memory_atom::set_vertex_with_data(vertex_id_type vid, uint16_t owner, const std::string &vdata) {
   mutated = true;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
   ASSERT_TRUE(iter != vidmap.end());
   size_t v = iter->second;
   vertices[v].owner = owner;
@@ -170,10 +170,10 @@ void memory_atom::set_vertex_with_data(vertex_id_type vid, uint16_t owner, const
 void memory_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, const std::string &edata) {
   mutated = true;
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator srciter = vidmap.find(src);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator srciter = vidmap.find(src);
   ASSERT_TRUE(srciter != vidmap.end());
   
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator destiter = vidmap.find(target);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator destiter = vidmap.find(target);
   ASSERT_TRUE(destiter != vidmap.end());
   size_t vtarget = destiter->second;
 
@@ -193,7 +193,7 @@ void memory_atom::set_edge_with_data(vertex_id_type src, vertex_id_type target, 
 
 bool memory_atom::get_vertex(vertex_id_type vid, uint16_t &owner) {
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
   if (iter == vidmap.end()) {
     mut.unlock();
     return false;
@@ -208,7 +208,7 @@ bool memory_atom::get_vertex(vertex_id_type vid, uint16_t &owner) {
 
 bool memory_atom::get_vertex_data(vertex_id_type vid, uint16_t &owner, std::string &vdata) {
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator iter = vidmap.find(vid);
   
   if(iter == vidmap.end()) {
     mut.unlock();
@@ -229,7 +229,7 @@ bool memory_atom::get_vertex_data(vertex_id_type vid, uint16_t &owner, std::stri
  */
 bool memory_atom::get_edge_data(vertex_id_type src, vertex_id_type target, std::string &edata) {
   mut.lock();
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator targetiter = vidmap.find(target);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator targetiter = vidmap.find(target);
   if(targetiter == vidmap.end()) {
     mut.unlock();
     return false;
@@ -274,7 +274,7 @@ std::map<uint16_t, uint32_t> memory_atom::enumerate_adjacent_atoms() {
 
 std::vector<memory_atom::vertex_id_type> memory_atom::get_out_vertices(vertex_id_type vid) {
   std::vector<vertex_id_type> ret;
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
   if (vidmap_iter == vidmap.end()) return ret;
   size_t v = vidmap_iter->second;
   
@@ -287,7 +287,7 @@ std::vector<memory_atom::vertex_id_type> memory_atom::get_out_vertices(vertex_id
 
 std::vector<memory_atom::vertex_id_type> memory_atom::get_in_vertices(vertex_id_type vid) {
   std::vector<vertex_id_type> ret;
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
   if (vidmap_iter == vidmap.end()) return ret;
   size_t v = vidmap_iter->second;
  
@@ -305,7 +305,7 @@ std::vector<memory_atom::vertex_id_type> memory_atom::get_in_vertices(vertex_id_
 memory_atom::vertex_color_type memory_atom::get_color(vertex_id_type vid) {
   mut.lock();
   vertex_color_type ret = vertex_color_type(-1);
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator viter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator viter = vidmap.find(vid);
   if (viter != vidmap.end()) {
     ret = vertices[viter->second].color;
   }
@@ -318,7 +318,7 @@ void memory_atom::set_color(vertex_id_type vid, vertex_color_type color) {
   mutated = true;
   mut.lock();
   std::vector<vertex_id_type> ret;
-  boost::unordered_map<vertex_id_t, size_t>::const_iterator viter = vidmap.find(vid);
+  boost::unordered_map<vertex_id_type, size_t>::const_iterator viter = vidmap.find(vid);
   if (viter != vidmap.end()) {
     vertices[viter->second].color = color;
   }
@@ -336,7 +336,7 @@ vertex_color_type memory_atom::max_color() {
 
 uint16_t memory_atom::get_owner(vertex_id_type vid) {
   maplock.lock();
-  boost::unordered_map<vertex_id_t, uint16_t>::const_iterator iter = vid2owner_segment.find(vid);
+  boost::unordered_map<vertex_id_type, uint16_t>::const_iterator iter = vid2owner_segment.find(vid);
   uint16_t ret = 0;
   if (iter != vid2owner_segment.end()) ret = iter->second;
   else ret = uint16_t(-1);

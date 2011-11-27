@@ -67,7 +67,7 @@ namespace graphlab {
     typedef std::deque<vertex_id_type> queue_type;
 
   private:
-    vertex_functor_set<engine_type> vfun_set;
+    vertex_functor_set<update_functor_type> vfun_set;
     std::deque<queue_type> master_queue;
     mutex master_lock;
     size_t sub_queue_size;

@@ -26,4 +26,4 @@ project(GraphLab)
 
 
 
-subdirs(graph2test demo pagerank image_denoise classics)
+subdirs(graph2test demo pagerank image_denoise classics dist_demo)

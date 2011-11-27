@@ -45,6 +45,7 @@
 #include <boost/bind.hpp>
 #include <boost/iterator/transform_iterator.hpp>
 
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/caching_dht.hpp>
@@ -245,6 +246,78 @@ namespace graphlab {
     typedef edge_list edge_list_type;
 
 
+
+    /** This class defines a set of edges */
+    class vertex_list {
+    public:
+
+      typedef typename boost::function<vertex_id_type (edge_id_type)> TransformType;
+      typedef typename boost::transform_iterator<TransformType, const vertex_id_type*> iterator;
+      typedef typename boost::transform_iterator<TransformType, const vertex_id_type*> const_iterator;
+      typedef vertex_id_type value_type;
+    private:
+      
+      inline static vertex_id_type
+      to_other_vertex(edge_id_type x, 
+                      const distributed_graph* g, 
+                      bool is_in_edges) { 
+        if (is_in_edges) {
+          return g->source(x);
+        }
+        else {
+          return g->target(x);
+        }
+      }
+      const distributed_graph* dgraph;      
+      edge_list elist;
+      bool is_in_edges;
+    public:    
+      // an edge list which wraps a regular elist. Method 1.
+      inline vertex_list(const distributed_graph* dgraph, 
+                         edge_list elist, 
+                         bool is_in_edges) : 
+        dgraph(dgraph), elist(elist), is_in_edges(is_in_edges){ }
+
+      /** \brief Get the size of the vertex list */
+      inline size_t size() const { 
+        return elist.size(); 
+      }
+
+      /** \brief Get the ith vertex in the vertex list */
+      inline vertex_id_type operator[](size_t i) const {
+        assert(i < size());
+        return to_other_vertex(*(begin() + i), dgraph, is_in_edges);
+      }
+
+      /** \brief Returns a pointer to the start of the vertex list */
+      inline iterator begin() const {
+        return boost::
+          make_transform_iterator(elist.begin(),
+                                  boost::bind(to_other_vertex, 
+                                              _1, dgraph, is_in_edges));
+      }
+
+      /** \brief Returns a pointer to the end of the vertex list */
+      inline iterator end() const {
+        return boost::
+          make_transform_iterator(elist.begin(),
+                                  boost::bind(to_other_vertex, 
+                                              _1, dgraph, is_in_edges));
+      }
+
+      /** \brief Fill a vector with vertex id list */
+      inline void fill_vector(std::vector<vertex_id_type>& lvalue) const {
+        lvalue.clear();
+        foreach(vertex_id_type vid, *this) lvalue.push_back(vid);
+      }
+
+      /** \brief test if the edge list is empty */
+      inline bool empty() const { return size() == 0; }
+    }; // end edge_list
+
+
+
+    typedef vertex_list vertex_list_type;
 
 
     /**
@@ -498,6 +571,10 @@ namespace graphlab {
       }
     }
 
+    vertex_list_type in_vertices_list(vertex_id_type v) const {
+      return vertex_list_type(this, in_edge_ids(v), true);
+    }
+  
     /** \brief Return the edge ids of the edges arriving at v */
     edge_list_type in_edge_ids(vertex_id_type v) const {
       typename global2localvid_type::const_iterator iter = 
@@ -533,6 +610,10 @@ namespace graphlab {
       ASSERT_MSG(false, "Edge IDs of non-local vertex cannot be obtained");
     } // end of in edges
 
+    vertex_list_type out_vertices_list(vertex_id_type v) const {
+      return vertex_list_type(this, out_edge_ids(v), false);
+    }
+    
     /** \brief Return the edge ids of the edges leaving at v */
     edge_list_type out_edge_ids(vertex_id_type v) const {
       typename global2localvid_type::const_iterator iter = 

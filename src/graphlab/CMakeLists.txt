@@ -51,6 +51,7 @@ add_library(graphlab STATIC
   graph/disk_atom.cpp
   graph/write_only_disk_atom.cpp
   graph/atom_index_file.cpp
+  graph/memory_atom.cpp
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
@@ -86,7 +87,6 @@ add_library(graphlab STATIC
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
   rpc/delta_dht.cpp
-  distributed2/distributed_scheduler_list.cpp
   ${rpc_compressed}
   )
 
@@ -102,12 +102,6 @@ if(Sctp-FOUND)
   target_link_libraries(graphlab sctp)
 endif()
 
-
-
-#build distributed graphlab
-add_library(graphlab_dist2 STATIC
-    distributed2/distributed_glshared_base.cpp
-    distributed2/distributed_glshared_manager.cpp)
 
 
 #build PIC versions of everything

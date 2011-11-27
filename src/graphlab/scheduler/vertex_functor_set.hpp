@@ -38,18 +38,17 @@
 
 #include <vector>
 
+#include <graphlab/graph/graph.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 
 
 namespace graphlab {
 
-  template<typename Engine>
+  template<typename UpdateFunctor>
   class vertex_functor_set {
   public:
-    typedef Engine engine_type;
-    typedef typename engine_type::vertex_id_type vertex_id_type;
-    typedef typename engine_type::update_functor_type update_functor_type;
+    typedef UpdateFunctor update_functor_type;
 
 
   private:
@@ -110,6 +109,17 @@ namespace graphlab {
         lock.unlock();
         return success;
       }
+      
+      inline bool read_value(update_functor_type& ret) {
+        lock.lock();
+        const bool success(is_set);
+        if(success) {
+          ret = functor;
+        }
+        lock.unlock();
+        return success;
+      }
+
     }; // end of vfun_type;
 
    
@@ -154,12 +164,19 @@ namespace graphlab {
     } // end of add task to set 
 
 
+
     bool test_and_get(const vertex_id_type& vid,
                       update_functor_type& ret_fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].test_and_get(ret_fun);
     }
-    
+
+    bool read_value(const vertex_id_type& vid,
+                      update_functor_type& ret_fun) {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].read_value(ret_fun);
+    }
+
     size_t size() const { 
       return vfun_set.size(); 
     }
