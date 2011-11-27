@@ -87,7 +87,7 @@ struct vertex_data {
      if (field_type == GABP_Y){
         if (!support_null_variance)
 	  assert(prior_prec > 0);
-        prior_mean = value/prior_prec; 
+        prior_mean = value; 
      }
      else if (field_type == GABP_REAL_X)
        real = value;
@@ -300,16 +300,23 @@ int main(int argc,  char *argv[]) {
 
   //unit testing
   if (unittest == 1){
-    datafile = "A"; yfile = "y"; xfile = "x"; sync_interval = 120;
+ /* A = [6.4228    2.0845    2.1617
+        2.0845    4.7798    1.2418
+        2.1617    1.2418    5.5250];
+    y = [0.9649    0.1576    0.9706]';
+    x = [0.1211    -0.0565   0.1410 ]';
+    prec = [    0.1996 0.2474 0.2116]';
+ */
+    datafile = "A_gabp"; yfile = "y"; xfile = "x_gabp"; sync_interval = 120;
   }
 
   std::cout << "Load matrix A" << std::endl;
   matrix_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), GABP_REAL_X, false);
+  load_vector(yfile, format, matrix_info, core.graph(), GABP_Y, false);
   std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), GABP_Y, true);
+  load_vector(xfile, format, matrix_info, core.graph(), GABP_REAL_X, true);
   
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(gabp_update());

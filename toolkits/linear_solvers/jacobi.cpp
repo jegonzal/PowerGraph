@@ -216,6 +216,13 @@ int main(int argc,  char *argv[]) {
 
   //unit testing
   if (unittest == 1){
+/*A= [  1.8147    0.9134    0.2785
+       0.9058    1.6324    0.5469
+       0.1270    0.0975    1.9575 ];
+
+  y= [ 0.9649    0.1576    0.9706 ]';
+  x= [ 0.6803   -0.4396    0.4736 ]';
+*/
     datafile = "A"; yfile = "y"; xfile = "x"; sync_interval = 120;
   }
 

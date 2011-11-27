@@ -194,8 +194,11 @@ bool load_matrixmarket_graph(const std::string& fname,
 
     if(is_square && source == target) 
       graph.vertex_data(source).add_self_edge(val);
-    else
-      graph.add_edge(source, target, edata);
+    else {
+     graph.add_edge(source, target, edata); 
+      if (mm_is_symmetric(matcode))
+        graph.add_edge(target, source, edata);
+    }
   } // end of for loop  
   std::cout << "Graph size:    " << graph.num_edges() << std::endl;
   //graph.finalize();
