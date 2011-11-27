@@ -22,136 +22,140 @@
 
 
 /**
+   This demo provides a synthetic application which intentionally uses
+   most of the GraphLab V2 features.  Most GraphLab applications will
+   not use all of these features.
 
-This demo provides a synthetic application which makes use a good
-number of GraphLab concepts. Note that this demo app is intentionally
-built to use as many of graphlab concepts as possible. This may not be
-typical for most GraphLab applications.
+   Picture of grid model:
 
+      x----x----x
+      |    |    |
+      x----o----o
+      |    |    |
+      o----x----x
 
-Picture of grid model:
+   Given a DIMxDIM undirected grid graph where each vertex is assigned
+   a random color, either black or red.  Each vertex then makes a
+   local random decision:
 
-     x----x----x
-     |    |    |
-     x----o----o
-     |    |    |
-     o----x----x
+   - become red with probabilty proportionate to the number of red
+   neighbors
 
+   - become black with probabilty proportionate to the number of black
+   neighbors
 
-Given a DIMxDIM undirected grid graph where each vertex is assigned a
-random color, either black or white (represented as a boolean value)
-Each vertex then makes a local random decision:
+   Clearly, the two stable outcomes are where all vertices are black,
+   or where all vertices are red. We are interested in knowing how
+   many flips each vertex took on average.
 
-  - become white with probabilty proportionate to the number of white
-    neighbors
-
-  - become black with probabilty proportionate to the number of black
-    neighbors
-
-Clearly, the two stable outcomes are where all vertices are black, or
-where all vertices are white. We are interested in knowing how many
-flips each vertex took on average.
-
-Also, since GraphLab only has directed edges, we will build the graph
-by duplicating every edge in both directions.
+   Also, since GraphLab only has directed edges, we will build the
+   graph by duplicating every edge in both directions.
 
 */
 
 
 // standard C++ headers
 #include <iostream>
-
+#include <algorithm>
 // includes the entire graphlab framework
 #include <distributed_graphlab.hpp>
-
-
-/**
-First we will design the graph data. For each vertex, we will need to
-know its current color, and a counter to count the number of flips it
-took.
-
-GraphLab provides facilities to directly save/load graphs from
-disk. However, to do so, GraphLab must be able to understand your
-datastructures.  If you are not interested in saving/loading graphs,
-you can simply inherit from unsupported_serialize. Otherwise, you will
-need write a save/load function pair for your struct.
-
-To write a save/load function see the commented region in the struct.
-The serialization mechanism is simple to use and it understands all
-basic datatypes as well as standard STL containers. If the STL
-container contains non-basic datatypes (such as a struct), save/load
-functions must be written for the datatype.
-*/
-struct vertex_data {
-  size_t numflips;
-  bool color;     // black == FALSE, red == TRUE,
-};
-SERIALIZABLE_POD(vertex_data);
 
 // A simple enum describing the two possible colors
 enum color_type {RED, BLACK};
 
+/**
+   First we will design the graph data. For each vertex, we will need
+   to know its current color, and a counter to count the number of
+   flips it took.
 
-/** In this example, we do not need edge data. However GraphLab
-currently does not have a mechanism to completely disable the use of
-edge data.  Therefore, we will just put an arbitrary small
-placeholder type on the edges.
+   GraphLab provides facilities to directly save/load graphs from
+   disk. However, to do so, GraphLab must be able to understand your
+   datastructures.  If you are not interested in saving/loading
+   graphs, you can simply inherit from
+   unsupported_serialize. Otherwise, you will need write a save/load
+   function pair for your struct.
 
-Note that we do not need to write a save/load function here since
-GraphLab's serializer already understands basic datatypes. */
-typedef char edge_data;
+   To write a save/load function see the commented region in the
+   struct.  The serialization mechanism is simple to use and it
+   understands all basic datatypes as well as standard STL
+   containers. If the STL container contains non-basic datatypes (such
+   as a struct), save/load functions must be written for the datatype.
+   */
+struct vertex_data {
+  size_t     num_flips;
+  color_type color; 
+  void save(graphlab::oarchive &oarc) const {
+    oarc << num_flips << color;
+  }
+  void load(graphlab::iarchive &iarc) {
+    iarc >> num_flips >> color;
+  }
+};
+
+
+/** 
+ * In this example, we do not need edge data. However GraphLab
+ * currently does not have a mechanism to completely disable the use
+ * of edge data.  Therefore, we will just put an empty struct as the
+ * edge type.  
+ */
+struct edge_data { 
+  // No edge data required
+  void save(graphlab::oarchive &oarc) const { oarc << 0; }
+  void load(graphlab::iarchive &iarc) { int i; iarc >> i; ASSERT_EQ(i, 0); }
+};
 
 
 /**
-The GraphLab graph is templatized over the vertex data as well as the
-edge data.  Here we define the type of the graph for convenience.  */
+   The GraphLab graph is templatized over the vertex data as well as the
+   edge data.  Here we define the type of the graph for convenience.  */
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph<vertex_data, edge_data> memory_graph_type;
+
+
 
 /**
+   Now we can begin to write the update function class. GraphLab V2
+   supports only one update function but since the update function is
+   now a class and can hold state, it is easy to simulate multiple
+   different update functions.
 
-Now we can begin to write the update function. This is the standard
-form of an update function. You may specify more than one update
-function, but we only need one for this application.
+   \param context 
 
-\param scope
-The scope provides access to a local neighborhood of a graph.
-The scope is centered on a particular vertex, ( scope.vertex() ), and includes
-all adjacent edges and vertices. \
-\ 
-All vertices are identified by an unsigned integer type vertex_id_t,
-and all edges are similarly identified by an unsigned integer type edge_id_t.
-GraphLab guarantees that all vertices are sequentially numbered from 0
-(so the largest vertex id is |num_vertices| - 1), and similarly for edges.
-All edges are directed.
+   The context provides access to a local neighborhood of a vertex
+   (context.vertex_id()) in the graph.  The context includes all
+   adjacent edges and vertices.  All vertex and edge ids are
+   identified by the vertex_id_type and edge_id_type.
 
-\param scheduler
-There are two basic types of schedulers.
-The synchronous / round_robin scheduler takes a single fixed set of tasks
-and repeatedly executes them until some termination condition is achieved.
-Using these schedulers generally means that the update function will not use
-this parameter.
 
-The task schedulers, which include fifo, multiqueue_fifo, priority,
-clustered_priority, all operate on the idea that executing an
-update_function on a vertex can be thought of as a task. Update functions
-can therefore inject new jobs into the task scheduler through this parameter.
-Since the task scheduler is slightly more complex to use, in this example,
-we will demonstrate task schedulers. Each update will decide whether to 
-schedule its neighbors, and the algorithm terminates when there are no
-tasks remaining. (See the comments in update_function for details).
+   GraphLab guarantees that all vertices are sequentially numbered
+   from 0 (so the largest vertex id is |num_vertices| - 1), and
+   similarly for edges.  All edges are directed.
 
-There are other methods for terminating execution, such as registering a
-termination evaluator with the engine, but we are not going to describe
-that here.
+   \param scheduler
+   There are two basic types of schedulers.
+   The synchronous / round_robin scheduler takes a single fixed set of tasks
+   and repeatedly executes them until some termination condition is achieved.
+   Using these schedulers generally means that the update function will not use
+   this parameter.
+
+   The task schedulers, which include fifo, multiqueue_fifo, priority,
+   clustered_priority, all operate on the idea that executing an
+   update_function on a vertex can be thought of as a task. Update functions
+   can therefore inject new jobs into the task scheduler through this parameter.
+   Since the task scheduler is slightly more complex to use, in this example,
+   we will demonstrate task schedulers. Each update will decide whether to 
+   schedule its neighbors, and the algorithm terminates when there are no
+   tasks remaining. (See the comments in update_function for details).
+
+   There are other methods for terminating execution, such as registering a
+   termination evaluator with the engine, but we are not going to describe
+   that here.
+
 */
-
 struct update_functor : 
   public graphlab::iupdate_functor<graph_type, update_functor> {
-  // the base iupdate_functor type used to access types needed in this
-  // function.
-  typedef graphlab::iupdate_functor<graph_type, update_functor> base;
-  
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     //context.vertex_data allows me to grab a reference to the vertex
     // data on the graph
     vertex_data& curvdata = context.vertex_data();
@@ -175,7 +179,7 @@ struct update_functor :
       // references whenever you know that you will definitely not be
       // changing the data, since GraphLab could make use of this
       // knowledge to perform other optimizations
-      const vertex_data& nbrvertex = context.neighbor_vertex_data(sourcev);
+      const vertex_data& nbrvertex = context.const_vertex_data(sourcev);
       // if red, add to our counter
       if (nbrvertex.color == RED) ++num_red_neighbors;
     }
@@ -225,55 +229,10 @@ struct update_functor :
       context.schedule(context.vertex_id(), fun);
     }
   }
+  
+  void save(graphlab::oarchive &oarc) const { }
+  void load(graphlab::iarchive &iarc) { }
 }; // end of update_functor
-
-
-/**
-  In this function, we construct the grid graph
-*/
-void init_graph(gl::memory_graph & g,
-                size_t dim) {
-  // here we create dim * dim vertices.
-  // the graph add_vertex(vertexdata) function takes the vertex data as input
-  // and returns the vertex id of the new vertex.
-  // The ids are guaranteed to be sequentially numbered
-  for (size_t i = 0;i < dim * dim; ++i) {
-    // create the vertex data, randomizing the color
-    vertex_data vdata;
-    vdata.numflips = 0;
-    if (graphlab::random::bernoulli())  vdata.color = true;
-    else vdata.color = false;
-    // create the vertex
-    g.add_vertex(vdata);
-  }
-
-  // create the edges. The add_edge(i,j,edgedata) function creates
-  // an edge from i->j. with the edgedata attached. It then returns the id
-  // of the new edge. The ids are guaranteed to be sequentially numbered.
-  // GraphLab does NOT support duplicated edges, and currently has no facilities
-  // for checking for accidental duplicated edge insertions at the
-  // graph construction stage. (It is quite costly to do so)
-  //
-   // Any duplicated edges will result in an assertion failure at the later
-   // 'finalize' stage.
-   edge_data edata;
-  for (size_t i = 0;i < dim; ++i) {
-    for (size_t j = 0;j < dim - 1; ++j) {
-      // add the horizontal edges in both directions
-      g.add_edge(dim * i + j, dim * i + j + 1, edata);
-      g.add_edge(dim * i + j + 1, dim * i + j, edata);
-
-      // add the vertical edges in both directions
-      g.add_edge(dim * j + i, dim * (j + 1) + i, edata);
-      g.add_edge(dim * (j + 1) + i, dim * j + i, edata);
-    }
-  }
-
-  // the graph is now constructed
-  // we need to call finalize. 
-  g.finalize();
-}
-
 
 
 
@@ -305,9 +264,8 @@ class accumulator :
 private:
   size_t red_count, flips_count;
 public:
-  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> base;
   accumulator() : red_count(0), flips_count(0) { }
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     red_count += (context.vertex_data().color == RED)? 1 : 0;
     flips_count += context.vertex_data().num_flips;
   }
@@ -315,7 +273,7 @@ public:
     red_count += other.red_count; 
     flips_count += other.flips_count; 
   }
-  void finalize(base::iglobal_context_type& context) {
+  void finalize(iglobal_context_type& context) {
     const size_t numvertices = context.num_vertices();
     const double proportion = double(red_count) / numvertices;
     // here we can output something as a progress monitor
@@ -325,47 +283,98 @@ public:
     context.set_global("RED_PROPORTION", proportion);
     context.set_global("NUM_FLIPS", flips_count);
   }
+  
+  void save(graphlab::oarchive &oarc) const { oarc << red_count << flips_count; }
+  void load(graphlab::iarchive &iarc) { iarc >> red_count >> flips_count; }
 }; // end of  accumulator
 
 
+/**
+   In this function, we construct the grid graph
+*/
+void init_graph(memory_graph_type& g,
+                size_t dim) {
+  // here we create dim * dim vertices.  The graph
+  // add_vertex(vertexdata) function takes the vertex data as input
+  // and returns the vertex id of the new vertex.  The ids are
+  // guaranteed to be sequentially numbered
+  for (size_t i = 0;i < dim * dim; ++i) {
+    // create the vertex data, randomizing the color
+    vertex_data vdata;
+    vdata.num_flips = 0;
+    vdata.color = (graphlab::random::bernoulli())? RED : BLACK;
+    // create the vertex
+    g.add_vertex(vdata);
+  }
 
+  // create the edges. The add_edge(i,j,edgedata) function creates
+  // an edge from i->j. with the edgedata attached. It then returns the id
+  // of the new edge. The ids are guaranteed to be sequentially numbered.
+  // GraphLab does NOT support duplicated edges, and currently has no facilities
+  // for checking for accidental duplicated edge insertions at the
+  // graph construction stage. (It is quite costly to do so)
+  //
+  // Any duplicated edges will result in an assertion failure at the later
+  // 'finalize' stage.
+  edge_data edata;
+  for (size_t i = 0;i < dim; ++i) {
+    for (size_t j = 0;j < dim - 1; ++j) {
+      // add the horizontal edges in both directions
+      g.add_edge(dim * i + j, dim * i + j + 1, edata);
+      g.add_edge(dim * i + j + 1, dim * i + j, edata);
 
+      // add the vertical edges in both directions
+      g.add_edge(dim * j + i, dim * (j + 1) + i, edata);
+      g.add_edge(dim * (j + 1) + i, dim * j + i, edata);
+    }
+  }
+
+  g.compute_coloring();
+  // the graph is now constructed
+  // we need to call finalize. 
+  g.finalize();
+}
 
 
 
 int main(int argc,  char *argv[]) {
 
   // sets the logging level of graphlab
-  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
+  
+  // Seed the random number generator
+  graphlab::random::nondet_seed();
 
   // Parse the command line using the command line options tool
-  // and scope type on the command line
+  // and context type on the command line
   graphlab::command_line_options opts;
   
   size_t dimensions = 20;
   bool makegraph = false;
   opts.use_distributed_options();
+  opts.attach_option("makegraph", 
+         &makegraph, makegraph, 
+         "Makes Graph");
   opts.attach_option("dim", 
 		     &dimensions, size_t(20), 
 		     "the dimension of the grid");
-  opts.attach_option("makegraph", 
-		     &makegraph, makegraph, 
-		     "Makes Graph");
-
   // parse the command line
   bool success = opts.parse(argc, argv);
   if(!success) {
     return EXIT_FAILURE;
   }
   
+  
   if (makegraph) {
     // call init_graph to create the graph
-    gl::memory_graph g;
+    memory_graph_type g;
     init_graph(g, dimensions);
     std::vector<graphlab::graph_partitioner::part_id_type> parts;
     graphlab::graph_partitioner::graph_partitioner::metis_partition(g, 16, parts);
-    graph_partition_to_atomindex(g, parts, "demograph");
+    graphlab::disk_graph<vertex_data, edge_data> dg("demograph", 16,  
+                            graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
+    dg.create_from_graph(g, parts);
     return 0;
   }
 
@@ -374,18 +383,20 @@ int main(int argc,  char *argv[]) {
   ASSERT_TRUE(graphlab::init_param_from_mpi(param));
   graphlab::distributed_control dc(param);
 
-  
   // Display the values
   opts.print();
 
   // create a graphlab core which contains the graph, shared data, and
   // engine
-  gl::distributed_core glcore(dc, "demograph.idx");
+  graphlab::distributed_core<graph_type, update_functor> glcore(dc, "demograph.idx");
 
   // Initialize the core with the command line arguments
-  glcore.set_engine_options(opts);
-  glcore.build_engine();
+  glcore.set_options(opts);
 
+  glcore.build_engine();
+  // Initialize the shared data.
+  accumulator initial_accum;
+  size_t sync_interval = 100;  
   glcore.add_sync("sync", initial_accum, sync_interval);
   glcore.add_global("NUM_FLIPS", size_t(0));
   glcore.add_global("RED_PROPORTION", double(0));
@@ -406,14 +417,11 @@ int main(int argc,  char *argv[]) {
   // since it is possible for the engine to terminate in between syncs
   // if we want to get a correct value for the syncs we should run them again
   // we can do his with
-  // UNFORTUNATELY: sync_now for the distributed setting is still not yet implemented
-
-  //  glcore.sync_now(NUM_FLIPS);
-//  glcore.shared_data().sync(RED_PROPORTION_KEY);
+  glcore.sync_now("sync");
 
   // now we can look the values using the get() function
-  size_t numberofflips = NUM_FLIPS.get_val();
-  double redprop = RED_PROPORTION.get_val();
+  size_t numberofflips = glcore.get_global<size_t>("NUM_FLIPS");
+  double redprop = glcore.get_global<double>("RED_PROPORTION");
 
   // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;
@@ -422,27 +430,31 @@ int main(int argc,  char *argv[]) {
   // output the graph
   // note that here we take advantage of the fact that vertex insertion
   // gives sequential numberings
+  std::vector<vertex_data> allv = glcore.graph().collect_vertices(0);
+  dc.barrier();
   if (dc.procid() == 0) {
     size_t ctr = 0;
     for (size_t i = 0;i < dimensions; ++i) {
       for (size_t j = 0;j < dimensions; ++j) {
-        std::cout << size_t(glcore.graph().get_vertex_data(ctr).color) << " ";
+        std::cout << size_t(allv[ctr].color) << " ";
         ++ctr;
       }
       std::cout << std::endl;
     }
   }
+  dc.barrier();
   graphlab::mpi_tools::finalize();
+
 }
 
 
 /*
-As a final comment. Since the update function only requires reading of
-neighboring vertex data, the edge_consistency model is guaranteed to have
-sequential consistency, and the algorithm is therefore guaranteed to be
-correct if executed with --scope=edge or --scope=full.
+  As a final comment. Since the update function only requires reading of
+  neighboring vertex data, the edge_consistency model is guaranteed to have
+  sequential consistency, and the algorithm is therefore guaranteed to be
+  correct if executed with --scope=edge or --scope=full.
 
-Sequential consistency is not guaranteed under --scope=vertex, though it could
-be quite difficult in practice to construct a race.
+  Sequential consistency is not guaranteed under --scope=vertex, though it could
+  be quite difficult in practice to construct a race.
 */
 

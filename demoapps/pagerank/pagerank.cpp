@@ -29,228 +29,136 @@
  *  http://en.wikipedia.org/wiki/Pagerank
  */
 
+#include <iomanip>
+
 #include "pagerank.hpp"
 
 
 
 #include <graphlab/macros_def.hpp>
 
-double termination_bound = 1e-5;
-double random_reset_prob = 0.15;
-bool delta_functor       = false;
-bool global_factorized   = false;
+//! Global random reset probability
+double RANDOM_RESET_PROBABILITY = 0.15;
 
-
+//! Global accuracy tolerance
+double ACCURACY = 1e-5;
 
 /**
  * The factorized page rank update function
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
-  typedef graphlab::iupdate_functor<graph_type, pagerank_update> base;
-  typedef base::icontext_type   icontext_type;
-  typedef base::edge_list_type  edge_list_type;
-  typedef base::edge_id_type    edge_id_type;
-  typedef base::vertex_id_type  vertex_id_type;
-private:
-  double accum;
+  float prio;
 public:
-
-  pagerank_update(const double& prio = 0) : accum(0) { }
-  double priority() const { return std::fabs(accum); }
-  void operator+=(const pagerank_update& other) { accum += other.accum; }
-  bool is_factorizable() const { return global_factorized; }
-  bool writable_gather() { return false; }
-  bool writable_scatter() { return false; }
-
-  void reschedule_neighbors(icontext_type& context, double old_value) {
-    const vertex_data& vdata = context.vertex_data();
-    foreach(edge_id_type eid, context.out_edge_ids()) {
-      const edge_data& outedgedata = context.const_edge_data(eid);    
-      const double residual = 
-        outedgedata.weight * (vdata.value - old_value);
-      // If the neighbor changed sufficiently add to scheduler.
-      if(residual > termination_bound) {
-        context.schedule(context.target(eid), 
-                         pagerank_update(residual));
-      }
-    }
-  } // end of reschedule neighbors
-
-  void delta_functor_update(icontext_type& context) { 
-    vertex_data& vdata = context.vertex_data();
-    const double old_value = vdata.value;
-    vdata.old_value += accum;
-    vdata.value = 
-      random_reset_prob/context.num_vertices() +
-      (1-random_reset_prob) *
-      (vdata.old_value + vdata.value*vdata.self_weight);
-    reschedule_neighbors(context, old_value);
-  } // end of delta_functor_update
-
+  pagerank_update(const float& prio = 0) : prio(prio) { }
+  double priority() const { return prio; }
+  void operator+=(const pagerank_update& other) { prio += other.prio; }
   void operator()(icontext_type& context) {
-    // if it is a delta function then use the delta function update
-    if(delta_functor) { delta_functor_update(context); return; }    
-    // Get the data associated with the vertex
-    vertex_data& vdata = context.vertex_data();  
-    float sum = vdata.value * vdata.self_weight;
-    const edge_list_type in_edges = context.in_edge_ids();
-    foreach(edge_id_type eid, in_edges) {
-      const vertex_data& neighbor_vdata =
-        context.const_neighbor_vertex_data(context.source(eid));
-      const double neighbor_value = neighbor_vdata.value;    
-      edge_data& edata = context.edge_data(eid);
-      double contribution = edata.weight * neighbor_value;    
-      sum += contribution;
-    }
-    sum = random_reset_prob/context.num_vertices() + 
-      (1-random_reset_prob)*sum;
-    const double old_value = vdata.value;
-    vdata.value = sum;
-    reschedule_neighbors(context, old_value);
-  } // end of operator()
+    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
 
-  void gather(icontext_type& context, edge_id_type in_eid) {
-    const vertex_data& neighbor_vdata =
-      context.const_neighbor_vertex_data(context.source(in_eid));
-    const double neighbor_value = neighbor_vdata.value;    
-    edge_data& edata = context.edge_data(in_eid);
-    const double contribution = edata.weight * neighbor_value;    
-    accum += contribution;
-  } // end of gather
+    // Compute weighted sum of neighbors
+    float sum = vdata.value * vdata.self_weight;    
 
-  void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data();
-    accum += vdata.value * vdata.self_weight;
-    accum = random_reset_prob/context.num_vertices() + 
-      (1-random_reset_prob)*accum;
+    /* Iterate over edge_id_list and get source is slow in graph2 */
+    /*
+    foreach(edge_id_type eid, context.in_edge_ids()) 
+      sum += context.edge_data(eid).weight * 
+        context.const_vertex_data(context.source(eid)).value;
+    // Add random reset probability
+    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
+      (1-RANDOM_RESET_PROBABILITY)*sum;
     vdata.old_value = vdata.value;
-    vdata.value = accum;
-  } // end of apply
+    vdata.value = sum;
+    foreach(edge_id_type eid, context.out_edge_ids()) {    
+      const float residual = context.edge_data(eid).weight * 
+        std::fabs(vdata.value - vdata.old_value);
+      // If the neighbor changed sufficiently add to scheduler.
+      if(residual > ACCURACY) 
+        context.schedule(context.target(eid), pagerank_update(residual));      
+    }*/
 
-  void scatter(icontext_type& context, edge_id_type out_eid) {
-    const vertex_data& vdata = context.const_vertex_data();
-    const edge_data& edata   = context.const_edge_data(out_eid);    
-    const double residual = 
-      edata.weight*(vdata.old_value - vdata.value);
-    if(residual > termination_bound) {
-      context.schedule(context.target(out_eid), pagerank_update(residual));
+    /* Iterate over in/out vertex_list and get edge_data is faster. Only supported by graph2. */
+    vertex_id_type vid = context.vertex_id();
+    foreach (vertex_id_type in_id, context.in_vertices_list())
+      sum += context.edge_data(in_id, vid).weight * context.const_vertex_data(in_id).value;
+
+    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
+      (1-RANDOM_RESET_PROBABILITY)*sum;
+    vdata.old_value = vdata.value;
+    vdata.value = sum;
+
+    foreach (vertex_id_type out_id, context.out_vertices_list()) {
+      const float residual = context.edge_data(vid, out_id).weight *
+        std::fabs(vdata.value - vdata.old_value);
+      if (residual > ACCURACY)
+        context.schedule(out_id, pagerank_update(residual));
     }
-  } // end of scatter
-  
+  } // end of operator()  
 }; // end of pagerank update functor
 
 
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
   logger(LOG_INFO, "PageRank starting\n");
-
-  // Metrics  
-  graphlab::metrics app_metrics("app::pagerank");
-
- 
-
-  // Setup the parser
-  graphlab::command_line_options
-    clopts("Run the PageRank algorithm.");
-
-  // Add some command line options
+  // Parse command line options -----------------------------------------------
+  graphlab::command_line_options clopts("PageRank algorithm.");
   std::string graph_file;
   std::string format = "metis";
+  std::string update_type = "basic";
   clopts.attach_option("graph",
                        &graph_file, graph_file,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.attach_option("format",
                        &format, format,
-                       "The graph file format: {metis,jure,tsv}");
-
-
-  clopts.attach_option("bound",
-                       &termination_bound, termination_bound,
+                       "The graph file format: {metis, jure, tsv}");
+  clopts.attach_option("accuracy",
+                       &ACCURACY, ACCURACY,
                        "residual termination threshold");
   clopts.attach_option("resetprob",
-                       &random_reset_prob, random_reset_prob,
+                       &RANDOM_RESET_PROBABILITY, RANDOM_RESET_PROBABILITY,
                        "Random reset probability");
-
-  // Parse the command line input
   if(!clopts.parse(argc, argv)) {
-    std::cout << "Error in parsing input." << std::endl;
+    std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-
-  std::cout << "Using termination bound:  " << termination_bound 
+  std::cout << "Termination bound:  " << ACCURACY 
             << std::endl
-            << "Using reset probability:  " << random_reset_prob
-            << std::endl;
-  
-  // Create a graphlab core
+            << "Reset probability:  " << RANDOM_RESET_PROBABILITY
+            << std::endl;  
+  // Setup the GraphLab execution core and load graph -------------------------
   graphlab::core<graph_type, pagerank_update> core;
-
-  // Set the engine options
-  core.set_options(clopts);
-  
-  // Create or load graph depending on if the file was set
-  app_metrics.start_time("load");
-  if(graph_file.empty()) {
-    // Create a synthetic graph
-    make_toy_graph(core.graph());
-  } else {
-    // load the graph from the file
-    bool success = false;
-    if(format == "metis") {
-      success = load_graph_from_metis_file(graph_file, core.graph());
-    } else if(format == "jure") {
-      success = load_graph_from_jure_file(graph_file, core.graph());
-    } else {
-      success = load_graph_from_tsv_file(graph_file, core.graph());
-    }
-    if(!success) {
-      std::cout << "Error in reading file: " << graph_file
-                << std::endl;
-      return EXIT_FAILURE;
-    }
+  core.set_options(clopts); // attach the command line options to the core
+  const bool success = load_graph(graph_file, format, core.graph());
+  if(!success) {
+    std::cout << "Error in reading file: " << graph_file << std::endl;
   }
-  app_metrics.stop_time("load");
 
-  // std::cout << "Saving graph as tsv" << std::endl;
-  // save_edges_as_tsv("edges.tsv", core.graph());
-  // std::cout << "Finished saving graph." << std::endl;
-
-  //  app_metrics.report(core.get_reporter());
-  // Schedule all vertices to run pagerank update on the
-  // first round.
-  core.schedule_all(pagerank_update(100.0));
-  
-  // Run the engine
-  double runtime = core.start();
-  
-  // We are done, now output results.
+  // Run the PageRank ---------------------------------------------------------
+  core.schedule_all(pagerank_update(1));
+  const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;
   std::cout << "Updates executed: " << core.last_update_count() 
             << std::endl;
-  
-  // First we need to compute a normalizer. This could be done with
-  // the sync facility, but for simplicity, we do it by hand.
-  double norm = 0.0;
-  for(graph_type::vertex_id_type vid = 0; 
-      vid < core.graph().num_vertices(); vid++) {
-    norm += core.graph().vertex_data(vid).value;
-  }
-  std::cout << "Total Mass: " << norm << std::endl;
+  std::cout << "Update Rate (updates/second): " 
+            << core.last_update_count() / runtime
+            << std::endl;
 
-  
-  // And output 5 first vertices pagerank after dividing their value
-  // with the norm.
-  for(graph_type::vertex_id_type vid = 0; 
-      vid < 5 && vid < core.graph().num_vertices(); vid++) {
-    std::cout << "Page " << vid << " pagerank = " <<
-      core.graph().vertex_data(vid).value << '\n';
-  }    
+ 
+
+  // Output Results -----------------------------------------------------------
+  // Output the top 5 pages
+  std::vector<graph_type::vertex_id_type> top_pages;
+  get_top_pages(core.graph(), 5, top_pages);
+  for(size_t i = 0; i < top_pages.size(); ++i) {
+    std::cout << std::setw(10) << top_pages[i] << ":\t" << std::setw(10) 
+              << core.graph().vertex_data(top_pages[i]).value << std::setw(10) 
+              << core.graph().vertex_data(top_pages[i]).nupdates << std::endl;
+  }
 
   // Write the pagerank vector
   std::cout << "Saving pagerank vector." << std::endl;
@@ -259,5 +167,3 @@ int main(int argc, char** argv) {
 
   return EXIT_SUCCESS;
 } // End of main
-
-

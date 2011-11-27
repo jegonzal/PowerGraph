@@ -38,18 +38,17 @@
 
 #include <vector>
 
+#include <graphlab/graph/graph.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 
 
 namespace graphlab {
 
-  template<typename Engine>
+  template<typename UpdateFunctor>
   class vertex_functor_set {
   public:
-    typedef Engine engine_type;
-    typedef typename engine_type::vertex_id_type vertex_id_type;
-    typedef typename engine_type::update_functor_type update_functor_type;
+    typedef UpdateFunctor update_functor_type;
 
 
   private:
@@ -71,6 +70,19 @@ namespace graphlab {
         lock.unlock();
         return !already_set;
       }
+
+      /** returns true if set for the first time */
+      inline bool set(const update_functor_type& other, 
+                      double& ret_priority) {
+        lock.lock();
+        const bool already_set(is_set);
+        if(is_set) functor += other;
+        else { functor = other; is_set = true; }
+        ret_priority = functor.priority();
+        lock.unlock();
+        return !already_set;
+      }
+
       inline update_functor_type get() {
         update_functor_type ret;
         lock.lock();
@@ -80,10 +92,10 @@ namespace graphlab {
         lock.unlock();
         return functor;
       }
-      inline std::pair<bool,double> priority() const {        
+      bool priority(double& ret_priority) const {        
         lock.lock();
         const bool was_set = is_set;
-        const double priority = functor.priority();
+        double& priority = functor.priority();
         lock.unlock();
         return std::make_pair(was_set, priority);               
       }
@@ -97,6 +109,17 @@ namespace graphlab {
         lock.unlock();
         return success;
       }
+      
+      inline bool read_value(update_functor_type& ret) {
+        lock.lock();
+        const bool success(is_set);
+        if(success) {
+          ret = functor;
+        }
+        lock.unlock();
+        return success;
+      }
+
     }; // end of vfun_type;
 
    
@@ -116,9 +139,9 @@ namespace graphlab {
       vfun_set.resize(num_vertices);
     }
 
-    std::pair<bool, double> priority(vertex_id_type vid) const {
+    bool priority(vertex_id_type vid, double& ret_priority) const {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].priority();
+      return vfun_set[vid].priority(ret_priority);
     } // end of priority
 
     
@@ -130,13 +153,30 @@ namespace graphlab {
       return vfun_set[vid].set(fun);
     } // end of add task to set 
 
+    
+    /** Add a task to the set returning false if the task was already
+        present. Promote task to max(old priority, new priority) */
+    bool add(const vertex_id_type& vid, 
+             const update_functor_type& fun,
+             double& ret_priority) {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].set(fun, ret_priority);
+    } // end of add task to set 
+
+
 
     bool test_and_get(const vertex_id_type& vid,
                       update_functor_type& ret_fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].test_and_get(ret_fun);
     }
-    
+
+    bool read_value(const vertex_id_type& vid,
+                      update_functor_type& ret_fun) {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].read_value(ret_fun);
+    }
+
     size_t size() const { 
       return vfun_set.size(); 
     }

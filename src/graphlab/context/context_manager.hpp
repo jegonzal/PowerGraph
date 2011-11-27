@@ -102,7 +102,8 @@ namespace graphlab {
     } // end of context manager
 
 
-    void set_default_consistency(consistency_model::model_enum default_consistency_range) {
+    void set_default_consistency(consistency_model::model_enum 
+                                 default_consistency_range) {
       default_consistency = default_consistency_range;
       if (default_consistency == consistency_model::USE_DEFAULT) 
         default_consistency = consistency_model::EDGE_CONSISTENCY;
@@ -271,12 +272,9 @@ namespace graphlab {
                       const boost::true_type&) {
       // First check the cache
       context_type& context = contexts[cpuid];
-      typedef typename context_type::cache_entry cache_entry_type;
-      typedef typename context_type::cache_map_type::iterator
-        iterator_type;
+      typedef typename cache_map_type::iterator iterator_type;
       iterator_type iter = context.cache.find(vid);
       const bool is_cached = iter != context.cache.end();
-
       if(is_cached) return;
       else locks[vid].unlock();
     }
@@ -498,6 +496,12 @@ namespace graphlab {
       context.init(v, consistency_model::NULL_CONSISTENCY);
       return context;
     }
+
+    /**
+     * Get a global context 
+     */
+    iglobal_context& get_global_context(size_t cpuid) { return contexts[cpuid]; }
+
 
 
 

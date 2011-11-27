@@ -68,6 +68,9 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
+  std::cout << "Starting anytests" << std::endl;
+
+
   std::ifstream f;
   f.open("test.bin",std::fstream::binary);
   iarchive iarc(f);
@@ -94,5 +97,8 @@ int main(int argc, char** argv) {
   for (size_t i = 0;i < 10; ++i) {
     ASSERT_EQ(tc.k[i], i);
   }
+
+  std::cout << "Passed all anytests" << std::endl;
+
 }
 

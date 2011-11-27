@@ -10,6 +10,7 @@ doc/doxygen/*
 deps/*
 configure.deps
 config.log
+new_news.txt
 
 extapis/java_jni/dist
 extapis/java_jni/build

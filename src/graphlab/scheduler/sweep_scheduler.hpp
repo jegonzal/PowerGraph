@@ -38,20 +38,8 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_functor_set.hpp>
-#include <graphlab/scheduler/terminator/shared_termination.hpp>
-#include <graphlab/scheduler/terminator/task_count_terminator.hpp>
+#include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
-
-
-// #include <graphlab/util/synchronized_queue.hpp>
-// #include <graphlab/tasks/update_task.hpp>
-// #include <graphlab/schedulers/ischeduler.hpp>
-// #include <graphlab/parallel/pthread_tools.hpp>
-// #include <graphlab/schedulers/support/direct_callback.hpp>
-// #include <graphlab/schedulers/support/vertex_task_set.hpp>
-// #include <graphlab/util/shared_termination.hpp>
-
-// #include <graphlab/parallel/atomic.hpp>
 
 
 
@@ -63,8 +51,7 @@ namespace graphlab {
    /** \ingroup group_schedulers
     */
   template<typename Engine>
-  class sweep_scheduler : 
-    public ischeduler<Engine> {
+  class sweep_scheduler : public ischeduler<Engine> {
   public:
 
 
@@ -73,35 +60,43 @@ namespace graphlab {
     typedef typename base::engine_type engine_type;
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;
-    typedef shared_termination terminator_type;
-    // typedef task_count_terminator terminator_type;
+    typedef critical_termination terminator_type;
+
 
     
   private:
 
-    inline size_t next_index(const size_t ncpus, 
-                             const size_t nverts,
-                             const size_t cpuid, 
-                             const size_t index) const {
-      const size_t nextidx = index + ncpus;
-      if(__builtin_expect(nextidx < nverts, true)) 
-        return nextidx; 
-      else return cpuid;
+    inline size_t get_and_inc_index(const size_t cpuid) {
+      const size_t nverts = index2vid.size();
+      if (strict_round_robin) {
+        return rr_index++ % nverts;
+      } else {
+        const size_t ncpus = cpu2index.size();
+        const size_t index = cpu2index[cpuid];
+        cpu2index[cpuid] += ncpus;
+        // Address loop around
+        if (__builtin_expect(cpu2index[cpuid] >= nverts, false)) cpu2index[cpuid] = cpuid;
+        return index;
+      }
     }// end of next index
 
+    bool strict_round_robin;
+    atomic<size_t> rr_index;
 
-    std::vector<vertex_id_type>     index2vid;
-    std::vector<uint8_t>             vid2cpuid;
-    std::vector< cache_line_pad<size_t> >   cpu2index;
-    vertex_functor_set<engine_type> vfun_set;
-    terminator_type                 term;
+    std::vector<vertex_id_type>             index2vid;
+    std::vector<uint8_t>                    vid2cpuid;
+    std::vector<vertex_id_type>             cpu2index;
+    vertex_functor_set<update_functor_type>         vfun_set;
+    terminator_type                         term;
 
 
 
   public:
     sweep_scheduler(const graph_type& graph, 
                     size_t ncpus,
-                    const options_map& opts) : 
+                    const options_map& opts) :
+      strict_round_robin(false),
+      rr_index(0),
       index2vid(graph.num_vertices()), 
       vid2cpuid(graph.num_vertices()),
       cpu2index(ncpus),
@@ -109,19 +104,34 @@ namespace graphlab {
       // Construct the permutation
       for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
       std::string ordering = "shuffle";
-      opts.get_string_option("ordering", ordering);
-      if(ordering == "shuffle") random::shuffle(index2vid);     
+      opts.get_option("ordering", ordering);
+      if (ordering == "shuffle") {
+        logstream(LOG_INFO) 
+          << "Using a random ordering of the vertices." << std::endl;
+        random::shuffle(index2vid);
+      } else if (ordering == "ascending") {
+        logstream(LOG_INFO) 
+          << "Using an ascending ordering of the vertices." << std::endl;
+      } else {
+        logstream(LOG_WARNING)
+          << "The ordering \"" << ordering << "\" is not supported using default."
+          << std::endl;
+      }
+      opts.get_option("strict", strict_round_robin);
+      if(strict_round_robin) {
+        logstream(LOG_INFO) 
+          << "Using a strict round robin schedule." << std::endl;
+      } 
       // construct the vid2cpuid map
       for(size_t i = 0; i < graph.num_vertices(); ++i) 
         vid2cpuid[index2vid[i]] = i % ncpus;
-    }
-        
-    void start() { 
+      // Initialize the cpu2index counters
       for(size_t i = 0; i < cpu2index.size(); ++i) 
         cpu2index[i] = i;
-      term.reset();
     }
-
+        
+   
+    void start() { term.reset(); }
 
     void schedule(const size_t cpuid,
                   const vertex_id_type vid, 
@@ -141,15 +151,13 @@ namespace graphlab {
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
-      const size_t start_index = cpu2index[cpuid];
+      const size_t nverts = index2vid.size();
+      const size_t ncpus  = cpu2index.size();
+      const size_t max_fails = (nverts/ncpus) + 1;
       // Loop through all vertices that are associated with this
       // processor searching for a vertex with an active task
-      const size_t ncpus = cpu2index.size();
-      const size_t nverts = index2vid.size();
-
-      for(size_t i = next_index(ncpus,nverts,cpuid,start_index); 
-          i != start_index; 
-          i = next_index(ncpus,nverts,cpuid,i) ) {
+      for(size_t i = get_and_inc_index(cpuid), fails = 0; fails <= max_fails;
+          i = get_and_inc_index(cpuid), ++fails) {
         ASSERT_LT(i, nverts);
         const vertex_id_type vid = index2vid[i];
         const bool success = vfun_set.test_and_get(vid, ret_fun);
@@ -174,9 +182,10 @@ namespace graphlab {
 
 
     static void print_options_help(std::ostream &out) {
-      out << "ordering = [string: shuffle/linear, default=shuffle]\n";
+      out << "ordering = [string: {shuffle, ascending}, vertex ordering, " 
+        "default=shuffle]\n"
+          << "strict_rr = [bool, use strict round robin schedule, default=shuffle]\n";
     };
-
   }; 
   
   

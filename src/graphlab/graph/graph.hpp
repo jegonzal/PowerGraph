@@ -68,7 +68,7 @@
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
-
+#include <graphlab/graph/graph_basic_types.hpp>
 
 
 #include <graphlab/util/random.hpp>
@@ -156,6 +156,9 @@ typedef vertex_id_type vertex_color_type;
     /// Type for vertex colors 
     typedef graphlab::vertex_color_type vertex_color_type;
     
+    // Compatible with the icontext interface.
+    class vertex_list {};
+    typedef vertex_list vertex_list_type;
     
     /** This class defines a set of edges */
     class edge_list {
@@ -251,7 +254,17 @@ typedef vertex_id_type vertex_color_type;
       finalized = true;
       ++changeid;
     }
-    
+
+    /* Free the memory reserved by data members */
+    void resetMem() {
+      clear();
+      std::vector<VertexData>().swap(vertices);
+      std::vector<edge>().swap(edges);
+      std::vector< std::vector<edge_id_type> >().swap(in_edges);
+      std::vector< std::vector<edge_id_type> >().swap(out_edges);
+      std::vector<vertex_color_type>().swap(vcolors);
+    }
+
     /**
      * Finalize a graph by sorting its edges to maximize the
      * efficiency of graphlab.  
@@ -565,6 +578,22 @@ typedef vertex_id_type vertex_color_type;
       //      ASSERT_LT(edge_id, edges.size());
       return edges[edge_id].target();    
     }
+
+
+    size_t get_graph_size() const {
+      size_t eid_size = sizeof(edge_id_type);
+      size_t vlist_size = sizeof(vertices) + vertices.capacity() *sizeof(VertexData);
+      size_t vcolor_size = sizeof(vcolors) + vcolors.capacity() * sizeof(vertex_color_type);
+      size_t elist_size = sizeof(edges) + edges.capacity() * sizeof(edge);
+      size_t inout_shell_size = sizeof(in_edges) + in_edges.capacity() * sizeof(std::vector<edge_id_type>) + sizeof(out_edges) + out_edges.capacity() * sizeof(std::vector<edge_id_type>);
+
+      size_t inout_content_size = 0;
+      foreach(std::vector<edge_id_type> eid_list, in_edges) {
+        inout_content_size += sizeof(eid_size) * eid_list.capacity();
+      }
+      inout_content_size  *= 2;
+      return vlist_size + vcolor_size + elist_size + inout_shell_size + inout_content_size;
+    }
     
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
@@ -676,6 +705,12 @@ typedef vertex_id_type vertex_color_type;
       }
       return ret;
     }
+
+    // Compatible with the icontext interfase. Should never be used.
+    vertex_list in_vertices_list(vertex_id_type v) const {
+      ASSERT_TRUE(false);
+      return vertex_list();
+    }
     
     /** \brief Get the set of out vertices of vertex v */
     std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
@@ -685,7 +720,12 @@ typedef vertex_id_type vertex_color_type;
       }
       return ret;
     }
-    
+
+    // Compatible with the icontext interfase. Should never be used.
+    vertex_list out_vertices_list(vertex_id_type v) const {
+      ASSERT_TRUE(false);
+      return vertex_list();
+    }
     
     /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {

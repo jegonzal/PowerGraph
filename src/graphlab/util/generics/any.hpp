@@ -47,81 +47,42 @@
 #include <boost/static_assert.hpp>
 #include <boost/utility.hpp>
 #include <boost/exception/detail/is_output_streamable.hpp>
+#include <boost/functional/hash.hpp>
+
 
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {
-  
-  namespace any_detail {
-    template <typename ValueType>
-    typename boost::disable_if_c<boost::is_output_streamable<ValueType>::value, void>::type 
-    print_type_or_content(std::ostream& out, const ValueType &h) { 
-      out << "Type " << typeid(ValueType).name() ; 
-    }
-
-    template <typename ValueType>
-    typename boost::enable_if_c<boost::is_output_streamable<ValueType>::value, void>::type 
-    print_type_or_content(std::ostream& out, const ValueType &h) { 
-      out << h; 
-    }
-  }
-
-  class __any_placeholder {
-  public: // structors
-
-    virtual ~__any_placeholder() { }
-
-  public: // queries
-
-    virtual const std::type_info & type() const = 0;
-
-    virtual __any_placeholder * clone() const = 0;
-
-    virtual uint64_t get_deserializer_id() const = 0;
-
-    static __any_placeholder* base_load(iarchive_soft_fail &arc);
-
-    virtual void deep_op_equal(__any_placeholder* c) = 0;
-
-    void base_save(oarchive_soft_fail &arc) const;
-
-    virtual void load(iarchive_soft_fail &arc) = 0;
-    virtual void save(oarchive_soft_fail &arc) const = 0;
-    virtual std::ostream& print(std::ostream& out) const = 0;
-
-  };
-
-  typedef __any_placeholder* (*__any_registration_deserializer_type)(iarchive_soft_fail &arc);
-  typedef std::map<uint64_t, __any_registration_deserializer_type>
-  __any_registration_map_type;
-
-  __any_registration_map_type& __get_registration_map();
-
   /**
-   A generic "variant" object obtained from Boost::Any and modified
-   to be serializable. A variable of type "any" can store any datatype 
-   (even dynamically changeable at runtime), but the caveat is that you must
-   know the exact stored type to be able to extract the data safely.
+   A generic "variant" object obtained from Boost::Any and modified to
+   be serializable. A variable of type "any" can store any datatype
+   (even dynamically changeable at runtime), but the caveat is that
+   you must know the exact stored type to be able to extract the data
+   safely.
    
-   To serialize/deserialize the any, regular serialization procedures apply.
-   However, since a statically initialized type registration system is used to 
-   identify the type of the deserialized object, so the user must pay attention
-   to a couple of minor issues.
+   To serialize/deserialize the any, regular serialization procedures
+   apply.  However, since a statically initialized type registration
+   system is used to identify the type of the deserialized object, so
+   the user must pay attention to a couple of minor issues.
    
    On serialization: 
    
-   \li \b a) If an any contains a serializable type, the any can be serialized.
-   \li \b b) If an any contains an unserializable type, the serialization will fail at runtime.
+   \li \b a) If an any contains a serializable type, the any can be
+             serialized.
+   \li \b b) If an any contains an unserializable type, the
+             serialization will fail at runtime.
    
    On deserialization:
    
-   \li \b c) An empty any can be constructed with no type information and it can be
-             deserialized from an archive. 
-   \li \b d) However, the deserialization will fail at runtime if the true type of the any
-             is never accessed / instantiated anywhere in the code.
+   \li \b c) An empty any can be constructed with no type information
+             and it can be deserialized from an archive.
+   \li \b d) However, the deserialization will fail at runtime if the
+             true type of the any is never accessed / instantiated
+             anywhere in the code.
              
-   Condition \b d) is particular unusual so I will illustrate with an example.
+   Condition \b d) is particular unusual so I will illustrate with an
+   example.
    
    Given a simple user struct:
    \code
@@ -176,224 +137,246 @@ namespace graphlab {
    which allow the any deserialization to identify the UserStruct type.
   */
   class any {
+  private:
+    /**
+     * iholder is the base abstract type used to store the contents
+     */
+    class iholder {
+    public: // structors
+      virtual ~iholder() { }
+      virtual const std::type_info& type() const = 0;
+      virtual iholder * clone() const = 0;
+      virtual uint64_t deserializer_id() const = 0;
+      virtual void deep_op_equal(const iholder* c) = 0;
+      static iholder* load(iarchive_soft_fail &arc);
+      virtual void save(oarchive_soft_fail& arc) const = 0;
+      virtual std::ostream& print(std::ostream& out) const = 0;
+    };
+    iholder* contents;
+
   public: // structors
     /// default constructor. Creates an empty any
-    any() : content(NULL) { }
+    any() : contents(NULL) { }
 
     /// Creates an any which stores the value
     template<typename ValueType>
-    any(const ValueType & value)
-      : content(new holder<ValueType>(value)) {
-      // force instantiation of the registration template (without running the constructor)
-      any::holder<ValueType>::__registration.get_deserializer_id();
-    }
+    explicit any(const ValueType& value)
+      : contents(new holder<ValueType>(value)) { }
 
-    any(const any & other)
-      : content(other.empty() ? NULL : other.content->clone()) { }
+    /// Construct an any from another any
+    any(const any & other) : 
+      contents(other.empty() ? NULL : other.contents->clone()) { }
 
-    ~any() {
-      delete content;
-    }
-
-  public: // queries
+    /// Destroy the contentss of this any
+    ~any() { delete contents; }
 
     /// Returns true if the object does not contain any stored data
-    bool empty() const {
-      return content == NULL;
-    }
+    bool empty() const { return contents == NULL; }
 
-    /// Returns the type information of the stored data.
-    const std::type_info & type() const {
-      return empty() ? typeid(void) : content->type();
-    }
-
-    /// loads the any from a file.
-    void load(iarchive &arc) {
-      iarchive_soft_fail isoftarc(arc);
-      if(content != NULL) delete content;
-      bool isempty;
-      isoftarc >> isempty;
-      if (isempty == false) {
-        content = __any_placeholder::base_load(isoftarc);
-      }
-    }
-    
-    /// Saves the any to a file. Caveats apply. See the main any docs.
-    void save(oarchive &arc) const {
-      oarchive_soft_fail osoftarc(arc);
-      bool isempty = empty();
-      osoftarc << isempty;
-      if (isempty == false) content->base_save(osoftarc);
-    }
-
-  private:
-    template <typename T>
-    class any_registration {
-    public:
-      any_registration() {
-        __get_registration_map()[get_deserializer_id()] =
-          any_registration<T>::deserialize;
-        //std::cout << "registered " << typeid(T).name() << " to " << get_deserializer_id() << std::endl;
-      }
-      
-      static bool inited; // whether localid has been created
-      static uint64_t localid;  // cached id of this type. Avoids rehashing everything I serialize
-      
-      static uint64_t get_deserializer_id() {
-        if (inited == false) compute_deserializer_id();
-        return localid;
-      }
-      
-      static void compute_deserializer_id() {
-        // FNV hash function
-        const char *p = typeid(T).name();
-        uint64_t h = 2166136261u;
-        while((*p) != 0) {
-          h = ( h * 16777619 ) ^ ((unsigned char)(*p));
-          ++p;
-        }
-        inited = true;
-        localid = h;
-      }
-      static __any_placeholder* deserialize(iarchive_soft_fail &arc) {
-        any::holder<T> *newholder = new any::holder<T>(arc);
-        return newholder;
-      }
-    };
-
-    template<typename ValueType>
-    class holder : public __any_placeholder {
-    public: // structors
-      typedef ValueType value_type;
-    
-      holder(const ValueType & value)
-        : held(value) { }
-
-      holder(iarchive_soft_fail &arc) { arc >> held; }
-
-      static any_registration<ValueType> __registration;
-
-    public: // queries
-
-      const std::type_info & type() const {
-        return typeid(ValueType);
-      }
-
-      __any_placeholder * clone() const {
-        return new holder(held);
-      }
-
-      void deep_op_equal(__any_placeholder* c) {
-        held = static_cast<holder<ValueType>*>(c)->held;
-      }
-
-      uint64_t get_deserializer_id() const{
-        return __registration.get_deserializer_id();
-      }
-
-      void load(iarchive_soft_fail &arc) {
-        arc >> held;
-      }
-
-      void save(oarchive_soft_fail &arc) const {
-        arc << held;
-      }
-      
-      std::ostream& print(std::ostream& out) const {
-        any_detail::print_type_or_content(out, held);
-        return out;
-      }
-
-
-    public: // representation
-
-      ValueType held;
-
-    private: // intentionally left unimplemented
-   
-      holder & operator=(const holder &);
-    };
-  
-
-  public:
-    /// Extracts a reference to the contents of the any as a type of ValueType
+    /// Extracts a reference to the contents of the any as a type of
+    /// ValueType
     template<typename ValueType>
     ValueType& as() {
-      // force instantiation of the registration template (without running the constructor)
-      any::holder<ValueType>::__registration.get_deserializer_id();
       DASSERT_TRUE(type() == typeid(ValueType));
       DASSERT_FALSE(empty());
-      return static_cast<any::holder<ValueType> *>(content)->held;
+      return static_cast<holder<ValueType> *>(contents)->contents;
     }
 
-    /// Extracts a constant reference to the contents of the any as a type of ValueType
+    /// Extracts a constant reference to the contents of the any as a
+    /// type of ValueType
     template<typename ValueType>
     inline const ValueType& as() const{
-      // force instantiation of the registration template (without running the constructor)
-      any::holder<ValueType>::__registration.get_deserializer_id();
       DASSERT_TRUE(type() == typeid(ValueType));
       DASSERT_FALSE(empty());
-      return static_cast<any::holder<ValueType> *>(content)->held;
+      return static_cast< holder<ValueType> *>(contents)->contents;
     }
 
     /// Exchanges the contents of two any's
     any& swap(any & rhs) {
-      std::swap(content, rhs.content);
+      std::swap(contents, rhs.contents);
       return *this;
     }
 
+    /**
+     * Update the contents of this any.  If a new type is used than
+     * the type of this any will change.
+     */
     template<typename ValueType>
     any& operator=(const ValueType & rhs) {
-      // force instantiation of the registration template (without running the constructor)
-      any::holder<ValueType>::__registration.get_deserializer_id();
-      if (content != NULL && content->type() == typeid(ValueType)) {
+      if (contents != NULL && contents->type() == typeid(ValueType)) {
         as<ValueType>() = rhs;
-      }
-      else {
-        any(rhs).swap(*this);
-      }
+      } else { any(rhs).swap(*this); }
       return *this;
     }    
 
+    /**
+     * Update the contents of this any to match the type of the other
+     * any.
+     */
     any& operator=(const any & rhs) {
       if (rhs.empty()) {
-        if (content) delete content;
-        content = NULL;
-      }
-      else {
-        if (content != NULL && content->type() == rhs.content->type()) {
-          content->deep_op_equal(rhs.content);
-        }
-        else {
-          any(rhs).swap(*this);
-        }
+        if (contents) delete contents;
+        contents = NULL;
+      } else {
+        if (contents != NULL && contents->type() == rhs.contents->type()) {
+          contents->deep_op_equal(rhs.contents);
+        } else { any(rhs).swap(*this); }
       }
       return *this;
     }
 
-    std::ostream& print(std::ostream& out) const {
-      DASSERT_FALSE(empty());
-      return content->print(out);        
+    std::ostream& print(std::ostream& out) const {     
+      return empty()? (out << "EMPTY") : contents->print(out);        
+    }
+
+    /// Returns the type information of the stored data.
+    const std::type_info& type() const {
+      return empty() ? typeid(void) : contents->type();
     }
     
-  private: // representation
+    /// Return the name of the internal type as a string.
+    const std::string type_name() const {
+      return empty() ? "NULL" : std::string(contents->type().name());
+    }
 
-    __any_placeholder* content;
+    /// loads the any from a file.
+    void load(iarchive& arc) {
+      iarchive_soft_fail isoftarc(arc);
+      if(contents != NULL) { delete contents; contents = NULL; }
+      bool isempty(true);
+      isoftarc >> isempty;
+      if (isempty == false) contents = iholder::load(isoftarc);      
+    }
+    
+    /// Saves the any to a file. Caveats apply. See the main any docs.
+    void save(oarchive& arc) const {
+      oarchive_soft_fail osoftarc(arc);
+      bool isempty = empty();
+      osoftarc << isempty;
+      if (isempty == false) contents->save(osoftarc);
+    }
 
-  };
+
+  public:
+    /**
+     * This section contain the global registry used to determine the
+     * deserialization code for a particular type.  Essentially the
+     * registry is a global map in which all subtypes of iholder
+     * register a deserialization function with their type. 
+     */
+
+    typedef iholder* (*deserialize_function_type)(iarchive_soft_fail& arc);
+    typedef std::map<uint64_t, deserialize_function_type> registry_map_type;
+    /**
+     * The get registry routine is a static method that gets a
+     * reference to the global registry.  It is very important that
+     * this be a static method and not a static member to ensure that
+     * the global registry is defined before each holders try to
+     * register.  This is accomplished by having get_registry
+     * statically declare the global registry
+     */
+    static registry_map_type& get_global_registry();
+    
+  public:
+
+    template <typename ValueType> static
+    typename boost::disable_if_c<boost::is_output_streamable<ValueType>::value, 
+                                 void>::type 
+    print_type_or_contents(std::ostream& out, const ValueType &h) { 
+      out << "Not_Printable[" << typeid(ValueType).name() << ']'; 
+    }
+
+    template <typename ValueType> static
+    typename boost::enable_if_c<boost::is_output_streamable<ValueType>::value, 
+                                void>::type 
+    print_type_or_contents(std::ostream& out, const ValueType &h) { out << h; }
 
 
-  template<typename T> any::any_registration<T> any::holder<T>::__registration;
-  template<typename T> bool any::any_registration<T>::inited = false; 
-  template<typename T> uint64_t any::any_registration<T>::localid; 
-  //template<typename T> size_t any::any_registration<T>::unused;
+  public:
 
+    /**
+     * holder is an instantiation of iholder
+     */
+    template<typename ValueType>
+    class holder : public iholder {
+    public: 
+      typedef ValueType value_type;   
+      /// The actual contents of the holder
+      ValueType contents;
+      /// Construct a holder from a value
+      holder(const ValueType& value) : contents(value) { }
+      /// Construct a holder from an archive
+      holder(iarchive_soft_fail& arc) { arc >> contents; }
+      /// Get the type info of the holder
+      const std::type_info& type() const { return typeid(ValueType); }
+      /// Clone a holder
+      iholder* clone() const { return new holder(contents); }
+      /// Deep assignment
+      void deep_op_equal(const iholder* other) {
+        contents = static_cast< const holder<ValueType>* >(other)->contents;
+      }
+      /**
+       * Get the deserializer id from the static registry associated
+       * with this type of holder
+       */
+      uint64_t deserializer_id() const { return registry.localid; }
+      void save(oarchive_soft_fail &arc) const { 
+        arc << registry.localid << contents; 
+      }    
+      /**
+       * Print the contents or the type if the contents does not
+       * support printing
+       */
+      std::ostream& print(std::ostream& out) const {
+        any::print_type_or_contents(out, contents);
+        return out;
+      }
+      /** The actual deserialization function for this holder type */
+      static iholder* deserialize(iarchive_soft_fail &arc) {
+        return new holder(arc);
+      }
+      /**
+       * The following struct defines the static member used to
+       * automatically register the deserialization function for this
+       * holder type and cache a shared id used to quickly identify
+       * the deserialization function.
+       *
+       * Note that the registry actually uses the NAME of the type so
+       * renaming a type will result in an incompatible
+       * deserialization.
+       */
+      struct registry_type {
+        uint64_t localid; 
+        registry_type() { 
+          boost::hash<std::string> hash_function;
+          // compute localid
+          localid = hash_function(typeid(ValueType).name());
+          any::get_global_registry()[localid] = holder::deserialize;
+        }        
+      }; // end of registry type
+      /**
+       * The registry is a static member that will get constructed
+       * before main and used to register the any type
+       */
+      static registry_type registry;        
+    private: 
+      holder& operator=(const holder& other) { }
+    }; // end of class holder
 
+  }; // end of class any
+  
 
+  /**
+   * This static membery computes the holder (type specific)
+   * deserialization id and also registers it with the global
+   * registry.
+   */
+  template<typename ValueType>
+  typename any::holder<ValueType>::registry_type any::holder<ValueType>::registry;
 
 } // namespace graphlab
 
-// std::ostream& operator<<(std::ostream& out, const graphlab::any& any);
+std::ostream& operator<<(std::ostream& out, const graphlab::any& any);
 
 
 // Copyright Kevlin Henney, 2000, 2001, 2002. All rights reserved.

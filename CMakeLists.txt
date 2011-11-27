@@ -1,12 +1,9 @@
 ## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
-if(APPLE)
-  if (HAS_EIGEN)
-  else(HAS_EIGEN)
-    set(CMAKE_C_COMPILER "gcc-4.2")	
-    set(CMAKE_CXX_COMPILER "c++-4.2")
-  endif(HAS_EIGEN)
-endif(APPLE)
+if(DEFINED SET_C_COMPILER)
+  set(CMAKE_C_COMPILER ${SET_C_COMPILER})	
+  set(CMAKE_CXX_COMPILER ${SET_C_COMPILER})
+endif()
 
 
 
@@ -30,6 +27,35 @@ endif(COMMAND cmake_policy)
 # defined
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
+if(HAS_EIGEN)
+add_definitions(-DHAS_EIGEN)
+endif()
+
+
+
+# ## Download News update
+# if(NOT DISABLE_NEWS)
+#   message(STATUS
+#     "\n"
+#     "===============================================================\n"
+#     "Downloading the news from graphlab.org: ")
+#   file(DOWNLOAD "http://graphlab.org/news.txt" 
+#     ${GraphLab_SOURCE_DIR}/new_news.txt
+#     TIMEOUT 3  
+#     STATUS download_status)
+#   # Track usage v2 news url
+#   file(DOWNLOAD "http://c.statcounter.com/7396904/0/a1b29b21/1/"
+#     ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp
+#     TIMEOUT 3
+#     STATUS dlstatus) 
+#   file(REMOVE ${GraphLab_SOURCE_DIR}/temporary_download_counter.tmp)
+#   file(READ ${GraphLab_SOURCE_DIR}/new_news.txt news_update)
+#   message(STATUS
+#     "Finished.\n"
+#     ${news_update}
+#     "\n"
+#     "===============================================================")
+# endif()
 
 
 
@@ -113,8 +139,10 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 if (HAS_EIGEN)
   message(STATUS "Found Eigen linear algebra package")
+  include_directories(${GraphLab_SOURCE_DIR}/deps/eigen-eigen-3.0.2)
 else ()
-  message(STATUS "Eigen linear algebra package not found")
+  message(STATUS "Eigen linear algebra package not found.")
+  message(STATUS "Eigen is only required for the matrix factorization apps.")
 endif()
 
 
@@ -607,9 +635,8 @@ subdirs(src tests)
 # if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
 #   subdirs(apps)
 # endif()
-if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
-  subdirs(demoapps)
-endif()
+subdirs(demoapps toolkits)
+
 
 
 ## ===================================================================

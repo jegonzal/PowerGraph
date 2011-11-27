@@ -31,6 +31,8 @@
 #include <boost/integer.hpp>
 #include <boost/random.hpp>
 
+#include <graphlab.hpp>
+
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
@@ -144,7 +146,7 @@ namespace graphlab {
         else {
           // pick from a bernoulli trial
           float_t childsum = left_p + right_p;   
-          float_t rndnumber = random::uniform<float_t>(0,1);
+          float_t rndnumber = graphlab::random::uniform<float_t>(0,1);
           if((childsum * rndnumber)  < left_p)
             loc = left_child(loc);
           else

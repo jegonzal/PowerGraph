@@ -56,6 +56,29 @@ namespace graphlab {
       }
       return t;
     }
+    /**
+     * Read an arbitrary type.
+     */
+    template<typename T> void read(T& ret) {
+      base_type::read(reinterpret_cast<char*>(&ret), sizeof(T));
+      if(bad()) {
+        std::cout << "Error reading file!" << std::endl;
+        assert(false);
+      }
+    }
+
+    /**
+     * Read an arbitrary type.
+     */
+    template<typename T> void read_vector(std::vector<T>& ret) {
+      if(ret.empty()) return;
+      base_type::read(reinterpret_cast<char*>(&(ret[0])), 
+                      sizeof(T) * ret.size());
+      if(bad()) {
+        std::cout << "Error reading file!" << std::endl;
+        assert(false);
+      }
+    }
   };
 
 

@@ -35,6 +35,7 @@
 #include <graphlab/serialization/list.hpp>
 #include <graphlab/serialization/set.hpp>
 #include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/generics/any_vector.hpp>
 
 using namespace graphlab;
 
@@ -49,6 +50,8 @@ struct TestClass1{
     a >> z;
   }
 };
+
+
 
 class TestClass2{
 public:
@@ -78,7 +81,40 @@ void is10(const graphlab::any a) {
   ASSERT_EQ(a.as<int>(), 10);
 }
 
+
+void test_any_vector() {  
+  any_vector vec(10, size_t(3));
+  ASSERT_EQ(vec.size(), 10);
+  for(size_t i = 0; i < vec.size(); ++i) {
+    graphlab::any value = vec.get(i);
+    ASSERT_EQ(value.as<size_t>(), 3);
+    ASSERT_EQ(vec.as<size_t>(i), 3);
+    ASSERT_EQ(vec.as<size_t>()[i], 3);
+    vec.as<size_t>(i) = i;
+  }
+  std::stringstream ostrm;
+  oarchive oarc(ostrm);
+  oarc << vec;
+  std::stringstream istrm(ostrm.str());
+  iarchive iarc(istrm);
+  any_vector vec2;
+  iarc >> vec2;
+  for(size_t i = 0; i < vec.size(); ++i) {
+    graphlab::any value = vec2.get(i);
+    ASSERT_EQ(value.as<size_t>(), i);
+    ASSERT_EQ(vec2.as<size_t>(i), i);
+    ASSERT_EQ(vec2.as<size_t>()[i], i);
+    ++value.as<size_t>();
+    vec2.set(i, value);
+  }
+
+  any_vector vec3 = vec2;
+  std::cout << vec3 << std::endl;
+  
+}
+
 int main(int argc, char** argv) {
+  std::cout << "Beginning anytests" << std::endl;
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
   std::ofstream f;
@@ -118,5 +154,10 @@ int main(int argc, char** argv) {
   f.close();
   
   TestClass3 t3;
-  any tmp = t3;
+  any tmp(t3);
+
+  test_any_vector();
+
+
+  std::cout << "Finished anytests" << std::endl;
 }

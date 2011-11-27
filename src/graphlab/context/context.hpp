@@ -67,6 +67,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_data_type    vertex_data_type;
     typedef typename graph_type::edge_data_type      edge_data_type;
     typedef typename graph_type::edge_list_type      edge_list_type;
+    typedef typename graph_type::vertex_list_type    vertex_list_type;
     
   private:    
     /** a pointer to the engine */
@@ -88,15 +89,17 @@ namespace graphlab {
   public:
 
     // Cache related members --------------------------------------------------
+    // vertex data cache
     struct cache_entry {
       vertex_data_type old;
       vertex_data_type current;
       uint16_t reads, writes;
       cache_entry() : reads(0), writes(0) { }
     };
-    typedef std::map<vertex_id_type, cache_entry> cache_map_type;
-  
+    typedef std::map<vertex_id_type, cache_entry> cache_map_type;  
     cache_map_type cache;
+
+
 
   public:
     
@@ -122,6 +125,7 @@ namespace graphlab {
 
     size_t num_vertices() const { return graph_ptr->num_vertices(); }
     size_t num_edges() const { return graph_ptr->num_edges(); }
+    size_t num_updates() const { return engine_ptr->last_update_count(); } 
     void terminate() { engine_ptr->stop(); }
 
    
@@ -160,17 +164,7 @@ namespace graphlab {
       return vertex_data(vid);
     }
 
-    vertex_data_type& neighbor_vertex_data(vertex_id_type vid) {
-      return vertex_data(vid);
-    }
-
-    const vertex_data_type& 
-    neighbor_vertex_data(vertex_id_type vid) const {
-      return vertex_data(vid);
-    }
-
-    const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vid) const {
+    const vertex_data_type& const_vertex_data(vertex_id_type vid) const {
       return vertex_data(vid);
     }
 
@@ -185,6 +179,17 @@ namespace graphlab {
     const edge_data_type& const_edge_data(edge_id_type eid) const {
       return graph_ptr->edge_data(eid);  
     }
+
+    edge_data_type& edge_data(vertex_id_type source,
+        vertex_id_type target) {
+      return graph_ptr->edge_data(source, target);
+    }
+
+    const edge_data_type& edge_data(vertex_id_type source,
+        vertex_id_type target) const {
+      return graph_ptr->edge_data(source, target);
+    }
+
 
     void commit() { }
 
@@ -220,6 +225,22 @@ namespace graphlab {
 
     edge_list_type out_edge_ids(vertex_id_type v) const {
       return graph_ptr->out_edge_ids(v);
+    }
+
+    std::vector<vertex_id_type> in_vertices() const {
+      return graph_ptr->in_vertices(vid);
+    }
+
+    vertex_list_type in_vertices_list() const {
+      return graph_ptr->in_vertices_list(vid);
+    }
+
+    std::vector<vertex_id_type> out_vertices() const {
+      return graph_ptr->out_vertices(vid);
+    }
+
+    vertex_list_type out_vertices_list() const {
+      return graph_ptr->out_vertices_list(vid);
     }
 
     //! Get the source vertex of the edge id argument
@@ -258,10 +279,32 @@ namespace graphlab {
         schedule(graph_ptr->target(eid), update_fun);
     }
 
+    void schedule_neighbors(const vertex_id_type& vertex, 
+                            const update_functor_type& update_fun) {
+      schedule_in_neighbors(vertex, update_fun);
+      schedule_out_neighbors(vertex, update_fun);
+    }
+
+
+
   protected:
-    std::pair<std::vector<spinlock>*, any*> get_global_pair(const std::string& key) {
-      return engine_ptr->get_global_pair(key);
+
+    void acquire_lock(const std::string& key, size_t index = 0) { 
+      engine_ptr->acquire_global_lock(key, index); 
+    }
+
+    void release_lock(const std::string& key, size_t index = 0) { 
+      engine_ptr->release_global_lock(key, index); 
+    }
+
+    void commit_change(const std::string& key, size_t index = 0) { }
+
+    void get_global(const std::string& key,                                       
+                    graphlab::any_vector*& ret_vec_ptr,
+                    bool& ret_is_const) {
+      engine_ptr->get_global(key, ret_vec_ptr, ret_is_const);
     } // end of get_any_pair    
+
 
   }; // end of context
 

@@ -109,7 +109,7 @@ namespace graphlab {
       //ASSERT_TRUE(graph.valid_coloring());
       
       // parse the options
-      opts.get_int_option("max_iterations", max_iterations);
+      opts.get_option("max_iterations", max_iterations);
       // Initialize the chromatic blocks
       vertex_color_type ncolors(0);
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) 

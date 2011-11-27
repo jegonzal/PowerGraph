@@ -25,23 +25,12 @@
 #define GRAPHLAB_CORE_HPP
 
 
-#include <graphlab/types.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/options/command_line_options.hpp>
-
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/shared_memory_engine.hpp>
-// #include <graphlab/core_base.hpp>
 
-
-
-// #include <graphlab/metrics/metrics.hpp>
-// #include <graphlab/metrics/reporters/null_reporter.hpp>
-// #include <graphlab/metrics/reporters/basic_reporter.hpp>
-// #include <graphlab/metrics/reporters/file_reporter.hpp>
-// #include <graphlab/metrics/reporters/html_reporter.hpp>
 
 
 
@@ -340,6 +329,12 @@ namespace graphlab {
       engine().add_global(key, value, size); 
     }
 
+    //! Add a global entry 
+    template< typename T >
+    void add_global_const(const std::string& key, const T& value, size_t size = 1) {
+      engine().add_global_const(key, value, size); 
+    }
+
     //! Change the value of a global entry
     template< typename T >
     void set_global(const std::string& key, const T& value, size_t index = 0) {
@@ -348,8 +343,8 @@ namespace graphlab {
 
     //! Get a copy of the value of a global entry
     template< typename T >
-    void get_global(const std::string& key, T& ret_value, size_t index = 0) {
-      engine().get_global(key, ret_value, index);
+    T get_global(const std::string& key, size_t index = 0) {
+      return engine().get_global<T>(key, index);
     }
 
 

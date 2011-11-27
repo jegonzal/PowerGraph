@@ -24,16 +24,21 @@ class Terminator {
 
 
 The engine/scheduler will guarantee that:
--- new_job/new_job(hint) is called whenever a task is inserted into the scheduler.
-   new_job(hint) is called if the target processor for the job is known.
+
+-- new_job/new_job(hint) is called whenever a task is inserted into
+   the scheduler.  new_job(hint) is called if the target processor for
+   the job is known.
 -- completed_job() is called whenever a task is completed.
 
 
 When a processor finds that it is out of work, it should will call:
   - begin_critical_section(cpuid),
   - The processor will then check the state of the queue.
+
      - If the queue has jobs, it will call cancel_critical_section().
-     - If the queue has no jobs, it will call end_critical_section(cpuid)
+
+     - If the queue has no jobs, it will call
+       end_critical_section(cpuid)
      
      - end_critical_section() should return true only if
         1: There are no tasks currently being executed.

@@ -128,6 +128,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_color_type vertex_color_type;
     //! The edge data type associated with the graph
     typedef typename graph_type::edge_list_type    edge_list_type;
+    typedef typename graph_type::vertex_list_type    vertex_list_type;
     //! The vertex data type associated with the graph
     typedef typename graph_type::vertex_data_type  vertex_data_type;
     //! The edge data type associated with the graph
@@ -213,6 +214,14 @@ namespace graphlab {
      */
     virtual edge_list_type out_edge_ids(vertex_id_type v) const = 0;
 
+    virtual std::vector<vertex_id_type> in_vertices() const = 0;
+
+    virtual vertex_list_type in_vertices_list() const = 0;
+    
+    virtual std::vector<vertex_id_type> out_vertices() const = 0;
+
+    virtual vertex_list_type out_vertices_list() const = 0;
+
     //! Get the source vertex of the edge id argument
     virtual vertex_id_type source(edge_id_type edge_id) const = 0;
 
@@ -276,6 +285,10 @@ namespace graphlab {
      * This should be called if the data does not need to be modified.
      */    
     virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0; 
+
+    virtual edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) = 0;
+
+    virtual const edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) const = 0;
     
     /**
      * \brief get a mutable reference to the data associated with a
@@ -288,17 +301,17 @@ namespace graphlab {
      * const version of this function should be called to permit
      * further optimization by the graphlab engine.
      */
-    virtual vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) = 0; 
+    virtual vertex_data_type& vertex_data(vertex_id_type vertex) = 0; 
 
     /**
      * \brief get an immutable reference to the data associated with a
      * neighboring vertex.
-     * \deprecated Use const_neighbor_vertex_data
+     * \deprecated Use const_vertex_data
      * This function should only be invoked on neighboring
      * vertices. Unfortunately, due to the Log(d) lookup required to
      * enforce the adjacency constraint we do not check at this time.
      */
-    virtual const vertex_data_type& neighbor_vertex_data(vertex_id_type vertex) const = 0;
+    virtual const vertex_data_type& vertex_data(vertex_id_type vertex) const = 0;
         
     /**
      * \brief get an immutable reference to the data associated with a
@@ -309,7 +322,7 @@ namespace graphlab {
      * enforce the adjacency constraint we do not check at this time.
      */
     virtual const vertex_data_type& 
-    const_neighbor_vertex_data(vertex_id_type vertex) const = 0;
+    const_vertex_data(vertex_id_type vertex) const = 0;
 
 
     /**
@@ -332,18 +345,14 @@ namespace graphlab {
     virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
                                         const update_functor_type& update_fun) = 0;
                                                   
- 
-    // /**
-    //    Experimental context upgrade scheme. Returns true if context upgrade is 
-    //    successful. If this ever returns false, you are hosed. Should work
-    //    with general_context. Note that after context_upgrade is called, any graph
-    //    data within the context may change due to a race between releasing and 
-    //    reacquiring the upgraded context.
-    // */
-    // virtual bool 
-    // experimental_context_upgrade(consistency_model::model_enum newrange) { 
-    //   return false;
-    // }
+
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    virtual void schedule_neighbors(const vertex_id_type& vertex, 
+                                    const update_functor_type& update_fun) = 0;
+                                                  
+
     
 
   }; // end of icontexty

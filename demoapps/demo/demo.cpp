@@ -101,7 +101,7 @@ struct edge_data {
 /**
    The GraphLab graph is templatized over the vertex data as well as the
    edge data.  Here we define the type of the graph for convenience.  */
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 
 
@@ -146,11 +146,7 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 */
 struct update_functor : 
   public graphlab::iupdate_functor<graph_type, update_functor> {
-  // the base iupdate_functor type used to access types needed in this
-  // function.
-  typedef graphlab::iupdate_functor<graph_type, update_functor> base;
-  
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     //context.vertex_data allows me to grab a reference to the vertex
     // data on the graph
     vertex_data& curvdata = context.vertex_data();
@@ -174,7 +170,7 @@ struct update_functor :
       // references whenever you know that you will definitely not be
       // changing the data, since GraphLab could make use of this
       // knowledge to perform other optimizations
-      const vertex_data& nbrvertex = context.neighbor_vertex_data(sourcev);
+      const vertex_data& nbrvertex = context.const_vertex_data(sourcev);
       // if red, add to our counter
       if (nbrvertex.color == RED) ++num_red_neighbors;
     }
@@ -303,9 +299,8 @@ class accumulator :
 private:
   size_t red_count, flips_count;
 public:
-  typedef graphlab::iaccumulator<graph_type, update_functor, accumulator> base;
   accumulator() : red_count(0), flips_count(0) { }
-  void operator()(base::icontext_type& context) {
+  void operator()(icontext_type& context) {
     red_count += (context.vertex_data().color == RED)? 1 : 0;
     flips_count += context.vertex_data().num_flips;
   }
@@ -313,7 +308,7 @@ public:
     red_count += other.red_count; 
     flips_count += other.flips_count; 
   }
-  void finalize(base::iglobal_context_type& context) {
+  void finalize(iglobal_context_type& context) {
     const size_t numvertices = context.num_vertices();
     const double proportion = double(red_count) / numvertices;
     // here we can output something as a progress monitor
@@ -389,10 +384,8 @@ int main(int argc,  char *argv[]) {
   glcore.sync_now("sync");
 
   // now we can look the values using the get() function
-  size_t numberofflips = 0;
-  glcore.get_global("NUM_FLIPS", numberofflips);
-  double redprop = 0;
-  glcore.get_global("RED_PROPORTION", redprop);
+  size_t numberofflips = glcore.get_global<size_t>("NUM_FLIPS");
+  double redprop = glcore.get_global<size_t>("RED_PROPORTION");
 
   // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;

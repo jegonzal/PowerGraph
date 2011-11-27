@@ -26,29 +26,40 @@
 namespace graphlab {
 
 
-    __any_registration_map_type& __get_registration_map() {
-    static __any_registration_map_type __any_registration_map;
-    return __any_registration_map;
+  /**
+   * Define the static registry for any
+   */
+  any::registry_map_type& any::get_global_registry() {
+    static any::registry_map_type global_registry;
+    return global_registry;
   }
 
-  __any_placeholder* __any_placeholder::base_load(iarchive_soft_fail &arc) {
+
+
+  any::iholder* any::iholder::load(iarchive_soft_fail &arc) {
+    registry_map_type& global_registry = get_global_registry();
     uint64_t idload;
     arc >> idload;
-    __any_registration_map_type::iterator i = __get_registration_map().find(idload);
-    assert(i != __get_registration_map().end());
-    return __get_registration_map()[idload](arc);
-  }
-
-  void __any_placeholder::base_save(oarchive_soft_fail &arc) const {
-    arc << get_deserializer_id();
-    save(arc);
+    registry_map_type::const_iterator iter = global_registry.find(idload);
+    if(iter == global_registry.end()) {
+      logstream(LOG_FATAL) 
+        << "Cannot load object with hashed type [" << idload 
+        << "] from stream!" << std::endl
+        << "\t A possible cause of this problem is that the type" 
+        << std::endl
+        << "\t is never explicity used in this program.\n\n" << std::endl;
+      return NULL;
+    }
+    // Otherwise the iterator points to the deserialization routine
+    // for this type
+    return iter->second(arc);
   }
   
 
 } // end of namespace graphlab
 
 
-// std::ostream& operator<<(std::ostream& out, const graphlab::any& any) {
-//   return any.print(out);
-// } // end of operator << for any
+std::ostream& operator<<(std::ostream& out, const graphlab::any& any) {
+  return any.print(out);
+} // end of operator << for any
 

@@ -7,39 +7,20 @@ subdirs(
   engine
   distributed2
   graph
-  gpu
   monitoring
   options
   parallel
   scheduler
-  context
   shared_data
-  sync
+  context
   update_functor
   util
   serialization
   logger
   metrics)
 
-if(YRL_EXPERIMENTAL)
-  subdirs(yrl)
-endif()
-
 # Defines METIS_SOURCES
 include(extern/metisextern.cmake)
-
-#build graphlab_zoltan if available
-## The current distributed build no longer uses zoltan
-# IF(ZOLTAN_FOUND)
-#   add_library(graphlab_zoltan
-#               distributed2/graph/partitioning/adjacency_list.cpp
-#               distributed2/graph/partitioning/partitioning_tools.cpp)
-# #   TARGET_LINK_LIBRARIES(graphlab_zoltan 
-# #     ${MPI_LIBRARY} 
-# #     ${MPI_EXTRA_LIBRARY}
-# #     ${ZOLTAN_LIBS})
-# ENDIF()
-
 
 
 #build the graphlab library
@@ -66,9 +47,11 @@ add_library(graphlab STATIC
   options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
+  util/generics/any_vector.cpp
   graph/disk_atom.cpp
   graph/write_only_disk_atom.cpp
   graph/atom_index_file.cpp
+  graph/memory_atom.cpp
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
@@ -104,7 +87,6 @@ add_library(graphlab STATIC
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
   rpc/delta_dht.cpp
-  distributed2/distributed_scheduler_list.cpp
   ${rpc_compressed}
   )
 
@@ -119,7 +101,6 @@ if(Sctp-FOUND)
   set_property(TARGET graphlab APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
   target_link_libraries(graphlab sctp)
 endif()
-
 
 
 
