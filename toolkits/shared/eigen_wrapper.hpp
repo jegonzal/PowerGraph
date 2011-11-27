@@ -18,9 +18,11 @@
  *
  *      http://graphlab.org
  *
- * Code by Danny Bickson, CMU
  */
 
+/**
+ * Code by Danny Bickson, CMU
+ */
 #ifndef EIGEN_WRAPPER
 #define EIGEN_WRAPPER
 
@@ -127,7 +129,6 @@ inline vec init_dbl_vec(const char * string, int size){
   return init_vec(string, size);
 }
 
-i
 inline vec zeros(int size){
   return vec::Zero(size);
 }
@@ -245,17 +246,6 @@ inline sparse_vec elem_mult(const sparse_vec&a, const sparse_vec&b){
 }
 inline double sum(const vec & a){
   return a.sum();
-}
-template<typename T>
-double sum_sqr(const T& a);
-
-template<>
-inline double sum_sqr<vec>(const vec & a){
-  vec ret = a.array().pow(2);
-  return ret.sum();
-}
-inline double trace(const mat & a){
-  return a.trace();
 }
 inline double min(const vec &a){
   return a.minCoeff();
@@ -413,6 +403,8 @@ public:
       v(i) = val;
    }
    return fb;
+  }
+
   std::fstream &operator>>(double &v){
     fb.read((char*)&v, sizeof(double));
      assert(!fb.fail());
@@ -443,6 +435,14 @@ inline double get_nz_data(sparse_vec &v, sparse_vec::InnerIterator& i){
 #define FOR_ITERATOR(i,v) \
   for (sparse_vec::InnerIterator i(v); i; ++i)
 
+template<typename T>
+inline double sum_sqr(const T& a);
+
+template<>
+inline double sum_sqr<vec>(const vec & a){
+  vec ret = a.array().pow(2);
+  return ret.sum();
+}
 template<>
 inline double sum_sqr<sparse_vec>(const sparse_vec & a){
   double sum=0;
@@ -452,8 +452,9 @@ inline double sum_sqr<sparse_vec>(const sparse_vec & a){
   return sum;
 }
 
-
-
+inline double trace(const mat & a){
+  return a.trace();
+}
 inline double get_nz_data(sparse_vec &v, int i){
   assert(nnz(v) > i);
   int cnt=0;

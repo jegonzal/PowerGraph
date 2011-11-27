@@ -22,11 +22,20 @@
 
 
 /**
+ * GRAPHLAB implementation of Gaussiabn Belief Propagation Code See
+ * algrithm description and explanation in: Danny Bickson, Gaussian
+ * Belief Propagation: Theory and Application. Ph.D. Thesis. The
+ * Hebrew University of Jerusalem. Submitted October 2008.
+ * http://arxiv.org/abs/0811.2518 By Danny Bickson, CMU. Send any bug
+ * fixes/reports to bickson@cs.cmu.edu Code adapted to GraphLab by
+ * Joey Gonzalez, CMU July 2010
+ *
  * Functionality: The code solves the linear system Ax = b using
- * The Jacobi algorithm. (A is a square matrix). 
- * A assumed to be full column rank.  Algorithm is described
- * http://en.wikipedia.org/wiki/Jacobi_method
- * Written by Danny Bickson 
+ * Gaussian Belief Propagation. (A is either square matrix or
+ * skinny). A assumed to be full column rank.  Algorithm is described
+ * in Algorithm 1, page 14 of the above Phd Thesis.
+ *
+ * If you are using this code, you should cite the above reference. Thanks!
  */
 
 #ifndef JACOBI_HPP
@@ -44,80 +53,152 @@ using namespace graphlab;
 #include <graphlab/macros_def.hpp>
 
 bool debug = false;
+bool support_null_variance = false;
 double regularization = 0;
 
-enum jacobi_fields{
-  JACOBI_REAL_X = 1,
-  JACOBI_Y = 2
+enum gabp_fields{
+  GABP_REAL_X = 1,
+  GABP_Y = 2
 };
 
-enum jacobi_output_fields{
-  JACOBI_X = 1
+enum gabp_output_felds{
+  GABP_CUR_MEAN = 1, 
+  GABP_CUR_PREC = 2
 };
 
+/** Vertex data types for Gaussian B{**/
 struct vertex_data {
-  real_type y, Aii;
-  real_type pred_x, real_x, prev_x;
-  vertex_data() : y(0), Aii(1), pred_x(0), real_x(0), 
-                  prev_x(-1) {
-    if(debug) std::cout << "hello" << std::endl;
-  }
-  void add_self_edge(double value) { Aii = value + regularization; }
+  real_type prior_mean;  //prior mean (b_i / A_ii)
+  real_type prior_prec;   //prior precision P_ii = A_ii
+  real_type real;   //the real solution (if known) x = inv(A)*b for square matrix or x = pinv(A) for skinny matrix
+  real_type cur_mean; //intermediate value to store the mean \mu_i
+  real_type cur_prec; // //current precision value P_i
+  real_type prev_mean; //  mean value from previous round (for convergence detection)
+  real_type prev_prec; //precision value from previous round (for convergence detection)
+
+  vertex_data(){ 
+     prev_mean = 1000;
+     prior_mean = prior_prec = real = cur_mean = cur_prec = prev_prec = 0;
+   };
+  
+  void add_self_edge(double value) { prior_prec = value + regularization; }
 
   void set_val(double value, int field_type) { 
-     if (field_type == JACOBI_REAL_X) 
-       y = value; 
-     else if (field_type == JACOBI_Y)
-       real_x = value;
+     if (field_type == GABP_Y){
+        if (!support_null_variance)
+	  assert(prior_prec > 0);
+        prior_mean = value; 
+     }
+     else if (field_type == GABP_REAL_X)
+       real = value;
+     else assert(false);
   }
-  //only one output for jacobi - solution x
-  double get_output(int field_type){ return pred_x; }
-}; // end of vertex_data
+  double get_output(int field_type){ 
+     if (field_type == GABP_CUR_PREC)
+       return cur_prec;
+     else if (field_type == GABP_CUR_MEAN)
+       return cur_mean;
+     else assert(false);    
+  }
+
+};
+
 
 struct edge_data {
-  real_type weight;
-  edge_data(double weight = 0) : weight(weight) { }
+  real_type weight; //edge value (nnz entry in matrix A)
+  real_type mean; //message \mu_ij
+  real_type prec; //message P_ij
+  edge_data(real_type weight) : weight(weight), mean(0), prec(0) { }
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 /***
- * JACOBI UPDATE FUNCTION
- * x_i = (b_i - \sum_j A_ij * x_j)/A_ii
+ * GABP UPDATE FUNCTION
  */
-struct jacobi_update :
-  public graphlab::iupdate_functor<graph_type, jacobi_update> {
+struct gabp_update :
+  public graphlab::iupdate_functor<graph_type, gabp_update> {
   void operator()(icontext_type& context) {
     /* GET current vertex data */
     vertex_data& vdata = context.vertex_data();
     edge_list_type outedgeid = context.out_edge_ids();
-
+    edge_list_type inedgeid = context.in_edge_ids();
+    
     //store last round values
-    vdata.prev_x = vdata.pred_x;
+    vdata.prev_mean = vdata.cur_mean;
+    vdata.prev_prec = vdata.cur_prec;
 
-    //initialize accumlated values in x_i
-    real_type& x_i = vdata.pred_x;
-    x_i = vdata.y;
-    const real_type& A_ii = vdata.Aii;
-    assert(A_ii != 0);
+    //initialize accumlated values
+    double mu_i = vdata.prior_mean;
+    real_type J_i = vdata.prior_prec + regularization;
+    if (!support_null_variance) assert(J_i != 0);
 
-    if (debug) 
-      std::cout << "entering node " << context.vertex_id() 
-                << " A_ii=" << vdata.Aii 
-                << " prev_x=" << vdata.prev_x 
-                << " y: " << vdata.y << std::endl;
-  
-    for(size_t i = 0; i < outedgeid.size(); ++i) {
+    /* CALCULATE new value */
+    if (debug) {
+     std::cout << "entering node " << context.vertex_id()
+               << " P=" << vdata.prior_prec
+               << " u=" << vdata.prior_mean
+               << std::endl;
+   }
+
+  //accumlate all messages (the inner summation in section 4 of Algorithm 1)
+  for(size_t i = 0; i < inedgeid.size(); i++) {
+    const edge_data& edata = context.edge_data(inedgeid[i]);
+    mu_i += edata.mean;
+    J_i +=  edata.prec;
+  }
+
+  if (debug) {
+    std::cout << context.vertex_id() << ") summing up all messages "
+              << mu_i << " " << J_i << std::endl;
+  }
+
+  // optional support for null variances
+  if (support_null_variance && J_i == 0){
+    vdata.cur_mean = mu_i;
+    vdata.cur_prec = 0;
+  } else {
+    assert(J_i != 0);
+    vdata.cur_mean = mu_i / J_i;
+    assert(vdata.cur_mean != NAN);
+    vdata.cur_prec = J_i;
+  }
+  assert(vdata.cur_mean != NAN);
+
+  /* SEND new value and schedule neighbors */
+    for(size_t i = 0; i < inedgeid.size(); ++i) {
+      assert(context.source(inedgeid[i]) == context.target(outedgeid[i]));
+      edge_data& in_edge = context.edge_data(inedgeid[i]);
       edge_data& out_edge = context.edge_data(outedgeid[i]);
-      const vertex_data & other = 
-        context.const_vertex_data(context.target(outedgeid[i]));
-      x_i -= out_edge.weight * other.pred_x;
-    }
-    x_i /= A_ii;
-    if (debug)
-      std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
+      //graphlab::vertex_id_type target = context.target(outedgeid[i]);
+
+      //substruct the sum of message sent from node j
+      real_type mu_i_j = mu_i - in_edge.mean;
+      real_type J_i_j  = J_i - in_edge.prec;
+
+      if (!support_null_variance)  assert(J_i_j != 0);
+      assert(out_edge.weight != 0);
+
+      if (support_null_variance && J_i_j == 0){
+        out_edge.mean = 0;
+        out_edge.prec = 0;
+      } else {
+        //compute the update rule (Section 4, Algorithm 1)
+        out_edge.mean = -(out_edge.weight * mu_i_j / J_i_j);
+        out_edge.prec = -((out_edge.weight * out_edge.weight) / J_i_j);//matrix is assumed symmetric!
+      }
 
     context.schedule(context.vertex_id(), *this);
+
+
+      if (debug) {
+        std::cout << "Sending to " << context.target(outedgeid[i]) << " "
+                  << out_edge.mean << " "
+                  << out_edge.prec << " wdge weight "
+                  << out_edge.weight << std::endl;
+      }
+    }
+
   }
 }; // end of update_functor
 
@@ -126,7 +207,7 @@ struct jacobi_update :
 
 
 class accumulator :
-  public graphlab::iaccumulator<graph_type, jacobi_update, accumulator> {
+  public graphlab::iaccumulator<graph_type, gabp_update, accumulator> {
 private:
   real_type real_norm, relative_norm;
 public:
@@ -135,8 +216,8 @@ public:
     relative_norm(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.const_vertex_data();
-    real_norm += std::pow(vdata.pred_x - vdata.real_x,2);
-    relative_norm += std::pow(vdata.pred_x - vdata.prev_x, 2);
+    real_norm += std::pow(vdata.cur_mean - vdata.real,2);
+    relative_norm += std::pow(vdata.cur_mean - vdata.prev_mean, 2);
     if (debug)
 	std::cout << "Real_norm: " << real_norm << "relative norm: " <<relative_norm << std::endl;
   }
@@ -192,6 +273,9 @@ int main(int argc,  char *argv[]) {
 	               "regularization added to the main diagonal");
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=3x3 matrix");
+  clopts.attach_option("support_null_variance", &support_null_variance, 
+		       support_null_variance, "support null precision");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -211,39 +295,39 @@ int main(int argc,  char *argv[]) {
 
 
   // Create a core
-  graphlab::core<graph_type, jacobi_update> core;
+  graphlab::core<graph_type, gabp_update> core;
   core.set_options(clopts); // Set the engine options
 
   //unit testing
   if (unittest == 1){
-/*A= [  1.8147    0.9134    0.2785
-       0.9058    1.6324    0.5469
-       0.1270    0.0975    1.9575 ];
-
-  y= [ 0.9649    0.1576    0.9706 ]';
-  x= [ 0.6803   -0.4396    0.4736 ]';
-*/
-    datafile = "A"; yfile = "y"; xfile = "x"; sync_interval = 120;
+ /* A = [6.4228    2.0845    2.1617
+        2.0845    4.7798    1.2418
+        2.1617    1.2418    5.5250];
+    y = [0.9649    0.1576    0.9706]';
+    x = [0.1211    -0.0565   0.1410 ]';
+    prec = [    0.1996 0.2474 0.2116]';
+ */
+    datafile = "A_gabp"; yfile = "y"; xfile = "x_gabp"; sync_interval = 120;
   }
 
   std::cout << "Load matrix A" << std::endl;
   matrix_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), JACOBI_REAL_X, false);
+  load_vector(yfile, format, matrix_info, core.graph(), GABP_Y, false);
   std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), JACOBI_Y, true);
+  load_vector(xfile, format, matrix_info, core.graph(), GABP_REAL_X, true);
   
-
   std::cout << "Schedule all vertices" << std::endl;
-  core.schedule_all(jacobi_update());
+  core.schedule_all(gabp_update());
 
   if (sync_interval < core.graph().num_vertices()){
     sync_interval = core.graph().num_vertices(); 
     logstream(LOG_WARNING) << "Sync interval is lower than the number of nodes: setting sync interval to " 
 			   << sync_interval << std::endl;
   }
- 
+   
+
   accumulator acum;
   core.add_sync("sync", acum, sync_interval);
   core.add_global("REAL_NORM", double(0));
@@ -253,11 +337,13 @@ int main(int argc,  char *argv[]) {
   double runtime= core.start();
   // POST-PROCESSING *****
  
-  std::cout << "Jacobi finished in " << runtime << std::endl;
+  std::cout << "GaBP finished in " << runtime << std::endl;
 
-  vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
+  vec x = fill_output(&core.graph(), matrix_info, GABP_CUR_MEAN);
+  write_output_vector(datafile + ".curmean.out", format, x);
 
-  write_output_vector(datafile + "x.out", format, ret);
+  vec prec = fill_output(&core.graph(), matrix_info, GABP_CUR_PREC);
+  write_output_vector(datafile + ".curprec.out", format, prec);
 
 
   if (unittest == 1){

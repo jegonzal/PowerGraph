@@ -30,7 +30,6 @@
  *  SET OF WRAPPER FUNCTIONS TO BE USED WITH IT++
  *
  * */
-#if defined(HAS_ITPP)
 
 #include <itpp/itbase.h>
 #include <itpp/itstat.h>
@@ -322,5 +321,4 @@ inline int randi(int from, int to){
 inline vec sqrt(const vec & v){
   return itpp::sqrt(v);
 }
-#endif //HAS ITPP
 #endif //ITPP_WRAPPER
