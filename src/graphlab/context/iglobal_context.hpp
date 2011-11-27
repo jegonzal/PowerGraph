@@ -30,9 +30,9 @@
 #ifndef GRAPHLAB_IGLOBAL_CONTEXT_HPP
 #define GRAPHLAB_IGLOBAL_CONTEXT_HPP
 
-#include <string>
 
 #include <graphlab/util/generics/any_vector.hpp>
+#include <string>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 

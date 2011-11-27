@@ -334,7 +334,7 @@ namespace graphlab {
       /**
        * Inserts a vertex. Very strictly sequential. 
        */
-      vertex_id_t add_vertex(const VertexData &vdata) {
+      vertex_id_type add_vertex(const VertexData &vdata) {
         nvertices++;
         vertices.push_back(vdata_store());
         vertices[vertices.size() - 1].data = vdata;

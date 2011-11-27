@@ -24,7 +24,6 @@
 #include <graphlab/options/command_line_options.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
 
-#include <graphlab/distributed2/distributed_scheduler_list.hpp>
 
 namespace boost {  
   template<>
@@ -105,7 +104,7 @@ namespace graphlab {
           ("engine",
           boost_po::value<std::string>(&(enginetype))->
           default_value(enginetype),
-          "Options are {dist_chromatic, dist_locking}")
+          "Options are {dist_chromatic}")
           ("scope",
           boost_po::value<std::string>(&(scopetype))->
           default_value(scopetype),
@@ -119,14 +118,7 @@ namespace graphlab {
           "Display help for a particular scheduler.")
           ("enghelp",
           boost_po::value<std::string>()->implicit_value(""),
-          "Display help for a particular engine.")
-          ("scheduler",
-          boost_po::value<std::string>(&(schedulertype))->
-          default_value(schedulertype),
-          (std::string("Supported schedulers are: ")
-            + get_distributed_scheduler_names_str() +
-            ". Too see options for each scheduler, run the program with the option"
-            " ---schedhelp=[scheduler_name]").c_str());
+          "Display help for a particular engine.");
       }
     }
     // Parse the arguments
@@ -150,25 +142,13 @@ namespace graphlab {
       return false;
     }
     if (vm.count("schedhelp")) {
-      if (distributed_options == false) {
-        std::string schedname = vm["schedhelp"].as<std::string>();
-        if (schedname != "") {
-          print_scheduler_info(schedname, std::cout);
-        } else {
-          std::vector<std::string> schednames = get_scheduler_names();
-          for(size_t i = 0;i < schednames.size(); ++i) {
-            print_scheduler_info(schednames[i], std::cout);
-          }
-        }
+      std::string schedname = vm["schedhelp"].as<std::string>();
+      if (schedname != "") {
+        print_scheduler_info(schedname, std::cout);
       } else {
-        std::string schedname = vm["schedhelp"].as<std::string>();
-        if (schedname != "") {
-          print_distributed_scheduler_info(schedname, std::cout);
-        } else {
-          std::vector<std::string> schednames = get_distributed_scheduler_names();
-          for(size_t i = 0;i < schednames.size(); ++i) {
-            print_distributed_scheduler_info(schednames[i], std::cout);
-          }
+        std::vector<std::string> schednames = get_scheduler_names();
+        for(size_t i = 0;i < schednames.size(); ++i) {
+          print_scheduler_info(schednames[i], std::cout);
         }
       }
       return false;
@@ -182,24 +162,6 @@ namespace graphlab {
       std::cout << "Options: \n";
       std::cout << "max_iterations = [integer, default = 0]\n";
       std::cout << "randomize_schedule = [integer, default = 0]\n";
-      std::cout << "update_function = [update_function_type,"
-              "default = set on add_task]\n";
-
-      std::cout << "dist_locking engine\n";   
-      std::cout << std::string(50, '-') << std::endl;
-      std::cout << "Options: \n"
-                << "max_deferred_tasks_per_node = [integer, default = 1000]\n"
-                << "chandy_misra = [int, default = 0, "
-                << "If non-zero, uses the chandy misra locking method. "
-                << " Only supports edge scopes]\n"
-                << "snapshot_interval = [integer, default = 0, "
-                << "If non-zero, snapshots approximately this many updates]\n"
-                << "snapshot2_interval = [integer, default = 0, "
-                << "Fully asynchronous snapshotting. If non-zero, "
-                << "snapshots approximately this many updates]\n"
-                << "strength_reduction = [integer, default = 0]\n"
-                << "priority_degree_limit = [integer, default = 0. If > 0, "
-                <<  "all vertices with more than this number of edges will have lock priority]\n";
       return false;
     } 
     set_ncpus(ncpus);

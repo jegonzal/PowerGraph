@@ -232,17 +232,6 @@ namespace graphlab {
      */
     void set_options(const graphlab_options& opts) {
       mengine.set_options(opts);
-
-      // delete reporter;
-      // if (opts.get_metrics_type() == "file") {
-      //   reporter = new file_reporter("graphlab_metrics.txt");
-      // } else if (opts.get_metrics_type() == "html") {
-      //   reporter = new  html_reporter("graphlab_metrics.html");
-      // } else if (opts.get_metrics_type() == "basic") {
-      //   reporter = new basic_reporter;
-      // } else {
-      //   reporter = new null_reporter;
-      // }
     }
 
     // imetrics_reporter& get_reporter() { return *reporter; }

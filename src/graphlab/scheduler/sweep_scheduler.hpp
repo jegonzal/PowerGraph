@@ -86,7 +86,7 @@ namespace graphlab {
     std::vector<vertex_id_type>             index2vid;
     std::vector<uint8_t>                    vid2cpuid;
     std::vector<vertex_id_type>             cpu2index;
-    vertex_functor_set<engine_type>         vfun_set;
+    vertex_functor_set<update_functor_type>         vfun_set;
     terminator_type                         term;
 
 

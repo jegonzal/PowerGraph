@@ -14,7 +14,7 @@
 inline void count_vertices_and_edges(std::string filename,
                                       std::vector<procid_t> atom2machine,
                                       procid_t mymachine,
-                                      std::set<vertex_id_t> &vertices,
+                                      std::set<vertex_id_type> &vertices,
                                       size_t &localedges) {
   localedges = 0;
 
@@ -31,15 +31,15 @@ inline void count_vertices_and_edges(std::string filename,
     if (fin.fail()) break;
     if (command == 'a' || command == 'b') {
       // add vertex skip
-      vertex_id_t vid; uint16_t owner;
+      vertex_id_type vid; uint16_t owner;
       iarc >> vid >> owner;
       vertices.insert(vid);
     } else if (command == 'c') {
-      vertex_id_t vid; uint16_t owner; std::string data;
+      vertex_id_type vid; uint16_t owner; std::string data;
       iarc >> vid >> owner >> data;
       vertices.insert(vid);
     } else if (command == 'd') {
-      vertex_id_t src; vertex_id_t target; std::string data;
+      vertex_id_type src; vertex_id_type target; std::string data;
       uint16_t srcowner, targetowner;
       iarc >> src >> srcowner >> target >> targetowner >> data;
       // if there is data, it must be local
@@ -52,11 +52,11 @@ inline void count_vertices_and_edges(std::string filename,
       vertices.insert(src);       
       vertices.insert(target);
     } else if (command == 'k') {
-      vertex_id_t vid; vertex_color_type color;
+      vertex_id_type vid; vertex_color_type color;
       iarc >> vid >> color;
     } else if (command == 'l') {
       // ignored
-      vertex_id_t vid; uint16_t owner;
+      vertex_id_type vid; uint16_t owner;
       iarc >> vid >> owner;
       // ignored
     }
@@ -171,7 +171,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   logstream(LOG_INFO) << "Second pass: Loading data " << std::endl;
   std::vector<simple_spinlock> edgelockset;
   edgelockset.resize(1 << 14);
-  atomic<edge_id_t> edgecount(0);
+  atomic<edge_id_type> edgecount(0);
   #pragma omp parallel for
   for (int i = 0;i < (int)(atoms_in_curpart.size()); ++i) {
     std::cout << ".";
@@ -274,7 +274,7 @@ void distributed_graph<VertexData,EdgeData>::playback_dump(std::string filename,
       size_t locka = localsrcvid % edgelockset.size();
       size_t lockb = localtargetvid % edgelockset.size();
       if (data.size() > 0 || atom2machine[targetowner] != mymachine) {
-        edge_id_t eid = edgecounter.inc_ret_last();
+        edge_id_type eid = edgecounter.inc_ret_last();
         edgelockset[std::min(locka, lockb)].lock();
         if (locka != lockb)  edgelockset[std::max(locka, lockb)].lock();
         localstore.add_edge(eid, localsrcvid, localtargetvid);

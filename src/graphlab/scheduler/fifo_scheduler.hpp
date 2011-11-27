@@ -68,7 +68,7 @@ namespace graphlab {
 
   private:
 
-    vertex_functor_set<engine_type> vfun_set;
+    vertex_functor_set<update_functor_type> vfun_set;
     std::vector<queue_type> queues;
     std::vector<spinlock>   locks;
     size_t multi;

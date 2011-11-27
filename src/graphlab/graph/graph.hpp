@@ -68,7 +68,7 @@
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
-
+#include <graphlab/graph/graph_basic_types.hpp>
 
 
 #include <graphlab/util/random.hpp>
@@ -132,19 +132,20 @@ namespace graphlab {
      the invariant.  The engine routines will defensively call
      graph::finalize() it is not first called by the user.
   */
+  
   template<typename VertexData, typename EdgeData>
   class graph {
   public:
 
 
     /// The type of a vertex is a simple size_t
-    typedef uint32_t vertex_id_type;
+    typedef graphlab::vertex_id_type vertex_id_type;
     
     /// The type of an edge id 
-    typedef uint32_t edge_id_type;
+    typedef graphlab::edge_id_type edge_id_type;
     
     /// Type for vertex colors 
-    typedef vertex_id_type vertex_color_type;
+    typedef graphlab::vertex_color_type vertex_color_type;
     
     // Compatible with the icontext interface.
     class vertex_list {};
