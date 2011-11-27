@@ -57,12 +57,12 @@ FILE * open_file(const char * name, const char * mode, bool optional = false){
  * extract the output from node data ito a vector of values
  */
 template<typename graph_type>
-vec  fill_output(graph_type * g, matrix_descriptor & matrix_info){
+vec  fill_output(graph_type * g, matrix_descriptor & matrix_info, int field_type){
   typedef typename graph_type::vertex_data_type vertex_data_type;
 
   vec out = zeros(matrix_info.num_nodes(false));
   for (int i = matrix_info.get_start_node(false); i < matrix_info.get_end_node(false); i++){
-    out[i] = g->vertex_data(i).get_output();
+    out[i] = g->vertex_data(i).get_output(field_type);
   }
   return out;
 }
@@ -365,6 +365,87 @@ inline void write_output_vector(const std::string & datafile, const std::string 
     save_matrix_market_format_vector(datafile, output); 
   else assert(false);
 }
+
+//read matrix size from a binary file
+FILE * load_matrix_metadata(const char * filename, matrix_descriptor & desc){
+   printf("Loading %s\n", filename);
+   FILE * f = open_file(filename, "r", false);
+
+   int rc = fread(&desc.rows, sizeof(desc.rows), 1, f);
+   assert(rc == 1);
+   rc = fread(&desc.cols, sizeof(desc.cols), 1, f);
+   assert(rc == 1);
+   return f;
+}
+
+
+template<typename Graph>
+bool load_binary_graph(const std::string& fname,
+                             matrix_descriptor& desc,
+                             Graph& graph) {
+  typedef Graph graph_type;
+  typedef typename graph_type::vertex_id_type vertex_id_type;
+  typedef typename graph_type::edge_data_type edge_data_type;
+  typedef matrix_entry<graph_type> matrix_entry_type;
+
+  // Open the file 
+  logstream(LOG_INFO) << "Reading matrix market file: " << fname << std::endl;
+  FILE* fptr = open_file(fname.c_str(), "r");
+  
+  // read Matrix market header
+  MM_typecode matcode;
+  if(mm_read_banner(fptr, &matcode)) {
+    logstream(LOG_ERROR) << "Unable to read banner" << std::endl;
+    return false;
+  }
+  // Screen header type
+  if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
+    logstream(LOG_ERROR) 
+      << "Sorry, this application does not support matrixmarket type: "
+      <<  mm_typecode_to_str(matcode) << std::endl;
+    return false;
+  }
+  // load the matrix descriptor
+  if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
+    logstream(LOG_ERROR) << "Error reading dimensions" << std::endl;
+  }
+  std::cout << "Rows:      " << desc.rows << std::endl
+            << "Cols:      " << desc.cols << std::endl
+            << "Nonzeros:  " << desc.nonzeros << std::endl;
+  std::cout << "Constructing all vertices." << std::endl;
+  graph.resize(desc.total());
+  bool is_square = desc.is_square();
+
+  std::cout << "Adding edges." << std::endl;
+  for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
+    int row = 0, col = 0;  
+    double val = 0;
+    if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
+      logstream(LOG_ERROR) 
+        << "Error reading file on line: " << i << std::endl;
+      return false;
+    } --row; --col;
+    ASSERT_LT(row, desc.rows);
+    ASSERT_LT(col, desc.cols);
+    ASSERT_GE(row, 0);
+    ASSERT_GE(col, 0);
+    const vertex_id_type source = row;
+    const vertex_id_type target = col + (is_square ? 0 : desc.rows);
+    const edge_data_type edata(val);
+
+    if (debug && desc.nonzeros < 100)
+      logstream(LOG_INFO)<<"Adding an edge: " << source << "->" << target << " with val: " << std::endl;
+
+    if(is_square && source == target) 
+      graph.vertex_data(source).add_self_edge(val);
+    else
+      graph.add_edge(source, target, edata);
+  } // end of for loop  
+  std::cout << "Graph size:    " << graph.num_edges() << std::endl;
+  //graph.finalize();
+  return true;
+} // end of load matrixmarket graph
+
 
 
 #include <graphlab/macros_undef.hpp>
