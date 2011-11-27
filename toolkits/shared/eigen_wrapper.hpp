@@ -47,6 +47,7 @@ using namespace Eigen;
 typedef MatrixXd mat;
 typedef VectorXd vec;
 typedef VectorXi ivec;
+typedef MatrixXi imat;
 typedef SparseVector<double> sparse_vec;
 
 inline void debug_print_vec(const char * name,const vec& _vec, int len){
@@ -70,7 +71,13 @@ mat randn1(int dx, int dy, int col);
 inline void set_val(mat &A, int row, int col, double val){
   A(row, col) = val;
 }
+inline void set_val(imat &A, int row, int col, int val){
+  A(row, col) = val;
+}
 inline double get_val(const mat &A, int row, int col){
+  return A(row, col);
+}
+inline int get_val(const imat &A, int row, int col){
   return A(row, col);
 }
 inline vec get_col(const mat& A, int col){
@@ -296,6 +303,9 @@ inline ivec reverse(ivec& a){
    return a.reverse();
 }
 inline const double * data(const mat &A){
+  return A.data();
+}
+inline const int * data(const imat &A){
   return A.data();
 }
 inline const double * data(const vec &v){

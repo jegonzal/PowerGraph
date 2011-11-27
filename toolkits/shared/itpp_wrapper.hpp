@@ -58,7 +58,13 @@ inline void compact(sparse_vec & a){
 inline void set_val(mat& A, int row, int col, double val){
   A.set(row, col, val);
 }
+inline void set_val(imat& A, int row, int col, int val){
+  A.set(row, col, val);
+}
 inline double get_val(const mat& A, int row, int col){
+  return A.get(row, col);
+}
+inline int get_val(const imat& A, int row, int col){
   return A.get(row, col);
 }
 inline vec get_col(mat& A, int col){
@@ -116,6 +122,9 @@ inline mat get_cols(const mat &A, const ivec & ind){
   return A.get_cols(ind);
 }
 inline const double * data(const mat &A){
+  return A._data();
+}
+inline const int * data(const imat &A){
   return A._data();
 }
 inline const double * data(const vec &v){

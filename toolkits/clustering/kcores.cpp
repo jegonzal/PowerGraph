@@ -47,7 +47,7 @@ bool debug = false;
 int max_iter = 50;
 ivec active_nodes_num;
 ivec active_links_num;
-
+int active = 0; //initial number of active nodes
 int iiter = 0; //current iteration
 
 enum kcore_output_fields{
@@ -81,7 +81,6 @@ struct edge_data {
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
-  int active = 0;
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
      data.degree = g->out_edge_ids(i).size() + g->in_edge_ids(i).size();
@@ -110,6 +109,7 @@ public:
   void operator()(icontext_type& context) {
     vertex_data & vdata = context.vertex_data();
     int cur_iter = iiter + 1;
+    int cur_links = 0;
     /*if (vdata.degree <= cur_iter){
        vdata.active = false;
        vdata.kcore = cur_iter;
@@ -121,21 +121,22 @@ public:
     for(size_t i = 0; i < outedgeid.size(); i++) {
         const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
         if (other.active)
-	  links++;
+	  cur_links++;
     }
     for (size_t i =0; i < inedgeid.size(); i++){
 	const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
         if (other.active)
-          links++;
+          cur_links++;
     }
-    if (links <= cur_iter){
+    if (cur_links <= cur_iter){
         vdata.active = false;
         vdata.kcore = cur_iter;
-        vdata.degree = 0;
+    //    vdata.degree = 0;
     }
-    else {
-        vdata.degree = links;
-    }
+    //else {
+    //    vdata.degree = links;
+    //}
+    links += cur_links;
     if (vdata.active)
       num_active++;
   };
@@ -236,7 +237,14 @@ int main(int argc,  char *argv[]) {
  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
 
-  write_output_vector(datafile + ".kcores.out", format, active_nodes_num);
+  imat retmat = imat(max_iter, 4);
+  for (int i=0; i < max_iter; i++){
+    set_val(retmat, i, 0, i+1);
+    set_val(retmat, i, 1, active_nodes_num[i]-active_nodes_num[i+1]);
+    set_val(retmat, i, 2, active-active_nodes_num[i]);
+    set_val(retmat, i, 3, core.graph().num_edges() - active_links_num[i]);
+  } 
+  write_output_matrix(datafile + ".kcores.out", format, retmat);
 
   vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
   write_output_vector(datafile + "x.out", format, ret);

@@ -384,6 +384,28 @@ void save_matrix_market_format_vector(const std::string datafile, const vec & ou
     fclose(f);
 }
 
+template<typename mat>
+void save_matrix_market_format_matrix(const std::string datafile, const mat & output)
+{
+    MM_typecode matcode;                        
+    mm_initialize_typecode(&matcode);
+    mm_set_matrix(&matcode);
+    mm_set_coordinate(&matcode);
+    set_typecode<vec>(matcode);
+
+    FILE * f = fopen(datafile.c_str(),"w");
+    assert(f != NULL);
+    mm_write_banner(f, matcode); 
+    mm_write_mtx_crd_size(f, output.size(), 1, output.size());
+
+    for (int j=0; j<(int)output.rows(); j++)
+      for (int i=0; i< (int)output.cols(); i++)
+         write_row(j+1, i+1, get_val(output, i, j), f);
+
+    fclose(f);
+}
+
+
 
 //read a vector from file and return an array
 inline double * read_vec(FILE * f, size_t len){
@@ -421,6 +443,17 @@ inline void write_output_vector_binary(const std::string & datafile, const vec& 
    fclose(f);
 }
 
+template<typename mat>
+inline void write_output_matrix_binary(const std::string & datafile, const mat& output){
+
+   FILE * f = open_file(datafile.c_str(), "w");
+   std::cout<<"Writing result to file: "<<datafile<<std::endl;
+   std::cout<<"You can read the file in Matlab using the load_c_gl.m matlab script"<<std::endl;
+   write_vec(f, output.size(), data(output));
+   fclose(f);
+}
+
+
 template<typename vec>
 inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output){
 
@@ -430,6 +463,17 @@ inline void write_output_vector(const std::string & datafile, const std::string 
     save_matrix_market_format_vector(datafile, output); 
   else assert(false);
 }
+
+template<typename mat>
+inline void write_output_matrix(const std::string & datafile, const std::string & format, const mat& output){
+
+  if (format == "binary")
+    write_output_matrix_binary(datafile, output);
+  else if (format == "matrixmarket")
+    save_matrix_market_format_matrix(datafile, output); 
+  else assert(false);
+}
+
 
 //read matrix size from a binary file
 FILE * load_matrix_metadata(const char * filename, matrix_descriptor & desc){
