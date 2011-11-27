@@ -133,15 +133,6 @@ namespace graphlab {
      graph::finalize() it is not first called by the user.
   */
   
-/// The type of a vertex is a simple size_t
-typedef uint32_t vertex_id_type;
-
-/// The type of an edge id 
-typedef uint32_t edge_id_type;
-
-/// Type for vertex colors 
-typedef vertex_id_type vertex_color_type;
-
   template<typename VertexData, typename EdgeData>
   class graph {
   public:
