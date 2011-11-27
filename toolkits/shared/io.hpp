@@ -40,6 +40,14 @@
 
 extern bool debug;
 
+
+enum matrix_market_parser{
+   MATRIX_MARKET_3 = 1,
+   MATRIX_MARKET_6 = 2
+};
+
+
+
 /*
  * open a file and verify open success
  */
@@ -138,7 +146,8 @@ bool load_matrixmarket(const std::string& fname,
 template<typename Graph>
 bool load_matrixmarket_graph(const std::string& fname,
                              matrix_descriptor& desc,
-                             Graph& graph) {
+                             Graph& graph,
+			     int parse_type = MATRIX_MARKET_3){ 
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_data_type edge_data_type;
@@ -176,11 +185,28 @@ bool load_matrixmarket_graph(const std::string& fname,
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
     int row = 0, col = 0;  
     double val = 0;
-    if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
-      logstream(LOG_ERROR) 
-        << "Error reading file on line: " << i << std::endl;
-      return false;
-    } --row; --col;
+
+    //regular matrix market format. [from] [to] [val]
+    if (parse_type == MATRIX_MARKET_3){ 
+      if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
+        logstream(LOG_ERROR) 
+          << "Error reading file on line: " << i << std::endl;
+        return false;
+      }
+     //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
+    } else if (parse_type == MATRIX_MARKET_6){
+      double val2, zero, zero1;
+      if(fscanf(fptr, "%d %d %lg %lg %lg %lg\n", &row, &col, &val, &val2, &zero, &zero1) != 6) {
+        logstream(LOG_ERROR) 
+          << "Error reading file on line: " << i << std::endl;
+        return false;
+      }
+      val += val2; //sum up to values to have a single undirected link
+    }
+    else assert(false);
+
+    --row; --col;
+
     ASSERT_LT(row, desc.rows);
     ASSERT_LT(col, desc.cols);
     ASSERT_GE(row, 0);
@@ -218,9 +244,11 @@ template<typename Graph>
 bool load_graph(const std::string& fname,
                 const std::string& format,
                 matrix_descriptor& desc,
-                Graph& graph) {
+                Graph& graph, 
+	        int format_type = MATRIX_MARKET_3) {
+
   if(format == "matrixmarket") 
-    return load_matrixmarket_graph(fname, desc, graph);
+    return load_matrixmarket_graph(fname, desc, graph, format_type);
   else if(format == "tsv")
     return load_tsv_graph(fname, desc, graph);
   else std::cout << "Invalid file format!" << std::endl;

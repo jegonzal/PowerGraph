@@ -202,7 +202,7 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load graph" << std::endl;
   matrix_descriptor matrix_info;
-  load_graph(datafile, format, matrix_info, core.graph());
+  load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_6);
 
   //std::cout << "Schedule all vertices" << std::endl;
   //core.schedule_all(jacobi_update());
@@ -214,6 +214,7 @@ int main(int argc,  char *argv[]) {
   graphlab::timer mytimer; mytimer.start();
 
   for (iiter=0; iiter< max_iter; iiter++){
+    logstream(LOG_INFO)<<"Going to run k-cores iteration " << iiter << std::endl;
     core.sync_now("sync");
   }
  
