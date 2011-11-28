@@ -230,7 +230,7 @@ int main(int argc,  char *argv[]) {
   calc_initial_degree(&core.graph(), matrix_info);
 
   //std::cout << "Schedule all vertices" << std::endl;
-  core.schedule_all(kcore_update());
+  //core.schedule_all(kcore_update());
  
   accumulator acum;
   core.add_sync("sync", acum, 1000);

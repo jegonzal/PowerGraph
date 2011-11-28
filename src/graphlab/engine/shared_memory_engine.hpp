@@ -721,6 +721,7 @@ namespace graphlab {
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
   sync_now(const std::string& key) {
+    initialize_members();    
     typename sync_map_type::iterator iter = sync_map.find(key);
     if(iter == sync_map.end()) {
       logstream(LOG_FATAL) 
