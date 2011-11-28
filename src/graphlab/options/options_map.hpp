@@ -72,9 +72,12 @@ namespace graphlab {
       try {
         options[opt].dblval = boost::lexical_cast<double>(val);
       } catch(boost::bad_lexical_cast& error) { options[opt].dblval = 0.0; }
-      try {
-        options[opt].boolval = boost::lexical_cast<bool>(val);
-      } catch(boost::bad_lexical_cast& error) { options[opt].boolval = false; }
+
+      if (val == "true" || val == "TRUE" || 
+          val == "yes" || val == "YES" || val == "1") options[opt].boolval = true;
+      // try {
+      //        options[opt].boolval = boost::lexical_cast<bool>(val);
+      // } catch(boost::bad_lexical_cast& error) { options[opt].boolval = false; }
       options[opt].anyval = val;
     }
 
@@ -246,6 +249,7 @@ namespace graphlab {
       double dblval;
       bool boolval;
       any anyval;
+      option_values () : intval(0), dblval(0), boolval(false) { }
     };
 
 

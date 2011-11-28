@@ -68,8 +68,8 @@ namespace graphlab {
 
     inline size_t get_and_inc_index(const size_t cpuid) {
       const size_t nverts = index2vid.size();
-      if (strict_round_robin) {
-        return rr_index++ % nverts;
+      if (strict_round_robin) { 
+        return rr_index++ % nverts; 
       } else {
         const size_t ncpus = cpu2index.size();
         const size_t index = cpu2index[cpuid];
