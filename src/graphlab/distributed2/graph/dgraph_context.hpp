@@ -326,7 +326,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
 
   void schedule(const vertex_id_type& vertex, 
                 const update_functor_type& update_fun) {
-    engine_ptr->schedule(vertex, update_fun);
+    engine_ptr->schedule_from_context(vertex, update_fun);
   }
 
   void schedule_in_neighbors(const vertex_id_type& vertex, 

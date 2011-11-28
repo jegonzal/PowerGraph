@@ -1061,6 +1061,7 @@ private:
     procs_complete.clear();
     // activate the full barrier
     full_barrier_in_effect = true;
+    __sync_synchronize();
     // begin one pass to set all which are already completed
     for (size_t i = 0;i < numprocs(); ++i) {
       if (callsreceived[i].value >= calls_to_receive[i]) {

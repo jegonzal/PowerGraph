@@ -92,6 +92,17 @@ namespace graphlab {
         lock.unlock();
         return functor;
       }
+      
+      void reset() {
+        lock.lock();
+        is_set = false;
+        lock.unlock();
+      }
+      
+      void reset_unsync() {
+        is_set = false;
+      }
+      
       bool priority(double& ret_priority) const {        
         lock.lock();
         const bool was_set = is_set;
@@ -179,6 +190,10 @@ namespace graphlab {
 
     size_t size() const { 
       return vfun_set.size(); 
+    }
+    
+    void clear_unsync() {
+      for (size_t i = 0; i < vfun_set.size(); ++i) vfun_set[i].reset_unsync();
     }
     
   }; // end of vertex functor set
