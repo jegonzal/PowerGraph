@@ -1,9 +1,26 @@
 ## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
-if(DEFINED SET_C_COMPILER)
-  set(CMAKE_C_COMPILER ${SET_C_COMPILER})	
-  set(CMAKE_CXX_COMPILER ${SET_C_COMPILER})
+if(APPLE)
+  if(DEFINED SET_C_COMPILER)
+    set(CMAKE_C_COMPILER ${SET_C_COMPILER})	
+  else()
+    set(CMAKE_C_COMPILER "gcc-4.2")	
+  endif()
+  if(DEFINED SET_CXX_COMPILER)
+    set(CMAKE_CXX_COMPILER ${SET_CXX_COMPILER})
+  else()
+    set(CMAKE_CXX_COMPILER "c++-4.2")
+  endif() 
+else()
+  # Let the user change the compiler as desired
+  if(DEFINED SET_C_COMPILER)
+    set(CMAKE_C_COMPILER ${SET_C_COMPILER})	
+  endif()
+  if(DEFINED SET_CXX_COMPILER)
+    set(CMAKE_CXX_COMPILER ${SET_CXX_COMPILER})
+  endif()
 endif()
+
 
 
 

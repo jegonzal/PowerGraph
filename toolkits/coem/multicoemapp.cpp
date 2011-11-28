@@ -57,8 +57,6 @@
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
 
-using namespace std;
-using namespace graphlab;
 
 // Last bit of flag determines vertex type
 #define TYPEMASK  (1<<2)
@@ -79,7 +77,8 @@ bool ROUNDROBIN = false;
  
 // tfidc is a modified weight formula for Co-EM (see Justin
 // Betteridge's "CoEM results" page)
-#define TFIDF(coocc, num_neighbors, vtype_total) (log(1+coocc)*log(vtype_total*1.0/num_neighbors))   
+#define TFIDF(coocc, num_neighbors, vtype_total)        \
+  (log(1+coocc)*log(vtype_total*1.0/num_neighbors))   
 
 // Vertex and Edge data definitions.
 struct vertex_data {
@@ -142,16 +141,7 @@ std::vector<std::string> categories;
 
 // Subsampling (to get smaller problems)
 double subsamplingRatio = 1.0;
-bool prune_edges;
-  
-// Hack for speeding up
-std::vector<vertex_id_type> ** vertex_lookups;
-glshared_const<float> PARAM_M;
-glshared_const<size_t> NUM_NPS;
-glshared_const<size_t> NUM_CTX;
-glshared_const<size_t> NUM_CATS;
-
-
+bool prune_edges;  
 
 
 
@@ -165,22 +155,22 @@ public:
   void operator+=(const coem_update& other) { resid += other.resid; }
 
   void operator()(icontext_type& context) {                          
-    /* A optimization. Use thred-local lookup-table for faster computation. */
-    std::vector<vertex_id_type> vlookup = 
-      *vertex_lookups[thread::thread_id()];
+    /* A optimization. Use thred-local lookup-table for faster computation. */    
+    std::vector<vertex_id_type>& vlookup = 
+      context.get_local< std::vector<vertex_id_type> >("VLOOKUP");
     vlookup.clear();
     
     /* Get shared vars. These are just constants. */
-    float param_m = PARAM_M.get();
-    size_t num_nps = NUM_NPS.get();
-    size_t num_ctxs = NUM_CTX.get();
-    size_t num_cats = NUM_CATS.get();
+    const float smoothing = context.get_global_const<float>("SMOOTHING");
+    const size_t num_nps = context.get_global_const<size_t>("NUM_NPS");
+    const size_t num_ctxs = context.get_global_const<size_t>("NUM_CTX");
+    const size_t num_cats = context.get_global_const<size_t>("NUM_CATS");
    
     /* Get vertex data */
     vertex_data& vdata =   context.vertex_data();
    
     /* We use directed edges as indirected, so either this vertex has only incoming  
-     or outgoing vertices.  */
+       or outgoing vertices.  */
     bool use_outgoing = (context.in_edge_ids().size()==0);
     edge_list_type edge_ids = 
       (use_outgoing ? context.out_edge_ids() : context.in_edge_ids());
@@ -198,7 +188,7 @@ public:
     
     /* First check is my normalizer precomputed. If not, do it. */
     if (vdata.normalizer == 0.0) {
-      float norm = param_m * vtype_other_total;
+      float norm = smoothing * vtype_other_total;
       foreach(edge_id_type eid, edge_ids) {
         const edge_data& edata = context.const_edge_data(eid);
         const vertex_data& nb_vdata = 
@@ -217,7 +207,7 @@ public:
     /***** COMPUTE NEW VALUE *****/
     float tmp[200];  // assume max 200 cats
     assert(num_cats<200);
-    for(int i=0; i<200; i++) tmp[i] = param_m;
+    for(int i=0; i<200; i++) tmp[i] = smoothing;
     
     // Compute weighted averages of neighbors' beliefs.
     foreach(edge_id_type eid, edge_ids) {
@@ -239,7 +229,7 @@ public:
       if (!((vdata.p[cat_id] == POSSEEDPROB) || 
             vdata.p[cat_id] == NEGSEEDPROB)) {
         residual += std::fabs(tmp[cat_id] - vdata.p[cat_id]);
-      vdata.p[cat_id] = tmp[cat_id];
+        vdata.p[cat_id] = tmp[cat_id];
       }  else {
         // I am seed - do not change
         if (vdata.p[cat_id] == POSSEEDPROB) {
@@ -342,18 +332,11 @@ int main(int argc,  char ** argv) {
   negseedsdir = root + "/seeds-neg/";
   
   /**** GRAPH LOADING ****/
-  timer t;
+  graphlab::timer t;
   t.start();
   load(core);
   printf("Loading data took %lf secs\n", t.current_time());
 
-  /** Hack **/
-  vertex_lookups = (std::vector<vertex_id_type> **) 
-    malloc(sizeof(std::vector<vertex_id_type> *) * clopts.get_ncpus());
-  for(unsigned int i=0; i< clopts.get_ncpus(); i++) {
-    vertex_lookups[i] = new std::vector<vertex_id_type>();
-    vertex_lookups[i]->reserve(1e6);
-  }
   
   // Prepare graph, i.e do some precomputation
   prepare(core);
@@ -375,6 +358,7 @@ int main(int argc,  char ** argv) {
 
 
 // Bit dirty... who cares (maybe Joey :) ). Should use bind()...
+// Joey cares.  Fix it!
 int sort_cat_id = 0;
 bool cmp(vertex_data * a, vertex_data * b) {
   return a->p[sort_cat_id] > b->p[sort_cat_id]; // Descending order
@@ -445,10 +429,7 @@ void load(core_type& core) {
 
 void prepare(core_type& core) {
   // Set register shared data
-  /* M is used for "smoothing" */
-  float m = 0.01;
-  PARAM_M.set(m);
-  
+  core.add_global_const("SMOOTHING", float(0.01));  
   /*** Count NPs and CONTEXTs, add SEEDS as initial tasks */
   size_t n = core.graph().num_vertices();
   
@@ -510,12 +491,9 @@ void prepare(core_type& core) {
   std::cout << "Negative seeds: " << negseeds << std::endl;
   std::cout << "Num of initial tasks: " << ntasks << std::endl;
   std::cout << "Contexts: " << num_contexts << " nps: " << num_nps << std::endl;
-  
-  NUM_CTX.set(num_contexts);
-  NUM_NPS.set(num_nps);
-
-  int numcats = categories.size();
-  NUM_CATS.set(numcats);
+  core.add_global_const("NUM_CTX", size_t(num_contexts));
+  core.add_global_const("NUM_NPS", size_t(num_nps));
+  core.add_global_const("NUM_CATS", size_t(categories.size()));
 }
 
 
@@ -530,7 +508,7 @@ std::map<std::string, vertex_id_type>
 loadVertices(core_type& core, short typemask, FILE * f) {
   /* Allocation size depends on number of categories */
   int vsize = sizeof(vertex_data) + categories.size()*sizeof(float);
-  map<std::string, vertex_id_type> map;
+  std::map<std::string, vertex_id_type> map;
   char s[255];
   char delims[] = "\t";	
   char *t = NULL;
@@ -595,7 +573,7 @@ void setseeds(core_type& core, std::map<std::string, vertex_id_type>& nps_map) {
     while(fgets(cs, 255, seedf) != NULL) {
       FIXLINE(cs);
       std::string s(cs);
-      map<string,vertex_id_type>::iterator iter = nps_map.find(s);
+      std::map<std::string,vertex_id_type>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
         continue;
       }
@@ -612,7 +590,7 @@ void setseeds(core_type& core, std::map<std::string, vertex_id_type>& nps_map) {
     while(fgets(cs, 255, negseedf) != NULL) {
       FIXLINE(cs);
       std::string s(cs);
-      map<string,vertex_id_type>::iterator iter = nps_map.find(s);
+      std::map<std::string, vertex_id_type>::iterator iter = nps_map.find(s);
       if (iter == nps_map.end()) {
         //std::cout << "Seed not found: [" << s << "]" << std::endl;
         continue;
@@ -668,7 +646,7 @@ void loadEdges(core_type& core, FILE * fcont_to_nps,
       continue;
     }
     std::string ctxname(t);
-    map<string,vertex_id_type>::iterator iter = ctx_map.find(ctxname);
+    std::map<std::string, vertex_id_type>::iterator iter = ctx_map.find(ctxname);
     if (iter == ctx_map.end()) {
       if (subsamplingRatio < 1.0) {
         // Not found (subsampling in effect)
@@ -727,7 +705,7 @@ void loadEdges(core_type& core, FILE * fcont_to_nps,
       }
 	
  		
-      map<string,vertex_id_type>::iterator iter = nps_map.find(npname);
+      std::map<std::string, vertex_id_type>::iterator iter = nps_map.find(npname);
 		    
       if (iter == nps_map.end()) {
         if (subsamplingRatio < 1.0) {

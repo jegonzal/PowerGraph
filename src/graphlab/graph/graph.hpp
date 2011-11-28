@@ -572,18 +572,24 @@ namespace graphlab {
 
 
     size_t get_graph_size() const {
-      size_t eid_size = sizeof(edge_id_type);
-      size_t vlist_size = sizeof(vertices) + vertices.capacity() *sizeof(VertexData);
-      size_t vcolor_size = sizeof(vcolors) + vcolors.capacity() * sizeof(vertex_color_type);
-      size_t elist_size = sizeof(edges) + edges.capacity() * sizeof(edge);
-      size_t inout_shell_size = sizeof(in_edges) + in_edges.capacity() * sizeof(std::vector<edge_id_type>) + sizeof(out_edges) + out_edges.capacity() * sizeof(std::vector<edge_id_type>);
-
+      const size_t eid_size = sizeof(edge_id_type);
+      const size_t vlist_size = sizeof(vertices) + 
+        vertices.capacity() *sizeof(VertexData);
+      const size_t vcolor_size = sizeof(vcolors) + 
+        vcolors.capacity() * sizeof(vertex_color_type);
+      const size_t elist_size = sizeof(edges) + 
+        edges.capacity() * sizeof(edge);
+      const size_t inout_shell_size = sizeof(in_edges) + 
+        in_edges.capacity() * sizeof(std::vector<edge_id_type>) + 
+        sizeof(out_edges) + 
+        out_edges.capacity() * sizeof(std::vector<edge_id_type>);
       size_t inout_content_size = 0;
       foreach(std::vector<edge_id_type> eid_list, in_edges) {
         inout_content_size += sizeof(eid_size) * eid_list.capacity();
       }
       inout_content_size  *= 2;
-      return vlist_size + vcolor_size + elist_size + inout_shell_size + inout_content_size;
+      return vlist_size + vcolor_size + elist_size + inout_shell_size + 
+        inout_content_size;
     }
     
     /** \brief Returns the vertex color of a vertex.
@@ -964,6 +970,9 @@ namespace graphlab {
     } // end of binary search 
     
   }; // End of graph
+
+
+
 
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
