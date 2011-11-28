@@ -89,7 +89,7 @@ void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
        active++;
   }
   printf("Number of active nodes in round 0 is %d\n", active);
-  printf("Number of active links in round 0 is %d\n", g->num_edges());
+  printf("Number of active links in round 0 is %d\n", (int)g->num_edges());
 
   active_nodes_num[0] = active;
   active_links_num[0] = g->num_edges();

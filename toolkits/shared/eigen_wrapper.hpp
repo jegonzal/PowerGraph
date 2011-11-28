@@ -220,10 +220,8 @@ inline mat randn(int dx, int dy){
 inline void set_diag(mat &A, vec & v){
    A.diagonal()=v;
 }
+template<typename mat>
 inline double sumsum(const mat & A){
-   return A.sum();
-}
-inline double sumsum(const imat & A){
    return A.sum();
 }
 inline double norm(const mat &A, int pow=2){
