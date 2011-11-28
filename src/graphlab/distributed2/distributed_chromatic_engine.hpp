@@ -123,6 +123,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
  
   std::vector<std::vector<vertex_id_type> > color_block; // set of localvids in each color
   vertex_functor_set<UpdateFunctor> vfunset;
+  vertex_functor_set<UpdateFunctor> vfun_cacheset;
   
   graphlab_options opts;
   
@@ -165,6 +166,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             randomize_schedule(0),
                             termination_reason(execution_status::UNSET),
                             vfunset(graph.owned_vertices().size()),
+                            vfun_cacheset(graph.get_local_store().num_vertices()),
                             max_iterations(0),
                             barrier_time(0.0),
                             const_nbr_vertices(true),
@@ -272,6 +274,55 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     rmi.barrier();
   }
   
+  void schedule_from_context(const vertex_id_type vid, 
+                             const update_functor_type& fun) {
+    vfun_cacheset.add(graph.globalvid_to_localvid(vid), fun);
+  }
+  
+  
+  void synchronize_vfun_cache() {
+    // commit local changes
+#pragma omp parallel for
+    for (ssize_t i = 0;i < (ssize_t)graph.local_vertices(); ++i) {
+      update_functor_type uf;
+      // once again, local VIDs are sequential and at the start
+      bool hasf = vfun_cacheset.test_and_get((vertex_id_type)(i), uf);
+      if (hasf && vfunset.add((vertex_id_type)(i), uf)) {
+        num_pending_tasks.inc();
+      }      
+    }
+    
+    std::vector<
+        std::vector<
+            std::pair<vertex_id_type, update_functor_type> > > remote_schedules;
+
+    remote_schedules.resize(rmi.numprocs());
+    std::vector<mutex> schedulelock(rmi.numprocs());
+    // commit remote changes
+#pragma omp parallel for
+    for (ssize_t i = graph.local_vertices();
+         i < (ssize_t)graph.get_local_store().num_vertices(); ++i) {
+      update_functor_type uf;
+      bool hasf = vfun_cacheset.test_and_get((vertex_id_type)(i), uf);
+      if (hasf) {
+        procid_t owner = graph.localvid_to_owner((vertex_id_type)(i));
+        schedulelock[owner].lock();
+        remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid((vertex_id_type)(i)), 
+                                                          uf));
+        schedulelock[owner].unlock();
+      }
+    }
+    
+    // transmit
+    for (procid_t i = 0;i < rmi.numprocs(); ++i) {
+      if (i != rmi.procid() && remote_schedules[i].size() > 0) {
+        rmi.remote_call(i, 
+            &distributed_chromatic_engine<Graph, UpdateFunctor>::
+                                                          schedule_collection,
+            remote_schedules[i]);
+      }
+    }
+  }
 
   void schedule_impl(const vertex_id_type vid, 
                 const update_functor_type& fun) {
@@ -312,12 +363,14 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     }
   }
 
-  /// \internal
-  void schedule_all_from_remote(const update_functor_type& update_functor) {
-    schedule(graph.owned_vertices(), update_functor);
+  void schedule_collection(const std::vector<
+                                     std::pair<vertex_id_type, 
+                                             update_functor_type> >& tasks) {
+    for (size_t i = 0;i < tasks.size(); ++i) {
+      schedule(tasks[i].first, tasks[i].second);
+    }
   }
   
- 
   /**
    * \brief Creates a collection of tasks on all the vertices in the graph,
    * with the same update function and priority
@@ -665,6 +718,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
         // this will complete synchronization of all add tasks as well
         if (threadid == 0) {
           ti.start();
+          synchronize_vfun_cache();          
           graph.wait_for_all_async_syncs();
           // TODO! If synchronize() calls were made then this barrier is necessary
           // but the time needed to figure out if a synchronize call is required 
@@ -672,6 +726,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
           if (const_nbr_vertices == false || const_edges == false)  rmi.dc().barrier();
           rmi.dc().full_barrier();
           num_dist_barriers_called++;
+
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
           barrier_time += ti.current_time();
         }
@@ -719,6 +774,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     // generate colors then
     // wait for everyone to enter start    
     generate_color_blocks();
+    vfun_cacheset.clear_unsync();
     init_syncs();
     termination_reason = execution_status::UNSET;
     barrier_time = 0.0;
