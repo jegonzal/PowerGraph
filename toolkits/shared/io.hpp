@@ -197,8 +197,8 @@ bool load_matrixmarket_graph(const std::string& fname,
     } else if (parse_type == MATRIX_MARKET_6){
       double val2, zero, zero1;
       if(fscanf(fptr, "%d %d %lg %lg %lg %lg\n", &row, &col, &val, &val2, &zero, &zero1) != 6) {
-        logstream(LOG_ERROR) 
-          << "Error reading file on line: " << i << std::endl;
+        logstream(LOG_FATAL) 
+          << "Error reading file " << fname << " on line: " << i << std::endl;
         return false;
       }
       val += val2; //sum up to values to have a single undirected link
@@ -530,9 +530,8 @@ bool load_binary_graph(const std::string& fname,
     int row = 0, col = 0;  
     double val = 0;
     if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
-      logstream(LOG_ERROR) 
-        << "Error reading file on line: " << i << std::endl;
-      return false;
+      logstream(LOG_FATAL) 
+        << "Error reading file " << fname << " on line: " << i << std::endl;
     } --row; --col;
     ASSERT_LT(row, desc.rows);
     ASSERT_LT(col, desc.cols);

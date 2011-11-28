@@ -88,6 +88,9 @@ inline vec init_vec(const char * string, int size){
 inline mat init_mat(const char * string, int row, int col){
   return mat(string);
 }
+inline imat init_imat(const char * string, int row, int col){
+  return imat(string);
+}
 inline vec init_dbl_vec(const char * string, int size){
   return vec(string);
 }

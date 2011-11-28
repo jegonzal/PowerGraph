@@ -99,7 +99,44 @@ void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
 struct kcore_update :
   public graphlab::iupdate_functor<graph_type, kcore_update> {
   void operator()(icontext_type& context) {
-  } 
+    vertex_data & vdata = context.vertex_data();
+    if (!vdata.active)
+      return;
+
+    int cur_iter = iiter;
+    int cur_links = 0;
+    
+    edge_list_type outedgeid = context.out_edge_ids();
+    edge_list_type inedgeid = context.in_edge_ids();
+
+    for(size_t i = 0; i < outedgeid.size(); i++) {
+        const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
+        if (other.active){
+	  cur_links++;
+        }
+    }
+    for (size_t i =0; i < inedgeid.size(); i++){
+	const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
+        if (other.active)
+          cur_links++;
+    }
+    if (cur_links <= cur_iter){
+        vdata.active = false;
+        vdata.kcore = cur_iter;
+        for(size_t i = 0; i < outedgeid.size(); i++) {
+           const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
+           if (other.active){
+             context.schedule(context.target(outedgeid[i]), kcore_update());
+           }
+        }
+        for (size_t i =0; i < inedgeid.size(); i++){
+  	   const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
+           if (other.active)
+	     context.schedule(context.source(inedgeid[i]), kcore_update());    
+        }
+    }
+  };
+
 };
 
 class accumulator :
@@ -117,8 +154,6 @@ public:
     if (!vdata.active)
       return;
 
-    int cur_iter = iiter;
-    int cur_links = 0;
     int increasing_links = 0;
     
     edge_list_type outedgeid = context.out_edge_ids();
@@ -127,23 +162,11 @@ public:
     for(size_t i = 0; i < outedgeid.size(); i++) {
         const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
         if (other.active){
-	  cur_links++;
           increasing_links++;
         }
     }
-    for (size_t i =0; i < inedgeid.size(); i++){
-	const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
-        if (other.active)
-          cur_links++;
-    }
-    if (cur_links <= cur_iter){
-        vdata.active = false;
-        vdata.kcore = cur_iter;
-	//links -= (outedgeid.size() + inedgeid.size());
-    }
     links += increasing_links;
-    if (vdata.active)
-      num_active++;
+    num_active++;
   };
 
   void operator+=(const accumulator& other) { 
@@ -233,21 +256,17 @@ int main(int argc,  char *argv[]) {
   core.schedule_all(kcore_update());
  
   accumulator acum;
-  core.add_sync("sync", acum, 1000);
+  core.add_sync("sync", acum, 1000000000);
   core.add_global("NUM_ACTIVE", int(0));
 
   graphlab::timer mytimer; mytimer.start();
 
   for (iiter=1; iiter< max_iter+1; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
-    while(true){
-      int prev_nodes = active_nodes_num[iiter];
+      core.schedule_all(kcore_update());
+      core.start();
       core.sync_now("sync");
-      int cur_nodes = active_nodes_num[iiter];
-      if (prev_nodes == cur_nodes)
-        break; 
-    }
-    if (active_nodes_num[iiter] == 0)
+      if (active_nodes_num[iiter] == 0)
 	break;
   }
  

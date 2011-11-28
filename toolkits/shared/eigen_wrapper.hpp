@@ -117,6 +117,19 @@ inline mat init_mat(const char * string, int row, int col){
   }
   return out;
 }
+inline imat init_imat(const char * string, int row, int col){
+  imat out(row, col);
+  char buf[2056];
+  strcpy(buf, string);
+  char *pch = strtok(buf," \r\n\t;");
+  for (int i=0; i< row; i++){
+    for (int j=0; j< col; j++){
+     out(i,j) = atol(pch);
+     pch = strtok (NULL, " \r\n\t;");
+    }
+  }
+  return out;
+}
 inline vec init_vec(const char * string, int size){
   vec out(size);
   char buf[2056];
@@ -208,6 +221,9 @@ inline void set_diag(mat &A, vec & v){
    A.diagonal()=v;
 }
 inline double sumsum(const mat & A){
+   return A.sum();
+}
+inline double sumsum(const imat & A){
    return A.sum();
 }
 inline double norm(const mat &A, int pow=2){
