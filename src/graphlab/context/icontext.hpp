@@ -128,7 +128,8 @@ namespace graphlab {
     typedef typename graph_type::vertex_color_type vertex_color_type;
     //! The edge data type associated with the graph
     typedef typename graph_type::edge_list_type    edge_list_type;
-    typedef typename graph_type::vertex_list_type    vertex_list_type;
+    typedef typename graph_type::edge_wrapper_type edge_wrapper_type;
+
     //! The vertex data type associated with the graph
     typedef typename graph_type::vertex_data_type  vertex_data_type;
     //! The edge data type associated with the graph
@@ -156,15 +157,6 @@ namespace graphlab {
     virtual vertex_color_type color() const = 0;
 
 
-    /** 
-     * \brief edge lookup from source target pair to edge id.
-     *
-     * This is used to get structural information from the graph.  If
-     * the edge is not present this method will fail. 
-     */
-    virtual edge_id_type edge(vertex_id_type source,
-                              vertex_id_type target) const = 0;
-
     /**
      * \brief test whether an edge is present
      *
@@ -173,61 +165,17 @@ namespace graphlab {
      */
     virtual bool edge_exists(vertex_id_type source,
                              vertex_id_type target) const  = 0;
+
+
+    virtual edge_list_type get_in_edges(vertex_id_type v) = 0;
+    virtual edge_list_type get_out_edges(vertex_id_type v) = 0;
+
+    virtual edge_list_type get_in_edges() = 0;
+    virtual edge_list_type get_out_edges() = 0;
+
+
     
-    /**
-     * \brief Get the reverse edge.
-     *
-     * Get the reverse edge id.  If no such edge exists this method
-     * will fail. 
-     */
-    virtual edge_id_type reverse_edge(edge_id_type eid) const  = 0;
-
-    /** 
-     * \brief get all in edges to the base vertex of this context. 
-     * 
-     * This method returns an immutable vector of edge ids sorted in
-     * order of <source id, dest id> pairs.
-     */
-    virtual edge_list_type in_edge_ids() const = 0;
-
-    /** 
-     * \brief get all in edge ids to the vertex argument
-     *
-     * This method returns an immutable vector of edge ids sorted in
-     * order of <source id, dest id> pairs.
-     */
-    virtual edge_list_type in_edge_ids(vertex_id_type v) const = 0;
-
-    /** 
-     * \brief get all out edge ids to the base vertex of this context
-     *
-     * This method returns an immutable vector of edge ids sorted in
-     * order of <source id, dest id> pairs.
-     */
-    virtual edge_list_type out_edge_ids() const = 0;
-
-    /** 
-     * \brief get all out ede ids to the vertex argument.
-     *
-     * This method returns an immutable vector of edge ids sorted in
-     * order of <source id, dest id> pairs.
-     */
-    virtual edge_list_type out_edge_ids(vertex_id_type v) const = 0;
-
-    virtual std::vector<vertex_id_type> in_vertices() const = 0;
-
-    virtual vertex_list_type in_vertices_list() const = 0;
-    
-    virtual std::vector<vertex_id_type> out_vertices() const = 0;
-
-    virtual vertex_list_type out_vertices_list() const = 0;
-
-    //! Get the source vertex of the edge id argument
-    virtual vertex_id_type source(edge_id_type edge_id) const = 0;
-
-    //! get the target vertex of the edge id argument
-    virtual vertex_id_type target(edge_id_type edge_id) const = 0; 
-    
+   
     //! Get the consistency model under which this context was acquired
     virtual consistency_model::model_enum consistency() const = 0; 
 
@@ -267,7 +215,7 @@ namespace graphlab {
      * const version of this function should be used to permit further
      * optimization.
      */
-    virtual edge_data_type& edge_data(edge_id_type eid) = 0;
+    //virtual edge_data_type& edge_data(edge_id_type eid) = 0;
 
     /**
      * \brief Get an immutable reference to the data associated with
@@ -276,7 +224,7 @@ namespace graphlab {
      * This should only be invoked on edges that are adjacent to the
      * base vertex. 
      */
-    virtual const edge_data_type& edge_data(edge_id_type eid) const = 0;    
+    //virtual const edge_data_type& edge_data(edge_id_type eid) const = 0;    
     
     /**
      * \brief Get an immutable reference to the data associated with
@@ -284,7 +232,7 @@ namespace graphlab {
      *
      * This should be called if the data does not need to be modified.
      */    
-    virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0; 
+//   virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0; 
 
     virtual edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) = 0;
 

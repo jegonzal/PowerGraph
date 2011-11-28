@@ -15,79 +15,81 @@ struct edge_data {
   edge_data (int f, int t) : from(f), to(t) {}
 };
 
-typedef graphlab::graph2<vertex_data, edge_data> graph_type2;
-typedef graphlab::graph<vertex_data, edge_data> graph_type1;
+typedef graphlab::graph<vertex_data, edge_data> graph_type2;
 typedef graph_type2::edge_list edge_list;
+typedef graph_type2::edge_wrapper_type edge_wrapper_type;
+typedef graph_type2::vertex_id_type vertex_id_type;
 
-struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_functor2> { };
-struct update_functor1 : public graphlab::iupdate_functor<graph_type1, update_functor1> { };
+struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_functor2> {
+};
 
 void sparseGraphtest (graph_type2& g) {
-  size_t num_v = 5000000;
+  size_t num_v = 10;
+  size_t num_e = 6;
+
   for (size_t i = 0; i < num_v; ++i)
   {
     vertex_data vdata;
     g.add_vertex(vdata);
   }
+
   g.add_edge(1,3,edge_data(1,3));
-  g.add_edge(2,5,edge_data(2,5));
-  g.add_edge(5,8,edge_data(5,8));
-  g.add_edge(8,9,edge_data(8,9));
+  g.add_edge(2,3,edge_data(2,3));
+  g.add_edge(4,3,edge_data(4,3));
+  g.add_edge(5,3,edge_data(5,3));
+
+  g.add_edge(3,2, edge_data(3,2));
+  g.add_edge(3,5, edge_data(3,5));
+
   g.finalize();
-  for (size_t i = 0; i < 4; ++i)
-    std::cout << g.source(i) << " ";
-  std::cout << std::endl;
-}
 
+  ASSERT_EQ(g.num_vertices(), num_v);
+  ASSERT_EQ(g.num_edges(), num_e);
 
-void size_test(graph_type1& g1, graph_type2& g2, unsigned int N = 1000) {
-  g2.resetMem();
-  g1.resetMem();
+  for (vertex_id_type i = 0; i < 6; ++i) {
+    std::cout << i << std::endl;
+    edge_list inedges = g.get_in_edges(i);
+    edge_list outedges = g.get_out_edges(i);
+    size_t arr_insize[] = {0,0,1,4,0,1};
+    size_t arr_outsize[] = {0,1,1,2,1,1};
+    if (i != 3) {
+      ASSERT_EQ(inedges.size(), arr_insize[i]);
+      ASSERT_EQ(outedges.size(), arr_outsize[i]);
+      if (outedges.size() > 0)
+      {
+        ASSERT_EQ(outedges[0].src, i);
+        ASSERT_EQ(outedges[0].target, 3);
 
-  size_t num_vertices = 0;
-  size_t num_edge = 0;
+        edge_data data = outedges[0].get_edge_data();
+        ASSERT_EQ(data.from, i);
+        ASSERT_EQ(data.to, 3);
+      }
+    } else {
 
-  std::cout <<  "--------------Begin size test: building N-clique, Compare size of G1, G2 ---------------" << " N = " << N << std::endl;
-  std::cout << "Initial graph1 size: " << g1.get_graph_size() << std::endl;
-  std::cout << "Initial graph2 size: " << g2.get_graph_size() << std::endl;
+      ASSERT_EQ(outedges.size(), 2);
+      size_t arr_out[] = {2,5};
+      for (size_t j = 0; j < 2; ++j) {
+         edge_data data = outedges[j].get_edge_data();
+         ASSERT_EQ(data.from, 3);
+         ASSERT_EQ(data.to, arr_out[j]);
+      }
 
-  std::cout << "Adding vertices..." << std::endl;
-  for (size_t i = 0; i < N; ++i) {
-    vertex_data vdata;
-    // create the vertex
-    g2.add_vertex(vdata);
-    g1.add_vertex(vdata);
-    ++num_vertices;
-  }
-
-  std::cout << "Adding edges..." << std::endl;
-  for (size_t i = 0; i < N; ++i) {
-    for (size_t j = 0; j < i; ++j) {
-
-      edge_data iedata(i,j);
-      edge_data oedata(j,i);
-      g2.add_edge(i,j, iedata);
-      g2.add_edge(j,i, oedata);
-
-      g1.add_edge(i,j,iedata);
-      g1.add_edge(j,i,oedata);
-      ++num_edge;
+      size_t arr_in[] = {1,2,4,5};
+      ASSERT_EQ(inedges.size(), 4);
+      for (size_t j = 0; j < 4; ++j) {
+         edge_data data = inedges[j].get_edge_data();
+         ASSERT_EQ(data.from, arr_in[j]);
+         ASSERT_EQ(data.to, 3);
+      }
     }
   }
 
-  std::cout << "Intermediate graph1 size: " << g1.get_graph_size() << std::endl;
-  std::cout << "Intermediate graph2 size: " << g2.get_graph_size() << std::endl;
-
-  std::cout << "Finalize graph1..." << std::endl;
-  g1.finalize();
-
-  std::cout << "Finalize graph2..." << std::endl;
-  g2.finalize();
-
-  std::cout << "Size of graph1 after finalized: " << g1.get_graph_size() << std::endl;
-  std::cout << "Size of graph2 after finalized: " << g2.get_graph_size() << std::endl;
-  std::cout << "Saving: " << double(g1.get_graph_size() - g2.get_graph_size())/(1024*1024) << "MB" << std::endl;
-  std::cout << "----------------End size test --------------------" << std::endl;
+  for (vertex_id_type i = 6; i < num_v; ++i) {
+     edge_list inedges = g.get_in_edges(i);
+     edge_list outedges = g.get_out_edges(i);
+     ASSERT_EQ(0, inedges.size());
+     ASSERT_EQ(0, outedges.size());
+  }
 }
 
 /**
@@ -151,109 +153,33 @@ void grid_graph_test(graph_type2& g) {
   ASSERT_EQ(g.num_in_neighbors(0), 2);
   printf("+ Pass test: #in = #out...\n\n");
 
-  // Test find
-  printf("Test find...\n");
-  typedef std::pair<bool, edge_id_type> edge_find_type;
-  edge_find_type p0;
-  for (size_t i = 0;i < dim; ++i) {
-    for (size_t j = 0;j < dim - 1; ++j) {
-      // add the horizontal edges in both directions
-      p0 = g.find(dim * i + j + 1, dim * i + j);
-      ASSERT_TRUE(p0.first);
-      p0 = g.find(dim * i + j, dim * i + j + 1);
-      ASSERT_TRUE(p0.first);
-      p0 = g.find(dim * j + i, dim * (j + 1) + i);
-      ASSERT_TRUE(p0.first);
-      p0 = g.find(dim * (j + 1) + i, dim * j + i);
-      ASSERT_TRUE(p0.first);
-    }
-  }
-  edge_find_type pno = g.find(0, 5); ASSERT_FALSE(pno.first);
-  pno = g.find(0, 4); ASSERT_FALSE(pno.first);
-  printf("+ Pass test: find(src, dest) :)\n\n");
-
-  // Test in vertices and out vertices
-  printf("Test in_vertices(), out_vertices()... \n");
-  std::vector<vertex_id_type> ins = g.in_vertices(4);
-  std::vector<vertex_id_type> outs = g.out_vertices(4);
-  ASSERT_EQ(ins.size(), 4);
-  printf("+ Pass test: in/out vertices\n\n");
-
-  // Test in source(), target(), rev_edge_id
-  printf("Test source(), target(), rev_edge_id()...\n");
-  for (size_t i = 0; i < num_edge; ++i) {
-    // Test edge src/target
-    vertex_id_type src = g.source(i);
-    vertex_id_type dst = g.target(i);
-    std::pair<bool, edge_id_type> eid_pair = g.find(src, dst);
-    ASSERT_TRUE(eid_pair.first);
-    ASSERT_EQ(i, eid_pair.second);
-
-    // Test rev_edge_id
-    edge_id_type reid = g.rev_edge_id(i);
-    ASSERT_EQ(g.source(reid), dst);
-    ASSERT_EQ(g.target(reid), src);
-  }
-  printf("+ Pass test: edge source, target\n\n");
-
-
-  // Test edge_list
-  edge_list in_edges = g.in_edge_ids(4);
-  printf("Test in_edges of V4: \n");
-  ASSERT_EQ(in_edges.size(), 4);
-  foreach(edge_id_type eid, in_edges) {
-    ASSERT_EQ(g.target(eid), 4);
-  }
-
-  printf("Test out_edges of V4: \n");
-  edge_list out_edges = g.out_edge_ids(4);
-  ASSERT_EQ(out_edges.size(), 4);
-  foreach(edge_id_type eid, out_edges) {
-    ASSERT_EQ(g.source(eid), 4);
-  }
-  printf("+ Pass test: in_edge_ids, out_edge_ids\n\n");
-
 
   printf("Test iterate over in/out_edges and get edge data: \n");
-
   for (vertex_id_type i = 0; i < num_vertices; ++i) {
-    const edge_list& out_eids = g.out_edge_ids(i);
-    const edge_list& in_eids = g.in_edge_ids(i);
+    const edge_list& out_edges = g.get_out_edges(i);
+    const edge_list& in_edges = g.get_in_edges(i);
+
     printf("Test v: %u\n", i);
     printf("In edge ids: ");
-    foreach(edge_id_type in, in_eids) std::cout << in << "(" << g.edge_data(in).from << ","<< g.edge_data(in).to << ") ";
-    std::cout <<std::endl;
-    foreach(edge_id_type out, out_eids) std::cout << out << "(" << g.edge_data(out).from << "," << g.edge_data(out).to << ") ";
+    foreach(edge_wrapper_type ewrapper, in_edges) std::cout << "(" << g.edge_data(ewrapper.src, ewrapper.target).from << ","<< g.edge_data(ewrapper.src, ewrapper.target).to << ") ";
     std::cout <<std::endl;
 
-    foreach(edge_id_type eid, out_eids) {
-      vertex_id_type o = g.target(eid);
-      edge_data edata = g.edge_data(eid);
-      ASSERT_EQ(edata.from, i);
-      ASSERT_EQ(edata.to, o);
+    printf("Out edge ids: ");
+    foreach(edge_wrapper_type ewrapper, out_edges) std::cout << "(" << g.edge_data(ewrapper.src, ewrapper.target).from << "," << g.edge_data(ewrapper.src, ewrapper.target).to << ") ";
+    std::cout <<std::endl;
+
+    foreach(edge_wrapper_type ewrapper, out_edges) {
+      edge_data edata = ewrapper.get_edge_data();
+      ASSERT_EQ(ewrapper.src, i);
+      ASSERT_EQ(edata.from, ewrapper.src);
+      ASSERT_EQ(edata.to, ewrapper.target);
     }
 
-    foreach(edge_id_type eid, in_eids) {
-      vertex_id_type o = g.source(eid);
-      edge_data edata = g.edge_data(eid);
-      ASSERT_EQ(edata.from, o);
-      ASSERT_EQ(edata.to, i);
-    }
-
-    for(size_t j = 0; j < out_eids.size(); ++j) {
-      edge_id_type eid = out_eids[j];
-      vertex_id_type o = g.target(eid);
-      edge_data edata = g.edge_data(eid);
-      ASSERT_EQ(edata.from, i);
-      ASSERT_EQ(edata.to, o);
-    }
-
-    for(size_t j = 0; j < in_eids.size(); ++j) {
-      edge_id_type eid = in_eids[j];
-      vertex_id_type o = g.source(eid);
-      edge_data edata = g.edge_data(eid);
-      ASSERT_EQ(edata.from, o);
-      ASSERT_EQ(edata.to, i);
+    foreach(edge_wrapper_type ewrapper, in_edges) {
+      edge_data edata = ewrapper.get_edge_data();
+      ASSERT_EQ(ewrapper.target, i);
+      ASSERT_EQ(edata.from, ewrapper.src);
+      ASSERT_EQ(edata.to, ewrapper.target);
     }
   }
   printf("+ Pass test: iterate edgelist and get data. :) \n");
@@ -288,15 +214,11 @@ int main(int argc,  char *argv[]) {
   // create a graphlab core which contains the graph, shared data, and
   // engine
   //
-  graphlab::core<graph_type1, update_functor1> glcore1;
   graphlab::core<graph_type2, update_functor2> glcore2;
 
   // Initialize the core with the command line arguments
-  glcore1.set_options(opts);
   glcore2.set_options(opts);
-
-  size_test(glcore1.graph(), glcore2.graph(), 1000);
-  //sparseGraphtest(glcore2.graph());
- // grid_graph_test(glcore2.graph());
+  sparseGraphtest(glcore2.graph());
+  grid_graph_test(glcore2.graph());
 }
 #include <graphlab/macros_undef.hpp>

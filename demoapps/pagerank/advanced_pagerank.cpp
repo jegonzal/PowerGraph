@@ -103,9 +103,9 @@ public:
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     float sum = 0;
-    foreach(edge_id_type eid, context.in_edge_ids()) 
-      sum += context.edge_data(eid).weight * 
-        context.const_vertex_data(context.source(eid)).value;
+    foreach(edge_wrapper_type ewrapper, context.get_in_edges()) 
+      sum += ewrapper.get_edge_data().weight * 
+        context.const_vertex_data(ewrapper.src).value;
     const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 
     // Add random reset probability
     vdata.value = 
@@ -122,11 +122,11 @@ public:
   void init_gather(iglobal_context_type& context) { accum = 0; }
 
   // Run the gather operation over all in edges
-  void gather(icontext_type& context, edge_id_type in_eid) {
+  void gather(icontext_type& context, edge_wrapper_type ewrapper) {
     const vertex_data& neighbor_vdata =
-      context.const_vertex_data(context.source(in_eid));
+      context.const_vertex_data(ewrapper.src);
     const double neighbor_value = neighbor_vdata.value;    
-    edge_data& edata = context.edge_data(in_eid);
+    edge_data& edata = ewrapper.get_edge_data();
     accum += edata.weight * neighbor_value;    
   } // end of gather
 
@@ -148,16 +148,16 @@ public:
   } // end of apply
 
   // Reschedule neighbors 
-  void scatter(icontext_type& context, edge_id_type out_eid) {
-    const edge_data& edata   = context.const_edge_data(out_eid);    
-    context.schedule(context.target(out_eid), 
+  void scatter(icontext_type& context, edge_wrapper_type ewrapper) {
+    const edge_data& edata   = ewrapper.get_edge_data();    
+    context.schedule(ewrapper.target, 
                      pagerank_update(accum*edata.weight));
     
   } // end of scatter
 
 private:
   void reschedule_neighbors(icontext_type& context) {
-    foreach(edge_id_type eid, context.out_edge_ids()) scatter(context, eid);
+    foreach(edge_wrapper_type ewrapper, context.get_out_edges()) scatter(context, ewrapper);
   } // end of reschedule neighbors
   
 }; // end of pagerank update functor

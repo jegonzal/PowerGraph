@@ -39,9 +39,10 @@ void save_graph_as_edge_list(const std::string& fname,
       vid < graph.num_vertices(); ++vid) {
     fout << vid << '\t' << vid << '\t' 
          << graph.vertex_data(vid).self_weight << "\n";
-    foreach(edge_id_type eid, graph.out_edge_ids(vid)) {
-      fout << vid << '\t' << graph.target(eid) << '\t' 
-           << graph.edge_data(eid).weight << "\n";
+
+    foreach(graph_type::const_edge_wrapper_type ewrapper, graph.get_out_edges(vid)) {
+      fout << vid << '\t' << ewrapper.target << '\t' 
+           << ewrapper.get_edge_data().weight << "\n";
     }
   }
   fout.close();
@@ -92,6 +93,84 @@ bool load_graph(const std::string& filename,
  *
  */
 
+<<<<<<< local
+
+void normalize_graph(graph_type& graph) {
+  std::cout 
+    << "Finalizing graph." << std::endl
+    << "\t This is required for the locking protocol to function correctly"
+    << std::endl;
+  graph.finalize();
+  std::cout << "Finished finalization!" << std::endl;
+
+  std::cout << "Normalizing out edge weights." << std::endl;
+  // This could be done in graphlab but the focus of this app is
+  // demonstrating pagerank
+  for(graph_type::vertex_id_type vid = 0; 
+      vid < graph.num_vertices(); ++vid) {
+    vertex_data& vdata = graph.vertex_data(vid);
+    // Initialze with self out edge weight
+    double sum = vdata.self_weight;
+    graph_type::edge_list_type out_edges = graph.get_out_edges(vid);
+    // Sum up weight on out edges
+    for(size_t i = 0; i < out_edges.size(); ++i) {
+      graph_type::edge_wrapper_type out_edge = out_edges[i];
+      sum += out_edge.get_edge_data().weight;      
+    }
+    if (sum == 0) {
+      vdata.self_weight = 1.0;
+      sum = 1.0; // Dangling page
+    }
+    assert(sum > 0);
+    // divide everything by sum
+    vdata.self_weight /= sum;
+    for(size_t i = 0; i < out_edges.size(); ++i) {
+      graph_type::edge_wrapper_type out_edge = out_edges[i];
+      out_edge.get_edge_data().weight /= sum;
+    } 
+  }
+  std::cout << "Finished normalizing edges." << std::endl;
+
+} // end of normalize_graph
+
+
+
+// Creates simple 5x5 graph
+void make_toy_graph(graph_type& graph) {
+  // Create 5 vertices
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+  graph.add_vertex(vertex_data());
+
+	
+  // Page 0 links to page 3 only, so weight is 1
+  graph.add_edge(0, 3, edge_data(1));
+	
+  // Page 1 links to 0 and 2
+  graph.add_edge(1, 0, edge_data(0.5));
+  graph.add_edge(1, 2, edge_data(0.5));
+	
+  // ... and so on
+  graph.add_edge(2, 0, edge_data(1.0/3));
+  graph.add_edge(2, 1, edge_data(1.0/3));
+  graph.add_edge(2, 3, edge_data(1.0/3));
+
+  graph.add_edge(3, 0, edge_data(0.25));
+  graph.add_edge(3, 1, edge_data(0.25));
+  graph.add_edge(3, 2, edge_data(0.25));
+  graph.add_edge(3, 4, edge_data(0.25));
+
+  graph.add_edge(4, 0, edge_data(0.2));
+  graph.add_edge(4, 1, edge_data(0.2));
+  graph.add_edge(4, 2, edge_data(0.2));
+  graph.add_edge(4, 3, edge_data(0.2));
+  // and self edge which must be handled specially from 4 to 4
+  graph.vertex_data(4).self_weight = 0.2;
+
+  normalize_graph(graph);
+=======
 template<typename Graph>
 void make_toy_graph(Graph& graph) {
   graph.resize(8);
@@ -105,6 +184,7 @@ void make_toy_graph(Graph& graph) {
   graph.add_edge(4,7); graph.add_edge(7,4);
   graph.add_edge(5,7); graph.add_edge(7,5);
   graph.add_edge(6,7); graph.add_edge(7,6);
+>>>>>>> other
 } // end of make_toy_graph
 
 

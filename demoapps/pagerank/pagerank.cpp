@@ -78,20 +78,19 @@ public:
     }*/
 
     /* Iterate over in/out vertex_list and get edge_data is faster. Only supported by graph2. */
-    vertex_id_type vid = context.vertex_id();
-    foreach (vertex_id_type in_id, context.in_vertices_list())
-      sum += context.edge_data(in_id, vid).weight * context.const_vertex_data(in_id).value;
+    foreach (edge_wrapper_type ewrapper, context.get_in_edges())
+      sum += ewrapper.get_edge_data().weight * context.const_vertex_data(ewrapper.src).value;
 
     sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
       (1-RANDOM_RESET_PROBABILITY)*sum;
     vdata.old_value = vdata.value;
     vdata.value = sum;
 
-    foreach (vertex_id_type out_id, context.out_vertices_list()) {
-      const float residual = context.edge_data(vid, out_id).weight *
+    foreach (edge_wrapper_type ewrapper, context.get_out_edges()) {
+      const float residual = ewrapper.get_edge_data().weight *
         std::fabs(vdata.value - vdata.old_value);
       if (residual > ACCURACY)
-        context.schedule(out_id, pagerank_update(residual));
+        context.schedule(ewrapper.target, pagerank_update(residual));
     }
   } // end of operator()  
 }; // end of pagerank update functor

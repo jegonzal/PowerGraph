@@ -65,6 +65,7 @@ namespace graphlab {
     typedef typename graph_type::edge_data_type    edge_data_type;
     typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::edge_list_type    edge_list_type;
+    typedef typename graph_type::edge_wrapper_type edge_wrapper_type;
 
    
     typedef icontext<graph_type, update_functor_type> icontext_type;
@@ -145,7 +146,7 @@ namespace graphlab {
      * parallel.  The merge() operation is used to join update
      * functors.
      */
-    virtual void gather(icontext_type& context, edge_id_type eid) { 
+    virtual void gather(icontext_type& context, edge_wrapper_type ewrapper) { 
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
     };
 
@@ -169,10 +170,9 @@ namespace graphlab {
      * Scatter is invoked on all scatter_edges() after calling
      * init_scatter() and may be called in parallel.
      */
-    virtual void scatter(icontext_type& context, edge_id_type eid) { 
+    virtual void scatter(icontext_type& context, edge_wrapper_type ewrapper) { 
       logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
     }
-  
   };  // end of iupdate_functor
  
 }; //end of namespace graphlab

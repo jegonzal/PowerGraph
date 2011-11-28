@@ -56,10 +56,14 @@
 #include <algorithm>
 #include <functional>
 #include <fstream>
+#include <functional>
 
 
 #include <boost/bind.hpp>
 #include <boost/unordered_set.hpp>
+#include <boost/functional.hpp>
+#include <boost/iterator.hpp>
+#include <boost/iterator/transform_iterator.hpp>
 
 
 
@@ -151,68 +155,201 @@ namespace graphlab {
     class vertex_list {};
     typedef vertex_list vertex_list_type;
     
-    /** This class defines a set of edges */
-    class edge_list {
-    public:
-      typedef const edge_id_type* iterator; // Should not be used
-      typedef const edge_id_type* const_iterator;
-      typedef edge_id_type value_type;
-    private:
-      const edge_id_type* begin_ptr; // Points to first element
-      const edge_id_type* end_ptr; // One past end   
-    public:
-            
-
-      /** \brief Construct an empty edge list */
-      edge_list() : begin_ptr(NULL), end_ptr(NULL) { }
-      /** \brief Construct an edge list from an std vector */
-      edge_list(const std::vector<edge_id_type>& edges) :
-        begin_ptr(&(*edges.begin())), 
-        end_ptr(begin_ptr + edges.size()) { }
-      /** \brief Construct an edge list from an in memory array */
-      edge_list(const edge_id_type* begin_ptr, size_t len) :
-        begin_ptr(begin_ptr),  end_ptr(begin_ptr + len) { }
-      
-      /** \brief Get the size of the edge list */
-      size_t size() const { return (size_t)(end_ptr - begin_ptr); }
-      
-      /** \brief Get the ith edge in the edge list */
-      edge_id_type operator[](size_t i) const {
-        ASSERT_LT(i,  size());
-        return *(begin_ptr + i);
-      }
-      
-      /** \brief Returns a pointer to the start of the edge list */
-      const edge_id_type* begin() const {
-        return begin_ptr;
-      }
-      
-      /** \brief Returns a pointer to the end of the edge list */
-      const edge_id_type* end() const {
-        return end_ptr;
-      } 
-      
-      /** \brief Fill a vector with edge id list */
-      void fill_vector(std::vector<edge_id_type>& lvalue) const {
-        lvalue.clear();
-        foreach(edge_id_type eid, *this) lvalue.push_back(eid);    
-      }
-      
-      /** \brief test if the edge list is empty */
-      bool empty() const { return size() == 0; }
-      
-    }; // End of edge list
-    
-
-    /** The type of the edge list */
-    typedef edge_list edge_list_type;
-
-    /** The type of the vertex data stored in the graph */
+        /** The type of the vertex data stored in the graph */
     typedef VertexData vertex_data_type;
 
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
+
+    /** The old edge_list of edge ids is deprecated.*/
+    /*  Please see the new edge_list and edge_wrapper class. */
+    // class edge_list_old {
+    //   public:
+    //     typedef const edge_id_type* iterator; // Should not be used
+    //     typedef const edge_id_type* const_iterator;
+    //     typedef edge_id_type value_type;
+    //   private:
+    //     const edge_id_type* begin_ptr; // Points to first element
+    //     const edge_id_type* end_ptr; // One past end   
+    //   public:
+    //     edge_list() : begin_ptr(NULL), end_ptr(NULL) { }
+    //     /** \brief Construct an edge list from an std vector */
+    //     edge_list(const std::vector<edge_id_type>& edges) :
+    //       begin_ptr(&(*edges.begin())), 
+    //       end_ptr(begin_ptr + edges.size()) { }
+    //     /** \brief Construct an edge list from an in memory array */
+    //     edge_list(const edge_id_type* begin_ptr, size_t len) :
+    //       begin_ptr(begin_ptr),  end_ptr(begin_ptr + len) { }
+
+    //     /** \brief Get the size of the edge list */
+    //     size_t size() const { return (size_t)(end_ptr - begin_ptr); }
+
+    //     /** \brief Get the ith edge in the edge list */
+    //     edge_id_type operator[](size_t i) const {
+    //       ASSERT_LT(i,  size());
+    //       return *(begin_ptr + i);
+    //     }
+
+    //     /** \brief Returns a pointer to the start of the edge list */
+    //     const edge_id_type* begin() const {
+    //       return begin_ptr;
+    //     }
+
+    //     /** \brief Returns a pointer to the end of the edge list */
+    //     const edge_id_type* end() const {
+    //       return end_ptr;
+    //     } 
+
+    //     /** \brief Fill a vector with edge id list */
+    //     void fill_vector(std::vector<edge_id_type>& lvalue) const {
+    //       lvalue.clear();
+    //       foreach(edge_id_type eid, *this) lvalue.push_back(eid);    
+    //     }
+
+    //     /** \brief test if the edge list is empty */
+    //     bool empty() const { return size() == 0; }
+    // }; // End of edge list
+
     
+    /* * This class represents an edge with: src, target and pointer to edge_data. */
+    class edge_wrapper {
+      public:
+        edge_wrapper () : src(-1), target(-1), edge_data(NULL) { }
+        edge_wrapper (const edge_wrapper& other) : 
+          src(other.src), target(other.target), edge_data(other.edge_data) { } 
+        edge_wrapper (vertex_id_type _src, vertex_id_type _target, edge_data_type* _edata) : 
+          src(_src), target(_target), edge_data(_edata){ }
+
+      public:
+        const edge_data_type& get_edge_data () const {
+          return *edge_data;
+        }
+        edge_data_type& get_edge_data () {
+          return *edge_data;
+        }
+        // Data fields. 
+      public: 
+        vertex_id_type src;
+        vertex_id_type target;
+      private:
+        edge_data_type* edge_data;
+    }; // end of class edge_wrapper.
+
+    /* * This class represents a lazy list of edge_wrapper. */
+    class edge_list {
+      public:
+        // Define transform function: graph* -> edge_id_type -> edge_wrapper
+        struct make_edge_wrapper_functor : public std::binary_function <graph*, edge_id_type, edge_wrapper> {
+          edge_wrapper operator() (graph* graph_ptr, edge_id_type eid) const {
+            return edge_wrapper(graph_ptr->source(eid), graph_ptr->target(eid), &(graph_ptr->edge_data(eid)));
+          }
+        };
+        typedef boost::binder1st<make_edge_wrapper_functor> Function;
+        typedef boost::transform_iterator<Function, edge_id_type*> iterator;
+        typedef boost::transform_iterator<Function, edge_id_type*> const_iterator;
+        typedef edge_wrapper value_type;
+
+      public:
+        edge_list () : list_size(0) { }
+
+        edge_list (graph* g_ptr, edge_id_type* begin, edge_id_type* end) : graph_ptr(g_ptr) , 
+          begin_ptr(boost::make_transform_iterator(begin, boost::bind1st(make_edge_wrapper_functor(),graph_ptr))), 
+          end_ptr(boost::make_transform_iterator(end, boost::bind1st(make_edge_wrapper_functor(),graph_ptr))) {
+          list_size= end-begin;
+        }
+
+        edge_list (const edge_list& other) : graph_ptr(other.graph_ptr), begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), list_size(other.list_size) { }
+
+        size_t size() const { return list_size; }
+
+        edge_wrapper operator[](size_t i) const {
+          ASSERT_LT(i, list_size);
+          return *(begin_ptr + i);
+        }
+
+        iterator begin() const { return begin_ptr; }
+        iterator end() const { return end_ptr; }
+        bool empty() const { return size() == 0; } 
+        
+      private:
+        graph* graph_ptr;
+        iterator begin_ptr;
+        iterator end_ptr;
+        size_t list_size;
+    }; // end of class edge_list;
+
+    /* * The const version of edge wrapper. */
+    class const_edge_wrapper {
+      public:
+        const_edge_wrapper () : src(-1), target(-1), edge_data(NULL) { }
+        const_edge_wrapper (const const_edge_wrapper& other) : 
+          src(other.src), target(other.target), edge_data(other.edge_data) { } 
+        const_edge_wrapper (vertex_id_type _src, vertex_id_type _target, const edge_data_type* _edata) : 
+          src(_src), target(_target), edge_data(_edata){ }
+
+      public:
+        const edge_data_type& get_edge_data () const {
+          return *edge_data;
+        }
+
+      public: 
+        vertex_id_type src;
+        vertex_id_type target;
+      private:
+        const edge_data_type* edge_data;
+    }; // end of class const_edge_wrapper.
+
+    /* * The const version of edge_list */
+    class const_edge_list {
+      public:
+        struct make_edge_wrapper_functor : public std::binary_function <const graph*, const edge_id_type&, const_edge_wrapper> {
+          const_edge_wrapper operator() (const graph* graph_ptr, const edge_id_type& eid) const {
+            return const_edge_wrapper(graph_ptr->source(eid), graph_ptr->target(eid), &(graph_ptr->edge_data(eid)));
+          }
+        };
+        typedef boost::binder1st<make_edge_wrapper_functor> Function;
+        typedef boost::transform_iterator<Function, const edge_id_type*> iterator;
+        typedef boost::transform_iterator<Function, const edge_id_type*> const_iterator;
+        typedef const_edge_wrapper value_type;
+
+      public:
+        const_edge_list () : list_size(0) { }
+
+        const_edge_list (const graph* g_ptr, const edge_id_type* begin, const edge_id_type* end) : graph_ptr(g_ptr),
+          begin_ptr(boost::make_transform_iterator(begin, boost::bind1st(make_edge_wrapper_functor(), graph_ptr))), 
+          end_ptr(boost::make_transform_iterator(end, boost::bind1st(make_edge_wrapper_functor(), graph_ptr))) { 
+          list_size= end-begin;
+        }
+
+        const_edge_list (const const_edge_list& other) : graph_ptr(other.graph_ptr), begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), list_size(other.list_size) { }
+
+        size_t size() const { return list_size; }
+
+        const_edge_wrapper operator[](size_t i) const {
+          ASSERT_LT(i, list_size);
+          return *(begin_ptr + i);
+        }
+
+        iterator begin() const { return begin_ptr; }
+        iterator end() const { return end_ptr; }
+        bool empty() const { return size() == 0; } 
+        
+      private:
+        const graph* graph_ptr;
+        iterator begin_ptr;
+        iterator end_ptr;
+        size_t list_size;
+    }; // end of class edge_list;
+
+    /** The type of the edge list */
+    typedef edge_list edge_list_type;
+    typedef const_edge_list const_edge_list_type;
+
+    /** The type of the edge wrapper */
+    typedef edge_wrapper edge_wrapper_type;
+    typedef const_edge_wrapper const_edge_wrapper_type;
+
+   
   public:
 
     // CONSTRUCTORS ============================================================>
@@ -411,6 +548,7 @@ namespace graphlab {
     /** \brief A less safe version of find. 
         Returns the edge_id of an edge from src to target exists. 
         Assertion failure otherwise. */
+    /*  
     edge_id_type edge_id(vertex_id_type source, vertex_id_type target) const {
       std::pair<bool, edge_id_type> res = find(source, target);
       // The edge must exist
@@ -418,16 +556,19 @@ namespace graphlab {
       ASSERT_LT(res.second, edges.size());
       return res.second;
     } // end of edge_id
+    */
 
     
     /** \brief Returns the edge ID of the edge going in the opposite direction. 
         Assertion failure if such an edge is not found.  */
+    /*
     edge_id_type rev_edge_id(edge_id_type eid) const {
       ASSERT_LT(eid, edges.size());
       vertex_id_type source = edges[eid].source();
       vertex_id_type target = edges[eid].target();    
       return edge_id(target, source);
     } // end of rev_edge_id
+    */
 
     /** 
      * \brief Creates a vertex containing the vertex data and returns the id
@@ -636,13 +777,13 @@ namespace graphlab {
         neighbor_colors.clear();
         const vertex_id_type& vid = permutation[i].second;
         // Get the neighbor colors
-        foreach(edge_id_type eid, in_edge_ids(vid)){
-          const vertex_id_type& neighbor_vid = source(eid);
+        foreach(edge_wrapper_type ewrapper, get_in_edges(vid)){
+          const vertex_id_type& neighbor_vid = ewrapper.src;
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
-        foreach(edge_id_type eid, out_edge_ids(vid)){
-          const vertex_id_type& neighbor_vid = target(eid);
+        foreach(edge_wrapper_type ewrapper, get_out_edges(vid)){
+          const vertex_id_type& neighbor_vid = ewrapper.target;
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
@@ -670,10 +811,10 @@ namespace graphlab {
     bool valid_coloring() const {
       for(vertex_id_type vid = 0; vid < num_vertices(); ++vid) {
         const vertex_color_type& vertex_color = color(vid);
-        edge_list in_edges = in_edge_ids(vid);
+        edge_list in_edges = get_in_edges(vid);
         // Get the neighbor colors
-        foreach(edge_id_type eid, in_edges){
-          const vertex_id_type& neighbor_vid = source(eid);
+        foreach(edge_wrapper_type ewrapper, in_edges){
+          const vertex_id_type& neighbor_vid = ewrapper.src; 
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           if(vertex_color == neighbor_color) return false;
         }
@@ -682,47 +823,60 @@ namespace graphlab {
     }
     
     
-    /** \brief Return the edge ids of the edges arriving at v */
-    edge_list in_edge_ids(vertex_id_type v) const {
+    // /** \brief Return the edge ids of the edges arriving at v */
+    // edge_list in_edge_ids(vertex_id_type v) const {
+    //   ASSERT_LT(v, in_edges.size());
+    //   return edge_list(in_edges[v]);
+    // } // end of in edges    
+
+    // /** \brief Return the edge ids of the edges leaving at v */
+    // edge_list out_edge_ids(vertex_id_type v) const {
+    //   ASSERT_LT(v, out_edges.size());
+    //   return edge_list(out_edges[v]);
+    // } // end of out edges
+    // 
+    // /** \brief Get the set of in vertices of vertex v */
+    // std::vector<vertex_id_type> in_vertices(vertex_id_type v) const {
+    //   std::vector<vertex_id_type> ret;
+    //   foreach(edge_id_type eid, in_edges[v]) {
+    //     ret.push_back(edges[eid].source());
+    //   }
+    //   return ret;
+    // }
+
+    // 
+    // 
+    // /** \brief Get the set of out vertices of vertex v */
+    // std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
+    //   std::vector<vertex_id_type> ret;
+    //   foreach(edge_id_type eid, out_edges[v]) {
+    //     ret.push_back(edges[eid].target());
+    //   }
+    //   return ret;
+    // }
+    //
+    edge_list get_in_edges(vertex_id_type v) {
       ASSERT_LT(v, in_edges.size());
-      return edge_list(in_edges[v]);
-    } // end of in edges    
-
-    /** \brief Return the edge ids of the edges leaving at v */
-    edge_list out_edge_ids(vertex_id_type v) const {
+      return edge_list(this, &(*(in_edges[v].begin())), &(*in_edges[v].end()));
+    }
+    
+    edge_list get_out_edges(vertex_id_type v) {
       ASSERT_LT(v, out_edges.size());
-      return edge_list(out_edges[v]);
-    } // end of out edges
-    
-    /** \brief Get the set of in vertices of vertex v */
-    std::vector<vertex_id_type> in_vertices(vertex_id_type v) const {
-      std::vector<vertex_id_type> ret;
-      foreach(edge_id_type eid, in_edges[v]) {
-        ret.push_back(edges[eid].source());
-      }
-      return ret;
+      return edge_list(this, &(*out_edges[v].begin()), &(*out_edges[v].end()));
     }
 
-    // Compatible with the icontext interfase. Should never be used.
-    vertex_list in_vertices_list(vertex_id_type v) const {
-      ASSERT_TRUE(false);
-      return vertex_list();
+    const_edge_list get_in_edges(vertex_id_type v) const {
+      ASSERT_LT(v, in_edges.size());
+      const edge_id_type* begin = &(*(in_edges[v].begin()));
+      return const_edge_list(this, begin, begin + in_edges[v].size());
     }
     
-    /** \brief Get the set of out vertices of vertex v */
-    std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
-      std::vector<vertex_id_type> ret;
-      foreach(edge_id_type eid, out_edges[v]) {
-        ret.push_back(edges[eid].target());
-      }
-      return ret;
+    const_edge_list get_out_edges(vertex_id_type v) const {
+      ASSERT_LT(v, out_edges.size());
+      const edge_id_type* begin = &(*(out_edges[v].begin()));
+      return const_edge_list(this, begin, begin + out_edges[v].size());
     }
 
-    // Compatible with the icontext interfase. Should never be used.
-    vertex_list out_vertices_list(vertex_id_type v) const {
-      ASSERT_TRUE(false);
-      return vertex_list();
-    }
     
     /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {
@@ -814,7 +968,7 @@ namespace graphlab {
       indeg.resize(num_vertices());
       std::queue<vertex_id_type> q;
       for (size_t i = 0;i < num_vertices(); ++i) {
-        indeg[i] = in_edge_ids(i).size();
+        indeg[i] = get_in_edges(i).size();
         if (indeg[i] == 0) {
           q.push(i);
         }
@@ -824,8 +978,8 @@ namespace graphlab {
         vertex_id_type v = q.front();
         q.pop();
         topsort.push_back(v);
-        foreach(edge_id_type eid, out_edge_ids(v)) {
-          vertex_id_type destv = target(eid);
+        foreach(edge_wrapper_type ewrapper, get_out_edges(v)) {
+          vertex_id_type destv = ewrapper.target;
           --indeg[destv];
           if (indeg[destv] == 0) {
             q.push(destv);
@@ -992,9 +1146,11 @@ namespace graphlab {
       vertex_id_type;
     typedef typename graphlab::graph<VertexData, EdgeData>::edge_id_type 
       edge_id_type;
+    typedef typename graphlab::graph<VertexData, EdgeData>::edge_wrapper_type
+      edge_wrapper_type;
     for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
-      foreach(edge_id_type eid, graph.out_edge_ids(vid))
-        out << vid << ", " << graph.target(eid) << '\n';      
+      foreach(edge_wrapper_type ewrapper, graph.get_out_edges(vid))
+        out << vid << ", " << ewrapper.target << '\n';      
     }
     return out;
   }
@@ -1017,10 +1173,6 @@ namespace graphlab {
   // // //! You should now use the edge list type associated with the graph
   // // __attribute__((__deprecated__)) 
   // // typedef graph<int,int>::edge_list edge_list;
-
-
-
-  
 
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

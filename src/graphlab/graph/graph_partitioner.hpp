@@ -391,6 +391,8 @@ namespace graphlab {
                                                 bool usemetisdefaults = false) {
       typedef typename Graph::vertex_id_type vertex_id_type;
       typedef typename Graph::edge_id_type edge_id_type;
+      typedef typename Graph::edge_wrapper_type edge_wrapper_type;
+      typedef typename Graph::const_edge_wrapper_type const_edge_wrapper_type;
       if (numparts == 1) {
         ret_part.assign(graph.num_vertices(), 0);
         return;
@@ -427,13 +429,13 @@ namespace graphlab {
       
         std::set<size_t> neighbors;
         std::map<size_t, double> nbrtoweight;
-        foreach(edge_id_type eid, graph.out_edge_ids(u)) {
-          neighbors.insert(graph.target(eid));
-          nbrtoweight[graph.target(eid)] = double(wfunction(graph.edge_data(eid)));
+        foreach(const_edge_wrapper_type ewrapper, graph.get_out_edges(u)) {
+          neighbors.insert(ewrapper.target);
+          nbrtoweight[ewrapper.target] = double(wfunction(ewrapper.get_edge_data()));
         }
-        foreach(edge_id_type eid, graph.in_edge_ids(u)) {
-          neighbors.insert(graph.source(eid));
-          nbrtoweight[graph.source(eid)] = double(wfunction(graph.edge_data(eid)));
+        foreach(const_edge_wrapper_type ewrapper, graph.get_in_edges(u)) {
+          neighbors.insert(ewrapper.src);
+          nbrtoweight[ewrapper.src] = double(wfunction(ewrapper.get_edge_data()));
         }
         foreach(vertex_id_type vid, neighbors) {
           if (vid == u) continue;

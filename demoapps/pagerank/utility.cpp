@@ -49,9 +49,9 @@ void save_graph_as_edge_list(const std::string& fname,
       vid < graph.num_vertices(); ++vid) {
     fout << vid << '\t' << vid << '\t' 
          << graph.vertex_data(vid).self_weight << "\n";
-    foreach(graph_type::edge_id_type eid, graph.out_edge_ids(vid)) {
-      fout << vid << '\t' << graph.target(eid) << '\t' 
-           << graph.edge_data(eid).weight << "\n";
+    foreach(graph_type::const_edge_wrapper_type ewrapper, graph.get_out_edges(vid)) {
+      fout << vid << '\t' << ewrapper.target << '\t' 
+           << ewrapper.get_edge_data().weight << "\n";
     }
   }
   fout.close();
@@ -140,11 +140,11 @@ void normalize_graph(graph_type& graph) {
     vertex_data& vdata = graph.vertex_data(vid);
     // Initialze with self out edge weight
     double sum = vdata.self_weight;
-    const graph_type::edge_list_type& out_eids = graph.out_edge_ids(vid);
+    graph_type::edge_list_type out_edges = graph.get_out_edges(vid);
     // Sum up weight on out edges
-    for(size_t i = 0; i < out_eids.size(); ++i) {
-      const graph_type::edge_id_type out_eid = out_eids[i];
-      sum += graph.edge_data(out_eid).weight;      
+    for(size_t i = 0; i < out_edges.size(); ++i) {
+      graph_type::edge_wrapper_type out_edge = out_edges[i];
+      sum += out_edge.get_edge_data().weight;      
     }
     if (sum == 0) {
       vdata.self_weight = 1.0;
@@ -153,9 +153,9 @@ void normalize_graph(graph_type& graph) {
     assert(sum > 0);
     // divide everything by sum
     vdata.self_weight /= sum;
-    for(size_t i = 0; i < out_eids.size(); ++i) {
-      const graph_type::edge_id_type out_eid = out_eids[i];
-      graph.edge_data(out_eid).weight /= sum;
+    for(size_t i = 0; i < out_edges.size(); ++i) {
+      graph_type::edge_wrapper_type out_edge = out_edges[i];
+      out_edge.get_edge_data().weight /= sum;
     } 
   }
   std::cout << "Finished normalizing edges." << std::endl;

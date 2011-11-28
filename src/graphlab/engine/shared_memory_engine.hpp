@@ -89,6 +89,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef typename graph_type::edge_id_type   edge_id_type;
     typedef typename graph_type::edge_list_type edge_list_type;
+    typedef typename graph_type::edge_wrapper_type edge_wrapper_type;
 
     typedef ischeduler<shared_memory_engine>      ischeduler_type;
     
@@ -1037,26 +1038,27 @@ namespace graphlab {
     }
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
-      const edge_list_type edges = graph.in_edge_ids(vid);
-      foreach(const edge_id_type eid, edges) {
+      const edge_list_type edges = graph.get_in_edges(vid);
+      foreach(const edge_wrapper_type ewrapper, edges) {
         context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, eid, 
+          context_manager_ptr->get_single_edge_context(cpuid, vid, ewrapper, 
                                                        ufun.writable_gather());
-        ufun.gather(context, eid);
+        ufun.gather(context, ewrapper);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
+        context_manager_ptr->release_single_edge_context(cpuid, context, ewrapper);
       }
     }
+
     if(ufun.gather_edges() == update_functor_type::OUT_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
-      const edge_list_type edges = graph.out_edge_ids(vid);
-      foreach(const edge_id_type eid, edges) {
+      const edge_list_type edges = graph.get_out_edges(vid);
+      foreach(const edge_wrapper_type ewrapper, edges) {
         context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, eid, 
+          context_manager_ptr->get_single_edge_context(cpuid, vid, ewrapper, 
                                                        ufun.writable_gather());
-        ufun.gather(context, eid);
+        ufun.gather(context, ewrapper);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
+        context_manager_ptr->release_single_edge_context(cpuid, context, ewrapper);
       }
     }
     // Apply phase ------------------------------------------------------------
@@ -1065,29 +1067,30 @@ namespace graphlab {
     ufun.apply(context);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
+
     // Scatter phase ----------------------------------------------------------
     if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
-      const edge_list_type edges = graph.in_edge_ids(vid);
-      foreach(const edge_id_type eid, edges) {
+      const edge_list_type edges = graph.get_in_edges(vid);
+      foreach(const edge_wrapper_type ewrapper, edges) {
         context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, eid,
+          context_manager_ptr->get_single_edge_context(cpuid, vid, ewrapper,
                                                        ufun.writable_scatter());
-        ufun.scatter(context, eid);
+        ufun.scatter(context, ewrapper);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
+        context_manager_ptr->release_single_edge_context(cpuid, context, ewrapper);
       }
     }
     if(ufun.scatter_edges() == update_functor_type::OUT_EDGES ||
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
-      const edge_list_type edges = graph.out_edge_ids(vid);
-      foreach(const edge_id_type eid, edges) {
+      const edge_list_type edges = graph.get_out_edges(vid);
+      foreach(const edge_wrapper_type ewrapper, edges) {
         context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, eid,
+          context_manager_ptr->get_single_edge_context(cpuid, vid, ewrapper,
                                                        ufun.writable_scatter());
-        ufun.scatter(context, eid);
+        ufun.scatter(context, ewrapper);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, eid);
+        context_manager_ptr->release_single_edge_context(cpuid, context, ewrapper);
       }
     }
   } // end of evaluate_update_functor
