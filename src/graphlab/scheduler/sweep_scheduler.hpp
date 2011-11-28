@@ -75,7 +75,8 @@ namespace graphlab {
         const size_t index = cpu2index[cpuid];
         cpu2index[cpuid] += ncpus;
         // Address loop around
-        if (__builtin_expect(cpu2index[cpuid] >= nverts, false)) cpu2index[cpuid] = cpuid;
+        if (__builtin_expect(cpu2index[cpuid] >= nverts, false)) 
+          cpu2index[cpuid] = cpuid;
         return index;
       }
     }// end of next index
@@ -144,28 +145,22 @@ namespace graphlab {
         schedule(0, vid, fun);      
     } // end of schedule_all    
       
-
     
-    /** Get next dirty vertex in queue. Each cpu checks vertices with
-        modulo num_cpus = cpuid */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
-      const size_t nverts = index2vid.size();
-      const size_t ncpus  = cpu2index.size();
+      const size_t nverts    = index2vid.size();
+      const size_t ncpus     = cpu2index.size();
       const size_t max_fails = (nverts/ncpus) + 1;
       // Loop through all vertices that are associated with this
       // processor searching for a vertex with an active task
-      for(size_t i = get_and_inc_index(cpuid), fails = 0; fails <= max_fails;
-          i = get_and_inc_index(cpuid), ++fails) {
-        ASSERT_LT(i, nverts);
-        const vertex_id_type vid = index2vid[i];
+      for(size_t idx = get_and_inc_index(cpuid), fails = 0; 
+          fails <= max_fails; // 
+          idx = get_and_inc_index(cpuid), ++fails) {
+        ASSERT_LT(idx, nverts);
+        const vertex_id_type vid = index2vid[idx];
         const bool success = vfun_set.test_and_get(vid, ret_fun);
-        if(success) {
-          ret_vid = vid;
-          cpu2index[cpuid] = i;
-          return sched_status::NEW_TASK;
-        }
+        if(success) { ret_vid = vid; return sched_status::NEW_TASK; }
       }
       return sched_status::EMPTY;
     } // end of get_next
