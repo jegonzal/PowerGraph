@@ -38,8 +38,8 @@
 #include <boost/unordered_set.hpp>
 #include <boost/unordered_map.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/graph_atom.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -61,9 +61,6 @@ namespace graphlab {
   class memory_atom :public graph_atom {
   private:
 
-    //! Todo: Fix ugly hack
-    typedef graph<bool,bool>::vertex_id_type    vertex_id_type;
-    typedef graph<bool,bool>::vertex_color_type vertex_color_type;
   
     atomic<uint64_t> numv;
     atomic<uint64_t> nume;

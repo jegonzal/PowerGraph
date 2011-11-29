@@ -65,9 +65,8 @@ namespace graphlab {
     typedef typename engine_type::ischeduler_type ischeduler_type;
     
     typedef typename graph_type::vertex_id_type  vertex_id_type;
-    typedef typename graph_type::edge_id_type    edge_id_type;
     typedef typename graph_type::edge_list_type  edge_list_type;
-    typedef typename graph_type::edge_wrapper_type edge_wrapper_type;
+    typedef typename graph_type::edge_type       edge_type;
 
     typedef typename graph_type::vertex_data_type vertex_data_type;
  
@@ -294,8 +293,8 @@ namespace graphlab {
       
       context.init(v, consistency_model::FULL_CONSISTENCY);
 
-      const edge_list_type inedges =  graph_ptr->get_in_edges(v);
-      const edge_list_type outedges = graph_ptr->get_out_edges(v);
+      const edge_list_type inedges =  graph_ptr->in_edges(v);
+      const edge_list_type outedges = graph_ptr->out_edges(v);
 
       size_t inidx = 0;
       size_t outidx = 0;
@@ -305,9 +304,9 @@ namespace graphlab {
         vertex_id_type(graph_ptr->num_vertices());
       vertex_id_type curv = context.vertex_id();
       vertex_id_type inv  = 
-        (inedges.size() > 0) ? inedges[0].src : numv;
+        (inedges.size() > 0) ? inedges[0].source() : numv;
       vertex_id_type outv  = 
-        (outedges.size() > 0) ? outedges[0].target : numv;
+        (outedges.size() > 0) ? outedges[0].target() : numv;
 
       // iterate both in order and lock
       // include the current vertex in the iteration
@@ -320,19 +319,19 @@ namespace graphlab {
           acquire_writelock(cpuid, inv); // locks[inv].writelock(); 
           ++inidx;
           inv = (inedges.size() > inidx) ? 
-            inedges[inidx].src : numv;
+            inedges[inidx].source() : numv;
         } else if (outv < inv) {
           acquire_writelock(cpuid, outv); // locks[outv].writelock(); 
           ++outidx;
           outv = (outedges.size() > outidx) ? 
-            outedges[outidx].target : numv;
+            outedges[outidx].target() : numv;
         } else if (inv == outv) {
           acquire_writelock(cpuid, inv); // locks[inv].writelock();
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
-            inedges[inidx].src : numv;
+            inedges[inidx].source() : numv;
           outv = (outedges.size() > outidx) ? 
-            outedges[outidx].target : numv;
+            outedges[outidx].target() : numv;
         }
       }
       // just in case we never got around to locking it
@@ -350,8 +349,8 @@ namespace graphlab {
       
       context.init(v, consistency_model::EDGE_CONSISTENCY);
 
-      const edge_list_type inedges =  graph_ptr->get_in_edges(v);
-      const edge_list_type outedges = graph_ptr->get_out_edges(v);
+      const edge_list_type inedges =  graph_ptr->in_edges(v);
+      const edge_list_type outedges = graph_ptr->out_edges(v);
 
       size_t inidx = 0;
       size_t outidx = 0;
@@ -360,9 +359,9 @@ namespace graphlab {
       const vertex_id_type numv = vertex_id_type(graph_ptr->num_vertices());
       vertex_id_type curv = context.vertex_id();
       vertex_id_type inv  = 
-        (inedges.size() > 0) ? inedges[0].src : numv;
+        (inedges.size() > 0) ? inedges[0].source() : numv;
       vertex_id_type outv  = 
-        (outedges.size() > 0) ? outedges[0].target : numv;
+        (outedges.size() > 0) ? outedges[0].target() : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -374,19 +373,19 @@ namespace graphlab {
           acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
           ++inidx;
           inv = (inedges.size() > inidx) ? 
-            inedges[inidx].src : numv;
+            inedges[inidx].source() : numv;
         } else if (outv < inv) {
           acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
           ++outidx;
           outv = (outedges.size() > outidx) ? 
-            outedges[outidx].target : numv;
+            outedges[outidx].target() : numv;
         } else if (inv == outv){
           acquire_readlock(cpuid, inv); // locks[inv].readlock();
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
-            inedges[inidx].src : numv;
+            inedges[inidx].source() : numv;
           outv = (outedges.size() > outidx) ? 
-            outedges[outidx].target : numv;
+            outedges[outidx].target() : numv;
         }
       }
       // just in case we never got around to locking it
@@ -400,15 +399,15 @@ namespace graphlab {
 
     context_type& get_single_edge_context(size_t cpuid,
                                           vertex_id_type center_vid,
-                                          edge_wrapper_type ewrapper,
+                                          const edge_type& edge,
                                           bool writable) {
       context_type& context = contexts[cpuid];
       const consistency_model::model_enum consistency = writable? 
         consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY :
         consistency_model::SINGLE_EDGE_READ_CONSISTENCY;
       context.init(center_vid, consistency);
-      vertex_id_type source = ewrapper.src;
-      vertex_id_type target = ewrapper.target;
+      vertex_id_type source = edge.source();
+      vertex_id_type target = edge.target();
       ASSERT_NE(source, target);
       ASSERT_TRUE(source == center_vid || target == center_vid);
       if(source < target) std::swap(source, target);
@@ -444,8 +443,8 @@ namespace graphlab {
       context_type& context = contexts[cpuid];
       context.init(v, consistency_model::READ_CONSISTENCY);
 
-      const edge_list_type inedges =  graph_ptr->get_in_edges(v);
-      const edge_list_type outedges = graph_ptr->get_out_edges(v);
+      const edge_list_type inedges =  graph_ptr->in_edges(v);
+      const edge_list_type outedges = graph_ptr->out_edges(v);
 
       size_t inidx = 0;
       size_t outidx = 0;
@@ -454,9 +453,9 @@ namespace graphlab {
       const vertex_id_type numv = (vertex_id_type)(graph_ptr->num_vertices());
       vertex_id_type curv = context.vertex_id();
       vertex_id_type inv  = 
-        (inedges.size() > 0) ? inedges[0].src : numv;
+        (inedges.size() > 0) ? inedges[0].source() : numv;
       vertex_id_type outv  = 
-        (outedges.size() > 0) ? outedges[0].target : numv;
+        (outedges.size() > 0) ? outedges[0].target() : numv;
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -468,19 +467,19 @@ namespace graphlab {
           acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
           ++inidx;
           inv = (inedges.size() > inidx) ? 
-            inedges[inidx].src : numv;
+            inedges[inidx].source() : numv;
         } else if (outv < inv) {
           acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
           ++outidx;
           outv= (outedges.size() > outidx) ? 
-            outedges[outidx].target : numv;
+            outedges[outidx].target() : numv;
         } else if (inv == outv) {
           acquire_readlock(cpuid, inv); // locks[inv].readlock();
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
-            inedges[inidx].src : numv;
+            inedges[inidx].source() : numv;
           outv = (outedges.size() > outidx) ? 
-            outedges[outidx].target : numv;
+            outedges[outidx].target() : numv;
         }
       }
       // just in case we never got around to locking it
@@ -535,9 +534,9 @@ namespace graphlab {
 
     void release_single_edge_context(size_t cpuid, 
                                      context_type& context,
-                                     edge_wrapper_type ewrapper) {
-      vertex_id_type source = ewrapper.src;
-      vertex_id_type target = ewrapper.target;
+                                     const edge_type& edge) {
+      vertex_id_type source = edge.source();
+      vertex_id_type target = edge.target();
       ASSERT_NE(source, target);
       if(source > target) std::swap(source, target);
       release_lock(cpuid, source);
@@ -548,8 +547,8 @@ namespace graphlab {
     void release_full_edge_context(size_t cpuid,
                                    context_type& context) {
       const vertex_id_type v = context.vertex_id();
-      const edge_list_type inedges =  graph_ptr->get_in_edges(v);
-      const edge_list_type outedges = graph_ptr->get_out_edges(v);
+      const edge_list_type inedges =  graph_ptr->in_edges(v);
+      const edge_list_type outedges = graph_ptr->out_edges(v);
       size_t inidx = inedges.size() - 1;
       size_t outidx = outedges.size() - 1;
 
@@ -557,9 +556,9 @@ namespace graphlab {
 
       vertex_id_type curv = context.vertex_id();
       vertex_id_type inv  = (inedges.size() > inidx) ?
-        (inedges[inidx].src) : vertex_id_type(-1);
+        (inedges[inidx].source()) : vertex_id_type(-1);
       vertex_id_type outv  = (outedges.size() > outidx) ?
-        (outedges[outidx].target) : vertex_id_type(-1);
+        (outedges[outidx].target()) : vertex_id_type(-1);
       // iterate both in order and lock
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
@@ -571,19 +570,19 @@ namespace graphlab {
           release_lock(cpuid, inv); // locks[inv].unlock(); 
           --inidx;
           inv  = (inedges.size() > inidx) ?
-            inedges[inidx].src : vertex_id_type(-1);
+            inedges[inidx].source() : vertex_id_type(-1);
         } else if ((outv+1) > (inv+1)) {
           release_lock(cpuid, outv); // locks[outv].unlock(); 
           --outidx;
           outv  = (outedges.size() > outidx) ?
-            outedges[outidx].target : vertex_id_type(-1);
+            outedges[outidx].target() : vertex_id_type(-1);
         } else if (inv == outv){
           release_lock(cpuid, inv); // locks[inv].unlock();
           --inidx; --outidx;
           inv  = (inedges.size() > inidx) ?
-            inedges[inidx].src : vertex_id_type(-1);
+            inedges[inidx].source() : vertex_id_type(-1);
           outv  = (outedges.size() > outidx) ?
-            outedges[outidx].target : vertex_id_type(-1);
+            outedges[outidx].target() : vertex_id_type(-1);
         }
       }
 

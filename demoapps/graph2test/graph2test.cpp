@@ -16,8 +16,8 @@ struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type2;
-typedef graph_type2::edge_list edge_list;
-typedef graph_type2::edge_wrapper_type edge_wrapper_type;
+typedef graph_type2::edge_list_type edge_list_type;
+typedef graph_type2::edge_type edge_type;
 typedef graph_type2::vertex_id_type vertex_id_type;
 
 struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_functor2> {
@@ -27,8 +27,7 @@ void sparseGraphtest (graph_type2& g) {
   size_t num_v = 10;
   size_t num_e = 6;
 
-  for (size_t i = 0; i < num_v; ++i)
-  {
+  for (size_t i = 0; i < num_v; ++i) {
     vertex_data vdata;
     g.add_vertex(vdata);
   }
@@ -48,47 +47,47 @@ void sparseGraphtest (graph_type2& g) {
 
   for (vertex_id_type i = 0; i < 6; ++i) {
     std::cout << i << std::endl;
-    edge_list inedges = g.get_in_edges(i);
-    edge_list outedges = g.get_out_edges(i);
+    edge_list_type inedges = g.in_edges(i);
+    edge_list_type outedges = g.out_edges(i);
     size_t arr_insize[] = {0,0,1,4,0,1};
     size_t arr_outsize[] = {0,1,1,2,1,1};
     if (i != 3) {
       ASSERT_EQ(inedges.size(), arr_insize[i]);
       ASSERT_EQ(outedges.size(), arr_outsize[i]);
       if (outedges.size() > 0)
-      {
-        ASSERT_EQ(outedges[0].src, i);
-        ASSERT_EQ(outedges[0].target, 3);
+        {
+          ASSERT_EQ(outedges[0].source(), i);
+          ASSERT_EQ(outedges[0].target(), 3);
 
-        edge_data data = outedges[0].get_edge_data();
-        ASSERT_EQ(data.from, i);
-        ASSERT_EQ(data.to, 3);
-      }
+          edge_data data = g.edge_data(outedges[0]);
+          ASSERT_EQ(data.from, i);
+          ASSERT_EQ(data.to, 3);
+        }
     } else {
 
       ASSERT_EQ(outedges.size(), 2);
       size_t arr_out[] = {2,5};
       for (size_t j = 0; j < 2; ++j) {
-         edge_data data = outedges[j].get_edge_data();
-         ASSERT_EQ(data.from, 3);
-         ASSERT_EQ(data.to, arr_out[j]);
+        edge_data data = g.edge_data(outedges[j]);
+        ASSERT_EQ(data.from, 3);
+        ASSERT_EQ(data.to, arr_out[j]);
       }
 
       size_t arr_in[] = {1,2,4,5};
       ASSERT_EQ(inedges.size(), 4);
       for (size_t j = 0; j < 4; ++j) {
-         edge_data data = inedges[j].get_edge_data();
-         ASSERT_EQ(data.from, arr_in[j]);
-         ASSERT_EQ(data.to, 3);
+        edge_data data = g.edge_data(inedges[j]);
+        ASSERT_EQ(data.from, arr_in[j]);
+        ASSERT_EQ(data.to, 3);
       }
     }
   }
 
   for (vertex_id_type i = 6; i < num_v; ++i) {
-     edge_list inedges = g.get_in_edges(i);
-     edge_list outedges = g.get_out_edges(i);
-     ASSERT_EQ(0, inedges.size());
-     ASSERT_EQ(0, outedges.size());
+    edge_list_type inedges = g.in_edges(i);
+    edge_list_type outedges = g.out_edges(i);
+    ASSERT_EQ(0, inedges.size());
+    ASSERT_EQ(0, outedges.size());
   }
 }
 
@@ -96,13 +95,13 @@ void sparseGraphtest (graph_type2& g) {
    In this function, we construct the 3 by 3 grid graph.
 */
 void grid_graph_test(graph_type2& g) {
-  g.resetMem();
+  g.clear_memory();
   std::cout << "-----------Begin Grid Test--------------------" << std::endl;
   size_t dim = 3;
   size_t num_vertices = 0;
   size_t num_edge = 0;
   typedef uint32_t vertex_id_type;
-  typedef uint32_t edge_id_type;
+
 
   // here we create dim * dim vertices.
   for (size_t i = 0;i < dim * dim; ++i) {
@@ -146,9 +145,9 @@ void grid_graph_test(graph_type2& g) {
   // Symmetric graph: #inneighbor == outneighbor
   printf("Test num_in_neighbors() == num_out_neighbors() ...\n");
   for (size_t i = 0; i < num_vertices; ++i)
-  {
-    ASSERT_EQ(g.num_in_neighbors(i), g.num_out_neighbors(i));
-  }
+    {
+      ASSERT_EQ(g.num_in_neighbors(i), g.num_out_neighbors(i));
+    }
   ASSERT_EQ(g.num_in_neighbors(4), 4);
   ASSERT_EQ(g.num_in_neighbors(0), 2);
   printf("+ Pass test: #in = #out...\n\n");
@@ -156,30 +155,34 @@ void grid_graph_test(graph_type2& g) {
 
   printf("Test iterate over in/out_edges and get edge data: \n");
   for (vertex_id_type i = 0; i < num_vertices; ++i) {
-    const edge_list& out_edges = g.get_out_edges(i);
-    const edge_list& in_edges = g.get_in_edges(i);
+    const edge_list_type& out_edges = g.out_edges(i);
+    const edge_list_type& in_edges = g.in_edges(i);
 
     printf("Test v: %u\n", i);
     printf("In edge ids: ");
-    foreach(edge_wrapper_type ewrapper, in_edges) std::cout << "(" << g.edge_data(ewrapper.src, ewrapper.target).from << ","<< g.edge_data(ewrapper.src, ewrapper.target).to << ") ";
+    foreach(edge_type edge, in_edges) 
+      std::cout << "(" << g.edge_data(edge.source(), edge.target()).from << ","
+                << g.edge_data(edge.source(), edge.target()).to << ") ";
     std::cout <<std::endl;
 
     printf("Out edge ids: ");
-    foreach(edge_wrapper_type ewrapper, out_edges) std::cout << "(" << g.edge_data(ewrapper.src, ewrapper.target).from << "," << g.edge_data(ewrapper.src, ewrapper.target).to << ") ";
+    foreach(edge_type edge, out_edges) 
+      std::cout << "(" << g.edge_data(edge.source(), edge.target()).from << "," 
+                << g.edge_data(edge.source(), edge.target()).to << ") ";
     std::cout <<std::endl;
 
-    foreach(edge_wrapper_type ewrapper, out_edges) {
-      edge_data edata = ewrapper.get_edge_data();
-      ASSERT_EQ(ewrapper.src, i);
-      ASSERT_EQ(edata.from, ewrapper.src);
-      ASSERT_EQ(edata.to, ewrapper.target);
+    foreach(edge_type edge, out_edges) {
+      edge_data edata = g.edge_data(edge);
+      ASSERT_EQ(edge.source(), i);
+      ASSERT_EQ(edata.from, edge.source());
+      ASSERT_EQ(edata.to, edge.target());
     }
 
-    foreach(edge_wrapper_type ewrapper, in_edges) {
-      edge_data edata = ewrapper.get_edge_data();
-      ASSERT_EQ(ewrapper.target, i);
-      ASSERT_EQ(edata.from, ewrapper.src);
-      ASSERT_EQ(edata.to, ewrapper.target);
+    foreach(edge_type edge, in_edges) {
+      edge_data edata = g.edge_data(edge);
+      ASSERT_EQ(edge.target(), i);
+      ASSERT_EQ(edata.from, edge.source());
+      ASSERT_EQ(edata.to, edge.target());
     }
   }
   printf("+ Pass test: iterate edgelist and get data. :) \n");

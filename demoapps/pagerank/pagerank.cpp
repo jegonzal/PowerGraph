@@ -60,37 +60,20 @@ public:
     float sum = vdata.value * vdata.self_weight;    
 
     /* Iterate over edge_id_list and get source is slow in graph2 */
-    /*
-    foreach(edge_id_type eid, context.in_edge_ids()) 
-      sum += context.edge_data(eid).weight * 
-        context.const_vertex_data(context.source(eid)).value;
+    foreach( edge_type edge, context.in_edges() ) 
+      sum += context.const_edge_data(edge).weight * 
+        context.const_vertex_data(edge.source()).value;
     // Add random reset probability
     sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
       (1-RANDOM_RESET_PROBABILITY)*sum;
     vdata.old_value = vdata.value;
     vdata.value = sum;
-    foreach(edge_id_type eid, context.out_edge_ids()) {    
-      const float residual = context.edge_data(eid).weight * 
+    foreach(edge_type edge, context.out_edges()) {    
+      const float residual = context.const_edge_data(edge).weight * 
         std::fabs(vdata.value - vdata.old_value);
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > ACCURACY) 
-        context.schedule(context.target(eid), pagerank_update(residual));      
-    }*/
-
-    /* Iterate over in/out vertex_list and get edge_data is faster. Only supported by graph2. */
-    foreach (edge_wrapper_type ewrapper, context.get_in_edges())
-      sum += ewrapper.get_edge_data().weight * context.const_vertex_data(ewrapper.src).value;
-
-    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*sum;
-    vdata.old_value = vdata.value;
-    vdata.value = sum;
-
-    foreach (edge_wrapper_type ewrapper, context.get_out_edges()) {
-      const float residual = ewrapper.get_edge_data().weight *
-        std::fabs(vdata.value - vdata.old_value);
-      if (residual > ACCURACY)
-        context.schedule(ewrapper.target, pagerank_update(residual));
+        context.schedule(edge.target(), pagerank_update(residual));      
     }
   } // end of operator()  
 }; // end of pagerank update functor

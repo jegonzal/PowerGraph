@@ -101,7 +101,7 @@ struct edge_data {
 /**
    The GraphLab graph is templatized over the vertex data as well as the
    edge data.  Here we define the type of the graph for convenience.  */
-typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 
 
@@ -152,17 +152,17 @@ struct update_functor :
     vertex_data& curvdata = context.vertex_data();
     // the in_edge_ids() function provide a vector of the edge ids of
     // the edges entering the current vertex
-    const graph_type::edge_list_type in_edges = context.in_edge_ids();
+    const edge_list_type in_edges = context.in_edges();
     // a counter for the number of red neighbors
     size_t num_red_neighbors = 0;  
     for (size_t i = 0; i < in_edges.size(); ++i) {
       // eid is the current edge id
-      graph_type::edge_id_type eid = in_edges[i];    
+      edge_type edge = in_edges[i];    
       // the target(eid) function allows to get the vertex at the destination
       // of the edge 'eid'. The source(eid) function provides me with the
       // source vertex.. Since I am looking at in_edges, the source vertex
       // will be my adjacent vertices
-      graph_type::vertex_id_type sourcev = context.source(eid);
+      graph_type::vertex_id_type sourcev = edge.source();
       // the neighbor_vertex_data() function allow me to read the
       // vertex data of a vertex adjacent to the current vertex.
       // since I am not going to change this data, I can just grab a
@@ -200,17 +200,7 @@ struct update_functor :
     // If I flipped, all my neighbors could be affected, loop through
     // all my neighboring vertices and add them as tasks.
     if (color_changed) {
-      for (size_t i = 0; i < in_edges.size(); ++i) {
-        const graph_type::vertex_id_type sourcev = context.source(in_edges[i]);
-        // add the task the gl::update_task object takes a vertex id,
-        // and the update function to execute on. add_task also takes
-        // another argument, which is the priority of this task. This
-        // value should be strictly > 0.  The priority parameter of
-        // course, is only used by the priority schedulers. In this
-        // demo app, we don't really care about the priority, so we
-        // will just set it to 1.0
-        context.schedule(sourcev, update_functor());
-      }
+      context.schedule_in_neighbors(context.vertex_id(), update_functor());
     }
     // now if I flipped myself based on a random number. This means
     // that if I update myself again, I could switch colors. Therefore
