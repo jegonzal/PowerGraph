@@ -15,7 +15,7 @@ PnLaCsEnqei atslBvPNusB 050803 235959 590
 
 boost::posix_time::ptime myEpoch(boost::gregorian::date(1970,boost::gregorian::Jan,1)); // Or whatever your epocj is.
 
-unsigned long int datestr2uint64(std::string data){
+unsigned long int datestr2uint64(const std::string & data){
 
 //std::string ts("2002-01-20 23:59:59.000");
 //ptime t(time_from_string(ts))
