@@ -13,7 +13,7 @@ PnLaCsEnqei atslBvPNusB 050803 235959 590
 #include "boost/date_time/posix_time/posix_time.hpp"
   
 
-boost::posix_time::ptime myEpoch(boost::gregorian::date(1970,boost::gregorian::Jan,1)); // Or whatever your epocj is.
+boost::posix_time::ptime myEpoch(boost::gregorian::date(2003,boost::gregorian::Aug,3)); // Or whatever your epocj is.
 
 //input string in the format: 050803 235959
 unsigned long int datestr2uint64(const std::string & data){
