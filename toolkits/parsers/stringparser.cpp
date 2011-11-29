@@ -36,23 +36,34 @@ using namespace std;
 bool debug = false;
 
 map<string,uint> hash2nodeid;
-
+std::string datafile;
+int conseq_id = 0;
 struct vertex_data {
   string filename;
+  vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
 
 struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(std::string date);
+unsigned long int datestr2uint64(const std::string & data);
 
 
 
 void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
    from = hash2nodeid[buf1];
+   if (from == 0){
+	hash2nodeid[buf1] = ++conseq_id;
+        from = conseq_id;
+   }
    to = hash2nodeid[buf2];
-   assert(from != to);
+   if (to == 0){
+       hash2nodeid[buf2] = ++conseq_id;
+       to = conseq_id;
+   }
+        
+   assert(from != to && from > 0 && to > 0);
 }
 
 
@@ -72,16 +83,21 @@ struct stringparser_update :
 
     while(true){
       int rc = fscanf(f, "%s %s %s %s %d\n", buf1, buf2, buf3, buf4,&duration);
-      if (rc != 5)
-	logstream(LOG_FATAL)<< "Failed to parse line "<<line<<" in file: " << vdata.filename << endl;
-      line++;
+      if (rc != 5){
+        if (rc == EOF && errno == 0){
+           logstream(LOG_INFO) << "Finishing reading " << (line-1) << " From file: " << vdata.filename << endl;
+	   return;
+        }
+  	else logstream(LOG_FATAL)<< "Failed to parse line "<<line<<" in file: " << vdata.filename << endl;
+      }
       char timebuf[256];
       sprintf(timebuf, "%s %s", buf3, buf4);
       unsigned long int timeret = datestr2uint64(std::string(timebuf));
       uint from, to;
       find_ids(from, to, buf1, buf2);
-      if (debug && line < 10)
+      if (debug && line <= 10)
          cout<<"Read line: " << line << " From: " << from << " To: " << to << " time: " << timeret << " val: " << duration << endl;
+      line++;
     }
   }
 }; // end of update_functor
@@ -89,7 +105,7 @@ struct stringparser_update :
 
 
 
-
+/*
 class accumulator :
   public graphlab::iaccumulator<graph_type, stringparser_update, accumulator> {
 private:
@@ -103,7 +119,7 @@ public:
   void finalize(iglobal_context_type& context) {
   }
 }; // end of  accumulator
-
+*/
 
 
 
@@ -115,7 +131,6 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile;
   std::string format = "matrixmarket";
   int unittest = 0;
 
@@ -153,8 +168,8 @@ int main(int argc,  char *argv[]) {
   }
 
 
-
-
+  vertex_data vdata(datafile);
+  core.graph().add_vertex(vdata);
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringparser_update());
 
