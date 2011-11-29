@@ -124,11 +124,10 @@ namespace graphlab {
     typedef Graph           graph_type;
     typedef UpdateFunctor   update_functor_type;
     typedef typename graph_type::vertex_id_type    vertex_id_type;
-    typedef typename graph_type::edge_id_type      edge_id_type;
     typedef typename graph_type::vertex_color_type vertex_color_type;
     //! The edge data type associated with the graph
     typedef typename graph_type::edge_list_type    edge_list_type;
-    typedef typename graph_type::edge_wrapper_type edge_wrapper_type;
+    typedef typename graph_type::edge_type edge_type;
 
     //! The vertex data type associated with the graph
     typedef typename graph_type::vertex_data_type  vertex_data_type;
@@ -156,6 +155,13 @@ namespace graphlab {
      */
     virtual vertex_color_type color() const = 0;
 
+    /**
+     * \brief Get the vertex color of the base vertx in this context
+     */
+    virtual vertex_color_type color(vertex_id_type vid) const = 0;
+
+    //! Reverse an edge
+    virtual edge_type reverse_edge(const edge_type& edge) const = 0;
 
     /**
      * \brief test whether an edge is present
@@ -163,15 +169,32 @@ namespace graphlab {
      * This method tests whether the edge exists.  If the edge exists
      * this method returns true.  
      */
-    virtual bool edge_exists(vertex_id_type source,
-                             vertex_id_type target) const  = 0;
+    virtual edge_type find(vertex_id_type source,
+                           vertex_id_type target) const  = 0;
 
 
-    virtual edge_list_type get_in_edges(vertex_id_type v) = 0;
-    virtual edge_list_type get_out_edges(vertex_id_type v) = 0;
 
-    virtual edge_list_type get_in_edges() = 0;
-    virtual edge_list_type get_out_edges() = 0;
+    /**
+     * Get the in edges associated with the center vertex
+     */
+    virtual edge_list_type in_edges() const = 0;
+
+    /**
+     * Get the out edges associated with the center vertex
+     */
+    virtual edge_list_type out_edges() const = 0;
+
+
+
+    /**
+     * Get the in edges associated with the vertex v
+     */
+    virtual edge_list_type in_edges(vertex_id_type v) const = 0;
+
+    /**
+     * Get the out edges associated with the vertex v
+     */
+    virtual edge_list_type out_edges(vertex_id_type v) const = 0;
 
 
     
@@ -189,14 +212,6 @@ namespace graphlab {
      * the const reference version of vertex_data.
      */
     virtual vertex_data_type& vertex_data() = 0;
-
-    /**
-     * \brief Get an immutable reference to the data associated with
-     * the vase vertex.
-     * \deprecated use const_vertex_data
-     * This should be called if the data does not need to be modified.
-     */
-    virtual const vertex_data_type& vertex_data() const = 0;
     
     /**
      * \brief Get an immutable reference to the data associated with
@@ -215,28 +230,20 @@ namespace graphlab {
      * const version of this function should be used to permit further
      * optimization.
      */
-    //virtual edge_data_type& edge_data(edge_id_type eid) = 0;
+    virtual edge_data_type& edge_data(const edge_type& edge) = 0;
+    virtual edge_data_type& 
+    edge_data(vertex_id_type source, vertex_id_type target) = 0;
 
-    /**
-     * \brief Get an immutable reference to the data associated with
-     * the edge.
-     * \deprecated use const_edge_data
-     * This should only be invoked on edges that are adjacent to the
-     * base vertex. 
-     */
-    //virtual const edge_data_type& edge_data(edge_id_type eid) const = 0;    
-    
     /**
      * \brief Get an immutable reference to the data associated with
      * the vase vertex.
      *
      * This should be called if the data does not need to be modified.
      */    
-//   virtual const edge_data_type& const_edge_data(edge_id_type eid) const = 0; 
-
-    virtual edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) = 0;
-
-    virtual const edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) const = 0;
+    virtual const edge_data_type& 
+    const_edge_data(const edge_type& eid) const = 0; 
+    virtual const edge_data_type& 
+    const_edge_data(vertex_id_type source, vertex_id_type target) const = 0;
     
     /**
      * \brief get a mutable reference to the data associated with a
@@ -251,16 +258,6 @@ namespace graphlab {
      */
     virtual vertex_data_type& vertex_data(vertex_id_type vertex) = 0; 
 
-    /**
-     * \brief get an immutable reference to the data associated with a
-     * neighboring vertex.
-     * \deprecated Use const_vertex_data
-     * This function should only be invoked on neighboring
-     * vertices. Unfortunately, due to the Log(d) lookup required to
-     * enforce the adjacency constraint we do not check at this time.
-     */
-    virtual const vertex_data_type& vertex_data(vertex_id_type vertex) const = 0;
-        
     /**
      * \brief get an immutable reference to the data associated with a
      * neighboring vertex.

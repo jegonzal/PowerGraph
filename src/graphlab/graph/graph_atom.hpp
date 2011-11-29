@@ -1,18 +1,14 @@
-#ifndef GRAPH_ATOM_HPP
-#define GRAPH_ATOM_HPP
+#ifndef GRAPHLAB_GRAPH_ATOM_HPP
+#define GRAPHLAB_GRAPH_ATOM_HPP
 
 #include <sstream>
 #include <map>
 #include <boost/unordered_map.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/graph/graph.hpp>
-
+#include <graphlab/graph/graph_basic_types.hpp>
 namespace graphlab {
   
   class graph_atom {
-  private:
-    typedef graph<bool,bool>::vertex_id_type    vertex_id_type;
-    typedef graph<bool,bool>::vertex_color_type vertex_color_type;
   public:
     graph_atom() { };
     virtual ~graph_atom() { };

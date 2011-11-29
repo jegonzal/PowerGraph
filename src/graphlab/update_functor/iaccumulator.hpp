@@ -60,7 +60,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_color_type vertex_color_type;
 
     typedef typename graph_type::edge_data_type    edge_data_type;
-    typedef typename graph_type::edge_id_type      edge_id_type;
+    typedef typename graph_type::edge_type         edge_type;
     typedef typename graph_type::edge_list_type    edge_list_type;
 
     typedef icontext<graph_type, update_functor_type> icontext_type;
@@ -108,9 +108,9 @@ namespace graphlab {
     virtual edge_set gather_edges() const { return IN_EDGES; }
     virtual edge_set scatter_edges() const { return OUT_EDGES; }
     
-    virtual void gather(icontext_type& context, edge_id_type eid) { };
+    virtual void gather(icontext_type& context, const edge_type& edge) { };
     virtual void apply(icontext_type& context) { };
-    virtual void scatter(icontext_type& context, edge_id_type eid) { };
+    virtual void scatter(icontext_type& context, const edge_type& edge) { };
   
   };  // end of iaccumulator
  

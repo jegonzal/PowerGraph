@@ -38,7 +38,7 @@
 
 #include <vector>
 
-#include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 

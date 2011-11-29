@@ -63,11 +63,11 @@ namespace graphlab {
 
     typedef typename graph_type::vertex_id_type      vertex_id_type;
     typedef typename graph_type::vertex_color_type   vertex_color_type;
-    typedef typename graph_type::edge_id_type        edge_id_type;
+    typedef typename graph_type::edge_type           edge_type;
     typedef typename graph_type::vertex_data_type    vertex_data_type;
     typedef typename graph_type::edge_data_type      edge_data_type;
     typedef typename graph_type::edge_list_type      edge_list_type;
-    typedef typename graph_type::edge_wrapper_type   edge_wrapper_type;
+   
     
   private:    
     /** a pointer to the engine */
@@ -156,6 +156,7 @@ namespace graphlab {
       return vertex_data(vid);
     }
 
+
     const vertex_data_type& vertex_data() const {
       return vertex_data(vid);
     }
@@ -168,25 +169,21 @@ namespace graphlab {
       return vertex_data(vid);
     }
 
-    // edge_data_type& edge_data(edge_id_type eid) {
-    //   return graph_ptr->edge_data(eid);  
-    // }
+    edge_data_type& edge_data(const edge_type& edge) {
+      return graph_ptr->edge_data(edge);  
+    }
 
-    // const edge_data_type& edge_data(edge_id_type eid) const {
-    //   return graph_ptr->edge_data(eid);  
-    // }
-
-    // const edge_data_type& const_edge_data(edge_id_type eid) const {
-    //   return graph_ptr->edge_data(eid);  
-    // }
-
-    edge_data_type& edge_data(vertex_id_type source,
-        vertex_id_type target) {
+    edge_data_type& edge_data(vertex_id_type source, 
+                              vertex_id_type target) {
       return graph_ptr->edge_data(source, target);
     }
 
-    const edge_data_type& edge_data(vertex_id_type source,
-        vertex_id_type target) const {
+    const edge_data_type& const_edge_data(const edge_type& edge) const {
+      return graph_ptr->edge_data(edge);  
+    }
+
+    const edge_data_type& const_edge_data(vertex_id_type source,
+                                         vertex_id_type target) const {
       return graph_ptr->edge_data(source, target);
     }
 
@@ -194,83 +191,48 @@ namespace graphlab {
     void commit() { }
 
     vertex_color_type color() const { return graph_ptr->get_color(vid); }
+
+    vertex_color_type color(vertex_id_type vid) const { 
+      return graph_ptr->get_color(vid); 
+    }
+
     
     vertex_id_type vertex_id() const { return vid; }
 
+    //! Get the source vertex of the edge id argument
+    vertex_id_type source(const edge_type& edge) const {
+      return graph_ptr->source(edge);
+    }
+
+    //! get the target vertex of the edge id argument
+    vertex_id_type target(const edge_type& edge) const {
+      return graph_ptr->target(edge);
+    }
+
+    //! Get the rerverse edge 
+    edge_type reverse_edge(const edge_type& edge) const {      
+      return graph_ptr->reverse_edge(edge);
+    }
     
-    bool edge_exists(vertex_id_type source,
-                     vertex_id_type target) const {
-      return graph_ptr->find(source, target).first;
+    //! Find an edge using the source and target pair
+    edge_type find(vertex_id_type source,
+                   vertex_id_type target) const {
+      return graph_ptr->find(source, target);
     }
 
-    /** Interfaces about edge_ids are deprecated. */
-    // edge_id_type edge(vertex_id_type source,
-    //                   vertex_id_type target) const {
-    //   return graph_ptr->edge_id(source, target);
-    // }
 
 
-    // edge_id_type reverse_edge(edge_id_type eid) const {      
-    //   return graph_ptr->rev_edge_id(eid);
-    // }
-
-    // edge_list_type in_edge_ids() const {
-    //   return graph_ptr->in_edge_ids(vid);
-    // }
-
-    // edge_list_type in_edge_ids(vertex_id_type v) const {
-    //   return graph_ptr->in_edge_ids(v);
-    // }
-
-    // edge_list_type out_edge_ids() const {
-    //   return graph_ptr->out_edge_ids(vid);
-    // }
-
-    // edge_list_type out_edge_ids(vertex_id_type v) const {
-    //   return graph_ptr->out_edge_ids(v);
-    // }
-
-    // std::vector<vertex_id_type> in_vertices() const {
-    //   return graph_ptr->in_vertices(vid);
-    // }
-
-    // vertex_list_type in_vertices_list() const {
-    //   return graph_ptr->in_vertices_list(vid);
-    // }
-
-    // std::vector<vertex_id_type> out_vertices() const {
-    //   return graph_ptr->out_vertices(vid);
-    // }
-
-    // vertex_list_type out_vertices_list() const {
-    //   return graph_ptr->out_vertices_list(vid);
-    // }
-
-    // //! Get the source vertex of the edge id argument
-    // vertex_id_type source(edge_id_type edge_id) const {
-    //   return graph_ptr->source(edge_id);
-    // }
-
-    // //! get the target vertex of the edge id argument
-    // vertex_id_type target(edge_id_type edge_id) const {
-    //   return graph_ptr->target(edge_id);
-    // }
-    
-    edge_list_type get_in_edges (vertex_id_type v) {
-      return graph_ptr->get_in_edges(v);
+    edge_list_type in_edges() const { return graph_ptr->in_edges(vid); }
+    edge_list_type in_edges(vertex_id_type v) const {
+      return graph_ptr->in_edges(v);
     }
 
-    edge_list_type get_out_edges (vertex_id_type v) {
-      return graph_ptr->get_out_edges(v);
+    edge_list_type out_edges() const { return graph_ptr->out_edges(vid); }
+    edge_list_type out_edges(vertex_id_type v) const {
+      return graph_ptr->out_edges(v);
     }
 
-    edge_list_type get_in_edges () {
-      return graph_ptr->get_in_edges(vid);
-    }
 
-    edge_list_type get_out_edges () {
-      return graph_ptr->get_out_edges(vid);
-    }
 
 
     //! Get the consistency model under which this context was acquired
@@ -286,16 +248,14 @@ namespace graphlab {
 
     void schedule_in_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      const edge_list_type edges = graph_ptr->get_in_edges(vertex);
-      foreach(const edge_wrapper_type& ewrapper, edges) 
-        schedule(ewrapper.src, update_fun);
+      const edge_list_type edges = graph_ptr->in_edges(vertex);
+      foreach(const edge_type& e, edges) schedule(e.source(), update_fun);
     }
 
     void schedule_out_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      const edge_list_type edges = graph_ptr->get_out_edges(vertex);
-      foreach(const edge_wrapper_type& ewrapper, edges) 
-        schedule(ewrapper.target, update_fun);
+      const edge_list_type edges = graph_ptr->out_edges(vertex);
+      foreach(const edge_type& e, edges) schedule(e.target(), update_fun);
     }
 
     void schedule_neighbors(const vertex_id_type& vertex, 

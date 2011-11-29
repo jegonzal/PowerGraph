@@ -49,9 +49,9 @@ void save_graph_as_edge_list(const std::string& fname,
       vid < graph.num_vertices(); ++vid) {
     fout << vid << '\t' << vid << '\t' 
          << graph.vertex_data(vid).self_weight << "\n";
-    foreach(graph_type::const_edge_wrapper_type ewrapper, graph.get_out_edges(vid)) {
-      fout << vid << '\t' << ewrapper.target << '\t' 
-           << ewrapper.get_edge_data().weight << "\n";
+    foreach(graph_type::edge_type edge, graph.out_edges(vid)) {
+      fout << vid << '\t' << edge.target() << '\t' 
+           << graph.edge_data(edge).weight << "\n";
     }
   }
   fout.close();
@@ -140,12 +140,10 @@ void normalize_graph(graph_type& graph) {
     vertex_data& vdata = graph.vertex_data(vid);
     // Initialze with self out edge weight
     double sum = vdata.self_weight;
-    graph_type::edge_list_type out_edges = graph.get_out_edges(vid);
+    const graph_type::edge_list_type out_edges = graph.out_edges(vid);
     // Sum up weight on out edges
-    for(size_t i = 0; i < out_edges.size(); ++i) {
-      graph_type::edge_wrapper_type out_edge = out_edges[i];
-      sum += out_edge.get_edge_data().weight;      
-    }
+    for(size_t i = 0; i < out_edges.size(); ++i) 
+      sum += graph.edge_data(out_edges[i]).weight;
     if (sum == 0) {
       vdata.self_weight = 1.0;
       sum = 1.0; // Dangling page
@@ -153,10 +151,8 @@ void normalize_graph(graph_type& graph) {
     assert(sum > 0);
     // divide everything by sum
     vdata.self_weight /= sum;
-    for(size_t i = 0; i < out_edges.size(); ++i) {
-      graph_type::edge_wrapper_type out_edge = out_edges[i];
-      out_edge.get_edge_data().weight /= sum;
-    } 
+    for(size_t i = 0; i < out_edges.size(); ++i) 
+      graph.edge_data(out_edges[i]).weight /= sum;
   }
   std::cout << "Finished normalizing edges." << std::endl;
 
@@ -302,8 +298,8 @@ bool load_graph_from_jure_file(const std::string& filename,
 
   normalize_graph(graph);
 
-  std::cout
-    << "Graph storage size: " << (double)graph.get_graph_size() /(1024*1024) << "MB" << std::endl;
+  std::cout << "Graph storage size: " 
+            <<  double(graph.estimate_sizeof()) / (1024*1024) << "MB" << std::endl;
 
 
   return true;

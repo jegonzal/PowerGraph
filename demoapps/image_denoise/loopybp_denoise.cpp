@@ -102,7 +102,7 @@ class bp_update :
   typedef graphlab::iupdate_functor<graph_type, bp_update> base;
   typedef base::icontext_type      icontext_type;
   typedef base::vertex_id_type   vertex_id_type;
-  typedef base::edge_id_type     edge_id_type;
+  typedef base::edge_type     edge_id_type;
   typedef base::edge_list_type   edge_list_type;
 
 private:
@@ -123,16 +123,16 @@ public:
     vertex_data& vdata = context.vertex_data();
   
     // Get the in and out edges by reference
-    const edge_list_type in_edges  = context.in_edge_ids();
-    const edge_list_type out_edges = context.out_edge_ids();
+    const edge_list_type in_edges  = context.in_edges();
+    const edge_list_type out_edges = context.out_edges();
     assert(in_edges.size() == out_edges.size()); // Sanity check
 
     // Compute the belief
     // ---------------------------------------------------------------->
     vdata.belief = vdata.potential;
-    foreach(const edge_id_type& ineid, in_edges) {   
+    foreach(const edge_type& edge, in_edges) {   
       // Receive the message
-      edge_data& edata = context.edge_data(ineid);
+      edge_data& edata = context.edge_data(edge);
       edata.old_message = edata.message;
       vdata.belief.times( edata.old_message );
     }
@@ -146,14 +146,14 @@ public:
     graphlab::unary_factor cavity, tmp_msg;
     for(size_t i = 0; i < in_edges.size(); ++i) {
       // Get the edge ids
-      const edge_id_type outeid = out_edges[i];
-      const edge_id_type ineid = in_edges[i];
+      const edge_type out = out_edges[i];
+      const edge_type in  = in_edges[i];
       // CLEVER HACK: Here we are expoiting the sorting of the edge ids
       // to do fast O(1) time edge reversal
-      assert(context.target(outeid) == context.source(ineid));
+      ASSERT_EQ(out.target(), in.source());
       // Get the in and out edge data
-      const edge_data& in_edge = context.edge_data(ineid);
-      edge_data& out_edge = context.edge_data(outeid);
+      const edge_data& in_edge = context.const_edge_data(in);
+      edge_data& out_edge = context.edge_data(out);
    
       // Compute cavity
       cavity = vdata.belief;
@@ -178,7 +178,7 @@ public:
       out_edge.message = tmp_msg;
       
       if(residual > BOUND) {
-        context.schedule(context.target(outeid), bp_update(residual));
+        context.schedule(out.target(), bp_update(residual));
       }    
     }
   } // end of operator()

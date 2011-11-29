@@ -33,6 +33,7 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/mutable_queue.hpp>
+#include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>

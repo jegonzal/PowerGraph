@@ -36,7 +36,6 @@
 #include <string>
 #include <vector>
 #include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/graph/graph.hpp>
 
 namespace graphlab {
 

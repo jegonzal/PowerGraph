@@ -1,8 +1,12 @@
 #include <sstream>
 #include <map>
+
+
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/logger/logger.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
+
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -252,7 +256,7 @@ bool memory_atom::get_edge_data(vertex_id_type src, vertex_id_type target, std::
 }
 
 
-std::vector<memory_atom::vertex_id_type> memory_atom::enumerate_vertices() {
+std::vector<vertex_id_type> memory_atom::enumerate_vertices() {
   std::vector<vertex_id_type> ret;
   ret.resize(vertices.size());
   for (size_t i = 0; i < ret.size(); ++i) {
@@ -272,7 +276,7 @@ std::map<uint16_t, uint32_t> memory_atom::enumerate_adjacent_atoms() {
   return ret;
 }
 
-std::vector<memory_atom::vertex_id_type> memory_atom::get_out_vertices(vertex_id_type vid) {
+std::vector<vertex_id_type> memory_atom::get_out_vertices(vertex_id_type vid) {
   std::vector<vertex_id_type> ret;
   boost::unordered_map<vertex_id_type, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
   if (vidmap_iter == vidmap.end()) return ret;
@@ -285,7 +289,7 @@ std::vector<memory_atom::vertex_id_type> memory_atom::get_out_vertices(vertex_id
 }
 
 
-std::vector<memory_atom::vertex_id_type> memory_atom::get_in_vertices(vertex_id_type vid) {
+std::vector<vertex_id_type> memory_atom::get_in_vertices(vertex_id_type vid) {
   std::vector<vertex_id_type> ret;
   boost::unordered_map<vertex_id_type, size_t>::const_iterator vidmap_iter = vidmap.find(vid);
   if (vidmap_iter == vidmap.end()) return ret;
@@ -302,7 +306,7 @@ std::vector<memory_atom::vertex_id_type> memory_atom::get_in_vertices(vertex_id_
 }
 
 
-memory_atom::vertex_color_type memory_atom::get_color(vertex_id_type vid) {
+vertex_color_type memory_atom::get_color(vertex_id_type vid) {
   mut.lock();
   vertex_color_type ret = vertex_color_type(-1);
   boost::unordered_map<vertex_id_type, size_t>::const_iterator viter = vidmap.find(vid);
@@ -358,14 +362,14 @@ void memory_atom::clear() {
 }
 
 struct pair_first_equality {
-  bool operator()(const std::pair<graph<bool,bool>::vertex_id_type , std::string> &a, 
-                const std::pair<graph<bool,bool>::vertex_id_type , std::string> &b) const {
+  bool operator()(const std::pair<vertex_id_type , std::string> &a, 
+                const std::pair<vertex_id_type , std::string> &b) const {
     return a.first == b.first;
   }
 };
 struct pair_first_comparator {
-  bool operator()(const std::pair<graph<bool,bool>::vertex_id_type , std::string> &a, 
-                const std::pair<graph<bool,bool>::vertex_id_type , std::string> &b) const {
+  bool operator()(const std::pair<vertex_id_type , std::string> &a, 
+                const std::pair<vertex_id_type , std::string> &b) const {
     return a.first < b.first;
   }
 };

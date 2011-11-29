@@ -17,9 +17,7 @@ namespace graphlab {
   
   class write_only_disk_atom: public graph_atom {
   private:
-    typedef graph<bool,bool>::vertex_id_type    vertex_id_type;
-    typedef graph<bool,bool>::vertex_color_type vertex_color_type;
-    
+        
     std::string filename;
     uint16_t atomid;
     mutex mut;

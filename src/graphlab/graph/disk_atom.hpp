@@ -38,7 +38,6 @@
 #include <map>
 #include <boost/unordered_map.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/graph_atom.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -76,10 +75,6 @@ namespace graphlab {
   public:
     typedef kyotocabinet::TreeDB storage_type;
   private:
-
-    //! Todo: Fix ugly hack
-    typedef graph<bool,bool>::vertex_id_type    vertex_id_type;
-    typedef graph<bool,bool>::vertex_color_type vertex_color_type;
 
     storage_type db;
     // with only one global invalidate flag
