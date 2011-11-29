@@ -375,7 +375,7 @@ int main(int argc,  char *argv[]) {
 
   // now we can look the values using the get() function
   size_t numberofflips = glcore.get_global<size_t>("NUM_FLIPS");
-  double redprop = glcore.get_global<size_t>("RED_PROPORTION");
+  double redprop = glcore.get_global<double>("RED_PROPORTION");
 
   // output some interesting statistics
   std::cout << "Number of flips: " <<  numberofflips << std::endl;
