@@ -139,18 +139,18 @@ public:
 
 
     // Loop over the words in the document (encoded by out edges)
-    const edge_list_type out_edges = context.out_edge_ids();
+    const edge_list_type out_edges = context.out_edges();
     std::vector<double> prob(ntopics); 
     std::vector<count_type> new_n_t(ntopics, 0);
     double normalizer = 0; 
-    foreach(edge_id_type eid, out_edges) {
+    foreach(edge_type edge, out_edges) {
       // Get the data ---------------------------------------------------------
-      const vertex_id_type word_vid = context.target(eid);
+      const vertex_id_type word_vid = edge.target();
       const word_id_type word_id = word_vid; ASSERT_LT(word_id, nwords);      
       vertex_data& word = context.vertex_data(word_vid);
       ASSERT_EQ(word.type, WORD);
       if(word.n_t.size() != ntopics) word.n_t.resize(ntopics);
-      edge_data& edata = context.edge_data(eid);
+      edge_data& edata = context.edge_data(edge);
       if(edata.n_t.size() != ntopics) edata.n_t.resize(ntopics);          
 
       // Compute the probability table ----------------------------------------      
@@ -228,7 +228,7 @@ public:
     const word_id_type word_id = word_vid; ASSERT_LT(word_id, nwords);      
     vertex_data& word      = context.vertex_data(word_vid);
     ASSERT_EQ(word.type, WORD);
-    edge_data& edata = context.edge_data(eid);
+    edge_data& edata = context.edge_data(edge);
     if(edata.n_t.size() != ntopics) edata.n_t.resize(ntopics);          
 
     std::vector<double> prob(ntopics); 

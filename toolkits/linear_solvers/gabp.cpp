@@ -121,8 +121,8 @@ struct gabp_update :
   void operator()(icontext_type& context) {
     /* GET current vertex data */
     vertex_data& vdata = context.vertex_data();
-    edge_list_type outedgeid = context.out_edge_ids();
-    edge_list_type inedgeid = context.in_edge_ids();
+    const edge_list_type out_edges = context.out_edges();
+    const edge_list_type in_edges = context.in_edges();
     
     //store last round values
     vdata.prev_mean = vdata.cur_mean;
@@ -135,50 +135,50 @@ struct gabp_update :
 
     /* CALCULATE new value */
     if (debug) {
-     std::cout << "entering node " << context.vertex_id()
-               << " P=" << vdata.prior_prec
-               << " u=" << vdata.prior_mean
-               << std::endl;
-   }
-
-  //accumlate all messages (the inner summation in section 4 of Algorithm 1)
-  for(size_t i = 0; i < inedgeid.size(); i++) {
-    const edge_data& edata = context.edge_data(inedgeid[i]);
-    mu_i += edata.mean;
-    J_i +=  edata.prec;
-  }
-
-  if (debug) {
-    std::cout << context.vertex_id() << ") summing up all messages "
-              << mu_i << " " << J_i << std::endl;
-  }
-
-  // optional support for null variances
-  if (support_null_variance && J_i == 0){
-    vdata.cur_mean = mu_i;
-    vdata.cur_prec = 0;
-  } else {
-    assert(J_i != 0);
-    vdata.cur_mean = mu_i / J_i;
+      std::cout << "entering node " << context.vertex_id()
+                << " P=" << vdata.prior_prec
+                << " u=" << vdata.prior_mean
+                << std::endl;
+    }
+    
+    //accumlate all messages (the inner summation in section 4 of Algorithm 1)
+    for(size_t i = 0; i < in_edges.size(); i++) {
+      const edge_data& edata = context.edge_data(in_edges[i]);
+      mu_i += edata.mean;
+      J_i +=  edata.prec;
+    }
+    
+    if (debug) {
+      std::cout << context.vertex_id() << ") summing up all messages "
+                << mu_i << " " << J_i << std::endl;
+    }
+    
+    // optional support for null variances
+    if (support_null_variance && J_i == 0){
+      vdata.cur_mean = mu_i;
+      vdata.cur_prec = 0;
+    } else {
+      assert(J_i != 0);
+      vdata.cur_mean = mu_i / J_i;
+      assert(vdata.cur_mean != NAN);
+      vdata.cur_prec = J_i;
+    }
     assert(vdata.cur_mean != NAN);
-    vdata.cur_prec = J_i;
-  }
-  assert(vdata.cur_mean != NAN);
-
-  /* SEND new value and schedule neighbors */
-    for(size_t i = 0; i < inedgeid.size(); ++i) {
-      assert(context.source(inedgeid[i]) == context.target(outedgeid[i]));
-      edge_data& in_edge = context.edge_data(inedgeid[i]);
-      edge_data& out_edge = context.edge_data(outedgeid[i]);
+    
+    /* SEND new value and schedule neighbors */
+    for(size_t i = 0; i < in_edges.size(); ++i) {
+      assert(in_edges[i].source() == out_edges[i].target());
+      edge_data& in_edge = context.edge_data(in_edges[i]);
+      edge_data& out_edge = context.edge_data(out_edges[i]);
       //graphlab::vertex_id_type target = context.target(outedgeid[i]);
-
+      
       //substruct the sum of message sent from node j
-      real_type mu_i_j = mu_i - in_edge.mean;
-      real_type J_i_j  = J_i - in_edge.prec;
-
+      const real_type mu_i_j = mu_i - in_edge.mean;
+      const real_type J_i_j  = J_i - in_edge.prec;
+      
       if (!support_null_variance)  assert(J_i_j != 0);
       assert(out_edge.weight != 0);
-
+      
       if (support_null_variance && J_i_j == 0){
         out_edge.mean = 0;
         out_edge.prec = 0;
@@ -187,19 +187,15 @@ struct gabp_update :
         out_edge.mean = -(out_edge.weight * mu_i_j / J_i_j);
         out_edge.prec = -((out_edge.weight * out_edge.weight) / J_i_j);//matrix is assumed symmetric!
       }
-
-    context.schedule(context.vertex_id(), *this);
-
-
+      context.schedule(context.vertex_id(), *this);
       if (debug) {
-        std::cout << "Sending to " << context.target(outedgeid[i]) << " "
+        std::cout << "Sending to " << out_edges[i].target() << ' '
                   << out_edge.mean << " "
                   << out_edge.prec << " wdge weight "
                   << out_edge.weight << std::endl;
       }
     }
-
-  }
+  } // end of operator()
 }; // end of update_functor
 
 

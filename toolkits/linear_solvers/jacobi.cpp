@@ -90,7 +90,7 @@ struct jacobi_update :
   void operator()(icontext_type& context) {
     /* GET current vertex data */
     vertex_data& vdata = context.vertex_data();
-    edge_list_type outedgeid = context.out_edge_ids();
+    const edge_list_type out_edges = context.out_edges();
 
     //store last round values
     vdata.prev_x = vdata.pred_x;
@@ -107,10 +107,10 @@ struct jacobi_update :
                 << " prev_x=" << vdata.prev_x 
                 << " y: " << vdata.y << std::endl;
   
-    for(size_t i = 0; i < outedgeid.size(); ++i) {
-      edge_data& out_edge = context.edge_data(outedgeid[i]);
+    for(size_t i = 0; i < out_edges.size(); ++i) {
+      edge_data& out_edge = context.edge_data(out_edges[i]);
       const vertex_data & other = 
-        context.const_vertex_data(context.target(outedgeid[i]));
+        context.const_vertex_data(out_edges[i].target());
       x_i -= out_edge.weight * other.pred_x;
     }
     x_i /= A_ii;

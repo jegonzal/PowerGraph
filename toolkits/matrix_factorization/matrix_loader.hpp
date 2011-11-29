@@ -197,7 +197,7 @@ void initialize_vertex_data(const size_t nlatent, Graph& graph) {
   typedef typename Graph::vertex_id_type vertex_id_type;
   typedef typename Graph::vertex_data_type vertex_data_type;
 #pragma omp parallel for
-  for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
+  for(ssize_t vid = 0; vid < ssize_t(graph.num_vertices()); ++vid) {
     // Randomly initialize the vertex data
     vertex_data_type& vdata = graph.vertex_data(vid);
     vdata.latent.resize(nlatent);

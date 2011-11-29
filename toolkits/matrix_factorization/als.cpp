@@ -88,24 +88,24 @@ public:
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
-    const edge_list_type out_eids = context.out_edge_ids();
-    const edge_list_type in_eids  = context.in_edge_ids();
+    const edge_list_type out_edges = context.out_edges();
+    const edge_list_type in_edges  = context.in_edges();
     // If there are no neighbors just return
-    if(out_eids.size() + in_eids.size() == 0) return;
+    if(out_edges.size() + in_edges.size() == 0) return;
     // Get the number of latent dimensions
     const size_t& nlatent = context.get_global_const<size_t>("nlatent");
     mat XtX(nlatent, nlatent); XtX.setZero();
     vec Xty(nlatent); Xty.setZero();
     // Get the non-zero edge list
-    const bool is_in_eids = in_eids.size() > 0;
-    const edge_list_type eids = is_in_eids? in_eids : out_eids;    
+    const bool is_in_edges = in_edges.size() > 0;
+    const edge_list_type edges = is_in_edges? in_edges : out_edges;    
     // Compute X'X and X'y (weighted) -----------------------------------------
-    foreach(const edge_id_type eid, eids) {
+    foreach(const edge_type& edge, edges) {
       // get the neighbor id
-      const vertex_id_type neighbor_id = is_in_eids? 
-        context.source(eid) : context.target(eid);
+      const vertex_id_type neighbor_id = 
+        is_in_edges? edge.source() : edge.target();
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
-      const edge_data& edata = context.const_edge_data(eid);
+      const edge_data& edata = context.const_edge_data(edge);
       // Update the X'X and X'y (eigen calls are too slow)
       // Xty += neighbor.latent*(edata.observation*edata.weight);
       // XtX += (neighbor.latent*neighbor.latent.transpose()) * edata.weight;
@@ -129,12 +129,12 @@ public:
     // Update the rmse and reschedule neighbors -------------------------------
     const double tolerance = context.get_global_const<double>("tolerance");
     vdata.squared_error = 0;
-    foreach(const edge_id_type eid, eids) {
+    foreach(const edge_type& edge, edges) {
       // get the neighbor id
-      const vertex_id_type neighbor_id = is_in_eids? 
-        context.source(eid) : context.target(eid);
+      const vertex_id_type neighbor_id = 
+        is_in_edges? edge.source() : edge.target();
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
-      const edge_data& edata = context.const_edge_data(eid);
+      const edge_data& edata = context.const_edge_data(edge);
       const double pred = vdata.latent.dot(neighbor.latent);
       const double error = std::fabs(edata.observation - pred);
       vdata.squared_error += error*error;
@@ -159,12 +159,10 @@ public:
     min_updates(-1), max_updates(0), total_updates(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.vertex_data();
-    if((context.in_edge_ids().size() + 
-        context.out_edge_ids().size()) == 0)
-      return;
+    const size_t num_edges = context.in_edges().size() + 
+      context.out_edges().size();
+    if(num_edges == 0) return;
     rmse += vdata.squared_error;
-    const size_t num_edges = context.in_edge_ids().size() +
-      context.out_edge_ids().size();
     max_rmse = 
       std::max(max_rmse, 
                std::sqrt(vdata.squared_error/num_edges));
