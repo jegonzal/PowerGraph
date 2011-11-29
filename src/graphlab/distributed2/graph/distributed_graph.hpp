@@ -1328,6 +1328,64 @@ namespace graphlab {
     const graph_local_store_type& get_local_store() const { 
       return localstore;
     }
+    
+    void rebuild_replica_set_assuming_vertex_seperator(dense_bitset localseperatorset) {
+      std::vector<fixed_dense_bitset<MAX_N_PROCS> > __ghostownerset__(omp_get_max_threads());
+      size_t optimized_vals;
+      spinlock ghostlock, boundarylock;
+      // construct the vid->replica mapping
+      // for efficiency reasons this only contains the maps for ghost vertices
+      // if the corresponding vector is empty, the only replica is the current machine
+      // use localvid_to_replicas() instead to access this since it provides 
+      // more consistent behavior (it checks. if the array is empty, it will return
+      // a vector containing only the current procid)
+    
+      localvid2ghostedprocs.resize(localvid2owner.size());
+      size_t old_commsize = 0;
+      for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
+        old_commsize += localvid2ghostedprocs.popcount();
+        localvid2ghostedprocs[i].clear();
+        localvid2ghostedprocs[i].set_bit_unsync(rmi.procid());
+      }
+#pragma omp parallel for
+      for (long i = 0;i < (long)localvid2owner.size(); ++i) {
+        int thrnum = omp_get_thread_num();
+        if (localvid2owner[i] == rmi.procid()) {
+          // loop through the neighbors and figure out who else might
+          // have a ghost of me. Fill the vertex2ghostedprocs vector
+          // those who have a ghost of me are the owners of my ghost vertices
+          __ghostownerset__[thrnum].clear();
+          __ghostownerset__[thrnum].set_bit_unsync(rmi.procid());  // must always have the current proc
+          foreach(edge_id_type ineid, localstore.in_edge_ids(i)) {
+            vertex_id_type localinvid = localstore.source(ineid);
+            if (localvid2owner[localinvid] != rmi.procid() && 
+                localseperatorset.get(localinvid) == false) {
+              __ghostownerset__[thrnum].set_bit_unsync(localvid2owner[localinvid]);
+            }
+          }
+          foreach(edge_id_type outeid, localstore.out_edge_ids(i)) {
+            vertex_id_type localoutvid = localstore.target(outeid);
+            if (localvid2owner[localoutvid] != rmi.procid() &&
+              localseperatorset.get(localoutvid) == false) {
+              __ghostownerset__[thrnum].set_bit_unsync(localvid2owner[localoutvid]);
+            }
+          }
+          uint32_t b;
+          ASSERT_TRUE(__ghostownerset__[thrnum].first_bit(b));
+          localvid2ghostedprocs[i] = __ghostownerset__[thrnum];
+          localvid2ghostedprocs[i].set_bit_unsync(rmi.procid()); // make sure current bit is set
+        }
+      }
+      
+      size_t new_commsize = 0;
+      for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
+        new_commsize += localvid2ghostedprocs.popcount();
+      }
+      
+      std::cout << "Comm Optimization: " 
+                << old_commsize << "/" << new_commsize
+                << " = " << double(old_commsize)/new_commsize;
+    }
  
     // synchronzation calls. These are called from the ghost side
     // to synchronize against the owner.
