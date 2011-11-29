@@ -21,31 +21,31 @@ double twoLogLambda(double k1, double k2, double n1, double n2) {
     return 2.0 * (logL(k1 / n1, k1, n1) + logL(k2 / n2, k2, n2) - logL(p, k1, n1) - logL(p, k2, n2));
 }
 
-flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){ 
+flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){ 
    flt_dbl intersection = dot_prod(datapoint , cluster);
    flt_dbl logLikelihood = twoLogLambda(intersection,
                                         sqr_sum - intersection,
-                                        sqr_sum0,
-                                        datapoint.size() - sqr_sum0);
-    return 1.0 / (1.0 + logLikelihood);
+                                        sqr_sum_datapoint,
+                                        datapoint.size() - sqr_sum_datapoint);
+    return 1.0 - 1.0 / (1.0 + logLikelihood);
 }
 
-flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+flt_dbl calc_loglikelihood_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
   flt_dbl intersection = dot_prod(datapoint, cluster);
   flt_dbl logLikelihood = twoLogLambda(intersection,
                                         sqr_sum - intersection,
-                                        sqr_sum0,
-                                        datapoint.size() - sqr_sum0);
-   return 1.0 / (1.0 + logLikelihood);
+                                        sqr_sum_datapoint,
+                                        datapoint.size() - sqr_sum_datapoint);
+   return 1.0 - 1.0 / (1.0 + logLikelihood);
 }
 
 
 
-flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){ 
+flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){ 
   flt_dbl a_mult_b = dot_prod(datapoint , cluster);
-  flt_dbl div = (sqr_sum + sqr_sum0 - a_mult_b);
+  flt_dbl div = (sqr_sum + sqr_sum_datapoint - a_mult_b);
   if (ac.debug && (div == 0 || a_mult_b/div < 0)){
-     logstream(LOG_ERROR) << "divisor is zeo: " << sqr_sum<< " " << sqr_sum0 << " " << a_mult_b << " " << std::endl;
+     logstream(LOG_ERROR) << "divisor is zeo: " << sqr_sum<< " " << sqr_sum_datapoint << " " << a_mult_b << " " << std::endl;
      print(datapoint);
      print(cluster);
      exit(1);
@@ -53,11 +53,11 @@ flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint, sparse_flt_dbl_v
   return 1.0 - a_mult_b/div;
 }
 
-flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
   flt_dbl a_mult_b = dot_prod(datapoint, cluster);
-  flt_dbl div = (sqr_sum + sqr_sum0 - a_mult_b);
+  flt_dbl div = (sqr_sum + sqr_sum_datapoint - a_mult_b);
   if (ac.debug && (div == 0 || a_mult_b/div < 0)){
-     logstream(LOG_ERROR) << "divisor is zeo: " << sqr_sum << " " << sqr_sum0 << " " << a_mult_b << " " << std::endl;
+     logstream(LOG_ERROR) << "divisor is zeo: " << sqr_sum << " " << sqr_sum_datapoint << " " << a_mult_b << " " << std::endl;
      print(datapoint);
      debug_print_vec("cluster", cluster, cluster.size());
      exit(1);
@@ -65,17 +65,17 @@ flt_dbl calc_tanimoto_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cl
   return 1.0 - a_mult_b/div;
 }
 
-flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
   //sparse_flt_dbl_vec diff = minus(datapoint , cluster);
   //return sqrt(sum_sqr(diff));
   sparse_flt_dbl_vec mult = elem_mult(datapoint, cluster);
-  flt_dbl diff = (sqr_sum + sqr_sum0 - 2*sum(mult));
+  flt_dbl diff = (sqr_sum + sqr_sum_datapoint - 2*sum(mult));
   return sqrt(fabs(diff)); //because of numerical errors, diff may be negative
 }
 
 
-flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
-  flt_dbl dist = sqr_sum + sqr_sum0;
+flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
+  flt_dbl dist = sqr_sum + sqr_sum_datapoint;
   //for (int i=0; i< datapoint.nnz(); i++){
   FOR_ITERATOR_(i, datapoint){
       flt_dbl val = get_nz_data(datapoint, i);
@@ -136,20 +136,20 @@ flt_dbl calc_cosine_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec & clu
 }
 
 
-flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
    switch(ac.distance_measure){
       case EUCLIDEAN:          
-          return calc_euclidian_distance(datapoint, cluster, sqr_sum, sqr_sum0);
+          return calc_euclidian_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);
       case CHEBYCHEV:
           return calc_chebychev_distance(datapoint, cluster);
       case COSINE:
-	  return calc_cosine_distance(datapoint, cluster, sqr_sum, sqr_sum0);  
+	  return calc_cosine_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);  
       case MANHATTAN:
           return calc_manhatten_distance(datapoint, cluster);
       case TANIMOTO:
-          return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum0);
+          return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum_datapoint);
       case LOGLIKELIHOOD:
-          return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum0);
+          return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);
       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:
@@ -161,20 +161,20 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & clust
 }
 
 
-flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum0){
+flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
    switch(ac.distance_measure){
       case EUCLIDEAN:          
-          return calc_euclidian_distance(datapoint, cluster, sqr_sum, sqr_sum0);
+          return calc_euclidian_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);
       case CHEBYCHEV:
           return calc_chebychev_distance(datapoint, cluster);
       case COSINE:
-	  return calc_cosine_distance(datapoint, cluster, sqr_sum, sqr_sum0);  
+	  return calc_cosine_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);  
       case MANHATTAN:
           return calc_manhatten_distance(datapoint, cluster);
       case TANIMOTO:
-          return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum0);
+          return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum_datapoint);
       case LOGLIKELIHOOD:
-          return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum0);
+          return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);
       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:

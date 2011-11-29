@@ -64,8 +64,6 @@ void gabp_update_function(gl_types::iscope &scope,
   gl_types::edge_list outedgeid = scope.out_edge_ids();
 
   const bool& support_null_variance  = SUPPORT_NULL_VARIANCE_KEY.get_val();
-  const bool& round_robin = ROUND_ROBIN_KEY.get_val();
-  const bool& debug = DEBUG_KEY.get_val();
 
 
 
