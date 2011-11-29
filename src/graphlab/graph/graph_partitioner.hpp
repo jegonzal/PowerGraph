@@ -188,7 +188,7 @@ namespace graphlab {
       parts.resize(nparts, 0);      
       for (size_t i = 0; i< graph.num_vertices(); i++){
         const part_id_type ne = 
-          part_id_type(graph.out_edge_ids(i).size() + graph.in_edge_ids(i).size());
+          part_id_type(graph.out_edges(i).size() + graph.in_edges(i).size());
         vertex2part[i] = curpart;
         parts[curpart]+= ne;           
         if (parts[curpart] >= edge_per_part  && curpart < nparts-1){
@@ -228,7 +228,7 @@ namespace graphlab {
                                        size_t numparts, 
                                        std::vector<part_id_type>& ret_part) {
       typedef typename Graph::vertex_id_type vertex_id_type;
-      typedef typename Graph::edge_id_type   edge_id_type;
+      typedef typename Graph::edge_type   edge_type;
 
       if (numparts == 1) {
         ret_part.assign(graph.num_vertices(), 0);
@@ -266,11 +266,11 @@ namespace graphlab {
         // Fill the the adjacency data
       
         std::set<vertex_id_type> neighbors;
-        foreach(edge_id_type eid, graph.out_edge_ids(u)) {
-          neighbors.insert(graph.target(eid));
+        foreach(const edge_type& edge, graph.out_edges(u)) {
+          neighbors.insert(edge.target());
         }
-        foreach(edge_id_type eid, graph.in_edge_ids(u)) {
-          neighbors.insert(graph.source(eid));
+        foreach(const edge_type& edge, graph.in_edges(u)) {
+          neighbors.insert(edge.source());
         }
         foreach(vertex_id_type vid, neighbors) {
           if (vid == u) continue;
@@ -391,8 +391,7 @@ namespace graphlab {
                                                 bool usemetisdefaults = false) {
       typedef typename Graph::vertex_id_type vertex_id_type;
       typedef typename Graph::edge_id_type edge_id_type;
-      typedef typename Graph::edge_wrapper_type edge_wrapper_type;
-      typedef typename Graph::const_edge_wrapper_type const_edge_wrapper_type;
+      typedef typename Graph::edge_type edge_type;
       if (numparts == 1) {
         ret_part.assign(graph.num_vertices(), 0);
         return;
@@ -429,13 +428,13 @@ namespace graphlab {
       
         std::set<size_t> neighbors;
         std::map<size_t, double> nbrtoweight;
-        foreach(const_edge_wrapper_type ewrapper, graph.get_out_edges(u)) {
-          neighbors.insert(ewrapper.target);
-          nbrtoweight[ewrapper.target] = double(wfunction(ewrapper.get_edge_data()));
+        foreach(const edge_type& edge, graph.out_edges(u)) {
+          neighbors.insert(edge.target());
+          nbrtoweight[edge.target()] = double(wfunction(graph.edge_data(edge)));
         }
-        foreach(const_edge_wrapper_type ewrapper, graph.get_in_edges(u)) {
-          neighbors.insert(ewrapper.src);
-          nbrtoweight[ewrapper.src] = double(wfunction(ewrapper.get_edge_data()));
+        foreach(const edge_type& edge, graph.in_edges(u)) {
+          neighbors.insert(edge.source());
+          nbrtoweight[edge.source()] = double(wfunction(graph.edge_data(edge)));
         }
         foreach(vertex_id_type vid, neighbors) {
           if (vid == u) continue;
@@ -540,7 +539,7 @@ namespace graphlab {
                                      const size_t nparts, 
                                      std::vector<part_id_type>& vertex2part) {
       typedef typename Graph::vertex_id_type vertex_id_type;
-      typedef typename Graph::edge_id_type   edge_id_type;
+      typedef typename Graph::edge_type   edge_type;
       // create a list of all unassigned variables
       std::set<vertex_id_type> unassigned;
       vertex2part.resize(graph.num_vertices());
@@ -573,16 +572,16 @@ namespace graphlab {
           // Remove the vertex from the set of unassigned vertices
           unassigned.erase(v); 
           // Add all its unassigned and unvisited neighbors to the queue
-          foreach(edge_id_type eid, graph.out_edge_ids(v)) {
-            vertex_id_type u = graph.target(eid);
+          foreach(const edge_type& edge, graph.out_edges(v)) {
+            vertex_id_type u = edge.target();
             if(unassigned.find(u) != unassigned.end() &&
                visited.find(u) == visited.end()) {
               queue.push_back(u);
               visited.insert(u);
             }
           }
-          foreach(edge_id_type eid, graph.in_edge_ids(v)) {
-            vertex_id_type u = graph.source(eid);
+          foreach(const edge_type& edge, graph.in_edges(v)) {
+            vertex_id_type u = edge.source();
             if(unassigned.find(u) != unassigned.end() &&
                visited.find(u) == visited.end()) {
               queue.push_back(u);

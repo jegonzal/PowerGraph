@@ -26,6 +26,14 @@
 #include <stdint.h>
 #include <graphlab/logger/assertions.hpp>
 namespace graphlab {
+  
+/**
+  * Performs a variable bit length encode of the integer u into the output array
+  * function returns the length of the output.
+  * NOTE: The output is written into the array aligned TO THE RIGHT.
+  * in other words, if compress_int returns the value 4.
+  * The actual bytes used to store the output is in output[6..9]
+  */
 inline unsigned char compress_int(uint64_t u, char output[10]) {
   // if 1st bit of u is set. could be negative,
   // flip all the bits if it is
@@ -35,70 +43,52 @@ inline unsigned char compress_int(uint64_t u, char output[10]) {
   u = (u ^ isneg) - isneg;
   
   // get the largest bit
-  int nbits = 0;
-  if (u != 0) nbits = (64 - __builtin_clzll(u));
+  unsigned char nbits = 1;  // minimum of 1 bit. even if u == 0
+  if (u != 0) nbits = (unsigned char)(64 - __builtin_clzll(u));
   
-  //std::cout << (int)nbits << "\t"; 
-  //std::cout.flush();
-  // divide by 7. quickly
-  // this is the number of bytes I need. The second one is actually rather ingenious
-  // "lookup table" faster than "magic number" faster than "division"
-  //unsigned char c = (nbits + 6) / 7 + (nbits == 0);
-  //unsigned char c = (nbits >> 3) + 1 + ((0xfefcf8f0e0c08000ULL & (1ULL << nbits)) > 0);
-  static const unsigned char lookuptable[64] = {1,1,1,1,1,1,1,1,
-                                                2,2,2,2,2,2,2,
-                                                3,3,3,3,3,3,3,
-                                                4,4,4,4,4,4,4,
-                                                5,5,5,5,5,5,5,
-                                                6,6,6,6,6,6,6,
-                                                7,7,7,7,7,7,7,
-                                                8,8,8,8,8,8,8,
-                                                9,9,9,9,9,9,9};
-  unsigned char c = lookuptable[nbits];
+  // figure out how many bytes we really need
+  unsigned char b = (nbits >> 3) + ((nbits & 7) > 0);
   
-  switch(c) {
-    case 9:
-      output[1] = (char)((u & (0x7FLL << 56)) >> 56);
+  // build the base byte.
+  // storage will take 'b' bytes
+  unsigned char signbit = (unsigned char)(isneg > 0);
+  // bits [0-2] bits of first byte of output contains 1 less of the length of the 
+  // integer. 
+  // bit 3 is a sign bit
+  
+  output[10 - b - 1] = (b - 1) | (signbit << 3);
+  switch(b) {
     case 8:
-      output[2] = (char)((u & (0x7FLL << 49)) >> 49);
+      output[2] = (char)(u >> 56);
     case 7:
-      output[3] = (char)((u & (0x7FLL << 42)) >> 42);
+      output[3] = (char)(u >> 48);
     case 6:
-      output[4] = (char)((u & (0x7FLL << 35)) >> 35);
+      output[4] = (char)(u >> 40);
     case 5:
-      output[5] = (char)((u & (0x7FLL << 28)) >> 28);
+      output[5] = (char)(u >> 32);
     case 4:
-      output[6] = (char)(((unsigned uint32_t)(u) & (0x7FLL << 21)) >> 21); 
+      output[6] = (char)((uint32_t)(u) >> 24);
     case 3:
-      output[7] = (char)(((unsigned uint32_t)(u) & (0x7FLL << 14)) >> 14);
+      output[7] = (char)((uint32_t)(u) >> 16);
     case 2:
-      output[8] = (char)(((unsigned short)(u) & (0x7FLL << 7)) >> 7);
+      output[8] = (char)((uint16_t)(u) >> 8);
     case 1:
-      output[9] = (char)(((unsigned char)(u) & 0x7F) | 0x80); // set the bit in the least significant 
+      output[9] = (char)(unsigned char)(u);
   }
-  
-  if (isneg == 0) {
-    return c;
-  }
-  else {
-    output[9 - c] = 0;
-    return (unsigned char)(c + 1);
-  }
+  return b + 1;
 }
 
 
 
 template <typename IntType>
 inline void decompress_int(const char* arr, IntType &ret) {
-  // if 1st bit of u is set. could be negative,
-  // flip all the bits if it is
-  bool isneg = (arr[0] == 0);
-  if (isneg) ++arr;
-  
+  bool isneg = (arr[0] & 8);
+  unsigned char len = (arr[0] & 7) + 1;
+  ++arr;
   ret = 0;
-  while(1) {
-    ret = (ret << 7) | ((*arr) & 0x7F);
-    if ((*arr) & 0x80) break;
+  while (len) {
+    ret = (ret << 8) | (unsigned char)(*arr);
+    --len;
     ++arr;
   };
   if (isneg)  ret = -ret;
@@ -106,37 +96,33 @@ inline void decompress_int(const char* arr, IntType &ret) {
 
 template <typename IntType>
 inline void decompress_int_from_ref(const char* &arr, IntType &ret) {
-  // if 1st bit of u is set. could be negative,
-  // flip all the bits if it is
-  bool isneg = (arr[0] == 0);
-  if (isneg) ++arr;
-  
+  bool isneg = (arr[0] & 8);
+  unsigned char len = (arr[0] & 7) + 1;
+  ++arr;
   ret = 0;
-  while(1) {
-    ret = (ret << 7) | ((*arr) & 0x7F);
-    if ((*arr) & 0x80) break;
+  while (len) {
+    ret = (ret << 8) | (unsigned char)(*arr);
+    --len;
     ++arr;
   };
   if (isneg)  ret = -ret;
-  ++arr;
 }
 
 
 template <typename IntType>
 inline void decompress_int(std::istream &strm, IntType &ret) {
-  // if 1st bit of u is set. could be negative,
-  // flip all the bits if it is
-  char c = (char)strm.peek();
-  bool isneg = (c == 0);
-  if (isneg) strm.get(c);
+  char c;
+  strm.get(c);
+  bool isneg = (c & 8);
+  unsigned char len = (c & 7) + 1;
   
   ret = 0;
-  while(1) {
+  while (len) {
     strm.get(c);
-    ret = (IntType)((ret << 7) | (c & 0x7F));
-    if (c & 0x80) break;
+    ret = (ret << 8) | (unsigned char)(c);
+    --len;
   };
-  if (isneg)  ret = (IntType)(-ret);
+  if (isneg)  ret = -ret;
 }
 
 

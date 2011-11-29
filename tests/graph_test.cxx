@@ -126,7 +126,7 @@ public:
     ti.start();
     typedef graph<char, char> graph_type;
     typedef graph_type::vertex_id_type vertex_id_type;
-    typedef graph_type::edge_id_type edge_id_type;
+    typedef graph_type::edge_type edge_type;
     size_t num_verts = 10000;
     size_t degree = 100;
     TS_TRACE("Constructing random graph");
@@ -150,11 +150,11 @@ public:
     graph.compute_coloring();
     
     for(vertex_id_type i = 0; i < num_verts; ++i) {
-      foreach(edge_id_type e, graph.in_edge_ids(i)) {
-        TS_ASSERT_DIFFERS(graph.color(graph.source(e)), graph.color(i));
+      foreach(edge_type e, graph.in_edges(i)) {
+        TS_ASSERT_DIFFERS(graph.color(e.source()), graph.color(i));
       }
-      foreach(edge_id_type e, graph.out_edge_ids(i)) {
-        TS_ASSERT_DIFFERS(graph.color(graph.target(e)), graph.color(i));
+      foreach(edge_type e, graph.out_edges(i)) {
+        TS_ASSERT_DIFFERS(graph.color(e.target()), graph.color(i));
       }
     }
   }

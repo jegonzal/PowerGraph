@@ -35,7 +35,6 @@
 #include <map>
 #include <ios>
 #include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -77,7 +76,7 @@ namespace graphlab {
     db.synchronize();
   }
 
-  void disk_atom::add_vertex(disk_atom::vertex_id_type vid, uint16_t owner) {
+  void disk_atom::add_vertex(vertex_id_type vid, uint16_t owner) {
     if (!add_vertex_skip(vid, owner)) {
       std::stringstream strm;
       oarchive oarc(strm);    
@@ -88,7 +87,7 @@ namespace graphlab {
   }
 
 
-  bool disk_atom::add_vertex_skip(disk_atom::vertex_id_type vid, uint16_t owner) {
+  bool disk_atom::add_vertex_skip(vertex_id_type vid, uint16_t owner) {
     std::stringstream strm;
     oarchive oarc(strm);    
     oarc << owner;
@@ -174,8 +173,8 @@ namespace graphlab {
     }
   }
 
-  std::vector<disk_atom::vertex_id_type> disk_atom::enumerate_vertices() {
-    std::vector<disk_atom::vertex_id_type> ret;
+  std::vector<vertex_id_type> disk_atom::enumerate_vertices() {
+    std::vector<vertex_id_type> ret;
     // read the entire vertex list
     std::string vidlist;
 
@@ -215,7 +214,7 @@ namespace graphlab {
     db.set("e"+id_to_str(src)+"_"+id_to_str(target), edata);
   }
 
-  bool disk_atom::get_vertex(disk_atom::vertex_id_type vid, uint16_t &owner) {
+  bool disk_atom::get_vertex(vertex_id_type vid, uint16_t &owner) {
     std::string val;
     std::string key = "v"+id_to_str(vid);
     
@@ -259,7 +258,7 @@ namespace graphlab {
 
 
   std::map<uint16_t, uint32_t> disk_atom::enumerate_adjacent_atoms() {
-    std::vector<disk_atom::vertex_id_type> vids = enumerate_vertices();
+    std::vector<vertex_id_type> vids = enumerate_vertices();
     std::map<uint16_t, uint32_t> ret;
     for (size_t i = 0;i < vids.size(); ++i) {
       uint16_t owner;
@@ -269,14 +268,13 @@ namespace graphlab {
     return ret;
   }
 
-  disk_atom::vertex_color_type disk_atom::max_color() {
-    disk_atom::vertex_color_type mcolor = 0;
-    
-    std::vector<disk_atom::vertex_id_type> vids = enumerate_vertices();
+  vertex_color_type disk_atom::max_color() {
+    vertex_color_type mcolor = 0;
+    std::vector<vertex_id_type> vids = enumerate_vertices();
     std::map<uint16_t, uint32_t> ret;
     for (size_t i = 0;i < vids.size(); ++i) {
-      disk_atom::vertex_color_type c = get_color(vids[i]);
-      if (c != disk_atom::vertex_color_type(-1)) {
+      vertex_color_type c = get_color(vids[i]);
+      if (c != vertex_color_type(-1)) {
         mcolor = std::max(mcolor, c);
       }
     }
@@ -284,8 +282,8 @@ namespace graphlab {
   }
 
 
-  std::vector<disk_atom::vertex_id_type> disk_atom::get_in_vertices(disk_atom::vertex_id_type vid) {
-    std::vector<disk_atom::vertex_id_type> ret;
+  std::vector<vertex_id_type> disk_atom::get_in_vertices(vertex_id_type vid) {
+    std::vector<vertex_id_type> ret;
     std::string val;
     std::string key = "i"+id_to_str(vid);
     
@@ -304,8 +302,8 @@ namespace graphlab {
    
    
 
-  std::vector<disk_atom::vertex_id_type> disk_atom::get_out_vertices(disk_atom::vertex_id_type vid) {
-    std::vector<disk_atom::vertex_id_type> ret;
+  std::vector<vertex_id_type> disk_atom::get_out_vertices(vertex_id_type vid) {
+    std::vector<vertex_id_type> ret;
     std::string val;
     std::string key = "o"+id_to_str(vid);
     
@@ -324,23 +322,23 @@ namespace graphlab {
 
 
 
-  disk_atom::vertex_color_type 
-  disk_atom::get_color(disk_atom::vertex_id_type vid) {
+  vertex_color_type 
+  disk_atom::get_color(vertex_id_type vid) {
     std::string key = "c" + id_to_str(vid);
-    disk_atom::vertex_color_type  ret;
-    if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1)  return disk_atom::vertex_color_type(-1);
+    vertex_color_type  ret;
+    if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1)  return vertex_color_type(-1);
     return ret;
   }
 
 
-  void disk_atom::set_color(disk_atom::vertex_id_type vid, 
-                            disk_atom::vertex_color_type color) {
+  void disk_atom::set_color(vertex_id_type vid, 
+                            vertex_color_type color) {
     std::string key = "c" + id_to_str(vid);
     db.set(key.c_str(), key.length(), (char*)&color, sizeof(color));
   }
 
 
-  uint16_t disk_atom::get_owner(disk_atom::vertex_id_type vid) {
+  uint16_t disk_atom::get_owner(vertex_id_type vid) {
     std::string key = "h" + id_to_str(vid);
     uint16_t ret;
     if (db.get(key.c_str(), key.length(), (char*)&ret, sizeof(ret)) == -1) return (uint16_t)(-1); 
@@ -349,7 +347,7 @@ namespace graphlab {
   }
 
 
-  void disk_atom::set_owner(disk_atom::vertex_id_type vid, uint16_t owner) {
+  void disk_atom::set_owner(vertex_id_type vid, uint16_t owner) {
     std::string key = "h" + id_to_str(vid);
     db.set(key.c_str(), key.length(), (char*)&owner, sizeof(owner));
   }
@@ -362,7 +360,7 @@ namespace graphlab {
   }
 
 
-  disk_atom::vertex_id_type disk_atom::vertex_key_to_id(std::string s) {
+  vertex_id_type disk_atom::vertex_key_to_id(std::string s) {
     vertex_id_type vid;
     decompress_int<vertex_id_type>(s.c_str() + 1, vid);
     return vid;

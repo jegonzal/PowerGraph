@@ -39,10 +39,10 @@ void save_graph_as_edge_list(const std::string& fname,
       vid < graph.num_vertices(); ++vid) {
     fout << vid << '\t' << vid << '\t' 
          << graph.vertex_data(vid).self_weight << "\n";
-
-    foreach(graph_type::const_edge_wrapper_type ewrapper, graph.get_out_edges(vid)) {
-      fout << vid << '\t' << ewrapper.target << '\t' 
-           << ewrapper.get_edge_data().weight << "\n";
+    typedef typename graph_type::edge_type edge_type;
+    foreach(edge_type& edge, graph.out_edges(vid)) {
+      fout << vid << '\t' << edge.target() << '\t' 
+           << graph.const_vertex_data(edge).weight << "\n";
     }
   }
   fout.close();

@@ -32,8 +32,6 @@
 #define GRAPHLAB_IMONITOR_HPP
 
 
-#include <graphlab/graph/graph.hpp>
-
 
 namespace graphlab {
   

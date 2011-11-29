@@ -103,9 +103,9 @@ public:
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     float sum = 0;
-    foreach(edge_wrapper_type ewrapper, context.get_in_edges()) 
-      sum += ewrapper.get_edge_data().weight * 
-        context.const_vertex_data(ewrapper.src).value;
+    foreach(const edge_type& edge, context.in_edges()) 
+      sum += context.const_edge_data(edge).weight * 
+        context.const_vertex_data(edge.source()).value;
     const float self_term = 1-(1-RANDOM_RESET_PROBABILITY)*vdata.self_weight; 
     // Add random reset probability
     vdata.value = 
@@ -122,12 +122,10 @@ public:
   void init_gather(iglobal_context_type& context) { accum = 0; }
 
   // Run the gather operation over all in edges
-  void gather(icontext_type& context, edge_wrapper_type ewrapper) {
-    const vertex_data& neighbor_vdata =
-      context.const_vertex_data(ewrapper.src);
-    const double neighbor_value = neighbor_vdata.value;    
-    edge_data& edata = ewrapper.get_edge_data();
-    accum += edata.weight * neighbor_value;    
+  void gather(icontext_type& context, const edge_type& edge) {
+    accum +=
+      context.const_vertex_data(edge.source()).value *
+      context.const_edge_data(edge).weight;
   } // end of gather
 
   // Merge two pagerank_update accumulators after running gather
@@ -148,16 +146,15 @@ public:
   } // end of apply
 
   // Reschedule neighbors 
-  void scatter(icontext_type& context, edge_wrapper_type ewrapper) {
-    const edge_data& edata   = ewrapper.get_edge_data();    
-    context.schedule(ewrapper.target, 
-                     pagerank_update(accum*edata.weight));
+  void scatter(icontext_type& context, const edge_type& edge) {
+    const edge_data& edata = context.const_edge_data(edge);
+    context.schedule(edge.target(), pagerank_update(accum*edata.weight));
     
   } // end of scatter
 
 private:
   void reschedule_neighbors(icontext_type& context) {
-    foreach(edge_wrapper_type ewrapper, context.get_out_edges()) scatter(context, ewrapper);
+    foreach(const edge_type& edge, context.out_edges()) scatter(context, edge);
   } // end of reschedule neighbors
   
 }; // end of pagerank update functor
