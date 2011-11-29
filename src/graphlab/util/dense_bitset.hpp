@@ -175,11 +175,55 @@ namespace graphlab {
       return ret;
     }
 
+    struct bit_pos_iterator {
+      typedef std::forward_iterator_tag iterator_category;
+      typedef uint32_t value_type;
+      typedef uint32_t difference_type;
+      typedef const uint32_t* pointer;
+      typedef const uint32_t& reference;
+      uint32_t pos;
+      const dense_bitset* db;
+      bit_pos_iterator():pos(-1),db(NULL) {}
+      bit_pos_iterator(const dense_bitset* db, uint32_t pos):pos(pos),db(db) {}
+      
+      uint32_t operator*() const {
+        return pos;
+      }
+      uint32_t operator++(){
+        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+        return pos;
+      }
+      uint32_t operator++(int){
+        uint32_t prevpos = pos;
+        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+        return prevpos;
+      }
+      bool operator==(const bit_pos_iterator& other) const {
+        ASSERT_TRUE(db == other.db);
+        return other.pos == pos;
+      }
+      bool operator!=(const bit_pos_iterator& other) const {
+        ASSERT_TRUE(db == other.db);
+        return other.pos != pos;
+      }
+    };
+    
+    
+    bit_pos_iterator begin() const {
+      uint32_t pos;
+      if (first_bit(pos) == false) pos = uint32_t(-1);
+      return bit_pos_iterator(this, pos);
+    }
+    
+    bit_pos_iterator end() const {
+      return bit_pos_iterator(this, (uint32_t)(-1));
+    }
+
     /** Returns true with b containing the position of the 
         first bit set to true.
         If such a bit does not exist, this function returns false.
     */
-    inline bool first_bit(uint32_t &b) {
+    inline bool first_bit(uint32_t &b) const {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
           b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
@@ -397,6 +441,51 @@ namespace graphlab {
       bool ret = array[arrpos] & test_mask;
       array[arrpos] &= clear_mask;
       return ret;
+    }
+
+
+    struct bit_pos_iterator {
+      typedef std::forward_iterator_tag iterator_category;
+      typedef uint32_t value_type;
+      typedef uint32_t difference_type;
+      typedef const uint32_t* pointer;
+      typedef const uint32_t& reference;
+      uint32_t pos;
+      const dense_bitset* db;
+      bit_pos_iterator():pos(-1),db(NULL) {}
+      bit_pos_iterator(const dense_bitset* db, uint32_t pos):pos(pos),db(db) {}
+      
+      uint32_t operator*() const {
+        return pos;
+      }
+      uint32_t operator++(){
+        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+        return pos;
+      }
+      uint32_t operator++(int){
+        uint32_t prevpos = pos;
+        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+        return prevpos;
+      }
+      bool operator==(const bit_pos_iterator& other) const {
+        ASSERT_TRUE(db == other.db);
+        return other.pos == pos;
+      }
+      bool operator!=(const bit_pos_iterator& other) const {
+        ASSERT_TRUE(db == other.db);
+        return other.pos != pos;
+      }
+    };
+    
+    
+    bit_pos_iterator begin() const {
+      uint32_t pos;
+      if (first_bit(pos) == false) pos = uint32_t(-1);
+      return bit_pos_iterator(this, pos);
+    }
+    
+    bit_pos_iterator end() const {
+      return bit_pos_iterator(this, (uint32_t)(-1));
     }
 
     /** Returns true with b containing the position of the 
