@@ -83,7 +83,7 @@ void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
   int active = 0;
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
-     data.degree = g->out_edge_ids(i).size() + g->in_edge_ids(i).size();
+     data.degree = g->out_edges(i).size() + g->in_edges(i).size();
      data.active = data.degree > 0;
      if (data.active)
        active++;
@@ -121,18 +121,18 @@ public:
     int cur_links = 0;
     int increasing_links = 0;
     
-    edge_list_type outedgeid = context.out_edge_ids();
-    edge_list_type inedgeid = context.in_edge_ids();
+    edge_list_type outedgeid = context.out_edges();
+    edge_list_type inedgeid = context.in_edges();
 
     for(size_t i = 0; i < outedgeid.size(); i++) {
-        const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
+      const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
         if (other.active){
 	  cur_links++;
           increasing_links++;
         }
     }
     for (size_t i =0; i < inedgeid.size(); i++){
-	const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
+      const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
         if (other.active)
           cur_links++;
     }

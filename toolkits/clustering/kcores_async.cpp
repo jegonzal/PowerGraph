@@ -83,7 +83,7 @@ void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
   int active = 0;
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
-     data.degree = g->out_edge_ids(i).size() + g->in_edge_ids(i).size();
+     data.degree = g->out_edges(i).size() + g->in_edges(i).size();
      data.active = data.degree > 0;
      if (data.active)
        active++;
@@ -106,17 +106,17 @@ struct kcore_update :
     int cur_iter = iiter;
     int cur_links = 0;
     
-    edge_list_type outedgeid = context.out_edge_ids();
-    edge_list_type inedgeid = context.in_edge_ids();
+    const edge_list_type outedgeid = context.out_edges();
+    const edge_list_type inedgeid = context.in_edges();
 
     for(size_t i = 0; i < outedgeid.size(); i++) {
-        const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
-        if (other.active){
+      const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
+        if (other.active) {
 	  cur_links++;
         }
     }
     for (size_t i =0; i < inedgeid.size(); i++){
-	const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
+      const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
         if (other.active)
           cur_links++;
     }
@@ -124,15 +124,15 @@ struct kcore_update :
         vdata.active = false;
         vdata.kcore = cur_iter;
         for(size_t i = 0; i < outedgeid.size(); i++) {
-           const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
+          const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
            if (other.active){
-             context.schedule(context.target(outedgeid[i]), kcore_update());
+             context.schedule(outedgeid[i].target(), kcore_update());
            }
         }
         for (size_t i =0; i < inedgeid.size(); i++){
-  	   const vertex_data & other = context.const_vertex_data(context.source(inedgeid[i]));
+          const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
            if (other.active)
-	     context.schedule(context.source(inedgeid[i]), kcore_update());    
+	     context.schedule(inedgeid[i].source(), kcore_update());    
         }
     }
   };
@@ -148,19 +148,12 @@ public:
   accumulator() : num_active(0), links(0) { }
 
   void operator()(icontext_type& context) {
-   
-
     vertex_data & vdata = context.vertex_data();
-    if (!vdata.active)
-      return;
-
+    if (!vdata.active) return;
     int increasing_links = 0;
-    
-    edge_list_type outedgeid = context.out_edge_ids();
-    edge_list_type inedgeid = context.in_edge_ids();
-
+    const edge_list_type outedgeid = context.out_edges();
     for(size_t i = 0; i < outedgeid.size(); i++) {
-        const vertex_data & other = context.const_vertex_data(context.target(outedgeid[i]));
+      const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
         if (other.active){
           increasing_links++;
         }

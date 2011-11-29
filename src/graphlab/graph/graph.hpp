@@ -162,10 +162,11 @@ namespace graphlab {
     class edge_type {
       const graph* graph_ptr;
       const edge_id_type _id;
-    public:
-      edge_type(const graph* graph_ptr = NULL, 
-                const edge_id_type id = -1) : 
+      edge_type(const graph* graph_ptr, 
+                const edge_id_type id) : 
         graph_ptr(graph_ptr), _id(id) { }     
+    public:
+      edge_type() : graph_ptr(NULL), _id(-1) { }
       const vertex_id_type& source() const {
         ASSERT_FALSE(empty()); 
         ASSERT_LT(_id, graph_ptr->edges.size());

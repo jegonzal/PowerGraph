@@ -95,11 +95,6 @@ class lda_update :
   public graphlab::iupdate_functor<graph_type, lda_update> {
 public:
   typedef graphlab::iupdate_functor<graph_type, lda_update> base;
-  typedef base::icontext_type icontext_type;
-
-  typedef base::edge_id_type edge_id_type;
-  typedef base::edge_list_type edge_list_type;
-  typedef base::vertex_id_type vertex_id_type;
   static bool use_factorized; 
 public: 
   size_t iters_remaining;
@@ -222,14 +217,14 @@ public:
   /**
    * Gather resamples each edge and accumulates the result in new_nt
    */ 
-  void gather(icontext_type& context, edge_id_type eid) {  
+  void gather(icontext_type& context, edge_type edge) {  
     // Get the data ---------------------------------------------------------
     // Get local data structures
     std::vector<count_type>& n_t = context.get_local_vec<count_type>("n_t");
     const vertex_data& doc = context.vertex_data();
     ASSERT_EQ(doc.type, DOCUMENT);
 
-    const vertex_id_type word_vid = context.target(eid);
+    const vertex_id_type word_vid = edge.target();
     const word_id_type word_id = word_vid; ASSERT_LT(word_id, nwords);      
     vertex_data& word      = context.vertex_data(word_vid);
     ASSERT_EQ(word.type, WORD);

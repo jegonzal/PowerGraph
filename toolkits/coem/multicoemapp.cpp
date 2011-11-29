@@ -171,9 +171,9 @@ public:
    
     /* We use directed edges as indirected, so either this vertex has only incoming  
        or outgoing vertices.  */
-    bool use_outgoing = (context.in_edge_ids().size()==0);
-    edge_list_type edge_ids = 
-      (use_outgoing ? context.out_edge_ids() : context.in_edge_ids());
+    const bool use_outgoing = (context.in_edges().size()==0);
+    const edge_list_type edge_ids = 
+      (use_outgoing ? context.out_edges() : context.in_edges());
     
     if (edge_ids.size() == 0) {
       //printf("Warning : dangling node %d %s\n", context.vertex(), vdata.text);
@@ -189,12 +189,10 @@ public:
     /* First check is my normalizer precomputed. If not, do it. */
     if (vdata.normalizer == 0.0) {
       float norm = smoothing * vtype_other_total;
-      foreach(edge_id_type eid, edge_ids) {
-        const edge_data& edata = context.const_edge_data(eid);
+      foreach(edge_type edge, edge_ids) {
+        const edge_data& edata = context.const_edge_data(edge);
         const vertex_data& nb_vdata = 
-          context.const_vertex_data(use_outgoing ? 
-                                    context.target(eid) :
-                                    context.source(eid));
+          context.const_vertex_data(use_outgoing ? edge.target() : edge.source());
         norm += TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
       }
       vdata.normalizer = norm;
@@ -210,9 +208,9 @@ public:
     for(int i=0; i<200; i++) tmp[i] = smoothing;
     
     // Compute weighted averages of neighbors' beliefs.
-    foreach(edge_id_type eid, edge_ids) {
-      const edge_data& edata = context.const_edge_data(eid);
-      vertex_id_type nbvid = use_outgoing ? context.target(eid) : context.source(eid);
+    foreach(edge_type edge, edge_ids) {
+      const edge_data& edata = context.const_edge_data(edge);
+      vertex_id_type nbvid = use_outgoing ? edge.target() : edge.source();
       const vertex_data& nb_vdata = context.const_vertex_data(nbvid);
       for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
         tmp[cat_id] += nb_vdata.p[cat_id] * 
@@ -247,8 +245,8 @@ public:
       double randomNum = graphlab::random::rand01();
       for(int l = 0; l<sz; l++) {
         vertex_id_type nbvid = vlookup[l];
-        edge_id_type eid = edge_ids[l];
-        const edge_data& edata = context.const_edge_data(eid);
+        const edge_type edge = edge_ids[l];
+        const edge_data& edata = context.const_edge_data(edge);
         
         const vertex_data nb_vdata = context.const_vertex_data(nbvid);
         float neighbor_residual = 
@@ -483,7 +481,8 @@ void prepare(core_type& core) {
     } else assert(false);
   	  
     /* Count neighbors */
-    vdata.nbcount = std::max(core.graph().in_edge_ids(i).size(), core.graph().out_edge_ids(i).size());
+    vdata.nbcount = std::max(core.graph().in_edges(i).size(), 
+                             core.graph().out_edges(i).size());
     if (i%10000 == 0) std::cout << "Num neighbors: " << vdata.nbcount << std::endl;
 
   }
