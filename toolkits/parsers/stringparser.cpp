@@ -27,6 +27,14 @@
 #include <map>
 #include <iostream>
 #include "graphlab.hpp"
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+
+
+
+
+
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 using namespace graphlab;
@@ -37,7 +45,7 @@ bool debug = false;
 
 map<string,uint> hash2nodeid;
 std::string datafile;
-int conseq_id = 0;
+atomic<unsigned int> conseq_id;
 struct vertex_data {
   string filename;
   vertex_data(std::string _filename) : filename(_filename) { }
@@ -54,13 +62,15 @@ unsigned long int datestr2uint64(const std::string & data);
 void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
    from = hash2nodeid[buf1];
    if (from == 0){
-	hash2nodeid[buf1] = ++conseq_id;
-        from = conseq_id;
+	conseq_id.inc();
+	hash2nodeid[buf1];
+        from = conseq_id.value;
    }
    to = hash2nodeid[buf2];
    if (to == 0){
-       hash2nodeid[buf2] = ++conseq_id;
-       to = conseq_id;
+       conseq_id.inc();
+       hash2nodeid[buf2] = conseq_id.value;
+       to = conseq_id.value;
    }
         
    assert(from != to && from > 0 && to > 0);
@@ -105,25 +115,6 @@ struct stringparser_update :
 
 
 
-/*
-class accumulator :
-  public graphlab::iaccumulator<graph_type, stringparser_update, accumulator> {
-private:
-  real_type real_norm, relative_norm;
-public:
-  accumulator() {}
-  void operator()(icontext_type& context) {
-  }
-  void operator+=(const accumulator& other) { 
-  }
-  void finalize(iglobal_context_type& context) {
-  }
-}; // end of  accumulator
-*/
-
-
-
-
 int main(int argc,  char *argv[]) {
   
   global_logger().set_log_level(LOG_INFO);
@@ -131,7 +122,7 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string format = "matrixmarket";
+  std::string format = "plain";
   int unittest = 0;
 
   clopts.attach_option("data", &datafile, datafile,
@@ -172,18 +163,10 @@ int main(int argc,  char *argv[]) {
   core.graph().add_vertex(vdata);
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringparser_update());
-
- 
-  //accumulator acum;
-  //core.add_sync("sync", acum, sync_interval);
  
   double runtime= core.start();
- 
   std::cout << "Finished in " << runtime << std::endl;
 
-  //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
-
-  //write_output_vector(datafile + "x.out", format, ret);
 
 
   if (unittest == 1){
