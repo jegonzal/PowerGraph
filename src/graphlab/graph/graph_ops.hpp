@@ -22,7 +22,7 @@
 
 
 /**
- * \file graph_io.hpp
+ * \file graph_ops.hpp
  *
  * This file supports basic graph io operations to simplify reading
  * and writing adjacency structures from files.

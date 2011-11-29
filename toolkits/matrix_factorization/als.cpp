@@ -159,8 +159,8 @@ public:
     min_updates(-1), max_updates(0), total_updates(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.vertex_data();
-    const size_t num_edges = context.in_edges().size() + 
-      context.out_edges().size();
+    const size_t num_edges = context.num_in_edges() +
+      context.num_out_edges();
     if(num_edges == 0) return;
     rmse += vdata.squared_error;
     max_rmse = 

@@ -376,8 +376,15 @@ namespace graphlab {
     //! Get all the edge which edge.target() == v
     edge_list_type in_edges(const vertex_id_type v) const;
 
+    //! Get the number of edges which edge.target() == v
+    size_t num_in_edges(const vertex_id_type v) const;
+
     //! Get all the edges which edge.source() == v
     edge_list_type out_edges(const vertex_id_type v) const;
+
+    //! Get the number of edges which edge.source() == v
+    size_t num_out_edges(const vertex_id_type v) const;
+
    
     /** \brief Load the graph from an archive */
     void load(iarchive& arc);
@@ -764,6 +771,13 @@ namespace graphlab {
   } // end of in_edges
 
   template<typename VertexData, typename EdgeData>
+  size_t
+  graph<VertexData,EdgeData>::num_in_edges(const vertex_id_type v) const {
+    ASSERT_LT(v, in_edge_ids.size());  return in_edge_ids[v].size();
+  } // end of num_in_edges
+
+
+  template<typename VertexData, typename EdgeData>
   typename graph<VertexData, EdgeData>::edge_list_type
   graph<VertexData,EdgeData>::out_edges(const vertex_id_type v) const {
     ASSERT_LT(v, out_edge_ids.size());
@@ -772,6 +786,11 @@ namespace graphlab {
   } // end of out_edges
 
 
+  template<typename VertexData, typename EdgeData>
+  size_t
+  graph<VertexData,EdgeData>::num_out_edges(const vertex_id_type v) const {
+    ASSERT_LT(v, in_edge_ids.size());  return out_edge_ids[v].size();
+  } // end of num_out_edges
 
 
   template<typename VertexData, typename EdgeData>

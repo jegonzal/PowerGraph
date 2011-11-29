@@ -180,11 +180,9 @@ namespace graphlab {
     virtual edge_list_type in_edges() const = 0;
 
     /**
-     * Get the out edges associated with the center vertex
+     * Get the number of in edges associated with the center vertex 
      */
-    virtual edge_list_type out_edges() const = 0;
-
-
+    virtual size_t num_in_edges() const = 0;
 
     /**
      * Get the in edges associated with the vertex v
@@ -192,9 +190,30 @@ namespace graphlab {
     virtual edge_list_type in_edges(vertex_id_type v) const = 0;
 
     /**
+     * Get the number of in edges associated with the vertex v
+     */
+    virtual size_t num_in_edges(vertex_id_type v) const = 0;
+
+
+    /**
+     * Get the out edges associated with the center vertex
+     */
+    virtual edge_list_type out_edges() const = 0;
+
+    /**
+     * Get the number of out edges associated with the center vertex
+     */
+    virtual size_t num_out_edges() const = 0;
+
+    /**
      * Get the out edges associated with the vertex v
      */
     virtual edge_list_type out_edges(vertex_id_type v) const = 0;
+
+    /**
+     * Get the number out edges associated with the vertex v
+     */
+    virtual size_t num_out_edges(vertex_id_type v) const = 0;
 
 
     

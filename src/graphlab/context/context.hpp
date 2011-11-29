@@ -223,14 +223,24 @@ namespace graphlab {
 
 
     edge_list_type in_edges() const { return graph_ptr->in_edges(vid); }
+    size_t num_in_edges() const { return graph_ptr->num_in_edges(vid); }
     edge_list_type in_edges(vertex_id_type v) const {
       return graph_ptr->in_edges(v);
     }
+    size_t num_in_edges(vertex_id_type v) const { 
+      return graph_ptr->num_in_edges(v); 
+    }
+
 
     edge_list_type out_edges() const { return graph_ptr->out_edges(vid); }
+    size_t num_out_edges() const { return graph_ptr->num_out_edges(vid); }
     edge_list_type out_edges(vertex_id_type v) const {
       return graph_ptr->out_edges(v);
     }
+    size_t num_out_edges(vertex_id_type v) const {
+      return graph_ptr->num_out_edges(v);
+    }
+
 
 
 
