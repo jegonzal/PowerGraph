@@ -170,7 +170,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
       core.graph().add_edge(i, i+1, edge_data_type(1));
       core.graph().add_edge(i+1, i, edge_data_type(2));
     }
-    core.graph().compute_coloring();
+    graphlab::graph_ops<graph_type>::color(core.graph());
     core.set_scheduler_type("chromatic(max_iterations=2)");
     core.set_scope_type("none");
     core.set_ncpus(4);

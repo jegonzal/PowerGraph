@@ -242,9 +242,9 @@ int main(int argc, char** argv) {
               << std::setw(10) << vdata.value << '\t'
               << std::setw(10) << vdata.nupdates << '\t'
               << std::setw(10) 
-              << core.graph().num_in_neighbors(top_pages[i]) << '\t'
+              << core.graph().in_edges(top_pages[i]).size() << '\t'
               << std::setw(10) 
-              << core.graph().num_out_neighbors(top_pages[i])
+              << core.graph().out_edges(top_pages[i]).size()
               << std::endl;
   }
 

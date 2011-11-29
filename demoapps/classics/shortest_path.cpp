@@ -32,17 +32,17 @@ graphlab::iupdate_functor<graph_type, shortest_path_update> {
 public:
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data();    
-    foreach(edge_id_type eid, context.in_edge_ids()) {
-      const vertex_id_type nbr_id = context.source(eid);
+    foreach(edge_type edge, context.in_edges()) {
+      const vertex_id_type nbr_id = edge.source();
       const vertex_data& nbr = context.const_vertex_data(nbr_id);
-      const edge_data& edata = context.const_edge_data(eid);
+      const edge_data& edata = context.const_edge_data(edge);
       vdata.dist = std::min(vdata.dist, nbr.dist + edata.dist);
     }
     // Reschedule any affected neighbors
-    foreach(edge_id_type eid, context.out_edge_ids()) {
-      const vertex_id_type nbr_id = context.target(eid);
+    foreach(edge_type edge, context.out_edges()) {
+      const vertex_id_type nbr_id = edge.target();
       const vertex_data& nbr = context.const_vertex_data(nbr_id);
-      const edge_data& edata = context.const_edge_data(eid);
+      const edge_data& edata = context.const_edge_data(edge);
       if(nbr.dist > (vdata.dist + edata.dist)) 
         context.schedule(nbr_id, *this);    
     }

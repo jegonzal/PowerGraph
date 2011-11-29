@@ -55,7 +55,7 @@ namespace graphlab {
      * Construct the a scheduler
      */
     template<typename Scheduler>
-    static ischeduler_type* new_scheduler(const graph_type& graph,
+    static ischeduler_type* new_scheduler(graph_type& graph,
                                           const size_t& ncpus,
                                           const options_map& opts) {
       ischeduler_type* scheduler_ptr = 
@@ -73,7 +73,7 @@ namespace graphlab {
     static ischeduler_type* 
     new_scheduler(const std::string& scheduler_str,
                   const options_map& opts,
-                  const graph_type& graph,
+                  graph_type& graph,
                   const size_t& ncpus) {
 #define __GENERATE_NEW_SCHEDULER__(r_unused, data_unused, i,  elem)     \
       BOOST_PP_EXPR_IF(i, else)                                         \

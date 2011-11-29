@@ -95,7 +95,7 @@ void sparseGraphtest (graph_type2& g) {
    In this function, we construct the 3 by 3 grid graph.
 */
 void grid_graph_test(graph_type2& g) {
-  g.clear_memory();
+  g.clear_reserve();
   std::cout << "-----------Begin Grid Test--------------------" << std::endl;
   size_t dim = 3;
   size_t num_vertices = 0;
@@ -144,12 +144,11 @@ void grid_graph_test(graph_type2& g) {
 
   // Symmetric graph: #inneighbor == outneighbor
   printf("Test num_in_neighbors() == num_out_neighbors() ...\n");
-  for (size_t i = 0; i < num_vertices; ++i)
-    {
-      ASSERT_EQ(g.num_in_neighbors(i), g.num_out_neighbors(i));
-    }
-  ASSERT_EQ(g.num_in_neighbors(4), 4);
-  ASSERT_EQ(g.num_in_neighbors(0), 2);
+  for (size_t i = 0; i < num_vertices; ++i) {
+    ASSERT_EQ(g.in_edges(i).size(), g.out_edges(i).size());
+  }
+  ASSERT_EQ(g.in_edges(4).size(), 4);
+  ASSERT_EQ(g.in_edges(0).size(), 2);
   printf("+ Pass test: #in = #out...\n\n");
 
 

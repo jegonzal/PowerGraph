@@ -147,7 +147,7 @@ public:
     std::cerr << num_verts << " * " << degree 
               << " edges created in " << ti.current_time() << " s" << std::endl;
     TS_TRACE("Testing Coloring");
-    graph.compute_coloring();
+    graphlab::graph_ops<graph_type>::color(graph);
     
     for(vertex_id_type i = 0; i < num_verts; ++i) {
       foreach(edge_type e, graph.in_edges(i)) {

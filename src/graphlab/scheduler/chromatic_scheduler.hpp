@@ -48,7 +48,7 @@
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/terminator/controlled_termination.hpp>
 #include <graphlab/options/options_map.hpp>
-
+#include <graphlab/graph/graph_ops.hpp>
 
 
 
@@ -99,7 +99,7 @@ namespace graphlab {
 
   public:
 
-    chromatic_scheduler(const graph_type& graph, 
+    chromatic_scheduler(graph_type& graph, 
                         size_t ncpus,
                         const options_map& opts) :
       functors(ncpus), cpu_index(ncpus), cpu_color(ncpus), 
@@ -107,6 +107,19 @@ namespace graphlab {
       color.value = 0;
       // Verify the coloring
       //ASSERT_TRUE(graph.valid_coloring());
+
+      typedef graph_ops<graph_type> graph_ops;
+
+      // parse the options
+      bool auto_color = false;
+      opts.get_option("color", auto_color);
+      if(auto_color) {
+        logstream(LOG_INFO) << "Precoloring the graph." << std::endl;
+        const size_t ncolors = graph_ops::color(graph);
+        logstream(LOG_INFO) << "Finished precoloring the graph using " 
+                            << ncolors << " colors." << std::endl;
+      }
+
       
       // parse the options
       opts.get_option("max_iterations", max_iterations);
