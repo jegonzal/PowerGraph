@@ -216,7 +216,7 @@ void coem_update_function(gl_types::iscope& scope,
     was_first_run = true; // Used to cause update to all neighbors
                           // regardless of residual
     if (scope.vertex()%20000 == 0)	
-      printf("%d Computed normalizer: %lf \n", scope.vertex(), norm);
+      printf("%d Computed normalizer: %lf (version: tfidf fixed)\n", scope.vertex(), norm);
   }
 	
   /***** COMPUTE NEW VALUE *****/
@@ -345,8 +345,12 @@ int main(int argc,  char ** argv) {
  
   /* Special handling for round_robin */
   if (clopts.get_scheduler_type() == "round_robin") {
+    std::cout << "Round robin enabled!" << std::endl;
     core.add_task_to_all(coem_update_function, 1.0);
     ROUNDROBIN = true;
+  } else {
+    core.engine().set_task_budget(core.graph().num_vertices()*3);
+    std::cout << "Set task budget: " << core.graph().num_vertices()*3 << std::endl; 
   }
    
   // Run GraphLab! 
