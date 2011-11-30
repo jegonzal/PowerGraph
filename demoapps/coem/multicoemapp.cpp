@@ -229,9 +229,10 @@ void coem_update_function(gl_types::iscope& scope,
     const edge_data& edata = scope.const_edge_data(eid);
     vertex_id_type nbvid = use_outgoing ? scope.target(eid) : scope.source(eid);
     const vertex_data& nb_vdata = scope.const_neighbor_vertex_data(nbvid);
+    double tfidf = TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+
     for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
-      tmp[cat_id] += nb_vdata.p[cat_id] * 
-        TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+      tmp[cat_id] += nb_vdata.p[cat_id] *  tfidf;
     }
     vlookup.push_back(nbvid); 
   }
