@@ -156,6 +156,10 @@ public:
 
   void operator()(icontext_type& context) {                          
     /* A optimization. Use thred-local lookup-table for faster computation. */    
+    if (!context.is_local("VLOOKUP")) {
+        context.add_local("VLOOKUP",  std::vector<vertex_id_type>());
+        context.get_local< std::vector<vertex_id_type> >("VLOOKUP").reserve(1e6); // in line with old version
+    }
     std::vector<vertex_id_type>& vlookup = 
       context.get_local< std::vector<vertex_id_type> >("VLOOKUP");
     vlookup.clear();
@@ -212,9 +216,10 @@ public:
       const edge_data& edata = context.const_edge_data(edge);
       vertex_id_type nbvid = use_outgoing ? edge.target() : edge.source();
       const vertex_data& nb_vdata = context.const_vertex_data(nbvid);
+      double tfidf =  TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
       for(unsigned int cat_id=0; cat_id<num_cats; cat_id++) {
         tmp[cat_id] += nb_vdata.p[cat_id] * 
-          TFIDF(edata.cooccurence_count, nb_vdata.nbcount, vtype_total);
+         tfidf;
       }
       vlookup.push_back(nbvid); 
     }
@@ -343,6 +348,8 @@ int main(int argc,  char ** argv) {
   if (clopts.get_scheduler_type() == "round_robin") {
     core.schedule_all(coem_update(1.0));
     ROUNDROBIN = true;
+  } else {
+    core.engine().set_task_budget(core.graph().num_vertices()*3);
   }
    
   // Run GraphLab! 
