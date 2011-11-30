@@ -105,7 +105,7 @@ namespace graphlab {
     template <typename ArcType, typename ValueType>
     struct serialize_impl<ArcType, std::vector<ValueType>, false > {
       static void exec(ArcType &a, const std::vector<ValueType>& vec) {
-        vector_serialize_impl<ArcType, ValueType, gl_is_pod<ValueType>::value>::exec(a, vec);
+        vector_serialize_impl<ArcType, ValueType, gl_is_pod_or_scaler<ValueType>::value>::exec(a, vec);
       }
     };
     /**
@@ -113,7 +113,7 @@ namespace graphlab {
     template <typename ArcType, typename ValueType>
     struct deserialize_impl<ArcType, std::vector<ValueType>, false > {
       static void exec(ArcType& a, std::vector<ValueType>& vec){
-        vector_deserialize_impl<ArcType, ValueType, gl_is_pod<ValueType>::value>::exec(a, vec);
+        vector_deserialize_impl<ArcType, ValueType, gl_is_pod_or_scaler<ValueType>::value>::exec(a, vec);
       }
     };
   } // archive_detail

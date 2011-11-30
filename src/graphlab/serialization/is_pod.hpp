@@ -61,7 +61,17 @@ namespace graphlab {
                           ));*/
 
   };
+  
 
+  template <typename T>
+  struct gl_is_pod_or_scaler{
+    BOOST_STATIC_CONSTANT(bool, value =
+                          (
+                           boost::type_traits::ice_or<
+                             boost::is_scalar<T>::value,
+                             gl_is_pod<T>::value>::value
+                          ));
+  };
 }
 
 #endif

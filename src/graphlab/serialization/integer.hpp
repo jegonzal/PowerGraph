@@ -112,15 +112,18 @@ inline void decompress_int_from_ref(const char* &arr, IntType &ret) {
 template <typename IntType>
 inline void decompress_int(std::istream &strm, IntType &ret) {
   char c;
-  strm.get(c);
+  strm.read(&c, 1);
   bool isneg = (c & 8);
   unsigned char len = (c & 7) + 1;
+  char buf[10];
+  strm.read(buf, len);
   
+  char* ptr = buf;
   ret = 0;
   while (len) {
-    strm.get(c);
-    ret = (ret << 8) | (unsigned char)(c);
+    ret = (ret << 8) | (unsigned char)(*ptr);
     --len;
+    ++ptr;
   };
   if (isneg)  ret = -ret;
 }
