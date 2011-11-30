@@ -69,11 +69,11 @@ public:
 
 
 
-class TestClass3{
+class TestClass3 {
 public:
-  int i;
-  int j;
+  int i, j;
   std::vector<int> k;
+  TestClass3() : i(0), j(0) { }
 };
 
 

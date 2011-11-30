@@ -7,6 +7,10 @@
 typedef graphlab::graph<char, char> graph_type;
 
 int main(int argc, char** argv) {
+  global_logger().set_log_level(LOG_DEBUG);
+  global_logger().set_log_to_console(true);
+
+ 
   const std::string in_fname = argv[1];
   const std::string format = argv[2];
   const std::string out_fname = argv[3];

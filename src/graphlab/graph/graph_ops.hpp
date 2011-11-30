@@ -32,6 +32,13 @@
 #ifndef GRAPHLAB_GRAPH_OPS_HPP
 #define GRAPHLAB_GRAPH_OPS_HPP
 
+// #include <boost/iostreams/stream.hpp>
+// #include <boost/iostreams/device/mapped_file.hpp>
+// #include <boost/iostreams/filtering_streambuf.hpp>
+// #include <boost/iostreams/filtering_stream.hpp>
+// #include <boost/iostreams/copy.hpp>
+// #include <boost/iostreams/filter/gzip.hpp>
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -313,12 +320,67 @@ namespace graphlab {
     } // end of load metis
 
 
+    static bool load_adj_structure(const std::string& fname,
+                                   graph_type& graph) {
+      // std::ifstream in_file(fname.c_str(), 
+      //                       std::ios_base::in | std::ios_base::binary);
+      // if(!in_file.good()) return false;
+      // bios::filtering_stream<bios::input> fin;  
+      // fin.push(bios::gzip_decompressor());
+      // fin.push(in_file);
+      // assert(fin.good());
+      logstream(LOG_INFO) << "Loading adjacency file" << std::endl;
+      std::ifstream fin(fname.c_str());
+      if(!fin.good()) return false;
+      logstream(LOG_INFO) << "file open successful" << std::endl;
+
+      size_t ctr = 0;
+      // Loop over the contents
+      while(fin.good()) {
+        // Load a vertex
+        size_t source = 0, nneighbors = 0;
+        try { fin >> source >> nneighbors; } catch ( ... ) { 
+          logstream(LOG_WARNING) 
+            << "Error reading source." << std::endl; return false;
+        }
+        if(!fin.good()) break;
+        // Resize the graph if needed
+        if(source >= graph.num_vertices()) graph.resize(source + 1);
+        // add neighbors
+        for(size_t i = 0; i < nneighbors; ++i) {
+          size_t target = 0;
+          try { fin >> target; } catch ( ... ) {
+            logstream(LOG_WARNING) 
+              << "Error reading neighbor" << std::endl; 
+            return false;
+          }
+          if(!fin.good()) {
+            logstream(LOG_WARNING) 
+              << "Error reading neighbor" << std::endl; 
+            return false;
+          }
+          // Resize the graph if needed
+          if(target >= graph.num_vertices()) graph.resize(target + 1);
+          graph.add_edge(source, target);
+        } // end of loop over neighbors
+        if (++ctr % 1000000 == 0) 
+          logstream(LOG_INFO) 
+            << "Added edata for " << ctr << " vertices: " 
+            << source << std::endl; 
+      } // end of loop over file
+      fin.close();
+      return true;
+    } // end of load_adj_list
+
+
+
     static bool load_structure(const std::string& fname,
                                const std::string& format,
                                graph_type& graph) {
       if (format == "metis") return load_metis_structure(fname, graph);
       else if (format == "snap") return load_snap_structure(fname, graph);
       else if (format == "tsv") return load_edge_list_structure(fname, graph);
+      else if (format == "adj") return load_adj_structure(fname, graph);
       else {
         logstream(LOG_WARNING)
           << "Invalid format \"" << format << "\".  "
@@ -441,7 +503,7 @@ namespace graphlab {
       size_t nedges = 0;
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i)
         nedges += num_neighbors(graph, i);
-      fout << graph.num_vertices() << ' ' << nedges << '\n';
+      fout << graph.num_vertices() << ' ' << (nedges/2) << '\n';
       // Save the adjacency structure
       std::vector<vertex_id_type> neighbor_set;
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
