@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts("PageRank algorithm.");
   std::string graph_file;
   std::string format = "metis";
-  std::string initialfname;
+  std::string binfname;
   std::string update_type = "basic";
   size_t topk = 5;
   clopts.attach_option("graph",
@@ -188,8 +188,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("topk",
                        &topk, topk,
                        "The number of top pages to display at the end.");
-  clopts.attach_option("initialfname",
-                       &initialfname, initialfname,
+  clopts.attach_option("binfname",
+                       &binfname, binfname,
                        "Optionally save a binary version of the graph");
 
   if(!clopts.parse(argc, argv)) {
@@ -220,9 +220,9 @@ int main(int argc, char** argv) {
     normalize_graph(core.graph());
   }
 
-  if(!initialfname.empty()) { 
+  if(!binfname.empty()) { 
     std::cout << "Saving initial binary version of the graph." << std::endl;
-    core.graph().save(initialfname);  
+    core.graph().save(binfname);  
     return EXIT_SUCCESS;
   }
 
