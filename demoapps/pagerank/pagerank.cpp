@@ -48,28 +48,25 @@ double ACCURACY = 1e-5;
  */
 class pagerank_update : 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
-  float prio;
+  double prio;
 public:
-  pagerank_update(const float& prio = 0) : prio(prio) { }
+  pagerank_update(const double& prio = 0) : prio(prio) { }
   double priority() const { return prio; }
   void operator+=(const pagerank_update& other) { prio += other.prio; }
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-
     // Compute weighted sum of neighbors
-    float sum = vdata.value * vdata.self_weight;    
-
+    double sum = 0;
     /* Iterate over edge_id_list and get source is slow in graph2 */
     foreach( edge_type edge, context.in_edges() ) 
       sum += context.const_edge_data(edge).weight * 
         context.const_vertex_data(edge.source()).value;
     // Add random reset probability
-    sum = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*sum;
     vdata.old_value = vdata.value;
-    vdata.value = sum;
+    vdata.value = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
+      (1-RANDOM_RESET_PROBABILITY)*sum; 
     foreach(edge_type edge, context.out_edges()) {    
-      const float residual = context.const_edge_data(edge).weight * 
+      const double residual = context.const_edge_data(edge).weight * 
         std::fabs(vdata.value - vdata.old_value);
       // If the neighbor changed sufficiently add to scheduler.
       if(residual > ACCURACY) 
@@ -94,9 +91,10 @@ int main(int argc, char** argv) {
                        &graph_file, graph_file,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
+  clopts.add_positional("graph");
   clopts.attach_option("format",
                        &format, format,
-                       "The graph file format: {metis, jure, tsv}");
+                       "The graph file format: {metis, snap, tsv}");
   clopts.attach_option("accuracy",
                        &ACCURACY, ACCURACY,
                        "residual termination threshold");
@@ -114,13 +112,17 @@ int main(int argc, char** argv) {
   // Setup the GraphLab execution core and load graph -------------------------
   graphlab::core<graph_type, pagerank_update> core;
   core.set_options(clopts); // attach the command line options to the core
-  const bool success = load_graph(graph_file, format, core.graph());
+  std::cout << "Loading graph from file" << std::endl;
+  const bool success = graphlab::graph_ops<graph_type>::
+    load_structure(graph_file, format, core.graph());
   if(!success) {
     std::cout << "Error in reading file: " << graph_file << std::endl;
   }
+  normalize_graph(core.graph());
 
   // Run the PageRank ---------------------------------------------------------
   core.schedule_all(pagerank_update(1));
+  std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
             << " seconds." << std::endl;

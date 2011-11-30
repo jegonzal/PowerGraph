@@ -96,8 +96,7 @@ struct jacobi_update :
     vdata.prev_x = vdata.pred_x;
 
     //initialize accumlated values in x_i
-    real_type& x_i = vdata.pred_x;
-    x_i = vdata.y;
+    real_type x_i = vdata.y;
     const real_type& A_ii = vdata.Aii;
     assert(A_ii != 0);
 
@@ -113,7 +112,7 @@ struct jacobi_update :
         context.const_vertex_data(out_edges[i].target());
       x_i -= out_edge.weight * other.pred_x;
     }
-    x_i /= A_ii;
+    vdata.pred_x = x_i / A_ii;
     if (debug)
       std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
 
@@ -253,7 +252,10 @@ int main(int argc,  char *argv[]) {
   double runtime= core.start();
   // POST-PROCESSING *****
  
-  std::cout << "Jacobi finished in " << runtime << std::endl;
+  std::cout 
+    << "Jacobi finished in " << runtime << std::endl
+    << "\t Updates:  " << core.last_update_count() << std::endl
+    << "\t Rate:     " << (core.last_update_count()/runtime) << std::endl;
 
   vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 

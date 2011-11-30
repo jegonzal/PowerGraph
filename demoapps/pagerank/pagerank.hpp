@@ -42,14 +42,15 @@
 
 /// Types------------------------------------------------------------------>
 
+
 /**
  * Stores the value and the self weight
  */
 struct vertex_data {
   uint32_t nupdates;
-  float value, old_value, self_weight; 
-  vertex_data(float value = 1) : 
-    nupdates(0), value(value), old_value(0), self_weight(0) { }
+  double value, old_value;
+  vertex_data(double value = 1) : 
+    nupdates(0), value(value), old_value(0) { }
 }; // End of vertex data
 //! Print the vertex data
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
@@ -59,8 +60,8 @@ std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
  * last value of the source vertex when the target value was computed.
  */
 struct edge_data {
-  float weight;
-  edge_data(float weight = 1) : weight(weight) { } 
+  double weight;
+  edge_data(double weight = 1) : weight(weight) { } 
 }; // End of edge data
 //! Print the edge data
 std::ostream& operator<<(std::ostream& out, const edge_data& edata);
@@ -75,38 +76,68 @@ typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 
 
+
 /// Utility routines defined in utility.cpp ------------------------------->
-//! Save the graph to tsv file
-void save_graph_as_edge_list(const std::string& fname, 
-                             const graph_type& graph);
+std::ostream& operator<<(std::ostream& out, const edge_data& edata) {
+  return out << "E(w: " << edata.weight << ")";
+}
 
-//! save the pagerank vector as a tsv file
+std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
+  return out << "Rank=" << vdata.value;
+}
+
+
+
 void save_pagerank(const std::string& fname,
-                   const graph_type& graph);
+                   const graph_type& graph) {
+  std::ofstream fout;
+  fout.open(fname.c_str());
+  fout << std::setprecision(10);
+  for(graph_type::vertex_id_type vid = 0; 
+      vid < graph.num_vertices(); ++vid) {
+    fout << graph.vertex_data(vid).value << "\n";
+  }
+  fout.close();
+} // end of save_pagerank
 
-//! Return the ids of the top k pages
+
 void get_top_pages(const graph_type& graph, size_t num_pages,
-                   std::vector<graph_type::vertex_id_type>& ret);
+                   std::vector<graph_type::vertex_id_type>& ret) {
+  typedef std::pair<float, graph_type::vertex_id_type> pair_type;
+  std::priority_queue<pair_type> top;
+  for(graph_type::vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
+    const graph_type::vertex_data_type& vdata = graph.vertex_data(vid);
+    top.push(std::make_pair(-vdata.value, vid));
+    if(top.size() > num_pages) top.pop();
+  }
+  if(top.empty()) return;
+  ret.resize(top.size());
+  for(size_t i = top.size()-1; i < top.size(); --i) {
+    ret[i] = top.top().second;
+    top.pop();
+  }
+} // end of top pages
 
 
-
-//! Load the graph from a file with a given format
-bool load_graph(const std::string& filename,
-                const std::string& format,
-                graph_type& graph);
-
-
-//! Load the graph from a metis (adjacency format file)
-bool load_graph_from_metis_file(const std::string& filename,
-                                graph_type& graph);
-//! Load the graph in Jure Leskovec's file format
-bool load_graph_from_jure_file(const std::string& filename,
-                               graph_type& graph);
-//! Load the graph from a tab separated file
-bool load_graph_from_tsv_file(const std::string& filename,
-                              graph_type& graph);
-//! Make a toy graph to quickly test pagerank
-void make_toy_graph(graph_type& graph);
+void normalize_graph(graph_type& graph) {
+  logstream(LOG_INFO)
+    << "Optimizing graph layout in memory." << std::endl;
+  graph.finalize();
+  logstream(LOG_INFO)
+    << "Renormalizing transition probabilities." << std::endl;
+  typedef graph_type::vertex_id_type vertex_id_type;
+  for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {  
+    double sum = 0;
+    const graph_type::edge_list_type out_edges = graph.out_edges(vid);
+    // Sum up weight on out edges
+    for(size_t i = 0; i < out_edges.size(); ++i) 
+      sum += graph.edge_data(out_edges[i]).weight;
+    for(size_t i = 0; i < out_edges.size(); ++i) 
+      graph.edge_data(out_edges[i]).weight /= sum;
+  }
+  logstream(LOG_INFO)
+    << "Finished normalizing transition probabilities." << std::endl;
+} // end of normalize_graph
 
 
 
