@@ -256,13 +256,16 @@ namespace graphlab {
       }
       logger(LOG_WARNING, "storing edges...");
 #pragma omp parallel for 
-      for (int i = 0;i < (int)(g.num_edges()); ++i) {
-        vertex_id_type target = g.target(i);
-        vertex_id_type source = g.source(i);
-        uint16_t sourceowner = partids[source] % atoms.size();
-        uint16_t targetowner = partids[target] % atoms.size();
-        if (sourceowner != targetowner) atoms[sourceowner]->add_edge(source, sourceowner, target, targetowner);
-        atoms[targetowner]->add_edge(source, sourceowner, target, targetowner, g.edge_data(i));
+      for(ssize_t v = 0; v < (ssize_t)g.num_vertices(); ++v) {
+        typedef typename graph<VertexData, EdgeData>::edge_type edge_type;
+        foreach(edge_type e, g.in_edges(v)) {  
+          vertex_id_type target = e.target();
+          vertex_id_type source = e.source();
+          uint16_t sourceowner = partids[source] % atoms.size();
+          uint16_t targetowner = partids[target] % atoms.size();
+          if (sourceowner != targetowner) atoms[sourceowner]->add_edge(source, sourceowner, target, targetowner);
+          atoms[targetowner]->add_edge(source, sourceowner, target, targetowner, g.edge_data(e));
+        }
       }
     
       numv.value = g.num_vertices();

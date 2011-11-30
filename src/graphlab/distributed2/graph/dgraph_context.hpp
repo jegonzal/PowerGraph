@@ -43,6 +43,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   typedef typename graph_type::vertex_id_type      vertex_id_type;
   typedef typename graph_type::vertex_color_type   vertex_color_type;
   typedef typename graph_type::edge_id_type        edge_id_type;
+  typedef typename graph_type::edge_type edge_type;
   typedef typename graph_type::vertex_data_type    vertex_data_type;
   typedef typename graph_type::edge_data_type      edge_data_type;
   typedef typename graph_type::edge_list_type      edge_list_type;
@@ -181,16 +182,16 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   }
 
   /// Direct calls to access edge data
-  const edge_data_type& edge_data(edge_id_type eid) const {
+  const edge_data_type& edge_data(const edge_type& eid) const {
     return const_edge_data(eid);
   }
 
-  const edge_data_type& const_edge_data(edge_id_type eid) const {
-    return (graph_ptr->edge_data(eid));
+  const edge_data_type& const_edge_data(const edge_type& eid) const {
+    return (graph_ptr->edge_data(eid.eid()));
   }
   
-  edge_data_type& edge_data(edge_id_type eid) {
-    vertex_id_type etarget = graph_ptr->target(eid);
+  edge_data_type& edge_data(const edge_type& eid) {
+    vertex_id_type etarget = eid.target();
     if (etarget == _vertex) {
       inedges_modified = true;
     } else if (graph_ptr->is_owned(etarget) == false){
@@ -198,8 +199,8 @@ class dgraph_context: public icontext<typename Engine::graph_type,
     } else {
       owned_outedges_modified = true;
     }
-    graph_ptr->edge_is_modified(eid);
-    return (graph_ptr->edge_data(eid));
+    graph_ptr->edge_is_modified(eid.eid());
+    return (graph_ptr->edge_data(eid.eid()));
   }
 
 
@@ -211,11 +212,16 @@ class dgraph_context: public icontext<typename Engine::graph_type,
     } else {
       owned_outedges_modified = true;
     }
-    graph_ptr->edge_is_modified(graph_ptr->find(source, target).second);
+    graph_ptr->edge_is_modified(graph_ptr->find(source, target).eid());
 
     return graph_ptr->edge_data(source, target);
   }
 
+  const edge_data_type& const_edge_data(vertex_id_type source, 
+                                        vertex_id_type target) const {
+    return graph_ptr->edge_data(source, target);
+  }
+  
   const edge_data_type& edge_data(vertex_id_type source, 
                                   vertex_id_type target) const {
     return graph_ptr->edge_data(source, target);
@@ -243,7 +249,11 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   vertex_color_type color() const { 
     return graph_ptr->get_color(_vertex); 
   }
-  
+
+  vertex_color_type color(vertex_id_type vid) const { 
+    return graph_ptr->get_color(vid); 
+  }
+
   vertex_id_type vertex_id() const { 
     return _vertex; 
   }
@@ -258,24 +268,31 @@ class dgraph_context: public icontext<typename Engine::graph_type,
     return graph_ptr->find(source, target).first;
   }
 
-  edge_id_type reverse_edge(edge_id_type eid) const {      
-    return graph_ptr->rev_edge_id(eid);
+  edge_type reverse_edge(const edge_type& eid) const {      
+    return graph_ptr->reverse_edge(eid);
   }
 
-  edge_list_type in_edge_ids() const {
-    return graph_ptr->in_edge_ids(_vertex);
+
+  virtual edge_type find(vertex_id_type source,
+                          vertex_id_type target) const  {
+    return graph_ptr->find(source, target);
   }
 
-  edge_list_type in_edge_ids(vertex_id_type v) const {
-    return graph_ptr->in_edge_ids(v);
+
+  edge_list_type in_edges() const {
+    return graph_ptr->in_edges(_vertex);
   }
 
-  edge_list_type out_edge_ids() const {
-    return graph_ptr->out_edge_ids(_vertex);
+  edge_list_type in_edges(vertex_id_type v) const {
+    return graph_ptr->in_edges(v);
+  }
+
+  edge_list_type out_edges() const {
+    return graph_ptr->out_edges(_vertex);
   }
   
-  edge_list_type out_edge_ids(vertex_id_type v) const {
-    return graph_ptr->out_edge_ids(v);
+  edge_list_type out_edges(vertex_id_type v) const {
+    return graph_ptr->out_edges(v);
   }
 
   std::vector<vertex_id_type> in_vertices() const {
@@ -331,17 +348,18 @@ class dgraph_context: public icontext<typename Engine::graph_type,
 
   void schedule_in_neighbors(const vertex_id_type& vertex, 
                               const update_functor_type& update_fun) {
-    const edge_list_type edges = graph_ptr->in_edge_ids(vertex);
-    foreach(const edge_id_type& eid, edges) {
-      schedule(graph_ptr->source(eid), update_fun);
+    const edge_list_type edges = graph_ptr->in_edges(vertex);
+    foreach(const edge_type& edge, edges) {
+      schedule(edge.source(), update_fun);
     }
   }
 
   void schedule_out_neighbors(const vertex_id_type& vertex, 
                               const update_functor_type& update_fun) {
-    const edge_list_type edges = graph_ptr->out_edge_ids(vertex);
-    foreach(const edge_id_type& eid, edges) 
-      schedule(graph_ptr->target(eid), update_fun);
+    const edge_list_type edges = graph_ptr->out_edges(vertex);
+    foreach(const edge_type& edge, edges) {
+      schedule(edge.target(), update_fun);
+    }
   }
 
   void schedule_neighbors(const vertex_id_type& vertex, 

@@ -58,15 +58,15 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   // Include parent types
   typedef iengine<Graph, UpdateFunctor> iengine_base;
   typedef distributed_chromatic_engine<Graph, UpdateFunctor> engine_type;
-  typedef typename iengine_base::graph_type graph_type;
+  typedef Graph graph_type;
   typedef typename iengine_base::update_functor_type update_functor_type;
   
   typedef typename graph_type::vertex_data_type vertex_data_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_id_type   edge_id_type;
   typedef typename graph_type::edge_list_type edge_list_type;
-  typedef typename graph_type::edge_type   edge_id_type;
-    
+  typedef typename graph_type::edge_type edge_type;  
+  
   typedef typename iengine_base::icontext_type  icontext_type;
   typedef dgraph_context<distributed_chromatic_engine>  context_type;
   typedef distributed_shared_data<context_type> shared_data_type;
@@ -150,7 +150,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   /// The list of tasks which are currently being evaluated
   std::vector<sync_task*> active_sync_tasks;
 
-  
+  std::vector<mutex> synclock;
   
  public:
   distributed_chromatic_engine(distributed_control &dc,
@@ -176,6 +176,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             factor_threshold(1000),
                             const_nbr_vertices(true),
                             const_edges(false),
+                            synclock(ncpus),
                             thread_color_barrier(ncpus){ 
     rmi.barrier();
   }
@@ -329,119 +330,6 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     }
   }
   
-  
-  dense_bitset seperator_set;
-
-  
-  /**
-   * 
-   * Factorized update functors are somewhat awkward because the graph
-   * is really an edge seperated graph. So I need to coerce the system
-   * to behave like vertex seperators.
-   * 
-   * 1: A subset of vertices (vertices with degree > factor_threshold)
-   *    are picked as vertex seperators.
-   * 2: These subset of vertices use factorized updates, everything else 
-   *    use regular updates.
-   * 3: All synchronization rules hold just like regular updates with the exception that
-   *    - if a LOCAL vertex v is
-   *       a) adjacent to ghost vertices
-   *       b) all adjacent ghost vertices are vertex seperators
-   *    - then, no synchronization is necessary
-   * 
-   */
-  void infer_vertex_seperator_set() {
-    
-    std::vector<std::vector<vertex_id_type> > seperatorsets(rmi.numprocs());
-    
-    // the seperator set is all bonudary vertices with degree > threshold
-    for (vertex_id_type localvid = 0; 
-         localvid < graph.local_vertices(); 
-         ++localvid) {
-      vertex_id_type globalvid = graph.localvid_to_globalvid(localvid));
-      if (graph.on_boundary(globalvid)) {
-        size_t numin = graph.get_local_store().num_in_neighbors(localvid);
-        size_t numout = graph.get_local_store().num_out_neighbors(localvid);
-        if (numin + numout >= factor_threshold) {
-          seperatorsets[rmi.procid()].push_back(globalvid);
-        }
-      }
-    }
-    
-    // not exactly the most efficient way to do this. really, we only
-    // need to collect all the vertex IDs that will land on this machine
-    rmi.all_gather(seperatorsets);
-    
-    seperator_set.resize(graph.get_local_store().num_vertices());
-    adjacent_to_only_seperator_set.resize(graph.local_vertices());
-    seperator_set.clear();
-    adjacent_to_only_seperator_set.clear();
-    
-    // build the local seperator set 
-    for (size_t i = 0;i < seperator_set.size(); ++i) {
-      for (size_t j = 0; j < seperator_set[i].size(); ++j) {
-        if (graph.global_vid_in_local_fragment(seperator_set[i][j])) {
-          vertex_id_type localvid = graph.globalvid_to_localvid(seperator_set[i][j]);
-          seperator_set.set_bit(localvid);
-        }
-      }
-    }
-    if (rmi.procid() == 0) {
-      // sum and print the number of seperator vertices
-      size_t numsep = 0;
-      for (size_t i = 0;i < seperatorsets.size(); ++i) numsep += seperatorsets[i].size();
-      
-      logstream(LOG_INFO) << "Seperator Set Size: " << numsep << std::endl;
-    }
-    logstream(LOG_INFO) << "Rebuilding Replica Set" << std::endl;
-    graph.rebuild_replica_set_assuming_vertex_seperator(seperator_set);
-  }
-
-  /**
-   * proceeds to plan a factorized schedule for a subset of the vertices
-   */
-  void plan_factorized_schedule(std::vector<vertex_id_type> &next_localvset) {
-    std::vector<
-        std::vector<
-            std::pair<vertex_id_type, update_functor_type> > > remote_schedules;
-
-    remote_schedules.resize(rmi.numprocs());
-
-    // look through the localvset and remotely 
-    // schedule those which are vertex seperators
-    foreach(vertex_id_type localvid, next_localvset) {
-      if (seperator_set.get_unsync(localvid)) {
-        update_functor_type uf;
-        bool hasf = vfun_cacheset.test_and_get(localvid, uf);
-        if (hasf) {
-          foreach(procid_t rep, graph.localvid_to_replicas(localvid)) {
-            remote_schedules[rep].push_back(std::make_pair(graph.localvid_to_globalvid(localvid), 
-                                            uf));
-          }
-        }
-      }
-    }
-    
-    // transmit
-    for (procid_t i = 0;i < rmi.numprocs(); ++i) {
-      if (i != rmi.procid() && remote_schedules[i].size() > 0) {
-        rmi.remote_call(i, 
-            &distributed_chromatic_engine<Graph, UpdateFunctor>::
-                                                          factorized_schedule_collection,
-            remote_schedules[i]);
-      }
-    }
-    
-  }
-  
-  
-  void factorized_schedule_collection(const std::vector<
-                                     std::pair<vertex_id_type, 
-                                             update_functor_type> >& tasks) {
-    for (size_t i = 0;i < tasks.size(); ++i) {
-      if (vfunset.add(graph.globalvid_to_localvid(tasks[i].first), tasks[i].second);
-    }
-  }
 
   
   void schedule_impl(const vertex_id_type vid, 
@@ -665,6 +553,8 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
      }
   }
 
+
+  
   /**
    * Called whenever a vertex is executed.
    * Accumulates the available syncs
@@ -672,6 +562,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   void eval_syncs(vertex_id_type curvertex, 
                   context_type& context, 
                   size_t threadid) {
+    synclock[threadid].lock();
      // go through all the active sync tasks
      foreach(sync_task* task, active_sync_tasks) {
        // if in range, sync!
@@ -679,6 +570,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
          shared_data.accumulate(task->key, &context, threadid);
        }
      }
+     synclock[threadid].unlock();
   }
 
   /** Called at the end of the iteration. Called by all threads after a barrier*/
@@ -884,35 +776,305 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     }
   }
   
-  void factorized_gather(vertex_id_type globalvid, const update_functor_type &ufun) {
+/////////////// Begin Factorized Implementation ////////////////////////
+  
+  struct gather_receive{
+    update_functor_type accumulated_functor;
+    mutex lock;
+    size_t ctr;
+  };
+  
+  boost::unordered_map<vertex_id_type, gather_receive> localvid_to_gather;
+
+  
+  dense_bitset seperator_set;
+  size_t pending_factorized_updates;
+  mutex pending_factorized_updates_lock;
+  conditional pending_factorized_updates_cond;
+  
+  
+  void compute_threshold_seperator_set() {
+    std::vector<std::vector<vertex_id_type> > allseperatorsets(rmi.numprocs());
+    
+    // the seperator set is all bonudary vertices with degree > threshold
+    for (vertex_id_type localvid = 0; 
+        localvid < graph.local_vertices(); 
+        ++localvid) {
+      vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
+      if (graph.on_boundary(globalvid)) {
+        size_t numin = graph.get_local_store().num_in_neighbors(localvid);
+        size_t numout = graph.get_local_store().num_out_neighbors(localvid);
+        if (numin + numout >= factor_threshold && random::bernoulli()) {
+          allseperatorsets[rmi.procid()].push_back(globalvid);
+        }
+      }
+    }
+    
+    // not exactly the most efficient way to do this. really, we only
+    // need to collect all the vertex IDs that will land on this machine
+    rmi.all_gather(allseperatorsets);
+    
+    seperator_set.resize(graph.get_local_store().num_vertices());
+
+    seperator_set.clear();
+    
+    // build the local seperator set 
+    for (size_t i = 0;i < allseperatorsets.size(); ++i) {
+      for (size_t j = 0; j < allseperatorsets[i].size(); ++j) {
+        if (graph.vertex_is_local(allseperatorsets[i][j])) {
+          vertex_id_type localvid = graph.globalvid_to_localvid(allseperatorsets[i][j]);
+          seperator_set.set_bit(localvid);
+        }
+      }
+    }
+    if (rmi.procid() == 0) {
+      // sum and print the number of seperator vertices
+      size_t numsep = 0;
+      for (size_t i = 0;i < allseperatorsets.size(); ++i) numsep += allseperatorsets[i].size();
+      
+      logstream(LOG_INFO) << "Seperator Set Size: " << numsep << std::endl;
+    }
+  }
+  /* // used to debug seperators for the demo app
+  void draw_seperator_set() {
+    // try to draw the seperator set
+    size_t v = 0;
+    for (size_t i = 0;i < 20; ++i) {
+      for (size_t j = 0;j < 20; ++j) {
+        if (graph.vertex_is_local(v)) {
+          if (graph.is_owned(v)) {
+            if (seperator_set.get(graph.globalvid_to_localvid(v))) {
+              textcolor(stdout, 1, 1);  //RED
+              std::cout << rmi.procid() << " ";
+              reset_color(stdout);
+            }
+            else {
+              std::cout << rmi.procid() << " ";
+            }
+          }
+          else {
+            if (seperator_set.get(graph.globalvid_to_localvid(v))) {
+              textcolor(stdout, 1, 1);  //RED
+              std::cout << "*" << " ";
+              reset_color(stdout);
+            }
+            else {
+              std::cout << "*" << " ";
+            }
+          }
+        }
+        else {
+          std::cout << "  ";
+        }
+        ++v;
+      }
+      std::cout << "\n";
+    }
+    std::cout << "\n\n";
+  }*/
+  /**
+   * 
+   * Factorized update functors are somewhat awkward because the graph
+   * is really an edge seperated graph. So I need to coerce the system
+   * to behave like vertex seperators.
+   * 
+   * 1: A subset of vertices (vertices with degree > factor_threshold)
+   *    are picked as vertex seperators.
+   * 2: These subset of vertices use factorized updates, everything else 
+   *    use regular updates.
+   * 3: All synchronization rules hold just like regular updates with the exception that
+   *    - if a LOCAL vertex v is
+   *       a) adjacent to ghost vertices
+   *       b) all adjacent ghost vertices are vertex seperators
+   *    - then, no synchronization is necessary
+   * 
+   */
+  void infer_vertex_seperator_set() {
+    if (factor_threshold > 0) {
+      compute_threshold_seperator_set();
+    }
+    else {
+      graph.greedy_vertex_seperator(seperator_set);
+    }
+/*    rmi.barrier();
+    for (procid_t p = 0;p < rmi.numprocs(); ++p) {
+      if (p == rmi.procid()) draw_seperator_set();
+      rmi.barrier();
+    }
+    if (rmi.procid() == 0) getchar();
+    rmi.barrier(); */
+    logstream(LOG_INFO) << "Rebuilding Replica Set" << std::endl;
+    graph.rebuild_replica_set_assuming_vertex_seperator(seperator_set);
+  }
+
+  /**
+   * proceeds to plan a factorized schedule for a subset of the vertices
+   */
+  size_t plan_factorized_schedule(std::vector<vertex_id_type> &next_localvset) {
+    std::vector<
+        std::vector<
+            std::pair<vertex_id_type, update_functor_type> > > remote_schedules;
+
+    remote_schedules.resize(rmi.numprocs());
+
+    // look through the localvset and remotely 
+    // schedule those which are vertex seperators
+    size_t num_owned_factorized_updates = 0;
+    foreach(vertex_id_type localvid, next_localvset) {
+      if (localvid < graph.local_vertices() && seperator_set.get(localvid)) {
+        update_functor_type uf;
+        bool hasf = vfunset.read_value(localvid, uf);
+        if (hasf) {
+          ++num_owned_factorized_updates;
+          vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
+//            std::cout << rmi.procid() << ": Planning : " << globalvid 
+//                    << ". color = " << graph.color(globalvid) << " " 
+//                      << graph.localvid_to_replicas(localvid).popcount() << " nodes" << std::endl;
+          foreach(procid_t rep, graph.localvid_to_replicas(localvid)) {
+            if (rep != rmi.procid()) {
+              remote_schedules[rep].push_back(std::make_pair(globalvid, uf));
+            }
+          }
+        }
+      }
+    }
+    
+    // transmit
+    for (procid_t i = 0;i < rmi.numprocs(); ++i) {
+      if (i != rmi.procid() && remote_schedules[i].size() > 0) {
+        rmi.remote_call(i, 
+            &distributed_chromatic_engine<Graph, UpdateFunctor>::
+                                                          factorized_schedule_collection,
+            remote_schedules[i]);
+      }
+    }
+    return num_owned_factorized_updates;
   }
   
-  void evaluate_factorized_update_functor(dgraph_context<engine_type>,
-                                     vertex_id_type localvid, 
-                                     update_functor_type& ufun) {
-    //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
-    // Gather phase -----------------------------------------------------------
-    ufun.init_gather(context);
+  
+  void factorized_schedule_collection(const std::vector<
+                                     std::pair<vertex_id_type, 
+                                             update_functor_type> >& tasks) {
+    for (size_t i = 0;i < tasks.size(); ++i) {
+//      std::cout << rmi.procid() << ": Adding fact. task: " 
+//                << tasks[i].first << " color = " << graph.color(tasks[i].first) << std::endl;
+      
+      if (vfunset.add(graph.globalvid_to_localvid(tasks[i].first), tasks[i].second)) {
+        num_pending_tasks.inc();
+      }
+    }
+  }
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  void reset_gather_receive_structures() {
+    foreach(uint32_t i, seperator_set) {
+      if (i < graph.local_vertices()) {
+        localvid_to_gather[i].ctr = graph.localvid_to_replicas(i).popcount();
+        localvid_to_gather[i].accumulated_functor = update_functor_type();
+      }
+    }
+  }
+  
+  void factorized_gather_receive(vertex_id_type globalvid, const update_functor_type &ufun) {
+    vertex_id_type localvid = graph.globalvid_to_localvid(globalvid);
+    ASSERT_LT(localvid, graph.local_vertices());
+    typename boost::unordered_map<vertex_id_type, gather_receive>::iterator iter = 
+                          localvid_to_gather.find(localvid);
+    iter->second.lock.lock();
+    iter->second.accumulated_functor.merge(ufun);
+    iter->second.ctr--;
+    bool done = (iter->second.ctr == 0);
+//    std::cout << rmi.procid() << " gather receive on " << globalvid << 
+//                ", " << iter->second.ctr << " remaining" << std::endl;
+    iter->second.lock.unlock();
+    if (done) {
+      apply_and_broadcast_scatter(localvid);
+    }
+  }
+  
+  void apply_and_broadcast_scatter(vertex_id_type localvid) {
+    typename boost::unordered_map<vertex_id_type, gather_receive>::iterator iter = 
+                      localvid_to_gather.find(localvid);
+    dgraph_context<engine_type> context(this, &graph, &shared_data);
+    vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
+    context.init(globalvid);
+    iter->second.accumulated_functor.apply(context);
+    if (!active_sync_tasks.empty()) eval_syncs(globalvid, context, thread::thread_id() % ncpus);
+    // scatter
+    unsigned char oldkey = rmi.dc().set_sequentialization_key(globalvid % 255 + 1);
+    if (context.own_modified) {
+      graph.push_owned_vertex_to_replicas(globalvid, true, true);
+    }
+    foreach(procid_t p, graph.localvid_to_replicas(localvid)) {
+      rmi.remote_call(p, 
+                      &distributed_chromatic_engine<Graph,UpdateFunctor>::factorized_scatter,
+                      globalvid,
+                      iter->second.accumulated_functor);
+    }
+    rmi.dc().set_sequentialization_key(oldkey);
+    pending_factorized_updates_lock.lock();
+    pending_factorized_updates--;
+//    std::cout << rmi.procid() << " scatter issued on " 
+//      << globalvid << " " << pending_factorized_updates << " remaining" << std::endl;
+    if (pending_factorized_updates == 0) {
+      pending_factorized_updates_cond.broadcast();
+    }
+    pending_factorized_updates_lock.unlock();    
+  }
+  
+  void factorized_scatter(vertex_id_type globalvid,
+                          update_functor_type& ufun) {
+    dgraph_context<engine_type> context(this, &graph, &shared_data);
+    context.init(globalvid);
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
-      const graph_type::edge_list_type edges = graph.in_edge_ids(vid);
-      foreach(edge_id_type edge, edges) {
-        ufun.gather(context, edge);
+      foreach(const edge_type edge, graph.in_edges_local_only(globalvid)) {
+        if (graph.is_owned(edge.source())) ufun.scatter(context, edge);
       }
     }
 
     if(ufun.gather_edges() == update_functor_type::OUT_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
-      const edge_list_type edges = graph.out_edges(vid);
-      foreach(const edge_type& edge, edges) {
-        ufun.gather(context, edge);
+      foreach(const edge_type edge, graph.out_edges_local_only(globalvid)) {
+        if (graph.is_owned(edge.target())) ufun.scatter(context, edge);
+      }
+    }
+  }
+  
+  void evaluate_factorized_update_functor(vertex_id_type localvid, 
+                                          update_functor_type& ufun) {
+    // Gather phase -----------------------------------------------------------
+    vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
+//    std::cout << rmi.procid() << ": Gather on vid " << globalvid << std::endl;
+    dgraph_context<engine_type> context(this, &graph, &shared_data);
+    context.init(globalvid);
+    ufun.init_gather(context);
+    if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
+       ufun.gather_edges() == update_functor_type::ALL_EDGES) {
+      foreach(const edge_type edge, graph.in_edges_local_only(globalvid)) {
+        if (graph.is_owned(edge.source())) ufun.gather(context, edge);
+      }
+    }
+
+    if(ufun.gather_edges() == update_functor_type::OUT_EDGES ||
+       ufun.gather_edges() == update_functor_type::ALL_EDGES) {
+      foreach(const edge_type edge, graph.out_edges_local_only(globalvid)) {
+        if (graph.is_owned(edge.target())) ufun.gather(context, edge);
       }
     }
     
     // send to collected ufun to owner
     rmi.remote_call(graph.localvid_to_owner(localvid),
-                    &distributed_chromatic_engine<Graph,UpdateFunctor>::factorized_gather,
-                    context.vertex(),
+                    &distributed_chromatic_engine<Graph,UpdateFunctor>::factorized_gather_receive,
+                    globalvid,
                     ufun);
   } // end of evaluate_update_functor
 
@@ -936,12 +1098,14 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       bool hassynctasks = active_sync_tasks.size() > 0;
       // loop over colors    
       for (size_t c = 0;c < color_block.size(); ++c) {
-        
-        synchronize_vfun_cache();
-        rmi.full_barrier();
-        plan_factorized_schedule();
-        rmi.full_barrier();
-        
+        if (threadid == 0) {
+          reset_gather_receive_structures();
+          synchronize_vfun_cache();
+          rmi.full_barrier();
+          pending_factorized_updates = plan_factorized_schedule(color_block[c]);
+          rmi.full_barrier();
+        }
+        thread_color_barrier.wait();
         
         // internal loop over vertices in the color
         while(1) {
@@ -961,11 +1125,10 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
           else {
             has_functor_to_run = vfunset.test_and_get(localvid, functor_to_run);
           }
-          
           if (has_functor_to_run) {
             if (!usestatic) num_pending_tasks.dec();
             // use the regular update if it is not a seperator set vertex
-            if (seperator_set.get_unsync(localvid) == false) {
+            if (localvid < graph.local_vertices() && seperator_set.get(localvid) == false) {
               // otherwise. run the vertex
               // create the scope
               context.init(globalvid);
@@ -977,23 +1140,28 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
               update_counts[threadid]++;
             }
             else {
-              // OK. this is the hard one.
               context.init(globalvid);
-              evaluate_factorized_update_functor(context,
-                                                 localvid, 
-                                                 functor_to_run);
+              evaluate_factorized_update_functor(localvid, 
+                                                functor_to_run);
             }
           }
           else {
             // ok this vertex is not scheduled. But if there are syncs
             // to run I will still need to get the scope
-            if (hassynctasks) {
+            if (hassynctasks && localvid < graph.local_vertices()) {
               context.init(globalvid);
               eval_syncs(globalvid, context, threadid);
               context.commit_async_untracked();
             }
           }
         }
+        pending_factorized_updates_lock.lock();
+        while (pending_factorized_updates != 0) {
+          pending_factorized_updates_cond.wait(pending_factorized_updates_lock);
+        }
+        pending_factorized_updates_lock.unlock();    
+
+        //if (threadid == 0 && rmi.procid() == 0) getchar();
         // wait for all threads to synchronize on this color.
         thread_color_barrier.wait();
         curidx.value = 0;
@@ -1071,6 +1239,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       vfun_cacheset = vfunset;
       vfunset.clear_unsync();
       infer_vertex_seperator_set();
+      num_pending_tasks.value = 0;
     }
     // two full barrers to complete flush replies
     rmi.dc().full_barrier();
@@ -1081,13 +1250,22 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     ti.start();
     // spawn threads
     thread_group thrgrp; 
-    for (size_t i = 0;i < ncpus; ++i) {
-      size_t aff = use_cpu_affinity ? i : -1;
-      thrgrp.launch(boost::bind(
-                            &distributed_chromatic_engine<Graph, UpdateFunctor>::start_thread,
-                            this, i), aff);
+    if (use_factorized) {
+      for (size_t i = 0;i < ncpus; ++i) {
+        size_t aff = use_cpu_affinity ? i : -1;
+        thrgrp.launch(boost::bind(
+                              &distributed_chromatic_engine<Graph, UpdateFunctor>::factorized_start_thread,
+                              this, i), aff);
+      }
     }
-    
+    else {
+      for (size_t i = 0;i < ncpus; ++i) {
+        size_t aff = use_cpu_affinity ? i : -1;
+        thrgrp.launch(boost::bind(
+                              &distributed_chromatic_engine<Graph, UpdateFunctor>::start_thread,
+                              this, i), aff);
+      }
+    }
     thrgrp.join();              
     rmi.barrier();
     
@@ -1177,7 +1355,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     out << "randomize_schedule = [integer, default = 0]\n";
     out << "use_factorized = [integer, default = 0]\n";
     out << "factor_threshold = [integer, default = 1000]. \n";
-    out << "   Vertices with higher degree than factor_threshold will not use\n"
+    out << "   Vertices with higher degree than factor_threshold will not use\n";
     out << "   distributed factorized updates\n";
   };
 

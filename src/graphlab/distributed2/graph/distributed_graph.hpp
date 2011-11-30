@@ -160,22 +160,56 @@ namespace graphlab {
     typedef typename graph_local_store_type::edge_id_type edge_id_type;
     typedef typename graph_local_store_type::edge_list_type local_edge_list_type;
 
-  
+
+    class edge_type {
+     private:
+      const distributed_graph* _graph;
+      edge_id_type _edgeid;
+      bool isempty;
+      friend class distributed_graph;
+     public:
+       edge_type():_graph(NULL),_edgeid(0),isempty(true) { }
+       edge_type(const distributed_graph* _graph,
+                 edge_id_type _edgeid):_graph(_graph), 
+                                       _edgeid(_edgeid),
+                                       isempty(false){ }
+       vertex_id_type source() const { 
+         ASSERT_FALSE(isempty); 
+         return _graph->source(_edgeid); 
+       }
+       vertex_id_type target() const { 
+         ASSERT_FALSE(isempty); 
+         return _graph->target(_edgeid); 
+       }
+       edge_id_type eid() const {
+         return _edgeid;
+       }
+       bool empty() const {
+         return isempty;
+       }
+    };
 
 
     /** This class defines a set of edges */
-    class edge_list {
+    class edge_list_type {
     public:
 
-      typedef typename boost::function<edge_id_type (edge_id_type)> TransformType;
+      typedef typename boost::function<edge_type (edge_id_type)> TransformType;
       typedef typename boost::transform_iterator<TransformType, const edge_id_type*> iterator;
       typedef typename boost::transform_iterator<TransformType, const edge_id_type*> const_iterator;
-      typedef edge_id_type value_type;
+      typedef edge_type value_type;
+      
+      inline static edge_type e_stupid(edge_id_type) {
+        return edge_type();
+      }
+      
+      inline static edge_type edge_type_creator(const distributed_graph* graph, 
+                                                edge_id_type edgeid) { 
+        return edge_type(graph, edgeid); 
+      }
+
     private:
-      
-      template<typename T>
-      inline static T identity(T x) { return x; }
-      
+      const distributed_graph* graph;
       // this class can wrap two methods of describing an edge list
       // method 1: a regular edge_list which requires some conversion
       // method 2: a vector
@@ -186,23 +220,22 @@ namespace graphlab {
       std::vector<edge_id_type> edgeidvec;
       size_t numel;
       bool useelist;
-      
     public:    
       // an edge list which wraps a regular elist. Method 1.
-      inline edge_list(local_edge_list_type elist) : 
-        elist(elist), numel(elist.size()), useelist(true){ }
+      inline edge_list_type(const distributed_graph* graph, local_edge_list_type elist) : 
+        graph(graph), elist(elist), numel(elist.size()), useelist(true){ }
       
       // an edge list which wraps a vector. Method 2.
-      inline edge_list(const std::vector<edge_id_type> &edgeidvec) :
-        edgeidvec(edgeidvec), numel(edgeidvec.size()), useelist(false) { }
+      inline edge_list_type(const distributed_graph* graph, const std::vector<edge_id_type> &edgeidvec) :
+        graph(graph), edgeidvec(edgeidvec), numel(edgeidvec.size()), useelist(false) { }
 
       /** \brief Get the size of the edge list */
       inline size_t size() const { return numel; }
 
       /** \brief Get the ith edge in the edge list */
-      inline edge_id_type operator[](size_t i) const {
+      inline edge_type operator[](size_t i) const {
         assert(i < size());
-        return *(begin() + i);
+        return edge_type_creator(this, *(begin() + i));
       }
 
       /** \brief Returns a pointer to the start of the edge list */
@@ -210,11 +243,11 @@ namespace graphlab {
         if (useelist) {
           return boost::
             make_transform_iterator(elist.begin(),
-                                    identity<edge_id_type>);
+                                   boost::bind(edge_type_creator, graph, _1));
         } else {
           return boost::
             make_transform_iterator(&(edgeidvec[0]),
-                                    identity<edge_id_type>);
+                                    boost::bind(edge_type_creator, graph, _1));
         }
       }
 
@@ -223,11 +256,11 @@ namespace graphlab {
         if (useelist) {
           return boost::
             make_transform_iterator(elist.end(),
-                                    identity<edge_id_type>);
+                                    boost::bind(edge_type_creator, graph, _1));
         } else {
           return boost::
             make_transform_iterator(&(edgeidvec[edgeidvec.size()]),
-                                                identity<edge_id_type>);
+                                    boost::bind(edge_type_creator, graph, _1));
 
         }
       }
@@ -243,7 +276,6 @@ namespace graphlab {
     }; // end edge_list
 
 
-    typedef edge_list edge_list_type;
 
 
 
@@ -251,30 +283,29 @@ namespace graphlab {
     class vertex_list {
     public:
 
-      typedef typename boost::function<vertex_id_type (edge_id_type)> TransformType;
-      typedef typename boost::transform_iterator<TransformType, const vertex_id_type*> iterator;
-      typedef typename boost::transform_iterator<TransformType, const vertex_id_type*> const_iterator;
+      typedef typename boost::function<vertex_id_type (edge_type)> TransformType;
+      typedef typename boost::transform_iterator<TransformType, const edge_type*> iterator;
+      typedef typename boost::transform_iterator<TransformType, const edge_type*> const_iterator;
       typedef vertex_id_type value_type;
     private:
       
       inline static vertex_id_type
-      to_other_vertex(edge_id_type x, 
-                      const distributed_graph* g, 
+      to_other_vertex(const edge_type &x, 
                       bool is_in_edges) { 
         if (is_in_edges) {
-          return g->source(x);
+          return x.source();
         }
         else {
-          return g->target(x);
+          return x.target();
         }
       }
       const distributed_graph* dgraph;      
-      edge_list elist;
+      edge_list_type elist;
       bool is_in_edges;
     public:    
       // an edge list which wraps a regular elist. Method 1.
       inline vertex_list(const distributed_graph* dgraph, 
-                         edge_list elist, 
+                         edge_list_type elist, 
                          bool is_in_edges) : 
         dgraph(dgraph), elist(elist), is_in_edges(is_in_edges){ }
 
@@ -294,7 +325,7 @@ namespace graphlab {
         return boost::
           make_transform_iterator(elist.begin(),
                                   boost::bind(to_other_vertex, 
-                                              _1, dgraph, is_in_edges));
+                                              _1, is_in_edges));
       }
 
       /** \brief Returns a pointer to the end of the vertex list */
@@ -302,7 +333,7 @@ namespace graphlab {
         return boost::
           make_transform_iterator(elist.begin(),
                                   boost::bind(to_other_vertex, 
-                                              _1, dgraph, is_in_edges));
+                                              _1, is_in_edges));
       }
 
       /** \brief Fill a vector with vertex id list */
@@ -471,7 +502,7 @@ namespace graphlab {
         edge from src to target is found and false otherwise. If the 
         edge is found, the edge ID is returned in the second element of the pair. 
         The target vertex must be owned by this machine. */
-    std::pair<bool, edge_id_type>
+    edge_type
     find(vertex_id_type source, vertex_id_type target) const {
       std::pair<bool, edge_id_type> ret;
       // hmm. surprisingly tricky
@@ -483,7 +514,7 @@ namespace graphlab {
         ret = localstore.find(itersource->second, itertarget->second);
         // convert to global edge ids
         if (ret.first) ret.second = ret.second;
-        return ret;
+        return ret.first?edge_type():edge_type(this, ret.second);
       }
       // if the edge exists, the owner of either the source or target must have it
       // lets use the target
@@ -494,7 +525,7 @@ namespace graphlab {
       // if I am the owner, then this edge can't possibly exist
       if (targetowner == rmi.procid()) {
         ret.first = false; ret.second = 0;
-        return ret;
+        return ret.first?edge_type():edge_type(this, ret.second);
       }
       else {
         ASSERT_MSG(false, "edge is not in this fragment. eid not available");
@@ -514,6 +545,13 @@ namespace graphlab {
       // do I have this edge in the fragment?
       return localstore.rev_edge_id(eid);
     } // end of rev_edge_id
+
+    /// Reverses an existing edge id
+    edge_type reverse_edge(edge_type edge) const {
+      // do I have this edge in the fragment?
+      return find(edge.target(), edge.source());
+    } // end of rev_edge_id
+
 
 
     /** \brief Returns the source vertex of an edge. */
@@ -572,11 +610,11 @@ namespace graphlab {
     }
 
     vertex_list_type in_vertices_list(vertex_id_type v) const {
-      return vertex_list_type(this, in_edge_ids(v), true);
+      return vertex_list_type(this, in_edges(v), true);
     }
   
     /** \brief Return the edge ids of the edges arriving at v */
-    edge_list_type in_edge_ids(vertex_id_type v) const {
+    edge_list_type in_edges(vertex_id_type v) const {
       typename global2localvid_type::const_iterator iter = 
         global2localvid.find(v);
       // if I have the vertex in my fragment
@@ -584,12 +622,25 @@ namespace graphlab {
       if (iter != global2localvid.end()) {
         vertex_id_type localvid = iter->second;
         if (localvid2owner[localvid]  == rmi.procid()) {
-          return edge_list_type(localstore.in_edge_ids(localvid));
+          return edge_list_type(this, localstore.in_edge_ids(localvid));
         }
       }
       // ok I need to construct a vector
-      return edge_list_type(in_edge_id_as_vec(v));
+      return edge_list_type(this, in_edge_id_as_vec(v));
     } // end of in edges
+
+    edge_list_type in_edges_local_only(vertex_id_type v) const {
+      typename global2localvid_type::const_iterator iter = 
+                global2localvid.find(v);
+      // if I have the vertex in my fragment
+      // and if it is interior
+      if (iter != global2localvid.end()) {
+        vertex_id_type localvid = iter->second;
+        return edge_list_type(this, localstore.in_edge_ids(localvid));
+      }
+      ASSERT_MSG(false, "Invalid vertex");
+    } // end of in edges
+
 
     /** \brief Return the edge ids of the edges arriving at v as a vector */
     std::vector<edge_id_type> in_edge_id_as_vec(vertex_id_type v) const {
@@ -615,7 +666,7 @@ namespace graphlab {
     }
     
     /** \brief Return the edge ids of the edges leaving at v */
-    edge_list_type out_edge_ids(vertex_id_type v) const {
+    edge_list_type out_edges(vertex_id_type v) const {
       typename global2localvid_type::const_iterator iter = 
         global2localvid.find(v);
       // if I have the vertex in my fragment
@@ -623,13 +674,26 @@ namespace graphlab {
       if (iter != global2localvid.end()) {
         vertex_id_type localvid = iter->second;
         if (localvid2owner[localvid]  == rmi.procid()) {
-          return edge_list_type(localstore.out_edge_ids(localvid));
+          return edge_list_type(this, localstore.out_edge_ids(localvid));
         }
       }
       // ok I need to construct a vector
-      return edge_list_type(out_edge_id_as_vec(v));
+      return edge_list_type(this, out_edge_id_as_vec(v));
     } // end of out edges
 
+
+    edge_list_type out_edges_local_only(vertex_id_type v) const {
+      typename global2localvid_type::const_iterator iter = 
+        global2localvid.find(v);
+      // if I have the vertex in my fragment
+      // and if it is interior
+      if (iter != global2localvid.end()) {
+        vertex_id_type localvid = iter->second;
+        return edge_list_type(this, localstore.out_edge_ids(localvid));
+      }
+      // ok I need to construct a vector
+      ASSERT_MSG(false, "Invalid vertex");
+    } // end of out edges
 
 
     /** \brief Return the edge ids of the edges leaving at v as a vector*/
@@ -1146,6 +1210,118 @@ namespace graphlab {
     }
 
 
+    void update_coloring(const std::vector<std::pair<vertex_id_type, vertex_color_type> > &colors) {
+      for (size_t i = 0;i < colors.size(); ++i) {
+        localstore.color(globalvid_to_localvid(colors[i].first)) = colors[i].second;
+      }
+    }
+
+    void synchronize_coloring() {
+      std::vector<std::vector<std::pair<vertex_id_type, vertex_color_type> > > vcolors(rmi.numprocs());
+
+      for (vertex_id_type i = 0;i < localstore.num_vertices(); ++i) {
+        if (localvid_to_replicas(i).popcount() > 1) {
+          foreach(procid_t p, localvid_to_replicas(i)) {
+            if (p != rmi.procid()) {
+              vcolors[p].push_back(std::make_pair(localvid_to_globalvid(i), 
+                                                    localstore.color(i)));
+            }
+          }
+        }
+      }
+      
+      for (procid_t i = 0 ;i < rmi.numprocs(); ++i) {
+        if (i != rmi.procid()) {
+          rmi.remote_call(i, &distributed_graph<VertexData, EdgeData>::update_coloring,
+                          vcolors[i]);
+        }
+      }
+    }
+
+
+    std::vector<size_t> numreplicas;
+
+    void update_replica_count(const std::vector<std::pair<vertex_id_type, size_t> > &repcount) {
+      for (size_t i = 0;i < repcount.size(); ++i) {
+        numreplicas[globalvid_to_localvid(repcount[i].first)] = repcount[i].second;
+      }
+    }
+
+    
+    void greedy_vertex_seperator(dense_bitset& seperatorset) {
+      numreplicas.resize(localstore.num_vertices(), 0);
+      rmi.barrier();
+      // first all ghosts need to know the number of replicas each ghost has
+      std::vector<std::vector<std::pair<vertex_id_type, size_t> > > replicacount(rmi.numprocs());
+      // only go through local vertices
+      for (vertex_id_type i = 0;i < local_vertices(); ++i) {
+        size_t pcount = localvid_to_replicas(i).popcount() - 1;
+        numreplicas[i] = pcount;
+        if (pcount > 0) {
+          foreach(procid_t p, localvid_to_replicas(i)) {
+            if (p != rmi.procid()) {
+              replicacount[p].push_back(std::make_pair(localvid_to_globalvid(i), 
+                                                       pcount));
+            }
+          }
+        }
+      }
+      // do a full shuffle
+      for (procid_t p = 0 ;p < rmi.numprocs(); ++p) {
+        if (p != rmi.procid()) {
+          rmi.remote_call(p, &distributed_graph<VertexData, EdgeData>::update_replica_count,
+                        replicacount[p]);
+        }
+      }
+      rmi.full_barrier();
+      
+      // now, lets solve for a greedy seperator 
+      // for each edge on the boundary, pick the endpoint with the greater
+      // replica count. OR if there is a tie, the vertex with the lower ID 
+      seperatorset.resize(localstore.num_vertices());
+      seperatorset.clear();
+      size_t sepsetsize = 0;
+      for (vertex_id_type i = 0;i < local_vertices(); ++i) {
+        // I am on a boundary
+        vertex_id_type globali = localvid_to_globalvid(i);
+        if (numreplicas[i] > 0) {
+          // loop through all the edges crossing machines
+          foreach(edge_id_type eid, localstore.in_edge_ids(i)) {
+            vertex_id_type other = localstore.source(eid);
+            vertex_id_type globalother = localvid_to_globalvid(other);
+            if (other >= local_vertices()) {
+              if (numreplicas[other] > numreplicas[i] || 
+                  (numreplicas[other] == numreplicas[i] && globalother < globali)) {
+                seperatorset.set_bit_unsync(other);
+              }
+              else {
+                sepsetsize += seperatorset.get(i) == false;
+                seperatorset.set_bit_unsync(i);
+              }
+            }
+          }
+          
+          // loop through all the edges
+          foreach(edge_id_type eid, localstore.out_edge_ids(i)) {
+            vertex_id_type other = localstore.target(eid);
+            vertex_id_type globalother = localvid_to_globalvid(other);
+            if (other >= local_vertices()) {
+              if (numreplicas[other] > numreplicas[i] || 
+                  (numreplicas[other] == numreplicas[i] && globalother < globali)) {
+                seperatorset.set_bit_unsync(other);
+              }
+              else {
+                sepsetsize += seperatorset.get(i) == false;
+                seperatorset.set_bit_unsync(i);
+              }
+            }
+          }
+        }
+      }
+      numreplicas.clear();
+      logstream(LOG_INFO) << "Seperator Set Size: " << sepsetsize << std::endl;
+    }
+
     /** 
      * Get (and cache) the number of colors
      */
@@ -1331,7 +1507,6 @@ namespace graphlab {
     
     void rebuild_replica_set_assuming_vertex_seperator(dense_bitset localseperatorset) {
       std::vector<fixed_dense_bitset<MAX_N_PROCS> > __ghostownerset__(omp_get_max_threads());
-      size_t optimized_vals;
       spinlock ghostlock, boundarylock;
       // construct the vid->replica mapping
       // for efficiency reasons this only contains the maps for ghost vertices
@@ -1343,7 +1518,7 @@ namespace graphlab {
       localvid2ghostedprocs.resize(localvid2owner.size());
       size_t old_commsize = 0;
       for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
-        old_commsize += localvid2ghostedprocs.popcount();
+        old_commsize += localvid2ghostedprocs[i].popcount();
         localvid2ghostedprocs[i].clear();
         localvid2ghostedprocs[i].set_bit_unsync(rmi.procid());
       }
@@ -1356,17 +1531,21 @@ namespace graphlab {
           // those who have a ghost of me are the owners of my ghost vertices
           __ghostownerset__[thrnum].clear();
           __ghostownerset__[thrnum].set_bit_unsync(rmi.procid());  // must always have the current proc
+          bool curv_in_sepset = localseperatorset.get(i);
+          
           foreach(edge_id_type ineid, localstore.in_edge_ids(i)) {
             vertex_id_type localinvid = localstore.source(ineid);
-            if (localvid2owner[localinvid] != rmi.procid() && 
-                localseperatorset.get(localinvid) == false) {
+            if (curv_in_sepset ||
+                (localvid2owner[localinvid] != rmi.procid() && 
+                localseperatorset.get(localinvid) == false)) {
               __ghostownerset__[thrnum].set_bit_unsync(localvid2owner[localinvid]);
             }
           }
           foreach(edge_id_type outeid, localstore.out_edge_ids(i)) {
             vertex_id_type localoutvid = localstore.target(outeid);
-            if (localvid2owner[localoutvid] != rmi.procid() &&
-              localseperatorset.get(localoutvid) == false) {
+            if (curv_in_sepset ||
+                (localvid2owner[localoutvid] != rmi.procid() &&
+                localseperatorset.get(localoutvid) == false)) {
               __ghostownerset__[thrnum].set_bit_unsync(localvid2owner[localoutvid]);
             }
           }
@@ -1379,12 +1558,12 @@ namespace graphlab {
       
       size_t new_commsize = 0;
       for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
-        new_commsize += localvid2ghostedprocs.popcount();
+        new_commsize += localvid2ghostedprocs[i].popcount();
       }
       
       std::cout << "Comm Optimization: " 
                 << old_commsize << "/" << new_commsize
-                << " = " << double(old_commsize)/new_commsize;
+                << " = " << double(old_commsize)/new_commsize << std::endl;
     }
  
     // synchronzation calls. These are called from the ghost side
@@ -1661,6 +1840,8 @@ namespace graphlab {
     * at the start of the range
     */    
     void shuffle_local_vertices_to_start();
+    
+    
     
     /**
      * From the atoms listed in the atom index file, construct the local store

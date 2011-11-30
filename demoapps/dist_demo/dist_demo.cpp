@@ -59,7 +59,7 @@
 #include <algorithm>
 // includes the entire graphlab framework
 #include <distributed_graphlab.hpp>
-
+#include <graphlab/macros_def.hpp>
 // A simple enum describing the two possible colors
 enum color_type {RED, BLACK};
 
@@ -155,23 +155,22 @@ typedef graphlab::graph<vertex_data, edge_data> memory_graph_type;
 */
 struct update_functor : 
   public graphlab::iupdate_functor<graph_type, update_functor> {
+  size_t num_red_neighbors;
+  bool _is_deterministic;
+  bool _color_changed;
+  update_functor() {
+    num_red_neighbors = 0;
+  }
+  
   void operator()(icontext_type& context) {
     //context.vertex_data allows me to grab a reference to the vertex
     // data on the graph
     vertex_data& curvdata = context.vertex_data();
     // the in_edge_ids() function provide a vector of the edge ids of
     // the edges entering the current vertex
-    const graph_type::edge_list_type in_edges = context.in_edge_ids();
-    // a counter for the number of red neighbors
     size_t num_red_neighbors = 0;  
-    for (size_t i = 0; i < in_edges.size(); ++i) {
-      // eid is the current edge id
-      graph_type::edge_id_type eid = in_edges[i];    
-      // the target(eid) function allows to get the vertex at the destination
-      // of the edge 'eid'. The source(eid) function provides me with the
-      // source vertex.. Since I am looking at in_edges, the source vertex
-      // will be my adjacent vertices
-      graph_type::vertex_id_type sourcev = context.source(eid);
+    foreach (graph_type::edge_type edge, context.in_edges()) {
+      graph_type::vertex_id_type sourcev = edge.source();
       // the neighbor_vertex_data() function allow me to read the
       // vertex data of a vertex adjacent to the current vertex.
       // since I am not going to change this data, I can just grab a
@@ -184,7 +183,7 @@ struct update_functor :
       if (nbrvertex.color == RED) ++num_red_neighbors;
     }
     // get the total number of neighbors we have
-    const double num_neighbors = in_edges.size();
+    const double num_neighbors = context.in_edges().size();
 
     // Determine the new color by drawing a random number.  There are 2
     // functions. rand01() provides a random floating point number
@@ -209,8 +208,7 @@ struct update_functor :
     // If I flipped, all my neighbors could be affected, loop through
     // all my neighboring vertices and add them as tasks.
     if (color_changed) {
-      for (size_t i = 0; i < in_edges.size(); ++i) {
-        const graph_type::vertex_id_type sourcev = context.source(in_edges[i]);
+    foreach (graph_type::edge_type edge, context.in_edges()) {
         // add the task the gl::update_task object takes a vertex id,
         // and the update function to execute on. add_task also takes
         // another argument, which is the priority of this task. This
@@ -218,7 +216,7 @@ struct update_functor :
         // course, is only used by the priority schedulers. In this
         // demo app, we don't really care about the priority, so we
         // will just set it to 1.0
-        context.schedule(sourcev, update_functor());
+        context.schedule(edge.source(), update_functor());
       }
     }
     // now if I flipped myself based on a random number. This means
@@ -230,8 +228,52 @@ struct update_functor :
     }
   }
   
-  void save(graphlab::oarchive &oarc) const { }
-  void load(graphlab::iarchive &iarc) { }
+  bool writable_gather() { return false; }
+  bool writable_scatter() { return false; }
+  edge_set gather_edges() const { return IN_EDGES; }
+  edge_set scatter_edges() const { return IN_EDGES; }
+
+  void gather(icontext_type& context, const edge_type& edge) {
+    num_red_neighbors += context.const_vertex_data(edge.source()).color == RED;
+  }
+
+  virtual void merge(const update_functor_type& other) {
+    num_red_neighbors += other.num_red_neighbors;
+  }
+
+  virtual void apply(icontext_type& context) { 
+    vertex_data& curvdata = context.vertex_data();
+    const double num_neighbors = context.in_edges().size();
+    color_type new_color = 
+      graphlab::random::bernoulli(num_red_neighbors / num_neighbors)?
+      RED : BLACK;
+    _is_deterministic =
+      num_neighbors == num_red_neighbors || num_red_neighbors == 0;
+
+    _color_changed = (new_color != curvdata.color);
+    if (_color_changed) ++curvdata.num_flips;
+
+    curvdata.color = new_color;
+//    std::cout << "apply on :" << context.vertex_id() << " color = " << new_color << std::endl;
+    if (_is_deterministic == false) {
+      context.schedule(context.vertex_id(), update_functor());
+    }
+  }
+
+  void scatter(icontext_type& context, const edge_type& edge) {
+//    std::cout << "scatter on :" << context.vertex_id() << " color = " << context.const_vertex_data().color << std::endl;
+    if (_color_changed) {
+      context.schedule(edge.source(), update_functor());
+    }
+  }
+
+
+  void save(graphlab::oarchive &oarc) const { 
+    oarc << num_red_neighbors << _is_deterministic << _color_changed;
+  }
+  void load(graphlab::iarchive &iarc) { 
+    iarc >> num_red_neighbors >> _is_deterministic >> _color_changed;
+  }
 }; // end of update_functor
 
 
@@ -391,6 +433,7 @@ int main(int argc,  char *argv[]) {
   graphlab::distributed_core<graph_type, update_functor> glcore(dc, "demograph.idx");
 
   // Initialize the core with the command line arguments
+  //opts.engine_args.add_option("use_factorized", true);
   glcore.set_options(opts);
 
   glcore.build_engine();

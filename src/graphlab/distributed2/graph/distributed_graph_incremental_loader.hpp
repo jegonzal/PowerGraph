@@ -207,7 +207,10 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   push_all_owned_edges_to_replicas();
   rmi.dc().full_barrier();
   logger(LOG_INFO, "edges synchronized.");
-
+  
+  synchronize_coloring();
+  rmi.full_barrier();
+  logger(LOG_INFO, "colors synchronized.");
   logger(LOG_INFO, "Synchronization complete.");
   rmi.dc().barrier();
   logger(LOG_INFO, "Performing data verification.");

@@ -327,6 +327,9 @@ struct log_stream_dispatch<false> {
   }
 };
 
+void textcolor(FILE* handle, int attr, int fg);
+void reset_color(FILE* handle);
+
 #include <graphlab/logger/assertions.hpp>
 
 #endif
