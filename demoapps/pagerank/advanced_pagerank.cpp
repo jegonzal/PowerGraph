@@ -159,11 +159,13 @@ private:
 
 
 int main(int argc, char** argv) {
-  logger(LOG_INFO, "PageRank starting\n");
+  global_logger().set_log_level(LOG_DEBUG);
+  global_logger().set_log_to_console(true);
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("PageRank algorithm.");
   std::string graph_file;
   std::string format = "metis";
+  std::string initialfname;
   std::string update_type = "basic";
   size_t topk = 5;
   clopts.attach_option("graph",
@@ -173,7 +175,7 @@ int main(int argc, char** argv) {
   clopts.add_positional("graph");
   clopts.attach_option("format",
                        &format, format,
-                       "The graph file format: {metis, jure, tsv}");
+                       "The graph file format: {metis, snap, tsv}");
   clopts.attach_option("accuracy",
                        &ACCURACY, ACCURACY,
                        "residual termination threshold");
@@ -186,6 +188,10 @@ int main(int argc, char** argv) {
   clopts.attach_option("topk",
                        &topk, topk,
                        "The number of top pages to display at the end.");
+  clopts.attach_option("initialfname",
+                       &initialfname, initialfname,
+                       "Optionally save a binary version of the graph");
+
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -201,12 +207,24 @@ int main(int argc, char** argv) {
   // Setup the GraphLab execution core and load graph -------------------------
   graphlab::core<graph_type, pagerank_update> core;
   core.set_options(clopts); // attach the command line options to the core
-  const bool success = graphlab::graph_ops<graph_type>::    
-    load_structure(graph_file, format, core.graph());
-  if(!success) {
-    std::cout << "Error in reading file: " << graph_file << std::endl;
+  if(format == "bin") {
+    std::cout << "Loading binary graph." << std::endl;
+    core.graph().load(graph_file);
+  } else {
+    std::cout << "Loading graph from structure file." << std::endl;
+    const bool success = graphlab::graph_ops<graph_type>::    
+      load_structure(graph_file, format, core.graph());
+    if(!success) {
+      std::cout << "Error in reading file: " << graph_file << std::endl;
+    }
+    normalize_graph(core.graph());
   }
-  normalize_graph(core.graph());
+
+  if(!initialfname.empty()) { 
+    std::cout << "Saving initial binary version of the graph." << std::endl;
+    core.graph().save(initialfname);  
+    return EXIT_SUCCESS;
+  }
 
   // Run the PageRank ---------------------------------------------------------
   double initial_delta = 1;

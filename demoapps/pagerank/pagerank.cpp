@@ -81,7 +81,6 @@ public:
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
-  logger(LOG_INFO, "PageRank starting\n");
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("PageRank algorithm.");
   std::string graph_file;

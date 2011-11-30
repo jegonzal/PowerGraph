@@ -52,6 +52,8 @@ struct vertex_data {
   vertex_data(double value = 1) : 
     nupdates(0), value(value), old_value(0) { }
 }; // End of vertex data
+SERIALIZABLE_POD(vertex_data);
+
 //! Print the vertex data
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
 
@@ -63,9 +65,10 @@ struct edge_data {
   double weight;
   edge_data(double weight = 1) : weight(weight) { } 
 }; // End of edge data
+SERIALIZABLE_POD(edge_data);
+
 //! Print the edge data
 std::ostream& operator<<(std::ostream& out, const edge_data& edata);
-
 
 //! The type of graph used in this program
 //typedef graphlab::graph<vertex_data, edge_data> graph_type;
