@@ -153,13 +153,9 @@ namespace graphlab {
     /**
      * \brief Get the vertex color of the base vertx in this context
      */
-    virtual const vertex_color_type& color() const = 0;
+    virtual vertex_color_type color() const = 0;
 
-    /**
-     * \brief Get the vertex color of the base vertx in this context
-     */
-    virtual const vertex_color_type& color(vertex_id_type vid) const = 0;
-
+    
     //! Reverse an edge
     virtual edge_type reverse_edge(const edge_type& edge) const = 0;
 

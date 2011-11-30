@@ -190,11 +190,7 @@ namespace graphlab {
 
     void commit() { }
 
-    const vertex_color_type& color() const { return graph_ptr->color(vid); }
-
-    const vertex_color_type& color(vertex_id_type vid) const { 
-      return graph_ptr->color(vid); 
-    }
+    vertex_color_type color() const { return graph_ptr->color(vid); }
 
     
     vertex_id_type vertex_id() const { return vid; }

@@ -38,7 +38,7 @@ namespace graphlab {
    */
   class dense_bitset {
   public:
-
+    
     /// Constructs a bitset of 0 length
     dense_bitset() : array(NULL), len(0), arrlen(0) {
     }
@@ -184,7 +184,7 @@ namespace graphlab {
       uint32_t pos;
       const dense_bitset* db;
       bit_pos_iterator():pos(-1),db(NULL) {}
-      bit_pos_iterator(const dense_bitset* db, uint32_t pos):pos(pos),db(db) {}
+      bit_pos_iterator(const dense_bitset* const db, uint32_t pos):pos(pos),db(db) {}
       
       uint32_t operator*() const {
         return pos;
@@ -208,6 +208,9 @@ namespace graphlab {
       }
     };
     
+    typedef bit_pos_iterator iterator;
+    typedef bit_pos_iterator const_iterator;
+
     
     bit_pos_iterator begin() const {
       uint32_t pos;
@@ -279,6 +282,16 @@ namespace graphlab {
         array = (size_t*)malloc(arrlen*sizeof(size_t));
         deserialize(iarc, array, arrlen*sizeof(size_t));
       }
+    }
+
+
+    size_t popcount() const {
+      const uint32_t* tmp = reinterpret_cast<const uint32_t*>(array);
+      size_t ret = 0;
+      for (size_t i = 0;i < arrlen * (sizeof(size_t) / sizeof(uint32_t)); ++i) {
+        ret +=  __builtin_popcount(tmp[i]);
+      }
+      return ret;
     }
 
   private:
@@ -451,9 +464,9 @@ namespace graphlab {
       typedef const uint32_t* pointer;
       typedef const uint32_t& reference;
       uint32_t pos;
-      const dense_bitset* db;
+      const fixed_dense_bitset* db;
       bit_pos_iterator():pos(-1),db(NULL) {}
-      bit_pos_iterator(const dense_bitset* db, uint32_t pos):pos(pos),db(db) {}
+      bit_pos_iterator(const fixed_dense_bitset* const db, uint32_t pos):pos(pos),db(db) {}
       
       uint32_t operator*() const {
         return pos;
@@ -477,6 +490,9 @@ namespace graphlab {
       }
     };
     
+    typedef bit_pos_iterator iterator;
+    typedef bit_pos_iterator const_iterator;
+
     
     bit_pos_iterator begin() const {
       uint32_t pos;

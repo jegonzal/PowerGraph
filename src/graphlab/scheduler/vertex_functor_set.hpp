@@ -61,6 +61,11 @@ namespace graphlab {
 
     public:
       vfun_type() : is_set(false) { }
+      
+      void assign_unsync(const vfun_type &other) {
+        is_set = other.is_set;
+        functor = other.functor;
+      }
       /** returns true if set for the first time */
       inline bool set(const update_functor_type& other) {
         lock.lock();
@@ -101,6 +106,10 @@ namespace graphlab {
       
       void reset_unsync() {
         is_set = false;
+      }
+      
+      bool has_task() {
+        return is_set;
       }
       
       bool priority(double& ret_priority) const {        
@@ -150,6 +159,13 @@ namespace graphlab {
       vfun_set.resize(num_vertices);
     }
 
+    void operator=(const vertex_functor_set& other) {
+      resize(other.vfun_set.size());
+      for (size_t i = 0;i < vfun_set.size(); ++i) {
+        vfun_set[i].assign_unsync(other.vfun_set[i]);
+      }
+    }
+
     bool priority(vertex_id_type vid, double& ret_priority) const {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].priority(ret_priority);
@@ -186,6 +202,10 @@ namespace graphlab {
                       update_functor_type& ret_fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].read_value(ret_fun);
+    }
+    
+    bool has_task(const vertex_id_type& vid) {
+      return vfun_set[vid].has_task();
     }
 
     size_t size() const { 

@@ -1127,7 +1127,7 @@ void distributed_graph<VertexData, EdgeData>::push_owned_scope_to_replicas(verte
         push_owned_vertex_to_replicas(vid, async, untracked);
         
       }
-      foreach(edge_id_type eid, in_edge_ids(vid)) {
+      foreach(edge_id_type eid, localstore.in_edge_ids(vid)) {
         if (localstore.edge_modified(eid)) {
           localstore.set_edge_modified(eid, false);
           push_owned_edge_to_replicas(eid, async, untracked);
@@ -1138,7 +1138,7 @@ void distributed_graph<VertexData, EdgeData>::push_owned_scope_to_replicas(verte
   else {
     if (is_owned(vid)) {
       push_owned_vertex_to_replicas(vid, async, untracked);
-      foreach(edge_id_type eid, in_edge_ids(vid)) {
+      foreach(edge_id_type eid, localstore.in_edge_ids(vid)) {
         push_owned_edge_to_replicas(eid, async, untracked);
       }
     }

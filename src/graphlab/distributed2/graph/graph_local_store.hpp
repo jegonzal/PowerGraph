@@ -69,11 +69,67 @@ namespace graphlab {
       typedef EdgeData   edge_data_type;
 
 
-      typedef graph<VertexData, EdgeData> graph_type;
-      typedef typename graph_type::vertex_id_type vertex_id_type;
-      typedef typename graph_type::vertex_color_type  vertex_color_type;
-      typedef typename graph_type::edge_id_type   edge_id_type;
-      typedef typename graph_type::edge_list_type edge_list_type;
+      typedef typename graphlab::vertex_id_type vertex_id_type;
+      typedef typename graphlab::vertex_color_type  vertex_color_type;
+      typedef typename graphlab::edge_id_type   edge_id_type;
+
+    /** This class defines a set of edges */
+    class edge_list {
+     public:
+      typedef const edge_id_type* iterator; // Should not be used
+      typedef const edge_id_type* const_iterator;
+      typedef edge_id_type value_type;
+     private:
+      const edge_id_type* begin_ptr; // Points to first element
+      const edge_id_type* end_ptr; // One past end   
+     public:
+            
+
+      /** \brief Construct an empty edge list */
+      edge_list() : begin_ptr(NULL), end_ptr(NULL) { }
+      /** \brief Construct an edge list from an std vector */
+      edge_list(const std::vector<edge_id_type>& edges) :
+        begin_ptr(&(*edges.begin())), 
+        end_ptr(begin_ptr + edges.size()) { }
+      /** \brief Construct an edge list from an in memory array */
+      edge_list(const edge_id_type* begin_ptr, size_t len) :
+        begin_ptr(begin_ptr),  end_ptr(begin_ptr + len) { }
+      
+      /** \brief Get the size of the edge list */
+      size_t size() const { return (size_t)(end_ptr - begin_ptr); }
+      
+      /** \brief Get the ith edge in the edge list */
+      edge_id_type operator[](size_t i) const {
+        ASSERT_LT(i,  size());
+        return *(begin_ptr + i);
+      }
+      
+      /** \brief Returns a pointer to the start of the edge list */
+      const edge_id_type* begin() const {
+        return begin_ptr;
+      }
+      
+      /** \brief Returns a pointer to the end of the edge list */
+      const edge_id_type* end() const {
+        return end_ptr;
+      } 
+      
+      /** \brief Fill a vector with edge id list */
+      void fill_vector(std::vector<edge_id_type>& lvalue) const {
+        lvalue.clear();
+        foreach(edge_id_type eid, *this) lvalue.push_back(eid);    
+      }
+      
+      /** \brief test if the edge list is empty */
+      bool empty() const { return size() == 0; }
+      
+    }; // End of edge list
+    
+
+    /** The type of the edge list */
+    typedef edge_list edge_list_type;
+
+      
 
 
       struct vdata_store {
