@@ -77,7 +77,7 @@ void gabp_update_function(gl_types::iscope &scope,
   if (!support_null_variance) assert(J_i != 0);
 
   /* CALCULATE new value */
-  if (debug) {
+  if (config.debug) {
     std::cout << "entering node " << scope.vertex()
               << " P=" << vdata.prior_prec
               << " u=" << vdata.prior_mean
@@ -91,7 +91,7 @@ void gabp_update_function(gl_types::iscope &scope,
     J_i +=  edata.prec;
   }
 
-  if (debug) {
+  if (config.debug) {
     std::cout << scope.vertex() << ") summing up all messages "
               << mu_i << " " << J_i << std::endl;
   }
@@ -131,13 +131,13 @@ void gabp_update_function(gl_types::iscope &scope,
         out_edge.prec = -((out_edge.weight * out_edge.weight) / J_i_j);//matrix is assumed symmetric!
       }
 
-      if (!round_robin) {
+      if (!config.round_robin) {
         gl_types::update_task task(target, gabp_update_function);
         double priority = fabs(vdata.cur_prec) + 1e-5;
         scheduler.add_task(task, priority);
       }
 
-      if (debug) {
+      if (config.debug) {
         std::cout << "Sending to " << target << " "
                   << out_edge.mean << " "
                   << out_edge.prec << " wdge weight "
