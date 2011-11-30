@@ -23,7 +23,7 @@ ADD_CXXTEST(fast_multinomial_test.cxx)
 
 # ADD_CXXTEST(graphlab_test.cxx)
 ADD_CXXTEST(serializetests.cxx)
-ADD_CXXTEST(dense_bitset_test.cxx)
+#ADD_CXXTEST(dense_bitset_test.cxx)
 # ADD_CXXTEST(thread_tools.cxx)
 add_executable(anytests anytests.cpp)
 add_executable(integercompress integercompress.cpp)
