@@ -67,8 +67,8 @@ std::ostream& operator<<(std::ostream& out, const edge_data& edata);
 
 
 //! The type of graph used in this program
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
 //typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 
 

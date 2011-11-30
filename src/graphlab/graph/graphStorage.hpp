@@ -66,17 +66,289 @@ namespace graphlab {
         typedef EdgeData edge_data_type;
         typedef VertexData vertex_data_type;
         typedef std::pair<size_t, size_t>  edge_range_type;
-        class edge;
-        class edge_wrapper;
-        class const_edge_wrapper;
-        class edge_list;
-        class const_edge_list;
+
+      /* ----------------------------------------------------------------------------- */
+      /* Helper data field and structures: edge_data_list, class edge, class edge_list */
+      /* ----------------------------------------------------------------------------- */
+      public:
+        // Edge class for temporary storage. Will be finalized into the CSR+CSC form.
+        class edge_info {
+          public:
+            edge_info() : _source(-1), _target(-1) { }
+            edge_info(const edge_info& other) :
+              _source(other.source()), _target(other.target()),
+              _data(other.data()) { }
+            edge_info(vertex_id_type source, vertex_id_type target) :
+              _source(source), _target(target)  { }
+            edge_info(vertex_id_type source, vertex_id_type target, EdgeData data) : 
+              _source(source), _target(target), _data(data) {}
+          public:
+            inline vertex_id_type source() const { return _source; }
+            inline vertex_id_type target() const { return _target; }   
+            inline EdgeData& data() { return _data; }
+            inline const EdgeData& data() const { return _data; }
+          private:
+            vertex_id_type _source;
+            vertex_id_type _target;
+            EdgeData _data;
+        }; // end of class edge.
+
+        // A class of edge information. Used as value type of the edge_list.
+        class edge_type {
+          public:
+            edge_type () : _source(-1), _target(-1), _edge_id(-1), _empty(true) { }
+            edge_type (const vertex_id_type _source, const vertex_id_type _target, const edge_id_type _eid) : _source(_source), _target(_target), _edge_id(_eid), _empty(false) { }
+          public:
+            inline const vertex_id_type& source() const {
+              ASSERT_FALSE(empty()); 
+              return _source; 
+            }
+
+            inline const vertex_id_type& target() const { 
+              ASSERT_FALSE(empty());
+              return _target; 
+            }
+            inline bool empty() const { return _empty; }
+            // Data fields. 
+          private:
+            vertex_id_type _source;
+            vertex_id_type _target;
+            edge_id_type _edge_id;
+            bool _empty;
+
+          friend class graphStorage;
+        }; // end of class edge_type.
+
+        // Internal iterator on edge_types.
+        class edge_iterator : public std::iterator<std::forward_iterator_tag, edge_type> {
+          public:
+            enum iterator_type{INEDGE, OUTEDGE}; 
+            typedef edge_type reference;
+          public:
+            // Cosntructors
+            edge_iterator () : offset(-1), empty(true) { }
+            edge_iterator (vertex_id_type _center, size_t _offset, iterator_type _itype, const graphStorage* _gstore_ptr) : 
+              center(_center), offset(_offset), itype(_itype), empty(false), gstore_ptr(_gstore_ptr) { }
+            edge_iterator (const edge_iterator& it) :
+              center(it.center), offset(it.offset), itype(it.itype), empty(it.empty), gstore_ptr(it.gstore_ptr) { }
+          public:
+
+            inline edge_type operator*() const {
+              ASSERT_TRUE(!empty);
+              return makeValue();
+            }
+
+            inline bool operator==(const edge_iterator& it) const {
+              if (empty && it.empty)
+                return true;
+              if (empty != it.empty)
+                return false;
+              return (itype == it.itype && center == it.center && offset == it.offset);
+            }
+
+            inline edge_iterator operator++() {
+              ASSERT_TRUE(!empty);
+              ++offset;
+              return *this;
+            }
+
+            inline int operator-(const edge_iterator& it) const {
+              ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
+              return offset - it.offset;
+            }
+
+            inline edge_iterator operator+(size_t i) const {
+                edge_iterator retval(center, offset+i, itype, gstore_ptr);
+                return retval;
+            }
+
+          private:
+            // Generate the ret value of the iterator.
+            inline edge_type makeValue() const {
+              edge_type ret;
+              if (itype == INEDGE) {
+                edge_type rvalue(gstore_ptr->CSC_src[offset], center, gstore_ptr->c2r_map[offset]);
+                ret = rvalue;
+              } else if (itype == OUTEDGE) {
+                edge_type rvalue(center, gstore_ptr->CSR_dst[offset], offset);
+                ret = rvalue;
+              } else {
+                logstream(LOG_FATAL) << "Edge iterator type is invalid." << std::endl;
+              }
+              return ret;
+            }
+          private:
+            vertex_id_type center;
+            size_t offset;
+            iterator_type itype;
+            bool empty;
+            const graphStorage* gstore_ptr;
+        }; // end of class edge_iterator.
+
+        // Represents an iteratable list of edge_types.
+        class edge_list {
+          // Type interface for boost foreach.
+          public:
+            typedef edge_iterator iterator;
+            typedef edge_iterator const_iterator;
+            typedef edge_type value_type;
+
+          public:
+            // Construct an empty edge list
+            edge_list() : list_size(0) { }
+            // Cosntruct an edge_list with begin and end. 
+            edge_list(edge_iterator begin, edge_iterator end) : begin_ptr(begin), end_ptr(end) { 
+              list_size = (size_t)(end_ptr-begin_ptr);
+            }
+            // Copy constructor
+            edge_list(const edge_list& other) : begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), list_size(other.list_size) { }
+
+            inline size_t size() const { return list_size;}
+            
+            inline edge_type operator[](size_t i) const {
+              ASSERT_LT(i, list_size);
+              return *(begin_ptr + i);
+            }
+
+            iterator begin() const { return begin_ptr; }
+            iterator end() const { return end_ptr; }
+            bool empty() const { return size() == 0; }
+
+          private:
+            edge_iterator begin_ptr;
+            edge_iterator end_ptr;
+            size_t list_size;
+        }; // end of class edge_list.
 
       public:
         graphStorage() { }
 
+        size_t edge_size() const {
+          return num_edges;
+        }
+
+        size_t vertices_size() const {
+          return num_vertices;
+        }
+
+        // Return the size of in_neighbours.
+        size_t num_in_edges (const vertex_id_type v) const {
+          ASSERT_LT(v, num_vertices);
+          size_t begin = CSC_dst[v];
+          if (begin >= num_edges) return 0;
+
+          // Search is the next valid src vertex after v.
+          size_t search = nextValid(CSC_dst_skip, v);
+          size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
+          return (end-begin);
+        }
+
+        // Return the size of out_neighbours.
+        size_t num_out_edges (const vertex_id_type v) const {
+          ASSERT_LT(v, num_vertices);
+          size_t begin = CSR_src[v];
+          if (begin >= num_edges) return 0;
+
+          size_t search = nextValid(CSR_src_skip, v);
+          size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
+          return (end-begin);
+        }
+
+        edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {
+          ASSERT_LT(source, num_vertices);
+          ASSERT_LT(target, num_vertices);
+          edge_type ans = find(source, target);
+          return edge_data(ans);
+        }
+
+        const edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) const {
+          ASSERT_LT(source, num_vertices);
+          ASSERT_LT(target, num_vertices);
+          edge_type ans = find(source, target);
+          return edge_data(ans);
+        }
+
+        edge_data_type& edge_data(edge_type edge) {
+          ASSERT_FALSE(edge.empty());
+          return edge_data_list[edge._edge_id];
+        }
+
+        const edge_data_type& edge_data(edge_type edge) const {
+          ASSERT_FALSE(edge.empty());
+          return edge_data_list[edge._edge_id];
+        }
+
+
+        // Return in edge list of a vertex.
+         edge_list in_edges(const vertex_id_type v) const {
+          std::pair<bool, edge_range_type> rangePair = inEdgeRange(v);
+          if (rangePair.first) {
+            edge_range_type range = rangePair.second;
+            edge_iterator begin (v, range.first, edge_iterator::INEDGE, this);
+            edge_iterator end (v, range.second+1, edge_iterator::INEDGE, this);
+             // std::cout << "in range (" << range.first << "," << range.second << ")" << std::endl;
+             // std::cout << "in edge size: " << end-begin << std::endl;
+            return edge_list(begin, end);
+          } else {
+            return edge_list();
+          }
+        }
+
+        // Return out edge list of a vertex.
+        edge_list out_edges(const vertex_id_type v) const {
+          std::pair<bool, edge_range_type> rangePair = outEdgeRange(v);
+          if (rangePair.first) {
+            edge_range_type range = rangePair.second;
+            edge_iterator begin (v, range.first, edge_iterator::OUTEDGE, this);
+            edge_iterator end (v, range.second+1, edge_iterator::OUTEDGE, this);
+
+            // std::cout << "out range (" << range.first << "," << range.second << ")" << std::endl;
+            // std::cout << "out_edge size: " << end-begin << std::endl;
+            return edge_list(begin, end);
+          } else {
+            return edge_list();
+          }
+        }
+
+        // Return the edge id given source and destination.
+        edge_type find (const vertex_id_type src, 
+                        const vertex_id_type dst) const {
+            /* DEBUG
+            printf("Find: %u, %u \n", src, dst);
+            */
+            // Get the out edge range of the src, as well as the in edge range of the dst. 
+            std::pair<bool, edge_range_type> srcRangePair = inEdgeRange(dst);
+            std::pair<bool, edge_range_type> dstRangePair = outEdgeRange(src);
+
+            if( srcRangePair.first && dstRangePair.first) {
+              // The edge may exist. 
+              edge_range_type srcRange =  srcRangePair.second;
+              edge_range_type dstRange = dstRangePair.second;
+
+              if ((srcRange.second - srcRange.first) < (dstRange.second-dstRange.first)) {
+                // Out edge candidate size is smaller, search CSR.
+                size_t efind =  binary_search(CSC_src, srcRange.first, srcRange.second, src);
+                if (efind >= num_edges) {
+                  return edge_type();
+                } else {
+                  return edge_type(src, dst, c2r_map[efind]);
+                }
+              } else {
+                // In edge candidate size is smaller, search CSC.
+                size_t efind = binary_search(CSR_dst, dstRange.first, dstRange.second, dst);
+                if (efind >= num_edges) {
+                  return edge_type();
+                } else {
+                  return edge_type(src, dst, efind);
+                }
+              }
+            } else {
+              return edge_type();
+            }
+          } // end of find.
+
         // Finalize the graph storage. Construct CSC, CSRs.
-        void finalize(size_t _num_of_v, std::vector<edge> &edges_tmp) {
+        void finalize(size_t _num_of_v, std::vector<edge_info> &edges_tmp) {
           num_vertices = _num_of_v;
           num_edges = edges_tmp.size();
 
@@ -86,7 +358,7 @@ namespace graphlab {
           std::sort(edges_tmp.begin(), edges_tmp.end(), cmp_by_src_functor(reverse));
 
           /* DEBUG
-          foreach(edge e, edges_tmp)
+          foreach(edge_info e, edges_tmp)
             std::cout << "(" << e.source() << "," << e.target() << ") ";
           std::cout << std::endl;
           */
@@ -104,7 +376,7 @@ namespace graphlab {
           // Iterate over the edges_tmp in the reverse order.
           for (size_t it = 0; it < num_edges; ++it) {
             size_t id = num_edges-1-it;
-            edge e = edges_tmp[id];
+            edge_info e = edges_tmp[id];
             vertex_id_type src = e.source();
             vertex_id_type dst = e.target();
             if (src == old_src && dst == old_dst) {
@@ -170,7 +442,7 @@ namespace graphlab {
 
           // Iterate over the edges_tmp
           for (size_t it = 0; it < num_edges; ++it) {
-            edge e = edges_tmp[num_edges -1 -c2r_map[it]];
+            edge_info e = edges_tmp[num_edges -1 -c2r_map[it]];
             vertex_id_type src = e.source();
             vertex_id_type dst = e.target();
 
@@ -237,7 +509,7 @@ namespace graphlab {
               ++iter;
             }
           }
-         // std::cout << "Skip list size: " << double(CSR_src_skip.capacity() * sizeof(vertex_id_type)* 2) / (1024*1024) << "MB"<<std::endl;
+          // std::cout << "Skip list size: " << double(CSR_src_skip.capacity() * sizeof(vertex_id_type)* 2) / (1024*1024) << "MB"<<std::endl;
           // printf("CSR skip:\n");
           // foreach(size_t i, CSR_src_skip)
           //   std::cout << i << " ";
@@ -251,12 +523,12 @@ namespace graphlab {
           // Transfer the edge data to a compact list.
           edge_data_list.reserve(num_edges);
           for (size_t i = 0; i < num_edges; ++i) {
-            edge& e = edges_tmp[num_edges-i-1];
+            edge_info& e = edges_tmp[num_edges-i-1];
             edge_data_list.push_back(e.data());
             edges_tmp.pop_back();
           }
           edges_tmp.clear();
-          std::vector<edge>().swap(edges_tmp);
+          std::vector<edge_info>().swap(edges_tmp);
         } // end of finalize.
 
         void clear() {
@@ -270,7 +542,7 @@ namespace graphlab {
           edge_data_list.clear();
         }
 
-        void resetMem() {
+        void clear_reserve() {
           std::vector<size_t>().swap(CSR_src);
           std::vector<vertex_id_type>().swap(CSR_dst);
           std::vector<vertex_id_type>().swap(CSC_src);
@@ -281,7 +553,7 @@ namespace graphlab {
           std::vector<vertex_id_type>().swap(CSC_dst_skip);
         }
 
-        size_t get_storage_size() const {
+        size_t estimate_sizeof() const {
           size_t word_size = sizeof(size_t);
           size_t vid_size = sizeof(vertex_id_type);
           size_t eid_size = sizeof(edge_id_type);
@@ -299,18 +571,11 @@ namespace graphlab {
           return CSR_size + CSC_size + edata_size + container_size + skip_list_size;;
         }
 
-        size_t edge_size() const {
-          return num_edges;
-        }
-
-        size_t vertices_size() const {
-          return num_vertices;
-        }
-
+        /** To be deprecated. */
         // This is a log(V) operation.
         // Do not use operations on edge id.
         // Use edge_list instead.
-        vertex_id_type  source(edge_id_type eid) const {
+        vertex_id_type source(edge_id_type eid) const {
           ASSERT_LT(eid, num_edges);
           // Helper function: binary search the CSR_row;
           return lookup_source(eid);
@@ -319,445 +584,21 @@ namespace graphlab {
         // This is a log(V) operation.
         // Do not use operations on edge id.
         // Use edge_list instead.
-        vertex_id_type  target(edge_id_type eid) const {
+        vertex_id_type target(edge_id_type eid) const {
           ASSERT_LT(eid, num_edges);
           return CSR_dst[eid];
         }
 
-        size_t num_in_neighbors(vertex_id_type v) const {
-          ASSERT_LT(v, num_vertices);
-          size_t begin = CSC_dst[v];
-          if (begin >= num_edges) return 0;
 
-          // Search is the next valid src vertex after v.
-          size_t search = nextValid(CSC_dst_skip, v);
-          size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
-          return (end-begin);
-        }
 
-        size_t num_out_neighbors(vertex_id_type v) const {
-          ASSERT_LT(v, num_vertices);
-          size_t begin = CSR_src[v];
-          if (begin >= num_edges) return 0;
-
-          size_t search = nextValid(CSR_src_skip, v);
-          size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
-          return (end-begin);
-        }
-
-        // Do not use this.
-        // TODO: deprecate this and use edge_list instead.
-        // std::vector<vertex_id_type> in_vertices(vertex_id_type v) const {
-        //   ASSERT_LT(v, num_vertices);
-        //   std::vector<vertex_id_type> ret;
-        //   size_t begin = CSC_dst[v];
-        //   if (begin >= num_edges) return ret;
-
-        //   size_t search = nextValid(CSC_dst_skip, v);
-        //   size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
-        //   for (size_t i = begin; i < end; ++i) {
-        //     ret.push_back(CSC_src[i]);
-        //   }
-        //   return ret;
-        // }
-
-        // Do not use this.
-        // TODO: deprecate this and use edge_list instead.
-        // std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
-        //   ASSERT_LT(v, num_vertices);
-        //   std::vector<vertex_id_type> ret;
-        //   size_t begin = CSR_src[v];
-        //   if (begin >= num_edges) return ret;
-
-        //   size_t search = nextValid(CSR_src_skip, v);
-        //   size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
-        //   for (size_t i = begin; i < end; ++i) {
-        //     ret.push_back(CSR_dst[i]);
-        //   }
-        //   return ret;
-        // }
-
-        edge_list get_in_edges(vertex_id_type v) {
-          std::pair<bool, edge_range_type> rangePair = inEdgeRange(v);
-          if (rangePair.first) {
-            edge_range_type range = rangePair.second;
-            edge_iterator begin (v, range.first, edge_iterator::INEDGE, this);
-            edge_iterator end (v, range.second+1, edge_iterator::INEDGE, this);
-             // std::cout << "in range (" << range.first << "," << range.second << ")" << std::endl;
-             // std::cout << "in edge size: " << end-begin << std::endl;
-
-            return edge_list(begin, end);
-          } else {
-            return edge_list();
-          }
-        }
-
-        edge_list get_out_edges(vertex_id_type v) {
-          std::pair<bool, edge_range_type> rangePair = outEdgeRange(v);
-          if (rangePair.first) {
-            edge_range_type range = rangePair.second;
-            edge_iterator begin (v, range.first, edge_iterator::OUTEDGE, this);
-            edge_iterator end (v, range.second+1, edge_iterator::OUTEDGE, this);
-
-            // std::cout << "out range (" << range.first << "," << range.second << ")" << std::endl;
-            // std::cout << "out_edge size: " << end-begin << std::endl;
-            return edge_list(begin, end);
-          } else {
-            return edge_list();
-          }
-        }
-
-        const_edge_list get_in_edges(vertex_id_type v) const {
-          std::pair<bool, edge_range_type> rangePair = inEdgeRange(v);
-          if (rangePair.first) {
-            edge_range_type range = rangePair.second;
-            const_edge_iterator begin (v, range.first, edge_iterator::INEDGE, this);
-            const_edge_iterator end (v, range.second+1, edge_iterator::INEDGE, this);
-             // std::cout << "in range (" << range.first << "," << range.second << ")" << std::endl;
-             // std::cout << "in edge size: " << end-begin << std::endl;
-
-            return const_edge_list(begin, end);
-          } else {
-            return const_edge_list();
-          }
-        }
-
-        const_edge_list get_out_edges(vertex_id_type v) const {
-          std::pair<bool, edge_range_type> rangePair = outEdgeRange(v);
-          if (rangePair.first) {
-            edge_range_type range = rangePair.second;
-            const_edge_iterator begin (v, range.first, const_edge_iterator::OUTEDGE, this);
-            const_edge_iterator end (v, range.second+1, const_edge_iterator::OUTEDGE, this);
-
-            // std::cout << "out range (" << range.first << "," << range.second << ")" << std::endl;
-            // std::cout << "out_edge size: " << end-begin << std::endl;
-            return const_edge_list(begin, end);
-          } else {
-            return const_edge_list();
-          }
-        }
-
-        // Return the edge id given source and destination.
-        std::pair<bool, edge_id_type> 
-          find (vertex_id_type src, vertex_id_type dst) const {
-            /* DEBUG
-            printf("Find: %u, %u \n", src, dst);
-            */
-            // Get the out edge range of the src, as well as the in edge range of the dst. 
-            std::pair<bool, edge_range_type> srcRangePair = inEdgeRange(dst);
-            std::pair<bool, edge_range_type> dstRangePair = outEdgeRange(src);
-
-            if( srcRangePair.first && dstRangePair.first) {
-              // The edge may exist. 
-              edge_range_type srcRange =  srcRangePair.second;
-              edge_range_type dstRange = dstRangePair.second;
-
-              if ((srcRange.second - srcRange.first) < (dstRange.second-dstRange.first)) {
-                // Out edge candidate size is smaller, search CSR.
-                size_t efind =  binary_search(CSC_src, srcRange.first, srcRange.second, src);
-                if (efind >= num_edges) {
-                  return std::make_pair(false, 0);
-                } else {
-                  return std::make_pair(true, c2r_map[efind]);
-                }
-              } else {
-                // In edge candidate size is smaller, search CSC.
-                size_t efind = binary_search(CSR_dst, dstRange.first, dstRange.second, dst);
-                if (efind >= num_edges) {
-                  return std::make_pair(false, 0);
-                } else {
-                  return std::make_pair(true, efind);
-                }
-              }
-            } else {
-              return std::make_pair(false, 0);
-            }
-          }
-
-        /* ----------------------------------------------------------------------------- */
-        /* Helper data field and structures: edge_data_list, class edge, class edge_list */
-        /* ----------------------------------------------------------------------------- */
-      public:
-        // Array for storing edge data, sorted by source vid.
-        std::vector<EdgeData> edge_data_list;
-
-        // Edge class for temporary storage. Will be finalized into the CSR+CSC form.
-        class edge {
-          public:
-            edge() : _source(-1), _target(-1) { }
-            edge(const edge& other) :
-              _source(other.source()), _target(other.target()),
-              _data(other.data()) { }
-            edge(vertex_id_type source, vertex_id_type target) :
-              _source(source), _target(target)  { }
-            edge(vertex_id_type source, vertex_id_type target, EdgeData data) : 
-              _source(source), _target(target), _data(data) {}
-
-          public:
-            inline vertex_id_type source() const { return _source; }
-            inline vertex_id_type target() const { return _target; }   
-            inline EdgeData& data() { return _data; }
-            inline const EdgeData& data() const { return _data; }
-          private:
-            vertex_id_type _source;
-            vertex_id_type _target;
-            EdgeData _data;
-        }; // end of class edge.
-
-        // A wrapper of edge information. Used as value type of the edge_list.
-        class edge_wrapper {
-          public:
-            edge_wrapper () : src(-1), target(-1), edge_data(NULL) { }
-            edge_wrapper (const edge_wrapper& other) : 
-              src(other.src), target(other.target), edge_data(other.edge_data) { } 
-            edge_wrapper (vertex_id_type _src, vertex_id_type _target, edge_data_type* _edata) : 
-              src(_src), target(_target), edge_data(_edata){ }
-
-          public:
-            const edge_data_type& get_edge_data () const {
-              return *edge_data;
-            }
-            edge_data_type& get_edge_data () {
-              return *edge_data;
-            }
-          // Data fields. 
-          public: 
-            vertex_id_type src;
-            vertex_id_type target;
-          private:
-            edge_data_type* edge_data;
-        }; // end of class edge_wrapper.
-
-        class const_edge_wrapper {
-          public:
-            const_edge_wrapper () : src(-1), target(-1), edge_data(NULL) { }
-            const_edge_wrapper (const const_edge_wrapper& other) : 
-              src(other.src), target(other.target), edge_data(other.edge_data) { } 
-            const_edge_wrapper (vertex_id_type _src, vertex_id_type _target, const edge_data_type* _edata) : 
-              src(_src), target(_target), edge_data(_edata){ }
-
-          public:
-            const edge_data_type& get_edge_data () const {
-              return *edge_data;
-            }
-          // Data fields. 
-          public: 
-            vertex_id_type src;
-            vertex_id_type target;
-          private:
-            const edge_data_type* edge_data;
-        }; // end of class const_edge_wrapper.
-
-        // Internal iterator on edge_wrappers.
-        class edge_iterator : public std::iterator<std::forward_iterator_tag, edge_wrapper> {
-          public:
-            enum iterator_type{INEDGE, OUTEDGE}; 
-            typedef edge_wrapper reference;
-
-          public:
-            edge_iterator () : offset(-1), empty(true) { }
-            edge_iterator (vertex_id_type _center, size_t _offset, iterator_type _itype, graphStorage* _gstore_ptr) : 
-              center(_center), offset(_offset), itype(_itype), empty(false), gstore_ptr(_gstore_ptr) { }
-            // Copy constructor
-            edge_iterator (const edge_iterator& it) :
-              center(it.center), offset(it.offset), itype(it.itype), empty(it.empty), gstore_ptr(it.gstore_ptr) { }
-
-            // Generate the ret value of the iterator.
-            edge_wrapper makeValue() const {
-              edge_wrapper ret;
-              if (itype == INEDGE) {
-                  edge_wrapper rvalue(gstore_ptr->CSC_src[offset], center, &(gstore_ptr->edge_data_list[gstore_ptr->c2r_map[offset]]));
-                  ret = rvalue;
-              } else if (itype == OUTEDGE) {
-                  edge_wrapper rvalue(center, gstore_ptr->CSR_dst[offset], &(gstore_ptr->edge_data_list[offset]));
-                  ret = rvalue;
-              }
-              return ret;
-            }
-
-            edge_wrapper operator*() const {
-              ASSERT_TRUE(!empty);
-              return makeValue();
-            }
-
-            bool operator==(const edge_iterator& it) const {
-              if (empty && it.empty)
-                return true;
-
-              return (!it.empty && (itype == it.itype && center == it.center && offset == it.offset));
-            }
-
-            edge_iterator operator++() {
-              ASSERT_TRUE(!empty);
-              ++offset;
-              return *this;
-            }
-
-            int operator-(const edge_iterator& it) const {
-              ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
-              return offset - it.offset;
-            }
-
-            edge_iterator operator+(size_t i) const {
-                edge_iterator retval(center, offset+i, itype, gstore_ptr);
-                return retval;
-            }
-
-          private:
-            vertex_id_type center;
-            size_t offset;
-            iterator_type itype;
-            bool empty;
-            graphStorage* gstore_ptr;
-        }; // end of class edge_iterator.
-
-        class const_edge_iterator : public std::iterator<std::forward_iterator_tag, const_edge_wrapper> {
-          public:
-            enum iterator_type{INEDGE, OUTEDGE}; 
-            typedef const_edge_wrapper reference;
-
-          public:
-            const_edge_iterator () : offset(-1), empty(true) { }
-            const_edge_iterator (vertex_id_type _center, size_t _offset, iterator_type _itype, const graphStorage* _gstore_ptr) : 
-              center(_center), offset(_offset), itype(_itype), empty(false), gstore_ptr(_gstore_ptr) { }
-            // Copy constructor
-            const_edge_iterator (const const_edge_iterator& it) :
-              center(it.center), offset(it.offset), itype(it.itype), empty(it.empty), gstore_ptr(it.gstore_ptr) { }
-
-
-            // Generate the ret value of the iterator.
-            const_edge_wrapper makeValue() const {
-              const_edge_wrapper ret;
-              if (itype == INEDGE) {
-                  const_edge_wrapper rvalue(gstore_ptr->CSC_src[offset], center, &(gstore_ptr->edge_data_list[gstore_ptr->c2r_map[offset]]));
-                  ret = rvalue;
-              } else if (itype == OUTEDGE) {
-                  const_edge_wrapper rvalue(center, gstore_ptr->CSR_dst[offset], &(gstore_ptr->edge_data_list[offset]));
-                  ret = rvalue;
-              }
-              return ret;
-            }
-
-            const_edge_wrapper operator*() const {
-              ASSERT_TRUE(!empty);
-              return makeValue();
-            }
-
-            bool operator==(const const_edge_iterator& it) const {
-              if (empty && it.empty)
-                return true;
-
-              return (!it.empty && (itype == it.itype && center == it.center && offset == it.offset));
-            }
-
-            const_edge_iterator operator++() {
-              ASSERT_TRUE(!empty);
-              ++offset;
-              return *this;
-            }
-
-            int operator-(const const_edge_iterator& it) const {
-              ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
-              return offset - it.offset;
-            }
-
-            const_edge_iterator operator+(size_t i) const {
-                const_edge_iterator retval(center, offset+i, itype, gstore_ptr);
-                return retval;
-            }
-
-          private:
-            vertex_id_type center;
-            size_t offset;
-            iterator_type itype;
-            bool empty;
-            const graphStorage* gstore_ptr;
-        }; // end of class const_edge_iterator
-
-        // Represents an iteratable list of edge_wrappers.
-        class edge_list {
-          // Type interface for boost foreach.
-          public:
-            typedef edge_iterator iterator;
-            typedef edge_iterator const_iterator;
-            typedef edge_wrapper value_type;
-
-          public:
-            // Construct an empty edge list
-            edge_list() : list_size(0) { }
-
-            // Cosntruct an edge_list with begin and end. 
-            edge_list(edge_iterator begin, edge_iterator end) : begin_ptr(begin), end_ptr(end) { 
-              list_size = (size_t)(end_ptr-begin_ptr);
-            }
-
-            // Copy constructor
-            edge_list(const edge_list& other) : begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), list_size(other.list_size) { }
-
-            inline size_t size() const { return list_size;}
-            
-            inline edge_wrapper operator[](size_t i) const {
-              ASSERT_LT(i, list_size);
-              return *(begin_ptr + i);
-            }
-
-            iterator begin() const { return begin_ptr; }
-
-            iterator end() const { return end_ptr; }
-
-            bool empty() const { return size() == 0; }
-
-          private:
-            edge_iterator begin_ptr;
-            edge_iterator end_ptr;
-            size_t list_size;
-        }; // end of class edge_list.
-
-        class const_edge_list {
-          // Type interface for boost foreach.
-          public:
-            typedef const_edge_iterator iterator;
-            typedef const_edge_iterator const_iterator;
-            typedef const_edge_wrapper value_type;
-
-          public:
-            // Construct an empty edge list
-            const_edge_list() : list_size(0) { }
-
-            // Cosntruct an edge_list with begin and end. 
-            const_edge_list(const_edge_iterator begin, const_edge_iterator end) : begin_ptr(begin), end_ptr(end) { 
-              list_size = (size_t)(end_ptr-begin_ptr);
-            }
-
-            // Copy constructor
-            const_edge_list(const const_edge_list& other) : begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), list_size(other.list_size) { }
-
-            inline size_t size() const { return list_size;}
-            
-            inline const_edge_wrapper operator[](size_t i) const {
-              ASSERT_LT(i, list_size);
-              return *(begin_ptr + i);
-            }
-
-            iterator begin() const { return begin_ptr; }
-
-            iterator end() const { return end_ptr; }
-
-            bool empty() const { return size() == 0; }
-
-          private:
-            const_edge_iterator begin_ptr;
-            const_edge_iterator end_ptr;
-            size_t list_size;
-        }; // end of const_edge_list;
-
-
-        // ------------- Private data storage ----------------
+      // ------------- Private data storage ----------------
       private:
         size_t num_vertices;
         size_t num_edges;
 
-      public:
+        // Array for storing edge data, sorted by source vid.
+        std::vector<EdgeData> edge_data_list;
+
         /** Row of CSR */
         std::vector<size_t> CSR_src;
 
@@ -825,8 +666,8 @@ namespace graphlab {
         // Sort by src in the ascending order.
         struct cmp_by_src_functor {
           bool reverse;
-          cmp_by_src_functor (bool order) : reverse(order) {}
-          bool operator()(const edge& me, const edge& other) const {
+          cmp_by_src_functor (bool order) : reverse(order) { }
+          bool operator()(const edge_info& me, const edge_info& other) const {
             bool less = (me.source() < other.source()) || (me.source()== other.source()&& me.target()< other.target());
             if (reverse) {
               return !less; 
@@ -838,14 +679,14 @@ namespace graphlab {
 
         // Sort by dst in the ascending order.
         struct cmp_by_dst_functor {   
-          typedef std::vector<edge>& elist_ptr;
+          typedef std::vector<edge_info>& elist_ptr;
           elist_ptr edgelist;
           size_t size;
           cmp_by_dst_functor(elist_ptr edgelist) : edgelist(edgelist) {size = edgelist.size();}
 
           bool operator()(const size_t me, const size_t other) {
-            const edge& e1 = edgelist[size - 1 - me];
-            const edge& e2 = edgelist[size - 1 - other];
+            const edge_info& e1 = edgelist[size - 1 - me];
+            const edge_info& e2 = edgelist[size - 1 - other];
             return (e1.target() < e2.target()) || (e1.target() == e2.target() && e1.source() < e2.source());
           }
         };

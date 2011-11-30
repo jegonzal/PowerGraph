@@ -157,8 +157,7 @@ namespace graphlab {
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
     
-    /** This class represents an edge with: src, target and pointer to
-        edge_data. */
+    /** This class represents an edge with source() and target()*/
     class edge_type {
       const graph* graph_ptr;
       const edge_id_type _id;

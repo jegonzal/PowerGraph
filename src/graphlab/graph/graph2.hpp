@@ -78,9 +78,12 @@ namespace graphlab {
 
   template<typename VertexData, typename EdgeData>
   class graph2 {
+
+    typedef graphStorage<VertexData, EdgeData> gstore_type;
+
   public:
 
-/// The type of a vertex is a simple size_t
+    /// The type of a vertex is a simple size_t
     typedef graphlab::vertex_id_type vertex_id_type;
     
     /// The type of an edge id 
@@ -88,30 +91,25 @@ namespace graphlab {
     
     /// Type for vertex colors 
     typedef graphlab::vertex_color_type vertex_color_type;
-    
-
-    typedef graphStorage<VertexData, EdgeData> gstore_type;
-
-    /** The type of the edge list */
-    typedef typename gstore_type::edge_list edge_list;
-    typedef typename gstore_type::const_edge_list const_edge_list;
-    
-    /** Interface for iupdate functor.*/
-    typedef typename gstore_type::edge_list edge_list_type;
-    typedef typename gstore_type::const_edge_list const_edge_list_type;
-
-    typedef typename gstore_type::edge_wrapper edge_wrapper_type;
-    typedef typename gstore_type::const_edge_wrapper const_edge_wrapper_type;
-
-    typedef typename gstore_type::edge edge;
-
 
     /** The type of the vertex data stored in the graph */
     typedef VertexData vertex_data_type;
 
     /** The type of the edge data stored in the graph */
-    typedef EdgeData edge_data_type;
+    typedef EdgeData   edge_data_type;
  
+    /** Represents an edge with source() and target()*/
+    typedef typename gstore_type::edge_type edge_type;
+
+    /** The type of the edge list */
+    typedef typename gstore_type::edge_list edge_list;
+    
+    /** Interface for iupdate functor.*/
+    typedef typename gstore_type::edge_list edge_list_type;
+
+    /** Edge type for temporary insertion. */
+    typedef typename gstore_type::edge_info edge_info;
+
   public:
 
     // CONSTRUCTORS ============================================================>
@@ -137,19 +135,19 @@ namespace graphlab {
      */
     void clear() {
       finalized = false;
+      gstore.clear();
       vertices.clear();
       edges_tmp.clear();
-      gstore.clear();
       vcolors.clear();
       ++changeid;
     }
 
-    void resetMem() {
+    void clear_reserve() {
       clear();
-      std::vector<edge>().swap(edges_tmp);
+      std::vector<edge_info>().swap(edges_tmp);
       std::vector<VertexData>().swap(vertices);
       std::vector<vertex_color_type>().swap(vcolors);
-      gstore.resetMem();
+      gstore.clear_reserve();
     }
     
     /**
@@ -188,42 +186,19 @@ namespace graphlab {
       }
     } // end of num edges
 
-
-    /** \brief Get the number of in edges of a particular vertex */
-    size_t num_in_neighbors(vertex_id_type v) const {
-      return gstore.num_in_neighbors(v);
-    } // end of num vertices
-    
-    /** \brief Get the number of out edges of a particular vertex */
-    size_t num_out_neighbors(vertex_id_type v) const  {
-      return gstore.num_out_neighbors(v);
-    } // end of num vertices
-
     /** \brief Finds an edge.
         The value of the first element of the pair will be true if an 
         edge from src to target is found and false otherwise. If the 
         edge is found, the edge ID is returned in the second element of the pair. */
-    std::pair<bool, edge_id_type>
-     find(vertex_id_type source, vertex_id_type target) const {
+    edge_type find(const vertex_id_type source,
+                   const vertex_id_type target) const {
        return gstore.find(source, target);
     } // end of find
 
-    /** \brief A less safe version of find. 
-        Returns the edge_id of an edge from src to target exists. 
-        Assertion failure otherwise. */
-    // edge_id_type edge_id(vertex_id_type source, vertex_id_type target) const {
-    //   std::pair<bool, edge_id_type> edgePair = find(source, target);
-    //   ASSERT_TRUE(edgePair.first);
-    //   return (edgePair.second);
-    // } // end of edge_id
+    edge_type reverse_edge(const edge_type& edge) const {
+      return gstore.find(edge.target(), edge.source());
+    }
 
-    /** \brief Returns the edge ID of the edge going in the opposite direction. 
-        Assertion failure if such an edge is not found.  */
-    // edge_id_type rev_edge_id(edge_id_type eid) const {
-    //   vertex_id_type source = gstore.source(eid);
-    //   vertex_id_type target = gstore.target(eid);
-    //   return edge_id(target, source);
-    // } // end of rev_edge_id
 
     /** 
      * \brief Creates a vertex containing the vertex data and returns the id
@@ -295,7 +270,7 @@ namespace graphlab {
       }
 
       // Add the edge to the set of edge data (this copies the edata)
-      edges_tmp.push_back( edge( source, target, edata ) );
+      edges_tmp.push_back( edge_info( source, target, edata ) );
 
       // This is not the final edge_id, so we always return 0. 
       return 0;
@@ -316,69 +291,54 @@ namespace graphlab {
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
-      ASSERT_TRUE(finalized);
-      ASSERT_LT(source, vertices.size());
-      ASSERT_LT(target, vertices.size());
-      std::pair<bool, edge_id_type> ans = gstore.find(source, target);
-      // We must find the edge!
-      ASSERT_TRUE(ans.first);
-      // the edge id should be valid!
-      ASSERT_LT(ans.second, num_edges());
-      return gstore.edge_data_list[ans.second];
+     ASSERT_TRUE(finalized);
+     return gstore.edge_data(source, target);
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
     const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
-      ASSERT_LT(source, vertices.size());
-      ASSERT_LT(target, vertices.size());
-      std::pair<bool, edge_id_type> ans = gstore.find(source, target);
-      // We must find the edge!
-      ASSERT_TRUE(ans.first);
-      // the edge id should be valid!
-      ASSERT_LT(ans.second, num_edges());
-      return gstore.edge_data_list[ans.second];
+     ASSERT_TRUE(finalized);
+     return gstore.edge_data(source, target);
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
-    EdgeData& edge_data(edge_id_type edge_id) { 
-      return gstore.edge_data_list[edge_id];
+    EdgeData& edge_data(edge_type edge) { 
+      ASSERT_TRUE(finalized);
+      return gstore.edge_data(edge);
+    }
+    const EdgeData& edge_data(edge_type edge) const {
+      ASSERT_TRUE(finalized);
+      return gstore.edge_data(edge);
     }
 
-    edge_list get_in_edges(vertex_id_type v) {
-      return gstore.get_in_edges(v);
+    size_t num_in_edges(const vertex_id_type v) const {
+      return gstore.num_in_edges(v);
     }
 
-    edge_list get_out_edges(vertex_id_type v) {
-      return gstore.get_out_edges(v);
+    size_t num_out_edges(const vertex_id_type v) const {
+      return gstore.num_out_edges(v);
     }
 
-    const_edge_list get_in_edges(vertex_id_type v) const {
-      return gstore.get_in_edges(v);
+    edge_list_type in_edges(vertex_id_type v) {
+      return gstore.in_edges(v);
     }
 
-    const_edge_list get_out_edges(vertex_id_type v) const {
-      return gstore.get_out_edges(v);
+    edge_list_type out_edges(vertex_id_type v) {
+      return gstore.out_edges(v);
+    }
+
+    const edge_list_type in_edges(vertex_id_type v) const {
+      return gstore.in_edges(v);
+    }
+
+    const edge_list_type out_edges(vertex_id_type v) const {
+      return gstore.out_edges(v);
     }
 
 
 
-    /** \brief Returns a constant reference to the data stored on the edge e */
-    // const EdgeData& edge_data(edge_id_type edge_id) const {
-    //   ASSERT_LT(edge_id, num_edges());
-    //   return gstore.edge_data_list[edge_id]; 
-    // }
-
-    /** \brief Returns the source vertex of an edge. */
-    // vertex_id_type source(edge_id_type edge_id) const {
-    //   return gstore.source(edge_id);
-    // }
-
-    /** \brief Returns the destination vertex of an edge. */
-    // vertex_id_type target(edge_id_type edge_id) const {
-    //   return gstore.target(edge_id);    
-    // }
-    
+   
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_type vertex) const {
@@ -413,7 +373,7 @@ namespace graphlab {
 	permutation(num_vertices());
 
       for(vertex_id_type v = 0; v < num_vertices(); ++v) 
-        permutation[v] = std::make_pair(-num_in_neighbors(v), v);
+        permutation[v] = std::make_pair(-num_in_edges(v), v);
       //      std::random_shuffle(permutation.begin(), permutation.end());
       std::sort(permutation.begin(), permutation.end());
       // Recolor
@@ -423,13 +383,13 @@ namespace graphlab {
         neighbor_colors.clear();
         const vertex_id_type& vid = permutation[i].second;
         // Get the neighbor colors
-        foreach(edge_wrapper_type ewrapper, get_in_edges(vid)){
-          const vertex_id_type& neighbor_vid = ewrapper.src;
+        foreach(edge_type edge, in_edges(vid)){
+          const vertex_id_type& neighbor_vid = edge.source();
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
-        foreach(edge_wrapper_type ewrapper, get_out_edges(vid)){
-          const vertex_id_type& neighbor_vid = ewrapper.target;
+        foreach(edge_type edge, out_edges(vid)){
+          const vertex_id_type& neighbor_vid = edge.target();
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           neighbor_colors.insert(neighbor_color);
         }
@@ -457,10 +417,10 @@ namespace graphlab {
     bool valid_coloring() const {
       for(vertex_id_type vid = 0; vid < num_vertices(); ++vid) {
         const vertex_color_type& vertex_color = color(vid);
-        edge_list in_edges = get_in_edges(vid);
+        edge_list in_edges = in_edges(vid);
         // Get the neighbor colors
-        foreach(edge_wrapper_type ewrapper, in_edges){
-          const vertex_id_type& neighbor_vid = ewrapper.src;
+        foreach(edge_type edge, in_edges){
+          const vertex_id_type& neighbor_vid = edge.source();
           const vertex_color_type& neighbor_color = color(neighbor_vid);
           if(vertex_color == neighbor_color) return false;
         }
@@ -468,39 +428,16 @@ namespace graphlab {
       return true;
     }
     
-    
-    // /** \brief Return the edge ids of the edges arriving at v */
-    // edge_list in_edge_ids(vertex_id_type v) const {
-    //   return gstore.in_edge_ids(v); 
-    // } // end of in edges    
-
-    // /** \brief Return the edge ids of the edges leaving at v */
-    // edge_list out_edge_ids(vertex_id_type v) const {
-    //   return gstore.out_edge_ids(v);
-    // } // end of out edges
-    // 
-    // /** \brief Get the set of in vertices of vertex v */
-    // std::vector<vertex_id_type> in_vertices(vertex_id_type v) const {
-    //   return gstore.in_vertices(v);
-    // }
-    // 
-    // /** \brief Get the set of out vertices of vertex v */
-    // std::vector<vertex_id_type> out_vertices(vertex_id_type v) const {
-    //   return gstore.out_vertices(v);;
-    // }
-    //
-   
-    
     /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {
       return changeid;
     }
 
-    size_t get_graph_size() const {
+    size_t estimate_sizeof() const {
       size_t vlist_size = sizeof(vertices) + sizeof(VertexData) * vertices.capacity();
       size_t vcolor_size = sizeof(vcolors) + sizeof(vertex_color_type) * vcolors.capacity();
-      size_t elist_size = sizeof(edges_tmp) + sizeof(edge) * edges_tmp.capacity();
-      size_t store_size = gstore.get_storage_size();
+      size_t elist_size = sizeof(edges_tmp) + sizeof(edge_info) * edges_tmp.capacity();
+      size_t store_size = gstore.estimate_sizeof();
 
 //      printf("graph2: tmplist size: %u, gstoreage size: %u \n", elist_size, store_size);
       return store_size + vlist_size + vcolor_size + elist_size;
@@ -580,7 +517,7 @@ namespace graphlab {
       indeg.resize(num_vertices());
       std::queue<vertex_id_type> q;
       for (size_t i = 0;i < num_vertices(); ++i) {
-        indeg[i] = get_in_edges(i).size();
+        indeg[i] = in_edges(i).size();
         if (indeg[i] == 0) {
           q.push(i);
         }
@@ -590,8 +527,8 @@ namespace graphlab {
         vertex_id_type v = q.front();
         q.pop();
         topsort.push_back(v);
-        foreach(edge_wrapper_type ewrapper, get_out_edges(v)) {
-          vertex_id_type destv = ewrapper.target;
+        foreach(edge_type edge, out_edges(v)) {
+          vertex_id_type destv = edge.target();
           --indeg[destv];
           if (indeg[destv] == 0) {
             q.push(destv);
@@ -620,7 +557,7 @@ namespace graphlab {
 
     /** The edge data is a vector of edges where each edge stores its
         source, destination, and data. Used for temporary storage. The data is transferred into CSR+CSC representation in Finalize. This will be cleared after finalized.*/
-    std::vector<edge> edges_tmp;
+    std::vector<edge_info> edges_tmp;
    
     /** Mark whether the graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve
