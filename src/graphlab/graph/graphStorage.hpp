@@ -354,8 +354,7 @@ namespace graphlab {
 
           // We sort the edges_tmp in reverse order by row, because it is easy to use pop_back 
           // to transfer the edgedata in to the compact list at the end of this function.
-          bool reverse = true;
-          std::sort(edges_tmp.begin(), edges_tmp.end(), cmp_by_src_functor(reverse));
+          std::sort(edges_tmp.begin(), edges_tmp.end(), cmp_by_src_functor());
 
           /* DEBUG
           foreach(edge_info e, edges_tmp)
@@ -375,14 +374,13 @@ namespace graphlab {
 
           // Iterate over the edges_tmp in the reverse order.
           for (size_t it = 0; it < num_edges; ++it) {
-            size_t id = num_edges-1-it;
-            edge_info e = edges_tmp[id];
+            edge_info e = edges_tmp[it];
             vertex_id_type src = e.source();
             vertex_id_type dst = e.target();
             if (src == old_src && dst == old_dst) {
               logstream(LOG_FATAL)
                 << "Duplicate edge "
-                << id << ":(" << src << ", " << dst << ") "
+                << it << ":(" << src << ", " << dst << ") "
                 << "found! Graphlab does not support graphs "
                 << "with duplicate edges." << std::endl;
             } else {
@@ -442,7 +440,7 @@ namespace graphlab {
 
           // Iterate over the edges_tmp
           for (size_t it = 0; it < num_edges; ++it) {
-            edge_info e = edges_tmp[num_edges -1 -c2r_map[it]];
+            edge_info e = edges_tmp[c2r_map[it]];
             vertex_id_type src = e.source();
             vertex_id_type dst = e.target();
 
@@ -523,11 +521,9 @@ namespace graphlab {
           // Transfer the edge data to a compact list.
           edge_data_list.reserve(num_edges);
           for (size_t i = 0; i < num_edges; ++i) {
-            edge_info& e = edges_tmp[num_edges-i-1];
+            edge_info& e = edges_tmp[i];
             edge_data_list.push_back(e.data());
-            edges_tmp.pop_back();
           }
-          edges_tmp.clear();
           std::vector<edge_info>().swap(edges_tmp);
         } // end of finalize.
 
@@ -665,15 +661,16 @@ namespace graphlab {
 
         // Sort by src in the ascending order.
         struct cmp_by_src_functor {
-          bool reverse;
-          cmp_by_src_functor (bool order) : reverse(order) { }
           bool operator()(const edge_info& me, const edge_info& other) const {
             bool less = (me.source() < other.source()) || (me.source()== other.source()&& me.target()< other.target());
+            /*
             if (reverse) {
               return !less; 
             } else {
               return less;
             }
+            */
+            return less;
           }
         };
 
@@ -685,8 +682,8 @@ namespace graphlab {
           cmp_by_dst_functor(elist_ptr edgelist) : edgelist(edgelist) {size = edgelist.size();}
 
           bool operator()(const size_t me, const size_t other) {
-            const edge_info& e1 = edgelist[size - 1 - me];
-            const edge_info& e2 = edgelist[size - 1 - other];
+            const edge_info& e1 = edgelist[me];
+            const edge_info& e2 = edgelist[other];
             return (e1.target() < e2.target()) || (e1.target() == e2.target() && e1.source() < e2.source());
           }
         };
