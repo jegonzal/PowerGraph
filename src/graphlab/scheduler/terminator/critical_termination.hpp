@@ -112,7 +112,7 @@ namespace graphlab {
         pick up any jobs, the thread which created the job must see it in the 
         critical section.
       */
-      if (trying_to_sleep.value > 0) {
+      if (trying_to_sleep > 0 || numactive < ncpus) {
         m.lock();
         if (numactive < ncpus) cond.broadcast();
         m.unlock();
