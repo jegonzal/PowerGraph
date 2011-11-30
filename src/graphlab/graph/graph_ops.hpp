@@ -154,17 +154,45 @@ namespace graphlab {
 
 
 
-    // size_t unique_neighbors(const graph_type& graph, const vertex_id_type& vid) {
-    //   size_t unique_neighbors = 0;
-    //   const edge_list_type in_edges =  graph.in_edges(vid); 
-    //   const edge_list_type out_edges = graph.out_edges(vid);
-    //   typedef typename edge_list_type::const_iterator iterator_type;
-    //   iterator_type i = in_edges.begin();
-    //   iterator_type j = out_edges.begin();
-    //   while(i != in_edges.end() && j != out_edges.end()) 
-    //     if(i->source() == j->target()) { unique_neighbors++; ++i; ++j; }
-    //     else if(i->source() < j->target()) {} // finish
-    // } // end of unique_neighbors
+    static size_t num_neighbors(const graph_type& graph, 
+                                const vertex_id_type& vid) {
+      const edge_list_type in_edges =  graph.in_edges(vid); 
+      const edge_list_type out_edges = graph.out_edges(vid);
+      typedef typename edge_list_type::const_iterator iterator_type;
+      iterator_type i = in_edges.begin();
+      iterator_type j = out_edges.begin();
+      size_t count = 0;      
+      for(; i != in_edges.end() && j != out_edges.end(); ++count) 
+        if(i->source() == j->target()) { ++i; ++j; }
+        else if(i->source() < j->target()) { ++i; }
+        else { ++j; }
+      for( ; i != in_edges.end(); ++i, ++count);
+      for( ; j != out_edges.end(); ++j, ++count);
+      return count;
+    } // end of num_neighbors
+
+
+    static void neighbors(const graph_type& graph, const vertex_id_type& vid,   
+                          std::vector<vertex_id_type>& neighbors ) {
+      const edge_list_type in_edges =  graph.in_edges(vid); 
+      const edge_list_type out_edges = graph.out_edges(vid);
+      typedef typename edge_list_type::const_iterator iterator_type;
+      iterator_type i = in_edges.begin();
+      iterator_type j = out_edges.begin();
+      neighbors.resize(num_neighbors(graph, vid));
+      size_t idx = 0;
+      for( ; i != in_edges.end() && j != out_edges.end(); ++idx) 
+        if(i->source() == j->target()) { 
+          neighbors[idx] = i->source(); ++i; ++j; 
+        } else if(i->source() < j->target()) {
+          neighbors[idx] = i->source(); ++i; 
+        } else { neighbors[idx] = j->target(); ++j; } 
+      for( ; i != in_edges.end(); ++i, ++idx)
+        neighbors[idx] = i->source();
+      for( ; j != out_edges.end(); ++j, ++idx)
+        neighbors[idx] = j->target();
+      ASSERT_EQ(idx, neighbors.size());
+    } // end of neighbors
     
 
     static bool load_snap_structure(const std::string& filename,
@@ -175,13 +203,11 @@ namespace graphlab {
       size_t self_edges = 0;
       while(fin.good() && !fin.eof()) {
         if(fin.peek() == '#') {
-          std::string str;
-          std::getline(fin, str);
+          std::string str; std::getline(fin, str);
           std::cout << str << std::endl;
           continue;
         }
-        size_t source = 0;
-        size_t target = 0;
+        size_t source = 0, target = 0;
         fin >> source;
         if(!fin.good()) break;
         fin >> target; assert(fin.good());
@@ -406,47 +432,29 @@ namespace graphlab {
 
     
 
-    // template<typename Graph>
-    // bool save_metis(const std::string& filename,
-    //                 const Graph& graph) { 
-    //   typedef typename Graph::vertex_id_type vertex_id_type;
-    //   std::ofstream fout(filename.c_str());
-    //   if(!fout.good()) return false;
-    //   size_t nverts = 0, nedges = 0;
-    //   fout << graph.num_vertices() << graph.num_edges() << '\n';
-    //   for(vertex_id_type source = 0; source < graph.num_vertices(); 
-    //       ++source) {
-
-
-    //   }
-    //   for(vertex_id_type source = 0; source < nverts; ++source) {
-    //     while(fin.peek() != '\n') {
-    //       ASSERT_TRUE(fin.good());
-    //       vertex_id_type target = 0;
-    //       fin >> target; 
-    //       ASSERT_GT(target, 0);
-    //       // decrement the value since starting value is 1 not zero
-    //       target--; 
-    //       ASSERT_LT(target, graph.num_vertices());     
-    //       if(source != target) graph.add_edge(source, target);
-    //               else if(self_edges++ == 0) 
-    //       logstream(LOG_WARNING) 
-    //         << "Self edge encountered but not supported!" << std::endl
-    //         << "\t Further warnings will be surpressed." << std::endl;
-          
-    //     }
-    //     skip_newline(fin);
-    //   }
-    //   fin.close();
-    //   logstream(LOG_INFO) 
-    //     << "Finished loading graph with: " << std::endl
-    //     << "\t Vertices: " << graph.num_vertices() << std::endl
-    //     << "\t Edges: " << graph.num_edges() << std::endl;      
-    //   if(self_edges > 0) 
-    //     logstream(LOG_INFO) << "\t Dropped self edges: " << self_edges 
-    //                         << std::endl;
-    //   return true;
-    // } // end of save metis
+    static bool save_metis_structure(const std::string& filename,
+                                     const Graph& graph) { 
+      typedef typename Graph::vertex_id_type vertex_id_type;
+      std::ofstream fout(filename.c_str());
+      if(!fout.good()) return false;
+      // Count the number of actual edges
+      size_t nedges = 0;
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i)
+        nedges += num_neighbors(graph, i);
+      fout << graph.num_vertices() << ' ' << nedges << '\n';
+      // Save the adjacency structure
+      std::vector<vertex_id_type> neighbor_set;
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
+        neighbors(graph, i, neighbor_set);
+        for(size_t j = 0; j < neighbor_set.size(); ++j) {
+          fout << (neighbor_set[j] + 1);
+          if(j + 1 < neighbor_set.size()) fout << ' ';
+        }
+        fout << '\n';
+      }
+      fout.close();
+      return true;
+    } // end of save metis
 
 
 

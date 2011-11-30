@@ -29,6 +29,9 @@ add_executable(anytests anytests.cpp)
 add_executable(integercompress integercompress.cpp)
 add_executable(integercompress_bench integercompress_bench.cpp)
 
+add_executable(test_graph_ops test_graph_ops.cpp)
+
+
 # add_executable(anytests_loader anytests_loader.cpp)
 
 # if (MPI_FOUND)
