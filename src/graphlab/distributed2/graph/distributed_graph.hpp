@@ -1518,7 +1518,7 @@ namespace graphlab {
       localvid2ghostedprocs.resize(localvid2owner.size());
       size_t old_commsize = 0;
       for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
-        old_commsize += localvid2ghostedprocs[i].popcount();
+        old_commsize += localvid2ghostedprocs[i].popcount() - 1;
         localvid2ghostedprocs[i].clear();
         localvid2ghostedprocs[i].set_bit_unsync(rmi.procid());
       }
@@ -1558,7 +1558,7 @@ namespace graphlab {
       
       size_t new_commsize = 0;
       for (size_t i = 0;i < localvid2ghostedprocs.size(); ++i) {
-        new_commsize += localvid2ghostedprocs[i].popcount();
+        new_commsize += localvid2ghostedprocs[i].popcount() - 1;
       }
       
       std::cout << "Comm Optimization: " 
