@@ -234,12 +234,8 @@ namespace graphlab {
      * Get a reference to the local member
      */
     template<typename T>
-    T& get_local(const std::string& key, size_t index = 0) {     
-      if(!is_local(key)) {
-        logstream(LOG_FATAL) 
-          << "The local variable \"" << key << "\" does not exist!" 
-          << std::endl;
-      }
+    T& get_local(const std::string& key, size_t index = 0) {       
+      if(!is_local(key)) local_map[key].resize(index + 1, T());
       any_vector& vec = local_map[key];
       ASSERT_LT(index, vec.size());
       return vec.as<T>(index);

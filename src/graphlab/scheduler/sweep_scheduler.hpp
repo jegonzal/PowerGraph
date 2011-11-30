@@ -174,7 +174,7 @@ namespace graphlab {
     static void print_options_help(std::ostream &out) {
       out << "ordering = [string: {shuffle, ascending}, vertex ordering, " 
         "default=shuffle]\n"
-          << "strict_rr = [bool, use strict round robin schedule, default=shuffle]\n";
+          << "strict = [bool, use strict round robin schedule, default=shuffle]\n";
     };
   }; 
   
