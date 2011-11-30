@@ -85,7 +85,6 @@ namespace graphlab {
     atomic<size_t> rr_index;
 
     std::vector<vertex_id_type>             index2vid;
-    std::vector<uint8_t>                    vid2cpuid;
     std::vector<vertex_id_type>             cpu2index;
     vertex_functor_set<update_functor_type>         vfun_set;
     terminator_type                         term;
@@ -99,7 +98,6 @@ namespace graphlab {
       strict_round_robin(false),
       rr_index(0),
       index2vid(graph.num_vertices()), 
-      vid2cpuid(graph.num_vertices()),
       cpu2index(ncpus),
       vfun_set(graph.num_vertices()), term(ncpus) {
       // Construct the permutation
@@ -123,9 +121,6 @@ namespace graphlab {
         logstream(LOG_INFO) 
           << "Using a strict round robin schedule." << std::endl;
       } 
-      // construct the vid2cpuid map
-      for(size_t i = 0; i < graph.num_vertices(); ++i) 
-        vid2cpuid[index2vid[i]] = i % ncpus;
       // Initialize the cpu2index counters
       for(size_t i = 0; i < cpu2index.size(); ++i) 
         cpu2index[i] = i;
@@ -137,7 +132,7 @@ namespace graphlab {
     void schedule(const size_t cpuid,
                   const vertex_id_type vid, 
                   const update_functor_type& fun) {      
-      if(vfun_set.add(vid, fun)) term.new_job(vid2cpuid[vid]);       
+      if(vfun_set.add(vid, fun)) term.new_job();
     } // end of schedule
 
     void schedule_all(const update_functor_type& fun) {

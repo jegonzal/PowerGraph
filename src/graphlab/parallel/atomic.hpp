@@ -46,6 +46,9 @@ namespace graphlab {
 
     //! Performs an atomic decrement by 1, returning the new value
     T dec() { return __sync_sub_and_fetch(&value, 1);  }
+    
+    //! Lvalue implicit cast
+    operator T() const { return value; }
 
     //! Performs an atomic increment by 1, returning the new value
     T operator++() { return inc(); }
