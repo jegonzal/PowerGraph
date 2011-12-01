@@ -100,9 +100,10 @@ public:
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     double sum = 0;
-    foreach(const edge_type& edge, context.in_edges()) 
+    foreach(const edge_type& edge, context.in_edges()) {
       sum += context.const_edge_data(edge).weight * 
-        context.const_vertex_data(edge.source()).value;
+       context.const_vertex_data(edge.source()).value;
+    }
     // Add random reset probability
     vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
     accum = (vdata.value - vdata.old_value);
@@ -141,7 +142,6 @@ public:
     const edge_data& edata = context.const_edge_data(edge);
     const double delta = accum * edata.weight * (1 - RESET_PROB);
     context.schedule(edge.target(), pagerank_update(delta));
-    
   } // end of scatter
 
 private:
@@ -225,7 +225,7 @@ int main(int argc, char** argv) {
   // Run the PageRank ---------------------------------------------------------
 
   if(UPDATE_STYLE == DELTA) {
-    std::cout << "changing initial delta" << std::endl;
+    std::cout << "changing initial data" << std::endl;
     for(size_t vid = 0; vid < core.graph().num_vertices(); ++vid) 
       core.graph().vertex_data(vid).value = RESET_PROB - 1;   
   }
@@ -233,15 +233,17 @@ int main(int argc, char** argv) {
   core.schedule_all(pagerank_update(initial_delta));
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
-  std::cout << "Graphlab finished, runtime: " << runtime 
-            << " seconds." << std::endl;
-  std::cout << "Updates executed: " << core.last_update_count() 
-            << std::endl;
-  std::cout << "Update Rate (updates/second): " 
+  std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
+            << std::endl
+            << "Updates executed: " << core.last_update_count() 
+            << std::endl
+            << "Update Rate (updates/second): " 
             << core.last_update_count() / runtime
             << std::endl;
-
- 
+  double total_rank = 0;
+  for(size_t i = 0; i < core.graph().num_vertices(); ++i) 
+    total_rank += core.graph().vertex_data(i).value;
+  std::cout << "Total Rank: " << total_rank << std::endl;
 
   // Output Results -----------------------------------------------------------
   // Output the top 5 pages
