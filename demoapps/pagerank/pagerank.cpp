@@ -38,7 +38,7 @@
 #include <graphlab/macros_def.hpp>
 
 //! Global random reset probability
-double RANDOM_RESET_PROBABILITY = 0.15;
+double RESET_PROB = 0.15;
 
 //! Global accuracy tolerance
 double ACCURACY = 1e-5;
@@ -63,8 +63,7 @@ public:
         context.const_vertex_data(edge.source()).value;
     // Add random reset probability
     vdata.old_value = vdata.value;
-    vdata.value = RANDOM_RESET_PROBABILITY/context.num_vertices() + 
-      (1-RANDOM_RESET_PROBABILITY)*sum; 
+    vdata.value = RESET_PROB + (1-RESET_PROB)*sum;
     foreach(edge_type edge, context.out_edges()) {    
       const double residual = context.const_edge_data(edge).weight * 
         std::fabs(vdata.value - vdata.old_value);
@@ -86,28 +85,23 @@ int main(int argc, char** argv) {
   std::string graph_file;
   std::string format = "metis";
   std::string update_type = "basic";
-  clopts.attach_option("graph",
-                       &graph_file, graph_file,
+  clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
   clopts.attach_option("format",
                        &format, format,
                        "The graph file format: {metis, snap, tsv}");
-  clopts.attach_option("accuracy",
-                       &ACCURACY, ACCURACY,
+  clopts.attach_option("accuracy", &ACCURACY, ACCURACY,
                        "residual termination threshold");
-  clopts.attach_option("resetprob",
-                       &RANDOM_RESET_PROBABILITY, RANDOM_RESET_PROBABILITY,
+  clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
                        "Random reset probability");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  std::cout << "Termination bound:  " << ACCURACY 
-            << std::endl
-            << "Reset probability:  " << RANDOM_RESET_PROBABILITY
-            << std::endl;  
+  std::cout << "Termination bound:  " << ACCURACY << std::endl
+            << "Reset probability:  " << RESET_PROB << std::endl;  
   // Setup the GraphLab execution core and load graph -------------------------
   graphlab::core<graph_type, pagerank_update> core;
   core.set_options(clopts); // attach the command line options to the core

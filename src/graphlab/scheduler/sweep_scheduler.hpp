@@ -117,7 +117,8 @@ namespace graphlab {
       
       // Determin the orering of updates
       std::string ordering = "random";
-      opts.get_option("ordering", ordering);
+      opts.get_option("ordering", ordering) || 
+        opts.get_option("order", ordering);
       if (ordering == "ascending") {
         logstream(LOG_INFO) 
           << "Using an ascending ordering of the vertices." << std::endl;

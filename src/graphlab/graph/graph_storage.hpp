@@ -123,7 +123,8 @@ namespace graphlab {
     }; // end of class edge_type.
 
     // Internal iterator on edge_types.
-    class edge_iterator : public std::iterator<std::forward_iterator_tag, edge_type> {
+    class edge_iterator : 
+      public std::iterator<std::forward_iterator_tag, edge_type> {
     public:
       enum iterator_type {INEDGE, OUTEDGE}; 
       typedef edge_type reference;
@@ -153,16 +154,13 @@ namespace graphlab {
 
 
       inline bool operator==(const edge_iterator& it) const {
-        // if (empty && it.empty) return true;
-        // if (empty != it.empty) return false;
-        // return (itype == it.itype && center == it.center && 
-        //         offset == it.offset);
-        return !(*this != it);
+        return (empty && it.empty) || 
+          (empty == it.empty && itype == it.itype && center == it.center && 
+           offset == it.offset);
       }
 
       inline bool operator!=(const edge_iterator& it) const { 
-        return (empty != it.empty) || (itype != it.itype) || (center != it.center) ||
-          (offset != it.offset);
+        return !(*this == it);
       }
 
       inline edge_iterator& operator++() {
@@ -194,13 +192,15 @@ namespace graphlab {
       inline edge_type make_value() const {
         edge_type ret;
         if (itype == INEDGE) {
-          edge_type rvalue(gstore_ptr->CSC_src[offset], center, gstore_ptr->c2r_map[offset]);
+          edge_type rvalue(gstore_ptr->CSC_src[offset], center, 
+                           gstore_ptr->c2r_map[offset]);
           ret = rvalue;
         } else if (itype == OUTEDGE) {
           edge_type rvalue(center, gstore_ptr->CSR_dst[offset], offset);
           ret = rvalue;
         } else {
-          logstream(LOG_FATAL) << "Edge iterator type is invalid." << std::endl;
+          logstream(LOG_FATAL) << "Edge iterator type is invalid." 
+                               << std::endl;
         }
         return ret;
       }
@@ -224,11 +224,14 @@ namespace graphlab {
       // Construct an empty edge list
       edge_list() : list_size(0) { }
       // Cosntruct an edge_list with begin and end. 
-      edge_list(edge_iterator begin, edge_iterator end) : begin_ptr(begin), end_ptr(end) { 
+      edge_list(edge_iterator begin, edge_iterator end) : 
+        begin_ptr(begin), end_ptr(end) { 
         list_size = (size_t)(end_ptr-begin_ptr);
       }
       // Copy constructor
-      edge_list(const edge_list& other) : begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), list_size(other.list_size) { }
+      edge_list(const edge_list& other) : 
+        begin_ptr(other.begin_ptr), end_ptr(other.end_ptr), 
+        list_size(other.list_size) { }
 
       inline size_t size() const { return list_size;}
             

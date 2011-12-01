@@ -56,7 +56,7 @@ std::string update_style2str(update_style style);
 update_style UPDATE_STYLE = BASIC;
 
 //! Global random reset probability
-double RANDOM_RESET_PROBABILITY = 0.15;
+double RESET_PROB = 0.15;
 
 //! Global accuracy tolerance
 double ACCURACY = 1e-5;
@@ -85,9 +85,8 @@ public:
     return accum > ACCURACY ? OUT_EDGES : NO_EDGES;
   }
   void delta_functor_update(icontext_type& context) { 
-    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    vdata.value += (1-RANDOM_RESET_PROBABILITY) * accum;
-    accum = (vdata.value - vdata.old_value);
+    vertex_data& vdata = context.vertex_data(); 
+    ++vdata.nupdates; vdata.value += accum;
     if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
       vdata.old_value = vdata.value;
       reschedule_neighbors(context);
@@ -105,9 +104,7 @@ public:
       sum += context.const_edge_data(edge).weight * 
         context.const_vertex_data(edge.source()).value;
     // Add random reset probability
-    vdata.value = 
-      RANDOM_RESET_PROBABILITY/context.num_vertices() +
-      (1-RANDOM_RESET_PROBABILITY)*sum;
+    vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
     accum = (vdata.value - vdata.old_value);
     if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
       vdata.old_value = vdata.value;
@@ -131,9 +128,7 @@ public:
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    vdata.value = 
-      RANDOM_RESET_PROBABILITY/context.num_vertices() +
-      (1-RANDOM_RESET_PROBABILITY) * accum;
+    vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
     accum = vdata.value - vdata.old_value;
     if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
       vdata.old_value = vdata.value;    
@@ -144,7 +139,8 @@ public:
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
     const edge_data& edata = context.const_edge_data(edge);
-    context.schedule(edge.target(), pagerank_update(accum*edata.weight));
+    const double delta = accum * edata.weight * (1 - RESET_PROB);
+    context.schedule(edge.target(), pagerank_update(delta));
     
   } // end of scatter
 
@@ -180,7 +176,7 @@ int main(int argc, char** argv) {
                        &ACCURACY, ACCURACY,
                        "residual termination threshold");
   clopts.attach_option("resetprob",
-                       &RANDOM_RESET_PROBABILITY, RANDOM_RESET_PROBABILITY,
+                       &RESET_PROB, RESET_PROB,
                        "Random reset probability");
   clopts.attach_option("type",
                        &update_type, update_type,
@@ -199,7 +195,7 @@ int main(int argc, char** argv) {
   UPDATE_STYLE = str2update_style(update_type); 
   std::cout << "Termination bound:  " << ACCURACY 
             << std::endl
-            << "Reset probability:  " << RANDOM_RESET_PROBABILITY
+            << "Reset probability:  " << RESET_PROB
             << std::endl
             << "Update style:       " << update_style2str(UPDATE_STYLE)
             << std::endl;
@@ -227,16 +223,13 @@ int main(int argc, char** argv) {
   }
 
   // Run the PageRank ---------------------------------------------------------
-  double initial_delta = 1;
+
   if(UPDATE_STYLE == DELTA) {
     std::cout << "changing initial delta" << std::endl;
-    initial_delta = RANDOM_RESET_PROBABILITY / 
-      (core.graph().num_vertices() * (1-RANDOM_RESET_PROBABILITY));
-    for(graph_type::vertex_id_type vid = 0; vid < core.graph().num_vertices();
-        ++vid) {
-      core.graph().vertex_data(vid).value = 0;
-    }
+    for(size_t vid = 0; vid < core.graph().num_vertices(); ++vid) 
+      core.graph().vertex_data(vid).value = RESET_PROB - 1;   
   }
+  const double initial_delta = 1;
   core.schedule_all(pagerank_update(initial_delta));
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
@@ -254,6 +247,14 @@ int main(int argc, char** argv) {
   // Output the top 5 pages
   std::vector<graph_type::vertex_id_type> top_pages;
   get_top_pages(core.graph(), topk, top_pages);
+  std::cout << std::endl
+            << std::setw(10) << "Page Id\t" 
+            << std::setw(10) << "Value\t"
+            << std::setw(10) << "nupdates\t"
+            << std::setw(10) << "indegree\t"
+            << std::setw(10) << "outdegree"
+            << std::endl;
+
   for(size_t i = 0; i < top_pages.size(); ++i) {
     const vertex_data& vdata = core.graph().vertex_data(top_pages[i]);
     std::cout << std::setw(10) << top_pages[i] << ":\t" 
