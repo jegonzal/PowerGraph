@@ -31,7 +31,7 @@
  *
  * Modified by Jay (haijieg@cs.cmu.edu)
  *
- * Describe the interface of a graph. The actual implementation is in graphStorage.hpp.
+ * Describe the interface of a graph. The actual implementation is in graph_storage.hpp.
  *
  * Change interface:
  *  edge_id_type add_edge (vertex_id_type src, vertex_d_type dst, const EdgeData& edata) always return 0 as the temporary edge_id.
@@ -71,7 +71,7 @@
 #include <graphlab/serialization/oarchive.hpp>
 
 #include <graphlab/util/random.hpp>
-#include <graphlab/graph/graphStorage.hpp>
+#include <graphlab/graph/graph_storage.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab { 
@@ -79,7 +79,7 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class graph2 {
 
-    typedef graphStorage<VertexData, EdgeData> gstore_type;
+    typedef graph_storage<VertexData, EdgeData> gstore_type;
 
   public:
 
@@ -556,7 +556,9 @@ namespace graphlab {
     gstore_type gstore;
 
     /** The edge data is a vector of edges where each edge stores its
-        source, destination, and data. Used for temporary storage. The data is transferred into CSR+CSC representation in Finalize. This will be cleared after finalized.*/
+        source, destination, and data. Used for temporary storage. The
+        data is transferred into CSR+CSC representation in
+        Finalize. This will be cleared after finalized.*/
     std::vector<edge_info> edges_tmp;
    
     /** Mark whether the graph is finalized.  Graph finalization is a

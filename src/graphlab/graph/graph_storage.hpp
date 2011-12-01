@@ -60,7 +60,7 @@
 namespace graphlab {
 
   template<typename VertexData, typename EdgeData>
-  class graphStorage {
+  class graph_storage {
   public:
     typedef uint32_t vertex_id_type;
     typedef uint32_t edge_id_type;
@@ -119,7 +119,7 @@ namespace graphlab {
       edge_id_type _edge_id;
       bool _empty;
 
-      friend class graphStorage;
+      friend class graph_storage;
     }; // end of class edge_type.
 
     // Internal iterator on edge_types.
@@ -132,7 +132,7 @@ namespace graphlab {
       edge_iterator () : offset(-1), empty(true) { }
      
       edge_iterator (vertex_id_type _center, size_t _offset, 
-                     iterator_type _itype, const graphStorage* _gstore_ptr) : 
+                     iterator_type _itype, const graph_storage* _gstore_ptr) : 
         center(_center), offset(_offset), itype(_itype), empty(false), 
         gstore_ptr(_gstore_ptr) { }
       
@@ -140,24 +140,15 @@ namespace graphlab {
         center(it.center), offset(it.offset), itype(it.itype), 
         empty(it.empty), gstore_ptr(it.gstore_ptr) { }
   
-      // inline edge_type operator*() const  {
-      //   ASSERT_TRUE(!empty);
-      //   return makeValue();
-      // }
-
-      // inline edge_iterator operator->()  {
-      //   return *this;
-      // }
-
       inline edge_type operator*() const  {
         ASSERT_TRUE(!empty);
-        return makeValue();
+        return make_value();
       }
 
       typedef boost::detail::
       operator_arrow_result<edge_type, edge_type, edge_type*> arrow_type;
       inline typename arrow_type::type operator->() const {
-        return arrow_type::make(makeValue());
+        return arrow_type::make(make_value());
       }
 
 
@@ -200,7 +191,7 @@ namespace graphlab {
 
     private:
       // Generate the ret value of the iterator.
-      inline edge_type makeValue() const {
+      inline edge_type make_value() const {
         edge_type ret;
         if (itype == INEDGE) {
           edge_type rvalue(gstore_ptr->CSC_src[offset], center, gstore_ptr->c2r_map[offset]);
@@ -218,7 +209,7 @@ namespace graphlab {
       size_t offset;
       iterator_type itype;
       bool empty;
-      const graphStorage* gstore_ptr;
+      const graph_storage* gstore_ptr;
     }; // end of class edge_iterator.
 
     // Represents an iteratable list of edge_types.
@@ -257,7 +248,7 @@ namespace graphlab {
     }; // end of class edge_list.
 
   public:
-    graphStorage() { }
+    graph_storage() { }
 
     size_t edge_size() const { return num_edges; }
 
