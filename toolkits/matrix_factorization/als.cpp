@@ -44,6 +44,7 @@
  */
 typedef Eigen::MatrixXd mat;
 typedef Eigen::VectorXd vec;
+int max_iter = 10;
 
 
 
@@ -139,9 +140,10 @@ public:
       const double error = std::fabs(edata.observation - pred);
       vdata.squared_error += error*error;
       // Reschedule neighbors ------------------------------------------------
-      if( error > tolerance && vdata.residual > tolerance) 
-        context.schedule(neighbor_id, als_update(residual));
+      //if( error > tolerance && vdata.residual > tolerance) 
+      //  context.schedule(neighbor_id, als_update(residual));
     }
+    context.schedule(context.vertex_id(), als_update());
   } // end of operator()
 }; // end of class user_movie_nodes_update_function
 
@@ -191,6 +193,9 @@ public:
       << std::setw(10) << min_updates << '\t'
       << std::setw(10) << (double(total_updates) / context.num_vertices()) 
       << std::endl;
+
+    if (min_updates >= max_iter)
+      context.terminate();
   }
 }; // end of  accumulator
 
@@ -209,7 +214,7 @@ int main(int argc, char** argv) {
   std::string test_file;
   std::string format = "matrixmarket";
   double tolerance = 1e-2;
-  size_t nlatent = 10;
+  size_t nlatent = 20;
   double lambda = 0.065;
   size_t freq = 100000;
   clopts.attach_option("matrix",
@@ -235,6 +240,9 @@ int main(int argc, char** argv) {
     clopts.attach_option("freq",
                        &freq, freq,
                        "The number of updates between rmse calculations");
+  clopts.attach_option("max_iter", 
+		       &max_iter, max_iter, "max number of iterations");
+
   clopts.set_scheduler_type("sweep");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
