@@ -166,12 +166,12 @@ namespace graphlab {
         graph_ptr(graph_ptr), _id(id) { }     
     public:
       edge_type() : graph_ptr(NULL), _id(-1) { }
-      const vertex_id_type& source() const {
+      inline vertex_id_type source() const {
         ASSERT_FALSE(empty()); 
         ASSERT_LT(_id, graph_ptr->edges.size());
         return graph_ptr->edges[_id].source(); 
       }
-      const vertex_id_type& target() const { 
+      inline vertex_id_type target() const { 
         ASSERT_FALSE(empty());
         ASSERT_LT(_id, graph_ptr->edges.size());
         return graph_ptr->edges[_id].target(); 
@@ -229,8 +229,8 @@ namespace graphlab {
         return (_source < other._source) || 
           (_source == other._source && _target < other._target); 
       }
-      inline const vertex_id_type& source() const { return _source; }
-      inline const vertex_id_type& target() const { return _target; }   
+      inline vertex_id_type source() const { return _source; }
+      inline vertex_id_type target() const { return _target; }   
       inline EdgeData& data() { return _data; }
       inline const EdgeData& data() const { return _data; }
       void load(iarchive& arc) {

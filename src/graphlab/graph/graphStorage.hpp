@@ -101,12 +101,12 @@ namespace graphlab {
                  const edge_id_type _eid) :
         _source(_source), _target(_target), _edge_id(_eid), _empty(false) { }
     public:
-      inline const vertex_id_type& source() const {
+      inline vertex_id_type source() const {
         ASSERT_FALSE(empty()); 
         return _source; 
       }
 
-      inline const vertex_id_type& target() const { 
+      inline vertex_id_type target() const { 
         ASSERT_FALSE(empty());
         return _target; 
       }

@@ -1,0 +1,2 @@
+project(GraphLab)
+add_graphlab_executable(graph_file_converter graph_file_converter.cpp)

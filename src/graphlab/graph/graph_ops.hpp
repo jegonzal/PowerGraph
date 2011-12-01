@@ -520,6 +520,145 @@ namespace graphlab {
 
 
 
+    static bool save_patoh_hypergraph_structure(const std::string& filename,
+                                                 const Graph& graph) { 
+      typedef typename Graph::vertex_id_type vertex_id_type;
+      std::ofstream fout(filename.c_str());
+      if(!fout.good()) return false;
+
+      // ok. I need to uniquely number each edge.
+      // how?
+      boost::unordered_map<std::pair<vertex_id_type, 
+                                     vertex_id_type>, size_t> edgetoid;
+      size_t curid = 0;
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
+        foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          if (edgetoid.find(e) == edgetoid.end()) {
+            edgetoid[e] = curid;
+            ++curid;
+          }
+        }
+        foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          if (edgetoid.find(e) == edgetoid.end()) {
+            edgetoid[e] = curid;
+            ++curid;
+          }
+        }
+
+      }
+
+      size_t numedges = curid;
+      // each edge is a vertex, each vertex is an edge
+      // a pin is total adjacency of a hyper edge
+      fout << "0 " << numedges  << " " << graph.num_vertices() << " " << numedges  * 2 << "\n";
+      
+      // loop over the "hyperedge" and write out the edges it is adjacent to
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
+        boost::unordered_set<size_t> adjedges;
+        foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          adjedges.insert(edgetoid[e]);
+        }
+        foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          adjedges.insert(edgetoid[e]);
+        }
+        // write
+        foreach(size_t adje, adjedges) {
+          fout << adje << " ";
+        }
+        fout << "\n";
+      }
+      fout.close();
+      return true;
+    } 
+
+
+
+    static bool save_zoltan_hypergraph_structure(const std::string& filename,
+                                                 const Graph& graph) { 
+      typedef typename Graph::vertex_id_type vertex_id_type;
+      std::ofstream fout(filename.c_str());
+      if(!fout.good()) return false;
+
+      // ok. I need to uniquely number each edge.
+      // how?
+      boost::unordered_map<std::pair<vertex_id_type, 
+                                     vertex_id_type>, size_t> edgetoid;
+      size_t curid = 0;
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
+        foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          if (edgetoid.find(e) == edgetoid.end()) {
+            edgetoid[e] = curid;
+            ++curid;
+          }
+        }
+        foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          if (edgetoid.find(e) == edgetoid.end()) {
+            edgetoid[e] = curid;
+            ++curid;
+          }
+        }
+
+      }
+
+      size_t numedges = curid;
+      // each edge is a vertex, each vertex is an edge
+      // a pin is total adjacency of a hyper edge
+      fout << numedges << "\n\n";
+      for (size_t i = 0;i < numedges; ++i) {
+        fout << i+1 << "\n";
+      }
+      fout << "\n";
+      fout << graph.num_vertices() << "\n\n";
+      
+      fout << numedges * 2 << "\n\n";
+      // loop over the "hyperedge" and write out the edges it is adjacent to
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
+        boost::unordered_set<size_t> adjedges;
+        foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          adjedges.insert(edgetoid[e]);
+        }
+        foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
+          std::pair<vertex_id_type, vertex_id_type> e = 
+                                  std::make_pair(edge.source(), edge.target());
+          if (e.first > e.second) std::swap(e.first, e.second);
+          adjedges.insert(edgetoid[e]);
+        }
+        // write
+        std::vector<size_t> adjedgesvec;
+        std::copy(adjedges.begin(), adjedges.end(), 
+                  std::inserter(adjedgesvec, adjedgesvec.end()));
+        fout << i+1 << " " << adjedgesvec.size() << "\t";        
+        for (size_t j = 0;j < adjedgesvec.size(); ++j) {
+          fout << adjedgesvec[j] + 1;
+          if (j < adjedgesvec.size() - 1) fout << "\t";
+        }
+        fout << "\n";
+      }
+      fout.close();
+      return true;
+    } 
+
     // template<typename Graph>
     // bool save(const std::string& fname,
     //           const std::string& format,
