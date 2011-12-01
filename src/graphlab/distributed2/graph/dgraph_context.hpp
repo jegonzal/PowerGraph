@@ -73,6 +73,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   bool inedges_modified;  // if incoming edges into current vertex is modifed
   bool owned_nbr_vertices_modified;  // if owned neighboring vertices are modified
   bool remote_nbr_vertices_modified;  // if ghost vertices are modified
+
   
  public:
 
@@ -81,7 +82,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
                  shared_data_type* shared_data_ptr = NULL):
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
       shared_data_ptr(shared_data_ptr),
-      _consistency(consistency_model::EDGE_CONSISTENCY){ 
+      _consistency(consistency_model::EDGE_CONSISTENCY) { 
     reset_tracking();    
   }
 
@@ -413,7 +414,10 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   void terminate() {
     engine_ptr->stop();
   }
-
+ 
+  float elapsed_time() const { return engine_ptr->elapsed_time(); }
+ 
+  
 };
 
 

@@ -855,7 +855,7 @@ namespace graphlab {
           << CSR_src_skip
           << CSC_dst_skip;
     }
-  };// End of graphStore;
+  };// End of graph store;
 }// End of namespace;
 #include <graphlab/macros_undef.hpp>
 #endif

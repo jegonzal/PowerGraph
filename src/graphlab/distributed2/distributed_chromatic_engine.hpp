@@ -103,7 +103,9 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
 
   /** The timeout time in millis */
   size_t timeout_millis;
+  float start_time;
   timer ti;
+
   
   /// Used to identify when the engine is stopped through stop
   bool force_stop;
@@ -164,6 +166,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             update_counts(std::max(ncpus, size_t(1)), 0),
                             shared_data(dc, ncpus),
                             timeout_millis(0),
+                            start_time(0),
                             force_stop(false),
                             task_budget(0),
                             randomize_schedule(0),
@@ -1215,9 +1218,13 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     const_nbr_vertices = const_nbr_vertices_;
   }
 
+  float elapsed_time() const { return lowres_time_seconds() - start_time; }
+
   
   /** Execute the engine */
   void start() {
+    start_time = lowres_time_seconds();
+    
     if (default_scope_range == consistency_model::FULL_CONSISTENCY) {
       const_nbr_vertices = false;
     }
