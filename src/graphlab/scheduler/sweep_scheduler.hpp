@@ -83,6 +83,7 @@ namespace graphlab {
 
     bool strict_round_robin;
     atomic<size_t> rr_index;
+    size_t max_iterations;
 
     std::vector<vertex_id_type>             index2vid;
     std::vector<vertex_id_type>             cpu2index;
@@ -96,13 +97,25 @@ namespace graphlab {
     sweep_scheduler(const graph_type& graph, 
                     size_t ncpus,
                     const options_map& opts) :
-      strict_round_robin(false),
-      rr_index(0),
-      index2vid(graph.num_vertices()), 
-      cpu2index(ncpus),
+      strict_round_robin(false), rr_index(0), 
+      max_iterations(std::numeric_limits<size_t>::max()),
+      index2vid(graph.num_vertices()), cpu2index(ncpus),
       vfun_set(graph.num_vertices()), 
       min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {
+      // Determine whether a strict ordering is to be used
+      opts.get_option("strict", strict_round_robin);
+      if(strict_round_robin) {
+        logstream(LOG_INFO) 
+          << "Using a strict round robin schedule." << std::endl;
+        // Max iterations only applies to strict round robin
+        if(opts.get_option("iters", max_iterations) ) {
+          logstream(LOG_INFO) 
+            << "Using maximum iterations: " << max_iterations << std::endl;
+        }
+      } 
+      
+      // Determin the orering of updates
       std::string ordering = "random";
       opts.get_option("ordering", ordering);
       if (ordering == "ascending") {
@@ -145,11 +158,6 @@ namespace graphlab {
       // Initialize the cpu2index counters
       for(size_t i = 0; i < cpu2index.size(); ++i)  cpu2index[i] = i;
 
-      opts.get_option("strict", strict_round_robin);
-      if(strict_round_robin) {
-        logstream(LOG_INFO) 
-          << "Using a strict round robin schedule." << std::endl;
-      } 
       // Get Min priority
       const bool is_set = opts.get_option("min_priority", min_priority);
       if(is_set) {
@@ -180,6 +188,9 @@ namespace graphlab {
       const size_t nverts    = index2vid.size();
       const size_t ncpus     = cpu2index.size();
       const size_t max_fails = (nverts/ncpus) + 1;
+      // Check to see if max iterations have been achieved 
+      if(strict_round_robin && (rr_index / nverts) >= max_iterations) 
+        return sched_status::EMPTY;
       // Loop through all vertices that are associated with this
       // processor searching for a vertex with an active task
       for(size_t idx = get_and_inc_index(cpuid), fails = 0; 
