@@ -552,6 +552,8 @@ namespace graphlab {
     start_time_millis = lowres_time_millis(); 
     // Initialize the scheduler
     scheduler_ptr->start();
+    // Initialize the context manager
+    context_manager_ptr->start();
 
     // -------------------------- Initialize Syncs ------------------------- //
     {

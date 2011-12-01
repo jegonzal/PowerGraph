@@ -169,7 +169,7 @@ namespace graphlab {
       iterator_type i = in_edges.begin();
       iterator_type j = out_edges.begin();
       size_t count = 0;      
-      for(; i != in_edges.end() && j != out_edges.end(); ++count) 
+      for( ; i != in_edges.end() && j != out_edges.end(); ++count) 
         if(i->source() == j->target()) { ++i; ++j; }
         else if(i->source() < j->target()) { ++i; }
         else { ++j; }

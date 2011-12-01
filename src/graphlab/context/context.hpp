@@ -86,6 +86,9 @@ namespace graphlab {
     /** The consistency model that this context ensures */
     consistency_model::model_enum _consistency;
  
+    /** The time at which the engine was started */
+    float start_time;
+
   public:
 
     // Cache related members --------------------------------------------------
@@ -114,8 +117,10 @@ namespace graphlab {
             size_t cpuid = -1) :
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
       scheduler_ptr(scheduler_ptr), cpuid(cpuid),
-      vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY) { }
+      vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY),
+      start_time(lowres_time_seconds()) { }
     
+
 
     void init(const vertex_id_type vertex, 
               consistency_model::model_enum consistency) {             
@@ -128,6 +133,8 @@ namespace graphlab {
     size_t num_updates() const { return engine_ptr->last_update_count(); } 
     void terminate() { engine_ptr->stop(); }
 
+    void set_start_time(float time) { start_time = time; }
+    float elapsed_time() const { return lowres_time_seconds() - start_time; }
    
 
     vertex_data_type& vertex_data(const vertex_id_type vid) {

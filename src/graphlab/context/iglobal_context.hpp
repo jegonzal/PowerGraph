@@ -63,6 +63,10 @@ namespace graphlab {
      */
     virtual size_t num_updates() const = 0;
 
+    /**
+     * Get the elapsed time in seconds
+     */
+    virtual float elapsed_time() const = 0;
     
     /**
      * Test whether the particular key is globally defined
