@@ -109,7 +109,7 @@ namespace graphlab {
         logstream(LOG_INFO) 
           << "Using a strict round robin schedule." << std::endl;
         // Max iterations only applies to strict round robin
-        if(opts.get_option("iters", max_iterations) ) {
+        if(opts.get_option("niters", max_iterations) ) {
           logstream(LOG_INFO) 
             << "Using maximum iterations: " << max_iterations << std::endl;
         }
@@ -227,7 +227,10 @@ namespace graphlab {
           << "\t vertex ordering, default=random]\n"
           << "strict = [bool, use strict round robin schedule, default=false]\n"
           << "min_priority = [double, minimum priority required to run an \n"
-          <<"\t update functor, default = -infinity]\n";
+          << "\t update functor, default = -infinity]\n"
+          << "niters = [integer, maximum number of iterations (requires strict=true) \n"
+          << "\t default = -infinity]\n";
+
     } // end of print_options_help
 
   }; 
