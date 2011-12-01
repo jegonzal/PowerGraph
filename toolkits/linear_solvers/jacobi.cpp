@@ -97,8 +97,8 @@ struct jacobi_update :
 
     //initialize accumlated values in x_i
     real_type x_i = vdata.y;
-    const real_type& A_ii = vdata.Aii;
-    assert(A_ii != 0);
+    assert(!std::isnan(x_i));
+    const real_type A_ii = vdata.Aii;
 
     if (debug) 
       std::cout << "entering node " << context.vertex_id() 
@@ -110,12 +110,18 @@ struct jacobi_update :
       edge_data& out_edge = context.edge_data(out_edges[i]);
       const vertex_data & other = 
         context.const_vertex_data(out_edges[i].target());
-      x_i -= out_edge.weight * other.pred_x;
+      double val = out_edge.weight * other.pred_x;
+      x_i = x_i - val;
+      assert(!std::isnan(x_i));
     }
+    assert(A_ii != 0);
     vdata.pred_x = x_i / A_ii;
+    assert(!std::isnan(vdata.pred_x));   
+ 
     if (debug)
       std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
 
+    assert(!std::isnan(x_i));
     context.schedule(context.vertex_id(), *this);
   }
 }; // end of update_functor
@@ -127,20 +133,24 @@ struct jacobi_update :
 class accumulator :
   public graphlab::iaccumulator<graph_type, jacobi_update, accumulator> {
 private:
-  real_type real_norm, relative_norm;
+  double real_norm, relative_norm;
 public:
   accumulator() : 
     real_norm(0), 
     relative_norm(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.const_vertex_data();
+    assert(!std::isnan(real_norm));
     real_norm += std::pow(vdata.pred_x - vdata.real_x,2);
+    assert(!std::isnan(real_norm));
     relative_norm += std::pow(vdata.pred_x - vdata.prev_x, 2);
     if (debug)
 	std::cout << "Real_norm: " << real_norm << "relative norm: " <<relative_norm << std::endl;
   }
   void operator+=(const accumulator& other) { 
+    assert(!std::isnan(real_norm));
     real_norm += other.real_norm; 
+    assert(!std::isnan(real_norm));
     relative_norm += other.relative_norm;
   }
   void finalize(iglobal_context_type& context) {
@@ -148,6 +158,7 @@ public:
     std::cout << "Real Norm:     " << real_norm << std::endl
               << "Relative Norm: " << relative_norm << std::endl;
     // write the final result into the shared data table
+    assert(!std::isnan(real_norm));
     context.set_global("REAL_NORM", real_norm);
     context.set_global("RELATIVE_NORM", relative_norm);
     const real_type threshold = context.get_global<real_type>("THRESHOLD");
@@ -252,9 +263,9 @@ int main(int argc,  char *argv[]) {
   double runtime= core.start();
   // POST-PROCESSING *****
  
-  std::cout 
-    << "Jacobi finished in " << runtime << std::endl
-    << "\t Updates:  " << core.last_update_count() << std::endl
+  std::cout << "Jacobi finished in " << runtime << std::endl;
+  std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
+     << core.last_update_count() / core.graph().num_vertices() << std::endl
     << "\t Rate:     " << (core.last_update_count()/runtime) << std::endl;
 
   vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);

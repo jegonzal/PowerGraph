@@ -21,16 +21,6 @@
  */
 
 
-/**
- * Functionality: The code solves the linear system Ax = b using
- * The Jacobi algorithm. (A is a square matrix). 
- * A assumed to be full column rank.  Algorithm is described
- * http://en.wikipedia.org/wiki/Jacobi_method
- * Written by Danny Bickson 
- */
-
-#ifndef JACOBI_HPP
-#define JACOBI_HPP
 
 #include <cmath>
 #include <cstdio>
@@ -41,7 +31,6 @@
 #include "../shared/types.hpp"
 using namespace graphlab;
 
-#include <graphlab/macros_def.hpp>
 
 bool debug = false;
 int max_iter = 50;
@@ -264,6 +253,7 @@ int main(int argc,  char *argv[]) {
   }
  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
+  std::cout << "Number of updates: " << core.last_update_count() << " per node: " << ((double)core.last_update_count())/core.graph().num_vertices() << std::endl;
 
   imat retmat = imat(max_iter+1, 4);
   memset((int*)data(retmat),0,sizeof(int)*retmat.size());
@@ -297,5 +287,3 @@ int main(int argc,  char *argv[]) {
 
 
 
-#include <graphlab/macros_undef.hpp>
-#endif

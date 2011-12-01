@@ -106,15 +106,13 @@ bool load_matrixmarket(const std::string& fname,
   // read Matrix market header
   MM_typecode matcode;
   if(mm_read_banner(fptr, &matcode)) {
-    logstream(LOG_ERROR) << "Unable to read banner" << std::endl;
-    return false;
+    logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
   }
   // Screen header type
   if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
-    logstream(LOG_ERROR) 
+    logstream(LOG_FATAL) 
       << "Sorry, this application does not support matrixmarket type: "
       <<  mm_typecode_to_str(matcode) << std::endl;
-    return false;
   }
   // load the matrix descriptor
   if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
@@ -128,9 +126,8 @@ bool load_matrixmarket(const std::string& fname,
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
     int row = 0, col = 0;  double val = 0;
     if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
-      logstream(LOG_ERROR) 
+      logstream(LOG_FATAL) 
         << "Error reading file on line: " << i << std::endl;
-      return false;
     } --row; --col;
     ASSERT_LT(row, desc.rows);
     ASSERT_LT(col, desc.cols);
@@ -160,19 +157,18 @@ bool load_matrixmarket_graph(const std::string& fname,
   // read Matrix market header
   MM_typecode matcode;
   if(mm_read_banner(fptr, &matcode)) {
-    logstream(LOG_ERROR) << "Unable to read banner" << std::endl;
-    return false;
+    logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
   }
   // Screen header type
   if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
-    logstream(LOG_ERROR) 
+    logstream(LOG_FATAL) 
       << "Sorry, this application does not support matrixmarket type: "
       <<  mm_typecode_to_str(matcode) << std::endl;
     return false;
   }
   // load the matrix descriptor
   if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
-    logstream(LOG_ERROR) << "Error reading dimensions" << std::endl;
+    logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
   }
   std::cout << "Rows:      " << desc.rows << std::endl
             << "Cols:      " << desc.cols << std::endl
