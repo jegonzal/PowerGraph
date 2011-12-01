@@ -46,6 +46,7 @@
 #include <boost/unordered_set.hpp>
 #include <boost/iterator.hpp>
 #include <boost/iterator/counting_iterator.hpp>
+#include <boost/iterator/iterator_facade.hpp>
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -139,17 +140,32 @@ namespace graphlab {
         center(it.center), offset(it.offset), itype(it.itype), 
         empty(it.empty), gstore_ptr(it.gstore_ptr) { }
   
+      // inline edge_type operator*() const  {
+      //   ASSERT_TRUE(!empty);
+      //   return makeValue();
+      // }
 
-      inline edge_type operator*() const {
+      // inline edge_iterator operator->()  {
+      //   return *this;
+      // }
+
+      inline edge_type operator*() const  {
         ASSERT_TRUE(!empty);
         return makeValue();
+      }
+
+      typedef boost::detail::
+      operator_arrow_result<edge_type, edge_type, edge_type*> arrow_type;
+      inline typename arrow_type::type operator->() const {
+        return arrow_type::make(makeValue());
       }
 
 
       inline bool operator==(const edge_iterator& it) const {
         // if (empty && it.empty) return true;
         // if (empty != it.empty) return false;
-        // return (itype == it.itype && center == it.center && offset == it.offset);
+        // return (itype == it.itype && center == it.center && 
+        //         offset == it.offset);
         return !(*this != it);
       }
 
