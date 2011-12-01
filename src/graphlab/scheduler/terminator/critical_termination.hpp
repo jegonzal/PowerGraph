@@ -93,8 +93,7 @@ namespace graphlab {
       if (numactive == 0) {
         done = true;
         cond.broadcast();
-      }
-      else {
+      } else {
         cond.wait(m);
         // here we are protected by the mutex again.
         if (!done) numactive++;

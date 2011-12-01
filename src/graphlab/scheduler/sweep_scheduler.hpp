@@ -40,7 +40,7 @@
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
-
+#include <graphlab/graph/graph_ops.hpp>
 
 
 
@@ -86,9 +86,10 @@ namespace graphlab {
 
     std::vector<vertex_id_type>             index2vid;
     std::vector<vertex_id_type>             cpu2index;
-    vertex_functor_set<update_functor_type>         vfun_set;
+    vertex_functor_set<update_functor_type> vfun_set;
+    double                                  min_priority;
     terminator_type                         term;
-
+   
 
 
   public:
@@ -99,31 +100,63 @@ namespace graphlab {
       rr_index(0),
       index2vid(graph.num_vertices()), 
       cpu2index(ncpus),
-      vfun_set(graph.num_vertices()), term(ncpus) {
-      // Construct the permutation
-      for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
-      std::string ordering = "shuffle";
+      vfun_set(graph.num_vertices()), 
+      min_priority(-std::numeric_limits<double>::max()),
+      term(ncpus) {
+      std::string ordering = "random";
       opts.get_option("ordering", ordering);
-      if (ordering == "shuffle") {
-        logstream(LOG_INFO) 
-          << "Using a random ordering of the vertices." << std::endl;
-        random::shuffle(index2vid);
-      } else if (ordering == "ascending") {
+      if (ordering == "ascending") {
         logstream(LOG_INFO) 
           << "Using an ascending ordering of the vertices." << std::endl;
-      } else {
-        logstream(LOG_WARNING)
-          << "The ordering \"" << ordering << "\" is not supported using default."
-          << std::endl;
+        for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
+      } else if (ordering == "max_degree" || ordering == "min_degree") {
+        logstream(LOG_INFO) 
+          << "Constructing a " << ordering << " sweep ordering." << std::endl;
+        const bool use_max_degree = (ordering == "max_degree");
+        typedef std::pair<int, vertex_id_type> pair_type;
+        std::vector< pair_type > vec(graph.num_vertices());      
+        for(vertex_id_type i = 0; i < vec.size(); ++i) {
+          typedef graph_ops<graph_type> graph_ops;
+          const int degree = graph_ops::num_neighbors(graph, i);
+          vec[i] = use_max_degree? pair_type(-degree,i) : pair_type(degree,i);
+        }
+        std::sort(vec.begin(), vec.end());
+        for(size_t i = 0; i < vec.size(); ++i) index2vid[i] = vec[i].second;
+      } else if (ordering == "color") {
+        logstream(LOG_INFO) 
+          << "Constructing a color based sweep ordering." << std::endl;
+        typedef std::pair<vertex_color_type, vertex_id_type> pair_type;        
+        std::vector< pair_type > vec(graph.num_vertices());      
+        for(vertex_id_type i = 0; i < vec.size(); ++i) 
+          vec[i] = pair_type(graph.color(i), i);
+        std::sort(vec.begin(), vec.end());
+        for(size_t i = 0; i < vec.size(); ++i) index2vid[i] = vec[i].second;
+      } else { // Assume random ordering by default
+        if(ordering != "random") {
+          logstream(LOG_WARNING)
+            << "The ordering \"" << ordering << "\" is not supported using default."
+            << std::endl;
+        }
+        logstream(LOG_INFO) 
+          << "Using a random ordering of the vertices." << std::endl;
+        for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
+        random::shuffle(index2vid);
       }
+      // Initialize the cpu2index counters
+      for(size_t i = 0; i < cpu2index.size(); ++i)  cpu2index[i] = i;
+
       opts.get_option("strict", strict_round_robin);
       if(strict_round_robin) {
         logstream(LOG_INFO) 
           << "Using a strict round robin schedule." << std::endl;
       } 
-      // Initialize the cpu2index counters
-      for(size_t i = 0; i < cpu2index.size(); ++i) 
-        cpu2index[i] = i;
+      // Get Min priority
+      const bool is_set = opts.get_option("min_priority", min_priority);
+      if(is_set) {
+        logstream(LOG_INFO) 
+          << "The minimum scheduling priority was set to " 
+          << min_priority << std::endl;
+      }
     }
         
    
@@ -155,8 +188,15 @@ namespace graphlab {
         ASSERT_LT(idx, nverts);
         const vertex_id_type vid = index2vid[idx];
         const bool success = vfun_set.test_and_get(vid, ret_fun);
-        if(success) { ret_vid = vid; return sched_status::NEW_TASK; }
-      }
+        if(success) { // Job found now decide whether to keep it
+          if(ret_fun.priority() >= min_priority) {
+            ret_vid = vid; return sched_status::NEW_TASK;
+          } else {
+            // Priority is insufficient so return to the schedule
+            schedule(cpuid, ret_vid, ret_fun);
+          } 
+        }
+      } // end of for loop
       return sched_status::EMPTY;
     } // end of get_next
     
@@ -172,10 +212,13 @@ namespace graphlab {
 
 
     static void print_options_help(std::ostream &out) {
-      out << "ordering = [string: {shuffle, ascending}, vertex ordering, " 
-        "default=shuffle]\n"
-          << "strict = [bool, use strict round robin schedule, default=shuffle]\n";
-    };
+      out << "ordering = [string: {random, ascending, max_degree, min_degree, color}, "
+          << "\t vertex ordering, default=random]\n"
+          << "strict = [bool, use strict round robin schedule, default=false]\n"
+          << "min_priority = [double, minimum priority required to run an \n"
+          <<"\t update functor, default = -infinity]\n";
+    } // end of print_options_help
+
   }; 
   
   
