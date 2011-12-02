@@ -40,7 +40,8 @@ void normalize_graph(graph_type& graph) {
   graph.finalize();
   logstream(LOG_INFO)
     << "Coloring the graph." << std::endl;
-  graphlab::graph_ops<graph_type>::color(graph);
+  const size_t ncolors = graphlab::graph_ops<graph_type>::color(graph);
+  std::cout << "Ncolors: " << ncolors << std::endl;
   logstream(LOG_INFO)
     << "Renormalizing transition probabilities." << std::endl;
   typedef graph_type::vertex_id_type vertex_id_type;
@@ -66,11 +67,11 @@ int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts
-    ("Make atoms file for distribute pagerank", false);
+    ("Make atoms file for distribute pagerank", true);
   std::string graph_file;
   std::string format = "snap";
   std::string part_file;
-  std::string idx_fname = "pagerank.idx";
+  std::string idx_fname = "pagerank";
   size_t nparts = 64;
 
   clopts.attach_option("graph", &graph_file, graph_file,
@@ -119,7 +120,7 @@ int main(int argc, char** argv) {
     fin.close();
   }
   graphlab::disk_graph<vertex_data, edge_data> 
-    dg("demograph", nparts,
+    dg(idx_fname, nparts,
        graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
   dg.create_from_graph(graph, parts);
 

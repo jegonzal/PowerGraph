@@ -158,9 +158,10 @@ struct update_functor :
   size_t num_red_neighbors;
   bool _is_deterministic;
   bool _color_changed;
-  update_functor() {
-    num_red_neighbors = 0;
-  }
+  update_functor() : 
+    num_red_neighbors(0), _is_deterministic(false), 
+    _color_changed(false) { }
+
   
   void operator()(icontext_type& context) {
     //context.vertex_data allows me to grab a reference to the vertex

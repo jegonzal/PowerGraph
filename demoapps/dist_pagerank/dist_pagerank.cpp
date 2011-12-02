@@ -175,7 +175,7 @@ public:
     std::cout << "Pageranks ----------------------------------" << std::endl;
     for( ; !topk.empty(); topk.pop()) 
       std::cout << std::setw(10) << topk.top().second << ":\t"
-                << std::setw(10) << topk.top().first << std::endl;
+                << std::setw(10) << -topk.top().first << std::endl;
     std::cout << "Total rank: " << total_rank << std::endl;
   }
   void save(graphlab::oarchive &oarc) const {
