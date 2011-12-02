@@ -111,6 +111,15 @@ void problem_setup::verify_setup(){
       break;
 
 
+   case SVD_EXPERIMENTAL:
+     output_comment3 = output_assignements_comment;
+     output_comment4 = output_assignements_comment;
+     V_comment += std::string("%%This file contains the matrix V which is received by [U,D,V']=svd(A)\n");
+     U_comment += std::string("%%This file contains the matrix U which is received by [U,D,V']=svd(A)\n");
+     output_comment3 += std::string("%%This file contains the eigenvectors of AA'\n");
+     output_comment4 += std::string("%%This file contains the eigenvectors of A'A\n");
+      break;
+
    default:
       break;
    };

@@ -120,7 +120,7 @@ inline fmat fzeros(int rows, int cols){
 }
 inline void debug_print_vec(const char * name,const fvec& _vec, int len){
   printf("%s ) ", name);
-  for (int i=0; i< len; i++)
+  for (int i=0; i< std::min(len,_vec.size()); i++)
     if (_vec(i) == 0)
       printf("      0    ");
     else printf("%12.4f    ", _vec(i));
@@ -700,7 +700,7 @@ inline fvec frandu(int size){
 
 inline void debug_print_vec(const char * name,const fvec& _vec, int len){
   printf("%s ) ", name);
-  for (int i=0; i< len; i++)
+  for (int i=0; i< std::min(len,_vec.size()); i++)
     if (_vec[i] == 0)
       printf("      0    ");
     else printf("%12.4f    ", _vec[i]);

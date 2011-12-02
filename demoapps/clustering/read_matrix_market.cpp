@@ -238,51 +238,84 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
       compact(_g);
 }
 
-void save_matrix_market_format(const char * filename)
-{
+void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std::string comment, bool integer){
     MM_typecode matcode;                        
     int i,j;
 
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
     mm_set_coordinate(&matcode);
-    mm_set_real(&matcode);
+    if (!integer)
+       mm_set_real(&matcode);
+    else
+       mm_set_integer(&matcode);
 
-    FILE * f = open_file((std::string(filename) + ".clusters.mtx").c_str(),"w");
+    FILE * f = open_file(filename,"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
-    if (ps.output_clusters_comment.size() > 0)
-      fprintf(f, "%s%s", "%", ps.output_clusters_comment.c_str());
-    
-     mm_write_mtx_crd_size(f, ps.output_clusters.rows(), ps.output_clusters.cols(), ps.output_clusters.size());
+    if (comment.size() > 0)
+      fprintf(f, "%s%s", "%", comment.c_str());
+     mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
 
-    for (i=0; i<ps.output_clusters.rows(); i++)
-       for (j=0; j<ps.output_clusters.cols(); j++)
-          //if (get_val(ps.output_clusters,i,j) != 0)
-             fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_clusters,i,j));
+    for (i=0; i<a.rows(); i++){
+       for (j=0; j<a.cols(); j++){
+          if (get_val(a,i,j) != 0){
+             if (integer)
+               fprintf(f, "%d %d %d\n", i+1, j+1, (int)get_val(a,i,j));
+             else  fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(a,i,j)); 
+             
+          }
+       }
+    }
+    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
 
-    fclose(f);
-    logstream(LOG_INFO)<<"Writing output to sparse matrix market file " << filename <<".clusters.mtx" << ". You can read it in Matlab/octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
-    f = fopen((std::string(filename) + ".assignments.mtx").c_str(),"w");
-    assert(f != NULL);
-    mm_write_banner(f, matcode); 
-    if (ps.output_assignements_comment.size() > 0)
-       fprintf(f, "%s%s", "%", ps.output_assignements_comment.c_str());
-
-    int rows = ps.output_assignements.rows();
-    int cols = ps.output_assignements.cols();
-
-    mm_write_mtx_crd_size(f, rows, cols, rows*cols);
-
-    for (i=0; i< rows; i++)
-    for (j=0; j< cols; j++)
-        //if (get_val(ps.output_assignements,i,j) != 0)
-        if (ps.output_assignements_integer)
-          fprintf(f, "%d %d %d\n", i+1, j+1, (int)get_val(ps.output_assignements,i,j));
-        else fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(ps.output_assignements,i,j));
-
-    fclose(f);
-    logstream(LOG_INFO)<<"Writing output to sparse matrix market file " << filename <<".assignments.mtx" << ". You can read it in Matlab/octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
- 
 }
+
+void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std::string comment, bool integer){
+    MM_typecode matcode;                        
+    int i;
+
+    mm_initialize_typecode(&matcode);
+    mm_set_matrix(&matcode);
+    mm_set_coordinate(&matcode);
+    if (!integer)
+      mm_set_real(&matcode);
+    else
+      mm_set_integer(&matcode);
+
+    FILE * f = open_file(filename,"w");
+    assert(f != NULL);
+    mm_write_banner(f, matcode); 
+    if (comment.size() > 0)
+      fprintf(f, "%s%s", "%", comment.c_str());
+     mm_write_mtx_crd_size(f, a.size(), 1, a.size());
+
+    for (i=0; i<a.size(); i++){
+        if (integer)
+          fprintf(f, "%d %d %d\n", i+1, 1, (int)a[i]);
+        else fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
+    }
+
+    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
+}
+
+
+
+void save_matrix_market_format(const char * filename)
+{
+    if (ps.algorithm != SVD_EXPERIMENTAL){
+      save_matrix_market_matrix((std::string(filename) + ".clusters.mtx").c_str(),ps.output_clusters,ps.output_clusters_comment, false);
+      save_matrix_market_matrix((std::string(filename) + ".assignments.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer);
+    }
+    else {
+      save_matrix_market_matrix((std::string(filename) + ".V").c_str(),ps.V, ps.V_comment,false); /* for conforming to wikipedia convention, I swap U and V*/
+      save_matrix_market_matrix((std::string(filename) + ".U").c_str(),ps.U, ps.U_comment,false);
+      
+      save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0),ps.output_comment3, false);
+      save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1),ps.output_comment4, false);
+    }
+}
+
 

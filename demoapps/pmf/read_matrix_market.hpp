@@ -152,7 +152,8 @@ void save_matrix_market_matrix(const char * filename, const mat & a){
           if (get_val(a,i,j) != 0)
                fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(a,i,j));
     
-    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
 
 }
 
@@ -174,7 +175,8 @@ void save_matrix_market_vector(const char * filename, const vec & a){
           if (a[i] > 0)
                fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
 
-    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
 }
 
 

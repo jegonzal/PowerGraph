@@ -203,9 +203,13 @@ public:
   
   flt_dbl_mat output_clusters;
   flt_dbl_mat output_assignements;
+  flt_dbl_mat V,U;
   bool output_assignements_integer;
+
+  //explanatory comments to write into output files
   std::string output_assignements_comment;
   std::string output_clusters_comment;
+  std::string V_comment, U_comment, output_comment3, output_comment4;
 
   flt_dbl_mat T; //for SVD_experimental
   int total_assigned;

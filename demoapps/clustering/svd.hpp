@@ -612,7 +612,7 @@ vec calc_eigenvalues(mat & T, bool other_side){
  flt_dbl_mat V = calc_V(other_side,mat2fmat(eigenvectors));    
 
  if (!ac.reduce_mem_consumption)
-     (other_side ? ps.output_clusters : ps.output_assignements) = V;
+     (other_side ? ps.U : ps.V) = V;
 
  if (ac.debug && V.size() < 1000)
      cout<<"V is: " << V << endl;
