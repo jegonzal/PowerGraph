@@ -238,11 +238,13 @@ int main(int argc,  char *argv[]) {
 
   graphlab::timer mytimer; mytimer.start();
 
+  int pass = 0;
   for (iiter=1; iiter< max_iter+1; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
     while(true){
       int prev_nodes = active_nodes_num[iiter];
       core.sync_now("sync");
+      pass++;
       int cur_nodes = active_nodes_num[iiter];
       if (prev_nodes == cur_nodes)
         break; 
@@ -252,7 +254,7 @@ int main(int argc,  char *argv[]) {
   }
  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
-
+  std::cout << "Number of updates: " << pass*core.graph().num_vertices() << " pass: " << pass << std::endl;
   imat retmat = imat(max_iter+1, 4);
   memset((int*)data(retmat),0,sizeof(int)*retmat.size());
 

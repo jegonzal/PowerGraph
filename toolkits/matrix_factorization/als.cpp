@@ -45,7 +45,7 @@
 typedef Eigen::MatrixXd mat;
 typedef Eigen::VectorXd vec;
 int max_iter = 10;
-
+bool debug = false;
 
 
 
@@ -88,6 +88,10 @@ public:
   void operator+=(const als_update& other) { residual += other.residual; }
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
+    if (debug)
+      std::cout<<"Entering node" << context.vertex_id() << std::endl << "Latest is: " 
+               << vdata.latent << std::endl;
+
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     const edge_list_type out_edges = context.out_edges();
     const edge_list_type in_edges  = context.in_edges();
@@ -116,12 +120,21 @@ public:
           XtX(i,j) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
       }
     }
-    // Add regularization
+
+       // Add regularization
     const double& lambda = context.get_global_const<double>("lambda");
-    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda);
+    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda)*edges.size();
     // Solve the least squares problem using eigen ----------------------------
-    const vec old_latent = vdata.latent;
+   if (debug)
+	std::cout<<"Xtx is: " << XtX << std::endl << "Xty is: " <<Xty << "lambda is: " << std::endl;
+
+
+ const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
+
+    if (debug)
+     std::cout << "Results is: " << vdata.latent << std::endl;
+
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
     for(size_t i = 0; i < nlatent; ++i)
@@ -242,7 +255,7 @@ int main(int argc, char** argv) {
                        "The number of updates between rmse calculations");
   clopts.attach_option("max_iter", 
 		       &max_iter, max_iter, "max number of iterations");
-
+  clopts.attach_option("debug", &debug, debug, "debug (Verbose mode)");
   clopts.set_scheduler_type("sweep");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;

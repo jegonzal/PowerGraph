@@ -191,6 +191,7 @@ bool load_graph(const std::string& fname,
   return false;
 } // end of load graph
 
+extern bool debug;
 
 template<typename Graph>
 void initialize_vertex_data(const size_t nlatent, Graph& graph) {
@@ -202,7 +203,7 @@ void initialize_vertex_data(const size_t nlatent, Graph& graph) {
     vertex_data_type& vdata = graph.vertex_data(vid);
     vdata.latent.resize(nlatent);
     for(size_t i = 0; i < nlatent; ++i) 
-      vdata.latent(i) = graphlab::random::gaussian();
+      vdata.latent(i) = debug? 0.1: graphlab::random::gaussian();
   } 
 } // end of initialize vertex data
 
