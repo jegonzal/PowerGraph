@@ -180,13 +180,22 @@ void last_iter(){
   else if (ps.algorithm == K_MEANS_FUZZY)
     calc_cluster_centers();
  
-  double cost = calc_cost();
+  ps.cost = calc_cost();
+  //store initial non zero cost
+  if (ps.cost > 0 && ps.first_cost == 0)
+    ps.first_cost = ps.cost;
+
   printf("%g) Iter %s %d  Cost=%g Normalized cost=%g\n",
         ps.gt.current_time(), 
 	runmodesname[ps.algorithm], 
 	ps.iiter,
-        cost, 
-	cost/ps.M);
+        ps.cost, 
+	ps.cost/ps.M);
+  if ((ps.first_cost >  0) && fabs(ps.last_cost - ps.cost) / ps.first_cost < ac.threshold){
+    logstream(LOG_INFO) << "Algorithm converged in iteration " << ps.iiter << std::endl;
+    ac.iter == ps.iiter;
+  }
+  ps.last_cost = ps.cost;
   ps.iiter++;
 
 }

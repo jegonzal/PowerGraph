@@ -190,7 +190,8 @@ public:
   clusters clusts;
 
   double cost;
-
+  double last_cost;
+  double first_cost;
 //performance counters
 #define MAX_COUNTER 20
   double counter[MAX_COUNTER];
@@ -248,7 +249,7 @@ public:
   g_kcores = NULL;
   glcore_kcores = NULL;
   total_assigned = 0;
-  cost = 0;
+  cost = last_cost = first_cost = 0;
 }
 
   void verify_setup();
