@@ -44,8 +44,12 @@ int main(int argc, char** argv) {
     std::vector<bool> drop(graph.num_vertices(), false);
     graph2.resize(graph.num_vertices());
     std::cout << "Counting degree" << std::endl;
-    for(size_t i = 0; i < graph.num_vertices(); ++i) 
+    size_t drop_count = 0;
+    for(size_t i = 0; i < graph.num_vertices(); ++i) { 
       drop[i] = graph_ops::num_neighbors(graph, i) >  threshold;
+      drop_count += drop[i];
+    }
+    std::cout << "Dropping: " << drop_count << std::endl;
     std::cout << "Building second graph" << std::endl;
     for(size_t i = 0; i < graph.num_vertices(); ++i) {
       const graph_type::edge_list_type out_edges = graph.out_edges(i);
