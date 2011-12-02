@@ -90,7 +90,7 @@ namespace graphlab {
     distributed_core(distributed_control &dc, std::string atomindex,
                      disk_graph_atom_type::atom_type atomtype = disk_graph_atom_type::WRITE_ONLY_ATOM) :
       dc(dc),
-      mgraph(dc, atomindex, false, false, atomtype),
+      mgraph(dc, atomindex, false, true, atomtype),
       mengine(NULL){ }
   private:
     //! Core is not copyable

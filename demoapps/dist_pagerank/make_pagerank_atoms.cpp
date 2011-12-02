@@ -109,13 +109,17 @@ int main(int argc, char** argv) {
   
   // call init_graph to create the graph
   std::vector<graphlab::graph_partitioner::part_id_type> parts(graph.num_vertices());
-  if(!part_file.empty()) {
+  
+  if(part_file.empty()) {
+    std::cout << "Creating random partition" << std::endl;
     graphlab::graph_partitioner::random_partition(graph, nparts, parts);
   } else {
     std::ifstream fin(part_file.c_str());
     for(size_t i = 0; i < parts.size(); ++i) { 
+      assert(fin.good());
       fin >> parts[i];
       nparts = std::max(nparts, size_t(parts[i]) + 1);
+    
     }
     fin.close();
   }

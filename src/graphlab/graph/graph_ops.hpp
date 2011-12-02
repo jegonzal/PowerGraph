@@ -333,7 +333,7 @@ namespace graphlab {
       std::ifstream fin(fname.c_str());
       if(!fin.good()) return false;
       logstream(LOG_INFO) << "file open successful" << std::endl;
-
+      size_t self_edges = 0;     
       size_t ctr = 0;
       // Loop over the contents
       while(fin.good()) {
@@ -361,7 +361,12 @@ namespace graphlab {
           }
           // Resize the graph if needed
           if(target >= graph.num_vertices()) graph.resize(target + 1);
-          graph.add_edge(source, target);
+    
+          if(source != target) graph.add_edge(source, target);
+          else if(self_edges++ == 0) 
+            logstream(LOG_WARNING) 
+              << "Self edge encountered but not supported!" << std::endl
+              << "\t Further warnings will be surpressed." << std::endl;
         } // end of loop over neighbors
         if (++ctr % 1000000 == 0) 
           logstream(LOG_INFO) 
