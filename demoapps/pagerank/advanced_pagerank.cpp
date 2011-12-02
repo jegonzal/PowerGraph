@@ -224,12 +224,13 @@ int main(int argc, char** argv) {
 
   // Run the PageRank ---------------------------------------------------------
 
+  const double initial_delta = RESET_PROB;
   if(UPDATE_STYLE == DELTA) {
     std::cout << "changing initial data" << std::endl;
     for(size_t vid = 0; vid < core.graph().num_vertices(); ++vid) 
-      core.graph().vertex_data(vid).value = RESET_PROB - 1;   
+      core.graph().vertex_data(vid).value = 0;   
   }
-  const double initial_delta = 1;
+
   core.schedule_all(pagerank_update(initial_delta));
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
