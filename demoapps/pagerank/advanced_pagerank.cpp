@@ -164,22 +164,17 @@ int main(int argc, char** argv) {
   std::string binfname;
   std::string update_type = "basic";
   size_t topk = 5;
-  clopts.attach_option("graph",
-                       &graph_file, graph_file,
+  clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-  clopts.attach_option("format",
-                       &format, format,
+  clopts.attach_option("format", &format, format,
                        "The graph file format: {metis, snap, tsv}");
-  clopts.attach_option("accuracy",
-                       &ACCURACY, ACCURACY,
+  clopts.attach_option("accuracy", &ACCURACY, ACCURACY,
                        "residual termination threshold");
-  clopts.attach_option("resetprob",
-                       &RESET_PROB, RESET_PROB,
+  clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
                        "Random reset probability");
-  clopts.attach_option("type",
-                       &update_type, update_type,
+  clopts.attach_option("type", &update_type, update_type,
                        "The graphlab update type {basic, delta, factorized}");
   clopts.attach_option("topk",
                        &topk, topk,
