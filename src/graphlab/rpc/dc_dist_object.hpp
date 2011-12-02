@@ -88,6 +88,21 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   void inc_calls_received(procid_t p) {
     if (!full_barrier_in_effect) {
         callsreceived[p].inc();
+        if (full_barrier_in_effect) {
+          if (callsreceived[p].inc() == calls_to_receive[p]) {
+            // if it was me who set the bit
+            if (procs_complete.set_bit(p) == false) {
+              // then decrement the incomplete count.
+              // if it was me to decreased it to 0
+              // lock and signal
+              full_barrier_lock.lock();
+              if (num_proc_recvs_incomplete.dec() == 0) {
+                full_barrier_cond.signal();
+              }
+              full_barrier_lock.unlock();
+            }
+          }
+        } 
     }
     else {
       //check the proc I just incremented.
@@ -1061,7 +1076,7 @@ private:
     procs_complete.clear();
     // activate the full barrier
     full_barrier_in_effect = true;
-    __sync_synchronize();
+    __asm("mfence");
     // begin one pass to set all which are already completed
     for (size_t i = 0;i < numprocs(); ++i) {
       if (callsreceived[i].value >= calls_to_receive[i]) {
