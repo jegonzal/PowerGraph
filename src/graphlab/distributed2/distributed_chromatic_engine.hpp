@@ -136,6 +136,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   size_t num_dist_barriers_called;
   bool use_factorized;
   bool no_graph_synchronization;
+  bool no_colors;
   size_t factor_threshold;
   
   // other optimizations
@@ -179,6 +180,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             barrier_time(0.0),
                             use_factorized(false),
                             no_graph_synchronization(false),
+                            no_colors(false),
                             factor_threshold(1000),
                             const_nbr_vertices(true),
                             const_edges(false),
@@ -473,21 +475,37 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
 
 
     std::vector<std::vector<std::pair<size_t, vertex_id_type> > > color_block_and_weight;
-    const size_t num_colors(graph.recompute_num_colors());
-    // the list of vertices for each color
-    color_block_and_weight.resize(num_colors);
-    foreach(vertex_id_type v, graph.owned_vertices()) {
-      color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(graph.globalvid_to_replicas(v).size(), 
-                                              graph.globalvid_to_localvid(v)));
-    }
+    const size_t num_colors(no_colors ? 1 : graph.recompute_num_colors());
+    if (no_colors) {
+      color_block_and_weight.resize(num_colors);
+      foreach(vertex_id_type v, graph.owned_vertices()) {
+        color_block_and_weight[0].push_back(
+                                      std::make_pair(graph.globalvid_to_replicas(v).size(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
 
-  foreach(vertex_id_type v, graph.ghost_vertices()) {
-      color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(std::numeric_limits<size_t>::max(), 
-                                              graph.globalvid_to_localvid(v)));
+    foreach(vertex_id_type v, graph.ghost_vertices()) {
+        color_block_and_weight[0].push_back(
+                                      std::make_pair(std::numeric_limits<size_t>::max(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
     }
+    else {
+      // the list of vertices for each color
+      color_block_and_weight.resize(num_colors);
+      foreach(vertex_id_type v, graph.owned_vertices()) {
+        color_block_and_weight[graph.get_color(v)].push_back(
+                                      std::make_pair(graph.globalvid_to_replicas(v).size(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
 
+      foreach(vertex_id_type v, graph.ghost_vertices()) {
+        color_block_and_weight[graph.get_color(v)].push_back(
+                                      std::make_pair(std::numeric_limits<size_t>::max(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
+    }
+    
     color_block.clear();
     color_block.resize(num_colors);
     if (randomize_schedule) {
@@ -1375,6 +1393,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     out << "use_factorized = [integer, default = 0]\n";
     out << "factor_threshold = [integer, default = 1000]. \n";
     out << "no_graph_synchronization = [boolean, default = 0]. \n";
+    out << "no_colors = [boolean, default = 0]. \n";
     out << "   Vertices with higher degree than factor_threshold will not use\n";
     out << "   distributed factorized updates\n";
   };
