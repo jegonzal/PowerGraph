@@ -377,6 +377,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     typename boost::unordered_map<vertex_id_type, update_functor_type>::const_iterator iter = tasks.begin();
     while(iter != tasks.end()) {
       schedule_impl(iter->first, iter->second);
+      ++iter;
     }
     consensus.cancel();
   }
