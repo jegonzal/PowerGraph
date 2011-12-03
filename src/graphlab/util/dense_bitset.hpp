@@ -176,11 +176,11 @@ namespace graphlab {
     }
 
     struct bit_pos_iterator {
-      typedef std::forward_iterator_tag iterator_category;
+      typedef std::input_iterator_tag iterator_category;
       typedef uint32_t value_type;
       typedef uint32_t difference_type;
+      typedef const uint32_t reference;
       typedef const uint32_t* pointer;
-      typedef const uint32_t& reference;
       uint32_t pos;
       const dense_bitset* db;
       bit_pos_iterator():pos(-1),db(NULL) {}
@@ -458,11 +458,11 @@ namespace graphlab {
 
 
     struct bit_pos_iterator {
-      typedef std::forward_iterator_tag iterator_category;
+      typedef std::input_iterator_tag iterator_category;
       typedef uint32_t value_type;
       typedef uint32_t difference_type;
+      typedef const uint32_t reference;
       typedef const uint32_t* pointer;
-      typedef const uint32_t& reference;
       uint32_t pos;
       const fixed_dense_bitset* db;
       bit_pos_iterator():pos(-1),db(NULL) {}

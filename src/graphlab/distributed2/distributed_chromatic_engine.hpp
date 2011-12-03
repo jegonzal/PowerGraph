@@ -117,6 +117,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   
   /** If dynamic scheduling is used, the number of scheduled tasks */
   atomic<size_t> num_pending_tasks;
+  atomic<size_t> num_cached_tasks;
   
   
   /** The cause of the last termination condition */
@@ -285,40 +286,45 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   
   void schedule_from_context(const vertex_id_type vid, 
                              const update_functor_type& fun) {
-    vfun_cacheset.add(graph.globalvid_to_localvid(vid), fun);
+    if (vfun_cacheset.add(graph.globalvid_to_localvid(vid), fun)) {
+      num_cached_tasks.inc();
+    }
+    
   }
   
   
-  void synchronize_vfun_cache() {
-    // commit local changes
-#pragma omp parallel for
-    for (ssize_t i = 0;i < (ssize_t)graph.local_vertices(); ++i) {
-      update_functor_type uf;
-      // once again, local VIDs are sequential and at the start
-      bool hasf = vfun_cacheset.test_and_get((vertex_id_type)(i), uf);
-      if (hasf && vfunset.add((vertex_id_type)(i), uf)) {
-        num_pending_tasks.inc();
-      }      
-    }
-    
+   
+
+  
+  void synchronize_vfun_cache(std::vector<vertex_id_type> &nextschedule) {
     std::vector<
         std::vector<
             std::pair<vertex_id_type, update_functor_type> > > remote_schedules;
 
     remote_schedules.resize(rmi.numprocs());
     std::vector<mutex> schedulelock(rmi.numprocs());
-    // commit remote changes
+    
 #pragma omp parallel for
-    for (ssize_t i = graph.local_vertices();
-         i < (ssize_t)graph.get_local_store().num_vertices(); ++i) {
+    for (size_t idx = 0; idx < nextschedule.size(); ++idx) {
+      // commit local changes
+      vertex_id_type i = nextschedule[idx];
+      
       update_functor_type uf;
-      bool hasf = vfun_cacheset.test_and_get((vertex_id_type)(i), uf);
+      bool hasf = vfun_cacheset.test_and_get(i, uf);
       if (hasf) {
-        procid_t owner = graph.localvid_to_owner((vertex_id_type)(i));
-        schedulelock[owner].lock();
-        remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid((vertex_id_type)(i)), 
-                                                          uf));
-        schedulelock[owner].unlock();
+        num_cached_tasks.dec();
+        if (i < graph.local_vertices()) {
+          if (vfunset.add((vertex_id_type)(i), uf)) {
+            num_pending_tasks.inc();
+          }      
+        }
+        else {
+          procid_t owner = graph.localvid_to_owner((vertex_id_type)(i));
+          schedulelock[owner].lock();
+          remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid(i), 
+                                                            uf));
+          schedulelock[owner].unlock();
+        }
       }
     }
     
@@ -461,6 +467,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     // number of replicas for that vertex.
     // the number of replicas - 1 is the amount of communication
     // we have to perform to synchronize modifications to that vertex
+    // color blocks include ghosts
 
 
     std::vector<std::vector<std::pair<size_t, vertex_id_type> > > color_block_and_weight;
@@ -472,14 +479,13 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                                     std::make_pair(graph.globalvid_to_replicas(v).size(), 
                                               graph.globalvid_to_localvid(v)));
     }
-    // add my ghosts to the color if factorized
-    if (use_factorized) {
-      foreach(vertex_id_type v, graph.ghost_vertices()) {
-        color_block_and_weight[graph.get_color(v)].push_back(
-                                      std::make_pair(1, 
-                                                graph.globalvid_to_localvid(v)));
-      }
+
+  foreach(vertex_id_type v, graph.ghost_vertices()) {
+      color_block_and_weight[graph.get_color(v)].push_back(
+                                    std::make_pair(std::numeric_limits<size_t>::max(), 
+                                              graph.globalvid_to_localvid(v)));
     }
+
     color_block.clear();
     color_block.resize(num_colors);
     if (randomize_schedule) {
@@ -497,15 +503,16 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                   color_block_and_weight[i].rend());
       }
     }
-
+    std::cout << color_block_and_weight.size() << " colors\n";
     // insert the sorted vertices into the final color_block
     for (size_t i = 0;i < color_block_and_weight.size(); ++i ) {  
+      std::cout << color_block_and_weight[i].size()<< " ";
       std::transform(color_block_and_weight[i].begin(),
                     color_block_and_weight[i].end(), 
                     std::back_inserter(color_block[i]),
                     __gnu_cxx::select2nd<std::pair<size_t, vertex_id_type> >());
     }
-    
+    std::cout << "\n";
   }
   
   /************  Actual Execution Engine ****************/
@@ -618,7 +625,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     termination_test.resize(rmi.numprocs());
     
     if (check_dynamic_schedule) {
-      termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value;
+      termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value + num_cached_tasks.value;
     }
 
     size_t numupdates = 0;
@@ -679,7 +686,6 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     // create the scope
     dgraph_context<engine_type> context(this, &graph, &shared_data);
     timer ti;
-
     // loop over iterations
     size_t iter = 0;
     bool usestatic = max_iterations > 0;
@@ -698,6 +704,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
           size_t i = curidx.inc_ret_last();  
           // if index out of scope, we are done with this color. break
           if (i >= color_block[c].size()) break;
+          if (color_block[c][i] >= graph.local_vertices()) continue;
           // otherwise, get the local and globalvid
           vertex_id_type localvid = color_block[c][i];
           vertex_id_type globalvid = graph.localvid_to_globalvid(color_block[c][i]);
@@ -740,7 +747,8 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
         // this will complete synchronization of all add tasks as well
         if (threadid == 0) {
           ti.start();
-          synchronize_vfun_cache();          
+          synchronize_vfun_cache(color_block[(c + 1) % color_block.size()]);
+
           graph.wait_for_all_async_syncs();
           // TODO! If synchronize() calls were made then this barrier is necessary
           // but the time needed to figure out if a synchronize call is required 
@@ -930,9 +938,9 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
         if (hasf) {
           ++num_owned_factorized_updates;
           vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
-//            std::cout << rmi.procid() << ": Planning : " << globalvid 
-//                    << ". color = " << graph.color(globalvid) << " " 
-//                      << graph.localvid_to_replicas(localvid).popcount() << " nodes" << std::endl;
+/*            std::cout << rmi.procid() << ": Planning : " << globalvid 
+                    << ". color = " << graph.color(globalvid) << " " 
+                      << graph.localvid_to_replicas(localvid).popcount() << " nodes" << std::endl;*/
           foreach(procid_t rep, graph.localvid_to_replicas(localvid)) {
             if (rep != rmi.procid()) {
               remote_schedules[rep].push_back(std::make_pair(globalvid, uf));
@@ -959,8 +967,8 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                                      std::pair<vertex_id_type, 
                                              update_functor_type> >& tasks) {
     for (size_t i = 0;i < tasks.size(); ++i) {
-//      std::cout << rmi.procid() << ": Adding fact. task: " 
-//                << tasks[i].first << " color = " << graph.color(tasks[i].first) << std::endl;
+/*      std::cout << rmi.procid() << ": Adding fact. task: " 
+                << tasks[i].first << " color = " << graph.color(tasks[i].first) << std::endl;*/
       
       if (vfunset.add(graph.globalvid_to_localvid(tasks[i].first), tasks[i].second)) {
         num_pending_tasks.inc();
@@ -1103,7 +1111,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       for (size_t c = 0;c < color_block.size(); ++c) {
         if (threadid == 0) {
           reset_gather_receive_structures();
-          synchronize_vfun_cache();
+          synchronize_vfun_cache(color_block[c]);
           rmi.full_barrier();
           pending_factorized_updates = plan_factorized_schedule(color_block[c]);
           rmi.full_barrier();
@@ -1177,7 +1185,6 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
           // but the time needed to figure out if a synchronize call is required 
           // could be as long as the barrier itself
           if (const_nbr_vertices == false || const_edges == false)  rmi.dc().barrier();
-          rmi.dc().full_barrier();
           num_dist_barriers_called++;
 
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
@@ -1246,7 +1253,11 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       vfun_cacheset = vfunset;
       vfunset.clear_unsync();
       infer_vertex_seperator_set();
+      num_cached_tasks.value = num_pending_tasks.value;
       num_pending_tasks.value = 0;
+    }
+    else {
+      num_cached_tasks.value = 0;
     }
     // two full barrers to complete flush replies
     rmi.dc().full_barrier();

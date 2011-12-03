@@ -1331,12 +1331,13 @@ namespace graphlab {
         max_color = std::max(max_color, localstore.color(i));
       }
       std::vector<vertex_color_type> proc2colors(rmi.numprocs());
-      proc2colors[rmi.procid()] = max_color +1;
+      proc2colors[rmi.procid()] = max_color;
       rmi.all_gather(proc2colors);
       numcolors = 0;
-      for(size_t i = 0; i < proc2colors.size(); ++i)  
-        numcolors += proc2colors[i];
-      return numcolors;
+      for(size_t i = 0; i < proc2colors.size(); ++i) {
+        numcolors = std::max<size_t>(numcolors, proc2colors[i]);
+      }
+      return numcolors + 1;
     }
 
     /**
