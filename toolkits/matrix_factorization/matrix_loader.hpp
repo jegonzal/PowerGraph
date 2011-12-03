@@ -28,7 +28,7 @@
 #include <omp.h>
 #include <vector>
 
-
+#include "../shared/mathlayer.hpp"
 #include "matrixmarket/mmio.h"
 
 #include <graphlab.hpp>
@@ -201,10 +201,8 @@ void initialize_vertex_data(const size_t nlatent, Graph& graph) {
   for(ssize_t vid = 0; vid < ssize_t(graph.num_vertices()); ++vid) {
     // Randomly initialize the vertex data
     vertex_data_type& vdata = graph.vertex_data(vid);
-    vdata.latent.resize(nlatent);
-    for(size_t i = 0; i < nlatent; ++i) 
-      vdata.latent(i) = debug? 0.1: graphlab::random::gaussian();
-  } 
+      vdata.latent = (debug?ones(nlatent) : randu(nlatent));
+   }
 } // end of initialize vertex data
 
 
