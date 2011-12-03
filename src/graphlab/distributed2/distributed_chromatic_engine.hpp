@@ -1374,6 +1374,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     opts.engine_args.get_option("use_factorized", use_factorized);
     opts.engine_args.get_option("no_graph_synchronization", no_graph_synchronization);
     opts.engine_args.get_option("factor_threshold", factor_threshold);
+    opts.engine_args.get_option("no_colors", no_colors);
     rmi.barrier();
   }
 
