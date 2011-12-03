@@ -205,7 +205,7 @@ namespace graphlab {
             ret_vid = vid; return sched_status::NEW_TASK;
           } else {
             // Priority is insufficient so return to the schedule
-            schedule(cpuid, ret_vid, ret_fun);
+            schedule(cpuid, vid, ret_fun);
           } 
         }
       } // end of for loop
