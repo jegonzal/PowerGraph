@@ -25,25 +25,14 @@
 
 
 
-#include <Eigen/Dense>
-#include <Eigen/Cholesky>
-#include <Eigen/Eigenvalues>
-
-
 #include <graphlab.hpp>
 
+#include "../shared/mathlayer.hpp"
 #include "matrix_loader.hpp"
-
-
-
-
-
 #include <graphlab/macros_def.hpp>
 /**
  * Define linear algbebra types
  */
-typedef Eigen::MatrixXd mat;
-typedef Eigen::VectorXd vec;
 int max_iter = 10;
 bool debug = false;
 
@@ -126,14 +115,14 @@ public:
     for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda)*edges.size();
     // Solve the least squares problem using eigen ----------------------------
    if (debug)
-	std::cout<<"Xtx is: " << XtX << std::endl << "Xty is: " <<Xty << "lambda is: " << std::endl;
+	std::cout<<"Xtx is: " << XtX << std::endl << "Xty is: " <<Xty << "lambda is: " << lambda << std::endl;
 
 
  const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
 
     if (debug)
-     std::cout << "Results is: " << vdata.latent << std::endl;
+     std::cout << "Result is: " << vdata.latent << std::endl;
 
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
@@ -149,17 +138,16 @@ public:
         is_in_edges? edge.source() : edge.target();
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
       const edge_data& edata = context.const_edge_data(edge);
-      const double pred = vdata.latent.dot(neighbor.latent);
+      const double pred = dot_prod(old_latent,neighbor.latent);
       const double error = std::fabs(edata.observation - pred);
       vdata.squared_error += error*error;
       // Reschedule neighbors ------------------------------------------------
-      //if( error > tolerance && vdata.residual > tolerance) 
-      //  context.schedule(neighbor_id, als_update(residual));
+      if( error > tolerance && vdata.residual > tolerance) 
+        context.schedule(neighbor_id, als_update(residual));
     }
-    context.schedule(context.vertex_id(), als_update());
+    //context.schedule(context.vertex_id(), als_update(1000));
   } // end of operator()
 }; // end of class user_movie_nodes_update_function
-
 
 
 
@@ -214,7 +202,6 @@ public:
 
 
 
-
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_DEBUG);
   global_logger().set_log_to_console(true);
@@ -256,7 +243,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("max_iter", 
 		       &max_iter, max_iter, "max number of iterations");
   clopts.attach_option("debug", &debug, debug, "debug (Verbose mode)");
-  clopts.set_scheduler_type("sweep");
+  //clopts.set_scheduler_type("sweep");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
