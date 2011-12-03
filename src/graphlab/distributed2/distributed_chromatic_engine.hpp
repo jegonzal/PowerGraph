@@ -135,6 +135,8 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   double barrier_time;
   size_t num_dist_barriers_called;
   bool use_factorized;
+  bool no_graph_synchronization;
+  bool no_colors;
   size_t factor_threshold;
   
   // other optimizations
@@ -177,6 +179,8 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             max_iterations(0),
                             barrier_time(0.0),
                             use_factorized(false),
+                            no_graph_synchronization(false),
+                            no_colors(false),
                             factor_threshold(1000),
                             const_nbr_vertices(true),
                             const_edges(false),
@@ -471,21 +475,37 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
 
 
     std::vector<std::vector<std::pair<size_t, vertex_id_type> > > color_block_and_weight;
-    const size_t num_colors(graph.recompute_num_colors());
-    // the list of vertices for each color
-    color_block_and_weight.resize(num_colors);
-    foreach(vertex_id_type v, graph.owned_vertices()) {
-      color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(graph.globalvid_to_replicas(v).size(), 
-                                              graph.globalvid_to_localvid(v)));
-    }
+    const size_t num_colors(no_colors ? 1 : graph.recompute_num_colors());
+    if (no_colors) {
+      color_block_and_weight.resize(num_colors);
+      foreach(vertex_id_type v, graph.owned_vertices()) {
+        color_block_and_weight[0].push_back(
+                                      std::make_pair(graph.globalvid_to_replicas(v).size(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
 
-  foreach(vertex_id_type v, graph.ghost_vertices()) {
-      color_block_and_weight[graph.get_color(v)].push_back(
-                                    std::make_pair(std::numeric_limits<size_t>::max(), 
-                                              graph.globalvid_to_localvid(v)));
+    foreach(vertex_id_type v, graph.ghost_vertices()) {
+        color_block_and_weight[0].push_back(
+                                      std::make_pair(std::numeric_limits<size_t>::max(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
     }
+    else {
+      // the list of vertices for each color
+      color_block_and_weight.resize(num_colors);
+      foreach(vertex_id_type v, graph.owned_vertices()) {
+        color_block_and_weight[graph.get_color(v)].push_back(
+                                      std::make_pair(graph.globalvid_to_replicas(v).size(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
 
+      foreach(vertex_id_type v, graph.ghost_vertices()) {
+        color_block_and_weight[graph.get_color(v)].push_back(
+                                      std::make_pair(std::numeric_limits<size_t>::max(), 
+                                                graph.globalvid_to_localvid(v)));
+      }
+    }
+    
     color_block.clear();
     color_block.resize(num_colors);
     if (randomize_schedule) {
@@ -727,7 +747,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             functor_to_run(context);
             // check if there are tasks to run
             if (hassynctasks) eval_syncs(globalvid, context, threadid);
-            context.commit_async_untracked();
+            if (no_graph_synchronization == false) context.commit_async_untracked();
             update_counts[threadid]++;
           }
           else {
@@ -736,7 +756,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             if (hassynctasks) {
               context.init(globalvid);
               eval_syncs(globalvid, context, threadid);
-              context.commit_async_untracked();
+              if (no_graph_synchronization == false) context.commit_async_untracked();
             }
           }
         }
@@ -749,12 +769,10 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
           ti.start();
           synchronize_vfun_cache(color_block[(c + 1) % color_block.size()]);
 
-          graph.wait_for_all_async_syncs();
-          // TODO! If synchronize() calls were made then this barrier is necessary
-          // but the time needed to figure out if a synchronize call is required 
-          // could be as long as the barrier itself
-          if (const_nbr_vertices == false || const_edges == false)  rmi.dc().barrier();
-          rmi.dc().full_barrier();
+          if (no_graph_synchronization == false) {
+            graph.wait_for_all_async_syncs();
+          }
+          rmi.dc().barrier();
           num_dist_barriers_called++;
 
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
@@ -1147,7 +1165,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
               functor_to_run(context);
               // check if there are tasks to run
               if (hassynctasks) eval_syncs(globalvid, context, threadid);
-              context.commit_async_untracked();
+              if (no_graph_synchronization == false) context.commit_async_untracked();
               update_counts[threadid]++;
             }
             else {
@@ -1162,7 +1180,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             if (hassynctasks && localvid < graph.local_vertices()) {
               context.init(globalvid);
               eval_syncs(globalvid, context, threadid);
-              context.commit_async_untracked();
+              if (no_graph_synchronization == false) context.commit_async_untracked();
             }
           }
         }
@@ -1180,11 +1198,11 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
         // this will complete synchronization of all add tasks as well
         if (threadid == 0) {
           ti.start();
-          graph.wait_for_all_async_syncs();
+          if (no_graph_synchronization == false) graph.wait_for_all_async_syncs();
           // TODO! If synchronize() calls were made then this barrier is necessary
           // but the time needed to figure out if a synchronize call is required 
           // could be as long as the barrier itself
-          if (const_nbr_vertices == false || const_edges == false)  rmi.dc().barrier();
+          rmi.dc().barrier();
           num_dist_barriers_called++;
 
           //std::cout << rmi.procid() << ": Full Barrier at end of color" << std::endl;
@@ -1354,6 +1372,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     opts.engine_args.get_option("max_iterations", max_iterations);
     opts.engine_args.get_option("randomize_schedule", randomize_schedule);
     opts.engine_args.get_option("use_factorized", use_factorized);
+    opts.engine_args.get_option("no_graph_synchronization", no_graph_synchronization);
     opts.engine_args.get_option("factor_threshold", factor_threshold);
     rmi.barrier();
   }
@@ -1373,6 +1392,8 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     out << "randomize_schedule = [integer, default = 0]\n";
     out << "use_factorized = [integer, default = 0]\n";
     out << "factor_threshold = [integer, default = 1000]. \n";
+    out << "no_graph_synchronization = [boolean, default = 0]. \n";
+    out << "no_colors = [boolean, default = 0]. \n";
     out << "   Vertices with higher degree than factor_threshold will not use\n";
     out << "   distributed factorized updates\n";
   };
