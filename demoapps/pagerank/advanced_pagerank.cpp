@@ -176,12 +176,15 @@ int main(int argc, char** argv) {
                        "Random reset probability");
   clopts.attach_option("type", &update_type, update_type,
                        "The graphlab update type {basic, delta, factorized}");
-  clopts.attach_option("topk",
-                       &topk, topk,
+  clopts.attach_option("topk", &topk, topk,
                        "The number of top pages to display at the end.");
-  clopts.attach_option("binfname",
-                       &binfname, binfname,
+  clopts.attach_option("binfname", &binfname, binfname,
                        "Optionally save a binary version of the graph");
+ 
+  std::string vinfo_fname;
+  clopts.attach_option("vinfo", &vinfo_fname, vinfo_fname,
+                       "File containing the vertex info.");
+ 
 
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
@@ -209,6 +212,22 @@ int main(int argc, char** argv) {
       std::cout << "Error in reading file: " << graph_file << std::endl;
     }
     normalize_graph(core.graph());
+  }
+
+  if(!vinfo_fname.empty()) {
+    std::cout << "Coloring the graph." << std::endl;
+    const size_t num_colors = graphlab::graph_ops<graph_type>::    
+      color(core.graph());
+    std::ofstream fout(vinfo_fname.c_str());
+    for(size_t i = 0; i < core.graph().num_vertices(); ++i) 
+      fout 
+        << i << '\t' << core.graph().color(i) << '\t'
+        << core.graph().num_in_edges(i) << '\t'
+        << core.graph().num_out_edges(i) << '\t'
+        << graphlab::graph_ops<graph_type>::
+        num_neighbors(core.graph(), i)
+        << '\n';
+    fout.close();
   }
 
   if(!binfname.empty()) { 
