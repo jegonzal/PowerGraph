@@ -133,26 +133,36 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   
   
   struct update_functor_cache_set{
-    mutex lock;
-    boost::unordered_map<vertex_id_type, update_functor_type> funset;
+    std::vector<mutex> lock;
+    std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > funset;
+    
+    update_functor_cache_set() {
+      lock.resize(64);
+      funset.resize(64);
+    }
+    
     bool add(vertex_id_type vertexid, const update_functor_type &fun) {
       bool ret = false;
-      lock.lock();
-      typename boost::unordered_map<vertex_id_type, update_functor_type>::iterator iter = funset.find(vertexid);
-      if (iter != funset.end()) {
+      size_t lockid = vertexid % 64;
+      lock[lockid].lock();
+      typename boost::unordered_map<vertex_id_type, update_functor_type>::iterator iter = funset[lockid].find(vertexid);
+      if (iter != funset[i].end()) {
         iter->second += fun;
       }
       else {
-        funset[vertexid] = fun;
+        funset[lockid][vertexid] = fun;
         ret = true;
       }
-      lock.unlock();
+      lock[lockid].unlock();
       return ret;
     }
-    void swap(boost::unordered_map<vertex_id_type, update_functor_type> &funset2) {
-      lock.lock();
-      std::swap(funset, funset2);
-      lock.unlock();
+    void swap(std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > &funset2) {
+      funset2.resize(64);
+      for(size_t i = 0;i < 64; ++i) {
+        lock[i].lock();
+        std::swap(funset[i], funset2[i]);
+        lock[i].unlock();
+      }
     }
   };
   
@@ -321,13 +331,15 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   void flush_schedule_cache() {
     for (size_t i = 0;i < vfun_cacheset.size(); ++i) {
       if (i != rmi.procid()) {
-        boost::unordered_map<vertex_id_type, update_functor_type> funs;
+        std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > funs;
         vfun_cacheset[i].swap(funs);
-        if (funs.size() > 0) {
-          num_cached_tasks.dec(funs.size());
-          rmi.remote_call(i,
-                         &distributed_delta_engine<Graph, UpdateFunctor>::schedule_collection,
-                         funs);
+        for (size_t j = 0;j < funs.size(); ++j) {
+          if (funs[j].size() > 0) {
+            num_cached_tasks.dec(funs[j].size());
+            rmi.remote_call(i,
+                          &distributed_delta_engine<Graph, UpdateFunctor>::schedule_collection,
+                          funs[j]);
+          }
         }
       }
     }
