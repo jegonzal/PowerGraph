@@ -116,7 +116,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   size_t task_budget;
   
 
-  size_t flush_frequency;
+  size_t flush_threshold;
   
   /** If dynamic scheduling is used, the number of scheduled tasks */
   atomic<size_t> num_pending_tasks;
@@ -206,7 +206,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
                             start_time(0),
                             force_stop(false),
                             task_budget(0),
-                            flush_frequency(100),
+                            flush_threshold(100),
                             termination_reason(execution_status::UNSET),
                             vfunset(graph.owned_vertices().size()),
                             vfun_cacheset(rmi.numprocs()),
@@ -331,6 +331,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
       typename boost::unordered_map<vertex_id_type, update_functor_type>::const_iterator iter = src[i].begin();
       while (iter != src[i].end()) {
         target[iter->first] += iter->second;
+        ++iter;
       }
     }
   }
@@ -586,6 +587,8 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     }
   }
 
+
+
   /** Checks all machines for termination and sets the termination reason.
       Also returns the number of update tasks completed globally */
   size_t check_global_termination() {
@@ -647,13 +650,18 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     termination_reason = (execution_status::status_enum)(reason_and_task.first);
     return reason_and_task.second;
   }
- 
+
+
+
+
+  mutex schedule_flush_blocker; // allows only 1 thread into schedule flush
+  double last_flush;
+  timer flush_timer;
   void start_thread(size_t threadid) {
     // create the scope
     dgraph_context<engine_type> context(this, &graph, &shared_data);
     timer ti;
     // loop over iterations
-
     while(1) {
       // internal loop over vertices
       while(num_pending_tasks.value > 0) {
@@ -680,12 +688,24 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
           // check if there are tasks to run
           update_counts[threadid]++;
         }
-        if (i % flush_frequency == 0 && num_cached_tasks.value > 0) {
-          flush_schedule_cache();
+        // if flush_treshold is set to max, disable the check entirely
+        if (flush_threshold < std::numeric_limits<size_t>::max() && 
+            (num_cached_tasks >= flush_threshold || 
+            i % flush_threshold == 0)) {
+          if (schedule_flush_blocker.try_lock()) {
+            size_t tempflushthreshold = std::numeric_limits<size_t>::max();
+            std::swap(tempflushthreshold, flush_threshold);
+            flush_schedule_cache();
+            std::swap(tempflushthreshold, flush_threshold);
+            last_flush = flush_timer.current_time();
+            schedule_flush_blocker.unlock();
+          }
         }
       }
-      if (num_cached_tasks.value > 0) {
+      std::cout << "!"; std::cout.flush();
+      if (num_cached_tasks.value > 0 && schedule_flush_blocker.try_lock()) {
         flush_schedule_cache();
+        schedule_flush_blocker.unlock();
       }
       consensus.begin_done_critical_section();
       if (num_pending_tasks.value > 0){
@@ -722,6 +742,8 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     // reset indices
     curidx.value = 0;
     ti.start();
+    flush_timer.start();
+    last_flush = 0.0;
     // spawn threads
     thread_group thrgrp; 
     for (size_t i = 0;i < ncpus; ++i) {
@@ -781,7 +803,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     */
   void set_options(const graphlab_options& newopts) {
     opts = newopts;
-    opts.engine_args.get_option("flush_frequency", flush_frequency);
+    opts.engine_args.get_option("flush_threshold", flush_threshold);
     rmi.barrier();
   }
 
@@ -792,7 +814,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   
   
   static void print_options_help(std::ostream &out) {
-    std::cout << "flush_frequency [integer, default=100]\n";
+    std::cout << "flush_threshold [integer, default=100]\n";
   };
 
 
