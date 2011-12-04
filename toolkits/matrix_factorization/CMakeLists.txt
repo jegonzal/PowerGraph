@@ -7,6 +7,7 @@ project(GraphLab)
 
 if(HAS_EIGEN)
   add_graphlab_executable(als als.cpp matrixmarket/mmio.cpp)
+  add_graphlab_executable(lanczos lanczos.cpp matrixmarket/mmio.cpp)
 endif()
   
 

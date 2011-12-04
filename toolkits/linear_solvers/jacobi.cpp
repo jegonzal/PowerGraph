@@ -29,8 +29,6 @@
  * Written by Danny Bickson 
  */
 
-#ifndef JACOBI_HPP
-#define JACOBI_HPP
 
 #include <cmath>
 #include <cstdio>
@@ -41,7 +39,6 @@
 #include "../shared/types.hpp"
 using namespace graphlab;
 
-#include <graphlab/macros_def.hpp>
 
 bool debug = false;
 double regularization = 0;
@@ -237,7 +234,7 @@ int main(int argc,  char *argv[]) {
   }
 
   std::cout << "Load matrix A" << std::endl;
-  matrix_descriptor matrix_info;
+  bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
   load_vector(yfile, format, matrix_info, core.graph(), JACOBI_REAL_X, false);
@@ -285,5 +282,3 @@ int main(int argc,  char *argv[]) {
 
 
 
-#include <graphlab/macros_undef.hpp>
-#endif

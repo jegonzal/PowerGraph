@@ -1,5 +1,4 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +29,7 @@
  */
 
 #include "pagerank.hpp"
-
+#include <graphlab.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -48,7 +47,7 @@
  *  Factorized updates use GraphLab v2 factorized functors to
  *  decompose a PageRank update over the edges of a vertex.
  */
-enum update_style {BASIC, DELTA, FACTORIZED};
+enum update_style {BASIC, FACTORIZED};
 update_style str2update_style(std::string str);
 std::string update_style2str(update_style style);
 
@@ -61,10 +60,12 @@ double RESET_PROB = 0.15;
 //! Global accuracy tolerance
 double ACCURACY = 1e-5;
 
-/**
- * The factorized page rank update function
- */
-class pagerank_update : 
+std::vector<vertex_data> TRUERANK;
+std::ofstream OSTREAM;
+graphlab::timer TIMER;
+
+
+class pagerank_update: 
   public graphlab::iupdate_functor<graph_type, pagerank_update> {
 private:
   double accum;
@@ -74,43 +75,37 @@ public:
   void operator+=(const pagerank_update& other) { accum += other.accum; }
   bool is_factorizable() const { return UPDATE_STYLE == FACTORIZED; }
   graphlab::consistency_model::model_enum consistency() const {
-    if(UPDATE_STYLE == DELTA) 
-      return graphlab::consistency_model::VERTEX_CONSISTENCY;
-    else return graphlab::consistency_model::USE_DEFAULT;
+    return graphlab::consistency_model::USE_DEFAULT;
   }
   bool writable_gather() { return false; }
   bool writable_scatter() { return false; }
   edge_set gather_edges() const { return IN_EDGES; }
   edge_set scatter_edges() const {
-    return (std::fabs(accum) > ACCURACY)? OUT_EDGES : NO_EDGES;
+    return NO_EDGES;
   }
-  void delta_functor_update(icontext_type& context) { 
-    vertex_data& vdata = context.vertex_data(); 
-    ++vdata.nupdates; vdata.value += accum;
-    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
-      vdata.old_value = vdata.value;
-      reschedule_neighbors(context);
-    }
-  } // end of delta_functor_update
-
 
   void operator()(icontext_type& context) {
-    // if it is a delta function then use the delta function update
-    if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     double sum = 0;
-    foreach(const edge_type& edge, context.in_edges()) {
-      sum += context.const_edge_data(edge).weight * 
-       context.const_vertex_data(edge.source()).value;
+    if (vdata.nupdates % 2 == 0) {
+      foreach(const edge_type& edge, context.in_edges()) {
+        sum += context.const_edge_data(edge).weight * 
+         context.const_vertex_data(edge.source()).old_value;
+      }
+      vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
+      accum = (vdata.value - vdata.old_value);
     }
-    // Add random reset probability
-    vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
-    accum = (vdata.value - vdata.old_value);
-    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
-      vdata.old_value = vdata.value;
-      reschedule_neighbors(context);
+    else {
+      foreach(const edge_type& edge, context.in_edges()) {
+        sum += context.const_edge_data(edge).weight * 
+         context.const_vertex_data(edge.source()).value;
+      }
+      vdata.old_value = RESET_PROB + (1 - RESET_PROB) * sum;
+      accum = (vdata.old_value - vdata.value);
     }
+
+    context.schedule(context.vertex_id(), pagerank_update(accum));
   } // end of operator()  
 
   // Reset the accumulator before running the gather
@@ -118,9 +113,16 @@ public:
 
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
+    vertex_data& vdata = context.vertex_data(); 
+    if (vdata.nupdates % 2 == 1) {
+    accum +=
+      context.const_vertex_data(edge.source()).old_value *
+      context.const_edge_data(edge).weight;
+    } else {
     accum +=
       context.const_vertex_data(edge.source()).value *
       context.const_edge_data(edge).weight;
+    }
   } // end of gather
 
   // Merge two pagerank_update accumulators after running gather
@@ -129,28 +131,50 @@ public:
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-    accum = vdata.value - vdata.old_value;
-    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
-      vdata.old_value = vdata.value;    
+    if (vdata.nupdates %2 == 0) {
+      vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
+      accum = vdata.value - vdata.old_value;
+    } else {
+      vdata.old_value =  RESET_PROB + (1 - RESET_PROB) * accum;
+      accum = vdata.old_value - vdata.value;
     }
+    context.schedule(context.vertex_id(), pagerank_update(accum));
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    const edge_data& edata = context.const_edge_data(edge);
-    const double delta = accum * edata.weight * (1 - RESET_PROB);
-    context.schedule(edge.target(), pagerank_update(delta));
   } // end of scatter
-
-private:
-  void reschedule_neighbors(icontext_type& context) {
-    foreach(const edge_type& edge, context.out_edges()) scatter(context, edge);
-  } // end of reschedule neighbors
-  
-}; // end of pagerank update functor
+}; // end of sync update functor
 
 
+
+
+class accumulator :
+  public graphlab::iaccumulator<graph_type, pagerank_update, accumulator> {
+    private:
+      double l1;
+    public:
+      accumulator() : l1(0) { }
+      void operator()(icontext_type& context) {
+        graph_type::vertex_id_type vid = context.vertex_id();
+        vertex_data vdata = context.vertex_data();
+        l1 += std::fabs(TRUERANK[vid].value - vdata.value);
+      }
+
+      void operator+=(const accumulator& other) {
+        l1 += other.l1;
+      }
+
+      void finalize(iglobal_context_type& context) {
+        if (OSTREAM.is_open()) {
+          OSTREAM << TIMER.current_time() << "\t" << l1 << std::endl;
+        } else {
+          std::cout << TIMER.current_time() << "\t" << l1 << std::endl;
+        }
+        if (l1 < ACCURACY)
+          context.terminate();
+      }
+};
 
 
 int main(int argc, char** argv) {
@@ -161,29 +185,43 @@ int main(int argc, char** argv) {
   std::string graph_file;
   std::string format = "metis";
   std::string binfname;
+  std::string rankfname;
+  std::string logfname;
   std::string update_type = "basic";
   size_t topk = 5;
-  clopts.attach_option("graph", &graph_file, graph_file,
+  clopts.attach_option("graph",
+                       &graph_file, graph_file,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-  clopts.attach_option("format", &format, format,
+  clopts.attach_option("format",
+                       &format, format,
                        "The graph file format: {metis, snap, tsv}");
-  clopts.attach_option("accuracy", &ACCURACY, ACCURACY,
+  clopts.attach_option("accuracy",
+                       &ACCURACY, ACCURACY,
                        "residual termination threshold");
-  clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
+  clopts.attach_option("resetprob",
+                       &RESET_PROB, RESET_PROB,
                        "Random reset probability");
-  clopts.attach_option("type", &update_type, update_type,
+  clopts.attach_option("type",
+                       &update_type, update_type,
                        "The graphlab update type {basic, delta, factorized}");
-  clopts.attach_option("topk", &topk, topk,
+  
+  clopts.attach_option("topk",
+                       &topk, topk,
                        "The number of top pages to display at the end.");
-  clopts.attach_option("binfname", &binfname, binfname,
+  clopts.attach_option("binfname",
+                       &binfname, binfname,
                        "Optionally save a binary version of the graph");
- 
-  std::string vinfo_fname;
-  clopts.attach_option("vinfo", &vinfo_fname, vinfo_fname,
-                       "File containing the vertex info.");
- 
+
+  clopts.attach_option("truerankfile",
+                       &rankfname, rankfname,
+                       "Optionally load a true page rank file");
+
+  clopts.attach_option("logfile",
+                       &logfname, logfname,
+                       "File where the program dumps the logs.");
+
 
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
@@ -192,7 +230,7 @@ int main(int argc, char** argv) {
   UPDATE_STYLE = str2update_style(update_type); 
   std::cout << "Termination bound:  " << ACCURACY 
             << std::endl
-            << "Reset probability:  " << RESET_PROB
+            << "Reset probability:  " << RESET_PROB 
             << std::endl
             << "Update style:       " << update_style2str(UPDATE_STYLE)
             << std::endl;
@@ -213,64 +251,57 @@ int main(int argc, char** argv) {
     normalize_graph(core.graph());
   }
 
-  if(!vinfo_fname.empty()) {
-    std::cout << "Coloring the graph." << std::endl;
-    const size_t num_colors = graphlab::graph_ops<graph_type>::    
-      color(core.graph());
-    std::ofstream fout(vinfo_fname.c_str());
-    for(size_t i = 0; i < core.graph().num_vertices(); ++i) 
-      fout 
-        << i << '\t' << core.graph().color(i) << '\t'
-        << core.graph().num_in_edges(i) << '\t'
-        << core.graph().num_out_edges(i) << '\t'
-        << graphlab::graph_ops<graph_type>::
-        num_neighbors(core.graph(), i)
-        << '\n';
-    fout.close();
-  }
-
   if(!binfname.empty()) { 
     std::cout << "Saving initial binary version of the graph." << std::endl;
     core.graph().save(binfname);  
     return EXIT_SUCCESS;
   }
 
-  // Run the PageRank ---------------------------------------------------------
+  if(!rankfname.empty()) {
+      std::cout << "Load true page rank of the graph." << std::endl;
+      load_truerank(rankfname, TRUERANK);
+  }
 
-  const double initial_delta = RESET_PROB;
-  if(UPDATE_STYLE == DELTA) {
-    std::cout << "changing initial data" << std::endl;
-    for(size_t vid = 0; vid < core.graph().num_vertices(); ++vid) 
-      core.graph().vertex_data(vid).value = 0;   
+  if(!logfname.empty()) {
+    std::cout << "Output profile log into " << logfname << std::endl;
+    OSTREAM.open(logfname.c_str());
+  }
+
+  // Run the PageRank ---------------------------------------------------------
+  double initial_delta = RESET_PROB;
+
+  // Setup sync operation.
+  if (!TRUERANK.empty()) {
+    accumulator  initial_accum;
+    size_t sync_interval = 1000;
+    std::cout << "Set up sync operation" << std::endl;
+    core.add_sync("sync", initial_accum, sync_interval);
+    core.add_global("L1", double(0));
+  } else {
+    std::cout << "NO sync operation set" << std::endl;
   }
 
   core.schedule_all(pagerank_update(initial_delta));
+
+  TIMER.start();
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
-  std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
-            << std::endl
-            << "Updates executed: " << core.last_update_count() 
-            << std::endl
-            << "Update Rate (updates/second): " 
+  std::cout << "Graphlab finished, runtime: " << runtime 
+            << " seconds." << std::endl;
+  std::cout << "Updates executed: " << core.last_update_count() 
+            << std::endl;
+  std::cout << "Update Rate (updates/second): " 
             << core.last_update_count() / runtime
             << std::endl;
-  double total_rank = 0;
-  for(size_t i = 0; i < core.graph().num_vertices(); ++i) 
-    total_rank += core.graph().vertex_data(i).value;
-  std::cout << "Total Rank: " << total_rank << std::endl;
+
+  if (OSTREAM.is_open())
+    OSTREAM.close();
+ 
 
   // Output Results -----------------------------------------------------------
   // Output the top 5 pages
   std::vector<graph_type::vertex_id_type> top_pages;
   get_top_pages(core.graph(), topk, top_pages);
-  std::cout << std::endl
-            << std::setw(10) << "Page Id\t" 
-            << std::setw(10) << "Value\t"
-            << std::setw(10) << "nupdates\t"
-            << std::setw(10) << "indegree\t"
-            << std::setw(10) << "outdegree"
-            << std::endl;
-
   for(size_t i = 0; i < top_pages.size(); ++i) {
     const vertex_data& vdata = core.graph().vertex_data(top_pages[i]);
     std::cout << std::setw(10) << top_pages[i] << ":\t" 
@@ -306,7 +337,6 @@ int main(int argc, char** argv) {
 
 update_style str2update_style(std::string str) {
   if(str == "basic") return BASIC;  
-  else if(str == "delta") return DELTA;
   else if(str == "factorized") return FACTORIZED;
   else {
     logstream(LOG_WARNING) 
@@ -319,7 +349,6 @@ update_style str2update_style(std::string str) {
 std::string update_style2str(update_style style) {
   switch(style) {
   case BASIC: { return "basic"; }
-  case DELTA: { return "delta"; }
   case FACTORIZED: { return "factorized"; }
   }
   return "";

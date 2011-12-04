@@ -57,7 +57,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   /** A pointer to the scheduler */
   shared_data_type* shared_data_ptr;
   /** the cpuid of this context */
-  size_t cpuid;
+  size_t _threadid;
 
   
   /** The vertex that this graph represents*/
@@ -161,8 +161,9 @@ class dgraph_context: public icontext<typename Engine::graph_type,
   }
   
   
-  void init(vertex_id_type vertex) {
+  void init(vertex_id_type vertex, size_t threadid) {
     _vertex = vertex;
+    _threadid = threadid;
     reset_tracking();
   }
 
@@ -364,7 +365,7 @@ class dgraph_context: public icontext<typename Engine::graph_type,
 
   void schedule(const vertex_id_type& vertex, 
                 const update_functor_type& update_fun) {
-    engine_ptr->schedule_from_context(vertex, update_fun);
+    engine_ptr->schedule_from_context(_threadid, vertex, update_fun);
   }
 
   void schedule_in_neighbors(const vertex_id_type& vertex, 
