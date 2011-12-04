@@ -53,7 +53,6 @@ std::string update_style2str(update_style style);
 
 //! Global variable determining update style
 update_style UPDATE_STYLE = BASIC;
-bool is_sync = false;
 bool dynamic_schedule = true;
 
 //! Global random reset probability
@@ -166,87 +165,6 @@ private:
   
 }; // end of pagerank update functor
 
-class sync_update: 
-  public graphlab::iupdate_functor<graph_type, pagerank_update> {
-private:
-  double accum;
-public:
-  sync_update(const double& accum = 0) : accum(accum) { }
-  double priority() const { return std::fabs(accum); }
-  void operator+=(const sync_update& other) { accum += other.accum; }
-  bool is_factorizable() const { return UPDATE_STYLE == FACTORIZED; }
-  graphlab::consistency_model::model_enum consistency() const {
-    return graphlab::consistency_model::USE_DEFAULT;
-  }
-  bool writable_gather() { return false; }
-  bool writable_scatter() { return false; }
-  edge_set gather_edges() const { return IN_EDGES; }
-  edge_set scatter_edges() const {
-    return NO_EDGES;
-  }
-
-  void operator()(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    // Compute weighted sum of neighbors
-    double sum = 0;
-    if (vdata.nupdates % 2 == 0) {
-      foreach(const edge_type& edge, context.in_edges()) {
-        sum += context.const_edge_data(edge).weight * 
-         context.const_vertex_data(edge.source()).old_value;
-      }
-      vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
-      accum = (vdata.value - vdata.old_value);
-    }
-    else {
-      foreach(const edge_type& edge, context.in_edges()) {
-        sum += context.const_edge_data(edge).weight * 
-         context.const_vertex_data(edge.source()).value;
-      }
-      vdata.old_value = RESET_PROB + (1 - RESET_PROB) * sum;
-      accum = (vdata.old_value - vdata.value);
-    }
-
-    context.schedule(context.vertex_id(), sync_update(accum));
-  } // end of operator()  
-
-  // Reset the accumulator before running the gather
-  void init_gather(iglobal_context_type& context) { accum = 0; }
-
-  // Run the gather operation over all in edges
-  void gather(icontext_type& context, const edge_type& edge) {
-    vertex_data& vdata = context.vertex_data(); 
-    if (vdata.nupdates % 2 == 1) {
-    accum +=
-      context.const_vertex_data(edge.source()).old_value *
-      context.const_edge_data(edge).weight;
-    } else {
-    accum +=
-      context.const_vertex_data(edge.source()).value *
-      context.const_edge_data(edge).weight;
-    }
-  } // end of gather
-
-  // Merge two pagerank_update accumulators after running gather
-  void merge(const sync_update& other) { accum += other.accum; }
-
-  // Update the center vertex
-  void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
-    if (vdata.nupdates %2 == 0) {
-      vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-      accum = vdata.value - vdata.old_value;
-    } else {
-      vdata.old_value =  RESET_PROB + (1 - RESET_PROB) * accum;
-      accum = vdata.old_value - vdata.value;
-    }
-    context.schedule(context.vertex_id(), sync_update(accum));
-  } // end of apply
-
-  // Reschedule neighbors 
-  void scatter(icontext_type& context, const edge_type& edge) {
-  } // end of scatter
-}; // end of sync update functor
-
 
 
 
@@ -289,8 +207,6 @@ int main(int argc, char** argv) {
   std::string rankfname;
   std::string logfname;
   std::string update_type = "basic";
-  bool schedule_dynamic = true;
-  bool synchrounous = false;
   size_t topk = 5;
   clopts.attach_option("graph",
                        &graph_file, graph_file,
@@ -313,10 +229,6 @@ int main(int argc, char** argv) {
   clopts.attach_option ("dynamic",
                        &dynamic_schedule, dynamic_schedule,
                       "Turn on/off the graphlab dynamic schedule");
-
-  clopts.attach_option("synchronous",
-                      &is_sync, is_sync,
-                      "Turn on/off synchronous update");
 
   clopts.attach_option("topk",
                        &topk, topk,
@@ -344,10 +256,6 @@ int main(int argc, char** argv) {
             << "Reset probability:  " << RESET_PROB 
             << std::endl
             << "Update style:       " << update_style2str(UPDATE_STYLE)
-            << std::endl;
-            << "Dynamic schedule:   " << dynamic_schedule 
-            << std::endl;
-            << "Synchrounous update:" << is_sync 
             << std::endl;
   
   // Setup the GraphLab execution core and load graph -------------------------
@@ -393,7 +301,7 @@ int main(int argc, char** argv) {
   // Setup sync operation.
   if (!TRUERANK.empty()) {
     accumulator  initial_accum;
-    size_t sync_interval = 100;
+    size_t sync_interval = 1000;
     std::cout << "Set up sync operation" << std::endl;
     core.add_sync("sync", initial_accum, sync_interval);
     core.add_global("L1", double(0));
@@ -401,18 +309,13 @@ int main(int argc, char** argv) {
     std::cout << "NO sync operation set" << std::endl;
   }
 
-  if (is_sync) {
-    std::cout << "Run in Synchronous mode!" << std::endl; 
-    core.schedule_all(sync_update(initial_delta));
+  if (dynamic_schedule) {
+    std::cout << "Dynamical scheduling is ON! " << std::endl;
   } else {
-    std::cout << "Run in Synchronous mode!" << std::endl; 
-    if (dynamic_schedule) {
-      std::cout << "Dynamical scheduling is ON! " << std::endl;
-    } else {
-      std::cout << " Dynamical scheduling is OFF!" << std::endl;
-    }
-    core.schedule_all(pagerank_update(initial_delta));
+    std::cout << " Dynamical scheduling is OFF!" << std::endl;
   }
+  core.schedule_all(pagerank_update(initial_delta));
+
   TIMER.start();
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
