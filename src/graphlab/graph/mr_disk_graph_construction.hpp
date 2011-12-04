@@ -287,6 +287,7 @@ void mr_disk_graph_construction(distributed_control &dc,
     std::string command = std::string("mv ") + localatombase + ".* " + remoteworkingdir;
     logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
     const int error = system(command.c_str());
+    ASSERT_NE(error, -1);
   } 
 
   dc.barrier();
@@ -313,23 +314,35 @@ void mr_disk_graph_construction(distributed_control &dc,
     std::string remotefinaloutput = remoteworkingdir + finaloutput;
     // collect the atoms I need to the local working directory
     if (localworkingdir != remoteworkingdir) {
-      logstream(LOG_INFO) << dc.procid() << ": " << "Downloading partial atoms " << i << std::endl;
+      logstream(LOG_INFO) 
+        << dc.procid() << ": " 
+        << "Downloading partial atoms " << i << std::endl;
       for (size_t j = 0; j < atomfiles.size(); ++j) {
-        std::string command = std::string("mv ") + remoteatomfiles[j] + " " + localatomfiles[j];
-//        logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
+        std::string command = std::string("mv ") + remoteatomfiles[j] + " " 
+          + localatomfiles[j];
+        //        logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " <<
+        //        command << std::endl;
        const int error = system(command.c_str());
+       ASSERT_NE(error, -1);
       }
     }
-    atomprops[i] = 
-          mr_disk_graph_construction_impl::merge_parallel_disk_atom<VertexData, EdgeData>(localatomfiles, localfinaloutput, i, atomtype);
+    atomprops[i] =  mr_disk_graph_construction_impl::
+      merge_parallel_disk_atom<VertexData, EdgeData>(localatomfiles, 
+                                                     localfinaloutput, 
+                                                     i, atomtype);
           
     // move final output back
     if (localworkingdir != remoteworkingdir) {
-      logstream(LOG_INFO) << dc.procid() << ": " << "Uploading combined atom " << finaloutput << std::endl;
-      std::string command = std::string("mv ") + atomprops[i].filename + " " + remoteworkingdir;
-      logstream(LOG_INFO) << dc.procid() << ": " << "SHELL: " << command << std::endl;
+      logstream(LOG_INFO) 
+        << dc.procid() << ": " << "Uploading combined atom " 
+        << finaloutput << std::endl;
+      std::string command = std::string("mv ") + atomprops[i].filename + " " 
+        + remoteworkingdir;
+      logstream(LOG_INFO) 
+        << dc.procid() << ": " << "SHELL: " << command << std::endl;
       atomprops[i].base_atom_filename = remotefinaloutput;
       const int error = system(command.c_str());
+      ASSERT_NE(error, -1);
     }
   }
   }

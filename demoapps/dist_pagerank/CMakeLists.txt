@@ -4,4 +4,5 @@ project(GraphLab)
 add_dist2_executable(dist_pagerank dist_pagerank.cpp)
 add_dist2_executable(dist_pagerank_delta dist_pagerank_delta.cpp)
 add_dist2_executable(make_pagerank_atoms make_pagerank_atoms.cpp)
+add_dist2_executable(dist_make_pagerank_atoms dist_make_pagerank_atoms.cpp)
 
