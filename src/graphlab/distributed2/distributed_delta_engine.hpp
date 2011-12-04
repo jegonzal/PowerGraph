@@ -116,12 +116,9 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   size_t task_budget;
   
 
-  size_t flush_threshold;
   
   /** If dynamic scheduling is used, the number of scheduled tasks */
-  atomic<size_t> num_pending_tasks;
-  atomic<size_t> num_cached_tasks;
-  
+  atomic<size_t> num_pending_tasks; 
   
   /** The cause of the last termination condition */
   execution_status::status_enum termination_reason;
@@ -130,86 +127,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
  
   std::vector<std::vector<vertex_id_type> > color_block; // set of localvids in each color
   vertex_functor_set<UpdateFunctor> vfunset;
-  
-  /**
-   * stores all the functions going to a single proc
-   */
-  struct update_functor_cache_set{
-    std::vector<mutex> lock;
-
-    boost::unordered_map<vertex_id_type, size_t> funset_remap;
-    std::vector<vertex_id_type> funset_backmap;
-
-    mutex extractall_mutex;
-    std::vector<std::vector<std::pair<bool, update_functor_type> > > funset;
-    std::vector<std::vector<std::pair<bool, update_functor_type> > > alternate; // used to minimize lock contention
-   
-    update_functor_cache_set() {
-    }
-
-    void construct_remap_table(graph_type &graph, procid_t proc, size_t ncpus) {
-      size_t lastid = 0;
-      for (vertex_id_type i = 0; 
-           i < graph.get_local_store().num_vertices(); 
-           ++i) {
-        if (graph.localvid_to_owner(i) == proc) {
-          funset_remap[graph.localvid_to_globalvid(i)] = lastid;
-          funset_backmap.push_back(graph.localvid_to_globalvid(i));
-          ++lastid;
-        }
-      }
-      lock.resize(ncpus);
-      funset.resize(ncpus);
-      for (size_t i = 0;i < ncpus; ++i) funset[i].resize(lastid);
-      alternate = funset;
-    } 
-
-    bool add(size_t threadid, vertex_id_type vertexid, const update_functor_type &fun) {
-      bool ret = false;
-      lock[threadid].lock();
-      size_t idx = funset_remap[vertexid];
-      if (funset[threadid][idx].first) {
-        funset[threadid][idx].second += fun;
-      }
-      else {
-        funset[threadid][idx].second = fun;
-        funset[threadid][idx].first = true;
-        ret = true;
-      }
-      lock[threadid].unlock();
-      return ret;
-    }
-    size_t extractall(std::vector<std::pair<vertex_id_type, update_functor_type> > &funset2) {
-      size_t tasksextracted = 0;
-      extractall_mutex.lock();
-      for (size_t i  =0;i < funset.size(); ++i) {
-        lock[i].lock();
-        alternate[i].swap(funset[i]);
-        lock[i].unlock();
-      }
-      for(size_t i = 0;i < funset_backmap.size(); ++i) {
-        bool hasfunctor = false;
-        update_functor_type ret;
-        for (size_t c = 0;c < alternate.size(); ++c) {
-          if (alternate[c][i].first) {
-            ret += alternate[c][i].second;
-            ++tasksextracted;
-            alternate[c][i].first = 0;
-            alternate[c][i].second = update_functor_type();
-            hasfunctor = true;
-          }
-        }
-        if (hasfunctor) {
-          funset2.push_back(std::make_pair(funset_backmap[i], ret));
-        }
-      }
-      extractall_mutex.unlock();
-      return tasksextracted;
-    }
-  };
-  
-  std::vector<update_functor_cache_set> vfun_cacheset;
-  
+ 
   graphlab_options opts;
   
   double barrier_time;
@@ -247,17 +165,18 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
                             start_time(0),
                             force_stop(false),
                             task_budget(0),
-                            flush_threshold(100),
                             termination_reason(execution_status::UNSET),
-                            vfunset(graph.owned_vertices().size()),
-                            vfun_cacheset(rmi.numprocs()),
+                            vfunset(graph.get_local_store().num_vertices()),
                             barrier_time(0.0),
                             consensus(dc, ncpus, &rmi),
                             synclock(ncpus),
                             thread_color_barrier(ncpus){ 
-    for (size_t i = 0;i < vfun_cacheset.size(); ++i) {
-      vfun_cacheset[i].construct_remap_table(graph,i,ncpus);
+                              
+    permuted_ordering.resize(graph.get_local_store().num_vertices());
+    for (size_t i = 0;i < graph.get_local_store().num_vertices(); ++i) {
+      permuted_ordering[i] = i;
     }
+    std::random_shuffle(permuted_ordering.begin(), permuted_ordering.end());
     rmi.barrier();
   }
   
@@ -363,33 +282,11 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   void schedule_from_context(size_t threadid, 
                              const vertex_id_type vid, 
                              const update_functor_type& fun) {
-    procid_t owner = graph.globalvid_to_owner(vid);
-    if (vfun_cacheset[owner].add(threadid, vid, fun)) {
-      num_cached_tasks.inc();
+    if (vfunset.add(vid, fun)) {
+      num_pending_tasks.inc();
     }
   }
-  
-  
-  void flush_schedule_cache() {
-    for (size_t i = 0;i < vfun_cacheset.size(); ++i) {
-      std::vector<std::pair<vertex_id_type, update_functor_type> > mergedfuns;
-      size_t numextracted = vfun_cacheset[i].extractall(mergedfuns);
-      if (numextracted > 0) {
-        // decrement cached task counts
-        num_cached_tasks.dec(numextracted);
-        if (i == rmi.procid()) {
-          schedule_collection(mergedfuns);
-        }
-        else {
-          rmi.remote_call(i,
-                        &distributed_delta_engine<Graph, UpdateFunctor>::schedule_collection,
-                        mergedfuns);
-        }
-      }
-    
-    }
-  }
-  
+
   void schedule_impl(const vertex_id_type vid, 
                 const update_functor_type& fun) {
     if (graph.is_owned(vid)) {
@@ -625,7 +522,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     std::vector<termination_evaluation> termination_test;
     termination_test.resize(rmi.numprocs());
     
-    termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value + num_cached_tasks.value;
+    termination_test[rmi.procid()].pending_tasks = num_pending_tasks.value;
     
     size_t numupdates = 0;
     for (size_t i = 0; i < update_counts.size(); ++i) numupdates += update_counts[i];
@@ -683,65 +580,51 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
 
 
 
-
-  mutex schedule_flush_blocker; // allows only 1 thread into schedule flush
-  double last_flush;
-  timer flush_timer;
+  std::vector<vertex_id_type> permuted_ordering;
   void start_thread(size_t threadid) {
     // create the scope
     dgraph_context<engine_type> context(this, &graph, &shared_data);
     timer ti;
-    // loop over iterations
     while(1) {
-      // internal loop over vertices
-      while(num_pending_tasks.value > 0) {
-        // grab a vertex  
-        size_t i = curidx.inc_ret_last();  
-        if (rmi.procid() == 0 && i % graph.local_vertices() == 0) {
-          std::cout << ".";
-          std::cout.flush();
-        }
+      if (rmi.procid() == 0 && threadid == 0) {
+        std::cout << ".";
+        std::cout.flush();
+      }
+      for (size_t i = threadid; i < permuted_ordering.size(); i += ncpus) {
         // otherwise, get the local and globalvid
-        vertex_id_type localvid = i % graph.local_vertices();
+        vertex_id_type localvid = i;
         vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
-        
+
         update_functor_type functor_to_run;
         bool has_functor_to_run = vfunset.test_and_get(localvid, functor_to_run);
-
+        // this is to remote machine
         if (has_functor_to_run) {
           num_pending_tasks.dec();
-          // otherwise. run the vertex
-          // create the scope
-          context.init(globalvid, threadid);
-          // run the update function
-          functor_to_run(context);
-          // check if there are tasks to run
-          update_counts[threadid]++;
-        }
-        // if flush_treshold is set to max, disable the check entirely
-        if (flush_threshold < std::numeric_limits<size_t>::max() && 
-            (num_cached_tasks >= flush_threshold)) {
-          if (schedule_flush_blocker.try_lock()) {
-            size_t tempflushthreshold = std::numeric_limits<size_t>::max();
-            std::swap(tempflushthreshold, flush_threshold);
-            flush_schedule_cache();
-            std::swap(tempflushthreshold, flush_threshold);
-            last_flush = flush_timer.current_time();
-            schedule_flush_blocker.unlock();
+          
+          if (localvid < graph.local_vertices()) {
+            // otherwise. run the vertex
+            // create the scope
+            context.init(globalvid, threadid);
+            // run the update function
+            functor_to_run(context);
+            // check if there are tasks to run
+            update_counts[threadid]++;
+          }
+          else {
+            rmi.remote_call(graph.localvid_to_owner(localvid),
+                  &distributed_delta_engine<Graph, UpdateFunctor>::schedule_impl,
+                  globalvid, functor_to_run);
           }
         }
       }
-      std::cout << "!"; std::cout.flush();
-      if (num_cached_tasks.value > 0 && schedule_flush_blocker.try_lock()) {
-        flush_schedule_cache();
-        schedule_flush_blocker.unlock();
-      }
-      consensus.begin_done_critical_section();
-      if (num_pending_tasks.value > 0){
-        consensus.end_done_critical_section(false);
-      }
-      else {
-        if (consensus.end_done_critical_section(true)) break;
+      if (num_pending_tasks.value == 0) {
+        consensus.begin_done_critical_section();
+        if (num_pending_tasks.value > 0){
+          consensus.end_done_critical_section(false);
+        }
+        else {
+          if (consensus.end_done_critical_section(true)) break;
+        }
       }
     }
   }
@@ -771,8 +654,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     // reset indices
     curidx.value = 0;
     ti.start();
-    flush_timer.start();
-    last_flush = 0.0;
+    
     // spawn threads
     thread_group thrgrp; 
     for (size_t i = 0;i < ncpus; ++i) {
@@ -832,7 +714,6 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     */
   void set_options(const graphlab_options& newopts) {
     opts = newopts;
-    opts.engine_args.get_option("flush_threshold", flush_threshold);
     rmi.barrier();
   }
 
@@ -843,7 +724,6 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   
   
   static void print_options_help(std::ostream &out) {
-    std::cout << "flush_threshold [integer, default=100]\n";
   };
 
 
