@@ -282,7 +282,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   void schedule_from_context(size_t threadid, 
                              const vertex_id_type vid, 
                              const update_functor_type& fun) {
-    if (vfunset.add(vid, fun)) {
+    if (vfunset.add(graph.globalvid_to_localvid(vid), fun)) {
       num_pending_tasks.inc();
     }
   }
@@ -300,6 +300,16 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
                 vid, fun);
     }
   }
+
+
+  void schedule_from_remote(const vertex_id_type vid, 
+                const update_functor_type& fun) {
+    if (vfunset.add(graph.globalvid_to_localvid(vid), fun)) {
+        num_pending_tasks.inc();
+        consensus.cancel();
+    }
+  }
+
 
 
   /**
@@ -580,6 +590,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
 
 
 
+  atomic<size_t> remote_schedules;
   std::vector<vertex_id_type> permuted_ordering;
   void start_thread(size_t threadid) {
     // create the scope
@@ -592,7 +603,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
       }
       for (size_t i = threadid; i < permuted_ordering.size(); i += ncpus) {
         // otherwise, get the local and globalvid
-        vertex_id_type localvid = i;
+        vertex_id_type localvid = permuted_ordering[i];
         vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
 
         update_functor_type functor_to_run;
@@ -612,8 +623,9 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
           }
           else {
             rmi.remote_call(graph.localvid_to_owner(localvid),
-                  &distributed_delta_engine<Graph, UpdateFunctor>::schedule_impl,
+                  &distributed_delta_engine<Graph, UpdateFunctor>::schedule_from_remote,
                   globalvid, functor_to_run);
+            remote_schedules.inc();
           }
         }
       }
@@ -626,6 +638,10 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
           if (consensus.end_done_critical_section(true)) break;
         }
       }
+    }
+
+    if (threadid == 0) {
+      std::cout << "Remote scheduler calls: " << remote_schedules.value << std::endl;
     }
   }
  
@@ -688,7 +704,8 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         total_barrier_time += barrier_times[i];
       }
-
+      std::cout << "---- Total Update Counts: " << total_update_count << std::endl;
+      
       total_bytes_sent = ret["total_bytes_sent"];
     }
     
