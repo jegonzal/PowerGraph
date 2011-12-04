@@ -309,7 +309,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     std::vector<mutex> schedulelock(rmi.numprocs());
     
 #pragma omp parallel for
-    for (size_t idx = 0; idx < nextschedule.size(); ++idx) {
+    for (ssize_t idx = 0; idx < nextschedule.size(); ++idx) {
       // commit local changes
       vertex_id_type i = nextschedule[idx];
       
@@ -1318,37 +1318,18 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     // get RMI statistics
     std::map<std::string, size_t> ret = rmi.gather_statistics();
 
-//     if (rmi.procid() == 0) {
-//       engine_metrics.add("runtime",
-//                         ti.current_time(), TIME);
-//       total_update_count = 0;
-//       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
-//         engine_metrics.add_vector_entry("updatecount", i, procupdatecounts[i]);
-//         total_update_count +=  procupdatecounts[i];
-//       }
-//       total_barrier_time = 0;
-//       for(size_t i = 0; i < barrier_times.size(); ++i) {
-//         engine_metrics.add_vector_entry("barrier_time", i, barrier_times[i]);
-//         total_barrier_time += barrier_times[i];
-//       }
-// 
-//       engine_metrics.set("termination_reason", 
-//                         exec_status_as_string(termination_reason));
-//       engine_metrics.add("dist_barriers_issued",
-//                         num_dist_barriers_called, INTEGER);
-// 
-//       engine_metrics.set("num_vertices", graph.num_vertices(), INTEGER);
-//       engine_metrics.set("num_edges", graph.num_edges(), INTEGER);
-//       engine_metrics.add("num_syncs", numsyncs.value, INTEGER);
-//       engine_metrics.set("isdynamic", max_iterations == 0, INTEGER);
-//       engine_metrics.add("iterations", max_iterations, INTEGER);
-//       engine_metrics.set("total_calls_sent", ret["total_calls_sent"], INTEGER);
-//       engine_metrics.set("total_bytes_sent", ret["total_bytes_sent"], INTEGER);
-//       total_bytes_sent = ret["total_bytes_sent"];
-//     }
-//     
-//     
-    
+    if (rmi.procid() == 0) {
+      total_update_count = 0;
+      for(size_t i = 0; i < procupdatecounts.size(); ++i) {
+        total_update_count +=  procupdatecounts[i];
+      }
+      total_barrier_time = 0;
+      for(size_t i = 0; i < barrier_times.size(); ++i) {
+        total_barrier_time += barrier_times[i];
+      }
+
+      total_bytes_sent = ret["total_bytes_sent"];
+    }
   }
   
   /**
@@ -1374,6 +1355,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     opts.engine_args.get_option("use_factorized", use_factorized);
     opts.engine_args.get_option("no_graph_synchronization", no_graph_synchronization);
     opts.engine_args.get_option("factor_threshold", factor_threshold);
+    opts.engine_args.get_option("no_colors", no_colors);
     rmi.barrier();
   }
 
