@@ -141,26 +141,27 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
       funset.resize(64);
     }
     
-    bool add(vertex_id_type vertexid, const update_functor_type &fun) {
+    bool add(size_t threadid, vertex_id_type vertexid, const update_functor_type &fun) {
       bool ret = false;
-      size_t lockid = vertexid % 64;
-      lock[lockid].lock();
-      typename boost::unordered_map<vertex_id_type, update_functor_type>::iterator iter = funset[lockid].find(vertexid);
-      if (iter != funset[lockid].end()) {
+      lock[threadid].lock();
+      typename boost::unordered_map<vertex_id_type, update_functor_type>::iterator iter = funset[threadid].find(vertexid);
+      if (iter != funset[threadid].end()) {
         iter->second += fun;
       }
       else {
-        funset[lockid][vertexid] = fun;
+        funset[threadid][vertexid] = fun;
         ret = true;
       }
-      lock[lockid].unlock();
+      lock[threadid].unlock();
       return ret;
     }
     void swap(std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > &funset2) {
       funset2.resize(64);
       for(size_t i = 0;i < 64; ++i) {
         lock[i].lock();
-        std::swap(funset[i], funset2[i]);
+        if (!funset[i].empty()) {
+          std::swap(funset[i], funset2[i]);
+        }
         lock[i].unlock();
       }
     }
@@ -315,33 +316,46 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     rmi.barrier();
   }
   
-  void schedule_from_context(const vertex_id_type vid, 
+  void schedule_from_context(size_t threadid, 
+                             const vertex_id_type vid, 
                              const update_functor_type& fun) {
     procid_t owner = graph.globalvid_to_owner(vid);
-    if (owner != rmi.procid()) {
-      if (vfun_cacheset[owner].add(vid, fun)) {
-        num_cached_tasks.inc();
-      }
+    if (vfun_cacheset[owner].add(threadid, vid, fun)) {
+      num_cached_tasks.inc();
     }
-    else {
-      schedule_impl(vid, fun);
+  }
+  
+  void merge_funs(const std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > &src,
+                  boost::unordered_map<vertex_id_type, update_functor_type> &target) {
+    for (size_t i  =0;i < src.size(); ++i) {
+      typename boost::unordered_map<vertex_id_type, update_functor_type>::const_iterator iter = src[i].begin();
+      while (iter != src[i].end()) {
+        target[iter->first] += iter->second;
+      }
     }
   }
   
   void flush_schedule_cache() {
     for (size_t i = 0;i < vfun_cacheset.size(); ++i) {
-      if (i != rmi.procid()) {
-        std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > funs;
-        vfun_cacheset[i].swap(funs);
+      std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > funs;
+      vfun_cacheset[i].swap(funs);
+      boost::unordered_map<vertex_id_type, update_functor_type> mergedfuns;
+      merge_funs(funs, mergedfuns);
+      if (!mergedfuns.empty()) {
+        // decrement cached task counts
         for (size_t j = 0;j < funs.size(); ++j) {
-          if (funs[j].size() > 0) {
-            num_cached_tasks.dec(funs[j].size());
-            rmi.remote_call(i,
-                          &distributed_delta_engine<Graph, UpdateFunctor>::schedule_collection,
-                          funs[j]);
-          }
+          num_cached_tasks.dec(funs[j].size());
+        }
+        if (i == rmi.procid()) {
+          schedule_collection(mergedfuns);
+        }
+        else {
+          rmi.remote_call(i,
+                        &distributed_delta_engine<Graph, UpdateFunctor>::schedule_collection,
+                        mergedfuns);
         }
       }
+    
     }
   }
   
@@ -660,7 +674,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
           num_pending_tasks.dec();
           // otherwise. run the vertex
           // create the scope
-          context.init(globalvid);
+          context.init(globalvid, threadid);
           // run the update function
           functor_to_run(context);
           // check if there are tasks to run
