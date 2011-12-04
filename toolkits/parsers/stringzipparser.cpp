@@ -46,6 +46,9 @@ bool debug = false;
 map<string,uint> hash2nodeid;
 std::string datafile;
 atomic<unsigned int> conseq_id;
+graphlab::mutex mymutex;
+
+
 struct vertex_data {
   string filename;
   vertex_data(std::string _filename) : filename(_filename) { }
@@ -59,20 +62,22 @@ unsigned long int datestr2uint64(const std::string & data);
 
 
 
+void assign_id(uint & outval, const string &name){
+  mymutex.lock();
+  outval = hash2nodeid[name];
+  if (outval == 0){
+      conseq_id.inc();
+      hash2nodeid[name] = conseq_id.value;
+      outval = conseq_id.value;
+  }
+  mymutex.unlock();
+}
+
+
 void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
-   from = hash2nodeid[buf1];
-   if (from == 0){
-	conseq_id.inc();
-	hash2nodeid[buf1];
-        from = conseq_id.value;
-   }
-   to = hash2nodeid[buf2];
-   if (to == 0){
-       conseq_id.inc();
-       hash2nodeid[buf2] = conseq_id.value;
-       to = conseq_id.value;
-   }
-        
+
+   assign_id(from, buf1);
+   assign_id(to, buf2);
    assert(from != to && from > 0 && to > 0);
 }
 
@@ -88,27 +93,31 @@ struct stringzipparser_update :
     //open file
     vertex_data& vdata = context.vertex_data();
     std::ifstream in_file(vdata.filename.c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening input file: " << vdata.filename << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
+    std::ofstream out_file(std::string(vdata.filename + ".out").c_str());
+
     char linebuf[256], buf1[256], buf2[256], buf3[256], buf4[256];
+    char saveptr[1024];
     int duration;
     int line = 1;
-
+    int lines = context.get_global<int>("LINES");
    
     while(true){
       fin.getline(linebuf, 128);
-      char *pch = strtok(linebuf," \r\n\t");
+      char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
       strncpy(buf1, pch, 18);
-      pch = strtok (NULL, " \r\n\t;");
+      pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
       strncpy(buf2, pch, 18);
-      pch = strtok(NULL, " ");
+      pch = strtok_r(NULL, " ",(char**)&saveptr);
       strncpy(buf3, pch, 6);
       buf3[6] = ' ';
-      pch = strtok(NULL, " ");
+      pch = strtok_r(NULL, " ",(char**)&saveptr);
       strncpy(buf3+7,pch,6);
-      pch = strtok(NULL, " \r\n\t");
+      pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
       duration = atoi(pch);
       unsigned long int timeret = datestr2uint64(std::string(buf3));
       uint from, to;
@@ -116,9 +125,11 @@ struct stringzipparser_update :
       if (debug && line <= 10)
          cout<<"Read line: " << line << " From: " << from << " To: " << to << " time: " << timeret << " val: " << duration << endl;
  
-
+      out_file << from << " " << to << " " << timeret << " " << duration << endl;
       fin.read(buf1,1); //go over \n
       line++;
+      if (lines && line>=lines)
+	 break;
 
       if (debug && (line % 50000 == 0))
         logstream(LOG_INFO) << "Parsed line: " << line << " map size is: " << hash2nodeid.size() << std::endl;
@@ -131,7 +142,7 @@ struct stringzipparser_update :
     // close file
     fin.pop(); fin.pop();
     in_file.close();
-
+    out_file.close();
   }
 
 
@@ -169,7 +180,7 @@ int main(int argc,  char *argv[]) {
 
   std::string format = "plain";
   int unittest = 0;
-
+  int lines = 0;
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -177,6 +188,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=3x3 matrix");
+  clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -204,14 +216,20 @@ int main(int argc,  char *argv[]) {
   }
 
 
-  vertex_data vdata(datafile);
+  vertex_data vdata("HIDDEN.20050803.gz");
   core.graph().add_vertex(vdata);
-  std::cout << "Schedule all vertices" << std::endl;
+  vertex_data vdata1("HIDDEN.20050810.gz");
+  core.graph().add_vertex(vdata1);
+  vertex_data vdata2("HIDDEN.20050817.gz");
+  core.graph().add_vertex(vdata2);
+  vertex_data vdata3("HIDDEN.20050824.gz");
+  core.graph().add_vertex(vdata3);
+     std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringzipparser_update());
  
   //accumulator acum;
   //core.add_sync("sync", acum, sync_interval);
- 
+  core.add_global("LINES", lines); 
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;
