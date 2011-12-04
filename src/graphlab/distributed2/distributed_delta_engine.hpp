@@ -146,7 +146,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
       size_t lockid = vertexid % 64;
       lock[lockid].lock();
       typename boost::unordered_map<vertex_id_type, update_functor_type>::iterator iter = funset[lockid].find(vertexid);
-      if (iter != funset[i].end()) {
+      if (iter != funset[lockid].end()) {
         iter->second += fun;
       }
       else {
