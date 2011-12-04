@@ -100,7 +100,7 @@ public:
     for(int i = 0; i < XtX.rows(); ++i) {
       Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
       for(int j = 0; j < XtX.rows(); ++j) 
-        XtX(i,j) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
+        XtX(j,i) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
     }
   } // end of gather
 
@@ -163,7 +163,7 @@ public:
       for(size_t i = 0; i < NLATENT; ++i) {
         Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
         for(size_t j = 0; j < NLATENT; ++j) 
-          XtX(i,j) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
+          XtX(j,i) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
       }
     }
     // Add regularization
