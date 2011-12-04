@@ -306,9 +306,9 @@ int main(int argc, char** argv) {
   foreach(const matrix_entry_type& entry, test_set) {
     const vertex_data& v1 = core.graph().vertex_data(entry.source);
     const vertex_data& v2 = core.graph().vertex_data(entry.target);
-    const double prediction = v1.latent.dot(v2.latent);
+    const double prediction = dot_prod(v1.latent, v2.latent);
     const double error = entry.edata.observation - prediction;
-    squared_error = entry.edata.weight * error * error;
+    squared_error += entry.edata.weight * error * error;
     weight += entry.edata.weight;
   }
   std::cout << "Test Error: " << std::sqrt(squared_error/weight) << std::endl;
