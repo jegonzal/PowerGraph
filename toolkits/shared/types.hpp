@@ -4,12 +4,12 @@
 typedef double real_type;
 
 /*
- * store the size of the matrix
+ * store a matrix is a bipartite graph. One side is the rows and the other is the column.
  */
-struct matrix_descriptor {
+struct bipartite_graph_descriptor {
   int rows, cols, nonzeros;
 
-  matrix_descriptor() : rows(0), cols(0), nonzeros(0) { }
+  bipartite_graph_descriptor() : rows(0), cols(0), nonzeros(0) { }
    // is the matrix square?
   bool is_square(){ return rows == cols; }
   // get the position of the starting row/col node
@@ -20,8 +20,12 @@ struct matrix_descriptor {
   int num_nodes(bool _rows){ if (_rows) return rows; else return cols; }
   // how many total nodes
   int total(){ if (is_square()) return rows; else return rows+cols; }
-
-}; // end of matrix descriptor
+  //is this a row node
+  bool is_row_node(int id){ return id < rows; }
+  //debug print?
+  bool toprint(int id){ return (id == 0) || (id == rows - 1) || (id == rows) || (id == rows+cols-1); }
+  
+}; // end of bipartite graph descriptor
 
 
 

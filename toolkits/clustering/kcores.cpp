@@ -79,7 +79,7 @@ struct edge_data {
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
-void calc_initial_degree(graph_type * g, matrix_descriptor & desc){
+void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   int active = 0;
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
@@ -224,7 +224,7 @@ int main(int argc,  char *argv[]) {
   }
 
   std::cout << "Load graph" << std::endl;
-  matrix_descriptor matrix_info;
+  bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph(), lineformat);
 
   calc_initial_degree(&core.graph(), matrix_info);

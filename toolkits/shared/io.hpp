@@ -65,7 +65,7 @@ FILE * open_file(const char * name, const char * mode, bool optional = false){
  * extract the output from node data ito a vector of values
  */
 template<typename graph_type>
-vec  fill_output(graph_type * g, matrix_descriptor & matrix_info, int field_type){
+vec  fill_output(graph_type * g, bipartite_graph_descriptor & matrix_info, int field_type){
   typedef typename graph_type::vertex_data_type vertex_data_type;
 
   vec out = zeros(matrix_info.num_nodes(false));
@@ -93,7 +93,7 @@ struct matrix_entry {
 
 template<typename Graph>
 bool load_matrixmarket(const std::string& fname,
-                       matrix_descriptor& desc,
+                       bipartite_graph_descriptor& desc,
                        std::vector< matrix_entry<Graph> >& test_set) {
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
@@ -142,7 +142,7 @@ bool load_matrixmarket(const std::string& fname,
 
 template<typename Graph>
 bool load_matrixmarket_graph(const std::string& fname,
-                             matrix_descriptor& desc,
+                             bipartite_graph_descriptor& desc,
                              Graph& graph,
 			     int parse_type = MATRIX_MARKET_3){ 
   typedef Graph graph_type;
@@ -230,7 +230,7 @@ bool load_matrixmarket_graph(const std::string& fname,
 
 template<typename Graph>
 bool load_tsv_graph(const std::string& fname,
-                    matrix_descriptor& desc,
+                    bipartite_graph_descriptor& desc,
                     Graph& graph) {  
   return false;
 } // end of laod tsv graph
@@ -239,7 +239,7 @@ bool load_tsv_graph(const std::string& fname,
 template<typename Graph>
 bool load_graph(const std::string& fname,
                 const std::string& format,
-                matrix_descriptor& desc,
+                bipartite_graph_descriptor& desc,
                 Graph& graph, 
 	        int format_type = MATRIX_MARKET_3) {
 
@@ -252,7 +252,7 @@ bool load_graph(const std::string& fname,
 } // end of load graph
 
 template <typename graph_type>
-void load_matrix_market_vector(const std::string & filename, const matrix_descriptor & desc, graph_type & g, int type, bool optional_field)
+void load_matrix_market_vector(const std::string & filename, const bipartite_graph_descriptor & desc, graph_type & g, int type, bool optional_field)
 {
     typedef typename graph_type::vertex_data_type vertex_data;
     
@@ -325,7 +325,7 @@ void load_matrix_market_vector(const std::string & filename, const matrix_descri
 template<typename Graph>
 void load_vector(const std::string& fname,
                    const std::string& format,
-                   const matrix_descriptor& desc,
+                   const bipartite_graph_descriptor& desc,
                    Graph& graph, 
 		   int type,
 		   bool optional_field) {
@@ -472,7 +472,7 @@ inline void write_output_matrix(const std::string & datafile, const std::string 
 
 
 //read matrix size from a binary file
-FILE * load_matrix_metadata(const char * filename, matrix_descriptor & desc){
+FILE * load_matrix_metadata(const char * filename, bipartite_graph_descriptor & desc){
    printf("Loading %s\n", filename);
    FILE * f = open_file(filename, "r", false);
 
@@ -486,7 +486,7 @@ FILE * load_matrix_metadata(const char * filename, matrix_descriptor & desc){
 
 template<typename Graph>
 bool load_binary_graph(const std::string& fname,
-                             matrix_descriptor& desc,
+                             bipartite_graph_descriptor& desc,
                              Graph& graph) {
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
