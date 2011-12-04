@@ -236,7 +236,9 @@ int main(int argc, char** argv) {
   // Initialize MPI -----------------------------------------------------------
   graphlab::mpi_tools::init(argc, argv);
   graphlab::dc_init_param param;
+  param.initstring="buffered_queued_send=1";
   ASSERT_TRUE(graphlab::init_param_from_mpi(param));
+  param.initstring=param.initstring + ",buffered_queued_send=1";
   graphlab::distributed_control dc(param);
 
   // Load the distributed graph -----------------------------------------------
