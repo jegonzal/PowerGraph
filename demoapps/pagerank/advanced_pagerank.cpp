@@ -82,7 +82,8 @@ public:
   bool writable_scatter() { return false; }
   edge_set gather_edges() const { return IN_EDGES; }
   edge_set scatter_edges() const {
-    return accum > ACCURACY ? OUT_EDGES : NO_EDGES;
+    return (std::fabs(accum) > ACCURACY || vdata.nupdates == 1)? 
+      OUT_EDGES : NO_EDGES;
   }
   void delta_functor_update(icontext_type& context) { 
     vertex_data& vdata = context.vertex_data(); 
@@ -133,7 +134,6 @@ public:
     accum = vdata.value - vdata.old_value;
     if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
       vdata.old_value = vdata.value;    
-      reschedule_neighbors(context);
     }
   } // end of apply
 
