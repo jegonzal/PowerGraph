@@ -131,39 +131,80 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   std::vector<std::vector<vertex_id_type> > color_block; // set of localvids in each color
   vertex_functor_set<UpdateFunctor> vfunset;
   
-  
+  /**
+   * stores all the functions going to a single proc
+   */
   struct update_functor_cache_set{
     std::vector<mutex> lock;
-    std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > funset;
-    
+
+    boost::unordered_map<vertex_id_type, size_t> funset_remap;
+    std::vector<vertex_id_type> funset_backmap;
+
+    mutex extractall_mutex;
+    std::vector<std::vector<std::pair<bool, update_functor_type> > > funset;
+    std::vector<std::vector<std::pair<bool, update_functor_type> > > alternate; // used to minimize lock contention
+   
     update_functor_cache_set() {
-      lock.resize(64);
-      funset.resize(64);
     }
-    
+
+    void construct_remap_table(graph_type &graph, procid_t proc, size_t ncpus) {
+      size_t lastid = 0;
+      for (vertex_id_type i = 0; 
+           i < graph.get_local_store().num_vertices(); 
+           ++i) {
+        if (graph.localvid_to_owner(i) == proc) {
+          funset_remap[graph.localvid_to_globalvid(i)] = lastid;
+          funset_backmap.push_back(graph.localvid_to_globalvid(i));
+          ++lastid;
+        }
+      }
+      lock.resize(ncpus);
+      funset.resize(ncpus);
+      for (size_t i = 0;i < ncpus; ++i) funset[i].resize(lastid);
+      alternate = funset;
+    } 
+
     bool add(size_t threadid, vertex_id_type vertexid, const update_functor_type &fun) {
       bool ret = false;
       lock[threadid].lock();
-      typename boost::unordered_map<vertex_id_type, update_functor_type>::iterator iter = funset[threadid].find(vertexid);
-      if (iter != funset[threadid].end()) {
-        iter->second += fun;
+      size_t idx = funset_remap[vertexid];
+      if (funset[threadid][idx].first) {
+        funset[threadid][idx].second += fun;
       }
       else {
-        funset[threadid][vertexid] = fun;
+        funset[threadid][idx].second = fun;
+        funset[threadid][idx].first = true;
         ret = true;
       }
       lock[threadid].unlock();
       return ret;
     }
-    void swap(std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > &funset2) {
-      funset2.resize(64);
-      for(size_t i = 0;i < 64; ++i) {
+    size_t extractall(std::vector<std::pair<vertex_id_type, update_functor_type> > &funset2) {
+      size_t tasksextracted = 0;
+      extractall_mutex.lock();
+      for (size_t i  =0;i < funset.size(); ++i) {
         lock[i].lock();
-        if (!funset[i].empty()) {
-          std::swap(funset[i], funset2[i]);
-        }
+        alternate[i].swap(funset[i]);
         lock[i].unlock();
       }
+      for(size_t i = 0;i < funset_backmap.size(); ++i) {
+        bool hasfunctor = false;
+        update_functor_type ret;
+        for (size_t c = 0;c < alternate.size(); ++c) {
+          if (alternate[c][i].first) {
+            ret += alternate[c][i].second;
+            ++tasksextracted;
+            alternate[c][i].first = 0;
+            alternate[c][i].second = update_functor_type();
+            hasfunctor = true;
+          }
+        }
+        if (hasfunctor) {
+          funset2.push_back(std::make_pair(funset_backmap[i], ret));
+        }
+      }
+      extractall_mutex.unlock();
+      return tasksextracted;
     }
   };
   
@@ -214,6 +255,9 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
                             consensus(dc, ncpus, &rmi),
                             synclock(ncpus),
                             thread_color_barrier(ncpus){ 
+    for (size_t i = 0;i < vfun_cacheset.size(); ++i) {
+      vfun_cacheset[i].construct_remap_table(graph,i,ncpus);
+    }
     rmi.barrier();
   }
   
@@ -325,28 +369,14 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     }
   }
   
-  void merge_funs(const std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > &src,
-                  boost::unordered_map<vertex_id_type, update_functor_type> &target) {
-    for (size_t i  =0;i < src.size(); ++i) {
-      typename boost::unordered_map<vertex_id_type, update_functor_type>::const_iterator iter = src[i].begin();
-      while (iter != src[i].end()) {
-        target[iter->first] += iter->second;
-        ++iter;
-      }
-    }
-  }
   
   void flush_schedule_cache() {
     for (size_t i = 0;i < vfun_cacheset.size(); ++i) {
-      std::vector<boost::unordered_map<vertex_id_type, update_functor_type> > funs;
-      vfun_cacheset[i].swap(funs);
-      boost::unordered_map<vertex_id_type, update_functor_type> mergedfuns;
-      merge_funs(funs, mergedfuns);
-      if (!mergedfuns.empty()) {
+      std::vector<std::pair<vertex_id_type, update_functor_type> > mergedfuns;
+      size_t numextracted = vfun_cacheset[i].extractall(mergedfuns);
+      if (numextracted > 0) {
         // decrement cached task counts
-        for (size_t j = 0;j < funs.size(); ++j) {
-          num_cached_tasks.dec(funs[j].size());
-        }
+        num_cached_tasks.dec(numextracted);
         if (i == rmi.procid()) {
           schedule_collection(mergedfuns);
         }
@@ -399,9 +429,9 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
     }
   }
 
-  void schedule_collection(const boost::unordered_map<vertex_id_type, 
-                                                     update_functor_type>& tasks) {
-    typename boost::unordered_map<vertex_id_type, update_functor_type>::const_iterator iter = tasks.begin();
+  void schedule_collection(const std::vector<std::pair<vertex_id_type, 
+                                                     update_functor_type> >& tasks) {
+    typename std::vector<std::pair<vertex_id_type, update_functor_type> >::const_iterator iter = tasks.begin();
     while(iter != tasks.end()) {
       schedule_impl(iter->first, iter->second);
       ++iter;
@@ -690,8 +720,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
         }
         // if flush_treshold is set to max, disable the check entirely
         if (flush_threshold < std::numeric_limits<size_t>::max() && 
-            (num_cached_tasks >= flush_threshold || 
-            i % flush_threshold == 0)) {
+            (num_cached_tasks >= flush_threshold)) {
           if (schedule_flush_blocker.try_lock()) {
             size_t tempflushthreshold = std::numeric_limits<size_t>::max();
             std::swap(tempflushthreshold, flush_threshold);
