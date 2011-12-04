@@ -33,8 +33,11 @@
 /**
  * Define global constants for debugging.
  */
+bool DEBUG = false;
 bool FACTORIZED = false;
-bool debug = false;
+double TOLERANCE = 1e-2;
+size_t NLATENT = 20;
+double LAMBDA = 0.065;
 
 
 /** Vertex and edge data types **/
@@ -85,9 +88,8 @@ public:
 
   // Reset the accumulator before running the gather
   void init_gather(iglobal_context_type& context) {    
-    const size_t& nlatent = context.get_global_const<size_t>("nlatent");
-    XtX.resize(nlatent, nlatent); XtX.setZero();
-    Xty.resize(nlatent); Xty.setZero();
+    XtX.resize(NLATENT, NLATENT); XtX.setZero();
+    Xty.resize(NLATENT); Xty.setZero();
   } // end of init gather
 
   void gather(icontext_type& context, const edge_type& edge) {
@@ -105,11 +107,10 @@ public:
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
-    vdata.residual = 0; ++vdata.nupdates;
+    vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
-    if(nneighbors) return;    
-    const double& lambda = context.get_global_const<double>("lambda");
-    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (lambda)*nneighbors;
+    if(nneighbors == 0) return;    
+    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (LAMBDA)*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
@@ -121,31 +122,30 @@ public:
   } // end of apply
 
   void scatter(icontext_type& context, const edge_type& edge) {
-    const vertex_data& vdata = context.vertex_data();
-    const double tolerance = context.get_global_const<double>("tolerance");   
+    vertex_data& vdata = context.vertex_data();
     const vertex_id_type neighbor_id = context.num_in_edges() > 0? 
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
     const edge_data& edata = context.const_edge_data(edge);
     const double pred = vdata.latent.dot(neighbor.latent);
     const double error = std::fabs(edata.observation - pred);
+    vdata.squared_error += error*error;
     // Reschedule neighbors ------------------------------------------------
-    if( error > tolerance && vdata.residual > tolerance) 
+    if( error > TOLERANCE && vdata.residual > TOLERANCE) 
       context.schedule(neighbor_id, als_update(error));
   } // end of scatter
   
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
-    if (debug)
+    if (DEBUG)
       std::cout << "Entering node" << context.vertex_id() << std::endl 
                 << "Latest is: " << vdata.latent << std::endl;
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     // If there are no neighbors just return
     if(context.num_out_edges() + context.num_in_edges() == 0) return;
     // Get the number of latent dimensions
-    const size_t& nlatent = context.get_global_const<size_t>("nlatent");
-    mat XtX(nlatent, nlatent); XtX.setZero();
-    vec Xty(nlatent); Xty.setZero();
+    mat XtX(NLATENT, NLATENT); XtX.setZero();
+    vec Xty(NLATENT); Xty.setZero();
     // Get the non-zero edge list
     const bool is_in_edges = context.num_in_edges() > 0;
     const edge_list_type edges = is_in_edges? 
@@ -160,31 +160,29 @@ public:
       // Update the X'X and X'y (eigen calls are too slow)
       // Xty += neighbor.latent*(edata.observation*edata.weight);
       // XtX += (neighbor.latent*neighbor.latent.transpose()) * edata.weight;
-      for(size_t i = 0; i < nlatent; ++i) {
+      for(size_t i = 0; i < NLATENT; ++i) {
         Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
-        for(size_t j = 0; j < nlatent; ++j) 
+        for(size_t j = 0; j < NLATENT; ++j) 
           XtX(i,j) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
       }
     }
     // Add regularization
-    const double& lambda = context.get_global_const<double>("lambda");
-    for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda)*edges.size();
-    if (debug)
+    for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += (LAMBDA)*edges.size();
+    if (DEBUG)
       std::cout << "Xtx is: " << XtX << std::endl 
                 << "Xty is: " << Xty 
-                << "lambda is: " << lambda << std::endl;
+                << "LAMBDA is: " << LAMBDA << std::endl;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
-    if (debug)
+    if (DEBUG)
       std::cout << "Result is: " << vdata.latent << std::endl;
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
-    for(size_t i = 0; i < nlatent; ++i)
+    for(size_t i = 0; i < NLATENT; ++i)
       vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
-    vdata.residual /= nlatent;
+    vdata.residual /= NLATENT;
     // Update the rmse and reschedule neighbors -------------------------------
-    const double tolerance = context.get_global_const<double>("tolerance");
     vdata.squared_error = 0;
     foreach(const edge_type& edge, edges) {
       // get the neighbor id
@@ -196,7 +194,7 @@ public:
       const double error = std::fabs(edata.observation - pred);
       vdata.squared_error += error*error;
       // Reschedule neighbors ------------------------------------------------
-      if( error > tolerance && vdata.residual > tolerance) 
+      if( error > TOLERANCE && vdata.residual > TOLERANCE) 
         context.schedule(neighbor_id, als_update(error));
     }
   } // end of operator()
@@ -263,9 +261,6 @@ int main(int argc, char** argv) {
   std::string matrix_file;
   std::string test_file;
   std::string format = "matrixmarket";
-  double tolerance = 1e-2;
-  size_t nlatent = 20;
-  double lambda = 0.065;
   size_t freq = 100000;
   clopts.attach_option("matrix",
                        &matrix_file, matrix_file,
@@ -281,18 +276,18 @@ int main(int argc, char** argv) {
                        &format, format,
                        "The matrix file format: {matrixmarket, binary}");
   clopts.attach_option("D",
-                       &nlatent, nlatent,
+                       &NLATENT, NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("lambda", &lambda, lambda, "ALS regularization weight"); 
+  clopts.attach_option("LAMBDA", &LAMBDA, LAMBDA, "ALS regularization weight"); 
   clopts.attach_option("tol",
-                       &tolerance, tolerance,
+                       &TOLERANCE, TOLERANCE,
                        "residual termination threshold");
   clopts.attach_option("freq",
                        &freq, freq,
                        "The number of updates between rmse calculations");
   clopts.attach_option("factorized", 
 		       &FACTORIZED, FACTORIZED, "Use factorized updates.");
-  clopts.attach_option("debug", &debug, debug, "debug (Verbose mode)");
+  clopts.attach_option("DEBUG", &DEBUG, DEBUG, "DEBUG (Verbose mode)");
   //clopts.set_scheduler_type("sweep");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
@@ -321,14 +316,10 @@ int main(int argc, char** argv) {
     }
   }
   std::cout << "Randomizing initial latent factors----------" << std::endl;
-  initialize_vertex_data(nlatent, core.graph());
-
+  initialize_vertex_data(NLATENT, core.graph());
   std::cout << "Finished initializing all vertices." << std::endl;
 
   // Set global variables -----------------------------------------------------
-  core.add_global_const("tolerance", tolerance);
-  core.add_global_const("nlatent", nlatent);
-  core.add_global_const("lambda", lambda);
   core.add_sync("rmse", accumulator(), freq);
 
 
