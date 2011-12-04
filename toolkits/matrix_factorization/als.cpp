@@ -99,7 +99,7 @@ public:
     const edge_data& edata = context.const_edge_data(edge);
     for(int i = 0; i < XtX.rows(); ++i) {
       Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
-      for(int j = 0; j < XtX.rows(); ++j) 
+      for(int j = i; j < XtX.rows(); ++j) 
         XtX(j,i) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
     }
   } // end of gather
@@ -110,6 +110,9 @@ public:
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
     if(nneighbors == 0) return;    
+    for(size_t i = 0; i < NLATENT; ++i) 
+      for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
+
     for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (LAMBDA)*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
@@ -158,25 +161,19 @@ public:
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
       const edge_data& edata = context.const_edge_data(edge);
       // Update the X'X and X'y (eigen calls are too slow)
-      // Xty += neighbor.latent*(edata.observation*edata.weight);
-      // XtX += (neighbor.latent*neighbor.latent.transpose()) * edata.weight;
       for(size_t i = 0; i < NLATENT; ++i) {
         Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
-        for(size_t j = 0; j < NLATENT; ++j) 
+        for(size_t j = i; j < NLATENT; ++j) 
           XtX(j,i) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
       }
     }
-    // Add regularization
+    for(size_t i = 0; i < NLATENT; ++i) 
+      for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
+
     for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += (LAMBDA)*edges.size();
-    if (debug)
-      std::cout << "Xtx is: " << XtX << std::endl 
-                << "Xty is: " << Xty 
-                << "LAMBDA is: " << LAMBDA << std::endl;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
-    if (debug)
-      std::cout << "Result is: " << vdata.latent << std::endl;
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
     for(size_t i = 0; i < NLATENT; ++i)
