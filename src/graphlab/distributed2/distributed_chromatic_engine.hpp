@@ -743,7 +743,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             if (!usestatic) num_pending_tasks.dec();
             // otherwise. run the vertex
             // create the scope
-            context.init(threadid, globalvid);
+            context.init(globalvid, threadid);
             // run the update function
             functor_to_run(context);
             // check if there are tasks to run
@@ -755,7 +755,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             // ok this vertex is not scheduled. But if there are syncs
             // to run I will still need to get the scope
             if (hassynctasks) {
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               eval_syncs(globalvid, context, threadid);
               if (no_graph_synchronization == false) context.commit_async_untracked();
             }
@@ -1035,7 +1035,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                       localvid_to_gather.find(localvid);
     dgraph_context<engine_type> context(this, &graph, &shared_data);
     vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
-    context.init(localvid % ncpus, globalvid);
+    context.init(globalvid, localvid % ncpus);
     iter->second.accumulated_functor.apply(context);
     if (!active_sync_tasks.empty()) eval_syncs(globalvid, context, thread::thread_id() % ncpus);
     // scatter
@@ -1063,7 +1063,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   void factorized_scatter(vertex_id_type globalvid,
                           update_functor_type& ufun) {
     dgraph_context<engine_type> context(this, &graph, &shared_data);
-    context.init(globalvid % ncpus, globalvid);
+    context.init(globalvid, globalvid % ncpus);
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       foreach(const edge_type edge, graph.in_edges_local_only(globalvid)) {
@@ -1085,7 +1085,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
 //    std::cout << rmi.procid() << ": Gather on vid " << globalvid << std::endl;
     dgraph_context<engine_type> context(this, &graph, &shared_data);
-    context.init(localvid % ncpus, globalvid);
+    context.init(globalvid, localvid % ncpus);
     ufun.init_gather(context);
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
@@ -1161,7 +1161,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             if (localvid < graph.local_vertices() && seperator_set.get(localvid) == false) {
               // otherwise. run the vertex
               // create the scope
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               // run the update function
               functor_to_run(context);
               // check if there are tasks to run
@@ -1170,7 +1170,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
               update_counts[threadid]++;
             }
             else {
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               evaluate_factorized_update_functor(localvid, 
                                                 functor_to_run);
             }
@@ -1179,7 +1179,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             // ok this vertex is not scheduled. But if there are syncs
             // to run I will still need to get the scope
             if (hassynctasks && localvid < graph.local_vertices()) {
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               eval_syncs(globalvid, context, threadid);
               if (no_graph_synchronization == false) context.commit_async_untracked();
             }
