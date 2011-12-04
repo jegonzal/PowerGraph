@@ -645,7 +645,10 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
       while(num_pending_tasks.value > 0) {
         // grab a vertex  
         size_t i = curidx.inc_ret_last();  
-
+        if (rmi.procid() == 0 && i % graph.local_vertices() == 0) {
+          std::cout << ".";
+          std::cout.flush();
+        }
         // otherwise, get the local and globalvid
         vertex_id_type localvid = i % graph.local_vertices();
         vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);

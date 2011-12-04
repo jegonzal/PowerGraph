@@ -156,8 +156,8 @@ namespace graphlab {
 
         if (lowres_time_seconds() - t > 100) {
           t = lowres_time_seconds();
-          std::cout << dc->procid() << "->" << target << '\t'
-                    << "(" << wait_count << ")[" << last_sent << "]"  << std::endl;
+/*          std::cout << dc->procid() << "->" << target << '\t'
+                    << "(" << wait_count << ")[" << last_sent << "]"  << std::endl;*/
           
         }
 
