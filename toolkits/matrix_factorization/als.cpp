@@ -31,11 +31,10 @@
 #include "matrix_loader.hpp"
 #include <graphlab/macros_def.hpp>
 /**
- * Define linear algbebra types
+ * Define global constants for debugging.
  */
-int max_iter = 10;
+size_t max_iter = 10;
 bool debug = false;
-
 
 
 /** Vertex and edge data types **/
@@ -62,6 +61,7 @@ struct edge_data {
   void load(graphlab::iarchive& archive) { 
     archive >> observation >> weight; }
 }; // end of edge data
+
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 
@@ -70,16 +70,16 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
  */
 class als_update : 
   public graphlab::iupdate_functor<graph_type, als_update > {
-  double residual;
+  double error;
 public:
-  als_update(double residual = 0) : residual(residual) { }
-  double priority() const { return residual; }
-  void operator+=(const als_update& other) { residual += other.residual; }
+  als_update(double error = 0) : error(error) { }
+  double priority() const { return error; }
+  void operator+=(const als_update& other) { error += other.error; }
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
     if (debug)
-      std::cout<<"Entering node" << context.vertex_id() << std::endl << "Latest is: " 
-               << vdata.latent << std::endl;
+      std::cout << "Entering node" << context.vertex_id() << std::endl 
+                << "Latest is: " << vdata.latent << std::endl;
 
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     const edge_list_type out_edges = context.out_edges();
@@ -110,19 +110,20 @@ public:
       }
     }
 
-       // Add regularization
+    // Add regularization
     const double& lambda = context.get_global_const<double>("lambda");
     for(size_t i = 0; i < nlatent; ++i) XtX(i,i) += (lambda)*edges.size();
+    if (debug)
+      std::cout << "Xtx is: " << XtX << std::endl 
+                << "Xty is: " << Xty 
+                << "lambda is: " << lambda << std::endl;
+
     // Solve the least squares problem using eigen ----------------------------
-   if (debug)
-	std::cout<<"Xtx is: " << XtX << std::endl << "Xty is: " <<Xty << "lambda is: " << lambda << std::endl;
-
-
- const vec old_latent = vdata.latent;
+    const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
 
     if (debug)
-     std::cout << "Result is: " << vdata.latent << std::endl;
+      std::cout << "Result is: " << vdata.latent << std::endl;
 
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
@@ -138,14 +139,13 @@ public:
         is_in_edges? edge.source() : edge.target();
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
       const edge_data& edata = context.const_edge_data(edge);
-      const double pred = dot_prod(old_latent,neighbor.latent);
+      const double pred = vdata.latent.dot(neighbor.latent);
       const double error = std::fabs(edata.observation - pred);
       vdata.squared_error += error*error;
       // Reschedule neighbors ------------------------------------------------
       if( error > tolerance && vdata.residual > tolerance) 
-        context.schedule(neighbor_id, als_update(residual));
+        context.schedule(neighbor_id, als_update(error));
     }
-    //context.schedule(context.vertex_id(), als_update(1000));
   } // end of operator()
 }; // end of class user_movie_nodes_update_function
 
@@ -194,9 +194,7 @@ public:
       << std::setw(10) << min_updates << '\t'
       << std::setw(10) << (double(total_updates) / context.num_vertices()) 
       << std::endl;
-
-    if (min_updates >= max_iter)
-      context.terminate();
+    //    if (min_updates >= max_iter)  context.terminate();
   }
 }; // end of  accumulator
 
@@ -237,7 +235,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("tol",
                        &tolerance, tolerance,
                        "residual termination threshold");
-    clopts.attach_option("freq",
+  clopts.attach_option("freq",
                        &freq, freq,
                        "The number of updates between rmse calculations");
   clopts.attach_option("max_iter", 
