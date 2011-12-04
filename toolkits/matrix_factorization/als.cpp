@@ -33,7 +33,7 @@
 /**
  * Define global constants for debugging.
  */
-bool DEBUG = false;
+bool debug = false;
 bool FACTORIZED = false;
 double TOLERANCE = 1e-2;
 size_t NLATENT = 20;
@@ -132,12 +132,12 @@ public:
     vdata.squared_error += error*error;
     // Reschedule neighbors ------------------------------------------------
     if( error > TOLERANCE && vdata.residual > TOLERANCE) 
-      context.schedule(neighbor_id, als_update(error));
+      context.schedule(neighbor_id, als_update(error * vdata.residual));
   } // end of scatter
   
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
-    if (DEBUG)
+    if (debug)
       std::cout << "Entering node" << context.vertex_id() << std::endl 
                 << "Latest is: " << vdata.latent << std::endl;
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
@@ -168,14 +168,14 @@ public:
     }
     // Add regularization
     for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += (LAMBDA)*edges.size();
-    if (DEBUG)
+    if (debug)
       std::cout << "Xtx is: " << XtX << std::endl 
                 << "Xty is: " << Xty 
                 << "LAMBDA is: " << LAMBDA << std::endl;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
-    if (DEBUG)
+    if (debug)
       std::cout << "Result is: " << vdata.latent << std::endl;
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
@@ -195,7 +195,7 @@ public:
       vdata.squared_error += error*error;
       // Reschedule neighbors ------------------------------------------------
       if( error > TOLERANCE && vdata.residual > TOLERANCE) 
-        context.schedule(neighbor_id, als_update(error));
+        context.schedule(neighbor_id, als_update(error * vdata.residual));
     }
   } // end of operator()
 }; // end of class user_movie_nodes_update_function
@@ -287,8 +287,8 @@ int main(int argc, char** argv) {
                        "The number of updates between rmse calculations");
   clopts.attach_option("factorized", 
 		       &FACTORIZED, FACTORIZED, "Use factorized updates.");
-  clopts.attach_option("DEBUG", &DEBUG, DEBUG, "DEBUG (Verbose mode)");
-  //clopts.set_scheduler_type("sweep");
+  clopts.attach_option("debug", &debug, debug, "debug (Verbose mode)");
+  clopts.set_scheduler_type("sweep");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
