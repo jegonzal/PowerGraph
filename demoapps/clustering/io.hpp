@@ -212,11 +212,11 @@ void save_matrix(const char * filename, const char * varname, const mat& pmat, s
      logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
 }
 
-void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std::string comment, bool integer);
+void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std::string comment, bool integer,bool issparse);
 
-void save_matrix(const char * filename, const char * varname, const fmat& pmat, const std::string&comment){
+void save_matrix(const char * filename, const char * varname, const fmat& pmat, const std::string&comment, bool issparse){
   if (ac.matrixmarket){
-     save_matrix_market_matrix(filename, pmat, comment, false);
+     save_matrix_market_matrix(filename, pmat, comment, false, issparse);
      return;
   }
    FILE * pfile = open_file(filename, "wb");

@@ -238,13 +238,17 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
       compact(_g);
 }
 
-void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std::string comment, bool integer){
+void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std::string comment, bool integer, bool issparse){
     MM_typecode matcode;                        
     int i,j;
 
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
     mm_set_coordinate(&matcode);
+    if (issparse)
+      mm_set_sparse(&matcode);
+    else mm_set_dense(&matcode);  
+
     if (!integer)
        mm_set_real(&matcode);
     else
@@ -255,15 +259,24 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
     mm_write_banner(f, matcode); 
     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());
-     mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
+
+    mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
+           
 
     for (i=0; i<a.rows(); i++){
        for (j=0; j<a.cols(); j++){
-          if (get_val(a,i,j) != 0){
+          if (issparse){
+            if (get_val(a,i,j) != 0){
+               if (integer)
+                 fprintf(f, "%d %d %d\n", i+1, j+1, (int)get_val(a,i,j));
+               else  fprintf(f, "%d %d %10.3g\n", i+1, j+1, (double)get_val(a,i,j)); 
+            }
+          } else { //dense
              if (integer)
-               fprintf(f, "%d %d %d\n", i+1, j+1, (int)get_val(a,i,j));
-             else  fprintf(f, "%d %d %10.3g\n", i+1, j+1, (double)get_val(a,i,j)); 
-             
+                fprintf(f, "%d ", (int)get_val(a,i,j));
+             else fprintf(f, "%10.3g ", (double)get_val(a,i,j));
+	     if (j == a.cols() -1 )
+                fprintf(f, "\n");
           }
        }
     }
@@ -274,13 +287,18 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
 
 
 
-void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std::string comment, bool integer){
+void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std::string comment, bool integer,bool issparse){
     MM_typecode matcode;                        
     int i;
 
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
     mm_set_coordinate(&matcode);
+    if (issparse)
+      mm_set_sparse(&matcode);
+    else 
+      mm_set_dense(&matcode);
+
     if (!integer)
       mm_set_real(&matcode);
     else
@@ -294,9 +312,16 @@ void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std
      mm_write_mtx_crd_size(f, a.size(), 1, a.size());
 
     for (i=0; i<a.size(); i++){
+      if (issparse){
         if (integer)
           fprintf(f, "%d %d %d\n", i+1, 1, (int)a[i]);
         else fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
+      }
+      else {//dense
+        if (integer)
+          fprintf(f,"%d ", (int)a[i]);
+        else fprintf(f, "%10.3g\n", a[i]);
+      }
     }
 
     logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
@@ -308,17 +333,17 @@ void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std
 void save_matrix_market_format(const char * filename)
 {
     if (ps.algorithm != SVD_EXPERIMENTAL){
-      save_matrix_market_matrix((std::string(filename) + ".clusters.mtx").c_str(),ps.output_clusters,ps.output_clusters_comment, false);
-      save_matrix_market_matrix((std::string(filename) + ".assignments.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer);
+      save_matrix_market_matrix((std::string(filename) + ".clusters.mtx").c_str(),ps.output_clusters,ps.output_clusters_comment, false,false);
+      save_matrix_market_matrix((std::string(filename) + ".assignments.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer,false);
     }
     else {
      
       if (!ac.reduce_mem_consumption){
-        save_matrix_market_matrix((std::string(filename) + ".V").c_str(),ps.V, ps.V_comment,false); /* for conforming to wikipedia convention, I swap U and V*/
-        save_matrix_market_matrix((std::string(filename) + ".U").c_str(),ps.U, ps.U_comment,false);
+        save_matrix_market_matrix((std::string(filename) + ".V").c_str(),ps.V, ps.V_comment,false,false); /* for conforming to wikipedia convention, I swap U and V*/
+        save_matrix_market_matrix((std::string(filename) + ".U").c_str(),ps.U, ps.U_comment,false,false);
       
-        save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0),ps.output_comment3, false);
-        save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1),ps.output_comment4, false);
+        save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0),ps.output_comment3, false,false);
+        save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1),ps.output_comment4, false,false);
       }
     }
 }
