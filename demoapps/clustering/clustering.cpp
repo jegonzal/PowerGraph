@@ -301,6 +301,7 @@ void start(command_line_options & clopts) {
   
   core glcore;
   glcore.set_engine_options(clopts); 
+  glcore.set_scope_type("vertex");
   ps.set_core(&glcore);
   ps.verify_setup();
   

@@ -262,7 +262,7 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
           if (get_val(a,i,j) != 0){
              if (integer)
                fprintf(f, "%d %d %d\n", i+1, j+1, (int)get_val(a,i,j));
-             else  fprintf(f, "%d %d %10.3g\n", i+1, j+1, get_val(a,i,j)); 
+             else  fprintf(f, "%d %d %10.3g\n", i+1, j+1, (double)get_val(a,i,j)); 
              
           }
        }
@@ -271,6 +271,8 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
     logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
 
 }
+
+
 
 void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std::string comment, bool integer){
     MM_typecode matcode;                        
@@ -311,7 +313,7 @@ void save_matrix_market_format(const char * filename)
     }
     else {
      
-      if (ac.svd_finalize){
+      if (!ac.reduce_mem_consumption){
         save_matrix_market_matrix((std::string(filename) + ".V").c_str(),ps.V, ps.V_comment,false); /* for conforming to wikipedia convention, I swap U and V*/
         save_matrix_market_matrix((std::string(filename) + ".U").c_str(),ps.U, ps.U_comment,false);
       

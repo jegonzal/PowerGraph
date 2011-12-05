@@ -193,7 +193,7 @@ void last_iter(){
 	ps.cost/ps.M);
   if ((ps.first_cost >  0) && fabs(ps.last_cost - ps.cost) / ps.first_cost < ac.threshold){
     logstream(LOG_INFO) << "Algorithm converged in iteration " << ps.iiter << std::endl;
-    ac.iter == ps.iiter;
+    ac.iter = ps.iiter;
   }
   ps.last_cost = ps.cost;
   ps.iiter++;

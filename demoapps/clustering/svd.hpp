@@ -520,7 +520,12 @@ flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){
         set_col(V, i-1, col);
       }
       flt_dbl_mat blockmat = V*eigenvectors;
-      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", blockmat);
+      std::string comment = "%%This is SVD output matrix ";
+      comment += (other_side ? "U" : "V");
+      comment += ". The matrix is split into rows. This is the ";
+      comment += boost::lexical_cast<std::string>(cnt+1) + " block of rows out of " + boost::lexical_cast<std::string>(howmany) + " blocks. Each block has " +
+                 boost::lexical_cast<std::string>(blockmat.rows()) + " rows (except of maybe the last).\n";
+      save_matrix((ac.datafile + (other_side ? ".U" : ".V") + boost::lexical_cast<std::string>(cnt)).c_str(), "rb", blockmat, comment);
       if (ac.debug && V.size() < 1000)
          cout << "V is: " << V*eigenvectors << endl;
  
@@ -664,8 +669,8 @@ for (int i=1; i<=m; i++){
 
  set_col(ps.T,1,vec2fvec(eigenvalues2)); 
  if (ac.svd_compile_eigenvectors && ac.reduce_mem_consumption){
-    mat Tout = fmat2mat(ps.T);
-    save_matrix((ac.datafile + ".D").c_str(), "D", Tout);
+    std::string comment = "%%This matrix has two columns. In each column are the eigenvalues of A are listed for larger to smaller. Note that because of numerical errors there may be difference between the SVD result computed by AA' or A'A (while in theory they should be the same). And that is why we have two columns and not one.\n";
+    save_matrix((ac.datafile + ".D").c_str(), "D", ps.T, comment);
  }
 }
 
