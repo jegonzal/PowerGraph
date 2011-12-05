@@ -128,7 +128,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   std::vector<std::vector<vertex_id_type> > color_block; // set of localvids in each color
   vertex_functor_set<UpdateFunctor> vfunset;
   vertex_functor_set<UpdateFunctor> vfun_cacheset;
-  
+  vertex_functor_set<UpdateFunctor> lowfunset;  
   graphlab_options opts;
   
   size_t max_iterations;
@@ -176,6 +176,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             termination_reason(execution_status::UNSET),
                             vfunset(graph.owned_vertices().size()),
                             vfun_cacheset(graph.get_local_store().num_vertices()),
+                            lowfunset(graph.get_local_store().num_vertices()),
                             max_iterations(0),
                             barrier_time(0.0),
                             use_factorized(false),
@@ -318,17 +319,34 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       bool hasf = vfun_cacheset.test_and_get(i, uf);
       if (hasf) {
         num_cached_tasks.dec();
+        // combine with the lowset
+        update_functor_type uflow;
+        if (lowfunset.test_and_get(i, uflow)) uf += uflow;
         if (i < graph.local_vertices()) {
           if (vfunset.add((vertex_id_type)(i), uf)) {
             num_pending_tasks.inc();
+          }
+          vfunset.read_value(i, uf);
+          // if vfunset value if < 1E-2, move it to the lowset
+          if (uf.priority() < 1E-2) {
+            vfunset.test_and_get(i, uf);
+            num_pending_tasks.dec();
+            lowfunset.add(i, uf);
           }      
         }
         else {
           procid_t owner = graph.localvid_to_owner((vertex_id_type)(i));
-          schedulelock[owner].lock();
-          remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid(i), 
-                                                            uf));
-          schedulelock[owner].unlock();
+          update_functor_type uflow;
+          if (lowfunset.test_and_get(i, uflow)) uf += uflow;
+          if (uf.priority() >= 1E-3) {
+            schedulelock[owner].lock();
+            remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid(i), 
+                                                              uf));
+            schedulelock[owner].unlock();
+          }
+          else {
+            lowfunset.add(i, uf);
+          }
         }
       }
     }
@@ -1324,6 +1342,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
         total_update_count +=  procupdatecounts[i];
       }
+      std::cout << "---- Update Count = " << total_update_count << std::endl;
       total_barrier_time = 0;
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         total_barrier_time += barrier_times[i];

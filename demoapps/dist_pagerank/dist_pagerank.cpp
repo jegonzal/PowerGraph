@@ -122,7 +122,6 @@ public:
     accum = vdata.value - vdata.old_value;
     if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
       vdata.old_value = vdata.value;    
-      reschedule_neighbors(context);
     }
   } // end of apply
 
