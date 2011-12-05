@@ -225,7 +225,7 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
-  load_graph(datafile, format, matrix_info, core.graph(), lineformat);
+  load_cpp_graph(datafile, format, matrix_info, core.graph(), lineformat);
 
   calc_initial_degree(&core.graph(), matrix_info);
 
@@ -274,7 +274,7 @@ int main(int argc,  char *argv[]) {
 
 
   vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
-  write_output_vector(datafile + "x.out", format, ret);
+  write_output_vector(datafile + "x.out", format, ret,false);
 
 
   if (unittest == 1){

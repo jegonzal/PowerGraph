@@ -42,7 +42,7 @@ using namespace std;
 
 
 bool debug = false;
-
+bool quick = false;
 map<string,uint> hash2nodeid;
 std::string datafile;
 atomic<unsigned int> conseq_id;
@@ -73,6 +73,12 @@ void assign_id(uint & outval, const string &name){
   mymutex.unlock();
 }
 
+
+void assign_id_quick(const string& name){
+  mymutex.lock();
+  hash2nodeid[name] = 1;
+  mymutex.unlock();
+}
 
 void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 
@@ -112,20 +118,26 @@ struct stringzipparser_update :
       strncpy(buf1, pch, 18);
       pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
       strncpy(buf2, pch, 18);
-      pch = strtok_r(NULL, " ",(char**)&saveptr);
-      strncpy(buf3, pch, 6);
-      buf3[6] = ' ';
-      pch = strtok_r(NULL, " ",(char**)&saveptr);
-      strncpy(buf3+7,pch,6);
-      pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
-      duration = atoi(pch);
-      unsigned long int timeret = datestr2uint64(std::string(buf3));
-      uint from, to;
-      find_ids(from, to, buf1, buf2);
-      if (debug && line <= 10)
+      if (!quick){
+        pch = strtok_r(NULL, " ",(char**)&saveptr);
+        strncpy(buf3, pch, 6);
+        buf3[6] = ' ';
+        pch = strtok_r(NULL, " ",(char**)&saveptr);
+        strncpy(buf3+7,pch,6);
+        pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
+        duration = atoi(pch);
+        unsigned long int timeret = datestr2uint64(std::string(buf3));
+        uint from, to;
+        find_ids(from, to, buf1, buf2);
+        if (debug && line <= 10)
          cout<<"Read line: " << line << " From: " << from << " To: " << to << " time: " << timeret << " val: " << duration << endl;
- 
-      out_file << from << " " << to << " " << timeret << " " << duration << endl;
+         out_file << from << " " << to << " " << timeret << " " << duration << endl;
+      }
+      else {
+        assign_id_quick(buf1);
+        assign_id_quick(buf2);
+      }
+
       fin.read(buf1,1); //go over \n
       line++;
       if (lines && line>=lines)
@@ -137,7 +149,8 @@ struct stringzipparser_update :
         break;
     } 
 
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
+   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
+	                 "total map size: " << hash2nodeid.size() << endl;
 
     // close file
     fin.pop(); fin.pop();
@@ -189,6 +202,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
+  clopts.attach_option("quick", &quick, quick, "quick mode");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;

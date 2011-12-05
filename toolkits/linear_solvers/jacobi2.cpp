@@ -311,7 +311,7 @@ int main(int argc,  char *argv[]) {
 
   vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 
-  write_output_vector(datafile + "x.out", format, ret);
+  write_output_vector(datafile + "x.out", format, ret, false);
 
 
   if (unittest == 1){

@@ -1,4 +1,5 @@
 /* Copyright (c) 2009 Carnegie Mellon University. 
+ * ad
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -139,6 +140,108 @@ bool load_matrixmarket(const std::string& fname,
   return true;
 } // end of load matrixmarket graph
 
+template<typename Graph>
+bool load_matrixmarket_cpp_graph(const std::string& fname,
+                             bipartite_graph_descriptor& desc,
+                             Graph& graph,
+		             bool gzip = false,
+			     int parse_type = MATRIX_MARKET_3){ 
+  typedef Graph graph_type;
+  typedef typename graph_type::vertex_id_type vertex_id_type;
+  typedef typename graph_type::edge_data_type edge_data_type;
+  typedef matrix_entry<graph_type> matrix_entry_type;
+
+  // Open the file 
+  logstream(LOG_INFO) << "Reading matrix market file: " << fname << std::endl;
+  //FILE* fptr = open_file(fname.c_str(), "r");
+  std::ifstream in_file(fname.c_str(), std::ios::binary);
+  boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+  if (gzip)
+    fin.push(boost::iostreams::gzip_decompressor());
+  fin.push(in_file); 
+ 
+  // read Matrix market header
+  MM_typecode matcode;
+  if(mm_read_cpp_banner(fin, &matcode)) {
+    logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
+  }
+  // Screen header type
+  if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
+    logstream(LOG_FATAL) 
+      << "Sorry, this application does not support matrixmarket type: "
+      <<  mm_typecode_to_str(matcode) << std::endl;
+    return false;
+  }
+  // load the matrix descriptor
+  if(mm_read_cpp_mtx_crd_size(fin, &desc.rows, &desc.cols, &desc.nonzeros)) {
+    logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
+  }
+  std::cout << "Rows:      " << desc.rows << std::endl
+            << "Cols:      " << desc.cols << std::endl
+            << "Nonzeros:  " << desc.nonzeros << std::endl;
+  std::cout << "Constructing all vertices." << std::endl;
+  graph.resize(desc.total());
+  bool is_square = desc.is_square();
+
+  char line[MM_MAX_LINE_LENGTH];
+
+  std::cout << "Adding edges." << std::endl;
+  for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
+    int row = 0, col = 0;  
+    double val = 0;
+	
+    fin.getline(line, MM_MAX_LINE_LENGTH);
+
+    //regular matrix market format. [from] [to] [val]
+    if (parse_type == MATRIX_MARKET_3){ 
+        if(sscanf(line, "%d %d %lg\n", &row, &col, &val) != 3) {
+        logstream(LOG_ERROR) 
+          << "Error reading file on line: " << i << std::endl;
+        return false;
+      }
+     //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
+    } else if (parse_type == MATRIX_MARKET_6){
+      double val2, zero, zero1;
+      if(sscanf(line, "%d %d %lg %lg %lg %lg\n", &row, &col, &val, &val2, &zero, &zero1) != 6) {
+        logstream(LOG_FATAL) 
+          << "Error reading file " << fname << " on line: " << i << std::endl;
+        return false;
+      }
+      val += val2; //sum up to values to have a single undirected link
+    }
+    else assert(false);
+
+    --row; --col;
+
+    ASSERT_LT(row, desc.rows);
+    ASSERT_LT(col, desc.cols);
+    ASSERT_GE(row, 0);
+    ASSERT_GE(col, 0);
+    const vertex_id_type source = row;
+    const vertex_id_type target = col + (is_square ? 0 : desc.rows);
+    const edge_data_type edata(val);
+
+    if (debug && desc.nonzeros < 100)
+      logstream(LOG_INFO)<<"Adding an edge: " << source << "->" << target << " with val: " << std::endl;
+
+    if(is_square && source == target) 
+      graph.vertex_data(source).add_self_edge(val);
+    else {
+     graph.add_edge(source, target, edata); 
+      if (mm_is_symmetric(matcode))
+        graph.add_edge(target, source, edata);
+    }
+  } // end of for loop  
+  std::cout << "Graph size:    " << graph.num_edges() << std::endl;
+  //graph.finalize();
+  
+   if (gzip)
+     fin.pop();
+   fin.pop();
+   in_file.close();
+   return true;
+} // end of load matrixmarket graph
+
 
 template<typename Graph>
 bool load_matrixmarket_graph(const std::string& fname,
@@ -251,6 +354,21 @@ bool load_graph(const std::string& fname,
   return false;
 } // end of load graph
 
+template<typename Graph>
+bool load_cpp_graph(const std::string& fname,
+                const std::string& format,
+                bipartite_graph_descriptor& desc,
+                Graph& graph, 
+	        bool gzip = false,
+	        int format_type = MATRIX_MARKET_3) {
+
+  if(format == "matrixmarket") 
+    return load_matrixmarket_cpp_graph(fname, desc, graph, format_type);
+  else std::cout << "Invalid file format!" << std::endl;
+  return false;
+} // end of load graph
+
+
 template <typename graph_type>
 void load_matrix_market_vector(const std::string & filename, const bipartite_graph_descriptor & desc, graph_type & g, int type, bool optional_field)
 {
@@ -338,12 +456,16 @@ void load_vector(const std::string& fname,
 
 }
 
-inline void write_row(int row, int col, double val, FILE * f){
-    fprintf(f, "%d %d %10.3g\n", row, col, val);
+inline void write_row(int row, int col, double val, FILE * f, bool issparse){
+    if (issparse)
+      fprintf(f, "%d %d %10.3g\n", row, col, val);
+    else fprintf(f, "%10.3g ", val);
 }
 
-inline void write_row(int row, int col, int val, FILE * f){
-    fprintf(f, "%d %d %d\n", row, col, val);
+inline void write_row(int row, int col, int val, FILE * f, bool issparse){
+    if (issparse)
+      fprintf(f, "%d %d %d\n", row, col, val);
+    else fprintf(f, "%d ", val);
 }
 
 template<typename T>
@@ -361,12 +483,17 @@ inline void set_typecode<ivec>(MM_typecode & matcode){
 
 
 template<typename vec>
-void save_matrix_market_format_vector(const std::string datafile, const vec & output)
+void save_matrix_market_format_vector(const std::string datafile, const vec & output, bool issparse)
 {
     MM_typecode matcode;                        
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
     mm_set_coordinate(&matcode);
+
+    if (issparse)
+       mm_set_sparse(&matcode);
+    else mm_set_dense(&matcode);
+
     set_typecode<vec>(matcode);
 
     FILE * f = fopen(datafile.c_str(),"w");
@@ -374,19 +501,27 @@ void save_matrix_market_format_vector(const std::string datafile, const vec & ou
     mm_write_banner(f, matcode); 
     mm_write_mtx_crd_size(f, output.size(), 1, output.size());
 
-    for (int j=0; j<(int)output.size(); j++)
-      write_row(j+1, 1, output[j], f);
+    for (int j=0; j<(int)output.size(); j++){
+      write_row(j+1, 1, output[j], f, issparse);
+      if (!issparse) 
+        fprintf(f, "\n");
+    }
 
     fclose(f);
 }
 
 template<typename mat>
-void save_matrix_market_format_matrix(const std::string datafile, const mat & output)
+void save_matrix_market_format_matrix(const std::string datafile, const mat & output, bool issparse)
 {
     MM_typecode matcode;                        
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
     mm_set_coordinate(&matcode);
+
+    if (issparse)
+      mm_set_sparse(&matcode);
+    else mm_set_dense(&matcode);
+
     set_typecode<vec>(matcode);
 
     FILE * f = fopen(datafile.c_str(),"w");
@@ -395,8 +530,11 @@ void save_matrix_market_format_matrix(const std::string datafile, const mat & ou
     mm_write_mtx_crd_size(f, output.size(), 1, output.size());
 
     for (int j=0; j<(int)output.rows(); j++)
-      for (int i=0; i< (int)output.cols(); i++)
-         write_row(j+1, i+1, get_val(output, i, j), f);
+      for (int i=0; i< (int)output.cols(); i++){
+         write_row(j+1, i+1, get_val(output, i, j), f, issparse);
+         if (!issparse && (i == (int)output.cols() - 1))
+           fprintf(f, "\n");
+      }
 
     fclose(f);
 }
@@ -451,17 +589,17 @@ inline void write_output_matrix_binary(const std::string & datafile, const mat& 
 
 
 template<typename vec>
-inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output){
+inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output, bool issparse){
 
   if (format == "binary")
     write_output_vector_binary(datafile, output);
   else if (format == "matrixmarket")
-    save_matrix_market_format_vector(datafile, output); 
+    save_matrix_market_format_vector(datafile, output,issparse); 
   else assert(false);
 }
 
 template<typename mat>
-inline void write_output_matrix(const std::string & datafile, const std::string & format, const mat& output){
+inline void write_output_matrix(const std::string & datafile, const std::string & format, const mat& output, bool isparse){
 
   if (format == "binary")
     write_output_matrix_binary(datafile, output);

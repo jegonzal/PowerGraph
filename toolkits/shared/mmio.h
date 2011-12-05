@@ -12,17 +12,28 @@
 #define MM_MAX_LINE_LENGTH 1025
 #define MatrixMarketBanner "%%MatrixMarket"
 #define MM_MAX_TOKEN_LENGTH 64
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <fstream>
+#include <iostream>
+using namespace std;
+
 
 typedef char MM_typecode[4];
 
 char *mm_typecode_to_str(MM_typecode matcode);
 
 int mm_read_banner(FILE *f, MM_typecode *matcode);
+int mm_read_cpp_banner(boost::iostreams::filtering_stream<boost::iostreams::input>  & f, MM_typecode *matcode);
 int mm_read_mtx_crd_size(FILE *f, int *M, int *N, int *nz);
+int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::input>  & f, int *M, int *N, int *nz);
 int mm_read_mtx_array_size(FILE *f, int *M, int *N);
 
 int mm_write_banner(FILE *f, MM_typecode matcode);
+int mm_write_cpp_banner(ofstream & f, MM_typecode matcode);
 int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz);
+int mm_write_cpp_mtx_crd_size(ofstream &f, int M, int N, int nz);
 int mm_write_mtx_array_size(FILE *f, int M, int N);
 
 

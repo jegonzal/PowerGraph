@@ -336,10 +336,10 @@ int main(int argc,  char *argv[]) {
   std::cout << "GaBP finished in " << runtime << std::endl;
 
   vec x = fill_output(&core.graph(), matrix_info, GABP_CUR_MEAN);
-  write_output_vector(datafile + ".curmean.out", format, x);
+  write_output_vector(datafile + ".curmean.out", format, x, false);
 
   vec prec = fill_output(&core.graph(), matrix_info, GABP_CUR_PREC);
-  write_output_vector(datafile + ".curprec.out", format, prec);
+  write_output_vector(datafile + ".curprec.out", format, prec, false);
 
 
   if (unittest == 1){
