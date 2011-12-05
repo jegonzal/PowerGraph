@@ -14,7 +14,7 @@ void unittest(graphlab::command_line_options &clopts){
     config.datafile = "mat3x2";
     config.threshold = 1e-10;
     config.syncinterval = 10000;
-    config.oldformat=true;
+    //config.oldformat=true;
     clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
   }
   else if (config.unittest == 2){

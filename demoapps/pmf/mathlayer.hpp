@@ -67,7 +67,7 @@ inline mat zeros(int rows, int cols){
 }
 inline void debug_print_vec(const char * name,const vec& _vec, int len){
   printf("%s ) ", name);
-  for (int i=0; i< std::min(len, _vec.size()); i++)
+  for (int i=0; i< std::min(len, (int)_vec.size()); i++)
     if (_vec(i) == 0)
       printf("      0    ");
     else printf("%12.4g    ", _vec(i));

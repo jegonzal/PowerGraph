@@ -205,10 +205,14 @@ void read_vec(FILE * f, int start, int len, float * array){
 
 void save_matrix(const char * filename, const char * varname, const mat& pmat){
   remove(filename);
-  it_file output(filename);
+  if (ac.debug)
+     logstream(LOG_INFO) << "Starting to save matrix " << filename << " of size " << pmat.rows() << " x " << pmat.cols() << " at time: " << ps.gt.current_time() << std::endl;
+   it_file output(filename);
   output << Name(varname);
   output << pmat;
   output.close(); 
+  if (ac.debug)
+     logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
 }
 void save_matrix(const char * filename, const char * varname, const fmat& pmat){
   FILE * pfile = open_file(filename, "wb");

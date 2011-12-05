@@ -310,11 +310,14 @@ void save_matrix_market_format(const char * filename)
       save_matrix_market_matrix((std::string(filename) + ".assignments.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer);
     }
     else {
-      save_matrix_market_matrix((std::string(filename) + ".V").c_str(),ps.V, ps.V_comment,false); /* for conforming to wikipedia convention, I swap U and V*/
-      save_matrix_market_matrix((std::string(filename) + ".U").c_str(),ps.U, ps.U_comment,false);
+     
+      if (ac.svd_finalize){
+        save_matrix_market_matrix((std::string(filename) + ".V").c_str(),ps.V, ps.V_comment,false); /* for conforming to wikipedia convention, I swap U and V*/
+        save_matrix_market_matrix((std::string(filename) + ".U").c_str(),ps.U, ps.U_comment,false);
       
-      save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0),ps.output_comment3, false);
-      save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1),ps.output_comment4, false);
+        save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0),ps.output_comment3, false);
+        save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1),ps.output_comment4, false);
+      }
     }
 }
 

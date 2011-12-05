@@ -165,6 +165,12 @@ enum countervals{
    CALC_RMSE_Q=7
 };
 
+enum svd_steps{
+  SVD_FULL_PASS=0,
+  SVD_ITERATIONS=1,
+  SVD_EIGENDECOMPOTISION=2
+};
+
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::types<graph_type> gl_types;
 

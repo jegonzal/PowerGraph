@@ -84,7 +84,7 @@ int svd_iter;
 bool svd_finalize;
 bool svd_compile_eigenvectors;  
 int svd_compile_eigenvectors_block_size;
-
+int svd_step; //0 = full computation. 1 = iterations only. 2 = eigendecomposition only.
 /* variables for CG */
 bool cg_resid;
 
@@ -190,7 +190,8 @@ advanced_config(){
 
   /* variables for SVD */
    svd_iter = 10; //number of iterations (which is the number of extracted eigenvectors)
-
+   svd_step = 0;
+  
   /* implicit ratings variables (see reference 10 in pmf.h) */
    implicitratingweight = 1;
    implicitratingvalue = 0;
