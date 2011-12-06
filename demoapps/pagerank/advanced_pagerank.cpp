@@ -217,6 +217,7 @@ int main(int argc, char** argv) {
     std::cout << "Coloring the graph." << std::endl;
     const size_t num_colors = graphlab::graph_ops<graph_type>::    
       color(core.graph());
+    std::cout << "Colors: " << num_colors << std::endl;
     std::ofstream fout(vinfo_fname.c_str());
     for(size_t i = 0; i < core.graph().num_vertices(); ++i) 
       fout 

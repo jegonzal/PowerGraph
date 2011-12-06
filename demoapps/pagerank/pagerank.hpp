@@ -98,7 +98,9 @@ void save_pagerank(const std::string& fname,
   fout << std::setprecision(10);
   for(graph_type::vertex_id_type vid = 0; 
       vid < graph.num_vertices(); ++vid) {
-    fout << graph.vertex_data(vid).value << "\n";
+    fout << graph.vertex_data(vid).value << '\t'
+         << graph.vertex_data(vid).old_value << '\t'
+         << graph.vertex_data(vid).nupdates << '\n';
   }
   fout.close();
 } // end of save_pagerank

@@ -205,7 +205,7 @@ namespace graphlab {
             ret_vid = vid; return sched_status::NEW_TASK;
           } else {
             // Priority is insufficient so return to the schedule
-            schedule(cpuid, vid, ret_fun);
+            vfun_set.add(vid, ret_fun);
           } 
         }
       } // end of for loop
@@ -224,7 +224,8 @@ namespace graphlab {
 
 
     static void print_options_help(std::ostream &out) {
-      out << "ordering = [string: {random, ascending, max_degree, min_degree, color}, "
+      out << "ordering = [string: {random, ascending, max_degree, "
+          << "min_degree,color},"
           << "\t vertex ordering, default=random]\n"
           << "strict = [bool, use strict round robin schedule, default=false]\n"
           << "min_priority = [double, minimum priority required to run an \n"
