@@ -389,8 +389,9 @@ namespace graphlab {
       CSC_dst_skip.reserve(num_vertices);
       c2r_map.reserve(num_edges);
 
-      // Alias c2r_map as permute_index.
-      std::vector<size_t>& permute_index = c2r_map;
+      // Permute_index.
+      std::vector<size_t> permute_index;
+      permute_index.reserve(num_edges);
       for(size_t i = 0; i < num_edges; ++i) {
         permute_index.push_back(i);
       }
@@ -400,10 +401,38 @@ namespace graphlab {
       std::sort(permute_index.begin(), permute_index.end(), 
           cmp_by_src_functor(edges.source_arr, edges.target_arr));
 
-      // std::cout << "Outplace permute by src..." << std::endl;
-      outofplace_shuffle(edges.source_arr, permute_index);
-      outofplace_shuffle(edges.data, permute_index);
-      outofplace_shuffle(edges.target_arr, permute_index);
+      c2r_map = permute_index;
+
+      // Inplace permute of edge_data, edge_src, edge_target array.
+      // Modified from src/graphlab/util/generics/shuffle.hpp.
+      EdgeData swap_data; vertex_id_type swap_src; vertex_id_type swap_target;
+      for (size_t i = 0; i < permute_index.size(); ++i) {
+        if (i != permute_index[i]) {
+          // Reserve the ith entry;
+          size_t j = i;
+          swap_data = edges.data[i];
+          swap_src = edges.source_arr[i];
+          swap_target = edges.target_arr[i];
+          // Begin swap cycle:
+          while (j != permute_index[j]) {
+            size_t next = permute_index[j];
+            if (next != i) {
+              edges.data[j] = edges.data[next];
+              edges.source_arr[j] = edges.source_arr[next];
+              edges.target_arr[j] = edges.target_arr[next];
+              permute_index[j] = j;
+              j = next;
+            } else {
+              // end of cycle
+              edges.data[j] = swap_data;
+              edges.source_arr[j] = swap_src;
+              edges.target_arr[j] = swap_target;
+              permute_index[j] = j;
+              break;
+            }
+          }
+        }
+      }
 
       // std::cout << "Build CSR_src..." << std::endl;
       // Construct CSR_src:
