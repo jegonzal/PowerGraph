@@ -126,7 +126,7 @@ public:
       vdata.value += context.const_edge_data(edge).weight * 
        context.const_vertex_data(edge.source()).value;
     }
-    vdata.value = RESET_PROBE + (1 - RESET_PROB) * vdata.value;
+    vdata.value = RESET_PROB + (1 - RESET_PROB) * vdata.value;
     // End racy update.
 
     accum = (vdata.value - vdata.old_value);
