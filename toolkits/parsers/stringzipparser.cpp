@@ -58,7 +58,7 @@ struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(const std::string & data);
+unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
 
 
 
@@ -104,13 +104,28 @@ struct stringzipparser_update :
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
-    std::ofstream out_file(std::string(vdata.filename + ".out").c_str());
+
+    std::ofstream out_file(std::string(vdata.filename + ".out.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << vdata.filename << ".out.gz" << std::endl;
+    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+    fout.push(boost::iostreams::gzip_compressor());
+    fout.push(out_file);
+
+    MM_typecode out_typecode;
+    mm_clear_typecode(&out_typecode);
+    mm_set_integer(&out_typecode); 
+    mm_set_dense(&out_typecode); 
+    mm_set_matrix(&out_typecode);
+    mm_write_cpp_banner(fout, out_typecode);
+    mm_write_cpp_mtx_crd_size(fout, 987654321, 987654321, 987654322);
+
 
     char linebuf[256], buf1[256], buf2[256], buf3[256], buf4[256];
     char saveptr[1024];
     int duration;
     int line = 1;
     int lines = context.get_global<int>("LINES");
+    int dateret, timeret;
    
     while(true){
       fin.getline(linebuf, 128);
@@ -126,12 +141,12 @@ struct stringzipparser_update :
         strncpy(buf3+7,pch,6);
         pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
         duration = atoi(pch);
-        unsigned long int timeret = datestr2uint64(std::string(buf3));
+        datestr2uint64(std::string(buf3), dateret, timeret);
         uint from, to;
         find_ids(from, to, buf1, buf2);
         if (debug && line <= 10)
-         cout<<"Read line: " << line << " From: " << from << " To: " << to << " time: " << timeret << " val: " << duration << endl;
-         out_file << from << " " << to << " " << timeret << " " << duration << endl;
+            cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << dateret << " time: " << timeret << " val: " << duration << endl;
+         fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
       }
       else {
         assign_id_quick(buf1);
@@ -154,6 +169,7 @@ struct stringzipparser_update :
 
     // close file
     fin.pop(); fin.pop();
+    fout.pop(); fout.pop();
     in_file.close();
     out_file.close();
   }
@@ -232,12 +248,12 @@ int main(int argc,  char *argv[]) {
 
   vertex_data vdata("HIDDEN.20050803.gz");
   core.graph().add_vertex(vdata);
-  vertex_data vdata1("HIDDEN.20050810.gz");
-  core.graph().add_vertex(vdata1);
-  vertex_data vdata2("HIDDEN.20050817.gz");
-  core.graph().add_vertex(vdata2);
-  vertex_data vdata3("HIDDEN.20050824.gz");
-  core.graph().add_vertex(vdata3);
+  //vertex_data vdata1("HIDDEN.20050810.gz");
+  //core.graph().add_vertex(vdata1);
+  //vertex_data vdata2("HIDDEN.20050817.gz");
+  //core.graph().add_vertex(vdata2);
+  //vertex_data vdata3("HIDDEN.20050824.gz");
+  //core.graph().add_vertex(vdata3);
      std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringzipparser_update());
  

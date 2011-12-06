@@ -31,9 +31,9 @@ int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams
 int mm_read_mtx_array_size(FILE *f, int *M, int *N);
 
 int mm_write_banner(FILE *f, MM_typecode matcode);
-int mm_write_cpp_banner(ofstream & f, MM_typecode matcode);
+int mm_write_cpp_banner(boost::iostreams::filtering_stream<boost::iostreams::output> & f, MM_typecode matcode);
 int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz);
-int mm_write_cpp_mtx_crd_size(ofstream &f, int M, int N, int nz);
+int mm_write_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::output> & f, int M, int N, int nz);
 int mm_write_mtx_array_size(FILE *f, int M, int N);
 
 
