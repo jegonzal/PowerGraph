@@ -44,7 +44,8 @@ extern bool debug;
 
 enum matrix_market_parser{
    MATRIX_MARKET_3 = 1,
-   MATRIX_MARKET_6 = 2
+   MATRIX_MARKET_6 = 2,
+   MATRIX_MARKET_4 = 3,
 };
 
 
@@ -141,7 +142,7 @@ bool load_matrixmarket(const std::string& fname,
 } // end of load matrixmarket graph
 
 template<typename Graph>
-bool load_matrixmarket_cpp_graph(const std::string& fname,
+bool load_matrixmarket_pp_graph(const std::string& fname,
                              bipartite_graph_descriptor& desc,
                              Graph& graph,
 		             bool gzip = false,
@@ -159,28 +160,35 @@ bool load_matrixmarket_cpp_graph(const std::string& fname,
   if (gzip)
     fin.push(boost::iostreams::gzip_decompressor());
   fin.push(in_file); 
- 
-  // read Matrix market header
+    
   MM_typecode matcode;
-  if(mm_read_cpp_banner(fin, &matcode)) {
-    logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
-  }
-  // Screen header type
-  if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
-    logstream(LOG_FATAL) 
+
+  if (desc.rows == 0){
+ 
+    // read Matrix market header
+    if(mm_read_cpp_banner(fin, &matcode)) {
+      logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
+    }
+    // Screen header type
+    if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
+      logstream(LOG_FATAL) 
       << "Sorry, this application does not support matrixmarket type: "
       <<  mm_typecode_to_str(matcode) << std::endl;
-    return false;
-  }
-  // load the matrix descriptor
-  if(mm_read_cpp_mtx_crd_size(fin, &desc.rows, &desc.cols, &desc.nonzeros)) {
-    logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
+     return false;
+    }
+    // load the matrix descriptor
+    if(mm_read_cpp_mtx_crd_size(fin, &desc.rows, &desc.cols, &desc.nonzeros)) {
+      logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
+    }
+
   }
   std::cout << "Rows:      " << desc.rows << std::endl
             << "Cols:      " << desc.cols << std::endl
             << "Nonzeros:  " << desc.nonzeros << std::endl;
   std::cout << "Constructing all vertices." << std::endl;
-  graph.resize(desc.total());
+
+  if (graph.num_vertices() < desc.total())
+    graph.resize(desc.total());
   bool is_square = desc.is_square();
 
   char line[MM_MAX_LINE_LENGTH];
@@ -189,6 +197,7 @@ bool load_matrixmarket_cpp_graph(const std::string& fname,
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
     int row = 0, col = 0;  
     double val = 0;
+    unsigned long long time = 0;
 	
     fin.getline(line, MM_MAX_LINE_LENGTH);
 
@@ -199,8 +208,16 @@ bool load_matrixmarket_cpp_graph(const std::string& fname,
           << "Error reading file on line: " << i << std::endl;
         return false;
       }
+    }
      //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
-    } else if (parse_type == MATRIX_MARKET_6){
+    else if (parse_type == MATRIX_MARKET_4){ 
+        if(sscanf(line, "%d %d %llu %lg\n", &row, &col, &time, &val) != 3) {
+        logstream(LOG_ERROR) 
+          << "Error reading file on line: " << i << std::endl;
+        return false;
+      }
+     //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
+    }  else if (parse_type == MATRIX_MARKET_6){
       double val2, zero, zero1;
       if(sscanf(line, "%d %d %lg %lg %lg %lg\n", &row, &col, &val, &val2, &zero, &zero1) != 6) {
         logstream(LOG_FATAL) 

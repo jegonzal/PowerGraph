@@ -270,6 +270,17 @@ int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz)
     else 
         return 0;
 }
+int mm_write_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::output>& f, int M, int N, int nz)
+{
+    char line[MM_MAX_LINE_LENGTH];
+    sprintf(line, "%d %d %d\n", M, N, nz);
+    f.write(line, strlen(line));
+    if (!f.good())
+        return MM_COULD_NOT_WRITE_FILE;
+    else 
+        return 0;
+}
+
 
 int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::input>  & f, int *M, int *N, int *nz )
 {
@@ -514,7 +525,7 @@ int mm_write_banner(FILE *f, MM_typecode matcode)
     else
         return 0;
 }
-int mm_write_cpp_banner(ofstream &f, MM_typecode matcode)
+int mm_write_cpp_banner(boost::iostreams::filtering_stream<boost::iostreams::output> &f, MM_typecode matcode)
 {
     char *str = mm_typecode_to_str(matcode);
     //int ret_code;
