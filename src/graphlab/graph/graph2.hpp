@@ -107,7 +107,7 @@ namespace graphlab {
     /** Interface for iupdate functor.*/
     typedef typename gstore_type::edge_list edge_list_type;
 
-    /** Edge type for temporary insertion. */
+    /** Edge list type for temporary insertion. */
     typedef typename gstore_type::edge_info edge_info;
 
   public:
@@ -144,7 +144,7 @@ namespace graphlab {
 
     void clear_reserve() {
       clear();
-      std::vector<edge_info>().swap(edges_tmp);
+      edges_tmp.clear();
       std::vector<VertexData>().swap(vertices);
       std::vector<vertex_color_type>().swap(vcolors);
       gstore.clear_reserve();
@@ -261,7 +261,6 @@ namespace graphlab {
         ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
       }
 
-
       if(source == target) {
         logstream(LOG_FATAL) 
           << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
@@ -270,7 +269,7 @@ namespace graphlab {
       }
 
       // Add the edge to the set of edge data (this copies the edata)
-      edges_tmp.push_back( edge_info( source, target, edata ) );
+      edges_tmp.add_edge(source, target, edata);
 
       // This is not the final edge_id, so we always return 0. 
       return 0;
@@ -436,7 +435,7 @@ namespace graphlab {
     size_t estimate_sizeof() const {
       size_t vlist_size = sizeof(vertices) + sizeof(VertexData) * vertices.capacity();
       size_t vcolor_size = sizeof(vcolors) + sizeof(vertex_color_type) * vcolors.capacity();
-      size_t elist_size = sizeof(edges_tmp) + sizeof(edge_info) * edges_tmp.capacity();
+      size_t elist_size = edges_tmp.estimate_sizeof(); 
       size_t store_size = gstore.estimate_sizeof();
 
 //      printf("graph2: tmplist size: %u, gstoreage size: %u \n", elist_size, store_size);
@@ -559,7 +558,7 @@ namespace graphlab {
         source, destination, and data. Used for temporary storage. The
         data is transferred into CSR+CSC representation in
         Finalize. This will be cleared after finalized.*/
-    std::vector<edge_info> edges_tmp;
+    edge_info edges_tmp;
    
     /** Mark whether the graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve

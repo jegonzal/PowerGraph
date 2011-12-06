@@ -110,13 +110,22 @@ public:
     if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
-    double sum = 0;
+    // double sum = 0;
+    // foreach(const edge_type& edge, context.in_edges()) {
+    //   sum += context.const_edge_data(edge).weight * 
+    //    context.const_vertex_data(edge.source()).value;
+    // }
+    // vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
+
+    // Racy version:
+    vdata.value = 0;
     foreach(const edge_type& edge, context.in_edges()) {
-      sum += context.const_edge_data(edge).weight * 
+      vdata.value += context.const_edge_data(edge).weight * 
        context.const_vertex_data(edge.source()).value;
     }
+    vdata.value = RESET_PROB + (1 - RESET_PROB) * vdata.value;
+
     // Add random reset probability
-    vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
     accum = (vdata.value - vdata.old_value);
     if (dynamic_schedule)  {
       if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1 ) {
