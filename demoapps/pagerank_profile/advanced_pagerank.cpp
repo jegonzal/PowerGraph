@@ -111,22 +111,22 @@ public:
     if(UPDATE_STYLE == DELTA) { delta_functor_update(context); return; }      
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
-    /*
     double sum = 0;
     foreach(const edge_type& edge, context.in_edges()) {
-      vdata.value += context.const_edge_data(edge).weight * 
+      sum += context.const_edge_data(edge).weight * 
        context.const_vertex_data(edge.source()).value;
     }
-    vdata.value = RESET_PROB + (1 - RESET_PROB) * vdata.value;
-    */
+    vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
 
     // Begin racy update.
+    /*
     vdata.value = 0;
     foreach(const edge_type& edge, context.in_edges()) {
       vdata.value += context.const_edge_data(edge).weight * 
        context.const_vertex_data(edge.source()).value;
     }
     vdata.value = RESET_PROB + (1 - RESET_PROB) * vdata.value;
+    */
     // End racy update.
 
     accum = (vdata.value - vdata.old_value);
@@ -327,7 +327,7 @@ int main(int argc, char** argv) {
   // Setup sync operation.
   if (!TRUERANK.empty()) {
     accumulator  initial_accum;
-    size_t sync_interval = 1000;
+    size_t sync_interval = 100;
     std::cout << "Set up sync operation" << std::endl;
     core.add_sync("sync", initial_accum, sync_interval);
     core.add_global("L1", double(0));

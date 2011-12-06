@@ -401,10 +401,10 @@ namespace graphlab {
       std::sort(permute_index.begin(), permute_index.end(), 
           cmp_by_src_functor(edges.source_arr, edges.target_arr));
 
-      c2r_map = permute_index;
 
       // Inplace permute of edge_data, edge_src, edge_target array.
       // Modified from src/graphlab/util/generics/shuffle.hpp.
+      // std::cout << "Inplace permute by src..." << std::endl;
       EdgeData swap_data; vertex_id_type swap_src; vertex_id_type swap_target;
       for (size_t i = 0; i < permute_index.size(); ++i) {
         if (i != permute_index[i]) {
@@ -473,14 +473,16 @@ namespace graphlab {
       ASSERT_EQ(CSR_src.size(), num_vertices);
       ASSERT_EQ(CSR_src_skip.size(), num_vertices);
 
-      // std::cout << "Sort by dst..." << std::endl;
+       // std::cout << "Sort by dst..." << std::endl;
       // Construct c2r_map, sort the ids according to column first order.
       for(size_t i = 0; i < num_edges; ++i) {
         permute_index[i] = i;
       }
       std::sort(permute_index.begin(), permute_index.end(), cmp_by_dst_functor(edges.source_arr, edges.target_arr));
-      // std::cout << "Outofplace permute by dst..." << std::endl;
-      outofplace_shuffle(edges.source_arr, permute_index);
+
+      c2r_map = permute_index;
+       // std::cout << "Inplace permute by dst..." << std::endl;
+      inplace_shuffle(edges.source_arr.begin(), edges.source_arr.end(), permute_index);
       /* DEBUG
          printf("c2r_map: \n");
          foreach(edge_id_type e, c2r_map)
@@ -518,6 +520,8 @@ namespace graphlab {
       edge_data_list.swap(edges.data);
       CSR_dst.swap(edges.target_arr);
       CSC_src.swap(edges.source_arr);
+      std::vector<size_t>().swap(permute_index);
+      // std::cout << "End of finalize." << std::endl;
 
       /* DEBUG */
       // printf("CSR dst:\n");
