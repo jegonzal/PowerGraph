@@ -29,6 +29,7 @@
 
 #ifndef GRAPHLAB_GRAPH_STORAGE_HPP
 #define GRAPHLAB_GRAPH_STORAGE_HPP
+#include <omp.h>
 #include <cmath>
 
 #include <string>
@@ -404,21 +405,29 @@ namespace graphlab {
       c2r_map.reserve(num_edges);
 
       // Permute_index.
-      std::vector<size_t> permute_index;
-      permute_index.reserve(num_edges);
-      for(size_t i = 0; i < num_edges; ++i) {
-        permute_index.push_back(i);
-      }
-      // Sort edges by source;
-      // std::cout << "Graph finalize..." << std::endl;
-      // std::cout << "Sort by src..." << std::endl;
-      std::sort(permute_index.begin(), permute_index.end(), 
-          cmp_by_src_functor(edges.source_arr, edges.target_arr));
+      std::vector<size_t> permute_index(num_edges, 0);
+      // Counter_index.
+      std::vector<size_t> counter_array(num_vertices+1, 0);
 
+      std::cout << "Graph finalize..." << std::endl;
+      std::cout << "Sort by src..." << std::endl;
+      // Sort edges by source;
+      // Begin of counting sort.
+      counting_sort(edges.source_arr, counter_array, permute_index); 
+      // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
+#pragma omp parallel for
+      for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
+        if (counter_array[j] < counter_array[j+1]) {
+          std::sort(permute_index.begin()+counter_array[j], 
+                    permute_index.begin()+counter_array[j+1],
+                    cmp_by_any_functor<vertex_id_type> (edges.target_arr)); 
+        }
+      }
+      // End of counting sort.
 
       // Inplace permute of edge_data, edge_src, edge_target array.
       // Modified from src/graphlab/util/generics/shuffle.hpp.
-      // std::cout << "Inplace permute by src..." << std::endl;
+      std::cout << "Inplace permute by src..." << std::endl;
       EdgeData swap_data; vertex_id_type swap_src; vertex_id_type swap_target;
       for (size_t i = 0; i < permute_index.size(); ++i) {
         if (i != permute_index[i]) {
@@ -448,7 +457,7 @@ namespace graphlab {
         }
       }
 
-      // std::cout << "Build CSR_src..." << std::endl;
+      std::cout << "Build CSR_src..." << std::endl;
       // Construct CSR_src:
       size_t lastSrc = -1;
       vertex_id_type old_src = -1;
@@ -487,15 +496,23 @@ namespace graphlab {
       ASSERT_EQ(CSR_src.size(), num_vertices);
       ASSERT_EQ(CSR_src_skip.size(), num_vertices);
 
-       // std::cout << "Sort by dst..." << std::endl;
-      // Construct c2r_map, sort the ids according to column first order.
-      for(size_t i = 0; i < num_edges; ++i) {
-        permute_index[i] = i;
-      }
-      std::sort(permute_index.begin(), permute_index.end(), cmp_by_dst_functor(edges.source_arr, edges.target_arr));
 
+      // Construct c2r_map, sort the ids according to column first order.
+      // Begin of counting sort.
+      std::cout << "Sort by dst..." << std::endl;
+      counting_sort(edges.target_arr, counter_array, permute_index); 
+#pragma omp parallel for
+      for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
+        if (counter_array[i] < counter_array[i+1]) {
+          std::sort(permute_index.begin()+counter_array[i],
+                    permute_index.begin() + counter_array[i+1],
+                    cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
+        }
+      }
       c2r_map = permute_index;
-       // std::cout << "Inplace permute by dst..." << std::endl;
+      // End of counting sort.
+
+      std::cout << "Inplace permute by dst..." << std::endl;
       inplace_shuffle(edges.source_arr.begin(), edges.source_arr.end(), permute_index);
       /* DEBUG
          printf("c2r_map: \n");
@@ -507,7 +524,7 @@ namespace graphlab {
       // Construct CSC_dst:
       size_t lastDst = -1;
 
-      // std::cout <<"Build CSC_dst..." << std::endl;
+      std::cout <<"Build CSC_dst..." << std::endl;
       // Iterate over the edges. 
       for (size_t it = 0; it < num_edges; ++it) {
         vertex_id_type dst = edges.target_arr[c2r_map[it]];
@@ -701,33 +718,34 @@ namespace graphlab {
 
 
     //-------------Private Helper functions------------
-
-    // Sort by src in the ascending order.
-    struct cmp_by_src_functor {
-      const std::vector<vertex_id_type>& src_arr;
-      const std::vector<vertex_id_type>& dst_arr;
-
-      cmp_by_src_functor (const std::vector<vertex_id_type>& src, const std::vector<vertex_id_type>& dst) : src_arr(src), dst_arr(dst) { 
-        ASSERT_EQ(src_arr.size(), dst_arr.size());
-      }
+    // Sort by value of vec in the ascending order.
+    template <typename anyvalue>
+    struct cmp_by_any_functor {
+      const std::vector<anyvalue>& vec;
+      cmp_by_any_functor(const std::vector<anyvalue>& _vec) : vec(_vec) { }
       bool operator()(size_t me, size_t other) const {
-        return (src_arr[me] < src_arr[other]) || 
-          (src_arr[me]== src_arr[other] && dst_arr[me] < dst_arr[other]);
+        return (vec[me] < vec[other]);
       }
     };
 
-    // Sort by dst in the ascending order.
-    struct cmp_by_dst_functor {
-      const std::vector<vertex_id_type>& src_arr;
-      const std::vector<vertex_id_type>& dst_arr;
-      cmp_by_dst_functor (const std::vector<vertex_id_type>& src, const std::vector<vertex_id_type>& dst) : src_arr(src), dst_arr(dst) { 
-        ASSERT_EQ(src_arr.size(), dst_arr.size());
+    template <typename valuetype>
+    void counting_sort(const std::vector<valuetype>& value_array, std::vector<size_t>& counter_array, std::vector<size_t>& permute_index) {
+      counter_array.assign(counter_array.size(), 0);
+      permute_index.assign(permute_index.size(), 0);
+      for (size_t i = 0; i < value_array.size(); ++i) {
+        size_t val = value_array[i];
+        ++counter_array[val];
       }
-      bool operator()(size_t me, size_t other) const {
-        return (dst_arr[me] < dst_arr[other]) || 
-          (dst_arr[me]== dst_arr[other] && src_arr[me] < src_arr[other]);
+      for (size_t i = 1; i < counter_array.size(); ++i) {
+        counter_array[i] += counter_array[i-1];
       }
-    };
+      // consider parallel.
+      for (size_t i = 0; i < value_array.size(); ++i) {
+        size_t val = value_array[i];
+        permute_index[--counter_array[val]] = i;
+      }
+    }
+
 
     size_t binary_search(const std::vector<vertex_id_type>& vec, 
                          size_t start, size_t end, 
