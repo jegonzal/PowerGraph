@@ -79,30 +79,6 @@ if(NOT KC_ROOT)
   set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
 endif()
 
-if(YRL_EXPERIMENTAL)
-  message(STATUS 
-    "\n"
-    "===============================================================\n"
-    "| Building Experimental Yahoo Labs Research Components.       |\n"
-    "|                                                             |\n"
-    "| These components are being included in the trunk to         |\n"
-    "| facilitate rapid incorporation.  The primary features       |\n"
-    "| under active development include:                           |\n"
-    "|                                                             |\n"
-    "|    a) An Hadoop interface for large graph construction.     |\n"
-    "|    b) An Hadoop interface for launching GraphLab on         |\n"
-    "|       hadoop based clouds                                   |\n"
-    "|    c) An improved sync interface that is more similar to    |\n"
-    "|       traditional map-reduce and provides more fine-grain   |\n"
-    "|       control over sync activation.                         |\n"
-    "|                                                             |\n" 
-    "===============================================================")
-  add_definitions(-DYRL_EXPERIMENTAL)
-
-  #message(STATUS "Using Avro Path: " ${AVRO_ROOT})
-  #include_directories(${AVRO_ROOT}/include)
-  #link_directories(${AVRO_ROOT}/lib)
-endif()
 
 
 
@@ -402,7 +378,7 @@ else()
   set(MARCH "i686")
 endif()
 
-set(COMMON_FLAGS "-Wall -g -fopenmp")
+set(COMMON_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
 
 if (APPLE)
   set(CMAKE_EXE_LINKER_FLAGS "${CNAME_EXE_LINKER_FLAGS} -Xlinker -no_pie")
@@ -413,20 +389,25 @@ set(CMAKE_CXX_FLAGS_DEBUG "-ggdb -O0 -march=${MARCH} -Winit-self ${COMMON_FLAGS}
 ### Set the release flags --------------------------------------------------->
 if (CROSS_COMPILE_32_BIT MATCHES 1)
   set(CMAKE_CXX_FLAGS_RELEASE 
-    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}")
+    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}"
+    CACHE STRING "compiler options" FORCE)
   set(CMAKE_C_FLAGS_RELEASE 
-    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}")
+    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}"
+    CACHE STRING "compiler options"  FORCE)
 else(CROSS_COMPILE_32_BIT MATCHES 1)
   
   # Set the C compiler flags in release mode on 64bit systems
-  set(CMAKE_C_FLAGS_RELEASE 
-    "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}")
+  set(CMAKE_C_FLAGS_RELEASE
+    "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}"
+    CACHE STRING "compiler options" FORCE)
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O2 -march=${MARCH} -mtune=native -pg ${COMMON_FLAGS}")
+      "-O2 -march=${MARCH} -mtune=native -pg ${COMMON_FLAGS}"
+      CACHE STRING "compiler options"  FORCE)
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}")
+      "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}"
+      CACHE STRING "compiler options"  FORCE)
   endif(COMPILE_PROFILING MATCHES 1)
 
 endif(CROSS_COMPILE_32_BIT MATCHES 1)
