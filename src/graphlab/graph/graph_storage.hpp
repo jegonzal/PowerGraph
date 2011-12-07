@@ -85,6 +85,20 @@ namespace graphlab {
         source_arr.push_back(source);
         target_arr.push_back(target);
       }
+      void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
+        for (size_t i = 0; i < targetlist.size(); ++i) {
+          data.push_back(datalist[i]);
+          source_arr.push_back(source);
+          target_arr.push_back(targetlist[i]);
+        }
+      }
+      void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
+        for (size_t i = 0; i < length; ++i) {
+          data.push_back(dataArray[i]);
+          source_arr.push_back(source);
+          target_arr.push_back(targetArray[i]);
+        }
+      }
       void clear() {
         std::vector<EdgeData>().swap(data);
         std::vector<vertex_id_type>().swap(source_arr);

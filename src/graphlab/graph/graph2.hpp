@@ -274,6 +274,15 @@ namespace graphlab {
       // This is not the final edge_id, so we always return 0. 
       return 0;
     } // End of add edge
+
+    void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
+      ASSERT_EQ(targetlist.size(), datalist.size());
+      gstore.add_block_edges(source, targetlist, datalist);
+    }
+
+    void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
+      gstore.add_block_edges(source, length, targetArray, dataArray);
+    }
         
     
     /** \brief Returns a reference to the data stored on the vertex v. */
