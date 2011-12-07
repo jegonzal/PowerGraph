@@ -57,10 +57,6 @@ function print_help {
   echo
   echo "      --eigen                 Install Eigen linear algebra package "
   echo
-  echo "      --set_c_compiler=[COMPILER] Manually set C compiler "
-  echo
-  echo "      --set_cxx_compiler=[COMPILER] Manually set C++ compiler "
-  echo
   echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
   exit 1
@@ -104,8 +100,6 @@ while [ $# -gt 0 ]
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
     --eigen)		    install_eigen=1 ;;
-    --set_c_compiler=*)     set_c_compiler=${1##--set_c_compiler=} ;;
-    --set_cxx_compiler=*)   set_cxx_compiler=${1##--set_cxx_compiler=} ;;
  #   --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
     -D)                      config_flags="$config_flags -D $2"; shift ;;
     *) unknown_option $1 ;;
@@ -239,13 +233,6 @@ if [ ! -z $HAS_EIGEN ]; then
    config_flags="$config_flags -D HAS_EIGEN:STRING=true"
 fi
 
-if [ ! -z $set_c_compiler ]; then
-   config_flags="$config_flags -D SET_C_COMPILER:STRING=$set_c_compiler"
-fi
-
-if [ ! -z $set_cxx_compiler ]; then
-   config_flags="$config_flags -D SET_CXX_COMPILER:STRING=$set_cxx_compiler"
-fi
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
