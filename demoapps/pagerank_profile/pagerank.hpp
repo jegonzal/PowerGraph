@@ -38,6 +38,7 @@
 #include <string>
 
 #include <graphlab.hpp>
+#include <google/malloc_extension.h>
 
 
 /// Types------------------------------------------------------------------>
@@ -73,7 +74,6 @@ std::ostream& operator<<(std::ostream& out, const edge_data& edata);
 //! The type of graph used in this program
 //typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::graph2<vertex_data, edge_data> graph_type;
-
 
 
 
@@ -143,6 +143,13 @@ void normalize_graph(graph_type& graph) {
   logstream(LOG_INFO)
     << "Optimizing graph layout in memory." << std::endl;
   graph.finalize();
+  
+  size_t value;
+  MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+  std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+  MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+  std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
   logstream(LOG_INFO)
     << "Renormalizing transition probabilities." << std::endl;
   typedef graph_type::vertex_id_type vertex_id_type;

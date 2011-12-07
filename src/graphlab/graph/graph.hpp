@@ -455,6 +455,7 @@ namespace graphlab {
   void graph<VertexData, EdgeData>::finalize()  {   
     // check to see if the graph is already finalized
     if(finalized) return;
+    std::cout << "Start finalize.." << std::endl;
     edge_id_less_functor edge_id_less(*this);      
     // Sort all in edges set
 #pragma omp parallel for

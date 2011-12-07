@@ -57,6 +57,7 @@
 
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/generics/shuffle.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
@@ -64,8 +65,11 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class graph_storage {
   public:
-    typedef uint32_t vertex_id_type;
-    typedef uint32_t edge_id_type;
+    //typedef uint32_t vertex_id_type;
+    //typedef uint32_t edge_id_type;
+    typedef graphlab::vertex_id_type vertex_id_type;
+    typedef graphlab::edge_id_type edge_id_type;
+
     typedef EdgeData edge_data_type;
     typedef VertexData vertex_data_type;
     typedef std::pair<size_t, size_t>  edge_range_type;
@@ -405,15 +409,17 @@ namespace graphlab {
       c2r_map.reserve(num_edges);
 
       // Permute_index.
-      std::vector<size_t> permute_index(num_edges, 0);
+      std::vector<edge_id_type>& permute_index = c2r_map;
+      permute_index.assign(num_edges, 0);
       // Counter_index.
-      std::vector<size_t> counter_array(num_vertices+1, 0);
+      std::vector<atomic<int> > counter_array(num_vertices+1, 0);
 
       std::cout << "Graph finalize..." << std::endl;
       std::cout << "Sort by src..." << std::endl;
       // Sort edges by source;
       // Begin of counting sort.
       counting_sort(edges.source_arr, counter_array, permute_index); 
+      std::cout << "finish counting sort." << std::endl;
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
 #pragma omp parallel for
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
@@ -501,6 +507,7 @@ namespace graphlab {
       // Begin of counting sort.
       std::cout << "Sort by dst..." << std::endl;
       counting_sort(edges.target_arr, counter_array, permute_index); 
+      std::cout << "finish counting sort." << std::endl;
 #pragma omp parallel for
       for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
         if (counter_array[i] < counter_array[i+1]) {
@@ -509,11 +516,10 @@ namespace graphlab {
                     cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
         }
       }
-      c2r_map = permute_index;
       // End of counting sort.
 
       std::cout << "Inplace permute by dst..." << std::endl;
-      inplace_shuffle(edges.source_arr.begin(), edges.source_arr.end(), permute_index);
+      outofplace_shuffle(edges.source_arr, permute_index);
       /* DEBUG
          printf("c2r_map: \n");
          foreach(edge_id_type e, c2r_map)
@@ -551,7 +557,7 @@ namespace graphlab {
       edge_data_list.swap(edges.data);
       CSR_dst.swap(edges.target_arr);
       CSC_src.swap(edges.source_arr);
-      std::vector<size_t>().swap(permute_index);
+
       // std::cout << "End of finalize." << std::endl;
 
       /* DEBUG */
@@ -595,11 +601,11 @@ namespace graphlab {
     }
 
     void clear_reserve() {
-      std::vector<size_t>().swap(CSR_src);
+      std::vector<edge_id_type>().swap(CSR_src);
       std::vector<vertex_id_type>().swap(CSR_dst);
       std::vector<vertex_id_type>().swap(CSC_src);
-      std::vector<size_t>().swap(CSC_dst);
-      std::vector<size_t>().swap(c2r_map);
+      std::vector<edge_id_type>().swap(CSC_dst);
+      std::vector<edge_id_type>().swap(c2r_map);
       std::vector<EdgeData>().swap(edge_data_list);
       std::vector<vertex_id_type>().swap(CSR_src_skip);
       std::vector<vertex_id_type>().swap(CSC_dst_skip);
@@ -656,7 +662,7 @@ namespace graphlab {
     std::vector<EdgeData> edge_data_list;
 
     /** Row of CSR */
-    std::vector<size_t> CSR_src;
+    std::vector<edge_id_type> CSR_src;
 
     /* Suppose CSR_src is: 1 x x 3 x x x x 5
      * where x means no out edges.
@@ -669,9 +675,10 @@ namespace graphlab {
     std::vector<vertex_id_type> CSR_dst;
 
     /** Map the sort by col edge id to sort by row edge id */
-    std::vector<size_t> c2r_map;
+    std::vector<edge_id_type> c2r_map;
+
     /** Col of CSC */
-    std::vector<size_t> CSC_dst;
+    std::vector<edge_id_type> CSC_dst;
 
     /* Suppose CSC_dst is: 1 x x 3 x x x x 5
      * where x means no out edges.
@@ -729,20 +736,24 @@ namespace graphlab {
     };
 
     template <typename valuetype>
-    void counting_sort(const std::vector<valuetype>& value_array, std::vector<size_t>& counter_array, std::vector<size_t>& permute_index) {
+    void counting_sort(const std::vector<valuetype>& value_array, std::vector< atomic<int> >& counter_array, std::vector<edge_id_type>& permute_index) {
       counter_array.assign(counter_array.size(), 0);
       permute_index.assign(permute_index.size(), 0);
-      for (size_t i = 0; i < value_array.size(); ++i) {
+
+#pragma omp parallel for
+      for (ssize_t i = 0; i < ssize_t(value_array.size()); ++i) {
         size_t val = value_array[i];
-        ++counter_array[val];
+        counter_array[val].inc();
       }
+
       for (size_t i = 1; i < counter_array.size(); ++i) {
         counter_array[i] += counter_array[i-1];
       }
-      // consider parallel.
-      for (size_t i = 0; i < value_array.size(); ++i) {
+
+#pragma omp parallel for
+      for (ssize_t i = 0; i < ssize_t(value_array.size()); ++i) {
         size_t val = value_array[i];
-        permute_index[--counter_array[val]] = i;
+        permute_index[counter_array[val].dec()] = i;
       }
     }
 

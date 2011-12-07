@@ -4,6 +4,8 @@
 #include <vector>
 #include <cassert>
 #include <iterator>
+#include <omp.h>
+
 
 namespace graphlab {
 /**
@@ -12,10 +14,10 @@ namespace graphlab {
  * targets must be the same size as the container
  * Both the container and the targets vector will be modified.
  */
-template <typename Iterator>
+template <typename Iterator, typename sizetype>
 void inplace_shuffle(Iterator begin,
                      Iterator end, 
-                     std::vector<size_t> &targets) {
+                     std::vector<sizetype> &targets) {
   size_t len = std::distance(begin, end);
   assert(len == targets.size());
   
@@ -42,18 +44,18 @@ void inplace_shuffle(Iterator begin,
   }
 }
 
-
-
 /**
  * Shuffles a random access container inplace such at
  * newcont[i] = cont[targets[i]]
  * targets must be the same size as the container
  */
-template <typename Container>
+template <typename Container, typename sizetype>
 void outofplace_shuffle(Container &c,
-                        const std::vector<size_t> &targets) {  
+                        const std::vector<sizetype> &targets) {  
   Container result(targets.size());
-  for (size_t i = 0;i < targets.size(); ++i) {
+
+#pragma omp parallel for
+  for (ssize_t i = 0;i < ssize_t(targets.size()); ++i) {
     result[i] = c[targets[i]];
   }
   std::swap(c, result);
