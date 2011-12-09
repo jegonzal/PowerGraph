@@ -128,7 +128,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   std::vector<std::vector<vertex_id_type> > color_block; // set of localvids in each color
   vertex_functor_set<UpdateFunctor> vfunset;
   vertex_functor_set<UpdateFunctor> vfun_cacheset;
-  
+  vertex_functor_set<UpdateFunctor> lowfunset;  
   graphlab_options opts;
   
   size_t max_iterations;
@@ -176,6 +176,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                             termination_reason(execution_status::UNSET),
                             vfunset(graph.owned_vertices().size()),
                             vfun_cacheset(graph.get_local_store().num_vertices()),
+                            lowfunset(graph.get_local_store().num_vertices()),
                             max_iterations(0),
                             barrier_time(0.0),
                             use_factorized(false),
@@ -318,17 +319,34 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       bool hasf = vfun_cacheset.test_and_get(i, uf);
       if (hasf) {
         num_cached_tasks.dec();
+        // combine with the lowset
+        update_functor_type uflow;
+        if (lowfunset.test_and_get(i, uflow)) uf += uflow;
         if (i < graph.local_vertices()) {
           if (vfunset.add((vertex_id_type)(i), uf)) {
             num_pending_tasks.inc();
+          }
+          vfunset.read_value(i, uf);
+          // if vfunset value if < 1E-2, move it to the lowset
+          if (uf.priority() < 1E-2) {
+            vfunset.test_and_get(i, uf);
+            num_pending_tasks.dec();
+            lowfunset.add(i, uf);
           }      
         }
         else {
           procid_t owner = graph.localvid_to_owner((vertex_id_type)(i));
-          schedulelock[owner].lock();
-          remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid(i), 
-                                                            uf));
-          schedulelock[owner].unlock();
+          update_functor_type uflow;
+          if (lowfunset.test_and_get(i, uflow)) uf += uflow;
+          if (uf.priority() >= 1E-3) {
+            schedulelock[owner].lock();
+            remote_schedules[owner].push_back(std::make_pair(graph.localvid_to_globalvid(i), 
+                                                              uf));
+            schedulelock[owner].unlock();
+          }
+          else {
+            lowfunset.add(i, uf);
+          }
         }
       }
     }
@@ -743,7 +761,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             if (!usestatic) num_pending_tasks.dec();
             // otherwise. run the vertex
             // create the scope
-            context.init(threadid, globalvid);
+            context.init(globalvid, threadid);
             // run the update function
             functor_to_run(context);
             // check if there are tasks to run
@@ -755,7 +773,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             // ok this vertex is not scheduled. But if there are syncs
             // to run I will still need to get the scope
             if (hassynctasks) {
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               eval_syncs(globalvid, context, threadid);
               if (no_graph_synchronization == false) context.commit_async_untracked();
             }
@@ -1035,7 +1053,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
                       localvid_to_gather.find(localvid);
     dgraph_context<engine_type> context(this, &graph, &shared_data);
     vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
-    context.init(localvid % ncpus, globalvid);
+    context.init(globalvid, localvid % ncpus);
     iter->second.accumulated_functor.apply(context);
     if (!active_sync_tasks.empty()) eval_syncs(globalvid, context, thread::thread_id() % ncpus);
     // scatter
@@ -1063,7 +1081,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
   void factorized_scatter(vertex_id_type globalvid,
                           update_functor_type& ufun) {
     dgraph_context<engine_type> context(this, &graph, &shared_data);
-    context.init(globalvid % ncpus, globalvid);
+    context.init(globalvid, globalvid % ncpus);
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       foreach(const edge_type edge, graph.in_edges_local_only(globalvid)) {
@@ -1085,7 +1103,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     vertex_id_type globalvid = graph.localvid_to_globalvid(localvid);
 //    std::cout << rmi.procid() << ": Gather on vid " << globalvid << std::endl;
     dgraph_context<engine_type> context(this, &graph, &shared_data);
-    context.init(localvid % ncpus, globalvid);
+    context.init(globalvid, localvid % ncpus);
     ufun.init_gather(context);
     if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
@@ -1161,7 +1179,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             if (localvid < graph.local_vertices() && seperator_set.get(localvid) == false) {
               // otherwise. run the vertex
               // create the scope
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               // run the update function
               functor_to_run(context);
               // check if there are tasks to run
@@ -1170,7 +1188,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
               update_counts[threadid]++;
             }
             else {
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               evaluate_factorized_update_functor(localvid, 
                                                 functor_to_run);
             }
@@ -1179,7 +1197,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
             // ok this vertex is not scheduled. But if there are syncs
             // to run I will still need to get the scope
             if (hassynctasks && localvid < graph.local_vertices()) {
-              context.init(threadid, globalvid);
+              context.init(globalvid, threadid);
               eval_syncs(globalvid, context, threadid);
               if (no_graph_synchronization == false) context.commit_async_untracked();
             }
@@ -1324,6 +1342,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
       for(size_t i = 0; i < procupdatecounts.size(); ++i) {
         total_update_count +=  procupdatecounts[i];
       }
+      std::cout << "---- Update Count = " << total_update_count << std::endl;
       total_barrier_time = 0;
       for(size_t i = 0; i < barrier_times.size(); ++i) {
         total_barrier_time += barrier_times[i];

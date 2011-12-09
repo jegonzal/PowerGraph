@@ -127,7 +127,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
  
   std::vector<std::vector<vertex_id_type> > color_block; // set of localvids in each color
   vertex_functor_set<UpdateFunctor> vfunset;
- 
+  vertex_functor_set<UpdateFunctor> lowfunset; 
   graphlab_options opts;
   
   double barrier_time;
@@ -167,6 +167,7 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
                             task_budget(0),
                             termination_reason(execution_status::UNSET),
                             vfunset(graph.get_local_store().num_vertices()),
+                            lowfunset(graph.get_local_store().num_vertices()),
                             barrier_time(0.0),
                             consensus(dc, ncpus, &rmi),
                             synclock(ncpus),
@@ -290,8 +291,15 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
   void schedule_impl(const vertex_id_type vid, 
                 const update_functor_type& fun) {
     if (graph.is_owned(vid)) {
-      if (vfunset.add(graph.globalvid_to_localvid(vid), fun)) {
+      vertex_id_type localvid = graph.globalvid_to_localvid(vid);
+      if (vfunset.add(localvid, fun)) {
         num_pending_tasks.inc();
+      }
+      update_functor_type fun2;
+      if (lowfunset.test_and_get(localvid, fun2)) {
+        if (vfunset.add(localvid, fun2)) {
+          num_pending_tasks.inc();
+        }
       }
     }
     else {
@@ -611,9 +619,13 @@ class distributed_delta_engine : public iengine<Graph, UpdateFunctor> {
         // this is to remote machine
         if (has_functor_to_run) {
           num_pending_tasks.dec();
+          if (functor_to_run.priority() < 1E-2) {
+            lowfunset.add(localvid, functor_to_run);
+            continue;
+          }
           
           if (localvid < graph.local_vertices()) {
-            // otherwise. run the vertex
+           // otherwise. run the vertex
             // create the scope
             context.init(globalvid, threadid);
             // run the update function
