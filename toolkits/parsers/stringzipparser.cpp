@@ -21,20 +21,13 @@
  */
 
 
-#include <cmath>
 #include <cstdio>
-#include <limits>
 #include <map>
 #include <iostream>
-#include "graphlab.hpp"
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
-
-
-
-
-
+#include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 using namespace graphlab;
@@ -95,18 +88,21 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
    void operator()(icontext_type& context) {
+    
+   std::string dir = context.get_global<std::string>("PATH");
+   std::string outdir = context.get_global<std::string>("OUTPATH");
 
     //open file
     vertex_data& vdata = context.vertex_data();
-    std::ifstream in_file(vdata.filename.c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening input file: " << vdata.filename << std::endl;
+    std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
 
-    std::ofstream out_file(std::string(vdata.filename + ".out.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << vdata.filename << ".out.gz" << std::endl;
+    std::ofstream out_file(std::string(outdir + vdata.filename + ".out.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << outdir << vdata.filename << ".out.gz" << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
@@ -120,7 +116,7 @@ struct stringzipparser_update :
     mm_write_cpp_mtx_crd_size(fout, 987654321, 987654321, 987654322);
 
 
-    char linebuf[256], buf1[256], buf2[256], buf3[256], buf4[256];
+    char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
     int duration;
     int line = 1;
@@ -175,10 +171,7 @@ struct stringzipparser_update :
   }
 
 
-
-
-
-  };
+};
 
 
 /*
@@ -208,6 +201,8 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
+  std::string dir = "/mnt/bigbrofs/usr0/bickson/phone_calls/";
+  std::string outdir = "/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
   int unittest = 0;
   int lines = 0;
   clopts.attach_option("data", &datafile, datafile,
@@ -219,6 +214,8 @@ int main(int argc,  char *argv[]) {
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
+  clopts.attach_option("dir", &dir, dir, "path to files");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -245,21 +242,22 @@ int main(int argc,  char *argv[]) {
   if (unittest == 1){
   }
 
+  std::vector<std::string> in_files = list_all_files_in_dir(dir);
+  assert(in_files.size() >= 1);
+  for (int i=0; i< in_files.size(); i++){
+      vertex_data data(in_files[i]);
+      core.graph().add_vertex(data);
+  }
 
-  vertex_data vdata("HIDDEN.20050803.gz");
-  core.graph().add_vertex(vdata);
-  //vertex_data vdata1("HIDDEN.20050810.gz");
-  //core.graph().add_vertex(vdata1);
-  //vertex_data vdata2("HIDDEN.20050817.gz");
-  //core.graph().add_vertex(vdata2);
-  //vertex_data vdata3("HIDDEN.20050824.gz");
-  //core.graph().add_vertex(vdata3);
-     std::cout << "Schedule all vertices" << std::endl;
+  std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringzipparser_update());
  
   //accumulator acum;
   //core.add_sync("sync", acum, sync_interval);
   core.add_global("LINES", lines); 
+  core.add_global("PATH", dir);
+  core.add_global("OUTPATH", outdir);
+
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;

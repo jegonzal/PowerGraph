@@ -131,7 +131,6 @@ namespace graphlab {
       public std::iterator<std::forward_iterator_tag, edge_type> {
     public:
       enum iterator_type {INEDGE, OUTEDGE}; 
-      typedef edge_type reference;
     public:
       // Cosntructors
       edge_iterator () : offset(-1), empty(true) { }

@@ -37,6 +37,7 @@
 #include <limits>
 #include <iostream>
 #include "graphlab.hpp"
+#include "graphlab/graph/graph3.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 using namespace graphlab;
@@ -78,7 +79,7 @@ struct edge_data {
   edge_data(double val)  { }
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 
 void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   int active = 0;
@@ -230,18 +231,20 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
 
-  nodes = 123306178;
+  //nodes = 123306178;
+  nodes=149747010;
+  int max_files = 1;
   matrix_info.rows = matrix_info.cols = nodes;
+  matrix_info.nonzeros = 1000000000;
+  std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
+  std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
+  assert(in_files.size() > 0);
+  for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
+    load_cpp_graph(dirpath + in_files[i], format, 
+    	           matrix_info, core.graph(), 
+	           true, MATRIX_MARKET_5);
 
-  matrix_info.nonzeros = 244204347;
-  load_cpp_graph("HIDDEN20050803.gz.out.gz", format, matrix_info, core.graph(), lineformat, gzip);
-  matrix_info.nonzeros = 306283479;
-  load_cpp_graph("HIDDEN20050810.gz.out.gz", format, matrix_info, core.graph(), lineformat, gzip);
-  matrix_info.nonzeros = 121399665;
-  load_cpp_graph("HIDDEN20050817.gz.out.gz", format, matrix_info, core.graph(), lineformat, gzip);
-  matrix_info.nonzeros = 255516101;
-  load_cpp_graph("HIDDEN20050824.gz.out.gz", format, matrix_info, core.graph(), lineformat, gzip);
-   calc_initial_degree(&core.graph(), matrix_info);
+  } 
 
   //std::cout << "Schedule all vertices" << std::endl;
   //core.schedule_all(kcore_update());

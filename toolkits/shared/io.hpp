@@ -34,8 +34,8 @@
 #include "mathlayer.hpp"
 #include "types.hpp"
 #include <graphlab.hpp>
-
-
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 #include <graphlab/macros_def.hpp>
 
 
@@ -44,8 +44,9 @@ extern bool debug;
 
 enum matrix_market_parser{
    MATRIX_MARKET_3 = 1,
-   MATRIX_MARKET_6 = 2,
-   MATRIX_MARKET_4 = 3,
+   MATRIX_MARKET_4 = 2,
+   MATRIX_MARKET_5 = 3,
+   MATRIX_MARKET_6 = 4
 };
 
 
@@ -62,6 +63,25 @@ FILE * open_file(const char * name, const char * mode, bool optional = false){
   return f;
 }
 
+
+/*
+ * list all existing files inside a specificed directory
+ */
+std::vector<std::string> list_all_files_in_dir(const std::string & dir){
+  namespace fs = boost::filesystem;  
+  std::vector<std::string> ret;
+
+  fs::path dir_path(dir);
+  fs::directory_iterator end_iter;
+  if ( fs::exists(dir_path) && fs::is_directory(dir_path)) {
+    for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
+      if (fs::is_regular_file(dir_iter->status()) ) {
+        ret.push_back(dir_iter->leaf());
+      }
+    }
+  }
+  return ret;
+}
 
 /*
  * extract the output from node data ito a vector of values
@@ -142,7 +162,7 @@ bool load_matrixmarket(const std::string& fname,
 } // end of load matrixmarket graph
 
 template<typename Graph>
-bool load_matrixmarket_pp_graph(const std::string& fname,
+bool load_matrixmarket_cpp_graph(const std::string& fname,
                              bipartite_graph_descriptor& desc,
                              Graph& graph,
 		             bool gzip = false,
@@ -162,9 +182,8 @@ bool load_matrixmarket_pp_graph(const std::string& fname,
   fin.push(in_file); 
     
   MM_typecode matcode;
+  int tmprows, tmpcols, tmpnnz;
 
-  if (desc.rows == 0){
- 
     // read Matrix market header
     if(mm_read_cpp_banner(fin, &matcode)) {
       logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
@@ -177,17 +196,21 @@ bool load_matrixmarket_pp_graph(const std::string& fname,
      return false;
     }
     // load the matrix descriptor
-    if(mm_read_cpp_mtx_crd_size(fin, &desc.rows, &desc.cols, &desc.nonzeros)) {
+    if(mm_read_cpp_mtx_crd_size(fin, &tmprows, &tmpcols, &tmpnnz)) {
       logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
     }
 
+  //update dataset size from file only with empty structure
+  if (desc.rows == 0 && desc.cols == 0 && desc.nonzeros == 0){
+     desc.rows = tmprows; desc.cols = tmpcols; desc.nonzeros = tmpnnz;
   }
+
   std::cout << "Rows:      " << desc.rows << std::endl
             << "Cols:      " << desc.cols << std::endl
             << "Nonzeros:  " << desc.nonzeros << std::endl;
   std::cout << "Constructing all vertices." << std::endl;
 
-  if (graph.num_vertices() < desc.total())
+  if ((int)graph.num_vertices() < desc.total())
     graph.resize(desc.total());
   bool is_square = desc.is_square();
 
@@ -195,11 +218,18 @@ bool load_matrixmarket_pp_graph(const std::string& fname,
 
   std::cout << "Adding edges." << std::endl;
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
-    int row = 0, col = 0;  
+    int row = 0, col = 0, inttime = 0, intdate = 0;  
     double val = 0;
     unsigned long long time = 0;
 	
+
+    if (fin.eof()){
+       if (i < (size_t)(desc.nonzeros - 1))
+            logstream(LOG_WARNING) <<"File " << fname << " ended after " << i << " expected lines: " << desc.nonzeros << std::endl;
+       break;
+    }
     fin.getline(line, MM_MAX_LINE_LENGTH);
+    
 
     //regular matrix market format. [from] [to] [val]
     if (parse_type == MATRIX_MARKET_3){ 
@@ -211,7 +241,15 @@ bool load_matrixmarket_pp_graph(const std::string& fname,
     }
      //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
     else if (parse_type == MATRIX_MARKET_4){ 
-        if(sscanf(line, "%d %d %llu %lg\n", &row, &col, &time, &val) != 3) {
+        if(sscanf(line, "%d %d %llu %lg\n", &row, &col, &time, &val) != 4) {
+        logstream(LOG_ERROR) 
+          << "Error reading file on line: " << i << std::endl;
+        return false;
+      }
+    }
+     //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
+    else if (parse_type == MATRIX_MARKET_5){ 
+        if(sscanf(line, "%d %d %d %d %lg\n", &row, &col, &intdate, &inttime, &val) != 5) {
         logstream(LOG_ERROR) 
           << "Error reading file on line: " << i << std::endl;
         return false;
@@ -380,7 +418,7 @@ bool load_cpp_graph(const std::string& fname,
 	        int format_type = MATRIX_MARKET_3) {
 
   if(format == "matrixmarket") 
-    return load_matrixmarket_cpp_graph(fname, desc, graph, format_type);
+    return load_matrixmarket_cpp_graph(fname, desc, graph, gzip, format_type);
   else std::cout << "Invalid file format!" << std::endl;
   return false;
 } // end of load graph
