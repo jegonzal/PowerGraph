@@ -199,7 +199,7 @@ public:
     mysort.sort(0,Nsamp,rUnif1);
     randunif1 = vec2vec(&rUnif1); 
     
-    itpp::vec rUnif2 = zeros(Nsamp*Nsamp);
+    itpp::vec rUnif2 = zeros(Ndens*Nsamp);
     randv(Ndens*Nsamp, rUnif2);
     randunif2 = vec2vec(&rUnif2);
   
