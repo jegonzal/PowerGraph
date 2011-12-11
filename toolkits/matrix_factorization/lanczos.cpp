@@ -40,7 +40,6 @@ using namespace std;
 //LANCZOS VARIABLES
 vec lancbeta;
 vec lancalpha;
-int offset, offset2, offset3;
 bipartite_graph_descriptor info;
 int max_iter;
 bool debug;
@@ -248,11 +247,14 @@ void print_w(bool rows, graph_type * g){
 void lanczos(graphlab::core<graph_type, lanczos_update> & glcore){
    
 
+   glcore.set_global("m", max_iter);
+
    //for j=2:m+2
    for (int j=1; j<= max_iter+1; j++){
         //w = A*V(:,j) 
-        offset = j;
-        offset3 = j-1;
+        glcore.set_global("offset", j);
+        glcore.set_global("offset3", j-1);
+        glcore.set_global("offset2",j);
         glcore.schedule_all(lanczos_update());
 	glcore.start();
 
@@ -324,7 +326,7 @@ int main(int argc,  char *argv[]) {
   int unittest = 0;
 
   clopts.attach_option("data", &datafile, datafile,
-                       "matrix A input file");
+                       "matrix input file");
   clopts.add_positional("data");
   clopts.attach_option("testfile", &testfile, testfile,
                        "test input file (optional)");
@@ -377,9 +379,9 @@ int main(int argc,  char *argv[]) {
  
   //accumulator acum;
   //core.add_sync("sync", acum, sync_interval);
-  core.add_global("MAX_ITER", max_iter);
-  core.add_global("OFFSET2", int(0));
-  core.add_global("OFFSET3", int(0));
+  core.add_global("offset", int(0));
+  core.add_global("offset2", int(0));
+  core.add_global("offset3", int(0));
   core.add_global("m", int(0));
 
   timer mytimer; mytimer.start(); 
