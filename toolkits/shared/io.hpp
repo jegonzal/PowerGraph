@@ -28,6 +28,12 @@
 
 #include <omp.h>
 #include <vector>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
+
 
 
 #include "mmio.h"
@@ -743,6 +749,71 @@ bool load_binary_graph(const std::string& fname,
   return true;
 } // end of load matrixmarket graph
 
+uint array_from_file(std::string filename, uint *& array){
+          struct stat sb;
+          int fd = open (filename.c_str(), O_RDONLY);
+          if (fd == -1) {
+                  perror ("open");
+                  logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+
+          if (fstat (fd, &sb) == -1) {
+                  perror ("fstat");
+                  logstream(LOG_FATAL) << "Failed to get size of  input file: " << filename << std::endl;
+          }
+
+          if (!S_ISREG (sb.st_mode)) {
+                  logstream(LOG_FATAL) << "Input file: " << filename 
+              << " is not a regular file and can not be mapped " << std::endl;
+          }
+	  close(fd);
+ 
+	  int toread = sb.st_size/4; 
+          array = new uint[toread];
+          int total = 0;
+	  FILE * f = fopen(filename.c_str(), "r");
+          if (f == NULL){
+	     perror("fopen");
+             logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+         
+          while(total < toread){
+	     int rc = fread(array, sizeof(uint), toread-total,f);
+	     if (rc < 0 ){
+	       perror("fread");
+               logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;
+	     }
+	     total += rc; 
+          }
+          return sb.st_size;
+}
+
+
+uint mmap_from_file(std::string filename, uint *& array){
+          struct stat sb;
+          int fd = open (filename.c_str(), O_RDONLY);
+          if (fd == -1) {
+                  perror ("open");
+                  logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+
+          if (fstat (fd, &sb) == -1) {
+                  perror ("fstat");
+                  logstream(LOG_FATAL) << "Failed to get size of  input file: " << filename << std::endl;
+          }
+
+          if (!S_ISREG (sb.st_mode)) {
+                  logstream(LOG_FATAL) << "Input file: " << filename 
+              << " is not a regular file and can not be mapped " << std::endl;
+          }
+
+          array = (uint*)mmap (0, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
+          if (array == MAP_FAILED) {
+                  perror ("mmap");
+                  logstream(LOG_FATAL) << "Failed to map input file: " << filename << std::endl;
+          }
+          return sb.st_size;
+}
 
 
 #include <graphlab/macros_undef.hpp>

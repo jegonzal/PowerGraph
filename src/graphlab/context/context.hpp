@@ -118,7 +118,10 @@ namespace graphlab {
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
       scheduler_ptr(scheduler_ptr), cpuid(cpuid),
       vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY),
-      start_time(lowres_time_seconds()) { }
+      start_time(lowres_time_seconds()) { 
+
+      disable_caching = true;
+    }
     
 
 
@@ -139,22 +142,26 @@ namespace graphlab {
 
     vertex_data_type& vertex_data(const vertex_id_type vid) {
       typedef typename cache_map_type::iterator iterator_type;
-      iterator_type iter = cache.find(vid);
-      if(iter != cache.end()) {
-        return iter->second.current;
-      } else {
-        return graph_ptr->vertex_data(vid);
+
+      if (!disable_caching){
+        iterator_type iter = cache.find(vid);
+        if(iter != cache.end()) 
+          return iter->second.current;
       }
+         
+      return graph_ptr->vertex_data(vid);
     }
 
     const vertex_data_type& vertex_data(const vertex_id_type vid) const {
       typedef typename cache_map_type::const_iterator iterator_type;
-      iterator_type iter = cache.find(vid);
-      if(iter != cache.end()) {
-        return iter->second.current;
-      } else {
-        return graph_ptr->vertex_data(vid);
+      
+      if (!disable_caching){
+        iterator_type iter = cache.find(vid);
+        if(iter != cache.end()) 
+          return iter->second.current;
       }
+       
+      return graph_ptr->vertex_data(vid);
     }
 
 
@@ -278,7 +285,6 @@ namespace graphlab {
     }
 
 
-
   protected:
 
     void acquire_lock(const std::string& key, size_t index = 0) { 
@@ -297,6 +303,8 @@ namespace graphlab {
       engine_ptr->get_global(key, ret_vec_ptr, ret_is_const);
     } // end of get_any_pair    
 
+
+    bool disable_caching;
 
   }; // end of context
 

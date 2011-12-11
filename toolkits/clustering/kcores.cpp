@@ -116,6 +116,9 @@ public:
    
 
     vertex_data & vdata = context.vertex_data();
+    if (debug)
+      logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
+
     if (!vdata.active)
       return;
 
@@ -236,14 +239,21 @@ int main(int argc,  char *argv[]) {
   int max_files = 1;
   matrix_info.rows = matrix_info.cols = nodes;
   matrix_info.nonzeros = 1000000000;
-  std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
-  std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
+  //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
+  //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
+  std::vector<std::string> in_files;
+  in_files.push_back(datafile);
+  std::string dirpath;
+  core.graph().set_undirected();
+  core.set_scope_type("vertex");
   assert(in_files.size() > 0);
   for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
-    load_cpp_graph(dirpath + in_files[i], format, 
+   /* load_cpp_graph(dirpath + in_files[i], format, 
     	           matrix_info, core.graph(), 
 	           true, MATRIX_MARKET_5);
-
+   */
+    core.graph().load(dirpath + in_files[i], true);
+    core.graph().load(dirpath + in_files[i], false);
   } 
 
   //std::cout << "Schedule all vertices" << std::endl;
