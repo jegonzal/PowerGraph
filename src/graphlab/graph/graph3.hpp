@@ -27,6 +27,7 @@
  *
  * Inteface Contributed under the iCLA for:
  *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ * Implementation by Danny Bickson, CMU
  *
  */
 
@@ -195,7 +196,10 @@ enum iterator_type {INEDGE, OUTEDGE};
   };
 
 
-
+  /**
+ * CSR/CSC implementation of graph.
+ * Assumptions: number of nodes and number of edges are below MAX_UINT32
+ */
 
   template<typename VertexData, typename EdgeData>
   class graph3 {
@@ -249,12 +253,16 @@ enum iterator_type {INEDGE, OUTEDGE};
     /**
      * Build a basic graph
      */
-    graph3() : num_nodes(0),_num_edges(0),finalized(false), node_in_edges(NULL), node_in_degrees(NULL), node_out_edges(NULL), node_out_degrees(NULL) {  }
+    graph3(){
+      num_nodes = _num_edges = 0;
+      node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
+      _color = 0; //not implement yet
+    }
 
     /**
      * Create a graph with nverts vertices.
      */
-    graph3(size_t nverts) : finalized(false) { }
+    //graph3(size_t nverts) { }
 
     graph3(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
@@ -264,20 +272,18 @@ enum iterator_type {INEDGE, OUTEDGE};
      * \brief Resets the graph state.
      */
     void clear() {
-      /*finalized = false;
-      gstore.clear();
-      vertices.clear();
-      edges_tmp.clear();
-      vcolors.clear();
-      ++changeid;*/
+       if (node_in_degrees != NULL)
+	 delete [] node_in_degrees;
+       if (node_out_degrees != NULL)
+	 delete [] node_out_degrees;
+       if (node_in_edges != NULL)
+         delete [] node_in_edges;
+       if (node_out_edges != NULL)
+         delete [] node_out_edges;
     }
 
     void clear_reserve() {
-      /*clear();
-      edges_tmp.clear();
-      std::vector<VertexData>().swap(vertices);
-      std::vector<vertex_color_type>().swap(vcolors);
-      gstore.clear_reserve();*/
+      clear();
     }
     
     /**
@@ -313,11 +319,14 @@ enum iterator_type {INEDGE, OUTEDGE};
         edge is found, the edge ID is returned in the second element of the pair. */
     edge_type find(const vertex_id_type source,
                    const vertex_id_type target) const {
-       return edge_type(-1,-1); //todo
+       assert(false); //not implemented yet
+       return edge_type(-1,-1);
+   
     } // end of find
 
     edge_type reverse_edge(const edge_type& edge) const {
       //return gstore.find(edge.target(), edge.source());
+       assert(false); //not implemented yet
       return edge_type(-1,-1);
     }
 
@@ -328,6 +337,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      * the first vertex having id 0.
      */
     vertex_id_type add_vertex(const VertexData& vdata = VertexData() ) {
+       assert(false); //not implemented yet
       if (finalized)
       {
         logstream(LOG_FATAL)
@@ -344,6 +354,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      */
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, num_nodes());
+       assert(false); //not implemented yet
       //TODO
     } // End of resize
     
@@ -354,6 +365,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      */
     edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
                           const EdgeData& edata = EdgeData()) {
+       assert(false); //not implemented yet
       return edge_id_type(source, target); //TODO
     } // End of add edge
         
@@ -373,6 +385,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
      ASSERT_TRUE(finalized);
+       assert(false); //not implemented yet
      return _edge;
     } // end of edge_data(u,v)
     
@@ -380,15 +393,18 @@ enum iterator_type {INEDGE, OUTEDGE};
         edge source->target */
     const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
      ASSERT_TRUE(finalized);
+       assert(false); //not implemented yet
      return _edge;
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_type edge) { 
       ASSERT_TRUE(finalized);
+       assert(false); //not implemented yet
       return _edge;
     }
     const EdgeData& edge_data(edge_type edge) const {
+       assert(false); //not implemented yet
       //return 
     }
 
@@ -432,6 +448,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     const vertex_color_type& color(vertex_id_type vertex) const {
       //ASSERT_LT(vertex, num_nodes());
       //return vcolors[vertex];
+       assert(false); //not implemented yet
       return _color;
     }
 
@@ -440,19 +457,23 @@ enum iterator_type {INEDGE, OUTEDGE};
     vertex_color_type& color(vertex_id_type vertex) {
       ASSERT_LT(vertex, num_nodes);
       //return vcolors[vertex];
+       assert(false); //not implemented yet
       return _color;
     }
 
     vertex_color_type get_color(vertex_id_type vid) const{
+       assert(false); //not implemented yet
       return char(0);
     }
     
     void set_color(vertex_id_type vid, vertex_color_type col) {
+       assert(false); //not implemented yet
     }
     
     /** \brief This function constructs a heuristic coloring for the 
         graph and returns the number of colors */
     size_t compute_coloring() {
+       assert(false); //not implemented yet
       return -1;
     } // end of compute coloring
 
@@ -462,11 +483,13 @@ enum iterator_type {INEDGE, OUTEDGE};
      * return true is coloring is valid;
      */
     bool valid_coloring() const {
+       assert(false); //not implemented yet
       return true;
     }
     
     /** \brief count the number of times the graph was cleared and rebuilt */
     size_t get_changeid() const {
+       assert(false); //not implemented yet
       return 0;
     }
 
@@ -482,10 +505,12 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
+       assert(false); //not implemented yet
     } // end of load
 
     /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
+       assert(false); //not implemented yet
     } // end of save
    
 
@@ -513,6 +538,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      * format.
      */
     void save_adjacency(const std::string& filename) const {
+       assert(false); //not implemented yet
     }
 
 
@@ -525,6 +551,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      * function will return false if graph is not acyclic.
      */
     bool topological_sort(std::vector<vertex_id_type>& topsort) const {
+       assert(false); //not implemented yet
       return true;
     } // end of topological sort
 
@@ -533,16 +560,6 @@ enum iterator_type {INEDGE, OUTEDGE};
     
   private:    
     /** Internal edge class  */   
-
- 
-    // PRIVATE DATA MEMBERS ===================================================>    
-    /** The vertex data is simply a vector of vertex data */
-    //std::vector<VertexData> vertices;
-
-
-    /** Mark whether the graph is finalized.  Graph finalization is a
-        costly procedure but it can also dramatically improve
-        performance. */
     bool finalized;
     bool undirected;
     

@@ -120,7 +120,7 @@ namespace graphlab {
       vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY),
       start_time(lowres_time_seconds()) { 
 
-      disable_caching = true;
+      disable_caching = false;
     }
     
 

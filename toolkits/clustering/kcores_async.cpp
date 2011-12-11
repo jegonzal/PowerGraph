@@ -27,6 +27,7 @@
 #include <limits>
 #include <iostream>
 #include "graphlab.hpp"
+#include "graphlab/graph/graph3.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 using namespace graphlab;
@@ -37,6 +38,7 @@ int max_iter = 50;
 ivec active_nodes_num;
 ivec active_links_num;
 int iiter = 0; //current iteration
+int nodes = 0;
 
 enum kcore_output_fields{
   KCORE_INDEX = 1
@@ -66,7 +68,7 @@ struct edge_data {
   edge_data(double val)  { }
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 
 void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   int active = 0;
@@ -185,6 +187,7 @@ int main(int argc,  char *argv[]) {
   std::string format = "matrixmarket";
   int unittest = 0;
   int lineformat = MATRIX_MARKET_3;
+  bool gzip = true;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
@@ -196,6 +199,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=TBD");
   clopts.attach_option("max_iter", &max_iter, max_iter, "maximal number of cores");
+  clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
+  clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
   
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -230,7 +235,38 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
-  load_graph(datafile, format, matrix_info, core.graph(), lineformat);
+//  load_graph(datafile, format, matrix_info, core.graph(), lineformat);
+
+  nodes=149747010;
+  int max_files = 1;
+  //matrix_info.rows = matrix_info.cols = nodes;
+  //matrix_info.nonzeros = 1000000000;
+  //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
+  //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
+  std::vector<std::string> in_files;
+  in_files.push_back(datafile);
+  std::string dirpath;
+  //core.graph().set_undirected();
+  core.set_scope_type("vertex");
+  assert(in_files.size() > 0);
+  for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
+      graphlab::timer mt; mt.start();
+      /*load_cpp_graph(dirpath + in_files[i], format, 
+    	           matrix_info, core.graph(), 
+	           false, MATRIX_MARKET_3);*/
+    core.graph().load(dirpath + in_files[i], true);
+    core.graph().load(dirpath + in_files[i], false);
+    //DB: to be cleaned later
+    if (datafile == "smallnetflix"){
+      matrix_info.rows = 95526; matrix_info.cols = 3561; matrix_info.nonzeros= 3298163;
+    }
+    else if (datafile == "netflixe"){
+      matrix_info.rows = 480189; matrix_info.cols = 17770; matrix_info.nonzeros= 99072112;
+    }
+      
+    logstream(LOG_INFO)<<mt.current_time() << "Takes to load graph" << std::endl;
+  } 
+
 
   calc_initial_degree(&core.graph(), matrix_info);
 
@@ -274,7 +310,7 @@ int main(int argc,  char *argv[]) {
 
 
   vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
-  write_output_vector(datafile + "x.out", format, ret, false);
+  write_output_vector(datafile + "x.out", format, ret,false);
 
 
   if (unittest == 1){

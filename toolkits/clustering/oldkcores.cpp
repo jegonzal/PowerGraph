@@ -184,7 +184,7 @@ int main(int argc,  char *argv[]) {
   std::string datafile;
   std::string format = "matrixmarket";
   int unittest = 0;
-  int lineformat = MATRIX_MARKET_4;
+  int lineformat = MATRIX_MARKET_3;
   bool gzip = true;
 
   clopts.attach_option("data", &datafile, datafile,
