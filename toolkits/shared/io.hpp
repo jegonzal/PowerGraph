@@ -778,7 +778,7 @@ uint array_from_file(std::string filename, uint *& array){
           }
          
           while(total < toread){
-	     int rc = fread(array, sizeof(uint), toread-total,f);
+	     int rc = fread(array+total, sizeof(uint), toread-total,f);
 	     if (rc < 0 ){
 	       perror("fread");
                logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;

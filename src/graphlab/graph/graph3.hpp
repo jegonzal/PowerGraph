@@ -409,7 +409,7 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     edge_list_type out_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], node_out_degrees[v],v);
+      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], node_out_degrees[v+1]-node_out_degrees[v],v);
     }
 
     const edge_list_type in_edges(vertex_id_type v) const {
@@ -492,7 +492,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     /** \brief Load the graph from a file */
     void load(const std::string& filename, bool nodes) {
       if (nodes){
-         int rc =mmap_from_file(filename + ".nodes", node_out_degrees);
+         int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
 	 node_vdata_array.resize(num_nodes);
  	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
