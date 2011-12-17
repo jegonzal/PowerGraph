@@ -614,16 +614,12 @@ ENDMACRO(add_jni_library)
 set(GraphLab_LIBRARIES graphlab)
 
 
-# Specify the subdirectories for this root directory This will be
-# used for the class branch, not the lab branch: subdirs(src examples
-# EXCLUDE_FROM_ALL tests timings projects) (Remove EXCLUDE_FROM_ALL
-# for lab branch.)
 subdirs(src tests)
 
 
-# if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
-#   subdirs(apps)
-# endif()
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
+  subdirs(apps)
+endif()
 subdirs(demoapps toolkits)
 
 

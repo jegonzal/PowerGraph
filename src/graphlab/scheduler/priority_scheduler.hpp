@@ -81,7 +81,7 @@ namespace graphlab {
     priority_scheduler(const graph_type& graph, 
                        size_t ncpus,
                        const options_map& opts) :
-      vfun_set(graph.num_vertices()), multi(0),
+      vfun_set(graph.num_vertices()), multi(5),
       current_queue(ncpus), min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {     
       const bool is_set = opts.get_option("min_priority", min_priority);
@@ -165,7 +165,7 @@ namespace graphlab {
     iterminator& terminator() { return term; }
 
     static void print_options_help(std::ostream& out) { 
-      out << "\t mult=3: number of queues per thread.\n" 
+      out << "\t mult=1: number of queues per thread.\n" 
           << "\t min_priority=-infty Minimum priority required "
           << "\t    to run the update functor" << std::endl;
     }

@@ -157,23 +157,9 @@ namespace graphlab {
 
     //! Nothing to flush if it is not diffable
     void flush_cache(size_t cpuid, const boost::false_type&) { 
-      // Check that all the caches are empty (they must be)
-      foreach(const context_type& context, contexts)
-        ASSERT_EQ(context.cache.size(), 0);
     } // end of flush_cache
 
     void flush_cache(size_t cpuid, const boost::true_type&) {
-      cache_map_type& cache = contexts[cpuid].cache;
-      typedef typename cache_map_type::value_type cache_pair_type;
-      foreach(const cache_pair_type& pair, cache) {
-        const vertex_id_type vid = pair.first;
-        const cache_entry_type& entry = pair.second;
-        locks[vid].writelock();
-        graph_ptr->vertex_data(vid).apply_diff(entry.current, entry.old);
-        locks[vid].unlock();        
-      }
-      // Empty the cache
-      cache.clear();
     } // end of flush cache
 
 

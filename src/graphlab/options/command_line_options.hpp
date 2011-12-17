@@ -166,7 +166,7 @@ namespace graphlab {
                          size_t default_ncpus = 2,
                          const std::string& default_engine = "async",
                          const std::string& default_scope = "edge",
-                         const std::string& default_scheduler = "fifo") : 
+                         const std::string& default_scheduler = "sweep") : 
       desc(desc_str), surpress_graphlab_options(false) {
       ncpus = default_ncpus;
       engine_type = default_engine;

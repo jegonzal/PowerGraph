@@ -100,8 +100,6 @@ namespace graphlab {
       cache_entry() : reads(0), writes(0) { }
     };
     typedef std::map<vertex_id_type, cache_entry> cache_map_type;  
-    cache_map_type cache;
-
 
 
   public:
@@ -119,8 +117,6 @@ namespace graphlab {
       scheduler_ptr(scheduler_ptr), cpuid(cpuid),
       vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY),
       start_time(lowres_time_seconds()) { 
-
-      disable_caching = false;
     }
     
 
@@ -141,26 +137,10 @@ namespace graphlab {
    
 
     vertex_data_type& vertex_data(const vertex_id_type vid) {
-      typedef typename cache_map_type::iterator iterator_type;
-
-      if (!disable_caching){
-        iterator_type iter = cache.find(vid);
-        if(iter != cache.end()) 
-          return iter->second.current;
-      }
-         
       return graph_ptr->vertex_data(vid);
     }
 
     const vertex_data_type& vertex_data(const vertex_id_type vid) const {
-      typedef typename cache_map_type::const_iterator iterator_type;
-      
-      if (!disable_caching){
-        iterator_type iter = cache.find(vid);
-        if(iter != cache.end()) 
-          return iter->second.current;
-      }
-       
       return graph_ptr->vertex_data(vid);
     }
 
