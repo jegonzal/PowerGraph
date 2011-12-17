@@ -62,6 +62,7 @@
 
 #include <boost/bind.hpp>
 #include <boost/unordered_set.hpp>
+#include <boost/type_traits.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -116,7 +117,8 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-    graph2() : finalized(false),changeid(0) {  }
+    graph2() : finalized(false),changeid(0) {  
+    }
 
     /**
      * Create a graph with nverts vertices.
@@ -166,7 +168,11 @@ namespace graphlab {
       gstore.finalize(vertices.size(), edges_tmp);
       finalized = true;
     } // End of finalize
-            
+
+    void set_is_directed(bool x) {
+      gstore.set_is_directed(x);
+    }
+
     /** \brief Get the number of vertices */
     size_t num_vertices() const {
       return vertices.size();
@@ -238,7 +244,7 @@ namespace graphlab {
      * existing data will be cleared.
      */
     edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
-                          const EdgeData& edata = EdgeData()) {
+                          const EdgeData& edata) {
       if (finalized)
       {
         logstream(LOG_FATAL)
@@ -275,15 +281,53 @@ namespace graphlab {
       return 0;
     } // End of add edge
 
-    void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
-      ASSERT_EQ(targetlist.size(), datalist.size());
-      gstore.add_block_edges(source, targetlist, datalist);
-    }
+    /**
+     * \brief Creates an edge with no edge data.*/
+    edge_id_type add_edge(vertex_id_type source, vertex_id_type target) {
+      if (finalized)
+      {
+        logstream(LOG_FATAL)
+          << "Attempting add edge"
+          << "to a finalized graph." << std::endl;
+        ASSERT_MSG(false, "Add edge to a finalized graph.");
+      }
 
-    void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
-      gstore.add_block_edges(source, length, targetArray, dataArray);
-    }
-        
+      if ( source >= vertices.size() 
+           || target >= vertices.size() ) {
+
+        logstream(LOG_FATAL) 
+          << "Attempting add_edge (" << source
+          << " -> " << target
+          << ") when there are only " << vertices.size() 
+          << " vertices" << std::endl;
+
+        ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
+        ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
+      }
+
+      if(source == target) {
+        logstream(LOG_FATAL) 
+          << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
+          << "This operation is not permitted in GraphLab!" << std::endl;
+        ASSERT_MSG(source != target, "Attempting to add self edge!");
+      }
+
+      // Add the edge to the set of edge data (this copies the edata)
+      edges_tmp.add_edge(source, target);
+
+      // This is not the final edge_id, so we always return 0. 
+      return 0;
+    } // End of add edge
+// 
+//     void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
+//       ASSERT_EQ(targetlist.size(), datalist.size());
+//       gstore.add_block_edges(source, targetlist, datalist);
+//     }
+// 
+//     void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
+//       gstore.add_block_edges(source, length, targetArray, dataArray);
+//     }
+//         
     
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_type v) {

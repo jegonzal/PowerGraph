@@ -80,69 +80,75 @@ namespace graphlab {
   public:
     // Edge class for temporary storage. Will be finalized into the CSR+CSC form.
     class edge_info {
-    public:
-      std::vector<EdgeData> data;
-      std::vector<vertex_id_type> source_arr;
-      std::vector<vertex_id_type> target_arr;
-    public:
-      void add_edge(vertex_id_type source, vertex_id_type target, EdgeData _data) {
-        data.push_back(_data);
-        source_arr.push_back(source);
-        target_arr.push_back(target);
-      }
-      void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
-        for (size_t i = 0; i < targetlist.size(); ++i) {
-          data.push_back(datalist[i]);
+      public:
+        std::vector<EdgeData> data;
+        std::vector<vertex_id_type> source_arr;
+        std::vector<vertex_id_type> target_arr;
+      public:
+        edge_info () {}
+        void add_edge(vertex_id_type source, vertex_id_type target, EdgeData _data) {
+          data.push_back(_data);
           source_arr.push_back(source);
-          target_arr.push_back(targetlist[i]);
+          target_arr.push_back(target);
         }
-      }
-      void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
-        for (size_t i = 0; i < length; ++i) {
-          data.push_back(dataArray[i]);
+        // Add edge with no edge data.
+        void add_edge(vertex_id_type source, vertex_id_type target) {
           source_arr.push_back(source);
-          target_arr.push_back(targetArray[i]);
+          target_arr.push_back(target);
         }
-      }
-      void clear() {
-        std::vector<EdgeData>().swap(data);
-        std::vector<vertex_id_type>().swap(source_arr);
-        std::vector<vertex_id_type>().swap(target_arr);
-      }
-      size_t size() const {
-        return data.size();
-      }
-      size_t estimate_size_of() const {
-        return data.capacity()*sizeof(EdgeData) + source_arr.capacity()*sizeof(vertex_id_type)*2 + sizeof(data) + sizeof(source_arr)*2 + sizeof(edge_info);
-      }
+        // void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
+        //   for (size_t i = 0; i < targetlist.size(); ++i) {
+        //     data.push_back(datalist[i]);
+        //     source_arr.push_back(source);
+        //     target_arr.push_back(targetlist[i]);
+        //   }
+        // }
+        // void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
+        //   for (size_t i = 0; i < length; ++i) {
+        //     data.push_back(dataArray[i]);
+        //     source_arr.push_back(source);
+        //     target_arr.push_back(targetArray[i]);
+        //   }
+        // }
+        void clear() {
+          std::vector<EdgeData>().swap(data);
+          std::vector<vertex_id_type>().swap(source_arr);
+          std::vector<vertex_id_type>().swap(target_arr);
+        }
+        size_t size() const {
+          return source_arr.size();
+        }
+        size_t estimate_size_of() const {
+          return data.capacity()*sizeof(EdgeData) + source_arr.capacity()*sizeof(vertex_id_type)*2 + sizeof(data) + sizeof(source_arr)*2 + sizeof(edge_info);
+        }
     }; // end of class edge_info.
 
     // A class of edge information. Used as value type of the edge_list.
     class edge_type {
-    public:
-      edge_type () : _source(-1), _target(-1), _edge_id(-1), _empty(true) { }
-      edge_type (const vertex_id_type _source, const vertex_id_type _target, 
-                 const edge_id_type _eid) :
-        _source(_source), _target(_target), _edge_id(_eid), _empty(false) { }
-    public:
-      inline vertex_id_type source() const {
-        ASSERT_FALSE(empty()); 
-        return _source; 
-      }
+      public:
+        edge_type () : _source(-1), _target(-1), _edge_id(-1), _empty(true) { }
+        edge_type (const vertex_id_type _source, const vertex_id_type _target, 
+            const edge_id_type _eid = -1) :
+          _source(_source), _target(_target), _edge_id(_eid), _empty(false) { }
+      public:
+        inline vertex_id_type source() const {
+          ASSERT_FALSE(empty()); 
+          return _source; 
+        }
 
-      inline vertex_id_type target() const { 
-        ASSERT_FALSE(empty());
-        return _target; 
-      }
-      inline bool empty() const { return _empty; }
-      // Data fields. 
-    private:
-      vertex_id_type _source;
-      vertex_id_type _target;
-      edge_id_type _edge_id;
-      bool _empty;
+        inline vertex_id_type target() const { 
+          ASSERT_FALSE(empty());
+          return _target; 
+        }
+        inline bool empty() const { return _empty; }
+        // Data fields. 
+      private:
+        vertex_id_type _source;
+        vertex_id_type _target;
+        edge_id_type _edge_id;
+        bool _empty;
 
-      friend class graph_storage;
+        friend class graph_storage;
     }; // end of class edge_type.
 
     // Internal iterator on edge_types.
@@ -150,6 +156,7 @@ namespace graphlab {
       public std::iterator<std::forward_iterator_tag, edge_type> {
     public:
       enum iterator_type {INEDGE, OUTEDGE}; 
+      typedef edge_type reference;
     public:
       // Cosntructors
       edge_iterator () : offset(-1), empty(true) { }
@@ -214,9 +221,14 @@ namespace graphlab {
       inline edge_type make_value() const {
         edge_type ret;
         if (itype == INEDGE) {
-          edge_type rvalue(gstore_ptr->CSC_src[offset], center, 
-                           gstore_ptr->c2r_map[offset]);
-          ret = rvalue;
+          ASSERT_TRUE(gstore_ptr->is_directed);
+          if (gstore_ptr->empty_edata) {
+            ret = edge_type(gstore_ptr->CSC_src[offset], center,
+                -1);
+          } else {
+            ret = edge_type(gstore_ptr->CSC_src[offset], center, 
+                            gstore_ptr->c2r_map[offset]);
+          }
         } else if (itype == OUTEDGE) {
           edge_type rvalue(center, gstore_ptr->CSR_dst[offset], offset);
           ret = rvalue;
@@ -273,7 +285,13 @@ namespace graphlab {
     }; // end of class edge_list.
 
   public:
-    graph_storage() { }
+    graph_storage() : is_directed(true), use_skip_list(false) { 
+      empty_edata = (boost::is_empty<EdgeData>::value); 
+    }
+
+    void set_is_directed (bool x) { is_directed = x;}
+    void set_use_skip_list (bool x) { use_skip_list = x;}
+    bool get_is_directed () {return is_directed;}
 
     size_t edge_size() const { return num_edges; }
 
@@ -282,10 +300,14 @@ namespace graphlab {
     // Return the size of in_neighbours.
     size_t num_in_edges (const vertex_id_type v) const {
       ASSERT_LT(v, num_vertices);
+      if (!is_directed) {
+        return num_out_edges(v);
+      }
+
       size_t begin = CSC_dst[v];
       if (begin >= num_edges) return 0;
       // Search is the next valid src vertex after v.
-      size_t search = nextValid(CSC_dst_skip, v);
+      size_t search = use_skip_list ? nextValid(CSC_dst_skip, v, true) : nextValid(CSC_dst, v, false);
       size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
       return (end-begin);
     }
@@ -296,12 +318,13 @@ namespace graphlab {
       size_t begin = CSR_src[v];
       if (begin >= num_edges) return 0;
 
-      size_t search = nextValid(CSR_src_skip, v);
+      size_t search = use_skip_list ? nextValid(CSR_src_skip, v, true) : nextValid(CSR_src, v, false);
       size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
       return (end-begin);
     }
 
     edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {
+      ASSERT_FALSE(empty_edata);
       ASSERT_LT(source, num_vertices);
       ASSERT_LT(target, num_vertices);
       edge_type ans = find(source, target);
@@ -310,6 +333,9 @@ namespace graphlab {
 
     const edge_data_type& edge_data(vertex_id_type source, 
                                     vertex_id_type target) const {
+      if (empty_edata)
+        logstream(LOG_FATAL) << "Access the edge data with no edge data."
+                             << std::endl;
       ASSERT_LT(source, num_vertices);
       ASSERT_LT(target, num_vertices);
       edge_type ans = find(source, target);
@@ -317,18 +343,30 @@ namespace graphlab {
     }
 
     edge_data_type& edge_data(edge_type edge) {
+      if (empty_edata)
+        logstream(LOG_FATAL) << "Access the edge data with no edge data."
+                             << std::endl;
       ASSERT_FALSE(edge.empty());
+      ASSERT_LT(edge._edge_id, num_edges);
       return edge_data_list[edge._edge_id];
     }
 
     const edge_data_type& edge_data(edge_type edge) const {
+      if (empty_edata)
+        logstream(LOG_FATAL) << "Access the edge data with no edge data."
+                             << std::endl;
       ASSERT_FALSE(edge.empty());
+      ASSERT_LT(edge._edge_id, num_edges);
       return edge_data_list[edge._edge_id];
     }
 
 
     // Return in edge list of a vertex.
     edge_list in_edges(const vertex_id_type v) const {
+      if (!is_directed) {
+        return out_edges(v);
+      }
+
       std::pair<bool, edge_range_type> rangePair = inEdgeRange(v);
       if (rangePair.first) {
         edge_range_type range = rangePair.second;
@@ -363,60 +401,72 @@ namespace graphlab {
       */
       // Get the out edge range of the src, as well as the in edge
       // range of the dst.
-      std::pair<bool, edge_range_type> srcRangePair = inEdgeRange(dst);
-      std::pair<bool, edge_range_type> dstRangePair = outEdgeRange(src);
-
-      if( srcRangePair.first && dstRangePair.first) {
-        // The edge may exist. 
-        edge_range_type srcRange =  srcRangePair.second;
-        edge_range_type dstRange = dstRangePair.second;
-
-        if ((srcRange.second - srcRange.first) < 
-            (dstRange.second - dstRange.first)) {
-          // Out edge candidate size is smaller, search CSR.
-          size_t efind =  binary_search(CSC_src, srcRange.first, 
-                                        srcRange.second, src);
-          if (efind >= num_edges) {
-            return edge_type();
-          } else {
-            return edge_type(src, dst, c2r_map[efind]);
-          }
-        } else {
-          // In edge candidate size is smaller, search CSC.
-          size_t efind = binary_search(CSR_dst, dstRange.first, 
-                                       dstRange.second, dst);
+      if (!is_directed) {
+        // Undirected graph. Search CSR only.
+        std::pair<bool, edge_range_type> dstRangePair = outEdgeRange(src);
+        if (dstRangePair.first) {
+          size_t efind = binary_search(CSR_dst, dstRangePair.second.first, 
+              dstRangePair.second.second, dst);
           if (efind >= num_edges) {
             return edge_type();
           } else {
             return edge_type(src, dst, efind);
           }
+        } else {
+          // Edge does not exist.
+          return edge_type();
         }
       } else {
-        return edge_type();
+        // Directed graph, search CSR or CSC, whichever has less candidates.
+        std::pair<bool, edge_range_type> dstRangePair = outEdgeRange(src);
+        std::pair<bool, edge_range_type> srcRangePair = inEdgeRange(dst);
+        if( srcRangePair.first && dstRangePair.first) {
+          // The edge may exist. 
+          edge_range_type srcRange =  srcRangePair.second;
+          edge_range_type dstRange = dstRangePair.second;
+
+          if ((srcRange.second - srcRange.first) < 
+              (dstRange.second - dstRange.first)) {
+            // Out edge candidate size is smaller, search CSC.
+            size_t efind =  binary_search(CSC_src, srcRange.first, 
+                                          srcRange.second, src);
+            if (efind >= num_edges) {
+              return edge_type();
+            } else {
+              return edge_type(src, dst, c2r_map[efind]);
+            }
+          } else {
+            // In edge candidate size is smaller, search CSR.
+            size_t efind = binary_search(CSR_dst, dstRange.first, 
+                                         dstRange.second, dst);
+            if (efind >= num_edges) {
+              return edge_type();
+            } else {
+              return edge_type(src, dst, efind);
+            }
+          }
+        } else {
+          return edge_type();
+        }
       }
     } // end of find.
 
     // Finalize the graph storage. Construct CSC, CSRs.
     void finalize(size_t _num_of_v, edge_info &edges) {
+      std::cout << "Graph finalize..." << std::endl;
       num_vertices = _num_of_v;
       num_edges = edges.size();
 
-      CSR_src.reserve(num_vertices);
-      CSC_dst.reserve(num_vertices);
-      CSR_src_skip.reserve(num_vertices);
-      CSC_dst_skip.reserve(num_vertices);
-      c2r_map.reserve(num_edges);
-
       // Permute_index.
       std::vector<edge_id_type>& permute_index = c2r_map;
-      permute_index.assign(num_edges, 0);
+      permute_index.reserve(num_edges); // aliased as permute index.
       // Counter_index.
       std::vector<atomic<int> > counter_array(num_vertices+1, 0);
+      permute_index.assign(num_edges, 0);
 
-      std::cout << "Graph finalize..." << std::endl;
-      std::cout << "Sort by src..." << std::endl;
       // Sort edges by source;
       // Begin of counting sort.
+      std::cout << "Sort by src..." << std::endl;
       counting_sort(edges.source_arr, counter_array, permute_index); 
       std::cout << "finish counting sort." << std::endl;
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
@@ -433,12 +483,12 @@ namespace graphlab {
       // Inplace permute of edge_data, edge_src, edge_target array.
       // Modified from src/graphlab/util/generics/shuffle.hpp.
       std::cout << "Inplace permute by src..." << std::endl;
-      EdgeData swap_data; vertex_id_type swap_src; vertex_id_type swap_target;
+      vertex_id_type swap_src; vertex_id_type swap_target;
       for (size_t i = 0; i < permute_index.size(); ++i) {
         if (i != permute_index[i]) {
           // Reserve the ith entry;
           size_t j = i;
-          swap_data = edges.data[i];
+          EdgeData swap_data = edges.data[i];
           swap_src = edges.source_arr[i];
           swap_target = edges.target_arr[i];
           // Begin swap cycle:
@@ -462,8 +512,12 @@ namespace graphlab {
         }
       }
 
-      std::cout << "Build CSR_src..." << std::endl;
       // Construct CSR_src:
+      std::cout << "Build CSR_src..." << std::endl;
+      CSR_src.reserve(num_vertices);
+      if (use_skip_list) {
+        CSR_src_skip.reserve(num_vertices);
+      }
       size_t lastSrc = -1;
       vertex_id_type old_src = -1;
       vertex_id_type old_dst = -1;
@@ -486,77 +540,105 @@ namespace graphlab {
         if (src != lastSrc) {
           for (size_t j = (lastSrc+1); j < src; ++j) {
             CSR_src.push_back(-1);
-            CSR_src_skip.push_back(src-lastSrc-1);
+            if (use_skip_list) 
+              CSR_src_skip.push_back(src-lastSrc-1);
           }
           CSR_src.push_back(it);
-          CSR_src_skip.push_back(0);
+          if (use_skip_list) 
+            CSR_src_skip.push_back(0);
           lastSrc = src;
         }
       }
       // Fill in the remaining row index list.
       for( size_t j = (lastSrc +1); j < num_vertices; ++j) {
         CSR_src.push_back(-1);
-        CSR_src_skip.push_back(num_vertices-lastSrc-1);
+        if (use_skip_list) 
+          CSR_src_skip.push_back(num_vertices-lastSrc-1);
       }
       ASSERT_EQ(CSR_src.size(), num_vertices);
-      ASSERT_EQ(CSR_src_skip.size(), num_vertices);
+      if (use_skip_list)
+        ASSERT_EQ(CSR_src_skip.size(), num_vertices);
+      // End of building CSR
 
 
-      // Construct c2r_map, sort the ids according to column first order.
-      // Begin of counting sort.
-      std::cout << "Sort by dst..." << std::endl;
-      counting_sort(edges.target_arr, counter_array, permute_index); 
-      std::cout << "finish counting sort." << std::endl;
+     
+
+      // Begin building CSC
+      if (!is_directed)  {
+        // Undirected graph. No c2rmap, CSC data structure.
+        edge_data_list.swap(edges.data);
+        CSR_dst.swap(edges.target_arr);
+        std::vector<vertex_id_type>().swap(edges.source_arr);
+        std::vector<edge_id_type>().swap(permute_index);
+      } else {
+        // Directed graph need both CSC and CSR
+        // Construct c2r_map, sort the ids according to column first order.
+        // Begin of counting sort.
+        std::cout << "Sort by dst..." << std::endl;
+        counting_sort(edges.target_arr, counter_array, permute_index); 
+        std::cout << "finish counting sort." << std::endl;
 #pragma omp parallel for
-      for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
-        if (counter_array[i] < counter_array[i+1]) {
-          std::sort(permute_index.begin()+counter_array[i],
-                    permute_index.begin() + counter_array[i+1],
-                    cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
-        }
-      }
-      // End of counting sort.
-
-      std::cout << "Inplace permute by dst..." << std::endl;
-      outofplace_shuffle(edges.source_arr, permute_index);
-      /* DEBUG
-         printf("c2r_map: \n");
-         foreach(edge_id_type e, c2r_map)
-         std::cout << e << " ";
-         std::cout << std::endl;
-      */
-
-      // Construct CSC_dst:
-      size_t lastDst = -1;
-
-      std::cout <<"Build CSC_dst..." << std::endl;
-      // Iterate over the edges. 
-      for (size_t it = 0; it < num_edges; ++it) {
-        vertex_id_type dst = edges.target_arr[c2r_map[it]];
-
-        // Fill in CSC_dst and CSR_src_skip. 
-        if (dst != lastDst) {
-          for (size_t j = (lastDst + 1); j < dst; ++j) {
-            CSC_dst.push_back(-1);
-            CSC_dst_skip.push_back(dst-lastDst-1);
+        for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
+          if (counter_array[i] < counter_array[i+1]) {
+            std::sort(permute_index.begin()+counter_array[i],
+                      permute_index.begin() + counter_array[i+1],
+                      cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
           }
-          CSC_dst.push_back(it);
-          CSC_dst_skip.push_back(0);
-          lastDst = dst;
         }
-      }
-      // Fill in the remaining row index list.
-      for( size_t j = (lastDst +1); j < num_vertices; ++j) {
-        CSC_dst.push_back(-1);
-        CSC_dst_skip.push_back(num_vertices-lastDst-1);
-      }
-      ASSERT_EQ(CSC_dst.size(), num_vertices);
-      ASSERT_EQ(CSC_dst_skip.size(), num_vertices);
+        // End of counting sort.
 
-      edge_data_list.swap(edges.data);
-      CSR_dst.swap(edges.target_arr);
-      CSC_src.swap(edges.source_arr);
+        std::cout << "Inplace permute by dst..." << std::endl;
+        outofplace_shuffle(edges.source_arr, permute_index);
+        /* DEBUG
+           printf("c2r_map: \n");
+           foreach(edge_id_type e, c2r_map)
+           std::cout << e << " ";
+           std::cout << std::endl;
+        */
 
+
+        // Construct CSC_dst:
+        CSC_dst.reserve(num_vertices);
+        if (use_skip_list) {
+          CSC_dst_skip.reserve(num_vertices);
+        }
+        size_t lastDst = -1;
+        std::cout <<"Build CSC_dst..." << std::endl;
+        // Iterate over the edges. 
+        for (size_t it = 0; it < num_edges; ++it) {
+          vertex_id_type dst = edges.target_arr[c2r_map[it]];
+
+          // Fill in CSC_dst and CSR_src_skip. 
+          if (dst != lastDst) {
+            for (size_t j = (lastDst + 1); j < dst; ++j) {
+              CSC_dst.push_back(-1);
+              if (use_skip_list) 
+                CSC_dst_skip.push_back(dst-lastDst-1);
+            }
+            CSC_dst.push_back(it);
+            if (use_skip_list) 
+              CSC_dst_skip.push_back(0);
+            lastDst = dst;
+          }
+        }
+        // Fill in the remaining row index list.
+        for( size_t j = (lastDst +1); j < num_vertices; ++j) {
+          CSC_dst.push_back(-1);
+          if (use_skip_list) 
+            CSC_dst_skip.push_back(num_vertices-lastDst-1);
+        }
+        ASSERT_EQ(CSC_dst.size(), num_vertices);
+        if (use_skip_list)
+          ASSERT_EQ(CSC_dst_skip.size(), num_vertices);
+
+        CSC_src.swap(edges.source_arr);
+        edge_data_list.swap(edges.data);
+        CSR_dst.swap(edges.target_arr);
+
+        if(empty_edata) {
+          std::vector<edge_id_type>().swap(c2r_map);
+        }
+      } // End of building CSC
       // std::cout << "End of finalize." << std::endl;
 
       /* DEBUG */
@@ -586,6 +668,7 @@ namespace graphlab {
       // foreach(size_t i, CSC_dst_skip)
       //   std::cout << i << " "; 
       // std::cout << std::endl;
+     
     } // end of finalize.
 
     void clear() {
@@ -667,6 +750,7 @@ namespace graphlab {
      * where x means no out edges.
      *     CSR_src_skip =  0 2 2 0 4 0 0 4 0
      * is used to jump to the prev/next valid vertex in CSR_src.  
+     * Optional.
      */
     std::vector<vertex_id_type> CSR_src_skip;
 
@@ -683,15 +767,22 @@ namespace graphlab {
      * where x means no out edges.
      *     CSC_dst_skip =  0 2 2 0 4 0 0 4 0
      * is used to jump to the prev/next valid vertex in CSC_dst.  
+     * Optional.
      */
     std::vector<vertex_id_type> CSC_dst_skip;
     /** Row of CSC */
     std::vector<vertex_id_type> CSC_src;
 
+    // graph traits
+    bool is_directed;
+    bool use_skip_list;
+    bool empty_edata;
+
   private:
     // Get the start, end index of the inbound edge of vertex v.
     std::pair<bool, edge_range_type> inEdgeRange(vertex_id_type v) const {
       ASSERT_LT(v, num_vertices);
+      ASSERT_TRUE(is_directed);
 
       size_t col_start = CSC_dst[v];
       if (col_start >= num_edges) {
@@ -700,7 +791,8 @@ namespace graphlab {
       } else {
 
         // Find the start column of the next vertex.
-        vertex_id_type nextV = nextValid(CSC_dst_skip, v);
+        vertex_id_type nextV = use_skip_list ? nextValid(CSC_dst_skip, v, true) : 
+          nextValid(CSC_dst, v, false);
         size_t col_end = (nextV < num_vertices) ? CSC_dst[nextV] : num_edges;
         return std::make_pair(true, std::make_pair(col_start, col_end-1));
       }
@@ -715,7 +807,8 @@ namespace graphlab {
         return std::make_pair(false, std::make_pair(0,0));;
       } else {
         // Find the start column of the next vertex.
-        vertex_id_type nextV = nextValid(CSR_src_skip, v);
+        vertex_id_type nextV = use_skip_list ? nextValid(CSR_src_skip, v, true) : 
+          nextValid(CSR_src, v, false);
         size_t row_end = (nextV < num_vertices) ? CSR_src[nextV] :num_edges; 
 
         return std::make_pair(true, std::make_pair(row_start, row_end-1));
@@ -782,8 +875,8 @@ namespace graphlab {
       ASSERT_LT(eid, num_edges);
       size_t start = 0;
       size_t end = num_vertices-1;
-      if (CSR_src[start] >= num_edges) start = nextValid(CSR_src_skip, start);
-      if (CSR_src[end] >= num_edges) end = prevValid(CSR_src_skip, end);
+      if (CSR_src[start] >= num_edges) start = use_skip_list ? nextValid(CSR_src_skip, start, true) : nextValid(CSR_src, start, false);
+      if (CSR_src[end] >= num_edges) end = use_skip_list ? prevValid(CSR_src_skip, end, true) : prevValid(CSR_src, end, false);
 
       // Keep the invariant that CSR_src[start] <= eid, CSR_src[end] > eid.
       while (start <= end) {
@@ -794,7 +887,7 @@ namespace graphlab {
         if (CSR_src[start] > eid)
           {
             ASSERT_LT(0, start);
-            vertex_id_type ans = prevValid(CSR_src_skip, start);
+            vertex_id_type ans = use_skip_list ? prevValid(CSR_src_skip, start, true) : prevValid(CSR_src, start, false);
             //vertex_id_type ans = start -1;
             ASSERT_LT(ans, num_vertices);
             return ans;
@@ -802,68 +895,69 @@ namespace graphlab {
 
         size_t mid = (start + end)/2;
         // mid may fall in to an invalid grid 
-        if (CSR_src[mid] >= num_edges) mid = prevValid2(CSR_src, mid);
+        if (CSR_src[mid] >= num_edges) mid = prevValid(CSR_src, mid, false);
 
         if (CSR_src[mid] == eid)
           return mid;
 
         if (CSR_src[mid] > eid) {
-          end = prevValid(CSR_src_skip, mid); 
+          end = use_skip_list ? prevValid(CSR_src_skip, mid, true) : prevValid(CSR_src, mid, false); 
           //end = mid-1;
         } else {
           //start = mid+1;
-          start = nextValid(CSR_src_skip, mid);
+          start = use_skip_list ? nextValid(CSR_src_skip, mid, true) : nextValid(CSR_src, mid, false);
         }
       } 
             
       ASSERT_TRUE(false);
       return start;
     }
-
-    // Use the Skip array to find the next valid vertex. O(1)
+    
+    // If use_skip_list, use the Skip array to find the next valid vertex. O(1)
+    //
+    // Else use the vertex_id (CSR_row or CSC_dst) to find the next
+    // vertex. O(V).  Can be applied on invalid vertex in CSR_row or
+    // CSC_dst. Useful in binary search where the middle is not
+    // assumed to be valid.
     inline vertex_id_type 
-    nextValid(const std::vector<vertex_id_type>& vertex_skip, 
-              vertex_id_type curv) const {
+    nextValid(const std::vector<vertex_id_type>& vertex_array, 
+              vertex_id_type curv, bool use_skip_list) const {
+
       if (curv == num_vertices-1) return num_vertices;
-      return (curv + 1 + vertex_skip[curv+1]);
+
+      if (use_skip_list) {
+        return (curv + 1 + vertex_array[curv+1]);
+      } else {
+        vertex_id_type search = curv+1;
+        while (search < num_vertices && vertex_array[search] >= num_edges) 
+          ++search;
+        return search;
+      }
     }
 
     // Use the Skip array to find the previous valid vertex. O(1)
     inline vertex_id_type 
-    prevValid(const std::vector<vertex_id_type>& vertex_skip, 
-              vertex_id_type curv) const {
+    prevValid(const std::vector<vertex_id_type>& vertex_array, 
+              vertex_id_type curv, bool use_skip_list) const {
       if (curv == 0) return -1;
-      return (curv - 1 - vertex_skip[curv-1]);
-    }
 
-    // Use the vertex_id (CSR_row or CSC_dst) to find the next
-    // vertex. O(V).  Can be applied on invalid vertex in CSR_row or
-    // CSC_dst. Useful in binary search where the middle is not
-    // assumed to be valid.
-    inline vertex_id_type
-    nextValid2(const std::vector<size_t>& vertex_array, 
-               vertex_id_type curv) const {
-      vertex_id_type search = curv+1;
-      while (search < num_vertices && vertex_array[search] >= num_edges) 
-        ++search;
-      return search;
-    }
-
-    // Use the vertex_id (CSR_row or CSC_dst) to find the next
-    // vertex. O(V).  Similar to nextValid2.
-    inline vertex_id_type 
-    prevValid2(const std::vector<size_t>& vertex_array, 
-               vertex_id_type curv) const {
-      vertex_id_type search = curv-1;
-      while (search >= 0 && vertex_array[search] >= num_edges) --search;
-      return search;
+      if (use_skip_list) {
+        return (curv - 1 - vertex_array[curv-1]);
+      } else {
+        vertex_id_type search = curv-1;
+        while (search >= 0 && vertex_array[search] >= num_edges)
+          --search;
+        return search;
+      }
     }
 
   public:
 
     void load(iarchive& arc) {
       clear();
-      arc >> num_vertices
+      arc >> is_directed
+          >> use_skip_list
+          >> num_vertices
           >> num_edges
           >> edge_data_list
           >> CSR_src
@@ -876,7 +970,9 @@ namespace graphlab {
     }
 
     void save(oarchive& arc) const {
-      arc << num_vertices
+      arc << is_directed
+          << use_skip_list
+          << num_vertices
           << num_edges
           << edge_data_list
           << CSR_src

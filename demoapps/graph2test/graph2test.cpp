@@ -15,15 +15,25 @@ struct edge_data {
   edge_data (int f, int t) : from(f), to(t) {}
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type2;
-typedef graph_type2::edge_list_type edge_list_type;
-typedef graph_type2::edge_type edge_type;
-typedef graph_type2::vertex_id_type vertex_id_type;
-
-struct update_functor2 : public graphlab::iupdate_functor<graph_type2, update_functor2> {
+struct edge_data_empty {
 };
 
-void sparseGraphtest (graph_type2& g) {
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+typedef graph_type::edge_list_type edge_list_type;
+typedef graph_type::edge_type edge_type;
+
+typedef graphlab::graph2<vertex_data, edge_data_empty> graph_type_e;
+typedef graph_type_e::edge_list_type edge_list_type_e;
+typedef graph_type_e::edge_type edge_type_e;
+
+
+typedef uint32_t vertex_id_type;
+
+
+struct update_functor : public graphlab::iupdate_functor<graph_type, update_functor> {};
+struct update_functor_e : public graphlab::iupdate_functor<graph_type_e, update_functor_e> {};
+
+void sparseGraphtest (graph_type& g) {
   size_t num_v = 10;
   size_t num_e = 6;
 
@@ -94,7 +104,7 @@ void sparseGraphtest (graph_type2& g) {
 /**
    In this function, we construct the 3 by 3 grid graph.
 */
-void grid_graph_test(graph_type2& g) {
+void grid_graph_test(graph_type& g) {
   g.clear_reserve();
   std::cout << "-----------Begin Grid Test--------------------" << std::endl;
   size_t dim = 3;
@@ -188,6 +198,150 @@ void grid_graph_test(graph_type2& g) {
   std::cout << "-----------End Grid Test--------------------" << std::endl;
 }
 
+/*
+ * Test undirected graph
+ * */
+void undirected_graph_test(graph_type& g) {
+  g.clear_reserve();
+  std::cout << "-----------Begin Undirected Grid Test--------------------" << std::endl;
+  size_t dim = 3;
+  size_t num_vertices = 0;
+  size_t num_edge = 0;
+  typedef uint32_t vertex_id_type;
+
+  // here we create dim * dim vertices.
+  for (size_t i = 0;i < dim * dim; ++i) {
+    // create the vertex data, randomizing the color
+    vertex_data vdata;
+    vdata.num_flips = 0;
+    // create the vertex
+    g.add_vertex(vdata);
+    ++num_vertices;
+  }
+
+  // create the edges. The add_edge(i,j,edgedata) function creates
+  // an edge from i->j. with the edgedata attached.   edge_data edata;
+  for (size_t i = 0;i < dim; ++i) {
+    for (size_t j = 0;j < dim - 1; ++j) {
+      // add the horizontal edges in one direction
+      g.add_edge(dim * i + j, dim * i + j + 1, edge_data(dim*i+j, dim*i+j+1));
+      // add the vertical edges in one direction
+      g.add_edge(dim * j + i, dim * (j + 1) + i, edge_data(dim*j+i, dim*(j+1)+i));
+      num_edge += 2;
+    }
+  }
+  // the graph is now constructed
+  // we need to call finalize. 
+  g.set_is_directed(false);
+  g.finalize();
+
+  printf("Test num_vertices()...\n");
+  ASSERT_EQ(g.num_vertices(), num_vertices);
+  printf("+ Pass test: num_vertices :)\n\n");
+
+  printf("Test num_edges()...\n");
+  ASSERT_EQ(g.num_edges(), num_edge);
+  printf("+ Pass test: num_edges :)\n\n");
+
+  printf("Test iterate over in/out_edges and get edge data: \n");
+  for (vertex_id_type i = 0; i < num_vertices; ++i) {
+    const edge_list_type& out_edges = g.out_edges(i);
+    const edge_list_type& in_edges = g.in_edges(i);
+
+    printf("Test v: %u\n", i);
+    printf("In edge ids: ");
+    foreach(edge_type edge, in_edges) 
+      std::cout << "(" << g.edge_data(edge.source(), edge.target()).from << ","
+                << g.edge_data(edge.source(), edge.target()).to << ") ";
+    std::cout <<std::endl;
+
+    printf("Out edge ids: ");
+    foreach(edge_type edge, out_edges) 
+      std::cout << "(" << g.edge_data(edge.source(), edge.target()).from << "," 
+                << g.edge_data(edge.source(), edge.target()).to << ") ";
+    std::cout <<std::endl;
+
+    // foreach(edge_type edge, out_edges) {
+    //   edge_data edata = g.edge_data(edge);
+    //   ASSERT_EQ(edge.source(), i);
+    //   ASSERT_EQ(edata.from, edge.source());
+    //   ASSERT_EQ(edata.to, edge.target());
+    // }
+
+    // foreach(edge_type edge, in_edges) {
+    //   edge_data edata = g.edge_data(edge);
+    //   ASSERT_EQ(edge.target(), i);
+    //   ASSERT_EQ(edata.from, edge.source());
+    //   ASSERT_EQ(edata.to, edge.target());
+    // }
+  }
+  std::cout << "-----------End Undirected Grid Test--------------------" << std::endl;
+}
+
+/*
+ * Test empty_edge graph
+ */
+void empty_edge_graph_test(graph_type_e& g) {
+  std::cout << "-----------Begin Empty Edge Grid Test--------------------" << std::endl;
+  g.clear_reserve();
+  size_t dim = 3;
+  size_t num_vertices = 0;
+  size_t num_edge = 0;
+  typedef uint32_t vertex_id_type;
+
+  // here we create dim * dim vertices.
+  for (size_t i = 0;i < dim * dim; ++i) {
+    // create the vertex data, randomizing the color
+    vertex_data vdata;
+    vdata.num_flips = 0;
+    // create the vertex
+    g.add_vertex(vdata);
+    ++num_vertices;
+  }
+
+  // create the edges. The add_edge(i,j,edgedata) function creates
+  // an edge from i->j. with the edgedata attached.   edge_data edata;
+  for (size_t i = 0;i < dim; ++i) {
+    for (size_t j = 0;j < dim - 1; ++j) {
+      // add the horizontal edges in one direction
+      g.add_edge(dim * i + j, dim * i + j + 1);
+      // add the vertical edges in one direction
+      g.add_edge(dim * j + i, dim * (j + 1) + i);
+      num_edge += 2;
+    }
+  }
+  // the graph is now constructed
+  // we need to call finalize. 
+  g.set_is_directed(false);
+  g.finalize();
+
+  printf("Test num_vertices()...\n");
+  ASSERT_EQ(g.num_vertices(), num_vertices);
+  printf("+ Pass test: num_vertices :)\n\n");
+
+  printf("Test num_edges()...\n");
+  ASSERT_EQ(g.num_edges(), num_edge);
+  printf("+ Pass test: num_edges :)\n\n");
+
+  printf("Test iterate over in/out_edges and get edge data: \n");
+  for (vertex_id_type i = 0; i < num_vertices; ++i) {
+    const edge_list_type_e& out_edges = g.out_edges(i);
+    const edge_list_type_e& in_edges = g.in_edges(i);
+
+    printf("Test v: %u\n", i);
+    printf("In edge ids: ");
+    foreach(edge_type_e edge, in_edges) 
+      std::cout << "(" << edge.source() << ", " << edge.target() << ") ";
+    std::cout << std::endl;
+
+    printf("Out edge ids: ");
+    foreach(edge_type_e edge, out_edges) 
+      std::cout << "(" << edge.source() << ", " << edge.target() << ") ";
+    std::cout <<std::endl;
+  }
+  std::cout << "-----------End Empty Edge Grid Test--------------------" << std::endl;
+}
+
 int main(int argc,  char *argv[]) {
 
   // sets the logging level of graphlab
@@ -215,12 +369,16 @@ int main(int argc,  char *argv[]) {
 
   // create a graphlab core which contains the graph, shared data, and
   // engine
-  //
-  graphlab::core<graph_type2, update_functor2> glcore2;
+  graphlab::core<graph_type, update_functor> glcore;
+
 
   // Initialize the core with the command line arguments
-  glcore2.set_options(opts);
-  sparseGraphtest(glcore2.graph());
-  grid_graph_test(glcore2.graph());
+  glcore.set_options(opts);
+  sparseGraphtest(glcore.graph());
+  grid_graph_test(glcore.graph());
+  undirected_graph_test(glcore.graph());
+
+  graphlab::core<graph_type_e, update_functor_e> glcore_e;
+  empty_edge_graph_test(glcore_e.graph());
 }
 #include <graphlab/macros_undef.hpp>
