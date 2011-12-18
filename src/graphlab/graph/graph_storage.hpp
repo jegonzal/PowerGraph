@@ -87,12 +87,8 @@ namespace graphlab {
       public:
         edge_info () {}
         void add_edge(vertex_id_type source, vertex_id_type target, EdgeData _data) {
-          data.push_back(_data);
-          source_arr.push_back(source);
-          target_arr.push_back(target);
-        }
-        // Add edge with no edge data.
-        void add_edge(vertex_id_type source, vertex_id_type target) {
+          if (!boost::is_empty<EdgeData>::value)
+            data.push_back(_data);
           source_arr.push_back(source);
           target_arr.push_back(target);
         }
@@ -324,7 +320,9 @@ namespace graphlab {
     }
 
     edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {
-      ASSERT_FALSE(empty_edata);
+      if (empty_edata)
+        logstream(LOG_FATAL) << "Access the edge data with no edge data."
+                             << std::endl;
       ASSERT_LT(source, num_vertices);
       ASSERT_LT(target, num_vertices);
       edge_type ans = find(source, target);
@@ -558,18 +556,14 @@ namespace graphlab {
       ASSERT_EQ(CSR_src.size(), num_vertices);
       if (use_skip_list)
         ASSERT_EQ(CSR_src_skip.size(), num_vertices);
-      // End of building CSR
 
+     // End of building CSR
 
-     
 
       // Begin building CSC
       if (!is_directed)  {
         // Undirected graph. No c2rmap, CSC data structure.
-        edge_data_list.swap(edges.data);
-        CSR_dst.swap(edges.target_arr);
         std::vector<vertex_id_type>().swap(edges.source_arr);
-        std::vector<edge_id_type>().swap(permute_index);
       } else {
         // Directed graph need both CSC and CSR
         // Construct c2r_map, sort the ids according to column first order.
@@ -631,15 +625,22 @@ namespace graphlab {
         if (use_skip_list)
           ASSERT_EQ(CSC_dst_skip.size(), num_vertices);
 
+        // Swap edges.source with CSC_src
         CSC_src.swap(edges.source_arr);
-        edge_data_list.swap(edges.data);
-        CSR_dst.swap(edges.target_arr);
-
-        if(empty_edata) {
-          std::vector<edge_id_type>().swap(c2r_map);
-        }
       } // End of building CSC
-      // std::cout << "End of finalize." << std::endl;
+
+      
+      // Swap edges.target with CSR_dst
+      CSR_dst.swap(edges.target_arr);
+      // No edge data. Clear c2r_map(permute_index) and edges.data.
+      if (empty_edata) {
+        std::vector<edge_id_type>().swap(c2r_map);
+        std::vector<EdgeData>().swap(edges.data);
+      } else {
+        // Swap edge data and perserve c2r_map.
+        edge_data_list.swap(edges.data);
+      }
+      std::cout << "End of finalize." << std::endl;
 
       /* DEBUG */
       // printf("CSR dst:\n");
@@ -780,7 +781,7 @@ namespace graphlab {
 
   private:
     // Get the start, end index of the inbound edge of vertex v.
-    std::pair<bool, edge_range_type> inEdgeRange(vertex_id_type v) const {
+    inline std::pair<bool, edge_range_type> inEdgeRange(vertex_id_type v) const {
       ASSERT_LT(v, num_vertices);
       ASSERT_TRUE(is_directed);
 
@@ -799,7 +800,7 @@ namespace graphlab {
     } // End of inEdgeRange;
 
     // Get the start, end index of the outbound edge of vertex v.
-    std::pair<bool, edge_range_type> outEdgeRange(vertex_id_type v) const {
+    inline std::pair<bool, edge_range_type> outEdgeRange(vertex_id_type v) const {
       ASSERT_LT(v, num_vertices);
       size_t row_start = CSR_src[v];
       if (row_start >= num_edges) {
@@ -957,6 +958,7 @@ namespace graphlab {
       clear();
       arc >> is_directed
           >> use_skip_list
+          >> empty_edata
           >> num_vertices
           >> num_edges
           >> edge_data_list
@@ -972,6 +974,7 @@ namespace graphlab {
     void save(oarchive& arc) const {
       arc << is_directed
           << use_skip_list
+          << empty_edata
           << num_vertices
           << num_edges
           << edge_data_list

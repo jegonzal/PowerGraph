@@ -117,8 +117,7 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-    graph2() : finalized(false),changeid(0) {  
-    }
+    graph2() : finalized(false),changeid(0) { }
 
     /**
      * Create a graph with nverts vertices.
@@ -244,7 +243,7 @@ namespace graphlab {
      * existing data will be cleared.
      */
     edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
-                          const EdgeData& edata) {
+                          const EdgeData& edata = EdgeData()) {
       if (finalized)
       {
         logstream(LOG_FATAL)
@@ -281,43 +280,6 @@ namespace graphlab {
       return 0;
     } // End of add edge
 
-    /**
-     * \brief Creates an edge with no edge data.*/
-    edge_id_type add_edge(vertex_id_type source, vertex_id_type target) {
-      if (finalized)
-      {
-        logstream(LOG_FATAL)
-          << "Attempting add edge"
-          << "to a finalized graph." << std::endl;
-        ASSERT_MSG(false, "Add edge to a finalized graph.");
-      }
-
-      if ( source >= vertices.size() 
-           || target >= vertices.size() ) {
-
-        logstream(LOG_FATAL) 
-          << "Attempting add_edge (" << source
-          << " -> " << target
-          << ") when there are only " << vertices.size() 
-          << " vertices" << std::endl;
-
-        ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
-        ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
-      }
-
-      if(source == target) {
-        logstream(LOG_FATAL) 
-          << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
-          << "This operation is not permitted in GraphLab!" << std::endl;
-        ASSERT_MSG(source != target, "Attempting to add self edge!");
-      }
-
-      // Add the edge to the set of edge data (this copies the edata)
-      edges_tmp.add_edge(source, target);
-
-      // This is not the final edge_id, so we always return 0. 
-      return 0;
-    } // End of add edge
 // 
 //     void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
 //       ASSERT_EQ(targetlist.size(), datalist.size());

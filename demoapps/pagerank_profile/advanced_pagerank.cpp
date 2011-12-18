@@ -112,7 +112,7 @@ public:
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors
     double sum = 0;
-    foreach(const edge_type& edge, context.out_edges()) {
+    foreach(const edge_type& edge, context.in_edges()) {
       sum += context.const_edge_data(edge).weight * 
        context.const_vertex_data(edge.source()).value;
     }
