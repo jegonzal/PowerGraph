@@ -183,20 +183,44 @@ void save_matrix_market_vector(const char * filename, const vec & a){
 
 void save_matrix_market_format(const char * filename, mat &U, mat& V)
 {
-    if (ps.algorithm != SVD){
+    if (ps.algorithm != SVD && ps.algorithm != SVD_PLUS_PLUS && ps.algorithm != TIME_SVD_PLUS_PLUS){
       save_matrix_market_matrix((std::string(filename) + ".V").c_str(),V);
       save_matrix_market_matrix((std::string(filename) + ".U").c_str(),U);
+      return;
     }
-    else {
+    
+    if (ps.algorithm == SVD){
       save_matrix_market_matrix((std::string(filename) + ".V").c_str(),U); /* for conforming to wikipedia convention, I swap U and V*/
       save_matrix_market_matrix((std::string(filename) + ".U").c_str(),V);
       save_matrix_market_vector((std::string(filename) + ".EigenValues_AAT").c_str(),get_col(ps.T,0));
       save_matrix_market_vector((std::string(filename) + ".EigenValues_ATA").c_str(),get_col(ps.T,1));
+      return;
     }
 
     if (ps.algorithm == SVD_PLUS_PLUS){
       save_matrix_market_vector((std::string(filename) + ".UserBias").c_str(),ps.svdpp_usr_bias);
       save_matrix_market_vector((std::string(filename) + ".MovieBias").c_str(),ps.svdpp_movie_bias);
+      save_matrix_market_matrix((std::string(filename) + ".Users").c_str(),ps.U);
+      save_matrix_market_matrix((std::string(filename) + ".Movies").c_str(),ps.V);
+      mat gmean = mat(1,1);
+      set_val(gmean,0,0,ps.globalMean[0]);
+      save_matrix_market_matrix((std::string(filename) + ".GlobalMean").c_str(),gmean);
+      return;
+    }
+
+    if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+      save_matrix_market_vector((std::string(filename) + ".UserBias").c_str(),ps.svdpp_usr_bias);
+      save_matrix_market_vector((std::string(filename) + ".MovieBias").c_str(),ps.svdpp_movie_bias);
+      save_matrix_market_matrix((std::string(filename) + ".Users_ptemp").c_str(),ps.timesvdpp_out.ptemp);
+      save_matrix_market_matrix((std::string(filename) + ".Users_x").c_str(),ps.timesvdpp_out.x);
+      save_matrix_market_matrix((std::string(filename) + ".Users_pu").c_str(),ps.timesvdpp_out.pu);
+      save_matrix_market_matrix((std::string(filename) + ".Movies_q").c_str(),ps.timesvdpp_out.q);
+      save_matrix_market_matrix((std::string(filename) + ".Time_z").c_str(),ps.timesvdpp_out.z);
+      save_matrix_market_matrix((std::string(filename) + ".Time_pt").c_str(),ps.timesvdpp_out.pt);
+      mat gmean = mat(1,1);
+      set_val(gmean,0,0,ps.globalMean[0]);
+      save_matrix_market_matrix((std::string(filename) + ".GlobalMean").c_str(),gmean);
+      return;
     }
 }
 #endif //READ_MARTIRX_MARKET

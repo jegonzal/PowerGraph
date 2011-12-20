@@ -251,7 +251,14 @@ typedef graphlab::types<graph_type_mcmc> gl_types_mcmc;
 
 
 
-
+struct timesvdpp_output{
+  mat ptemp;
+  mat x;
+  mat pu;
+  mat q;
+  mat z;
+  mat pt;
+};
 
 
 
@@ -268,9 +275,13 @@ public:
  
   graphlab::timer gt;
   int iiter;//count number of time zero node run
-  mat U,V,T; //for storing the output
-  vec svdpp_usr_bias;
-  vec svdpp_movie_bias;
+  mat U,V,T; //for storing the output of ALS/BPTF
+
+  vec svdpp_usr_bias;//for storing the output of SVD++
+  vec svdpp_movie_bias; 
+  
+  timesvdpp_output timesvdpp_out; //for storing the ouptut of timesvd++
+
   mat dp;
 
 /* Variables for PMF */

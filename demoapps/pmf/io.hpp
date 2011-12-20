@@ -183,6 +183,8 @@ void fill_factors_uvt(){
 /* prepare output for SVD++ algorithm */
 template<>
 void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
+
+   if (ps.algorithm == SVD_PLUS_PLUS){
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
    ps.svdpp_usr_bias = zeros(ps.M);
@@ -199,7 +201,32 @@ void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
         ps.svdpp_movie_bias[i] = data.bias;
       }
    }
+   }
+   else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+      ps.timesvdpp_out.ptemp = zeros(ps.M,ac.D);
+      ps.timesvdpp_out.x = zeros(ps.M,ac.D);
+      ps.timesvdpp_out.pu = zeros(ps.M,ac.D);
+      ps.timesvdpp_out.q = zeros(ps.N,ac.D);
+      ps.timesvdpp_out.z = zeros(ac.K,ac.D);
+      ps.timesvdpp_out.pt = zeros(ac.K,ac.D);
+      for (int i=0; i< ps.M; i++){
+        const vertex_data_svdpp & data = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
+        set_row(ps.timesvdpp_out.ptemp, i, tail(data.weight, ac.D));
+        set_row(ps.timesvdpp_out.x, i, head(data.weight, ac.D));
+        set_row(ps.timesvdpp_out.pu, i, tail(data.pvec, ac.D));
+      }
+      for (int i=ps.M; i < ps.M+ps.N; i++){
+        const vertex_data_svdpp & data = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
+        set_row(ps.timesvdpp_out.q, i-ps.M, data.pvec);
+      }
+      for (int i=0; i< ac.K; i++){
+        const vertex_data_svdpp & data = ps.times_svdpp[i];
+        set_row(ps.timesvdpp_out.z, i, data.pvec);
+        set_row(ps.timesvdpp_out.pt, i, data.weight);
+      }
 
+   }
+   else assert(false);
 } 
 
 
@@ -395,6 +422,10 @@ void export_kdd_format(const graph_type & _g, testtype type, bool dosave) {
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_binary_file(){
 
+  if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+    logstream(LOG_FATAL) <<"time-svd++ does not support binary output format" << std::endl;
+  }
+
   if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
     fill_factors_uvt<graph_type, vertex_data>();
 
@@ -474,16 +505,36 @@ void export_uvt_to_itpp_file<graph_type_svdpp,vertex_data_svdpp>(){
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
   remove(dfile);
   it_file output(dfile);
-  output << Name("User");
-  output << ps.U;
-  output << Name("Movie");
-  output << ps.V;
+
+  if (ps.algorithm == SVD_PLUS_PLUS){
+    output << Name("User");
+    output << ps.U;
+    output << Name("Movie");
+    output << ps.V;
+ }
+  else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+    output << Name("User_ptemp");
+    output << ps.timesvdpp_out.ptemp;
+    output << Name("User_x");
+    output << ps.timesvdpp_out.x;
+    output << Name("User_pu");
+    output << ps.timesvdpp_out.pu;
+    output << Name("Movie_q");
+    output << ps.timesvdpp_out.q;
+    output << Name("Time_z");
+    output << ps.timesvdpp_out.z;
+    output << Name("Time_pt");
+    output << ps.timesvdpp_out.pt;
+  }
+  else assert(false);
+
   output << Name("UserBias");
   output << ps.svdpp_usr_bias;
   output << Name("MovieBias");
   output << ps.svdpp_movie_bias;
   output << Name("GlobalMean");
   output << ps.globalMean[0];
+ 
   output.close();
 }
 
