@@ -38,6 +38,7 @@
 #include <iostream>
 #include "graphlab.hpp"
 #include "graphlab/graph/graph3.hpp"
+#include "graphlab/graph/graph2.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 using namespace graphlab;
@@ -79,7 +80,7 @@ struct edge_data {
   edge_data(double val)  { }
 };
 
-typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   int active = 0;
@@ -127,7 +128,7 @@ public:
     int increasing_links = 0;
     
     edge_list_type outedgeid = context.out_edges();
-    //edge_list_type inedgeid = context.in_edges();
+    edge_list_type inedgeid = context.in_edges();
 
     for(size_t i = 0; i < outedgeid.size(); i++) {
       const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
@@ -136,17 +137,19 @@ public:
           increasing_links++;
         }
     }
-    /*for (size_t i =0; i < inedgeid.size(); i++){
+    for (size_t i =0; i < inedgeid.size(); i++){
       const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
-        if (other.active)
+        if (other.active){
           cur_links++;
-    }*/
+          increasing_links++;
+        }
+    }
     if (cur_links <= cur_iter){
         vdata.active = false;
         vdata.kcore = cur_iter;
-	//links -= (outedgeid.size() + inedgeid.size());
     }
-    links += increasing_links;
+    else 
+      links += increasing_links;
     if (vdata.active)
       num_active++;
   };
@@ -239,27 +242,24 @@ int main(int argc,  char *argv[]) {
   int max_files = 1;
   //matrix_info.rows = matrix_info.cols = nodes;
   //matrix_info.nonzeros = 1000000000;
-  /* Rows:      95526
- * Cols:      3561
- * Nonzeros:  3298163
- */
-  matrix_info.rows = 95526;  matrix_info.cols = 3561; matrix_info.nonzeros = 3298163;
   //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
   //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
   std::vector<std::string> in_files;
   in_files.push_back(datafile);
   std::string dirpath;
-  core.graph().set_undirected();
+  //core.graph().set_undirected();
+  //core.graph().set_is_directed(false);
   core.set_scope_type("vertex");
   assert(in_files.size() > 0);
   for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
-   /* load_cpp_graph(dirpath + in_files[i], format, 
-    	           matrix_info, core.graph(), 
-	           true, MATRIX_MARKET_5);
-   */
     graphlab::timer mt; mt.start();
-    core.graph().load(dirpath + in_files[i], true);
-    core.graph().load(dirpath + in_files[i], false);
+     load_cpp_graph(dirpath + in_files[i], format, 
+    	           matrix_info, core.graph(), 
+	           false, MATRIX_MARKET_3);
+     core.graph().finalize();
+   
+    //core.graph().load(dirpath + in_files[i], true);
+    //core.graph().load(dirpath + in_files[i], false);
     logstream(LOG_INFO)<<"Time taken to load graph: " << mt.current_time() << std::endl;
   } 
 
