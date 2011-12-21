@@ -172,6 +172,8 @@ namespace graphlab {
       gstore.set_is_directed(x);
     }
 
+    bool get_is_directed () {return gstore.get_is_directed();}
+
     /** \brief Get the number of vertices */
     size_t num_vertices() const {
       return vertices.size();
@@ -275,6 +277,8 @@ namespace graphlab {
 
       // Add the edge to the set of edge data (this copies the edata)
       edges_tmp.add_edge(source, target, edata);
+      if (!get_is_directed()) 
+        edges_tmp.add_edge(target, source, edata);
 
       // This is not the final edge_id, so we always return 0. 
       return 0;

@@ -65,8 +65,6 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class graph_storage {
   public:
-    //typedef uint32_t vertex_id_type;
-    //typedef uint32_t edge_id_type;
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::edge_id_type edge_id_type;
 
@@ -92,20 +90,6 @@ namespace graphlab {
           source_arr.push_back(source);
           target_arr.push_back(target);
         }
-        // void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
-        //   for (size_t i = 0; i < targetlist.size(); ++i) {
-        //     data.push_back(datalist[i]);
-        //     source_arr.push_back(source);
-        //     target_arr.push_back(targetlist[i]);
-        //   }
-        // }
-        // void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
-        //   for (size_t i = 0; i < length; ++i) {
-        //     data.push_back(dataArray[i]);
-        //     source_arr.push_back(source);
-        //     target_arr.push_back(targetArray[i]);
-        //   }
-        // }
         void clear() {
           std::vector<EdgeData>().swap(data);
           std::vector<vertex_id_type>().swap(source_arr);
@@ -122,26 +106,34 @@ namespace graphlab {
     // A class of edge information. Used as value type of the edge_list.
     class edge_type {
       public:
-        edge_type () : _source(-1), _target(-1), _edge_id(-1), _empty(true) { }
+        enum edge_dir{OUTEDGE, INEDGE, INEDGE_NODATA, NONE};
+      public:
+        edge_type () : _source(-1), _target(-1), _edge_id(-1), _dir(NONE), _empty(true) { }
         edge_type (const vertex_id_type _source, const vertex_id_type _target, 
-            const edge_id_type _eid = -1) :
-          _source(_source), _target(_target), _edge_id(_eid), _empty(false) { }
+            const edge_id_type _eid, edge_dir _dir) :
+          _source(_source), _target(_target), _edge_id(_eid), _dir(_dir), _empty(false) { }
       public:
         inline vertex_id_type source() const {
           ASSERT_FALSE(empty()); 
-          return _source; 
+          return _dir==OUTEDGE ? _source : _target; 
         }
 
         inline vertex_id_type target() const { 
           ASSERT_FALSE(empty());
-          return _target; 
+          return _dir==OUTEDGE ? _target : _source; 
         }
+
+        inline edge_dir get_dir() const {
+          return _dir;
+        }
+
         inline bool empty() const { return _empty; }
         // Data fields. 
       private:
         vertex_id_type _source;
         vertex_id_type _target;
         edge_id_type _edge_id;
+        edge_dir _dir;
         bool _empty;
 
         friend class graph_storage;
@@ -151,20 +143,19 @@ namespace graphlab {
     class edge_iterator : 
       public std::iterator<std::forward_iterator_tag, edge_type> {
     public:
-      enum iterator_type {INEDGE, OUTEDGE}; 
+      typedef typename edge_type::edge_dir iterator_type;
       typedef edge_type reference;
     public:
       // Cosntructors
       edge_iterator () : offset(-1), empty(true) { }
      
       edge_iterator (vertex_id_type _center, size_t _offset, 
-                     iterator_type _itype, const graph_storage* _gstore_ptr) : 
-        center(_center), offset(_offset), itype(_itype), empty(false), 
-        gstore_ptr(_gstore_ptr) { }
+                     iterator_type _itype, const edge_id_type* _vid_arr) : 
+        center(_center), offset(_offset), itype(_itype), vid_arr(_vid_arr), empty(false) { }
       
       edge_iterator (const edge_iterator& it) :
-        center(it.center), offset(it.offset), itype(it.itype), 
-        empty(it.empty), gstore_ptr(it.gstore_ptr) { }
+        center(it.center), offset(it.offset), itype(it.itype), vid_arr(it.vid_arr),
+       empty(it.empty) { }
   
       inline edge_type operator*() const  {
         ASSERT_TRUE(!empty);
@@ -208,38 +199,21 @@ namespace graphlab {
       }
 
       inline edge_iterator operator+(size_t i) const {
-        edge_iterator retval(center, offset+i, itype, gstore_ptr);
+        edge_iterator retval(center, offset+i, itype, vid_arr);
         return retval;
       }
 
     private:
       // Generate the ret value of the iterator.
       inline edge_type make_value() const {
-        edge_type ret;
-        if (itype == INEDGE) {
-          ASSERT_TRUE(gstore_ptr->is_directed);
-          if (gstore_ptr->empty_edata) {
-            ret = edge_type(gstore_ptr->CSC_src[offset], center,
-                -1);
-          } else {
-            ret = edge_type(gstore_ptr->CSC_src[offset], center, 
-                            gstore_ptr->c2r_map[offset]);
-          }
-        } else if (itype == OUTEDGE) {
-          edge_type rvalue(center, gstore_ptr->CSR_dst[offset], offset);
-          ret = rvalue;
-        } else {
-          logstream(LOG_FATAL) << "Edge iterator type is invalid." 
-                               << std::endl;
-        }
-        return ret;
+          return edge_type(center, vid_arr[offset], offset, itype);
       }
     private:
       vertex_id_type center;
       size_t offset;
       iterator_type itype;
+      const edge_id_type* vid_arr;
       bool empty;
-      const graph_storage* gstore_ptr;
     }; // end of class edge_iterator.
 
     // Represents an iteratable list of edge_types.
@@ -345,8 +319,16 @@ namespace graphlab {
         logstream(LOG_FATAL) << "Access the edge data with no edge data."
                              << std::endl;
       ASSERT_FALSE(edge.empty());
-      ASSERT_LT(edge._edge_id, num_edges);
-      return edge_data_list[edge._edge_id];
+      size_t eid = -1;
+      switch(edge.get_dir()) {
+        case edge_type::OUTEDGE: eid = edge._edge_id; break;
+        case edge_type::INEDGE: eid = c2r_map[edge._edge_id]; break;
+        default: logstream(LOG_FATAL) << "Access the edge data with no edge data."
+                 << std::endl;
+      }
+
+      ASSERT_LT(eid, num_edges);
+      return edge_data_list[eid];
     }
 
     const edge_data_type& edge_data(edge_type edge) const {
@@ -354,8 +336,16 @@ namespace graphlab {
         logstream(LOG_FATAL) << "Access the edge data with no edge data."
                              << std::endl;
       ASSERT_FALSE(edge.empty());
-      ASSERT_LT(edge._edge_id, num_edges);
-      return edge_data_list[edge._edge_id];
+      size_t eid;
+      switch(edge.get_dir()) {
+        case edge_type::OUTEDGE: eid = edge._edge_id; break;
+        case edge_type::INEDGE: eid = c2r_map[edge._edge_id]; break;
+        default: logstream(LOG_FATAL) << "Access the edge data with no edge data."
+                 << std::endl;
+      }
+
+      ASSERT_LT(eid, num_edges);
+      return edge_data_list[eid];
     }
 
 
@@ -368,8 +358,14 @@ namespace graphlab {
       std::pair<bool, edge_range_type> rangePair = inEdgeRange(v);
       if (rangePair.first) {
         edge_range_type range = rangePair.second;
-        edge_iterator begin (v, range.first, edge_iterator::INEDGE, this);
-        edge_iterator end (v, range.second+1, edge_iterator::INEDGE, this);
+
+        typedef typename edge_type::edge_dir edge_dir;
+
+        edge_dir dir = empty_edata ? edge_type::INEDGE_NODATA : edge_type::INEDGE;
+
+        edge_iterator begin (v, range.first, dir, &(CSC_src[0]));
+
+        edge_iterator end (v, range.second+1, dir, &(CSC_src[0]));
         // std::cout << "in range (" << range.first << "," <<
         // range.second << ")" << std::endl; std::cout << "in edge
         // size: " << end-begin << std::endl;
@@ -382,8 +378,8 @@ namespace graphlab {
       std::pair<bool, edge_range_type> rangePair = outEdgeRange(v);
       if (rangePair.first) {
         edge_range_type range = rangePair.second;
-        edge_iterator begin (v, range.first, edge_iterator::OUTEDGE, this);
-        edge_iterator end (v, range.second+1, edge_iterator::OUTEDGE, this);
+        edge_iterator begin (v, range.first, edge_type::OUTEDGE, &(CSR_dst[0]));
+        edge_iterator end (v, range.second+1, edge_type::OUTEDGE, &(CSR_dst[0]));
         // std::cout << "out range (" << range.first << "," <<
         // range.second << ")" << std::endl; std::cout << "out_edge
         // size: " << end-begin << std::endl;
@@ -408,7 +404,7 @@ namespace graphlab {
           if (efind >= num_edges) {
             return edge_type();
           } else {
-            return edge_type(src, dst, efind);
+            return edge_type(src, dst, efind, edge_type::OUTEDGE);
           }
         } else {
           // Edge does not exist.
@@ -431,7 +427,10 @@ namespace graphlab {
             if (efind >= num_edges) {
               return edge_type();
             } else {
-              return edge_type(src, dst, c2r_map[efind]);
+              if (!empty_edata) 
+                return edge_type(dst, src, efind, edge_type::INEDGE);
+              else
+                return edge_type(dst, src, efind, edge_type::INEDGE_NODATA);
             }
           } else {
             // In edge candidate size is smaller, search CSR.
@@ -440,7 +439,7 @@ namespace graphlab {
             if (efind >= num_edges) {
               return edge_type();
             } else {
-              return edge_type(src, dst, efind);
+              return edge_type(src, dst, efind, edge_type::OUTEDGE);
             }
           }
         } else {

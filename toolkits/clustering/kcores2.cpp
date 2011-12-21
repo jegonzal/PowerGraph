@@ -127,23 +127,34 @@ public:
     int cur_links = 0;
     int increasing_links = 0;
     
-    edge_list_type outedgeid = context.out_edges();
-    edge_list_type inedgeid = context.in_edges();
 
+    /* Version 1 */
+    edge_list_type outedgeid = context.out_edges();
     for(size_t i = 0; i < outedgeid.size(); i++) {
       const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
         if (other.active){
-	  cur_links++;
+      	  cur_links++;
           increasing_links++;
         }
     }
-    for (size_t i =0; i < inedgeid.size(); i++){
-      const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
-        if (other.active){
-          cur_links++;
-          increasing_links++;
-        }
-    }
+
+    /* Version 2 */
+    // foreach(edge_type e, context.out_edges()) {
+    //   const vertex_data &other = context.const_vertex_data(e.target());
+    //   if (other.active){
+    //   	  cur_links++;
+    //       increasing_links++;
+    //     }
+    // }
+
+    // foreach(edge_type e, context.in_edges()) {
+    //   const vertex_data &other = context.const_vertex_data(e.source());
+    //   if (other.active){
+    //     cur_links++;
+    //     increasing_links++;
+    //   }
+    // }
+
     if (cur_links <= cur_iter){
         vdata.active = false;
         vdata.kcore = cur_iter;
@@ -248,7 +259,7 @@ int main(int argc,  char *argv[]) {
   in_files.push_back(datafile);
   std::string dirpath;
   //core.graph().set_undirected();
-  //core.graph().set_is_directed(false);
+  core.graph().set_is_directed(false);
   core.set_scope_type("vertex");
   assert(in_files.size() > 0);
   for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
