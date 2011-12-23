@@ -13,9 +13,9 @@ struct bipartite_graph_descriptor {
    // is the matrix square?
   bool is_square(){ return rows == cols; }
   // get the position of the starting row/col node
-  int get_start_node(bool rows){ if (is_square()) return 0; else return rows?0:rows; }
+  int get_start_node(bool _rows){ if (is_square()) return 0; else return (_rows?0:rows); }
   // get the position of the ending row/col node 
-  int get_end_node(bool rows){ if (is_square()) return rows; else return rows?rows:rows+cols; }
+  int get_end_node(bool _rows){ if (is_square()) return rows; else return (_rows?rows:(rows+cols)); }
   // get howmany row/column nodes
   int num_nodes(bool _rows){ if (_rows) return rows; else return cols; }
   // how many total nodes

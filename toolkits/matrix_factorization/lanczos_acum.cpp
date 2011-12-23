@@ -173,6 +173,12 @@ struct lanczos_update :
 
   }
 }
+
+  void operator+=(const lanczos_update& other) { 
+  }
+
+  void finalize(iglobal_context_type& context) {
+  } 
 };
   
 double wTV(int j, graph_type *g){
@@ -279,8 +285,9 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       glcore.set_global("offset3", j-1);
       lancbeta[j-1] = eigenvalues[j-1];
       glcore.set_global("offset2",j);
-      glcore.schedule_all(lanczos_update());
-      glcore.start();
+      //glcore.schedule_all(lanczos_update());
+      //glcore.start();
+      glcore.sync_now("sync");
       double sum = 0;
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
         sum += pow(g->vertex_data(i).value,2);
@@ -299,15 +306,18 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
 
    glcore.set_global("m", max_iter);
    init_lanczos(&glcore.graph(), info);
-
+   lanczos_update lupdate;
+   glcore.add_sync("sync", lupdate, 1000);
+   
    //for j=2:m+2
    for (int j=1; j<= max_iter+1; j++){
         //w = A*V(:,j) 
         glcore.set_global("offset", j);
         glcore.set_global("offset3", j-1);
         glcore.set_global("offset2",j);
-        glcore.schedule_all(lanczos_update());
-	glcore.start();
+        //glcore.schedule_all(lanczos_update());
+	//glcore.start();
+        glcore.sync_now("sync");
 
         if (debug){
           print_w(true,&glcore.graph());
