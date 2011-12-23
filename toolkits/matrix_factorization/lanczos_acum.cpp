@@ -200,14 +200,13 @@ void substruct(int curoffset, int j, graph_type* g, double alpha){
 
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = &g->vertex_data(i);
-    data->pvec[curoffset] -= alpha * data->pvec[j];
-    data->value = data->pvec[curoffset];
+    data->value -= alpha * data->pvec[j];
   }
 }
 
 
 void orthogolonize_vs_all(int curoffset, graph_type *g){
-  for (int i=0; i< curoffset-1; i++){
+  for (int i=1; i< curoffset-1; i++){
      double alpha = wTV(i, g);
      if (alpha != 0)
        substruct(curoffset, i, g, alpha);
@@ -285,6 +284,9 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       glcore.set_global("offset3", j-1);
       lancbeta[j-1] = eigenvalues[j-1];
       glcore.set_global("offset2",j);
+      for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
+         g->vertex_data(i).pvec[j] = get_val( eigenvectors, i - info.get_start_node(false), j-1);
+      }  
       //glcore.schedule_all(lanczos_update());
       //glcore.start();
       glcore.sync_now("sync");
@@ -328,12 +330,12 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
         //w =  w - lancalpha(j)*V(:,j);
 	lancalpha[j] = wTV(j, &glcore.graph());
 
-        orthogolonize_vs_all(j+1,&glcore.graph());
+                //lancbeta(j+1)=norm(w,2);
+        lancbeta[j+1] = w_lancalphaV(j, &glcore.graph());
+	orthogolonize_vs_all(j+1,&glcore.graph());
         if (debug)
           print_w(false,&glcore.graph());
 
-        //lancbeta(j+1)=norm(w,2);
-        lancbeta[j+1] = w_lancalphaV(j, &glcore.graph());
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(j+1, &glcore.graph()); 
@@ -371,9 +373,9 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
 
 
- compute_residual(eigenvalues, eigenvectors, &glcore.graph(), glcore);
 
  mat U=Vectors*eigenvectors;
+ compute_residual(eigenvalues, U, &glcore.graph(), glcore);
  if (debug)
    cout<<"Eigen vectors are:" << U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
  mat V=zeros(eigenvalues.size(),1);
