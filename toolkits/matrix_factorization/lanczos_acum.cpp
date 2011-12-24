@@ -122,10 +122,10 @@ struct lanczos_update :
   int offset = context.get_global<int>("offset");
  
   /* print statistics */
-  //if (debug && info.toprint(id)){
+  if (debug && info.toprint(id)){
     printf("Lanczos ROW Axb: entering  node  %d \n",  id);   
  //   debug_print_vec("V" , user.pvec, m);
- // }
+  }
 
   const edge_list_type outs= context.out_edges();
   if (outs.size() == 0)
@@ -145,10 +145,10 @@ struct lanczos_update :
   { //column node
 
   
-  //if (debug && info.toprint(id)){
+  if (debug && info.toprint(id)){
     printf("Lanczos COLS: entering  node  %d \n",  id);   
   //  debug_print_vec("V" , user.pvec, m);
- // }
+  }
   
   int offset2 = context.get_global<int>("offset2");
   int offset3 = context.get_global<int>("offset3");
@@ -288,9 +288,9 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       glcore.set_global("offset2",j);
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
          g->vertex_data(i).pvec[j] = get_val( eigenvectors, i - info.get_start_node(false), j-1);
-         printf("%g ", g->vertex_data(i).pvec[j]);
+         //printf("%g ", g->vertex_data(i).pvec[j]);
       }  
-      printf("\n");
+      //printf("\n");
       //glcore.schedule_all(lanczos_update());
       //glcore.start();
       glcore.sync_now("sync");
@@ -431,7 +431,7 @@ int main(int argc,  char *argv[]) {
   // Create a core
   graphlab::core<graph_type, lanczos_update> core;
   core.set_options(clopts); // Set the engine options
-
+  core.set_scope_type("vertex");
   //unit testing
   if (unittest == 1){
     datafile = "lanczos";
