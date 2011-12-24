@@ -27,6 +27,8 @@
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <boost/archive/text_oarchive.hpp> 
+#include <graphlab/serialization/oarchive.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
@@ -38,9 +40,10 @@ bool debug = false;
 bool quick = false;
 map<string,uint> hash2nodeid;
 std::string datafile;
-atomic<unsigned int> conseq_id;
+//atomic<unsigned int> conseq_id;
+uint conseq_id;
 graphlab::mutex mymutex;
-
+graphlab::timer mytime;
 
 struct vertex_data {
   string filename;
@@ -56,12 +59,18 @@ unsigned long int datestr2uint64(const std::string & data, int & dateret, int & 
 
 
 void assign_id(uint & outval, const string &name){
+
+  map<string,uint>::iterator it = hash2nodeid.find(name);
+  if (it != hash2nodeid.end()){
+     outval = it->second;
+     return;
+  }
   mymutex.lock();
   outval = hash2nodeid[name];
   if (outval == 0){
-      conseq_id.inc();
-      hash2nodeid[name] = conseq_id.value;
-      outval = conseq_id.value;
+      conseq_id++;//.inc();
+      hash2nodeid[name] = conseq_id;//.value;
+      outval = conseq_id;//.value;
   }
   mymutex.unlock();
 }
@@ -100,13 +109,12 @@ struct stringzipparser_update :
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
-
     std::ofstream out_file(std::string(outdir + vdata.filename + ".out.gz").c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening output file " << outdir << vdata.filename << ".out.gz" << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
-
+   
     MM_typecode out_typecode;
     mm_clear_typecode(&out_typecode);
     mm_set_integer(&out_typecode); 
@@ -126,9 +134,17 @@ struct stringzipparser_update :
     while(true){
       fin.getline(linebuf, 128);
       char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+        return;
+       }
       strncpy(buf1, pch, 18);
       pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
-      strncpy(buf2, pch, 18);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+       strncpy(buf2, pch, 18);
       if (!quick){
         pch = strtok_r(NULL, " ",(char**)&saveptr);
         strncpy(buf3, pch, 6);
@@ -145,8 +161,8 @@ struct stringzipparser_update :
          fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
       }
       else {
-        assign_id_quick(buf1);
-        assign_id_quick(buf2);
+        uint from,to;
+        find_ids(from, to, buf1, buf2);
       }
 
       fin.read(buf1,1); //go over \n
@@ -158,6 +174,9 @@ struct stringzipparser_update :
         logstream(LOG_INFO) << "Parsed line: " << line << " map size is: " << hash2nodeid.size() << std::endl;
       if (fin.eof())
         break;
+
+      if (hash2nodeid.size() % 500000 == 0)
+        logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " rows: " << line << std::endl;
     } 
 
    logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
@@ -237,7 +256,8 @@ int main(int argc,  char *argv[]) {
   // Create a core
   graphlab::core<graph_type, stringzipparser_update> core;
   core.set_options(clopts); // Set the engine options
-
+  core.set_scope_type("vertex");
+  mytime.start();
   //unit testing
   if (unittest == 1){
   }
@@ -269,7 +289,14 @@ int main(int argc,  char *argv[]) {
 
   if (unittest == 1){
   }
-
+   std::ofstream ofs((outdir + "/output_map_file").c_str());
+   // save data to archive
+   {
+   graphlab::oarchive oa(ofs);
+   // write map instance to archive
+   oa << hash2nodeid;
+   // archive and stream closed when destructors are called
+   } 
    return EXIT_SUCCESS;
 }
 
