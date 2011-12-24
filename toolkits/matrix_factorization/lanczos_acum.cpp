@@ -167,8 +167,8 @@ struct lanczos_update :
    user.value -= lancbeta[offset2] * user.pvec[offset3];
 
   if (debug && info.toprint(id)){
-    printf("Axb: computed value  %d %g beta: %g v %g \n",  id, 
-        user.value,lancbeta[offset2],  user.pvec[offset3]);   
+    printf("Axb: computed value  %d %g beta: %g v %g (%g)\n",  id, 
+        user.value,lancbeta[offset2],  user.pvec[offset3], lancbeta[offset2]*user.pvec[offset3]);   
   }
 
   }
@@ -281,12 +281,16 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
  
   for (int j=1; j< max_iter; j++){
       glcore.set_global("offset", j);
-      glcore.set_global("offset3", j-1);
-      lancbeta[j-1] = eigenvalues[j-1];
+      glcore.set_global("offset3", j);
+      lancbeta[j] = eigenvalues[eigenvalues.size() - j];
+      if (debug)
+          printf("Residual eigenvalue %d is: %g\n", j, eigenvalues[j-1]);
       glcore.set_global("offset2",j);
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
          g->vertex_data(i).pvec[j] = get_val( eigenvectors, i - info.get_start_node(false), j-1);
+         printf("%g ", g->vertex_data(i).pvec[j]);
       }  
+      printf("\n");
       //glcore.schedule_all(lanczos_update());
       //glcore.start();
       glcore.sync_now("sync");
@@ -295,7 +299,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
         sum += pow(g->vertex_data(i).value,2);
 
       }
-      printf("Residual for eigenvalue %d %g is: %g\n", j, eigenvalues[j-1], sum);
+      printf("Residual for eigenvalue %d %g is: %g\n", j, eigenvalues[j-1], sqrt(sum));
 
   }
 
