@@ -27,9 +27,11 @@
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
-#include <boost/archive/text_oarchive.hpp> 
 #include <boost/unordered_map.hpp>
+#include <boost/archive/text_oarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/unordered_map.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
@@ -45,7 +47,8 @@ std::string datafile;
 uint conseq_id;
 graphlab::mutex mymutex;
 graphlab::timer mytime;
-unsigned long long total_lines;
+unsigned long long total_lines = 0;
+unsigned long long self_edges = 0;
 
 struct vertex_data {
   string filename;
@@ -87,7 +90,11 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 
    assign_id(from, buf1);
    assign_id(to, buf2);
-   assert(from != to && from > 0 && to > 0);
+   //if (from == to)
+   //   logstream(LOG_WARNING)<< " from equals to: " << from << " "  << buf1 << " " <<buf2 << std::endl;
+   if (from == to)
+     self_edges++;
+   assert(from > 0 && to > 0);
 }
 
 
@@ -134,6 +141,9 @@ struct stringzipparser_update :
    
     while(true){
       fin.getline(linebuf, 128);
+      if (fin.eof())
+        break;
+
       char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
@@ -166,7 +176,6 @@ struct stringzipparser_update :
         find_ids(from, to, buf1, buf2);
       }
 
-      fin.read(buf1,1); //go over \n
       line++;
       total_lines++;
       if (lines && line>=lines)
@@ -174,10 +183,7 @@ struct stringzipparser_update :
 
       if (debug && (line % 50000 == 0))
         logstream(LOG_INFO) << "Parsed line: " << line << " map size is: " << hash2nodeid.size() << std::endl;
-      if (fin.eof())
-        break;
-
-      if (hash2nodeid.size() % 500000 == 0)
+            if (hash2nodeid.size() % 500000 == 0)
         logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " edges: " << total_lines << std::endl;
     } 
 
@@ -266,7 +272,7 @@ int main(int argc,  char *argv[]) {
 
   std::vector<std::string> in_files = list_all_files_in_dir(dir);
   assert(in_files.size() >= 1);
-  for (int i=0; i< in_files.size(); i++){
+  for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);
       core.graph().add_vertex(data);
   }
@@ -283,7 +289,7 @@ int main(int argc,  char *argv[]) {
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;
-
+  std::cout << "Total number of edges: " << self_edges << std::endl;
   //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 
   //write_output_vector(datafile + "x.out", format, ret);
@@ -291,14 +297,22 @@ int main(int argc,  char *argv[]) {
 
   if (unittest == 1){
   }
-   std::ofstream ofs((outdir + "/output_map_file").c_str());
-   // save data to archive
-   {
-   graphlab::oarchive oa(ofs);
-   // write map instance to archive
-   oa << hash2nodeid;
-   // archive and stream closed when destructors are called
-   } 
+   
+    std::ofstream out_file(std::string(outdir + datafile + ".map.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << outdir << datafile << ".map.gz" << std::endl;
+    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+    fout.push(boost::iostreams::gzip_compressor());
+    fout.push(out_file);
+
+    int total = 0;
+    for (boost::unordered_map<string,uint>::iterator it = hash2nodeid.begin(); it != hash2nodeid.end(); it++){ 
+     fout<<it->first<<" "<<it->second<<endl;
+     total++;
+    } 
+   logstream(LOG_INFO)<<"Wrote a total of " << total << " map entries" << std::endl;
+   fout.pop(); fout.pop();
+   out_file.close();
+  
    return EXIT_SUCCESS;
 }
 
