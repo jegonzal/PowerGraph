@@ -28,6 +28,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/archive/text_oarchive.hpp> 
+#include <boost/unordered_map.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
@@ -38,7 +39,7 @@ using namespace std;
 
 bool debug = false;
 bool quick = false;
-map<string,uint> hash2nodeid;
+boost::unordered_map<string,uint> hash2nodeid;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
 uint conseq_id;
@@ -60,7 +61,7 @@ unsigned long int datestr2uint64(const std::string & data, int & dateret, int & 
 
 void assign_id(uint & outval, const string &name){
 
-  map<string,uint>::iterator it = hash2nodeid.find(name);
+  boost::unordered_map<string,uint>::iterator it = hash2nodeid.find(name);
   if (it != hash2nodeid.end()){
      outval = it->second;
      return;
@@ -68,8 +69,7 @@ void assign_id(uint & outval, const string &name){
   mymutex.lock();
   outval = hash2nodeid[name];
   if (outval == 0){
-      conseq_id++;//.inc();
-      hash2nodeid[name] = conseq_id;//.value;
+      hash2nodeid[name] = ++conseq_id;//.value;
       outval = conseq_id;//.value;
   }
   mymutex.unlock();
