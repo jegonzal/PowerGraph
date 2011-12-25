@@ -27,9 +27,9 @@
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
-#include <boost/archive/text_oarchive.hpp> 
 #include <boost/unordered_map.hpp>
 #include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
@@ -52,6 +52,9 @@ struct vertex_data {
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
 
+std::vector<uint> * out_edges;
+std::vector<uint> * in_edges;
+
 struct edge_data {
 };
 
@@ -67,21 +70,10 @@ void assign_id(uint & outval, const string &name){
      outval = it->second;
      return;
   }
-  mymutex.lock();
-  outval = hash2nodeid[name];
-  if (outval == 0){
-      hash2nodeid[name] = ++conseq_id;//.value;
-      outval = conseq_id;//.value;
-  }
-  mymutex.unlock();
+  assert(false);
 }
 
 
-void assign_id_quick(const string& name){
-  mymutex.lock();
-  hash2nodeid[name] = 1;
-  mymutex.unlock();
-}
 
 void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 
@@ -164,6 +156,8 @@ struct stringzipparser_update :
       else {
         uint from,to;
         find_ids(from, to, buf1, buf2);
+        in_edges[from].push_back(to);
+        out_edges[to].push_back(from);
       }
 
       fin.read(buf1,1); //go over \n
@@ -280,25 +274,40 @@ int main(int argc,  char *argv[]) {
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
 
-  double runtime= core.start();
- 
+   logstream(LOG_INFO)<<"Reading hash map from file" << std::endl;
+   std::ifstream ifs((outdir + "/output_map_file").c_str());
+   // save data to archive
+   {
+   graphlab::iarchive ia(ifs);
+   // write map instance to archive
+   ia >> hash2nodeid;
+   // archive and stream closed when destructors are called
+   } 
+   logstream(LOG_INFO)<<"Read total of " << hash2nodeid.size() << " entries" << std::endl;
+
+   std::ofstream ofs((outdir + "/output_edges").c_str());
+
+   
+   in_edges = new std::vector<uint>[hash2nodeid.size()+2];
+   out_edges = new std::vector<uint>[hash2nodeid.size()+2];
+
+
+   double runtime= core.start();
   std::cout << "Finished in " << runtime << std::endl;
+  {
+    graphlab::oarchive oa(ofs);
+    oa << in_edges;
+    oa << out_edges;
+   }
+
+ 
 
   //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 
   //write_output_vector(datafile + "x.out", format, ret);
 
 
-  if (unittest == 1){
-  }
-   std::ofstream ofs((outdir + "/output_map_file").c_str());
-   // save data to archive
-   {
-   graphlab::oarchive oa(ofs);
-   // write map instance to archive
-   oa << hash2nodeid;
-   // archive and stream closed when destructors are called
-   } 
+   
    return EXIT_SUCCESS;
 }
 
