@@ -1,0 +1,6 @@
+Graph Coloring is NP-hard. However, there exist heuristics that may be used to approximate a solution to the problem.
+
+Approach
+1. Get a correct coloring using a simple greedy approach
+2. Improve greedy approach with a tabu search
+3. Use block partitioning

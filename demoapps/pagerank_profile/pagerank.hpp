@@ -38,7 +38,7 @@
 #include <string>
 
 #include <graphlab.hpp>
-#include <google/malloc_extension.h>
+//#include <google/malloc_extension.h>
 
 
 /// Types------------------------------------------------------------------>
@@ -143,12 +143,12 @@ void normalize_graph(graph_type& graph) {
   logstream(LOG_INFO)
     << "Optimizing graph layout in memory." << std::endl;
   graph.finalize();
-  
-  size_t value;
-  MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-  std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
-  MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-  std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+  // 
+  // size_t value;
+  // MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+  // std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+  // MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+  // std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
 
   logstream(LOG_INFO)
     << "Renormalizing transition probabilities." << std::endl;

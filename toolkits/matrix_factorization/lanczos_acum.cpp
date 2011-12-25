@@ -122,10 +122,10 @@ struct lanczos_update :
   int offset = context.get_global<int>("offset");
  
   /* print statistics */
-  //if (debug && info.toprint(id)){
+  if (debug && info.toprint(id)){
     printf("Lanczos ROW Axb: entering  node  %d \n",  id);   
  //   debug_print_vec("V" , user.pvec, m);
- // }
+  }
 
   const edge_list_type outs= context.out_edges();
   if (outs.size() == 0)
@@ -145,10 +145,10 @@ struct lanczos_update :
   { //column node
 
   
-  //if (debug && info.toprint(id)){
+  if (debug && info.toprint(id)){
     printf("Lanczos COLS: entering  node  %d \n",  id);   
   //  debug_print_vec("V" , user.pvec, m);
- // }
+  }
   
   int offset2 = context.get_global<int>("offset2");
   int offset3 = context.get_global<int>("offset3");
@@ -167,12 +167,18 @@ struct lanczos_update :
    user.value -= lancbeta[offset2] * user.pvec[offset3];
 
   if (debug && info.toprint(id)){
-    printf("Axb: computed value  %d %g beta: %g v %g \n",  id, 
-        user.value,lancbeta[offset2],  user.pvec[offset3]);   
+    printf("Axb: computed value  %d %g beta: %g v %g (%g)\n",  id, 
+        user.value,lancbeta[offset2],  user.pvec[offset3], lancbeta[offset2]*user.pvec[offset3]);   
   }
 
   }
 }
+
+  void operator+=(const lanczos_update& other) { 
+  }
+
+  void finalize(iglobal_context_type& context) {
+  } 
 };
   
 double wTV(int j, graph_type *g){
@@ -194,14 +200,13 @@ void substruct(int curoffset, int j, graph_type* g, double alpha){
 
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = &g->vertex_data(i);
-    data->pvec[curoffset] -= alpha * data->pvec[j];
-    data->value = data->pvec[curoffset];
+    data->value -= alpha * data->pvec[j];
   }
 }
 
 
 void orthogolonize_vs_all(int curoffset, graph_type *g){
-  for (int i=0; i< curoffset-1; i++){
+  for (int i=1; i< curoffset-1; i++){
      double alpha = wTV(i, g);
      if (alpha != 0)
        substruct(curoffset, i, g, alpha);
@@ -276,17 +281,25 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
  
   for (int j=1; j< max_iter; j++){
       glcore.set_global("offset", j);
-      glcore.set_global("offset3", j-1);
-      lancbeta[j-1] = eigenvalues[j-1];
+      glcore.set_global("offset3", j);
+      lancbeta[j] = eigenvalues[eigenvalues.size() - j];
+      if (debug)
+          printf("Residual eigenvalue %d is: %g\n", j, eigenvalues[j-1]);
       glcore.set_global("offset2",j);
-      glcore.schedule_all(lanczos_update());
-      glcore.start();
+      for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
+         g->vertex_data(i).pvec[j] = get_val( eigenvectors, i - info.get_start_node(false), j-1);
+         //printf("%g ", g->vertex_data(i).pvec[j]);
+      }  
+      //printf("\n");
+      //glcore.schedule_all(lanczos_update());
+      //glcore.start();
+      glcore.sync_now("sync");
       double sum = 0;
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
         sum += pow(g->vertex_data(i).value,2);
 
       }
-      printf("Residual for eigenvalue %d %g is: %g\n", j, eigenvalues[j-1], sum);
+      printf("Residual for eigenvalue %d %g is: %g\n", j, eigenvalues[j-1], sqrt(sum));
 
   }
 
@@ -299,15 +312,18 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
 
    glcore.set_global("m", max_iter);
    init_lanczos(&glcore.graph(), info);
-
+   lanczos_update lupdate;
+   glcore.add_sync("sync", lupdate, 1000);
+   
    //for j=2:m+2
    for (int j=1; j<= max_iter+1; j++){
         //w = A*V(:,j) 
         glcore.set_global("offset", j);
         glcore.set_global("offset3", j-1);
         glcore.set_global("offset2",j);
-        glcore.schedule_all(lanczos_update());
-	glcore.start();
+        //glcore.schedule_all(lanczos_update());
+	//glcore.start();
+        glcore.sync_now("sync");
 
         if (debug){
           print_w(true,&glcore.graph());
@@ -318,12 +334,12 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
         //w =  w - lancalpha(j)*V(:,j);
 	lancalpha[j] = wTV(j, &glcore.graph());
 
-        orthogolonize_vs_all(j+1,&glcore.graph());
+                //lancbeta(j+1)=norm(w,2);
+        lancbeta[j+1] = w_lancalphaV(j, &glcore.graph());
+	orthogolonize_vs_all(j+1,&glcore.graph());
         if (debug)
           print_w(false,&glcore.graph());
 
-        //lancbeta(j+1)=norm(w,2);
-        lancbeta[j+1] = w_lancalphaV(j, &glcore.graph());
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(j+1, &glcore.graph()); 
@@ -361,9 +377,9 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
 	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
 
 
- compute_residual(eigenvalues, eigenvectors, &glcore.graph(), glcore);
 
  mat U=Vectors*eigenvectors;
+ compute_residual(eigenvalues, U, &glcore.graph(), glcore);
  if (debug)
    cout<<"Eigen vectors are:" << U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
  mat V=zeros(eigenvalues.size(),1);
@@ -415,7 +431,7 @@ int main(int argc,  char *argv[]) {
   // Create a core
   graphlab::core<graph_type, lanczos_update> core;
   core.set_options(clopts); // Set the engine options
-
+  core.set_scope_type("vertex");
   //unit testing
   if (unittest == 1){
     datafile = "lanczos";
