@@ -73,8 +73,8 @@ void assign_id(uint & outval, const string &name){
   mymutex.lock();
   outval = hash2nodeid[name];
   if (outval == 0){
-      hash2nodeid[name] = ++conseq_id;//.value;
-      outval = conseq_id;//.value;
+      hash2nodeid[name] = ++conseq_id;
+      outval = conseq_id;
   }
   mymutex.unlock();
 }
@@ -232,6 +232,9 @@ int main(int argc,  char *argv[]) {
   std::string outdir = "/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
   int unittest = 0;
   int lines = 0;
+  bool load = false;
+  bool save_to_text = false;
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -242,7 +245,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
-
+  clopts.attach_option("load", &load, load, "load map from file");
+  clopts.attach_option("save_to_text", & save_to_text, save_to_text, 
+                       "save output map in text file");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -290,15 +295,29 @@ int main(int argc,  char *argv[]) {
  
   std::cout << "Finished in " << runtime << std::endl;
   std::cout << "Total number of edges: " << self_edges << std::endl;
+
+  if (load){
+    mytime.start();
+    logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
+   std::ifstream ifs((outdir + ".map").c_str());
+   // save data to archive
+   {
+   graphlab::iarchive ia(ifs);
+   // write map instance to archive
+   ia >> hash2nodeid;
+   // archive and stream closed when destructors are called
+   }
+   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
+   
+ 
+  }
+
   //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 
   //write_output_vector(datafile + "x.out", format, ret);
 
-
-  if (unittest == 1){
-  }
-   
-    std::ofstream out_file(std::string(outdir + datafile + ".map.gz").c_str(), std::ios::binary);
+    if (save_to_text){
+    std::ofstream out_file(std::string(outdir + datafile + ".map.textgz").c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening output file " << outdir << datafile << ".map.gz" << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
@@ -312,7 +331,19 @@ int main(int argc,  char *argv[]) {
    logstream(LOG_INFO)<<"Wrote a total of " << total << " map entries" << std::endl;
    fout.pop(); fout.pop();
    out_file.close();
-  
+   }
+
+    mytime.start();
+    logstream(LOG_INFO)<<"Opening output file " << outdir << datafile << ".map" << std::endl;
+    std::ofstream ofs((outdir + ".map2").c_str());
+   // save data to archive
+   {
+   graphlab::oarchive oa(ofs);
+   // write map instance to archive
+   oa << hash2nodeid;
+   // archive and stream closed when destructors are called
+   }
+   logstream(LOG_INFO)<<"Finished writing file in " << mytime.current_time() << std::endl;
    return EXIT_SUCCESS;
 }
 

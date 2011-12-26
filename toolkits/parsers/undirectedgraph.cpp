@@ -180,8 +180,8 @@ struct stringzipparser_update :
         logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " edges: " << total_lines << std::endl;
     } 
 
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
-	                 "total map size: " << hash2nodeid.size() << endl;
+   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename <<
+	                 "total lines " << total_lines << endl;
 
     // close file
     fin.pop(); fin.pop();
@@ -270,8 +270,10 @@ int main(int argc,  char *argv[]) {
   else in_files = list_all_files_in_dir(dir);
   assert(in_files.size() >= 1);
   for (int i=0; i< in_files.size(); i++){
-      vertex_data data(in_files[i]);
-      core.graph().add_vertex(data);
+      if (in_files[i].find(".gz") != string::npos){
+        vertex_data data(in_files[i]);
+        core.graph().add_vertex(data);
+     }
   }
 
   std::cout << "Schedule all vertices" << std::endl;
@@ -282,7 +284,7 @@ int main(int argc,  char *argv[]) {
   core.add_global("LINES", lines); 
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
-
+/*
    logstream(LOG_INFO)<<"Reading hash map from file" << std::endl;
     std::ifstream in_file((outdir + ".map.gz").c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening input file: " << outdir << ".map.gz" << std::endl;
@@ -316,7 +318,18 @@ int main(int argc,  char *argv[]) {
       hash2nodeid[std::string(buf1)] = boost::lexical_cast<uint>(buf2);
      } 
    logstream(LOG_INFO)<<"Read total of " << hash2nodeid.size() << " entries" << std::endl;
-
+*/
+    mytime.start();
+    logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
+   std::ifstream ifs((outdir + ".map").c_str());
+   // save data to archive
+   {
+   graphlab::iarchive ia(ifs);
+   // write map instance to archive
+   ia >> hash2nodeid;
+   // archive and stream closed when destructors are called
+   }
+   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
    
    in_edges = new std::set<uint>[hash2nodeid.size()+2];
    out_edges = new std::set<uint>[hash2nodeid.size()+2];
@@ -327,6 +340,7 @@ int main(int argc,  char *argv[]) {
 
      std::ofstream out_file(std::string(outdir + ".out.gz").c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening output file " << outdir << ".out.gz" << std::endl;
+    mytime.start();
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
@@ -336,7 +350,7 @@ int main(int argc,  char *argv[]) {
     fout << out_edges;
    }
 
-  logstream(LOG_INFO)<<"Wrote total edges: " << total_lines << std::endl;
+  logstream(LOG_INFO)<<"Wrote total edges: " << total_lines << " in time: " << mytime.current_time() << std::endl;
  
 
   //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
