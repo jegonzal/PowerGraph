@@ -17,7 +17,9 @@ subdirs(
   util
   serialization
   logger
-  metrics)
+  metrics
+  jni
+  )
 
 # Defines METIS_SOURCES
 include(extern/metisextern.cmake)

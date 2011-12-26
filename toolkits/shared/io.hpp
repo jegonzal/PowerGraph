@@ -82,7 +82,11 @@ std::vector<std::string> list_all_files_in_dir(const std::string & dir){
   if ( fs::exists(dir_path) && fs::is_directory(dir_path)) {
     for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
+#if BOOST_FILESYSTEM_VERSION == 2
         ret.push_back(dir_iter->leaf());
+#else
+        ret.push_back(dir_iter->path().filename().string());
+#endif
       }
     }
   }

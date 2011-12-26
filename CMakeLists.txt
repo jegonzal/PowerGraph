@@ -570,6 +570,7 @@ MACRO(add_jni_library NAME)
       ${JAVA_INCLUDE_PATH}
       ${JAVA_INCLUDE_PATH}/linux
       )
+    message(STATUS "Detected JNI library " ${NAME}) 
     ADD_LIBRARY(${NAME} MODULE ${ARGN})
     TARGET_LINK_LIBRARIES(${NAME}  graphlab_pic) 
     TARGET_LINK_LIBRARIES(${NAME} ${Boost_SHARED_LIBRARIES})
@@ -578,6 +579,7 @@ MACRO(add_jni_library NAME)
     #         SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
     # ENDIF (APPLE)
   ENDIF ()
+  message(STATUS "Not building " ${NAME} " because JNI was not found")
 ENDMACRO(add_jni_library)
 
 
