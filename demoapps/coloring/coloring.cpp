@@ -36,29 +36,35 @@ struct coloring_update :
   public graphlab::iupdate_functor<graph_type, coloring_update> {
   
     /**
-     * Collect all neighbors colors and determine a color for
+     * Collect all neighbors' colors and determine a color for
      * this vertex.
      */
     void operator()(icontext_type& context){
     
       vertex_data& vdata = context.vertex_data();
       set<color_type> neighbor_colors;
+      color_type color;
       
       // collect neighbor colors
       foreach (edge_type edge, context.in_edges()){
-        neighbor_colors.insert(context.const_vertex_data(edge.source()).color);
-      }
-      foreach (edge_type edge, context.out_edges()){
-        neighbor_colors.insert(context.const_vertex_data(edge.target()).color);
+        color = context.const_vertex_data(edge.source()).color;
+        if (UNCOLORED == color) continue;
+        neighbor_colors.insert(color);
       }
       
-      // find a unique color (note that we start from 0)
-      color_type color;
+      foreach (edge_type edge, context.out_edges()){
+        color = context.const_vertex_data(edge.target()).color;
+        if (UNCOLORED == color) continue;
+        neighbor_colors.insert(color);
+      }
+      
+      // find a unique color
       for (color=0; ; color++){
         if (!neighbor_colors.count(color)) break;
       }
       
       vdata.color = color;
+      vdata.saturation = neighbor_colors.size();
       
     }
   
@@ -79,7 +85,7 @@ static int init_options  (int argc, char *argv[],
 static int print_results (const graph_type &graph);
 
 ostream& operator<< (ostream& out, const vertex_data& vdata) {
-  return out << "C=" << vdata.color;
+  return out << "C=" << vdata.color << ", S=" << vdata.saturation;
 }
 
 int main (int argc, char *argv[]){

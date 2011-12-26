@@ -8,13 +8,15 @@
 
 /** Numerical representation for color. */
 typedef unsigned long color_type;
+const unsigned long UNCOLORED = -1;
 
 /**
  * Vertex representation. Each vertex has a color.
  */
 struct vertex_data {
   color_type color;
-  vertex_data () : color(-1) {};
+  int saturation;
+  vertex_data () : color(UNCOLORED), saturation(0) {};
 };
 
 struct edge_data {
