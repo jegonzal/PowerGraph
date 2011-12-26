@@ -46,7 +46,15 @@ namespace archive_detail {
   struct deserialize_impl<ArcType, boost::unordered_map<T,U>, false > {
   static void exec(ArcType& a, boost::unordered_map<T,U>& vec){
     vec.clear();
-    deserialize_iterator<ArcType, std::pair<T,U> >(a, std::inserter(vec,vec.end()));
+    // get the number of elements to deserialize
+    size_t length = 0;
+    a >> length;    
+    // iterate through and send to the output iterator
+    for (size_t x = 0; x < length ; ++x){
+      std::pair<T, U> v;
+      a >> v;
+      vec[v.first] = v.second;
+    }
   }
   };
 
