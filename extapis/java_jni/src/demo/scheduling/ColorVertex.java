@@ -6,6 +6,7 @@ import graphlab.Vertex;
  * Simple vertex carrying and integer value.
  * @author akyrola
  *         Date: Dec 4, 2010
+ * TODO update to v2
  */
 public class ColorVertex extends Vertex {
 

@@ -563,24 +563,24 @@ ENDMACRO(dist2_set_target_properties)
 
 
 
-MACRO(add_jni_library NAME)
+macro(add_jni_library NAME)
   # Only build if JNI was found
-  IF (JNI_REALLY_FOUND)
+  if (JNI_REALLY_FOUND)
     include_directories(
       ${JAVA_INCLUDE_PATH}
       ${JAVA_INCLUDE_PATH}/linux
       )
     message(STATUS "Detected JNI library " ${NAME}) 
-    ADD_LIBRARY(${NAME} MODULE ${ARGN})
-    TARGET_LINK_LIBRARIES(${NAME}  graphlab_pic) 
-    TARGET_LINK_LIBRARIES(${NAME} ${Boost_SHARED_LIBRARIES})
+    add_library(${NAME} SHARED ${ARGN})
+    target_link_libraries(${NAME}  graphlab_pic) 
+    target_link_libraries(${NAME} ${Boost_SHARED_LIBRARIES})
     # IF (APPLE)
     #         SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
     #         SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
     # ENDIF (APPLE)
-  ENDIF ()
+  endif ()
   message(STATUS "Not building " ${NAME} " because JNI was not found")
-ENDMACRO(add_jni_library)
+endmacro(add_jni_library)
 
 
 # FIND_PACKAGE(Matlab)

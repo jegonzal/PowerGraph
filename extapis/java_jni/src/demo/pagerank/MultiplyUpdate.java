@@ -13,6 +13,7 @@ import graphlab.dense.ScalarVertex;
  * Pagerank-type udpate functions. Computes weighted sum of neighbors'
  * values and and writes its new value to outbound edges.
  * @author akyrola
+ * TODO update to v2
  */
 public class MultiplyUpdate extends UpdateFunction {
 

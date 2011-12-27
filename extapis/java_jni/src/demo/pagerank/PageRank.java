@@ -14,6 +14,7 @@ import graphlab.dense.ScalarVertex;
 
 /**
  * A simple Pagerank-type application.
+ * TODO update to v2
  */
 public class PageRank {
 

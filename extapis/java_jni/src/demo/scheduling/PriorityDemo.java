@@ -16,6 +16,7 @@ import java.awt.*;
  * Effect of priority scheduling is evident from the visualization.
  * @author akyrola
  *         Date: Dec 7, 2010
+ * TODO update to v2
  */
 public class PriorityDemo {
 

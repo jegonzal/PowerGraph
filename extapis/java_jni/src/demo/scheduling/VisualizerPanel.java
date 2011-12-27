@@ -13,6 +13,7 @@ import demo.scheduling.ColorVertex;
  * Shows a heatmap of vertices. Used in the demos.
  * @author akyrola
  *         Date: Jan 31, 2010
+ * TODO update to v2
  */
 public class VisualizerPanel extends JPanel {
 

@@ -13,6 +13,7 @@ import java.awt.*;
  * picks a value randomly, and a visualization shows how the computation proceeds.
  * @author akyrola
  *         Date: Dec 4, 2010
+ * TODO update to v2
  */
 public class ColoredSchedulerDemo {
 

@@ -20,6 +20,19 @@
  *
  */
 
+/**
+ * @file graphlabjni.cpp
+ *
+ * Contains the JNI interface between Java and C++. In general, applications
+ * will keep their graphs in the Java layer and access the engine through the
+ * JNI. This wrapper provides a proxy graph for the engine to manipulate and
+ * forwards update calls to the Java layer. To learn how to use this interface,
+ * refer to the GraphLabJNIWrapper class and to the examples.
+ *
+ * Most of the methods in this file belong to the GraphLabJNIWrapper class.
+ * @author akyrola
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
+ */
 
 #include <jni.h>
 #include <string.h>
@@ -30,22 +43,13 @@
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
 
+/** Proxy edge */
+struct edge_data {};
+/** Proxy vertex */
+struct vertex_data {};
+/** Proxy graph */
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
-// // Just dummy edgedata and vertexdata
-// struct edge_data {}; 
-// struct vertex_data {};
-// 
-// 
-// //! The type of graph used in this program
-// typedef graphlab::graph<vertex_data, edge_data> jni_graph;
-// 
-// 
-// /**
-//  * The collection of graphlab types restricted to the graph type used
-//  * in this program.
-//  */
-// typedef graphlab::types<jni_graph> gl_types;
-// 
 // static JavaVM *jvm = NULL;
 // JNIEnv * cachedEnv;
 // jobject cachedObj;
@@ -147,32 +151,51 @@
 //   jenv->ReleaseIntArrayElements(result, arr, JNI_ABORT);
 // }  
 
+/**
+ * Proxy updater
+ * Forwards update calls to the Java layer
+ */
+class proxy_updater : 
+  public graphlab::iupdate_functor<graph_type, proxy_updater> {
+};
+
+/**
+ * GraphLab core engine
+ * For some reason, pthread assertions throw up when this is statically
+ * allocated. So this implementation dynamically allocates the core in
+ * the initGraphLab function.
+ */
+static graphlab::core<graph_type, proxy_updater> *core = NULL;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+  
+  /*
+   * Class:     graphlab_wrapper_GraphLabJNIWrapper
+   * Method:    initGraphLab
+   * Signature: ()V
+   */
+  JNIEXPORT void JNICALL
+  Java_graphlab_wrapper_GraphLabJNIWrapper_initGraphLab
+  (JNIEnv * env, jobject obj) {
+  
+    // configure log level
+    global_logger().set_log_level(LOG_INFO);
+    global_logger().set_log_to_console(true);
  
-//   gl_types::core core;
-//  
-//  
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    initGraphlab
-//    * Signature: ()V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_initGraphlab
-//   (JNIEnv * env, jobject obj) {
-//    global_logger().set_log_level(LOG_INFO);
-//    global_logger().set_log_to_console(true);
-//  
-//     // Setup the parser
-//     graphlab::command_line_options
-//       clopts("JNI options. TODO.");
-// 
-//     // Set the engine options
-//     // TODO.
-//     core.set_engine_options(clopts);
-//   }
-// 
+    // setup the parser
+    graphlab::command_line_options clopts("JNI options. TODO.");
+
+    // set the engine options
+    if (NULL == core) core = new graphlab::core<graph_type, proxy_updater>();
+    core->set_options(clopts);
+    
+    logger(LOG_DEBUG, "GraphLab core initialized in JNI.\n");
+    
+  }
+
+
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setScheduler
 //   (JNIEnv * env, jobject obj, jstring schedulertype) {
 //     const char *str = env->GetStringUTFChars(schedulertype, 0);
