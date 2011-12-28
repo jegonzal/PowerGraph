@@ -213,68 +213,47 @@ void svd_Axb(gl_types::iscope &scope,
 
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
-  
+  int id = scope.vertex();
+  bool toprint = (ac.debug && (id == 0 || id == ps.M-1));  
+
   /* print statistics */
-  if (ac.debug&& ((int)scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1))){
-    printf("svd_Axb: entering  node  %u \n",  (int)scope.vertex());   
-  }
-
-  //user.rmse = 0;
+  if (toprint)
+    printf("svd_Axb: entering  node  %d \n",  id);   
+ 
   user.pvec[0] = 0;
-
-  if (!user.num_edges){
-    return; //if this user/movie have no ratings do nothing
-  }
-
-
-  //gl_types::edge_list outs = scope.out_edge_ids();
   timer t;
   t.start(); 
 
-  // foreach(gl_types::edge_id oedgeid, outs) {
   FOR_ITERATOR_(i,user.datapoint){
-      //edge_data & edge = scope.edge_data(oedgeid);
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
       assert(index>= 0 && index < ps.N);
-      //vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       vertex_data & movie = ps.g<graph_type>(TRAINING)->vertex_data(index+ps.M);
-      //user.pvec[0] += weight * movie.pvec[offset];
       user.pvec[0] += weight * *find_pvec( offset, index+ps.M, &movie);
   }
  
   ps.counter[SVD_MULT_A] += t.current_time();
-  if (ac.debug&& ((int)scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1))){
-    printf("svd_Axb: computed value  %u %g \n",  (int)scope.vertex(), user.pvec[0]);   
-  }
 
+  if (toprint)
+    printf("svd_Axb: computed value  %d %g \n",  id , user.pvec[0]);   
 
 }
 /***
- * UPDATE FUNCTION2 (ROWS)
+ * UPDATE FUNCTION2 (COLS)
  */
 void svd_Axb2(gl_types::iscope &scope, 
 	 gl_types::icallback &scheduler) {
-    
-
 
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
+  int id = scope.vertex();
+  bool toprint = (ac.debug && (id == ps.M || id == ps.M+ps.N-1));
   
   /* print statistics */
-  if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("svd_Axb2: entering  node  %u \n",  (int)scope.vertex());   
-  }
-
-  //user.rmse = 0;
+  if (toprint)
+    printf("svd_Axb2: entering  node  %d \n",  id);   
+  
   user.pvec[0]= 0;
-
-  if (!user.num_edges){
-    return; //if this user/movie have no ratings do nothing
-  }
-
-
-  //gl_types::edge_list ins = scope.in_edge_ids();
   timer t;
   t.start(); 
 
@@ -283,14 +262,12 @@ void svd_Axb2(gl_types::iscope &scope,
       int index = get_nz_index(user.datapoint, i);
       assert(index>=0 && index < ps.M);
       vertex_data & movie = ps.g<graph_type>(TRAINING)->vertex_data(index);
-      //user.pvec[0] += weight * movie.pvec[offset];
       user.pvec[0] += weight * *find_pvec( offset, index, &movie);
   }
  
   ps.counter[SVD_MULT_A] += t.current_time();
-  if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("svd_Axb2: computed value  %u %g \n",  (int)scope.vertex(), user.pvec[0]);   
-  }
+  if (toprint)
+    printf("svd_Axb2: computed value  %d %g \n",  id , user.pvec[0]);   
 
 
 }
@@ -308,48 +285,38 @@ void svd_ATxb(gl_types::iscope &scope,
 
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
+  int id = scope.vertex();
+  bool toprint = (ac.debug && (id == ps.M || id == ps.M+ps.N-1));
   int m = ac.iter; 
   
   /* print statistics */
-  if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("svd_ATxb: entering  node  %u \n",  (int)scope.vertex());   
-    debug_print_vec2("V" , user.pvec, m, scope.vertex());
+  if (toprint){
+    printf("svd_ATxb: entering  node  %u \n",  id);   
+    debug_print_vec2("V" , user.pvec, m, id);
   }
 
-  //user.rmse = 0;
   user.pvec[0] = 0;
-
-  //if (user.num_edges == 0){
-  //  return; //if this user/movie have no ratings do nothing
- // }
-
   gl_types::edge_list ins = scope.in_edge_ids();
   timer t;
   t.start(); 
 
-   //foreach(gl_types::edge_id iedgeid, ins) {
-   //   edge_data & edge = scope.edge_data(iedgeid);
-   //   vertex_data  & movie = scope.neighbor_vertex_data(scope.source(iedgeid));
   FOR_ITERATOR_(i, user.datapoint){
       double weight = get_nz_data(user.datapoint, i);
       int index = get_nz_index(user.datapoint, i);
       assert(index >= 0 && index < ps.M);
       vertex_data & movie = ps.g<graph_type>(TRAINING)->vertex_data(index);
       user.pvec[0] += weight * movie.rmse;
-      }
-
-   assert(offset2 < m+2 && offset3 < m+2);
-   //user.pvec[0] -=  lancbeta[offset2] * user.pvec[offset3];
-   user.pvec[0] -= lancbeta[offset2] * *find_pvec( offset3, scope.vertex(), &user);
- 
-   ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
-
-  if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("svd_ATxb: computed value  %u %g beta: %g v %g \n",  (int)scope.vertex(), user.pvec[0],lancbeta[offset2],  *find_pvec(offset3, scope.vertex(), &user));   
   }
 
+  assert(offset2 < m+2 && offset3 < m+2);
+  user.pvec[0] -= lancbeta[offset2] * *find_pvec( offset3, id, &user);
+ 
+  ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
 
-
+  if (toprint)
+        printf("svd_ATxb: computed value  %d %g beta: %g v %g \n",  id, 
+					user.pvec[0],lancbeta[offset2],  
+					*find_pvec(offset3, id, &user));   
 }
 
 
@@ -363,20 +330,16 @@ void svd_ATxb2(gl_types::iscope &scope,
 
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
+  int id = scope.vertex();
+  bool toprint = (ac.debug && (id == 0 || id == ps.M-1));
   int m = ac.iter; 
   
   /* print statistics */
-  if (ac.debug&& ((int)scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1))){
-    printf("svd_ATxb: entering  node  %u \n",  (int)scope.vertex());   
-    debug_print_vec2("V" , user.pvec, m, scope.vertex());
-  }
+  if (toprint)
+    printf("svd_ATxb: entering  node  %d \n",  id);   
+    debug_print_vec2("V" , user.pvec, m, id);
 
-  //user.rmse = 0;
   user.pvec[0] = 0;
-  //if (user.num_edges == 0){
-  //  return; //if this user/movie have no ratings do nothing
- // }
-
   gl_types::edge_list out = scope.out_edge_ids();
   timer t;
   t.start(); 
@@ -386,24 +349,18 @@ void svd_ATxb2(gl_types::iscope &scope,
       int index = get_nz_index(user.datapoint, i);
       assert(index >=0 && index< ps.N);
       vertex_data & movie = ps.g<graph_type>(TRAINING)->vertex_data(index+ps.M);
-  //  foreach(gl_types::edge_id oedgeid, out) {
-  //    edge_data & edge = scope.edge_data(oedgeid);
-  //    vertex_data  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       user.pvec[0] += weight * movie.rmse;
       }
 
      assert(offset2 < m+2 && offset3 < m+2);
-     //user.pvec[0] -= lancbeta2[offset2] * user.pvec[offset3];
      user.pvec[0] -= lancbeta2[offset2] * *find_pvec(offset3, scope.vertex(), &user);
  
    ps.counter[SVD_MULT_A_TRANSPOSE] += t.current_time();
 
-  if (ac.debug&& ((int)scope.vertex() ==  0 || ((int)scope.vertex() == ps.M-1))){
-    printf("svd_ATxb2: computed value  %u %g beta: %g v %g \n",  (int)scope.vertex(), user.pvec[0],lancbeta2[offset2],  *find_pvec(offset3, scope.vertex(), &user));   
-  }
-
-
-
+  if (toprint)
+    printf("svd_ATxb2: computed value  %d %g beta: %g v %g \n",  id, 
+				user.pvec[0],lancbeta2[offset2],  
+    *find_pvec(offset3, id, &user));   
 }
 
 
@@ -562,57 +519,13 @@ mat calc_V(bool other_side){
   return V;
 }*/
 
-
-/*
-void calc_V_block(mat &V, int start, int end, bool other_side){
-  assert(start <= end);
-  int offset = ps.M;
-  int total = ps.N;
-  if (other_side){
-    offset = 0;
-    total = ps.M;
-  }
-
-
-  if (ac.debug)
-    logstream(LOG_INFO) << "Allocating a matrix of size: " << (total*(end-start)) <<  " time: " << ps.gt.current_time() << std::endl;
-  V = dbl_fzeros(total,end-start);
-
-  if (ac.debug)
-    logstream(LOG_INFO) << "Done! in time" << ps.gt.current_time() << std::endl; 
-
-  int size = ac.iter/10;
-  for (int i=start; i< end; i++){
-      FILE * pfile = open_file(((ac.datafile + "swap") + boost::lexical_cast<std::string>(i+1)).c_str(), "r");
-      read_vec(pfile, ps.M+ps.N, pglobal_pvec->pvec[0]);
-      fclose(pfile);
-      flt_dbl_vec col(pglobal_pvec->pvec[0] + offset, total);
-      assert(i - start >= 0 && i - start < V.cols());
-      set_col(V, i-start, fvec2vec(col));
-      if (ac.debug && (i%size) == 0)
-        logstream(LOG_INFO) << "Read total of " << i << " columns at time " << ps.gt.current_time() << std::endl;
-  }
-}*/
-
-/*
-mat calc_V2(){
-    
-  mat V = fmat2mat(zeros(ps.M,ac.iter+1));
-
- const graph_type *g = ps.g<graph_type>(TRAINING); 
- for (int i=0; i< ps.M; i++){ 
-   const vertex_data * data = (vertex_data*)&g->vertex_data(i);
-   set_row(V, i, fvec2vec(mid(data->pvec, 1, ac.iter+1)));
-  }
-  return V;
-}*/
 vec calc_eigenvalues(mat & T, bool other_side){
  vec eigenvalues; 
  mat eigenvectors;
  assert(::eig_sym(T, eigenvalues, eigenvectors));
- cout << "Here are the computed eigenvalues" << endl;
+ cout << "Here are the computed singular values" << endl;
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
+	cout<<"singular value " << i << " val: " << sqrt(eigenvalues[i]) << endl;
  
  flt_dbl_mat V = calc_V(other_side,mat2fmat(eigenvectors));    
 
@@ -621,6 +534,7 @@ vec calc_eigenvalues(mat & T, bool other_side){
 
  if (ac.debug && V.size() < 1000)
      cout<<"V is: " << V << endl;
+
  return eigenvalues;
 }
 
@@ -728,6 +642,8 @@ void svd<>(gl_types::core & glcore){
         //lancbeta(j+1)=norm(w,2);
         lancbeta[ps.iiter+1] = w_lancalphaV(ps.iiter);
         lancbeta2[ps.iiter+1] = w_lancalphaV2(ps.iiter);
+        if (ac.debug)
+          logstream(LOG_INFO)<< "Beta is: " << lancbeta[ps.iiter+1] << " other side: " << lancbeta2[ps.iiter+1] << std::endl;
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(ps.iiter+1); 

@@ -4,7 +4,9 @@ if(APPLE)
   set(CMAKE_C_COMPILER "gcc-4.2")	
   set(CMAKE_CXX_COMPILER "c++-4.2")
 endif(APPLE)
-
+# DB: It is possible to compile on MAC OS with higher compiler settings, namely gcc-4.5
+# In that case, you can comment the 4 lines above, so the default compiler
+# will be used.
 
 
 

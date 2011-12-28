@@ -719,11 +719,17 @@ void verify_edge(edgedata & ed, edge_data& edge, int i, testtype type){
 	 assert(ed.weight != 0); 
       //verify node ids are in allowed range
       if (i == 0 && ((int)ed.from < matlab_offset_user_movie || (int)ed.from > ps.last_node))
-          logstream(LOG_ERROR) << " Wrong intput file format. Did you try to use --float=true " << endl;
-      assert((int)ed.from >= matlab_offset_user_movie && (int)ed.from <= ps.last_node);
-      assert((int)ed.to >= matlab_offset_user_movie && (int)ed.to <= ps.last_node);
-      //no self edges
-      assert((int)ed.to != (int)ed.from);
+          logstream(LOG_FATAL) << " Wrong intput file format. Did you try to use --float=true " << endl;
+      if ((int)ed.from < matlab_offset_user_movie || (int)ed.from > ps.last_node)
+          logstream(LOG_FATAL) << " Edge from node " << ed.from << " where the allowed node range is [" <<
+         matlab_offset_user_movie << "-" << ps.last_node << "]. In input line " << i << endl;
+      if ((int)ed.to < matlab_offset_user_movie || (int)ed.to > ps.last_node)
+          logstream(LOG_FATAL) << " Edge to node " << ed.to << " where the allowed node range is [" <<
+         matlab_offset_user_movie << "-" << ps.last_node << "]. In input line " << i << endl;
+       //no self edges
+      if ((int)ed.to == (int)ed.from)
+        logstream(LOG_FATAL) << " Self edge between node " << ed.to << " to itself is not allowed. In input line " << i << endl;
+
       edge.weight = (double)ed.weight;
     
       //if sacling of rating values is requested to it here.
@@ -734,10 +740,6 @@ void verify_edge(edgedata & ed, edge_data& edge, int i, testtype type){
       //if scaling of time bins request do it here
       double time  = ((ed.time - matlab_offset_time - ac.truncating)/(double)ac.scaling);
       edge.time = time;
-
-      //assert weights in WALS are not zero (no sense to give zero weight)
-      if (ps.algorithm == WEIGHTED_ALS && !ac.zero)
-         assert(edge.time != 0);
 }
 
 
@@ -820,7 +822,7 @@ int read_mult_edges(FILE * f, int nodes, testtype type, graph_type *g, graph_typ
     //go over each rating (edges)
     for (int i=0; i<rc; i++){
       edge_data edge;
-      add_edge<edgedata, graph_type>(i, ed[i], g, _g, edge, type);
+      add_edge<edgedata, graph_type>(total - rc + i, ed[i], g, _g, edge, type);
     } 
    printf(".");
     fflush(0);
