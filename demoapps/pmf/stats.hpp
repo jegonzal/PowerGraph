@@ -332,7 +332,9 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
      }
    }
    res = RMSE;
-   assert(e == (test?ps.Le:ps.L));
+   if (e != (test?ps.Le:ps.L))
+      logstream(LOG_FATAL)<<"issing ratings in " << testtypename[test] << " file. Expected to have "
+      << (test?ps.Le:ps.L) << " while encountered only " << e << std::endl;
    return sqrt(RMSE/(double)e);
 
 }
