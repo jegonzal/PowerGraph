@@ -13,7 +13,7 @@ import org.graphlab.util.MutableGraph;
  * Efficient representation for sparse graphs. Default Graph class to be used.
  * 
  * @author akyrola
- * @author Jiunn Haur Lim
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public class SparseGraph<V extends Vertex, E extends Edge>
 	implements Graph<V, E>, MutableGraph<V, E> {

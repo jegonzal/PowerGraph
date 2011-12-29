@@ -52,7 +52,7 @@ struct edge_data {};
 
 /** Proxy vertex */
 struct vertex_data {
-  int app_id;   /**< corresponding vertex ID in application */
+  int app_id;   /**< corresponding application vertex ID */
 };
 
 /** Proxy graph */
@@ -71,24 +71,16 @@ class proxy_updater :
   
 public:
 
-  static jmethodID java_method_id;
-  jobject obj;
+  static jmethodID java_method_id;  // id of Core#execUpdate
+  
+  jobject obj;    // java core object
   jint id;        // ID of java updater object
   
   void operator()(icontext_type& context) {
 
-    logstream(LOG_DEBUG)
-      << "Proxy updater invoked."
-      << std::endl;
-
     JNIEnv *jenv = jni_core<graph_type, proxy_updater>::get_JNIEnv ();
     jint app_vertex_id = context.vertex_data().app_id;
-    logstream(LOG_DEBUG)
-      << "calling java method with id: " << id
-      << " ..."
-      << std::endl;
     jenv->CallVoidMethod (obj, java_method_id, app_vertex_id, id);
-    logstream(LOG_DEBUG) << "success!" << std::endl;
     
     // check for exception
     jthrowable exc = jenv->ExceptionOccurred();
@@ -96,16 +88,13 @@ public:
       logstream(LOG_ERROR)
         << "Exception occured!!"
         << std::endl;
-      jclass newExcCls;
+        
+      jclass new_exc;
       jenv->ExceptionDescribe();
       jenv->ExceptionClear();
-      newExcCls = jenv->FindClass("java/lang/IllegalArgumentException");
-      if (newExcCls == NULL) {
-        // unable to find the exception class, give up.
-        return;
-      }
-      
-      jenv->ThrowNew(newExcCls, "thrown from C code");
+      new_exc = jenv->FindClass("java/lang/IllegalArgumentException");
+      if (new_exc == NULL) return;
+      jenv->ThrowNew(new_exc, "thrown from C code");
       
     }
 
@@ -141,16 +130,12 @@ extern "C" {
       jni_core_type::set_jvm(jvm);
     }
     
-    // get the method ID
+    // get the method ID, if we don't have it already
     jclass clazz = env->GetObjectClass(obj);
     if (0 == proxy_updater::java_method_id){
       proxy_updater::java_method_id =
         env->GetMethodID(clazz, "execUpdate", "(II)V");
     }
-    
-    logstream(LOG_DEBUG)
-      << "Method ID retrieved: " << proxy_updater::java_method_id
-      << std::endl;
     
     // allocate and configure core
     jni_core_type *jni_core = new jni_core_type(env, obj);
@@ -170,9 +155,10 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr){
     
     if (NULL == env || 0 == ptr){
-      logstream(LOG_WARNING)
-        << "destroyCore was invoked with invalid parameters."
-        << std::endl;
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
       return;
     }
     
@@ -191,11 +177,11 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr, jint count){
     
     if (NULL == env || 0 == ptr){
-      logstream(LOG_WARNING)
-        << "resizeGraph was invoked with invalid parameters."
-        << std::endl;
-        // TODO: throw exceptions for this method and other methods
-        return;
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+      return;
     }
     
     jni_core_type *jni_core = (jni_core_type *) ptr;
@@ -208,11 +194,11 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr, jint id){
   
     if (NULL == env || 0 == ptr){
-      logstream(LOG_WARNING)
-        << "resizeGraph was invoked with invalid parameters."
-        << std::endl;
-        // TODO: throw exceptions for this method and other methods
-        return -1;
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+      return -1;
     }
     
     jni_core_type *jni_core = (jni_core_type *) ptr;
@@ -231,10 +217,10 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr, jint source, jint target){
   
     if (NULL == env || 0 == ptr){
-      logstream(LOG_WARNING)
-        << "addEdge was invoked with invalid parameters."
-        << std::endl;
-        // TODO: throw exceptions for this method and other methods
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
         return;
     }
     
@@ -250,19 +236,21 @@ extern "C" {
   (JNIEnv * env, jobject obj, jlong ptr, jint vertex_id, jint updater_id){
   
     if (NULL == env || 0 == ptr){
-      logstream(LOG_WARNING)
-        << "schedule was invoked with invalid parameters."
-        << std::endl;
-        // TODO: throw exceptions for this method and other methods
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
         return;
     }
 
     jni_core_type *jni_core = (jni_core_type *) ptr;
   
+    // initialize proxy updater
     proxy_updater updater;
     updater.obj = jni_core->obj();
     updater.id = updater_id;
 
+    // schedule vertex
     jni_core->core().schedule(vertex_id, updater);
     
   }
@@ -272,10 +260,10 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr){
     
     if (NULL == env || 0 == ptr){
-      logstream(LOG_WARNING)
-        << "start was invoked with invalid parameters."
-        << std::endl;
-        // TODO: throw exceptions for this method and other methods
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
         return 0;
     }
     

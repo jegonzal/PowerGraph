@@ -91,7 +91,7 @@ public class ScalarVertex implements Vertex {
 
 	@Override
 	public boolean equals(Object other) {
-		if (!(other instanceof ScalarVertex))
+		if (null == other || !(other instanceof ScalarVertex))
 			return false;
 		return mId == ((ScalarVertex) other).id();
 	}

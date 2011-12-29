@@ -1,5 +1,9 @@
 package org.graphlab.data;
 
+/**
+ * Implement this interface to store more data in the vertices.
+ * @author Jiunn Haur Lim
+ */
 public interface Vertex {
 
 	/**

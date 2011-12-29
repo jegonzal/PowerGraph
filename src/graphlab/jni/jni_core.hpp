@@ -29,8 +29,10 @@
 namespace graphlab {
 
   /**
-   * Wrapper for graphlab::core. Contains the core and a reference to
-   * the Java core object (so that it doesn't get garbage collected.)
+   * Wrapper for graphlab::core.
+   * Contains the core, a reference to the Java core object (so that it
+   * doesn't get garbage collected), and other utility functions for dealing
+   * with the JVM.
    */
   template <typename Graph, typename UpdateFunctor>
   class jni_core {
@@ -115,6 +117,14 @@ namespace graphlab {
         assert(res>=0);
       }
       
+    }
+    
+    static void throw_exception(JNIEnv* env,
+                                const char *exception,
+                                const char *message){
+      jclass exc = env->FindClass(exception);
+      if (NULL == exc) return;
+      env->ThrowNew(exc, message);
     }
     
     /**

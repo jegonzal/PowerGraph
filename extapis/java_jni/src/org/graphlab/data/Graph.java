@@ -50,7 +50,7 @@ public interface Graph<V extends Vertex, E extends Edge> {
 	public V getVertex(int id);
 
 	/**
-	 * Retrieves an immutable collection of outgoing edges from this vertex.'
+	 * Retrieves an immutable collection of outgoing edges from this vertex.
 	 * 
 	 * Implementations should ensure that this collection is has no duplicate
 	 * edges (for performance purposes, this method only enforces a Collection

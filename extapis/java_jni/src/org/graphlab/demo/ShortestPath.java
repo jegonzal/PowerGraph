@@ -1,13 +1,12 @@
 package org.graphlab.demo;
 
 import java.io.IOException;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
-import java.util.logging.StreamHandler;
 
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.graphlab.Core;
+import org.graphlab.Core.CoreException;
 import org.graphlab.Updater;
 import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
@@ -15,100 +14,133 @@ import org.graphlab.data.SparseGraph;
 import org.graphlab.util.GraphLoader;
 
 /**
- * ShortestPath algorithm. Demonstrates GraphLab over JNI.
+ * ShortestPath algorithm. Demonstrates GraphLab over JNI. To run this class,
+ * provide a path to a tsv file in the program arguments. Some examples are
+ * available in the <tt>java_jni/test-graphs</tt> directory.
+ * 
+ * For example:
+ * <code>
+ * java -Djava.library.path=... org.graphlab.demo.ShortestPath toy.tsv
+ * </code>
+ * 
  * @author Jiunn Haur Lim
  */
 public class ShortestPath {
 
-	public static void main(String[] args){
+	private static final Logger logger = Logger.getLogger (ShortestPath.class);
+
+	public static void main(String[] args) {
+
+		BasicConfigurator.configure();
+		Logger.getLogger(Core.class).setLevel(Level.ALL);
+		logger.setLevel(Level.ALL);
 		
-		if (args.length != 1){
-			System.out.println ("Please provide filename.");
+		logger.trace("Main method in " + ShortestPath.class.getCanonicalName() + " started.");
+
+		// check arguments
+		if (!checkParams(args)){
+			logger.trace("Exiting main method.");
 			return;
 		}
 		
-		// setup logging
-		initLogging();
+		String filename = args[0];
+		logger.info("Graph file: " + filename);
 
-		// init core
+		// initialize graphlab core
 		final Core<SparseGraph<ScalarVertex, ScalarEdge>> c;
 		try {
+			logger.trace("Initializing GraphLab core ...");
 			c = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
-		} catch (Exception e) {
-			System.out.println ("Unable to initialize core.");
+		} catch (CoreException e) {
+			logger.fatal("Unable to initialize core. Terminating.", e);
+			logger.trace("Exiting main method.");
 			return;
 		}
-		
-		final SparseGraph<ScalarVertex, ScalarEdge> g = constructGraph(args[0]);
-		if (null == g){
-			System.out.println ("Unable to construct graph.");
+
+		// construct graph
+		logger.trace("Constructing graph from " + filename + " ...");
+		final SparseGraph<ScalarVertex, ScalarEdge> g;
+		try {
+			g = constructGraph (filename);
+		}catch (IOException e){
+			logger.fatal("Unable to construct graph. Terminating.", e);
 			c.destroy();
+			logger.trace("Exiting main method.");
 			return;
 		}
-		
-		Updater shortestPathUpdater = new Updater(){
+
+		// prepare updater
+		Updater shortestPathUpdater = new Updater() {
 
 			@Override
-			public void update(int vertex_id) {
-				
+			public void update (int vertex_id) {
+
 				ScalarVertex vertex = g.getVertex(vertex_id);
-				
-				for (ScalarEdge edge : g.incomingEdges(vertex.id())){
+
+				// relax edges coming into this node
+				for (ScalarEdge edge : g.incomingEdges(vertex.id())) {
 					ScalarVertex neighbor = g.getVertex(edge.source());
-					vertex.setValue ((float) Math.min(vertex.value(), neighbor.value() + edge.weight()));
+					vertex.setValue((float) Math.min(vertex.value(),
+							neighbor.value() + edge.weight()));
 				}
-				
-			    // reschedule any affected neighbors
-			    for (ScalarEdge edge : g.outgoingEdges(vertex_id)) {
-			      ScalarVertex neighbor = g.getVertex(edge.target());
-			      if (neighbor.value() > (vertex.value() + edge.weight())) 
-			        c.schedule (edge.target(), this);    
-			    }
+
+				// reschedule any affected neighbors
+				for (ScalarEdge edge : g.outgoingEdges(vertex_id)) {
+					ScalarVertex neighbor = g.getVertex(edge.target());
+					if (neighbor.value() > (vertex.value() + edge.weight()))
+						c.schedule(edge.target(), this);
+				}
 
 			}
-			
+
 		};
-		
-		for (ScalarVertex v : g.vertices()){
+
+		for (ScalarVertex v : g.vertices()) {
 			v.setValue(Integer.MAX_VALUE);
 		}
-		
+
 		// start from root
 		ScalarVertex root = g.getVertex(0);
 		root.setValue(0);
-		
+
 		c.setGraph(g);
 		c.schedule(root.id(), shortestPathUpdater);
-		c.start();
 		
+		logger.trace("Running graphlab ...");
+		c.start();
+
 		// destroy core
 		c.destroy();
-		
-		System.out.println ("Shortest path from root to 7 was: " + g.getVertex(7).value());
-		
+
+		logger.info ("Shortest path from root to 7 was: " + g.getVertex(7).value());
+
 	}
-	
-	private static void initLogging (){
-		Handler handler = new StreamHandler(System.out, new SimpleFormatter());
-		handler.setLevel(Level.ALL);
-		Logger.getLogger(Core.TAG).addHandler(handler);
-		Logger.getLogger(Core.TAG).setLevel(Level.ALL);
-	}
-	
-	private static SparseGraph<ScalarVertex, ScalarEdge> constructGraph (String filename){
+
+	/**
+	 * Checks that required input parameters are available and valid.
+	 * Prints instructions if not all parameters were valid.
+	 * @param args			array of program arguments
+	 * @return true if parameters are OK; false otherwise
+	 */
+	private static boolean checkParams (String[] args){
 		
-		SparseGraph<ScalarVertex, ScalarEdge> graph = new SparseGraph<ScalarVertex, ScalarEdge>();
-		
-		try {
-			GraphLoader.loadGraphFromTsvFile(graph, filename);
-		}catch (IOException e){
-			System.out.println (e.getMessage());
-			System.out.println ("Unable to load from file: " + filename);
-			return null;
+		if (args.length != 1) {
+			System.out.println("Please provide filename.");
+			System.out.println("Usage: java -Djava.library.path=... " + ShortestPath.class.getCanonicalName() + " path/to/tsv/file");
+			return false;
 		}
 		
-		return graph;
+		return true;
 		
 	}
-	
+
+	private static SparseGraph<ScalarVertex, ScalarEdge>
+	constructGraph(String filename) throws IOException {
+
+		SparseGraph<ScalarVertex, ScalarEdge> graph = new SparseGraph<ScalarVertex, ScalarEdge>();
+		GraphLoader.loadGraphFromTsvFile(graph, filename);
+		return graph;
+
+	}
+
 }

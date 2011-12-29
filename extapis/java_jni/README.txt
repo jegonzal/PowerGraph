@@ -34,8 +34,11 @@ See directory /examples for some demo apps.
 Remember to set the Java library path:
 	 java -Djava.library.path=<path to graphlab>/release/src/graphlab/jni
 	 
-	 
-	 
+== LOGGING ==
+
+The library uses log4j for logging. Refer to
+http://logging.apache.org/log4j/1.2/manual.html
+for instructions on how to turn off or control the log output.	 
 
 
 Updated December 10, 2010.

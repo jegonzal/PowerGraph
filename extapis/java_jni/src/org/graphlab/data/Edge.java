@@ -1,5 +1,10 @@
 package org.graphlab.data;
 
+/**
+ * Implement this interface to store more data in
+ * the edges.
+ * @author Jiunn Haur Lim
+ */
 public interface Edge {
 	
 	/**
@@ -8,7 +13,7 @@ public interface Edge {
 	public int source();
 	
 	/**
-	 * @return of target vertex
+	 * @return ID of target vertex
 	 */
 	public int target();
 
