@@ -1,5 +1,6 @@
 package org.graphlab.demo;
 
+import java.io.IOException;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -11,6 +12,7 @@ import org.graphlab.Updater;
 import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
 import org.graphlab.data.SparseGraph;
+import org.graphlab.util.GraphLoader;
 
 /**
  * ShortestPath algorithm. Demonstrates GraphLab over JNI.
@@ -20,20 +22,29 @@ public class ShortestPath {
 
 	public static void main(String[] args){
 		
-		final Core<ScalarVertex, ScalarEdge> c;
+		if (args.length != 1){
+			System.out.println ("Please provide filename.");
+			return;
+		}
 		
 		// setup logging
 		initLogging();
 
 		// init core
+		final Core<SparseGraph<ScalarVertex, ScalarEdge>> c;
 		try {
-			c = new Core<ScalarVertex, ScalarEdge> ();
+			c = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
 		} catch (Exception e) {
 			System.out.println ("Unable to initialize core.");
 			return;
 		}
 		
-		final SparseGraph<ScalarVertex, ScalarEdge> g = constructGraph();
+		final SparseGraph<ScalarVertex, ScalarEdge> g = constructGraph(args[0]);
+		if (null == g){
+			System.out.println ("Unable to construct graph.");
+			c.destroy();
+			return;
+		}
 		
 		Updater shortestPathUpdater = new Updater(){
 
@@ -58,6 +69,10 @@ public class ShortestPath {
 			
 		};
 		
+		for (ScalarVertex v : g.vertices()){
+			v.setValue(Integer.MAX_VALUE);
+		}
+		
 		// start from root
 		ScalarVertex root = g.getVertex(0);
 		root.setValue(0);
@@ -69,6 +84,8 @@ public class ShortestPath {
 		// destroy core
 		c.destroy();
 		
+		System.out.println ("Shortest path from root to 7 was: " + g.getVertex(7).value());
+		
 	}
 	
 	private static void initLogging (){
@@ -78,12 +95,17 @@ public class ShortestPath {
 		Logger.getLogger(Core.TAG).setLevel(Level.ALL);
 	}
 	
-	private static SparseGraph<ScalarVertex, ScalarEdge> constructGraph (){
+	private static SparseGraph<ScalarVertex, ScalarEdge> constructGraph (String filename){
 		
 		SparseGraph<ScalarVertex, ScalarEdge> graph = new SparseGraph<ScalarVertex, ScalarEdge>();
-		graph.addVertex(new ScalarVertex(0));
-		graph.addVertex(new ScalarVertex(1));
-		graph.addEdge(new ScalarEdge (0, 1, 0));
+		
+		try {
+			GraphLoader.loadGraphFromTsvFile(graph, filename);
+		}catch (IOException e){
+			System.out.println (e.getMessage());
+			System.out.println ("Unable to load from file: " + filename);
+			return null;
+		}
 		
 		return graph;
 		

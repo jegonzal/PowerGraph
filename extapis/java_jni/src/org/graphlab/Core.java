@@ -1,7 +1,6 @@
 package org.graphlab;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -17,8 +16,9 @@ import org.graphlab.data.Vertex;
  * GraphLab Core. This interfaces with the C++ library via JNI.
  * 
  * @author Jiunn Haur Lim
+ * @param <G> 		graph type -> must extend {@link org.graphlab.data.Graph}
  */
-public class Core<V extends Vertex, E extends Edge> {
+public class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 	/** Name of logger that this class uses */
 	public static final String TAG = "org.graphlab.core";
@@ -70,7 +70,7 @@ public class Core<V extends Vertex, E extends Edge> {
 	 * @param graph
 	 *            the graph to operate on
 	 */
-	public void setGraph(Graph<V, E> graph) {
+	public void setGraph(G graph) {
 
 		if (null == graph)
 			throw new NullPointerException("graph must not be null.");
@@ -88,12 +88,10 @@ public class Core<V extends Vertex, E extends Edge> {
 
 		// add edges
 		for (Vertex v : graph.vertices()) {
-			Collection<E> outgoingEdges = graph.outgoingEdges(v.id());
-			if (null != outgoingEdges)
-				for (Edge e : outgoingEdges) {
-					addEdge(mCorePtr, mIdMap.get(e.source()),
-							mIdMap.get(e.target()));
-				}
+			for (Edge e : graph.outgoingEdges(v.id())) {
+				addEdge(mCorePtr, mIdMap.get(e.source()),
+						mIdMap.get(e.target()));
+			}
 		}
 
 		long elapsed = System.currentTimeMillis() - startTime;

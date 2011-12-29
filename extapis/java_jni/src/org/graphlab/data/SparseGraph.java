@@ -7,14 +7,16 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.graphlab.util.MutableGraph;
+
 /**
  * Efficient representation for sparse graphs. Default Graph class to be used.
  * 
  * @author akyrola
  * @author Jiunn Haur Lim
  */
-public class SparseGraph<V extends Vertex, E extends Edge> implements
-		Graph<V, E> {
+public class SparseGraph<V extends Vertex, E extends Edge>
+	implements Graph<V, E>, MutableGraph<V, E> {
 
 	/** Collection of vertices */
 	private V[] mVertices;
@@ -73,6 +75,7 @@ public class SparseGraph<V extends Vertex, E extends Edge> implements
 	 *            the vertex to be added
 	 * @return the assigned vertex id
 	 */
+	@Override
 	public synchronized int addVertex(V vertex) {
 		if (null == vertex)
 			throw new NullPointerException("vertex must not be null.");
@@ -82,12 +85,33 @@ public class SparseGraph<V extends Vertex, E extends Edge> implements
 		return vertex.id();
 	}
 
+	// TODO: sort edges and use binary search
+	/**
+	 * Returns an edge from source vertex to target vertex. Note: this is a slow
+	 * operation (O(degree)) since edges are not sorted.
+	 * 
+	 * @param source
+	 *            vertex id of the origin vertex
+	 * @param target
+	 *            vertex id of the destination vertex
+	 * @return edge spanning source to target vertex
+	 */
+	public Edge getEdge(int source, int target) {
+		if (!isVertexInGraph(source) || !isVertexInGraph(target))
+			return null;
+		for (E edge : mOutgoingEdges[source])
+			if (edge.target() == target)
+				return edge;
+		return null;
+	}
+
 	/**
 	 * Adds an edge between two vertices in the graph
 	 * 
 	 * @param edge
 	 *            the edge to be added
 	 */
+	@Override
 	public synchronized void addEdge(E edge) {
 
 		if (null == edge)
@@ -122,6 +146,11 @@ public class SparseGraph<V extends Vertex, E extends Edge> implements
 	}
 
 	@Override
+	public int size() {
+		return mSize;
+	}
+
+	@Override
 	public Collection<E> outgoingEdges (int id){
 		if (!isVertexInGraph(id))
 			throw new NoSuchElementException ("vertex " + id + " not found in this graph.");
@@ -134,41 +163,6 @@ public class SparseGraph<V extends Vertex, E extends Edge> implements
 			throw new NoSuchElementException ("vertex " + id + " not found in this graph.");
 		if (null == mIncomingEdges[id]) return new LinkedList<E>();
 		return Collections.unmodifiableList(mIncomingEdges[id]);
-	}
-
-	/**
-	 * Checks if the vertex corresponding to the given ID exists in this graph.
-	 * 
-	 * @param id
-	 * @return true if exists, false otherwise
-	 */
-	private boolean isVertexInGraph(int id) {
-		return !(id < 0 || id >= mSize);
-	}
-
-	// TODO: sort edges and use binary search
-	/**
-	 * Returns an edge from source vertex to target vertex. Note: this is a slow
-	 * operation (O(degree)) since edges are not sorted.
-	 * 
-	 * @param source
-	 *            vertex id of the origin vertex
-	 * @param target
-	 *            vertex id of the destination vertex
-	 * @return edge spanning source to target vertex
-	 */
-	public Edge getEdge(int source, int target) {
-		if (!isVertexInGraph(source) || !isVertexInGraph(target))
-			return null;
-		for (E edge : mOutgoingEdges[source])
-			if (edge.target() == target)
-				return edge;
-		return null;
-	}
-
-	@Override
-	public int size() {
-		return mSize;
 	}
 
 	@Override
@@ -185,6 +179,16 @@ public class SparseGraph<V extends Vertex, E extends Edge> implements
 			}
 		}
 		return sb.toString();
+	}
+	
+	/**
+	 * Checks if the vertex corresponding to the given ID exists in this graph.
+	 * 
+	 * @param id
+	 * @return true if exists, false otherwise
+	 */
+	private boolean isVertexInGraph(int id) {
+		return !(id < 0 || id >= mSize);
 	}
 
 	private void ensureCapacity(int size) {
