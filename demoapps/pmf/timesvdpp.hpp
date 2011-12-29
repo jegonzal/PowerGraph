@@ -2,7 +2,6 @@
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
@@ -42,12 +41,6 @@ extern problem_setup ps;
 
 extern advanced_config ac;
 extern problem_setup ps;
-double lrate = 0.0001;
-double lrate2 = 0.00005;
-double timesvdpp_beta = 0.00001; 
-double garma = 0.0001; 
-double garma2 = 0.001; 
-
 
 using namespace graphlab;
 
@@ -333,13 +326,13 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 
                 double eui = rui - pui;
 
-                //bu[user_idx] += lrate * (eui - timesvdpp_beta* bu[user_idx]);
-	        *usr.bu += lrate*(eui - timesvdpp_beta * *usr.bu);
+                //bu[user_idx] += ac.tsp.lrate * (eui - timesvdpp_beta* bu[user_idx]);
+	        *usr.bu += ac.tsp.lrate*(eui - beta* *usr.bu);
 
-                //bi[item_idx] += lrate * (eui - timesvdpp_beta* bi[item_idx]);
-                *mov.bi += lrate * (eui - timesvdpp_beta* *mov.bi);
+                //bi[item_idx] += ac.tsp.lrate * (eui - beta* bi[item_idx]);
+                *mov.bi += ac.tsp.lrate * (eui - beta* *mov.bi);
 
-                //bt[t] += lrate * (eui - timesvdpp_beta * bt[t]);
+                //bt[t] += ac.tsp.lrate * (eui - beta * bt[t]);
 		//TODO: check this
 
                time_svdpp_time time(ps.times_svdpp[t]);
@@ -351,25 +344,25 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
                     double userValue = usr.ptemp[k] + usr.pu[k] * time.pt[k];
                     //sum[k] += eui * q[item_idx][k];
                     sum[k] += eui * mov.q[k];
-                    //q[item_idx][k] += lrate * (eui * userValue - garma*q[item_idx][k]);
-                    mov.q[k] += lrate * (eui * userValue - garma*mov.q[k]);
-                    //ptemp[user_idx][k] += lrate * (eui * oldValue - garma * ptemp[user_idx][k]);
-                    usr.ptemp[k] += lrate * ( eui * oldValue - garma * usr.ptemp[k]);
-                    //p[user_idx][k] += lrate * (eui * oldValue - garma*p[user_idx][k]);
-                    usr.p[k] += lrate * ( eui * oldValue - garma*usr.p[k] );
-                    //pu[user_idx][k] += lrate * (eui * oldValue  * pt[t][k] - garma * pu[user_idx][k]);
-                    usr.pu[k] += lrate * (eui * oldValue  * time.pt[k] - garma * usr.pu[k]);
-                    //pt[t][k] += lrate * (eui * oldValue * pu[user_idx][k] - garma * pt[t][k]);
-                    time.pt[k] += lrate * (eui * oldValue * usr.pu[k] - garma * time.pt[k]);
+                    //q[item_idx][k] += ac.tsp.lrate * (eui * userValue - ac.tsp.garma*q[item_idx][k]);
+                    mov.q[k] += ac.tsp.lrate * (eui * userValue - ac.tsp.garma*mov.q[k]);
+                    //ptemp[user_idx][k] += ac.tsp.lrate * (eui * oldValue - ac.tsp.garma * ptemp[user_idx][k]);
+                    usr.ptemp[k] += ac.tsp.lrate * ( eui * oldValue - ac.tsp.garma * usr.ptemp[k]);
+                    //p[user_idx][k] += ac.tsp.lrate * (eui * oldValue - ac.tsp.garma*p[user_idx][k]);
+                    usr.p[k] += ac.tsp.lrate * ( eui * oldValue - ac.tsp.garma*usr.p[k] );
+                    //pu[user_idx][k] += ac.tsp.lrate * (eui * oldValue  * pt[t][k] - ac.tsp.garma * pu[user_idx][k]);
+                    usr.pu[k] += ac.tsp.lrate * (eui * oldValue  * time.pt[k] - ac.tsp.garma * usr.pu[k]);
+                    //pt[t][k] += ac.tsp.lrate * (eui * oldValue * pu[user_idx][k] - ac.tsp.garma * pt[t][k]);
+                    time.pt[k] += ac.tsp.lrate * (eui * oldValue * usr.pu[k] - ac.tsp.garma * time.pt[k]);
                     //double xOldValue = x[user_idx][k];
                     double xOldValue = usr.x[k];
                     //double zOldValue = z[t][k];
                     double zOldValue = time.z[k];
 
-                    //x[user_idx][k] += lrate * (eui * zOldValue - garma * xOldValue);
-                    usr.x[k] += lrate * (eui * zOldValue - garma * xOldValue);
-                    //z[t][k] += lrate * (eui * xOldValue - garma * zOldValue);
-                    time.z[k] += lrate * (eui * xOldValue - garma * zOldValue);
+                    //x[user_idx][k] += ac.tsp.lrate * (eui * zOldValue - ac.tsp.garma * xOldValue);
+                    usr.x[k] += ac.tsp.lrate * (eui * zOldValue - ac.tsp.garma * xOldValue);
+                    //z[t][k] += ac.tsp.lrate * (eui * xOldValue - ac.tsp.garma * zOldValue);
+                    time.z[k] += ac.tsp.lrate * (eui * xOldValue - ac.tsp.garma * zOldValue);
                 }
 
                 //prmse += eui * eui;
@@ -383,8 +376,8 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
                 vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
                 time_svdpp_movie mov(movie);
                 for(int k=0;k<dim;k++){
-                    //y[item_idx][k] += lrate * (rRuNum * sum[k]- garma*y[item_idx][k]);
-                    mov.y[k] += lrate * (rRuNum * sum[k]- garma*mov.y[k]);
+                    //y[item_idx][k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*y[item_idx][k]);
+                    mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
                 }
             }
             //for(unsigned int j=0; j < 4; ++j) {
@@ -396,7 +389,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 		vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
                 time_svdpp_movie mov(movie);
                 for(int k=0;k<dim;k++){
-                    mov.y[k] += lrate * (rRuNum * sum[k]- garma*mov.y[k]);
+                    mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
                 }
             }
             }
@@ -405,7 +398,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
             /*for(unsigned int j=0; j < 6; ++j) {
                 unsigned int item_idx = pItemRatings_test[currentRatingIdx_test++].item;
                 for(int k=0;k<dim;k++){
-                    y[item_idx][k] += lrate * (rRuNum * sum[k]- garma*y[item_idx][k]);
+                    y[item_idx][k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*y[item_idx][k]);
                 }
             }*/
             if (test != NULL && test->num_vertices() > 0){
@@ -414,7 +407,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 		vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
                 time_svdpp_movie mov(movie);
                 for(int k=0;k<dim;k++){
-                    mov.y[k] += lrate * (rRuNum * sum[k]- garma*mov.y[k]);
+                    mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
                 }
             }
             }
@@ -498,7 +491,7 @@ void time_svd_post_iter(){
   double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "time-SVD++", ps.iiter,  rmse, calc_time_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
 
-  lrate *= 0.9;
+  ac.tsp.lrate *= ac.tsp.lrate_mult_dec;
   ps.iiter++;
 }
 

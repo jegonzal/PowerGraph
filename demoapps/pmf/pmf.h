@@ -260,9 +260,6 @@ struct timesvdpp_output{
   mat pt;
 };
 
-
-
-
 /***
  * Class for  holding current information about the problem run
  */

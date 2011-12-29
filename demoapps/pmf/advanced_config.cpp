@@ -43,6 +43,12 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
 
   //SVD++ related switches
   clopts.attach_option("svdpp_step_dec", &svdpp_step_dec, svdpp_step_dec, "SVD++ step decrement ");
+
+  //time-SVD++ related switches
+  clopts.attach_option("timesvdpp_lrate", &tsp.lrate, tsp.lrate, "time-SVD++ learn rate");
+  clopts.attach_option("timesvdpp_beta", &tsp.beta, tsp.beta, "time-SVD++ beta");
+  clopts.attach_option("timesvdpp_gamma", &tsp.garma, tsp.garma, "time-SVD++ gamma");
+  clopts.attach_option("timesvdpp_step_dec", &tsp.lrate_mult_dec, tsp.lrate_mult_dec, "time-SVD++ multiplicative learning decrement");
  
   //SGD related switches
   clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size");

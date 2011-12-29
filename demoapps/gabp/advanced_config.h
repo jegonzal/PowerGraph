@@ -3,6 +3,24 @@
 
 #include "graphlab.hpp"
 
+struct timesvdpp_params{
+  double lrate;
+  double lrate2;
+  double beta; 
+  double garma; 
+  double garma2; 
+  double lrate_mult_dec;
+
+  timesvdpp_params(){
+    lrate =0.0001;
+    beta = 0.00001; 
+    garma = 0.0001;   
+    lrate_mult_dec = 0.9;
+  }
+};
+
+
+
 class advanced_config{
 
 public:
@@ -73,6 +91,7 @@ bool bptf_additional_output; //export factor matrices on each iteration (and not
 
 /* Variables for SVD++ */
 float svdpp_step_dec;//step decrement size for SVD++
+timesvdpp_params tsp; //for time-SVD++
 
 /* Variables for SGD */
 float sgd_gamma; //step size
