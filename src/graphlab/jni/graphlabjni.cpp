@@ -27,14 +27,13 @@
  * will keep their graphs in the Java layer and access the engine through the
  * JNI. This wrapper provides a proxy graph for the engine to manipulate and
  * forwards update calls to the Java layer. To learn how to use this interface,
- * refer to the GraphLabJNIWrapper class and to the examples.
+ * refer to the org.graphlab.Core class and to the examples.
  *
- * Most of the methods in this file belong to the GraphLabJNIWrapper class.
+ * Most of the methods in this file belong to the org.graphlab.Core class.
  * @author akyrola
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 
-#include <jni.h>
 #include <string.h>
 
 #include <cctype>
@@ -43,155 +42,280 @@
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
 
+#include "jni_core.hpp"
+#include "org_graphlab_Core.h"
+
+using namespace graphlab;
+
 /** Proxy edge */
 struct edge_data {};
-/** Proxy vertex */
-struct vertex_data {};
-/** Proxy graph */
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
-// static JavaVM *jvm = NULL;
-// JNIEnv * cachedEnv;
-// jobject cachedObj;
-// jmethodID wrapperMethodID;
-// std::vector<JNIEnv *> envs;
-// 
-// 
+/** Proxy vertex */
+struct vertex_data {
+  int app_id;   /**< corresponding vertex ID in application */
+};
+
+/** Proxy graph */
+typedef graph<vertex_data, edge_data> graph_type;
+
 // int taskbudget=0;
 // int maxiter=0;
 // std::string metrics_type = "none";
-//  
-// void detach_from_JVM() {
-//   int threadid = graphlab::thread::thread_id();
-//   if (envs[threadid] != NULL) {
-//     int res = jvm->DetachCurrentThread();
-//     std::cout << "Detached from JVM: " << res << std::endl;
-//     assert(res>=0);
-//   }
-// }
-// 
-// void jni_update_wrapper(gl_types::iscope &scope,
-// 			gl_types::icallback &scheduler,
-// 			jint functionid);
-// 
-// void jni_update_0(gl_types::iscope &scope,
-// 		  gl_types::icallback &scheduler) {
-//   jni_update_wrapper(scope, scheduler, 0);                  
-// }
-// 
-// void jni_update_1(gl_types::iscope &scope,
-// 		  gl_types::icallback &scheduler) {
-//   jni_update_wrapper(scope, scheduler, 1);                  
-// }
-//  
-// void jni_update_2(gl_types::iscope &scope,
-// 		  gl_types::icallback &scheduler) {
-//   jni_update_wrapper(scope, scheduler, 2);                  
-// }
-//  
-// void jni_update_3(gl_types::iscope &scope,
-// 		  gl_types::icallback &scheduler) {
-//   jni_update_wrapper(scope, scheduler,  3);                  
-// }
-//  
-//  
-// void jni_update_4(gl_types::iscope &scope,
-// 		  gl_types::icallback &scheduler) {
-//   jni_update_wrapper(scope, scheduler,  4);                  
-// }
-// 
-// gl_types::update_function functions[5] = 
-//   {jni_update_0, jni_update_1, jni_update_2, jni_update_3, jni_update_4};
-// 
-// /**
-//  * The Page rank update function
-//  */
-// void jni_update_wrapper(gl_types::iscope &scope,
-// 			gl_types::icallback &scheduler,
-// 			jint functionid) {
-//   jint vertexid = scope.vertex();        
-//   int threadid = graphlab::thread::thread_id();
-//   JNIEnv * jenv;
-//   if (envs[threadid] == NULL) {
-//     int res = jvm->AttachCurrentThread((void **)&jenv, NULL);
-//     std::cout << "Attached to JVM: " << res << std::endl;
-//     assert(res>=0);
-//     envs[threadid] = jenv;
-//   }
-//   jenv = envs[threadid];
-//         
-//   jintArray result = (jintArray) jenv->CallObjectMethod(cachedObj, wrapperMethodID, vertexid, functionid);
-//   jsize task_sz = jenv->GetArrayLength(result)/3;
-//   //  std::cout << "New tasks: " << task_sz << std::endl; 
-//   jboolean isCopy = false;
-//   jint * arr = jenv->GetIntArrayElements(result, &isCopy);
-//         
-//   // Check for exception
-//   jthrowable exc = jenv->ExceptionOccurred();
-//   if (exc) {
-//     std::cout << "Exception occured!!" << std::endl;
-//     /* We don't do much with the exception, except that
-//        we print a debug message for it, clear it, and 
-//        throw a new exception. */
-//     jclass newExcCls;
-//     jenv->ExceptionDescribe();
-//     jenv->ExceptionClear();
-//     newExcCls = jenv->FindClass("java/lang/IllegalArgumentException");
-//     if (newExcCls == NULL) {
-//       /* Unable to find the exception class, give up. */
-//       return;
-//     }
-//     jenv->ThrowNew(newExcCls, "thrown from C code");
-//   }
-//         
-//   for(int i=0; i<task_sz; i++) {
-//     // TODO: support multiple tasks, priority
-//     scheduler.add_task(gl_types::update_task(arr[i], functions[arr[i+task_sz]]), arr[i+2*task_sz]/(1.0e6));
-//   }
-//   jenv->ReleaseIntArrayElements(result, arr, JNI_ABORT);
-// }  
 
 /**
  * Proxy updater
  * Forwards update calls to the Java layer
  */
 class proxy_updater : 
-  public graphlab::iupdate_functor<graph_type, proxy_updater> {
-};
+  public iupdate_functor<graph_type, proxy_updater> {
+  
+public:
 
-/**
- * GraphLab core engine
- * For some reason, pthread assertions throw up when this is statically
- * allocated. So this implementation dynamically allocates the core in
- * the initGraphLab function.
- */
-static graphlab::core<graph_type, proxy_updater> *core = NULL;
+  static jmethodID java_method_id;
+  jobject obj;
+  jint id;        // ID of java updater object
+  
+  void operator()(icontext_type& context) {
+
+    logstream(LOG_DEBUG)
+      << "Proxy updater invoked."
+      << std::endl;
+
+    JNIEnv *jenv = jni_core<graph_type, proxy_updater>::get_JNIEnv ();
+    jint app_vertex_id = context.vertex_data().app_id;
+    logstream(LOG_DEBUG)
+      << "calling java method with id: " << id
+      << " ..."
+      << std::endl;
+    jenv->CallVoidMethod (obj, java_method_id, app_vertex_id, id);
+    logstream(LOG_DEBUG) << "success!" << std::endl;
+    
+    // check for exception
+    jthrowable exc = jenv->ExceptionOccurred();
+    if (exc) {
+      logstream(LOG_ERROR)
+        << "Exception occured!!"
+        << std::endl;
+      jclass newExcCls;
+      jenv->ExceptionDescribe();
+      jenv->ExceptionClear();
+      newExcCls = jenv->FindClass("java/lang/IllegalArgumentException");
+      if (newExcCls == NULL) {
+        // unable to find the exception class, give up.
+        return;
+      }
+      
+      jenv->ThrowNew(newExcCls, "thrown from C code");
+      
+    }
+
+  }
+  
+};
+jmethodID proxy_updater::java_method_id = 0;
+
+typedef jni_core<graph_type, proxy_updater> jni_core_type;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+  JNIEXPORT jlong JNICALL
+  Java_org_graphlab_Core_createCore
+  (JNIEnv *env, jobject obj){
   
-  /*
-   * Class:     graphlab_wrapper_GraphLabJNIWrapper
-   * Method:    initGraphLab
-   * Signature: ()V
-   */
-  JNIEXPORT void JNICALL
-  Java_graphlab_wrapper_GraphLabJNIWrapper_initGraphLab
-  (JNIEnv * env, jobject obj) {
+    // TODO: allow config of log options and command line options
+    // TODO: error and exception handling
   
-    // configure log level
-    global_logger().set_log_level(LOG_INFO);
+    // configure log level (TODO: allow config)
+    global_logger().set_log_level(LOG_DEBUG);
     global_logger().set_log_to_console(true);
  
     // setup the parser
-    graphlab::command_line_options clopts("JNI options. TODO.");
+    command_line_options clopts("JNI options. TODO.");
 
-    // set the engine options
-    if (NULL == core) core = new graphlab::core<graph_type, proxy_updater>();
-    core->set_options(clopts);
+    // set jvm, if we don't have it already
+    if (NULL == jni_core_type::get_jvm()){
+      JavaVM* jvm = NULL;
+      env->GetJavaVM(&jvm);
+      jni_core_type::set_jvm(jvm);
+    }
     
-    logger(LOG_DEBUG, "GraphLab core initialized in JNI.\n");
+    // get the method ID
+    jclass clazz = env->GetObjectClass(obj);
+    if (0 == proxy_updater::java_method_id){
+      proxy_updater::java_method_id =
+        env->GetMethodID(clazz, "execUpdate", "(II)V");
+    }
+    
+    logstream(LOG_DEBUG)
+      << "Method ID retrieved: " << proxy_updater::java_method_id
+      << std::endl;
+    
+    // allocate and configure core
+    jni_core_type *jni_core = new jni_core_type(env, obj);
+    jni_core->core().set_options(clopts);
+    
+    logstream(LOG_DEBUG)
+      << "GraphLab core initialized in JNI."
+      << std::endl;
+    
+    // return address of core
+    return (long) jni_core;
+    
+  }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_destroyCore
+  (JNIEnv *env, jobject obj, jlong ptr){
+    
+    if (NULL == env || 0 == ptr){
+      logstream(LOG_WARNING)
+        << "destroyCore was invoked with invalid parameters."
+        << std::endl;
+      return;
+    }
+    
+    // cleanup
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    delete jni_core;
+    
+    logstream(LOG_DEBUG)
+      << "GraphLab core deleted in JNI."
+      << std::endl;
+    
+  }
+
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_resizeGraph
+  (JNIEnv *env, jobject obj, jlong ptr, jint count){
+    
+    if (NULL == env || 0 == ptr){
+      logstream(LOG_WARNING)
+        << "resizeGraph was invoked with invalid parameters."
+        << std::endl;
+        // TODO: throw exceptions for this method and other methods
+        return;
+    }
+    
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    jni_core->core().graph().resize(count);
+    
+  }
+  
+  JNIEXPORT jint JNICALL
+  Java_org_graphlab_Core_addVertex
+  (JNIEnv *env, jobject obj, jlong ptr, jint id){
+  
+    if (NULL == env || 0 == ptr){
+      logstream(LOG_WARNING)
+        << "resizeGraph was invoked with invalid parameters."
+        << std::endl;
+        // TODO: throw exceptions for this method and other methods
+        return -1;
+    }
+    
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    
+    // init vertex
+    vertex_data vertex;
+    vertex.app_id = id;
+    
+    // add to graph
+    return jni_core->core().graph().add_vertex(vertex);
+  
+  }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_addEdge
+  (JNIEnv *env, jobject obj, jlong ptr, jint source, jint target){
+  
+    if (NULL == env || 0 == ptr){
+      logstream(LOG_WARNING)
+        << "addEdge was invoked with invalid parameters."
+        << std::endl;
+        // TODO: throw exceptions for this method and other methods
+        return;
+    }
+    
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    
+    // add to graph
+    jni_core->core().graph().add_edge(source, target, edge_data());
+  
+  }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_schedule
+  (JNIEnv * env, jobject obj, jlong ptr, jint vertex_id, jint updater_id){
+  
+    if (NULL == env || 0 == ptr){
+      logstream(LOG_WARNING)
+        << "schedule was invoked with invalid parameters."
+        << std::endl;
+        // TODO: throw exceptions for this method and other methods
+        return;
+    }
+
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+  
+    proxy_updater updater;
+    updater.obj = jni_core->obj();
+    updater.id = updater_id;
+
+    jni_core->core().schedule(vertex_id, updater);
+    
+  }
+  
+  JNIEXPORT jdouble JNICALL
+  Java_org_graphlab_Core_start
+  (JNIEnv *env, jobject obj, jlong ptr){
+    
+    if (NULL == env || 0 == ptr){
+      logstream(LOG_WARNING)
+        << "start was invoked with invalid parameters."
+        << std::endl;
+        // TODO: throw exceptions for this method and other methods
+        return 0;
+    }
+    
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+
+    logstream(LOG_DEBUG)
+      << "Graph has: "
+      << jni_core->core().graph().num_vertices() << " vertices and "
+      << jni_core->core().graph().num_edges() << " edges."
+      << std::endl;
+    jni_core->core().engine().get_options().print();
+    
+//     if (taskbudget>0)
+//       core.engine().set_task_budget(taskbudget);
+//     if (maxiter>0)
+//       core.sched_options().add_option("max_iterations", maxiter);
+
+    // set thread destroy callback
+    thread::set_thread_destroy_callback(jni_core_type::detach_from_jvm);
+    double runtime = jni_core->core().start(); 
+
+//     if (metrics_type != "none") {
+//       core.set_metrics_type(metrics_type);
+//       core.fill_metrics();
+//       core.report_metrics();
+//       // Hack: this prevents core destructor from dumping the metrics.
+//       // ... which leads to some weird mutex error.
+//       core.set_metrics_type("none");
+//     }
+
+    logstream(LOG_INFO)
+        << "Finished after " 
+	      << jni_core->core().engine().last_update_count() << " updates."
+	      << std::endl;
+    logstream(LOG_INFO)
+        << "Runtime: " << runtime 
+	      << " seconds."
+	      << std::endl;
+    
+    return runtime;
     
   }
 
@@ -213,38 +337,6 @@ extern "C" {
 //     core.set_scope_type(std::string(str));
 //   }
 // 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    createGraph
-//    * Signature: (I)V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_createGraph
-//   (JNIEnv * env, jobject obj, jint numvertices) {
-//     // Create the dummy vertices
-//     jni_graph & graph = core.graph();
-//     for(int i=0; i<numvertices; i++) {
-//       graph.add_vertex(vertex_data());
-//     }
-//   }
-// 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    addEdges
-//    * Signature: (I[I)V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_addEdges
-//   (JNIEnv * env, jobject obj, jint fromVertex, jintArray toVertices) {
-//     jni_graph & graph = core.graph();
-//     jsize sz = env->GetArrayLength(toVertices);
-//     jboolean isCopy = false;
-//     jint * arr = env->GetIntArrayElements(toVertices, &isCopy);
-//     for(int i=0; i<sz; i++) {
-//       graph.add_edge(fromVertex, arr[i]);
-//     }
-//     env->ReleaseIntArrayElements(toVertices, arr, JNI_ABORT);
-//   }
-//     
-// 
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setVertexColors
 //   (JNIEnv * env, jobject obj, jintArray colors) {
 //     jni_graph & graph = core.graph();
@@ -257,48 +349,6 @@ extern "C" {
 //     env->ReleaseIntArrayElements(colors, arr, JNI_ABORT);
 //   }
 // 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    runGraphlab
-//    * Signature: ()V
-//    */
-//   JNIEXPORT void JNICALL 
-//   Java_graphlab_wrapper_GraphLabJNIWrapper_runGraphlab(JNIEnv * env, jobject obj) {
-//     // HACK - where to get number of workers?
-//     envs.clear(); envs.resize(512, NULL);
-// 
-//     if (jvm == NULL) env->GetJavaVM(&jvm);
-// 
-//     cachedObj = obj;
-//     jclass clazz = env->GetObjectClass(obj);
-//     wrapperMethodID = env->GetMethodID(clazz, "execUpdate", "(II)[I");
-//     std::cout << "Got method ID " << wrapperMethodID << std::endl;
-//     std::cout << "Graph has: " << core.graph().num_vertices() << " vertices and " << 
-//       core.graph().num_edges() << " edges." << std::endl;
-//     core.get_engine_options().print();
-//     if (taskbudget>0)
-//       core.engine().set_task_budget(taskbudget);
-//     if (maxiter>0)
-//       core.sched_options().add_option("max_iterations", maxiter);
-//  
-//     // Set thread destroy callback
-//     graphlab::thread::set_thread_destroy_callback(detach_from_JVM);
-//    
-//     double runtime = core.start(); 
-//     if (metrics_type != "none") {
-//       core.set_metrics_type(metrics_type);
-//       core.fill_metrics();
-//       core.report_metrics();
-//       // Hack: this prevents core destructor from dumping the metrics.
-//       // ... which leads to some weird mutex error.
-//       core.set_metrics_type("none");
-//     }
-//     std::cout << "Finished after " 
-// 	      << core.engine().last_update_count() 
-// 	      << " updates." << std::endl;
-//     std::cout << "Runtime: " << runtime 
-// 	      << " seconds." << std::endl;
-//   }
 // 
 //   /*
 //    * Class:     graphlab_wrapper_GraphLabJNIWrapper

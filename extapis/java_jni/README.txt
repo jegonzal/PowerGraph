@@ -21,7 +21,6 @@ To build your own version of the JNI shared library from C++ GraphLab
 distribution:
   ./configure
 	cd release
-  cmake <... run the cmake command from the ./configure output ...>
 	make
 
 This will create the library (.so suffix for Linux, .dylib for Mac) in
