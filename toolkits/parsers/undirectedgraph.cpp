@@ -53,8 +53,6 @@ struct vertex_data {
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
 
-std::set<uint> * out_edges;
-std::set<uint> * in_edges;
 
 struct edge_data {
 };
@@ -136,13 +134,13 @@ struct stringzipparser_update :
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
         return;
        }
-      strncpy(buf1, pch, 18);
+      strncpy(buf1, pch, 20);
       pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
          return;
        }
-       strncpy(buf2, pch, 18);
+       strncpy(buf2, pch, 20);
       if (!quick){
         pch = strtok_r(NULL, " ",(char**)&saveptr);
         strncpy(buf3, pch, 6);
@@ -162,8 +160,8 @@ struct stringzipparser_update :
         uint from,to;
         find_ids(from, to, buf1, buf2);
         if (from != to){
-          in_edges[from].insert(to);
-          out_edges[to].insert(from);
+          fout << from << " " << to << endl;
+          //fout << to << " " << from << endl;
         }
         else self_edges++;
       }
@@ -174,8 +172,8 @@ struct stringzipparser_update :
       if (lines && line>=lines)
 	 break;
 
-      if (debug && (line % 50000 == 0))
-        logstream(LOG_INFO) << "Parsed line: " << line << " map size is: " << hash2nodeid.size() << std::endl;
+      if (line % 5000000 == 0)
+        logstream(LOG_INFO) << "Parsed line: " << line << " total lines " << total_lines << std::endl;
           if (hash2nodeid.size() % 500000 == 0)
         logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " edges: " << total_lines << std::endl;
     } 
@@ -269,7 +267,7 @@ int main(int argc,  char *argv[]) {
      in_files.push_back(datafile); 
   else in_files = list_all_files_in_dir(dir);
   assert(in_files.size() >= 1);
-  for (int i=0; i< in_files.size(); i++){
+  for (int i=0; i< (int)in_files.size(); i++){
       if (in_files[i].find(".gz") != string::npos){
         vertex_data data(in_files[i]);
         core.graph().add_vertex(data);
@@ -331,24 +329,10 @@ int main(int argc,  char *argv[]) {
    }
    logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
    
-   in_edges = new std::set<uint>[hash2nodeid.size()+2];
-   out_edges = new std::set<uint>[hash2nodeid.size()+2];
-
 
    double runtime= core.start();
   std::cout << "Finished in " << runtime << std::endl;
 
-     std::ofstream out_file(std::string(outdir + ".out.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << outdir << ".out.gz" << std::endl;
-    mytime.start();
-    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-    fout.push(boost::iostreams::gzip_compressor());
-    fout.push(out_file);
-   
-  {
-    fout << in_edges;
-    fout << out_edges;
-   }
 
   logstream(LOG_INFO)<<"Wrote total edges: " << total_lines << " in time: " << mytime.current_time() << std::endl;
  

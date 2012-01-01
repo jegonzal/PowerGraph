@@ -127,7 +127,7 @@ namespace graphlab {
       vcolors(nverts),
       finalized(false),changeid(0) { }
 
-    graph2(const graph<VertexData, EdgeData>& g) { (*this) = g; }
+    //graph2(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
 

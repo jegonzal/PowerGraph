@@ -101,7 +101,14 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 /***
 * Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
 */
-
+/*
+YVjAeZQjnVA IfrTTVlatui 050803 000000 156
+GNgrmichxmG GNgriWokEhN 050803 000000 143
+YnRdCKZkLao MHexzaXWCPL 050803 000000 0
+RGNReqpKcZw RGNRSTDdqew 050803 000000 0
+LPHSeuGhYkN ZFwbovKzAxY 050803 000000 1
+sijmyRRfkwl XtqJaHYFEPqbZqNGPCr 050803 000000 68
+*/
 struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
    void operator()(icontext_type& context) {
@@ -149,13 +156,13 @@ struct stringzipparser_update :
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
         return;
        }
-      strncpy(buf1, pch, 18);
+      strncpy(buf1, pch, 20);
       pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
          return;
        }
-       strncpy(buf2, pch, 18);
+       strncpy(buf2, pch, 20);
       if (!quick){
         pch = strtok_r(NULL, " ",(char**)&saveptr);
         strncpy(buf3, pch, 6);
@@ -271,11 +278,11 @@ int main(int argc,  char *argv[]) {
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("vertex");
   mytime.start();
-  //unit testing
-  if (unittest == 1){
-  }
 
-  std::vector<std::string> in_files = list_all_files_in_dir(dir);
+  std::vector<std::string> in_files;
+  if (datafile.size() > 0)
+     in_files.push_back(datafile);
+  else in_files = list_all_files_in_dir(dir);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);
@@ -291,14 +298,9 @@ int main(int argc,  char *argv[]) {
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
 
-  double runtime= core.start();
- 
-  std::cout << "Finished in " << runtime << std::endl;
-  std::cout << "Total number of edges: " << self_edges << std::endl;
-
   if (load){
     mytime.start();
-    logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
+    logstream(LOG_INFO)<<"Opening input file " << outdir << ".map" << std::endl;
    std::ifstream ifs((outdir + ".map").c_str());
    // save data to archive
    {
@@ -312,13 +314,18 @@ int main(int argc,  char *argv[]) {
  
   }
 
+
+  double runtime= core.start();
+ 
+  std::cout << "Finished in " << runtime << std::endl;
+  std::cout << "Total number of edges: " << self_edges << std::endl;
   //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 
   //write_output_vector(datafile + "x.out", format, ret);
 
     if (save_to_text){
-    std::ofstream out_file(std::string(outdir + datafile + ".map.textgz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << outdir << datafile << ".map.gz" << std::endl;
+    std::ofstream out_file(std::string(outdir + ".map.text.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << outdir << ".map.text.gz" << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
@@ -334,7 +341,7 @@ int main(int argc,  char *argv[]) {
    }
 
     mytime.start();
-    logstream(LOG_INFO)<<"Opening output file " << outdir << datafile << ".map" << std::endl;
+    logstream(LOG_INFO)<<"Opening output file " << outdir << ".map2" << std::endl;
     std::ofstream ofs((outdir + ".map2").c_str());
    // save data to archive
    {

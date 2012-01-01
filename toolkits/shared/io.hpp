@@ -617,9 +617,10 @@ inline double * read_vec(FILE * f, size_t len){
 
 
 //write an output vector to file
-inline void write_vec(const FILE * f, const int len, const double * array){
+template<typename T>
+inline void write_vec(const FILE * f, const int len, const T * array){
   assert(f != NULL && array != NULL);
-  int rc = fwrite(array, len, sizeof(double), (FILE*)f);
+  int rc = fwrite(array, len, sizeof(T), (FILE*)f);
   assert(rc == len);
 }
 
@@ -628,6 +629,14 @@ inline void write_vec(const FILE * f, const int len, const int * array){
   assert(f != NULL && array != NULL);
   int rc = fwrite(array, len, sizeof(int), (FILE*)f);
   assert(rc == len);
+}
+
+inline void write_output_vector_binary(const std::string & datafile, const uint* output, int size){
+
+   FILE * f = open_file(datafile.c_str(), "w");
+   std::cout<<"Writing result to file: "<<datafile<<std::endl;
+   write_vec(f, size, output);
+   fclose(f);
 }
 
 
