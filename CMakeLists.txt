@@ -90,6 +90,14 @@ endif()
 set(Boost_USE_STATIC_LIBS TRUE)
 find_package(Boost 1.39 COMPONENTS 
   program_options; filesystem; system; iostreams REQUIRED)
+if (${Boost_VERSION} LESS 104600)
+  message(STATUS "Boost Filesystem Version 2")
+  add_definitions(-DBOOST_FILESYSTEM_VERSION=2)
+else()  
+  message(STATUS "Boost Filesystem Version 3")
+  add_definitions(-DBOOST_FILESYSTEM_VERSION=3)
+endif()
+
 
 set(Boost_SHARED_LIBRARIES "")
 # Stupid hack because Cmake cannot seperate the shared from the static versions

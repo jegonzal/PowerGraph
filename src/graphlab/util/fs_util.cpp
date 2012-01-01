@@ -48,7 +48,7 @@ list_files_with_suffix(const std::string& pathname,
       iter != end_iter; ++iter) {
     if( ! fs::is_directory(iter->status()) ) {
 
-#if BOOST_VERSION >=104601
+#if BOOST_FILESYSTEM_VERSION >= 3
       std::string filename(iter->path().filename().string());
 #else
       std::string filename(iter->path().filename());
@@ -58,7 +58,7 @@ list_files_with_suffix(const std::string& pathname,
         filename.size() - suffix.size() : 0;
       std::string ending(filename.substr(pos));
       if(ending == suffix) {
-#if BOOST_VERSION >=104601
+#if BOOST_FILESYSTEM_VERSION >= 3
         files.push_back(iter->path().filename().string());
 #else
         files.push_back(iter->path().filename());

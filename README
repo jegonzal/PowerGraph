@@ -57,7 +57,7 @@ To install Boost 1.46 with the minimal set of libraries:
    cd boost_1_46_1
    
    # configure
-   ./bootstrap.sh --with-libraries="filesystem,program_options,system"
+   ./bootstrap.sh --with-libraries="filesystem,program_options,system,iostreams"
    
    # compile
    ./bjam --threading=multi --link=static --variant=release | tee bjamlog.txt

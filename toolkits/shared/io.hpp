@@ -1,5 +1,5 @@
-/* Copyright (c) 2009 Carnegie Mellon University. 
- * ad
+/**
+ * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
  *
  * For more about this software visit:
  *
- *      http://www.graphlab.ml.cmu.edu
+ *      http://graphlab.org
  *  
  */
 
@@ -82,10 +82,10 @@ std::vector<std::string> list_all_files_in_dir(const std::string & dir){
   if ( fs::exists(dir_path) && fs::is_directory(dir_path)) {
     for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
-#if BOOST_FILESYSTEM_VERSION == 2
-        ret.push_back(dir_iter->leaf());
-#else
+#if BOOST_FILESYSTEM_VERSION >= 3
         ret.push_back(dir_iter->path().filename().string());
+#else
+        ret.push_back(dir_iter->leaf());
 #endif
       }
     }
