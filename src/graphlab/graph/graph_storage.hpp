@@ -959,6 +959,21 @@ namespace graphlab {
 
   public:
 
+    const std::vector<vertex_id_type>& get_csr_src() const {
+      return CSR_src;
+    }
+    const std::vector<edge_id_type>& get_csr_dst() const {
+      return CSR_dst;
+    }
+    const std::vector<edge_id_type>& get_csc_src() const {
+      ASSERT_TRUE(is_directed);
+      return CSC_src;
+    }
+    const std::vector<vertex_id_type>& get_csc_dst() const {
+      ASSERT_TRUE(is_directed);
+      return CSC_dst;
+    }
+
     void load(iarchive& arc) {
       clear();
       arc >> is_directed
@@ -991,6 +1006,7 @@ namespace graphlab {
           << CSR_src_skip
           << CSC_dst_skip;
     }
+
   };// End of graph store;
 }// End of namespace;
 #include <graphlab/macros_undef.hpp>

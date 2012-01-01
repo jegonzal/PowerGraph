@@ -500,6 +500,22 @@ namespace graphlab {
       fout.close();
     } // end of save
 
+
+
+    const std::vector<vertex_id_type>& get_out_index_storage() const {
+      return gstore.get_csr_src();
+    }
+    const std::vector<vertex_id_type>& get_in_index_storage() const {
+      return gstore.get_is_directed() ? gstore.get_csc_dst() : gstore.get_csr_src();
+    }
+    const std::vector<vertex_id_type>& get_out_edge_storage() const {
+      return gstore.get_csr_dst();
+    }
+    const std::vector<vertex_id_type>& get_in_edge_storage() const {
+      return gstore.get_is_directed() ? gstore.get_csr_dst() : gstore.get_csr_dst();
+    }
+
+
     /**
      * \brief save the adjacency structure to a text file.
      *

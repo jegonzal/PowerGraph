@@ -86,7 +86,6 @@ std::vector<std::string> list_all_files_in_dir(const std::string & dir, const st
     for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
         std::string filename;
-#define BOOST_FILESYSTEM_VERSION 2
 #if BOOST_FILESYSTEM_VERSION == 2 
         filename = dir_iter->leaf();
 #else
@@ -842,6 +841,39 @@ uint mmap_from_file(std::string filename, uint *& array){
                   logstream(LOG_FATAL) << "Failed to map input file: " << filename << std::endl;
           }
           return sb.st_size;
+}
+
+
+
+// type Graph should be graph2
+template <typename Graph>
+void save_to_bin(std::string filename, Graph& graph) {
+  typedef typename Graph::vertex_id_type vertex_id_type;
+  typedef typename Graph::edge_id_type edge_id_type;
+
+  uint* nodes = new uint[graph.num_vertices()+1];
+  uint* innodes = new uint[graph.num_vertices()+1];
+  uint* edges = new uint[graph.num_edges()];
+  uint* inedges = new uint[graph.num_edges()];
+
+  const std::vector<vertex_id_type>& _nodes = graph.get_out_index_storage();
+  const std::vector<vertex_id_type>& _innodes = graph.get_in_index_storage();
+  const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
+  const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
+
+  std::copy(_nodes.begin(), _nodes.end(), nodes);
+  std::copy(_innodes.begin(), _innodes.end(), innodes);
+
+  nodes[graph.num_vertices()] = graph.num_edges();
+  innodes[graph.num_vertices()] = graph.num_edges();
+
+  std::copy(_edges.begin(), _edges.end(), edges);
+  std::copy(_inedges.begin(), _inedges.end(), inedges);
+
+  write_output_vector_binary(filename + ".bin.nodes", nodes, graph.num_vertices()+1);
+  write_output_vector_binary(filename + "-r.bin.nodes", innodes, graph.num_vertices()+1);
+  write_output_vector_binary(filename + ".bin.edges", edges, graph.num_edges());
+  write_output_vector_binary(filename + "-r.bin.edges", inedges, graph.num_edges());
 }
 
 
