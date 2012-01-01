@@ -509,6 +509,9 @@ namespace graphlab {
         }
       }
 
+
+      bool duplicate_edge_warn = false;
+
       // Construct CSR_src:
       std::cout << "Build CSR_src..." << std::endl;
       CSR_src.reserve(num_vertices);
@@ -524,11 +527,14 @@ namespace graphlab {
         vertex_id_type dst = edges.target_arr[it];
         // Check duplicate edge.
         if (src == old_src && dst == old_dst) {
-          logstream(LOG_FATAL)
+          if (!duplicate_edge_warn)
+            logstream(LOG_WARNING)
             << "Duplicate edge "
             << it << ":(" << src << ", " << dst << ") "
             << "found! Graphlab does not support graphs "
-            << "with duplicate edges." << std::endl;
+            << "with duplicate edges. This error will be reported only once." << std::endl;
+            duplicate_edge_warn = true;
+            continue;
         } else {
           old_src = src;
           old_dst = dst;
@@ -953,6 +959,21 @@ namespace graphlab {
 
   public:
 
+    const std::vector<vertex_id_type>& get_csr_src() const {
+      return CSR_src;
+    }
+    const std::vector<edge_id_type>& get_csr_dst() const {
+      return CSR_dst;
+    }
+    const std::vector<edge_id_type>& get_csc_src() const {
+      ASSERT_TRUE(is_directed);
+      return CSC_src;
+    }
+    const std::vector<vertex_id_type>& get_csc_dst() const {
+      ASSERT_TRUE(is_directed);
+      return CSC_dst;
+    }
+
     void load(iarchive& arc) {
       clear();
       arc >> is_directed
@@ -985,6 +1006,7 @@ namespace graphlab {
           << CSR_src_skip
           << CSC_dst_skip;
     }
+
   };// End of graph store;
 }// End of namespace;
 #include <graphlab/macros_undef.hpp>

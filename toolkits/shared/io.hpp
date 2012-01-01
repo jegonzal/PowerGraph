@@ -42,6 +42,9 @@
 #include <graphlab.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/lexical_cast.hpp>
+
 #include <graphlab/macros_def.hpp>
 
 
@@ -73,7 +76,7 @@ FILE * open_file(const char * name, const char * mode, bool optional = false){
 /*
  * list all existing files inside a specificed directory
  */
-std::vector<std::string> list_all_files_in_dir(const std::string & dir){
+std::vector<std::string> list_all_files_in_dir(const std::string & dir, const std::string &prefix){
   namespace fs = boost::filesystem;  
   std::vector<std::string> ret;
 
@@ -82,11 +85,15 @@ std::vector<std::string> list_all_files_in_dir(const std::string & dir){
   if ( fs::exists(dir_path) && fs::is_directory(dir_path)) {
     for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
-#if BOOST_FILESYSTEM_VERSION >= 3
-        ret.push_back(dir_iter->path().filename().string());
+        std::string filename;
+#if BOOST_FILESYSTEM_VERSION >= 3 
+        filename = dir_iter->path().filename().string();
 #else
-        ret.push_back(dir_iter->leaf());
+        filename = dir_iter->leaf();
 #endif
+        if (prefix.size() > 0 && !boost::starts_with(filename,prefix)) 
+          continue;
+        ret.push_back(filename);
       }
     }
   }
@@ -610,24 +617,41 @@ void save_matrix_market_format_matrix(const std::string datafile, const mat & ou
 inline double * read_vec(FILE * f, size_t len){
   double * vec = new double[len];
   assert(vec != NULL);
-  int rc = fread(vec, len, sizeof(double), f);
+  int rc = fread(vec, sizeof(double), len, f);
   assert(rc == (int)len);
   return vec;
 }
 
 
 //write an output vector to file
-inline void write_vec(const FILE * f, const int len, const double * array){
+template<typename T>
+inline void write_vec(const FILE * f, const int len, const T * array){
+  int total = 0;
   assert(f != NULL && array != NULL);
-  int rc = fwrite(array, len, sizeof(double), (FILE*)f);
-  assert(rc == len);
+  while(total < len){
+     int rc = fwrite(array, sizeof(T), len, (FILE*)f);
+    if (rc <= 0){
+      perror("fwrite");
+      logstream(LOG_FATAL) << "Failed writing array" << std::endl; 
+    }
+    total += rc;
+  }
+  assert(total == len);
 }
 
 //write an output vector to file
 inline void write_vec(const FILE * f, const int len, const int * array){
   assert(f != NULL && array != NULL);
-  int rc = fwrite(array, len, sizeof(int), (FILE*)f);
+  int rc = fwrite(array, sizeof(int), len, (FILE*)f);
   assert(rc == len);
+}
+
+inline void write_output_vector_binary(const std::string & datafile, const uint* output, int size){
+
+   FILE * f = open_file(datafile.c_str(), "w");
+   std::cout<<"Writing result to file: "<<datafile<<std::endl;
+   write_vec(f, size, output);
+   fclose(f);
 }
 
 
@@ -817,6 +841,39 @@ uint mmap_from_file(std::string filename, uint *& array){
                   logstream(LOG_FATAL) << "Failed to map input file: " << filename << std::endl;
           }
           return sb.st_size;
+}
+
+
+
+// type Graph should be graph2
+template <typename Graph>
+void save_to_bin(std::string filename, Graph& graph) {
+  typedef typename Graph::vertex_id_type vertex_id_type;
+  typedef typename Graph::edge_id_type edge_id_type;
+
+  uint* nodes = new uint[graph.num_vertices()+1];
+  uint* innodes = new uint[graph.num_vertices()+1];
+  uint* edges = new uint[graph.num_edges()];
+  uint* inedges = new uint[graph.num_edges()];
+
+  const std::vector<vertex_id_type>& _nodes = graph.get_out_index_storage();
+  const std::vector<vertex_id_type>& _innodes = graph.get_in_index_storage();
+  const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
+  const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
+
+  std::copy(_nodes.begin(), _nodes.end(), nodes);
+  std::copy(_innodes.begin(), _innodes.end(), innodes);
+
+  nodes[graph.num_vertices()] = graph.num_edges();
+  innodes[graph.num_vertices()] = graph.num_edges();
+
+  std::copy(_edges.begin(), _edges.end(), edges);
+  std::copy(_inedges.begin(), _inedges.end(), inedges);
+
+  write_output_vector_binary(filename + ".bin.nodes", nodes, graph.num_vertices()+1);
+  write_output_vector_binary(filename + "-r.bin.nodes", innodes, graph.num_vertices()+1);
+  write_output_vector_binary(filename + ".bin.edges", edges, graph.num_edges());
+  write_output_vector_binary(filename + "-r.bin.edges", inedges, graph.num_edges());
 }
 
 

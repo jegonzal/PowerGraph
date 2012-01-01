@@ -28,17 +28,21 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/unordered_map.hpp>
+#include <boost/archive/text_oarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/unordered_map.hpp>
+#include <graphlab/graph/graph2.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
+#include <graphlab/macros_def.hpp>
 using namespace graphlab;
 using namespace std;
 
-
+#define DUMMY 987654321
 bool debug = false;
-bool quick = true;
+bool quick = false;
 boost::unordered_map<string,uint> hash2nodeid;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
@@ -53,12 +57,35 @@ struct vertex_data {
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
 
-
 struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
+
+struct vertex_data2 {
+  bool active;
+  int kcore, degree;
+
+  vertex_data2() : active(true), kcore(-1), degree(0)  {}
+
+  void add_self_edge(double value) { }
+
+  void set_val(double value, int field_type) { 
+  }
+  //only one output for jacobi - solution x
+  double get_output(int field_type){ 
+    return -1; //TODO
+  }
+}; // end of vertex_data
+
+struct edge_data2 {
+  edge_data2()  { }
+  //compatible with parser which have edge value (we don't need it)
+  edge_data2(double val)  { }
+};
+
+typedef graphlab::graph2<vertex_data2, edge_data2> graph_type2;
 
 
 
@@ -69,29 +96,84 @@ void assign_id(uint & outval, const string &name){
      outval = it->second;
      return;
   }
-  logstream(LOG_ERROR)<<"Did not find map entry: " << name << std::endl;
-  assert(false);
+  mymutex.lock();
+  outval = hash2nodeid[name];
+  if (outval == 0){
+      hash2nodeid[name] = ++conseq_id;
+      outval = conseq_id;
+  }
+  mymutex.unlock();
 }
 
 
+void assign_id_quick(const string& name){
+  mymutex.lock();
+  hash2nodeid[name] = 1;
+  mymutex.unlock();
+}
 
 void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 
    assign_id(from, buf1);
    assign_id(to, buf2);
+   //if (from == to)
+   //   logstream(LOG_WARNING)<< " from equals to: " << from << " "  << buf1 << " " <<buf2 << std::endl;
+   if (from == to)
+     self_edges++;
    assert(from > 0 && to > 0);
 }
 
 
+void save_to_bin(std::string filename, graph_type2 & _graph){
+  
+typedef graph2<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
+typedef graph_storage<vertex_data2,edge_data2>::edge_type edge_type2;   
+ 
+   uint * nodes = new uint[_graph.num_vertices()+1];
+   uint * innodes = new uint[_graph.num_vertices()+1];
+   uint * edges = new uint[_graph.num_edges()];
+   uint * inedges = new uint[_graph.num_edges()];
+   nodes[0] = 0;
+   innodes[0] = 0;
+   int cnt = 0;
+   int incnt = 0;
+   for (int i=0; i< (int)_graph.num_vertices(); i++){
+     nodes[i+1] = nodes[i]+ _graph.out_edges(i).size(); 
+     innodes[i+1] = innodes[i] + _graph.in_edges(i).size();
+     const edge_list_type2 out_edges = _graph.out_edges(i);
+     const edge_list_type2 in_edges = _graph.in_edges(i);
+     foreach(const edge_type2 & edge, out_edges){
+       edges[cnt++] = (uint)edge.target();
+     } 
+     foreach(const edge_type2 & edge, in_edges){
+       inedges[incnt++] = edge.source();
+     }
+   };
+   assert(cnt == (int)_graph.num_edges());
+   assert(incnt == cnt);
+   write_output_vector_binary(filename + ".bin.nodes", nodes, _graph.num_vertices()+1); 
+   write_output_vector_binary(filename + "-r.bin.nodes", innodes, _graph.num_vertices()+1); 
+   write_output_vector_binary(filename + ".bin.edges", edges, _graph.num_edges());
+   write_output_vector_binary(filename + "-r.bin.edges", inedges, _graph.num_edges());
+};
+
 /***
 * Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
 */
-
+/*
+YVjAeZQjnVA IfrTTVlatui 050803 000000 156
+GNgrmichxmG GNgriWokEhN 050803 000000 143
+YnRdCKZkLao MHexzaXWCPL 050803 000000 0
+RGNReqpKcZw RGNRSTDdqew 050803 000000 0
+LPHSeuGhYkN ZFwbovKzAxY 050803 000000 1
+sijmyRRfkwl XtqJaHYFEPqbZqNGPCr 050803 000000 68
+*/
 struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
    void operator()(icontext_type& context) {
     
    std::string dir = context.get_global<std::string>("PATH");
+   int nodes = context.get_global<int>("NUM_NODES");
    std::string outdir = context.get_global<std::string>("OUTPATH");
 
     //open file
@@ -102,34 +184,24 @@ struct stringzipparser_update :
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
-    std::ofstream out_file(std::string(outdir + vdata.filename + ".out.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << outdir << vdata.filename << ".out.gz" << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-    fout.push(boost::iostreams::gzip_compressor());
-    fout.push(out_file);
-   
-    MM_typecode out_typecode;
-    mm_clear_typecode(&out_typecode);
-    mm_set_integer(&out_typecode); 
-    mm_set_dense(&out_typecode); 
-    mm_set_matrix(&out_typecode);
-    mm_write_cpp_banner(fout, out_typecode);
-    mm_write_cpp_mtx_crd_size(fout, 987654321, 987654321, 987654322);
+    edge_data2 edge; 
+    graph_type2 _graph;
+    _graph.resize(nodes);
 
-
-    char linebuf[256], buf1[256], buf2[256], buf3[256];
+    char linebuf[256], buf1[256], buf2[256];
     char saveptr[1024];
-    int duration;
     int line = 1;
     int lines = context.get_global<int>("LINES");
-    int dateret, timeret;
    
     while(true){
       fin.getline(linebuf, 128);
       if (fin.eof())
         break;
 
-       char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
+      if (linebuf[0] == '%') //skip comments
+        continue;
+
+      char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
         return;
@@ -141,51 +213,32 @@ struct stringzipparser_update :
          return;
        }
        strncpy(buf2, pch, 20);
-      if (!quick){
-        pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3, pch, 6);
-        buf3[6] = ' ';
-        pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3+7,pch,6);
-        pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
-        duration = atoi(pch);
-        datestr2uint64(std::string(buf3), dateret, timeret);
-        uint from, to;
-        find_ids(from, to, buf1, buf2);
-        if (debug && line <= 10)
-            cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << dateret << " time: " << timeret << " val: " << duration << endl;
-         fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
-      }
-      else {
-        uint from,to;
-        find_ids(from, to, buf1, buf2);
-        if (from != to){
-          fout << from << " " << to << endl;
-          //fout << to << " " << from << endl;
-        }
-        else self_edges++;
-      }
+       uint from = boost::lexical_cast<uint>(buf1);
+       uint to = boost::lexical_cast<uint>(buf2);
+       if (from == DUMMY && to == DUMMY) //placeholder for matrix market size, to be done later
+           continue;
+       _graph.add_edge(from, to, edge); 
+       _graph.add_edge(to, from, edge); 
 
-      //fin.read(buf1,1); //go over \n
       line++;
       total_lines++;
+      if (total_lines % 1000000 == 0)
+        logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " edges: " << total_lines << endl;
+
       if (lines && line>=lines)
 	 break;
 
-      if (line % 5000000 == 0)
-        logstream(LOG_INFO) << "Parsed line: " << line << " total lines " << total_lines << std::endl;
-          if (hash2nodeid.size() % 500000 == 0)
-        logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " edges: " << total_lines << std::endl;
     } 
 
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename <<
-	                 "total lines " << total_lines << endl;
+   logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
 
     // close file
     fin.pop(); fin.pop();
-    fout.pop(); fout.pop();
+    _graph.finalize();
+    logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " Going to save Graph to file" << endl;
+    save_to_bin(vdata.filename, _graph);
+    logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " Finished saving Graph to file" << endl;
     in_file.close();
-    out_file.close();
   }
 
 
@@ -219,10 +272,13 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
-  std::string dir = "/mnt/bigbrofs/usr0/bickson/phone_calls/";
-  std::string outdir = "/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
+  std::string dir = "/usr2/bickson/daily.sorted/";
+  std::string outdir = "/usr2/bickson/bin.graphs/";
   int unittest = 0;
   int lines = 0;
+  int numnodes = 121408373;
+  std::string filter = "day";
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -233,7 +289,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
-
+  clopts.attach_option("num_nodes", &numnodes, numnodes, "Number of nodes");
+  clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -257,21 +314,15 @@ int main(int argc,  char *argv[]) {
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("vertex");
   mytime.start();
-  //unit testing
-  if (unittest == 1){
-  }
 
-  
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
-     in_files.push_back(datafile); 
-  else in_files = list_all_files_in_dir(dir, "");
+     in_files.push_back(datafile);
+  else in_files = list_all_files_in_dir(dir, filter);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
-      if (in_files[i].find(".gz") != string::npos){
-        vertex_data data(in_files[i]);
-        core.graph().add_vertex(data);
-     }
+      vertex_data data(in_files[i]);
+      core.graph().add_vertex(data);
   }
 
   std::cout << "Schedule all vertices" << std::endl;
@@ -282,69 +333,16 @@ int main(int argc,  char *argv[]) {
   core.add_global("LINES", lines); 
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
-/*
-   logstream(LOG_INFO)<<"Reading hash map from file" << std::endl;
-    std::ifstream in_file((outdir + ".map.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening input file: " << outdir << ".map.gz" << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-    fin.push(boost::iostreams::gzip_decompressor());
-    fin.push(in_file);  
-
-   int line = 0;
-    char linebuf[128];
-    char saveptr[128], buf1[128], buf2[128];
-    while(true){
-      fin.getline(linebuf, 128);
-      if (fin.eof()){
-        logstream(LOG_INFO) << "File ended after " << line << " lines " << std::endl;
-        break;
-     }
-    line++;
-      char *pch = strtok_r(linebuf," ",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing imap file: " << ":" << line <<std::endl;
-        return EXIT_FAILURE;
-       }
-      strncpy(buf1, pch, strlen(pch)+1);
-      pch = strtok_r(NULL, " \n",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: "  << ":" << line <<std::endl;
-         return EXIT_FAILURE;
-       }
-       strncpy(buf2, pch, strlen(pch)+1);
-
-      hash2nodeid[std::string(buf1)] = boost::lexical_cast<uint>(buf2);
-     } 
-   logstream(LOG_INFO)<<"Read total of " << hash2nodeid.size() << " entries" << std::endl;
-*/
-    mytime.start();
-    logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
-   std::ifstream ifs((outdir + ".map").c_str());
-   // save data to archive
-   {
-   graphlab::iarchive ia(ifs);
-   // write map instance to archive
-   ia >> hash2nodeid;
-   // archive and stream closed when destructors are called
-   }
-   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
-   
-
-   double runtime= core.start();
-  std::cout << "Finished in " << runtime << std::endl;
+  core.add_global("NUM_NODES", numnodes);
 
 
-  logstream(LOG_INFO)<<"Wrote total edges: " << total_lines << " in time: " << mytime.current_time() << std::endl;
+  double runtime= core.start();
  
-
-  //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
-
-  //write_output_vector(datafile + "x.out", format, ret);
-
-
-   
+  std::cout << "Finished in " << runtime << std::endl;
+  std::cout << "Total number of edges: " << self_edges << std::endl;
    return EXIT_SUCCESS;
 }
 
 
+#include <graphlab/macros_undef.hpp>
 
