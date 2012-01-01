@@ -524,11 +524,12 @@ namespace graphlab {
         vertex_id_type dst = edges.target_arr[it];
         // Check duplicate edge.
         if (src == old_src && dst == old_dst) {
-          logstream(LOG_FATAL)
+          logstream(LOG_WARNING)
             << "Duplicate edge "
             << it << ":(" << src << ", " << dst << ") "
             << "found! Graphlab does not support graphs "
             << "with duplicate edges." << std::endl;
+            continue;
         } else {
           old_src = src;
           old_dst = dst;

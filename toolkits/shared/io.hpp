@@ -82,7 +82,8 @@ std::vector<std::string> list_all_files_in_dir(const std::string & dir){
   if ( fs::exists(dir_path) && fs::is_directory(dir_path)) {
     for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
-#if BOOST_FILESYSTEM_VERSION == 2
+#define BOOST_FILESYSTEM_VERSION 2
+#if BOOST_FILESYSTEM_VERSION == 2 
         ret.push_back(dir_iter->leaf());
 #else
         ret.push_back(dir_iter->path().filename().string());
@@ -610,7 +611,7 @@ void save_matrix_market_format_matrix(const std::string datafile, const mat & ou
 inline double * read_vec(FILE * f, size_t len){
   double * vec = new double[len];
   assert(vec != NULL);
-  int rc = fread(vec, len, sizeof(double), f);
+  int rc = fread(vec, sizeof(double), len, f);
   assert(rc == (int)len);
   return vec;
 }
@@ -619,15 +620,23 @@ inline double * read_vec(FILE * f, size_t len){
 //write an output vector to file
 template<typename T>
 inline void write_vec(const FILE * f, const int len, const T * array){
+  int total = 0;
   assert(f != NULL && array != NULL);
-  int rc = fwrite(array, len, sizeof(T), (FILE*)f);
-  assert(rc == len);
+  while(total < len){
+     int rc = fwrite(array, sizeof(T), len, (FILE*)f);
+    if (rc <= 0){
+      perror("fwrite");
+      logstream(LOG_FATAL) << "Failed writing array" << std::endl; 
+    }
+    total += rc;
+  }
+  assert(total == len);
 }
 
 //write an output vector to file
 inline void write_vec(const FILE * f, const int len, const int * array){
   assert(f != NULL && array != NULL);
-  int rc = fwrite(array, len, sizeof(int), (FILE*)f);
+  int rc = fwrite(array, sizeof(int), len, (FILE*)f);
   assert(rc == len);
 }
 
