@@ -42,6 +42,9 @@
 #include <graphlab.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/lexical_cast.hpp>
+
 #include <graphlab/macros_def.hpp>
 
 
@@ -73,7 +76,7 @@ FILE * open_file(const char * name, const char * mode, bool optional = false){
 /*
  * list all existing files inside a specificed directory
  */
-std::vector<std::string> list_all_files_in_dir(const std::string & dir){
+std::vector<std::string> list_all_files_in_dir(const std::string & dir, const std::string &prefix){
   namespace fs = boost::filesystem;  
   std::vector<std::string> ret;
 
@@ -82,12 +85,16 @@ std::vector<std::string> list_all_files_in_dir(const std::string & dir){
   if ( fs::exists(dir_path) && fs::is_directory(dir_path)) {
     for( fs::directory_iterator dir_iter(dir_path) ; dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
+        std::string filename;
 #define BOOST_FILESYSTEM_VERSION 2
 #if BOOST_FILESYSTEM_VERSION == 2 
-        ret.push_back(dir_iter->leaf());
+        filename = dir_iter->leaf();
 #else
-        ret.push_back(dir_iter->path().filename().string());
+        filename = dir_iter->path().filename().string();
 #endif
+        if (prefix.size() > 0 && !boost::starts_with(filename,prefix)) 
+          continue;
+        ret.push_back(filename);
       }
     }
   }

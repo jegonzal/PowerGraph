@@ -241,6 +241,7 @@ int main(int argc,  char *argv[]) {
   int lines = 0;
   bool load = false;
   bool save_to_text = false;
+  std::string filter = "";
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
@@ -282,7 +283,7 @@ int main(int argc,  char *argv[]) {
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
      in_files.push_back(datafile);
-  else in_files = list_all_files_in_dir(dir);
+  else in_files = list_all_files_in_dir(dir, filter);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);

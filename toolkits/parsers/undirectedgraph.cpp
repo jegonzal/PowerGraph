@@ -265,7 +265,7 @@ int main(int argc,  char *argv[]) {
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
      in_files.push_back(datafile); 
-  else in_files = list_all_files_in_dir(dir);
+  else in_files = list_all_files_in_dir(dir, "");
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       if (in_files[i].find(".gz") != string::npos){

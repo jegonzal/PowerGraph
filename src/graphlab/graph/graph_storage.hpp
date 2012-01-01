@@ -509,6 +509,9 @@ namespace graphlab {
         }
       }
 
+
+      bool duplicate_edge_warn = false;
+
       // Construct CSR_src:
       std::cout << "Build CSR_src..." << std::endl;
       CSR_src.reserve(num_vertices);
@@ -524,11 +527,13 @@ namespace graphlab {
         vertex_id_type dst = edges.target_arr[it];
         // Check duplicate edge.
         if (src == old_src && dst == old_dst) {
-          logstream(LOG_WARNING)
+          if (!duplicate_edge_warn)
+            logstream(LOG_WARNING)
             << "Duplicate edge "
             << it << ":(" << src << ", " << dst << ") "
             << "found! Graphlab does not support graphs "
-            << "with duplicate edges." << std::endl;
+            << "with duplicate edges. This error will be reported only once." << std::endl;
+            duplicate_edge_warn = true;
             continue;
         } else {
           old_src = src;
