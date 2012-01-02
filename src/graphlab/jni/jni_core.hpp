@@ -110,7 +110,8 @@ namespace graphlab {
         logstream(LOG_INFO)
           << "Detached from JVM: " << res
           << std::endl;
-        assert(res>=0);
+        assert(res >= 0);
+        menvs[thread_id] = NULL;
       }
       
     }

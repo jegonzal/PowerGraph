@@ -27,10 +27,10 @@ public abstract class Updater {
 	 * Updates the vertex identified by <tt>vertex_id</tt>. Subclasses may wish
 	 * to maintain a reference to the graph object.
 	 * 
-	 * @param contextPtr   address of C++ context object
+	 * @param context
 	 * @param vertexId     application vertex ID
 	 */
-	public abstract void update(long corePtr, long contextPtr, int vertexId);
+	public abstract void update(Context context, int vertexId);
 
 	/**
 	 * Do not call. This is only useful to the scheduler.

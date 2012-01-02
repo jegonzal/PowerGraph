@@ -14,7 +14,8 @@ import org.graphlab.data.Graph;
 import org.graphlab.data.Vertex;
 
 /**
- * GraphLab Core. This interfaces with the C++ library via JNI.
+ * GraphLab Core. This interfaces with the C++ library via JNI and mirrors
+ * graphlab::core.
  * 
  * @author Jiunn Haur Lim
  * @param <G> 		graph type -> must extend {@link org.graphlab.data.Graph}
@@ -27,14 +28,17 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/** Indicates if the core has been destroyed and cannot be reused. */
 	private boolean mDestroyed = false;
 
-	/** Address of graphlab::core */
+	/** Address of graphlab::core object */
 	private long mCorePtr;
-
-	/** Mapping from application vertex IDs to graphlab vertex IDs */
-	private Map<Integer, Integer> mIdMap = null;
 	
-	/** Updaters scheduled by {@link #schedule(int, Updater)} */
-	private List<Updater> mUpdaters;
+  /** Mapping from application vertex IDs to graphlab vertex IDs */
+  private Map<Integer, Integer> mIdMap = null;
+  
+  /**
+   * Updaters scheduled by {@link Core#schedule(int, Updater)} and
+   * {@link Context#schedule(long, long, int, Updater)}.
+   */
+  private List<Updater> mUpdaters;
 
 	static {
 		// load the JNI library
@@ -51,13 +55,12 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	public Core() throws CoreException {
 
 		mCorePtr = createCore();
-
 		if (0 >= mCorePtr)
 			throw new CoreException("Unable to create a core.");
-
 		logger.trace ("Core created.");
 		
-		mUpdaters = Collections.synchronizedList(new ArrayList<Updater>());
+		// TODO: optimize
+    mUpdaters = Collections.synchronizedList(new ArrayList<Updater>());
 
 	}
 
@@ -95,15 +98,14 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 		// add vertices
 		for (Vertex v : vertices) {
-			mIdMap.put(v.id(), addVertex(mCorePtr, v.id()));
+		  mIdMap.put(v.id(), addVertex(mCorePtr, v.id()));
 		}
-		Context.getInstance().setIdMap(mIdMap);
 
 		// add edges
 		for (Vertex v : vertices) {
 			for (Edge e : graph.outgoingEdges(v.id())) {
 				addEdge(mCorePtr, mIdMap.get(e.source()),
-						mIdMap.get(e.target()));
+				    mIdMap.get(e.target()));
 			}
 		}
 
@@ -127,12 +129,11 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 		destroyCore(mCorePtr);
 		mDestroyed = true;
+		logger.trace("Core destroyed.");
 		
 		// remove references to allow garbage collection
 		mIdMap = null;
 		mUpdaters = null;
-
-		logger.trace("Core destroyed.");
 
 	}
 
@@ -175,17 +176,30 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		if (null == id)
 			throw new NoSuchElementException("vertex did not exist in the graph that was passed to #setGraph.");
 
-		if (updater.id() != Updater.ID_NOT_SET){
-			// this updater already has an ID, insert
-			mUpdaters.set(updater.id(), updater);
-		}else {
-			// otherwise, add to end of list and assign id
-			mUpdaters.add(updater);
-			updater.setId(mUpdaters.size()-1);
-		}
-		
+		addUpdater(updater);
 		schedule(mCorePtr, id, updater.id());
 		
+	}
+	
+	/**
+	 * Adds an updater to the list of updaters maintained by the core.
+	 * This is necessarily because {@link #execUpdate(long, int, int)}
+	 * only receives the index of the updater (in the list) to execute.
+	 * @param updater    the updater to add
+	 */
+	protected void addUpdater(Updater updater){
+	  
+	  if (null == updater) throw new NullPointerException("updater must not be null.");
+	  
+	  if (updater.id() != Updater.ID_NOT_SET){
+      // this updater already has an ID, insert
+      mUpdaters.set(updater.id(), updater);
+    }else {
+      // otherwise, add to end of list and assign id
+      mUpdaters.add(updater);
+      updater.setId(mUpdaters.size()-1);
+    }
+	  
 	}
 
 	/**
@@ -193,16 +207,17 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * invoked by the proxy updater in the JNI library.
 	 * 
 	 * @param contextPtr
-	 *         address of C++ context object
+	 *        address of graphlab::icontext_type object
 	 * @param vertexId
 	 * 				application vertex ID
 	 * @param updaterId
 	 * 				updater ID (as assigned by {@link #schedule(int, Updater)}).
 	 */
-	private void execUpdate (long corePtr, long contextPtr, int vertexId, int updaterId){
+	private void execUpdate (long contextPtr, int vertexId, int updaterId){
 		
 		Updater updater = mUpdaters.get(updaterId);
-		updater.update(corePtr, contextPtr, vertexId);
+		Context context = new Context(this, mCorePtr, contextPtr, mIdMap);
+		updater.update(context, vertexId);
 		
 	}
 	

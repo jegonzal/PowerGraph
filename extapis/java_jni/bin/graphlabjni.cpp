@@ -74,7 +74,6 @@ public:
 
   static jmethodID java_method_id;  // id of Core#execUpdate
   
-  jni_core<graph_type, proxy_updater> *jcore;
   jobject obj;    // java core object
   jint id;        // ID of java updater object
   
@@ -83,7 +82,6 @@ public:
     JNIEnv *jenv = jni_core<graph_type, proxy_updater>::get_JNIEnv ();
     jint app_vertex_id = context.vertex_data().app_id;
     jenv->CallVoidMethod (obj, java_method_id,
-                         (long) jcore,
                          &context,
                          app_vertex_id,
                          id);
@@ -141,7 +139,7 @@ extern "C" {
     jclass clazz = env->GetObjectClass(obj);
     if (0 == proxy_updater::java_method_id){
       proxy_updater::java_method_id =
-        env->GetMethodID(clazz, "execUpdate", "(JJII)V");
+        env->GetMethodID(clazz, "execUpdate", "(JII)V");
     }
     
     // allocate and configure core
@@ -254,7 +252,6 @@ extern "C" {
   
     // initialize proxy updater
     proxy_updater updater;
-    updater.jcore = jni_core;
     updater.obj = jni_core->obj();
     updater.id = updater_id;
 
@@ -334,12 +331,8 @@ extern "C" {
     proxy_updater updater;
     updater.obj = jni_core->obj();
     updater.id = updater_id;
-
-    // schedule vertex
+    
     context->schedule(vertex_id, updater);
-    logstream(LOG_DEBUG)
-        << "Scheduled vertex " << vertex_id 
-	      << std::endl;
     
   }
 

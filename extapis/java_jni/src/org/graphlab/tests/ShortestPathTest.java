@@ -65,7 +65,7 @@ public class ShortestPathTest {
 		
 	}
 	
-	// @Test
+	@Test
 	public void testToyGraph() throws IOException {
 
 		// load graph
@@ -112,7 +112,7 @@ public class ShortestPathTest {
 		}
 
 		@Override
-		public void update (long corePtr, long contextPtr, int vertexId){
+		public void update (Context context, int vertexId){
 
 			ScalarVertex vertex = g.getVertex(vertexId);
 			System.out.println ("Updater called on vertex " + vertexId);
@@ -132,7 +132,7 @@ public class ShortestPathTest {
 				System.out.println ("Checking vertex " + neighbor.id());
 				if (neighbor.value() > (vertex.value() + edge.weight())){
 					System.out.println ("rescheduling vertex " + neighbor.id());
-					Context.getInstance().schedule(corePtr, contextPtr, neighbor.id(), this);
+					context.schedule(neighbor.id(), this);
 				}
 			}
 

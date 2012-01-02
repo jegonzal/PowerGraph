@@ -5,45 +5,55 @@ import java.util.NoSuchElementException;
 
 public final class Context {
   
+  private Core<?> mCore;
+  private long mCorePtr;
+  private long mContextPtr;
+  
+  /** Map from application vertex IDs to graphlab vertex IDs */
+  private Map<Integer, Integer> mIdMap;
+  
+  protected Context (Core<?> core, long corePtr, long contextPtr, Map<Integer, Integer> idMap){
+    
+    if (null == core || null == idMap)
+      throw new NullPointerException ("core and idMap must not be null.");
+    
+    mCore = core;
+    mCorePtr = corePtr;
+    mContextPtr = contextPtr;
+    mIdMap = idMap;
+     
+  }
+  
   /**
-   * Thread-safe singleton container.
-   * This class is loaded only when {@link Context#getInstance} is first
-   * accessed and is loaded exactly once (Java language guarantee).
-   * @see <a href="http://www.cs.umd.edu/~pugh/java/memoryModel/DoubleCheckedLocking.html">Singleton</a>
+   * Schedules the specified vertex for updating.
+   * @param vertexId
+   *        application vertex ID of vertex to update
+   * @param updater
+   *        ID of updater to apply on the vertex
    */
-  private static class SingletonHolder {
-    public static final Context singleton = new Context();
-  }
-  
-  private Map<Integer, Integer> mIdMap = null;
-  
-  private Context (){
-  }
-  
-  public static Context getInstance (){
-    return SingletonHolder.singleton;
-  }
-  
-  protected void setIdMap (Map<Integer, Integer> map){
-    mIdMap = map;
-  }
-  
-  public void schedule (long corePtr, long contextPtr, int vertexId, Updater updater){
+  public void schedule (int vertexId, Updater updater){
     
     if (null == updater)
       throw new NullPointerException("updater must not be null.");
-    
-    if (null == mIdMap)
-      throw new NullPointerException("mIdMap not initialized.");
 
     Integer glVertexId = mIdMap.get(vertexId);
     if (null == glVertexId)
       throw new NoSuchElementException("vertex did not exist in the graph that was passed to Core#setGraph.");
 
-    schedule(corePtr, contextPtr, glVertexId, updater.id());
+    mCore.addUpdater(updater);
+    schedule(mCorePtr, mContextPtr, glVertexId, updater.id());
     
   }
   
+  /**
+   * Schedules the specified vertex for updating.
+   * @param core_ptr
+   * @param context_ptr
+   * @param vertex_id
+   *        graphlab vertex ID of vertex to update
+   * @param updater_id
+   *        ID of updater to apply on the vertex
+   */
   private native void schedule (long core_ptr, long context_ptr, int vertex_id, int updater_id);
   
 }
