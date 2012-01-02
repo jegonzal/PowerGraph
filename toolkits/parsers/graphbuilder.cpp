@@ -85,7 +85,7 @@ struct edge_data2 {
   edge_data2(double val)  { }
 };
 
-typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
+typedef graphlab::graph2<vertex_data2, edge_data2> graph_type2;
 
 
 
@@ -125,8 +125,8 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
 
 void save_to_bin(std::string filename, graph_type2 & _graph){
   
-typedef graph<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
-typedef graph<vertex_data2,edge_data2>::edge_type edge_type2;   
+typedef graph2<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
+typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;   
 //typedef edge_type edge_type2;
 
    uint * nodes = new uint[_graph.num_vertices()+1];
