@@ -19,7 +19,7 @@ import org.graphlab.data.Vertex;
  * @author Jiunn Haur Lim
  * @param <G> 		graph type -> must extend {@link org.graphlab.data.Graph}
  */
-public class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
+public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 	/** Logger (Java layer only, the C++ layer has its own logger.) */
 	private static final Logger logger = Logger.getLogger (Core.class);
@@ -97,6 +97,7 @@ public class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		for (Vertex v : vertices) {
 			mIdMap.put(v.id(), addVertex(mCorePtr, v.id()));
 		}
+		Context.getInstance().setIdMap(mIdMap);
 
 		// add edges
 		for (Vertex v : vertices) {
@@ -171,7 +172,7 @@ public class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
 		Integer id = mIdMap.get(vertexId);
-		if (null == mIdMap.get(vertexId))
+		if (null == id)
 			throw new NoSuchElementException("vertex did not exist in the graph that was passed to #setGraph.");
 
 		if (updater.id() != Updater.ID_NOT_SET){
@@ -191,15 +192,17 @@ public class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * Executes the updater on the specified vertex. This is <em>only</em>
 	 * invoked by the proxy updater in the JNI library.
 	 * 
+	 * @param contextPtr
+	 *         address of C++ context object
 	 * @param vertexId
 	 * 				application vertex ID
 	 * @param updaterId
 	 * 				updater ID (as assigned by {@link #schedule(int, Updater)}).
 	 */
-	private void execUpdate (int vertexId, int updaterId){
+	private void execUpdate (long corePtr, long contextPtr, int vertexId, int updaterId){
 		
 		Updater updater = mUpdaters.get(updaterId);
-		updater.update(vertexId);
+		updater.update(corePtr, contextPtr, vertexId);
 		
 	}
 	

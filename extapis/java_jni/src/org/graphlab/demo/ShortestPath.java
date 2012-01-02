@@ -88,7 +88,7 @@ public class ShortestPath {
 				for (ScalarEdge edge : g.outgoingEdges(vertex_id)) {
 					ScalarVertex neighbor = g.getVertex(edge.target());
 					if (neighbor.value() > (vertex.value() + edge.weight()))
-						c.schedule(edge.target(), this);
+						c.schedule(neighbor.id(), this);
 				}
 
 			}
