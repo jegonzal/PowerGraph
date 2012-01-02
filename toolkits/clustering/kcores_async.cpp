@@ -75,6 +75,7 @@ void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
      data.degree = g->out_edges(i).size() + g->in_edges(i).size();
+     assert(data.degree>= 0 && data.degree < nodes);
      data.active = data.degree > 0;
      if (data.active)
        active++;
@@ -201,7 +202,6 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_iter", &max_iter, max_iter, "maximal number of cores");
   clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
-  
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -237,9 +237,10 @@ int main(int argc,  char *argv[]) {
   bipartite_graph_descriptor matrix_info;
 //  load_graph(datafile, format, matrix_info, core.graph(), lineformat);
 
-  nodes=149747010;
+  //nodes=149747010;
+  nodes = 121408373;
   int max_files = 1;
-  //matrix_info.rows = matrix_info.cols = nodes;
+  matrix_info.rows = matrix_info.cols = nodes;
   //matrix_info.nonzeros = 1000000000;
   //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
   //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
@@ -254,8 +255,11 @@ int main(int argc,  char *argv[]) {
       /*load_cpp_graph(dirpath + in_files[i], format, 
     	           matrix_info, core.graph(), 
 	           false, MATRIX_MARKET_3);*/
-    core.graph().load(dirpath + in_files[i], true);
-    core.graph().load(dirpath + in_files[i], false);
+    core.graph().load_graph2(dirpath + in_files[i], true);
+    core.graph().load_graph2(dirpath + in_files[i], false);
+
+    matrix_info.nonzeros = core.graph().num_edges();
+
     //DB: to be cleaned later
     if (datafile == "smallnetflix"){
       matrix_info.rows = 95526; matrix_info.cols = 3561; matrix_info.nonzeros= 3298163;

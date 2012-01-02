@@ -629,7 +629,7 @@ inline void write_vec(const FILE * f, const int len, const T * array){
   int total = 0;
   assert(f != NULL && array != NULL);
   while(total < len){
-     int rc = fwrite(array, sizeof(T), len, (FILE*)f);
+     int rc = fwrite(array + total, sizeof(T), len - total, (FILE*)f);
     if (rc <= 0){
       perror("fwrite");
       logstream(LOG_FATAL) << "Failed writing array" << std::endl; 
@@ -847,33 +847,45 @@ uint mmap_from_file(std::string filename, uint *& array){
 
 // type Graph should be graph2
 template <typename Graph>
-void save_to_bin(std::string filename, Graph& graph) {
+void save_to_bin(const std::string &filename, Graph& graph) {
   typedef typename Graph::vertex_id_type vertex_id_type;
   typedef typename Graph::edge_id_type edge_id_type;
 
+  int n = graph.num_vertices();
   uint* nodes = new uint[graph.num_vertices()+1];
   uint* innodes = new uint[graph.num_vertices()+1];
-  uint* edges = new uint[graph.num_edges()];
-  uint* inedges = new uint[graph.num_edges()];
-
-  const std::vector<vertex_id_type>& _nodes = graph.get_out_index_storage();
-  const std::vector<vertex_id_type>& _innodes = graph.get_in_index_storage();
+  nodes[0] = 0;
+  innodes[0] = 0;
+   
+  for (int i=0; i< (int)graph.num_vertices(); i++){
+     nodes[i+1] = nodes[i]+ graph.out_edges(i).size(); 
+     assert(nodes[i+1] < graph.num_edges());
+     assert(graph.out_edges(i).size() >= 0 &&graph.out_edges(i).size() < n);
+     assert(graph.in_edges(i).size() >= 0 && graph.in_edges(i).size() < n);
+     innodes[i+1] = innodes[i] + graph.in_edges(i).size();
+     assert(innodes[i+1] < graph.num_edges());
+   };
+ 
   const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
   const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
 
-  std::copy(_nodes.begin(), _nodes.end(), nodes);
-  std::copy(_innodes.begin(), _innodes.end(), innodes);
+  //std::copy(_nodes.begin(), _nodes.end(), nodes);
+  //std::copy(_innodes.begin(), _innodes.end(), innodes);
 
-  nodes[graph.num_vertices()] = graph.num_edges();
-  innodes[graph.num_vertices()] = graph.num_edges();
+  //nodes[graph.num_vertices()] = graph.num_edges();
+  //innodes[graph.num_vertices()] = graph.num_edges();
 
-  std::copy(_edges.begin(), _edges.end(), edges);
-  std::copy(_inedges.begin(), _inedges.end(), inedges);
+  //std::copy(_edges.begin(), _edges.end(), edges);
+  //std::copy(_inedges.begin(), _inedges.end(), inedges);
 
+  //write_output_vector_binary(filename + ".bin.nodes", nodes, graph.num_vertices()+1);
+  //write_output_vector_binary(filename + "-r.bin.nodes", innodes, graph.num_vertices()+1);
+  //write_output_vector_binary(filename + ".bin.edges", edges, graph.num_edges());
+  //write_output_vector_binary(filename + "-r.bin.edges", inedges, graph.num_edges());
   write_output_vector_binary(filename + ".bin.nodes", nodes, graph.num_vertices()+1);
   write_output_vector_binary(filename + "-r.bin.nodes", innodes, graph.num_vertices()+1);
-  write_output_vector_binary(filename + ".bin.edges", edges, graph.num_edges());
-  write_output_vector_binary(filename + "-r.bin.edges", inedges, graph.num_edges());
+  write_output_vector_binary(filename + ".bin.edges", &_edges[0], graph.num_edges());
+  write_output_vector_binary(filename + "-r.bin.edges", &_inedges[0], graph.num_edges());
 }
 
 

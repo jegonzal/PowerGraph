@@ -306,6 +306,7 @@ namespace graphlab {
     /** \brief Get the number of edges */
     size_t num_edges() const { return edges.size(); }
 
+
     /** \brief Finds an edge.  
      *
      * The value of the first element of the pair will be true if an
