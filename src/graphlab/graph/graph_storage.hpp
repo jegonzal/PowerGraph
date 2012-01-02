@@ -586,7 +586,7 @@ namespace graphlab {
         }
         // End of counting sort.
 
-        std::cout << "Inplace permute by dst..." << std::endl;
+        std::cout << "Outplace permute by dst..." << std::endl;
         outofplace_shuffle(edges.source_arr, permute_index);
         /* DEBUG
            printf("c2r_map: \n");
