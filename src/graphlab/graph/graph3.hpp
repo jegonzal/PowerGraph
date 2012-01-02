@@ -257,6 +257,7 @@ enum iterator_type {INEDGE, OUTEDGE};
       num_nodes = _num_edges = 0;
       node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
       _color = 0; //not implement yet
+      undirected = false;
     }
 
     /**
@@ -529,6 +530,43 @@ enum iterator_type {INEDGE, OUTEDGE};
       }
     } // end of load
 
+
+    void verify_degrees(const uint * nodes, int len, int n){
+       assert(nodes[0] == 0);
+       for (int i=0; i< len; i++)
+          assert(nodes[i] < n);
+    }
+
+    void verify_edges(const uint * edges, int len, int n){
+      for (int i=0; i< len; i++)
+         assert(edges[i] < n);
+    }
+
+    /** \brief Load the graph from a file */
+    void load_graph2(const std::string& filename, bool nodes) {
+      assert(!undirected);
+      if (nodes){
+         int rc =array_from_file(filename + ".nodes", node_out_degrees);
+	 num_nodes = (rc/4)-1;
+	 node_vdata_array.resize(num_nodes);
+         int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
+         assert(rc == rc2);
+         logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
+         verify_degrees(node_in_degrees, num_nodes+1, num_nodes);
+         verify_degrees(node_out_degrees, num_nodes+1, num_nodes);
+      }
+      else {
+         int rc = array_from_file(filename + ".edges", node_out_edges);
+         _num_edges = (rc/4)-1;
+         int rc2 = array_from_file(filename + "-r.edges", node_in_edges);
+         assert(rc == rc2);
+  	 logstream(LOG_INFO) << "Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
+         verify_edges(node_out_edges, _num_edges, num_nodes);
+         verify_edges(node_in_edges, _num_edges, num_nodes);
+      }
+    } // end of load
+
+ 
     /**
      * \brief save the adjacency structure to a text file.
      *

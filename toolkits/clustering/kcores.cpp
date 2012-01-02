@@ -21,16 +21,6 @@
  */
 
 
-/**
- * Functionality: The code solves the linear system Ax = b using
- * The Jacobi algorithm. (A is a square matrix). 
- * A assumed to be full column rank.  Algorithm is described
- * http://en.wikipedia.org/wiki/Jacobi_method
- * Written by Danny Bickson 
- */
-
-#ifndef JACOBI_HPP
-#define JACOBI_HPP
 
 #include <cmath>
 #include <cstdio>
@@ -119,7 +109,7 @@ public:
     if (debug)
       logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
 
-    if (!vdata.active)
+    if (!vdata.active || context.out_edges().size() == 0)
       return;
 
     int cur_iter = iiter;
@@ -235,31 +225,34 @@ int main(int argc,  char *argv[]) {
   bipartite_graph_descriptor matrix_info;
 
   //nodes = 123306178;
-  nodes=149747010;
+  //nodes=149747010;
+  nodes = 121408373;
   int max_files = 1;
-  //matrix_info.rows = matrix_info.cols = nodes;
+  matrix_info.rows = matrix_info.cols = nodes;
   //matrix_info.nonzeros = 1000000000;
   /* Rows:      95526
  * Cols:      3561
  * Nonzeros:  3298163
  */
-  matrix_info.rows = 95526;  matrix_info.cols = 3561; matrix_info.nonzeros = 3298163;
+  //matrix_info.rows = 95526;  matrix_info.cols = 3561; matrix_info.nonzeros = 3298163;
   //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
   //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
   std::vector<std::string> in_files;
   in_files.push_back(datafile);
   std::string dirpath;
-  core.graph().set_undirected();
+  //core.graph().set_undirected();
   core.set_scope_type("vertex");
   assert(in_files.size() > 0);
+
   for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
    /* load_cpp_graph(dirpath + in_files[i], format, 
     	           matrix_info, core.graph(), 
 	           true, MATRIX_MARKET_5);
    */
     graphlab::timer mt; mt.start();
-    core.graph().load(dirpath + in_files[i], true);
-    core.graph().load(dirpath + in_files[i], false);
+    core.graph().load_graph2(dirpath + in_files[i], true);
+    core.graph().load_graph2(dirpath + in_files[i], false);
+    matrix_info.nonzeros = core.graph().num_edges();
     logstream(LOG_INFO)<<"Time taken to load graph: " << mt.current_time() << std::endl;
   } 
 
@@ -316,10 +309,10 @@ int main(int argc,  char *argv[]) {
     assert(sumsum(sol - retmat) == 0);
   }
 
+
    return EXIT_SUCCESS;
 }
 
 
 
 #include <graphlab/macros_undef.hpp>
-#endif

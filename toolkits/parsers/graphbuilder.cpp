@@ -123,12 +123,12 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
    assert(from > 0 && to > 0);
 }
 
-
 void save_to_bin(std::string filename, graph_type2 & _graph){
   
 typedef graph2<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
-typedef graph_storage<vertex_data2,edge_data2>::edge_type edge_type2;   
- 
+typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;   
+//typedef edge_type edge_type2;
+
    uint * nodes = new uint[_graph.num_vertices()+1];
    uint * innodes = new uint[_graph.num_vertices()+1];
    uint * edges = new uint[_graph.num_edges()];
@@ -218,7 +218,7 @@ struct stringzipparser_update :
        if (from == DUMMY && to == DUMMY) //placeholder for matrix market size, to be done later
            continue;
        _graph.add_edge(from, to, edge); 
-       _graph.add_edge(to, from, edge); 
+       //_graph.add_edge(to, from, edge); 
 
       line++;
       total_lines++;
@@ -235,9 +235,9 @@ struct stringzipparser_update :
     // close file
     fin.pop(); fin.pop();
     _graph.finalize();
-    logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " Going to save Graph to file" << endl;
-    save_to_bin(vdata.filename, _graph);
-    logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " Finished saving Graph to file" << endl;
+    logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
+    save_to_bin(outdir + vdata.filename, _graph);
+    logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
     in_file.close();
   }
 
