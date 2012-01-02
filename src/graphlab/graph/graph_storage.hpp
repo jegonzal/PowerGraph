@@ -261,7 +261,7 @@ namespace graphlab {
 
     void set_is_directed (bool x) { is_directed = x;}
     void set_use_skip_list (bool x) { use_skip_list = x;}
-    bool get_is_directed () {return is_directed;}
+    bool get_is_directed () const {return is_directed;}
 
     size_t edge_size() const { return num_edges; }
 
@@ -586,7 +586,7 @@ namespace graphlab {
         }
         // End of counting sort.
 
-        std::cout << "Inplace permute by dst..." << std::endl;
+        std::cout << "Outplace permute by dst..." << std::endl;
         outofplace_shuffle(edges.source_arr, permute_index);
         /* DEBUG
            printf("c2r_map: \n");
