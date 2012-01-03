@@ -467,7 +467,9 @@ namespace graphlab {
       counting_sort(edges.source_arr, counter_array, permute_index); 
       std::cout << "finish counting sort." << std::endl;
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
+#ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#endif
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
         if (counter_array[j] < counter_array[j+1]) {
           std::sort(permute_index.begin()+counter_array[j], 
@@ -576,7 +578,9 @@ namespace graphlab {
         std::cout << "Sort by dst..." << std::endl;
         counting_sort(edges.target_arr, counter_array, permute_index); 
         std::cout << "finish counting sort." << std::endl;
+#ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#endif
         for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
           if (counter_array[i] < counter_array[i+1]) {
             std::sort(permute_index.begin()+counter_array[i],
@@ -837,8 +841,9 @@ namespace graphlab {
     void counting_sort(const std::vector<valuetype>& value_array, std::vector< atomic<int> >& counter_array, std::vector<edge_id_type>& permute_index) {
       counter_array.assign(counter_array.size(), 0);
       permute_index.assign(permute_index.size(), 0);
-
+#ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#endif
       for (ssize_t i = 0; i < ssize_t(value_array.size()); ++i) {
         size_t val = value_array[i];
         counter_array[val].inc();
@@ -847,8 +852,9 @@ namespace graphlab {
       for (size_t i = 1; i < counter_array.size(); ++i) {
         counter_array[i] += counter_array[i-1];
       }
-
+#ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#endif
       for (ssize_t i = 0; i < ssize_t(value_array.size()); ++i) {
         size_t val = value_array[i];
         permute_index[counter_array[val].dec()] = i;

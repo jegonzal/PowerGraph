@@ -32,6 +32,7 @@
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/unordered_map.hpp>
+#define AVOID_PARALLEL_SORT 1
 #include <graphlab/graph/graph2.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
@@ -122,7 +123,7 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
      self_edges++;
    assert(from > 0 && to > 0);
 }
-
+/*
 void save_to_bin(std::string filename, graph_type2 & _graph){
   
 typedef graph2<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
@@ -155,13 +156,11 @@ typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;
    };
    assert(cnt == (int)_graph.num_edges());
    assert(incnt == cnt);
-   cout<<"Node 36477836 " << nodes[36477836]<<":" << nodes[36477837]<<endl;
-   cout<<"Node 36477836 " << innodes[36477836]<<":" << innodes[36477837]<<endl;
    write_output_vector_binary(filename + ".bin.nodes", nodes, _graph.num_vertices()+1); 
    write_output_vector_binary(filename + "-r.bin.nodes", innodes, _graph.num_vertices()+1); 
    write_output_vector_binary(filename + ".bin.edges", edges, _graph.num_edges());
    write_output_vector_binary(filename + "-r.bin.edges", inedges, _graph.num_edges());
-};
+};*/
 
 /***
 * Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 

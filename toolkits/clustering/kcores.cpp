@@ -273,7 +273,7 @@ int main(int argc,  char *argv[]) {
   //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
   std::vector<std::string> in_files;
   in_files.push_back(datafile);
-  std::string dirpath;
+  std::string dirpath = "/usr2/bickson/bin.graphs/";
   //core.graph().set_undirected();
   core.set_scope_type("vertex");
   assert(in_files.size() > 0);
