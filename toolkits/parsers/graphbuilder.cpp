@@ -139,18 +139,24 @@ typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;
    int incnt = 0;
    for (int i=0; i< (int)_graph.num_vertices(); i++){
      nodes[i+1] = nodes[i]+ _graph.out_edges(i).size(); 
+     assert(nodes[i+1] <= _graph.num_edges());
      innodes[i+1] = innodes[i] + _graph.in_edges(i).size();
+     assert(innodes[i+1] <= _graph.num_edges());
      const edge_list_type2 out_edges = _graph.out_edges(i);
      const edge_list_type2 in_edges = _graph.in_edges(i);
      foreach(const edge_type2 & edge, out_edges){
        edges[cnt++] = (uint)edge.target();
+       assert(edge.target() != i);
      } 
      foreach(const edge_type2 & edge, in_edges){
        inedges[incnt++] = edge.source();
+       assert(edge.source() != i);
      }
    };
    assert(cnt == (int)_graph.num_edges());
    assert(incnt == cnt);
+   cout<<"Node 36477836 " << nodes[36477836]<<":" << nodes[36477837]<<endl;
+   cout<<"Node 36477836 " << innodes[36477836]<<":" << innodes[36477837]<<endl;
    write_output_vector_binary(filename + ".bin.nodes", nodes, _graph.num_vertices()+1); 
    write_output_vector_binary(filename + "-r.bin.nodes", innodes, _graph.num_vertices()+1); 
    write_output_vector_binary(filename + ".bin.edges", edges, _graph.num_edges());

@@ -410,35 +410,35 @@ enum iterator_type {INEDGE, OUTEDGE};
     }
 
     size_t num_in_edges(const vertex_id_type v) const {
-      return node_in_degrees[v];
+      return node_in_degrees[v+1]-node_in_degrees[v];
     }
 
     size_t num_out_edges(const vertex_id_type v) const {
-      return node_out_degrees[v];
+      return node_out_degrees[v+1]-node_out_degrees[v];
     }
 
     edge_list_type in_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
       if (undirected)
          return out_edges(v);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], node_in_degrees[v],v);  
+      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v);  
     }
 
     edge_list_type out_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], node_out_degrees[v+1]-node_out_degrees[v],v);
+      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v);
     }
 
     const edge_list_type in_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
       if (undirected)
         return out_edges(v);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], node_in_degrees[v],v);  
+      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v);  
      }
 
     const edge_list_type out_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], node_out_degrees[v],v);
+      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v);
      }
 
 
@@ -552,8 +552,8 @@ enum iterator_type {INEDGE, OUTEDGE};
          int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
          logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
-         verify_degrees(node_in_degrees, num_nodes+1, num_nodes);
-         verify_degrees(node_out_degrees, num_nodes+1, num_nodes);
+         //verify_degrees(node_in_degrees, num_nodes+1, num_nodes);
+         //verify_degrees(node_out_degrees, num_nodes+1, num_nodes);
       }
       else {
          int rc = array_from_file(filename + ".edges", node_out_edges);
