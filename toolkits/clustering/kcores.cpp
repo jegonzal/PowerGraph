@@ -30,6 +30,8 @@
 #include "graphlab/graph/graph3.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
+#include "../shared/stats.hpp"
+
 using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
@@ -40,6 +42,8 @@ ivec active_nodes_num;
 ivec active_links_num;
 int iiter = 0; //current iteration
 int nodes = 0;
+
+
 
 enum kcore_output_fields{
   KCORE_INDEX = 1
@@ -88,6 +92,9 @@ void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
 }
 
 
+
+
+
 struct kcore_update :
   public graphlab::iupdate_functor<graph_type, kcore_update> {
   void operator()(icontext_type& context) {
@@ -117,7 +124,7 @@ public:
     int increasing_links = 0;
     
     edge_list_type outedgeid = context.out_edges();
-    //edge_list_type inedgeid = context.in_edges();
+    edge_list_type inedgeid = context.in_edges();
 
     for(size_t i = 0; i < outedgeid.size(); i++) {
       const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
@@ -126,11 +133,11 @@ public:
           increasing_links++;
         }
     }
-    /*for (size_t i =0; i < inedgeid.size(); i++){
+    for (size_t i =0; i < inedgeid.size(); i++){
       const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
         if (other.active)
           cur_links++;
-    }*/
+    }
     if (cur_links <= cur_iter){
         vdata.active = false;
         vdata.kcore = cur_iter;
@@ -176,6 +183,7 @@ int main(int argc,  char *argv[]) {
   int unittest = 0;
   int lineformat = MATRIX_MARKET_4;
   bool gzip = true;
+  bool stats = false;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
@@ -189,6 +197,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_iter", &max_iter, max_iter, "maximal number of cores");
   clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
+  clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
  
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -239,7 +248,7 @@ int main(int argc,  char *argv[]) {
   //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
   std::vector<std::string> in_files;
   in_files.push_back(datafile);
-  std::string dirpath;
+  std::string dirpath = "/usr2/bickson/bin.graphs/";
   //core.graph().set_undirected();
   core.set_scope_type("vertex");
   assert(in_files.size() > 0);
@@ -250,14 +259,14 @@ int main(int argc,  char *argv[]) {
 	           true, MATRIX_MARKET_5);
    */
     graphlab::timer mt; mt.start();
-    core.graph().load_graph2(dirpath + in_files[i], true);
-    core.graph().load_graph2(dirpath + in_files[i], false);
+    core.graph().load_directed(dirpath + in_files[i], false);
     matrix_info.nonzeros = core.graph().num_edges();
     logstream(LOG_INFO)<<"Time taken to load graph: " << mt.current_time() << std::endl;
   } 
 
-  //std::cout << "Schedule all vertices" << std::endl;
-  //core.schedule_all(kcore_update());
+
+  if (stats)
+    calc_stats_and_exit<graph_type>(&core.graph(), matrix_info);
  
   accumulator acum;
   core.add_sync("sync", acum, 1000);

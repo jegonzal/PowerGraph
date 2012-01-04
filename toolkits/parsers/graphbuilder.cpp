@@ -32,6 +32,7 @@
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/unordered_map.hpp>
+#define AVOID_PARALLEL_SORT 1
 #include <graphlab/graph/graph2.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
@@ -122,7 +123,7 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
      self_edges++;
    assert(from > 0 && to > 0);
 }
-
+/*
 void save_to_bin(std::string filename, graph_type2 & _graph){
   
 typedef graph2<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
@@ -139,14 +140,18 @@ typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;
    int incnt = 0;
    for (int i=0; i< (int)_graph.num_vertices(); i++){
      nodes[i+1] = nodes[i]+ _graph.out_edges(i).size(); 
+     assert(nodes[i+1] <= _graph.num_edges());
      innodes[i+1] = innodes[i] + _graph.in_edges(i).size();
+     assert(innodes[i+1] <= _graph.num_edges());
      const edge_list_type2 out_edges = _graph.out_edges(i);
      const edge_list_type2 in_edges = _graph.in_edges(i);
      foreach(const edge_type2 & edge, out_edges){
        edges[cnt++] = (uint)edge.target();
+       assert(edge.target() != i);
      } 
      foreach(const edge_type2 & edge, in_edges){
        inedges[incnt++] = edge.source();
+       assert(edge.source() != i);
      }
    };
    assert(cnt == (int)_graph.num_edges());
@@ -155,7 +160,7 @@ typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;
    write_output_vector_binary(filename + "-r.bin.nodes", innodes, _graph.num_vertices()+1); 
    write_output_vector_binary(filename + ".bin.edges", edges, _graph.num_edges());
    write_output_vector_binary(filename + "-r.bin.edges", inedges, _graph.num_edges());
-};
+};*/
 
 /***
 * Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
@@ -217,7 +222,7 @@ struct stringzipparser_update :
        uint to = boost::lexical_cast<uint>(buf2);
        if (from == DUMMY && to == DUMMY) //placeholder for matrix market size, to be done later
            continue;
-       _graph.add_edge(from, to, edge); 
+       _graph.add_edge(from- 1, to - 1, edge);  //traslate edge offset to start from zero
        //_graph.add_edge(to, from, edge); 
 
       line++;
@@ -236,7 +241,7 @@ struct stringzipparser_update :
     fin.pop(); fin.pop();
     _graph.finalize();
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
-    save_to_bin(outdir + vdata.filename, _graph);
+  //  save_to_bin(outdir + vdata.filename, _graph);
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
     in_file.close();
   }

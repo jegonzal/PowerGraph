@@ -32,8 +32,8 @@
  */
 
 
-#ifndef GRAPHLAB_GRAPH3_HPP
-#define GRAPHLAB_GRAPH3_HPP
+#ifndef GRAPHLAB_MULTIGRAPH_HPP
+#define GRAPHLAB_MULTIGRAPH_HPP
 
 #include <omp.h>
 #include <cmath>
@@ -56,145 +56,12 @@
 
 #include <graphlab/util/random.hpp>
 #include <graphlab/graph/graph_storage.hpp>
+#include <graphlab/graph/graph3.hpp>
+#include "../toolkits/shared/io.hpp"
 #include <graphlab/macros_def.hpp>
 
 
-
-uint mmap_from_file(std::string filename, uint *& array);
-uint array_from_file(std::string filename, uint *& array);
-
 namespace graphlab { 
-  struct edge_type_impl{
-   uint _source; 
-   uint _target;
-   edge_type_impl(uint source, uint target) : _source(source), _target(target) {}
-   edge_type_impl() : _source(-1), _target(-1) { }
-   uint source() const { return _source; }
-   uint target() const { return _target; }
-  };
-
-enum iterator_type {INEDGE, OUTEDGE}; 
-
-  typedef edge_type_impl edge_type;
-  //typedef edge_type_impl edge_id_type;
-
-    // Internal iterator on edge_types.
-    class edge_iterator : 
-      public std::iterator<std::forward_iterator_tag, edge_type> {
-    public:
-      typedef edge_type reference;
-    public:
-      // Cosntructors
-      edge_iterator () : offset(-1), empty(true) { }
-     
-      edge_iterator (vertex_id_type _center, size_t _offset, 
-                     iterator_type _itype, const uint* _gstore_ptr) : 
-        center(_center), offset(_offset), itype(_itype), empty(false), 
-        gstore_ptr(_gstore_ptr) { }
-      
-      edge_iterator (const edge_iterator& it) :
-        center(it.center), offset(it.offset), itype(it.itype), 
-        empty(it.empty), gstore_ptr(it.gstore_ptr) { }
-  
-      inline edge_type operator*() const  {
-        ASSERT_TRUE(!empty);
-        return make_value();
-      }
-
-      typedef boost::detail::
-      operator_arrow_result<edge_type, edge_type, edge_type*> arrow_type;
-      inline arrow_type::type operator->() const {
-        return arrow_type::make(make_value());
-      }
-
-
-      inline bool operator==(const edge_iterator& it) const {
-        return (empty && it.empty) || 
-          (empty == it.empty && itype == it.itype && center == it.center && 
-           offset == it.offset);
-      }
-
-      inline bool operator!=(const edge_iterator& it) const { 
-        return !(*this == it);
-      }
-
-      inline edge_iterator& operator++() {
-        ASSERT_TRUE(!empty);
-        ++offset;
-        return *this;
-      }
-
-      inline edge_iterator operator++(int) {
-        ASSERT_TRUE(!empty);
-        const edge_iterator copy(*this);
-        operator++();
-        return copy;
-      }
-
-
-      inline int operator-(const edge_iterator& it) const {
-        ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
-        return offset - it.offset;
-      }
-
-      inline edge_iterator operator+(size_t i) const {
-        edge_iterator retval(center, offset+i, itype, gstore_ptr);
-        return retval;
-      }
-
-    private:
-      // Generate the ret value of the iterator.
-      inline edge_type make_value() const {
-        edge_type ret;
-        if (itype == INEDGE) {
-          edge_type rvalue(gstore_ptr[offset], center);
-          ret = rvalue;
-        } else if (itype == OUTEDGE) {
-          edge_type rvalue(center, gstore_ptr[offset]);
-          ret = rvalue;
-        } else {
-          logstream(LOG_FATAL) << "Edge iterator type is invalid." 
-                               << std::endl;
-        }
-        return ret;
-      }
-    private:
-      vertex_id_type center;
-      uint offset;
-      iterator_type itype;
-      bool empty;
-      const uint* gstore_ptr;
-    }; // end of class edge_iterator.
-
-
-
-  struct edge_list{
-    uint * start_ptr;
-    uint * end_ptr;
-    uint _size;
-    uint source;
-    typedef edge_iterator iterator;
-    typedef edge_iterator const_iterator;
-    typedef edge_type value_type;
-    iterator_type itype;
-
-    edge_list(): start_ptr(NULL), end_ptr(NULL), _size(0), source(-1) { }
-    edge_list(uint * _start_ptr, uint * _end_ptr, uint size, uint _source){
-      start_ptr = _start_ptr; end_ptr = _end_ptr;
-      _size = size; source = _source;
-    }
-    uint size() const { return _size; }
-    edge_type operator[](uint i) const{
-      ASSERT_LT(i, _size);
-      return edge_type(source, *(start_ptr+i));
-    }
-    edge_iterator begin() const { return edge_iterator(source, 0, itype, start_ptr); }
-    edge_iterator end() const { return edge_iterator(source, 0, itype, end_ptr); }
-     bool empty() const { return size() == 0; }
-
-
-  };
-
 
   /**
  * CSR/CSC implementation of graph.
@@ -202,12 +69,17 @@ enum iterator_type {INEDGE, OUTEDGE};
  */
 
   template<typename VertexData, typename EdgeData>
-  class graph3 {
+  class multigraph {
 
-   // typedef graph_storage<VertexData, EdgeData> gstore_type;
+
+    std::vector<graph3<VertexData,EdgeData>  > graphs;
+    std::vector<VertexData> node_vdata_array;
+    uint num_nodes;
+    EdgeData _edge;
+    char _color; //placeholder 
+    std::vector<std::string> in_files;
 
   public:
-
     /// The type of a vertex is a simple size_t
     //typedef graphlab::vertex_id_type vertex_id_type;
     typedef uint vertex_id_type;    
@@ -234,59 +106,34 @@ enum iterator_type {INEDGE, OUTEDGE};
     //typedef typename gstore_type::edge_list edge_list_type;
     typedef edge_list edge_list_type;
 
-    /** Edge list type for temporary insertion. */
-    //typedef typename gstore_type::edge_info edge_info;
+    int num_graphs(){ return in_files.size(); };
 
+    graph3<VertexData,EdgeData>* graph(int i){ return &graphs[i]; }
 
-    size_t num_nodes, _num_edges;
-    uint * node_in_degrees;
-    uint * node_out_degrees;
-    uint * node_in_edges;
-    uint * node_out_edges;
-    std::vector<VertexData> node_vdata_array;
-    char _color; //not implement yet
-    EdgeData _edge;
-
-  public:
-
-    // CONSTRUCTORS ============================================================>
-    /**
-     * Build a basic graph
-     */
-    graph3(){
-      num_nodes = _num_edges = 0;
-      node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
-      _color = 0; //not implement yet
+    multigraph(){
+      num_nodes = 0;
       undirected = false;
     }
+
+    edge_list_type in_edges(const vertex_id_type v) const{
+      assert(false);
+      return in_edges(v,0);
+    }
+    edge_list_type out_edges(const vertex_id_type v) const{
+      assert(false);
+      return out_edges(v,0);
+    }
+
 
     /**
      * Create a graph with nverts vertices.
      */
     //graph3(size_t nverts) { }
 
-    graph3(const graph<VertexData, EdgeData>& g) { (*this) = g; }
+    //multigraph(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
 
-    /**
-     * \brief Resets the graph state.
-     */
-    void clear() {
-       if (node_in_degrees != NULL)
-	 delete [] node_in_degrees;
-       if (node_out_degrees != NULL)
-	 delete [] node_out_degrees;
-       if (node_in_edges != NULL)
-         delete [] node_in_edges;
-       if (node_out_edges != NULL)
-         delete [] node_out_edges;
-    }
-
-    void clear_reserve() {
-      clear();
-    }
-    
     /**
      * Finalize a graph by sorting its edges to maximize the
      * efficiency of graphlab.  
@@ -301,7 +148,7 @@ enum iterator_type {INEDGE, OUTEDGE};
             
     /** \brief Get the number of vertices */
     size_t num_vertices() const {
-      return num_nodes;
+       return num_nodes;
     } // end of num vertices
 
     /** \brief Get the number of vertices local to this machine */
@@ -311,7 +158,10 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     /** \brief Get the number of edges */
     size_t num_edges() const {
-       return undirected? _num_edges/2 : _num_edges;
+      size_t total = 0;
+      for (int i=0; i< (int)graphs.size(); i++)
+         total += graphs[i].num_edges();
+      return total;
     } 
 
     /** \brief Finds an edge.
@@ -409,38 +259,36 @@ enum iterator_type {INEDGE, OUTEDGE};
       //return 
     }
 
-    size_t num_in_edges(const vertex_id_type v) const {
-      return node_in_degrees[v+1]-node_in_degrees[v];
+    size_t num_in_edges(const vertex_id_type v, int id = 0) const {
+      return graphs[id].num_in_edges(v);
     }
 
-    size_t num_out_edges(const vertex_id_type v) const {
-      return node_out_degrees[v+1]-node_out_degrees[v];
+    size_t num_out_edges(const vertex_id_type v, int id = 0) const {
+      return graphs[id].num_out_edges(v);
     }
 
-    edge_list_type in_edges(vertex_id_type v) {
-      ASSERT_LT(v, num_nodes);
-      if (undirected)
-         return out_edges(v);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v);  
+
+    edge_list_type in_edges(vertex_id_type v, int id) {
+      return graphs[id].in_edges(v);
     }
 
-    edge_list_type out_edges(vertex_id_type v) {
-      ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v);
+    edge_list_type out_edges(vertex_id_type v, int id) {
+      return graphs[id].out_edges(v);
     }
 
-    const edge_list_type in_edges(vertex_id_type v) const {
-      ASSERT_LT(v, num_nodes);
-      if (undirected)
-        return out_edges(v);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v);  
+    const edge_list_type in_edges(vertex_id_type v, int id) const {
+      return graphs[id].in_edges(v);
+    }
+
+    const edge_list_type out_edges(vertex_id_type v, int id) const {
+       return graphs[id].out_edges(v);
      }
 
-    const edge_list_type out_edges(vertex_id_type v) const {
-      ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v);
-     }
 
+
+   
+    /** \brief Returns the vertex color of a vertex.
+        Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_type vertex) const {
        assert(false); //not implemented yet
       return _color;
@@ -449,7 +297,6 @@ enum iterator_type {INEDGE, OUTEDGE};
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     vertex_color_type& color(vertex_id_type vertex) {
-      ASSERT_LT(vertex, num_nodes);
        assert(false); //not implemented yet
       return _color;
     }
@@ -493,7 +340,7 @@ enum iterator_type {INEDGE, OUTEDGE};
       size_t store_size = gstore.estimate_sizeof();*/
 
 //      printf("graph3: tmplist size: %u, gstoreage size: %u \n", elist_size, store_size);
-       return 2*(num_nodes*sizeof(uint)+num_edges*sizeof(int));
+       return num_nodes*sizeof(uint)+num_edges*sizeof(int);
     }
 
     /** \brief Load the graph from an archive */
@@ -506,51 +353,37 @@ enum iterator_type {INEDGE, OUTEDGE};
        assert(false); //not implemented yet
     } // end of save
    
-
-    /** \brief Load the graph from a file */
-    void load(const std::string& filename, bool no_node_data) {
-         int rc =array_from_file(filename + ".nodes", node_out_degrees);
-	 num_nodes = (rc/4)-1;
-         if (!no_node_data)
-	    node_vdata_array.resize(num_nodes);
- 	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
-         rc = array_from_file(filename + ".edges", node_out_edges);
-         _num_edges = (rc/4)-1;
- 	 logstream(LOG_INFO) << "Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
-    } // end of load
-
-
-    void verify_degrees(const uint * nodes, int len, int n){
-       assert(nodes[0] == 0);
-       for (int i=0; i< len; i++)
-          assert(nodes[i] < n);
+    void doload(int i){
+       graphlab::timer mt; mt.start();
+       graph3<VertexData,EdgeData> graph;
+       graph.load_directed(in_files[i], true);
+       logstream(LOG_INFO)<<"Time taken to load: " << mt.current_time() << std::endl;
+       graphs.push_back(graph);
     }
 
-    void verify_edges(const uint * edges, int len, int n){
-      for (int i=0; i< len; i++)
-         assert(edges[i] < (uint)n);
-    }
+    void unload(){
+       graphs[0].clear();
+       graphs.clear();
+    } 
 
     /** \brief Load the graph from a file */
-    void load_directed(const std::string& filename, bool no_node_data) {
-      assert(!undirected);
-         int rc =array_from_file(filename + ".nodes", node_out_degrees);
-	 num_nodes = (rc/4)-1;
-         if (!no_node_data)
-	    node_vdata_array.resize(num_nodes);
-         int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
-         assert(rc == rc2);
-         logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
-         rc = array_from_file(filename + ".edges", node_out_edges);
-         _num_edges = (rc/4)-1;
-         rc2 = array_from_file(filename + "-r.edges", node_in_edges);
-         assert(rc == rc2);
-  	 logstream(LOG_INFO) << "Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
-         verify_edges(node_out_edges, _num_edges, num_nodes);
-         verify_edges(node_in_edges, _num_edges, num_nodes);
+    void load(const std::string & listdir, const std::string& dirname, const std::string & prefix, bool delayed) {
+     in_files = list_all_files_in_dir(listdir, prefix);
+     for (int i=0; i< (int)in_files.size(); i++)
+       in_files[i] = dirname + in_files[i];
+
+     if (!delayed){
+     for (int i=0; i< (int)in_files.size(); i++){
+        graph3<VertexData, EdgeData> graph;
+       logstream(LOG_INFO)<<"loading graph " << i <<"/" << in_files.size() << " " << dirname << in_files[i] << std::endl;
+        doload(i);
+     }
+     logstream(LOG_INFO)<<"Total edges read: " << num_edges() << std::endl;
+     num_nodes = graph(0)->num_vertices();
+     }
+     else logstream(LOG_INFO)<<"preparing to load " << in_files.size() << " input graphs" << std::endl;
     } // end of load
 
- 
     /**
      * \brief save the adjacency structure to a text file.
      *
@@ -587,19 +420,6 @@ enum iterator_type {INEDGE, OUTEDGE};
     
   }; // End of class graph3
 
-  template<typename VertexData, typename EdgeData>
-  std::ostream& operator<<(std::ostream& out,
-                           const graph3<VertexData, EdgeData>& graph) {
-    typedef typename graphlab::graph3<VertexData, EdgeData>::vertex_id_type 
-      vertex_id_type;
-    typedef typename graphlab::graph3<VertexData, EdgeData>::edge_id_type 
-      edge_id_type;
-    for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
-      foreach(edge_id_type eid, graph.out_edge_ids(vid))
-        out << vid << ", " << graph.target(eid) << '\n';      
-    }
-    return out;
-  }
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 #endif
