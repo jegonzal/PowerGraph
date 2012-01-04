@@ -256,6 +256,30 @@ extern "C" {
     
   }
   
+  JNIEXPORT void JNICALL 
+  Java_org_graphlab_Core_scheduleAll
+  (JNIEnv * env, jobject obj, jlong ptr, jint updater_id) {
+
+    if (NULL == env || 0 == ptr){
+    jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return;
+    }
+
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+  
+    // initialize proxy updater
+    proxy_updater updater;
+    updater.obj = jni_core->obj();
+    updater.id = updater_id;
+
+    // schedule vertex
+    jni_core->core().scheduleAll(updater);
+
+  }
+  
   JNIEXPORT jdouble JNICALL
   Java_org_graphlab_Core_start
   (JNIEnv *env, jobject obj, jlong ptr){
@@ -448,16 +472,6 @@ extern "C" {
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_computeGraphColoring
 //   (JNIEnv * env, jobject obj, jint ncpus) {
 //     core.graph().compute_coloring();
-//   }
-// 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    scheduleAll
-//    * Signature: (I)V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_scheduleAll
-//   (JNIEnv * env, jobject obj, jint funcid) {
-//     core.add_task_to_all(functions[0], 1.0);
 //   }
 
   JNIEXPORT jint JNICALL Java_graphlab_test_JniTest_dummy

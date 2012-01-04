@@ -168,7 +168,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	}
 
   /**
-   * Schedule the execution of an update functor on a particular vertex.
+   * Schedule the execution of an update function on a particular vertex.
    * 
    * @param vertexId
    *          application vertex ID
@@ -197,6 +197,29 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		addUpdater(updater);
 		schedule(mCorePtr, id, updater.id());
 		
+	}
+	
+	/**
+	 * Schedules the execution of the update function on all vertices.
+	 * 
+	 * @param updater
+	 *         updater to execute
+   * @throws NullPointerException
+   *           if updater was null
+   * @throws IllegalStateException
+   *           if {@link #destroy()} was invoked on this object
+	 */
+	public void scheduleAll(Updater updater){
+	  
+	  if (null == updater)
+	    throw new NullPointerException("updater must not be null.");
+	  
+	  if (mDestroyed)
+	    throw new IllegalStateException("Core has been destroyed and may not be reused.");
+	    
+	  addUpdater(updater);
+	  scheduleAll(mCorePtr, updater.id());
+	  
 	}
 	
 	/**
@@ -330,6 +353,15 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 */
 	private native void schedule(long ptr, int vertex_id, int updater_id);
 
+	/**
+	 * Add the given function to all vertices using the given priority
+	 * @param ptr
+	 *       {@link #mCorePtr}
+	 * @param updater_id
+	 *       index of updater in {@link #mUpdaters}
+	 */
+	private native void scheduleAll(long ptr, int updater_id);
+	
   /**
    * Run the engine until a termination condition is reached or there are no
    * more tasks remaining to execute.
