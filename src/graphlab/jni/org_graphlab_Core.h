@@ -63,6 +63,30 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_schedule
 JNIEXPORT jdouble JNICALL Java_org_graphlab_Core_start
   (JNIEnv *, jobject, jlong);
 
+/*
+ * Class:     org_graphlab_Core
+ * Method:    setNCpus
+ * Signature: (JJ)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_setNCpus
+  (JNIEnv *, jobject, jlong, jlong);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    setSchedulerType
+ * Signature: (JLjava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_setSchedulerType
+  (JNIEnv *, jobject, jlong, jstring);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    setScopeType
+ * Signature: (JLjava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_setScopeType
+  (JNIEnv *, jobject, jlong, jstring);
+
 #ifdef __cplusplus
 }
 #endif

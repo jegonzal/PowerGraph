@@ -14,11 +14,17 @@ import org.graphlab.data.Graph;
 import org.graphlab.data.Vertex;
 
 /**
- * GraphLab Core. This interfaces with the C++ library via JNI and mirrors
- * graphlab::core.
+ * GraphLab Core.
  * 
- * @author Jiunn Haur Lim
- * @param <G> 		graph type -> must extend {@link org.graphlab.data.Graph}
+ * <p>
+ * This interfaces with the C++ library via
+ * <abbr title="Java Native Interface">JNI</abbr> and mirrors
+ * <tt>graphlab::core</tt>.
+ * </p>
+ * 
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
+ * @param <G>
+ *          graph type; must extend {@link org.graphlab.data.Graph}
  */
 public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
@@ -68,10 +74,15 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * Tells core to operate on this graph. This creates a proxy graph in the
 	 * GraphLab engine.
 	 * 
-	 * Once this is called, your graph must not be modified (or there be dragons!).
+	 * <p>
+	 * Once this is called, your graph must not be modified (or there be dragons!)
+	 * </p>
 	 * 
 	 * @param graph
 	 *            the graph to operate on
+	 * @throws NullPointerException if graph is null
+	 * @throws IllegalArgumentException if graph is empty
+	 * @throws IllegalStateException if {@link #destroy()} was invoked on this object
 	 */
 	public void setGraph(G graph) {
 
@@ -114,9 +125,11 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 	}
 
-	/**
-	 * Destroys the GraphLab core. Once destroyed, this object may not be used.
-	 */
+  /**
+   * Destroys the GraphLab core. Once destroyed, this object may not be used.
+   * Calling {@link #destroy()} more than once on the same object will generate
+   * a warning in the logs but will not have an effect.
+   */
 	public void destroy() {
 
 		if (mDestroyed) {
@@ -137,12 +150,13 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 	}
 
-	/**
-	 * Run the engine until a termination condition is reached or there are no
-	 * more tasks remaining to execute.
-	 * 
-	 * @return run time
-	 */
+  /**
+   * Run the engine until a termination condition is reached or there are no
+   * more tasks remaining to execute.
+   * 
+   * @return run time
+   * @throws IllegalStateException if {@link #destroy()} was invoked on this object
+   */
 	public double start() {
 		
 		if (mDestroyed)
@@ -153,17 +167,21 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		
 	}
 
-	/**
-	 * Schedule the execution of an update functor on a particular vertex.
-	 * 
-	 * @param vertexId
-	 *            application vertex ID
-	 * @param updater
-	 * 			  updater to execute
-	 * @throws NoSuchElementException
-	 *             if the specified vertex did not exist in the graph that was
-	 *             passed to {@link #setGraph(Graph)}.
-	 */
+  /**
+   * Schedule the execution of an update functor on a particular vertex.
+   * 
+   * @param vertexId
+   *          application vertex ID
+   * @param updater
+   *          updater to execute
+   * @throws NullPointerException
+   *           if updater was null.
+   * @throws NoSuchElementException
+   *           if the specified vertex did not exist in the graph that was
+   *           passed to {@link #setGraph(Graph)}.
+   * @throws IllegalStateException
+   *           if {@link #destroy()} was invoked on this object
+   */
 	public void schedule(int vertexId, Updater updater) {
 
 		if (null == updater)
@@ -182,11 +200,44 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	}
 	
 	/**
-	 * Adds an updater to the list of updaters maintained by the core.
-	 * This is necessarily because {@link #execUpdate(long, int, int)}
-	 * only receives the index of the updater (in the list) to execute.
-	 * @param updater    the updater to add
+	 * Sets the number of cpus that the engine will use.
+   * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * @param ncpus      number of CPUs that the engine will use.
 	 */
+	public void setNCpus(long ncpus){
+	  if (0 >= ncpus)
+	    throw new IllegalArgumentException ("ncpus must be positive.");
+	  setNCpus(mCorePtr, ncpus);
+	}
+	
+	/**
+   * Sets the type of scheduler. 
+   * This will destroy the current engine and any tasks currently associated with the scheduler.
+   * @param scheduler
+   */
+  public void setSchedulerType(Scheduler scheduler) {
+    setSchedulerType(mCorePtr, scheduler.toString());
+  }
+	
+	/**
+   * Sets the scope consistency model that the engine will use. 
+   * This will destroy the current engine and any tasks currently associated with the scheduler.
+   * @param scope
+   */
+	public void setScopeType(Scope scope){
+	  setScopeType(mCorePtr, scope.toString());
+	}
+	
+  /**
+   * Adds an updater to the list of updaters maintained by the core. This is
+   * necessarily because {@link #execUpdate(long, int, int)} only receives the
+   * index of the updater (in the list) to execute.
+   * 
+   * @param updater
+   *          the updater to add
+   * @throws NullPointerException
+   *           if updater was null.
+   */
 	protected void addUpdater(Updater updater){
 	  
 	  if (null == updater) throw new NullPointerException("updater must not be null.");
@@ -233,7 +284,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * Deletes the graphlab::core that was allocated in {@link #initCore()}.
 	 * 
 	 * @param ptr
-	 *            address of core
+	 *        {@link #mCorePtr}
 	 */
 	private native void destroyCore(long ptr);
 	
@@ -271,18 +322,51 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Add a single update function to a single vertex
 	 * @param ptr
+	 *       {@link #mCorePtr}
 	 * @param vertex_id
+	 *       graphlab vertex ID
 	 * @param updater_id
+	 *       index of updater in {@link #mUpdaters}
 	 */
 	private native void schedule(long ptr, int vertex_id, int updater_id);
 
-	/**
-	 * Run the engine until a termination condition is reached or there are no more tasks remaining to execute. 
-	 * @param ptr
-	 * @return runtime
-	 */
+  /**
+   * Run the engine until a termination condition is reached or there are no
+   * more tasks remaining to execute.
+   * @param ptr
+   *      {@link #mCorePtr}
+   * @return runtime
+   */
 	private native double start(long ptr);
 
+	/**
+	 * Set the number of cpus that the engine will use.
+	 * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * @param ptr
+	 *       {@link #mCorePtr}
+	 * @param ncpus
+	 *       number of CPUs
+	 */
+	private native void setNCpus(long ptr, long ncpus);
+	
+	/**
+	 * Set the type of scheduler. 
+	 * This will destroy the current engine and any tasks currently associated with the scheduler.
+	 * @param ptr
+	 *       {@link #mCorePtr}
+	 * @param schedulerType
+	 */
+	private native void setSchedulerType(long ptr, String schedulerType);
+	
+	/**
+	 * Set the scope consistency model used in this engine. 
+	 * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * @param ptr
+	 *       {@link #mCorePtr}
+	 * @param scopeType
+	 */
+	private native void setScopeType(long ptr, String scopeType);
+	
 	/**
 	 * Generic exception for dealing with GraphLab cores
 	 * 

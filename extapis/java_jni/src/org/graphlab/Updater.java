@@ -3,14 +3,14 @@ package org.graphlab;
 /**
  * Updater
  * 
- * The GraphLab engine will invoke an updater on each scheduled node. Extend
+ * <p>The GraphLab engine will invoke an updater on each scheduled node. Extend
  * this class to provide an update function for that node. Note that the update
  * function may update node data, modify edge data, and schedule neighbors, but
  * may not modify the graph structure. You may reuse the updater object on
  * across multiple vertices (this is encouraged). Engine uses {@link #id()} to
- * uniquely identify updaters.
+ * uniquely identify updaters.</p>
  * 
- * @author Jiunn Haur Lim
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public abstract class Updater {
 
@@ -27,7 +27,8 @@ public abstract class Updater {
 	 * Updates the vertex identified by <tt>vertex_id</tt>. Subclasses may wish
 	 * to maintain a reference to the graph object.
 	 * 
-	 * @param context
+	 * @param context      graphlab context; use {@link Context#schedule(int, Updater)}
+	 *                     to schedule vertices.
 	 * @param vertexId     application vertex ID
 	 */
 	public abstract void update(Context context, int vertexId);

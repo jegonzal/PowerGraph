@@ -336,24 +336,65 @@ extern "C" {
     
   }
 
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_setNCpus
+  (JNIEnv * env, jobject obj, jlong ptr, jlong ncpus) {
+  
+    if (NULL == env || 0 == ptr){
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return;
+    }
+  
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    jni_core->core().set_ncpus(ncpus);
+    
+  }
 
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setScheduler
-//   (JNIEnv * env, jobject obj, jstring schedulertype) {
-//     const char *str = env->GetStringUTFChars(schedulertype, 0);
-//     core.set_scheduler_type(std::string(str));
-//   }
-// 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    setScopeType
-//    * Signature: (Ljava/lang/String;)V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setScopeType
-//   (JNIEnv * env, jobject obj, jstring scopetype) {
-//     const char *str = env->GetStringUTFChars(scopetype, 0);
-//     core.set_scope_type(std::string(str));
-//   }
-// 
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_setSchedulerType
+  (JNIEnv * env, jobject obj, jlong ptr, jstring scheduler_str) {
+  
+    if (NULL == env || 0 == ptr){
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return;
+    }
+  
+    const char *str = env->GetStringUTFChars(scheduler_str, NULL);
+    if (NULL == str) return;  // OutOfMemoryError already thrown
+    
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    jni_core->core().set_scheduler_type(std::string(str));
+    env->ReleaseStringUTFChars(scheduler_str, str);
+    
+  }
+
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_setScopeType
+  (JNIEnv * env, jobject obj, jlong ptr, jstring scope_str) {
+  
+    if (NULL == env || 0 == ptr){
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return;
+    }
+  
+    const char *str = env->GetStringUTFChars(scope_str, NULL);
+    if (NULL == str) return;  // OutOfMemoryError already thrown
+    
+    jni_core_type *jni_core = (jni_core_type *) ptr;
+    jni_core->core().set_scope_type(std::string(str));
+    env->ReleaseStringUTFChars(scope_str, str);
+    
+  }
+ 
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setVertexColors
 //   (JNIEnv * env, jobject obj, jintArray colors) {
 //     jni_graph & graph = core.graph();
@@ -407,13 +448,6 @@ extern "C" {
 //     const char *str = env->GetStringUTFChars(schedulertype, 0);
 //     metrics_type = std::string(str);
 //   }
-// 
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setNumCPUs
-//   (JNIEnv * env, jobject obj, jint ncpus) {
-//     core.set_ncpus(ncpus);
-//   }
-// 
-// 
 // 
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_computeGraphColoring
 //   (JNIEnv * env, jobject obj, jint ncpus) {
