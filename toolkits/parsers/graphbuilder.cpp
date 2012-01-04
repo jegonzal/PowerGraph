@@ -222,7 +222,7 @@ struct stringzipparser_update :
        uint to = boost::lexical_cast<uint>(buf2);
        if (from == DUMMY && to == DUMMY) //placeholder for matrix market size, to be done later
            continue;
-       _graph.add_edge(from, to, edge); 
+       _graph.add_edge(from- 1, to - 1, edge);  //traslate edge offset to start from zero
        //_graph.add_edge(to, from, edge); 
 
       line++;
@@ -241,7 +241,7 @@ struct stringzipparser_update :
     fin.pop(); fin.pop();
     _graph.finalize();
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
-    save_to_bin(outdir + vdata.filename, _graph);
+  //  save_to_bin(outdir + vdata.filename, _graph);
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
     in_file.close();
   }

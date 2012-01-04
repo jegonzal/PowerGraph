@@ -873,6 +873,9 @@ void save_to_bin(const std::string &filename, Graph& graph) {
   write_output_vector_binary(filename + "-r.nodes", innodes, graph.num_vertices()+1);
   write_output_vector_binary(filename + ".edges", &_edges[0], graph.num_edges());
   write_output_vector_binary(filename + "-r.edges", &_inedges[0], graph.num_edges());
+
+  delete[] nodes;
+  delete [] innodes;
 }
 
 

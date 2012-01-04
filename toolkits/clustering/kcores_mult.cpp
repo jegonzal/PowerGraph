@@ -28,10 +28,13 @@
 #include <iostream>
 #include "graphlab.hpp"
 #include "graphlab/graph/graph3.hpp"
+#include "graphlab/graph/multigraph.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
-using namespace graphlab;
+#include "../shared/stats.hpp"
 
+#include <graphlab/macros_def.hpp>
+using namespace graphlab;
 
 bool debug = false;
 int max_iter = 50;
@@ -39,6 +42,8 @@ ivec active_nodes_num;
 ivec active_links_num;
 int iiter = 0; //current iteration
 int nodes = 0;
+
+
 
 enum kcore_output_fields{
   KCORE_INDEX = 1
@@ -68,43 +73,67 @@ struct edge_data {
   edge_data(double val)  { }
 };
 
+typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 
-void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
+void calc_initial_degree(multigraph_type * _g, bipartite_graph_descriptor & desc){
   int active = 0;
+  for (int j=0; j< _g->num_graphs(); j++){
+    graph_type * g = _g->graph(j);
   for (int i=0; i< desc.total(); i++){
      vertex_data & data = g->vertex_data(i);
      data.degree = g->out_edges(i).size() + g->in_edges(i).size();
-     assert(data.degree>= 0 && data.degree < nodes);
      data.active = data.degree > 0;
      if (data.active)
        active++;
   }
+  }
   printf("Number of active nodes in round 0 is %d\n", active);
-  printf("Number of active links in round 0 is %d\n", (int)g->num_edges());
+  printf("Number of active links in round 0 is %d\n", (int)_g->num_edges());
 
   active_nodes_num[0] = active;
-  active_links_num[0] = g->num_edges();
+  active_links_num[0] = _g->num_edges();
 }
 
 
+
+
 struct kcore_update :
-  public graphlab::iupdate_functor<graph_type, kcore_update> {
+  public graphlab::iupdate_functor<multigraph_type, kcore_update> {
   void operator()(icontext_type& context) {
+  } 
+};
+
+class accumulator :
+  public graphlab::iaccumulator<multigraph_type, kcore_update, accumulator> {
+private:
+  int num_active;
+  int links;
+public:
+  accumulator() : num_active(0), links(0) { }
+
+  void operator()(icontext_type& context) {
+   
+
     vertex_data & vdata = context.vertex_data();
+    if (debug)
+      logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
+
     if (!vdata.active)
       return;
 
     int cur_iter = iiter;
     int cur_links = 0;
+    int increasing_links = 0;
     
-    const edge_list_type outedgeid = context.out_edges();
-    const edge_list_type inedgeid = context.in_edges();
+    edge_list_type outedgeid = context.out_edges();
+    edge_list_type inedgeid = context.in_edges();
 
     for(size_t i = 0; i < outedgeid.size(); i++) {
       const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
-        if (other.active) {
+        if (other.active){
 	  cur_links++;
+          increasing_links++;
         }
     }
     for (size_t i =0; i < inedgeid.size(); i++){
@@ -115,43 +144,11 @@ struct kcore_update :
     if (cur_links <= cur_iter){
         vdata.active = false;
         vdata.kcore = cur_iter;
-        for(size_t i = 0; i < outedgeid.size(); i++) {
-          const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
-           if (other.active){
-             context.schedule(outedgeid[i].target(), kcore_update());
-           }
-        }
-        for (size_t i =0; i < inedgeid.size(); i++){
-          const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
-           if (other.active)
-	     context.schedule(inedgeid[i].source(), kcore_update());    
-        }
-    }
-  };
-
-};
-
-class accumulator :
-  public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
-private:
-  int num_active;
-  int links;
-public:
-  accumulator() : num_active(0), links(0) { }
-
-  void operator()(icontext_type& context) {
-    vertex_data & vdata = context.vertex_data();
-    if (!vdata.active) return;
-    int increasing_links = 0;
-    const edge_list_type outedgeid = context.out_edges();
-    for(size_t i = 0; i < outedgeid.size(); i++) {
-      const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
-        if (other.active){
-          increasing_links++;
-        }
+	//links -= (outedgeid.size() + inedgeid.size());
     }
     links += increasing_links;
-    num_active++;
+    if (vdata.active)
+      num_active++;
   };
 
   void operator+=(const accumulator& other) { 
@@ -187,8 +184,10 @@ int main(int argc,  char *argv[]) {
   std::string datafile;
   std::string format = "matrixmarket";
   int unittest = 0;
-  int lineformat = MATRIX_MARKET_3;
+  int lineformat = MATRIX_MARKET_4;
   bool gzip = true;
+  bool stats = false;
+  std::string filter = "day";
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
@@ -202,6 +201,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_iter", &max_iter, max_iter, "maximal number of cores");
   clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
+  clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
+  clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
+ 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -225,7 +227,7 @@ int main(int argc,  char *argv[]) {
 
 
   // Create a core
-  graphlab::core<graph_type, kcore_update> core;
+  graphlab::core<multigraph_type, kcore_update> core;
   core.set_options(clopts); // Set the engine options
 
   //unit testing
@@ -235,65 +237,55 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
-//  load_graph(datafile, format, matrix_info, core.graph(), lineformat);
 
+  //nodes = 123306178;
   //nodes=149747010;
   nodes = 121408373;
-  int max_files = 1;
   matrix_info.rows = matrix_info.cols = nodes;
   //matrix_info.nonzeros = 1000000000;
+  /* Rows:      95526
+ * Cols:      3561
+ * Nonzeros:  3298163
+ */
+  //matrix_info.rows = 95526;  matrix_info.cols = 3561; matrix_info.nonzeros = 3298163;
   //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
-  //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
-  std::vector<std::string> in_files;
-  in_files.push_back(datafile);
-  std::string dirpath;
+  std::string listdir = "/usr2/bickson/daily.sorted/";
+  std::string dirpath = "/usr2/bickson/bin.graphs/";
   //core.graph().set_undirected();
   core.set_scope_type("vertex");
-  assert(in_files.size() > 0);
-  for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
-      graphlab::timer mt; mt.start();
-      /*load_cpp_graph(dirpath + in_files[i], format, 
-    	           matrix_info, core.graph(), 
-	           false, MATRIX_MARKET_3);*/
-    core.graph().load_directed(dirpath + in_files[i], false);
 
+    graphlab::timer mt; mt.start();
+    core.graph().load(listdir, dirpath, filter);
     matrix_info.nonzeros = core.graph().num_edges();
-
-    //DB: to be cleaned later
-    if (datafile == "smallnetflix"){
-      matrix_info.rows = 95526; matrix_info.cols = 3561; matrix_info.nonzeros= 3298163;
-    }
-    else if (datafile == "netflixe"){
-      matrix_info.rows = 480189; matrix_info.cols = 17770; matrix_info.nonzeros= 99072112;
-    }
-      
-    logstream(LOG_INFO)<<mt.current_time() << "Takes to load graph" << std::endl;
-  } 
+    logstream(LOG_INFO)<<"Time taken to load graphs: " << mt.current_time() << std::endl;
 
 
-  calc_initial_degree(&core.graph(), matrix_info);
-
-  //std::cout << "Schedule all vertices" << std::endl;
-  core.schedule_all(kcore_update());
+  if (stats)
+    calc_multigraph_stats_and_exit(&core.graph(), matrix_info);
  
   accumulator acum;
-  core.add_sync("sync", acum, 1000000000);
+  core.add_sync("sync", acum, 1000);
   core.add_global("NUM_ACTIVE", int(0));
 
   graphlab::timer mytimer; mytimer.start();
 
+  int pass = 0;
   for (iiter=1; iiter< max_iter+1; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
-      core.schedule_all(kcore_update());
-      core.start();
+    while(true){
+      int prev_nodes = active_nodes_num[iiter];
       core.sync_now("sync");
-      if (active_nodes_num[iiter] == 0)
+      pass++;
+      int cur_nodes = active_nodes_num[iiter];
+      if (prev_nodes == cur_nodes)
+        break; 
+    }
+    if (active_nodes_num[iiter] == 0)
 	break;
   }
  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
-  std::cout << "Number of updates: " << core.last_update_count() << " per node: " << ((double)core.last_update_count())/core.graph().num_vertices() << std::endl;
-
+  std::cout << "Number of updates: " << pass*core.graph().num_vertices() << " pass: " << pass << std::endl;
   imat retmat = imat(max_iter+1, 4);
   memset((int*)data(retmat),0,sizeof(int)*retmat.size());
 
@@ -321,8 +313,10 @@ int main(int argc,  char *argv[]) {
     assert(sumsum(sol - retmat) == 0);
   }
 
+
    return EXIT_SUCCESS;
 }
 
 
 
+#include <graphlab/macros_undef.hpp>

@@ -30,6 +30,8 @@
 #include "graphlab/graph/graph3.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
+#include "../shared/stats.hpp"
+
 using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
@@ -89,33 +91,6 @@ void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   active_links_num[0] = g->num_edges();
 }
 
-
-void calc_stats_and_exit(const graph_type * g, bipartite_graph_descriptor & desc){
-  int active = 0;
-  int max_in_degree = 0;
-  int max_out_degree = 0;
-  int inedges = 0;
-  int outedges = 0;
-  for (int i=0; i< desc.total(); i++){
-     const vertex_data & data = g->vertex_data(i);
-     int degree = g->out_edges(i).size() + g->in_edges(i).size();
-     if (degree > 0)
-       active++;
-     inedges += g->in_edges(i).size();
-     outedges += g->out_edges(i).size();
-     max_in_degree= std::max(max_in_degree, (int)g->in_edges(i).size());
-     max_out_degree = std::max(max_out_degree, (int)g->out_edges(i).size());
-  }
-  printf("Number of active nodes in round 0 is %d\n", active);
-  printf("Number of nodes without edges is %d\n", desc.total() - active);
-  printf("Number of total edges %d\n", (int)g->num_edges());
-  printf("Number of in edges %d\n", inedges);
-  printf("Number of out edges %d\n", outedges);
-  printf("Max out degree  %d\n", max_out_degree);
-  printf("Max in degree %d\n", max_in_degree);
-
-  exit(1);
-}
 
 
 
@@ -284,15 +259,14 @@ int main(int argc,  char *argv[]) {
 	           true, MATRIX_MARKET_5);
    */
     graphlab::timer mt; mt.start();
-    core.graph().load_graph2(dirpath + in_files[i], true);
-    core.graph().load_graph2(dirpath + in_files[i], false);
+    core.graph().load_directed(dirpath + in_files[i], false);
     matrix_info.nonzeros = core.graph().num_edges();
     logstream(LOG_INFO)<<"Time taken to load graph: " << mt.current_time() << std::endl;
   } 
 
 
   if (stats)
-    calc_stats_and_exit(&core.graph(), matrix_info);
+    calc_stats_and_exit<graph_type>(&core.graph(), matrix_info);
  
   accumulator acum;
   core.add_sync("sync", acum, 1000);
