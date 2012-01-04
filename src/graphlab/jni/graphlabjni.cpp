@@ -59,10 +59,6 @@ struct vertex_data {
 /** Proxy graph */
 typedef graph<vertex_data, edge_data> graph_type;
 
-// int taskbudget=0;
-// int maxiter=0;
-// std::string metrics_type = "none";
-
 /**
  * Proxy updater
  * Forwards update calls to the Java layer
