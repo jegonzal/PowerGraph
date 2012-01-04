@@ -28,7 +28,7 @@ import org.graphlab.data.Vertex;
  */
 public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
-	/** Logger (Java layer only, the C++ layer has its own logger.) */
+	/** Logger (Java layer only, the C++ layer has its own logger) */
 	private static final Logger logger = Logger.getLogger (Core.class);
 
 	/** Indicates if the core has been destroyed and cannot be reused. */

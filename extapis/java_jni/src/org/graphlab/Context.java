@@ -71,7 +71,7 @@ public final class Context {
    *           if <tt>updater</tt> was null.
    * @throws NoSuchElementException
    *           if <tt>vertexId</tt> did not exist in the graph that was passed
-   *           to {@link Core#setGraph()}
+   *           to {@link Core#setGraph(org.graphlab.data.Graph)}.
    */
   public void schedule (int vertexId, Updater updater){
     

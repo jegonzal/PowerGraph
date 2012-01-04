@@ -1,60 +1,85 @@
-<project name="GraphlabJNI" default="dist" basedir=".">
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="GraphLab">
+
     <description>
-        simple example build file
+        Adapted from ant bulid file exported from Eclipse.
     </description>
-  <!-- set global properties for this build -->
-     <mkdir dir="build"/>
-     <mkdir dir="dist" />
-  <property name="src" location="src"/>
-  <property name="build" location="build"/>
-  <property name="dist"  location="dist"/>
 
-   <path id="classpath">
-     <pathelement path="lib/jython.jar" />
-   </path>
- 
+    <property environment="env"/>
+    <property name="src" value="src"/>
+    <property name="bin" value="bin"/>
+    <property name="lib" value="lib"/>
+    <property name="dist" value="dist"/>
+    <property name="input" value="test-graphs"/>
+    
+    <property name="target" value="1.6"/>
+    <property name="source" value="1.6"/>
+    
+    <path id="GraphLab.classpath">
+        <pathelement location="${bin}"/>
+        <pathelement location="${lib}/log4j-1.2.16.jar"/>
+        <pathelement location="${lib}/junit-4.10.jar"/>
+    </path>
+    
+    <path id="run.ShortestPath.classpath">
+        <path refid="GraphLab.classpath"/>
+    </path>
+    
+    <path id="run.Coloring.classpath">
+        <path refid="GraphLab.classpath"/>
+    </path>
+    
+    <target name="init">
+        <mkdir dir="${bin}"/>
+        <mkdir dir="${dist}"/>
+    </target>
+    
+    <target name="clean">
+        <delete dir="${bin}"/>
+        <delete dir="${dist}"/>
+    </target>
+    
+    <target depends="clean" name="cleanall"/>
+    
+    <target depends="build-project" name="build"/>
+    
+    <target depends="init" name="build-project">
+        <echo message="${ant.project.name}: ${ant.file}"/>
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${bin}"
+              source="${source}" target="${target}"
+              includeantruntime="true">
+            <src path="${src}"/>
+            <classpath refid="GraphLab.classpath"/>
+        </javac>
+    </target>
+    
+    <target name="dist" depends="build, javadoc" description="generate the distribution" >
+      <mkdir dir="${dist}/lib"/>
+      <tstamp/>
+      <jar jarfile="${dist}/lib/graphlabjni-${DSTAMP}.jar" basedir="${bin}"/>
+    </target>
 
-  <target name="init">
-    <!-- Create the time stamp -->
-    <tstamp/>
-    <!-- Create the build directory structure used by compile -->
-    <mkdir dir="${build}"/>
-  </target>
-
-  <target name="compile" depends="init"
-        description="compile the source " >
-    <!-- Compile the java code from ${src} into ${build} -->
-    <javac srcdir="${src}" destdir="${build}"  source="1.5">
-      <classpath refid="classpath"/>
-    </javac>
-
-  </target>
-
-  <target name="dist" depends="compile, javadoc"
-        description="generate the distribution" >
-    <!-- Create the distribution directory -->
-    <mkdir dir="${dist}/lib"/>
-
-    <!-- Put everything in ${build} into the MyProject-${DSTAMP}.jar file -->
-    <jar jarfile="${dist}/lib/graphlabjni-${DSTAMP}.jar" basedir="${build}"/>
-  </target>
-
-   <target name="javadoc" depends="compile"
-   description="Create Javadoc API documentation">
-
-    <mkdir          dir="${dist}/docs/api"/>
-    <javadoc sourcepath="${src}"
-                destdir="${dist}/docs/api"
-           packagenames="*">
-         <classpath refid="classpath"/>
-    </javadoc>
-
-  </target>
-
-  <target name="clean"
-        description="clean up" >
-    <!-- Delete the ${build} and ${dist} directory trees -->
-    <delete dir="${build}"/>
-    <delete dir="${dist}"/>
-  </target>
+   <target name="javadoc" depends="build" description="Create Javadoc API documentation">
+      <mkdir dir="${dist}/docs/api"/>
+      <javadoc sourcepath="${src}" destdir="${dist}/docs/api" packagenames="*">
+        <classpath refid="GraphLab.classpath"/>
+      </javadoc>
+      </target>
+    
+    <target name="ShortestPath">
+        <java classname="org.graphlab.demo.ShortestPath" failonerror="true" fork="yes">
+            <jvmarg line="-Djava.library.path=${lib}"/>
+            <arg line="${input}/toy.tsv"/>
+            <classpath refid="run.ShortestPath.classpath"/>
+        </java>
+    </target>
+    
+    <target name="Coloring">
+        <java classname="org.graphlab.demo.Coloring" failonerror="true" fork="yes">
+            <jvmarg line="-Djava.library.path=${lib}"/>
+            <arg line="${input}/toy.tsv"/>
+            <classpath refid="run.Coloring.classpath"/>
+        </java>
+    </target>
+    
 </project>
