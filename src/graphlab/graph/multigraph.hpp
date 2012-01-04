@@ -77,6 +77,8 @@ namespace graphlab {
     uint num_nodes;
     EdgeData _edge;
     char _color; //placeholder 
+    std::vector<std::string> in_files;
+
   public:
     /// The type of a vertex is a simple size_t
     //typedef graphlab::vertex_id_type vertex_id_type;
@@ -104,7 +106,7 @@ namespace graphlab {
     //typedef typename gstore_type::edge_list edge_list_type;
     typedef edge_list edge_list_type;
 
-    int num_graphs(){ return graphs.size(); };
+    int num_graphs(){ return in_files.size(); };
 
     graph3<VertexData,EdgeData>* graph(int i){ return &graphs[i]; }
 
@@ -351,20 +353,35 @@ namespace graphlab {
        assert(false); //not implemented yet
     } // end of save
    
+    void doload(int i){
+       graphlab::timer mt; mt.start();
+       graph3<VertexData,EdgeData> graph;
+       graph.load_directed(in_files[i], true);
+       logstream(LOG_INFO)<<"Time taken to load: " << mt.current_time() << std::endl;
+       graphs.push_back(graph);
+    }
+
+    void unload(){
+       graphs[0].clear();
+       graphs.clear();
+    } 
 
     /** \brief Load the graph from a file */
-    void load(const std::string & listdir, const std::string& dirname, const std::string & prefix) {
-      std::vector<std::string> in_files = list_all_files_in_dir(listdir, prefix);
+    void load(const std::string & listdir, const std::string& dirname, const std::string & prefix, bool delayed) {
+     in_files = list_all_files_in_dir(listdir, prefix);
+     for (int i=0; i< (int)in_files.size(); i++)
+       in_files[i] = dirname + in_files[i];
+
+     if (!delayed){
      for (int i=0; i< (int)in_files.size(); i++){
         graph3<VertexData, EdgeData> graph;
-        graphlab::timer mt; mt.start();
-        logstream(LOG_INFO)<<"loading graph " << i <<"/" << in_files.size() << " " << dirname << in_files[i] << std::endl;
-        graph.load_directed(dirname + in_files[i], true);
-        logstream(LOG_INFO)<<"Time taken to load: " << mt.current_time() << std::endl;
-        graphs.push_back(graph);
+       logstream(LOG_INFO)<<"loading graph " << i <<"/" << in_files.size() << " " << dirname << in_files[i] << std::endl;
+        doload(i);
      }
      logstream(LOG_INFO)<<"Total edges read: " << num_edges() << std::endl;
      num_nodes = graph(0)->num_vertices();
+     }
+     else logstream(LOG_INFO)<<"preparing to load " << in_files.size() << " input graphs" << std::endl;
     } // end of load
 
     /**

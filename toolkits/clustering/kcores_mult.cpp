@@ -99,13 +99,13 @@ void calc_initial_degree(multigraph_type * _g, bipartite_graph_descriptor & desc
 
 
 struct kcore_update :
-  public graphlab::iupdate_functor<multigraph_type, kcore_update> {
+  public graphlab::iupdate_functor<graph_type, kcore_update> {
   void operator()(icontext_type& context) {
   } 
 };
 
 class accumulator :
-  public graphlab::iaccumulator<multigraph_type, kcore_update, accumulator> {
+  public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
 private:
   int num_active;
   int links;
@@ -227,7 +227,7 @@ int main(int argc,  char *argv[]) {
 
 
   // Create a core
-  graphlab::core<multigraph_type, kcore_update> core;
+  graphlab::core<graph_type, kcore_update> core;
   core.set_options(clopts); // Set the engine options
 
   //unit testing
@@ -255,18 +255,16 @@ int main(int argc,  char *argv[]) {
   core.set_scope_type("vertex");
 
     graphlab::timer mt; mt.start();
-    core.graph().load(listdir, dirpath, filter);
+    
+    multigraph_type multigraph;
+    multigraph.load(listdir, dirpath, filter, true);
     matrix_info.nonzeros = core.graph().num_edges();
     logstream(LOG_INFO)<<"Time taken to load graphs: " << mt.current_time() << std::endl;
 
 
-  if (stats)
-    calc_multigraph_stats_and_exit(&core.graph(), matrix_info);
- 
-  accumulator acum;
-  core.add_sync("sync", acum, 1000);
-  core.add_global("NUM_ACTIVE", int(0));
-
+  if (stats){
+    calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
+  }
   graphlab::timer mytimer; mytimer.start();
 
   int pass = 0;
@@ -274,7 +272,17 @@ int main(int argc,  char *argv[]) {
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
     while(true){
       int prev_nodes = active_nodes_num[iiter];
-      core.sync_now("sync");
+
+      for (int i=0; i< multigraph.num_graphs(); i++){
+       accumulator acum;
+       multigraph.doload(i);
+       core.graph() = *multigraph.graph(0);
+       core.add_sync("sync", acum, 1000);
+       core.add_global("NUM_ACTIVE", int(0));
+       core.sync_now("sync");
+       multigraph.unload(); 
+     }
+
       pass++;
       int cur_nodes = active_nodes_num[iiter];
       if (prev_nodes == cur_nodes)
