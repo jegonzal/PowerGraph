@@ -1,12 +1,15 @@
 package org.graphlab.demo;
 
 import java.io.IOException;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.graphlab.Context;
 import org.graphlab.Core;
+import org.graphlab.Scope;
 import org.graphlab.Core.CoreException;
 import org.graphlab.Updater;
 import org.graphlab.data.ScalarEdge;
@@ -15,7 +18,7 @@ import org.graphlab.data.SparseGraph;
 import org.graphlab.util.GraphLoader;
 
 /**
- * ShortestPath algorithm.
+ * Naive Greedy Graph Coloring Algorithm
  * 
  * <p>Demonstrates GraphLab over JNI. To run this class,
  * provide a path to a tsv file in the program arguments. Some examples are
@@ -27,25 +30,22 @@ import org.graphlab.util.GraphLoader;
  * java \
  *  -classpath bin:lib/log4j-1.2.16.jar \
  *  -Djava.library.path=../../release/src/graphlab/jni \
- *  org.graphlab.demo.ShortestPath test-graphs/toy.tsv
+ *  org.graphlab.demo.Coloring test-graphs/toy.tsv
  * </pre>
  * </p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
-public class ShortestPath {
+public class Coloring {
 
-  private static final Logger logger = Logger.getLogger(ShortestPath.class);
-
-  public static void main(String[] args) {
-
+  private static final Logger logger = Logger.getLogger(Coloring.class);
+  
+  public static void main (String[] args){
+    
     BasicConfigurator.configure();
     Logger.getLogger(Core.class).setLevel(Level.ALL);
     logger.setLevel(Level.ALL);
-
-    logger.trace("Main method in " + ShortestPath.class.getCanonicalName()
-        + " started.");
-
+    
     // check arguments
     if (!checkParams(args)) {
       logger.trace("Exiting main method.");
@@ -77,28 +77,33 @@ public class ShortestPath {
       logger.trace("Exiting main method.");
       return;
     }
-
+    
     for (ScalarVertex v : g.vertices()) {
-      v.setValue(Integer.MAX_VALUE);
+      v.setValue(-1);    // -1 means uncolored
     }
-
-    // start from root
-    ScalarVertex root = g.getVertex(0);
-    root.setValue(0);
-
+    
+    // execute graph updates
+    c.setScopeType(Scope.EDGE);
     c.setGraph(g);
-    c.schedule(root.id(), new ShortestPathUpdater(g));
-
+    c.scheduleAll(new ColoringUpdater(g));
     logger.trace("Running graphlab ...");
-    c.start();
-
-    // destroy core
-    c.destroy();
-
-    logger.info("Shortest path from root to 7 was: " + g.getVertex(7).value());
+    logger.info("Took " + c.start() + " seconds.");
+    
+    // print results
+    printResults (g);
 
   }
-
+  
+  private static void printResults (SparseGraph<ScalarVertex, ScalarEdge> g){
+    
+    logger.info("----------------- Results -----------------");
+    logger.info("ID : Color");
+    for (ScalarVertex v : g.vertices()){
+      logger.info(v.id() + " : " + (int) v.value());
+    }
+    
+  }
+  
   /**
    * Checks that required input parameters are available and valid. Prints
    * instructions if not all parameters were valid.
@@ -129,11 +134,11 @@ public class ShortestPath {
 
   }
   
-  private static class ShortestPathUpdater extends Updater {
+  private static class ColoringUpdater extends Updater {
 
     private SparseGraph<ScalarVertex, ScalarEdge> g;
 
-    public ShortestPathUpdater(SparseGraph<ScalarVertex, ScalarEdge> g) {
+    public ColoringUpdater(SparseGraph<ScalarVertex, ScalarEdge> g) {
       this.g = g;
     }
 
@@ -141,27 +146,32 @@ public class ShortestPath {
     public void update(Context context, int vertexId) {
 
       ScalarVertex vertex = g.getVertex(vertexId);
-      System.out.println("Updater called on vertex " + vertexId);
-
-      // find shortest known distance into this node
-      for (ScalarEdge edge : g.incomingEdges(vertex.id())) {
-        ScalarVertex neighbor = g.getVertex(edge.source());
-        vertex.setValue((float) Math.min(vertex.value(), neighbor.value()
-            + edge.weight()));
+      Set<Integer> neighborColors = new TreeSet<Integer>();
+      int color;
+      
+      // collect neighbor colors
+      for (ScalarEdge edge : g.incomingEdges(vertexId)){
+        // we will just use value as color
+        color = (int) g.getVertex(edge.source()).value();
+        if (-1 == color) continue;
+        neighborColors.add(color);
       }
-
-      // reschedule any affected neighbors
-      for (ScalarEdge edge : g.outgoingEdges(vertexId)) {
-        ScalarVertex neighbor = g.getVertex(edge.target());
-        System.out.println("Checking vertex " + neighbor.id());
-        if (neighbor.value() > (vertex.value() + edge.weight())) {
-          System.out.println("rescheduling vertex " + neighbor.id());
-          context.schedule(neighbor.id(), this);
-        }
+      
+      for (ScalarEdge edge : g.outgoingEdges(vertexId)){
+        color = (int) g.getVertex(edge.target()).value();
+        if (-1 == color) continue;
+        neighborColors.add(color);
       }
+      
+      // find a unique color
+      for (color=0; ; color++){
+        if (!neighborColors.contains(color)) break;
+      }
+      
+      vertex.setValue(color);
 
     }
 
   }
-
+  
 }
