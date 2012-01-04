@@ -276,7 +276,7 @@ extern "C" {
     updater.id = updater_id;
 
     // schedule vertex
-    jni_core->core().scheduleAll(updater);
+    jni_core->core().schedule_all(updater);
 
   }
   
