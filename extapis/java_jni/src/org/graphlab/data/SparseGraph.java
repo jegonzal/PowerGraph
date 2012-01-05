@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.graphlab.util.MutableGraph;
+import static org.graphlab.util.Arrays.copyOf;
 
 /**
  * Efficient representation for sparse graphs. Default Graph class to be used.
@@ -141,7 +142,7 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 	public Collection<V> vertices() {
 		// TODO: optimize and remove copy (instead, use a proxy)
 		return Collections.unmodifiableList(
-			Arrays.asList(Arrays.copyOf(mVertices, mSize))
+			Arrays.asList(copyOf(mVertices, mSize))
 		);
 	}
 
@@ -198,9 +199,9 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 			return;
 
 		// grow by 100% for constant amortized cost
-		mVertices = Arrays.copyOf(mVertices, mVertices.length * 2);
-		mOutgoingEdges = Arrays.copyOf(mOutgoingEdges, mOutgoingEdges.length * 2);
-		mIncomingEdges = Arrays.copyOf(mIncomingEdges, mIncomingEdges.length * 2);
+		mVertices = copyOf(mVertices, mVertices.length * 2);
+		mOutgoingEdges = copyOf(mOutgoingEdges, mOutgoingEdges.length * 2);
+		mIncomingEdges = copyOf(mIncomingEdges, mIncomingEdges.length * 2);
 
 	}
 
