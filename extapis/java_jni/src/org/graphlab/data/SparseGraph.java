@@ -62,7 +62,6 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 		mSize = 0;
 	}
 
-	@Override
 	public V getVertex(int id) {
 		if (!isVertexInGraph(id))
 			return null;
@@ -76,7 +75,6 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 	 *            the vertex to be added
 	 * @return the assigned vertex id
 	 */
-	@Override
 	public synchronized int addVertex(V vertex) {
 		if (null == vertex)
 			throw new NullPointerException("vertex must not be null.");
@@ -112,7 +110,6 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 	 * @param edge
 	 *            the edge to be added
 	 */
-	@Override
 	public synchronized void addEdge(E edge) {
 
 		if (null == edge)
@@ -138,7 +135,6 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 
 	}
 
-	@Override
 	public Collection<V> vertices() {
 		// TODO: optimize and remove copy (instead, use a proxy)
 		return Collections.unmodifiableList(
@@ -146,12 +142,10 @@ public class SparseGraph<V extends Vertex, E extends Edge>
 		);
 	}
 
-	@Override
 	public int size() {
 		return mSize;
 	}
 
-	@Override
 	public Collection<E> outgoingEdges (int id){
 		if (!isVertexInGraph(id))
 			throw new NoSuchElementException ("vertex " + id + " not found in this graph.");

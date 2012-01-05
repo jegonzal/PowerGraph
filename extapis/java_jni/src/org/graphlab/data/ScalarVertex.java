@@ -73,7 +73,6 @@ public class ScalarVertex implements Vertex {
 	/**
 	 * @return vertex id
 	 */
-	@Override
 	public int id() {
 		return mId;
 	}
@@ -84,7 +83,6 @@ public class ScalarVertex implements Vertex {
 	 * @param id
 	 *            vertex id
 	 */
-	@Override
 	public void setId(int id) {
 		mId = id;
 	}
