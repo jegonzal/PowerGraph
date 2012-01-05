@@ -140,7 +140,7 @@ extern "C" {
     
     // allocate and configure core
     jni_core_type *jni_core = new jni_core_type(env, obj);
-    jni_core->core().set_options(clopts);
+    (*jni_core)().set_options(clopts);
     
     logstream(LOG_DEBUG)
       << "GraphLab core initialized in JNI."
@@ -186,7 +186,7 @@ extern "C" {
     }
     
     jni_core_type *jni_core = (jni_core_type *) ptr;
-    jni_core->core().graph().resize(count);
+    (*jni_core)().graph().resize(count);
     
   }
   
@@ -209,7 +209,7 @@ extern "C" {
     vertex.app_id = id;
     
     // add to graph
-    return jni_core->core().graph().add_vertex(vertex);
+    return (*jni_core)().graph().add_vertex(vertex);
   
   }
   
@@ -228,7 +228,7 @@ extern "C" {
     jni_core_type *jni_core = (jni_core_type *) ptr;
     
     // add to graph
-    jni_core->core().graph().add_edge(source, target, edge_data());
+    (*jni_core)().graph().add_edge(source, target, edge_data());
   
   }
   
@@ -252,7 +252,7 @@ extern "C" {
     updater.id = updater_id;
 
     // schedule vertex
-    jni_core->core().schedule(vertex_id, updater);
+    (*jni_core)().schedule(vertex_id, updater);
     
   }
   
@@ -276,7 +276,7 @@ extern "C" {
     updater.id = updater_id;
 
     // schedule vertex
-    jni_core->core().schedule_all(updater);
+    (*jni_core)().schedule_all(updater);
 
   }
   
@@ -296,10 +296,10 @@ extern "C" {
 
     logstream(LOG_DEBUG)
       << "Graph has: "
-      << jni_core->core().graph().num_vertices() << " vertices and "
-      << jni_core->core().graph().num_edges() << " edges."
+      << (*jni_core)().graph().num_vertices() << " vertices and "
+      << (*jni_core)().graph().num_edges() << " edges."
       << std::endl;
-    jni_core->core().engine().get_options().print();
+    (*jni_core)().engine().get_options().print();
     
 //     if (taskbudget>0)
 //       core.engine().set_task_budget(taskbudget);
@@ -308,7 +308,7 @@ extern "C" {
 
     // set thread destroy callback
     thread::set_thread_destroy_callback(jni_core_type::detach_from_jvm);
-    double runtime = jni_core->core().start(); 
+    double runtime = (*jni_core)().start(); 
 
 //     if (metrics_type != "none") {
 //       core.set_metrics_type(metrics_type);
@@ -321,7 +321,7 @@ extern "C" {
 
     logstream(LOG_INFO)
         << "Finished after " 
-	      << jni_core->core().engine().last_update_count() << " updates."
+	      << (*jni_core)().engine().last_update_count() << " updates."
 	      << std::endl;
     logstream(LOG_INFO)
         << "Runtime: " << runtime 
@@ -369,7 +369,7 @@ extern "C" {
     }
   
     jni_core_type *jni_core = (jni_core_type *) ptr;
-    jni_core->core().set_ncpus(ncpus);
+    (*jni_core)().set_ncpus(ncpus);
     
   }
 
@@ -389,7 +389,7 @@ extern "C" {
     if (NULL == str) return;  // OutOfMemoryError already thrown
     
     jni_core_type *jni_core = (jni_core_type *) ptr;
-    jni_core->core().set_scheduler_type(std::string(str));
+    (*jni_core)().set_scheduler_type(std::string(str));
     env->ReleaseStringUTFChars(scheduler_str, str);
     
   }
@@ -410,7 +410,7 @@ extern "C" {
     if (NULL == str) return;  // OutOfMemoryError already thrown
     
     jni_core_type *jni_core = (jni_core_type *) ptr;
-    jni_core->core().set_scope_type(std::string(str));
+    (*jni_core)().set_scope_type(std::string(str));
     env->ReleaseStringUTFChars(scope_str, str);
     
   }

@@ -66,7 +66,7 @@ namespace graphlab {
       this->mobj = env->NewGlobalRef(obj);
     }
     
-    core_type &core(){
+    core_type &operator()(){
       return *mcore;
     }
     

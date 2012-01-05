@@ -91,6 +91,8 @@ public class Coloring {
     
     // print results
     printResults (g);
+    
+    return;
 
   }
   
