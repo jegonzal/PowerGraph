@@ -281,7 +281,7 @@ int main(int argc,  char *argv[]) {
   std::string outdir = "/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
   int unittest = 0;
   int lines = 0;
-  int numnodes = 121408373;
+  int numnodes = 1420949264;//121408373;
   std::string filter = "x"; //"day";
 
   clopts.attach_option("data", &datafile, datafile,
