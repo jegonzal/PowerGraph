@@ -241,7 +241,7 @@ struct stringzipparser_update :
     fin.pop(); fin.pop();
     _graph.finalize();
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
-  //  save_to_bin(outdir + vdata.filename, _graph);
+    save_to_bin(outdir + vdata.filename, _graph);
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
     in_file.close();
   }
@@ -277,12 +277,12 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
-  std::string dir = "/usr2/bickson/daily.sorted/";
-  std::string outdir = "/usr2/bickson/bin.graphs/";
+  std::string dir = "/mnt/bigbrofs/usr10/haijieg/edge_process/output/"; //"/usr2/bickson/daily.sorted/";
+  std::string outdir = "/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
   int unittest = 0;
   int lines = 0;
   int numnodes = 121408373;
-  std::string filter = "day";
+  std::string filter = "x"; //"day";
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");

@@ -72,7 +72,7 @@ namespace graphlab {
   class multigraph {
 
 
-    std::vector<graph3<VertexData,EdgeData>  > graphs;
+    std::vector<graph3<VertexData,EdgeData> * > graphs;
     std::vector<VertexData> node_vdata_array;
     uint num_nodes;
     EdgeData _edge;
@@ -108,12 +108,15 @@ namespace graphlab {
 
     int num_graphs(){ return in_files.size(); };
 
-    graph3<VertexData,EdgeData>* graph(int i){ return &graphs[i]; }
+    graph3<VertexData,EdgeData>* graph(int i){ return graphs[i]; }
 
     multigraph(){
       num_nodes = 0;
       undirected = false;
     }
+
+
+    const std::vector<VertexData> *get_node_vdata(){ return &node_vdata_array; }
 
     edge_list_type in_edges(const vertex_id_type v) const{
       assert(false);
@@ -160,7 +163,7 @@ namespace graphlab {
     size_t num_edges() const {
       size_t total = 0;
       for (int i=0; i< (int)graphs.size(); i++)
-         total += graphs[i].num_edges();
+         total += graphs[i]->num_edges();
       return total;
     } 
 
@@ -260,28 +263,28 @@ namespace graphlab {
     }
 
     size_t num_in_edges(const vertex_id_type v, int id = 0) const {
-      return graphs[id].num_in_edges(v);
+      return graphs[id]->num_in_edges(v);
     }
 
     size_t num_out_edges(const vertex_id_type v, int id = 0) const {
-      return graphs[id].num_out_edges(v);
+      return graphs[id]->num_out_edges(v);
     }
 
 
     edge_list_type in_edges(vertex_id_type v, int id) {
-      return graphs[id].in_edges(v);
+      return graphs[id]->in_edges(v);
     }
 
     edge_list_type out_edges(vertex_id_type v, int id) {
-      return graphs[id].out_edges(v);
+      return graphs[id]->out_edges(v);
     }
 
     const edge_list_type in_edges(vertex_id_type v, int id) const {
-      return graphs[id].in_edges(v);
+      return graphs[id]->in_edges(v);
     }
 
     const edge_list_type out_edges(vertex_id_type v, int id) const {
-       return graphs[id].out_edges(v);
+       return graphs[id]->out_edges(v);
      }
 
 
@@ -352,19 +355,37 @@ namespace graphlab {
     void save(oarchive& arc) const {
        assert(false); //not implemented yet
     } // end of save
-   
+
+    std::string reference_graph_name(int ref){
+       assert(in_files.size() > 0);
+       return in_files[ref];
+    }  
+ 
     void doload(int i){
        graphlab::timer mt; mt.start();
-       graph3<VertexData,EdgeData> graph;
-       graph.load_directed(in_files[i], true);
+       graph3<VertexData,EdgeData> *graph = new graph3<VertexData,EdgeData>();
+       graph->load_directed(in_files[i], true);
        logstream(LOG_INFO)<<"Time taken to load: " << mt.current_time() << std::endl;
+       num_nodes = graph->num_vertices();
+       if (node_vdata_array.size() == 0)
+         node_vdata_array.resize(num_nodes);
+       graph->set_node_vdata_array(&node_vdata_array);
        graphs.push_back(graph);
-    }
+        }
 
-    void unload(){
-       graphs[0].clear();
+    void unload_all(){
+       for (int i=0; i< num_graphs(); i++){
+           graphs[i]->clear();
+           delete graphs[i];
+       }
        graphs.clear();
     } 
+
+    void unload(int i){
+      graphs[i]->clear();
+      delete graphs[i];
+      graphs.erase(graphs.begin()+i);
+    }
 
     /** \brief Load the graph from a file */
     void load(const std::string & listdir, const std::string& dirname, const std::string & prefix, bool delayed) {

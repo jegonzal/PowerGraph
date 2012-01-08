@@ -42,7 +42,7 @@ ivec active_nodes_num;
 ivec active_links_num;
 int iiter = 0; //current iteration
 int nodes = 0;
-
+int reference = 0;
 
 
 enum kcore_output_fields{
@@ -75,6 +75,8 @@ struct edge_data {
 
 typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+
+graph_type * reference_graph = NULL;
 
 void calc_initial_degree(multigraph_type * _g, bipartite_graph_descriptor & desc){
   int active = 0;
@@ -203,6 +205,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
   clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
+  clopts.attach_option("reference", &reference, reference, "reference graph number");
  
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -254,18 +257,19 @@ int main(int argc,  char *argv[]) {
   //core.graph().set_undirected();
   core.set_scope_type("vertex");
 
-    graphlab::timer mt; mt.start();
     
     multigraph_type multigraph;
     multigraph.load(listdir, dirpath, filter, true);
     matrix_info.nonzeros = core.graph().num_edges();
-    logstream(LOG_INFO)<<"Time taken to load graphs: " << mt.current_time() << std::endl;
 
 
   if (stats){
     calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
   }
   graphlab::timer mytimer; mytimer.start();
+
+  multigraph.doload(reference);
+  reference_graph = multigraph.graph(0);
 
   int pass = 0;
   for (iiter=1; iiter< max_iter+1; iiter++){
@@ -280,7 +284,7 @@ int main(int argc,  char *argv[]) {
        core.add_sync("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
        core.sync_now("sync");
-       multigraph.unload(); 
+       multigraph.unload_all(); 
      }
 
       pass++;
