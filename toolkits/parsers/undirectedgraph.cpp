@@ -49,6 +49,7 @@ unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
 unsigned long long filtered_out = 0;
 int min_time = 0, max_time = 24*3600; //filter out records based on time range
+bool negate_time = false;
 
 struct vertex_data {
   string filename;
@@ -148,23 +149,44 @@ struct stringzipparser_update :
        strncpy(buf2, pch, 20);
       if (!quick){
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3, pch, 6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3, pch, 6);
         buf3[6] = ' ';
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3+7,pch,6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3+7,pch,6);
         pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
-        duration = atoi(pch);
-        datestr2uint64(std::string(buf3), dateret, timeret);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         duration = atoi(pch);
+      if (duration < 0){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         datestr2uint64(std::string(buf3), timeret, dateret);
         uint from, to;
         find_ids(from, to, buf1, buf2);
         if (debug && line <= 10)
-            cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << dateret << " time: " << timeret << " val: " << duration << endl;
-         if (timeret < min_time*3600 || timeret > max_time*3600)
+            cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << timeret << " date: " << dateret << " val: " << duration << endl;
+         
+        if (from == to)
+          self_edges++;
+        else if (!negate_time && ((timeret < min_time*3600) || (timeret > max_time*3600)))
+            filtered_out++;
+         else if (negate_time && ((timeret >= min_time*3600) || (timeret <= max_time*3600)))
             filtered_out++;
          else // fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
-            { fout << from << " " << to << " " << endl;
+            { 
+            fout << from << " " << to << endl;
             total_lines++;
-            
          }
       }
       else {
@@ -183,9 +205,7 @@ struct stringzipparser_update :
 	 break;
 
       if (line % 5000000 == 0)
-        logstream(LOG_INFO) << "Parsed line: " << line << " chosen lines " << total_lines <<  " filtered out: " << std::endl;
-          if (hash2nodeid.size() % 500000 == 0)
-        logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " edges: " << total_lines << std::endl;
+        logstream(LOG_INFO) << "Parsed line: " << line << " chosen lines " << total_lines <<  " filtered out: " << filtered_out << " slef edges: " << self_edges << std::endl;
     } 
 
    logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename <<
@@ -245,8 +265,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
   clopts.attach_option("min_time", &min_time, min_time, "filter out records < min_time");
-  clopts.attach_option("max_time", &max_time, max_time, "filter out records < min_time");
+  clopts.attach_option("max_time", &max_time, max_time, "filter out records > max_time");
   clopts.attach_option("filter", &filter, filter, "select files starting with prefi [filter]");
+  clopts.attach_option("negate_time", &negate_time, negate_time, "invert time selection");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -255,15 +276,8 @@ int main(int argc,  char *argv[]) {
 
   logstream(LOG_WARNING)
     << "Eigen detected. (This is actually good news!)" << std::endl;
-  logstream(LOG_INFO) 
-    << "GraphLab Linear solver library code by Danny Bickson, CMU" 
-    << std::endl 
-    << "Send comments and bug reports to danny.bickson@gmail.com" 
-    << std::endl 
-    << "Currently implemented algorithms are: Gaussian Belief Propagation, "
-    << "Jacobi method, Conjugate Gradient" << std::endl;
 
-
+  assert(min_time < max_time);
 
   // Create a core
   graphlab::core<graph_type, stringzipparser_update> core;
@@ -308,12 +322,6 @@ int main(int argc,  char *argv[]) {
   logstream(LOG_INFO)<<"Wrote total edges: " << total_lines << " in time: " << mytime.current_time() << std::endl;
   logstream(LOG_INFO)<<"Total edges filtered out: " << filtered_out << std::endl; 
 
-  //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
-
-  //write_output_vector(datafile + "x.out", format, ret);
-
-
-   
    return EXIT_SUCCESS;
 }
 
