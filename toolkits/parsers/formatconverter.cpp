@@ -15,8 +15,22 @@ PnLaCsEnqei atslBvPNusB 050803 235959 590
 
 boost::posix_time::ptime myEpoch(boost::gregorian::date(2005,boost::gregorian::Aug,1)); // Or whatever your epocj is.
 
+struct cached_time{
+std::string cached_data;
+unsigned long int cached_timeret;
+unsigned long int cached_dateret;
+};
+
+cached_time cache[16];
+
 //input string in the format: 050803 235959
-unsigned long int datestr2uint64(const std::string & data, int & timeret, int & dateret){
+unsigned long int datestr2uint64(const std::string & data, int & timeret, int & dateret, int thread_id){
+
+  if (cache[thread_id].cached_data == data){
+    timeret = cache[thread_id].cached_timeret;
+    dateret = cache[thread_id].cached_dateret;
+    return -1;
+  } 
 
 //std::string ts("2002-01-20 23:59:59.000");
 //ptime t(time_from_string(ts))
@@ -27,5 +41,8 @@ unsigned long int datestr2uint64(const std::string & data, int & timeret, int & 
   unsigned long int ticks = myTimeFromEpoch.ticks() / 1000000;
   timeret = ticks % (3600*24);
   dateret = ticks / (3600*24);
+  cache[thread_id].cached_timeret = timeret;
+  cache[thread_id].cached_dateret = dateret;
+  cache[thread_id].cached_data = data;
   return myTimeFromEpoch.ticks();
 }

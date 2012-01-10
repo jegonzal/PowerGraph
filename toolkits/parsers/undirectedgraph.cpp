@@ -50,6 +50,7 @@ unsigned long long self_edges = 0;
 unsigned long long filtered_out = 0;
 int min_time = 0, max_time = 24*3600; //filter out records based on time range
 bool negate_time = false;
+int total_graphs_done = 0;
 
 struct vertex_data {
   string filename;
@@ -61,7 +62,7 @@ struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
+unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret, int threadid);
 
 
 
@@ -96,6 +97,7 @@ struct stringzipparser_update :
     
    std::string dir = context.get_global<std::string>("PATH");
    std::string outdir = context.get_global<std::string>("OUTPATH");
+   int mythreadid = thread::thread_id();
 
     //open file
     vertex_data& vdata = context.vertex_data();
@@ -106,7 +108,7 @@ struct stringzipparser_update :
     fin.push(in_file);  
 
     std::string out_filename = outdir + vdata.filename + boost::lexical_cast<std::string>(min_time) + "-" + 
-       boost::lexical_cast<std::string>(max_time) + ".out.gz"; 
+       boost::lexical_cast<std::string>(max_time) + (negate_time? "neg" : "") + ".out.gz"; 
 
     std::ofstream out_file(out_filename.c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening output file " << out_filename << std::endl;
@@ -171,7 +173,7 @@ struct stringzipparser_update :
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
          return;
        }
-         datestr2uint64(std::string(buf3), timeret, dateret);
+         datestr2uint64(std::string(buf3), timeret, dateret, mythreadid);
         uint from, to;
         find_ids(from, to, buf1, buf2);
         if (debug && line <= 10)
@@ -181,7 +183,7 @@ struct stringzipparser_update :
           self_edges++;
         else if (!negate_time && ((timeret < min_time*3600) || (timeret > max_time*3600)))
             filtered_out++;
-         else if (negate_time && ((timeret >= min_time*3600) || (timeret <= max_time*3600)))
+         else if (negate_time && ((timeret >= min_time*3600) && (timeret <= max_time*3600)))
             filtered_out++;
          else // fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
             { 
@@ -205,11 +207,12 @@ struct stringzipparser_update :
 	 break;
 
       if (line % 5000000 == 0)
-        logstream(LOG_INFO) << "Parsed line: " << line << " chosen lines " << total_lines <<  " filtered out: " << filtered_out << " slef edges: " << self_edges << std::endl;
+        logstream(LOG_INFO) << mytime.current_time() << ") Parsed line: " << line << " chosen lines " << total_lines <<  " filtered out: " << filtered_out << " slef edges: " << self_edges << std::endl;
     } 
 
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename <<
-	                 "total lines " << total_lines << endl;
+   total_graphs_done++;
+   logstream(LOG_INFO) << mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename <<
+	                 "total lines " << total_lines << " total graphs done: " << total_graphs_done << endl;
 
     // close file
     fin.pop(); fin.pop();
@@ -254,6 +257,8 @@ int main(int argc,  char *argv[]) {
   std::string filter;
   int unittest = 0;
   int lines = 0;
+  int nodes = 121408373;
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -268,6 +273,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_time", &max_time, max_time, "filter out records > max_time");
   clopts.attach_option("filter", &filter, filter, "select files starting with prefi [filter]");
   clopts.attach_option("negate_time", &negate_time, negate_time, "invert time selection");
+  clopts.attach_option("outdir", &outdir, outdir, "output directory");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -306,6 +313,7 @@ int main(int argc,  char *argv[]) {
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
     mytime.start();
+    hash2nodeid.rehash(nodes);
     logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
    std::ifstream ifs((outdir + ".map").c_str());
    {
