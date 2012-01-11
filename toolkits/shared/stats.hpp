@@ -3,6 +3,17 @@
 
 #include "types.hpp"
 
+uint * histogram(uint * edge_count, int len, int howmnay){
+  uint * ret = new uint[howmnay];
+  memset(ret, 0, sizeof(int)*howmnay);
+  for (int i=0; i<len; i++){
+      assert(edge_count[i] < howmnay);
+      ret[edge_count[i]]++;
+   }
+  return ret;
+}
+
+
 template<typename graph_type>
 void calc_stats_and_exit(const graph_type * g, bipartite_graph_descriptor & desc){
   int active = 0;
