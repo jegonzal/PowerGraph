@@ -281,8 +281,8 @@ int main(int argc,  char *argv[]) {
   std::string outdir = "/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
   int unittest = 0;
   int lines = 0;
-  int numnodes = 1420949264;//121408373;
-  std::string filter = "x"; //"day";
+  int numnodes =121408373; // 1420949264;//121408373;
+  std::string filter = ""; //"day";
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
@@ -296,6 +296,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("dir", &dir, dir, "path to files");
   clopts.attach_option("num_nodes", &numnodes, numnodes, "Number of nodes");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
+  clopts.attach_option("outdir", &outdir, outdir, "output directory");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;

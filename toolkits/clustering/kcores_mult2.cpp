@@ -180,10 +180,12 @@ int main(int argc,  char *argv[]) {
   int lineformat = MATRIX_MARKET_4;
   bool gzip = true;
   bool stats = false;
-  std::string filter = "day";
+  std::string filter = "";
   int reference = 0;
   int max_graph = 1000;
-
+  std::string list_dir = "/usr2/bickson/daily.sorted/";
+  std::string dir_path = "/usr2/bickson/bin.graphs/";
+  
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -200,6 +202,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   clopts.attach_option("references", &reference, reference, "reference - why day to compare to?"); 
   clopts.attach_option("max_graph", &max_graph, max_graph, "maximum number of graphs parsed");
+  clopts.attach_option("list_dir", &list_dir, list_dir, "directory with a list of file names to parse");
+  clopts.attach_option("dir_path", &dir_path, dir_path, "actual directory where files are found");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -237,13 +241,11 @@ int main(int argc,  char *argv[]) {
 
   nodes = 121408373;
   matrix_info.rows = matrix_info.cols = nodes;
-  std::string listdir = "/usr2/bickson/daily.sorted/";
-  std::string dirpath = "/usr2/bickson/bin.graphs/";
   core.set_scope_type("vertex");
 
     
     multigraph_type multigraph;
-    multigraph.load(listdir, dirpath, filter, true);
+    multigraph.load(list_dir, dir_path, filter, true);
     matrix_info.nonzeros = core.graph().num_edges();
 
 
@@ -279,18 +281,20 @@ int main(int argc,  char *argv[]) {
   for (int i=0; i< 1000; i++)
      std::cout<<i<<": "<<edge_count[i]<<std::endl;
 
-    std::ofstream out_file(std::string(multigraph.reference_graph_name(reference) + ".edge_count.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << multigraph.reference_graph_name(reference) + ".edge_count.gz" << std::endl;
+
+    uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
+     std::ofstream out_file(std::string(multigraph.reference_graph_name(reference) + ".hist.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << multigraph.reference_graph_name(reference) + ".hist.gz" << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
     assert(fout.good()); 
-    for (int i=0; i< reference_graph->num_edges(); i++)
-      fout << edge_count[i] << std::endl;
+    for (int i=0; i< 20; i++)
+      fout << hist[i] << std::endl;
  
    fout.pop(); fout.pop();
    out_file.close();
-   //multigraph.unload_all();
+  //multigraph.unload_all();
    return EXIT_SUCCESS;
 }
 
