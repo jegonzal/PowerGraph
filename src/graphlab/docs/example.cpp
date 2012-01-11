@@ -33,7 +33,7 @@ First we need to create C++ file for our application and configure it for compil
 \b 2. Create file CMakeLists.txt in the new directory and add following lines to it:
 \verbatim
 project(GraphLab) 
-add_executable(pagerank pagerank.cpp)   
+add_graphlab_executable(pagerank pagerank.cpp)   
 \endverbatim
 
 \b 3. Then create file pagerank.cpp with following content: 
@@ -533,8 +533,8 @@ command-line, for example. Following code achieves this:
 First define the variables:
 \code
 // Keys for shared data 
-glshared_const<float> DAMPING;
-glshared_const<float> TERMINATION_BOUND;
+gl_types::glshared_const<float> DAMPING;
+gl_types::glshared_const<float> TERMINATION_BOUND;
 \endcode
 
 
