@@ -42,11 +42,75 @@ namespace graphlab {
    */
   class iarchive {
   public:
+    
+    bool directbuffer; // if false, uses the istream, otherwise uses buf
+    
+    char* buf; size_t buflen; size_t bufread; bool buffail;
+    
     std::istream* i;
+    
+    inline char read_char() {
+      if (directbuffer == false) {
+        char c;
+        i->get(c);
+        return c;
+      }
+      else {
+        if (bufread < buflen) {
+          ++bufread;
+          return *buf++;
+        }
+        else {
+          buffail = true;
+          return 0;
+        }
+      }
+    }
+    
+    inline bool has_directbuffer() {
+      return directbuffer;
+    }
+    
+    inline char* get_direct_buffer(size_t len) {
+      if (len + bufread <= buflen) {
+        char* ret = buf;
+        buf += len;
+        bufread += len;
+        return ret;
+      }
+      else {
+        buffail = true;
+        return NULL;
+      }
+    }
+    
+    inline void read(char* c, size_t len) {
+      if (directbuffer == false) i->read(c, len);
+      else {
+        if (len + bufread <= buflen) {
+          memcpy(c, buf, len);
+          buf += len;
+          bufread += len;
+        }
+        else {
+          buffail = true;
+        }
+      }
+    }
+    
+    inline bool fail() {
+      return (directbuffer == false)?i->fail():buffail;
+    }
     /// constructor. Takes a generic std::istream object
-    iarchive(std::istream& is)
-      :i(&is) { }
-      
+    inline iarchive(std::istream& is)
+      :directbuffer(false),i(&is) { }
+
+    /// constructor. Takes a generic std::istream object
+    inline iarchive(char* buf, size_t buflen)
+          :directbuffer(true),
+           buf(buf), buflen(buflen), bufread(0), buffail(false),
+           i(NULL) { }
+
     ~iarchive() {}
   };
 
@@ -60,12 +124,78 @@ namespace graphlab {
    */
   class iarchive_soft_fail{
   public:
-    std::istream *i;
-
-    iarchive_soft_fail(std::istream &is)
+    bool directbuffer; // if false, uses the istream, otherwise uses buf
+    
+    char* buf; size_t buflen; size_t bufread; bool buffail;
+    
+    std::istream* i;
+    
+    inline char read_char() {
+      if (directbuffer == false) {
+        char c;
+        i->get(c);
+        return c;
+      }
+      else {
+        if (bufread < buflen) {
+          ++bufread;
+          return *buf++;
+        }
+        else {
+          buffail = true;
+          return 0;
+        }
+      }
+    }
+    
+    inline bool has_directbuffer() {
+      return directbuffer;
+    }
+    
+    inline char* get_direct_buffer(size_t len) {
+      if (len + bufread <= buflen) {
+        char* ret = buf;
+        buf += len;
+        bufread += len;
+        return ret;
+      }
+      else {
+        buffail = true;
+        return NULL;
+      }
+    }
+    
+    inline void read(char* c, size_t len) {
+      if (directbuffer == false) i->read(c, len);
+      else {
+        if (len + bufread <= buflen) {
+          memcpy(c, buf, len);
+          buf += len;
+          bufread += len;
+        }
+        else {
+          buffail = true;
+        }
+      }
+    }
+    
+    inline bool fail() {
+      return (directbuffer == false)?i->fail():buffail;
+    }
+    
+    inline iarchive_soft_fail(std::istream &is)
       : i(&is) {}
 
-    iarchive_soft_fail(iarchive &iarc):i(iarc.i){}
+    /// constructor. Takes a generic std::istream object
+    inline iarchive_soft_fail(char* buf, size_t buflen)
+          :directbuffer(true),
+           buf(buf), buflen(buflen), bufread(0), buffail(false),
+           i(NULL) { }
+
+
+    inline iarchive_soft_fail(iarchive &iarc)
+      :directbuffer(iarc.directbuffer), buf(iarc.buf), buflen(iarc.buflen),
+       bufread(iarc.bufread), buffail(iarc.buffail), i(iarc.i){}
   
     ~iarchive_soft_fail() { }
   };
@@ -76,7 +206,7 @@ namespace graphlab {
     /// called by the regular archive The regular archive will do a hard fail
     template <typename ArcType, typename T>
     struct deserialize_hard_or_soft_fail {
-      static void exec(ArcType &i, T& t) {
+      inline static void exec(ArcType &i, T& t) {
         t.load(i);
       }
     };
@@ -84,7 +214,7 @@ namespace graphlab {
     /// called by the soft fail archive 
     template <typename T>
     struct deserialize_hard_or_soft_fail<iarchive_soft_fail, T> {
-      static void exec(iarchive_soft_fail &i, T& t) {
+      inline static void exec(iarchive_soft_fail &i, T& t) {
         iarchive iarc(*(i.i));
         load_or_fail(iarc, t);
       }
@@ -99,7 +229,7 @@ namespace graphlab {
     */
     template <typename ArcType, typename T, bool IsPOD>
     struct deserialize_impl {
-      static void exec(ArcType &i, T& t) {
+      inline static void exec(ArcType &i, T& t) {
         deserialize_hard_or_soft_fail<ArcType, T>::exec(i, t);
       }
     };
@@ -107,8 +237,8 @@ namespace graphlab {
     // catch if type is a POD
     template <typename ArcType, typename T>
     struct deserialize_impl<ArcType, T, true>{
-      static void exec(ArcType &a, T &t) {
-        a.i->read(reinterpret_cast<char*>(&t), sizeof(T));
+      inline static void exec(ArcType &a, T &t) {
+        a.read(reinterpret_cast<char*>(&t), sizeof(T));
       }
     };
 
@@ -118,7 +248,7 @@ namespace graphlab {
      Allows Use of the "stream" syntax for serialization 
   */
   template <typename T>
-  iarchive& operator>>(iarchive& a, T &i) {
+  inline iarchive& operator>>(iarchive& a, T &i) {
     archive_detail::deserialize_impl<iarchive, T, gl_is_pod<T>::value >::exec(a, i);
     return a;
   }
@@ -129,7 +259,7 @@ namespace graphlab {
      Allows Use of the "stream" syntax for serialization 
   */
   template <typename T>
-  iarchive_soft_fail& operator>>(iarchive_soft_fail& a, T &i) {
+  inline iarchive_soft_fail& operator>>(iarchive_soft_fail& a, T &i) {
     archive_detail::deserialize_impl<iarchive_soft_fail, T, gl_is_pod<T>::value >::exec(a, i);
     return a;
   }
@@ -145,8 +275,8 @@ namespace graphlab {
     ASSERT_EQ(length, length2);
 
     //operator>> the rest
-    a.i->read(reinterpret_cast<char*>(i), (std::streamsize)length);
-    assert(!a.i->fail());
+    a.read(reinterpret_cast<char*>(i), (std::streamsize)length);
+    assert(!a.fail());
     return a;
   }
 
@@ -162,8 +292,8 @@ namespace graphlab {
     ASSERT_EQ(length, length2);
 
     //operator>> the rest
-    a.i->read(reinterpret_cast<char*>(i), (std::streamsize)length);
-    assert(!a.i->fail());
+    a.read(reinterpret_cast<char*>(i), (std::streamsize)length);
+    assert(!a.fail());
     return a;
   }
 
