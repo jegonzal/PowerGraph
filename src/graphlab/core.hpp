@@ -247,7 +247,7 @@ namespace graphlab {
      * \brief Set the engine options by simply parsing the command line
      * arguments. 
      */
-    bool parse_options(int argc, char **argv) {
+    void parse_options(int argc, char **argv) {
       command_line_options clopts;
       bool success = clopts.parse(argc, argv);
       ASSERT_TRUE(success);
