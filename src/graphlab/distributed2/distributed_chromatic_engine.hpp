@@ -311,7 +311,7 @@ class distributed_chromatic_engine : public iengine<Graph, UpdateFunctor> {
     std::vector<mutex> schedulelock(rmi.numprocs());
     
 #pragma omp parallel for
-    for (ssize_t idx = 0; idx < nextschedule.size(); ++idx) {
+    for (ssize_t idx = 0; idx < ssize_t(nextschedule.size()); ++idx) {
       // commit local changes
       vertex_id_type i = nextschedule[idx];
       

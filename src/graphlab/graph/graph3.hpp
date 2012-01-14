@@ -67,10 +67,12 @@ namespace graphlab {
   struct edge_type_impl{
    uint _source; 
    uint _target;
-   edge_type_impl(uint source, uint target) : _source(source), _target(target) {}
-   edge_type_impl() : _source(-1), _target(-1) { }
+   uint _offset;
+   edge_type_impl(uint source, uint target, uint offset) : _source(source), _target(target), _offset(offset) {}
+   edge_type_impl() : _source(-1), _target(-1), _offset(-1) { }
    uint source() const { return _source; }
    uint target() const { return _target; }
+   uint offset() const { return _offset; }
   };
 
 enum iterator_type {INEDGE, OUTEDGE}; 
@@ -147,10 +149,10 @@ enum iterator_type {INEDGE, OUTEDGE};
       inline edge_type make_value() const {
         edge_type ret;
         if (itype == INEDGE) {
-          edge_type rvalue(gstore_ptr[offset], center);
+          edge_type rvalue(gstore_ptr[offset], center, offset);
           ret = rvalue;
         } else if (itype == OUTEDGE) {
-          edge_type rvalue(center, gstore_ptr[offset]);
+          edge_type rvalue(center, gstore_ptr[offset], offset);
           ret = rvalue;
         } else {
           logstream(LOG_FATAL) << "Edge iterator type is invalid." 
@@ -186,7 +188,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     uint size() const { return _size; }
     edge_type operator[](uint i) const{
       ASSERT_LT(i, _size);
-      return edge_type(source, *(start_ptr+i));
+      return edge_type(source, *(start_ptr+i), i);
     }
     edge_iterator begin() const { return edge_iterator(source, 0, itype, start_ptr); }
     edge_iterator end() const { return edge_iterator(source, 0, itype, end_ptr); }
@@ -243,7 +245,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     uint * node_out_degrees;
     uint * node_in_edges;
     uint * node_out_edges;
-    std::vector<VertexData> node_vdata_array;
+    std::vector<VertexData> *node_vdata_array;
     char _color; //not implement yet
     EdgeData _edge;
 
@@ -265,26 +267,37 @@ enum iterator_type {INEDGE, OUTEDGE};
      */
     //graph3(size_t nverts) { }
 
-    graph3(const graph<VertexData, EdgeData>& g) { (*this) = g; }
+    //graph3(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
 
+
+    uint * get_node_out_edges(){ return node_out_edges; }
     /**
      * \brief Resets the graph state.
      */
     void clear() {
-       if (node_in_degrees != NULL)
-	 delete [] node_in_degrees;
-       if (node_out_degrees != NULL)
-	 delete [] node_out_degrees;
-       if (node_in_edges != NULL)
-         delete [] node_in_edges;
-       if (node_out_edges != NULL)
-         delete [] node_out_edges;
+       if (node_in_degrees != NULL){
+	 delete [] node_in_degrees; node_in_degrees = NULL;
+       }
+       if (node_out_degrees != NULL){
+	 delete [] node_out_degrees; node_out_degrees = NULL;
+       }
+       if (node_in_edges != NULL){
+         delete [] node_in_edges; node_in_edges = NULL; 
+       }
+       if (node_out_edges != NULL){
+         delete [] node_out_edges; node_out_edges = NULL;
+       }
     }
 
     void clear_reserve() {
       clear();
+    }
+
+    void set_node_vdata_array(const std::vector<VertexData> * _node_vdata_array){
+      assert(_node_vdata_array);
+      node_vdata_array = (std::vector<VertexData>*)_node_vdata_array;
     }
     
     /**
@@ -314,21 +327,30 @@ enum iterator_type {INEDGE, OUTEDGE};
        return undirected? _num_edges/2 : _num_edges;
     } 
 
-    /** \brief Finds an edge.
-        The value of the first element of the pair will be true if an 
-        edge from src to target is found and false otherwise. If the 
-        edge is found, the edge ID is returned in the second element of the pair. */
     edge_type find(const vertex_id_type source,
-                   const vertex_id_type target) const {
-       assert(false); //not implemented yet
-       return edge_type(-1,-1);
+                   const vertex_id_type _target) const {
+        /*if (node_out_degrees[source] < node_out_degrees[source+1]){
+          std::vector<uint> v(node_out_edges +node_out_degrees[source],node_out_edges+node_out_degrees[source+1]);
+          if (binary_search (v.begin(), v.end(), _target))
+             return edge_type(source, _target, 0);
+        }*/
+
+       for (uint i=node_out_degrees[source]; i< node_out_degrees[source+1]; i++)
+          if (node_out_edges[i] == _target)
+	     return edge_type(source, _target, i);
+	  else if (node_out_edges[i] > _target) //incoming edges asssumed to be sorted
+              return edge_type(-1,-1,-1);
+       
+        return edge_type(-1,-1,-1);
    
     } // end of find
 
     edge_type reverse_edge(const edge_type& edge) const {
-      //return gstore.find(edge.target(), edge.source());
-       assert(false); //not implemented yet
-      return edge_type(-1,-1);
+        for (uint i=node_in_degrees[edge.source()]; i< node_in_degrees[edge.source()+1]; i++)
+          if (node_in_edges[i] == edge.source())
+	     return edge_type(edge.target(), edge.source(), i);
+
+      return edge_type(-1,-1,-1);
     }
 
 
@@ -374,13 +396,13 @@ enum iterator_type {INEDGE, OUTEDGE};
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return node_vdata_array[v];
+      return node_vdata_array->at(v);
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
     const VertexData& vertex_data(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return node_vdata_array[v];
+      return node_vdata_array->at(v);
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
@@ -512,7 +534,7 @@ enum iterator_type {INEDGE, OUTEDGE};
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
          if (!no_node_data)
-	    node_vdata_array.resize(num_nodes);
+	    node_vdata_array->resize(num_nodes);
  	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/4)-1;
@@ -537,15 +559,15 @@ enum iterator_type {INEDGE, OUTEDGE};
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
          if (!no_node_data)
-	    node_vdata_array.resize(num_nodes);
+	    node_vdata_array->resize(num_nodes);
          int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
-         logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
+         logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/4)-1;
          rc2 = array_from_file(filename + "-r.edges", node_in_edges);
          assert(rc == rc2);
-  	 logstream(LOG_INFO) << "Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
+  	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
          verify_edges(node_out_edges, _num_edges, num_nodes);
          verify_edges(node_in_edges, _num_edges, num_nodes);
     } // end of load

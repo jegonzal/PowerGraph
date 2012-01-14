@@ -38,15 +38,19 @@ using namespace std;
 
 
 bool debug = false;
-bool quick = true;
+bool quick = false;
 boost::unordered_map<string,uint> hash2nodeid;
 std::string datafile;
-//atomic<unsigned int> conseq_id;
+
 uint conseq_id;
 graphlab::mutex mymutex;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
+unsigned long long filtered_out = 0;
+int min_time = 0, max_time = 24*3600; //filter out records based on time range
+bool negate_time = false;
+int total_graphs_done = 0;
 
 struct vertex_data {
   string filename;
@@ -58,7 +62,7 @@ struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
+unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret, int threadid);
 
 
 
@@ -93,6 +97,7 @@ struct stringzipparser_update :
     
    std::string dir = context.get_global<std::string>("PATH");
    std::string outdir = context.get_global<std::string>("OUTPATH");
+   int mythreadid = thread::thread_id();
 
     //open file
     vertex_data& vdata = context.vertex_data();
@@ -102,8 +107,11 @@ struct stringzipparser_update :
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
-    std::ofstream out_file(std::string(outdir + vdata.filename + ".out.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << outdir << vdata.filename << ".out.gz" << std::endl;
+    std::string out_filename = outdir + vdata.filename + boost::lexical_cast<std::string>(min_time) + "-" + 
+       boost::lexical_cast<std::string>(max_time) + (negate_time? "neg" : "") + ".out.gz"; 
+
+    std::ofstream out_file(out_filename.c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << out_filename << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
@@ -143,18 +151,45 @@ struct stringzipparser_update :
        strncpy(buf2, pch, 20);
       if (!quick){
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3, pch, 6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3, pch, 6);
         buf3[6] = ' ';
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3+7,pch,6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3+7,pch,6);
         pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
-        duration = atoi(pch);
-        datestr2uint64(std::string(buf3), dateret, timeret);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         duration = atoi(pch);
+      if (duration < 0){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         datestr2uint64(std::string(buf3), timeret, dateret, mythreadid);
         uint from, to;
         find_ids(from, to, buf1, buf2);
         if (debug && line <= 10)
-            cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << dateret << " time: " << timeret << " val: " << duration << endl;
-         fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
+            cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << timeret << " date: " << dateret << " val: " << duration << endl;
+         
+        if (from == to)
+          self_edges++;
+        else if (!negate_time && ((timeret < min_time*3600) || (timeret > max_time*3600)))
+            filtered_out++;
+         else if (negate_time && ((timeret >= min_time*3600) && (timeret <= max_time*3600)))
+            filtered_out++;
+         else // fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
+            { 
+            fout << from << " " << to << endl;
+            total_lines++;
+         }
       }
       else {
         uint from,to;
@@ -168,18 +203,16 @@ struct stringzipparser_update :
 
       //fin.read(buf1,1); //go over \n
       line++;
-      total_lines++;
       if (lines && line>=lines)
 	 break;
 
       if (line % 5000000 == 0)
-        logstream(LOG_INFO) << "Parsed line: " << line << " total lines " << total_lines << std::endl;
-          if (hash2nodeid.size() % 500000 == 0)
-        logstream(LOG_INFO) << "Hash map size: " << hash2nodeid.size() << " at time: " << mytime.current_time() << " edges: " << total_lines << std::endl;
+        logstream(LOG_INFO) << mytime.current_time() << ") Parsed line: " << line << " chosen lines " << total_lines <<  " filtered out: " << filtered_out << " slef edges: " << self_edges << std::endl;
     } 
 
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename <<
-	                 "total lines " << total_lines << endl;
+   total_graphs_done++;
+   logstream(LOG_INFO) << mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename <<
+	                 "total lines " << total_lines << " total graphs done: " << total_graphs_done << endl;
 
     // close file
     fin.pop(); fin.pop();
@@ -220,9 +253,12 @@ int main(int argc,  char *argv[]) {
 
   std::string format = "plain";
   std::string dir = "/mnt/bigbrofs/usr0/bickson/phone_calls/";
-  std::string outdir = "/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
+  std::string outdir = "/usr2/bickson/filtered.hours/";
+  std::string filter;
   int unittest = 0;
   int lines = 0;
+  int nodes = 121408373;
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -233,6 +269,11 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
+  clopts.attach_option("min_time", &min_time, min_time, "filter out records < min_time");
+  clopts.attach_option("max_time", &max_time, max_time, "filter out records > max_time");
+  clopts.attach_option("filter", &filter, filter, "select files starting with prefi [filter]");
+  clopts.attach_option("negate_time", &negate_time, negate_time, "invert time selection");
+  clopts.attach_option("outdir", &outdir, outdir, "output directory");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -242,30 +283,19 @@ int main(int argc,  char *argv[]) {
 
   logstream(LOG_WARNING)
     << "Eigen detected. (This is actually good news!)" << std::endl;
-  logstream(LOG_INFO) 
-    << "GraphLab Linear solver library code by Danny Bickson, CMU" 
-    << std::endl 
-    << "Send comments and bug reports to danny.bickson@gmail.com" 
-    << std::endl 
-    << "Currently implemented algorithms are: Gaussian Belief Propagation, "
-    << "Jacobi method, Conjugate Gradient" << std::endl;
 
-
+  assert(min_time < max_time);
 
   // Create a core
   graphlab::core<graph_type, stringzipparser_update> core;
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("vertex");
   mytime.start();
-  //unit testing
-  if (unittest == 1){
-  }
-
   
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
      in_files.push_back(datafile); 
-  else in_files = list_all_files_in_dir(dir, "");
+  else in_files = list_all_files_in_dir(dir, filter);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       if (in_files[i].find(".gz") != string::npos){
@@ -282,50 +312,13 @@ int main(int argc,  char *argv[]) {
   core.add_global("LINES", lines); 
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
-/*
-   logstream(LOG_INFO)<<"Reading hash map from file" << std::endl;
-    std::ifstream in_file((outdir + ".map.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening input file: " << outdir << ".map.gz" << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-    fin.push(boost::iostreams::gzip_decompressor());
-    fin.push(in_file);  
-
-   int line = 0;
-    char linebuf[128];
-    char saveptr[128], buf1[128], buf2[128];
-    while(true){
-      fin.getline(linebuf, 128);
-      if (fin.eof()){
-        logstream(LOG_INFO) << "File ended after " << line << " lines " << std::endl;
-        break;
-     }
-    line++;
-      char *pch = strtok_r(linebuf," ",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing imap file: " << ":" << line <<std::endl;
-        return EXIT_FAILURE;
-       }
-      strncpy(buf1, pch, strlen(pch)+1);
-      pch = strtok_r(NULL, " \n",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: "  << ":" << line <<std::endl;
-         return EXIT_FAILURE;
-       }
-       strncpy(buf2, pch, strlen(pch)+1);
-
-      hash2nodeid[std::string(buf1)] = boost::lexical_cast<uint>(buf2);
-     } 
-   logstream(LOG_INFO)<<"Read total of " << hash2nodeid.size() << " entries" << std::endl;
-*/
     mytime.start();
+    hash2nodeid.rehash(nodes);
     logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
    std::ifstream ifs((outdir + ".map").c_str());
-   // save data to archive
    {
    graphlab::iarchive ia(ifs);
-   // write map instance to archive
    ia >> hash2nodeid;
-   // archive and stream closed when destructors are called
    }
    logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
    
@@ -335,14 +328,8 @@ int main(int argc,  char *argv[]) {
 
 
   logstream(LOG_INFO)<<"Wrote total edges: " << total_lines << " in time: " << mytime.current_time() << std::endl;
- 
+  logstream(LOG_INFO)<<"Total edges filtered out: " << filtered_out << std::endl; 
 
-  //vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
-
-  //write_output_vector(datafile + "x.out", format, ret);
-
-
-   
    return EXIT_SUCCESS;
 }
 

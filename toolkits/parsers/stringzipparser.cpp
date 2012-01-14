@@ -59,7 +59,7 @@ struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
+unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret, int thread_id);
 
 
 
@@ -115,7 +115,7 @@ struct stringzipparser_update :
     
    std::string dir = context.get_global<std::string>("PATH");
    std::string outdir = context.get_global<std::string>("OUTPATH");
-
+   int mythreadid = thread::thread_id();
     //open file
     vertex_data& vdata = context.vertex_data();
     std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
@@ -171,7 +171,7 @@ struct stringzipparser_update :
         strncpy(buf3+7,pch,6);
         pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
         duration = atoi(pch);
-        datestr2uint64(std::string(buf3), dateret, timeret);
+        datestr2uint64(std::string(buf3), dateret, timeret, mythreadid);
         uint from, to;
         find_ids(from, to, buf1, buf2);
         if (debug && line <= 10)

@@ -42,8 +42,8 @@ ivec active_nodes_num;
 ivec active_links_num;
 int iiter = 0; //current iteration
 int nodes = 0;
-int reference = 0;
-
+uint * edge_count;
+unsigned long long total_edges = 0;
 
 enum kcore_output_fields{
   KCORE_INDEX = 1
@@ -75,7 +75,6 @@ struct edge_data {
 
 typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
-
 graph_type * reference_graph = NULL;
 
 void calc_initial_degree(multigraph_type * _g, bipartite_graph_descriptor & desc){
@@ -124,33 +123,25 @@ public:
     if (!vdata.active)
       return;
 
-    int cur_iter = iiter;
-    int cur_links = 0;
     int increasing_links = 0;
     
     edge_list_type outedgeid = context.out_edges();
-    edge_list_type inedgeid = context.in_edges();
+    //edge_list_type inedgeid = context.in_edges();
 
     for(size_t i = 0; i < outedgeid.size(); i++) {
-      const vertex_data & other = context.const_vertex_data(outedgeid[i].target());
-        if (other.active){
-	  cur_links++;
-          increasing_links++;
-        }
+      const edge_type& edge = reference_graph->find(context.vertex_id(), outedgeid[i].target());
+      if (edge.offset() != (uint)-1)
+          edge_count[edge.offset()]++;
+      total_edges++;
     }
-    for (size_t i =0; i < inedgeid.size(); i++){
+    /*for (size_t i =0; i < inedgeid.size(); i++){
       const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
         if (other.active)
           cur_links++;
-    }
-    if (cur_links <= cur_iter){
-        vdata.active = false;
-        vdata.kcore = cur_iter;
-	//links -= (outedgeid.size() + inedgeid.size());
-    }
-    links += increasing_links;
-    if (vdata.active)
-      num_active++;
+    }*/
+    //links += increasing_links;
+    //if (vdata.active)
+    //  num_active++;
   };
 
   void operator+=(const accumulator& other) { 
@@ -189,8 +180,12 @@ int main(int argc,  char *argv[]) {
   int lineformat = MATRIX_MARKET_4;
   bool gzip = true;
   bool stats = false;
-  std::string filter = "day";
-
+  std::string filter = "";
+  int reference = 0;
+  int max_graph = 1000;
+  std::string list_dir = "/usr2/bickson/daily.sorted/";
+  std::string dir_path = "/usr2/bickson/bin.graphs/";
+  
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -205,8 +200,11 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
   clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
-  clopts.attach_option("reference", &reference, reference, "reference graph number");
- 
+  clopts.attach_option("references", &reference, reference, "reference - why day to compare to?"); 
+  clopts.attach_option("max_graph", &max_graph, max_graph, "maximum number of graphs parsed");
+  clopts.attach_option("list_dir", &list_dir, list_dir, "directory with a list of file names to parse");
+  clopts.attach_option("dir_path", &dir_path, dir_path, "actual directory where files are found");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -241,91 +239,62 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
 
-  //nodes = 123306178;
-  //nodes=149747010;
   nodes = 121408373;
   matrix_info.rows = matrix_info.cols = nodes;
-  //matrix_info.nonzeros = 1000000000;
-  /* Rows:      95526
- * Cols:      3561
- * Nonzeros:  3298163
- */
-  //matrix_info.rows = 95526;  matrix_info.cols = 3561; matrix_info.nonzeros = 3298163;
-  //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
-  std::string listdir = "/usr2/bickson/daily.sorted/";
-  std::string dirpath = "/usr2/bickson/bin.graphs/";
-  //core.graph().set_undirected();
   core.set_scope_type("vertex");
 
     
     multigraph_type multigraph;
-    multigraph.load(listdir, dirpath, filter, true);
+    multigraph.load(list_dir, dir_path, filter, true);
     matrix_info.nonzeros = core.graph().num_edges();
 
 
   if (stats){
     calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
   }
+  logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
   graphlab::timer mytimer; mytimer.start();
-
   multigraph.doload(reference);
   reference_graph = multigraph.graph(0);
+  edge_count = new uint[multigraph.graph(0)->num_edges()];
 
   int pass = 0;
-  for (iiter=1; iiter< max_iter+1; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
-    while(true){
-      int prev_nodes = active_nodes_num[iiter];
 
-      for (int i=0; i< multigraph.num_graphs(); i++){
+      for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
+       if (i != reference){
        accumulator acum;
        multigraph.doload(i);
-       core.graph() = *multigraph.graph(0);
+       core.graph() = *multigraph.graph(1);
+       assert(multigraph.get_node_vdata()->size() == nodes);
        core.add_sync("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
        core.sync_now("sync");
-       multigraph.unload_all(); 
+       logstream(LOG_INFO)<<mytimer.current_time()<<") Finished giong over graph number " << i << std::endl;
+       multigraph.unload(1);
+       } 
      }
 
-      pass++;
-      int cur_nodes = active_nodes_num[iiter];
-      if (prev_nodes == cur_nodes)
-        break; 
-    }
-    if (active_nodes_num[iiter] == 0)
-	break;
-  }
- 
+  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
   std::cout << "Number of updates: " << pass*core.graph().num_vertices() << " pass: " << pass << std::endl;
-  imat retmat = imat(max_iter+1, 4);
-  memset((int*)data(retmat),0,sizeof(int)*retmat.size());
-
-  std::cout<<active_nodes_num<<std::endl;
-  std::cout<<active_links_num<<std::endl;
-
-  for (int i=0; i <= max_iter; i++){
-    set_val(retmat, i, 0, i);
-    if (i >= 1){
-      set_val(retmat, i, 1, active_nodes_num[i-1]-active_nodes_num[i]);
-      set_val(retmat, i, 2, active_nodes_num[0]-active_nodes_num[i]);
-      set_val(retmat, i, 3, core.graph().num_edges() - active_links_num[i]);
-    }
-  } 
-  //write_output_matrix(datafile + ".kcores.out", format, retmat);
-  std::cout<<retmat<<std::endl;
+  for (int i=0; i< 1000; i++)
+     std::cout<<i<<": "<<edge_count[i]<<std::endl;
 
 
-  vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
-  write_output_vector(datafile + "x.out", format, ret,false);
-
-
-  if (unittest == 1){
-    imat sol = init_imat("0 0 0 0; 1 1 1 1; 2 4 5 7; 3 4 9 13", 4, 4);
-    assert(sumsum(sol - retmat) == 0);
-  }
-
-
+    uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
+     std::ofstream out_file(std::string(multigraph.reference_graph_name(reference) + ".hist.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << multigraph.reference_graph_name(reference) + ".hist.gz" << std::endl;
+    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+    fout.push(boost::iostreams::gzip_compressor());
+    fout.push(out_file);
+    assert(fout.good()); 
+    for (int i=0; i< 20; i++)
+      fout << hist[i] << std::endl;
+ 
+   fout.pop(); fout.pop();
+   out_file.close();
+  //multigraph.unload_all();
    return EXIT_SUCCESS;
 }
 

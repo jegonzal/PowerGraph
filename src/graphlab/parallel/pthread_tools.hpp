@@ -38,7 +38,8 @@
 #include <boost/function.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
-
+#include <graphlab/util/generics/any.hpp>
+#include <boost/unordered_map.hpp>
 #undef _POSIX_SPIN_LOCKS
 #define _POSIX_SPIN_LOCKS -1
 
@@ -667,8 +668,13 @@ namespace graphlab {
     public:
       inline tls_data(size_t thread_id) : thread_id_(thread_id) { }
       inline size_t thread_id() { return thread_id_; }
+      any& operator[](const size_t& id) { return local_data[id]; }
+      bool contains(const size_t& id) const {
+        return local_data.find(id) != local_data.end();
+      }
     private:
       size_t thread_id_;
+      boost::unordered_map<size_t, any> local_data;
     }; // end of thread specific data
 
 
@@ -684,7 +690,20 @@ namespace graphlab {
     /** Get the id of the calling thread.  This will typically be the
         index in the thread group. Between 0 to ncpus. */
     static inline size_t thread_id() { return get_tls_data().thread_id(); }
-    
+
+    /**
+     * Get a reference to an any object
+     */
+    static inline any& get_local(const size_t& id) {
+      return get_tls_data()[id];
+    }
+
+    /**
+     * Check to see if there is an entry in the local map
+     */
+    static inline bool contains(const size_t& id) {
+      return get_tls_data().contains(id);
+    }
 
     
     /**
