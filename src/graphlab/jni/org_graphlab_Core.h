@@ -50,10 +50,18 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_addEdge
 /*
  * Class:     org_graphlab_Core
  * Method:    schedule
- * Signature: (JII)V
+ * Signature: (JJI)V
  */
 JNIEXPORT void JNICALL Java_org_graphlab_Core_schedule
-  (JNIEnv *, jobject, jlong, jint, jint);
+  (JNIEnv *, jobject, jlong, jlong, jint);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    scheduleAll
+ * Signature: (JJ)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_scheduleAll
+  (JNIEnv *, jobject, jlong, jlong);
 
 /*
  * Class:     org_graphlab_Core

@@ -43,9 +43,6 @@ public class ShortestPathTest {
 		SparseGraph<ScalarVertex, ScalarEdge> g = new SparseGraph<ScalarVertex, ScalarEdge>();
 		GraphLoader.loadGraphFromTsvFile(g, "test-graphs/one.tsv");
 		
-		// create updater
-		Updater shortestPathUpdater = new ShortestPathUpdater(g);
-		
 		// initialize to infinity
 		for (ScalarVertex v : g.vertices()) {
 			v.setValue(Integer.MAX_VALUE);
@@ -56,6 +53,7 @@ public class ShortestPathTest {
 		root.setValue(0);
 
 		c.setGraph(g);
+		Updater shortestPathUpdater = new ShortestPathUpdater(c, g);
 		c.schedule(root.id(), shortestPathUpdater);
 		c.start();
 		
@@ -72,9 +70,6 @@ public class ShortestPathTest {
 		SparseGraph<ScalarVertex, ScalarEdge> g = new SparseGraph<ScalarVertex, ScalarEdge>();
 		GraphLoader.loadGraphFromTsvFile(g, "test-graphs/toy.tsv");
 		
-		// create updater
-		Updater shortestPathUpdater = new ShortestPathUpdater(g);
-		
 		// initialize to infinity
 		for (ScalarVertex v : g.vertices()) {
 			v.setValue(Integer.MAX_VALUE);
@@ -85,6 +80,7 @@ public class ShortestPathTest {
 		root.setValue(0);
 
 		c.setGraph(g);
+		Updater shortestPathUpdater = new ShortestPathUpdater(c, g);
 		c.schedule(root.id(), shortestPathUpdater);
 		c.start();
 		
@@ -107,7 +103,8 @@ public class ShortestPathTest {
 	  
 		private SparseGraph<ScalarVertex, ScalarEdge> g;
 
-		public ShortestPathUpdater (SparseGraph<ScalarVertex, ScalarEdge> g) {
+		public ShortestPathUpdater (Core<?> c, SparseGraph<ScalarVertex, ScalarEdge> g) {
+		  super(c);
 			this.g = g;
 		}
 

@@ -1,10 +1,7 @@
 package org.graphlab;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -39,12 +36,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	
   /** Mapping from application vertex IDs to graphlab vertex IDs */
   private Map<Integer, Integer> mIdMap = null;
-  
-  /**
-   * Updaters scheduled by {@link Core#schedule(int, Updater)} and
-   * {@link Context#schedule(long, long, int, Updater)}.
-   */
-  private List<Updater> mUpdaters;
 
 	static {
 		// load the JNI library
@@ -64,9 +55,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		if (0 >= mCorePtr)
 			throw new CoreException("Unable to create a core.");
 		logger.trace ("Core created.");
-		
-		// TODO: optimize
-    mUpdaters = Collections.synchronizedList(new ArrayList<Updater>());
 
 	}
 
@@ -146,7 +134,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		
 		// remove references to allow garbage collection
 		mIdMap = null;
-		mUpdaters = null;
 
 	}
 
@@ -190,12 +177,12 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		if (mDestroyed)
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
+		// map from application vertex ID to graphlab vertex ID
 		Integer id = mIdMap.get(vertexId);
 		if (null == id)
 			throw new NoSuchElementException("vertex did not exist in the graph that was passed to #setGraph.");
 
-		addUpdater(updater);
-		schedule(mCorePtr, id, updater.id());
+		schedule(mCorePtr, updater.ptr(), id);
 		
 	}
 	
@@ -216,9 +203,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  
 	  if (mDestroyed)
 	    throw new IllegalStateException("Core has been destroyed and may not be reused.");
-	    
-	  addUpdater(updater);
-	  scheduleAll(mCorePtr, updater.id());
+
+	  scheduleAll(mCorePtr, updater.ptr());
 	  
 	}
 	
@@ -251,48 +237,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  setScopeType(mCorePtr, scope.toString());
 	}
 	
-  /**
-   * Adds an updater to the list of updaters maintained by the core. This is
-   * necessarily because {@link #execUpdate(long, int, int)} only receives the
-   * index of the updater (in the list) to execute.
-   * 
-   * @param updater
-   *          the updater to add
-   * @throws NullPointerException
-   *           if updater was null.
-   */
-	protected void addUpdater(Updater updater){
-	  
-	  if (null == updater) throw new NullPointerException("updater must not be null.");
-	  
-	  if (updater.id() != Updater.ID_NOT_SET){
-      // this updater already has an ID, insert
-      mUpdaters.set(updater.id(), updater);
-    }else {
-      // otherwise, add to end of list and assign id
-      mUpdaters.add(updater);
-      updater.setId(mUpdaters.size()-1);
-    }
-	  
-	}
-
-	/**
-	 * Executes the updater on the specified vertex. This is <em>only</em>
-	 * invoked by the proxy updater in the JNI library.
-	 * 
-	 * @param contextPtr
-	 *        address of graphlab::icontext_type object
-	 * @param vertexId
-	 * 				application vertex ID
-	 * @param updaterId
-	 * 				updater ID (as assigned by {@link #schedule(int, Updater)}).
-	 */
-	private void execUpdate (long contextPtr, int vertexId, int updaterId){
-		
-		Updater updater = mUpdaters.get(updaterId);
-		Context context = new Context(this, mCorePtr, contextPtr, mIdMap);
-		updater.update(context, vertexId);
-		
+	protected Map<Integer, Integer> idMap (){
+	  return mIdMap;
 	}
 	
 	/**
@@ -344,23 +290,23 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	
 	/**
 	 * Add a single update function to a single vertex
-	 * @param ptr
+	 * @param core_ptr
 	 *       {@link #mCorePtr}
+	 * @param updater_ptr
+	 *       {@link org.graphlab.Updater#ptr}
 	 * @param vertex_id
 	 *       graphlab vertex ID
-	 * @param updater_id
-	 *       index of updater in {@link #mUpdaters}
 	 */
-	private native void schedule(long ptr, int vertex_id, int updater_id);
+	private native void schedule(long core_ptr, long updater_ptr, int vertex_id);
 
 	/**
 	 * Add the given function to all vertices using the given priority
-	 * @param ptr
+	 * @param core_ptr
 	 *       {@link #mCorePtr}
-	 * @param updater_id
-	 *       index of updater in {@link #mUpdaters}
+   * @param updater_ptr
+   *       {@link org.graphlab.Updater#ptr}
 	 */
-	private native void scheduleAll(long ptr, int updater_id);
+	private native void scheduleAll(long core_ptr, long updater_ptr);
 	
   /**
    * Run the engine until a termination condition is reached or there are no

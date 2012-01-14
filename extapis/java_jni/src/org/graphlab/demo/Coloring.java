@@ -85,7 +85,7 @@ public class Coloring {
     // execute graph updates
     c.setScopeType(Scope.EDGE);
     c.setGraph(g);
-    c.scheduleAll(new ColoringUpdater(g));
+    c.scheduleAll(new ColoringUpdater(c, g));
     logger.trace("Running graphlab ...");
     logger.info("Took " + c.start() + " seconds.");
     
@@ -140,7 +140,8 @@ public class Coloring {
 
     private SparseGraph<ScalarVertex, ScalarEdge> g;
 
-    public ColoringUpdater(SparseGraph<ScalarVertex, ScalarEdge> g) {
+    public ColoringUpdater(Core<?> c, SparseGraph<ScalarVertex, ScalarEdge> g) {
+      super(c);
       this.g = g;
     }
 

@@ -87,7 +87,7 @@ public class ShortestPath {
     root.setValue(0);
 
     c.setGraph(g);
-    c.schedule(root.id(), new ShortestPathUpdater(g));
+    c.schedule(root.id(), new ShortestPathUpdater(c, g));
 
     logger.trace("Running graphlab ...");
     c.start();
@@ -133,7 +133,8 @@ public class ShortestPath {
 
     private SparseGraph<ScalarVertex, ScalarEdge> g;
 
-    public ShortestPathUpdater(SparseGraph<ScalarVertex, ScalarEdge> g) {
+    public ShortestPathUpdater(Core<?> core, SparseGraph<ScalarVertex, ScalarEdge> g) {
+      super(core);
       this.g = g;
     }
 

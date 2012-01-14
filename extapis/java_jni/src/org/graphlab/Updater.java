@@ -1,5 +1,7 @@
 package org.graphlab;
 
+import java.util.Map;
+
 /**
  * Updater
  * 
@@ -7,21 +9,39 @@ package org.graphlab;
  * this class to provide an update function for that node. Note that the update
  * function may update node data, modify edge data, and schedule neighbors, but
  * may not modify the graph structure. You may reuse the updater object on
- * across multiple vertices (this is encouraged). Engine uses {@link #id()} to
- * uniquely identify updaters.</p>
+ * across multiple vertices (this is encouraged).
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public abstract class Updater {
-
-	/** Flag to indicate that the updater has no ID */
-	public static final int ID_NOT_SET = -1;
-
-	/**
-	 * Identifier for this updater Will be set when this updater is first
-	 * scheduled.
-	 */
-	private int mId = ID_NOT_SET;
+  
+  /** Address of C++ proxy updater */
+  private final long mPtr;
+  
+  private final Map<Integer, Integer> mIdMap;
+  
+  /**
+   * Subclasses must call super
+   * @param core    core that this updater will be used on
+   * @throws IllegalArgumentException
+   *          if core is null
+   * @throws IllegalStateException
+   *          if this updater is constructed before
+   *          {@link Core#setGraph(org.graphlab.data.Graph)} is called.      
+   */
+  public Updater (Core<?> core){
+    
+    if (null == core) throw new IllegalArgumentException("core must not be null.");
+    
+    mPtr = createUpdater();
+    if (0 >= mPtr)
+      throw new IllegalStateException("Unable to create an updater.");
+    
+    mIdMap = core.idMap();
+    if (null == mIdMap)
+      throw new IllegalStateException("Must call Core#setGraph before creating updaters.");
+    
+  }
 
 	/**
 	 * Updates the vertex identified by <tt>vertex_id</tt>. Subclasses may wish
@@ -35,33 +55,26 @@ public abstract class Updater {
 
 	/**
 	 * Do not call. This is only useful to the scheduler.
-	 * 
-	 * @return ID of this updater
+	 * @return address of C++ proxy updater
 	 */
-	protected final int id() {
-		return mId;
+	protected final long ptr(){
+	  return mPtr;
 	}
-
+	
 	/**
-	 * Do not call. This is only useful to the scheduler.
-	 * 
-	 * @param id
-	 *            ID of this updater
-	 */
-	protected final void setId(int id) {
-		mId = id;
-	}
-
-	/* 
-	 * Two updaters are equal if they share the same id.
-	 * (non-Javadoc)
-	 * @see java.lang.Object#equals(java.lang.Object)
-	 */
-	@Override
-	public boolean equals (Object other) {
-		if (null == other || !(other instanceof Updater))
-			return false;
-		return mId == ((Updater) other).id();
-	}
+   * Executes the updater on the specified vertex. This is <em>only</em>
+   * invoked by the proxy updater in the JNI library.
+   * 
+   * @param contextPtr
+   *        address of graphlab::icontext_type object
+   * @param vertexId
+   *        application vertex ID
+   */
+  private void execUpdate (long contextPtr, int vertexId){
+    Context context = new Context(contextPtr, mIdMap);
+    update(context, vertexId);
+  }
+  
+  private native long createUpdater();
 
 }

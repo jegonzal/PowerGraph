@@ -21,90 +21,26 @@
  */
 
 /**
- * @file graphlabjni.cpp
+ * @file org_graphlab_Core.cpp
  *
- * Contains the JNI interface between Java and C++. In general, applications
+ * Contains the JNI interface for org.graphlab.Core. In general, applications
  * will keep their graphs in the Java layer and access the engine through the
  * JNI. This wrapper provides a proxy graph for the engine to manipulate and
  * forwards update calls to the Java layer. To learn how to use this interface,
  * refer to the org.graphlab.Core class and to the examples.
  *
- * Most of the methods in this file belong to the org.graphlab.Core class.
- * @author akyrola
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 
-#include <string.h>
-
-#include <cctype>
-#include <string>
-
-#include <graphlab.hpp>
-#include <graphlab/macros_def.hpp>
-
-#include "jni_core.hpp"
-#include "org_graphlab_Core.h"
-#include "org_graphlab_Context.h"
+#include "org_graphlab_Core.hpp"
+#include "org_graphlab_Updater.hpp"
 
 using namespace graphlab;
 
-/** Proxy edge */
-struct edge_data {};
-
-/** Proxy vertex */
-struct vertex_data {
-  int app_id;   /**< corresponding application vertex ID */
-};
-
-/** Proxy graph */
-typedef graph<vertex_data, edge_data> graph_type;
-
-/**
- * Proxy updater
- * Forwards update calls to the Java layer
- */
-class proxy_updater : 
-  public iupdate_functor<graph_type, proxy_updater> {
-  
-public:
-
-  static jmethodID java_method_id;  // id of Core#execUpdate
-  
-  jobject obj;    // java core object
-  jint id;        // ID of java updater object
-  
-  void operator()(icontext_type& context) {
-
-    JNIEnv *jenv = jni_core<graph_type, proxy_updater>::get_JNIEnv ();
-    jint app_vertex_id = context.vertex_data().app_id;
-    jenv->CallVoidMethod (obj, java_method_id,
-                         &context,
-                         app_vertex_id,
-                         id);
-    
-    // check for exception
-    jthrowable exc = jenv->ExceptionOccurred();
-    if (exc) {
-      logstream(LOG_ERROR)
-        << "Exception occured!!"
-        << std::endl;
-        
-      jclass new_exc;
-      jenv->ExceptionDescribe();
-      jenv->ExceptionClear();
-      new_exc = jenv->FindClass("java/lang/IllegalArgumentException");
-      if (new_exc == NULL) return;
-      jenv->ThrowNew(new_exc, "thrown from C code");
-      
-    }
-
-  }
-  
-};
-jmethodID proxy_updater::java_method_id = 0;
-
-typedef jni_core<graph_type, proxy_updater> jni_core_type;
-typedef iupdate_functor<graph_type, proxy_updater>::icontext_type icontext_type;
+template<typename G, typename U>
+JavaVM* jni_core<G, U>::mjvm = NULL;
+template<typename G, typename U>
+std::vector<JNIEnv *> jni_core<G, U>::menvs(thread::cpu_count());
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,15 +50,12 @@ extern "C" {
   Java_org_graphlab_Core_createCore
   (JNIEnv *env, jobject obj){
   
-    // TODO: allow config of log options and command line options
-    // TODO: error and exception handling
-  
     // configure log level (TODO: allow config)
     global_logger().set_log_level(LOG_DEBUG);
     global_logger().set_log_to_console(true);
  
-    // setup the parser
-    command_line_options clopts("JNI options. TODO.");
+    // TODO: command line options?
+    command_line_options clopts("JNI options.");
 
     // set jvm, if we don't have it already
     if (NULL == jni_core_type::get_jvm()){
@@ -131,11 +64,11 @@ extern "C" {
       jni_core_type::set_jvm(jvm);
     }
     
-    // get the method ID, if we don't have it already
-    jclass clazz = env->GetObjectClass(obj);
+    // get the method ID for Updater#execUpdate, if we don't have it already
     if (0 == proxy_updater::java_method_id){
+      jclass updater_class = env->FindClass("org/graphlab/Updater");
       proxy_updater::java_method_id =
-        env->GetMethodID(clazz, "execUpdate", "(JII)V");
+        env->GetMethodID(updater_class, "execUpdate", "(JI)V");
     }
     
     // allocate and configure core
@@ -146,7 +79,7 @@ extern "C" {
       << "GraphLab core initialized in JNI."
       << std::endl;
     
-    // return address of core
+    // return address of jni_core
     return (long) jni_core;
     
   }
@@ -205,7 +138,7 @@ extern "C" {
     jni_core_type *jni_core = (jni_core_type *) ptr;
     
     // init vertex
-    vertex_data vertex;
+    proxy_vertex vertex;
     vertex.app_id = id;
     
     // add to graph
@@ -228,56 +161,8 @@ extern "C" {
     jni_core_type *jni_core = (jni_core_type *) ptr;
     
     // add to graph
-    (*jni_core)().graph().add_edge(source, target, edge_data());
+    (*jni_core)().graph().add_edge(source, target, proxy_edge());
   
-  }
-  
-  JNIEXPORT void JNICALL
-  Java_org_graphlab_Core_schedule
-  (JNIEnv * env, jobject obj, jlong ptr, jint vertex_id, jint updater_id){
-  
-    if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
-        env,
-        "java/lang/IllegalArgumentException",
-        "ptr must not be null.");
-        return;
-    }
-
-    jni_core_type *jni_core = (jni_core_type *) ptr;
-  
-    // initialize proxy updater
-    proxy_updater updater;
-    updater.obj = jni_core->obj();
-    updater.id = updater_id;
-
-    // schedule vertex
-    (*jni_core)().schedule(vertex_id, updater);
-    
-  }
-  
-  JNIEXPORT void JNICALL 
-  Java_org_graphlab_Core_scheduleAll
-  (JNIEnv * env, jobject obj, jlong ptr, jint updater_id) {
-
-    if (NULL == env || 0 == ptr){
-    jni_core_type::throw_exception(
-        env,
-        "java/lang/IllegalArgumentException",
-        "ptr must not be null.");
-        return;
-    }
-
-    jni_core_type *jni_core = (jni_core_type *) ptr;
-  
-    // initialize proxy updater
-    proxy_updater updater;
-    updater.obj = jni_core->obj();
-    updater.id = updater_id;
-
-    // schedule vertex
-    (*jni_core)().schedule_all(updater);
-
   }
   
   JNIEXPORT jdouble JNICALL
@@ -301,23 +186,9 @@ extern "C" {
       << std::endl;
     (*jni_core)().engine().get_options().print();
     
-//     if (taskbudget>0)
-//       core.engine().set_task_budget(taskbudget);
-//     if (maxiter>0)
-//       core.sched_options().add_option("max_iterations", maxiter);
-
-    // set thread destroy callback
+    // set thread destroy callback -- BAD CODE
     thread::set_thread_destroy_callback(jni_core_type::detach_from_jvm);
     double runtime = (*jni_core)().start(); 
-
-//     if (metrics_type != "none") {
-//       core.set_metrics_type(metrics_type);
-//       core.fill_metrics();
-//       core.report_metrics();
-//       // Hack: this prevents core destructor from dumping the metrics.
-//       // ... which leads to some weird mutex error.
-//       core.set_metrics_type("none");
-//     }
 
     logstream(LOG_INFO)
         << "Finished after " 
@@ -329,30 +200,6 @@ extern "C" {
 	      << std::endl;
     
     return runtime;
-    
-  }
-  
-  JNIEXPORT void JNICALL
-  Java_org_graphlab_Context_schedule
-  (JNIEnv *env, jobject obj, jlong core_ptr, jlong context_ptr, jint vertex_id, jint updater_id){
-    
-    if (NULL == env || 0 == core_ptr || 0 == context_ptr){
-      jni_core_type::throw_exception(
-        env,
-        "java/lang/IllegalArgumentException",
-        "ptr must not be null.");
-        return;
-    }
-
-    jni_core_type *jni_core = (jni_core_type *) core_ptr;
-    icontext_type *context = (icontext_type *) context_ptr;
-  
-    // initialize proxy updater
-    proxy_updater updater;
-    updater.obj = jni_core->obj();
-    updater.id = updater_id;
-    
-    context->schedule(vertex_id, updater);
     
   }
 
@@ -414,6 +261,50 @@ extern "C" {
     env->ReleaseStringUTFChars(scope_str, str);
     
   }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_schedule
+  (JNIEnv * env, jobject obj,
+  jlong core_ptr, jlong updater_ptr, jint vertex_id){
+  
+    if (NULL == env || 0 == core_ptr || 0 == updater_ptr){
+      jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "core_ptr and updater_ptr must not be null.");
+        return;
+    }
+
+    // get objects from pointers
+    jni_core_type *jni_core = (jni_core_type *) core_ptr;
+    proxy_updater *proxy = (proxy_updater *) updater_ptr;
+
+    // schedule vertex
+    (*jni_core)().schedule(vertex_id, *proxy);
+    
+  }
+  
+  JNIEXPORT void JNICALL 
+  Java_org_graphlab_Core_scheduleAll
+  (JNIEnv * env, jobject obj,
+  jlong core_ptr, jlong updater_ptr) {
+
+    if (NULL == env || 0 == core_ptr || 0 == updater_ptr){
+    jni_core_type::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "core_ptr and updater_ptr must not be null.");
+        return;
+    }
+
+    // get objects from pointers
+    jni_core_type *jni_core = (jni_core_type *) core_ptr;
+    proxy_updater *proxy = (proxy_updater *) updater_ptr;
+
+    // schedule vertex
+    (*jni_core)().schedule_all(*proxy);
+
+  }
  
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setVertexColors
 //   (JNIEnv * env, jobject obj, jintArray colors) {
@@ -425,26 +316,6 @@ extern "C" {
 //       graph.color(i) = gl_types::vertex_color(arr[i]);
 //     }
 //     env->ReleaseIntArrayElements(colors, arr, JNI_ABORT);
-//   }
-// 
-// 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    schedule
-//    * Signature: ([I[I)V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_schedule
-//   (JNIEnv * env, jobject obj, jintArray vertices, jintArray funcs) {
-//     // TODO: support multiple update functions
-//     jboolean isCopy = false;
-//     jsize sz = env->GetArrayLength(vertices);
-//     jint * arr = env->GetIntArrayElements(vertices, &isCopy);
-//     jint * funcarr = env->GetIntArrayElements(funcs, &isCopy);
-//     for(int i=0; i<sz; i++) {
-//       core.add_task(gl_types::update_task(arr[i], functions[funcarr[i]]), 1.0);
-//     }
-//     env->ReleaseIntArrayElements(vertices, arr, JNI_ABORT);
-//     env->ReleaseIntArrayElements(funcs, funcarr, JNI_ABORT);
 //   }
 // 
 //   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setTaskBudget
@@ -474,13 +345,6 @@ extern "C" {
 //     core.graph().compute_coloring();
 //   }
 
-  JNIEXPORT jint JNICALL Java_graphlab_test_JniTest_dummy
-  (JNIEnv * env, jobject obj, jint i) {
-    return i+1;
-  }
-
 #ifdef __cplusplus
 }
 #endif
-
-#include <graphlab/macros_undef.hpp>
