@@ -32,11 +32,15 @@
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 
+#include <wordexp.h>
 #include "org_graphlab_Core.hpp"
 #include "org_graphlab_Updater.hpp"
 
 using namespace graphlab;
 
+//---------------------------------------------------------------
+// Static initializations
+//---------------------------------------------------------------
 template<typename G, typename U>
 JavaVM* jni_core<G, U>::mjvm = NULL;
 template<typename G, typename U>
@@ -46,16 +50,15 @@ std::vector<JNIEnv *> jni_core<G, U>::menvs(thread::cpu_count());
 extern "C" {
 #endif
 
-  JNIEXPORT jlong JNICALL
-  Java_org_graphlab_Core_createCore
-  (JNIEnv *env, jobject obj){
+//---------------------------------------------------------------
+// Static functions
+//---------------------------------------------------------------
+
+  static jlong createCore (JNIEnv *env, jobject obj, int argc, char **argv){
   
     // configure log level (TODO: allow config)
     global_logger().set_log_level(LOG_DEBUG);
     global_logger().set_log_to_console(true);
- 
-    // TODO: command line options?
-    command_line_options clopts("JNI options.");
 
     // set jvm, if we don't have it already
     if (NULL == jni_core_type::get_jvm()){
@@ -73,7 +76,9 @@ extern "C" {
     
     // allocate and configure core
     jni_core_type *jni_core = new jni_core_type(env, obj);
-    (*jni_core)().set_options(clopts);
+    if (NULL != argv){
+      (*jni_core)().parse_options(argc, argv);
+    }
     
     logstream(LOG_DEBUG)
       << "GraphLab core initialized in JNI."
@@ -81,7 +86,45 @@ extern "C" {
     
     // return address of jni_core
     return (long) jni_core;
+  
+  }
+  
+//---------------------------------------------------------------
+// JNI functions
+//---------------------------------------------------------------
+
+  JNIEXPORT jlong JNICALL
+  Java_org_graphlab_Core_createCore
+  (JNIEnv *env, jobject obj){
+    return createCore(env, obj, 0, NULL);
+  }
+  
+  JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore__Ljava_lang_String_2
+  (JNIEnv *env, jobject obj, jstring command_line_args){
+  
+    // convert jstring to c string
+    const char *cstr = NULL;
+    cstr = env->GetStringUTFChars(command_line_args, NULL);
+    if (NULL == cstr) {
+       return 0; /* OutOfMemoryError already thrown */
+    }
     
+    // prepend with dummy name
+    char buffer[1024];
+    snprintf(buffer, 1024, "x %s", cstr);
+    env->ReleaseStringUTFChars(command_line_args, cstr);
+    
+    // split string
+    wordexp_t we_result;
+    if (0 != wordexp(buffer, &we_result, 0)) return 0;
+   
+    // create core
+    jlong ptr = createCore(env, obj, we_result.we_wordc, we_result.we_wordv);
+   
+    // cleanup
+    wordfree(&we_result);
+    return ptr;
+  
   }
   
   JNIEXPORT void JNICALL
@@ -187,6 +230,7 @@ extern "C" {
     (*jni_core)().engine().get_options().print();
     
     // set thread destroy callback -- BAD CODE
+    // TODO: change to Yucheng's new thread-destroy implementation
     thread::set_thread_destroy_callback(jni_core_type::detach_from_jvm);
     double runtime = (*jni_core)().start(); 
 

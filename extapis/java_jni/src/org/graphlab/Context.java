@@ -18,9 +18,6 @@ import java.util.NoSuchElementException;
  */
 public final class Context {
   
-  /** Reference to the core object that instantiated this context */
-  private Core<?> mCore;
-  
   /** Address of the associated <tt>graphlab::icontext_type</tt> object */
   private long mContextPtr;
   

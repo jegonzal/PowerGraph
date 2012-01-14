@@ -21,7 +21,10 @@ import org.graphlab.data.Vertex;
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @param <G>
- *          graph type; must extend {@link org.graphlab.data.Graph}
+ *          Graph type; must extend {@link org.graphlab.data.Graph}. On the C++
+ *          side, a proxy graph is given to the core engine, and updates are 
+ *          forwarded to the Java updater (which you will provide through
+ *          {@link #schedule(int, Updater)}.)
  */
 public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
@@ -57,6 +60,22 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		logger.trace ("Core created.");
 
 	}
+	
+	 /**
+   * Creates a new GraphLab core.
+   * <b>Call {@link #destroy()} when done to free up resources.</b>
+   * 
+   * @param config      configuration e.g. scheduler, scope
+   * @throws CoreException if there was an error creating the core
+   */
+  public Core(CoreConfiguration config) throws CoreException {
+
+    mCorePtr = createCore(config.toString());
+    if (0 >= mCorePtr)
+      throw new CoreException("Unable to create a core.");
+    logger.trace ("Core created.");
+
+  }
 
 	/**
 	 * Tells core to operate on this graph. This creates a proxy graph in the
@@ -219,13 +238,15 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  setNCpus(mCorePtr, ncpus);
 	}
 	
-	/**
-   * Sets the type of scheduler. 
-   * This will destroy the current engine and any tasks currently associated with the scheduler.
+  /**
+   * Sets the type of scheduler. This only sets the type, and ignores any
+   * scheduler options. This will destroy the current engine and any tasks
+   * currently associated with the scheduler.
+   * 
    * @param scheduler
    */
   public void setSchedulerType(Scheduler scheduler) {
-    setSchedulerType(mCorePtr, scheduler.toString());
+    setSchedulerType(mCorePtr, scheduler.type());
   }
 	
 	/**
@@ -250,6 +271,14 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	private native long createCore();
 
 	/**
+   * Creates and initializes graphlab::core -> dynamically allocates a core.
+   * Must be freed by a corresponding call to {@link #destroyCore()}. 
+   * 
+   * @return address of core or 0 on failure
+   */
+	private native long createCore(String command_line_args);
+
+  /**
 	 * Deletes the graphlab::core that was allocated in {@link #initCore()}.
 	 * 
 	 * @param ptr
@@ -320,6 +349,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Set the number of cpus that the engine will use.
 	 * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * If this is not what you want, then configure the core in the constructor instead.
+	 * 
 	 * @param ptr
 	 *       {@link #mCorePtr}
 	 * @param ncpus
@@ -330,6 +361,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Set the type of scheduler. 
 	 * This will destroy the current engine and any tasks currently associated with the scheduler.
+	 * If this is not what you want, then configure the core in the constructor instead.
+	 * 
 	 * @param ptr
 	 *       {@link #mCorePtr}
 	 * @param schedulerType
@@ -339,6 +372,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Set the scope consistency model used in this engine. 
 	 * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * If this is not what you want, then configure the core in the constructor instead.
+	 * 
 	 * @param ptr
 	 *       {@link #mCorePtr}
 	 * @param scopeType

@@ -92,7 +92,7 @@ public:
   proxy_updater(){}
   
   ~proxy_updater(){
-    logstream(LOG_INFO) << "proxy destroyed." << std::endl;
+    logstream(LOG_DEBUG) << "proxy destroyed." << std::endl;
     // TODO: fix
     //-- BAD CODE --
     // JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_JNIEnv ();

@@ -1,15 +1,21 @@
 package org.graphlab;
 
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import org.graphlab.util.StringUtils;
+
 /**
+ * Mirrors scheduler_list.hpp
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @see <a href="http://graphlab.org/doxygen/html/Schedulers.html">Schedulers</a>
  */
 public enum Scheduler {
 
   // TODO: chromatic scheduler
-
-  /** This scheduler executes repeated cycles through all vertices. */
-  ROUND_ROBIN("round_robin"),
 
   /**
    * The fifo scheduler executes tasks in the classical first in first out
@@ -19,14 +25,14 @@ public enum Scheduler {
    * update functions.
    */
   FIFO("fifo"),
-
+  
   /**
-   * The Multiqueue fifo scheduler is like the fifo scheduler but instead of
-   * using a single queue multiple queues (2 x ncpus) are used and tasks are
-   * added to queues using a randomized balancing strategy. Each processor only
-   * draws from its own pair of queue.
+   * This scheduler maintains a shared FIFO queue of FIFO queues. 
+   * Each thread maintains its own smaller in and out queues. When a 
+   * threads out queue is too large (greater than "queuesize") then 
+   * the thread puts its out queue at the end of the master queue.
    */
-  MULTI_QUEUE_FIFO("multiqueue_fifo"),
+  QUEUED_FIFO("queued_fifo"),
 
   /**
    * The priority scheduler maintains a single priority scheduling queue. The
@@ -37,43 +43,45 @@ public enum Scheduler {
   PRIORITY("priority"),
 
   /**
-   * Same as the priority scheduler except multiple queues are maintained.
-   */
-  MULTI_QUEUE_PRIORITY("multiqueue_priority"),
-
-  /**
-   * The clustered priority schedule maintains a priority queue over blocks of
-   * vertices. This schedule begins by partitioning the graph using the
-   * partitioning method into blocks which each contain vert_per_part vertices.
-   * The priorities are maintained over blocks but within each block a sweep
-   * schedule is run.
-   */
-  CLUSTERED_PRIORITY("clustered_priority"),
-
-  /**
    * This scheduler loops over vertices executing a task if one is associated
    * with the vertex. Each vertex maintains its own local queue. This scheduler
    * has the least possible overhead.
    */
-  SWEEP("sweep"),
+  SWEEP("sweep");
 
+  private final String mName;
+  private Map<String, String> mOptions;
+
+  private Scheduler(String name) {
+    mName = name;
+    mOptions = new HashMap<String, String>();
+  }
+  
+  public void setOption(String key, String value){
+    mOptions.put(key, value);
+  }
+  
   /**
-   * We currently only provide the Splash scheduler which grows small spanning
-   * trees for each cpu and then sequential executes the update function in a
-   * forward backward fashion. This scheduler is loosely based on the Splash BP
-   * algorithm by Gonzalez et al. AISTATS 2009.
+   * @return just the name of the scheduler.
    */
-  SPLASH("splash");
-
-  private final String mStr;
-
-  private Scheduler(String str) {
-    mStr = str;
+  public String type(){
+    return mName;
   }
 
   @Override
   public String toString() {
-    return mStr;
+    
+    // if no options, just return name
+    if (mOptions.size() <= 0) return mName;
+    
+    // otherwise, prepare options string
+    List<String> options = new LinkedList<String>();
+    for (Entry<String, String> option : mOptions.entrySet()){
+      options.add(option.getKey() + "=" + option.getValue());
+    }
+    
+    return mName + "[" + StringUtils.join(options, ",") + "]";
+    
   }
-
+  
 }

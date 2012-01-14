@@ -12,8 +12,16 @@ extern "C" {
  * Method:    createCore
  * Signature: ()J
  */
-JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore
+JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore__
   (JNIEnv *, jobject);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    createCore
+ * Signature: (Ljava/lang/String;)J
+ */
+JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore__Ljava_lang_String_2
+  (JNIEnv *, jobject, jstring);
 
 /*
  * Class:     org_graphlab_Core

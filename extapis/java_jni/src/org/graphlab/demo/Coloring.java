@@ -9,7 +9,6 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.graphlab.Context;
 import org.graphlab.Core;
-import org.graphlab.Scope;
 import org.graphlab.Core.CoreException;
 import org.graphlab.Updater;
 import org.graphlab.data.ScalarEdge;
@@ -83,7 +82,6 @@ public class Coloring {
     }
     
     // execute graph updates
-    c.setScopeType(Scope.EDGE);
     c.setGraph(g);
     c.scheduleAll(new ColoringUpdater(c, g));
     logger.trace("Running graphlab ...");

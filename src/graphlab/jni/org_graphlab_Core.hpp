@@ -59,7 +59,10 @@ namespace graphlab {
     /** Java virtual machine reference - set only once for each process */
     static JavaVM *mjvm;
     
-    /** Map of thread ids to their respective JNI envs - BAD CODE */
+    /**
+     * Map of thread ids to their respective JNI envs - BAD CODE
+     * TODO: change to thread-local storage
+     */
     static std::vector<JNIEnv *> menvs;
     
   public:
@@ -102,9 +105,7 @@ namespace graphlab {
       
       // -- BEGIN BAD CODE --
       JNIEnv *env;
-      /* TODO: fix - this has to be done because I can't add this env back to
-       * the vector.
-       */
+      // TODO: change to thread-local storage
       mjvm->AttachCurrentThread((void **)&env, NULL);
       // -- END BAD CODE --
       
@@ -133,8 +134,7 @@ namespace graphlab {
      * Detaches the current thread from the JVM. If the current
      * thread is associated with an environment that we kept in
      * the vector, remove it.
-     * Note: this is unsafe - update after Yucheng provides thread-local
-     * storage.
+     * TODO: change to thread-local storage
      */
     static void detach_from_jvm() {
       
@@ -163,8 +163,7 @@ namespace graphlab {
     /**
      * Retrieves the JNI environment for the current thread. This caches
      * the reference to the JNIEnv in a vector.
-     * Note: this is unsafe - update after Yucheng provides thread-local
-     * storage.
+     * TODO: change to thread-local storage
      */
     static JNIEnv *get_JNIEnv (){
     
