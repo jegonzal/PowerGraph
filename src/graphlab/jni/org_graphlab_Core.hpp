@@ -53,17 +53,15 @@ namespace graphlab {
     
     /** graphlab::core object - the soul that this body wraps around */
     core_type *mcore;
+    
     /** associated org.graphlab.Core object */
     jobject mobj;
     
     /** Java virtual machine reference - set only once for each process */
     static JavaVM *mjvm;
     
-    /**
-     * Map of thread ids to their respective JNI envs - BAD CODE
-     * TODO: change to thread-local storage
-     */
-    static std::vector<JNIEnv *> menvs;
+    /** ID of pointer to JNI environment in thread local store */
+    static const size_t ENV_ID;
     
   public:
 
@@ -103,13 +101,8 @@ namespace graphlab {
     
       delete mcore;
       
-      // -- BEGIN BAD CODE --
-      JNIEnv *env;
-      // TODO: change to thread-local storage
-      mjvm->AttachCurrentThread((void **)&env, NULL);
-      // -- END BAD CODE --
-      
       // allow associated org.graphlab.Core to be gc'ed
+      JNIEnv *env = get_jni_env();
       env->DeleteGlobalRef(mobj);
       
     }
@@ -131,22 +124,22 @@ namespace graphlab {
     }
     
     /**
-     * Detaches the current thread from the JVM. If the current
-     * thread is associated with an environment that we kept in
-     * the vector, remove it.
-     * TODO: change to thread-local storage
+     * Detaches the current thread from the JVM.
+     * If a pointer to the JNI environment cannot be found in the thread-local
+     * store, that means that this thread has already been detached, and the
+     * function will return immediately. Otherwise, the thread is detached and
+     * the pointer to the JNI environment is removed from the thread-local
+     * store.
      */
     static void detach_from_jvm() {
       
-      int thread_id = thread::thread_id();
-      
-      if (NULL != menvs[thread_id]) {
+      // if the current thread is still attached, detach it
+      if (thread::contains(ENV_ID)) {
         int res = mjvm->DetachCurrentThread();
         logstream(LOG_INFO)
-          << "Detached from JVM: " << res
+          << "Detached thread from JVM."
           << std::endl;
         assert(res >= 0);
-        menvs[thread_id] = NULL;
       }
       
     }
@@ -161,33 +154,36 @@ namespace graphlab {
     }
     
     /**
-     * Retrieves the JNI environment for the current thread. This caches
-     * the reference to the JNIEnv in a vector.
-     * TODO: change to thread-local storage
+     * Retrieves the JNI environment for the current thread.
+     * If a pointer to the JNI environment can be found in the thread-local
+     * store, returns immediately; otherwise, that means that the current
+     * thread has not been attached to the JVM yet. In that case, this 
+     * function will attach the current thread to the JVM and save the
+     * associated JNI environment to the thread-local storage.
+     * @return JNI environment associated with the current thread.
      */
-    static JNIEnv *get_JNIEnv (){
+    static JNIEnv *get_jni_env (){
     
       JNIEnv *jenv = NULL;
-      int thread_id = thread::thread_id();
-      
-      logstream(LOG_DEBUG)
-        << "Thread ID: " << thread_id
-        << std::endl;
     
       // if current thread is not already on the JVM, attach it    
-      if (NULL == menvs[thread_id]) {
-        logstream(LOG_INFO)
-          << "Attaching thread to JVM ... ";
+      if (!thread::contains(ENV_ID)) {
+      
         int res = mjvm->AttachCurrentThread((void **)&jenv, NULL);
-        logstream(LOG_INFO)
-          << "Done: " << res
-          << std::endl;
         assert(res >= 0);
-        menvs[thread_id] = jenv;
+        
+        // store JNI environment in thread-local storage
+        thread::get_local(ENV_ID) = jenv;
+        thread::set_thread_destroy_callback(detach_from_jvm);
+        
+        logstream(LOG_INFO)
+          << "Attached thread to JVM."
+          << std::endl;
+          
       }
       
-      // now we have the environment associated with the current thread
-      return menvs[thread_id];
+      // return the environment associated with the current thread
+      return thread::get_local(ENV_ID).as<JNIEnv *>();
       
     }
     

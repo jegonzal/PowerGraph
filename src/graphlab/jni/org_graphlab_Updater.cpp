@@ -33,6 +33,7 @@ extern "C" {
   (JNIEnv *env, jobject updater){
     proxy_updater *proxy = new proxy_updater(env, updater);
     return (long) proxy;
+    // TODO: need to delete
   }
 
 #ifdef __cplusplus

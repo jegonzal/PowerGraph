@@ -39,19 +39,20 @@
 using namespace graphlab;
 
 //---------------------------------------------------------------
-// Static initializations
+// jni_core static members
 //---------------------------------------------------------------
 template<typename G, typename U>
 JavaVM* jni_core<G, U>::mjvm = NULL;
+
 template<typename G, typename U>
-std::vector<JNIEnv *> jni_core<G, U>::menvs(thread::cpu_count());
+const size_t jni_core<G, U>::ENV_ID = 1;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 //---------------------------------------------------------------
-// Static functions
+// static helper functions
 //---------------------------------------------------------------
 
   static jlong createCore (JNIEnv *env, jobject obj, int argc, char **argv){
@@ -229,9 +230,6 @@ extern "C" {
       << std::endl;
     (*jni_core)().engine().get_options().print();
     
-    // set thread destroy callback -- BAD CODE
-    // TODO: change to Yucheng's new thread-destroy implementation
-    thread::set_thread_destroy_callback(jni_core_type::detach_from_jvm);
     double runtime = (*jni_core)().start(); 
 
     logstream(LOG_INFO)
@@ -239,7 +237,7 @@ extern "C" {
 	      << (*jni_core)().engine().last_update_count() << " updates."
 	      << std::endl;
     logstream(LOG_INFO)
-        << "Runtime: " << runtime 
+        << "Runtime: " << runtime
 	      << " seconds."
 	      << std::endl;
     

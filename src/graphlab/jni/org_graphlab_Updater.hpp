@@ -89,23 +89,19 @@ public:
   }
   
   /** The default constructor does nothing */
-  proxy_updater(){}
+  proxy_updater() : mjava_updater(NULL){}
   
   ~proxy_updater(){
-    logstream(LOG_DEBUG) << "proxy destroyed." << std::endl;
-    // TODO: fix
-    //-- BAD CODE --
-    // JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_JNIEnv ();
-    // -- BAD CODE--
+    if (NULL == mjava_updater) return;
     // delete reference to allow garbage collection
+    // JNIEnv *env =
+    graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
     // env->DeleteGlobalRef(mjava_updater);
   }
   
   void operator()(icontext_type& context) {
 
-    //-- BAD CODE --
-    JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_JNIEnv ();
-    // -- BAD CODE--
+    JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
     
     // retrieve application vertex ID
     jint app_vertex_id = context.vertex_data().app_id;
