@@ -672,6 +672,9 @@ namespace graphlab {
       bool contains(const size_t& id) const {
         return local_data.find(id) != local_data.end();
       }
+      size_t erase(const size_t& id) {
+        return local_data.erase(id);
+      }
     private:
       size_t thread_id_;
       boost::unordered_map<size_t, any> local_data;
@@ -704,7 +707,14 @@ namespace graphlab {
     static inline bool contains(const size_t& id) {
       return get_tls_data().contains(id);
     }
-
+    
+    /**
+     * Removes the entry from the local map.
+     * @return number of elements erased.
+     */
+    static inline size_t erase(const size_t& id){
+      return get_tls_data().erase(id);
+    }
     
     /**
      * This static method joins the invoking thread with the other
