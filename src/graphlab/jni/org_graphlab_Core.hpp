@@ -31,6 +31,7 @@
 #ifndef ORG_GRAPHLAB_CORE_HPP
 #define ORG_GRAPHLAB_CORE_HPP
 
+#include <execinfo.h>
 #include <graphlab.hpp>
 #include "org_graphlab_Core.h"
 
@@ -141,6 +142,19 @@ namespace graphlab {
           << std::endl;
         assert(res >= 0);
       }
+      
+    }
+    
+    static void dump_backtrace(){
+    
+      void *array[10];
+      size_t size;
+      
+      // get void*'s for all entries on the stack
+      size = backtrace(array, 10);
+      
+      // print out all the frames to stderr
+      backtrace_symbols_fd(array, size, 2);
       
     }
     

@@ -68,7 +68,7 @@ public final class Context {
           "vertex did not exist in the graph that was passed to Core#setGraph.");
 
     // adds updater to core, which creates an ID for the updater
-    schedule(mContextPtr, updater.ptr(), glVertexId);
+    schedule(mContextPtr, updater, glVertexId);
     
   }
   
@@ -79,11 +79,10 @@ public final class Context {
    * 
    * @param context_ptr
    *          address of the associated <tt>graphlab::icontext_type</tt> object.
-   * @param updater_ptr
-   *          address of the C++ proxy updater object.
+   * @param updater
    * @param vertex_id
    *          graphlab vertex ID of vertex to update
    */
-  private native void schedule(long context_ptr, long updater_ptr, int vertex_id);
+  private native void schedule(long context_ptr, Updater updater, int vertex_id);
   
 }

@@ -15,9 +15,6 @@ import java.util.Map;
  */
 public abstract class Updater {
   
-  /** Address of C++ proxy updater */
-  private final long mPtr;
-  
   private final Map<Integer, Integer> mIdMap;
   
   /**
@@ -32,10 +29,6 @@ public abstract class Updater {
   public Updater (Core<?> core){
     
     if (null == core) throw new IllegalArgumentException("core must not be null.");
-    
-    mPtr = createUpdater();
-    if (0 >= mPtr)
-      throw new IllegalStateException("Unable to create an updater.");
     
     mIdMap = core.idMap();
     if (null == mIdMap)
@@ -52,14 +45,6 @@ public abstract class Updater {
 	 * @param vertexId     application vertex ID
 	 */
 	public abstract void update(Context context, int vertexId);
-
-	/**
-	 * Do not call. This is only useful to the scheduler.
-	 * @return address of C++ proxy updater
-	 */
-	protected final long ptr(){
-	  return mPtr;
-	}
 	
 	/**
    * Executes the updater on the specified vertex. This is <em>only</em>
@@ -70,11 +55,10 @@ public abstract class Updater {
    * @param vertexId
    *        application vertex ID
    */
+  @SuppressWarnings("unused")
   private void execUpdate (long contextPtr, int vertexId){
     Context context = new Context(contextPtr, mIdMap);
     update(context, vertexId);
   }
-  
-  private native long createUpdater();
 
 }

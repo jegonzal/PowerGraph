@@ -23,19 +23,3 @@
 #include "org_graphlab_Updater.hpp"
 
 jmethodID proxy_updater::java_method_id = 0;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-  JNIEXPORT jlong JNICALL
-  Java_org_graphlab_Updater_createUpdater
-  (JNIEnv *env, jobject updater){
-    proxy_updater *proxy = new proxy_updater(env, updater);
-    return (long) proxy;
-    // TODO: need to delete
-  }
-
-#ifdef __cplusplus
-}
-#endif

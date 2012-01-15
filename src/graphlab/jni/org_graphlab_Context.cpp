@@ -39,24 +39,22 @@ extern "C" {
   JNIEXPORT void JNICALL
   Java_org_graphlab_Context_schedule
   (JNIEnv *env, jobject obj,
-  jlong context_ptr, jlong updater_ptr,
+  jlong context_ptr, jobject updater,
   jint vertex_id){
     
     if (NULL == env ||
-        0 == context_ptr ||
-        0 == updater_ptr){
+        0 == context_ptr){
       jni_core_type::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
-        "context_ptr and updater_ptr must not be null.");
+        "context_ptr must not be null.");
         return;
     }
 
     // convert longs to pointers
     icontext_type *context = (icontext_type *) context_ptr;
-    proxy_updater *proxy = (proxy_updater *) updater_ptr;
     
-    context->schedule(vertex_id, *proxy);
+    context->schedule(vertex_id, proxy_updater(env, updater));
     
   }
 

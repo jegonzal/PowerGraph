@@ -22,9 +22,7 @@
 
 /**
  * @file org_graphlab_Updater.hpp
- * \c javah will generate \c org_graphlab_Updater.h from the native methods
- * defined in \c org.graphlab.Updater (and so will overwrite the file every time).
- * Define any additional classes/structs/typedefs in this hpp file.
+ * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 
@@ -85,21 +83,58 @@ public:
    *                          garbage collection.
    */
   proxy_updater(JNIEnv *env, jobject &java_updater){
-    this->mjava_updater = env->NewGlobalRef(java_updater);
+    mjava_updater = env->NewGlobalRef(java_updater);
   }
   
   /** The default constructor does nothing */
   proxy_updater() : mjava_updater(NULL){}
   
+  proxy_updater(const proxy_updater& other){
+  
+    if (NULL == other.mjava_updater){
+      this->mjava_updater = NULL;
+      return;
+    }
+    
+    // create another reference
+    JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
+    this->mjava_updater = env->NewGlobalRef(other.mjava_updater);
+    
+  }
+  
+  proxy_updater & operator=(const proxy_updater &other){
+  
+    if (this != &other){
+    
+      JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
+      jobject java_updater = NULL;
+      
+      // if other has a java object, create a new ref
+      if (NULL != other.mjava_updater)
+        java_updater = env->NewGlobalRef(other.mjava_updater);
+      
+      // if this has a java object, delete ref
+      if (NULL != this->mjava_updater)
+        env->DeleteGlobalRef(this->mjava_updater);
+        
+      // assign!
+      this->mjava_updater = java_updater;
+      
+    }
+    
+    return *this;
+    
+  }
+  
   ~proxy_updater(){
     if (NULL == mjava_updater) return;
     // delete reference to allow garbage collection
-    // JNIEnv *env =
-    graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
-    // env->DeleteGlobalRef(mjava_updater);
+    JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
+    env->DeleteGlobalRef(mjava_updater);
+    mjava_updater = NULL;
   }
   
-  void operator()(icontext_type& context) {
+  void operator()(icontext_type& context){
 
     JNIEnv *env = graphlab::jni_core<proxy_graph, proxy_updater>::get_jni_env();
     

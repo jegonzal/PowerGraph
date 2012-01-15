@@ -75,15 +75,14 @@ extern "C" {
         env->GetMethodID(updater_class, "execUpdate", "(JI)V");
     }
     
+    // store env for this thread
+    thread::get_local(jni_core_type::ENV_ID) = env;
+    
     // allocate and configure core
     jni_core_type *jni_core = new jni_core_type(env, obj);
     if (NULL != argv){
       (*jni_core)().parse_options(argc, argv);
     }
-    
-    logstream(LOG_DEBUG)
-      << "GraphLab core initialized in JNI."
-      << std::endl;
     
     // return address of jni_core
     return (long) jni_core;
@@ -230,7 +229,6 @@ extern "C" {
       << std::endl;
     (*jni_core)().engine().get_options().print();
     
-    thread::get_local(jni_core_type::ENV_ID) = env;
     double runtime = (*jni_core)().start(); 
 
     logstream(LOG_INFO)
@@ -308,31 +306,30 @@ extern "C" {
   JNIEXPORT void JNICALL
   Java_org_graphlab_Core_schedule
   (JNIEnv * env, jobject obj,
-  jlong core_ptr, jlong updater_ptr, jint vertex_id){
+  jlong core_ptr, jobject updater, jint vertex_id){
   
-    if (NULL == env || 0 == core_ptr || 0 == updater_ptr){
+    if (NULL == env || 0 == core_ptr){
       jni_core_type::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
-        "core_ptr and updater_ptr must not be null.");
+        "core_ptr must not be null.");
         return;
     }
 
     // get objects from pointers
     jni_core_type *jni_core = (jni_core_type *) core_ptr;
-    proxy_updater *proxy = (proxy_updater *) updater_ptr;
 
     // schedule vertex
-    (*jni_core)().schedule(vertex_id, *proxy);
+    (*jni_core)().schedule(vertex_id, proxy_updater(env, updater));
     
   }
   
   JNIEXPORT void JNICALL 
   Java_org_graphlab_Core_scheduleAll
   (JNIEnv * env, jobject obj,
-  jlong core_ptr, jlong updater_ptr) {
+  jlong core_ptr, jobject updater) {
 
-    if (NULL == env || 0 == core_ptr || 0 == updater_ptr){
+    if (NULL == env || 0 == core_ptr){
     jni_core_type::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
@@ -342,10 +339,9 @@ extern "C" {
 
     // get objects from pointers
     jni_core_type *jni_core = (jni_core_type *) core_ptr;
-    proxy_updater *proxy = (proxy_updater *) updater_ptr;
 
     // schedule vertex
-    (*jni_core)().schedule_all(*proxy);
+    (*jni_core)().schedule_all(proxy_updater(env, updater));
 
   }
  

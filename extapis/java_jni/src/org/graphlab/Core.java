@@ -201,7 +201,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		if (null == id)
 			throw new NoSuchElementException("vertex did not exist in the graph that was passed to #setGraph.");
 
-		schedule(mCorePtr, updater.ptr(), id);
+		schedule(mCorePtr, updater, id);
 		
 	}
 	
@@ -223,7 +223,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  if (mDestroyed)
 	    throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
-	  scheduleAll(mCorePtr, updater.ptr());
+	  scheduleAll(mCorePtr, updater);
 	  
 	}
 	
@@ -321,21 +321,19 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * Add a single update function to a single vertex
 	 * @param core_ptr
 	 *       {@link #mCorePtr}
-	 * @param updater_ptr
-	 *       {@link org.graphlab.Updater#ptr}
+	 * @param updater
 	 * @param vertex_id
 	 *       graphlab vertex ID
 	 */
-	private native void schedule(long core_ptr, long updater_ptr, int vertex_id);
+	private native void schedule(long core_ptr, Updater updater, int vertex_id);
 
 	/**
 	 * Add the given function to all vertices using the given priority
 	 * @param core_ptr
 	 *       {@link #mCorePtr}
-   * @param updater_ptr
-   *       {@link org.graphlab.Updater#ptr}
+   * @param updater
 	 */
-	private native void scheduleAll(long core_ptr, long updater_ptr);
+	private native void scheduleAll(long core_ptr, Updater updater);
 	
   /**
    * Run the engine until a termination condition is reached or there are no
