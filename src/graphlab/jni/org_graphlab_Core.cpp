@@ -95,12 +95,13 @@ extern "C" {
 //---------------------------------------------------------------
 
   JNIEXPORT jlong JNICALL
-  Java_org_graphlab_Core_createCore
+  Java_org_graphlab_Core_createCore__
   (JNIEnv *env, jobject obj){
     return createCore(env, obj, 0, NULL);
   }
   
-  JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore__Ljava_lang_String_2
+  JNIEXPORT jlong JNICALL
+  Java_org_graphlab_Core_createCore__Ljava_lang_String_2
   (JNIEnv *env, jobject obj, jstring command_line_args){
   
     // convert jstring to c string
