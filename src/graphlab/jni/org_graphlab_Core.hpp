@@ -49,6 +49,9 @@ namespace graphlab {
   
     typedef core<Graph, UpdateFunctor> core_type;
     
+    /** ID of pointer to JNI environment in thread local store */
+    static const size_t ENV_ID;
+    
   private:
     
     /** graphlab::core object - the soul that this body wraps around */
@@ -59,9 +62,6 @@ namespace graphlab {
     
     /** Java virtual machine reference - set only once for each process */
     static JavaVM *mjvm;
-    
-    /** ID of pointer to JNI environment in thread local store */
-    static const size_t ENV_ID;
     
   public:
 

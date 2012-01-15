@@ -230,6 +230,7 @@ extern "C" {
       << std::endl;
     (*jni_core)().engine().get_options().print();
     
+    thread::get_local(jni_core_type::ENV_ID) = env;
     double runtime = (*jni_core)().start(); 
 
     logstream(LOG_INFO)
