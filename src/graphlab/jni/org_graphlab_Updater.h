@@ -4,18 +4,4 @@
 
 #ifndef _Included_org_graphlab_Updater
 #define _Included_org_graphlab_Updater
-#ifdef __cplusplus
-extern "C" {
-#endif
-/*
- * Class:     org_graphlab_Updater
- * Method:    createUpdater
- * Signature: ()J
- */
-JNIEXPORT jlong JNICALL Java_org_graphlab_Updater_createUpdater
-  (JNIEnv *, jobject);
-
-#ifdef __cplusplus
-}
-#endif
 #endif

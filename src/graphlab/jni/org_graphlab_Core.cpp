@@ -41,6 +41,7 @@ using namespace graphlab;
 //---------------------------------------------------------------
 // jni_core static members
 //---------------------------------------------------------------
+
 template<typename G, typename U>
 JavaVM* jni_core<G, U>::mjvm = NULL;
 
@@ -62,10 +63,10 @@ extern "C" {
     global_logger().set_log_to_console(true);
 
     // set jvm, if we don't have it already
-    if (NULL == jni_core_type::get_jvm()){
+    if (NULL == proxy_updater::core::get_jvm()){
       JavaVM* jvm = NULL;
       env->GetJavaVM(&jvm);
-      jni_core_type::set_jvm(jvm);
+      proxy_updater::core::set_jvm(jvm);
     }
     
     // get the method ID for Updater#execUpdate, if we don't have it already
@@ -76,10 +77,10 @@ extern "C" {
     }
     
     // store env for this thread
-    thread::get_local(jni_core_type::ENV_ID) = env;
+    thread::get_local(proxy_updater::core::ENV_ID) = env;
     
     // allocate and configure core
-    jni_core_type *jni_core = new jni_core_type(env, obj);
+    proxy_updater::core *jni_core = new proxy_updater::core(env, obj);
     if (NULL != argv){
       (*jni_core)().parse_options(argc, argv);
     }
@@ -132,7 +133,7 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr){
     
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
@@ -140,7 +141,7 @@ extern "C" {
     }
     
     // cleanup
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     delete jni_core;
     
     logstream(LOG_DEBUG)
@@ -154,14 +155,14 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr, jint count){
     
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
       return;
     }
     
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     (*jni_core)().graph().resize(count);
     
   }
@@ -171,14 +172,14 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr, jint id){
   
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
       return -1;
     }
     
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     
     // init vertex
     proxy_vertex vertex;
@@ -194,14 +195,14 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr, jint source, jint target){
   
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
         return;
     }
     
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     
     // add to graph
     (*jni_core)().graph().add_edge(source, target, proxy_edge());
@@ -213,14 +214,14 @@ extern "C" {
   (JNIEnv *env, jobject obj, jlong ptr){
     
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
         return 0;
     }
     
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
 
     logstream(LOG_DEBUG)
       << "Graph has: "
@@ -249,14 +250,14 @@ extern "C" {
   (JNIEnv * env, jobject obj, jlong ptr, jlong ncpus) {
   
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
         return;
     }
   
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     (*jni_core)().set_ncpus(ncpus);
     
   }
@@ -266,7 +267,7 @@ extern "C" {
   (JNIEnv * env, jobject obj, jlong ptr, jstring scheduler_str) {
   
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
@@ -276,7 +277,7 @@ extern "C" {
     const char *str = env->GetStringUTFChars(scheduler_str, NULL);
     if (NULL == str) return;  // OutOfMemoryError already thrown
     
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     (*jni_core)().set_scheduler_type(std::string(str));
     env->ReleaseStringUTFChars(scheduler_str, str);
     
@@ -287,7 +288,7 @@ extern "C" {
   (JNIEnv * env, jobject obj, jlong ptr, jstring scope_str) {
   
     if (NULL == env || 0 == ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "ptr must not be null.");
@@ -297,7 +298,7 @@ extern "C" {
     const char *str = env->GetStringUTFChars(scope_str, NULL);
     if (NULL == str) return;  // OutOfMemoryError already thrown
     
-    jni_core_type *jni_core = (jni_core_type *) ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     (*jni_core)().set_scope_type(std::string(str));
     env->ReleaseStringUTFChars(scope_str, str);
     
@@ -309,7 +310,7 @@ extern "C" {
   jlong core_ptr, jobject updater, jint vertex_id){
   
     if (NULL == env || 0 == core_ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "core_ptr must not be null.");
@@ -317,7 +318,7 @@ extern "C" {
     }
 
     // get objects from pointers
-    jni_core_type *jni_core = (jni_core_type *) core_ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) core_ptr;
 
     // schedule vertex
     (*jni_core)().schedule(vertex_id, proxy_updater(env, updater));
@@ -330,7 +331,7 @@ extern "C" {
   jlong core_ptr, jobject updater) {
 
     if (NULL == env || 0 == core_ptr){
-    jni_core_type::throw_exception(
+    proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "core_ptr and updater_ptr must not be null.");
@@ -338,7 +339,7 @@ extern "C" {
     }
 
     // get objects from pointers
-    jni_core_type *jni_core = (jni_core_type *) core_ptr;
+    proxy_updater::core *jni_core = (proxy_updater::core *) core_ptr;
 
     // schedule vertex
     (*jni_core)().schedule_all(proxy_updater(env, updater));

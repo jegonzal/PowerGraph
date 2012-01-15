@@ -45,15 +45,15 @@ namespace graphlab {
    */
   template <typename Graph, typename UpdateFunctor>
   class jni_core {
-
+    
   public:
   
-    typedef core<Graph, UpdateFunctor> core_type;
-    
     /** ID of pointer to JNI environment in thread local store */
     static const size_t ENV_ID;
     
   private:
+  
+    typedef core<Graph, UpdateFunctor> core_type;
     
     /** graphlab::core object - the soul that this body wraps around */
     core_type *mcore;

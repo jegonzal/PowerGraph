@@ -44,7 +44,7 @@ extern "C" {
     
     if (NULL == env ||
         0 == context_ptr){
-      jni_core_type::throw_exception(
+      proxy_updater::core::throw_exception(
         env,
         "java/lang/IllegalArgumentException",
         "context_ptr must not be null.");
@@ -52,7 +52,7 @@ extern "C" {
     }
 
     // convert longs to pointers
-    icontext_type *context = (icontext_type *) context_ptr;
+    proxy_updater::context *context = (proxy_updater::context *) context_ptr;
     
     context->schedule(vertex_id, proxy_updater(env, updater));
     
