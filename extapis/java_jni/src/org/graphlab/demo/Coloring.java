@@ -89,6 +89,7 @@ public class Coloring {
     
     // print results
     printResults (g);
+    c.destroy();
     
     return;
 
