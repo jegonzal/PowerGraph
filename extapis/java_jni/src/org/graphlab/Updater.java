@@ -36,37 +36,40 @@ public abstract class Updater {
     
   }
 
-	/**
-	 * Updates the vertex identified by <tt>vertex_id</tt>. Subclasses may wish
-	 * to maintain a reference to the graph object.
-	 * 
-	 * @param context      graphlab context; use {@link Context#schedule(int, Updater)}
-	 *                     to schedule vertices.
-	 * @param vertexId     application vertex ID
-	 */
-	public abstract void update(Context context, int vertexId);
+  /**
+   * Updates the vertex identified by <tt>vertex_id</tt>. Subclasses may wish to
+   * maintain a reference to the graph object.
+   * 
+   * @param context
+   *          graphlab context; use {@link Context#schedule(int, Updater)} to
+   *          schedule vertices.
+   * @param vertexId
+   *          application vertex ID
+   */
+  public abstract void update(Context context, int vertexId);
 
   /**
    * When multiple update functors are scheduled to be run on the same function
    * they are added. The default behavior is to simply ignore the later update
    * functors. Override this method to implement your own behavior.
+   * 
    * @param updater
    */
-	public void add(Updater updater){
-	  return;
-	}
-	
-	/**
-   * Executes the updater on the specified vertex. This is <em>only</em>
-   * invoked by the proxy updater in the JNI library.
+  public void add(Updater updater) {
+    return;
+  }
+
+  /**
+   * Executes the updater on the specified vertex. This is <em>only</em> invoked
+   * by the proxy updater in the JNI library.
    * 
    * @param contextPtr
-   *        address of graphlab::icontext_type object
+   *          address of graphlab::icontext_type object
    * @param vertexId
-   *        application vertex ID
+   *          application vertex ID
    */
   @SuppressWarnings("unused")
-  private void execUpdate (long contextPtr, int vertexId){
+  private void execUpdate(long contextPtr, int vertexId) {
     Context context = new Context(contextPtr, mIdMap);
     update(context, vertexId);
   }
