@@ -33,18 +33,24 @@ jmethodID proxy_updater::java_add = 0;
 
 void proxy_updater::init(JNIEnv *env){
 
+  jclass updater_class = env->FindClass("org/graphlab/Updater");
+
   // get the method ID for Updater#execUpdate, if we don't have it already
   if (0 == proxy_updater::java_exec_update){
-    jclass updater_class = env->FindClass("org/graphlab/Updater");
     proxy_updater::java_exec_update =
       env->GetMethodID(updater_class, "execUpdate", "(JI)V");
   }
   
   // get the method ID for Updater#add, if we don't have it already
   if (0 == proxy_updater::java_add){
-    jclass updater_class = env->FindClass("org/graphlab/Updater");
     proxy_updater::java_add =
       env->GetMethodID(updater_class, "add", "(Lorg/graphlab/Updater;)V");
+  }
+  
+  // get the method ID for Updater#priority, if we don't have it already
+  if (0 == proxy_updater::java_priority){
+    proxy_updater::java_priority = 
+      env->GetMethodID(updater_class, "priority", "()D");
   }
   
 }
