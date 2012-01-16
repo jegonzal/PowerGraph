@@ -45,6 +45,16 @@ public abstract class Updater {
 	 * @param vertexId     application vertex ID
 	 */
 	public abstract void update(Context context, int vertexId);
+
+  /**
+   * When multiple update functors are scheduled to be run on the same function
+   * they are added. The default behavior is to simply ignore the later update
+   * functors. Override this method to implement your own behavior.
+   * @param updater
+   */
+	public void add(Updater updater){
+	  return;
+	}
 	
 	/**
    * Executes the updater on the specified vertex. This is <em>only</em>

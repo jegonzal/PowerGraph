@@ -75,7 +75,13 @@ namespace graphlab {
      * Method ID of org.graphlab.Updater#execUpdate.
      * Set this once per JVM.
      */
-    static jmethodID java_method_id;
+    static jmethodID java_exec_update;
+    
+    /**
+     * Method ID of org.graphlab.Updater#add.
+     * Set this once per JVM.
+     */
+    static jmethodID java_add;
     
     /**
      * Constructor for proxy updater.
@@ -111,6 +117,10 @@ namespace graphlab {
     ~proxy_updater();
     
     void operator()(icontext_type& context);
+    
+    void operator+=(const update_functor_type& other) const;
+    
+    static void init(JNIEnv *env);
     
   };
   

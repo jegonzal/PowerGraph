@@ -69,12 +69,7 @@ extern "C" {
       proxy_updater::core::set_jvm(jvm);
     }
     
-    // get the method ID for Updater#execUpdate, if we don't have it already
-    if (0 == proxy_updater::java_method_id){
-      jclass updater_class = env->FindClass("org/graphlab/Updater");
-      proxy_updater::java_method_id =
-        env->GetMethodID(updater_class, "execUpdate", "(JI)V");
-    }
+    proxy_updater::init(env);
     
     // store env for this thread
     thread::get_local(proxy_updater::core::ENV_ID) = env;

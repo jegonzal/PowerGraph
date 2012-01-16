@@ -28,7 +28,26 @@ using namespace graphlab;
 // proxy_updater static members
 //---------------------------------------------------------------
 
-jmethodID proxy_updater::java_method_id = 0;
+jmethodID proxy_updater::java_exec_update = 0;
+jmethodID proxy_updater::java_add = 0;
+
+void proxy_updater::init(JNIEnv *env){
+
+  // get the method ID for Updater#execUpdate, if we don't have it already
+  if (0 == proxy_updater::java_exec_update){
+    jclass updater_class = env->FindClass("org/graphlab/Updater");
+    proxy_updater::java_exec_update =
+      env->GetMethodID(updater_class, "execUpdate", "(JI)V");
+  }
+  
+  // get the method ID for Updater#add, if we don't have it already
+  if (0 == proxy_updater::java_add){
+    jclass updater_class = env->FindClass("org/graphlab/Updater");
+    proxy_updater::java_add =
+      env->GetMethodID(updater_class, "add", "(Lorg/graphlab/Updater;)V");
+  }
+  
+}
 
 //---------------------------------------------------------------
 // proxy_updater instance members
@@ -53,7 +72,7 @@ proxy_updater::proxy_updater(const proxy_updater& other){
   
 }
 
-proxy_updater &proxy_updater::operator=(const proxy_updater &other){
+proxy_updater &proxy_updater::operator=(const proxy_updater& other){
     
   if (this == &other) return *this;
   
@@ -93,9 +112,41 @@ void proxy_updater::operator()(icontext_type& context){
   
   // forward call to org.graphlab.Updater
   jint app_vertex_id = context.vertex_data().app_id;
-  env->CallVoidMethod (mjava_updater, java_method_id,
+  env->CallVoidMethod (mjava_updater, java_exec_update,
                        &context,
                        app_vertex_id);
+  
+  // check for exception
+  jthrowable exc = env->ExceptionOccurred();
+  if (exc) {
+  
+    // TODO: better error handling
+  
+    logstream(LOG_ERROR)
+      << "Exception occured!!"
+      << std::endl;
+      
+    jclass new_exc;
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+    new_exc = env->FindClass("java/lang/IllegalArgumentException");
+    if (new_exc == NULL) return;
+    env->ThrowNew(new_exc, "thrown from C code");
+    
+  }
+
+}
+
+//---------------------------------------------------------------
+// proxy_updater instance members - the add function
+//---------------------------------------------------------------
+
+void proxy_updater::operator+=(const proxy_updater& other) const {
+  
+  JNIEnv *env = core::get_jni_env();
+  
+  // forward call to org.graphlab.Updater
+  env->CallVoidMethod (mjava_updater, java_add, other.mjava_updater);
   
   // check for exception
   jthrowable exc = env->ExceptionOccurred();
