@@ -8,7 +8,7 @@
 #include "../pmf/mathlayer.hpp"
 #include "mathlayerf.hpp"
 
-//#define USE_DOUBLE
+#define USE_DOUBLE
 #ifdef USE_DOUBLE
 typedef double flt_dbl;
 typedef vec flt_dbl_vec;

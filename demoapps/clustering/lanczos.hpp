@@ -153,7 +153,7 @@ void ATxb(gl_types::iscope &scope,
   /* print statistics */
   if (ac.debug&& ((int)scope.vertex() == ps.M || ((int)scope.vertex() == ps.M+ps.N-1))){
     printf("Axb: entering  node  %u \n",  (int)scope.vertex());   
-    debug_print_vec("V" , user.pvec, m);
+    //debug_print_vec("V" , user.pvec, m);
   }
 
   user.rmse = 0;
@@ -236,17 +236,17 @@ void update_V(int j){
   const graph_type *g = ps.g<graph_type>(TRAINING); 
 
   timer t; t.start();
-  if (ac.debug)
-	cout<<"V: ";
+  //if (ac.debug)
+	//cout<<"V: ";
   for (int i=ps.M; i< ps.M+ps.N; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     //data->pvec[j] = data->rmse / lancbeta[j];
     *find_pvec(j,i,data) = data->rmse/ lancbeta[j];
-    if (ac.debug && i-ps.M<20)
-	cout<<*find_pvec(j,i,data)<<" ";
+    //if (ac.debug && i-ps.M<20)
+	//cout<<*find_pvec(j,i,data)<<" ";
   }
-  if (ac.debug)
-	cout<<endl;
+  //if (ac.debug)
+ //	cout<<endl;
   ps.counter[CALC_RMSE_Q] += t.current_time();
 }
 

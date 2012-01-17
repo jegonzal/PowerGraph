@@ -202,29 +202,25 @@ void read_vec(FILE * f, int start, int len, float * array){
 }
 void save_matrix(const char * filename, const char * varname, const mat& pmat, std::string comment){
    remove(filename);
-  if (ac.debug)
-     logstream(LOG_INFO) << "Starting to save matrix " << filename << " of size " << pmat.rows() << " x " << pmat.cols() << " at time: " << ps.gt.current_time() << std::endl;
+   logstream(LOG_INFO) << "Starting to save matrix " << filename << " of size " << pmat.rows() << " x " << pmat.cols() << " at time: " << ps.gt.current_time() << std::endl;
    it_file output(filename);
-  output << Name(varname);
-  output << pmat;
-  output.close(); 
-  if (ac.debug)
-     logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
+   output << Name(varname);
+   output << pmat;
+   output.close(); 
+   logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
 }
 
 void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std::string comment, bool integer,bool issparse);
 
-void save_matrix(const char * filename, const char * varname, const fmat& pmat, const std::string&comment, bool issparse){
+void save_matrix(const char * filename, const char * varname, const flt_dbl_mat & pmat, const std::string&comment, bool issparse){
   if (ac.matrixmarket){
      save_matrix_market_matrix(filename, pmat, comment, false, issparse);
      return;
   }
    FILE * pfile = open_file(filename, "wb");
-  if (ac.debug)
-     logstream(LOG_INFO) << "Starting to save matrix " << filename << " of size " << pmat.rows() << " x " << pmat.cols() << " at time: " << ps.gt.current_time() << std::endl;
-  write_vec(pfile, pmat.size(), data(pmat));
-  if (ac.debug)
-     logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
+   logstream(LOG_INFO) << "Starting to save matrix " << filename << " of size " << pmat.rows() << " x " << pmat.cols() << " at time: " << ps.gt.current_time() << std::endl;
+   write_vec(pfile, pmat.size(), data(pmat));
+   logstream(LOG_INFO) << "Finished saving matrix " << filename << " at time: " << ps.gt.current_time() << std::endl;
  }
 
 

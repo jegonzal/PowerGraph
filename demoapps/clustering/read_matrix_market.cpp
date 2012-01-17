@@ -269,12 +269,12 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
             if (get_val(a,i,j) != 0){
                if (integer)
                  fprintf(f, "%d %d %d\n", i+1, j+1, (int)get_val(a,i,j));
-               else  fprintf(f, "%d %d %10.3g\n", i+1, j+1, (double)get_val(a,i,j)); 
+               else  fprintf(f, "%d %d %10.13g\n", i+1, j+1, (double)get_val(a,i,j)); 
             }
           } else { //dense
              if (integer)
                 fprintf(f, "%d ", (int)get_val(a,i,j));
-             else fprintf(f, "%10.3g ", (double)get_val(a,i,j));
+             else fprintf(f, "%10.13g ", (double)get_val(a,i,j));
 	     if (j == a.cols() -1 )
                 fprintf(f, "\n");
           }
@@ -315,12 +315,12 @@ void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std
       if (issparse){
         if (integer)
           fprintf(f, "%d %d %d\n", i+1, 1, (int)a[i]);
-        else fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
+        else fprintf(f, "%d %d %10.13g\n", i+1, 1, a[i]);
       }
       else {//dense
         if (integer)
           fprintf(f,"%d ", (int)a[i]);
-        else fprintf(f, "%10.3g\n", a[i]);
+        else fprintf(f, "%10.13g\n", a[i]);
       }
     }
 

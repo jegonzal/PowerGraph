@@ -41,6 +41,7 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
+void print_v(bool rows, int offset);
 
 using namespace graphlab;
 
@@ -214,7 +215,7 @@ void svd_Axb(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
   int id = scope.vertex();
-  bool toprint = (ac.debug && (id == 0 || id == ps.M-1));  
+  bool toprint = false ; //(ac.debug && (id == 0 || id == ps.M-1));  
 
   /* print statistics */
   if (toprint)
@@ -247,7 +248,7 @@ void svd_Axb2(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
   int id = scope.vertex();
-  bool toprint = (ac.debug && (id == ps.M || id == ps.M+ps.N-1));
+  bool toprint = false; //(ac.debug && (id == ps.M || id == ps.M+ps.N-1));
   
   /* print statistics */
   if (toprint)
@@ -286,7 +287,7 @@ void svd_ATxb(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
   int id = scope.vertex();
-  bool toprint = (ac.debug && (id == ps.M || id == ps.M+ps.N-1));
+  bool toprint = false; //(ac.debug && (id == ps.M || id == ps.M+ps.N-1));
   int m = ac.iter; 
   
   /* print statistics */
@@ -331,7 +332,7 @@ void svd_ATxb2(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
   int id = scope.vertex();
-  bool toprint = (ac.debug && (id == 0 || id == ps.M-1));
+  bool toprint = false; //(ac.debug && (id == 0 || id == ps.M-1));
   int m = ac.iter; 
   
   /* print statistics */
@@ -372,7 +373,15 @@ void set_rmse(){
     data->rmse = data->pvec[0]; 
  }
 }
- 
+void set_pvec(int offset){
+  const graph_type *g = ps.g<graph_type>(TRAINING);
+#pragma omp parallel for
+  for (int i=0; i< ps.M+ps.N; i++){ 
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
+    data->pvec[offset] = data->rmse; 
+ }
+}
+  
 double wTV(int j);
 
 double wTV2(int j){
@@ -384,32 +393,93 @@ double wTV2(int j){
     //lancalpha+= data->rmse*data->pvec[j];
     lancalpha+= data->rmse * *find_pvec(j, i, data);
   }
-  if (ac.debug)
-	cout<<"alpha2: " << lancalpha<<endl;
+  //if (ac.debug)
+  //	cout<<"alpha2: " << lancalpha<<endl;
 
   return lancalpha;
 
 }
-double w_lancalphaV(int j);
 
-double w_lancalphaV2(int j){
+
+void substruct(int curoffset, int j, double alpha, bool rows){
+  assert(j >= 0 && j < curoffset);
+  assert(alpha != 0);
+  graph_type *g = ps.g<graph_type>(TRAINING);
+  if (ac.debug)
+    cout<<"substracting " << j << " from " << curoffset << endl; 
+
+  int start = 0; int end = ps.M;
+  if (!rows){
+    start = ps.M; end = ps.M+ ps.N;
+  }
+
+  for (int i= start; i < end; i++){ 
+    vertex_data * data = &g->vertex_data(i);
+    assert(curoffset != j);
+    data->rmse -= alpha * data->pvec[j];
+  }
+}
+
+
+void orthogolonize_vs_all(int curoffset){
+  for (int i=1; i< curoffset-1; i++){
+
+     if (ac.debug){
+           cout<<"Orthogonalizing " << curoffset << " vs. " << i << endl;
+           print_w(false);
+           print_v(false, i);
+     }
+     double alpha = wTV(i);
+     if (alpha != 0)
+       substruct(curoffset, i, alpha, true);
+     double alpha2 = wTV2(i);
+     if (alpha2 != 0)
+       substruct(curoffset, i, alpha2, false);
+     if (ac.debug)
+       cout <<"tempalpha is: " << alpha << endl;
+  }
+}
+
+double w_norm_2(bool rows){
+  const graph_type *g = ps.g<graph_type>(TRAINING);
+  double norm = 0;
+  int start =0, end = ps.M;
+  if (!rows){
+    start = ps.M; end = ps.M+ps.N;
+  } 
+  for (int i=start; i< end; i++){ 
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
+    norm += data->rmse*data->rmse;
+  }
+  return sqrt(norm);
+}
+
+
+void w_minus_lancalphaV(int j){
+  const graph_type *g = ps.g<graph_type>(TRAINING);
+  //if (ac.debug)
+	//cout << "w: " ;
+  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
+    //data->rmse -= lancalpha[j]*data->pvec[j];
+    data->rmse -= lancalpha[j]* *find_pvec(j, i, data);
+    //if (ac.debug && i-ps.M<20)
+    //	cout<<data->rmse<<" ";
+  }
+}
+
+
+void w_minus_lancalphaV2(int j){
   const graph_type *g = ps.g<graph_type>(TRAINING);
   
-  double norm = 0;
-  if (ac.debug)
-	cout << "w: " ;
+  //if (ac.debug)
+  //	cout << "w: " ;
   for (int i=0; i< ps.M; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->rmse -= lancalpha2[j]* *find_pvec(j, i, data);
-    if (ac.debug && i <20)
-	cout<<data->rmse<<" ";
-    norm += data->rmse*data->rmse;
+    //if (ac.debug && i <20)
+    //	cout<<data->rmse<<" ";
   }
-  if (ac.debug){
-	cout<<endl;
-        cout<<"Beta2: " << sqrt(norm) << endl;
-  }
-  return sqrt(norm);
 }
 
 
@@ -418,18 +488,18 @@ void update_V(int j);
 void update_V2(int j){
   const graph_type *g = ps.g<graph_type>(TRAINING); 
 
-  if (ac.debug)
-	cout<<"V2: ";
+  //if (ac.debug)
+ //	cout<<"V2: ";
 
 #pragma omp parallel for
   for (int i=0; i< ps.M; i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     *find_pvec(j, i, data) = data->rmse/ lancbeta2[j];
-    if (ac.debug && i <20)
-        cout << *find_pvec(j, i, data) << " ";
+    //if (ac.debug && i <20)
+    //    cout << *find_pvec(j, i, data) << " ";
   }
-  if (ac.debug)
-	cout<<endl;
+  //if (ac.debug)
+	//cout<<endl;
 }
 
 flt_dbl_mat calc_V(bool other_side, const flt_dbl_mat & eigenvectors){ 
@@ -537,6 +607,23 @@ vec calc_eigenvalues(mat & T, bool other_side){
 
  return eigenvalues;
 }
+void print_v(bool rows, int offset){
+
+  const graph_type *g = ps.g<graph_type>(TRAINING); 
+  
+  int start=rows? 0 : ps.M;
+  int end =rows? ps.M : ps.N+ps.M;
+  flt_dbl_vec v = zeros(end-start);
+  for (int i=start; i< end; i++){ 
+    vertex_data * data = (vertex_data*)&g->vertex_data(i);
+    v[i - start] = *find_pvec(offset, i, data);
+  }
+  cout<<"v is: " << mid(v,0,20) << endl;
+  if (end - start > 40)
+    cout<<"v end is: " << mid(v, v.size()-20, 20) << endl;
+}
+//flt_dbl_mat calc_V(bool other_side, flt_dbl_mat& mat);
+
 
 
 void print_w(bool rows);
@@ -597,6 +684,7 @@ template<>
 void svd<>(gl_types::core & glcore){
   
    init_svd();
+   cout.precision(15);
 
    std::vector<vertex_id_t> rows,cols;
    for (int i=0; i< ps.M; i++)
@@ -614,7 +702,7 @@ void svd<>(gl_types::core & glcore){
         glcore.start();
         set_rmse();
 	if (ac.debug){
-           print_w(true);
+           //print_w(true);
            print_w(false);
         }
         //w = w - lancbeta(j)*V(:,j-1);
@@ -624,6 +712,7 @@ void svd<>(gl_types::core & glcore){
         glcore.add_tasks(cols, svd_ATxb, 1);
 	glcore.start();
 
+
         set_rmse();
 
         if (ac.reduce_mem_consumption)
@@ -631,23 +720,36 @@ void svd<>(gl_types::core & glcore){
 
         if (ac.debug){
           print_w(false);
-          print_w(true);
-          logstream(LOG_INFO) <<"Middle iteration " << ps.iiter << " in time: " << ps.gt.current_time() << std::endl;
+          //print_w(true);
+          //logstream(LOG_INFO) <<"Middle iteration " << ps.iiter << " in time: " << ps.gt.current_time() << std::endl;
         }
         //lancalpha(j) = w'*V(:,j);
 	lancalpha[ps.iiter] = wTV(ps.iiter);
 	lancalpha2[ps.iiter] = wTV2(ps.iiter);
+       //w =  w - lancalpha(j)*V(:,j);
+         w_minus_lancalphaV(ps.iiter);
+	 w_minus_lancalphaV2(ps.iiter);
+        if (ac.debug){
+           //cout << "setting alpha to: " << lancalpha[ps.iiter] << endl;
+           debug_print_vec("alpha", lancalpha, ps.iiter+1);
+           print_w(false);
+           print_v(false, ps.iiter);
+        }
+        
+        //orthogolonize_vs_all(ps.iiter+1);
 
-        //w =  w - lancalpha(j)*V(:,j);
         //lancbeta(j+1)=norm(w,2);
-        lancbeta[ps.iiter+1] = w_lancalphaV(ps.iiter);
-        lancbeta2[ps.iiter+1] = w_lancalphaV2(ps.iiter);
-        if (ac.debug)
-          logstream(LOG_INFO)<< "Beta is: " << lancbeta[ps.iiter+1] << " other side: " << lancbeta2[ps.iiter+1] << std::endl;
+        lancbeta[ps.iiter+1] = w_norm_2(false);
+        lancbeta2[ps.iiter+1] = w_norm_2(true);
+         if (ac.debug)
+           debug_print_vec("beta", lancbeta, ps.iiter+2);
+          //logstream(LOG_INFO)<< "Beta is: " << lancbeta[ps.iiter+1] << " other side: " << lancbeta2[ps.iiter+1] << std::endl;
+        
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(ps.iiter+1); 
         update_V2(ps.iiter+1); 
+ 
         logstream(LOG_INFO) << "Finished iteration " << ps.iiter << " in time: " << ps.gt.current_time() << std::endl;
 
         if (ac.reduce_mem_consumption)
