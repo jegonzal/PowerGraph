@@ -53,6 +53,7 @@ function install_from_source {
   set -e
   cd $1/deps/
   tar -xzvf 3.0.2.tar.gz
+  mv eigen* eigen-3.0.2
   set +e
 
   echo "Eigen setup success!"
