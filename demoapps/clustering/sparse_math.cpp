@@ -220,7 +220,7 @@ void test_fmath(){
    assert(get_val(v1,0) == 0); 
    assert(get_val(v1,1) == 1.0); 
 
-   sparse_fvec v6;
+   sparse_flt_dbl_vec v6;
    set_size(v6, 4);
    set_new(v6, 3, 4.2);
    FOR_ITERATOR_(i, v6){
