@@ -107,6 +107,10 @@ inline void compact(sparse_fvec & v){
    //v.conservativeResize(v.nonZeros());
    //TODO
 }
+inline void compact(sparse_vec & v){
+   //v.conservativeResize(v.nonZeros());
+   //TODO
+}
 inline fvec init_fvec(const float * array, int size){
   fvec ret(size);
   memcpy(ret.data(), array, size*sizeof(float));
@@ -120,7 +124,7 @@ inline fmat fzeros(int rows, int cols){
 }
 inline void debug_print_vec(const char * name,const fvec& _vec, int len){
   printf("%s ) ", name);
-  for (int i=0; i< std::min(len,_vec.size()); i++)
+  for (int i=0; i< std::min(len,(int)_vec.size()); i++)
     if (_vec(i) == 0)
       printf("      0    ");
     else printf("%12.4f    ", _vec(i));
@@ -383,8 +387,8 @@ inline void plus( fvec &v1,  sparse_fvec &v2){
      v1[i.index()] += i.value();
    }
 }
-inline void plus_mul( fvec &v1,  sparse_fvec &v2, float factor){
-  FOR_ITERATOR2(i, v2){  
+inline void plus_mul( vec &v1,  sparse_vec &v2, float factor){
+  FOR_ITERATOR(i, v2){  
     v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
   }
 }
@@ -442,8 +446,15 @@ inline void assign(fvec & v1, sparse_fvec & v2, int N){
   FOR_ITERATOR2(i, v2){
      v1[get_nz_index(v2, i)] = get_nz_data(v2, i);
   }
-
 }
+inline void assign(vec & v1, sparse_vec & v2, int N){
+  v1 = zeros(N);
+  FOR_ITERATOR(i, v2){
+     v1[get_nz_index(v2, i)] = get_nz_data(v2, i);
+  }
+}
+
+
 
 #else //eigen is not found
 /***
@@ -463,6 +474,9 @@ typedef Sparse_Vec<float> sparse_fvec;
 typedef Vec<float> fvec;
 typedef Mat<float> fmat;
 inline void compact(sparse_fvec &v){
+   v.compact();
+}
+inline void compact(sparse_vec &v){
    v.compact();
 }
 inline fvec fzeros(int size){
@@ -500,6 +514,12 @@ inline void set_col(fmat& A, int col, const fvec & val){
 inline void set_row(fmat& A, int row, const fvec & val){
   A.set_row(row, val);
 }
+inline void plus_mul( fvec &v1,  sparse_fvec &v2, float factor){
+  FOR_ITERATOR(i, v2){  
+    v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
+  }
+}
+
 inline void set_diag(fmat &A, fvec &v){
   A = diag(v);
 }
