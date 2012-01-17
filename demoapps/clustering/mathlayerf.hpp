@@ -476,9 +476,6 @@ typedef Mat<float> fmat;
 inline void compact(sparse_fvec &v){
    v.compact();
 }
-inline void compact(sparse_vec &v){
-   v.compact();
-}
 inline fvec fzeros(int size){
   fvec ret(size);
   for (int i=0; i< size; i++)
@@ -514,11 +511,11 @@ inline void set_col(fmat& A, int col, const fvec & val){
 inline void set_row(fmat& A, int row, const fvec & val){
   A.set_row(row, val);
 }
-inline void plus_mul( fvec &v1,  sparse_fvec &v2, float factor){
+/*inline void plus_mul( fvec &v1,  sparse_fvec &v2, float factor){
   FOR_ITERATOR(i, v2){  
     v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
   }
-}
+}*/
 
 inline void set_diag(fmat &A, fvec &v){
   A = diag(v);
