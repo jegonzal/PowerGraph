@@ -736,7 +736,7 @@ void svd<>(gl_types::core & glcore){
            print_v(false, ps.iiter);
         }
         
-        //orthogolonize_vs_all(ps.iiter+1);
+        orthogolonize_vs_all(ps.iiter+1);
 
         //lancbeta(j+1)=norm(w,2);
         lancbeta[ps.iiter+1] = w_norm_2(false);

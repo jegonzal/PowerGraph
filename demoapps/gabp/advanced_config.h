@@ -104,6 +104,8 @@ bool svd_finalize;
 bool svd_compile_eigenvectors;  
 int svd_compile_eigenvectors_block_size;
 int svd_step; //0 = full computation. 1 = iterations only. 2 = eigendecomposition only.
+bool svd_orthogonolize;
+
 /* variables for CG */
 bool cg_resid;
 

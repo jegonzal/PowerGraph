@@ -47,6 +47,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("knn_sample_percent", &knn_sample_percent, knn_sample_percent, "knn sample percentage (0 -> 1)");
   clopts.attach_option("reduce_mem_consumption", &reduce_mem_consumption, reduce_mem_consumption, "reduce memory consumption (potentially slower run)");
   clopts.attach_option("svd_step", &svd_step, svd_step, "svd_step. 0 = full computation, 1 = iterations only, 2 = eigendecomposition only"); 
+  clopts.attach_option("svd_orthogonolize", &svd_orthogonolize, svd_orthogonolize, "perform orthogonalization in SVD");
   clopts.attach_option("fuzzy_exponent", &fuzzy_exponent, fuzzy_exponent, "Fuzzy K-means exponent (between 1.01 -> 2)");
   clopts.attach_option("fuzzy_scatter", &fuzzy_scatter, fuzzy_scatter, "Fuzzy K-means random initialization variance (between 0.01 -> 2)");
 }
