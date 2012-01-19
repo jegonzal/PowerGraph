@@ -1,6 +1,0 @@
-project(GraphLab)
-add_graphlab_executable(coloring coloring.cpp)
-copyfile(cycle.tsv)
-copyfile(cycle2.tsv)
-copyfile(one.tsv)
-copyfile(tree.tsv)

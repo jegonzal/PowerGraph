@@ -478,12 +478,26 @@ endmacro(ADD_CXXTEST)
 
 ## ===================================================================
 # Useful macros 
-
-macro(copyfile NAME)
+## The new cmake has much better ways to do this.  We should swithc to
+## cmake 2.8
+macro(copy_file NAME)
   add_custom_target(
     ${NAME} ALL
     COMMAND 
     ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
+    ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Copying ${NAME}"
+    )
+endmacro(copyfile NAME)
+
+## The new cmake has much better ways to do this.  We should swithc to
+## cmake 2.8
+macro(copy_directory NAME)
+  add_custom_target(
+    ${NAME} ALL
+    COMMAND 
+    ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
     ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Copying ${NAME}"
