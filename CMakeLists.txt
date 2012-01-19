@@ -478,31 +478,29 @@ endmacro(ADD_CXXTEST)
 
 ## ===================================================================
 # Useful macros 
-## The new cmake has much better ways to do this.  We should swithc to
-## cmake 2.8
 macro(copy_file NAME)
-  add_custom_target(
-    ${NAME} ALL
-    COMMAND 
-    ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
-    ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Copying ${NAME}"
-    )
-endmacro(copyfile NAME)
+  file(INSTALL ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} 
+    DESTINATION   ${CMAKE_CURRENT_BINARY_DIR} )
+  ## The new cmake has much better ways to do this.  We should switch
+  ## to cmake 2.8
+  # add_custom_target(
+  #   ${NAME} ALL
+  #   COMMAND 
+  #   ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
+  #   ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
+  #   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  #   COMMENT "Copying ${NAME}"
+  #   )
+endmacro(copy_file NAME)
 
-## The new cmake has much better ways to do this.  We should swithc to
-## cmake 2.8
-macro(copy_directory NAME)
-  add_custom_target(
-    ${NAME} ALL
-    COMMAND 
-    ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
-    ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Copying ${NAME}"
-    )
-endmacro(copyfile NAME)
+
+macro(copy_files NAME)
+  file(INSTALL  DESTINATION  ${CMAKE_CURRENT_BINARY_DIR} 
+    FILES_MATCHING PATTERN ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} )
+endmacro(copy_files NAME)
+
+
+
 
 macro(EXEC file prog)
   add_custom_command(
