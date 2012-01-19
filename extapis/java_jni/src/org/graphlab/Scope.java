@@ -16,10 +16,10 @@ public enum Scope {
    * This ensures that a vertex cannot be updated by two processors
    * simultaneously
    */
-  VERTEX("vertex"),
+  VERTEX("vertex");//,
 
   /** This eliminates all locking */
-  NONE("none");
+  // NONE("none");
 
   private final String mStr;
 

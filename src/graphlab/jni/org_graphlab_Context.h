@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     org_graphlab_Context
  * Method:    schedule
- * Signature: (JII)V
+ * Signature: (JJI)V
  */
 JNIEXPORT void JNICALL Java_org_graphlab_Context_schedule
-  (JNIEnv *, jobject, jlong, jlong, jint, jint);
+  (JNIEnv *, jobject, jlong, jobject, jint);
 
 #ifdef __cplusplus
 }

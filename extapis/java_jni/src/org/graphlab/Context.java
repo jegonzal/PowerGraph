@@ -18,12 +18,6 @@ import java.util.NoSuchElementException;
  */
 public final class Context {
   
-  /** Reference to the core object that instantiated this context */
-  private Core<?> mCore;
-  
-  /** Address of the associated <tt>graphlab::core</tt> object */
-  private long mCorePtr;
-  
   /** Address of the associated <tt>graphlab::icontext_type</tt> object */
   private long mContextPtr;
   
@@ -32,12 +26,6 @@ public final class Context {
 
   /**
    * Creates a new context.
-   * 
-   * @param core
-   *          core object that instantiated this context
-   * @param corePtr
-   *          address of the <tt>graphlab::core</tt> object (must be from
-   *          <tt>core</tt>).
    * @param contextPtr
    *          address of the <tt>graphlab::icontext_type</tt> object associated
    *          with this context.
@@ -46,15 +34,11 @@ public final class Context {
    * @throws NullPointerException
    *           if <tt>core</tt> or <tt>idMap</tt> was null
    */
-  protected Context(Core<?> core,
-                    long corePtr, long contextPtr,
-                    Map<Integer, Integer> idMap) {
+  protected Context(long contextPtr, Map<Integer, Integer> idMap) {
 
-    if (null == core || null == idMap)
-      throw new NullPointerException("core and idMap must not be null.");
-
-    mCore = core;
-    mCorePtr = corePtr;
+    if (null == idMap)
+      throw new NullPointerException("idMap must not be null.");
+    
     mContextPtr = contextPtr;
     mIdMap = idMap;
 
@@ -84,8 +68,7 @@ public final class Context {
           "vertex did not exist in the graph that was passed to Core#setGraph.");
 
     // adds updater to core, which creates an ID for the updater
-    mCore.addUpdater(updater);
-    schedule(mCorePtr, mContextPtr, glVertexId, updater.id());
+    schedule(mContextPtr, updater, glVertexId);
     
   }
   
@@ -94,18 +77,12 @@ public final class Context {
    * <tt>schedule</tt> method on the associated <tt>graphlab::icontext_type</tt>
    * object (which is accessed using <tt>context_ptr</tt>).
    * 
-   * @param core_ptr
-   *          address of the associated <tt>graphlab::core</tt> object.
    * @param context_ptr
    *          address of the associated <tt>graphlab::icontext_type</tt> object.
+   * @param updater
    * @param vertex_id
    *          graphlab vertex ID of vertex to update
-   * @param updater_id
-   *          ID of updater to apply on the vertex. Updater must be passed to
-   *          {@link Core#addUpdater(Updater)} at least once before this method
-   *          is invoked.
    */
-  private native void schedule(long core_ptr, long context_ptr,
-                              int vertex_id, int updater_id);
+  private native void schedule(long context_ptr, Updater updater, int vertex_id);
   
 }

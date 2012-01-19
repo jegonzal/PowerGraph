@@ -1,10 +1,7 @@
 package org.graphlab;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -24,7 +21,10 @@ import org.graphlab.data.Vertex;
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @param <G>
- *          graph type; must extend {@link org.graphlab.data.Graph}
+ *          Graph type; must extend {@link org.graphlab.data.Graph}. On the C++
+ *          side, a proxy graph is given to the core engine, and updates are 
+ *          forwarded to the Java updater (which you will provide through
+ *          {@link #schedule(int, Updater)}.)
  */
 public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
@@ -39,12 +39,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	
   /** Mapping from application vertex IDs to graphlab vertex IDs */
   private Map<Integer, Integer> mIdMap = null;
-  
-  /**
-   * Updaters scheduled by {@link Core#schedule(int, Updater)} and
-   * {@link Context#schedule(long, long, int, Updater)}.
-   */
-  private List<Updater> mUpdaters;
 
 	static {
 		// load the JNI library
@@ -64,11 +58,24 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		if (0 >= mCorePtr)
 			throw new CoreException("Unable to create a core.");
 		logger.trace ("Core created.");
-		
-		// TODO: optimize
-    mUpdaters = Collections.synchronizedList(new ArrayList<Updater>());
 
 	}
+	
+	 /**
+   * Creates a new GraphLab core.
+   * <b>Call {@link #destroy()} when done to free up resources.</b>
+   * 
+   * @param config      configuration e.g. scheduler, scope
+   * @throws CoreException if there was an error creating the core
+   */
+  public Core(CoreConfiguration config) throws CoreException {
+
+    mCorePtr = createCore(config.toString());
+    if (0 >= mCorePtr)
+      throw new CoreException("Unable to create a core.");
+    logger.trace ("Core created.");
+
+  }
 
 	/**
 	 * Tells core to operate on this graph. This creates a proxy graph in the
@@ -146,7 +153,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		
 		// remove references to allow garbage collection
 		mIdMap = null;
-		mUpdaters = null;
 
 	}
 
@@ -190,12 +196,12 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		if (mDestroyed)
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
+		// map from application vertex ID to graphlab vertex ID
 		Integer id = mIdMap.get(vertexId);
 		if (null == id)
 			throw new NoSuchElementException("vertex did not exist in the graph that was passed to #setGraph.");
 
-		addUpdater(updater);
-		schedule(mCorePtr, id, updater.id());
+		schedule(mCorePtr, updater, id);
 		
 	}
 	
@@ -216,9 +222,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  
 	  if (mDestroyed)
 	    throw new IllegalStateException("Core has been destroyed and may not be reused.");
-	    
-	  addUpdater(updater);
-	  scheduleAll(mCorePtr, updater.id());
+
+	  scheduleAll(mCorePtr, updater);
 	  
 	}
 	
@@ -233,13 +238,15 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  setNCpus(mCorePtr, ncpus);
 	}
 	
-	/**
-   * Sets the type of scheduler. 
-   * This will destroy the current engine and any tasks currently associated with the scheduler.
+  /**
+   * Sets the type of scheduler. This only sets the type, and ignores any
+   * scheduler options. This will destroy the current engine and any tasks
+   * currently associated with the scheduler.
+   * 
    * @param scheduler
    */
   public void setSchedulerType(Scheduler scheduler) {
-    setSchedulerType(mCorePtr, scheduler.toString());
+    setSchedulerType(mCorePtr, scheduler.type());
   }
 	
 	/**
@@ -251,48 +258,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  setScopeType(mCorePtr, scope.toString());
 	}
 	
-  /**
-   * Adds an updater to the list of updaters maintained by the core. This is
-   * necessarily because {@link #execUpdate(long, int, int)} only receives the
-   * index of the updater (in the list) to execute.
-   * 
-   * @param updater
-   *          the updater to add
-   * @throws NullPointerException
-   *           if updater was null.
-   */
-	protected void addUpdater(Updater updater){
-	  
-	  if (null == updater) throw new NullPointerException("updater must not be null.");
-	  
-	  if (updater.id() != Updater.ID_NOT_SET){
-      // this updater already has an ID, insert
-      mUpdaters.set(updater.id(), updater);
-    }else {
-      // otherwise, add to end of list and assign id
-      mUpdaters.add(updater);
-      updater.setId(mUpdaters.size()-1);
-    }
-	  
-	}
-
-	/**
-	 * Executes the updater on the specified vertex. This is <em>only</em>
-	 * invoked by the proxy updater in the JNI library.
-	 * 
-	 * @param contextPtr
-	 *        address of graphlab::icontext_type object
-	 * @param vertexId
-	 * 				application vertex ID
-	 * @param updaterId
-	 * 				updater ID (as assigned by {@link #schedule(int, Updater)}).
-	 */
-	private void execUpdate (long contextPtr, int vertexId, int updaterId){
-		
-		Updater updater = mUpdaters.get(updaterId);
-		Context context = new Context(this, mCorePtr, contextPtr, mIdMap);
-		updater.update(context, vertexId);
-		
+	protected Map<Integer, Integer> idMap (){
+	  return mIdMap;
 	}
 	
 	/**
@@ -304,6 +271,14 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	private native long createCore();
 
 	/**
+   * Creates and initializes graphlab::core -> dynamically allocates a core.
+   * Must be freed by a corresponding call to {@link #destroyCore()}. 
+   * 
+   * @return address of core or 0 on failure
+   */
+	private native long createCore(String command_line_args);
+
+  /**
 	 * Deletes the graphlab::core that was allocated in {@link #initCore()}.
 	 * 
 	 * @param ptr
@@ -344,23 +319,21 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	
 	/**
 	 * Add a single update function to a single vertex
-	 * @param ptr
+	 * @param core_ptr
 	 *       {@link #mCorePtr}
+	 * @param updater
 	 * @param vertex_id
 	 *       graphlab vertex ID
-	 * @param updater_id
-	 *       index of updater in {@link #mUpdaters}
 	 */
-	private native void schedule(long ptr, int vertex_id, int updater_id);
+	private native void schedule(long core_ptr, Updater updater, int vertex_id);
 
 	/**
 	 * Add the given function to all vertices using the given priority
-	 * @param ptr
+	 * @param core_ptr
 	 *       {@link #mCorePtr}
-	 * @param updater_id
-	 *       index of updater in {@link #mUpdaters}
+   * @param updater
 	 */
-	private native void scheduleAll(long ptr, int updater_id);
+	private native void scheduleAll(long core_ptr, Updater updater);
 	
   /**
    * Run the engine until a termination condition is reached or there are no
@@ -374,6 +347,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Set the number of cpus that the engine will use.
 	 * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * If this is not what you want, then configure the core in the constructor instead.
+	 * 
 	 * @param ptr
 	 *       {@link #mCorePtr}
 	 * @param ncpus
@@ -384,6 +359,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Set the type of scheduler. 
 	 * This will destroy the current engine and any tasks currently associated with the scheduler.
+	 * If this is not what you want, then configure the core in the constructor instead.
+	 * 
 	 * @param ptr
 	 *       {@link #mCorePtr}
 	 * @param schedulerType
@@ -393,6 +370,8 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	/**
 	 * Set the scope consistency model used in this engine. 
 	 * This will destroy the current engine and any tasks associated with the current scheduler.
+	 * If this is not what you want, then configure the core in the constructor instead.
+	 * 
 	 * @param ptr
 	 *       {@link #mCorePtr}
 	 * @param scopeType

@@ -12,8 +12,16 @@ extern "C" {
  * Method:    createCore
  * Signature: ()J
  */
-JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore
+JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore__
   (JNIEnv *, jobject);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    createCore
+ * Signature: (Ljava/lang/String;)J
+ */
+JNIEXPORT jlong JNICALL Java_org_graphlab_Core_createCore__Ljava_lang_String_2
+  (JNIEnv *, jobject, jstring);
 
 /*
  * Class:     org_graphlab_Core
@@ -50,10 +58,18 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_addEdge
 /*
  * Class:     org_graphlab_Core
  * Method:    schedule
- * Signature: (JII)V
+ * Signature: (JLorg/graphlab/Updater;I)V
  */
 JNIEXPORT void JNICALL Java_org_graphlab_Core_schedule
-  (JNIEnv *, jobject, jlong, jint, jint);
+  (JNIEnv *, jobject, jlong, jobject, jint);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    scheduleAll
+ * Signature: (JLorg/graphlab/Updater;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_scheduleAll
+  (JNIEnv *, jobject, jlong, jobject);
 
 /*
  * Class:     org_graphlab_Core

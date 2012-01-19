@@ -25,7 +25,7 @@ import org.junit.Test;
  */
 public class ShortestPathTest {
 
-	private Core<SparseGraph<ScalarVertex, ScalarEdge>> c;
+	private Core<SparseGraph<ScalarVertex, ScalarEdge>> core;
 	
 	@Before
 	public void setUp() throws Exception {
@@ -33,7 +33,7 @@ public class ShortestPathTest {
 		BasicConfigurator.configure();
 		Logger.getLogger(Core.class).setLevel(Level.OFF);
 		// create core
-		c = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
+		core = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
 	}
 
 	@Test
@@ -42,9 +42,6 @@ public class ShortestPathTest {
 		// load graph
 		SparseGraph<ScalarVertex, ScalarEdge> g = new SparseGraph<ScalarVertex, ScalarEdge>();
 		GraphLoader.loadGraphFromTsvFile(g, "test-graphs/one.tsv");
-		
-		// create updater
-		Updater shortestPathUpdater = new ShortestPathUpdater(g);
 		
 		// initialize to infinity
 		for (ScalarVertex v : g.vertices()) {
@@ -55,9 +52,10 @@ public class ShortestPathTest {
 		ScalarVertex root = g.getVertex(0);
 		root.setValue(0);
 
-		c.setGraph(g);
-		c.schedule(root.id(), shortestPathUpdater);
-		c.start();
+		core.setGraph(g);
+		Updater shortestPathUpdater = new ShortestPathUpdater(core, g);
+		core.schedule(root.id(), shortestPathUpdater);
+		core.start();
 		
 		// check shortest paths
 		System.out.println (g);
@@ -72,9 +70,6 @@ public class ShortestPathTest {
 		SparseGraph<ScalarVertex, ScalarEdge> g = new SparseGraph<ScalarVertex, ScalarEdge>();
 		GraphLoader.loadGraphFromTsvFile(g, "test-graphs/toy.tsv");
 		
-		// create updater
-		Updater shortestPathUpdater = new ShortestPathUpdater(g);
-		
 		// initialize to infinity
 		for (ScalarVertex v : g.vertices()) {
 			v.setValue(Integer.MAX_VALUE);
@@ -84,9 +79,10 @@ public class ShortestPathTest {
 		ScalarVertex root = g.getVertex(0);
 		root.setValue(0);
 
-		c.setGraph(g);
-		c.schedule(root.id(), shortestPathUpdater);
-		c.start();
+		core.setGraph(g);
+		Updater shortestPathUpdater = new ShortestPathUpdater(core, g);
+		core.schedule(root.id(), shortestPathUpdater);
+		core.start();
 		
 		// check shortest paths
 		assertEquals (null, 10, g.getVertex(2).value(), 0);
@@ -100,14 +96,15 @@ public class ShortestPathTest {
 
 	@After
 	public void tearDown() throws Exception {
-		c.destroy();
+		core.destroy();
 	}
 
 	private class ShortestPathUpdater extends Updater {
 	  
 		private SparseGraph<ScalarVertex, ScalarEdge> g;
 
-		public ShortestPathUpdater (SparseGraph<ScalarVertex, ScalarEdge> g) {
+		public ShortestPathUpdater (Core<?> c, SparseGraph<ScalarVertex, ScalarEdge> g) {
+		  super(c);
 			this.g = g;
 		}
 

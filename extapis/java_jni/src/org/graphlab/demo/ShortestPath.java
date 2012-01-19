@@ -87,12 +87,13 @@ public class ShortestPath {
     root.setValue(0);
 
     c.setGraph(g);
-    c.schedule(root.id(), new ShortestPathUpdater(g));
+    c.schedule(root.id(), new ShortestPathUpdater(c, g));
 
     logger.trace("Running graphlab ...");
     c.start();
 
     // destroy core
+    logger.trace("Destroying core ...");
     c.destroy();
 
     logger.info("Shortest path from root to 7 was: " + g.getVertex(7).value());
@@ -133,7 +134,8 @@ public class ShortestPath {
 
     private SparseGraph<ScalarVertex, ScalarEdge> g;
 
-    public ShortestPathUpdater(SparseGraph<ScalarVertex, ScalarEdge> g) {
+    public ShortestPathUpdater(Core<?> core, SparseGraph<ScalarVertex, ScalarEdge> g) {
+      super(core);
       this.g = g;
     }
 
@@ -141,7 +143,6 @@ public class ShortestPath {
     public void update(Context context, int vertexId) {
 
       ScalarVertex vertex = g.getVertex(vertexId);
-      System.out.println("Updater called on vertex " + vertexId);
 
       // find shortest known distance into this node
       for (ScalarEdge edge : g.incomingEdges(vertex.id())) {
@@ -153,9 +154,7 @@ public class ShortestPath {
       // reschedule any affected neighbors
       for (ScalarEdge edge : g.outgoingEdges(vertexId)) {
         ScalarVertex neighbor = g.getVertex(edge.target());
-        System.out.println("Checking vertex " + neighbor.id());
         if (neighbor.value() > (vertex.value() + edge.weight())) {
-          System.out.println("rescheduling vertex " + neighbor.id());
           context.schedule(neighbor.id(), this);
         }
       }

@@ -165,90 +165,92 @@ namespace graphlab {
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid, 
                            const bool is_center = false) {
-      acquire_writelock(cpuid, vid, is_center, is_diffable());
-    }
-
-    void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-                           const bool is_center,
-                           const boost::false_type&) {
       locks[vid].writelock();
+      //      acquire_writelock(cpuid, vid, is_center, is_diffable());
     }
 
-    void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-                           const bool is_center,
-                           const boost::true_type&) {
-      const size_t MAX_WRITES = graph_ptr->vertex_data(vid).lag();
-      // First check the cache
-      context_type& context = contexts[cpuid];
-      typedef typename cache_map_type::iterator iterator_type;
-      iterator_type iter = context.cache.find(vid);
-      const bool is_cached = iter != context.cache.end();
-      if(is_cached) {
-        cache_entry_type& cache_entry = iter->second;        
-        if(++cache_entry.writes > MAX_WRITES || is_center) {
-          //  std::cout << "Flushing" << std::endl;
-          locks[vid].writelock();
-          vertex_data_type& vdata = graph_ptr->vertex_data(vid);
-          vdata.apply_diff(cache_entry.current, cache_entry.old);
-          if(is_center) { // if it is the center vertex we evict it
-            // from the cache and retain the write lock.
-            context.cache.erase(vid);
-            return;
-          } else {
-            cache_entry.current = vdata;
-            locks[vid].unlock();
-            cache_entry.old = cache_entry.current;
-            cache_entry.writes = cache_entry.reads = 0;
-          }
-        } 
-      } else {       
-        locks[vid].readlock();
-        // create a cache entry
-        cache_entry_type& cache_entry = context.cache[vid];
-        cache_entry.current = graph_ptr->vertex_data(vid);
-        locks[vid].unlock();
-        cache_entry.old = cache_entry.current;
-      }
-    } // end of acquire write lock
+    // void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
+    //                        const bool is_center,
+    //                        const boost::false_type&) {
+    //   locks[vid].writelock();
+    // }
+
+    // void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
+    //                        const bool is_center,
+    //                        const boost::true_type&) {
+    //   const size_t MAX_WRITES = graph_ptr->vertex_data(vid).lag();
+    //   // First check the cache
+    //   context_type& context = contexts[cpuid];
+    //   typedef typename cache_map_type::iterator iterator_type;
+    //   iterator_type iter = context.cache.find(vid);
+    //   const bool is_cached = iter != context.cache.end();
+    //   if(is_cached) {
+    //     cache_entry_type& cache_entry = iter->second;        
+    //     if(++cache_entry.writes > MAX_WRITES || is_center) {
+    //       //  std::cout << "Flushing" << std::endl;
+    //       locks[vid].writelock();
+    //       vertex_data_type& vdata = graph_ptr->vertex_data(vid);
+    //       vdata.apply_diff(cache_entry.current, cache_entry.old);
+    //       if(is_center) { // if it is the center vertex we evict it
+    //         // from the cache and retain the write lock.
+    //         context.cache.erase(vid);
+    //         return;
+    //       } else {
+    //         cache_entry.current = vdata;
+    //         locks[vid].unlock();
+    //         cache_entry.old = cache_entry.current;
+    //         cache_entry.writes = cache_entry.reads = 0;
+    //       }
+    //     } 
+    //   } else {       
+    //     locks[vid].readlock();
+    //     // create a cache entry
+    //     cache_entry_type& cache_entry = context.cache[vid];
+    //     cache_entry.current = graph_ptr->vertex_data(vid);
+    //     locks[vid].unlock();
+    //     cache_entry.old = cache_entry.current;
+    //   }
+    // } // end of acquire write lock
 
 
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid) {      
-      acquire_readlock(cpuid, vid, is_diffable());
-    }
-
-    void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
-                          const boost::false_type&) {
+      //    acquire_readlock(cpuid, vid, is_diffable());
       locks[vid].readlock();
     }
 
-    void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
-                          const boost::true_type&) {
-      const size_t MAX_READS = graph_ptr->vertex_data(vid).lag();
-      // First check the cache
-      context_type& context = contexts[cpuid];
-      typedef typename cache_map_type::iterator iterator_type;
-      iterator_type iter = context.cache.find(vid);
-      const bool is_cached = iter != context.cache.end();
-      if(is_cached) {
-        cache_entry_type& cache_entry = iter->second;        
-        if(++cache_entry.reads > MAX_READS) {        
-          locks[vid].readlock();
-          const vertex_data_type& vdata = graph_ptr->vertex_data(vid);
-          cache_entry.current.apply_diff(vdata, cache_entry.old);
-          cache_entry.old = vdata;
-          locks[vid].unlock(); 
-        }
-      } else {
-        // Try to get the write lock
-        locks[vid].readlock();
-        // create a cache entry
-        cache_entry_type& cache_entry = context.cache[vid];
-        cache_entry.current = graph_ptr->vertex_data(vid);
-        locks[vid].unlock();
-        cache_entry.old = cache_entry.current;        
-      }
-    } // end of acquire readlock
+    // void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
+    //                       const boost::false_type&) {
+    //   locks[vid].readlock();
+    // }
+
+    // void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
+    //                       const boost::true_type&) {
+    //   const size_t MAX_READS = graph_ptr->vertex_data(vid).lag();
+    //   // First check the cache
+    //   context_type& context = contexts[cpuid];
+    //   typedef typename cache_map_type::iterator iterator_type;
+    //   iterator_type iter = context.cache.find(vid);
+    //   const bool is_cached = iter != context.cache.end();
+    //   if(is_cached) {
+    //     cache_entry_type& cache_entry = iter->second;        
+    //     if(++cache_entry.reads > MAX_READS) {        
+    //       locks[vid].readlock();
+    //       const vertex_data_type& vdata = graph_ptr->vertex_data(vid);
+    //       cache_entry.current.apply_diff(vdata, cache_entry.old);
+    //       cache_entry.old = vdata;
+    //       locks[vid].unlock(); 
+    //     }
+    //   } else {
+    //     // Try to get the write lock
+    //     locks[vid].readlock();
+    //     // create a cache entry
+    //     cache_entry_type& cache_entry = context.cache[vid];
+    //     cache_entry.current = graph_ptr->vertex_data(vid);
+    //     locks[vid].unlock();
+    //     cache_entry.old = cache_entry.current;        
+    //   }
+    // } // end of acquire readlock
 
 
 
@@ -257,24 +259,25 @@ namespace graphlab {
 
     
     void release_lock(size_t cpuid, vertex_id_type vid) {
-      release_lock(cpuid, vid, is_diffable());
-    }
-
-    void release_lock(size_t cpuid, vertex_id_type vid,
-                      const boost::false_type&) {
+      //    release_lock(cpuid, vid, is_diffable());
       locks[vid].unlock();
     }
 
-    void release_lock(size_t cpuid, vertex_id_type vid,
-                      const boost::true_type&) {
-      // First check the cache
-      context_type& context = contexts[cpuid];
-      typedef typename cache_map_type::iterator iterator_type;
-      iterator_type iter = context.cache.find(vid);
-      const bool is_cached = iter != context.cache.end();
-      if(is_cached) return;
-      else locks[vid].unlock();
-    }
+    // void release_lock(size_t cpuid, vertex_id_type vid,
+    //                   const boost::false_type&) {
+    //   locks[vid].unlock();
+    // }
+
+    // void release_lock(size_t cpuid, vertex_id_type vid,
+    //                   const boost::true_type&) {
+    //   // First check the cache
+    //   context_type& context = contexts[cpuid];
+    //   typedef typename cache_map_type::iterator iterator_type;
+    //   iterator_type iter = context.cache.find(vid);
+    //   const bool is_cached = iter != context.cache.end();
+    //   if(is_cached) return;
+    //   else locks[vid].unlock();
+    // }
 
 
 
