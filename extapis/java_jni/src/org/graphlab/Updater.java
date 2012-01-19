@@ -58,6 +58,14 @@ public abstract class Updater {
   public void add(Updater updater) {
     return;
   }
+  
+  /**
+   * Get the priority of the update functor. Defaults to 0.
+   * @return priority
+   */
+  public double priority(){
+    return 0;
+  }
 
   /**
    * Executes the updater on the specified vertex. This is <em>only</em> invoked

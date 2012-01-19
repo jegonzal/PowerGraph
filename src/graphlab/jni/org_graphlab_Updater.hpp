@@ -73,15 +73,18 @@ namespace graphlab {
   
     /**
      * Method ID of org.graphlab.Updater#execUpdate.
-     * Set this once per JVM.
      */
     static jmethodID java_exec_update;
     
     /**
      * Method ID of org.graphlab.Updater#add.
-     * Set this once per JVM.
      */
     static jmethodID java_add;
+    
+    /**
+     * Method ID of org.graphlab.Updater#priority.
+     */
+    static jmethodID java_priority;
     
     /**
      * Constructor for proxy updater.

@@ -40,52 +40,32 @@ bool debug = false;
 int nodes = 0;
 uint * edge_count;
 unsigned long long total_edges = 0;
-
 struct vertex_data {
-}; 
+  bool active;
+  int kcore, degree;
+
+  vertex_data() : active(true), kcore(-1), degree(0)  {}
+
+  void add_self_edge(double value) { }
+
+  void set_val(double value, int field_type) { 
+  }
+  //only one output for jacobi - solution x
+  double get_output(int field_type){ 
+    return -1;
+  }
+}; // end of vertex_data
 
 struct edge_data {
+  edge_data()  { }
+  //compatible with parser which have edge value (we don't need it)
+  edge_data(double val)  { }
 };
+
 
 typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 graph_type * reference_graph = NULL;
-
-struct kcore_update :
-  public graphlab::iupdate_functor<graph_type, kcore_update> {
-  void operator()(icontext_type& context) {
-  } 
-};
-
-class accumulator :
-  public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
-public:
-  accumulator(){ }
-
-  void operator()(icontext_type& context) {
-   
-
-    vertex_data & vdata = context.vertex_data();
-    if (debug)
-      logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
-
-    edge_list_type outedgeid = context.out_edges();
-    for(size_t i = 0; i < outedgeid.size(); i++) {
-      const edge_type& edge = reference_graph->find(context.vertex_id(), outedgeid[i].target());
-      if (edge.offset() != (uint)-1)
-          edge_count[edge.offset()]++;
-      total_edges++;
-    }
-  };
-
-  void operator+=(const accumulator& other) { 
-  }
-
-  void finalize(iglobal_context_type& context) {
-   }
-}; // end of  accumulator
-
-
 
 
 
@@ -120,10 +100,8 @@ int main(int argc,  char *argv[]) {
 		       "unit testing 0=None, 1=TBD");
   clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
-  clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   clopts.attach_option("references", &reference, reference, "reference - why day to compare to?"); 
-  clopts.attach_option("max_graph", &max_graph, max_graph, "maximum number of graphs parsed");
   clopts.attach_option("list_dir", &list_dir, list_dir, "directory with a list of file names to parse");
   clopts.attach_option("dir_path", &dir_path, dir_path, "actual directory where files are found");
   clopts.attach_option("outdir", &out_dir, out_dir, "output dir");
@@ -134,38 +112,15 @@ int main(int argc,  char *argv[]) {
   }
 
 
-  logstream(LOG_WARNING)
-    << "Eigen detected. (This is actually good news!)" << std::endl;
-  logstream(LOG_INFO) 
-    << "GraphLab Linear solver library code by Danny Bickson, CMU" 
-    << std::endl 
-    << "Send comments and bug reports to danny.bickson@gmail.com" 
-    << std::endl 
-    << "Currently implemented algorithms are: Gaussian Belief Propagation, "
-    << "Jacobi method, Conjugate Gradient" << std::endl;
-
-
-
-  // Create a core
-  graphlab::core<graph_type, kcore_update> core;
-  core.set_options(clopts); // Set the engine options
-
-  //unit testing
-  if (unittest == 1){
-     datafile = "kcores_unittest1";
-  }
-
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
 
   nodes = 121408373;
   matrix_info.rows = matrix_info.cols = nodes;
-  core.set_scope_type("vertex");
 
     
     multigraph_type multigraph;
     multigraph.load(list_dir, dir_path, filter, true);
-    matrix_info.nonzeros = core.graph().num_edges();
 
 
   logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
@@ -174,45 +129,48 @@ int main(int argc,  char *argv[]) {
   reference_graph = multigraph.graph(0);
   edge_count = new uint[multigraph.graph(0)->num_edges()];
 
-  int pass = 0;
 
-      for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
-       if (i != reference){
-       accumulator acum;
-       multigraph.doload(i);
-       core.graph() = *multigraph.graph(1);
-       assert(multigraph.get_node_vdata()->size() == (uint)nodes);
-       core.add_sync("sync", acum, 1000);
-       core.add_global("NUM_ACTIVE", int(0));
-       core.sync_now("sync");
-       logstream(LOG_INFO)<<mytimer.current_time()<<") Finished giong over graph number " << i << std::endl;
-       multigraph.unload(1);
-       } 
-     }
+    uint * edge_count = read_input_vector_binary<uint>(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", (int)reference_graph->num_edges());
 
-  
-  std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
-  std::cout << "Number of updates: " << pass*core.graph().num_vertices() << " pass: " << pass << std::endl;
-  for (int i=0; i< 1000; i++)
-     std::cout<<i<<": "<<edge_count[i]<<std::endl;
-
-    write_output_vector_binary(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", edge_count, reference_graph->num_edges());
-
-    return EXIT_SUCCESS;
     uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
 
-    gzip_out_file fout(out_dir +  ".hist.gz");
+    std::ofstream out_file(std::string(out_dir +  ".hist.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << out_dir  << ".hist.gz" << std::endl;
+    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+    fout.push(boost::iostreams::gzip_compressor());
+    fout.push(out_file);
+    assert(fout.good()); 
+
+     
    boost::unordered_map<uint, std::string> nodeid2hash;
    nodeid2hash.rehash(nodes);
-   save_map_to_file(nodeid2hash, out_dir + ".reverse.map");
-  
-   for (int i=0; i< reference_graph->num_vertices(); i++){
+   std::ifstream ifs((out_dir + ".reverse.map").c_str());
+   {
+   graphlab::iarchive ia(ifs);
+   ia >> nodeid2hash;
+   }
+ 
+   boost::unordered_map<std::string, bool> edges_in_28;
+   int cnt =0; 
+   for (int i=0; i< (int)reference_graph->num_vertices(); i++){
       edge_list edges = reference_graph->out_edges(i);
-      for (int j=0; j < edges.size(); j++){
-        if (edge_count[edges[j].offset()] == 28)
-          fout.get_sp() << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
+      for (int j=0; j < (int)edges.size(); j++){
+        if (edge_count[edges[j].offset()] == 28){
+          //fout << no
+          //deid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;    
+          std::string srcid = nodeid2hash[edges[j].source()];
+          std::string dstid = nodeid2hash[edges[j].target()];
+          edges_in_28[srcid + " " + dstid] = true;
+          cnt++;
+        }
       }      
    }
+   fout.pop(); fout.pop();
+   out_file.close();
+   assert(edges_in_28.size() == cnt);
+   save_map_to_file(edges_in_28,out_dir + ".28.edges");
+
+  //multigraph.unload_all();
    return EXIT_SUCCESS;
 }
 
