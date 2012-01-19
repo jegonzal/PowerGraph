@@ -614,11 +614,20 @@ void save_matrix_market_format_matrix(const std::string datafile, const mat & ou
 
 
 //read a vector from file and return an array
-inline double * read_vec(FILE * f, size_t len){
-  double * vec = new double[len];
+template<typename T>
+inline T * read_vec(FILE * f, int len){
+  T * vec = new T[len];
   assert(vec != NULL);
-  int rc = fread(vec, sizeof(double), len, f);
-  assert(rc == (int)len);
+  int total = 0;
+  while (total < len){
+    int rc = fread(vec, sizeof(T), len, f); 
+    if (rc <= 0){
+      perror("fread");
+      logstream(LOG_FATAL)<<"Failed reading array" << std::endl;
+    }
+   total += rc;
+  }
+  assert(total == (int)len);
   return vec;
 }
 
@@ -665,6 +674,16 @@ inline void write_output_vector_binary(const std::string & datafile, const vec& 
    write_vec(f, output.size(), &output[0]);
    fclose(f);
 }
+template<typename vec>
+inline vec* read_input_vector_binary(const std::string & datafile, int len){
+
+   FILE * f = open_file(datafile.c_str(), "r");
+   std::cout<<"Reading binary vector from file: "<<datafile<<std::endl;
+   vec * input = read_vec<vec>(f, len);
+   fclose(f);
+   return input;
+}
+
 
 template<typename mat>
 inline void write_output_matrix_binary(const std::string & datafile, const mat& output){

@@ -61,8 +61,6 @@ struct vertex_data {
   }
   //only one output for jacobi - solution x
   double get_output(int field_type){ 
-    if (field_type == KCORE_INDEX)
-      return kcore;
     return -1;
   }
 }; // end of vertex_data
@@ -185,7 +183,8 @@ int main(int argc,  char *argv[]) {
   int max_graph = 1000;
   std::string list_dir = "/usr2/bickson/daily.sorted/";
   std::string dir_path = "/usr2/bickson/bin.graphs/";
-  
+  std::string out_dir = "/usr0/bickson/"; 
+ 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -204,7 +203,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_graph", &max_graph, max_graph, "maximum number of graphs parsed");
   clopts.attach_option("list_dir", &list_dir, list_dir, "directory with a list of file names to parse");
   clopts.attach_option("dir_path", &dir_path, dir_path, "actual directory where files are found");
-
+  clopts.attach_option("outdir", &out_dir, out_dir, "output dir");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -282,18 +281,41 @@ int main(int argc,  char *argv[]) {
      std::cout<<i<<": "<<edge_count[i]<<std::endl;
 
 
+
+    write_output_vector_binary(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", edge_count, reference_graph->num_edges());
+
+    return EXIT_SUCCESS;
     uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
-     std::ofstream out_file(std::string(multigraph.reference_graph_name(reference) + ".hist.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << multigraph.reference_graph_name(reference) + ".hist.gz" << std::endl;
+     std::ofstream out_file(std::string(out_dir +  ".hist.gz").c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening output file " << out_dir  << ".hist.gz" << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::output> fout;
     fout.push(boost::iostreams::gzip_compressor());
     fout.push(out_file);
     assert(fout.good()); 
-    for (int i=0; i< 20; i++)
-      fout << hist[i] << std::endl;
- 
+
+     
+
+    //for (int i=0; i< 29; i++)
+    //  fout << hist[i] << std::endl;
+   boost::unordered_map<uint, std::string> nodeid2hash;
+   nodeid2hash.rehash(nodes);
+   std::ifstream ifs((out_dir + ".reverse.map").c_str());
+   {
+   graphlab::iarchive ia(ifs);
+   ia >> nodeid2hash;
+   }
+  
+   for (int i=0; i< reference_graph->num_vertices(); i++){
+      edge_list edges = reference_graph->out_edges(i);
+      for (int j=0; j < edges.size(); j++){
+        if (edge_count[edges[j].offset()] == 28)
+          fout << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
+      }      
+   }
    fout.pop(); fout.pop();
    out_file.close();
+
+
   //multigraph.unload_all();
    return EXIT_SUCCESS;
 }

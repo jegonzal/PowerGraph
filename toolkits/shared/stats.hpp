@@ -7,7 +7,7 @@ uint * histogram(uint * edge_count, int len, int howmnay){
   uint * ret = new uint[howmnay];
   memset(ret, 0, sizeof(int)*howmnay);
   for (int i=0; i<len; i++){
-      assert(edge_count[i] < howmnay);
+      assert(edge_count[i] < (uint)howmnay);
       ret[edge_count[i]]++;
    }
   return ret;
