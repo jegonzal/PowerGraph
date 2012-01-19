@@ -37,65 +37,19 @@
 using namespace graphlab;
 
 bool debug = false;
-int max_iter = 50;
-ivec active_nodes_num;
-ivec active_links_num;
-int iiter = 0; //current iteration
 int nodes = 0;
 uint * edge_count;
 unsigned long long total_edges = 0;
 
-enum kcore_output_fields{
-  KCORE_INDEX = 1
-};
-
 struct vertex_data {
-  bool active;
-  int kcore, degree;
-
-  vertex_data() : active(true), kcore(-1), degree(0)  {}
-
-  void add_self_edge(double value) { }
-
-  void set_val(double value, int field_type) { 
-  }
-  //only one output for jacobi - solution x
-  double get_output(int field_type){ 
-    return -1;
-  }
-}; // end of vertex_data
+}; 
 
 struct edge_data {
-  edge_data()  { }
-  //compatible with parser which have edge value (we don't need it)
-  edge_data(double val)  { }
 };
 
 typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 graph_type * reference_graph = NULL;
-
-void calc_initial_degree(multigraph_type * _g, bipartite_graph_descriptor & desc){
-  int active = 0;
-  for (int j=0; j< _g->num_graphs(); j++){
-    graph_type * g = _g->graph(j);
-  for (int i=0; i< desc.total(); i++){
-     vertex_data & data = g->vertex_data(i);
-     data.degree = g->out_edges(i).size() + g->in_edges(i).size();
-     data.active = data.degree > 0;
-     if (data.active)
-       active++;
-  }
-  }
-  printf("Number of active nodes in round 0 is %d\n", active);
-  printf("Number of active links in round 0 is %d\n", (int)_g->num_edges());
-
-  active_nodes_num[0] = active;
-  active_links_num[0] = _g->num_edges();
-}
-
-
-
 
 struct kcore_update :
   public graphlab::iupdate_functor<graph_type, kcore_update> {
@@ -105,11 +59,8 @@ struct kcore_update :
 
 class accumulator :
   public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
-private:
-  int num_active;
-  int links;
 public:
-  accumulator() : num_active(0), links(0) { }
+  accumulator(){ }
 
   void operator()(icontext_type& context) {
    
@@ -118,47 +69,20 @@ public:
     if (debug)
       logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
 
-    if (!vdata.active)
-      return;
-
-    int increasing_links = 0;
-    
     edge_list_type outedgeid = context.out_edges();
-    //edge_list_type inedgeid = context.in_edges();
-
     for(size_t i = 0; i < outedgeid.size(); i++) {
       const edge_type& edge = reference_graph->find(context.vertex_id(), outedgeid[i].target());
       if (edge.offset() != (uint)-1)
           edge_count[edge.offset()]++;
       total_edges++;
     }
-    /*for (size_t i =0; i < inedgeid.size(); i++){
-      const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
-        if (other.active)
-          cur_links++;
-    }*/
-    //links += increasing_links;
-    //if (vdata.active)
-    //  num_active++;
   };
 
   void operator+=(const accumulator& other) { 
-    num_active += other.num_active;
-    links += other.links;
   }
 
   void finalize(iglobal_context_type& context) {
-   active_nodes_num[iiter] = num_active;
-   if (num_active == 0)
-	links = 0;
-   printf("Number of active nodes in round %d is %di, links: %d\n", iiter, num_active, links);
-   active_links_num[iiter] = links;
-
-   if (num_active == 0){
-     context.terminate(); 
-     max_iter = iiter;
    }
- }
 }; // end of  accumulator
 
 
@@ -194,7 +118,6 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=TBD");
-  clopts.attach_option("max_iter", &max_iter, max_iter, "maximal number of cores");
   clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
   clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
@@ -209,9 +132,6 @@ int main(int argc,  char *argv[]) {
     std::cout << "Invalid arguments!" << std::endl;
     return EXIT_FAILURE;
   }
-
-  active_nodes_num = ivec(max_iter+1);
-  active_links_num = ivec(max_iter+1);
 
 
   logstream(LOG_WARNING)
@@ -248,9 +168,6 @@ int main(int argc,  char *argv[]) {
     matrix_info.nonzeros = core.graph().num_edges();
 
 
-  if (stats){
-    calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
-  }
   logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
   graphlab::timer mytimer; mytimer.start();
   multigraph.doload(reference);
@@ -258,14 +175,13 @@ int main(int argc,  char *argv[]) {
   edge_count = new uint[multigraph.graph(0)->num_edges()];
 
   int pass = 0;
-    logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
 
       for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
        if (i != reference){
        accumulator acum;
        multigraph.doload(i);
        core.graph() = *multigraph.graph(1);
-       assert(multigraph.get_node_vdata()->size() == nodes);
+       assert(multigraph.get_node_vdata()->size() == (uint)nodes);
        core.add_sync("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
        core.sync_now("sync");
@@ -280,43 +196,23 @@ int main(int argc,  char *argv[]) {
   for (int i=0; i< 1000; i++)
      std::cout<<i<<": "<<edge_count[i]<<std::endl;
 
-
-
     write_output_vector_binary(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", edge_count, reference_graph->num_edges());
 
     return EXIT_SUCCESS;
     uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
-     std::ofstream out_file(std::string(out_dir +  ".hist.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << out_dir  << ".hist.gz" << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-    fout.push(boost::iostreams::gzip_compressor());
-    fout.push(out_file);
-    assert(fout.good()); 
 
-     
-
-    //for (int i=0; i< 29; i++)
-    //  fout << hist[i] << std::endl;
+    gzip_out_file fout(out_dir +  ".hist.gz");
    boost::unordered_map<uint, std::string> nodeid2hash;
    nodeid2hash.rehash(nodes);
-   std::ifstream ifs((out_dir + ".reverse.map").c_str());
-   {
-   graphlab::iarchive ia(ifs);
-   ia >> nodeid2hash;
-   }
+   save_map_to_file(nodeid2hash, out_dir + ".reverse.map");
   
    for (int i=0; i< reference_graph->num_vertices(); i++){
       edge_list edges = reference_graph->out_edges(i);
       for (int j=0; j < edges.size(); j++){
         if (edge_count[edges[j].offset()] == 28)
-          fout << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
+          fout.get_sp() << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
       }      
    }
-   fout.pop(); fout.pop();
-   out_file.close();
-
-
-  //multigraph.unload_all();
    return EXIT_SUCCESS;
 }
 

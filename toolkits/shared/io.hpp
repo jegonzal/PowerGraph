@@ -44,7 +44,14 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/lexical_cast.hpp>
-
+#include <iostream>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/iarchive.hpp>
+#include <cstdio>
 #include <graphlab/macros_def.hpp>
 
 
@@ -663,7 +670,53 @@ inline void write_output_vector_binary(const std::string & datafile, const uint*
    fclose(f);
 }
 
+class gzip_in_file{
+  boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+  std::ifstream in_file;
 
+  public:
+  gzip_in_file(const std::string filename){
+    in_file.open(filename.c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening input file: " << filename << std::endl;
+    fin.push(boost::iostreams::gzip_decompressor());
+    fin.push(in_file);  
+   }
+
+  ~gzip_in_file(){
+    fin.pop(); fin.pop();
+    in_file.close();
+   }
+
+   boost::iostreams::filtering_stream<boost::iostreams::input> & get_sp(){
+     return fin;
+   }
+
+
+};
+
+
+class gzip_out_file{
+
+  boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+  std::ofstream out_file;
+  
+  public:
+      gzip_out_file(const std::string filename){
+        out_file.open(filename.c_str(), std::ios::binary);
+        logstream(LOG_INFO)<<"Opening output file " << filename << std::endl;
+        fout.push(boost::iostreams::gzip_compressor());
+        fout.push(out_file);
+      }
+     
+      boost::iostreams::filtering_stream<boost::iostreams::output> & get_sp(){
+        return fout;
+      }
+
+      ~gzip_out_file(){
+        fout.pop(); fout.pop();
+        out_file.close();
+      }
+};
 
 template<typename vec>
 inline void write_output_vector_binary(const std::string & datafile, const vec& output){
@@ -716,6 +769,22 @@ inline void write_output_matrix(const std::string & datafile, const std::string 
   else assert(false);
 }
 
+
+template<typename T1>
+void save_map_to_file(const T1 & map, const std::string filename){
+    logstream(LOG_INFO)<<"Save map to file: " << filename << std::endl;
+    std::ofstream ofs(filename.c_str());
+    graphlab::oarchive oa(ofs);
+    oa << map;
+}
+
+template<typename T1>
+void load_map_from_file(T1 & map, const std::string filename){
+   logstream(LOG_INFO)<<"loading map from file: " << filename << std::endl;
+   std::ifstream ifs(filename.c_str());
+   graphlab::iarchive ia(ifs);
+   ia >> map;
+ }
 
 //read matrix size from a binary file
 FILE * load_matrix_metadata(const char * filename, bipartite_graph_descriptor & desc){

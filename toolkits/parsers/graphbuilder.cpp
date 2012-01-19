@@ -124,48 +124,6 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
    assert(from > 0 && to > 0);
 }
 /*
-void save_to_bin(std::string filename, graph_type2 & _graph){
-  
-typedef graph2<vertex_data2,edge_data2>::edge_list_type edge_list_type2;   
-typedef graph2<vertex_data2,edge_data2>::edge_type edge_type2;   
-//typedef edge_type edge_type2;
-
-   uint * nodes = new uint[_graph.num_vertices()+1];
-   uint * innodes = new uint[_graph.num_vertices()+1];
-   uint * edges = new uint[_graph.num_edges()];
-   uint * inedges = new uint[_graph.num_edges()];
-   nodes[0] = 0;
-   innodes[0] = 0;
-   int cnt = 0;
-   int incnt = 0;
-   for (int i=0; i< (int)_graph.num_vertices(); i++){
-     nodes[i+1] = nodes[i]+ _graph.out_edges(i).size(); 
-     assert(nodes[i+1] <= _graph.num_edges());
-     innodes[i+1] = innodes[i] + _graph.in_edges(i).size();
-     assert(innodes[i+1] <= _graph.num_edges());
-     const edge_list_type2 out_edges = _graph.out_edges(i);
-     const edge_list_type2 in_edges = _graph.in_edges(i);
-     foreach(const edge_type2 & edge, out_edges){
-       edges[cnt++] = (uint)edge.target();
-       assert(edge.target() != i);
-     } 
-     foreach(const edge_type2 & edge, in_edges){
-       inedges[incnt++] = edge.source();
-       assert(edge.source() != i);
-     }
-   };
-   assert(cnt == (int)_graph.num_edges());
-   assert(incnt == cnt);
-   write_output_vector_binary(filename + ".bin.nodes", nodes, _graph.num_vertices()+1); 
-   write_output_vector_binary(filename + "-r.bin.nodes", innodes, _graph.num_vertices()+1); 
-   write_output_vector_binary(filename + ".bin.edges", edges, _graph.num_edges());
-   write_output_vector_binary(filename + "-r.bin.edges", inedges, _graph.num_edges());
-};*/
-
-/***
-* Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
-*/
-/*
 YVjAeZQjnVA IfrTTVlatui 050803 000000 156
 GNgrmichxmG GNgriWokEhN 050803 000000 143
 YnRdCKZkLao MHexzaXWCPL 050803 000000 0

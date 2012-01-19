@@ -168,11 +168,7 @@ int main(int argc,  char *argv[]) {
    fout.pop(); fout.pop();
    out_file.close();
    assert(edges_in_28.size() == cnt);
-   std::ofstream ofs((out_dir + ".28.edges").c_str());
-    {
-    graphlab::oarchive oa(ofs);
-    oa << edges_in_28;
-    }
+   save_map_to_file(edges_in_28,out_dir + ".28.edges");
 
   //multigraph.unload_all();
    return EXIT_SUCCESS;
