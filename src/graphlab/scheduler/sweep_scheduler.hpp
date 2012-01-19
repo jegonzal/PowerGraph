@@ -197,7 +197,10 @@ namespace graphlab {
       for(size_t idx = get_and_inc_index(cpuid), fails = 0; 
           fails <= max_fails; // 
           idx = get_and_inc_index(cpuid), ++fails) {
-        ASSERT_LT(idx, nverts);
+        // It is possible that the get_and_inc_index could return an
+        // invalid index if the number of cpus exceeds the number of
+        // vertices.  In This case we alwasy return empty
+        if(__builtin_expect(idx >= nverts, false)) return sched_status::EMPTY;
         const vertex_id_type vid = index2vid[idx];
         const bool success = vfun_set.test_and_get(vid, ret_fun);
         if(success) { // Job found now decide whether to keep it
