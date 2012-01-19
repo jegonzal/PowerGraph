@@ -1,0 +1,7 @@
+#bin/bash
+if [ $# -eq 3 ]
+then
+  sed -i -e "s/\b$2\b/$3/g" $1 
+else
+  echo "Usage: rep_inplace [file] [search] [replace]"
+fi
