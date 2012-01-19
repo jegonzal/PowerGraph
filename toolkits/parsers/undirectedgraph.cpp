@@ -112,8 +112,8 @@ struct stringzipparser_update :
     mm_set_integer(&out_typecode); 
     mm_set_dense(&out_typecode); 
     mm_set_matrix(&out_typecode);
-    mm_write_cpp_banner(*fout.get_sp(), out_typecode);
-    mm_write_cpp_mtx_crd_size(*fout.get_sp(), 987654321, 987654321, 987654322);
+    mm_write_cpp_banner(fout.get_sp(), out_typecode);
+    mm_write_cpp_mtx_crd_size(fout.get_sp(), 987654321, 987654321, 987654322);
 
 
     char linebuf[256], buf1[256], buf2[256], buf3[256];
@@ -178,7 +178,7 @@ struct stringzipparser_update :
             filtered_out++;
          else // fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
             { 
-            (*fout.get_sp()) << from << " " << to << endl;
+            fout.get_sp() << from << " " << to << endl;
             total_lines++;
          }
       }
@@ -186,7 +186,7 @@ struct stringzipparser_update :
         uint from,to;
         find_ids(from, to, buf1, buf2);
         if (from != to){
-          (*fout.get_sp()) << from << " " << to << endl;
+          fout.get_sp() << from << " " << to << endl;
           //fout << to << " " << from << endl;
         }
         else self_edges++;
