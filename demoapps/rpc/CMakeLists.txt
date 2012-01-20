@@ -1,0 +1,10 @@
+project(GraphLab)
+
+add_graphlab_executable(rpc_example1 rpc_example1.cpp)
+add_graphlab_executable(rpc_example2 rpc_example2.cpp)
+add_graphlab_executable(rpc_example3 rpc_example3.cpp)
+add_graphlab_executable(rpc_example4 rpc_example4.cpp)
+add_graphlab_executable(rpc_example5 rpc_example5.cpp)
+add_graphlab_executable(rpc_example7 rpc_example7.cpp)
+
+add_graphlab_executable(dht_performance_test dht_performance_test.cpp)

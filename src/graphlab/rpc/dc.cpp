@@ -46,15 +46,6 @@
 #include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
-#include <graphlab/rpc/dc_buffered_stream_send_expqueue.hpp>
-#include <graphlab/rpc/dc_buffered_stream_send_expqueue2.hpp>
-#include <graphlab/rpc/dc_buffered_stream_send_multiqueue.hpp>
-
-#ifdef HAS_ZLIB
-#include <graphlab/rpc/dc_buffered_stream_send_expqueue_z.hpp>
-#include <graphlab/rpc/dc_stream_receive_z.hpp>
-#endif
-
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
@@ -334,67 +325,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
   REGISTER_RPC((*this), reply_increment_counter);
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
-  bool buffered_send = false;
+  bool buffered_send = true;
   bool buffered_recv = false;
-  bool buffered_multiqueue_send_single = false;
-  bool buffered_queued_send = false;
-  bool buffered_queued_send_single = false;
-  bool compressed = false;
-  if (options["compressed"] == "true" || 
-    options["compressed"] == "1" ||
-    options["compressed"] == "yes") {
-    compressed = true;
-    std::cerr << "Compressed Buffered Queued Send Option is ON." << std::endl;
-  }
 
-  if (options["compressed_qlz"] == "true" || 
-    options["compressed_qlz"] == "1" ||
-    options["compressed_qlz"] == "yes") {
-    compressed = true;
-    std::cerr << "QuickLZ Deprecated. Using LZ if available." << std::endl;
-  }
-  
-  if (options["buffered_send"] == "true" || 
-    options["buffered_send"] == "1" ||
-    options["buffered_send"] == "yes") {
-    buffered_send = true;
-    std::cerr << "Buffered Send Option is ON." << std::endl;
-  }
-
-  if (options["buffered_queued_send"] == "true" || 
-    options["buffered_queued_send"] == "1" ||
-    options["buffered_queued_send"] == "yes") {
-    buffered_queued_send = true;
-    if (buffered_send == true) {
-      std::cerr << "buffered_queued_send and buffered_send cannot be on simultaneously" << std::endl;
-      exit(1);
-    }
-    std::cerr << "Buffered Queued Send Option is ON." << std::endl;
-  }
-  
-  if (options["buffered_multiqueue_send"] == "true" || 
-    options["buffered_multiqueue_send"] == "1" ||
-    options["buffered_multiqueue_send"] == "yes") {
-    buffered_multiqueue_send_single = true;
-    if (buffered_send == true) {
-      std::cerr << "buffered_multiqueue_send and buffered_send cannot be on simultaneously" << std::endl;
-      exit(1);
-    }
-    std::cerr << "Buffered Multiqueue Send Single Option is ON." << std::endl;
-  }
-
-
-  if (options["buffered_queued_send_single"] == "true" || 
-    options["buffered_queued_send_single"] == "1" ||
-    options["buffered_queued_send_single"] == "yes") {
-    buffered_queued_send_single = true;
-    if (buffered_send == true || buffered_queued_send == true) {
-      std::cerr << "buffered_queued_send_single and buffered_(queued)_send cannot be on simultaneously" << std::endl;
-      exit(1);
-    }
-    std::cerr << "Buffered Queued Send Single Option is ON." << std::endl;
-  }
-  
   if (options["buffered_recv"] == "true" ||
     options["buffered_recv"] == "1" ||
     options["buffered_recv"] == "yes") {
@@ -423,59 +356,22 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {
-      if (compressed) {
-        #ifdef HAS_ZLIB
-        receivers.push_back(new dc_impl::dc_stream_receive_z(this));
-        #else
-        logger(LOG_FATAL, "Not compiled with ZLib. Compressed option not available");
-        assert(false);
-        #endif
-      }
-      else if (buffered_recv) {
+      if (buffered_recv) {
         receivers.push_back(new dc_impl::dc_buffered_stream_receive(this));
       }
       else {
         receivers.push_back(new dc_impl::dc_stream_receive(this));
       }
   
-      if (compressed) {
-        #ifdef HAS_ZLIB
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue_z(this, comm, i));
-        #else
-        logger(LOG_FATAL, "Not compiled with ZLib. Compressed option not available");
-        assert(false);
-        #endif
-      }      
-      else if (buffered_send) {
+      if (buffered_send) {
         single_sender = false;
         senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
-      }
-      else if (buffered_queued_send) {
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue(this, comm, i));
-      }
-      else if (buffered_queued_send_single) {
-        single_sender = true;
-        if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_expqueue2(this, comm));
-        else senders.push_back(senders[0]);
-      }
-      else if (buffered_multiqueue_send_single) {
-        single_sender = true;
-        if (i == 0) senders.push_back(new dc_impl::dc_buffered_stream_send_multiqueue(this, comm, 
-                                                                                     machines.size(), 
-                                                                                     std::max((size_t)1, machines.size() / 4)));
-        else senders.push_back(senders[0]);
       }
       else {
         single_sender = false;
         senders.push_back(new dc_impl::dc_stream_send(this, comm, i));
       }
     }
-  }
-  else {
-    // TODO
-    logstream(LOG_FATAL) << "Datagram handlers not implemented yet" << std::endl;
   }
   // create the handler threads
   // store the threads in the threadgroup
