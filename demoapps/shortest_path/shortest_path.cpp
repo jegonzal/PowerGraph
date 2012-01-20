@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
   // Parse input
   graphlab::command_line_options clopts("Run Shortest Path Algorithm.");
   std::string graph_file;
-  std::string format = "jure";
+  std::string format = "snap";
   clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.");
   clopts.attach_option("format", &format, format,
