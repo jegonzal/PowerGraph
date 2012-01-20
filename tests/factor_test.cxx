@@ -288,13 +288,13 @@ public:
     
     timer ti;
     ti.start();
-    
-    for (size_t i = 0;i < 10000; ++i) {
+    const size_t iterations = 10000;
+    for (size_t i = 0;i < iterations; ++i) {
       for (size_t j = 0; j < testfactors.size(); ++j) {
         testfactors[j].marginalize(joint);
       }
     }
-    std::cout << 10000 * testfactors.size() 
+    std::cout << iterations * testfactors.size() 
               << " marginalize ops of 3^5 --> 3^2 done in " 
                  << ti.current_time() << " seconds" << std::endl;
   }
@@ -323,13 +323,13 @@ public:
     
     timer ti;
     ti.start();
-    
-    for (size_t i = 0;i < 1000000; ++i) {
+    const size_t iterations = 1000;
+    for (size_t i = 0; i < iterations; ++i) {
       for (size_t j = 0; j < testasg.size(); ++j) {
         testfactors[j].condition(joint, testasg[j]);
       }
     }
-    std::cout << 1000000 * testfactors.size() 
+    std::cout << iterations * testfactors.size() 
               << " condition ops of 3^5 --> 3^3 done in " 
                  << ti.current_time() << " seconds" << std::endl;
   }
