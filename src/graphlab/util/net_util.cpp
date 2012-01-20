@@ -25,6 +25,9 @@
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <string.h>
+#ifndef sockaddr //DB: For Free-BSD, sockaddr is defined in sys/socket.h
+#include <sys/socket.h>
+#endif
 
 #include <graphlab/logger/assertions.hpp>
 #include <sstream>
