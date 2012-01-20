@@ -34,6 +34,7 @@
 #include <graphlab/serialization/unordered_map.hpp>
 #define AVOID_PARALLEL_SORT 1
 #include <graphlab/graph/graph2.hpp>
+#include <graphlab/graph/graph3.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
@@ -61,7 +62,7 @@ struct vertex_data {
 struct edge_data {
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
 
 struct vertex_data2 {
@@ -78,14 +79,28 @@ struct vertex_data2 {
   double get_output(int field_type){ 
     return -1; //TODO
   }
+
+  void save(oarchive& arc) const {
+
+  }
+  void load (iarchive& arc) const {
+
+  }
 }; // end of vertex_data
 
 struct edge_data2 {
   edge_data2()  { }
   //compatible with parser which have edge value (we don't need it)
   edge_data2(double val)  { }
+  void save(oarchive& arc) const {
+
+  }
+  void load (iarchive& arc) const {
+
+  }
 };
 
+//typedef graphlab::graph3<vertex_data2, edge_data2> graph_type2;
 typedef graphlab::graph2<vertex_data2, edge_data2> graph_type2;
 
 
@@ -141,15 +156,16 @@ struct stringzipparser_update :
 
     //open file
     vertex_data& vdata = context.vertex_data();
+    
+    edge_data2 edge; 
+    graph_type2 _graph;
+    _graph.resize(nodes);
+
     std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
-
-    edge_data2 edge; 
-    graph_type2 _graph;
-    _graph.resize(nodes);
 
     char linebuf[256], buf1[256], buf2[256];
     char saveptr[1024];
@@ -193,15 +209,19 @@ struct stringzipparser_update :
 
     } 
 
+
    logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
 
-    // close file
     fin.pop(); fin.pop();
+    in_file.close();
     _graph.finalize();
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
+
+    //graph3 save
     save_to_bin(outdir + vdata.filename, _graph);
+    //graph2 save
+    //_graph.save(outdir+vdata.filename);
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
-    in_file.close();
   }
 
 
@@ -235,6 +255,7 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
+  std::string listdir = "/usr2/bickson/daily.sorted/";
   std::string dir = "/mnt/bigbrofs/usr10/haijieg/edge_process/output/"; //"/usr2/bickson/daily.sorted/";
   std::string outdir = "/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
   int unittest = 0;
@@ -283,7 +304,7 @@ int main(int argc,  char *argv[]) {
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
      in_files.push_back(datafile);
-  else in_files = list_all_files_in_dir(dir, filter);
+  else in_files = list_all_files_in_dir(listdir, filter);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);

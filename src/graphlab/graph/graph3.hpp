@@ -270,9 +270,9 @@ enum iterator_type {INEDGE, OUTEDGE};
     //graph3(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
-
-
+    //
     uint * get_node_out_edges(){ return node_out_edges; }
+    uint * get_node_in_edges(){ return node_in_edges; }
     /**
      * \brief Resets the graph state.
      */
@@ -376,7 +376,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      * fail if resizing down.
      */
     void resize(size_t num_vertices ) {
-      ASSERT_GE(num_vertices, num_nodes());
+     // ASSERT_GE(num_vertices, num_vertices);
        assert(false); //not implemented yet
       //TODO
     } // End of resize
@@ -386,10 +386,10 @@ enum iterator_type {INEDGE, OUTEDGE};
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
      */
-    edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
+    void add_edge(vertex_id_type source, vertex_id_type target, 
                           const EdgeData& edata = EdgeData()) {
        assert(false); //not implemented yet
-      return edge_id_type(source, target); //TODO
+      //return edge_id_type(source, target); //TODO
     } // End of add edge
         
     

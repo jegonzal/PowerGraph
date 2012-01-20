@@ -954,11 +954,16 @@ void save_to_bin(const std::string &filename, Graph& graph) {
      assert(innodes[i+1] <= graph.num_edges());
    };
  
-  const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
-  const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
-
   write_output_vector_binary(filename + ".nodes", nodes, graph.num_vertices()+1);
   write_output_vector_binary(filename + "-r.nodes", innodes, graph.num_vertices()+1);
+
+#ifdef USE_GRAPH3
+  uint* _edges = graph.get_node_out_edges();
+  uint* _inedges = graph.get_node_in_edges();
+#else
+  const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
+  const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
+#endif
   write_output_vector_binary(filename + ".edges", &_edges[0], graph.num_edges());
   write_output_vector_binary(filename + "-r.edges", &_inedges[0], graph.num_edges());
 

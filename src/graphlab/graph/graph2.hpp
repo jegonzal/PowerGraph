@@ -46,6 +46,8 @@
 #ifndef GRAPHLAB_GRAPH2_HPP
 #define GRAPHLAB_GRAPH2_HPP
 
+#define DEBUG_GRAPH
+
 #include <omp.h>
 #include <cmath>
 
@@ -73,6 +75,7 @@
 
 #include <graphlab/util/random.hpp>
 #include <graphlab/graph/graph_storage.hpp>
+#include <graphlab/graph/graph_storage_noedge.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab { 
@@ -81,6 +84,7 @@ namespace graphlab {
   class graph2 {
 
     typedef graph_storage<VertexData, EdgeData> gstore_type;
+    //typedef graph_storage_noedge<VertexData, EdgeData> gstore_type;
 
   public:
 
@@ -127,7 +131,9 @@ namespace graphlab {
       vcolors(nverts),
       finalized(false),changeid(0) { }
 
-    //graph2(const graph<VertexData, EdgeData>& g) { (*this) = g; }
+    void set_is_directed (bool x) {gstore.set_is_directed(x);}
+    bool get_is_directed () {return gstore.get_is_directed();}
+
 
     // METHODS =================================================================>
 
@@ -167,12 +173,6 @@ namespace graphlab {
       gstore.finalize(vertices.size(), edges_tmp);
       finalized = true;
     } // End of finalize
-
-    void set_is_directed(bool x) {
-      gstore.set_is_directed(x);
-    }
-
-    bool get_is_directed () {return gstore.get_is_directed();}
 
     /** \brief Get the number of vertices */
     size_t num_vertices() const {
@@ -277,23 +277,11 @@ namespace graphlab {
 
       // Add the edge to the set of edge data (this copies the edata)
       edges_tmp.add_edge(source, target, edata);
-      if (!get_is_directed()) 
-        edges_tmp.add_edge(target, source, edata);
 
       // This is not the final edge_id, so we always return 0. 
       return 0;
     } // End of add edge
 
-// 
-//     void add_block_edges(vertex_id_type source, const std::vector<vertex_id_type>& targetlist, const std::vector<EdgeData>& datalist) {
-//       ASSERT_EQ(targetlist.size(), datalist.size());
-//       gstore.add_block_edges(source, targetlist, datalist);
-//     }
-// 
-//     void add_block_edges(vertex_id_type source, size_t length, const vertex_id_type* targetArray, const EdgeData* dataArray) {
-//       gstore.add_block_edges(source, length, targetArray, dataArray);
-//     }
-//         
     
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(vertex_id_type v) {
@@ -355,8 +343,6 @@ namespace graphlab {
     }
 
 
-
-   
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_type vertex) const {
@@ -506,13 +492,13 @@ namespace graphlab {
       return gstore.get_csr_src();
     }
     const std::vector<vertex_id_type>& get_in_index_storage() const {
-      return gstore.get_is_directed() ? gstore.get_csc_dst() : gstore.get_csr_src();
+      return gstore.get_csc_dst(); 
     }
     const std::vector<vertex_id_type>& get_out_edge_storage() const {
       return gstore.get_csr_dst();
     }
     const std::vector<vertex_id_type>& get_in_edge_storage() const {
-      return gstore.get_is_directed() ? gstore.get_csc_src() : gstore.get_csr_dst();
+      return gstore.get_csc_src();
     }
 
 

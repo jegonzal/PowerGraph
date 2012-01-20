@@ -56,7 +56,7 @@
 
 #include <graphlab/util/random.hpp>
 #include <graphlab/graph/graph_storage.hpp>
-#include <graphlab/graph/graph3.hpp>
+#include <graphlab/graph/graph2.hpp>
 #include "../toolkits/shared/io.hpp"
 #include <graphlab/macros_def.hpp>
 
@@ -69,10 +69,9 @@ namespace graphlab {
  */
 
   template<typename VertexData, typename EdgeData>
-  class multigraph {
+  class multigraph2 {
 
-    std::vector<graph3<VertexData,EdgeData> * > graphs;
-    std::vector<VertexData> node_vdata_array;
+    std::vector<graph2<VertexData,EdgeData> * > graphs;
     uint num_nodes;
     EdgeData _edge;
     char _color; //placeholder 
@@ -94,22 +93,22 @@ namespace graphlab {
 
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
+
+    typedef graph2<VertexData, EdgeData> graph_type;
  
     /** Represents an edge with source() and target()*/
     /** The type of the edge list */
-    //typedef typename gstore_type::edge_list edge_list;
-    typedef edge_type_impl edge_type;
-    typedef edge_type_impl edge_id_type;
- 
-    /** Interface for iupdate functor.*/
-    //typedef typename gstore_type::edge_list edge_list_type;
-    typedef edge_list edge_list_type;
+    typedef typename graph_type::edge_list edge_list_type;
+    typedef typename graph_type::edge_id_type edge_id_type;
+    typedef typename graph_type::edge_type edge_type;
+
+    std::vector<VertexData> node_vdata_array;
 
     int num_graphs(){ return in_files.size(); };
 
-    graph3<VertexData,EdgeData>* graph(int i){ return graphs[i]; }
+    graph2<VertexData,EdgeData>* graph(int i){ return graphs[i]; }
 
-    multigraph(){
+    multigraph2(){
       num_nodes = 0;
       undirected = false;
     }
@@ -362,15 +361,11 @@ namespace graphlab {
  
     void doload(int i){
        graphlab::timer mt; mt.start();
-       graph3<VertexData,EdgeData> *graph = new graph3<VertexData,EdgeData>();
-       graph->load_directed(in_files[i], true);
+       graph2<VertexData,EdgeData> *graph = new graph2<VertexData,EdgeData>();
+       graph->load(in_files[i]);
        logstream(LOG_INFO)<<"Time taken to load: " << mt.current_time() << std::endl;
-       num_nodes = graph->num_vertices();
-       if (node_vdata_array.size() == 0)
-         node_vdata_array.resize(num_nodes);
-       graph->set_node_vdata_array(&node_vdata_array);
        graphs.push_back(graph);
-        }
+    }
 
     void unload_all(){
        for (int i=0; i< num_graphs(); i++){
@@ -394,7 +389,7 @@ namespace graphlab {
 
      if (!delayed){
      for (int i=0; i< (int)in_files.size(); i++){
-        graph3<VertexData, EdgeData> graph;
+        graph2<VertexData, EdgeData> graph;
        logstream(LOG_INFO)<<"loading graph " << i <<"/" << in_files.size() << " " << dirname << in_files[i] << std::endl;
         doload(i);
      }
