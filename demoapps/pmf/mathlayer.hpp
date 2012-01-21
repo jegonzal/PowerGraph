@@ -325,6 +325,8 @@ public:
   if (fb.fail()){
      fb.clear(std::fstream::failbit);
      fb.open(name, std::fstream::out | std::fstream::trunc );
+     fb.write("IT++",4);
+     fb.put(3);
   }
   else {
      fb.open(name, std::fstream::in);

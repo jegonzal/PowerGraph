@@ -279,6 +279,21 @@ void export_to_itpp_file(){
     mat a= fmat2mat(ps.output_assignements);
     output << a;
   }
+  if (ps.U.size() > 0){
+    output << Name("U");
+    output << ps.U;
+  }
+  if (ps.V.size() > 0){
+    output << Name("V");
+    output << ps.V;
+  }
+  if (ps.T.size() > 0 ){
+    assert(ps.T.cols() ==2);
+    output << Name("D1");
+    output << get_col(ps.T,0);
+    output << Name("D2");
+    output << get_col(ps.T,1);
+  }
   output.close();
 }
 
