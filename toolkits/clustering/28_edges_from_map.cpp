@@ -53,7 +53,7 @@ uint conseq_id;
 graphlab::mutex mymutex;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
-unsigned long long self_edges = 0;
+unsigned long long total_selected = 0;
 
 struct vertex_data {
   string filename;
@@ -114,7 +114,7 @@ struct stringzipparser_update :
     //open file
     vertex_data& vdata = context.vertex_data();
     gzip_in_file fin((dir + vdata.filename));
-    gzip_out_file fout(outdir + vdata.filename + ".out.gz");
+    //gzip_out_file fout(outdir + vdata.filename + ".out.gz");
 
     edge_data2 edge; 
 
@@ -148,32 +148,45 @@ struct stringzipparser_update :
            continue;
        
       pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3, pch, 6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3, pch, 6);
         buf3[6] = ' ';
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3+7,pch,6);
+        if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3+7,pch,6);
         pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
+       if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
         duration = atoi(pch);
         datestr2uint64(std::string(buf3), dateret, timeret, mythreadid);
    
-
+        string hour = boost::lexical_cast<string>(timeret/3600);
        if (edges_in_28.find(std::string(buf1) + " " + std::string(buf2)) != edges_in_28.end()){
-         fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
-         << duration << " " << timeret << " " << dateret << endl;
-         edges_in_28_count[std::string(buf1) + " " + std::string(buf2)]++;
+         //fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
+         //<< duration << " " << timeret << " " << dateret << endl;
+         edges_in_28_count[std::string(buf1) + " " + std::string(buf2) + " " + hour]++;
+         total_selected++;
       }
 
       line++;
       total_lines++;
       if (total_lines % 1000000 == 0)
-        logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " edges: " << total_lines << endl;
+        logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " edges: " << total_lines << " seleted: " << total_selected << endl;
 
       if (lines && line>=lines)
 	 break;
 
     } 
 
-   logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
+   logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << " total selected: " << total_selected << endl;
 
   }
 
@@ -235,18 +248,6 @@ int main(int argc,  char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  logstream(LOG_WARNING)
-    << "Eigen detected. (This is actually good news!)" << std::endl;
-  logstream(LOG_INFO) 
-    << "GraphLab Linear solver library code by Danny Bickson, CMU" 
-    << std::endl 
-    << "Send comments and bug reports to danny.bickson@gmail.com" 
-    << std::endl 
-    << "Currently implemented algorithms are: Gaussian Belief Propagation, "
-    << "Jacobi method, Conjugate Gradient" << std::endl;
-
-
-
   // Create a core
   graphlab::core<graph_type, stringzipparser_update> core;
   core.set_options(clopts); // Set the engine options
@@ -275,12 +276,12 @@ int main(int argc,  char *argv[]) {
   core.add_global("OUT_DIR", outdir);
 
   load_map_from_file(edges_in_28, outdir + ".28.edges");
+  logstream(LOG_INFO) << "Loaded a total of " << edges_in_28.size() << " edges" << endl;
   load_map_from_file(hash2nodeid, "/mnt/bigbrofs/usr3/bickson/out_phone_calls/.map");
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;
-  std::cout << "Total number of edges: " << self_edges << std::endl;
-  gzip_out_file cnter(outdir + ".28.edges.count");
+  gzip_out_file cnter(outdir + filter + ".28.edges.hour.gz");
   boost::unordered_map<std::string, uint>::const_iterator it;
   for (it = edges_in_28_count.begin(); it != edges_in_28_count.end(); it++){
     cnter.get_sp() << it->first << " " << it->second << endl;

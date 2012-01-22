@@ -40,7 +40,7 @@ using namespace std;
 
 
 bool debug = false;
-bool quick = false;
+bool quick = true;
 boost::unordered_map<string,uint> hash2nodeid;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
@@ -63,7 +63,7 @@ unsigned long int datestr2uint64(const std::string & data, int & dateret, int & 
 
 
 
-void assign_id(uint & outval, const string &name){
+void assign_id(uint & outval, const string &name, const int line, const string &filename){
 
   boost::unordered_map<string,uint>::iterator it = hash2nodeid.find(name);
   if (it != hash2nodeid.end()){
@@ -71,6 +71,9 @@ void assign_id(uint & outval, const string &name){
      return;
   }
   mymutex.lock();
+  if (name.size() != 11 && name.size() != 19){
+    logstream(LOG_FATAL) << "Found a string with " << name.size() << " string is: " << name << " in file : " << filename << " line: " << line << endl;
+  }
   outval = hash2nodeid[name];
   if (outval == 0){
       hash2nodeid[name] = ++conseq_id;
@@ -80,16 +83,11 @@ void assign_id(uint & outval, const string &name){
 }
 
 
-void assign_id_quick(const string& name){
-  mymutex.lock();
-  hash2nodeid[name] = 1;
-  mymutex.unlock();
-}
 
-void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
+void find_ids(uint & from, uint & to, const string &buf1, const string& buf2, const int line, const string &filename){
 
-   assign_id(from, buf1);
-   assign_id(to, buf2);
+   assign_id(from, buf1, line, filename);
+   assign_id(to, buf2, line, filename);
    //if (from == to)
    //   logstream(LOG_WARNING)<< " from equals to: " << from << " "  << buf1 << " " <<buf2 << std::endl;
    if (from == to)
@@ -165,22 +163,34 @@ struct stringzipparser_update :
        strncpy(buf2, pch, 20);
       if (!quick){
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3, pch, 6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3, pch, 6);
         buf3[6] = ' ';
         pch = strtok_r(NULL, " ",(char**)&saveptr);
-        strncpy(buf3+7,pch,6);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3+7,pch,6);
         pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
-        duration = atoi(pch);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         duration = atoi(pch);
         datestr2uint64(std::string(buf3), dateret, timeret, mythreadid);
         uint from, to;
-        find_ids(from, to, buf1, buf2);
+        find_ids(from, to, buf1, buf2, line, vdata.filename);
         if (debug && line <= 10)
             cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << dateret << " time: " << timeret << " val: " << duration << endl;
          fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
       }
       else {
         uint from,to;
-        find_ids(from, to, buf1, buf2);
+        find_ids(from, to, buf1, buf2, line, vdata.filename);
       }
 
       line++;
@@ -235,8 +245,8 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
-  std::string dir = "/mnt/bigbrofs/usr0/bickson/phone_calls/";
-  std::string outdir = "/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
+  std::string dir = "/mnt/bigbrofs/usr3/bickson/phone_calls/";
+  std::string outdir = "/mnt/bigbrofs/usr3/bickson/out_phone_calls/";
   int unittest = 0;
   int lines = 0;
   bool load = false;
@@ -302,17 +312,8 @@ int main(int argc,  char *argv[]) {
   if (load){
     mytime.start();
     logstream(LOG_INFO)<<"Opening input file " << outdir << ".map" << std::endl;
-   std::ifstream ifs((outdir + ".map").c_str());
-   // save data to archive
-   {
-   graphlab::iarchive ia(ifs);
-   // write map instance to archive
-   ia >> hash2nodeid;
-   // archive and stream closed when destructors are called
-   }
-   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
-   
- 
+    load_map_from_file(hash2nodeid, outdir + ".map");
+    logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
   }
 
 
@@ -342,15 +343,8 @@ int main(int argc,  char *argv[]) {
    }
 
     mytime.start();
-    logstream(LOG_INFO)<<"Opening output file " << outdir << ".map2" << std::endl;
-    std::ofstream ofs((outdir + ".map2").c_str());
-   // save data to archive
-   {
-   graphlab::oarchive oa(ofs);
-   // write map instance to archive
-   oa << hash2nodeid;
-   // archive and stream closed when destructors are called
-   }
+    logstream(LOG_INFO)<<"Opening output file " << outdir << ".map" << std::endl;
+    save_map_to_file(hash2nodeid, outdir + ".map");
    logstream(LOG_INFO)<<"Finished writing file in " << mytime.current_time() << std::endl;
    return EXIT_SUCCESS;
 }

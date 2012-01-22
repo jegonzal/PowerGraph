@@ -150,33 +150,18 @@ int main(int argc,  char *argv[]) {
   graphlab::core<graph_type, kcore_update> core;
   core.set_options(clopts); // Set the engine options
 
-  //unit testing
-  if (unittest == 1){
-     datafile = "kcores_unittest1";
-  }
-
-  std::cout << "Load graph" << std::endl;
-  bipartite_graph_descriptor matrix_info;
-
   nodes = 121408373;
-  matrix_info.rows = matrix_info.cols = nodes;
   core.set_scope_type("vertex");
 
-    
     multigraph_type multigraph;
     multigraph.load(list_dir, dir_path, filter, true);
-    matrix_info.nonzeros = core.graph().num_edges();
-
-
   logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
   graphlab::timer mytimer; mytimer.start();
   multigraph.doload(reference);
   reference_graph = multigraph.graph(0);
   edge_count = new uint[multigraph.graph(0)->num_edges()];
 
-  int pass = 0;
-
-      for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
+   for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
        if (i != reference){
        accumulator acum;
        multigraph.doload(i);
@@ -191,29 +176,12 @@ int main(int argc,  char *argv[]) {
      }
 
   
-  std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
-  std::cout << "Number of updates: " << pass*core.graph().num_vertices() << " pass: " << pass << std::endl;
+  std::cout << "finished in " << mytimer.current_time() << std::endl;
   for (int i=0; i< 1000; i++)
      std::cout<<i<<": "<<edge_count[i]<<std::endl;
 
     write_output_vector_binary(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", edge_count, reference_graph->num_edges());
-
     return EXIT_SUCCESS;
-    uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
-
-    gzip_out_file fout(out_dir +  ".hist.gz");
-   boost::unordered_map<uint, std::string> nodeid2hash;
-   nodeid2hash.rehash(nodes);
-   save_map_to_file(nodeid2hash, out_dir + ".reverse.map");
-  
-   for (int i=0; i< reference_graph->num_vertices(); i++){
-      edge_list edges = reference_graph->out_edges(i);
-      for (int j=0; j < edges.size(); j++){
-        if (edge_count[edges[j].offset()] == 28)
-          fout.get_sp() << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
-      }      
-   }
-   return EXIT_SUCCESS;
 }
 
 

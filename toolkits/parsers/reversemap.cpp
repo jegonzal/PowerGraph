@@ -88,28 +88,36 @@ int main(int argc,  char *argv[]) {
   //core.add_sync("sync", acum, sync_interval);
     mytime.start();
     hash2nodeid.rehash(nodes);
-    logstream(LOG_INFO)<<"Opening input file " << dir << datafile << ".map" << std::endl;
-   std::ifstream ifs((dir + ".map").c_str());
-   {
-   graphlab::iarchive ia(ifs);
-   ia >> hash2nodeid;
-   }
-   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
+    logstream(LOG_INFO)<<"Opening input file " << dir << ".map" << std::endl;
+    load_map_from_file(hash2nodeid, dir+".map");
+   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << " hash entries: " << hash2nodeid.size() << std::endl;
    
-
   boost::unordered_map<uint, std::string> nodeid2hash;
   boost::unordered_map<std::string, uint>::const_iterator i;
+  int cnt = 0;
+  uint minval = 999999999;
+  uint maxval = 0;
   for (i = hash2nodeid.begin(); i != hash2nodeid.end(); i++){ 
-    nodeid2hash[i->second] = i->first;
+    string hashstr = i->first;
+    if (hashstr.size() != 11 && hashstr.size() != 19){
+      logstream(LOG_WARNING) << "Found a problem, hash string of size " << hashstr.size() << " string is: " << hashstr << " id is: " << i->second << endl;
+    }
+    else {
+    if (i->second < 0 && i->second >= nodes)
+       logstream(LOG_FATAL) << " Found a problem, hash string " << hashstr << " has value: " << i->second << endl;
+    if (i->second < minval)
+      minval = i->second;
+    if (i->second > maxval)
+      maxval = i->second;
+    nodeid2hash[i->second] = hashstr;
+    cnt++;
+    }
   }
   std::cout << "Finished in " << mytime.current_time() << std::endl;
-  assert(hash2nodeid.size() == nodeid2hash.size());
-   std::ofstream ofs((outdir + ".reverse.map").c_str());
-  graphlab::oarchive oa(ofs);
-  {
-  oa << nodeid2hash; 
-  }
-  logstream(LOG_INFO)<<"Finished saving reverse map in: " << mytime.current_time() << std::endl;
+  assert(hash2nodeid.size() == nodeid2hash.size()+1);
+  save_map_to_file(nodeid2hash, outdir + ".reverse.map");
+  logstream(LOG_INFO)<<"Finished saving reverse map in: " << mytime.current_time() << " min val: " << minval << " max val: " << maxval << std::endl;
+
    return EXIT_SUCCESS;
 }
 

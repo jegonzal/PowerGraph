@@ -10,6 +10,11 @@ uint * histogram(uint * edge_count, int len, int howmnay){
       assert(edge_count[i] < (uint)howmnay);
       ret[edge_count[i]]++;
    }
+
+  uint sum = 0;
+  for (int i=0; i< howmnay; i++)
+    sum += ret[i];
+  assert(sum == len);
   return ret;
 }
 
