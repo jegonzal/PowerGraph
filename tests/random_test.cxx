@@ -172,7 +172,7 @@ class RandomTestSuite: public CxxTest::TestSuite {
     }
     graphlab::graph_ops<graph_type>::color(core.graph());
     core.set_scheduler_type("chromatic(max_iterations=2)");
-    core.set_scope_type("none");
+    core.set_scope_type("vertex");
     core.set_ncpus(4);
     core.schedule_all(update_function());
     for(size_t i = 0; i < 3; ++i) {
@@ -188,65 +188,60 @@ class RandomTestSuite: public CxxTest::TestSuite {
   void test_shuffle() {
     namespace random = graphlab::random;
     random::nondet_seed();
-    std::vector<int> numbers(6);
+    std::vector<int> numbers(100);
     for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = (int)i + 1;
     for(size_t j = 0; j < 10; ++j) {
       // shuffle the numbers
       random::shuffle(numbers);
       std::cout << numbers << std::endl;
     }
-
   }
 
 
 
-  void test_speed() {
-    namespace random = graphlab::random;
-    std::cout << "speed test run: " << std::endl;
-    const size_t MAX_ITER(10000000);
-    std::cout << "size_t:   "; 
-    uniform_speed<size_t>(MAX_ITER);
-    std::cout << "int:      "; 
-    uniform_speed<int>(MAX_ITER);
-    std::cout << "uint32_t: "; 
-    uniform_speed<uint32_t>(MAX_ITER);
-    std::cout << "uint16_t: "; 
-    uniform_speed<uint16_t>(MAX_ITER);
-    std::cout << "char:     "; 
-    uniform_speed<char>(MAX_ITER);
-    std::cout << "float:    "; 
-    uniform_speed<float>(MAX_ITER);
-    std::cout << "double:   "; 
-    uniform_speed<double>(MAX_ITER);
+  // void test_speed() {
+  //   namespace random = graphlab::random;
+  //   std::cout << "speed test run: " << std::endl;
+  //   const size_t MAX_ITER(10000);
+  //   std::cout << "size_t:   "; 
+  //   uniform_speed<size_t>(MAX_ITER);
+  //   std::cout << "int:      "; 
+  //   uniform_speed<int>(MAX_ITER);
+  //   std::cout << "uint32_t: "; 
+  //   uniform_speed<uint32_t>(MAX_ITER);
+  //   std::cout << "uint16_t: "; 
+  //   uniform_speed<uint16_t>(MAX_ITER);
+  //   std::cout << "char:     "; 
+  //   uniform_speed<char>(MAX_ITER);
+  //   std::cout << "float:    "; 
+  //   uniform_speed<float>(MAX_ITER);
+  //   std::cout << "double:   "; 
+  //   uniform_speed<double>(MAX_ITER);
     
-    std::cout << "gaussian: ";
-    double sum = 0;
-    graphlab::timer time;
-    time.start();
-    for(size_t i = 0; i < MAX_ITER; ++i) 
-      sum += random::gaussian();
-    std::cout << time.current_time() << std::endl;
+  //   std::cout << "gaussian: ";
+  //   double sum = 0;
+  //   graphlab::timer time;
+  //   time.start();
+  //   for(size_t i = 0; i < MAX_ITER; ++i) 
+  //     sum += random::gaussian();
+  //   std::cout << time.current_time() << std::endl;
     
-    std::cout << "shuffle:  "; 
-    std::vector<int> numbers(6);
-    for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = (int)i + 1;
-    time.start();
-    for(size_t j = 0; j < MAX_ITER/numbers.size(); ++j) {
-      // shuffle the numbers
-      random::shuffle(numbers);
-    }
-    std::cout << time.current_time() << ", ";
-    time.start();
-    for(size_t j = 0; j < MAX_ITER/numbers.size(); ++j) {
-      // shuffle the numbers
-      std::random_shuffle(numbers.begin(), numbers.end());
-    }
-    std::cout << time.current_time() << std::endl;
-    
-    
-    
-    
-  }
+  //   std::cout << "shuffle:  "; 
+  //   std::vector<int> numbers(6);
+  //   for(size_t i = 0; i < numbers.size(); ++i) numbers[i] = (int)i + 1;
+  //   time.start();
+  //   for(size_t j = 0; j < MAX_ITER/numbers.size(); ++j) {
+  //     // shuffle the numbers
+  //     random::shuffle(numbers);
+  //   }
+  //   std::cout << time.current_time() << ", ";
+  //   time.start();
+  //   for(size_t j = 0; j < MAX_ITER/numbers.size(); ++j) {
+  //     // shuffle the numbers
+  //     std::random_shuffle(numbers.begin(), numbers.end());
+  //   }
+  //   std::cout << time.current_time() << std::endl;    
+  // }
 
 
   

@@ -259,7 +259,7 @@ int main(int argc,  char *argv[]) {
   in_files.push_back(datafile);
   std::string dirpath;
   //core.graph().set_undirected();
-  core.graph().set_is_directed(false);
+  //core.graph().set_is_directed(false);
   core.set_scope_type("vertex");
   assert(in_files.size() > 0);
   for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
