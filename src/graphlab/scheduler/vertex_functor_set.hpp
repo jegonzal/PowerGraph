@@ -47,6 +47,8 @@
 
 namespace graphlab {
 
+
+  
   template<typename UpdateFunctor>
   class vertex_functor_set {
   public:
@@ -57,7 +59,7 @@ namespace graphlab {
     lock_free_pool<update_functor_type> pool;
     class vfun_type {
     private:
-      update_functor_type* functor;
+      update_functor_type* volatile functor;
 
     public:
       vfun_type() : functor(NULL) { }
@@ -73,7 +75,7 @@ namespace graphlab {
         while(1) {
           update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
           // pull it out to process it
-          atomic_exchange(uf, functor);
+          atomic_exchange(functor, uf);
           // if there is nothing in there, set it
           // otherwise add it
           if (uf == NULL) {
@@ -89,7 +91,8 @@ namespace graphlab {
             (*uf) += toinsert;
           }
           // swap it back in
-          atomic_exchange(uf, functor);
+          ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
+          atomic_exchange(functor, uf);
           //aargh! I swapped something else out. Now we have to
           //try to put it back in
           if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
@@ -111,7 +114,7 @@ namespace graphlab {
         while(1) {
           update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
           // pull it out to process it
-          atomic_exchange(uf, functor);
+          atomic_exchange(functor, uf);
           // if there is nothing in there, set it
           // otherwise add it
           if (uf == NULL) {
@@ -128,7 +131,8 @@ namespace graphlab {
           }
           ret_priority = uf->priority();
           // swap it back in
-          atomic_exchange(uf, functor);
+          ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
+          atomic_exchange(functor, uf);
           //aargh! I swapped something else out. Now we have to
           //try to put it back in
           if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
@@ -198,6 +202,7 @@ namespace graphlab {
      */
     void resize(size_t num_vertices) {
       vfun_set.resize(num_vertices);
+      pool.reset_pool(num_vertices + 256);
     }
 
     void operator=(const vertex_functor_set& other) {

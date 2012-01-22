@@ -176,9 +176,22 @@ namespace graphlab {
   /** 
     * \ingroup util
     * \brief Atomically exchanges the values of a and b.
+    * \warning This is not a full atomic exchange. Read of a,
+    * and the write of b into a is atomic. But the write into b is not.
     */
   template<typename T>
   void atomic_exchange(T& a, T& b) {
+    b = __sync_lock_test_and_set(&a, b);
+  };
+
+  /** 
+    * \ingroup util
+    * \brief Atomically exchanges the values of a and b.
+    * \warning This is not a full atomic exchange. Read of a,
+    * and the write of b into a is atomic. But the write into b is not.
+    */
+  template<typename T>
+  void atomic_exchange(volatile T& a, T& b) {
     b = __sync_lock_test_and_set(&a, b);
   };
 
