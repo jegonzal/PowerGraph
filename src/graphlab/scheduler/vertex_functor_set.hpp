@@ -44,6 +44,7 @@
 
 
 #define UPDATE_FUNCTOR_PENDING (update_functor_type*)(size_t)(-1)
+
 namespace graphlab {
 
   template<typename UpdateFunctor>
@@ -91,7 +92,7 @@ namespace graphlab {
           atomic_exchange(uf, functor);
           //aargh! I swapped something else out. Now we have to
           //try to put it back in
-          if (uf != NULL && uf != UPDATE_FUNCTOR_PENDING) {
+          if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
             toinsert = (*uf);
           }
           else {
@@ -130,8 +131,11 @@ namespace graphlab {
           atomic_exchange(uf, functor);
           //aargh! I swapped something else out. Now we have to
           //try to put it back in
-          if (uf != NULL && uf != UPDATE_FUNCTOR_PENDING) {
+          if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
             toinsert = (*uf);
+          }
+          else {
+            break;
           }
         }
         return ret;
@@ -143,7 +147,7 @@ namespace graphlab {
           ret = functor;
           if (ret == NULL) return update_functor_type();
           else if (ret != UPDATE_FUNCTOR_PENDING) {
-            if (atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL)) {
+            if (__likely__(atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL))) {
               update_functor_type r = *ret;
               pool.free(ret);
               return r;
@@ -166,9 +170,9 @@ namespace graphlab {
         update_functor_type* ret;
         while (1) {
           ret = functor;
-          if (ret == NULL) return false;
-          else if (ret != UPDATE_FUNCTOR_PENDING) {
-            if (atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL)) {
+          if (__unlikely__(ret == NULL)) return false;
+          else if (__likely__(ret != UPDATE_FUNCTOR_PENDING)) {
+            if (__likely__(atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL))) {
               r = *ret;
               pool.free(ret);
               return true;
