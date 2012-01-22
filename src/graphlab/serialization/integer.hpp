@@ -42,90 +42,121 @@ inline unsigned char compress_int(uint64_t u, char output[10]) {
   // otherwise isneg = 0....
   u = (u ^ isneg) - isneg;
   
-  // get the largest bit
-  unsigned char nbits = 1;  // minimum of 1 bit. even if u == 0
-  if (u != 0) nbits = (unsigned char)(64 - __builtin_clzll(u));
+  // ok. we align to only 2, 4 or 8 bytes.
   
-  // figure out how many bytes we really need
-  unsigned char b = (nbits >> 3) + ((nbits & 7) > 0);
+  unsigned char nbytes = 8;
+  // 16 bit max
+  if (u <= 65535) nbytes = 2;
+  else if (u <= 4294967295LL) nbytes = 4;
   
-  // build the base byte.
-  // storage will take 'b' bytes
-  unsigned char signbit = (unsigned char)(isneg > 0);
-  // bits [0-2] bits of first byte of output contains 1 less of the length of the 
-  // integer. 
-  // bit 3 is a sign bit
+  output[10 - nbytes - 1] = nbytes | (unsigned char)(isneg > 0);
+  // cast to desired length;
   
-  output[10 - b - 1] = (b - 1) | (signbit << 3);
-  switch(b) {
-    case 8:
-      output[2] = (char)(u >> 56);
-    case 7:
-      output[3] = (char)(u >> 48);
-    case 6:
-      output[4] = (char)(u >> 40);
-    case 5:
-      output[5] = (char)(u >> 32);
+  switch(nbytes) {
+    case 2: 
+      { uint16_t* r = reinterpret_cast<uint16_t*>(output + 8);
+        (*r) = u; 
+        break;  }
     case 4:
-      output[6] = (char)((uint32_t)(u) >> 24);
-    case 3:
-      output[7] = (char)((uint32_t)(u) >> 16);
-    case 2:
-      output[8] = (char)((uint16_t)(u) >> 8);
-    case 1:
-      output[9] = (char)(unsigned char)(u);
+      { uint32_t* r = reinterpret_cast<uint32_t*>(output + 6);
+        (*r) = u; 
+        break;  }
+    case 8:
+      { uint64_t* r = reinterpret_cast<uint64_t*>(output + 2);
+        (*r) = u; 
+        break;  }
+    default:
+      assert(false);
   }
-  return b + 1;
+  return nbytes + 1;
 }
+
 
 
 
 template <typename IntType>
 inline void decompress_int(const char* arr, IntType &ret) {
-  bool isneg = (arr[0] & 8);
-  unsigned char len = (arr[0] & 7) + 1;
-  ++arr;
+  unsigned char len = arr[0] & 14; //(2 | 4 | 8) 
+  bool isneg = arr[0] & 1;
   ret = 0;
-  while (len) {
-    ret = (ret << 8) | (unsigned char)(*arr);
-    --len;
-    ++arr;
-  };
+  switch(len) {
+    case 2:
+      ret = *reinterpret_cast<const uint16_t*>(arr + 1); break;
+    case 4:
+      ret = *reinterpret_cast<const uint32_t*>(arr + 1); break;
+    case 8:
+      ret = *reinterpret_cast<const uint64_t*>(arr + 1); break;
+    default:
+      assert(false);
+  }
   if (isneg)  ret = -ret;
 }
 
 template <typename IntType>
 inline void decompress_int_from_ref(const char* &arr, IntType &ret) {
-  bool isneg = (arr[0] & 8);
-  unsigned char len = (arr[0] & 7) + 1;
-  ++arr;
+  unsigned char len = arr[0] & 14; //(2 | 4 | 8) 
+  bool isneg = arr[0] & 1;
   ret = 0;
-  while (len) {
-    ret = (ret << 8) | (unsigned char)(*arr);
-    --len;
-    ++arr;
-  };
+  switch(len) {
+    case 2:
+      ret = *reinterpret_cast<const uint16_t*>(arr + 1); break;
+    case 4:
+      ret = *reinterpret_cast<const uint32_t*>(arr + 1); break;
+    case 8:
+      ret = *reinterpret_cast<const uint64_t*>(arr + 1); break;
+    default:
+      assert(false);
+  }
   if (isneg)  ret = -ret;
 }
 
 
-template <typename IntType>
-inline void decompress_int(std::istream &strm, IntType &ret) {
-  char c;
-  strm.read(&c, 1);
-  bool isneg = (c & 8);
-  unsigned char len = (c & 7) + 1;
-  char buf[10];
-  strm.read(buf, len);
+template <typename ArcType, typename IntType>
+inline void decompress_int(ArcType &strm, IntType &ret) {
+  if (strm.has_directbuffer()) {
+    char c;
+    c = strm.read_char();
+    
+    unsigned char len = c & 14; //(2 | 4 | 8) 
+    bool isneg = c & 1;
   
-  char* ptr = buf;
-  ret = 0;
-  while (len) {
-    ret = (ret << 8) | (unsigned char)(*ptr);
-    --len;
-    ++ptr;
-  };
-  if (isneg)  ret = -ret;
+    const char* arr = strm.get_direct_buffer(len);
+      
+    switch(len) {
+      case 2:
+        ret = *reinterpret_cast<const uint16_t*>(arr); break;
+      case 4:
+        ret = *reinterpret_cast<const uint32_t*>(arr); break;
+      case 8:
+        ret = *reinterpret_cast<const uint64_t*>(arr); break;
+      default:
+        assert(false);
+    }
+    if (isneg)  ret = -ret;
+  }
+  else {
+    char c;
+    strm.read(&c, 1);
+
+        
+    unsigned char len = c & 14; //(2 | 4 | 8) 
+    bool isneg = c & 1;
+    char arr[8];
+    strm.read(arr, len);
+    // hack to avoid "dereferencing type punned... warning"
+    char* tmp = arr;
+    switch(len) {
+      case 2:
+        ret = *reinterpret_cast<const uint16_t*>(tmp); break;
+      case 4:
+        ret = *reinterpret_cast<const uint32_t*>(tmp); break;
+      case 8:
+        ret = *reinterpret_cast<const uint64_t*>(tmp); break;
+      default:
+        assert(false);
+    }
+    if (isneg)  ret = -ret;
+  }
 }
 
 
