@@ -45,7 +45,7 @@ namespace graphlab {
     
     bool directbuffer; // if false, uses the istream, otherwise uses buf
     
-    char* buf; size_t buflen; size_t bufread; bool buffail;
+    const char* buf; size_t buflen; size_t bufread; bool buffail;
     
     std::istream* i;
     
@@ -71,9 +71,9 @@ namespace graphlab {
       return directbuffer;
     }
     
-    inline char* get_direct_buffer(size_t len) {
+    inline const char* get_direct_buffer(size_t len) {
       if (len + bufread <= buflen) {
-        char* ret = buf;
+        const char* ret = buf;
         buf += len;
         bufread += len;
         return ret;
@@ -106,7 +106,7 @@ namespace graphlab {
       :directbuffer(false),i(&is) { }
 
     /// constructor. Takes a generic std::istream object
-    inline iarchive(char* buf, size_t buflen)
+    inline iarchive(const char* buf, size_t buflen)
           :directbuffer(true),
            buf(buf), buflen(buflen), bufread(0), buffail(false),
            i(NULL) { }
@@ -126,7 +126,7 @@ namespace graphlab {
   public:
     bool directbuffer; // if false, uses the istream, otherwise uses buf
     
-    char* buf; size_t buflen; size_t bufread; bool buffail;
+    const char* buf; size_t buflen; size_t bufread; bool buffail;
     
     std::istream* i;
     
@@ -152,9 +152,9 @@ namespace graphlab {
       return directbuffer;
     }
     
-    inline char* get_direct_buffer(size_t len) {
+    inline const char* get_direct_buffer(size_t len) {
       if (len + bufread <= buflen) {
-        char* ret = buf;
+        const char* ret = buf;
         buf += len;
         bufread += len;
         return ret;
@@ -187,7 +187,7 @@ namespace graphlab {
       : i(&is) {}
 
     /// constructor. Takes a generic std::istream object
-    inline iarchive_soft_fail(char* buf, size_t buflen)
+    inline iarchive_soft_fail(const char* buf, size_t buflen)
           :directbuffer(true),
            buf(buf), buflen(buflen), bufread(0), buffail(false),
            i(NULL) { }

@@ -120,7 +120,7 @@ inline void decompress_int(ArcType &strm, IntType &ret) {
     unsigned char len = c & 14; //(2 | 4 | 8) 
     bool isneg = c & 1;
   
-    char* arr = strm.get_direct_buffer(len);
+    const char* arr = strm.get_direct_buffer(len);
       
     switch(len) {
       case 2:
