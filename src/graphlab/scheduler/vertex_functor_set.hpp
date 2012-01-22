@@ -40,9 +40,10 @@
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/util/lock_free_pool.hpp>
 
 
-
+#define UPDATE_FUNCTOR_PENDING = (update_functor_type*)(size_t)(-1);
 namespace graphlab {
 
   template<typename UpdateFunctor>
@@ -50,17 +51,15 @@ namespace graphlab {
   public:
     typedef UpdateFunctor update_functor_type;
 
-
+  
   private:
-    
+    lock_free_pool<update_functor_type> functorpool;
     class vfun_type {
     private:
-      update_functor_type functor;
-      spinlock lock;
-      bool is_set;
+      update_functor_type* functor;
 
     public:
-      vfun_type() : is_set(false) { }
+      vfun_type() : functor(NULL), is_set(false) { }
       
       void assign_unsync(const vfun_type &other) {
         is_set = other.is_set;
@@ -68,34 +67,76 @@ namespace graphlab {
       }
       /** returns true if set for the first time */
       inline bool set(const update_functor_type& other) {
-        lock.lock();
-        const bool already_set(is_set);
-        if(is_set) functor += other;
-        else { functor = other; is_set = true; }
-        lock.unlock();
-        return !already_set;
+        bool ret = false;
+        bool firstpass = false
+        update_functor_type toinsert = other;
+        while(1) {
+          update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
+          // pull it out to process it
+          atomic_exchange(uf, functor);
+          // if there is nothing in there, set it
+          // otherwise add it
+          if (uf == NULL) {
+            uf = pool.alloc();
+            (*uf) = toinsert;
+            if (firstpass) ret = true;
+          }
+          else {
+            (*uf) += toinsert;
+          }
+          // swap it back in
+          atomic_exchange(uf, functor);
+          //aargh! I swapped something else out. Now we have to
+          //try to put it back in
+          if (uf != NULL && uf != UPDATE_FUNCTOR_PENDING) {
+            toinsert = (*uf);
+          }
+        }
+        return ret;
       }
 
       /** returns true if set for the first time */
       inline bool set(const update_functor_type& other, 
                       double& ret_priority) {
-        lock.lock();
-        const bool already_set(is_set);
-        if(is_set) functor += other;
-        else { functor = other; is_set = true; }
-        ret_priority = functor.priority();
-        lock.unlock();
-        return !already_set;
+        bool ret = false;
+        update_functor_type toinsert = other;
+        while(1) {
+          update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
+          // pull it out to process it
+          atomic_exchange(uf, functor);
+          // if there is nothing in there, set it
+          // otherwise add it
+          if (uf == NULL) {
+            uf = pool.alloc();
+            (*uf) = toinsert;
+            if (firstpass) ret = true;
+          }
+          else {
+            (*uf) += toinsert;
+          }
+          retpriority = uf->priority();
+          // swap it back in
+          atomic_exchange(uf, functor);
+          //aargh! I swapped something else out. Now we have to
+          //try to put it back in
+          if (uf != NULL && uf != UPDATE_FUNCTOR_PENDING) {
+            toinsert = (*uf);
+          }
+        }
+        return ret;
       }
 
       inline update_functor_type get() {
-        update_functor_type ret;
-        lock.lock();
-        ASSERT_TRUE(is_set);
-        ret = functor;
-        is_set = false;
-        lock.unlock();
-        return functor;
+        update_functor_type* ;
+        while (ret == UPDATE_FUNCTOR_PENDING) {
+          ret = functor;
+          if (ret != UPDATE_FUNCTOR_PENDING) {
+            if (atomic_compare_and_swap(functor, ret, NULL)) {
+              return *ret();
+            }
+          }
+        }
+        return update_functor_type();
       }
       
       void reset() {
@@ -150,7 +191,7 @@ namespace graphlab {
   public:
     /** Initialize the per vertex task set */
     vertex_functor_set(size_t num_vertices = 0) :
-      vfun_set(num_vertices) { }
+      vfun_set(num_vertices),functorpool(num_vertices + 256) { }
 
     /**
      * Resize the internal locks for a different graph
