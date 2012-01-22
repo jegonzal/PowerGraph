@@ -113,14 +113,10 @@ int main(int argc,  char *argv[]) {
 
 
   std::cout << "Load graph" << std::endl;
-  bipartite_graph_descriptor matrix_info;
-
   nodes = 121408373;
-  matrix_info.rows = matrix_info.cols = nodes;
-
     
-    multigraph_type multigraph;
-    multigraph.load(list_dir, dir_path, filter, true);
+  multigraph_type multigraph;
+  multigraph.load(list_dir, dir_path, filter, true);
 
 
   logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
@@ -129,45 +125,44 @@ int main(int argc,  char *argv[]) {
   reference_graph = multigraph.graph(0);
   edge_count = new uint[multigraph.graph(0)->num_edges()];
 
-
     uint * edge_count = read_input_vector_binary<uint>(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", (int)reference_graph->num_edges());
 
     uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
-
-    std::ofstream out_file(std::string(out_dir +  ".hist.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << out_dir  << ".hist.gz" << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-    fout.push(boost::iostreams::gzip_compressor());
-    fout.push(out_file);
-    assert(fout.good()); 
-
+   logstream(LOG_INFO)<<"Historgram of 28 edges is: " << hist[28] << endl;
+    gzip_out_file(out_dir + ".hist.gz");
      
    boost::unordered_map<uint, std::string> nodeid2hash;
    nodeid2hash.rehash(nodes);
-   std::ifstream ifs((out_dir + ".reverse.map").c_str());
-   {
-   graphlab::iarchive ia(ifs);
-   ia >> nodeid2hash;
-   }
- 
+   load_map_from_file(nodeid2hash, out_dir + ".reverse.map");
+   logstream(LOG_INFO)<<"Loaded a map of size: " << nodeid2hash.size() << endl;
+   assert(nodeid2hash.size() == nodes-1);
+
    boost::unordered_map<std::string, bool> edges_in_28;
    int cnt =0; 
+   int found = 0;
    for (int i=0; i< (int)reference_graph->num_vertices(); i++){
       edge_list edges = reference_graph->out_edges(i);
       for (int j=0; j < (int)edges.size(); j++){
         if (edge_count[edges[j].offset()] == 28){
           //fout << no
           //deid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;    
-          std::string srcid = nodeid2hash[edges[j].source()];
-          std::string dstid = nodeid2hash[edges[j].target()];
+          std::string srcid = nodeid2hash[edges[j].source()+1];
+          std::string dstid = nodeid2hash[edges[j].target()+1];
+	  assert(srcid != dstid);
+          if (srcid.size() != 11 && srcid.size() != 19)
+            logstream(LOG_WARNING)<<" Found an src edge with too short hash: " << srcid << " " << srcid.size() << " " << " id: " << edges[j].source() << " " << dstid << endl;
+          if (dstid.size() != 11 && dstid.size() != 19)
+            logstream(LOG_WARNING)<<" Found an dst edge with too short hash: " << dstid << " " << dstid.size() << " " << " id: " << edges[j].target() << " " << srcid << endl;
+           //assert(srcid.size() == 11 || srcid.size() == 19);
+          assert(dstid.size() == 11 || dstid.size() == 19);
           edges_in_28[srcid + " " + dstid] = true;
-          cnt++;
+          found++;
         }
-      }      
+        cnt++;
+      }     
    }
-   fout.pop(); fout.pop();
-   out_file.close();
-   assert(edges_in_28.size() == cnt);
+   logstream(LOG_INFO) << "Found " << found << " edges with 28 days" << endl;
+   assert(edges_in_28.size() == found);
    save_map_to_file(edges_in_28,out_dir + ".28.edges");
 
   //multigraph.unload_all();
