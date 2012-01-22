@@ -103,7 +103,7 @@ namespace graphlab {
     \endcode
   */
   template<typename T>
-  bool atomic_compare_and_swap(T& a, const T &oldval, const T &newval) {
+  bool atomic_compare_and_swap(T& a, T oldval, T newval) {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
@@ -122,8 +122,8 @@ namespace graphlab {
   */
   template<typename T>
   bool atomic_compare_and_swap(volatile T& a, 
-                               const T &oldval, 
-                               const T &newval) {
+                               T oldval, 
+                               T newval) {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
@@ -142,8 +142,8 @@ namespace graphlab {
   */
   template <>
   inline bool atomic_compare_and_swap(double& a, 
-                                      const double &oldval, 
-                                      const double &newval) {
+                                      double oldval, 
+                                      double newval) {
     return __sync_bool_compare_and_swap
       (reinterpret_cast<uint64_t*>(&a), 
        *reinterpret_cast<const uint64_t*>(&oldval), 
@@ -165,8 +165,8 @@ namespace graphlab {
   */
   template <>
   inline bool atomic_compare_and_swap(float& a, 
-                                      const float &oldval, 
-                                      const float &newval) {
+                                      float oldval, 
+                                      float newval) {
     return __sync_bool_compare_and_swap
       (reinterpret_cast<uint32_t*>(&a), 
        *reinterpret_cast<const uint32_t*>(&oldval), 

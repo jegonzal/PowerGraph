@@ -43,7 +43,7 @@
 #include <graphlab/util/lock_free_pool.hpp>
 
 
-#define UPDATE_FUNCTOR_PENDING = (update_functor_type*)(size_t)(-1);
+#define UPDATE_FUNCTOR_PENDING (update_functor_type*)(size_t)(-1)
 namespace graphlab {
 
   template<typename UpdateFunctor>
@@ -51,24 +51,23 @@ namespace graphlab {
   public:
     typedef UpdateFunctor update_functor_type;
 
-  
+    
   private:
-    lock_free_pool<update_functor_type> functorpool;
+    lock_free_pool<update_functor_type> pool;
     class vfun_type {
     private:
       update_functor_type* functor;
 
     public:
-      vfun_type() : functor(NULL), is_set(false) { }
+      vfun_type() : functor(NULL) { }
       
       void assign_unsync(const vfun_type &other) {
-        is_set = other.is_set;
         functor = other.functor;
       }
       /** returns true if set for the first time */
-      inline bool set(const update_functor_type& other) {
+      inline bool set(lock_free_pool<update_functor_type>& pool,
+                      const update_functor_type& other) {
         bool ret = false;
-        bool firstpass = false
         update_functor_type toinsert = other;
         while(1) {
           update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
@@ -79,7 +78,11 @@ namespace graphlab {
           if (uf == NULL) {
             uf = pool.alloc();
             (*uf) = toinsert;
-            if (firstpass) ret = true;
+            ret = true;
+          }
+          else if (uf == UPDATE_FUNCTOR_PENDING) {
+            // a pending is in here. it is not ready for reading. try again.
+            continue;
           }
           else {
             (*uf) += toinsert;
@@ -91,12 +94,16 @@ namespace graphlab {
           if (uf != NULL && uf != UPDATE_FUNCTOR_PENDING) {
             toinsert = (*uf);
           }
+          else {
+            break;
+          }
         }
         return ret;
       }
 
       /** returns true if set for the first time */
-      inline bool set(const update_functor_type& other, 
+      inline bool set(lock_free_pool<update_functor_type>& pool,
+                      const update_functor_type& other, 
                       double& ret_priority) {
         bool ret = false;
         update_functor_type toinsert = other;
@@ -109,12 +116,16 @@ namespace graphlab {
           if (uf == NULL) {
             uf = pool.alloc();
             (*uf) = toinsert;
-            if (firstpass) ret = true;
+            ret = true;
+          }
+          else if (uf == UPDATE_FUNCTOR_PENDING) {
+            // a pending is in here. it is not ready for reading. try again.
+            continue;
           }
           else {
             (*uf) += toinsert;
           }
-          retpriority = uf->priority();
+          ret_priority = uf->priority();
           // swap it back in
           atomic_exchange(uf, functor);
           //aargh! I swapped something else out. Now we have to
@@ -126,61 +137,46 @@ namespace graphlab {
         return ret;
       }
 
-      inline update_functor_type get() {
-        update_functor_type* ;
-        while (ret == UPDATE_FUNCTOR_PENDING) {
+      inline update_functor_type get(lock_free_pool<update_functor_type>& pool) {
+        update_functor_type* ret;
+        while (1) {
           ret = functor;
-          if (ret != UPDATE_FUNCTOR_PENDING) {
-            if (atomic_compare_and_swap(functor, ret, NULL)) {
-              return *ret();
+          if (ret == NULL) return update_functor_type();
+          else if (ret != UPDATE_FUNCTOR_PENDING) {
+            if (atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL)) {
+              update_functor_type r = *ret;
+              pool.free(ret);
+              return r;
             }
           }
         }
         return update_functor_type();
       }
-      
-      void reset() {
-        lock.lock();
-        is_set = false;
-        lock.unlock();
-      }
-      
+            
       void reset_unsync() {
-        is_set = false;
+        functor = NULL;
       }
       
       bool has_task() {
-        return is_set;
+        return functor != NULL;
       }
       
-      bool priority(double& ret_priority) const {        
-        lock.lock();
-        const bool was_set = is_set;
-        double& priority = functor.priority();
-        lock.unlock();
-        return std::make_pair(was_set, priority);               
-      }
-      inline bool test_and_get(update_functor_type& ret) {
-        lock.lock();
-        const bool success(is_set);
-        if(success) {
+      inline bool test_and_get(lock_free_pool<update_functor_type>& pool,
+                               update_functor_type& r) {
+        update_functor_type* ret;
+        while (1) {
           ret = functor;
-          is_set = false;
+          if (ret == NULL) return false;
+          else if (ret != UPDATE_FUNCTOR_PENDING) {
+            if (atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL)) {
+              r = *ret;
+              pool.free(ret);
+              return true;
+            }
+          }
         }
-        lock.unlock();
-        return success;
+        return false;
       }
-      
-      inline bool read_value(update_functor_type& ret) {
-        lock.lock();
-        const bool success(is_set);
-        if(success) {
-          ret = functor;
-        }
-        lock.unlock();
-        return success;
-      }
-
     }; // end of vfun_type;
 
    
@@ -191,7 +187,7 @@ namespace graphlab {
   public:
     /** Initialize the per vertex task set */
     vertex_functor_set(size_t num_vertices = 0) :
-      vfun_set(num_vertices),functorpool(num_vertices + 256) { }
+      pool(num_vertices + 256), vfun_set(num_vertices) { }
 
     /**
      * Resize the internal locks for a different graph
@@ -207,18 +203,13 @@ namespace graphlab {
       }
     }
 
-    bool priority(vertex_id_type vid, double& ret_priority) const {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].priority(ret_priority);
-    } // end of priority
-
     
     /** Add a task to the set returning false if the task was already
         present. Promote task to max(old priority, new priority) */
     bool add(const vertex_id_type& vid, 
              const update_functor_type& fun) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(fun);
+      return vfun_set[vid].set(pool, fun);
     } // end of add task to set 
 
     
@@ -228,7 +219,7 @@ namespace graphlab {
              const update_functor_type& fun,
              double& ret_priority) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(fun, ret_priority);
+      return vfun_set[vid].set(pool, fun, ret_priority);
     } // end of add task to set 
 
 
@@ -236,13 +227,7 @@ namespace graphlab {
     bool test_and_get(const vertex_id_type& vid,
                       update_functor_type& ret_fun) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].test_and_get(ret_fun);
-    }
-
-    bool read_value(const vertex_id_type& vid,
-                      update_functor_type& ret_fun) {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].read_value(ret_fun);
+      return vfun_set[vid].test_and_get(pool, ret_fun);
     }
     
     bool has_task(const vertex_id_type& vid) {
@@ -261,6 +246,7 @@ namespace graphlab {
 
 }; // end of namespace graphlab
 
+#undef UPDATE_FUNCTOR_PENDING
 
 #endif
 
