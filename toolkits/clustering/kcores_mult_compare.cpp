@@ -19,7 +19,7 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-//#define USE_GRAPH3
+#define USE_GRAPH3
 
 #include <cmath>
 #include <cstdio>
@@ -39,6 +39,7 @@
 #include "../shared/types.hpp"
 #include "../shared/stats.hpp"
 
+#include <google/malloc_extension.h>
 #include <graphlab/macros_def.hpp>
 using namespace graphlab;
 
@@ -183,13 +184,29 @@ int main(int argc,  char *argv[]) {
     multigraph.load(list_dir, dir_path, filter, true);
     matrix_info.nonzeros = core.graph().num_edges();
 
+  // Before loading. Google TMalloc Profile
+   size_t value;
+   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
 
   logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
   multigraph.doload(reference);
   reference_graph = multigraph.graph(0);
   edge_count = new uint[multigraph.graph(0)->num_edges()];
 
-  graphlab::timer mytimer; mytimer.start();
+  // After loading. Google TMalloc Profile
+   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
+
+  graphlab::timer mytimer; 
+   /*
+  mytimer.start();
   int pass = 0;
       for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
        if (i != reference){
@@ -206,15 +223,17 @@ int main(int argc,  char *argv[]) {
      }
   
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
+  */
 
 #ifndef USE_GRAPH3
   mytimer.start();
   reference_graph->save(out_dir + "dummy.gz");
   logstream(LOG_INFO)<<"Saving reference graph using oarchive in " << mytimer.current_time() << std::endl;
-#endif
+#else
   mytimer.start();
   save_to_bin(out_dir+"dummy.gz", *reference_graph);
   logstream(LOG_INFO)<<"Saving reference graph using save_to_bin in " << mytimer.current_time() << std::endl;
+#endif
   
 return EXIT_SUCCESS;
   for (int i=0; i< 50; i++)

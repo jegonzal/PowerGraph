@@ -94,7 +94,7 @@ namespace graphlab {
         size_t size() const {
           return source_arr.size();
         }
-        size_t estimate_size_of() const {
+        size_t estimate_sizeof() const {
           return source_arr.capacity()*sizeof(vertex_id_type)*2 + sizeof(source_arr)*2 + sizeof(edge_info);
         }
     }; // end of class edge_info.
@@ -121,6 +121,11 @@ namespace graphlab {
 
         inline edge_dir get_dir() const {
           return _dir;
+        }
+
+        // Do not use.
+        inline uint offset() const {
+          return _edge_id;
         }
 
         inline bool empty() const { return _empty; }
@@ -692,6 +697,7 @@ namespace graphlab {
         vid_size * CSR_dst.capacity();
       const size_t CSC_size = word_size *CSC_dst.capacity() + 
         vid_size * CSC_src.capacity() + eid_size * c2r_map.capacity();
+
       // Container size;
       const size_t container_size = sizeof(CSR_src) + sizeof(CSR_dst) + 
         sizeof(CSC_src) + sizeof(CSC_dst) + sizeof(c2r_map);
@@ -699,6 +705,18 @@ namespace graphlab {
       const size_t skip_list_size = sizeof(CSR_src_skip) + 
         sizeof(CSC_dst_skip) + CSR_src_skip.capacity() * vid_size + 
         CSC_dst_skip.capacity() * vid_size;
+
+      std::cout << "CSR size: " 
+                << (double)CSR_size/(1024*1024)
+                << " CSC size: " 
+                << (double)CSC_size/(1024*1024) 
+                << " skiplist size: " 
+                << (double)(skip_list_size)/(1024*1024)
+                << " container size: " 
+                << (double)container_size/(1024*1024) 
+                << " \n Total size: " 
+                << double(CSR_size + CSC_size + container_size + skip_list_size) << std::endl;
+
       return CSR_size + CSC_size + container_size + 
         skip_list_size;
     } // end of estimate_sizeof
@@ -976,7 +994,7 @@ namespace graphlab {
     }
 
     void save(oarchive& arc) const {
-      arc << is_directed
+      arc << is_directed 
           << use_skip_list
           << num_vertices
           << num_edges
