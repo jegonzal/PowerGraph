@@ -144,10 +144,10 @@ namespace graphlab {
   inline bool atomic_compare_and_swap(double& a, 
                                       double oldval, 
                                       double newval) {
-    return __sync_bool_compare_and_swap
-      (reinterpret_cast<uint64_t*>(&a), 
-       *reinterpret_cast<const uint64_t*>(&oldval), 
-       *reinterpret_cast<const uint64_t*>(&newval));
+    uint64_t* a_ptr = reinterpret_cast<uint64_t*>(&a);
+    const uint64_t* oldval_ptr = reinterpret_cast<const uint64_t*>(&oldval);
+    const uint64_t* newval_ptr = reinterpret_cast<const uint64_t*>(&newval);
+    return __sync_bool_compare_and_swap(a_ptr, *oldval_ptr, *newval_ptr);
   };
 
   /**
@@ -167,10 +167,10 @@ namespace graphlab {
   inline bool atomic_compare_and_swap(float& a, 
                                       float oldval, 
                                       float newval) {
-    return __sync_bool_compare_and_swap
-      (reinterpret_cast<uint32_t*>(&a), 
-       *reinterpret_cast<const uint32_t*>(&oldval), 
-       *reinterpret_cast<const uint32_t*>(&newval));
+    uint32_t* a_ptr = reinterpret_cast<uint32_t*>(&a);
+    const uint32_t* oldval_ptr = reinterpret_cast<const uint32_t*>(&oldval);
+    const uint32_t* newval_ptr = reinterpret_cast<const uint32_t*>(&newval);
+    return __sync_bool_compare_and_swap(a_ptr, *oldval_ptr, *newval_ptr);
   };
 
   /** 
