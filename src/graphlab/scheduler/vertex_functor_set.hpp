@@ -108,7 +108,8 @@ namespace graphlab {
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<update_functor_type>& pool,
                       const update_functor_type& other, 
-                      double& ret_priority) {
+                      double& prev_priority, 
+                      double& new_priority) {
         bool ret = false;
         update_functor_type toinsert = other;
         while(1) {
@@ -118,6 +119,7 @@ namespace graphlab {
           // if there is nothing in there, set it
           // otherwise add it
           if (uf == NULL) {
+            prev_priority = 0;
             uf = pool.alloc();
             (*uf) = toinsert;
             ret = true;
@@ -127,9 +129,10 @@ namespace graphlab {
             continue;
           }
           else {
+            prev_priority = uf->priority();
             (*uf) += toinsert;
           }
-          ret_priority = uf->priority();
+          new_priority = uf->priority();
           // swap it back in
           ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
           atomic_exchange(functor, uf);
@@ -214,7 +217,7 @@ namespace graphlab {
 
     
     /** Add a task to the set returning false if the task was already
-        present. Promote task to max(old priority, new priority) */
+        present. */
     bool add(const vertex_id_type& vid, 
              const update_functor_type& fun) {
       ASSERT_LT(vid, vfun_set.size());
@@ -223,14 +226,28 @@ namespace graphlab {
 
     
     /** Add a task to the set returning false if the task was already
-        present. Promote task to max(old priority, new priority) */
+        present. Also returns the combined priority of the task. */
     bool add(const vertex_id_type& vid, 
              const update_functor_type& fun,
-             double& ret_priority) {
+             double& new_priority) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(pool, fun, ret_priority);
+      double unused = 0;
+      return vfun_set[vid].set(pool, fun, unused, new_priority);
     } // end of add task to set 
 
+
+    
+    /** Add a task to the set returning false if the task was already
+        present. Returns the priority of the task before and after
+        insertion. If the task did not exist prior to the add, 
+        prev_priority = 0 */
+    bool add(const vertex_id_type& vid, 
+             const update_functor_type& fun,
+             double& prev_priority,
+             double& new_priority) {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].set(pool, fun, prev_priority, new_priority);
+    } // end of add task to set 
 
 
     bool test_and_get(const vertex_id_type& vid,
