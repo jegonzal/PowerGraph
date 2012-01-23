@@ -218,9 +218,9 @@ struct stringzipparser_update :
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
 
     //graph3 save
-    save_to_bin(outdir + vdata.filename, _graph);
+    //save_to_bin(outdir + vdata.filename, _graph);
     //graph2 save
-    //_graph.save(outdir+vdata.filename);
+    _graph.save(outdir+vdata.filename);
     logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
   }
 
@@ -273,6 +273,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
+  clopts.attach_option("listdir", &listdir, listdir, "path to index files");
   clopts.attach_option("num_nodes", &numnodes, numnodes, "Number of nodes");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   clopts.attach_option("outdir", &outdir, outdir, "output directory");
