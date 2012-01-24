@@ -168,7 +168,7 @@ int main(int argc, char** argv) {
                        "then a toy graph will be created");
   clopts.add_positional("graph");
   clopts.attach_option("format", &format, format,
-                       "The graph file format: {metis, snap, tsv}");
+                       "The graph file format: {metis, snap, tsv, adj, bin}");
   clopts.attach_option("accuracy", &ACCURACY, ACCURACY,
                        "residual termination threshold");
   clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,

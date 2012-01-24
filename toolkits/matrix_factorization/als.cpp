@@ -199,13 +199,13 @@ public:
 
 
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, als_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, als_update, aggregator> {
 private:
   double rmse, max_rmse, residual, max_residual;
   size_t min_updates, max_updates, total_updates;
 public:
-  accumulator() : 
+  aggregator() : 
     rmse(0), max_rmse(0), residual(0), max_residual(0),
     min_updates(-1), max_updates(0), total_updates(0) { }
   void operator()(icontext_type& context) {
@@ -223,7 +223,7 @@ public:
     max_updates = std::max(max_updates, vdata.nupdates);
     total_updates += vdata.nupdates;
   }
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
     rmse += other.rmse; 
     max_rmse = std::max(max_rmse, other.max_rmse);
     residual += other.residual;
@@ -243,7 +243,7 @@ public:
       << std::setw(10) << (double(total_updates) / context.num_vertices()) 
       << std::endl;
   }
-}; // end of  accumulator
+}; // end of  aggregator
 
 
 
@@ -317,7 +317,7 @@ int main(int argc, char** argv) {
   std::cout << "Finished initializing all vertices." << std::endl;
 
   // Set global variables -----------------------------------------------------
-  core.add_sync("rmse", accumulator(), freq);
+  core.add_aggregator("rmse", aggregator(), freq);
 
 
   // Run the PageRank ---------------------------------------------------------

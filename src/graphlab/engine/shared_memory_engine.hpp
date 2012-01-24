@@ -198,27 +198,28 @@ namespace graphlab {
       vertex_id_type begin_vid, end_vid;
       bool use_barrier;
       virtual ~isync() { }
-      virtual void run_sync(const std::string key,
-                            const graphlab::barrier* barrier_ptr,
-                            const std::vector<mutex>* sync_vlocks_ptr,
-                            context_type context, size_t ncpus, size_t cpuid) = 0;
+      virtual void run_aggregator(const std::string key,
+                                  const graphlab::barrier* barrier_ptr,
+                                  const std::vector<mutex>* sync_vlocks_ptr,
+                                  context_type context, 
+                                  size_t ncpus, size_t cpuid) = 0;
     }; // end of isync
     
-    template<typename Accum >
+    template<typename Aggregator >
     struct sync : public isync {
-      typedef Accum       accumulator_type;
+      typedef Aggregator       aggregator_type;
       using isync::begin_vid;
       using isync::end_vid;
       using isync::use_barrier;
-      const accumulator_type zero;
-      accumulator_type shared_accumulator;
+      const aggregator_type zero;
+      aggregator_type shared_aggregator;
       mutex lock;
-      sync(const accumulator_type& zero) : zero(zero), 
-                                           shared_accumulator(zero) { }
-      void run_sync(const std::string key,
-                    const graphlab::barrier* barrier_ptr,
-                    const std::vector<mutex>* sync_vlocks_ptr,
-                    context_type context, size_t ncpus, size_t cpuid);
+      sync(const aggregator_type& zero) : zero(zero), 
+                                          shared_aggregator(zero) { }
+      void run_aggregator(const std::string key,
+                          const graphlab::barrier* barrier_ptr,
+                          const std::vector<mutex>* sync_vlocks_ptr,
+                          context_type context, size_t ncpus, size_t cpuid);
     }; // end of sync
 
 
@@ -332,19 +333,19 @@ namespace graphlab {
     T get_global(const std::string& key, size_t index = 0) const;
 
 
-    //! \brief Registers a sync with the engine.
-    template<typename Accum>
-    void add_sync(const std::string& key,            
-                  const Accum& zero,                 
-                  size_t sync_interval,
-                  bool use_barrier = false,
-                  vertex_id_type begin_vid = 0,
-                  vertex_id_type end_vid = 
-                  std::numeric_limits<vertex_id_type>::max());
-
+    //! \brief Registers an aggregator with the engine
+    template<typename Aggregate>
+    void add_aggregator(const std::string& key,            
+                        const Aggregate& zero,                 
+                        size_t interval,
+                        bool use_barrier = false,
+                        vertex_id_type begin_vid = 0,
+                        vertex_id_type end_vid = 
+                        std::numeric_limits<vertex_id_type>::max());
+    
 
     //! Performs a sync immediately.
-    void sync_now(const std::string& key);
+    void aggregate_now(const std::string& key);
 
     //! reset the engine
     void clear();
@@ -694,24 +695,24 @@ namespace graphlab {
 
 
   template<typename Graph, typename UpdateFunctor> 
-  template<typename Accum>
+  template<typename Aggregator>
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  add_sync(const std::string& key,
-           const Accum& zero,                 
-           size_t sync_interval,
-           bool use_barrier,
-           vertex_id_type begin_vid,
-           vertex_id_type end_vid) {
+  add_aggregator(const std::string& key,
+                const Aggregator& zero,                 
+                size_t interval,
+                bool use_barrier,
+                vertex_id_type begin_vid,
+                vertex_id_type end_vid) {
     isync*& sync_ptr = sync_map[key];
     // Clear the old sync and remove from scheduling queue
     if(sync_ptr != NULL) { delete sync_ptr; sync_ptr = NULL; }
     sync_queue.remove(key);
     ASSERT_TRUE(sync_ptr == NULL);
     // Attach a new sync type
-    typedef sync<Accum> sync_type;
+    typedef sync<Aggregator> sync_type;
     sync_ptr = new sync_type(zero);
-    sync_ptr->interval    = sync_interval;
+    sync_ptr->interval    = interval;
     sync_ptr->use_barrier = use_barrier;
     sync_ptr->begin_vid   = begin_vid;
     sync_ptr->end_vid     = end_vid;
@@ -723,7 +724,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   void 
   shared_memory_engine<Graph, UpdateFunctor>::
-  sync_now(const std::string& key) {
+  aggregate_now(const std::string& key) {
     initialize_members();    
     typename sync_map_type::iterator iter = sync_map.find(key);
     if(iter == sync_map.end()) {
@@ -1108,7 +1109,7 @@ namespace graphlab {
     graphlab::barrier barrier(sync_threads.size());
     for(size_t i = 0; i < sync_threads.size(); ++i) {
       const boost::function<void (void)> sync_function = 
-        boost::bind(&(isync::run_sync), sync, 
+        boost::bind(&(isync::run_aggregator), sync, 
                     key, &barrier, &sync_vlocks, 
                     context_type(this, &graph, scheduler_ptr, i),
                     sync_threads.size(), i);
@@ -1150,13 +1151,13 @@ namespace graphlab {
 
   
   template<typename Graph, typename UpdateFunctor> 
-  template<typename Accum>
+  template<typename Aggregator>
   void
-  shared_memory_engine<Graph, UpdateFunctor>::sync<Accum>::
-  run_sync(const std::string key,
-           const graphlab::barrier* barrier_ptr,
-           const std::vector<mutex>* sync_vlocks_ptr,
-           context_type context, size_t ncpus, size_t cpuid) { 
+  shared_memory_engine<Graph, UpdateFunctor>::sync<Aggregator>::
+  run_aggregator(const std::string key,
+                 const graphlab::barrier* barrier_ptr,
+                 const std::vector<mutex>* sync_vlocks_ptr,
+                 context_type context, size_t ncpus, size_t cpuid) { 
     // Thread zero must initialize the the final shared accumulator
     const size_t nverts = context.num_vertices();
     const std::vector<mutex>& sync_vlocks = *sync_vlocks_ptr;
@@ -1183,7 +1184,7 @@ namespace graphlab {
     }
     
     // construct the local (to this thread) accumulator and context
-    accumulator_type local_accum(zero);
+    aggregator_type local_accum(zero);
     // Do map computation;
     for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) {
       if(!use_barrier) sync_vlocks[vid].lock();
@@ -1193,17 +1194,17 @@ namespace graphlab {
     }
     context.commit();
     // Merge with master
-    lock.lock(); shared_accumulator += local_accum; lock.unlock();
+    lock.lock(); shared_aggregator += local_accum; lock.unlock();
     barrier.wait();  // Wait until all merges are complete
     
     if(cpuid == 0) {
       // Recast the context as a global context.  This ensures that
       // the user implements finalize correctly;
       iglobal_context& global_context = context;
-      shared_accumulator.finalize(global_context);
+      shared_aggregator.finalize(global_context);
       context.commit();
       // Zero out the shared accumulator for the next run
-      shared_accumulator = zero;
+      shared_aggregator = zero;
     }
     barrier.wait();   
     // If Barriers are in place go ahead and lock all update functions

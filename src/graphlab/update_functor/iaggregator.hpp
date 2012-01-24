@@ -34,8 +34,8 @@
 
 
 
-#ifndef GRAPHLAB_IACCUMULATOR_HPP
-#define GRAPHLAB_IACCUMULATOR_HPP
+#ifndef GRAPHLAB_IAGGREGATOR_HPP
+#define GRAPHLAB_IAGGREGATOR_HPP
 
 
 
@@ -48,12 +48,12 @@ namespace graphlab {
 
 
 
-  template<typename Graph, typename UpdateFunctor, typename Accumulator>
-  class iaccumulator {    
+  template<typename Graph, typename UpdateFunctor, typename Aggregator>
+  class iaggregator {    
   public:
     typedef Graph graph_type;
     typedef UpdateFunctor update_functor_type;
-    typedef Accumulator   accumulator_type;
+    typedef Aggregator   aggregator_type;
 
     typedef typename graph_type::vertex_data_type  vertex_data_type;
     typedef typename graph_type::vertex_id_type    vertex_id_type;   
@@ -69,14 +69,14 @@ namespace graphlab {
     enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
 
     
-    virtual ~iaccumulator() { }
+    virtual ~iaggregator() { }
 
     /**
      * When multiple update functors are scheduled to be run on the
      * same function they are added. The default behavior is to simply
      * ignore the later update functors.
      */
-    virtual void operator+=(const accumulator_type& other) = 0;
+    virtual void operator+=(const aggregator_type& other) = 0;
 
     /**
      * The main part of an update functor
@@ -85,8 +85,8 @@ namespace graphlab {
 
 
     /**
-     * The finalize routine is called on the final accumulator after
-     * accumulating over the entire graph
+     * The finalize routine is called on the final aggregator after
+     * aggregating over the entire graph
      */
     virtual void finalize(iglobal_context& context) = 0;
 
@@ -112,7 +112,7 @@ namespace graphlab {
     virtual void apply(icontext_type& context) { };
     virtual void scatter(icontext_type& context, const edge_type& edge) { };
   
-  };  // end of iaccumulator
+  };  // end of iaggregator
  
 }; //end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

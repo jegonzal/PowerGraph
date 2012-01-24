@@ -233,13 +233,13 @@ bool binary_factor_equal(const graphlab::binary_factor &a,
   return true;
 } // end of factor equal
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, bp_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, bp_update, aggregator> {
 private:
   graphlab::binary_factor counts;
 public:
-  typedef graphlab::iaccumulator<graph_type, bp_update, accumulator> base;
-  accumulator(size_t arity) : counts(arity, arity) { counts.set_as_agreement(0); }
+  typedef graphlab::iaggregator<graph_type, bp_update, aggregator> base;
+  aggregator(size_t arity) : counts(arity, arity) { counts.set_as_agreement(0); }
   void operator()(base::icontext_type& context) {
     // get the current edge factor
     graphlab::binary_factor edge_factor = 
@@ -283,7 +283,7 @@ public:
       }
     } // end of loop over in edges
   } // end of operator()
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
     for (size_t i = 0;i < counts.arity1(); ++i) {
       for (size_t j = 0;j < counts.arity2(); ++j) {
         counts.logP(i,j) += other.counts.logP(i,j);
@@ -315,7 +315,7 @@ public:
     std::cout << "sync of edge pot!\n";
     std::cout << edge_factor << std::endl;
   } // end of finalize
-}; // end of accumulator
+}; // end of aggregator
 
 
 
@@ -471,7 +471,7 @@ int main(int argc, char** argv) {
   
   core.add_global("EDGE_FACTOR", edge_factor);
   core.add_global("TURE_COUNTS", true_counts);
-  core.add_sync("ipfupdate", accumulator(colors), rows*cols);
+  core.add_aggregator("ipfupdate", aggregator(colors), rows*cols);
   
 
   // Running the engine ------------------------------------------------------->

@@ -57,10 +57,10 @@ struct kcore_update :
   } 
 };
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, kcore_update, aggregator> {
 public:
-  accumulator(){ }
+  aggregator(){ }
 
   void operator()(icontext_type& context) {
    
@@ -78,12 +78,12 @@ public:
     }
   };
 
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
   }
 
   void finalize(iglobal_context_type& context) {
    }
-}; // end of  accumulator
+}; // end of  aggregator
 
 
 
@@ -163,13 +163,13 @@ int main(int argc,  char *argv[]) {
 
    for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
        if (i != reference){
-       accumulator acum;
+       aggregator acum;
        multigraph.doload(i);
        core.graph() = *multigraph.graph(1);
        assert(multigraph.get_node_vdata()->size() == (uint)nodes);
-       core.add_sync("sync", acum, 1000);
+       core.add_aggregator("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
-       core.sync_now("sync");
+       core.aggregate_now("sync");
        logstream(LOG_INFO)<<mytimer.current_time()<<") Finished giong over graph number " << i << std::endl;
        multigraph.unload(1);
        } 
