@@ -121,7 +121,7 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-    graph2() : finalized(false),changeid(0) { }
+    graph2() : finalized(false),use_vcolor(true),changeid(0) { }
 
     /**
      * Create a graph with nverts vertices.
@@ -129,10 +129,19 @@ namespace graphlab {
     graph2(size_t nverts) : 
       vertices(nverts),
       vcolors(nverts),
-      finalized(false),changeid(0) { }
+      finalized(false),
+      use_vcolor(true),
+      changeid(0) { }
 
     void set_is_directed (bool x) {gstore.set_is_directed(x);}
     bool get_is_directed () {return gstore.get_is_directed();}
+
+    void set_use_vcolor (bool x) { 
+      use_vcolor = x;  
+      if (!use_vcolor) 
+        std::vector<vertex_color_type>().swap(vcolors);
+    }
+    bool get_use_vcolor () { return use_vcolor; }
 
 
     // METHODS =================================================================>
@@ -222,8 +231,10 @@ namespace graphlab {
       }
 
       vertices.push_back(vdata);
-      // Resize edge maps
-      vcolors.push_back(vertex_color_type()); // resize(vertices.size());
+
+      if (use_vcolor) 
+        vcolors.push_back(vertex_color_type()); // resize(vertices.size());
+
       return (vertex_id_type)vertices.size() - 1;
     } // End of add vertex;
 
@@ -235,8 +246,9 @@ namespace graphlab {
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, vertices.size());
       vertices.resize(num_vertices);
-      // Resize edge maps
-      vcolors.resize(vertices.size());
+
+      if (use_vcolor)
+        vcolors.resize(vertices.size());
     } // End of resize
     
     
@@ -346,6 +358,7 @@ namespace graphlab {
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     const vertex_color_type& color(vertex_id_type vertex) const {
+      ASSERT_TRUE(use_vcolor);
       ASSERT_LT(vertex, vertices.size());
       return vcolors[vertex];
     }
@@ -353,6 +366,7 @@ namespace graphlab {
     /** \brief Returns the vertex color of a vertex.
         Only valid if compute_coloring() is called first.*/
     vertex_color_type& color(vertex_id_type vertex) {
+      ASSERT_TRUE(use_vcolor);
       ASSERT_LT(vertex, vertices.size());
       return vcolors[vertex];
     }
@@ -456,6 +470,7 @@ namespace graphlab {
       clear();    
       // read the vertices and colors
       arc >> vertices
+          >> use_vcolor
           >> vcolors
           >> gstore
           >> finalized;
@@ -466,6 +481,7 @@ namespace graphlab {
     void save(oarchive& arc) const {
       // Write the number of edges and vertices
       arc << vertices
+          << use_vcolor
           << vcolors
           << gstore
           << finalized;
@@ -590,6 +606,9 @@ namespace graphlab {
         costly procedure but it can also dramatically improve
         performance. */
     bool finalized;
+
+
+    bool use_vcolor;
     
     /** increments whenever the graph is cleared. Used to track the
      *  changes to the graph structure  */

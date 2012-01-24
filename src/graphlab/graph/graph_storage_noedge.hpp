@@ -689,13 +689,13 @@ namespace graphlab {
     }
 
     size_t estimate_sizeof() const {
-      const size_t word_size = sizeof(size_t);
+      // const size_t word_size = sizeof(size_t);
       const size_t vid_size = sizeof(vertex_id_type);
       const size_t eid_size = sizeof(edge_id_type);
       // Actual content size;
-      const size_t CSR_size = word_size * CSR_src.capacity() + 
+      const size_t CSR_size = eid_size * CSR_src.capacity() + 
         vid_size * CSR_dst.capacity();
-      const size_t CSC_size = word_size *CSC_dst.capacity() + 
+      const size_t CSC_size = eid_size *CSC_dst.capacity() + 
         vid_size * CSC_src.capacity() + eid_size * c2r_map.capacity();
 
       // Container size;
