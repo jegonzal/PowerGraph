@@ -81,8 +81,6 @@ public:
 
   void operator()(icontext_type& context) {
    
-
-    vertex_data & vdata = context.vertex_data();
     if (debug)
       logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
 
@@ -241,20 +239,20 @@ return EXIT_SUCCESS;
 
     write_output_vector_binary(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", edge_count, reference_graph->num_edges());
 
-    uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
+    //uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
 
     gzip_out_file fout(out_dir +  ".hist.gz");
    boost::unordered_map<uint, std::string> nodeid2hash;
    nodeid2hash.rehash(nodes);
    save_map_to_file(nodeid2hash, out_dir + ".reverse.map");
   
-   for (int i=0; i< reference_graph->num_vertices(); i++){
+   for (uint i=0; i< reference_graph->num_vertices(); i++){
 #ifdef USE_GRAPH3
      edge_list edges = reference_graph->out_edges(i);
 #else
      graph_type::edge_list edges = reference_graph->out_edges(i);
 #endif
-      for (int j=0; j < edges.size(); j++){
+      for (uint j=0; j < edges.size(); j++){
         if (edge_count[edges[j].offset()] == 28)
           fout.get_sp() << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
       }      

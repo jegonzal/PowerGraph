@@ -14,7 +14,7 @@ uint * histogram(uint * edge_count, int len, int howmnay){
   uint sum = 0;
   for (int i=0; i< howmnay; i++)
     sum += ret[i];
-  assert(sum == len);
+  assert(sum == (uint)len);
   return ret;
 }
 
@@ -61,8 +61,6 @@ typedef typename multigraph::vertex_data_type vertex_data;
 //omp_set_num_threads(8);
 //#pragma omp parallel for
     for (int i=0; i< desc.total(); i++){
-     ulong64 degree = g->graph(0)->num_out_edges(i) + g->graph(0)->num_in_edges(i);
-     vertex_data & data = g->vertex_data(i); 
      inedges += g->graph(0)->num_in_edges(i);
      outedges += g->graph(0)->num_out_edges(i);
      max_in_degree= std::max(max_in_degree, (ulong64)g->graph(0)->num_in_edges(i));

@@ -81,10 +81,8 @@ int main(int argc,  char *argv[]) {
   int unittest = 0;
   int lineformat = MATRIX_MARKET_4;
   bool gzip = true;
-  bool stats = false;
   std::string filter = "";
   int reference = 0;
-  int max_graph = 1000;
   std::string list_dir = "/usr2/bickson/daily.sorted/";
   std::string dir_path = "/usr2/bickson/bin.graphs/";
   std::string out_dir = "/usr0/bickson/"; 
@@ -135,7 +133,7 @@ int main(int argc,  char *argv[]) {
    nodeid2hash.rehash(nodes);
    load_map_from_file(nodeid2hash, out_dir + ".reverse.map");
    logstream(LOG_INFO)<<"Loaded a map of size: " << nodeid2hash.size() << endl;
-   assert(nodeid2hash.size() == nodes-1);
+   assert(nodeid2hash.size() == (uint)(nodes-1));
 
    boost::unordered_map<std::string, bool> edges_in_28;
    int cnt =0; 
@@ -162,7 +160,7 @@ int main(int argc,  char *argv[]) {
       }     
    }
    logstream(LOG_INFO) << "Found " << found << " edges with 28 days" << endl;
-   assert(edges_in_28.size() == found);
+   assert(edges_in_28.size() == (uint)found);
    save_map_to_file(edges_in_28,out_dir + ".28.edges");
 
   //multigraph.unload_all();

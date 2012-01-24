@@ -45,7 +45,7 @@ using namespace std;
 bool debug = false;
 bool quick = false;
 boost::unordered_map<std::string, bool> edges_in_28;
-boost::unordered_map<std::string, uint> edges_in_28_count;
+std::map<std::string, uint> edges_in_28_count;
 boost::unordered_map<std::string, uint> hash2nodeid;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
@@ -166,13 +166,20 @@ struct stringzipparser_update :
          return;
        }
         duration = atoi(pch);
-        datestr2uint64(std::string(buf3), dateret, timeret, mythreadid);
+        datestr2uint64(std::string(buf3), timeret, dateret, mythreadid);
    
         string hour = boost::lexical_cast<string>(timeret/3600);
-       if (edges_in_28.find(std::string(buf1) + " " + std::string(buf2)) != edges_in_28.end()){
+        std::string srcid = std::string(buf1);
+        std::string dstid = std::string(buf2);
+        if (srcid.size() != 11 && srcid.size() != 19)
+         logstream(LOG_WARNING)<<"Invalid string: " << srcid << " in line: " << line << endl;
+       if (dstid.size() != 11 && dstid.size() != 19)
+         logstream(LOG_WARNING) <<"Invalid string dst: " << dstid << " in line : " << line<< endl;
+
+       if (edges_in_28.find(srcid + " " + dstid) != edges_in_28.end()){
          //fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
          //<< duration << " " << timeret << " " << dateret << endl;
-         edges_in_28_count[std::string(buf1) + " " + std::string(buf2) + " " + hour]++;
+         edges_in_28_count[srcid + " " + dstid + " " + hour]++;
          total_selected++;
       }
 
@@ -282,10 +289,11 @@ int main(int argc,  char *argv[]) {
  
   std::cout << "Finished in " << runtime << std::endl;
   gzip_out_file cnter(outdir + filter + ".28.edges.hour.gz");
-  boost::unordered_map<std::string, uint>::const_iterator it;
+  std::map<std::string, uint>::const_iterator it;
   for (it = edges_in_28_count.begin(); it != edges_in_28_count.end(); it++){
     cnter.get_sp() << it->first << " " << it->second << endl;
   }
+  logstream(LOG_INFO) << "Found total unique entries: " << edges_in_28_count.size() << endl;
    return EXIT_SUCCESS;
 }
 

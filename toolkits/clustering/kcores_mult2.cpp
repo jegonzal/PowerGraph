@@ -65,7 +65,6 @@ public:
   void operator()(icontext_type& context) {
    
 
-    vertex_data & vdata = context.vertex_data();
     if (debug)
       logstream(LOG_INFO)<<"Entering node: " << context.vertex_id() << std::endl;
 

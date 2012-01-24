@@ -772,7 +772,7 @@ inline void write_output_matrix(const std::string & datafile, const std::string 
 
 template<typename T1>
 void save_map_to_file(const T1 & map, const std::string filename){
-    logstream(LOG_INFO)<<"Save map to file: " << filename << std::endl;
+    logstream(LOG_INFO)<<"Save map to file: " << filename << " map size: " << map.size() << std::endl;
     std::ofstream ofs(filename.c_str());
     graphlab::oarchive oa(ofs);
     oa << map;
@@ -784,6 +784,7 @@ void load_map_from_file(T1 & map, const std::string filename){
    std::ifstream ifs(filename.c_str());
    graphlab::iarchive ia(ifs);
    ia >> map;
+   logstream(LOG_INFO)<<"Map size is: " << map.size() << std::endl;
  }
 
 //read matrix size from a binary file
@@ -948,8 +949,8 @@ void save_to_bin(const std::string &filename, Graph& graph) {
   for (int i=0; i< (int)graph.num_vertices(); i++){
      nodes[i+1] = nodes[i]+ graph.out_edges(i).size(); 
      assert(nodes[i+1] <= graph.num_edges());
-     assert(graph.out_edges(i).size() < n);
-     assert(graph.in_edges(i).size() < n);
+     assert(graph.out_edges(i).size() < (uint)n);
+     assert(graph.in_edges(i).size() < (uint)n);
      innodes[i+1] = innodes[i] + graph.in_edges(i).size();
      assert(innodes[i+1] <= graph.num_edges());
    };
