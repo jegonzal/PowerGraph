@@ -349,58 +349,50 @@ namespace graphlab {
 
 
     /**
-     * \brief Registers a sync with the engine.
+     * \brief Registers an aggregator with the engine
      *
-     * Registers a sync with the engine.
-     * The sync will be performed approximately every "interval" updates,
-     * and will perform a reduction over all vertices from rangelow
-     * to rangehigh inclusive.
-     * The merge function may be NULL, in which it will not be used.
-     * However, it is highly recommended to provide a merge function since
-     * this allow the sync operation to be parallelized.
+     * Registers a aggregator with the engine.  The aggregator is
+     * used to collect data about the graph every "interval" updates.
+     * The aggregator must implement the iaggregator interface.
      *
-     * The sync operation is guaranteed to be strictly sequentially consistent
-     * with all other execution.
+     * \param key the name of the aggregator
+     * \param zero the initial value of the aggregator
      *
-     * \param shared The shared variable to synchronize
-     * \param sync The reduction function
-     * \param apply The final apply function which writes to the shared value
-     * \param zero The initial zero value passed to the reduction
-     * \param sync_interval Frequency at which the sync is initiated.
-     *                      Corresponds approximately to the number of
-     *                     update function calls before the sync is reevaluated.
-     *                     If 0, the sync will only be evaluated once
-     *                     at engine start,  and will never be evaluated again.
-     *                     Defaults to 0.
-     * \param merge Combined intermediate reduction value. defaults to NULL.
-     *              in which case, it will not be used.
-     * \param rangelow he lower range of vertex id to start syncing.
-     *                 The range is inclusive. i.e. vertex with id 'rangelow'
-     *                 and vertex with id 'rangehigh' will be included.
+     * \param interval the Frequency at which the aggregator is
+     *   initiated.  corresponds approximately to the number of update
+     *   function calls before the sync is reevaluated.  If 0 the
+     *   aggregator is not run automatically.
+     *
+     * \param rangelow he lower range of vertex id to start
+     *                 accumulating The range is
+     *                 inclusive. i.e. vertex with id 'rangelow' and
+     *                 vertex with id 'rangehigh' will be included.
      *                 Defaults to 0.
-     * \param rangehigh The upper range of vertex id to stop syncing.
-     *                  The range is inclusive. i.e. vertex with id 'rangelow'
-     *                  and vertex with id 'rangehigh' will be included.
+     #
+     * \param rangehigh The upper range of vertex id to stop
+     *                  accumulate.  The range is
+     *                  inclusive. i.e. vertex with id 'rangelow' and
+     *                  vertex with id 'rangehigh' will be included.
      *                  Defaults to infinity.
      */
-    template<typename Accum>
-    void add_sync(const std::string& key,           
-                  const Accum& zero,                 
-                  size_t sync_interval,
-                  bool use_barrier = false,
-                  vertex_id_type begin_vid = 0,
-                  vertex_id_type end_vid = 
-                  std::numeric_limits<vertex_id_type>::max()) {
-      engine().add_sync(key, zero, sync_interval,
-                        use_barrier, begin_vid, end_vid);
+    template<typename Aggregator>
+    void add_aggregator(const std::string& key,           
+                        const Aggregator& zero,                 
+                        size_t interval,
+                        bool use_barrier = false,
+                        vertex_id_type begin_vid = 0,
+                        vertex_id_type end_vid = 
+                        std::numeric_limits<vertex_id_type>::max()) {
+      engine().add_aggregator(key, zero, interval,
+                              use_barrier, begin_vid, end_vid);
     }    
 
     /**
      * Performs a sync immediately. This function requires that the shared
      * variable already be registered with the engine.
      */
-    void sync_now(const std::string& key) { 
-      engine().sync_now(key);
+    void aggregate_now(const std::string& key) { 
+      engine().aggregate_now(key);
     };
 
 

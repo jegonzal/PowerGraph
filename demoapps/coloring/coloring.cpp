@@ -88,15 +88,16 @@ struct coloring_update :
 
 
 /**
- * This accumulator keeps track of the tpo ranked pages
+ * This aggregator tracks the color distribution and validates the
+ * coloring.
  */       
-class reducer :
-  public graphlab::iaccumulator<graph_type, coloring_update, reducer> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, coloring_update, aggregator> {
 private:
   color_type max_color, total_saturation;
   std::map<color_type, size_t> color_distribution;
 public:
-  reducer() : max_color(0), total_saturation(0) { }
+  aggregator() : max_color(0), total_saturation(0) { }
   void operator()(icontext_type& context) {
     const color_type color = context.const_vertex_data().color;
     max_color = std::max(max_color, color);
@@ -108,7 +109,7 @@ public:
     foreach (const edge_type& edge, context.out_edges()) 
       ASSERT_NE(context.const_vertex_data(edge.target()).color, color);
   } // end of operator()
-  void operator+=(const reducer& other) { 
+  void operator+=(const aggregator& other) { 
     max_color = std::max(max_color, other.max_color);
     total_saturation += other.total_saturation;
     typedef std::pair<color_type, size_t> pair_type;
@@ -125,7 +126,7 @@ public:
       std::cout << '(' << pair.first << ", " << pair.second << ")  ";
     std::cout << std::endl;
   }
-}; // end of reducer
+}; // end of aggregator
 
 
 
@@ -174,8 +175,8 @@ int main (int argc, char *argv[]){
   std::cout << "Done. Took " << runtime << " seconds." << std::endl;
   std::cout << "Checking coloring." << std::endl;
   // Compute the max colors
-  core.add_sync("reducer", reducer(), 0);
-  core.sync_now("reducer");
+  core.add_aggregator("aggregator", aggregator(), 0);
+  core.aggregate_now("aggregator");
 
   return EXIT_SUCCESS;
 }
