@@ -19,7 +19,8 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-#define USE_GRAPH3
+//#define USE_GRAPH3
+#define GRAPH2_NO_EDGE
 
 #include <cmath>
 #include <cstdio>

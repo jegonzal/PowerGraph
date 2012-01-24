@@ -83,8 +83,11 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class graph2 {
 
+#ifdef GRAPH2_NO_EDGE 
+    typedef graph_storage_noedge<VertexData, EdgeData> gstore_type;
+#else 
     typedef graph_storage<VertexData, EdgeData> gstore_type;
-    //typedef graph_storage_noedge<VertexData, EdgeData> gstore_type;
+#endif
 
   public:
 
@@ -474,7 +477,7 @@ namespace graphlab {
           >> vcolors
           >> gstore
           >> finalized;
-//      estimate_sizeof();
+//        estimate_sizeof();
     } // end of load
 
     /** \brief Save the graph to an archive */
