@@ -386,7 +386,7 @@ else()
   set(MARCH "i686")
 endif()
 
-set(COMMON_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
+set(COMMON_FLAGS "-Wall -Wextra -g -fopenmp" CACHE STRING "common compiler options")
 
 if (APPLE)
   set(CMAKE_EXE_LINKER_FLAGS "${CNAME_EXE_LINKER_FLAGS} -Xlinker -no_pie")
