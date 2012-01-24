@@ -21,8 +21,8 @@
  */
 
 /**
- * This application demonstrates a simple graph coloring algorithm that uses
- * a simple greedy coloring heuristic with a first fit.
+ * This application demonstrates a simple graph coloring algorithm
+ * that uses a simple greedy coloring heuristic with a first fit.
  */
 
 
@@ -34,35 +34,25 @@
 
 #include <graphlab/macros_def.hpp>
 
+typedef size_t color_type;
+const color_type UNCOLORED(-1);
 
-//---------------- TYPES --------------------
-/** Numerical representation for color. */
-typedef unsigned long color_type;
-const unsigned long UNCOLORED = -1;
 
 /**
  * Vertex representation. Each vertex has a color.
  */
 struct vertex_data {
-  color_type color;
-  int saturation;
+  size_t color, saturation;
   vertex_data () : color(UNCOLORED), saturation(0) {};
 };
 
-struct edge_data {
-  // no edge data required
-};
+/**
+ * No edge data
+ */
+struct edge_data { };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
-//--------------- CONSTANTS ---------------
-const std::string DEFAULT_FORMAT = "tsv";
-const std::string NONE           = "";
-const std::string OPT_GRAPH_FILE = "graph";
-const std::string OPT_FORMAT     = "format";
-
-//--------------- RETURN CODES ------------
-#define ERR_INPUT -1
 
 
 /**
@@ -70,60 +60,72 @@ const std::string OPT_FORMAT     = "format";
  */
 struct coloring_update :
   public graphlab::iupdate_functor<graph_type, coloring_update> {
-  
   /**
    * Collect all neighbors' colors and determine a color for
    * this vertex.
    */
   void operator()(icontext_type& context){
-    
     vertex_data& vdata = context.vertex_data();
     std::set<color_type> neighbor_colors;
-    color_type color;
-      
     // collect neighbor colors
-    foreach (edge_type edge, context.in_edges()){
-      color = context.const_vertex_data(edge.source()).color;
+    foreach (const edge_type& edge, context.in_edges()) {
+      const color_type& color = context.const_vertex_data(edge.source()).color;
       if (UNCOLORED == color) continue;
       neighbor_colors.insert(color);
     }
-      
-    foreach (edge_type edge, context.out_edges()){
-      color = context.const_vertex_data(edge.target()).color;
+    foreach (const edge_type& edge, context.out_edges()) {
+      const color_type& color = context.const_vertex_data(edge.target()).color;
       if (UNCOLORED == color) continue;
       neighbor_colors.insert(color);
     }
-      
-    // find a unique color
-    for (color=0; ; color++){
-      if (!neighbor_colors.count(color)) break;
-    }
-      
-    vdata.color = color;
+    // find a unique color 
+    for (vdata.color = 0; neighbor_colors.count(vdata.color); vdata.color++);
     vdata.saturation = neighbor_colors.size();
-      
   }
-  
 };// end of update functor
 
 
-/**
- * Initializes program configuration and parses the command line arguments
- for a graph file and a file format.
- * @param opts        command line options struct
- * @param graph_file  reference to variable to store path to graph file
- * @param format      reference to variable to store file format;
- *                    value will be used as default value
- */
-static int init_options  (int argc, char *argv[],
-                          graphlab::command_line_options &opts,
-                          std::string &graph_file,
-                          std::string &format);
-static int print_results (const graph_type &graph);
 
-std::ostream& operator<< (std::ostream& out, const vertex_data& vdata) {
-  return out << "C=" << vdata.color << ", S=" << vdata.saturation;
-}
+
+/**
+ * This accumulator keeps track of the tpo ranked pages
+ */       
+class reducer :
+  public graphlab::iaccumulator<graph_type, coloring_update, reducer> {
+private:
+  color_type max_color, total_saturation;
+  std::map<color_type, size_t> color_distribution;
+public:
+  reducer() : max_color(0), total_saturation(0) { }
+  void operator()(icontext_type& context) {
+    const color_type color = context.const_vertex_data().color;
+    max_color = std::max(max_color, color);
+    total_saturation += context.const_vertex_data().saturation;
+    color_distribution[color]++;
+    // Check the coloring
+    foreach (const edge_type& edge, context.in_edges()) 
+      ASSERT_NE(context.const_vertex_data(edge.source()).color, color);
+    foreach (const edge_type& edge, context.out_edges()) 
+      ASSERT_NE(context.const_vertex_data(edge.target()).color, color);
+  } // end of operator()
+  void operator+=(const reducer& other) { 
+    max_color = std::max(max_color, other.max_color);
+    total_saturation += other.total_saturation;
+    typedef std::pair<color_type, size_t> pair_type;
+    foreach(const pair_type& pair, other.color_distribution)
+      color_distribution[pair.first] += pair.second;
+  }
+  void finalize(iglobal_context_type& context) {
+    std::cout << "Total colors:       " << (max_color + 1) << std::endl 
+              << "Average Saturation: " 
+              << (total_saturation / context.num_vertices()) << std::endl;
+    std::cout << "(color, #vertices): ";
+    typedef std::pair<color_type, size_t> pair_type;
+    foreach(const pair_type& pair, color_distribution)
+      std::cout << '(' << pair.first << ", " << pair.second << ")  ";
+    std::cout << std::endl;
+  }
+}; // end of reducer
 
 
 
@@ -136,11 +138,25 @@ int main (int argc, char *argv[]){
   // parse command line options
   graphlab::command_line_options
     opts("Naive Greedy Graph Coloring");
-  std::string graph_file = NONE;
-  std::string format = DEFAULT_FORMAT;
-  if (0 > init_options (argc, argv, opts, graph_file, format)){
+  std::string graph_file;
+  std::string format = "snap";
+  // add graph and format
+  opts.attach_option("graph", &graph_file,
+                     "The graph file (required).");
+  opts.add_positional("graph");
+  opts.attach_option("format", &format, format,
+                     "Format of the graph file.");                     
+  if(!opts.parse (argc, argv)) return EXIT_FAILURE;
+  if(!opts.is_set("graph")) {
+    std::cout << "Graph file is required." << std::endl;
     return EXIT_FAILURE;
-  }
+  }  
+
+  // print command line options
+  opts.print();
+  std::cout << "Coloring Options -------------------" << std::endl;
+  std::cout << "Input file:\t" << graph_file << std::endl;
+ 
   
   // set up graphlab execution core
   graphlab::core<graph_type, coloring_update> core;
@@ -156,47 +172,12 @@ int main (int argc, char *argv[]){
   std::cout << "Running graph coloring..." << std::endl;
   const double runtime = core.start();
   std::cout << "Done. Took " << runtime << " seconds." << std::endl;
-  
-  // print results
-  print_results (core.graph());
+  std::cout << "Checking coloring." << std::endl;
+  // Compute the max colors
+  core.add_sync("reducer", reducer(), 0);
+  core.sync_now("reducer");
+
   return EXIT_SUCCESS;
 }
 
-
-
-
-static int init_options(int argc, char *argv[],
-                        graphlab::command_line_options &opts,
-                        std::string &graph_file,
-                        std::string &format){ 
-  // add graph and format
-  opts.attach_option(OPT_GRAPH_FILE, &graph_file,
-                     "The graph file (required).");
-  opts.add_positional("graph");
-  opts.attach_option(OPT_FORMAT, &format, format,
-                     "Format of the graph file.");                     
-  // fix scope
-  opts.set_scope_type("edge");
-
-  if (!opts.parse (argc, argv)) return ERR_INPUT;
-  if (!opts.is_set(OPT_GRAPH_FILE)){
-    std::cout << "Graph file is required." << std::endl;
-    return ERR_INPUT;
-  }  
-  // print command line options
-  opts.print();
-  std::cout << "Coloring Options -------------------" << std::endl;
-  std::cout << "Input file:\t" << graph_file << std::endl;
-  return EXIT_SUCCESS;
-}
-
-static int print_results (const graph_type &graph){
-  for (graph_type::vertex_id_type vid = 0;
-       vid < graph.num_vertices();
-       vid++){
-    const graph_type::vertex_data_type& vdata = graph.vertex_data(vid);
-    std::cout << "[" << int(vid) << "]: "  << vdata << std::endl;
-  }
-  return EXIT_SUCCESS;
-}
 
