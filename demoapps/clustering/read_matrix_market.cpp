@@ -71,11 +71,14 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
     }
 
     /* find out size of sparse matrix .... */
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
-       exit(1);
+    if (mm_is_sparse(matcode))
+      ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz);
+    else {
+      ret_code = mm_read_mtx_array_size(f, &M, &N);
+      nz = M*N;
     }
+    if (ret_code != 0)
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
 
     if (type ==TRAINING){
     ps.M = M; ps.N = N; ps.K = ac.K;
@@ -103,6 +106,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
 
     for (i=0; i<nz; i++)
     {
+        if (mm_is_sparse(matcode)){
         int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
         if (rc != 3)
           logstream(LOG_FATAL) << "Failed to read matrix market file " << filename << " line: " << i << std::endl;
@@ -110,6 +114,15 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
         //printf("Found row %d %d %g\n", I, J, val);        
         I--;  /* adjust from 1-based to 0-based */
         J--;
+        }
+        else {
+         int rc = fscanf(f, "%lg", &val);
+         I = i / N;
+         J = i % N;
+         if (rc != 1)
+          logstream(LOG_FATAL) << "Failed to read matrix market file " << filename << " line: " << I << " column: " << J << std::endl;
+ 
+        }
         if (I<=0 || J<= 0){
           logstream(LOG_ERROR) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
           exit(1);
@@ -152,8 +165,14 @@ void load_matrix_market_clusters(const std::string & filename, graph_type *_g)
             mm_is_sparse(matcode) )
         logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
+    if (mm_is_sparse(matcode))
+      ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz);
+    else {
+      ret_code = mm_read_mtx_array_size(f, &M, &N); 
+      nz = M*N;
+    }
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+    if (ret_code != 0)
        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
 
 
@@ -214,8 +233,14 @@ void load_matrix_market_assignments(const std::string & filename, graph_type *_g
         logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
-       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+    if (mm_is_sparse(matcode))
+      ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz);
+    else  {
+      ret_code = mm_read_mtx_array_size(f, &M, &N);
+      nz = M*N;
+    }
+    if (ret_code != 0)
+      logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
 
 
     int I,J; 
@@ -268,7 +293,6 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     int ret_code;
     MM_typecode matcode;
     int M, N, nz;   
-    int i;
 
     FILE * f = fopen(filename, "r");
     if (f== NULL){
@@ -298,11 +322,14 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     }
 
     /* find out size of sparse matrix .... */
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
-       exit(1);
+    if (mm_is_sparse(matcode))
+       ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz);
+    else {
+       ret_code = mm_read_mtx_array_size(f, &M, &N); 
+       nz = M*N;
     }
+    if (ret_code != 0)
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
 
     if (type ==  TRAINING){
       ps.M = M; ps.N = N; ps.K = ac.K;
@@ -333,15 +360,24 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     double val;
     int step=nz/10;
 
-    for (i=0; i<nz; i++)
+    for (int i=0; i<nz; i++)
     {
-        int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
-        if (rc != 3)
-	  logstream(LOG_FATAL)<<"Failed to read matrix market file: " << filename << " on line: " << i << std::endl;
+	if (mm_is_sparse(matcode)){
+          int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+          if (rc != 3)
+	    logstream(LOG_FATAL)<<"Failed to read matrix market file: " << filename << " on line: " << i << std::endl;
+          I--;  /* adjust from 1-based to 0-based */
+          J--;
 
-        //printf("%d) Found row %d %d %g\n", i, I, J, val);        
-        I--;  /* adjust from 1-based to 0-based */
-        J--;
+        }
+        else {
+          int rc = fscanf(f, "%lg", &val);
+          I = i / N;
+          J = i % N;
+          if (rc != 1)
+	    logstream(LOG_FATAL)<<"Failed to read matrix market file: " << filename << " on line: " << I << " column : " << J << std::endl;
+        }
+        
          if (ac.scalerating != 1.0)
 	     val /= ac.scalerating;
          if (!ac.zero)
