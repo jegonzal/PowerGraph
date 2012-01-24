@@ -5,9 +5,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "graph_loader.hpp"
-
-
 
 
 #include <graphlab/macros_def.hpp>
@@ -50,18 +47,18 @@ public:
 }; // end of shortest path update functor
 
 
-bool load_graph_from_file(const std::string& fname,
-                          graph_type& graph);
-
 int main(int argc, char** argv) {
   // Parse input
   graphlab::command_line_options clopts("Run Shortest Path Algorithm.");
   std::string graph_file;
-  std::string format = "jure";
+  std::string format = "snap";
+  size_t root = 0;
   clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.");
   clopts.attach_option("format", &format, format,
                        "File format.");
+  clopts.attach_option("root", &root, root,
+                       "The root vertex.");
   clopts.add_positional("graph");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing input." << std::endl;
@@ -73,7 +70,9 @@ int main(int argc, char** argv) {
   core.set_options(clopts);
   
   std::cout << "Loading graph from file" << std::endl;
-  const bool success = load_graph(graph_file, format, core.graph());
+  const bool success = graphlab::graph_ops<graph_type>::
+    load_structure (graph_file, format, core.graph());
+
   if(!success) {
     std::cout << "Error in reading file: " << graph_file
               << std::endl;
@@ -81,7 +80,6 @@ int main(int argc, char** argv) {
   }
 
   // Set the root
-  const graph_type::vertex_id_type root = 0;
   core.graph().vertex_data(root).dist = 0;
 
   core.schedule(root, shortest_path_update());

@@ -30,11 +30,6 @@ if(Sctp-FOUND)
   set(sctp_source rpc/dc_sctp_comm.cpp)
 endif()
 
-if (ZLIB_FOUND)
-  set(rpc_compressed rpc/dc_stream_receive_z.cpp
-    rpc/dc_buffered_stream_send_expqueue_z.cpp)
-endif()
-
 if (MPI_FOUND)
   set(util_mpi_tools util/mpi_tools.cpp)
 endif()
@@ -78,9 +73,6 @@ add_library(graphlab STATIC
   rpc/dc_stream_send.cpp
   rpc/dc_stream_receive.cpp
   rpc/dc_buffered_stream_send.cpp
-  rpc/dc_buffered_stream_send_expqueue.cpp
-  rpc/dc_buffered_stream_send_multiqueue.cpp
-  rpc/dc_buffered_stream_send_expqueue2.cpp
   rpc/dc_buffered_stream_receive.cpp
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
@@ -89,7 +81,6 @@ add_library(graphlab STATIC
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
   rpc/delta_dht.cpp
-  ${rpc_compressed}
   )
 
 target_link_libraries(graphlab ${Boost_LIBRARIES})

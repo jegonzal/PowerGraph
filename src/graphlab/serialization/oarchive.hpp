@@ -47,10 +47,10 @@ namespace graphlab {
   public:
     std::ostream* o;
     /// constructor. Takes a generic std::ostream object
-    oarchive(std::ostream& os)
+    inline oarchive(std::ostream& os)
       : o(&os) {}
 
-    ~oarchive() { }
+    inline ~oarchive() { }
   };
 
 /**
@@ -64,12 +64,12 @@ namespace graphlab {
   public:
     std::ostream* o;
 
-    oarchive_soft_fail(std::ostream& os)
+    inline oarchive_soft_fail(std::ostream& os)
       : o(&os) {}
 
-    oarchive_soft_fail(oarchive &oarc):o(oarc.o) {}
+    inline oarchive_soft_fail(oarchive &oarc):o(oarc.o) {}
   
-    ~oarchive_soft_fail() { }
+    inline ~oarchive_soft_fail() { }
   };
 
   namespace archive_detail {
@@ -77,7 +77,7 @@ namespace graphlab {
     /// called by the regular archive The regular archive will do a hard fail
     template <typename ArcType, typename T>
     struct serialize_hard_or_soft_fail {
-      static void exec(ArcType &o, const T& t) {
+      inline static void exec(ArcType &o, const T& t) {
         t.save(o);
       }
     };
@@ -85,7 +85,7 @@ namespace graphlab {
     /// called by the soft fail archive 
     template <typename T>
     struct serialize_hard_or_soft_fail<oarchive_soft_fail, T> {
-      static void exec(oarchive_soft_fail &o, const T& t) {
+      inline static void exec(oarchive_soft_fail &o, const T& t) {
         oarchive oarc(*(o.o));
         save_or_fail(oarc, t);
       }
@@ -108,7 +108,7 @@ namespace graphlab {
     /** Catch if type is a POD */
     template <typename ArcType, typename T>
     struct serialize_impl<ArcType, T, true> {
-      static void exec(ArcType &a, const T& t) {
+      inline static void exec(ArcType &a, const T& t) {
         a.o->write(reinterpret_cast<const char*>(&t), sizeof(T));
       }
     };
@@ -116,10 +116,20 @@ namespace graphlab {
     /**
        Re-dispatch if for some reasons T already has a const
     */
-    template <typename ArcType, typename T, bool IsPOD>
-    struct serialize_impl<ArcType, const T, IsPOD> {
-      static void exec(ArcType &o, const T& t) {
-        serialize_impl<ArcType, T, IsPOD>::exec(o, t);
+    template <typename ArcType, typename T>
+    struct serialize_impl<ArcType, const T, true> {
+      inline static void exec(ArcType &o, const T& t) {
+        serialize_impl<ArcType, T, true>::exec(o, t);
+      }
+    };
+    
+    /**
+       Re-dispatch if for some reasons T already has a const
+    */
+    template <typename ArcType, typename T>
+    struct serialize_impl<ArcType, const T, false> {
+      inline static void exec(ArcType &o, const T& t) {
+        serialize_impl<ArcType, T, false>::exec(o, t);
       }
     };
   }// archive_detail
@@ -129,13 +139,13 @@ namespace graphlab {
      Allows Use of the "stream" syntax for serialization 
   */
   template <typename T>
-  oarchive& operator<<(oarchive& a, const T& i) {
+  inline oarchive& operator<<(oarchive& a, const T& i) {
     archive_detail::serialize_impl<oarchive, T, gl_is_pod<T>::value >::exec(a, i);
     return a;
   }
 
   template <typename T>
-  oarchive_soft_fail& operator<<(oarchive_soft_fail& a, const T& i) {
+  inline oarchive_soft_fail& operator<<(oarchive_soft_fail& a, const T& i) {
     archive_detail::serialize_impl<oarchive_soft_fail, T, gl_is_pod<T>::value >::exec(a, i);
     return a;
   }

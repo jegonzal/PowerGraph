@@ -20,13 +20,6 @@
  *
  */
 
-
-/**
- * This class defines a very simple scheduler that loops vertices that
- * are "dirty". Each cpu loops vertices of which id%num_cpus==cpuid. Also called
- * "partitioned" scheduler.
- **/
-
 #ifndef GRAPHLAB_SWEEP_SCHEDULER_HPP
 #define GRAPHLAB_SWEEP_SCHEDULER_HPP
 
@@ -67,7 +60,7 @@ namespace graphlab {
   private:
 
     inline size_t get_and_inc_index(const size_t cpuid) {
-      const size_t nverts = index2vid.size();
+      const size_t nverts = vids.size();
       if (strict_round_robin) { 
         return rr_index++ % nverts; 
       } else {
@@ -85,8 +78,10 @@ namespace graphlab {
     atomic<size_t> rr_index;
     size_t max_iterations;
 
-    std::vector<vertex_id_type>             index2vid;
+    std::vector<vertex_id_type>             vids;
+    std::vector<uint16_t>                   vid2cpu;
     std::vector<vertex_id_type>             cpu2index;
+
     vertex_functor_set<update_functor_type> vfun_set;
     double                                  min_priority;
     terminator_type                         term;
@@ -97,23 +92,12 @@ namespace graphlab {
     sweep_scheduler(const graph_type& graph, 
                     size_t ncpus,
                     const options_map& opts) :
-      strict_round_robin(false), rr_index(0), 
+      strict_round_robin(false),
       max_iterations(std::numeric_limits<size_t>::max()),
-      index2vid(graph.num_vertices()), cpu2index(ncpus),
+      vids(graph.num_vertices()),
       vfun_set(graph.num_vertices()), 
       min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {
-      // Determine whether a strict ordering is to be used
-      opts.get_option("strict", strict_round_robin);
-      if(strict_round_robin) {
-        logstream(LOG_INFO) 
-          << "Using a strict round robin schedule." << std::endl;
-        // Max iterations only applies to strict round robin
-        if(opts.get_option("niters", max_iterations) ) {
-          logstream(LOG_INFO) 
-            << "Using maximum iterations: " << max_iterations << std::endl;
-        }
-      } 
       
       // Determin the orering of updates
       std::string ordering = "random";
@@ -122,7 +106,7 @@ namespace graphlab {
       if (ordering == "ascending") {
         logstream(LOG_INFO) 
           << "Using an ascending ordering of the vertices." << std::endl;
-        for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
+        for(size_t i = 0; i < graph.num_vertices(); ++i) vids[i] = i;
       } else if (ordering == "max_degree" || ordering == "min_degree") {
         logstream(LOG_INFO) 
           << "Constructing a " << ordering << " sweep ordering." << std::endl;
@@ -135,7 +119,7 @@ namespace graphlab {
           vec[i] = use_max_degree? pair_type(-degree,i) : pair_type(degree,i);
         }
         std::sort(vec.begin(), vec.end());
-        for(size_t i = 0; i < vec.size(); ++i) index2vid[i] = vec[i].second;
+        for(size_t i = 0; i < vec.size(); ++i) vids[i] = vec[i].second;
       } else if (ordering == "color") {
         logstream(LOG_INFO) 
           << "Constructing a color based sweep ordering." << std::endl;
@@ -144,7 +128,7 @@ namespace graphlab {
         for(vertex_id_type i = 0; i < vec.size(); ++i) 
           vec[i] = pair_type(graph.color(i), i);
         std::sort(vec.begin(), vec.end());
-        for(size_t i = 0; i < vec.size(); ++i) index2vid[i] = vec[i].second;
+        for(size_t i = 0; i < vec.size(); ++i) vids[i] = vec[i].second;
       } else { // Assume random ordering by default
         if(ordering != "random") {
           logstream(LOG_WARNING)
@@ -153,11 +137,30 @@ namespace graphlab {
         }
         logstream(LOG_INFO) 
           << "Using a random ordering of the vertices." << std::endl;
-        for(size_t i = 0; i < graph.num_vertices(); ++i) index2vid[i] = i;
-        random::shuffle(index2vid);
+        for(size_t i = 0; i < graph.num_vertices(); ++i) vids[i] = i;
+        random::shuffle(vids);
       }
-      // Initialize the cpu2index counters
-      for(size_t i = 0; i < cpu2index.size(); ++i)  cpu2index[i] = i;
+
+
+      // Determine whether a strict ordering is to be used
+      opts.get_option("strict", strict_round_robin);
+      if(strict_round_robin) {
+        logstream(LOG_INFO) 
+          << "Using a strict round robin schedule." << std::endl;
+        // Max iterations only applies to strict round robin
+        if(opts.get_option("niters", max_iterations) ) 
+          logstream(LOG_INFO) 
+            << "Using maximum iterations: " << max_iterations << std::endl;
+        // Initialize the round robin index
+        rr_index = 0;
+      } else { // each cpu is responsible for its own subset of vertices
+        // Initialize the cpu2index counters
+        cpu2index.resize(ncpus);
+        for(size_t i = 0; i < cpu2index.size(); ++i) cpu2index[i] = i;
+        // Initialze the reverse map vid2cpu assignment
+        vid2cpu.resize(vids.size());
+        for(size_t i = 0; i < vids.size(); ++i) vid2cpu[vids[i]] = i % ncpus;
+      }
 
       // Get Min priority
       const bool is_set = opts.get_option("min_priority", min_priority);
@@ -166,7 +169,7 @@ namespace graphlab {
           << "The minimum scheduling priority was set to " 
           << min_priority << std::endl;
       }
-    }
+    } // end of constructor
         
    
     void start() { term.reset(); }
@@ -174,7 +177,13 @@ namespace graphlab {
     void schedule(const size_t cpuid,
                   const vertex_id_type vid, 
                   const update_functor_type& fun) {      
-      if(vfun_set.add(vid, fun)) term.new_job();
+      double ret_priority = 0;
+      if(vfun_set.add(vid, fun, ret_priority) && ret_priority >= min_priority) {
+        if(!vid2cpu.empty()) {
+          ASSERT_LT(vid, vid2cpu.size());
+          term.new_job(vid2cpu[vid]);
+        } else term.new_job();
+      } 
     } // end of schedule
 
     void schedule_all(const update_functor_type& fun) {
@@ -186,7 +195,7 @@ namespace graphlab {
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
-      const size_t nverts    = index2vid.size();
+      const size_t nverts    = vids.size();
       const size_t ncpus     = cpu2index.size();
       const size_t max_fails = (nverts/ncpus) + 1;
       // Check to see if max iterations have been achieved 
@@ -197,17 +206,29 @@ namespace graphlab {
       for(size_t idx = get_and_inc_index(cpuid), fails = 0; 
           fails <= max_fails; // 
           idx = get_and_inc_index(cpuid), ++fails) {
-        ASSERT_LT(idx, nverts);
-        const vertex_id_type vid = index2vid[idx];
-        const bool success = vfun_set.test_and_get(vid, ret_fun);
-        if(success) { // Job found now decide whether to keep it
+        // It is possible that the get_and_inc_index could return an
+        // invalid index if the number of cpus exceeds the number of
+        // vertices.  In This case we alwasy return empty
+        if(__builtin_expect(idx >= nverts, false)) return sched_status::EMPTY;
+        const vertex_id_type vid = vids[idx];
+        bool success = vfun_set.test_and_get(vid, ret_fun);
+        while(success) { // Job found now decide whether to keep it
           if(ret_fun.priority() >= min_priority) {
             ret_vid = vid; return sched_status::NEW_TASK;
           } else {
             // Priority is insufficient so return to the schedule
-            vfun_set.add(vid, ret_fun);
+            double ret_priority = 0;
+            vfun_set.add(vid, ret_fun, ret_priority);
+            // when the job was added back it could boost the
+            // priority.  If the priority is sufficiently high we have
+            // to try and remove it again. Now it is possible that if
+            // strict ordering is used it could be taken again so we
+            // may need to repeat the process.
+            if(ret_priority >= min_priority) 
+              success = vfun_set.test_and_get(vid, ret_fun);
+            else success = false;
           } 
-        }
+        }// end of while loop over success
       } // end of for loop
       return sched_status::EMPTY;
     } // end of get_next
@@ -232,7 +253,6 @@ namespace graphlab {
           << "\t update functor, default = -infinity]\n"
           << "niters = [integer, maximum number of iterations (requires strict=true) \n"
           << "\t default = -infinity]\n";
-
     } // end of print_options_help
 
   }; 

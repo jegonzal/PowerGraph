@@ -44,33 +44,33 @@ namespace graphlab {
   class critical_termination : public iterminator {
   public:
     critical_termination(size_t ncpus) :
+      cond(ncpus),
       numactive(ncpus),
       ncpus(ncpus),
       done(false),
       trying_to_sleep(0),
-      sleeping(ncpus) {
-      for (size_t i = 0; i < ncpus; ++i) sleeping[i] = 0;
-    }
+      critical(ncpus, 0),
+      sleeping(ncpus, 0) { }
   
   
     void begin_critical_section(size_t cpuid) {
       trying_to_sleep.inc();
-      sleeping[cpuid] = true;
+      critical[cpuid] = true;
       m.lock();
     }
 
     void cancel_critical_section(size_t cpuid) {
       m.unlock();
-      sleeping[cpuid] = false;
+      critical[cpuid] = false;
       trying_to_sleep.dec();
     }
 
     bool end_critical_section(size_t cpuid) {
       // if done flag is set, quit immediately
-      if (done || forced_abort) {
+      if (done) {
         m.unlock();
+        critical[cpuid] = false;
         trying_to_sleep.dec();
-        sleeping[cpuid] = false;
         return true;
       }
       /*
@@ -79,49 +79,90 @@ namespace graphlab {
         section. Therefore numactive is a valid counter of the number of threads 
         outside of this critical section. 
       */
-      numactive--;
+      --numactive;
     
       /*
         Assertion: If numactive is ever 0 at this point, the algorithm is done.
         WLOG, let the current thread which just decremented numactive be thread 0
       
         Since there is only 1 active thread (0), there must be no threads 
-        performing insertions. Since only 1 thread can be in the critical section 
-        at any time, and the critical section checks the status of the task queue, 
-        the task queue must be empty.
+        performing insertions, and are no othe threads which are waking up.
+        All threads must therefore be sleeping in cond.wait().
       */
       if (numactive == 0) {
         done = true;
-        cond.broadcast();
+        for (size_t i = 0;i < cond.size(); ++i) cond[i].signal();
       } else {
-        cond.wait(m);
-        // here we are protected by the mutex again.
-        if (!done) numactive++;
+        sleeping[cpuid] = true;
+        while(1) {
+          cond[cpuid].wait(m);
+          // here we are protected by the mutex again.
+          
+          // woken up by someone else. leave the 
+          // terminator
+          if (sleeping[cpuid] == false || done) {
+            break;
+          }
+        }
       }
       m.unlock();
+      critical[cpuid] = false;
       trying_to_sleep.dec();
-      sleeping[cpuid] = false;
       return done;
     }
   
+    /**
+      called if a new task is available, and all sleeping CPUs should
+      be woken up to handle the job. This is used in the case where
+      it is not known which processor is responsible for the new job, 
+      or where any processor can handle the job.
+    */
     void new_job() {
       /*
         Assertion: numactive > 0 if there is work to do.
-        This is relatively trivial. Even if no threads wake up in time to 
-        pick up any jobs, the thread which created the job must see it in the 
-        critical section.
+        If there are threads trying to sleep, lets wake them up
       */
       if (trying_to_sleep > 0 || numactive < ncpus) {
         m.lock();
-        if (numactive < ncpus) cond.broadcast();
+        // once I acquire this lock, all threads must be
+        // in the following states
+        // 1: still running and has not reached begin_critical_section()
+        // 2: is sleeping in cond.wait()
+        // 3: has called begin_critical_section() but has not acquired
+        //    the mutex
+        // In the case of 1,3: These threads will perform one more sweep
+        // of their task queues. Therefore they will see any new job if available
+        // in the case of 2: numactive must be < ncpus since numactive
+        // is mutex protected. Then I can wake them up by
+        // clearing their sleeping flags and broadcasting.
+        if (numactive < ncpus) {
+          // this is safe. Note that it is done from within 
+          // the critical section.
+          for (size_t i = 0;i < ncpus; ++i) {
+            numactive += sleeping[i];
+            if (sleeping[i]) cond[i].signal();
+            sleeping[i] = 0;
+          }
+        }
         m.unlock();
       }
     }
 
+    /**
+      called if a new task is available, and the CPU meant to process
+      the job is known. Only the processor [cpuhint] will be woken 
+      up to process the job. Note that this is not particular efficient
+      since a broadcast is used, all CPUs will actually wake up
+      briefly.
+    */
     void new_job(size_t cpuhint) {
-      if (sleeping[cpuhint]) {
+      if (critical[cpuhint]) {
         m.lock();
-        if (numactive < ncpus) cond.broadcast();
+        // see new_job() for detailed comments
+        if (sleeping[cpuhint]) {
+          numactive += sleeping[cpuhint];
+          cond[cpuhint].signal();
+        }
         m.unlock();
       }
     }
@@ -138,6 +179,7 @@ namespace graphlab {
 
     void abort() { 
       forced_abort = true;
+      done = true;
     }
 
     void reset() {
@@ -145,17 +187,38 @@ namespace graphlab {
       done = false;
       forced_abort = false;
       trying_to_sleep.value = 0;
-      for (size_t i = 0; i < ncpus; ++i) sleeping[i] = 0;
+      for (size_t i = 0; i < ncpus; ++i) critical[i] = 0;
     }
   private:
-    conditional cond;
+    std::vector<conditional> cond;
     mutex m;
-    size_t numactive;
+    
+    /// counts the number of threads which are not sleeping
+    /// protected by the mutex
+    size_t numactive; 
+    
+    /// Total number of CPUs
     size_t ncpus;
+    
+    /// once flag is set, the terminator is invalid, and all threads
+    /// should leave
     bool done;
+    
+    /// set if abort() is called
     bool forced_abort;    
+    
+    /// Number of threads which have called
+    /// begin_critical_section(), and have not left end_critical_section()
+    /// This is an atomic counter and is not protected.
     atomic<size_t> trying_to_sleep;
-    std::vector<char> sleeping;
+    
+    /// critical[i] is set if thread i has called 
+    /// begin_critical_section(), but has not left end_critical_section()
+    /// sum of critical should be the same as trying_to_sleep
+    std::vector<char> critical;
+    
+    /// sleeping[i] is set if threads[i] is in cond.wait()
+    std::vector<char> sleeping;    
   };
 
 }

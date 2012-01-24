@@ -34,7 +34,6 @@
 #include <graphlab/serialization/unordered_map.hpp>
 #define AVOID_PARALLEL_SORT 1
 #include <graphlab/graph/graph2.hpp>
-#include <graphlab/graph/graph3.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
@@ -45,14 +44,16 @@ using namespace std;
 #define DUMMY 987654321
 bool debug = false;
 bool quick = false;
-boost::unordered_map<string,uint> hash2nodeid;
+boost::unordered_map<std::string, bool> edges_in_28;
+boost::unordered_map<std::string, uint> edges_in_28_count;
+boost::unordered_map<std::string, uint> hash2nodeid;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
 uint conseq_id;
 graphlab::mutex mymutex;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
-unsigned long long self_edges = 0;
+unsigned long long total_selected = 0;
 
 struct vertex_data {
   string filename;
@@ -62,8 +63,8 @@ struct vertex_data {
 struct edge_data {
 };
 
-typedef graphlab::graph2<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret);
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
+unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret, int trhead_id);
 
 struct vertex_data2 {
   bool active;
@@ -79,65 +80,21 @@ struct vertex_data2 {
   double get_output(int field_type){ 
     return -1; //TODO
   }
-
-  void save(oarchive& arc) const {
-
-  }
-  void load (iarchive& arc) const {
-
-  }
 }; // end of vertex_data
 
 struct edge_data2 {
   edge_data2()  { }
   //compatible with parser which have edge value (we don't need it)
   edge_data2(double val)  { }
-  void save(oarchive& arc) const {
-
-  }
-  void load (iarchive& arc) const {
-
-  }
 };
 
-//typedef graphlab::graph3<vertex_data2, edge_data2> graph_type2;
-typedef graphlab::graph2<vertex_data2, edge_data2> graph_type2;
 
 
 
-void assign_id(uint & outval, const string &name){
 
-  boost::unordered_map<string,uint>::iterator it = hash2nodeid.find(name);
-  if (it != hash2nodeid.end()){
-     outval = it->second;
-     return;
-  }
-  mymutex.lock();
-  outval = hash2nodeid[name];
-  if (outval == 0){
-      hash2nodeid[name] = ++conseq_id;
-      outval = conseq_id;
-  }
-  mymutex.unlock();
-}
-
-
-void assign_id_quick(const string& name){
-  mymutex.lock();
-  hash2nodeid[name] = 1;
-  mymutex.unlock();
-}
-
-void find_ids(uint & from, uint & to, const string &buf1, const string& buf2){
-
-   assign_id(from, buf1);
-   assign_id(to, buf2);
-   //if (from == to)
-   //   logstream(LOG_WARNING)<< " from equals to: " << from << " "  << buf1 << " " <<buf2 << std::endl;
-   if (from == to)
-     self_edges++;
-   assert(from > 0 && to > 0);
-}
+/***
+* Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
+*/
 /*
 YVjAeZQjnVA IfrTTVlatui 050803 000000 156
 GNgrmichxmG GNgriWokEhN 050803 000000 143
@@ -151,30 +108,25 @@ struct stringzipparser_update :
    void operator()(icontext_type& context) {
     
    std::string dir = context.get_global<std::string>("PATH");
-   int nodes = context.get_global<int>("NUM_NODES");
    std::string outdir = context.get_global<std::string>("OUTPATH");
+   int mythreadid = thread::thread_id();
 
     //open file
     vertex_data& vdata = context.vertex_data();
-    
+    gzip_in_file fin((dir + vdata.filename));
+    //gzip_out_file fout(outdir + vdata.filename + ".out.gz");
+
     edge_data2 edge; 
-    graph_type2 _graph;
-    _graph.resize(nodes);
 
-    std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-    fin.push(boost::iostreams::gzip_decompressor());
-    fin.push(in_file);  
-
-    char linebuf[256], buf1[256], buf2[256];
+    char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
+    int duration, dateret, timeret;
     int line = 1;
     int lines = context.get_global<int>("LINES");
    
     while(true){
-      fin.getline(linebuf, 128);
-      if (fin.eof())
+      fin.get_sp().getline(linebuf, 128);
+      if (fin.get_sp().eof())
         break;
 
       if (linebuf[0] == '%') //skip comments
@@ -192,36 +144,50 @@ struct stringzipparser_update :
          return;
        }
        strncpy(buf2, pch, 20);
-       uint from = boost::lexical_cast<uint>(buf1);
-       uint to = boost::lexical_cast<uint>(buf2);
-       if (from == DUMMY && to == DUMMY) //placeholder for matrix market size, to be done later
+       if (buf1[0] == '9' && buf2[0] == '9') //placeholder for matrix market size, to be done later
            continue;
-       _graph.add_edge(from- 1, to - 1, edge);  //traslate edge offset to start from zero
-       //_graph.add_edge(to, from, edge); 
+       
+      pch = strtok_r(NULL, " ",(char**)&saveptr);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3, pch, 6);
+        buf3[6] = ' ';
+        pch = strtok_r(NULL, " ",(char**)&saveptr);
+        if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+         strncpy(buf3+7,pch,6);
+        pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
+       if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+         return;
+       }
+        duration = atoi(pch);
+        datestr2uint64(std::string(buf3), dateret, timeret, mythreadid);
+   
+        string hour = boost::lexical_cast<string>(timeret/3600);
+       if (edges_in_28.find(std::string(buf1) + " " + std::string(buf2)) != edges_in_28.end()){
+         //fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
+         //<< duration << " " << timeret << " " << dateret << endl;
+         edges_in_28_count[std::string(buf1) + " " + std::string(buf2) + " " + hour]++;
+         total_selected++;
+      }
 
       line++;
       total_lines++;
       if (total_lines % 1000000 == 0)
-        logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " edges: " << total_lines << endl;
+        logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " edges: " << total_lines << " seleted: " << total_selected << endl;
 
       if (lines && line>=lines)
 	 break;
 
     } 
 
+   logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << " total selected: " << total_selected << endl;
 
-   logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
-
-    fin.pop(); fin.pop();
-    in_file.close();
-    _graph.finalize();
-    logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Going to save Graph to file" << endl;
-
-    //graph3 save
-    //save_to_bin(outdir + vdata.filename, _graph);
-    //graph2 save
-    _graph.save(outdir+vdata.filename);
-    logstream(LOG_INFO) << mytime.current_time() << ") " << outdir + vdata.filename << " Finished saving Graph to file" << endl;
   }
 
 
@@ -255,7 +221,6 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
-  std::string listdir = "/usr2/bickson/daily.sorted/";
   std::string dir = "/mnt/bigbrofs/usr10/haijieg/edge_process/output/"; //"/usr2/bickson/daily.sorted/";
   std::string outdir = "/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
   int unittest = 0;
@@ -273,7 +238,6 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
-  clopts.attach_option("listdir", &listdir, listdir, "path to index files");
   clopts.attach_option("num_nodes", &numnodes, numnodes, "Number of nodes");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   clopts.attach_option("outdir", &outdir, outdir, "output directory");
@@ -284,18 +248,6 @@ int main(int argc,  char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  logstream(LOG_WARNING)
-    << "Eigen detected. (This is actually good news!)" << std::endl;
-  logstream(LOG_INFO) 
-    << "GraphLab Linear solver library code by Danny Bickson, CMU" 
-    << std::endl 
-    << "Send comments and bug reports to danny.bickson@gmail.com" 
-    << std::endl 
-    << "Currently implemented algorithms are: Gaussian Belief Propagation, "
-    << "Jacobi method, Conjugate Gradient" << std::endl;
-
-
-
   // Create a core
   graphlab::core<graph_type, stringzipparser_update> core;
   core.set_options(clopts); // Set the engine options
@@ -305,7 +257,7 @@ int main(int argc,  char *argv[]) {
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
      in_files.push_back(datafile);
-  else in_files = list_all_files_in_dir(listdir, filter);
+  else in_files = list_all_files_in_dir(dir, filter);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);
@@ -321,12 +273,19 @@ int main(int argc,  char *argv[]) {
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
   core.add_global("NUM_NODES", numnodes);
+  core.add_global("OUT_DIR", outdir);
 
-
+  load_map_from_file(edges_in_28, outdir + ".28.edges");
+  logstream(LOG_INFO) << "Loaded a total of " << edges_in_28.size() << " edges" << endl;
+  load_map_from_file(hash2nodeid, "/mnt/bigbrofs/usr3/bickson/out_phone_calls/.map");
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;
-  std::cout << "Total number of edges: " << self_edges << std::endl;
+  gzip_out_file cnter(outdir + filter + ".28.edges.hour.gz");
+  boost::unordered_map<std::string, uint>::const_iterator it;
+  for (it = edges_in_28_count.begin(); it != edges_in_28_count.end(); it++){
+    cnter.get_sp() << it->first << " " << it->second << endl;
+  }
    return EXIT_SUCCESS;
 }
 

@@ -101,28 +101,19 @@ struct stringzipparser_update :
 
     //open file
     vertex_data& vdata = context.vertex_data();
-    std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-    fin.push(boost::iostreams::gzip_decompressor());
-    fin.push(in_file);  
-
+    gzip_in_file fin((dir + vdata.filename));
     std::string out_filename = outdir + vdata.filename + boost::lexical_cast<std::string>(min_time) + "-" + 
        boost::lexical_cast<std::string>(max_time) + (negate_time? "neg" : "") + ".out.gz"; 
 
-    std::ofstream out_file(out_filename.c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << out_filename << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-    fout.push(boost::iostreams::gzip_compressor());
-    fout.push(out_file);
+    gzip_out_file fout(out_filename);
    
     MM_typecode out_typecode;
     mm_clear_typecode(&out_typecode);
     mm_set_integer(&out_typecode); 
     mm_set_dense(&out_typecode); 
     mm_set_matrix(&out_typecode);
-    mm_write_cpp_banner(fout, out_typecode);
-    mm_write_cpp_mtx_crd_size(fout, 987654321, 987654321, 987654322);
+    mm_write_cpp_banner(fout.get_sp(), out_typecode);
+    mm_write_cpp_mtx_crd_size(fout.get_sp(), 987654321, 987654321, 987654322);
 
 
     char linebuf[256], buf1[256], buf2[256], buf3[256];
@@ -133,8 +124,8 @@ struct stringzipparser_update :
     int dateret, timeret;
    
     while(true){
-      fin.getline(linebuf, 128);
-      if (fin.eof())
+      fin.get_sp().getline(linebuf, 128);
+      if (fin.get_sp().eof())
         break;
 
        char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
@@ -187,7 +178,7 @@ struct stringzipparser_update :
             filtered_out++;
          else // fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
             { 
-            fout << from << " " << to << endl;
+            fout.get_sp() << from << " " << to << endl;
             total_lines++;
          }
       }
@@ -195,7 +186,7 @@ struct stringzipparser_update :
         uint from,to;
         find_ids(from, to, buf1, buf2);
         if (from != to){
-          fout << from << " " << to << endl;
+          fout.get_sp() << from << " " << to << endl;
           //fout << to << " " << from << endl;
         }
         else self_edges++;
@@ -214,11 +205,6 @@ struct stringzipparser_update :
    logstream(LOG_INFO) << mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename <<
 	                 "total lines " << total_lines << " total graphs done: " << total_graphs_done << endl;
 
-    // close file
-    fin.pop(); fin.pop();
-    fout.pop(); fout.pop();
-    in_file.close();
-    out_file.close();
   }
 
 

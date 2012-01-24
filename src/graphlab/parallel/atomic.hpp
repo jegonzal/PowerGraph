@@ -103,7 +103,7 @@ namespace graphlab {
     \endcode
   */
   template<typename T>
-  bool atomic_compare_and_swap(T& a, const T &oldval, const T &newval) {
+  bool atomic_compare_and_swap(T& a, T oldval, T newval) {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
@@ -122,8 +122,8 @@ namespace graphlab {
   */
   template<typename T>
   bool atomic_compare_and_swap(volatile T& a, 
-                               const T &oldval, 
-                               const T &newval) {
+                               T oldval, 
+                               T newval) {
     return __sync_bool_compare_and_swap(&a, oldval, newval);
   };
 
@@ -142,12 +142,12 @@ namespace graphlab {
   */
   template <>
   inline bool atomic_compare_and_swap(double& a, 
-                                      const double &oldval, 
-                                      const double &newval) {
-    return __sync_bool_compare_and_swap
-      (reinterpret_cast<uint64_t*>(&a), 
-       *reinterpret_cast<const uint64_t*>(&oldval), 
-       *reinterpret_cast<const uint64_t*>(&newval));
+                                      double oldval, 
+                                      double newval) {
+    uint64_t* a_ptr = reinterpret_cast<uint64_t*>(&a);
+    const uint64_t* oldval_ptr = reinterpret_cast<const uint64_t*>(&oldval);
+    const uint64_t* newval_ptr = reinterpret_cast<const uint64_t*>(&newval);
+    return __sync_bool_compare_and_swap(a_ptr, *oldval_ptr, *newval_ptr);
   };
 
   /**
@@ -165,20 +165,33 @@ namespace graphlab {
   */
   template <>
   inline bool atomic_compare_and_swap(float& a, 
-                                      const float &oldval, 
-                                      const float &newval) {
-    return __sync_bool_compare_and_swap
-      (reinterpret_cast<uint32_t*>(&a), 
-       *reinterpret_cast<const uint32_t*>(&oldval), 
-       *reinterpret_cast<const uint32_t*>(&newval));
+                                      float oldval, 
+                                      float newval) {
+    uint32_t* a_ptr = reinterpret_cast<uint32_t*>(&a);
+    const uint32_t* oldval_ptr = reinterpret_cast<const uint32_t*>(&oldval);
+    const uint32_t* newval_ptr = reinterpret_cast<const uint32_t*>(&newval);
+    return __sync_bool_compare_and_swap(a_ptr, *oldval_ptr, *newval_ptr);
   };
 
   /** 
     * \ingroup util
     * \brief Atomically exchanges the values of a and b.
+    * \warning This is not a full atomic exchange. Read of a,
+    * and the write of b into a is atomic. But the write into b is not.
     */
   template<typename T>
   void atomic_exchange(T& a, T& b) {
+    b = __sync_lock_test_and_set(&a, b);
+  };
+
+  /** 
+    * \ingroup util
+    * \brief Atomically exchanges the values of a and b.
+    * \warning This is not a full atomic exchange. Read of a,
+    * and the write of b into a is atomic. But the write into b is not.
+    */
+  template<typename T>
+  void atomic_exchange(volatile T& a, T& b) {
     b = __sync_lock_test_and_set(&a, b);
   };
 

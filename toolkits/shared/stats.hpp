@@ -7,9 +7,14 @@ uint * histogram(uint * edge_count, int len, int howmnay){
   uint * ret = new uint[howmnay];
   memset(ret, 0, sizeof(int)*howmnay);
   for (int i=0; i<len; i++){
-      assert(edge_count[i] < howmnay);
+      assert(edge_count[i] < (uint)howmnay);
       ret[edge_count[i]]++;
    }
+
+  uint sum = 0;
+  for (int i=0; i< howmnay; i++)
+    sum += ret[i];
+  assert(sum == len);
   return ret;
 }
 
@@ -58,8 +63,6 @@ typedef typename multigraph::vertex_data_type vertex_data;
     for (int i=0; i< desc.total(); i++){
      ulong64 degree = g->graph(0)->num_out_edges(i) + g->graph(0)->num_in_edges(i);
      vertex_data & data = g->vertex_data(i); 
-     if (degree > 0)
-       data.active = true;
      inedges += g->graph(0)->num_in_edges(i);
      outedges += g->graph(0)->num_out_edges(i);
      max_in_degree= std::max(max_in_degree, (ulong64)g->graph(0)->num_in_edges(i));

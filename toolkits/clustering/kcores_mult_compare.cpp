@@ -19,20 +19,27 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-
-
+#define USE_GRAPH3
 
 #include <cmath>
 #include <cstdio>
 #include <limits>
 #include <iostream>
 #include "graphlab.hpp"
-#include "graphlab/graph/graph3.hpp"
-#include "graphlab/graph/multigraph.hpp"
+
+#ifdef USE_GRAPH3
+  #include "graphlab/graph/graph3.hpp"
+  #include "graphlab/graph/multigraph.hpp"
+#else
+  #include "graphlab/graph/graph2.hpp"
+  #include "graphlab/graph/multigraph2.hpp"
+#endif
+
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include "../shared/stats.hpp"
 
+#include <google/malloc_extension.h>
 #include <graphlab/macros_def.hpp>
 using namespace graphlab;
 
@@ -42,13 +49,23 @@ uint * edge_count;
 unsigned long long total_edges = 0;
 
 struct vertex_data {
+  void save(oarchive& arc) const {}
+
+  void load(iarchive& arc) const {}
 }; 
 
 struct edge_data {
+  void save(oarchive& arc) const {}
+  void load(iarchive& arc) const {}
 };
 
-typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
-typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+#ifdef USE_GRAPH3
+ typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
+ typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+#else
+ typedef graphlab::multigraph2<vertex_data, edge_data> multigraph_type;
+ typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+#endif
 graph_type * reference_graph = NULL;
 
 struct kcore_update :
@@ -126,7 +143,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_graph", &max_graph, max_graph, "maximum number of graphs parsed");
   clopts.attach_option("list_dir", &list_dir, list_dir, "directory with a list of file names to parse");
   clopts.attach_option("dir_path", &dir_path, dir_path, "actual directory where files are found");
-  clopts.attach_option("outdir", &out_dir, out_dir, "output dir");
+  clopts.attach_option("out_dir", &out_dir, out_dir, "output dir");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -150,23 +167,53 @@ int main(int argc,  char *argv[]) {
   graphlab::core<graph_type, kcore_update> core;
   core.set_options(clopts); // Set the engine options
 
+  //unit testing
+  if (unittest == 1){
+     datafile = "kcores_unittest1";
+  }
+
+  std::cout << "Load graph" << std::endl;
+  bipartite_graph_descriptor matrix_info;
+
   nodes = 121408373;
+  matrix_info.rows = matrix_info.cols = nodes;
   core.set_scope_type("vertex");
 
+    
     multigraph_type multigraph;
     multigraph.load(list_dir, dir_path, filter, true);
+    matrix_info.nonzeros = core.graph().num_edges();
+
+  // Before loading. Google TMalloc Profile
+   size_t value;
+   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
+
   logstream(LOG_INFO)<<"Going to load reference graph: " << reference << std::endl;
-  graphlab::timer mytimer; mytimer.start();
   multigraph.doload(reference);
   reference_graph = multigraph.graph(0);
   edge_count = new uint[multigraph.graph(0)->num_edges()];
 
-   for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
+  // After loading. Google TMalloc Profile
+   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
+
+  graphlab::timer mytimer; 
+   /*
+  mytimer.start();
+  int pass = 0;
+      for (int i=0; i< std::min(multigraph.num_graphs(),max_graph); i++){
        if (i != reference){
        accumulator acum;
        multigraph.doload(i);
        core.graph() = *multigraph.graph(1);
-       assert(multigraph.get_node_vdata()->size() == (uint)nodes);
+//       assert(multigraph.get_node_vdata()->size() == (uint)nodes);
        core.add_sync("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
        core.sync_now("sync");
@@ -174,14 +221,45 @@ int main(int argc,  char *argv[]) {
        multigraph.unload(1);
        } 
      }
-
   
-  std::cout << "finished in " << mytimer.current_time() << std::endl;
-  for (int i=0; i< 1000; i++)
+  std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
+  */
+
+#ifndef USE_GRAPH3
+  mytimer.start();
+  reference_graph->save(out_dir + "dummy.gz");
+  logstream(LOG_INFO)<<"Saving reference graph using oarchive in " << mytimer.current_time() << std::endl;
+#else
+  mytimer.start();
+  save_to_bin(out_dir+"dummy.gz", *reference_graph);
+  logstream(LOG_INFO)<<"Saving reference graph using save_to_bin in " << mytimer.current_time() << std::endl;
+#endif
+  
+return EXIT_SUCCESS;
+  for (int i=0; i< 50; i++)
      std::cout<<i<<": "<<edge_count[i]<<std::endl;
 
     write_output_vector_binary(out_dir + boost::lexical_cast<std::string>(reference) + "edge_count.bin", edge_count, reference_graph->num_edges());
-    return EXIT_SUCCESS;
+
+    uint * hist = histogram(edge_count, reference_graph->num_edges(), 29);
+
+    gzip_out_file fout(out_dir +  ".hist.gz");
+   boost::unordered_map<uint, std::string> nodeid2hash;
+   nodeid2hash.rehash(nodes);
+   save_map_to_file(nodeid2hash, out_dir + ".reverse.map");
+  
+   for (int i=0; i< reference_graph->num_vertices(); i++){
+#ifdef USE_GRAPH3
+     edge_list edges = reference_graph->out_edges(i);
+#else
+     graph_type::edge_list edges = reference_graph->out_edges(i);
+#endif
+      for (int j=0; j < edges.size(); j++){
+        if (edge_count[edges[j].offset()] == 28)
+          fout.get_sp() << nodeid2hash[edges[j].source()] << " " << nodeid2hash[edges[j].target()] << endl;     
+      }      
+   }
+   return EXIT_SUCCESS;
 }
 
 

@@ -175,23 +175,24 @@ enum iterator_type {INEDGE, OUTEDGE};
     uint * end_ptr;
     uint _size;
     uint source;
+    uint abs_offset;
     typedef edge_iterator iterator;
     typedef edge_iterator const_iterator;
     typedef edge_type value_type;
     iterator_type itype;
 
-    edge_list(): start_ptr(NULL), end_ptr(NULL), _size(0), source(-1) { }
-    edge_list(uint * _start_ptr, uint * _end_ptr, uint size, uint _source){
-      start_ptr = _start_ptr; end_ptr = _end_ptr;
+    edge_list(): start_ptr(NULL), end_ptr(NULL), _size(0), source(-1), abs_offset(0) { }
+    edge_list(uint * _start_ptr, uint * _end_ptr, uint size, uint _source, uint _abs_offset){
+      start_ptr = _start_ptr; end_ptr = _end_ptr; abs_offset = _abs_offset;
       _size = size; source = _source;
     }
     uint size() const { return _size; }
     edge_type operator[](uint i) const{
       ASSERT_LT(i, _size);
-      return edge_type(source, *(start_ptr+i), i);
+      return edge_type(source, *(start_ptr+i), abs_offset+i);
     }
-    edge_iterator begin() const { return edge_iterator(source, 0, itype, start_ptr); }
-    edge_iterator end() const { return edge_iterator(source, 0, itype, end_ptr); }
+    edge_iterator begin() const { return edge_iterator(source, 0, itype, start_ptr ); }
+    edge_iterator end() const { return edge_iterator(source, 0, itype, end_ptr ); }
      bool empty() const { return size() == 0; }
 
 
@@ -270,9 +271,9 @@ enum iterator_type {INEDGE, OUTEDGE};
     //graph3(const graph<VertexData, EdgeData>& g) { (*this) = g; }
 
     // METHODS =================================================================>
-
-
+    //
     uint * get_node_out_edges(){ return node_out_edges; }
+    uint * get_node_in_edges(){ return node_in_edges; }
     /**
      * \brief Resets the graph state.
      */
@@ -376,7 +377,7 @@ enum iterator_type {INEDGE, OUTEDGE};
      * fail if resizing down.
      */
     void resize(size_t num_vertices ) {
-      ASSERT_GE(num_vertices, num_nodes());
+     // ASSERT_GE(num_vertices, num_vertices);
        assert(false); //not implemented yet
       //TODO
     } // End of resize
@@ -386,10 +387,10 @@ enum iterator_type {INEDGE, OUTEDGE};
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
      */
-    edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
+    void add_edge(vertex_id_type source, vertex_id_type target, 
                           const EdgeData& edata = EdgeData()) {
        assert(false); //not implemented yet
-      return edge_id_type(source, target); //TODO
+      //return edge_id_type(source, target); //TODO
     } // End of add edge
         
     
@@ -443,24 +444,24 @@ enum iterator_type {INEDGE, OUTEDGE};
       ASSERT_LT(v, num_nodes);
       if (undirected)
          return out_edges(v);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v);  
+      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v]);  
     }
 
     edge_list_type out_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v);
+      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v, node_out_degrees[v]);
     }
 
     const edge_list_type in_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
       if (undirected)
         return out_edges(v);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v);  
+      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v]);  
      }
 
     const edge_list_type out_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v);
+      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v,node_out_degrees[v]);
      }
 
     const vertex_color_type& color(vertex_id_type vertex) const {

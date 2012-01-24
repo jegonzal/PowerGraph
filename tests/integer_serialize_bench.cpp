@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
   std::vector<b> testvecpod(testlen);  
   for (size_t i =0;i < testvecpod.size(); ++i) testvecpod[i].i = testvec[i].i;
   std::stringstream strm;
-  charstream chstream(0);
+  charstream chstream(1000000);
   
   {  
     ti.start();
@@ -100,7 +100,17 @@ int main(int argc, char** argv) {
     iarc >> testvec;
     std::cout << "Read from charstream at " << testlen * sizeof(a) / ti.current_time()/ (1024 * 1024) << " MBps" << std::endl;
   }
-  
+
+
+  { 
+    ti.start();
+    
+    iarchive iarc(chstream->c_str(), chstream->size());
+    iarc >> testvec;
+    std::cout << "Direct Read from buffer at " << testlen * sizeof(a) / ti.current_time()/ (1024 * 1024) << " MBps" << std::endl;
+  }
+
+
   {
     ti.start();
     oarchive oarc(strm);
