@@ -105,6 +105,9 @@ void kmeans_update_function(gl_types::iscope &scope,
      double dist = calc_distance(vdata.datapoint, row, ps.clusts.cluster_vec[i].sum_sqr, sum_sqr(vdata.datapoint));
      if (toprint)
         std::cout<<" distance: " << dist << std::endl;
+
+     if (fabs(dist) < 1e-8) //numerical floating point error may occuer below this accuracy
+       dist = 0;
      assert(dist >= 0 && !std::isnan(dist));
      if (ps.algorithm == K_MEANS_PLUS_PLUS || ps.algorithm == K_MEANS){
        if (min_dist > dist){

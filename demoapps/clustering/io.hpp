@@ -433,6 +433,10 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
      return;
   }
 
+
+  if (ac.init_clusters_from_file)
+    logstream(LOG_FATAL)<<"Loading cluster initialization from file is currently only support in matrix market format! " << std::endl;
+
   printf("Loading %s\n", filename);
   FILE * f = fopen(filename, "r");
   if(f== NULL){
