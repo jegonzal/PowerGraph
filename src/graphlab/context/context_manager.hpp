@@ -72,7 +72,7 @@ namespace graphlab {
  
     typedef typename context_type::cache_map_type cache_map_type;
     typedef typename context_type::cache_entry cache_entry_type;
-    typedef boost::is_base_of< idiffable<vertex_data_type>, vertex_data_type> is_diffable;
+    //    typedef boost::is_base_of< idiffable<vertex_data_type>, vertex_data_type> is_diffable;
     
   private:
     graph_type* graph_ptr;
@@ -153,14 +153,16 @@ namespace graphlab {
     
 
 
-    void flush_cache(size_t cpuid) {  flush_cache(cpuid, is_diffable()); }
+    void flush_cache(size_t cpuid) {  
+      //  flush_cache(cpuid, is_diffable()); 
+    }
 
-    //! Nothing to flush if it is not diffable
-    void flush_cache(size_t cpuid, const boost::false_type&) { 
-    } // end of flush_cache
+//     //! Nothing to flush if it is not diffable
+//     void flush_cache(size_t cpuid, const boost::false_type&) { 
+//     } // end of flush_cache
 
-    void flush_cache(size_t cpuid, const boost::true_type&) {
-    } // end of flush cache
+//     void flush_cache(size_t cpuid, const boost::true_type&) {
+//     } // end of flush cache
 
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid, 
@@ -365,21 +367,21 @@ namespace graphlab {
       // include the current vertex in the iteration
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curlocked && curv < inv  && curv < outv) {
-          acquire_writelock(cpuid, curv, true); // locks[curv].writelock();
+          acquire_writelock(cpuid, curv, true);
           curlocked = true;
           curv = numv;
         } else if (inv < outv) {
-          acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
+          acquire_readlock(cpuid, inv); 
           ++inidx;
           inv = (inedges.size() > inidx) ? 
             inedges[inidx].source() : numv;
         } else if (outv < inv) {
-          acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
+          acquire_readlock(cpuid, outv);
           ++outidx;
           outv = (outedges.size() > outidx) ? 
             outedges[outidx].target() : numv;
         } else if (inv == outv){
-          acquire_readlock(cpuid, inv); // locks[inv].readlock();
+          acquire_readlock(cpuid, inv); 
           ++inidx; ++outidx;
           inv = (inedges.size() > inidx) ? 
             inedges[inidx].source() : numv;
@@ -405,23 +407,42 @@ namespace graphlab {
         consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY :
         consistency_model::SINGLE_EDGE_READ_CONSISTENCY;
       context.init(center_vid, consistency);
-      vertex_id_type source = edge.source();
-      vertex_id_type target = edge.target();
+
+      const vertex_id_type source = edge.source();
+      const vertex_id_type target = edge.target();
       ASSERT_NE(source, target);
       ASSERT_TRUE(source == center_vid || target == center_vid);
-      if(source < target) std::swap(source, target);
-      if(source != center_vid && writable) {
-        acquire_writelock(cpuid, source); // locks[source].writelock(); 
-      } else { 
-        acquire_readlock(cpuid, source); // locks[source].readlock(); 
-      }
-      if(target != center_vid && writable) { 
-        acquire_writelock(cpuid, target); // locks[target].writelock();
-      } else { 
-        acquire_readlock(cpuid, target); // locks[target].readlock(); 
+      if(writable) {
+        if(source < target) {
+          if(source == center_vid) {
+            acquire_readlock(cpuid, source);
+            acquire_writelock(cpuid, target);
+          } else {
+            acquire_writelock(cpuid, source);
+            acquire_readlock(cpuid, target);
+          }
+        } else {
+          if(source == center_vid) {
+            acquire_writelock(cpuid, target);
+            acquire_readlock(cpuid, source);
+          } else {
+            acquire_readlock(cpuid, target);
+            acquire_writelock(cpuid, source);
+          }
+        }
+      } else {
+        if(source < target) {
+          acquire_readlock(cpuid, source);
+          acquire_readlock(cpuid, target);
+        } else {
+          acquire_readlock(cpuid, target);
+          acquire_readlock(cpuid, source);
+        }
       }
       return context;
     } // end of get single edge context
+    
+
     context_type& get_vertex_context(size_t cpuid, vertex_id_type v) {
       context_type& context = contexts[cpuid];      
       context.init(v, consistency_model::VERTEX_CONSISTENCY);
