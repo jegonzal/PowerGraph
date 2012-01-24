@@ -440,10 +440,14 @@ namespace graphlab {
     size_t estimate_sizeof() const {
       size_t vlist_size = sizeof(vertices) + sizeof(VertexData) * vertices.capacity();
       size_t vcolor_size = sizeof(vcolors) + sizeof(vertex_color_type) * vcolors.capacity();
-      size_t elist_size = edges_tmp.estimate_sizeof(); 
+      size_t elist_size = edges_tmp.estimate_sizeof();
       size_t store_size = gstore.estimate_sizeof();
 
-//      printf("graph2: tmplist size: %u, gstoreage size: %u \n", elist_size, store_size);
+      std::cout << "graph2: tmplist size: " << (double)elist_size/(1024*1024) 
+        << "  gstoreage size: " << (double)store_size/(1024*1024)
+        << "  vdata list size: " << (double)vlist_size/(1024*1024)
+        << "  vcolor list size: " << (double)vcolor_size/(1024*1024)
+        << std::endl;
       return store_size + vlist_size + vcolor_size + elist_size;
     }
 
@@ -455,6 +459,7 @@ namespace graphlab {
           >> vcolors
           >> gstore
           >> finalized;
+//      estimate_sizeof();
     } // end of load
 
     /** \brief Save the graph to an archive */

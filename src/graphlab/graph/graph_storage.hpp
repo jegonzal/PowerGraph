@@ -97,7 +97,7 @@ namespace graphlab {
         size_t size() const {
           return source_arr.size();
         }
-        size_t estimate_size_of() const {
+        size_t estimate_sizeof() const {
           return data.capacity()*sizeof(EdgeData) + source_arr.capacity()*sizeof(vertex_id_type)*2 + sizeof(data) + sizeof(source_arr)*2 + sizeof(edge_info);
         }
     }; // end of class edge_info.
@@ -687,6 +687,7 @@ namespace graphlab {
       const size_t CSC_size = word_size *CSC_dst.capacity() + 
         vid_size * CSC_src.capacity() + eid_size * c2r_map.capacity();
       const size_t edata_size = sizeof(EdgeData) * edge_data_list.capacity();
+
       // Container size;
       const size_t container_size = sizeof(CSR_src) + sizeof(CSR_dst) + 
         sizeof(CSC_src) + sizeof(CSC_dst) + sizeof(c2r_map) + 
@@ -695,6 +696,20 @@ namespace graphlab {
       const size_t skip_list_size = sizeof(CSR_src_skip) + 
         sizeof(CSC_dst_skip) + CSR_src_skip.capacity() * vid_size + 
         CSC_dst_skip.capacity() * vid_size;
+
+      std::cout << "CSR size: " 
+                << (double)CSR_size/(1024*1024)
+                << " CSC size: " 
+                << (double)CSC_size/(1024*1024) 
+                << " edata size: "
+                << (double)edata_size/(1024*1024)
+                << " skiplist size: " 
+                << (double)(skip_list_size)/(1024*1024)
+                << " container size: " 
+                << (double)container_size/(1024*1024) 
+                << " \n Total size: " 
+                << double(CSR_size + CSC_size + container_size + skip_list_size) << std::endl;
+
       return CSR_size + CSC_size + edata_size + container_size + 
         skip_list_size;
     } // end of estimate_sizeof
