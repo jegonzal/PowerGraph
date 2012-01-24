@@ -50,6 +50,8 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("svd_orthogonolize", &svd_orthogonolize, svd_orthogonolize, "perform orthogonalization in SVD");
   clopts.attach_option("fuzzy_exponent", &fuzzy_exponent, fuzzy_exponent, "Fuzzy K-means exponent (between 1.01 -> 2)");
   clopts.attach_option("fuzzy_scatter", &fuzzy_scatter, fuzzy_scatter, "Fuzzy K-means random initialization variance (between 0.01 -> 2)");
+  clopts.attach_option("init_clusters_from_file", &init_clusters_from_file, init_clusters_from_file, "K-MEANS: Init cluster heads from file");
+  clopts.attach_option("N", &N, N, "feature width size (number of matrix columns");
 }
 
 void problem_setup::verify_setup(){
@@ -154,4 +156,10 @@ void problem_setup::verify_setup(){
     }
   }
 
+
+  if (ac.init_clusters_from_file && ac.algorithm == K_MEANS){
+    ps.init_type = INIT_FROM_FILE;
+    assert(ac.N > 0);
+    ps.N = ac.N;
+  }
 }

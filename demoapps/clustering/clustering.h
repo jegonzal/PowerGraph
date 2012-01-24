@@ -149,7 +149,8 @@ enum initizliation_type{
    INIT_RANDOM = 0,
    INIT_ROUND_ROBIN = 1,
    INIT_KMEANS_PLUS_PLUS = 2,
-   INIT_RANDOM_CLUSTER = 3
+   INIT_RANDOM_CLUSTER = 3,
+   INIT_FROM_FILE = 4
 };
 
 

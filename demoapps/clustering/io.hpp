@@ -34,6 +34,10 @@ extern advanced_config config;
 extern problem_setup ps;
 extern const char * inittypenames[];
 void init();
+void load_matrix_market_assignments(const std::string & filename, graph_type * _g);
+void load_matrix_market_assignments(const std::string & filename, graph_type_kcores * _g);
+void load_matrix_market_clusters(const std::string & filename, graph_type * _g);
+void load_matrix_market_clusters(const std::string & filename, graph_type_kcores * _g);
 
 template<typename edgedata>
 int read_edges(FILE * f, int nodes, graph_type * _g);
@@ -363,6 +367,9 @@ void add_vertices(graph_type * _g, testtype type){
        case INIT_RANDOM_CLUSTER:
 	 vdata.current_cluster = -1;
 	 break;
+
+       case INIT_FROM_FILE:
+         break;
     }
 
     set_size(vdata.datapoint, i < ps.M ? ps.N : ps.M);
@@ -414,9 +421,16 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
 
 
   if (ac.matrixmarket){
-      printf("Loading Matrix Market file %s\n", filename);
+      
+      if (ac.init_clusters_from_file && ac.algorithm == K_MEANS){
+         logstream(LOG_INFO) << "Loading initial assignments from file " << filename << ".assign" << std::endl;
+         load_matrix_market_assignments(std::string(filename)+".assign", _g);
+         logstream(LOG_INFO) << "Loading cluster heads from file " << filename << ".init" << std::endl;
+         load_matrix_market_clusters(std::string(filename)+".init", _g);
+      }
+      logstream(LOG_INFO) << "Loading Matrix Market file " << filename << std::endl;
       load_matrix_market(filename, _g, type);
-      return;
+     return;
   }
 
   printf("Loading %s\n", filename);

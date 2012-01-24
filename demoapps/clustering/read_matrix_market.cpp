@@ -98,10 +98,15 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
     int I,J; 
     double val;
     int step = nz/10;
+    if (step == 0)
+      step = nz - 1;
 
     for (i=0; i<nz; i++)
     {
-        fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        if (rc != 3)
+          logstream(LOG_FATAL) << "Failed to read matrix market file " << filename << " line: " << i << std::endl;
+  
         //printf("Found row %d %d %g\n", I, J, val);        
         I--;  /* adjust from 1-based to 0-based */
         J--;
@@ -125,8 +130,137 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
     }
     ps.L = nz;
     fclose(f);
-
 }
+
+void load_matrix_market_clusters(const std::string & filename, graph_type_kcores *_g){
+  assert(false);
+}
+void load_matrix_market_clusters(const std::string & filename, graph_type *_g)
+{
+    assert(ac.algorithm == K_MEANS);
+    int ret_code;
+    MM_typecode matcode;
+    int M, N, nz;   
+    int i;
+
+    FILE * f = open_file(filename.c_str() , "r");
+
+    if (mm_read_banner(f, &matcode) != 0)
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
+
+    if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
+            mm_is_sparse(matcode) )
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+          "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
+
+    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+
+
+    int I,J; 
+    double val;
+    int step=nz/10;
+  
+    if (mm_is_sparse(matcode)){
+    for (i=0; i<nz; i++)
+    {
+        int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        if (rc != 3)
+          logstream(LOG_FATAL) << "Failed to read matrix market file " << filename << " line: " << i << std::endl;
+        //printf("%d) Found row %d %d %g\n", i, I, J, val);        
+        I--;  /* adjust from 1-based to 0-based */
+        J--;
+        
+        assert(I>=0 && I< ac.K);
+        assert(J >=0 && J< N);
+        set_val(ps.clusts.cluster_vec[I].location, J, val);
+
+        if (i % step == 0)
+          logstream(LOG_INFO) << "Matrix market read " << i << " edges" << std::endl;
+     }
+     }
+     else {
+	for (I=0; I<M; I++){
+           for (J=0; J< N; J++){
+              int rc = fscanf(f, "%lg", &val);
+              if (rc != 1)
+                 logstream(LOG_FATAL) << " Failed to read matrix market file: " << filename << " on line: " << I << " column: " << J << std::endl;
+              set_val(ps.clusts.cluster_vec[I].location, J, val);
+           }
+        }
+      }
+    
+    
+    fclose(f);
+}
+void load_matrix_market_assignments(const std::string & filename, graph_type_kcores *_g){
+   assert(false);
+}
+void load_matrix_market_assignments(const std::string & filename, graph_type *_g)
+{
+    assert(ac.algorithm == K_MEANS);
+    int ret_code;
+    MM_typecode matcode;
+    int M, N, nz;   
+    int i;
+
+    FILE * f = open_file(filename.c_str() , "r");
+
+    if (mm_read_banner(f, &matcode) != 0)
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
+
+    if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
+            mm_is_sparse(matcode) )
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+          "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
+
+    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+
+
+    int I,J; 
+    double val;
+    int step=nz/10;
+    if (step == 0)
+      step = nz - 1;
+    ps.M = nz;
+    assert(ps.N > 0);
+
+    if (_g->num_vertices() == 0){
+      init();
+      add_vertices(_g, TRAINING); 
+    }
+
+
+    for (i=0; i<nz; i++)
+    {
+	if (mm_is_sparse(matcode)){
+          int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+          if (rc != 3)
+            logstream(LOG_FATAL) << "Failed to read matrix market file " << filename << " line: " << i << std::endl;
+	  I--;  /* adjust from 1-based to 0-based */
+          J--;
+        
+          assert(I>=0 && I< nz);
+          assert(J == 0);
+          assert(val >= 0 && val < ac.K);
+	  _g->vertex_data(i).current_cluster = val;
+        }
+        else {
+          int rc = fscanf(f, "%lg\n", &val);
+          if (rc != 1)
+            logstream(LOG_FATAL) << "Failed to read matrix market file: " << filename << " line: " << i << std::endl;
+          _g->vertex_data(i).current_cluster = val; 
+        }
+        if (i % step == 0)
+          logstream(LOG_INFO) << "Matrix market read " << i << " edges" << std::endl;
+     }
+    
+    fclose(f);
+}
+
+
+
 
 
 void load_matrix_market(const char * filename, graph_type *_g, testtype type)
@@ -184,8 +318,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
       return;
 
 
-    init();
-    add_vertices(_g, type); 
+    if (_g->num_vertices() == 0){
+      init();
+      add_vertices(_g, type); 
+    }
 
     /* reseve memory for matrices */
 
@@ -199,7 +335,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 
     for (i=0; i<nz; i++)
     {
-        fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        if (rc != 3)
+	  logstream(LOG_FATAL)<<"Failed to read matrix market file: " << filename << " on line: " << i << std::endl;
+
         //printf("%d) Found row %d %d %g\n", i, I, J, val);        
         I--;  /* adjust from 1-based to 0-based */
         J--;

@@ -55,7 +55,7 @@ advanced_config ac;
 problem_setup ps;
 
 const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn", "SVD-EXPERIMENTAL"};
-const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER"};
+const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER", "INIT_FROM_FILE"};
 const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_ACCUM_BETA", "LDA_LIKELIHOOD", "LDA_NORMALIZE", "SVD_MULT_A", "SVD_MULT_A_TRANPOSE", "CALC_RMSE_Q"};
 const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
 

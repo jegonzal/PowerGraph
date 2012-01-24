@@ -39,11 +39,13 @@ public:
   bool zero;//allow zero entries in matrix?
   bool square;//is matrix square?
   int D; //width of factor matrices
-
+  int M; //number of rows in bipartite graph
+  int N; //number of columns in bipartite graph
   /* clustering related fields */
   int K; //number of clusters 
   bool clusterdump; //dump cluster locations into a text file
   bool tfidf; //deploy tf-idf transformation on matrix values
+  bool init_clusters_from_file;
 
   int unittest; //if not 0, runs unit testing
 
@@ -155,6 +157,8 @@ bool reduce_mem_consumption;
 advanced_config(){
     D = 20;
     K = 0;
+    M = 0;
+    N = 0;
     debug = true;
     threshold = 1e-10;
     syncinterval = 10000;
@@ -231,6 +235,7 @@ advanced_config(){
    distance_measure = 0;
    clusterdump = false;
    tfidf = false;
+   init_clusters_from_file = false;
 
    oldformat = false;
    
