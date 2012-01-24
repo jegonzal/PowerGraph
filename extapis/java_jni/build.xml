@@ -59,12 +59,12 @@
       <jar jarfile="${dist}/lib/graphlabjni-${DSTAMP}.jar" basedir="${bin}"/>
     </target>
 
-   <target name="javadoc" depends="build" description="Create Javadoc API documentation">
+    <target name="javadoc" depends="build" description="Create Javadoc API documentation">
       <mkdir dir="${dist}/docs/api"/>
       <javadoc sourcepath="${src}" destdir="${dist}/docs/api" packagenames="*">
         <classpath refid="GraphLab.classpath"/>
       </javadoc>
-      </target>
+    </target>
     
     <target name="ShortestPath">
         <java classname="org.graphlab.demo.ShortestPath" failonerror="true" fork="yes">
@@ -76,6 +76,14 @@
     
     <target name="Coloring">
         <java classname="org.graphlab.demo.Coloring" failonerror="true" fork="yes">
+            <jvmarg line="-Djava.library.path=${lib}"/>
+            <arg line="${input}/toy.tsv"/>
+            <classpath refid="run.Coloring.classpath"/>
+        </java>
+    </target>
+    
+    <target name="PageRank">
+        <java classname="org.graphlab.demo.PageRank" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
             <arg line="${input}/toy.tsv"/>
             <classpath refid="run.Coloring.classpath"/>

@@ -134,7 +134,7 @@ public class PageRank {
   private static void printResults (SparseGraph<ScalarVertex, ScalarEdge> g){
       
     logger.info("----------------- Results -----------------");
-    logger.info("ID : Color");
+    logger.info("ID : Rank");
     for (ScalarVertex v : g.vertices()){
       logger.info(v.id() + " : " + (int) v.value());
     }
