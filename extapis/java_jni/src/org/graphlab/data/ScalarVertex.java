@@ -10,7 +10,7 @@ package org.graphlab.data;
 public class ScalarVertex implements Vertex {
 
 	/** Value associated with the vertex */
-	private float mValue;
+	private double mValue;
 
 	/** Weight of a possible self-edge */
 	private float mSelfEdgeWeight = 0.0f;
@@ -33,7 +33,7 @@ public class ScalarVertex implements Vertex {
 	 * 
 	 * @return the value associated with the vertex
 	 */
-	public float value() {
+	public double value() {
 		return mValue;
 	}
 
@@ -43,7 +43,7 @@ public class ScalarVertex implements Vertex {
 	 * @param value
 	 *            the new vertex value
 	 */
-	public void setValue(float value) {
+	public void setValue(double value) {
 		mValue = value;
 	}
 

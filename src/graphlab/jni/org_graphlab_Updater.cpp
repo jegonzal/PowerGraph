@@ -30,6 +30,7 @@ using namespace graphlab;
 
 jmethodID proxy_updater::java_exec_update = 0;
 jmethodID proxy_updater::java_add = 0;
+jmethodID proxy_updater::java_priority= 0;
 
 void proxy_updater::init(JNIEnv *env){
 
