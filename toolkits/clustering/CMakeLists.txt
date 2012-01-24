@@ -6,7 +6,7 @@ add_graphlab_executable(oldkcores_async oldkcores_async.cpp ../shared/mmio.cpp)
 add_graphlab_executable(kcores_async kcores_async.cpp ../shared/mmio.cpp)
 add_graphlab_executable(kcores_mult kcores_mult.cpp ../shared/mmio.cpp)
 add_graphlab_executable(kcores_mult2 kcores_mult2.cpp ../shared/mmio.cpp)
-add_graphlab_executable(kcores_cmp kcores_mult_compare.cpp ../shared/mmio.cpp)
+#add_graphlab_executable(kcores_cmp kcores_mult_compare.cpp ../shared/mmio.cpp)
 add_graphlab_executable(find_28_edges find_28_edges.cpp)
  link_libraries(boost_date_time)
 add_graphlab_executable(28_edges_from_map 28_edges_from_map.cpp
