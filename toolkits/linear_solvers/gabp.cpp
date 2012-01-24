@@ -202,12 +202,12 @@ struct gabp_update :
 
 
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, gabp_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, gabp_update, aggregator> {
 private:
   real_type real_norm, relative_norm;
 public:
-  accumulator() : 
+  aggregator() : 
     real_norm(0), 
     relative_norm(0) { }
   void operator()(icontext_type& context) {
@@ -217,7 +217,7 @@ public:
     if (debug)
 	std::cout << "Real_norm: " << real_norm << "relative norm: " <<relative_norm << std::endl;
   }
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
     real_norm += other.real_norm; 
     relative_norm += other.relative_norm;
   }
@@ -232,7 +232,7 @@ public:
     if(relative_norm < threshold) 
       context.terminate();
   }
-}; // end of  accumulator
+}; // end of  aggregator
 
 
 
@@ -324,8 +324,8 @@ int main(int argc,  char *argv[]) {
   }
    
 
-  accumulator acum;
-  core.add_sync("sync", acum, sync_interval);
+  aggregator acum;
+  core.add_aggregator("sync", acum, sync_interval);
   core.add_global("REAL_NORM", double(0));
   core.add_global("RELATIVE_NORM", double(0));
   core.add_global("THRESHOLD", threshold); 

@@ -131,13 +131,13 @@ struct kcore_update :
 
 };
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, kcore_update, aggregator> {
 private:
   int num_active;
   int links;
 public:
-  accumulator() : num_active(0), links(0) { }
+  aggregator() : num_active(0), links(0) { }
 
   void operator()(icontext_type& context) {
     vertex_data & vdata = context.vertex_data();
@@ -154,7 +154,7 @@ public:
     num_active++;
   };
 
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
     num_active += other.num_active;
     links += other.links;
   }
@@ -171,7 +171,7 @@ public:
      max_iter = iiter;
    }
  }
-}; // end of  accumulator
+}; // end of  aggregator
 
 
 
@@ -276,8 +276,8 @@ int main(int argc,  char *argv[]) {
   //std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(kcore_update());
  
-  accumulator acum;
-  core.add_sync("sync", acum, 1000000000);
+  aggregator acum;
+  core.add_aggregator("sync", acum, 1000000000);
   core.add_global("NUM_ACTIVE", int(0));
 
   graphlab::timer mytimer; mytimer.start();
@@ -286,7 +286,7 @@ int main(int argc,  char *argv[]) {
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << std::endl;
       core.schedule_all(kcore_update());
       core.start();
-      core.sync_now("sync");
+      core.aggregate_now("sync");
       if (active_nodes_num[iiter] == 0)
 	break;
   }

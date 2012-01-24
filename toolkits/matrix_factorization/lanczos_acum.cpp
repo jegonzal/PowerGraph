@@ -293,7 +293,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       //printf("\n");
       //glcore.schedule_all(lanczos_update());
       //glcore.start();
-      glcore.sync_now("sync");
+      glcore.aggregate_now("sync");
       double sum = 0;
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
         sum += pow(g->vertex_data(i).value,2);
@@ -307,13 +307,14 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 }
 
 
-void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_graph_descriptor & info){
+void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
+             bipartite_graph_descriptor & info){
    
 
    glcore.set_global("m", max_iter);
    init_lanczos(&glcore.graph(), info);
    lanczos_update lupdate;
-   glcore.add_sync("sync", lupdate, 1000);
+   glcore.add_aggregator("sync", lupdate, 1000);
    
    //for j=2:m+2
    for (int j=1; j<= max_iter+1; j++){
@@ -323,7 +324,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
         glcore.set_global("offset2",j);
         //glcore.schedule_all(lanczos_update());
 	//glcore.start();
-        glcore.sync_now("sync");
+        glcore.aggregate_now("sync");
 
         if (debug){
           print_w(true,&glcore.graph());

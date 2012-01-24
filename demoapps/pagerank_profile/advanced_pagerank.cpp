@@ -189,7 +189,7 @@ private:
 
 
 class accumulator :
-  public graphlab::iaccumulator<graph_type, pagerank_update, accumulator> {
+  public graphlab::iaggregator<graph_type, pagerank_update, accumulator> {
     private:
       double l1;
       size_t nupdates;
@@ -329,7 +329,7 @@ int main(int argc, char** argv) {
     accumulator  initial_accum;
     size_t sync_interval = 100;
     std::cout << "Set up sync operation" << std::endl;
-    core.add_sync("sync", initial_accum, sync_interval);
+    core.add_aggregator("sync", initial_accum, sync_interval);
     core.add_global("L1", double(0));
   } else {
     std::cout << "NO sync operation set" << std::endl;

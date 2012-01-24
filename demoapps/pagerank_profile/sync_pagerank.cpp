@@ -149,13 +149,13 @@ public:
 
 
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, pagerank_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, pagerank_update, aggregator> {
     private:
       double l1;
       size_t nupdates;
     public:
-      accumulator() : l1(0), nupdates(0) { }
+      aggregator() : l1(0), nupdates(0) { }
       void operator()(icontext_type& context) {
         graph_type::vertex_id_type vid = context.vertex_id();
         vertex_data vdata = context.vertex_data();
@@ -163,7 +163,7 @@ class accumulator :
         nupdates += vdata.nupdates;
       }
 
-      void operator+=(const accumulator& other) {
+      void operator+=(const aggregator& other) {
         l1 += other.l1;
         nupdates += other.nupdates;
       }
@@ -278,10 +278,10 @@ int main(int argc, char** argv) {
 
   // Setup sync operation.
   if (!TRUERANK.empty()) {
-    accumulator  initial_accum;
+    aggregator  initial_accum;
     size_t sync_interval = 1000;
     std::cout << "Set up sync operation" << std::endl;
-    core.add_sync("sync", initial_accum, sync_interval);
+    core.add_aggregator("sync", initial_accum, sync_interval);
     core.add_global("L1", double(0));
   } else {
     std::cout << "NO sync operation set" << std::endl;

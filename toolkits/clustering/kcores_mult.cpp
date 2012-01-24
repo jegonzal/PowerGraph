@@ -106,13 +106,13 @@ struct kcore_update :
   } 
 };
 
-class accumulator :
-  public graphlab::iaccumulator<graph_type, kcore_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, kcore_update, aggregator> {
 private:
   int num_active;
   int links;
 public:
-  accumulator() : num_active(0), links(0) { }
+  aggregator() : num_active(0), links(0) { }
 
   void operator()(icontext_type& context) {
    
@@ -153,7 +153,7 @@ public:
       num_active++;
   };
 
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
     num_active += other.num_active;
     links += other.links;
   }
@@ -170,7 +170,7 @@ public:
      max_iter = iiter;
    }
  }
-}; // end of  accumulator
+}; // end of  aggregator
 
 
 
@@ -278,12 +278,12 @@ int main(int argc,  char *argv[]) {
       int prev_nodes = active_nodes_num[iiter];
 
       for (int i=0; i< multigraph.num_graphs(); i++){
-       accumulator acum;
+       aggregator acum;
        multigraph.doload(i);
        core.graph() = *multigraph.graph(0);
-       core.add_sync("sync", acum, 1000);
+       core.add_aggregator("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
-       core.sync_now("sync");
+       core.aggregate_now("sync");
        multigraph.unload_all(); 
      }
 
