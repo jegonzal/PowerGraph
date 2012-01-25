@@ -1,15 +1,9 @@
 project(tests)
 
-
-
-link_libraries(${Boost_LIBRARIES})
-link_libraries(${GraphLab_LIBRARIES})
-include_directories( . )
-
+subdirs(data)
 
 ADD_CXXTEST(graph_test.cxx)
 ADD_CXXTEST(graph2_test.cxx)
-ADD_CXXTEST(sharedsum_test.cxx)
 
 
 
