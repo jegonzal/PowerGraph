@@ -7,7 +7,7 @@
 #include <vector>
 #include <map>
 
-#include <graphlab/shared_data/sharedsum.hpp>
+
 #include <graphlab.hpp>
 
 
