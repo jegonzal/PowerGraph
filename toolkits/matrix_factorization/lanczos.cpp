@@ -307,7 +307,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 }
 
 
-void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_graph_descriptor & info, timer & mytimer){
+vec lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_graph_descriptor & info, timer & mytimer){
    
 
    glcore.set_global("m", max_iter);
@@ -381,9 +381,8 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
  mat U=Vectors*eigenvectors;
  if (debug)
    cout<<"Eigen vectors are:" << U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
- mat V=zeros(eigenvalues.size(),1);
- set_col(V,0,eigenvalues); 
 
+  return eigenvalues;
 }
 
 int main(int argc,  char *argv[]) {
@@ -457,7 +456,7 @@ int main(int argc,  char *argv[]) {
   core.add_global("m", int(0));
 
   timer mytimer; mytimer.start(); 
-  lanczos(core, info, mytimer);
+  vec eigenvalues = lanczos(core, info, mytimer);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
@@ -469,6 +468,17 @@ int main(int argc,  char *argv[]) {
 
 
   if (unittest == 1){
+    /*eigenvalue 0 val: 4.14038
+ * eigenvalue 1 val: 1.35478
+ * eigenvalue 2 val: 0.897358
+ * eigenvalue 3 val: 0.796486
+ * eigenvalue 4 val: 0.0676045
+ */ 
+    assert(pow(eigenvalues[0]-pow(4.14038,2),2)<1e-8);
+    assert(pow(eigenvalues[1]-pow(1.35478,2),2)<1e-8);
+    assert(pow(eigenvalues[2]-pow(0.897358,2),2)<1e-8);
+    assert(pow(eigenvalues[3]-pow(0.796486,2),2)<1e-8);
+    assert(pow(eigenvalues[4]-pow(0.0676045,2),2)<1e-8);
   }
 
    return EXIT_SUCCESS;
