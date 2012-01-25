@@ -100,6 +100,19 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
     data->pvec = zeros(m+3);
   }
 }
+void print_v(bool rows, int offset, graph_type * g){
+
+  int start= info.get_start_node(rows);;
+  int end = info.get_end_node(rows);;
+  vec v = zeros(end-start);
+  for (int i=start; i< end; i++){ 
+    vertex_data * data = &g->vertex_data(i);
+    v[i - start] = data->pvec[offset];
+  }
+  cout<<"v is: " << mid(v,0,20) << endl;
+  if (end - start > 40)
+    cout<<"v end is: " << mid(v, v.size()-20, 20) << endl;
+}
 
 /***
  * UPDATE FUNCTION (ROWS)
@@ -167,7 +180,7 @@ struct lanczos_update :
    user.value -= lancbeta[offset2] * user.pvec[offset3];
 
   if (debug && info.toprint(id)){
-    printf("Axb: computed value  %d %g beta: %g v %g (%g)\n",  id, 
+    printf("Lanczos COLS computed value  id:%d val:%g beta: %g v %g (%g)\n",  id, 
         user.value,lancbeta[offset2],  user.pvec[offset3], lancbeta[offset2]*user.pvec[offset3]);   
   }
 
@@ -213,24 +226,25 @@ void orthogolonize_vs_all(int curoffset, graph_type *g){
   }
 }
 
-
-double w_lancalphaV(int j, graph_type * g){
-  
+double w_norm_2(bool rows, graph_type * g){
   double norm = 0;
+  for (int i=info.get_start_node(rows); i< info.get_end_node(rows); i++){ 
+    vertex_data * data = &g->vertex_data(i);
+    norm += data->value*data->value;
+  }
+  return sqrt(norm);
+}
+
+
+
+void w_minus_lancalphaV(int j, graph_type * g){
+  
   if (debug)
 	cout << "w: " ;
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->value -= lancalpha[j]*data->pvec[j];
-    if (debug && i-info.get_start_node(false)<20)
-	cout<<data->value<<" ";
-    norm += data->value*data->value;
   }
-  if (debug){
-	cout<<endl;
-        cout<<"Beta: " << sqrt(norm) << endl;
-  }
-  return sqrt(norm);
 }
 
 void update_V(int j, graph_type * g){
@@ -252,7 +266,7 @@ void update_V(int j, graph_type * g){
 
 mat calc_V(graph_type * g){
 
-  mat V = zeros(info.num_nodes(true), max_iter+1);
+  mat V = zeros(info.num_nodes(false), max_iter+1);
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     set_row(V, i-info.get_start_node(false), mid(data->pvec, 1, max_iter+1));
@@ -278,23 +292,31 @@ void print_w(bool rows, graph_type * g){
 
 
 void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_type * g, graphlab::core<graph_type, lanczos_update> & glcore){
+
+
+  if (debug)
+   cout<<"Eigenvectors (in resid: ) " << eigenvectors << endl;
  
   for (int j=1; j< max_iter; j++){
       glcore.set_global("offset", j);
       glcore.set_global("offset3", j);
-      lancbeta[j] = eigenvalues[eigenvalues.size() - j];
+      glcore.set_global("offset2",j);
+      lancbeta[j] = eigenvalues[j-1];
       if (debug)
           printf("Residual eigenvalue %d is: %g\n", j, eigenvalues[j-1]);
-      glcore.set_global("offset2",j);
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
-         g->vertex_data(i).pvec[j] = get_val( eigenvectors, i - info.get_start_node(false), j-1);
+         g->vertex_data(i).pvec[j] = get_val( eigenvectors, i-info.get_start_node(false), eigenvectors.cols() - j);
          //printf("%g ", g->vertex_data(i).pvec[j]);
       }  
       //printf("\n");
       //glcore.schedule_all(lanczos_update());
       //glcore.start();
-      glcore.aggregate_now("sync");
-      double sum = 0;
+      cout<<"Residual for eigenvalue " << j << endl;
+      print_v(false, j ,&glcore.graph());
+     glcore.aggregate_now("sync");
+      print_w(true, &glcore.graph());
+      print_w(false, &glcore.graph());
+       double sum = 0;
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
         sum += pow(g->vertex_data(i).value,2);
 
@@ -308,7 +330,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 
 
 void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
-             bipartite_graph_descriptor & info){
+             bipartite_graph_descriptor & info, timer & mytimer){
    
 
    glcore.set_global("m", max_iter);
@@ -322,8 +344,6 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
         glcore.set_global("offset", j);
         glcore.set_global("offset3", j-1);
         glcore.set_global("offset2",j);
-        //glcore.schedule_all(lanczos_update());
-	//glcore.start();
         glcore.aggregate_now("sync");
 
         if (debug){
@@ -334,16 +354,21 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
         //lancalpha(j) = w'*V(:,j);
         //w =  w - lancalpha(j)*V(:,j);
 	lancalpha[j] = wTV(j, &glcore.graph());
-
-                //lancbeta(j+1)=norm(w,2);
-        lancbeta[j+1] = w_lancalphaV(j, &glcore.graph());
-	orthogolonize_vs_all(j+1,&glcore.graph());
+        w_minus_lancalphaV(j, &glcore.graph());
+        orthogolonize_vs_all(j+1,&glcore.graph());
+    
         if (debug)
           print_w(false,&glcore.graph());
 
+        //lancbeta(j+1)=norm(w,2);
+        lancbeta[j+1] = w_norm_2(false, &glcore.graph());
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(j+1, &glcore.graph()); 
+        logstream(LOG_INFO) << "Finished iteration " << j << " in time: " << mytimer.current_time() << std::endl;
+
+
+
 
    } 
   /* 
@@ -375,7 +400,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
  assert(::eig_sym(T, eigenvalues, eigenvectors));
  cout << "Here are the computed eigenvalues, from larger to smaller" << endl;
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
+	cout<<"eigenvalue " << i << " val: " << sqrt(eigenvalues[i]) << endl;
 
 
 
@@ -435,7 +460,7 @@ int main(int argc,  char *argv[]) {
   core.set_scope_type("vertex");
   //unit testing
   if (unittest == 1){
-    datafile = "lanczos";
+    datafile = "lanczos2";
   }
 
   std::cout << "Load matrix " << datafile << std::endl;
@@ -459,7 +484,7 @@ int main(int argc,  char *argv[]) {
   core.add_global("m", int(0));
 
   timer mytimer; mytimer.start(); 
-  lanczos(core, info);
+  lanczos(core, info, mytimer);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
