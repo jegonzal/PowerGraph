@@ -1,5 +1,6 @@
 project(tests)
 
+subdirs(data)
 
 
 link_libraries(${Boost_LIBRARIES})
