@@ -471,6 +471,9 @@ macro(ADD_CXXTEST NAME)
       )
   endif(PYTHONINTERP_FOUND)
   add_graphlab_executable(${NAME}test ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp)
+  set_source_files_properties( ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp
+                    PROPERTIES COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}" )
+
   add_test(${NAME} ${NAME}test)
 endmacro(ADD_CXXTEST)
 
