@@ -103,7 +103,7 @@ int main(int argc,  char *argv[]) {
       logstream(LOG_WARNING) << "Found a problem, hash string of size " << hashstr.size() << " string is: " << hashstr << " id is: " << i->second << endl;
     }
     else {
-    if (i->second < 0 && i->second >= nodes)
+    if (i->second < 0 && i->second >= (uint)nodes)
        logstream(LOG_FATAL) << " Found a problem, hash string " << hashstr << " has value: " << i->second << endl;
     if (i->second < minval)
       minval = i->second;
