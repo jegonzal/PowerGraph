@@ -28,7 +28,7 @@
 #include <graphlab/graph/graph_partitioner.hpp>
 #include <graphlab/graph/disk_graph.hpp>
 #include <graphlab/graph/graph2.hpp>
-
+#include <graphlab/graph/distributed_graph.hpp>
 
 
 
