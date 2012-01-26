@@ -195,7 +195,9 @@ namespace graphlab {
   public:
 
     // CONSTRUCTORS ==========================================================>
-    distributed_graph(distributed_control& dc) : rpc(dc, this) { }
+    distributed_graph(distributed_control& dc) : rpc(dc, this) {
+      rpc.barrier();
+    }
 
 
 
@@ -269,7 +271,11 @@ namespace graphlab {
 
   template<typename VertexData, typename EdgeData>
   void distributed_graph<VertexData, EdgeData>::finalize()  {   
-    // TODO: implement
+    // TODO: implement  
+    rpc.full_barrier();
+    std::cout << rpc.procid() 
+              << ": nverts = " << num_local_vertices() 
+              << ", nedges = " << num_local_edges() << std::endl;
   } // End of finalize
   
   
@@ -283,9 +289,9 @@ namespace graphlab {
       tmp_vdata[vid] = vdata;
       tmp_vdata_lock.unlock();
     } else {
-      rpc.fast_remote_call(vertex_to_init_proc(vid),
-                           &distributed_graph::add_vertex,
-                           vid, vdata);
+      rpc.remote_call(vertex_to_init_proc(vid),
+                      &distributed_graph::add_vertex,
+                      vid, vdata);
     }
   } // End of add vertex;
   
@@ -309,15 +315,15 @@ namespace graphlab {
       vid2record_lock.unlock();
       // Add the record to the local graph
       local_graph_lock.lock();
-      const vertex_id_type max_lvid = max(source_rec.lvid, target_rec.lvid);
+      const vertex_id_type max_lvid = std::max(source_rec.lvid, target_rec.lvid);
       if(max_lvid >= local_graph.num_vertices()) 
         local_graph.resize(max_lvid + 1);
       local_graph.add_edge(source_rec.lvid, target_rec.lvid, edata);
       local_graph_lock.unlock();
-    } else {
-      rpc.fast_remote_call(edge_to_proc(source, target),
-                           &distributed_graph::add_edge,
-                           source, target, edata);
+    } else {      
+      rpc.remote_call(edge_to_proc(source, target),
+                      &distributed_graph::add_edge,
+                      source, target, edata);
     }
   } // End of add edge
 
