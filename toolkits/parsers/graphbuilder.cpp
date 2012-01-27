@@ -33,6 +33,7 @@
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/unordered_map.hpp>
 #define AVOID_PARALLEL_SORT 1
+#define GRAPH2_NO_EDGE
 #include <graphlab/graph/graph2.hpp>
 #include <graphlab/graph/graph3.hpp>
 #include "graphlab.hpp"
@@ -158,7 +159,8 @@ struct stringzipparser_update :
     vertex_data& vdata = context.vertex_data();
     
     edge_data2 edge; 
-    graph_type2 _graph;
+    graph_type2 _graph; 
+    _graph.set_use_vcolor(false);
     _graph.resize(nodes);
 
     std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);

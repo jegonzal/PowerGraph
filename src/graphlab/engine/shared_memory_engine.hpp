@@ -49,6 +49,8 @@
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/mutable_queue.hpp>
+#include <graphlab/util/tracepoint.hpp>
+
 #include <graphlab/logger/logger.hpp>
 
 #include <graphlab/util/generics/any_vector.hpp>
@@ -419,7 +421,21 @@ namespace graphlab {
     threads(opts.get_ncpus()),
     exec_status(execution_status::UNSET),
     exception_message(NULL),   
-    start_time_millis(0) { } // end of constructor
+    start_time_millis(0) { 
+  
+    REGISTER_TRACEPOINT(eng_syncqueue, 
+                        "shared_memory_engine: Evaluating Sync Queue");
+    REGISTER_TRACEPOINT(eng_schednext, 
+                        "shared_memory_engine: Reading Task from Scheduler");
+    REGISTER_TRACEPOINT(eng_schedcrit, 
+                        "shared_memory_engine: Time in Engine Termination Critical Section");
+    REGISTER_TRACEPOINT(eng_basicupdate, 
+                        "shared_memory_engine: Time in Basic Update user code");
+    REGISTER_TRACEPOINT(eng_factorized, 
+                        "shared_memory_engine: Time in Factorized Update user code");
+    REGISTER_TRACEPOINT(eng_locktime, 
+                        "shared_memory_engine: Time Acquiring Locks");
+  } // end of constructor
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -948,10 +964,13 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   run_once(size_t cpuid) {
+     
     // std::cout << "Run once on " << cpuid << std::endl;
     // -------------------- Execute Sync Operations ------------------------ //
     // Evaluate pending sync operations
+    BEGIN_TRACEPOINT(eng_syncqueue);
     evaluate_sync_queue();
+    END_TRACEPOINT(eng_syncqueue);
     // --------------- Evaluate Termination Conditions --------------------- //
     // Evaluate the available termination conditions and if the
     // program is finished simply return
@@ -961,11 +980,15 @@ namespace graphlab {
     // Get the next task from the scheduler
     vertex_id_type vid(-1);
     update_functor_type ufun;
+    
+    BEGIN_TRACEPOINT(eng_schednext);
     sched_status::status_enum stat = 
       scheduler_ptr->get_next(cpuid, vid, ufun);
+    END_TRACEPOINT(eng_schednext);
     // If we failed to get a task enter the retry /termination loop
     while(stat == sched_status::EMPTY) {
       // Enter the critical section
+      BEGIN_TRACEPOINT(eng_schedcrit);
       scheduler_ptr->terminator().begin_critical_section(cpuid);
       // Try again in the critical section
       stat = scheduler_ptr->get_next(cpuid, vid, ufun);
@@ -985,6 +1008,7 @@ namespace graphlab {
       }
       // cancel the critical section
       scheduler_ptr->terminator().cancel_critical_section(cpuid);
+      END_TRACEPOINT(eng_schedcrit);
     } // end of while loop
 
     // ------------------- Run The Update Functor -------------------------- //    
@@ -1015,11 +1039,15 @@ namespace graphlab {
   evaluate_update_functor(vertex_id_type vid,
                           update_functor_type& ufun, 
                           size_t cpuid) {              
+    BEGIN_TRACEPOINT(eng_locktime);
     // Get the context
     context_type& context = 
       context_manager_ptr->get_context(cpuid, vid, ufun.consistency());
+    END_TRACEPOINT(eng_locktime);
+    BEGIN_TRACEPOINT(eng_basicupdate);
     // Apply the update functor
     ufun(context);
+    END_TRACEPOINT(eng_basicupdate);
     // Finish any pending transactions in the context
     context.commit();
     // Release the context (and all corresponding locks)
@@ -1033,6 +1061,7 @@ namespace graphlab {
   evaluate_factorized_update_functor(vertex_id_type vid, 
                                      update_functor_type& ufun,
                                      size_t cpuid) {
+
     //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // Gather phase -----------------------------------------------------------
     {
@@ -1043,10 +1072,14 @@ namespace graphlab {
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
       foreach(const edge_type& edge, edges) {
+        BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
                                                        ufun.writable_gather());
+        END_TRACEPOINT(eng_locktime);
+        BEGIN_TRACEPOINT(eng_factorized);
         ufun.gather(context, edge);
+        END_TRACEPOINT(eng_factorized);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
       }
@@ -1056,18 +1089,26 @@ namespace graphlab {
        ufun.gather_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
       foreach(const edge_type& edge, edges) {
+        BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
                                                        ufun.writable_gather());
+        END_TRACEPOINT(eng_locktime);
+        BEGIN_TRACEPOINT(eng_factorized);
         ufun.gather(context, edge);
+        END_TRACEPOINT(eng_factorized);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
       }
     }
     // Apply phase ------------------------------------------------------------
+    BEGIN_TRACEPOINT(eng_locktime);
     context_type& context = 
       context_manager_ptr->get_vertex_context(cpuid, vid);
+    END_TRACEPOINT(eng_locktime);
+    BEGIN_TRACEPOINT(eng_factorized);
     ufun.apply(context);
+    END_TRACEPOINT(eng_factorized);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
 
@@ -1076,10 +1117,14 @@ namespace graphlab {
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
       foreach(const edge_type& edge, edges) {
+        BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
                                                        ufun.writable_scatter());
+        END_TRACEPOINT(eng_locktime);
+        BEGIN_TRACEPOINT(eng_factorized);
         ufun.scatter(context, edge);
+        END_TRACEPOINT(eng_factorized);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
       }
@@ -1088,10 +1133,14 @@ namespace graphlab {
        ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
       foreach(const edge_type& edge, edges) {
+        BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
                                                        ufun.writable_scatter());
+        END_TRACEPOINT(eng_locktime);
+        BEGIN_TRACEPOINT(eng_factorized);
         ufun.scatter(context, edge);
+        END_TRACEPOINT(eng_factorized);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
       }

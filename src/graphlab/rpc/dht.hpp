@@ -43,7 +43,7 @@ namespace graphlab {
   
 
   private:
-    mutable dc_dist_object<dht<KeyType, ValueType> > rpc;
+    mutable dc_dist_object< dht > rpc;
   
     boost::hash<KeyType> hasher;
     mutex lock;
@@ -51,6 +51,13 @@ namespace graphlab {
 
   public:
     dht(distributed_control &dc) : rpc(dc, this) { }
+    
+    /**
+     * Get the owner of the key
+     */    
+    procid_t owner(const KeyType& key) const {
+      return hasher(key) % rpc.dc().numprocs();
+    }
   
     /**
      * gets the value associated with a key.
@@ -61,7 +68,6 @@ namespace graphlab {
       // who owns the data?
       const size_t hashvalue = hasher(key);
       const size_t owningmachine = hashvalue % rpc.dc().numprocs();
-
       std::pair<bool, ValueType> retval;
       // if it is me, we can return it
       if (owningmachine == rpc.dc().procid()) {

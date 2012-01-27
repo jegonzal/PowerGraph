@@ -100,7 +100,19 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
     data->pvec = zeros(m+3);
   }
 }
+void print_v(bool rows, int offset, graph_type * g){
 
+  int start= info.get_start_node(rows);;
+  int end = info.get_end_node(rows);;
+  vec v = zeros(end-start);
+  for (int i=start; i< end; i++){ 
+    vertex_data * data = &g->vertex_data(i);
+    v[i - start] = data->pvec[offset];
+  }
+  cout<<"v is: " << mid(v,0,20) << endl;
+  if (end - start > 40)
+    cout<<"v end is: " << mid(v, v.size()-20, 20) << endl;
+}
 /***
  * UPDATE FUNCTION (ROWS)
  */
@@ -194,14 +206,13 @@ void substruct(int curoffset, int j, graph_type* g, double alpha){
 
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = &g->vertex_data(i);
-    data->pvec[curoffset] -= alpha * data->pvec[j];
-    data->value = data->pvec[curoffset];
+    data->value -= alpha * data->pvec[j];
   }
 }
 
 
 void orthogolonize_vs_all(int curoffset, graph_type *g){
-  for (int i=0; i< curoffset-1; i++){
+  for (int i=1; i< curoffset-1; i++){
      double alpha = wTV(i, g);
      if (alpha != 0)
        substruct(curoffset, i, g, alpha);
@@ -209,23 +220,25 @@ void orthogolonize_vs_all(int curoffset, graph_type *g){
 }
 
 
-double w_lancalphaV(int j, graph_type * g){
-  
+double w_norm_2(bool rows, graph_type * g){
   double norm = 0;
+  for (int i=info.get_start_node(rows); i< info.get_end_node(rows); i++){ 
+    vertex_data * data = &g->vertex_data(i);
+    norm += data->value*data->value;
+  }
+  return sqrt(norm);
+}
+
+
+
+void w_minus_lancalphaV(int j, graph_type * g){
+  
   if (debug)
 	cout << "w: " ;
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->value -= lancalpha[j]*data->pvec[j];
-    if (debug && i-info.get_start_node(false)<20)
-	cout<<data->value<<" ";
-    norm += data->value*data->value;
   }
-  if (debug){
-	cout<<endl;
-        cout<<"Beta: " << sqrt(norm) << endl;
-  }
-  return sqrt(norm);
 }
 
 void update_V(int j, graph_type * g){
@@ -276,8 +289,8 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
  
   for (int j=1; j< max_iter; j++){
       glcore.set_global("offset", j);
-      glcore.set_global("offset3", j-1);
-      lancbeta[j-1] = eigenvalues[j-1];
+      glcore.set_global("offset3", j);
+      lancbeta[j-1] = eigenvalues[eigenvalues.size() - j];
       glcore.set_global("offset2",j);
       glcore.schedule_all(lanczos_update());
       glcore.start();
@@ -294,7 +307,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 }
 
 
-void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_graph_descriptor & info){
+vec lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_graph_descriptor & info, timer & mytimer){
    
 
    glcore.set_global("m", max_iter);
@@ -315,18 +328,20 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
         }
        
         //lancalpha(j) = w'*V(:,j);
-        //w =  w - lancalpha(j)*V(:,j);
 	lancalpha[j] = wTV(j, &glcore.graph());
-
+        //w =  w - lancalpha(j)*V(:,j);
+        w_minus_lancalphaV(j, &glcore.graph());
         orthogolonize_vs_all(j+1,&glcore.graph());
         if (debug)
           print_w(false,&glcore.graph());
 
         //lancbeta(j+1)=norm(w,2);
-        lancbeta[j+1] = w_lancalphaV(j, &glcore.graph());
+        lancbeta[j+1] = w_norm_2(false, &glcore.graph());
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(j+1, &glcore.graph()); 
+        logstream(LOG_INFO) << "Finished iteration " << j << " in time: " << mytimer.current_time() << std::endl;
+
 
    } 
   /* 
@@ -358,7 +373,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
  assert(::eig_sym(T, eigenvalues, eigenvectors));
  cout << "Here are the computed eigenvalues, from larger to smaller" << endl;
  for (int i=0; i< std::min((int)eigenvalues.size(),20); i++)
-	cout<<"eigenvalue " << i << " val: " << eigenvalues[i] << endl;
+	cout<<"eigenvalue " << i << " val: " << sqrt(eigenvalues[i]) << endl;
 
 
  compute_residual(eigenvalues, eigenvectors, &glcore.graph(), glcore);
@@ -366,9 +381,8 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, bipartite_grap
  mat U=Vectors*eigenvectors;
  if (debug)
    cout<<"Eigen vectors are:" << U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
- mat V=zeros(eigenvalues.size(),1);
- set_col(V,0,eigenvalues); 
 
+  return eigenvalues;
 }
 
 int main(int argc,  char *argv[]) {
@@ -418,7 +432,7 @@ int main(int argc,  char *argv[]) {
 
   //unit testing
   if (unittest == 1){
-    datafile = "lanczos";
+    datafile = "lanczos2";
   }
 
   std::cout << "Load matrix " << datafile << std::endl;
@@ -442,7 +456,7 @@ int main(int argc,  char *argv[]) {
   core.add_global("m", int(0));
 
   timer mytimer; mytimer.start(); 
-  lanczos(core, info);
+  vec eigenvalues = lanczos(core, info, mytimer);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
@@ -454,6 +468,17 @@ int main(int argc,  char *argv[]) {
 
 
   if (unittest == 1){
+    /*eigenvalue 0 val: 4.14038
+ * eigenvalue 1 val: 1.35478
+ * eigenvalue 2 val: 0.897358
+ * eigenvalue 3 val: 0.796486
+ * eigenvalue 4 val: 0.0676045
+ */ 
+    assert(pow(eigenvalues[0]-pow(4.14038,2),2)<1e-8);
+    assert(pow(eigenvalues[1]-pow(1.35478,2),2)<1e-8);
+    assert(pow(eigenvalues[2]-pow(0.897358,2),2)<1e-8);
+    assert(pow(eigenvalues[3]-pow(0.796486,2),2)<1e-8);
+    assert(pow(eigenvalues[4]-pow(0.0676045,2),2)<1e-8);
   }
 
    return EXIT_SUCCESS;

@@ -1,15 +1,9 @@
 project(tests)
 
-
-
-link_libraries(${Boost_LIBRARIES})
-link_libraries(${GraphLab_LIBRARIES})
-include_directories( . )
-
+subdirs(data)
 
 ADD_CXXTEST(graph_test.cxx)
 ADD_CXXTEST(graph2_test.cxx)
-ADD_CXXTEST(sharedsum_test.cxx)
 
 
 
@@ -27,6 +21,7 @@ ADD_CXXTEST(thread_tools.cxx)
 ADD_CXXTEST(test_lock_free_pool.cxx)
 ADD_CXXTEST(engine_terminator_bench.cxx)
 ADD_CXXTEST(md5test.cxx)
+ADD_CXXTEST(lock_free_queues.cxx)
 
 add_graphlab_executable(integer_serialize_validate integer_serialize_validate.cpp)
 add_graphlab_executable(integer_serialize_bench integer_serialize_bench.cpp)

@@ -4,6 +4,7 @@
 #include <vector>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
+#include <graphlab/util/lock_free_internal.hpp>
 
 namespace graphlab {
 template <typename T, typename index_type = uint32_t>
@@ -17,7 +18,9 @@ class lock_free_pool{
   // note that there is no way to disambiguate between allocated
   // and non-allocated entries by simply looking at the freelist
   std::vector<index_type> freelist;
-  volatile index_type freelisthead;
+  typedef lock_free_internal::reference_with_counter<index_type> queue_ref_type;
+  volatile queue_ref_type freelisthead;
+
  public:
   lock_free_pool(size_t poolsize = 0) {
    reset_pool(poolsize);
@@ -37,7 +40,8 @@ class lock_free_pool{
       }
       freelist[freelist.size() - 1] = index_type(-1);
     }
-    freelisthead = 0;
+    freelisthead.q.val = 0;
+    freelisthead.q.counter = 0;
   }
   
   std::vector<T>& unsafe_get_pool_ref() {
@@ -46,30 +50,38 @@ class lock_free_pool{
   
   T* alloc() {
     // I need to atomically advance freelisthead to the freelist[head]
-    index_type oldhead;
-    index_type newhead;
+    queue_ref_type oldhead;
+    queue_ref_type newhead;
     do {
-      oldhead = freelisthead;
-      if (oldhead == index_type(-1)) return NULL;
-      newhead = freelist[oldhead];
-    } while(!atomic_compare_and_swap(freelisthead, oldhead, newhead));
-    freelist[oldhead] = index_type(0);
-    return &(data[oldhead]);
+      oldhead.combined = freelisthead.combined;
+      if (oldhead.q.val == index_type(-1)) return NULL;
+      newhead.q.val = freelist[oldhead.q.val];
+      newhead.q.counter = oldhead.q.counter + 1;
+    } while(!atomic_compare_and_swap(freelisthead.combined, 
+                                     oldhead.combined, 
+                                     newhead.combined));
+    freelist[oldhead.q.val] = index_type(-1);
+    return &(data[oldhead.q.val]);
   }
   
   void free(T* p) {
     // sanity check
     index_type cur = index_type(p - &(data[0]));
-    ASSERT_EQ(freelist[cur], index_type(0));
+    ASSERT_EQ(freelist[cur], index_type(-1));
     // prepare for free list insertion
     // I need to atomically set freelisthead == cur
     // and freelist[cur] = freelisthead
-    index_type oldhead;
+    queue_ref_type oldhead;
+    queue_ref_type newhead;
     do{
-      oldhead = freelisthead;
-      freelist[cur] = oldhead;
+      oldhead.combined = freelisthead.combined;
+      freelist[cur] = oldhead.q.val;
+      newhead.q.val = cur;
+      newhead.q.counter = oldhead.q.counter + 1;
       // now try to atomically move freelisthead
-    } while(!atomic_compare_and_swap(freelisthead, oldhead, cur));
+    } while(!atomic_compare_and_swap(freelisthead.combined, 
+                                      oldhead.combined, 
+                                      newhead.combined));
   }
 };
 

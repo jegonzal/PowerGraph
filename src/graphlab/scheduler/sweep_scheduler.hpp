@@ -59,24 +59,12 @@ namespace graphlab {
     
   private:
 
-    inline size_t get_and_inc_index(const size_t cpuid) {
-      const size_t nverts = vids.size();
-      if (strict_round_robin) { 
-        return rr_index++ % nverts; 
-      } else {
-        const size_t ncpus = cpu2index.size();
-        const size_t index = cpu2index[cpuid];
-        cpu2index[cpuid] += ncpus;
-        // Address loop around
-        if (__builtin_expect(cpu2index[cpuid] >= nverts, false)) 
-          cpu2index[cpuid] = cpuid;
-        return index;
-      }
-    }// end of next index
+    const size_t ncpus;
 
     bool strict_round_robin;
     atomic<size_t> rr_index;
     size_t max_iterations;
+   
 
     std::vector<vertex_id_type>             vids;
     std::vector<uint16_t>                   vid2cpu;
@@ -84,14 +72,14 @@ namespace graphlab {
 
     vertex_functor_set<update_functor_type> vfun_set;
     double                                  min_priority;
-    terminator_type                         term;
-   
+    terminator_type                         term;   
 
 
   public:
     sweep_scheduler(const graph_type& graph, 
                     size_t ncpus,
                     const options_map& opts) :
+      ncpus(ncpus),
       strict_round_robin(false),
       max_iterations(std::numeric_limits<size_t>::max()),
       vids(graph.num_vertices()),
@@ -196,7 +184,6 @@ namespace graphlab {
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {         
       const size_t nverts    = vids.size();
-      const size_t ncpus     = cpu2index.size();
       const size_t max_fails = (nverts/ncpus) + 1;
       // Check to see if max iterations have been achieved 
       if(strict_round_robin && (rr_index / nverts) >= max_iterations) 
@@ -254,6 +241,22 @@ namespace graphlab {
           << "niters = [integer, maximum number of iterations (requires strict=true) \n"
           << "\t default = -infinity]\n";
     } // end of print_options_help
+
+
+  private:
+    inline size_t get_and_inc_index(const size_t cpuid) {
+      const size_t nverts = vids.size();
+      if (strict_round_robin) { 
+        return rr_index++ % nverts; 
+      } else {
+        const size_t index = cpu2index[cpuid];
+        cpu2index[cpuid] += ncpus;
+        // Address loop around
+        if (__builtin_expect(cpu2index[cpuid] >= nverts, false)) 
+          cpu2index[cpuid] = cpuid;
+        return index;
+      }
+    }// end of next index
 
   }; 
   

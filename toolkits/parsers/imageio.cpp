@@ -19,16 +19,24 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-
-
-
-
-#include <graphlab/graph/graph.hpp>
-#include <graphlab/graph/graph_ops.hpp>
-#include <graphlab/graph/graph_partitioner.hpp>
-#include <graphlab/graph/disk_graph.hpp>
+#include <cstdio>
+#include <map>
+#include <iostream>
+#define GRAPH2_NO_EDGE
 #include <graphlab/graph/graph2.hpp>
-#include <graphlab/graph/distributed_graph.hpp>
+#include "graphlab.hpp"
+#include "../shared/CImg-1.4.9/CImg.h"
+#include <graphlab/macros_def.hpp>
+using namespace graphlab;
+using namespace std;
+using namespace cimg_library;
 
 
+int main(int argc,  char *argv[]) {
+  CImg<unsigned char> image("~/a.png");
+  return EXIT_SUCCESS;
+}
+
+
+#include <graphlab/macros_undef.hpp>
 
