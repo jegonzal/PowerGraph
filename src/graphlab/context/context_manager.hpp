@@ -36,12 +36,12 @@
 
 #include <vector>
 
+#include <graphlab/parallel/pthread_tools.hpp>
+
 #include <graphlab/context/icontext.hpp>
 #include <graphlab/context/context.hpp>
-#include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/graph/graph.hpp>
+#include <graphlab/context/consistency_model.hpp>
 
-#include <graphlab/context/idiffable.hpp>
 
 
 
@@ -72,13 +72,13 @@ namespace graphlab {
  
     typedef typename context_type::cache_map_type cache_map_type;
     typedef typename context_type::cache_entry cache_entry_type;
-    //    typedef boost::is_base_of< idiffable<vertex_data_type>, vertex_data_type> is_diffable;
+
     
   private:
     graph_type* graph_ptr;
     std::vector<context_type> contexts;
     std::vector<rwlock> locks;
-    consistency_model::model_enum default_consistency;
+    consistency_model default_consistency;
 
   public:
 
@@ -86,16 +86,16 @@ namespace graphlab {
                     ischeduler_type* ischeduler_ptr,
                     graph_type* graph_ptr,
                     size_t ncpus,
-                    consistency_model::model_enum default_consistency_range 
-                    = consistency_model::EDGE_CONSISTENCY) :
+                    consistency_model default_consistency_range 
+                    = EDGE_CONSISTENCY) :
       graph_ptr(graph_ptr), contexts(ncpus), locks(graph_ptr->num_vertices()),
       default_consistency(default_consistency_range) {
       ASSERT_NE(engine_ptr, NULL);
       ASSERT_NE(ischeduler_ptr, NULL);
       ASSERT_NE(graph_ptr, NULL);    
 
-      if (default_consistency == consistency_model::USE_DEFAULT)
-        default_consistency = consistency_model::EDGE_CONSISTENCY;
+      if (default_consistency == DEFAULT_CONSISTENCY)
+        default_consistency = EDGE_CONSISTENCY;
       // Initialize all the contexts
       for(size_t i = 0; i < contexts.size(); ++i) {
         contexts[i] = context_type(engine_ptr, graph_ptr, ischeduler_ptr, i);
@@ -113,38 +113,30 @@ namespace graphlab {
         contexts[i].set_start_time(start_time);
     } // end of start
 
-    void set_default_consistency(consistency_model::model_enum 
+    void set_default_consistency(consistency_model 
                                  default_consistency_range) {
       default_consistency = default_consistency_range;
-      if (default_consistency == consistency_model::USE_DEFAULT) 
-        default_consistency = consistency_model::EDGE_CONSISTENCY;
+      if (default_consistency == DEFAULT_CONSISTENCY) 
+        default_consistency = EDGE_CONSISTENCY;
     }
 
 
     // -----------------ACQUIRE CONTEXT-----------------------------
     context_type& get_context(size_t cpuid,
                               vertex_id_type v,
-                              consistency_model::model_enum context = 
-                              consistency_model::USE_DEFAULT) {
+                              consistency_model context = 
+                              DEFAULT_CONSISTENCY) {
       // Verify that the cpuid and vertex id are valid
       ASSERT_LT(cpuid, contexts.size());
       ASSERT_LT(v, locks.size());
-
-      if (context == consistency_model::USE_DEFAULT) 
-        context = default_consistency;      
+      if (context == DEFAULT_CONSISTENCY) context = default_consistency;
       switch(context){
-      case consistency_model::VERTEX_CONSISTENCY:
+      case VERTEX_CONSISTENCY:
         return get_vertex_context(cpuid, v);
-      case consistency_model::VERTEX_READ_CONSISTENCY:
-        return get_vertex_read_context(cpuid, v);
-      case consistency_model::READ_CONSISTENCY:
-        return get_read_context(cpuid, v);
-      case consistency_model::EDGE_CONSISTENCY:
+      case EDGE_CONSISTENCY:
         return get_edge_context(cpuid, v);
-      case consistency_model::FULL_CONSISTENCY:
+      case FULL_CONSISTENCY:
         return get_full_context(cpuid, v);
-      case consistency_model::NULL_CONSISTENCY:
-        return get_null_context(cpuid, v);
       default:
         logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
         return get_edge_context(cpuid,v);
@@ -153,146 +145,31 @@ namespace graphlab {
     
 
 
-    void flush_cache(size_t cpuid) {  
-      //  flush_cache(cpuid, is_diffable()); 
-    }
-
-//     //! Nothing to flush if it is not diffable
-//     void flush_cache(size_t cpuid, const boost::false_type&) { 
-//     } // end of flush_cache
-
-//     void flush_cache(size_t cpuid, const boost::true_type&) {
-//     } // end of flush cache
-
+    void flush_cache(size_t cpuid) { }
 
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid, 
                            const bool is_center = false) {
       locks[vid].writelock();
-      //      acquire_writelock(cpuid, vid, is_center, is_diffable());
     }
 
-    // void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-    //                        const bool is_center,
-    //                        const boost::false_type&) {
-    //   locks[vid].writelock();
-    // }
-
-    // void acquire_writelock(const size_t cpuid, const vertex_id_type vid,
-    //                        const bool is_center,
-    //                        const boost::true_type&) {
-    //   const size_t MAX_WRITES = graph_ptr->vertex_data(vid).lag();
-    //   // First check the cache
-    //   context_type& context = contexts[cpuid];
-    //   typedef typename cache_map_type::iterator iterator_type;
-    //   iterator_type iter = context.cache.find(vid);
-    //   const bool is_cached = iter != context.cache.end();
-    //   if(is_cached) {
-    //     cache_entry_type& cache_entry = iter->second;        
-    //     if(++cache_entry.writes > MAX_WRITES || is_center) {
-    //       //  std::cout << "Flushing" << std::endl;
-    //       locks[vid].writelock();
-    //       vertex_data_type& vdata = graph_ptr->vertex_data(vid);
-    //       vdata.apply_diff(cache_entry.current, cache_entry.old);
-    //       if(is_center) { // if it is the center vertex we evict it
-    //         // from the cache and retain the write lock.
-    //         context.cache.erase(vid);
-    //         return;
-    //       } else {
-    //         cache_entry.current = vdata;
-    //         locks[vid].unlock();
-    //         cache_entry.old = cache_entry.current;
-    //         cache_entry.writes = cache_entry.reads = 0;
-    //       }
-    //     } 
-    //   } else {       
-    //     locks[vid].readlock();
-    //     // create a cache entry
-    //     cache_entry_type& cache_entry = context.cache[vid];
-    //     cache_entry.current = graph_ptr->vertex_data(vid);
-    //     locks[vid].unlock();
-    //     cache_entry.old = cache_entry.current;
-    //   }
-    // } // end of acquire write lock
 
 
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid) {      
-      //    acquire_readlock(cpuid, vid, is_diffable());
       locks[vid].readlock();
     }
 
-    // void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
-    //                       const boost::false_type&) {
-    //   locks[vid].readlock();
-    // }
-
-    // void acquire_readlock(const size_t cpuid, const vertex_id_type vid,
-    //                       const boost::true_type&) {
-    //   const size_t MAX_READS = graph_ptr->vertex_data(vid).lag();
-    //   // First check the cache
-    //   context_type& context = contexts[cpuid];
-    //   typedef typename cache_map_type::iterator iterator_type;
-    //   iterator_type iter = context.cache.find(vid);
-    //   const bool is_cached = iter != context.cache.end();
-    //   if(is_cached) {
-    //     cache_entry_type& cache_entry = iter->second;        
-    //     if(++cache_entry.reads > MAX_READS) {        
-    //       locks[vid].readlock();
-    //       const vertex_data_type& vdata = graph_ptr->vertex_data(vid);
-    //       cache_entry.current.apply_diff(vdata, cache_entry.old);
-    //       cache_entry.old = vdata;
-    //       locks[vid].unlock(); 
-    //     }
-    //   } else {
-    //     // Try to get the write lock
-    //     locks[vid].readlock();
-    //     // create a cache entry
-    //     cache_entry_type& cache_entry = context.cache[vid];
-    //     cache_entry.current = graph_ptr->vertex_data(vid);
-    //     locks[vid].unlock();
-    //     cache_entry.old = cache_entry.current;        
-    //   }
-    // } // end of acquire readlock
-
-
-
-
-
-
     
     void release_lock(size_t cpuid, vertex_id_type vid) {
-      //    release_lock(cpuid, vid, is_diffable());
       locks[vid].unlock();
     }
-
-    // void release_lock(size_t cpuid, vertex_id_type vid,
-    //                   const boost::false_type&) {
-    //   locks[vid].unlock();
-    // }
-
-    // void release_lock(size_t cpuid, vertex_id_type vid,
-    //                   const boost::true_type&) {
-    //   // First check the cache
-    //   context_type& context = contexts[cpuid];
-    //   typedef typename cache_map_type::iterator iterator_type;
-    //   iterator_type iter = context.cache.find(vid);
-    //   const bool is_cached = iter != context.cache.end();
-    //   if(is_cached) return;
-    //   else locks[vid].unlock();
-    // }
-
-
-
-
-
-
 
     
     context_type& get_full_context(size_t cpuid, vertex_id_type v) {
       // grab the context
       context_type& context(contexts[cpuid]);
       
-      context.init(v, consistency_model::FULL_CONSISTENCY);
+      context.init(v, FULL_CONSISTENCY);
 
       const edge_list_type inedges =  graph_ptr->in_edges(v);
       const edge_list_type outedges = graph_ptr->out_edges(v);
@@ -348,7 +225,7 @@ namespace graphlab {
     context_type& get_edge_context(size_t cpuid, vertex_id_type v) {
       context_type& context = contexts[cpuid];
       
-      context.init(v, consistency_model::EDGE_CONSISTENCY);
+      context.init(v, EDGE_CONSISTENCY);
 
       const edge_list_type inedges =  graph_ptr->in_edges(v);
       const edge_list_type outedges = graph_ptr->out_edges(v);
@@ -401,118 +278,53 @@ namespace graphlab {
     context_type& get_single_edge_context(size_t cpuid,
                                           vertex_id_type center_vid,
                                           const edge_type& edge,
-                                          bool writable) {
+                                          consistency_model consistency) {
+      if (consistency == DEFAULT_CONSISTENCY) consistency = default_consistency;
       context_type& context = contexts[cpuid];
-      const consistency_model::model_enum consistency = writable? 
-        consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY :
-        consistency_model::SINGLE_EDGE_READ_CONSISTENCY;
-      context.init(center_vid, consistency);
-
-      const vertex_id_type source = edge.source();
-      const vertex_id_type target = edge.target();
-      ASSERT_NE(source, target);
-      ASSERT_TRUE(source == center_vid || target == center_vid);
-      if(writable) {
-        if(source < target) {
-          if(source == center_vid) {
-            acquire_readlock(cpuid, source);
-            acquire_writelock(cpuid, target);
-          } else {
-            acquire_writelock(cpuid, source);
-            acquire_readlock(cpuid, target);
-          }
-        } else {
-          if(source == center_vid) {
-            acquire_writelock(cpuid, target);
-            acquire_readlock(cpuid, source);
-          } else {
-            acquire_readlock(cpuid, target);
-            acquire_writelock(cpuid, source);
-          }
+      context.init(center_vid, consistency);      
+      const bool src_lt_trg = edge.source() < edge.target();
+      const vertex_id_type v1 = src_lt_trg? edge.source() : edge.target();
+      const vertex_id_type v2 = src_lt_trg? edge.target() : edge.source();
+      ASSERT_NE(v1, v2);
+      ASSERT_TRUE(v1 == center_vid || v2 == center_vid);
+      switch(consistency) {
+      case FULL_CONSISTENCY:
+        if(v1 == center_vid) {
+          acquire_readlock(cpuid, v1);
+          acquire_writelock(cpuid, v2);
+        } else {                   
+          acquire_writelock(cpuid, v1);
+          acquire_readlock(cpuid, v2);
         }
-      } else {
-        if(source < target) {
-          acquire_readlock(cpuid, source);
-          acquire_readlock(cpuid, target);
-        } else {
-          acquire_readlock(cpuid, target);
-          acquire_readlock(cpuid, source);
-        }
+        break;
+      case DEFAULT_CONSISTENCY:
+      case EDGE_CONSISTENCY:
+        acquire_readlock(cpuid, v1);
+        acquire_readlock(cpuid, v2);
+        break;
+      case VERTEX_CONSISTENCY:
+        if(v1 == center_vid) acquire_readlock(cpuid, v1);
+        else acquire_readlock(cpuid, v2);        
+        break;
+      case NULL_CONSISTENCY: // NOP
+        break;
       }
       return context;
     } // end of get single edge context
     
 
+
     context_type& get_vertex_context(size_t cpuid, vertex_id_type v) {
       context_type& context = contexts[cpuid];      
-      context.init(v, consistency_model::VERTEX_CONSISTENCY);
+      context.init(v, VERTEX_CONSISTENCY);
       const vertex_id_type curv = context.vertex_id();
       acquire_writelock(cpuid, curv, true); // locks[curv].writelock();     
       return context;
     }
-
-    context_type& get_vertex_read_context(size_t cpuid, vertex_id_type v) {
-      context_type& context = contexts[cpuid];      
-      context.init(v, consistency_model::READ_CONSISTENCY);
-      const vertex_id_type curv = context.vertex_id();
-      acquire_readlock(cpuid, curv); // locks[curv].readlock();      
-      return context;
-    }
-
-    context_type& get_read_context(size_t cpuid, vertex_id_type v) {
-      context_type& context = contexts[cpuid];
-      context.init(v, consistency_model::READ_CONSISTENCY);
-
-      const edge_list_type inedges =  graph_ptr->in_edges(v);
-      const edge_list_type outedges = graph_ptr->out_edges(v);
-
-      size_t inidx = 0;
-      size_t outidx = 0;
-
-      bool curlocked = false;
-      const vertex_id_type numv = (vertex_id_type)(graph_ptr->num_vertices());
-      vertex_id_type curv = context.vertex_id();
-      vertex_id_type inv  = 
-        (inedges.size() > 0) ? inedges[0].source() : numv;
-      vertex_id_type outv  = 
-        (outedges.size() > 0) ? outedges[0].target() : numv;
-      // iterate both in order and lock
-      // include the current vertex in the iteration
-      while (inidx < inedges.size() || outidx < outedges.size()) {
-        if (!curlocked && curv < inv  && curv < outv) {
-          acquire_readlock(cpuid, curv); // locks[curv].readlock();
-          curlocked = true;
-          curv = numv;
-        } else if (inv < outv) {
-          acquire_readlock(cpuid, inv); // locks[inv].readlock(); 
-          ++inidx;
-          inv = (inedges.size() > inidx) ? 
-            inedges[inidx].source() : numv;
-        } else if (outv < inv) {
-          acquire_readlock(cpuid, outv); // locks[outv].readlock(); 
-          ++outidx;
-          outv= (outedges.size() > outidx) ? 
-            outedges[outidx].target() : numv;
-        } else if (inv == outv) {
-          acquire_readlock(cpuid, inv); // locks[inv].readlock();
-          ++inidx; ++outidx;
-          inv = (inedges.size() > inidx) ? 
-            inedges[inidx].source() : numv;
-          outv = (outedges.size() > outidx) ? 
-            outedges[outidx].target() : numv;
-        }
-      }
-      // just in case we never got around to locking it
-      if (!curlocked) {
-        acquire_readlock(cpuid, curv); // locks[curv].readlock();
-      }
-      return context;
-    }
-
     
     context_type& get_null_context(size_t cpuid, vertex_id_type v) {
       context_type& context = contexts[cpuid];      
-      context.init(v, consistency_model::NULL_CONSISTENCY);
+      context.init(v, NULL_CONSISTENCY);
       return context;
     }
 
@@ -527,40 +339,43 @@ namespace graphlab {
     // -----------------RELEASE CONTEXT-----------------------------
     void release_context(size_t cpuid, context_type& context) {
       switch(context.consistency()) {
-      case consistency_model::VERTEX_CONSISTENCY:
-      case consistency_model::VERTEX_READ_CONSISTENCY:
+      case VERTEX_CONSISTENCY:
         release_vertex_context(cpuid, context);
         break;
-      case consistency_model::EDGE_CONSISTENCY:
-      case consistency_model::FULL_CONSISTENCY:
-      case consistency_model::READ_CONSISTENCY:
+      case EDGE_CONSISTENCY:
+      case FULL_CONSISTENCY:
         release_full_edge_context(cpuid, context);
         break;
-      case consistency_model::NULL_CONSISTENCY:
+      case NULL_CONSISTENCY:
         release_null_context(cpuid, context);
-        break;
-      case consistency_model::SINGLE_EDGE_READ_CONSISTENCY:
-      case consistency_model::SINGLE_EDGE_WRITE_CONSISTENCY:
-        logstream(LOG_FATAL) 
-          << "Cannot free single edge scope with release context!"
-          << std::endl;
         break;
       default:
         ASSERT_TRUE(false);
       }
-
-      // \todo: shrink the cache as needed
     } // end of release context
+
 
     void release_single_edge_context(size_t cpuid, 
                                      context_type& context,
                                      const edge_type& edge) {
-      vertex_id_type source = edge.source();
-      vertex_id_type target = edge.target();
-      ASSERT_NE(source, target);
-      if(source > target) std::swap(source, target);
-      release_lock(cpuid, source);
-      release_lock(cpuid, target);
+      const bool src_lt_trg = edge.source() < edge.target();
+      const vertex_id_type v1 = src_lt_trg? edge.source() : edge.target();
+      const vertex_id_type v2 = src_lt_trg? edge.target() : edge.source();
+      ASSERT_NE(v1, v2);
+      ASSERT_TRUE(v1 == context.vertex_id() || v2 == context.vertex_id());
+      switch(context.consistency()) {
+      case FULL_CONSISTENCY:
+      case DEFAULT_CONSISTENCY:
+      case EDGE_CONSISTENCY:
+        release_lock(cpuid, v1);
+        release_lock(cpuid, v2);
+        break;
+      case VERTEX_CONSISTENCY:
+        release_lock(cpuid, context.vertex_id());
+        break;
+      case NULL_CONSISTENCY: // NOP
+        break;
+      }
     } // end of release single edge context
 
 
@@ -584,20 +399,20 @@ namespace graphlab {
       while (inidx < inedges.size() || outidx < outedges.size()) {
         if (!curvunlocked && (curv > inv || inv == vertex_id_type(-1)) &&
             (curv > outv || outv == vertex_id_type(-1))) {
-          release_lock(cpuid, curv); // locks[curv].unlock();
+          release_lock(cpuid, curv);
           curvunlocked = true;
         } else if ((inv+1) > (outv+1)) {
-          release_lock(cpuid, inv); // locks[inv].unlock(); 
+          release_lock(cpuid, inv); 
           --inidx;
           inv  = (inedges.size() > inidx) ?
             inedges[inidx].source() : vertex_id_type(-1);
         } else if ((outv+1) > (inv+1)) {
-          release_lock(cpuid, outv); // locks[outv].unlock(); 
+          release_lock(cpuid, outv); 
           --outidx;
           outv  = (outedges.size() > outidx) ?
             outedges[outidx].target() : vertex_id_type(-1);
         } else if (inv == outv){
-          release_lock(cpuid, inv); // locks[inv].unlock();
+          release_lock(cpuid, inv);
           --inidx; --outidx;
           inv  = (inedges.size() > inidx) ?
             inedges[inidx].source() : vertex_id_type(-1);
@@ -607,14 +422,14 @@ namespace graphlab {
       }
 
       if (!curvunlocked) {
-        release_lock(cpuid, curv); // locks[curv].unlock();
+        release_lock(cpuid, curv); 
       }
     }
 
     void release_vertex_context(size_t cpuid, 
                                 context_type& context) {
       vertex_id_type curv = context.vertex_id();
-      release_lock(cpuid, curv); // locks[curv].unlock();
+      release_lock(cpuid, curv); 
     }
 
     void release_null_context(size_t cpuid, 
@@ -622,7 +437,6 @@ namespace graphlab {
 
     size_t num_vertices() const { return graph_ptr->num_vertices(); }
 
-    //    graph_type& graph() { return *graph_ptr; }
     
   }; // end of context_manager
 

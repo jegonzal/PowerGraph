@@ -38,10 +38,14 @@
 #define GRAPHLAB_IUPDATE_FUNCTOR_HPP
 
 
-// #include <boost/type_traits.hpp>
+#include <graphlab/context/consistency_model.hpp>
 #include <graphlab/context/icontext.hpp>
+
+#include <graphlab/graph/graph_basic_types.hpp>
+
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
+
 
 
 
@@ -65,17 +69,14 @@ namespace graphlab {
     typedef typename graph_type::edge_data_type    edge_data_type;
     typedef typename graph_type::edge_type         edge_type;
     typedef typename graph_type::edge_list_type    edge_list_type;
-
    
     typedef icontext<graph_type, update_functor_type> icontext_type;
     typedef iglobal_context iglobal_context_type;
 
-    /**
-     * The set of edges that are operated on during gather and scatter
-     * operations.
-     */
-    enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
+    typedef graphlab::edge_set           edge_set;
+    typedef graphlab::consistency_model  consistency_model;
     
+
     virtual ~iupdate_functor() { }
 
     /**
@@ -83,8 +84,8 @@ namespace graphlab {
      * implemented by the derived class then the default context range
      * is returned.
      */
-    virtual consistency_model::model_enum consistency() const {
-      return consistency_model::USE_DEFAULT;
+    virtual consistency_model consistency() const {
+      return DEFAULT_CONSISTENCY;
     }
 
     /**
@@ -103,8 +104,7 @@ namespace graphlab {
      * The main part of an update functor
      */
     virtual void operator()(icontext_type& context) { 
-      logstream(LOG_FATAL) 
-        << "Operator() not implemented!" << std::endl;
+      logstream(LOG_FATAL) << "Operator() not implemented!" << std::endl;
     } 
 
     /**
@@ -112,18 +112,6 @@ namespace graphlab {
      * of the update functor is to be used.
      */
     virtual bool is_factorizable() const { return false; }
-
-    /**
-     * Returns true of the adjacent edge and vertex are modified
-     * during gather.
-     */
-    virtual bool writable_gather() const { return false; }
-
-    /**
-     * Returns true of the adjacent edge and vertex are modified
-     * during the gather.
-     */
-    virtual bool writable_scatter() const { return true; }
     
     /**
      * Returns the set of edges to gather 
@@ -131,9 +119,26 @@ namespace graphlab {
     virtual edge_set gather_edges() const { return IN_EDGES; }
 
     /**
+     * Returns true of the adjacent edge and vertex are modified
+     * during the gather.
+     */
+    virtual consistency_model gather_consistency() const { 
+      return DEFAULT_CONSISTENCY;
+    }
+
+    /**
      * Returns the set of edges to scatter
      */
     virtual edge_set scatter_edges() const { return OUT_EDGES; }
+
+    /**
+     * Returns true of the adjacent edge and vertex are modified
+     * during the gather.
+     */
+    virtual consistency_model scatter_consistency() const { 
+      return DEFAULT_CONSISTENCY;
+    }
+
     
     /**
      * Init gather is called before gathering

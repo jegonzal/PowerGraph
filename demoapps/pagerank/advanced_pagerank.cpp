@@ -73,16 +73,16 @@ public:
   double priority() const { return std::fabs(accum); }
   void operator+=(const pagerank_update& other) { accum += other.accum; }
   bool is_factorizable() const { return UPDATE_STYLE == FACTORIZED; }
-  graphlab::consistency_model::model_enum consistency() const {
-    if(UPDATE_STYLE == DELTA) 
-      return graphlab::consistency_model::VERTEX_CONSISTENCY;
-    else return graphlab::consistency_model::USE_DEFAULT;
+  consistency_model consistency() const {
+    if(UPDATE_STYLE == DELTA) return graphlab::VERTEX_CONSISTENCY;
+    else return graphlab::DEFAULT_CONSISTENCY;
   }
   bool writable_gather() { return false; }
   bool writable_scatter() { return false; }
-  edge_set gather_edges() const { return IN_EDGES; }
+  edge_set gather_edges() const { return graphlab::IN_EDGES; }
   edge_set scatter_edges() const {
-    return (std::fabs(accum) > ACCURACY)? OUT_EDGES : NO_EDGES;
+    return (std::fabs(accum) > ACCURACY)? 
+      graphlab::OUT_EDGES : graphlab::NO_EDGES;
   }
   void delta_functor_update(icontext_type& context) { 
     vertex_data& vdata = context.vertex_data(); 

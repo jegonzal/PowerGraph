@@ -23,8 +23,8 @@
 
 #include <graphlab/context/icontext.hpp>
 #include <graphlab/context/iglobal_context.hpp>
-#include <graphlab/context/consistency_model.hpp>
-#include <graphlab/context/idiffable.hpp>
+// #include <graphlab/context/consistency_model.hpp>
+// #include <graphlab/context/idiffable.hpp>
 
 
 
