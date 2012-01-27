@@ -8,7 +8,7 @@
 /**
 REGISTER_TRACEPOINT(name, desc)
   registers a tracepoint name, and associates it with a longer description.
-  name is preferably short.
+  name is preferably short. Note that name is not a string, but desc is a string.
   REGISTER_TRACEPOINT should be called serially before any 
   BEGIN_TRACEPOINT/END_TRACEPOINT calls are made. 
 
@@ -16,6 +16,14 @@ BEGIN_TRACEPOINT(name)
 END_TRACEPOINT(name)
   Times a block of code. Every END_TRACEPOINT must be matched with a
   BEGIN_TRACEPOINT within the same scope. Tracepoints are parallel.
+  Note that name is not a string, but desc is a string.
+  
+Example Usage:
+  REGISTER_TRACEPOINT(classname_someevent, "hello world");
+  Then later on...
+  BEGIN_TRACEPOINT(classname_someevent)
+  ...
+  END_TRACEPOINT(classname_someevent)
 */
 
 #ifdef USE_TRACEPOINT
