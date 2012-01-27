@@ -77,8 +77,8 @@ public:
     if(UPDATE_STYLE == DELTA) return graphlab::VERTEX_CONSISTENCY;
     else return graphlab::DEFAULT_CONSISTENCY;
   }
-  bool writable_gather() { return false; }
-  bool writable_scatter() { return false; }
+  consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
+  consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::IN_EDGES; }
   edge_set scatter_edges() const {
     return (std::fabs(accum) > ACCURACY)? 

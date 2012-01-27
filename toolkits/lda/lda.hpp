@@ -56,12 +56,8 @@ extern size_t global_lag;
 
 enum vertex_type {DOCUMENT, WORD};
 
-#ifdef DIFFABLE
-class vertex_data : public graphlab::idiffable<vertex_data> 
-#else
-  class vertex_data 
-#endif
-{
+
+class vertex_data {
 public:
   vertex_type type;
   std::vector<count_type> n_t;
@@ -107,9 +103,11 @@ public:
     
   void operator+=(const lda_update& other) { }
   bool is_factorizable() const { return use_factorized; }
-  base::edge_set gather_edges() { return base::OUT_EDGES; }
-  bool writable_gather() const { return true; }
-  base::edge_set scatter_edges() { return base::NO_EDGES; }
+  edge_set gather_edges() { return graphlab::OUT_EDGES; }
+  consistency_model gather_consistency() const { 
+    return graphlab::FULL_CONSISTENCY;
+  }
+  edge_set scatter_edges() { return graphlab::NO_EDGES; }
  
   void operator()(icontext_type& context) {
     ASSERT_GT(iters_remaining, 0);
