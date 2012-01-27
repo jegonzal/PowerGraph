@@ -38,6 +38,6 @@ Example Usage:
 
 void register_trace(const char* name, const char* description);
 void store_trace(const char* name, unsigned long long val);
-void dump_trace(std::ostream& out);
+void dump_trace(std::ostream& out, unsigned long long tpersec = 0);
 
 #endif
