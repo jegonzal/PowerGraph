@@ -160,7 +160,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
    * Run the engine until a termination condition is reached or there are no
    * more tasks remaining to execute.
    * 
-   * @return run time
+   * @return runtime
    * @throws IllegalStateException if {@link #destroy()} was invoked on this object
    */
 	public double start() {
@@ -171,6 +171,19 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		logger.info("GraphLab engine started.");
 		return start(mCorePtr);
 		
+	}
+	
+	/**
+	 * Get the number of updates executed by the engine.
+	 * @return update count
+	 */
+	public long lastUpdateCount(){
+	  
+	  if (mDestroyed)
+      throw new IllegalStateException("Core has been destroyed and may not be reused.");
+	  
+	  return lastUpdateCount(mCorePtr);
+	  
 	}
 
   /**
@@ -343,6 +356,13 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
    * @return runtime
    */
 	private native double start(long ptr);
+	
+	/**
+	 * Gets the number of updates executed by the engine.
+	 * @param ptr {@link Core#mCorePtr}
+	 * @return update count
+	 */
+	private native long lastUpdateCount(long ptr);
 
 	/**
 	 * Set the number of cpus that the engine will use.

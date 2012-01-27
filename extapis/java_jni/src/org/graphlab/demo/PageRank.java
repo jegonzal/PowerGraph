@@ -70,6 +70,7 @@ public class PageRank {
     
     // print results
     printResults (graph);
+    logger.info("Update count: " + c.lastUpdateCount());
     
     // done
     c.destroy();
@@ -81,8 +82,8 @@ public class PageRank {
   /** Initialize logger and set logging levels */
   private static void initLogger(){
     BasicConfigurator.configure();
-    Logger.getLogger(Core.class).setLevel(Level.ALL);
-    logger.setLevel(Level.ALL);
+    Logger.getLogger(Core.class).setLevel(Level.INFO);
+    logger.setLevel(Level.INFO);
   }
   
   /**
@@ -136,7 +137,7 @@ public class PageRank {
     logger.info("----------------- Results -----------------");
     logger.info("ID : Rank");
     for (ScalarVertex v : g.vertices()){
-      logger.info(v.id() + " : " + (int) v.value());
+      logger.info(v.id() + " : " + v.value());
     }
     
   }

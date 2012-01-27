@@ -140,10 +140,6 @@ extern "C" {
     proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     delete jni_core;
     
-    logstream(LOG_DEBUG)
-      << "GraphLab core deleted in JNI."
-      << std::endl;
-    
   }
 
   JNIEXPORT void JNICALL
@@ -219,25 +215,32 @@ extern "C" {
     
     proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
 
-    logstream(LOG_DEBUG)
-      << "Graph has: "
-      << (*jni_core)().graph().num_vertices() << " vertices and "
-      << (*jni_core)().graph().num_edges() << " edges."
-      << std::endl;
+//     logstream(LOG_DEBUG)
+//       << "Graph has: "
+//       << (*jni_core)().graph().num_vertices() << " vertices and "
+//       << (*jni_core)().graph().num_edges() << " edges."
+//       << std::endl;
     (*jni_core)().engine().get_options().print();
     
-    double runtime = (*jni_core)().start(); 
-
-    logstream(LOG_INFO)
-        << "Finished after " 
-	      << (*jni_core)().engine().last_update_count() << " updates."
-	      << std::endl;
-    logstream(LOG_INFO)
-        << "Runtime: " << runtime
-	      << " seconds."
-	      << std::endl;
-    
+    double runtime = (*jni_core)().start();
     return runtime;
+    
+  }
+  
+  JNIEXPORT jlong JNICALL
+  Java_org_graphlab_Core_lastUpdateCount
+  (JNIEnv *env, jobject obj, jlong ptr){
+  
+    if (NULL == env || 0 == ptr){
+      proxy_updater::core::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return 0;
+    }
+  
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
+    return (*jni_core)().engine().last_update_count();
     
   }
 

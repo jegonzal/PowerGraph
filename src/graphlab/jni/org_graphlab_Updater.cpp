@@ -129,9 +129,9 @@ void proxy_updater::operator()(icontext_type& context){
   
     // TODO: better error handling
   
-    logstream(LOG_ERROR)
-      << "Exception occured!!"
-      << std::endl;
+//     logstream(LOG_ERROR)
+//       << "Exception occured!!"
+//       << std::endl;
       
     jclass new_exc;
     env->ExceptionDescribe();
@@ -161,9 +161,9 @@ void proxy_updater::operator+=(const proxy_updater& other) const {
   
     // TODO: better error handling
   
-    logstream(LOG_ERROR)
-      << "Exception occured!!"
-      << std::endl;
+//     logstream(LOG_ERROR)
+//       << "Exception occured!!"
+//       << std::endl;
       
     jclass new_exc;
     env->ExceptionDescribe();
