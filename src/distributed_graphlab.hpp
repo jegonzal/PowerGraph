@@ -21,15 +21,16 @@
  */
 
 
-
-
-#include <graphlab/graph/graph.hpp>
-#include <graphlab/graph/graph_ops.hpp>
-#include <graphlab/graph/graph_partitioner.hpp>
-#include <graphlab/graph/disk_graph.hpp>
-#include <graphlab/graph/graph2.hpp>
+#ifndef DISTRIBUTED_GRAPHLAB_MASTER_INCLUDES
+#define DISTRIBUTED_GRAPHLAB_MASTER_INCLUDES
 
 
 
+#include <graphlab/graph/distributed_graph.hpp>
 
+
+
+
+
+#endif
 
