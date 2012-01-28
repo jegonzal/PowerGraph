@@ -140,8 +140,10 @@ namespace graphlab {
           // the critical section.
           for (size_t i = 0;i < ncpus; ++i) {
             numactive += sleeping[i];
-            if (sleeping[i]) cond[i].signal();
-            sleeping[i] = 0;
+            if (sleeping[i]) {
+              sleeping[i] = 0;
+              cond[i].signal();
+            }
           }
         }
         m.unlock();
@@ -161,6 +163,7 @@ namespace graphlab {
         // see new_job() for detailed comments
         if (sleeping[cpuhint]) {
           numactive += sleeping[cpuhint];
+          sleeping[cpuhint] = 0;
           cond[cpuhint].signal();
         }
         m.unlock();

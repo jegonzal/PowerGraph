@@ -471,6 +471,9 @@ macro(ADD_CXXTEST NAME)
       )
   endif(PYTHONINTERP_FOUND)
   add_graphlab_executable(${NAME}test ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp)
+  set_source_files_properties( ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp
+                    PROPERTIES COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}" )
+
   add_test(${NAME} ${NAME}test)
 endmacro(ADD_CXXTEST)
 
@@ -524,7 +527,7 @@ endmacro(add_graphlab_executable)
 
 
 
-macro(add_dist2_executable NAME)
+macro(add_distributed_graphlab_executable NAME)
   if(MPI_FOUND)
     add_executable(${NAME} ${ARGN})
     target_link_libraries(${NAME} 
@@ -543,7 +546,7 @@ macro(add_dist2_executable NAME)
   else(MPI_FOUND)
     message(STATUS "Not Building " ${NAME} " since mpi was not found.")
   endif(MPI_FOUND)
-endmacro(add_dist2_executable)
+endmacro(add_distributed_graphlab_executable)
 
 
 
@@ -569,17 +572,17 @@ endmacro(add_zoltan_executable)
 
 
 
-MACRO(dist2_target_link_libraries NAME)
-  IF(MPI_FOUND)
-    TARGET_LINK_LIBRARIES(${NAME} ${ARGN})
-  ENDIF(MPI_FOUND)
-ENDMACRO(dist2_target_link_libraries)
+# MACRO(dist2_target_link_libraries NAME)
+#   IF(MPI_FOUND)
+#     TARGET_LINK_LIBRARIES(${NAME} ${ARGN})
+#   ENDIF(MPI_FOUND)
+# ENDMACRO(dist2_target_link_libraries)
 
-MACRO(dist2_set_target_properties NAME)
-  IF(MPI_FOUND)
-    set_target_properties(${NAME} ${ARGN})
-  ENDIF(MPI_FOUND)
-ENDMACRO(dist2_set_target_properties)
+# MACRO(dist2_set_target_properties NAME)
+#   IF(MPI_FOUND)
+#     set_target_properties(${NAME} ${ARGN})
+#   ENDIF(MPI_FOUND)
+# ENDMACRO(dist2_set_target_properties)
 
 
 

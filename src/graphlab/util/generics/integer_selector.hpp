@@ -21,14 +21,37 @@
  */
 
 
+#ifndef GRAPHLAB_FLOAT_SELECTOR_HPP
+#define GRAPHLAB_FLOAT_SELECTOR_HPP
+#include <stdint.h>
+namespace graphlab {
+  
+  template <int len>
+  struct u_integer_selector {
+    // invalid
+  };
 
+  template <>
+  struct u_integer_selector<1> {
+    typedef uint8_t integer_type;
+  };
 
-#include <graphlab/graph/graph.hpp>
-#include <graphlab/graph/graph_ops.hpp>
-#include <graphlab/graph/graph_partitioner.hpp>
-#include <graphlab/graph/disk_graph.hpp>
-#include <graphlab/graph/graph2.hpp>
-#include <graphlab/graph/distributed_graph.hpp>
+  template <>
+  struct u_integer_selector<2> {
+    typedef uint16_t integer_type;
+  };
 
+  template <>
+  struct u_integer_selector<4> {
+    typedef uint32_t integer_type;
+  };
+
+  template <>
+  struct u_integer_selector<8> {
+    typedef uint64_t integer_type;
+  };
+
+}
+#endif
 
 

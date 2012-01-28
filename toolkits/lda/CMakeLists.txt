@@ -10,5 +10,5 @@ set_target_properties(diff_ss_lda PROPERTIES COMPILE_FLAGS "-DDIFFABLE -DSHAREDS
 
 
 
-add_dist2_executable(dht_lda dht_lda.cpp corpus.cpp)
+# add_dist2_executable(dht_lda dht_lda.cpp corpus.cpp)
 

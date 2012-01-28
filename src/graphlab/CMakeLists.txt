@@ -5,13 +5,11 @@ project(GraphLab)
 
 subdirs(
   engine
-  distributed2
   graph
   monitoring
   options
   parallel
   scheduler
-  shared_data
   context
   update_functor
   util
@@ -59,8 +57,8 @@ add_library(graphlab STATIC
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
+  util/tracepoint.cpp
   util/md5.cpp
-  shared_data/sharedsum.cpp
   ${mmap_allocator}
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
