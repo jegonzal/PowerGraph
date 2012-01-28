@@ -436,9 +436,11 @@ namespace graphlab {
     REGISTER_TRACEPOINT(eng_locktime, 
                         "shared_memory_engine: Time Acquiring Locks");
     REGISTER_TRACEPOINT(eng_evalfac, 
-                        "shared_memory_engine: Total time in factorized update");
+                        "shared_memory_engine: Total time in evaluate_factorized_update_functor");
     REGISTER_TRACEPOINT(eng_evalbasic, 
-                        "shared_memory_engine: Total time in factorized update");
+                        "shared_memory_engine: Total time in evaluate_update_functor");
+    REGISTER_TRACEPOINT(eng_lockrelease, 
+                        "shared_memory_engine: Total time releasing locks");
 
 
   } // end of constructor
@@ -1053,15 +1055,15 @@ namespace graphlab {
     // Get the context
     context_type& context = 
       context_manager_ptr->get_context(cpuid, vid, ufun.consistency());
-    END_TRACEPOINT(eng_locktime);
-    BEGIN_TRACEPOINT(eng_basicupdate);
+    END_AND_BEGIN_TRACEPOINT(eng_locktime, eng_basicupdate);
     // Apply the update functor
     ufun(context);
-    END_TRACEPOINT(eng_basicupdate);
+    END_AND_BEGIN_TRACEPOINT(eng_basicupdate, eng_lockrelease);
     // Finish any pending transactions in the context
     context.commit();
     // Release the context (and all corresponding locks)
     context_manager_ptr->release_context(cpuid, context); 
+    END_TRACEPOINT(eng_lockrelease);
   }
 
   // Factorized version
@@ -1071,7 +1073,9 @@ namespace graphlab {
   evaluate_factorized_update_functor(vertex_id_type vid, 
                                      update_functor_type& ufun,
                                      size_t cpuid) {
-
+    CREATE_ACCUMULATING_TRACEPOINT(eng_locktime); 
+    CREATE_ACCUMULATING_TRACEPOINT(eng_factorized);
+    CREATE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
     //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // Gather phase -----------------------------------------------------------
     {
@@ -1084,16 +1088,16 @@ namespace graphlab {
       const edge_list_type edges = graph.in_edges(vid);
 
       foreach(const edge_type& edge, edges) {
-        BEGIN_TRACEPOINT(eng_locktime);
+        BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
                                                        gather_consistency);
-        END_TRACEPOINT(eng_locktime);
-        BEGIN_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.gather(context, edge);
-        END_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
     }
 
@@ -1101,63 +1105,66 @@ namespace graphlab {
        ufun.gather_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
       foreach(const edge_type& edge, edges) {
-        BEGIN_TRACEPOINT(eng_locktime);
+        BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
                                                        gather_consistency);
-        END_TRACEPOINT(eng_locktime);
-        BEGIN_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.gather(context, edge);
-        END_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
     }
     // Apply phase ------------------------------------------------------------
-    BEGIN_TRACEPOINT(eng_locktime);
+    BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
     context_type& context = 
       context_manager_ptr->get_vertex_context(cpuid, vid);
-    END_TRACEPOINT(eng_locktime);
-    BEGIN_TRACEPOINT(eng_factorized);
+    END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
     ufun.apply(context);
-    END_TRACEPOINT(eng_factorized);
+    END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
-
+    END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
     // Scatter phase ----------------------------------------------------------
     const consistency_model scatter_consistency = ufun.gather_consistency();
     if(ufun.scatter_edges() == graphlab::IN_EDGES ||
        ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
       foreach(const edge_type& edge, edges) {
-        BEGIN_TRACEPOINT(eng_locktime);
+        BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
                                                        scatter_consistency);
-        END_TRACEPOINT(eng_locktime);
-        BEGIN_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.scatter(context, edge);
-        END_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
     }
     if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
        ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
       foreach(const edge_type& edge, edges) {
-        BEGIN_TRACEPOINT(eng_locktime);
+        BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
                                                        scatter_consistency);
-        END_TRACEPOINT(eng_locktime);
-        BEGIN_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.scatter(context, edge);
-        END_TRACEPOINT(eng_factorized);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
     }
+    STORE_ACCUMULATING_TRACEPOINT(eng_locktime);
+    STORE_ACCUMULATING_TRACEPOINT(eng_factorized);
+    STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+
   } // end of evaluate_update_functor
 
   
