@@ -46,6 +46,7 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
+#include <graphlab/util/mpi_tools.hpp>
 
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
@@ -271,11 +272,57 @@ namespace graphlab {
 
   template<typename VertexData, typename EdgeData>
   void distributed_graph<VertexData, EdgeData>::finalize()  {   
-    // TODO: implement  
     rpc.full_barrier();
-    std::cout << rpc.procid() 
-              << ": nverts = " << num_local_vertices() 
-              << ", nedges = " << num_local_edges() << std::endl;
+    // For all the vertices that this processor has seen determine the
+    // "negotiator" and send that machine the negotiator.
+    typedef std::vector< std::vector<vertex_id_type> >  proc2vids_type;
+    proc2vids_type proc2vids(rpc.numprocs());
+    {
+      typedef typename vid2record_type::value_type pair_type;
+      foreach(const pair_type& pair, vid2record) 
+        proc2vids[vertex_to_init_proc(pair.first)].push_back(pair.first);
+      // The returned local vertices are the vertices from each
+      // machine for which this machine is a negotiator.
+      mpi_tools::all2all(proc2vids, proc2vids);
+    }
+
+    // Construct the vid2procs map by inverting the proc2vids map
+    typedef boost::unordered_map<vertex_id_type, std::vector<procid_t> > 
+      vid2procs_type;
+    vid2procs_type vid2procs;
+    for(procid_t proc = 0; proc < rpc.numprocs(); ++proc)
+      for(size_t i = 0; i < proc2vids[proc].size(); ++i) 
+        vid2procs[proc2vids[proc][i]].push_back(proc);
+    // clear the old local vertices
+    proc2vids_type().swap(proc2vids);
+
+    // Construct the assignments
+    typedef std::pair< vertex_id_type, 
+      std::pair<procid_t, std::vector<procid_t> > > record_type;
+    std::vector< std::vector<record_type> > assignments(rpc.numprocs());
+    std::vector<size_t> counts(rpc.numprocs());
+    typedef vid2procs_type::value_type pair_type;
+    foreach(const pair_type& pair, vid2procs) {
+      std::pair<size_t, procid_t> 
+        best_asg(counts[pair.second[0]], pair.second[0]);
+      foreach(procid_t proc, pair.second)
+        best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+      const record_type record(pair.first, 
+                               std::make_pair(best_asg.second, pair.second));      
+      counts[record.second.first]++;
+      foreach(procid_t proc, pair.second)
+        assignments[proc].push_back(record);
+    } // end of loop over 
+    foreach(size_t c, counts) std::cout << c << '\t';
+    std::cout << std::endl;
+    vid2procs_type().swap(vid2procs);
+
+    // Receive assignments from coordinators
+    mpi_tools::all2all(assignments, assignments);
+    
+    // Incorporate assignments
+   
+
   } // End of finalize
   
   

@@ -80,10 +80,10 @@ public:
   als_update(double error = 0) : error(error) { }
   double priority() const { return error; }
   void operator+=(const als_update& other) { error += other.error; }
-  bool writable_gather() { return false; }
-  bool writable_scatter() { return false; }
-  edge_set gather_edges() const { return ALL_EDGES; }
-  edge_set scatter_edges() const { return ALL_EDGES; }
+  consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
+  consistency_model scatter_consistency() { return graphlab::EDGE_CONSISTENCY; }
+  edge_set gather_edges() const { return graphlab::ALL_EDGES; }
+  edge_set scatter_edges() const { return graphlab::ALL_EDGES; }
   bool is_factorizable() const { return FACTORIZED; }
 
   // Reset the accumulator before running the gather

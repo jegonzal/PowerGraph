@@ -37,12 +37,11 @@
 
 #include <graphlab/context/iglobal_context.hpp>
 #include <graphlab/context/icontext.hpp>
-
+#include <graphlab/context/consistency_model.hpp>
 
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-
 
 
   /**
@@ -52,8 +51,7 @@ namespace graphlab {
   class context : 
     public icontext<typename Engine::graph_type, 
                     typename Engine::update_functor_type> {
-  public:
-   
+  public:   
 
     typedef Engine engine_type;
 
@@ -68,6 +66,8 @@ namespace graphlab {
     typedef typename graph_type::edge_data_type      edge_data_type;
     typedef typename graph_type::edge_list_type      edge_list_type;
    
+
+
     
   private:    
     /** a pointer to the engine */
@@ -84,7 +84,7 @@ namespace graphlab {
     vertex_id_type vid;
 
     /** The consistency model that this context ensures */
-    consistency_model::model_enum _consistency;
+    consistency_model _consistency;
  
     /** The time at which the engine was started */
     float start_time;
@@ -115,14 +115,13 @@ namespace graphlab {
             size_t cpuid = -1) :
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
       scheduler_ptr(scheduler_ptr), cpuid(cpuid),
-      vid(-1), _consistency(consistency_model::EDGE_CONSISTENCY),
+      vid(-1), _consistency(EDGE_CONSISTENCY),
       start_time(lowres_time_seconds()) { 
     }
     
 
 
-    void init(const vertex_id_type vertex, 
-              consistency_model::model_enum consistency) {             
+    void init(const vertex_id_type vertex, consistency_model consistency) {             
       vid = vertex;
       _consistency = consistency;
     } // end of init_vertex
@@ -236,7 +235,7 @@ namespace graphlab {
 
 
     //! Get the consistency model under which this context was acquired
-    consistency_model::model_enum consistency() const { 
+    consistency_model consistency() const { 
       return _consistency;
     }
     
