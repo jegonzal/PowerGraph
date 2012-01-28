@@ -435,6 +435,12 @@ namespace graphlab {
                         "shared_memory_engine: Time in Factorized Update user code");
     REGISTER_TRACEPOINT(eng_locktime, 
                         "shared_memory_engine: Time Acquiring Locks");
+    REGISTER_TRACEPOINT(eng_evalfac, 
+                        "shared_memory_engine: Total time in factorized update");
+    REGISTER_TRACEPOINT(eng_evalbasic, 
+                        "shared_memory_engine: Total time in factorized update");
+
+
   } // end of constructor
 
 
@@ -1018,9 +1024,13 @@ namespace graphlab {
     sync_vlocks[vid].lock();
     // Call the correct update functor
     if(ufun.is_factorizable()) {
+      BEGIN_TRACEPOINT(eng_evalfac);
       evaluate_factorized_update_functor(vid, ufun, cpuid);
+      END_TRACEPOINT(eng_evalfac);
     } else { 
+      BEGIN_TRACEPOINT(eng_evalbasic);
       evaluate_update_functor(vid, ufun, cpuid);
+      END_TRACEPOINT(eng_evalbasic);
     }
     // release the lock
     sync_vlocks[vid].unlock();
