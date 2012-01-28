@@ -1,7 +1,11 @@
 package org.graphlab.demo;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -136,8 +140,22 @@ public class PageRank {
       
     logger.info("----------------- Results -----------------");
     logger.info("ID : Rank");
-    for (ScalarVertex v : g.vertices()){
-      logger.info(v.id() + " : " + v.value());
+    
+    Collection<ScalarVertex> vertices = g.vertices();
+    List<ScalarVertex> verticesList = new ArrayList<ScalarVertex>(vertices.size());
+    for (ScalarVertex vertex : vertices){
+      verticesList.add(vertex);
+    }
+    
+    Collections.sort(verticesList, new Comparator<ScalarVertex>(){
+      public int compare(ScalarVertex left, ScalarVertex right) {
+        return Double.compare(left.value(), right.value());
+      }
+    });
+    
+    for (int i=0; i<Math.min(verticesList.size(), 5); i++){
+      ScalarVertex vertex = verticesList.get(i);
+      logger.info(vertex.id() + " : " + vertex.value());
     }
     
   }

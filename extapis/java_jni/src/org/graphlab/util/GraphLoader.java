@@ -46,9 +46,9 @@ public class GraphLoader {
 		
 		while (null != (input = reader.readLine())) {
 
-			String[] tokens = input.split(" ");
+			String[] tokens = input.trim().split("\\s+");
 			if (tokens.length != 3)
-				throw new IOException("Line " + lineNumber + " did not have exactly two tokens.");
+				throw new IOException("Line " + lineNumber + " did not have exactly three tokens.");
 
 			int source = Integer.parseInt(tokens[0]);
 			int target = Integer.parseInt(tokens[1]);
