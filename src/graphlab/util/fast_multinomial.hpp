@@ -42,12 +42,16 @@
 
 #include <graphlab/macros_def.hpp>
 
-// system word length float
-#define float_t float_selector<sizeof(size_t)>::float_type
+
+
 namespace graphlab {
+
   
   /// \ingroup util_internal
   class fast_multinomial{
+    // system word length float
+    typedef float_selector<sizeof(size_t)>::float_type float_t;
+
     //! First leaf index
     size_t first_leaf_index;
 
