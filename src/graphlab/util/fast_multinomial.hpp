@@ -48,7 +48,7 @@ namespace graphlab {
 
   
   /// \ingroup util_internal
-  class fast_multinomial{
+  class fast_multinomial {
     // system word length float
     typedef float_selector<sizeof(size_t)>::float_type float_t;
 
