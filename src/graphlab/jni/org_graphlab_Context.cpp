@@ -38,9 +38,11 @@ extern "C" {
 
   JNIEXPORT void JNICALL
   Java_org_graphlab_Context_schedule
-  (JNIEnv *env, jobject obj,
-  jlong context_ptr, jobject updater,
-  jint vertex_id){
+  ( JNIEnv *env,
+    jobject obj,
+    jlong context_ptr,
+    jobject updater,
+    jint vertex_id){
     
     if (NULL == env ||
         0 == context_ptr){

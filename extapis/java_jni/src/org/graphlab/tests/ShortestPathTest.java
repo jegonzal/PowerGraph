@@ -3,6 +3,7 @@ package org.graphlab.tests;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -10,10 +11,10 @@ import org.apache.log4j.Logger;
 import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Updater;
-import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
-import org.graphlab.data.SparseGraph;
 import org.graphlab.util.GraphLoader;
+import org.jgrapht.graph.DefaultDirectedWeightedGraph;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,7 +26,7 @@ import org.junit.Test;
  */
 public class ShortestPathTest {
 
-	private Core<SparseGraph<ScalarVertex, ScalarEdge>> core;
+	private Core core;
 	
 	@Before
 	public void setUp() throws Exception {
@@ -33,33 +34,35 @@ public class ShortestPathTest {
 		BasicConfigurator.configure();
 		Logger.getLogger(Core.class).setLevel(Level.OFF);
 		// create core
-		core = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
+		core = new Core();
 	}
 
 	@Test
 	public void testSingleEdge() throws IOException {
 		
 		// load graph
-		SparseGraph<ScalarVertex, ScalarEdge> g = new SparseGraph<ScalarVertex, ScalarEdge>();
-		GraphLoader.loadGraphFromTsvFile(g, "test-graphs/one.tsv");
+		DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph
+		  = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+		GraphLoader.loadGraphFromTsvFile(graph, "test-graphs/one.tsv");
 		
 		// initialize to infinity
-		for (ScalarVertex v : g.vertices()) {
+		for (ScalarVertex v : graph.vertexSet()) {
 			v.setValue(Integer.MAX_VALUE);
 		}
 
 		// start from root
-		ScalarVertex root = g.getVertex(0);
+		ScalarVertex root = graph.vertexSet().iterator().next();
 		root.setValue(0);
 
-		core.setGraph(g);
-		Updater shortestPathUpdater = new ShortestPathUpdater(core, g);
-		core.schedule(root.id(), shortestPathUpdater);
+		core.setGraph(graph);
+		Updater<ScalarVertex> shortestPathUpdater = new ShortestPathUpdater(graph);
+		core.schedule(root, shortestPathUpdater);
 		core.start();
 		
 		// check shortest paths
-		System.out.println (g);
-		assertEquals (null, 10, g.getVertex(1).value(), 0);
+		Iterator<ScalarVertex> it = graph.vertexSet().iterator();
+		it.next();
+		assertEquals (null, 10, it.next().value(), 0);
 		
 	}
 	
@@ -67,30 +70,32 @@ public class ShortestPathTest {
 	public void testToyGraph() throws IOException {
 
 		// load graph
-		SparseGraph<ScalarVertex, ScalarEdge> g = new SparseGraph<ScalarVertex, ScalarEdge>();
-		GraphLoader.loadGraphFromTsvFile(g, "test-graphs/toy.tsv");
+	  DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph
+	    = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+		GraphLoader.loadGraphFromTsvFile(graph, "test-graphs/toy.tsv");
 		
 		// initialize to infinity
-		for (ScalarVertex v : g.vertices()) {
+		for (ScalarVertex v : graph.vertexSet()) {
 			v.setValue(Integer.MAX_VALUE);
 		}
 
 		// start from root
-		ScalarVertex root = g.getVertex(0);
+		ScalarVertex root = graph.vertexSet().iterator().next();
 		root.setValue(0);
 
-		core.setGraph(g);
-		Updater shortestPathUpdater = new ShortestPathUpdater(core, g);
-		core.schedule(root.id(), shortestPathUpdater);
+		core.setGraph(graph);
+		Updater<ScalarVertex> shortestPathUpdater = new ShortestPathUpdater(graph);
+		core.schedule(root, shortestPathUpdater);
 		core.start();
 		
 		// check shortest paths
-		assertEquals (null, 10, g.getVertex(2).value(), 0);
-		assertEquals (null, 5, g.getVertex(3).value(), 0);
-		assertEquals (null, 15, g.getVertex(4).value(), 0);
-		assertEquals (null, 15, g.getVertex(5).value(), 0);
-		assertEquals (null, 12, g.getVertex(6).value(), 0);
-		assertEquals (null, 14, g.getVertex(7).value(), 0);
+		int[] expected = {0, 100, 10, 5, 15, 15, 12, 14};
+		Iterator<ScalarVertex> it = graph.vertexSet().iterator();
+		ScalarVertex vertex;
+		for (int i=0; i<expected.length; i++){
+		  vertex = it.next();
+		  assertEquals(null, expected[i], vertex.value(), 0);
+		}
 
 	}
 
@@ -99,37 +104,35 @@ public class ShortestPathTest {
 		core.destroy();
 	}
 
-	private class ShortestPathUpdater extends Updater {
+	private class ShortestPathUpdater extends Updater<ScalarVertex> {
 	  
-		private SparseGraph<ScalarVertex, ScalarEdge> g;
+		private DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph;
 
-		public ShortestPathUpdater (Core<?> c, SparseGraph<ScalarVertex, ScalarEdge> g) {
-		  super(c);
-			this.g = g;
+		public ShortestPathUpdater
+		  (DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> g) {
+			this.graph = g;
 		}
 
 		@Override
-		public void update (Context context, int vertexId){
-
-			ScalarVertex vertex = g.getVertex(vertexId);
-			System.out.println ("Updater called on vertex " + vertexId);
+		public void update (Context context, ScalarVertex vertex){
 
 			// relax edges coming into this node
-			for (ScalarEdge edge : g.incomingEdges(vertex.id())) {
-				ScalarVertex neighbor = g.getVertex(edge.source());
+			for (DefaultWeightedEdge edge : graph.incomingEdgesOf(vertex)) {
+				ScalarVertex neighbor = graph.getEdgeSource(edge);
 				vertex.setValue
-					((float) Math.min
-						(vertex.value(),
-						neighbor.value() + edge.weight()));
+					((float)
+					  Math.min(
+					    vertex.value(),
+						  neighbor.value() + graph.getEdgeWeight(edge)
+					   )
+					);
 			}
 
 			// reschedule any affected neighbors
-			for (ScalarEdge edge : g.outgoingEdges(vertexId)) {
-				ScalarVertex neighbor = g.getVertex(edge.target());
-				System.out.println ("Checking vertex " + neighbor.id());
-				if (neighbor.value() > (vertex.value() + edge.weight())){
-					System.out.println ("rescheduling vertex " + neighbor.id());
-					context.schedule(neighbor.id(), this);
+			for (DefaultWeightedEdge edge : graph.outgoingEdgesOf(vertex)) {
+				ScalarVertex neighbor = graph.getEdgeTarget(edge);
+				if (neighbor.value() > (vertex.value() + graph.getEdgeWeight(edge))){
+					context.schedule(neighbor, this);
 				}
 			}
 

@@ -136,8 +136,16 @@ extern "C" {
       return;
     }
     
-    // cleanup
     proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
+    
+    // cleanup graph
+    proxy_graph graph = (*jni_core)().graph();
+    size_t num_vertices = graph.num_vertices();
+    for (size_t i=0; i<num_vertices; i++){
+      env->DeleteGlobalRef(graph.vertex_data(i).app_vertex);
+    }
+    
+    // cleanup core
     delete jni_core;
     
   }
@@ -161,7 +169,7 @@ extern "C" {
   
   JNIEXPORT jint JNICALL
   Java_org_graphlab_Core_addVertex
-  (JNIEnv *env, jobject obj, jlong ptr, jint id){
+  (JNIEnv *env, jobject obj, jlong ptr, jobject app_vertex){
   
     if (NULL == env || 0 == ptr){
       proxy_updater::core::throw_exception(
@@ -175,7 +183,7 @@ extern "C" {
     
     // init vertex
     proxy_vertex vertex;
-    vertex.app_id = id;
+    vertex.app_vertex = env->NewGlobalRef(app_vertex);
     
     // add to graph
     return (*jni_core)().graph().add_vertex(vertex);

@@ -39,8 +39,8 @@ namespace graphlab {
   
   /** Proxy vertex */
   struct proxy_vertex {
-    /** corresponding application vertex ID */
-    int app_id;
+    /** corresponding application vertex */
+    jobject app_vertex;
   };
   
   /** Proxy graph */

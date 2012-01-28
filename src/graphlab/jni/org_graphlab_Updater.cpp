@@ -39,7 +39,7 @@ void proxy_updater::init(JNIEnv *env){
   // get the method ID for Updater#execUpdate, if we don't have it already
   if (0 == proxy_updater::java_exec_update){
     proxy_updater::java_exec_update =
-      env->GetMethodID(updater_class, "execUpdate", "(JI)V");
+      env->GetMethodID(updater_class, "execUpdate", "(JLorg/graphlab/data/Vertex;)V");
   }
   
   // get the method ID for Updater#add, if we don't have it already
@@ -118,20 +118,15 @@ void proxy_updater::operator()(icontext_type& context){
   JNIEnv *env = core::get_jni_env();
   
   // forward call to org.graphlab.Updater
-  jint app_vertex_id = context.vertex_data().app_id;
   env->CallVoidMethod (mjava_updater, java_exec_update,
                        &context,
-                       app_vertex_id);
+                       context.vertex_data().app_vertex);
   
   // check for exception
   jthrowable exc = env->ExceptionOccurred();
   if (exc) {
   
     // TODO: better error handling
-  
-//     logstream(LOG_ERROR)
-//       << "Exception occured!!"
-//       << std::endl;
       
     jclass new_exc;
     env->ExceptionDescribe();
@@ -160,10 +155,6 @@ void proxy_updater::operator+=(const proxy_updater& other) const {
   if (exc) {
   
     // TODO: better error handling
-  
-//     logstream(LOG_ERROR)
-//       << "Exception occured!!"
-//       << std::endl;
       
     jclass new_exc;
     env->ExceptionDescribe();

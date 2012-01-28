@@ -1,7 +1,6 @@
 package org.graphlab;
 
-import java.util.Map;
-import java.util.NoSuchElementException;
+import org.graphlab.data.Vertex;
 
 /**
  * GraphLab Context.
@@ -21,54 +20,35 @@ public final class Context {
   /** Address of the associated <tt>graphlab::icontext_type</tt> object */
   private long mContextPtr;
   
-  /** Map from application vertex IDs to graphlab vertex IDs */
-  private Map<Integer, Integer> mIdMap;
-
   /**
    * Creates a new context.
    * @param contextPtr
    *          address of the <tt>graphlab::icontext_type</tt> object associated
    *          with this context.
-   * @param idMap
-   *          map from application vertex IDs to GraphLab vertex IDs
    * @throws NullPointerException
    *           if <tt>core</tt> or <tt>idMap</tt> was null
    */
-  protected Context(long contextPtr, Map<Integer, Integer> idMap) {
-
-    if (null == idMap)
-      throw new NullPointerException("idMap must not be null.");
-    
+  protected Context(long contextPtr) {
     mContextPtr = contextPtr;
-    mIdMap = idMap;
-
   }
   
   /**
    * Schedules an update on the specified vertex.
    * 
-   * @param vertexId
-   *          application vertex ID of vertex to update
+   * @param vertex
+   *          vertex to update
    * @param updater
    *          ID of updater to apply on the vertex
    * @throws NullPointerException
-   *           if <tt>updater</tt> was null.
-   * @throws NoSuchElementException
-   *           if <tt>vertexId</tt> did not exist in the graph that was passed
-   *           to {@link Core#setGraph(org.graphlab.data.Graph)}.
+   *           if <tt>updater</tt> or <tt>vertex</tt> was null.
    */
-  public void schedule (int vertexId, Updater updater){
+  public void schedule (Vertex vertex, Updater<?> updater){
     
-    if (null == updater)
+    if (null == updater || null == vertex)
       throw new NullPointerException("updater must not be null.");
 
-    Integer glVertexId = mIdMap.get(vertexId);
-    if (null == glVertexId)
-      throw new NoSuchElementException(
-          "vertex did not exist in the graph that was passed to Core#setGraph.");
-
     // adds updater to core, which creates an ID for the updater
-    schedule(mContextPtr, updater, glVertexId);
+    schedule(mContextPtr, updater, vertex.rawId());
     
   }
   
@@ -80,9 +60,9 @@ public final class Context {
    * @param context_ptr
    *          address of the associated <tt>graphlab::icontext_type</tt> object.
    * @param updater
-   * @param vertex_id
-   *          graphlab vertex ID of vertex to update
+   * @param vertex
+   *          graphlab id of vertex to update
    */
-  private native void schedule(long context_ptr, Updater updater, int vertex_id);
+  private native void schedule(long context_ptr, Updater<?> updater, int vertexId);
   
 }
