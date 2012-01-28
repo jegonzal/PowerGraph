@@ -85,8 +85,8 @@
     <target name="PageRank">
         <java classname="org.graphlab.demo.PageRank" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
-            <arg line="${input}/toy.tsv"/>
-            <classpath refid="run.Coloring.classpath"/>
+            <arg line="${input}/random_graph_1.tsv"/>
+            <classpath refid="run.PageRank.classpath"/>
         </java>
     </target>
     
