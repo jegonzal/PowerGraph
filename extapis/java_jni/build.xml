@@ -29,6 +29,10 @@
         <path refid="GraphLab.classpath"/>
     </path>
     
+    <path id="run.PageRank.classpath">
+        <path refid="GraphLab.classpath"/>
+    </path>
+    
     <target name="init">
         <mkdir dir="${bin}"/>
         <mkdir dir="${dist}"/>
