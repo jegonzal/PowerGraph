@@ -182,7 +182,9 @@ namespace graphlab {
       // check to see if the graph is already finalized
       if(finalized) return;
       //      std::cout << "Finalizing" << std::endl;
+      graphlab::timer mytimer; mytimer.start();
       gstore.finalize(vertices.size(), edges_tmp);
+      logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() << " secs" << std::endl;
       finalized = true;
     } // End of finalize
 
