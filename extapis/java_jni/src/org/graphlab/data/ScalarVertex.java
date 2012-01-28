@@ -1,97 +1,59 @@
 package org.graphlab.data;
 
-/**
- * Vertex carrying a single scalar value. Special handling for self-edges by
- * storing self-edge weights.
- * 
- * @author jegonzal
- * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
- */
 public class ScalarVertex implements Vertex {
 
-	/** Value associated with the vertex */
-	private double mValue;
+  /** GraphLab (or proxy vertex) ID */
+  private int mRawId = 0;
+  
+  /** Application ID */
+  private int mId;
+  
+  private double mValue;
 
-	/** Weight of a possible self-edge */
-	private float mSelfEdgeWeight = 0.0f;
+  /**
+   * @param id
+   *      ID used in TSV-formatted files
+   */
+  public ScalarVertex(int id){
+    mId = id;
+  }
+  
+  public int id(){
+    return mId;
+  }
+  
+  public int rawId() {
+    return mRawId;
+  }
 
-	/** Vertex ID */
-	private int mId = 0;
+  public void setRawId(int id) {
+    mRawId = id;
+  }
+  
+  /**
+   * @return the mValue
+   */
+  public double value() {
+    return mValue;
+  }
 
-	/**
-	 * Create a vertex with some default value.
-	 * 
-	 * @param value
-	 *            default value
-	 */
-	public ScalarVertex(float value) {
-		mValue = value;
-	}
-
-	/**
-	 * Gets the value stored at the vertex
-	 * 
-	 * @return the value associated with the vertex
-	 */
-	public double value() {
-		return mValue;
-	}
-
-	/**
-	 * Sets the value of the vertex
-	 * 
-	 * @param value
-	 *            the new vertex value
-	 */
-	public void setValue(double value) {
-		mValue = value;
-	}
-
-	/**
-	 * Gets the weight of a possible self-edge
-	 * 
-	 * @return weight
-	 */
-	public float selfEdgeWeight() {
-		return mSelfEdgeWeight;
-	}
-
-	/**
-	 * Sets the weight of a possible self-edge
-	 * 
-	 * @param weight
-	 */
-	public void setSelfEdgeWeight(float weight) {
-		mSelfEdgeWeight = weight;
-	}
-
-	@Override
-	public String toString() {
-		return mValue + "";
-	}
-
-	/**
-	 * @return vertex id
-	 */
-	public int id() {
-		return mId;
-	}
-
-	/**
-	 * Sets the vertex id
-	 * 
-	 * @param id
-	 *            vertex id
-	 */
-	public void setId(int id) {
-		mId = id;
-	}
-
-	@Override
-	public boolean equals(Object other) {
-		if (null == other || !(other instanceof ScalarVertex))
-			return false;
-		return mId == ((ScalarVertex) other).id();
-	}
+  /**
+   * @param d the mValue to set
+   */
+  public void setValue(double d) {
+    this.mValue = d;
+  }
+  
+  @Override
+  public int hashCode(){
+    return mId;
+  }
+  
+  @Override
+  public boolean equals(Object other){
+    if (!(other instanceof ScalarVertex)) return false;
+    ScalarVertex otherVertex = (ScalarVertex) other;
+    return mId == otherVertex.mId;
+  }
 
 }

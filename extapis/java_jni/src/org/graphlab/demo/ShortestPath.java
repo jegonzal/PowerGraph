@@ -9,19 +9,25 @@ import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Core.CoreException;
 import org.graphlab.Updater;
-import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
-import org.graphlab.data.SparseGraph;
 import org.graphlab.util.GraphLoader;
+import org.jgrapht.DirectedGraph;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultDirectedWeightedGraph;
+import org.jgrapht.graph.DefaultWeightedEdge;
 
 /**
- * ShortestPath algorithm.
+ * Shortest Path algorithm.
  * 
- * <p>Demonstrates GraphLab over JNI. To run this class,
- * provide a path to a tsv file in the program arguments. Some examples are
- * available in the <tt>java_jni/test-graphs</tt> directory.</p>
+ * <p>
+ * Demonstrates GraphLab over JNI. To run this class, provide a path to a tsv
+ * file in the program arguments. Some examples are available in the
+ * <tt>java_jni/test-graphs</tt> directory.
+ * </p>
  * 
- * <p>For example:
+ * <p>
+ * For example:
+ * 
  * <pre>
  * cd extapis/java_jni
  * java \
@@ -29,6 +35,7 @@ import org.graphlab.util.GraphLoader;
  *  -Djava.library.path=../../release/src/graphlab/jni \
  *  org.graphlab.demo.ShortestPath test-graphs/toy.tsv
  * </pre>
+ * 
  * </p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
@@ -39,12 +46,11 @@ public class ShortestPath {
 
   public static void main(String[] args) {
 
-    BasicConfigurator.configure();
-    Logger.getLogger(Core.class).setLevel(Level.ALL);
-    logger.setLevel(Level.ALL);
+    initLogger();
 
-    logger.trace("Main method in " + ShortestPath.class.getCanonicalName()
-        + " started.");
+    logger.trace("Main method in " +
+        ShortestPath.class.getCanonicalName() +
+        " started.");
 
     // check arguments
     if (!checkParams(args)) {
@@ -56,10 +62,10 @@ public class ShortestPath {
     logger.info("Graph file: " + filename);
 
     // initialize graphlab core
-    final Core<SparseGraph<ScalarVertex, ScalarEdge>> c;
+    final Core core;
     try {
       logger.trace("Initializing GraphLab core ...");
-      c = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
+      core = new Core();
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
       logger.trace("Exiting main method.");
@@ -68,36 +74,42 @@ public class ShortestPath {
 
     // construct graph
     logger.trace("Constructing graph from " + filename + " ...");
-    final SparseGraph<ScalarVertex, ScalarEdge> g;
+    final DirectedGraph<ScalarVertex, DefaultWeightedEdge> graph;
     try {
-      g = constructGraph(filename);
+      graph = constructGraph(filename);
     } catch (IOException e) {
       logger.fatal("Unable to construct graph. Terminating.", e);
-      c.destroy();
+      core.destroy();
       logger.trace("Exiting main method.");
       return;
     }
 
-    for (ScalarVertex v : g.vertices()) {
+    for (ScalarVertex v : graph.vertexSet()) {
       v.setValue(Integer.MAX_VALUE);
     }
 
     // start from root
-    ScalarVertex root = g.getVertex(0);
+    ScalarVertex root = graph.vertexSet().iterator().next();
     root.setValue(0);
 
-    c.setGraph(g);
-    c.schedule(root.id(), new ShortestPathUpdater(c, g));
+    core.setGraph(graph);
+    core.schedule(root, new ShortestPathUpdater(graph));
 
     logger.trace("Running graphlab ...");
-    c.start();
+    core.start();
 
     // destroy core
     logger.trace("Destroying core ...");
-    c.destroy();
+    core.destroy();
 
-    logger.info("Shortest path from root to 7 was: " + g.getVertex(7).value());
+    printResults(graph);
 
+  }
+
+  private static void initLogger() {
+    BasicConfigurator.configure();
+    Logger.getLogger(Core.class).setLevel(Level.ALL);
+    logger.setLevel(Level.ALL);
   }
 
   /**
@@ -121,41 +133,53 @@ public class ShortestPath {
 
   }
 
-  private static SparseGraph<ScalarVertex, ScalarEdge> constructGraph(
-      String filename) throws IOException {
+  private static DirectedGraph<ScalarVertex, DefaultWeightedEdge>
+    constructGraph(String filename)
+    throws IOException {
 
-    SparseGraph<ScalarVertex, ScalarEdge> graph = new SparseGraph<ScalarVertex, ScalarEdge>();
+    DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph =
+       new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
     GraphLoader.loadGraphFromTsvFile(graph, filename);
     return graph;
 
   }
   
-  private static class ShortestPathUpdater extends Updater {
+  private static void printResults (Graph<ScalarVertex, ?> g){
+    
+    logger.info("----------------- Results -----------------");
+    logger.info("ID : Distance");
+    for (ScalarVertex v : g.vertexSet()){
+      logger.info(v.id() + " : " + (int) v.value());
+    }
+    
+  }
+  
+  private static class ShortestPathUpdater extends Updater<ScalarVertex> {
 
-    private SparseGraph<ScalarVertex, ScalarEdge> g;
+    private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 
-    public ShortestPathUpdater(Core<?> core, SparseGraph<ScalarVertex, ScalarEdge> g) {
-      super(core);
-      this.g = g;
+    public ShortestPathUpdater(DirectedGraph<ScalarVertex, DefaultWeightedEdge> g) {
+      this.mGraph = g;
     }
 
     @Override
-    public void update(Context context, int vertexId) {
-
-      ScalarVertex vertex = g.getVertex(vertexId);
-
+    public void update(Context context, ScalarVertex vertex) {
+      
       // find shortest known distance into this node
-      for (ScalarEdge edge : g.incomingEdges(vertex.id())) {
-        ScalarVertex neighbor = g.getVertex(edge.source());
-        vertex.setValue((float) Math.min(vertex.value(), neighbor.value()
-            + edge.weight()));
+      for (DefaultWeightedEdge edge : mGraph.incomingEdgesOf(vertex)) {
+        ScalarVertex neighbor = mGraph.getEdgeSource(edge);
+        double weight = mGraph.getEdgeWeight(edge);
+        vertex.setValue(
+            (float) Math.min(vertex.value(), neighbor.value() + weight)
+        );
       }
 
       // reschedule any affected neighbors
-      for (ScalarEdge edge : g.outgoingEdges(vertexId)) {
-        ScalarVertex neighbor = g.getVertex(edge.target());
-        if (neighbor.value() > (vertex.value() + edge.weight())) {
-          context.schedule(neighbor.id(), this);
+      for (DefaultWeightedEdge edge : mGraph.outgoingEdgesOf(vertex)) {
+        ScalarVertex neighbor = mGraph.getEdgeTarget(edge);
+        double weight = mGraph.getEdgeWeight(edge);
+        if (neighbor.value() > (vertex.value() + weight)) {
+          context.schedule(neighbor, this);
         }
       }
 

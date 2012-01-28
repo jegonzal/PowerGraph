@@ -839,8 +839,8 @@ namespace graphlab {
 
       // construct the context manager
       ASSERT_TRUE(context_manager_ptr == NULL);
-      const consistency_model::model_enum context_range =
-        consistency_model::from_string(opts.get_scope_type());
+      const consistency_model context_range =
+        string_to_consistency_model(opts.get_scope_type());
       context_manager_ptr = 
         new context_manager_type(this,
                                  scheduler_ptr,
@@ -1068,14 +1068,16 @@ namespace graphlab {
       iglobal_context& context = context_manager_ptr->get_global_context(cpuid);
       ufun.init_gather(context);
     }
-    if(ufun.gather_edges() == update_functor_type::IN_EDGES ||
-       ufun.gather_edges() == update_functor_type::ALL_EDGES) {
+    const consistency_model gather_consistency = ufun.gather_consistency();
+    if(ufun.gather_edges() == graphlab::IN_EDGES || 
+       ufun.gather_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
+
       foreach(const edge_type& edge, edges) {
         BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
-                                                       ufun.writable_gather());
+                                                       gather_consistency);
         END_TRACEPOINT(eng_locktime);
         BEGIN_TRACEPOINT(eng_factorized);
         ufun.gather(context, edge);
@@ -1085,14 +1087,14 @@ namespace graphlab {
       }
     }
 
-    if(ufun.gather_edges() == update_functor_type::OUT_EDGES ||
-       ufun.gather_edges() == update_functor_type::ALL_EDGES) {
+    if(ufun.gather_edges() == graphlab::OUT_EDGES ||
+       ufun.gather_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
       foreach(const edge_type& edge, edges) {
         BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
-                                                       ufun.writable_gather());
+                                                       gather_consistency);
         END_TRACEPOINT(eng_locktime);
         BEGIN_TRACEPOINT(eng_factorized);
         ufun.gather(context, edge);
@@ -1113,14 +1115,15 @@ namespace graphlab {
     context_manager_ptr->release_context(cpuid, context);
 
     // Scatter phase ----------------------------------------------------------
-    if(ufun.scatter_edges() == update_functor_type::IN_EDGES ||
-       ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
+    const consistency_model scatter_consistency = ufun.gather_consistency();
+    if(ufun.scatter_edges() == graphlab::IN_EDGES ||
+       ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
       foreach(const edge_type& edge, edges) {
         BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
-                                                       ufun.writable_scatter());
+                                                       scatter_consistency);
         END_TRACEPOINT(eng_locktime);
         BEGIN_TRACEPOINT(eng_factorized);
         ufun.scatter(context, edge);
@@ -1129,14 +1132,14 @@ namespace graphlab {
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
       }
     }
-    if(ufun.scatter_edges() == update_functor_type::OUT_EDGES ||
-       ufun.scatter_edges() == update_functor_type::ALL_EDGES) {
+    if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
+       ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
       foreach(const edge_type& edge, edges) {
         BEGIN_TRACEPOINT(eng_locktime);
         context_type& context = 
           context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
-                                                       ufun.writable_scatter());
+                                                       scatter_consistency);
         END_TRACEPOINT(eng_locktime);
         BEGIN_TRACEPOINT(eng_factorized);
         ufun.scatter(context, edge);
@@ -1237,7 +1240,7 @@ namespace graphlab {
     // Do map computation;
     for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) {
       if(!use_barrier) sync_vlocks[vid].lock();
-      context.init(vid, consistency_model::EDGE_CONSISTENCY);
+      context.init(vid, VERTEX_CONSISTENCY);
       local_accum(context);     
       if(!use_barrier) sync_vlocks[vid].unlock();
     }

@@ -2,19 +2,21 @@ package org.graphlab.tests;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Iterator;
+
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Core.CoreException;
-import org.graphlab.Context;
 import org.graphlab.CoreConfiguration;
 import org.graphlab.Scheduler;
 import org.graphlab.Scope;
 import org.graphlab.Updater;
-import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
-import org.graphlab.data.SparseGraph;
+import org.jgrapht.graph.DefaultDirectedWeightedGraph;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,8 +34,8 @@ import org.junit.Test;
  */
 public class BeforeStartConfigurationTest {
 
-  private Core<SparseGraph<ScalarVertex, ScalarEdge>> core;
-  private SparseGraph<ScalarVertex, ScalarEdge> graph;
+  private Core core;
+  private DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph;
   
   private static final Logger logger
     = Logger.getLogger(AfterStartConfigurationTest.class);
@@ -45,7 +47,7 @@ public class BeforeStartConfigurationTest {
     Logger.getLogger(Core.class).setLevel(Level.OFF);
     
     // initialize graph to contain a single vertex of 0
-    graph = new SparseGraph<ScalarVertex, ScalarEdge>();
+    graph = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
     graph.addVertex(new ScalarVertex(0));
     graph.addVertex(new ScalarVertex(0));
     
@@ -61,20 +63,24 @@ public class BeforeStartConfigurationTest {
       CoreConfiguration config = new CoreConfiguration();
       config.setScheduler(scheduler);
       
-      core = new Core<SparseGraph<ScalarVertex, ScalarEdge>>(config);
+      core = new Core(config);
       core.setGraph(graph);
       
+      Iterator<ScalarVertex> it = graph.vertexSet().iterator();
+      
       // updater will set value to 1
-      core.schedule(0, new Updater(core){
+      core.schedule(it.next(), new Updater<ScalarVertex>(){
         @Override
-        public void update(Context context, int vertexId) {
-          graph.getVertex(vertexId).setValue(1);
+        public void update(Context context, ScalarVertex vertex) {
+          vertex.setValue(1);
         }
       });
       
       logger.debug("Expect scheduler: " + scheduler.toString());
       core.start();
-      assertEquals (graph.getVertex(0).value(), 1.0, 0);
+      
+      it = graph.vertexSet().iterator();
+      assertEquals (it.next().value(), 1.0, 0);
       
       core.destroy();
       
@@ -94,20 +100,23 @@ public class BeforeStartConfigurationTest {
       CoreConfiguration config = new CoreConfiguration();
       config.setScopeType(scope);
       
-      core = new Core<SparseGraph<ScalarVertex, ScalarEdge>>(config);
+      core = new Core(config);
       core.setGraph(graph);
       
       // updater will set value to 1
-      core.schedule(0, new Updater(core){
+      Iterator<ScalarVertex> it = graph.vertexSet().iterator();
+      core.schedule(it.next(), new Updater<ScalarVertex>(){
         @Override
-        public void update(Context context, int vertexId) {
-          graph.getVertex(vertexId).setValue(1);
+        public void update(Context context, ScalarVertex vertex) {
+          vertex.setValue(1);
         }
       });
       
       logger.debug("Expect scope: " + scope.toString());
       core.start();
-      assertEquals (graph.getVertex(0).value(), 1.0, 0);
+      
+      it = graph.vertexSet().iterator();
+      assertEquals (it.next().value(), 1.0, 0);
       
       core.destroy();
       
@@ -127,20 +136,23 @@ public class BeforeStartConfigurationTest {
       CoreConfiguration config = new CoreConfiguration();
       config.setNCpus(n);
       
-      core = new Core<SparseGraph<ScalarVertex, ScalarEdge>>(config);
+      core = new Core(config);
       core.setGraph(graph);
       
       // updater will set value to 1
-      core.schedule(0, new Updater(core){
+      Iterator<ScalarVertex> it = graph.vertexSet().iterator();
+      core.schedule(it.next(), new Updater<ScalarVertex>(){
         @Override
-        public void update(Context context, int vertexId) {
-          graph.getVertex(vertexId).setValue(1);
+        public void update(Context context, ScalarVertex vertex) {
+          vertex.setValue(1);
         }
       });
       
       logger.debug("Expect ncpus: " + n);
       core.start();
-      assertEquals (graph.getVertex(0).value(), 1.0, 0);
+      
+      it = graph.vertexSet().iterator();
+      assertEquals (it.next().value(), 1.0, 0);
       
       core.destroy();
       

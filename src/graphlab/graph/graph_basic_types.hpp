@@ -11,6 +11,14 @@ namespace graphlab {
   
   /// Type for vertex colors 
   typedef vertex_id_type vertex_color_type;
+
+  /**
+   * The set of edges that are operated on during gather and scatter
+   * operations.
+   */
+  enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
+
+
 }
 
 #endif

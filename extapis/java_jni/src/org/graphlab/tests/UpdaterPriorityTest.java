@@ -2,6 +2,7 @@ package org.graphlab.tests;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.BasicConfigurator;
@@ -11,17 +12,16 @@ import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Scheduler;
 import org.graphlab.Updater;
-import org.graphlab.data.Graph;
-import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
-import org.graphlab.data.SparseGraph;
+import org.jgrapht.graph.DefaultDirectedWeightedGraph;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 public class UpdaterPriorityTest {
 
-  private Core<Graph<ScalarVertex, ScalarEdge>> core;
+  private Core core;
   
   @Before
   public void setUp() throws Exception {
@@ -29,7 +29,7 @@ public class UpdaterPriorityTest {
     BasicConfigurator.configure();
     Logger.getLogger(Core.class).setLevel(Level.OFF);
     // create core
-    core = new Core<Graph<ScalarVertex, ScalarEdge>>();
+    core = new Core();
   }
   
   @Test
@@ -38,17 +38,20 @@ public class UpdaterPriorityTest {
     final AtomicInteger flag = new AtomicInteger(0);
     
     // load graph
-    final SparseGraph<ScalarVertex, ScalarEdge> graph = new SparseGraph<ScalarVertex, ScalarEdge>();
+    final DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph
+      = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
     graph.addVertex(new ScalarVertex(0));
-    graph.addVertex(new ScalarVertex(0));
+    graph.addVertex(new ScalarVertex(1));
     
     core.setSchedulerType(Scheduler.PRIORITY);
     core.setNCpus(1);
     core.setGraph(graph);
     
-    core.schedule(0, new Updater(core){
+    Iterator<ScalarVertex> it = graph.vertexSet().iterator();
+    
+    core.schedule(it.next(), new Updater<ScalarVertex>(){
       @Override
-      public void update(Context context, int vertexId) {
+      public void update(Context context, ScalarVertex vertex) {
         synchronized(flag){
           assertEquals(flag.getAndIncrement(), 1);
         }
@@ -57,9 +60,9 @@ public class UpdaterPriorityTest {
       public double priority(){ return 6; }
     });
     
-    core.schedule(1, new Updater(core){
+    core.schedule(it.next(), new Updater<ScalarVertex>(){
       @Override
-      public void update(Context context, int vertexId) {
+      public void update(Context context, ScalarVertex v) {
         synchronized(flag){
           // this should be incremented first
           assertEquals(flag.getAndIncrement(), 0);

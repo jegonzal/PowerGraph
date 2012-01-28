@@ -35,77 +35,10 @@
 #include <cassert>
 
 #include <graphlab/context/iglobal_context.hpp>
-#include <graphlab/graph/graph.hpp>
-
 #include <graphlab/context/consistency_model.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-
-
-  inline consistency_model::lock_type_enum 
-  central_vertex_lock_type(consistency_model::model_enum srange) {
-    switch (srange) {
-    case consistency_model::NULL_CONSISTENCY:
-      return consistency_model::NO_LOCK;
-    case consistency_model::VERTEX_READ_CONSISTENCY:
-    case consistency_model::READ_CONSISTENCY:
-      return consistency_model::READ_LOCK;
-    case consistency_model::VERTEX_CONSISTENCY:
-    case consistency_model::EDGE_CONSISTENCY:
-    case consistency_model::FULL_CONSISTENCY:
-      return consistency_model::WRITE_LOCK;
-    case consistency_model::USE_DEFAULT:
-      logstream(LOG_FATAL) 
-        << "USE_DEFAULT not supported for lock requests!" << std::endl;
-    default:
-      logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
-      // unreachable
-      return consistency_model::NO_LOCK;
-    }
-  } // end of central_vertex_lock_type
-
-
-
-  inline consistency_model::lock_type_enum 
-  adjacent_vertex_lock_type(consistency_model::model_enum srange) {
-    switch (srange) {
-    case consistency_model::NULL_CONSISTENCY:
-    case consistency_model::VERTEX_READ_CONSISTENCY:
-    case consistency_model::VERTEX_CONSISTENCY:
-      return consistency_model::NO_LOCK;
-    case consistency_model::READ_CONSISTENCY:
-    case consistency_model::EDGE_CONSISTENCY:
-      return consistency_model::READ_LOCK;
-    case consistency_model::FULL_CONSISTENCY:
-      return consistency_model::WRITE_LOCK;
-    case consistency_model::USE_DEFAULT:
-      logstream(LOG_FATAL) 
-        << "USE_DEFAULT not supported for lock requests!" << std::endl;
-    default:
-      logstream(LOG_FATAL) << "UNREACHABLE STATE!" << std::endl;
-      // unreachable
-      return consistency_model::NO_LOCK;
-    }
-  } // end of adjacent_vertex_lock_type
-
-
-  inline bool context_is_subset_of(consistency_model::model_enum A,
-                                   consistency_model::model_enum B) {
-    /*
-      if (A==consistency_model::READ_CONSISTENCY && B ==
-      consistency_model::VERTEX_CONSISTENCY) return false; else return
-      (A < B);
-    */  
-    return (!(A==consistency_model::READ_CONSISTENCY 
-              && B == consistency_model::VERTEX_CONSISTENCY)) 
-      && (A < B);
-  } // end of context_is_subset_of
-
-
-
-
-
 
 
 
@@ -215,7 +148,7 @@ namespace graphlab {
     
    
     //! Get the consistency model under which this context was acquired
-    virtual consistency_model::model_enum consistency() const = 0; 
+    virtual consistency_model consistency() const = 0; 
 
     /**
      * \brief Get a mutable reference to the data associated with the

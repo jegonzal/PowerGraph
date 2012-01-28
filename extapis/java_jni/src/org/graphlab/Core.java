@@ -1,32 +1,23 @@
 package org.graphlab;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
-import org.graphlab.data.Edge;
-import org.graphlab.data.Graph;
 import org.graphlab.data.Vertex;
+import org.jgrapht.DirectedGraph;
 
 /**
  * GraphLab Core.
  * 
  * <p>
  * This interfaces with the C++ library via
- * <abbr title="Java Native Interface">JNI</abbr> and mirrors
- * <tt>graphlab::core</tt>.
+ * <abbr title="Java Native Interface">JNI</abbr> and
+ * mirrors <tt>graphlab::core</tt>.
  * </p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
- * @param <G>
- *          Graph type; must extend {@link org.graphlab.data.Graph}. On the C++
- *          side, a proxy graph is given to the core engine, and updates are 
- *          forwarded to the Java updater (which you will provide through
- *          {@link #schedule(int, Updater)}.)
  */
-public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
+public final class Core {
 
 	/** Logger (Java layer only, the C++ layer has its own logger) */
 	private static final Logger logger = Logger.getLogger (Core.class);
@@ -36,9 +27,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 
 	/** Address of graphlab::core object */
 	private long mCorePtr;
-	
-  /** Mapping from application vertex IDs to graphlab vertex IDs */
-  private Map<Integer, Integer> mIdMap = null;
 
 	static {
 		// load the JNI library
@@ -86,45 +74,38 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * </p>
 	 * 
 	 * @param graph
-	 *            the graph to operate on
+	 *            the graph to operate on.
+	 * @param <G>
+   *          Graph type must implement {@link org.jgrapht.DirectedGraph}. On the
+   *          C++ side, a proxy graph is given to the core engine, and updates are
+   *          forwarded to the Java updater (which you will provide through
+   *          {@link #schedule(Vertex, Updater)}.)
 	 * @throws NullPointerException if graph is null
 	 * @throws IllegalArgumentException if graph is empty
 	 * @throws IllegalStateException if {@link #destroy()} was invoked on this object
 	 */
-	public void setGraph(G graph) {
+	public <G extends DirectedGraph<V, E>, V extends Vertex, E> void setGraph(G graph) {
 
 		if (null == graph)
 			throw new NullPointerException("graph must not be null.");
 		
 		if (mDestroyed)
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
-
-		// inspect graph size
-		int size = graph.size();
-		if (size <= 0)
-			throw new IllegalArgumentException("graph must not be empty ");
 		
 		// inspect vertices
-		Collection<? extends Vertex> vertices = graph.vertices();
-		if (null == vertices)
+		Set<? extends Vertex> vertices = graph.vertexSet();
+		if (null == vertices || 0 == vertices.size())
 			throw new IllegalArgumentException("graph must not be empty.");
 		
 		long startTime = System.currentTimeMillis();
-		
-		// create new map from application vertex IDs to graphlab vertex IDs
-		mIdMap = new HashMap<Integer, Integer>(size);
 
 		// add vertices
-		for (Vertex v : vertices) {
-		  mIdMap.put(v.id(), addVertex(mCorePtr, v.id()));
-		}
+		for (Vertex vertex : vertices)
+		  vertex.setRawId(addVertex(mCorePtr, vertex));
 
 		// add edges
-		for (Vertex v : vertices) {
-			for (Edge e : graph.outgoingEdges(v.id())) {
-				addEdge(mCorePtr, mIdMap.get(e.source()),
-				    mIdMap.get(e.target()));
-			}
+		for (E edge : graph.edgeSet()) {
+		  addEdge(mCorePtr, graph.getEdgeSource(edge).rawId(), graph.getEdgeTarget(edge).rawId());
 		}
 
 		long elapsed = System.currentTimeMillis() - startTime;
@@ -150,9 +131,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		destroyCore(mCorePtr);
 		mDestroyed = true;
 		logger.trace("Core destroyed.");
-		
-		// remove references to allow garbage collection
-		mIdMap = null;
 
 	}
 
@@ -160,7 +138,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
    * Run the engine until a termination condition is reached or there are no
    * more tasks remaining to execute.
    * 
-   * @return run time
+   * @return runtime
    * @throws IllegalStateException if {@link #destroy()} was invoked on this object
    */
 	public double start() {
@@ -172,6 +150,19 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 		return start(mCorePtr);
 		
 	}
+	
+	/**
+	 * Get the number of updates executed by the engine.
+	 * @return update count
+	 */
+	public long lastUpdateCount(){
+	  
+	  if (mDestroyed)
+      throw new IllegalStateException("Core has been destroyed and may not be reused.");
+	  
+	  return lastUpdateCount(mCorePtr);
+	  
+	}
 
   /**
    * Schedule the execution of an update function on a particular vertex.
@@ -181,27 +172,19 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
    * @param updater
    *          updater to execute
    * @throws NullPointerException
-   *           if updater was null.
-   * @throws NoSuchElementException
-   *           if the specified vertex did not exist in the graph that was
-   *           passed to {@link #setGraph(Graph)}.
+   *           if updater or vertex was null.
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
    */
-	public void schedule(int vertexId, Updater updater) {
+	public void schedule(Vertex vertex, Updater<?> updater) {
 
-		if (null == updater)
-			throw new NullPointerException("updater must not be null.");
+		if (null == updater || null == vertex)
+			throw new NullPointerException("updater and vertex must not be null.");
 		
 		if (mDestroyed)
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
-		// map from application vertex ID to graphlab vertex ID
-		Integer id = mIdMap.get(vertexId);
-		if (null == id)
-			throw new NoSuchElementException("vertex did not exist in the graph that was passed to #setGraph.");
-
-		schedule(mCorePtr, updater, id);
+		schedule(mCorePtr, updater, vertex.rawId());
 		
 	}
 	
@@ -215,7 +198,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
 	 */
-	public void scheduleAll(Updater updater){
+	public void scheduleAll(Updater<?> updater){
 	  
 	  if (null == updater)
 	    throw new NullPointerException("updater must not be null.");
@@ -258,10 +241,6 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	  setScopeType(mCorePtr, scope.toString());
 	}
 	
-	protected Map<Integer, Integer> idMap (){
-	  return mIdMap;
-	}
-	
 	/**
 	 * Creates and initializes graphlab::core -> dynamically allocates a core.
 	 * Must be freed by a corresponding call to {@link #destroyCore()}.
@@ -299,12 +278,12 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * Adds a vertex to the native graph.
 	 * @param ptr
 	 * 			{@link #mCorePtr}
-	 * @param id
+	 * @param vertex
 	 * 			application vertex ID
 	 * @return
 	 * 			graphlab vertex ID
 	 */
-	private native int addVertex(long ptr, int id);
+	private native int addVertex(long ptr, Vertex vertex);
 
 	/**
 	 * Adds an edge to the native graph.
@@ -322,10 +301,10 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 * @param core_ptr
 	 *       {@link #mCorePtr}
 	 * @param updater
-	 * @param vertex_id
+	 * @param vertex
 	 *       graphlab vertex ID
 	 */
-	private native void schedule(long core_ptr, Updater updater, int vertex_id);
+	private native void schedule(long core_ptr, Updater<?> updater, int vertexId);
 
 	/**
 	 * Add the given function to all vertices using the given priority
@@ -333,7 +312,7 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
 	 *       {@link #mCorePtr}
    * @param updater
 	 */
-	private native void scheduleAll(long core_ptr, Updater updater);
+	private native void scheduleAll(long core_ptr, Updater<?> updater);
 	
   /**
    * Run the engine until a termination condition is reached or there are no
@@ -343,6 +322,13 @@ public final class Core<G extends Graph<? extends Vertex, ? extends Edge>> {
    * @return runtime
    */
 	private native double start(long ptr);
+	
+	/**
+	 * Gets the number of updates executed by the engine.
+	 * @param ptr {@link Core#mCorePtr}
+	 * @return update count
+	 */
+	private native long lastUpdateCount(long ptr);
 
 	/**
 	 * Set the number of cpus that the engine will use.

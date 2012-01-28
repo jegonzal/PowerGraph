@@ -137,9 +137,9 @@ namespace graphlab {
       // if the current thread is still attached, detach it
       if (thread::contains(ENV_ID)) {
         int res = mjvm->DetachCurrentThread();
-        logstream(LOG_INFO)
-          << "Detached thread from JVM."
-          << std::endl;
+//         logstream(LOG_INFO)
+//           << "Detached thread from JVM."
+//           << std::endl;
         assert(res >= 0);
       }
       
@@ -190,9 +190,9 @@ namespace graphlab {
         thread::get_local(ENV_ID) = jenv;
         thread::set_thread_destroy_callback(detach_from_jvm);
         
-        logstream(LOG_INFO)
-          << "Attached thread to JVM."
-          << std::endl;
+//         logstream(LOG_INFO)
+//           << "Attached thread to JVM."
+//           << std::endl;
           
       }
       

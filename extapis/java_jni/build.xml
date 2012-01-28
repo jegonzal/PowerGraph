@@ -29,6 +29,10 @@
         <path refid="GraphLab.classpath"/>
     </path>
     
+    <path id="run.PageRank.classpath">
+        <path refid="GraphLab.classpath"/>
+    </path>
+    
     <target name="init">
         <mkdir dir="${bin}"/>
         <mkdir dir="${dist}"/>
@@ -85,8 +89,8 @@
     <target name="PageRank">
         <java classname="org.graphlab.demo.PageRank" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
-            <arg line="${input}/toy.tsv"/>
-            <classpath refid="run.Coloring.classpath"/>
+            <arg line="${input}/random_graph_1.tsv"/>
+            <classpath refid="run.PageRank.classpath"/>
         </java>
     </target>
     

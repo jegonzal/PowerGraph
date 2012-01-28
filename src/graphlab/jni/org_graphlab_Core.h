@@ -42,10 +42,10 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_resizeGraph
 /*
  * Class:     org_graphlab_Core
  * Method:    addVertex
- * Signature: (JI)I
+ * Signature: (JLorg/graphlab/data/Vertex;)I
  */
 JNIEXPORT jint JNICALL Java_org_graphlab_Core_addVertex
-  (JNIEnv *, jobject, jlong, jint);
+  (JNIEnv *, jobject, jlong, jobject);
 
 /*
  * Class:     org_graphlab_Core
@@ -77,6 +77,14 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_scheduleAll
  * Signature: (J)D
  */
 JNIEXPORT jdouble JNICALL Java_org_graphlab_Core_start
+  (JNIEnv *, jobject, jlong);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    lastUpdateCount
+ * Signature: (J)J
+ */
+JNIEXPORT jlong JNICALL Java_org_graphlab_Core_lastUpdateCount
   (JNIEnv *, jobject, jlong);
 
 /*

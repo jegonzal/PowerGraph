@@ -10,7 +10,7 @@ extern "C" {
 /*
  * Class:     org_graphlab_Context
  * Method:    schedule
- * Signature: (JJI)V
+ * Signature: (JLorg/graphlab/Updater;I)V
  */
 JNIEXPORT void JNICALL Java_org_graphlab_Context_schedule
   (JNIEnv *, jobject, jlong, jobject, jint);

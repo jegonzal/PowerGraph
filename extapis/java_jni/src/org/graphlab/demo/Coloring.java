@@ -11,10 +11,12 @@ import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Core.CoreException;
 import org.graphlab.Updater;
-import org.graphlab.data.ScalarEdge;
 import org.graphlab.data.ScalarVertex;
-import org.graphlab.data.SparseGraph;
 import org.graphlab.util.GraphLoader;
+import org.jgrapht.DirectedGraph;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultDirectedWeightedGraph;
+import org.jgrapht.graph.DefaultWeightedEdge;
 
 /**
  * Naive Greedy Graph Coloring Algorithm
@@ -41,9 +43,7 @@ public class Coloring {
   
   public static void main (String[] args){
     
-    BasicConfigurator.configure();
-    Logger.getLogger(Core.class).setLevel(Level.ALL);
-    logger.setLevel(Level.ALL);
+    initLogger();
     
     // check arguments
     if (!checkParams(args)) {
@@ -55,10 +55,10 @@ public class Coloring {
     logger.info("Graph file: " + filename);
 
     // initialize graphlab core
-    final Core<SparseGraph<ScalarVertex, ScalarEdge>> c;
+    final Core core;
     try {
       logger.trace("Initializing GraphLab core ...");
-      c = new Core<SparseGraph<ScalarVertex, ScalarEdge>>();
+      core = new Core();
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
       logger.trace("Exiting main method.");
@@ -67,39 +67,45 @@ public class Coloring {
 
     // construct graph
     logger.trace("Constructing graph from " + filename + " ...");
-    final SparseGraph<ScalarVertex, ScalarEdge> g;
+    final DirectedGraph<ScalarVertex, DefaultWeightedEdge> graph;
     try {
-      g = constructGraph(filename);
+      graph = constructGraph(filename);
     } catch (IOException e) {
       logger.fatal("Unable to construct graph. Terminating.", e);
-      c.destroy();
+      core.destroy();
       logger.trace("Exiting main method.");
       return;
     }
     
-    for (ScalarVertex v : g.vertices()) {
+    for (ScalarVertex v : graph.vertexSet()) {
       v.setValue(-1);    // -1 means uncolored
     }
     
     // execute graph updates
-    c.setGraph(g);
-    c.scheduleAll(new ColoringUpdater(c, g));
+    core.setGraph(graph);
+    core.scheduleAll(new ColoringUpdater(graph));
     logger.trace("Running graphlab ...");
-    logger.info("Took " + c.start() + " seconds.");
+    logger.info("Took " + core.start() + " seconds.");
     
     // print results
-    printResults (g);
-    c.destroy();
+    printResults (graph);
+    core.destroy();
     
     return;
 
   }
+
+  private static void initLogger() {
+    BasicConfigurator.configure();
+    Logger.getLogger(Core.class).setLevel(Level.ALL);
+    logger.setLevel(Level.ALL);
+  }
   
-  private static void printResults (SparseGraph<ScalarVertex, ScalarEdge> g){
+  private static void printResults (Graph<ScalarVertex, ?> graph){
     
     logger.info("----------------- Results -----------------");
     logger.info("ID : Color");
-    for (ScalarVertex v : g.vertices()){
+    for (ScalarVertex v : graph.vertexSet()){
       logger.info(v.id() + " : " + (int) v.value());
     }
     
@@ -126,41 +132,40 @@ public class Coloring {
 
   }
 
-  private static SparseGraph<ScalarVertex, ScalarEdge> constructGraph(
+  private static DirectedGraph<ScalarVertex, DefaultWeightedEdge> constructGraph(
       String filename) throws IOException {
 
-    SparseGraph<ScalarVertex, ScalarEdge> graph = new SparseGraph<ScalarVertex, ScalarEdge>();
+    DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph
+      = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
     GraphLoader.loadGraphFromTsvFile(graph, filename);
     return graph;
 
   }
   
-  private static class ColoringUpdater extends Updater {
+  private static class ColoringUpdater extends Updater<ScalarVertex> {
 
-    private SparseGraph<ScalarVertex, ScalarEdge> g;
+    private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 
-    public ColoringUpdater(Core<?> c, SparseGraph<ScalarVertex, ScalarEdge> g) {
-      super(c);
-      this.g = g;
+    public ColoringUpdater(DirectedGraph<ScalarVertex, DefaultWeightedEdge> g) {
+      this.mGraph = g;
     }
 
     @Override
-    public void update(Context context, int vertexId) {
+    public void update(Context context, ScalarVertex vertex) {
 
-      ScalarVertex vertex = g.getVertex(vertexId);
       Set<Integer> neighborColors = new TreeSet<Integer>();
       int color;
       
       // collect neighbor colors
-      for (ScalarEdge edge : g.incomingEdges(vertexId)){
+      for (DefaultWeightedEdge edge : mGraph.incomingEdgesOf(vertex)){
         // we will just use value as color
-        color = (int) g.getVertex(edge.source()).value();
+        color = (int) mGraph.getEdgeSource(edge).value();
         if (-1 == color) continue;
         neighborColors.add(color);
       }
       
-      for (ScalarEdge edge : g.outgoingEdges(vertexId)){
-        color = (int) g.getVertex(edge.target()).value();
+      for (DefaultWeightedEdge edge : mGraph.outgoingEdgesOf(vertex)){
+        color = (int) mGraph.getEdgeTarget(edge).value();
         if (-1 == color) continue;
         neighborColors.add(color);
       }

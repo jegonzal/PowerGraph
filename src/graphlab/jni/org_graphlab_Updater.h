@@ -4,4 +4,10 @@
 
 #ifndef _Included_org_graphlab_Updater
 #define _Included_org_graphlab_Updater
+#ifdef __cplusplus
+extern "C" {
+#endif
+#ifdef __cplusplus
+}
+#endif
 #endif

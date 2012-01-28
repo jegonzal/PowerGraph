@@ -1,29 +1,23 @@
 package org.graphlab.data;
 
 /**
- * Implement this interface to store more data in the vertices.
- * @author Jiunn Haur Lim
+ * Vertex for graphs in GraphLab. Because a proxy C++ graph is maintained,
+ * every vertex needs to know the ID of its corresponding proxy vertex.
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public interface Vertex {
 
 	/**
-	 * ID of this vertex. Must uniquely identify the vertex within a graph. The
-	 * GraphLab core will use this ID to forward update calls from the graph
-	 * maintained by the engine to your application graph.
-	 * 
-	 * @return id of this vertex
+	 * @return ID of corresponding proxy vertex.
 	 */
-	// TODO: other data type for id?
-	public int id();
+	public int rawId();
 
 	/**
-	 * Sets ID of this vertex. Must uniquely identify the vertex within a graph.
-	 * The GraphLab core will use this ID to forward update calls from the graph
-	 * maintained by the engine to your application graph.
-	 * 
+	 * Sets ID of corresponding proxy vertex. This is done during
+	 * {@link org.graphlab.Core#setGraph(org.jgrapht.DirectedGraph)}.
 	 * @param id
-	 *            id of this vertex
+	 *            id of this vertex's proxy vertex.
 	 */
-	public void setId(int id);
+	public void setRawId(int id);
 
 }
