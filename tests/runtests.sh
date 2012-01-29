@@ -62,10 +62,10 @@ rm -f dg*
 
 fi
 
-echo 
-echo "Running application tests"
-echo "========================="
-echo "GraphLab collaborative filtering library"
+echo | tee -a $stdoutfname
+echo "Running application tests"| tee -a $stdoutfname
+echo "========================="| tee -a $stdoutfname
+echo "GraphLab collaborative filtering library"| tee -a $stdoutfname
 somefailed=0
 if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   pushd . > /dev/null
@@ -74,71 +74,71 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   OUTFILE=smalltest.out
   ./pmf --show_version=true
   if [ $? -eq 2 ]; then
-    echo "detected Eigen based pmf"
+    echo "detected Eigen based pmf"| tee -a $stdoutfname
     OUTFILE=smalltest_eigen.out
   else
-    echo "detected it++ based pmf"
+    echo "detected it++ based pmf"| tee -a $stdoutfname
   fi
   rm -f smalltest-20-21.out
   echo "********************TEST1************************" >> $stdoutfname
   ./pmf smalltest 0 --scheduler="round_robin(max_iterations=20,block_size=1)" --ncpus=1 --float=true --debug=true >> $stdoutfname 2>& 1 
   
   if ./itdiff smalltest-20-21.out $OUTFILE ; then
-    echo "PASS TEST 1 (Alternating least sqaures)"
+    echo "PASS TEST 1 (Alternating least sqaures)"| tee -a $stdoutfname
   else
      somefailed=1
-    echo "FAIL: Output differs!"
+    echo "FAIL: Output differs!"| tee -a $stdoutfname
   fi
   echo "********************TEST2************************" >> $stdoutfname
   ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 2 (Alternating least squares)"
+     echo "PASS TEST 2 (Alternating least squares)"| tee -a $stdoutfname
   else
      somefailed=1
-     echo "FAIL --unittest=1"
+     echo "FAIL --unittest=1"| tee -a $stdoutfname
   fi
   echo "********************TEST3************************" >> $stdoutfname
   ./pmf --unittest 71 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 3 (Lanczos)"
+     echo "PASS TEST 3 (Lanczos)"| tee -a $stdoutfname
   else
      somefailed=1
-     echo "FAIL --unittest=71 (Lanczos)"
+     echo "FAIL --unittest=71 (Lanczos)"| tee -a $stdoutfname
   fi
   echo "********************TEST4************************" >> $stdoutfname
   ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 4 (Weighted ALS)"
+     echo "PASS TEST 4 (Weighted ALS)"| tee -a $stdoutfname
   else
      somefailed=1
-     echo "FAIL --unittest=91 (weighted alternating least squares)"
+     echo "FAIL --unittest=91 (weighted alternating least squares)"| tee -a $stdoutfname
   fi
   echo "********************TEST5************************" >> $stdoutfname
  ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>& 1 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 5 (CoSaMP)"
+     echo "PASS TEST 5 (CoSaMP)"| tee -a $stdoutfname
   else
-     echo "FAIL --unittest=101 (CoSaMP)"
+     echo "FAIL --unittest=101 (CoSaMP)"| tee -a $stdoutfname
      somefailed=1
   fi
   echo "********************TEST6************************" >> $stdoutfname
  ./pmf --unittest 131  >> $stdoutfname 2>& 1 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 6 (SVD)"
+     echo "PASS TEST 6 (SVD)"| tee -a $stdoutfname
   else
-     echo "FAIL --unittest=131 (SVD)"
+     echo "FAIL --unittest=131 (SVD)"| tee -a $stdoutfname
      somefailed=1
   fi
   popd > /dev/null
 
 else
-  echo "PMF not found. "
+  echo "PMF not found. "| tee -a $stdoutfname
 fi
 echo
 
 
 
-echo "GraphLab clustring library"
+echo "GraphLab clustring library"| tee -a $stdoutfname
 if [ -f ../demoapps/clustering/glcluster ]; then
   pushd . > /dev/null
   cd ../demoapps/clustering
@@ -147,32 +147,84 @@ if [ -f ../demoapps/clustering/glcluster ]; then
   echo "********************TEST1************************" >> $stdoutfname
   ./glcluster --unittest 1  $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 1 (Math functions)"
+     echo "PASS TEST 1 (Math functions)"| tee -a $stdoutfname
   else
      somefailed=1
-     echo "FAIL --unittest=1 (Math functions)"
+     echo "FAIL --unittest=1 (Math functions)"| tee -a $stdoutfname
   fi
   echo "********************TEST2************************" >> $stdoutfname
   ./glcluster --unittest 2 >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 2 (Distance functions)"
+     echo "PASS TEST 2 (Distance functions)"| tee -a $stdoutfname
   else
      somefailed=1
-     echo "FAIL --unittest=2 (Distance functions)"
+     echo "FAIL --unittest=2 (Distance functions)"| tee -a $stdoutfname
   fi
   echo "********************TEST3************************" >> $stdoutfname
   ./glcluster --unittest 4 >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 3 (Floating point math functions)"
+     echo "PASS TEST 3 (Floating point math functions)"| tee -a $stdoutfname
   else
      somefailed=1
-     echo "FAIL --unittest=3 (Floating point math functions)"
+     echo "FAIL --unittest=3 (Floating point math functions)"| tee -a $stdoutfname
   fi
+  popd  > /dev/null
 else
-  echo "Clustering library not found. "
+  echo "Clustering library not found. "| tee -a $stdoutfname
 fi
  
-  popd  > /dev/null
+echo | tee -a $stdoutfname
+echo "GraphLab Linear Solvers Library"| tee -a $stdoutfname
+if [ -f ../demoapps/gabp/gabp ]; then
+  pushd . > /dev/null
+  cd ../demoapps/gabp
+  echo "---------GABP-------------" >> $stdoutfname
+  echo "********************TEST1************************" >> $stdoutfname
+  ./gabp --unittest=1 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 1 (GaBP non-square)"| tee -a $stdoutfname
+  else
+     somefailed=1
+     echo "FAIL --unittest=1 (GabP non-square)"| tee -a $stdoutfname
+  fi
+  echo "********************TEST2************************" >> $stdoutfname
+  ./gabp --unittest=2 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 2 (GaBP square)"| tee -a $stdoutfname
+  else
+     somefailed=1
+     echo "FAIL --unittest 2 (GaBP square)" | tee -a $stdoutfname
+  fi
+  echo "********************TEST3************************" >> $stdoutfname
+  ./gabp --unittest=3 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 3 (Jacobi)"| tee -a $stdoutfname
+  else
+     somefailed=1
+     echo "FAIL --unittest=3 (Jacobi)"| tee -a $stdoutfname
+  fi
+  echo "********************TEST4************************" >> $stdoutfname
+ ./gabp --unittest=4 --ncpus=1 >> $stdoutfname 2>& 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 4 (Conjugate Gradient - square)"| tee -a $stdoutfname
+  else
+     echo "FAIL --unittest=4 (Conjugate Gradient - square)"| tee -a $stdoutfname
+     somefailed=1
+  fi
+  echo "********************TEST5************************" >> $stdoutfname
+ ./gabp --unittest=5  >> $stdoutfname 2>& 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 5 (Conjugate Gradient - non square)"| tee -a $stdoutfname
+  else
+     echo "FAIL --unittest=5 (Conjugate Gradient- non square)"| tee -a $stdoutfname
+     somefailed=1
+  fi
+  popd > /dev/null
+else
+  echo "Linear solver library not found. "| tee -a $stdoutfname
+fi
+echo
+
 
   if [ $somefailed == 1 ]; then
      echo "**** FAILURE LOG **************" >> $stdoutfname
