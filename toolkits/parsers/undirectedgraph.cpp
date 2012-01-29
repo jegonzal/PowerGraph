@@ -299,15 +299,8 @@ int main(int argc,  char *argv[]) {
   core.add_global("PATH", dir);
   core.add_global("OUTPATH", outdir);
     mytime.start();
-    hash2nodeid.rehash(nodes);
-    logstream(LOG_INFO)<<"Opening input file " << outdir << datafile << ".map" << std::endl;
-   std::ifstream ifs((outdir + ".map").c_str());
-   {
-   graphlab::iarchive ia(ifs);
-   ia >> hash2nodeid;
-   }
-   logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
-   
+    //hash2nodeid.rehash(nodes);
+   load_map_from_file(hash2nodeid, outdir + ".map"); 
 
    double runtime= core.start();
   std::cout << "Finished in " << runtime << std::endl;

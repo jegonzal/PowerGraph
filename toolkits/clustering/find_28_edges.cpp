@@ -111,7 +111,7 @@ int main(int argc,  char *argv[]) {
 
 
   std::cout << "Load graph" << std::endl;
-  nodes = 121408373;
+  nodes = 121408372;
     
   multigraph_type multigraph;
   multigraph.load(list_dir, dir_path, filter, true);
@@ -133,7 +133,7 @@ int main(int argc,  char *argv[]) {
    nodeid2hash.rehash(nodes);
    load_map_from_file(nodeid2hash, out_dir + ".reverse.map");
    logstream(LOG_INFO)<<"Loaded a map of size: " << nodeid2hash.size() << endl;
-   assert(nodeid2hash.size() == (uint)(nodes-1));
+   assert(nodeid2hash.size() == (uint)nodes);
 
    boost::unordered_map<std::string, bool> edges_in_28;
    int cnt =0; 
