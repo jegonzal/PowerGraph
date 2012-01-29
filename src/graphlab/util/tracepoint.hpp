@@ -109,7 +109,7 @@ Example Usage:
 #define STORE_ACCUMULATING_TRACEPOINT(name)
 
 #define END_AND_BEGIN_ACCUMULATING_TRACEPOINT(endname, beginname)
-
+#define END_AND_BEGIN_TRACEPOINT(endname, beginname) 
 #endif           
 
 void register_trace(const char* name, const char* description);
