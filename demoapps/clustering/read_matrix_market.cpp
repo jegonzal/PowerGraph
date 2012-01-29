@@ -468,23 +468,28 @@ void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std
 
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
-    mm_set_coordinate(&matcode);
-    if (issparse)
+    if (issparse){
       mm_set_sparse(&matcode);
-    else 
+      mm_set_coordinate(&matcode);
+    }
+    else {
       mm_set_dense(&matcode);
-
+      mm_set_array(&matcode);
+    }
     if (!integer)
       mm_set_real(&matcode);
     else
       mm_set_integer(&matcode);
 
     FILE * f = open_file(filename,"w");
-    assert(f != NULL);
     mm_write_banner(f, matcode); 
     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());
-     mm_write_mtx_crd_size(f, a.size(), 1, a.size());
+    
+    if (issparse)
+      mm_write_mtx_crd_size(f, a.size(), 1, a.size());
+    else 
+      mm_write_mtx_array_size(f, a.size(), 1);
 
     for (i=0; i<a.size(); i++){
       if (issparse){

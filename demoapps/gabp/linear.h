@@ -179,6 +179,10 @@ public:
 
   int last_node;
 
+  std::string x_comment;
+  std::string prec_comment;
+
+
  problem_setup(){
 
   iiter = 1;//count number of time zero node run

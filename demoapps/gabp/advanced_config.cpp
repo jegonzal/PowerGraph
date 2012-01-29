@@ -36,6 +36,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("shotgun_cost", &display_cost, display_cost, "shotgun: display cost function on each iteration"); 
   clopts.attach_option("max_iter", &iter, iter, "maximal number of iterations");
   clopts.attach_option("lambda", &shotgun_lambda, shotgun_lambda, "shotgun: lambda");
+  clopts.attach_option("matrixmarket", &matrixmarket, matrixmarket, "Input data is in matrix market format");
 }
 
 void problem_setup::verify_setup(graphlab::command_line_options& clopts){

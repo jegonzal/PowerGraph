@@ -34,6 +34,26 @@ void load_non_square_matrix(FILE * f, graph_type& graph, advanced_config & confi
 
 extern graphlab::glshared<double> RELATIVE_NORM_KEY;
 
+FILE * open_file(const char * name, const char * mode){
+  FILE * f = fopen(name, mode);
+  if (f == NULL){
+      perror("fopen failed");
+      logstream(LOG_FATAL) <<" Failed to open file" << name << std::endl;
+   }
+  return f;
+}
+
+
+template<typename graph_type, typename vertex_data>
+void add_vertices(graph_type& graph){
+     for (int i=0; i< (int)(config.square ? ps.m : ps.m+ps.n); i++){
+       vertex_data data;
+       init_vertex_data(data, 1, GABP_PRIOR_MEAN_OFFSET, ps.last_node, i); 
+       graph.add_vertex(data);
+     }
+}
+
+
 
 void fill_output(graph_type * g){
 
@@ -156,14 +176,12 @@ void load_matrix_market_vector(graph_type * g)
 
     FILE * f = fopen((config.datafile + "v").c_str(), "r");
     if (f== NULL){
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
-	exit(1);
+	logstream(LOG_FATAL) << " can not find input file: " << config.datafile + "v, aborting " << std::endl;
     }
 
     if (mm_read_banner(f, &matcode) != 0)
     {
-        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
-        exit(1);
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner in file " << config.datafile << "v " << std::endl;
     }
 
     /*  This is how one can screen matrix types if their application */
@@ -172,16 +190,14 @@ void load_matrix_market_vector(graph_type * g)
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
-        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-        exit(1);
     }
 
     /* find out size of sparse matrix .... */
 
     if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
-       exit(1);
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
     }
 
 
@@ -225,14 +241,12 @@ void load_matrix_market_matrix(graph_type * g)
 
     FILE * f = fopen(config.datafile.c_str(), "r");
     if (f== NULL){
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
-	exit(1);
+	logstream(LOG_FATAL) << " can not find input file " << config.datafile << "  aborting " << std::endl;
     }
 
     if (mm_read_banner(f, &matcode) != 0)
     {
-        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
-        exit(1);
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner: " << config.datafile << std::endl;
     }
 
     /*  This is how one can screen matrix types if their application */
@@ -241,16 +255,14 @@ void load_matrix_market_matrix(graph_type * g)
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
-        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-        exit(1);
     }
 
     /* find out size of sparse matrix .... */
 
     if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
-       exit(1);
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
     }
 
     ps.m = M; ps.n = N; 
@@ -262,9 +274,8 @@ void load_matrix_market_matrix(graph_type * g)
        config.square = false;
        ps.last_node = ps.n+ps.m;
     }
-    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
-    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
-    /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
+
+    add_vertices<graph_type,vertex_data>(*g);
 
     int I,J; 
     double val;
@@ -292,6 +303,8 @@ void load_matrix_market_matrix(graph_type * g)
         }
 	else {
           add_edge(val, I, J, g);
+          if (mm_is_symmetric(matcode))
+            add_edge(val, J, I, g);
         }
         
    }
@@ -300,38 +313,66 @@ void load_matrix_market_matrix(graph_type * g)
 
 }
 
-void save_matrix_market_format()
-{
+
+void save_matrix_market_vector(const std::string& filename, const std::vector<double> & a, std::string comment, bool integer,bool issparse){
     MM_typecode matcode;                        
-    int i,j;
+    int i;
 
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
-    mm_set_coordinate(&matcode);
-    mm_set_real(&matcode);
+    if (issparse){
+      mm_set_sparse(&matcode);
+      mm_set_coordinate(&matcode);
+    }
+    else {
+      mm_set_dense(&matcode);
+      mm_set_array(&matcode);
+    }
+    if (!integer)
+      mm_set_real(&matcode);
+    else
+      mm_set_integer(&matcode);
 
-    FILE * f = fopen((config.datafile + ".x.mtx").c_str(),"w");
-    assert(f != NULL);
+    FILE * f = open_file(filename.c_str(),"w");
     mm_write_banner(f, matcode); 
-    mm_write_mtx_crd_size(f, ps.n, 1, ps.n);
+    if (comment.size() > 0)
+      fprintf(f, "%s%s", "%", comment.c_str());
+    
+    if (issparse)
+      mm_write_mtx_crd_size(f, a.size(), 1, a.size());
+    else 
+      mm_write_mtx_array_size(f, a.size(), 1);
 
-    for (j=0; j<(int)ps.means.size(); j++)
-        fprintf(f, "%d %d %10.3g\n", i+1, j+1, ps.means[j]);
+    for (i=0; i<a.size(); i++){
+      if (issparse){
+        if (integer)
+          fprintf(f, "%d %d %d\n", i+1, 1, (int)a[i]);
+        else fprintf(f, "%d %d %10.13g\n", i+1, 1, a[i]);
+      }
+      else {//dense
+        if (integer)
+          fprintf(f,"%d ", (int)a[i]);
+        else fprintf(f, "%10.13g\n", a[i]);
+      }
+    }
 
-    fclose(f);
+    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
+}
+
+
+void save_matrix_market_format()
+{
+    if (ps.means.size() > 0){
+      save_matrix_market_vector(config.datafile + ".x.mtx", 
+ 			        ps.means, ps.x_comment, 
+                                false, false);
+    }
 
     if (ps.prec.size() > 0){
-      f = fopen((config.datafile + ".prec.mtx").c_str(),"w");
-      assert(f != NULL);
-      mm_write_banner(f, matcode); 
-
-      mm_write_mtx_crd_size(f, ps.n, 1, ps.n);
-
-    for (j=0; j< (int)ps.prec.size(); j++)
-        if (ps.prec[j] > 0)
-          fprintf(f, "%d %d %10.3g\n", i+1, j+1, ps.prec[j]);
-
-    fclose(f);
+      save_matrix_market_vector(config.datafile + ".prec.mtx", 
+			        ps.prec, ps.prec_comment, 
+	 			false, false);
     }
 
 }
@@ -341,8 +382,8 @@ template<typename graph_type, typename vertex_data, typename edge_data>
 void load_data(graph_type * g){
 
   if (config.matrixmarket){
-     load_matrix_market_vector<graph_type, vertex_data>(g);
      load_matrix_market_matrix<graph_type, vertex_data, edge_data>(g);
+     load_matrix_market_vector<graph_type, vertex_data>(g);
      return; 
  }
 
@@ -477,15 +518,6 @@ struct graphlab_old_format{
   int to; 
   double weight;
 };
-
-template<typename graph_type, typename vertex_data>
-void add_vertices(graph_type& graph){
-     for (int i=0; i< (int)(ps.m+ps.n); i++){
-       vertex_data data;
-       init_vertex_data(data, 1, GABP_PRIOR_MEAN_OFFSET, ps.last_node, i); 
-       graph.add_vertex(data);
-     }
-}
 
 void add_edge(double val, int from, int to, graph_type *g){
    edge_data edge;

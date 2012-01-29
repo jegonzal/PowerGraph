@@ -25,7 +25,7 @@ void unittest(graphlab::command_line_options &clopts){
     config.datafile = "mat3x3";
     config.threshold = 1e-10;
     config.syncinterval = 10000;
-    config.oldformat = true;
+    //config.oldformat = true;
     clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
   }
   else if (config.unittest == 3){
@@ -36,7 +36,7 @@ void unittest(graphlab::command_line_options &clopts){
     config.datafile = "mat3x3";
     config.threshold = 1e-10;
     config.syncinterval = 10000;
-    config.oldformat = true;
+    //config.oldformat = true;
     clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
   }
   else if (config.unittest == 4){
@@ -48,7 +48,7 @@ void unittest(graphlab::command_line_options &clopts){
     config.datafile = "mat3x3";
     config.threshold = 1e-10;
     config.syncinterval = 10000;
-    config.oldformat = true;
+    //config.oldformat = true;
     clopts.set_scheduler_type("fifo");
   }
  else if (config.unittest == 5){
@@ -60,7 +60,7 @@ void unittest(graphlab::command_line_options &clopts){
     config.syncinterval = 10000;
     // clopts.parse(6, (char**)args);
     config.iter = 10;
-    config.oldformat = true;
+    //config.oldformat = true;
     clopts.set_scheduler_type("fifo");
   }
  else if (config.unittest == 6){
@@ -72,7 +72,7 @@ void unittest(graphlab::command_line_options &clopts){
     config.threshold = 1e-10;
     config.syncinterval = 10000;
     config.iter = 10;
-    config.oldformat = true;
+    //config.oldformat = true;
     MATRIX_WIDTH_KEY.set(3);
     clopts.set_scheduler_type("round_robin(max_iterations=20,block_size=1)");
  }

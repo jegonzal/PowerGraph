@@ -222,15 +222,21 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
   // CREATE INITIAL TASKS ******
   // TOOD is this the correct starting priority?
   double initial_priority = 1.0;
+  ps.x_comment = "GraphLab Linear Solvers Library\n";
   switch(config.algorithm){
     case GaBP: 
-	  core.add_task_to_all(gabp_update_function, initial_priority); break;
+	  core.add_task_to_all(gabp_update_function, initial_priority); 
+	  ps.x_comment += "%This file holds mean values x, which are the solution of A\\b as computed by Gaussian BP\n";
+          ps.prec_comment = "%This file holds a vector of precision values, which are approximation to diag(inv(A)) as computed by GaBP\n";
+	  break;
 
     case JACOBI:
-          core.add_task_to_all(jacobi_update_function, initial_priority); break;
+          core.add_task_to_all(jacobi_update_function, initial_priority); 
+          ps.x_comment += "%This file holds mean values x = inv(A)*y as computed by Jacobi algorithm\n";
+	  break;
 
     case CONJUGATE_GRADIENT:
-          //deliberately empty, will be done later
+          ps.x_comment += "%This file holds mean values x = inv(A)*y as computed by the Conjugate Gradient algorithm\n";
           break;
    
     default:

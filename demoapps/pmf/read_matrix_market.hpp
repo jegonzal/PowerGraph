@@ -163,17 +163,16 @@ void save_matrix_market_vector(const char * filename, const vec & a){
 
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
-    mm_set_coordinate(&matcode);
+    //mm_set_coordinate(&matcode);
+    mm_set_array(&matcode);
     mm_set_real(&matcode);
 
     FILE * f = open_file(filename,"w");
-    assert(f != NULL);
     mm_write_banner(f, matcode); 
-    mm_write_mtx_crd_size(f, a.size(), 1, a.size());
+    mm_write_mtx_array_size(f, a.size(), 1);
 
     for (i=0; i<a.size(); i++)
-          if (a[i] > 0)
-               fprintf(f, "%d %d %10.3g\n", i+1, 1, a[i]);
+        fprintf(f, "%10.3g\n", a[i]);
 
     logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
     logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
