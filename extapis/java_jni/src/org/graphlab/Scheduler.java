@@ -68,6 +68,12 @@ public enum Scheduler {
     return mName;
   }
 
+  /*
+   * Creates the command-line options string by concatenating the
+   * scheduler options.
+   * (non-Javadoc)
+   * @see java.lang.Enum#toString()
+   */
   @Override
   public String toString() {
     

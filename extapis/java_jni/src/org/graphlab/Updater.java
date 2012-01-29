@@ -62,6 +62,7 @@ public abstract class Updater<V extends Vertex> {
   @SuppressWarnings("unused")
   private void execUpdate(long contextPtr, V vertex) {
     
+    // for debugging purposes, throw up on bogus vertices from GraphLab
     if (null == vertex)
        throw new NullPointerException("vertex must not be null.");
       
