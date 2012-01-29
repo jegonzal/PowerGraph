@@ -41,7 +41,7 @@
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/lock_free_pool.hpp>
-
+#include <graphlab/util/tracepoint.hpp>
 
 #define UPDATE_FUNCTOR_PENDING (update_functor_type*)(size_t)(-1)
 
@@ -62,7 +62,10 @@ namespace graphlab {
       update_functor_type* volatile functor;
 
     public:
-      vfun_type() : functor(NULL) { }
+      vfun_type() : functor(NULL) { 
+        REGISTER_TRACEPOINT(vfunset_add,
+            "vertex_functor_set: Time in adding vertex functor");
+      }
       
       void assign_unsync(const vfun_type &other) {
         functor = other.functor;
@@ -70,6 +73,7 @@ namespace graphlab {
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<update_functor_type>& pool,
                       const update_functor_type& other) {
+//         BEGIN_TRACEPOINT(vfunset_add);
         bool ret = false;
         update_functor_type toinsert = other;
         while(1) {
@@ -102,6 +106,7 @@ namespace graphlab {
             break;
           }
         }
+//         END_TRACEPOINT(vfunset_add);
         return ret;
       }
 
@@ -110,6 +115,7 @@ namespace graphlab {
                       const update_functor_type& other, 
                       double& prev_priority, 
                       double& new_priority) {
+//        BEGIN_TRACEPOINT(vfunset_add);
         bool ret = false;
         update_functor_type toinsert = other;
         while(1) {
@@ -145,6 +151,7 @@ namespace graphlab {
             break;
           }
         }
+//        END_TRACEPOINT(vfunset_add);
         return ret;
       }
 

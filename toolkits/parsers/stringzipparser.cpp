@@ -42,6 +42,7 @@ using namespace std;
 bool debug = false;
 bool quick = true;
 boost::unordered_map<string,uint> hash2nodeid;
+boost::unordered_map<uint,string> nodeid2hash;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
 uint conseq_id;
@@ -72,12 +73,16 @@ void assign_id(uint & outval, const string &name, const int line, const string &
   }
   mymutex.lock();
   if (name.size() != 11 && name.size() != 19){
-    logstream(LOG_FATAL) << "Found a string with " << name.size() << " string is: " << name << " in file : " << filename << " line: " << line << endl;
+    logstream(LOG_WARNING) << "Found a string with " << name.size() << " string is: " << name << " in file : " << filename << " line: " << line << endl;
+     outval = 0;
   }
-  outval = hash2nodeid[name];
-  if (outval == 0){
-      hash2nodeid[name] = ++conseq_id;
-      outval = conseq_id;
+  else {
+    outval = hash2nodeid[name];
+    if (outval == 0){
+        hash2nodeid[name] = ++conseq_id;
+       outval = conseq_id;
+        nodeid2hash[outval] = name;
+    }
   }
   mymutex.unlock();
 }
@@ -92,7 +97,6 @@ void find_ids(uint & from, uint & to, const string &buf1, const string& buf2, co
    //   logstream(LOG_WARNING)<< " from equals to: " << from << " "  << buf1 << " " <<buf2 << std::endl;
    if (from == to)
      self_edges++;
-   assert(from > 0 && to > 0);
 }
 
 
@@ -122,20 +126,20 @@ struct stringzipparser_update :
     fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
-    std::ofstream out_file(std::string(outdir + vdata.filename + ".out.gz").c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening output file " << outdir << vdata.filename << ".out.gz" << std::endl;
-    boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-    fout.push(boost::iostreams::gzip_compressor());
-    fout.push(out_file);
+    //std::ofstream out_file(std::string(outdir + vdata.filename + ".out.gz").c_str(), std::ios::binary);
+    //logstream(LOG_INFO)<<"Opening output file " << outdir << vdata.filename << ".out.gz" << std::endl;
+    //boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+    //fout.push(boost::iostreams::gzip_compressor());
+    //fout.push(out_file);
    
-    MM_typecode out_typecode;
+    /*MM_typecode out_typecode;
     mm_clear_typecode(&out_typecode);
     mm_set_integer(&out_typecode); 
     mm_set_dense(&out_typecode); 
     mm_set_matrix(&out_typecode);
     mm_write_cpp_banner(fout, out_typecode);
     mm_write_cpp_mtx_crd_size(fout, 987654321, 987654321, 987654322);
-
+*/
 
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
@@ -186,11 +190,13 @@ struct stringzipparser_update :
         find_ids(from, to, buf1, buf2, line, vdata.filename);
         if (debug && line <= 10)
             cout<<"Read line: " << line << " From: " << from << " To: " << to << " timeret: " << dateret << " time: " << timeret << " val: " << duration << endl;
-         fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
+         //fout << from << " " << to << " " << dateret << " " << timeret << " " << duration << endl;
       }
       else {
         uint from,to;
         find_ids(from, to, buf1, buf2, line, vdata.filename);
+	if (from ==0 || to == 0)
+           break;
       }
 
       line++;
@@ -209,9 +215,9 @@ struct stringzipparser_update :
 
     // close file
     fin.pop(); fin.pop();
-    fout.pop(); fout.pop();
+    //fout.pop(); fout.pop();
     in_file.close();
-    out_file.close();
+    //out_file.close();
   }
 
 
@@ -263,9 +269,11 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
+  clopts.attach_option("outdir", &outdir, outdir, "output directory");
   clopts.attach_option("load", &load, load, "load map from file");
   clopts.attach_option("save_to_text", & save_to_text, save_to_text, 
                        "save output map in text file");
+  clopts.attach_option("filter", &filter, filter, "Filter input files starting with prefix.. ");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -342,10 +350,8 @@ int main(int argc,  char *argv[]) {
    out_file.close();
    }
 
-    mytime.start();
-    logstream(LOG_INFO)<<"Opening output file " << outdir << ".map" << std::endl;
     save_map_to_file(hash2nodeid, outdir + ".map");
-   logstream(LOG_INFO)<<"Finished writing file in " << mytime.current_time() << std::endl;
+    save_map_to_file(nodeid2hash, outdir + ".reverse.map");
    return EXIT_SUCCESS;
 }
 

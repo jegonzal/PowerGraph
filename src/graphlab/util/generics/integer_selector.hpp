@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_FLOAT_SELECTOR_HPP
-#define GRAPHLAB_FLOAT_SELECTOR_HPP
+#ifndef GRAPHLAB_INTEGER_SELECTOR_HPP
+#define GRAPHLAB_INTEGER_SELECTOR_HPP
 #include <stdint.h>
 namespace graphlab {
   
