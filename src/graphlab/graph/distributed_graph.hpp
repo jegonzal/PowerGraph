@@ -38,6 +38,9 @@
 #include <functional>
 #include <fstream>
 #include <functional>
+#include <fstream>
+
+#include <boost/lexical_cast.hpp>
 
 
 #include <graphlab/logger/logger.hpp>
@@ -282,14 +285,22 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   void distributed_graph<VertexData, EdgeData>::finalize()  {   
     rpc.full_barrier();
+    // Check conditions on graph
+    ASSERT_EQ(local_graph.num_vertices(), vid2record.size());
+    // resize local vid map
+    lvid2vid.resize(vid2record.size());
     // For all the vertices that this processor has seen determine the
     // "negotiator" and send that machine the negotiator.
     typedef std::vector< std::vector<vertex_id_type> >  proc2vids_type;
     proc2vids_type proc2vids(rpc.numprocs());
     {
       typedef typename vid2record_type::value_type pair_type;
-      foreach(const pair_type& pair, vid2record) 
-        proc2vids[vertex_to_init_proc(pair.first)].push_back(pair.first);
+      foreach(const pair_type& pair, vid2record) {
+        const vertex_id_type vid = pair.first;
+        const vertex_record& record = pair.second;
+        proc2vids[vertex_to_init_proc(vid)].push_back(vid);
+        lvid2vid[record.lvid] = vid;
+      }
       // The returned local vertices are the vertices from each
       // machine for which this machine is a negotiator.
       mpi_tools::all2all(proc2vids, proc2vids);
@@ -341,10 +352,30 @@ namespace graphlab {
         vertex_record& record = vid2record[shuffle_record.vid];
         record.owner = shuffle_record.owner; 
         record.mirrors.swap(shuffle_record.mirrors);
-        local_graph.vertex_data(shuffle_record.vid) = shuffle_record.vdata;
+        local_graph.vertex_data(record.lvid) = shuffle_record.vdata;
       } // end of loop over vdata
     } // end of loop over sending machines
    
+    // std::cout << "Save debugging information" << std::endl;
+    // {
+    //   const std::string fname = 
+    //     "file_" + boost::lexical_cast<std::string>(rpc.procid());
+    //   std::ofstream fout(fname.c_str());
+    //   typedef typename vid2record_type::value_type pair_type;
+    //   foreach(const pair_type& pair, vid2record) {      
+    //     fout << pair.first << '\t' << pair.second.owner << '\t';
+    //     std::vector<bool> bitset(rpc.numprocs(), false);
+    //     foreach(const procid_t& proc, pair.second.mirrors)
+    //       bitset[proc] = true;
+    //     for(size_t i = 0; i < bitset.size(); ++i) {
+    //       fout << (bitset[i]? '1' : '0') 
+    //            << (i+1 < bitset.size()? '\t' : '\n');
+    //     }
+    //   }
+    //   fout.close();
+    // }
+    
+
   } // End of finalize
   
   
