@@ -161,7 +161,7 @@ namespace graphlab {
       /// The local vid of this vertex on this proc
       lvid_type lvid;
       /// The set of proc that mirror this vertex.
-      std::vector<bool> mirrors;
+      std::vector<procid_t> mirrors;
       vertex_record() : owner(-1), lvid(-1) { }
     }; // vertex_record
 
@@ -235,6 +235,15 @@ namespace graphlab {
                   const EdgeData& edata = EdgeData());
 
   private:
+    // Helper type used to synchronize the vertex data and assignments
+    struct vdata_shuffle_record {
+      vertex_id_type vid;
+      procid_t owner;
+      std::vector<procid_t> mirrors;
+      vertex_data_type vdata;
+      void load(iarchive& arc) { arc >> vid >> owner >> mirrors >> vdata; }
+      void save(oarchive& arc) const { arc << vid << owner << mirrors << vdata; }
+    };
 
     // HELPER ROUTINES =======================================================>    
     procid_t edge_to_proc(vertex_id_type source, vertex_id_type target) const {
@@ -297,32 +306,45 @@ namespace graphlab {
     proc2vids_type().swap(proc2vids);
 
     // Construct the assignments
-    typedef std::pair< vertex_id_type, 
-      std::pair<procid_t, std::vector<procid_t> > > record_type;
-    std::vector< std::vector<record_type> > assignments(rpc.numprocs());
+    std::vector< std::vector<vdata_shuffle_record> > 
+      vdata_shuffle(rpc.numprocs());
     std::vector<size_t> counts(rpc.numprocs());
     typedef vid2procs_type::value_type pair_type;
     foreach(const pair_type& pair, vid2procs) {
+      // Find the best (least loaded) processor to assign the vertex.
       std::pair<size_t, procid_t> 
         best_asg(counts[pair.second[0]], pair.second[0]);
       foreach(procid_t proc, pair.second)
         best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
-      const record_type record(pair.first, 
-                               std::make_pair(best_asg.second, pair.second));      
-      counts[record.second.first]++;
+      vdata_shuffle_record record;
+      record.vid = pair.first;
+      record.owner = best_asg.second;
+      record.mirrors = pair.second;
+      record.vdata = tmp_vdata[record.vid];
+      counts[record.owner]++;
       foreach(procid_t proc, pair.second)
-        assignments[proc].push_back(record);
+        vdata_shuffle[proc].push_back(record);
     } // end of loop over 
     foreach(size_t c, counts) std::cout << c << '\t';
     std::cout << std::endl;
+
+    // clear the vid2procs table
     vid2procs_type().swap(vid2procs);
 
     // Receive assignments from coordinators
-    mpi_tools::all2all(assignments, assignments);
+    mpi_tools::all2all(vdata_shuffle, vdata_shuffle);
     
-    // Incorporate assignments
+    // Incorporate all the vertex data assigned to each machine
+    for(size_t i = 0; i < vdata_shuffle.size(); ++i) {
+      foreach(vdata_shuffle_record& shuffle_record, vdata_shuffle[i]) {
+        ASSERT_TRUE(vid2record.find(shuffle_record.vid) != vid2record.end());
+        vertex_record& record = vid2record[shuffle_record.vid];
+        record.owner = shuffle_record.owner; 
+        record.mirrors.swap(shuffle_record.mirrors);
+        local_graph.vertex_data(shuffle_record.vid) = shuffle_record.vdata;
+      } // end of loop over vdata
+    } // end of loop over sending machines
    
-
   } // End of finalize
   
   
