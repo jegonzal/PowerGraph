@@ -259,7 +259,7 @@ int main(int argc,  char *argv[]) {
 	           true, MATRIX_MARKET_5);
    */
     graphlab::timer mt; mt.start();
-    core.graph().load_directed(dirpath + in_files[i], false);
+    core.graph().load_directed(dirpath + in_files[i], false, false);
     matrix_info.nonzeros = core.graph().num_edges();
     logstream(LOG_INFO)<<"Time taken to load graph: " << mt.current_time() << std::endl;
   } 

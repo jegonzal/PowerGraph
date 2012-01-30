@@ -243,7 +243,7 @@ int main(int argc,  char *argv[]) {
   std::string filter;
   int unittest = 0;
   int lines = 0;
-  int nodes = 121408373;
+  // int nodes = 121408373;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");

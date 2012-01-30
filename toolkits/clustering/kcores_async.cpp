@@ -255,7 +255,7 @@ int main(int argc,  char *argv[]) {
       /*load_cpp_graph(dirpath + in_files[i], format, 
     	           matrix_info, core.graph(), 
 	           false, MATRIX_MARKET_3);*/
-    core.graph().load_directed(dirpath + in_files[i], false);
+      core.graph().load_directed(dirpath + in_files[i], false, false);
 
     matrix_info.nonzeros = core.graph().num_edges();
 

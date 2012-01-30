@@ -626,7 +626,7 @@ enum iterator_type {INEDGE, OUTEDGE};
          verify_edges(node_in_edges, _num_edges, num_nodes);
          if (!no_edge_data){
            rc = array_from_file(filename + ".weights", edge_weights);
-           assert(rc/sizeof(double) == (int)_num_edges); 
+           assert(rc/sizeof(double) == size_t(_num_edges)); 
            logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
          }
 
