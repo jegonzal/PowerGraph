@@ -289,6 +289,8 @@ namespace graphlab {
       ASSERT_TRUE(v1 == center_vid || v2 == center_vid);
       switch(consistency) {
       case FULL_CONSISTENCY:
+      case DEFAULT_CONSISTENCY:
+      case EDGE_CONSISTENCY:
         if(v1 == center_vid) {
           acquire_readlock(cpuid, v1);
           acquire_writelock(cpuid, v2);
@@ -297,11 +299,11 @@ namespace graphlab {
           acquire_readlock(cpuid, v2);
         }
         break;
-      case DEFAULT_CONSISTENCY:
-      case EDGE_CONSISTENCY:
-        acquire_readlock(cpuid, v1);
-        acquire_readlock(cpuid, v2);
-        break;
+      // case DEFAULT_CONSISTENCY:
+      // case EDGE_CONSISTENCY:
+      //   acquire_readlock(cpuid, v1);
+      //   acquire_readlock(cpuid, v2);
+      //   break;
       case VERTEX_CONSISTENCY:
         if(v1 == center_vid) acquire_readlock(cpuid, v1);
         else acquire_readlock(cpuid, v2);        
