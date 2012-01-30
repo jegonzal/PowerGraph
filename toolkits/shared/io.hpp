@@ -950,7 +950,7 @@ void save_to_bin(const std::string &filename, Graph& graph, bool edge_weight) {
      assert(nodes[i+1] <= graph.num_edges());
      assert(graph.out_edges(i).size() < (uint)n);
      assert(graph.in_edges(i).size() < (uint)n);
-     innodes[i+1] = innodes[i] + graph.num_out_edges(i);
+     innodes[i+1] = innodes[i] + graph.num_in_edges(i);
      assert(innodes[i+1] <= graph.num_edges());
    };
  
