@@ -8,6 +8,6 @@ add_graphlab_executable(undirectedgraph undirectedgraph.cpp formatconverter.cpp 
 #add_graphlab_executable(undirectedgraph2 undirectedgraph2.cpp formatconverter.cpp ../shared/mmio.cpp)
 add_graphlab_executable(graphbuilder graphbuilder.cpp
 formatconverter.cpp ../shared/mmio.cpp)
-#add_graphlab_executable(matmat2bin matmat2bin.cpp ../shared/mmio.cpp)
+add_graphlab_executable(matmat2bin matmat2bin.cpp ../shared/mmio.cpp)
 add_graphlab_executable(reversemap reversemap.cpp)
 
