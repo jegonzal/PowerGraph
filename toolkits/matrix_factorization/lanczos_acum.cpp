@@ -23,6 +23,9 @@
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
+#include <graphlab/graph/graph2.hpp>
+#include <graphlab/graph/graph3.hpp>
+#include <graphlab/graph/graph.hpp>
 using namespace graphlab;
 using namespace std;
 
@@ -43,11 +46,14 @@ vec lancalpha;
 bipartite_graph_descriptor info;
 int max_iter = 10;
 bool debug;
+bool fix_init;
 
 struct vertex_data {
   vec pvec;
   double value;
-  vertex_data(){}
+  vertex_data(){
+     pvec.resize(max_iter+1);
+  }
   void add_self_edge(double value) { }
 
   void set_val(double value, int field_type) { 
@@ -61,8 +67,15 @@ struct edge_data {
   edge_data(double weight = 0) : weight(weight) { }
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+#define USE_GRAPH_VER 3
 
+#if USE_GRAPH_VER == 1
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
+#elif USE_GRAPH_VER == 2
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+#elif USE_GRAPH_VER == 3
+typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+#endif
 
 
 /**
@@ -84,7 +97,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   for (int i = info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
-    data->pvec[1] = debug ? 0.5 : rand();
+    data->pvec[1] = fix_init ? 0.5 : rand();
     sum += data->pvec[1]*data->pvec[1];
   }
 
@@ -405,7 +418,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
 
 
  mat U=Vectors*eigenvectors;
- compute_residual(eigenvalues, U, &glcore.graph(), glcore);
+ //compute_residual(eigenvalues, U, &glcore.graph(), glcore);
  if (debug)
    cout<<"Eigen vectors are:" << U << endl << "V is: " << Vectors << endl << " Eigenvectors (u) are: " << eigenvectors;
  mat V=zeros(eigenvalues.size(),1);
@@ -420,16 +433,16 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile, testfile;
+  std::string datafile, outdir;
   std::string format = "matrixmarket";
   size_t sync_interval = 10000;
   int unittest = 0;
+  int num_rows = 0;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix input file");
   clopts.add_positional("data");
-  clopts.attach_option("testfile", &testfile, testfile,
-                       "test input file (optional)");
+  clopts.attach_option("outdir", &outdir, outdir, "Output directory");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("syncinterval", 
                        &sync_interval, sync_interval, 
@@ -437,7 +450,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("max_iter", &max_iter, max_iter, "max iterations");
- 
+  clopts.attach_option("fix_init", &fix_init, fix_init, "fix random vector init to be const"); 
+  clopts.attach_option("num_rows", &num_rows, num_rows, "number of matrix rows");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -463,9 +477,23 @@ int main(int argc,  char *argv[]) {
     datafile = "lanczos2";
   }
 
+  logstream(LOG_WARNING)<<"Using Graph Version: " << USE_GRAPH_VER << std::endl;
+
   std::cout << "Load matrix " << datafile << std::endl;
+  timer mytimer; mytimer.start(); 
+#if USE_GRAPH_VER != 3
   load_graph(datafile, format, info, core.graph());
-  
+  core.graph().finalize();
+  //save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
+  ///exit(1);
+#else
+  core.graph().load_directed(outdir+ datafile, false, false);
+  info.nonzeros = core.graph().num_edges();
+  info.cols = core.graph().num_vertices() - num_rows;
+  info.rows = num_rows;
+#endif
+  logstream(LOG_INFO)<<"Loadded a matrix of size " << info.rows << "x" << info.cols << "  nnz: " << info.nonzeros << endl;
+  logstream(LOG_INFO)<<"Time taken to load graph: " << mytimer.current_time() << std::endl; 
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(lanczos_update());
@@ -483,7 +511,6 @@ int main(int argc,  char *argv[]) {
   core.add_global("offset3", int(0));
   core.add_global("m", int(0));
 
-  timer mytimer; mytimer.start(); 
   lanczos(core, info, mytimer);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;

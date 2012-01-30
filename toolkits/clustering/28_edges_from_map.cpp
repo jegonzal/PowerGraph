@@ -46,6 +46,9 @@ bool debug = false;
 bool quick = false;
 boost::unordered_map<std::string, bool> edges_in_28;
 std::map<std::string, uint> edges_in_28_count;
+std::map<std::string, uint> edges_in_28_duration;
+std::map<std::string, std::string> edges_in_28_data;
+
 boost::unordered_map<std::string, uint> hash2nodeid;
 std::string datafile;
 //atomic<unsigned int> conseq_id;
@@ -166,11 +169,21 @@ struct stringzipparser_update :
          return;
        }
         duration = atoi(pch);
+        if (duration < 0)
+         logstream(LOG_ERROR) <<"Duration error: " << duration << std::endl;
         datestr2uint64(std::string(buf3), timeret, dateret, mythreadid);
    
         string hour = boost::lexical_cast<string>(timeret/3600);
         std::string srcid = std::string(buf1);
         std::string dstid = std::string(buf2);
+        /*if (srcid == "AAcUaaLaupm" && dstid =="gusGhkZFsth")
+           logstream(LOG_FATAL) << "Found!" << endl;
+        if (srcid == "AAcUPRgoNQV" && dstid == "jsbkmQlIDWg")
+           logstream(LOG_FATAL) << "Found!" << endl;*/
+        uint srcint = hash2nodeid[buf1];
+        uint dstint = hash2nodeid[buf2];
+        if (srcint <= 0 || dstint <= 0)
+         logstream(LOG_WARNING)<<"Problem with id of node: " << buf1 << " " << buf2 << endl;
         if (srcid.size() != 11 && srcid.size() != 19)
          logstream(LOG_WARNING)<<"Invalid string: " << srcid << " in line: " << line << endl;
        if (dstid.size() != 11 && dstid.size() != 19)
@@ -179,7 +192,9 @@ struct stringzipparser_update :
        if (edges_in_28.find(srcid + " " + dstid) != edges_in_28.end()){
          //fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
          //<< duration << " " << timeret << " " << dateret << endl;
-         edges_in_28_count[srcid + " " + dstid + " " + hour]++;
+         edges_in_28_count[srcid + " " + dstid]++;
+         edges_in_28_duration[srcid + " " + dstid]+=duration;
+         edges_in_28_data[srcid + " " + dstid] = boost::lexical_cast<std::string>(srcint) + " " + boost::lexical_cast<std::string>(dstint);
          total_selected++;
       }
 
@@ -228,11 +243,11 @@ int main(int argc,  char *argv[]) {
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string format = "plain";
-  std::string dir = "/mnt/bigbrofs/usr10/haijieg/edge_process/output/"; //"/usr2/bickson/daily.sorted/";
-  std::string outdir = "/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
+  std::string dir = "/mnt/bigbrofs/usr3/bickson/phone_calls/"; //"/mnt/bigbrofs/usr10/haijieg/edge_process/output/"; //"/usr2/bickson/daily.sorted/";
+  std::string outdir = "/usr0/bickson/"; //"/usr2/bickson/yahoo.graph/"; //"/usr2/bickson/bin.graphs/";
   int unittest = 0;
   int lines = 0;
-  int numnodes =121408373; // 1420949264;//121408373;
+  int numnodes =121408372; // 1420949264;//121408373;
   std::string filter = ""; //"day";
 
   clopts.attach_option("data", &datafile, datafile,
@@ -282,16 +297,34 @@ int main(int argc,  char *argv[]) {
   core.add_global("NUM_NODES", numnodes);
   core.add_global("OUT_DIR", outdir);
 
-  load_map_from_file(edges_in_28, outdir + ".28.edges");
-  logstream(LOG_INFO) << "Loaded a total of " << edges_in_28.size() << " edges" << endl;
-  load_map_from_file(hash2nodeid, "/mnt/bigbrofs/usr3/bickson/out_phone_calls/.map");
+   gzip_in_file fin("/usr0/bickson/day01.sorted.gz");
+    char linebuf[256];
+   
+    while(true){
+      fin.get_sp().getline(linebuf, 128);
+      if (fin.get_sp().eof())
+        break;
+
+      edges_in_28[linebuf] = true;
+    } 
+   assert(edges_in_28.size() == 619850);
+  //load_map_from_file(edges_in_28, outdir + ".28.edges");
+  //logstream(LOG_INFO) << "Loaded a total of " << edges_in_28.size() << " edges" << endl;
+  //assert(edges_in_28.find("AAcUPRgoNQV jsbkmQlIDWg") != edges_in_28.end());
+  /*boost::unordered_map<std::string, bool>::const_iterator it2;
+  for (it2 = edges_in_28.begin(); it2 != edges_in_28.end(); it2++){
+    cout << it2->first << " " << it2->second << endl;
+  }*/
+
+  hash2nodeid.rehash(numnodes);
+  load_map_from_file(hash2nodeid, "/usr0/bickson/.map");
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;
   gzip_out_file cnter(outdir + filter + ".28.edges.hour.gz");
   std::map<std::string, uint>::const_iterator it;
   for (it = edges_in_28_count.begin(); it != edges_in_28_count.end(); it++){
-    cnter.get_sp() << it->first << " " << it->second << endl;
+    cnter.get_sp() << it->first << " " << edges_in_28_data[it->first] << " " << edges_in_28_duration[it->first] << " " << it->second << endl;
   }
   logstream(LOG_INFO) << "Found total unique entries: " << edges_in_28_count.size() << endl;
    return EXIT_SUCCESS;

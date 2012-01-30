@@ -34,18 +34,16 @@
 
 #ifndef GRAPHLAB_GRAPH3_HPP
 #define GRAPHLAB_GRAPH3_HPP
-
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <omp.h>
 #include <cmath>
 #include <stdio.h>
 #include <string>
-#include <list>
 #include <vector>
 
 #include <fstream>
-
-#include <boost/bind.hpp>
-#include <boost/unordered_set.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -60,8 +58,49 @@
 
 
 
+template<typename T>
+uint array_from_file(std::string filename, T *& array){
+          struct stat sb;
+          int fd = open (filename.c_str(), O_RDONLY);
+          if (fd == -1) {
+                  perror ("open");
+                  logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+
+          if (fstat (fd, &sb) == -1) {
+                  perror ("fstat");
+                  logstream(LOG_FATAL) << "Failed to get size of  input file: " << filename << std::endl;
+          }
+
+          if (!S_ISREG (sb.st_mode)) {
+                  logstream(LOG_FATAL) << "Input file: " << filename 
+              << " is not a regular file and can not be mapped " << std::endl;
+          }
+	  close(fd);
+ 
+	  int toread = sb.st_size/sizeof(T); 
+          array = new T[toread];
+          int total = 0;
+	  FILE * f = fopen(filename.c_str(), "r");
+          if (f == NULL){
+	     perror("fopen");
+             logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+         
+          while(total < toread){
+	     int rc = fread(array+total, sizeof(T), toread-total,f);
+	     if (rc < 0 ){
+	       perror("fread");
+               logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;
+	     }
+	     total += rc; 
+          }
+          return sb.st_size;
+}
+
+
+
 uint mmap_from_file(std::string filename, uint *& array);
-uint array_from_file(std::string filename, uint *& array);
 
 namespace graphlab { 
   struct edge_type_impl{
@@ -247,6 +286,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     uint * node_in_edges;
     uint * node_out_edges;
     std::vector<VertexData> *node_vdata_array;
+    EdgeData * edge_weights;
     char _color; //not implement yet
     EdgeData _edge;
 
@@ -259,6 +299,8 @@ enum iterator_type {INEDGE, OUTEDGE};
     graph3(){
       num_nodes = _num_edges = 0;
       node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
+      edge_weights = NULL;
+      node_vdata_array = NULL;
       _color = 0; //not implement yet
       undirected = false;
     }
@@ -290,7 +332,10 @@ enum iterator_type {INEDGE, OUTEDGE};
        if (node_out_edges != NULL){
          delete [] node_out_edges; node_out_edges = NULL;
        }
-    }
+       if (edge_weights != NULL){
+         delete [] edge_weights; edge_weights = NULL;
+       }
+}
 
     void clear_reserve() {
       clear();
@@ -408,28 +453,29 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
-     ASSERT_TRUE(finalized);
-       assert(false); //not implemented yet
-     return _edge;
+      edge_type pos = find(source, target);
+      if (pos.offset() != (uint)-1) 
+      return edge_weights[pos.offset()];
+      else return _edge;
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
     const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
-     ASSERT_TRUE(finalized);
-       assert(false); //not implemented yet
-     return _edge;
+      edge_type pos = find(source, target);
+      if (pos.offset() != -1) 
+      return edge_weights[pos.offset()];
+      else return _edge;
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_type edge) { 
-      ASSERT_TRUE(finalized);
-       assert(false); //not implemented yet
-      return _edge;
+      ASSERT_NE(edge.offset(), -1);
+      return edge_weights[edge.offset()];
     }
     const EdgeData& edge_data(edge_type edge) const {
-       assert(false); //not implemented yet
-      //return 
+       ASSERT_NE(edge.offset(), -1);
+       return edge_weights[edge.offset()];
     }
 
     size_t num_in_edges(const vertex_id_type v) const {
@@ -442,8 +488,6 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     edge_list_type in_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      if (undirected)
-         return out_edges(v);
       return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v]);  
     }
 
@@ -454,8 +498,6 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     const edge_list_type in_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      if (undirected)
-        return out_edges(v);
       return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v]);  
      }
 
@@ -531,16 +573,24 @@ enum iterator_type {INEDGE, OUTEDGE};
    
 
     /** \brief Load the graph from a file */
-    void load(const std::string& filename, bool no_node_data) {
+    void load(const std::string& filename, bool no_node_data, bool no_edge_data) {
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
-         if (!no_node_data)
-	    node_vdata_array->resize(num_nodes);
+         if (!no_node_data){
+	    if (node_vdata_array == NULL)
+               node_vdata_array = new std::vector<VertexData>();
+            node_vdata_array->resize(num_nodes);
+         }
  	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/4)-1;
  	 logstream(LOG_INFO) << "Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
-    } // end of load
+
+         if (!no_edge_data){
+           rc = array_from_file(filename + ".weights", edge_weights);
+           assert(rc/4 == _num_edges); 
+         }
+    } // end of loa
 
 
     void verify_degrees(const uint * nodes, int len, int n){
@@ -555,22 +605,31 @@ enum iterator_type {INEDGE, OUTEDGE};
     }
 
     /** \brief Load the graph from a file */
-    void load_directed(const std::string& filename, bool no_node_data) {
+    void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data) {
       assert(!undirected);
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
-         if (!no_node_data)
+         if (!no_node_data){
+            if (node_vdata_array == NULL)
+              node_vdata_array = new std::vector<VertexData>();
 	    node_vdata_array->resize(num_nodes);
+         }
          int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
          logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
-         _num_edges = (rc/4)-1;
+         _num_edges = (rc/sizeof(uint));
          rc2 = array_from_file(filename + "-r.edges", node_in_edges);
          assert(rc == rc2);
   	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
          verify_edges(node_out_edges, _num_edges, num_nodes);
          verify_edges(node_in_edges, _num_edges, num_nodes);
+         if (!no_edge_data){
+           rc = array_from_file(filename + ".weights", edge_weights);
+           assert(rc/sizeof(double) == (int)_num_edges); 
+           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
+         }
+
     } // end of load
 
  

@@ -116,7 +116,7 @@ namespace graphlab {
     typedef typename gstore_type::edge_list edge_list_type;
 
     /** Edge list type for temporary insertion. */
-    typedef typename gstore_type::edge_info edge_info;
+     typedef typename gstore_type::edge_info edge_info;
 
   public:
 
@@ -527,6 +527,9 @@ namespace graphlab {
       return gstore.get_csc_src();
     }
 
+    const std::vector<EdgeData> & get_edge_data_storage() const {
+      return gstore.get_edge_data();
+    }
 
     /**
      * \brief save the adjacency structure to a text file.

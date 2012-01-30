@@ -656,13 +656,14 @@ inline void write_vec(const FILE * f, const int len, const T * array){
 }
 
 //write an output vector to file
-inline void write_vec(const FILE * f, const int len, const int * array){
+/*inline void write_vec(const FILE * f, const int len, const int * array){
   assert(f != NULL && array != NULL);
   int rc = fwrite(array, sizeof(int), len, (FILE*)f);
   assert(rc == len);
-}
+}*/
 
-inline void write_output_vector_binary(const std::string & datafile, const uint* output, int size){
+template<typename T>
+inline void write_output_vector_binary(const std::string & datafile, const T* output, int size){
 
    FILE * f = open_file(datafile.c_str(), "w");
    std::cout<<"Writing result to file: "<<datafile<<std::endl;
@@ -866,45 +867,6 @@ bool load_binary_graph(const std::string& fname,
   return true;
 } // end of load matrixmarket graph
 
-uint array_from_file(std::string filename, uint *& array){
-          struct stat sb;
-          int fd = open (filename.c_str(), O_RDONLY);
-          if (fd == -1) {
-                  perror ("open");
-                  logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
-          }
-
-          if (fstat (fd, &sb) == -1) {
-                  perror ("fstat");
-                  logstream(LOG_FATAL) << "Failed to get size of  input file: " << filename << std::endl;
-          }
-
-          if (!S_ISREG (sb.st_mode)) {
-                  logstream(LOG_FATAL) << "Input file: " << filename 
-              << " is not a regular file and can not be mapped " << std::endl;
-          }
-	  close(fd);
- 
-	  int toread = sb.st_size/4; 
-          array = new uint[toread];
-          int total = 0;
-	  FILE * f = fopen(filename.c_str(), "r");
-          if (f == NULL){
-	     perror("fopen");
-             logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
-          }
-         
-          while(total < toread){
-	     int rc = fread(array+total, sizeof(uint), toread-total,f);
-	     if (rc < 0 ){
-	       perror("fread");
-               logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;
-	     }
-	     total += rc; 
-          }
-          return sb.st_size;
-}
-
 
 uint mmap_from_file(std::string filename, uint *& array){
           struct stat sb;
@@ -936,22 +898,19 @@ uint mmap_from_file(std::string filename, uint *& array){
 
 // type Graph should be graph2
 template <typename Graph>
-void save_to_bin(const std::string &filename, Graph& graph) {
+void save_to_bin(const std::string &filename, Graph& graph, bool edge_weight) {
   typedef typename Graph::vertex_id_type vertex_id_type;
   typedef typename Graph::edge_id_type edge_id_type;
 
   int n = graph.num_vertices();
   uint* nodes = new uint[graph.num_vertices()+1];
   uint* innodes = new uint[graph.num_vertices()+1];
-  nodes[0] = 0;
-  innodes[0] = 0;
-   
+  nodes[0] = 0; innodes[0] = 0;
+ 
   for (int i=0; i< (int)graph.num_vertices(); i++){
-     nodes[i+1] = nodes[i]+ graph.out_edges(i).size(); 
+     nodes[i+1] = nodes[i]+ graph.num_out_edges(i); 
+     innodes[i+1] = innodes[i] + graph.num_in_edges(i);
      assert(nodes[i+1] <= graph.num_edges());
-     assert(graph.out_edges(i).size() < (uint)n);
-     assert(graph.in_edges(i).size() < (uint)n);
-     innodes[i+1] = innodes[i] + graph.in_edges(i).size();
      assert(innodes[i+1] <= graph.num_edges());
    };
  
@@ -962,8 +921,13 @@ void save_to_bin(const std::string &filename, Graph& graph) {
   uint* _edges = graph.get_node_out_edges();
   uint* _inedges = graph.get_node_in_edges();
 #else
+  typedef typename Graph::edge_data_type _edge_data_type;
   const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
   const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
+  if (edge_weight){  
+  const std::vector<_edge_data_type>& _weights = graph.get_edge_data_storage();
+    write_output_vector_binary(filename + ".weights", (double*)&_weights[0], graph.num_edges());
+  }
 #endif
   write_output_vector_binary(filename + ".edges", &_edges[0], graph.num_edges());
   write_output_vector_binary(filename + "-r.edges", &_inedges[0], graph.num_edges());
