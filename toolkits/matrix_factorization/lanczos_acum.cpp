@@ -24,6 +24,7 @@
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include <graphlab/graph/graph2.hpp>
+#include <graphlab/graph/graph3.hpp>
 #include <graphlab/graph/graph.hpp>
 using namespace graphlab;
 using namespace std;
@@ -50,7 +51,9 @@ bool fix_init;
 struct vertex_data {
   vec pvec;
   double value;
-  vertex_data(){}
+  vertex_data(){
+     pvec.resize(max_iter);
+  }
   void add_self_edge(double value) { }
 
   void set_val(double value, int field_type) { 
@@ -64,8 +67,15 @@ struct edge_data {
   edge_data(double weight = 0) : weight(weight) { }
 };
 
-typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+#define USE_GRAPH_VER 2
 
+#if USE_GRAPH_VER == 1
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
+#elif USE_GRAPH_VER == 2
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+#elif USE_GRAPH_VER == 3
+typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+#endif
 
 
 /**
@@ -468,12 +478,16 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load matrix " << datafile << std::endl;
   timer mytimer; mytimer.start(); 
-  core.graph().set_is_directed(true);
+#if USE_GRAPH_VER != 3
   load_graph(datafile, format, info, core.graph());
-  logstream(LOG_INFO)<<"Time taken to load graph: " << mytimer.current_time() << std::endl; 
   core.graph().finalize();
-  save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
-  exit(1);
+  //save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
+  ///exit(1);
+#else
+  core.graph().load_directed("/usr0/bickson/" + datafile, false, false);
+#endif
+  logstream(LOG_INFO)<<"Time taken to load graph: " << mytimer.current_time() << std::endl; 
+
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(lanczos_update());
 

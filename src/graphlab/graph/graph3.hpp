@@ -58,10 +58,49 @@
 #include <graphlab/graph/graph_storage.hpp>
 #include <graphlab/macros_def.hpp>
 
+template<typename T>
+uint array_from_file(std::string filename, T *& array){
+          struct stat sb;
+          int fd = open (filename.c_str(), O_RDONLY);
+          if (fd == -1) {
+                  perror ("open");
+                  logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+
+          if (fstat (fd, &sb) == -1) {
+                  perror ("fstat");
+                  logstream(LOG_FATAL) << "Failed to get size of  input file: " << filename << std::endl;
+          }
+
+          if (!S_ISREG (sb.st_mode)) {
+                  logstream(LOG_FATAL) << "Input file: " << filename 
+              << " is not a regular file and can not be mapped " << std::endl;
+          }
+	  close(fd);
+ 
+	  int toread = sb.st_size/sizeof(T); 
+          array = new T[toread];
+          int total = 0;
+	  FILE * f = fopen(filename.c_str(), "r");
+          if (f == NULL){
+	     perror("fopen");
+             logstream(LOG_FATAL) << "Failed to open input file: " << filename << std::endl;
+          }
+         
+          while(total < toread){
+	     int rc = fread(array+total, sizeof(T), toread-total,f);
+	     if (rc < 0 ){
+	       perror("fread");
+               logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;
+	     }
+	     total += rc; 
+          }
+          return sb.st_size;
+}
+
 
 
 uint mmap_from_file(std::string filename, uint *& array);
-uint array_from_file(std::string filename, uint *& array);
 
 namespace graphlab { 
   struct edge_type_impl{
@@ -247,7 +286,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     uint * node_in_edges;
     uint * node_out_edges;
     std::vector<VertexData> *node_vdata_array;
-    double * edge_weights;
+    EdgeData * edge_weights;
     char _color; //not implement yet
     EdgeData _edge;
 
@@ -261,6 +300,7 @@ enum iterator_type {INEDGE, OUTEDGE};
       num_nodes = _num_edges = 0;
       node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
       edge_weights = NULL;
+      node_vdata_array = NULL;
       _color = 0; //not implement yet
       undirected = false;
     }
@@ -292,11 +332,8 @@ enum iterator_type {INEDGE, OUTEDGE};
        if (node_out_edges != NULL){
          delete [] node_out_edges; node_out_edges = NULL;
        }
-       if (in_edge_weights != NULL){
-         delete [] in_edge_weights; in_edge_weights = NULL;
-       }
-       if (out_edge_weights != NULL){
-         delete [] out_edge_weights; out_edge_weights = NULL;
+       if (edge_weights != NULL){
+         delete [] edge_weights; edge_weights = NULL;
        }
 }
 
@@ -417,7 +454,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
       edge_type pos = find(source, target);
-      if (pos.offset() != -1) 
+      if (pos.offset() != (uint)-1) 
       return edge_weights[pos.offset()];
       else return _edge;
     } // end of edge_data(u,v)
@@ -434,11 +471,11 @@ enum iterator_type {INEDGE, OUTEDGE};
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_type edge) { 
       ASSERT_NE(edge.offset(), -1);
-      return out_edge_weights[pos.offset()];
+      return edge_weights[edge.offset()];
     }
     const EdgeData& edge_data(edge_type edge) const {
        ASSERT_NE(edge.offset(), -1);
-       return out_edge_weights[edge.offset()];
+       return edge_weights[edge.offset()];
     }
 
     size_t num_in_edges(const vertex_id_type v) const {
@@ -543,8 +580,11 @@ enum iterator_type {INEDGE, OUTEDGE};
     void load(const std::string& filename, bool no_node_data, bool no_edge_data) {
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
-         if (!no_node_data)
-	    node_vdata_array->resize(num_nodes);
+         if (!no_node_data){
+	    if (node_vdata_array == NULL)
+               node_vdata_array = new std::vector<VertexData>();
+            node_vdata_array->resize(num_nodes);
+         }
  	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/4)-1;
@@ -573,8 +613,11 @@ enum iterator_type {INEDGE, OUTEDGE};
       assert(!undirected);
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
-         if (!no_node_data)
+         if (!no_node_data){
+            if (node_vdata_array == NULL)
+              node_vdata_array = new std::vector<VertexData>();
 	    node_vdata_array->resize(num_nodes);
+         }
          int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
          logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes" << std::endl;
@@ -587,7 +630,7 @@ enum iterator_type {INEDGE, OUTEDGE};
          verify_edges(node_in_edges, _num_edges, num_nodes);
          if (!no_edge_data){
            rc = array_from_file(filename + ".weights", edge_weights);
-           assert(rc/4 == _num_edges); 
+           assert(rc/sizeof(double) == (int)(_num_edges+1)); 
          }
 
     } // end of load
